@@ -1,6 +1,8 @@
 import {
   DEFAULT_PROJECTILE_RANGE,
+  capAirborneSpeed,
   enemyCrouchH,
+  enemyNeedsFlip,
   enemyStandH,
   projectileDropAtDistance,
   projectilePositionAtDistance,
@@ -33,6 +35,22 @@ describe("scaled enemy dimensions", () => {
   test("standing and crouching heights share the enemy scale", () => {
     expect(enemyStandH({ scale: 2 }, 30)).toBe(420);
     expect(enemyCrouchH({ scale: 2 }, 30)).toBe(252);
+  });
+});
+
+describe("movement and facing regressions", () => {
+  test("airborne momentum cannot exceed configured walking speed", () => {
+    expect(capAirborneSpeed(12, 7)).toBe(7);
+    expect(capAirborneSpeed(-12, 7)).toBe(-7);
+    expect(capAirborneSpeed(5, 7)).toBe(5);
+  });
+
+  test("dressed enemies and raw enemy art flip from their correct authored direction", () => {
+    expect(enemyNeedsFlip({ type: "character" }, 1)).toBe(false);
+    expect(enemyNeedsFlip({ type: "character" }, -1)).toBe(true);
+    expect(enemyNeedsFlip({ type: "enemy" }, -1)).toBe(false);
+    expect(enemyNeedsFlip({ type: "enemy" }, 1)).toBe(true);
+    expect(enemyNeedsFlip({ type: "enemy", faceRight: true }, -1)).toBe(true);
   });
 });
 

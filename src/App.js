@@ -816,6 +816,13 @@ export const horizVel = (K, speed, grounded, prevVx, glide, slide, dtMul) => {
   }
   return prevVx || 0;
 };
+// Airborne momentum may carry the ground speed, but jumping must never create a faster horizontal
+// speed. This also normalizes a long takeoff frame: the old code stored dtMul-scaled displacement
+// as momentum, so one slow frame at takeoff could remain baked into every subsequent air frame.
+export const capAirborneSpeed = (airDx, walkDx) => {
+  const cap = Math.abs(walkDx || 0);
+  return Math.sign(airDx || 0) * Math.min(Math.abs(airDx || 0), cap);
+};
 // Glide is active only while airborne, actually falling (vy > 0 — you can't glide up out of a
 // jump), the cape is equipped, and the player is holding Jump. Edge cases: not while climbing,
 // and it needs to be past the jump's apex so holding Jump off the ground to jump-boost doesn't
@@ -2360,6 +2367,11 @@ export const enemyFaceToward = (distToPlayer, face) => {
   if (distToPlayer === 0) return face || 1;
   return (Math.abs(distToPlayer) <= PLAYER_BODY_LEN_PX * ENEMY_SIGHT_AHEAD_LENGTHS) ? Math.sign(distToPlayer) : (face || 1);
 };
+// Raw Enemy assets default to left-facing art unless their creator checkbox says otherwise.
+// Dressed Character assets use the same right-facing Side art as the player, so treating their
+// absent `faceRight` flag as false mirrored every armed character enemy away from its shot.
+export const enemyArtFacesRight = (ea) => !!(ea && (ea.type === "character" || ea.faceRight));
+export const enemyNeedsFlip = (ea, face) => ((face || 1) < 0) === enemyArtFacesRight(ea);
 // Edge-to-edge horizontal gap between two hitboxes (0 while they overlap). Every enemy range —
 // attack range AND the seek stand-off — is measured with THIS now. Center-to-center distance
 // silently spent (pw + epw) / 2 ≈ 140px of any range budget just crossing the two bodies
@@ -2923,7 +2935,9 @@ export default function AssetStudio() {
       // Aiming left/right also turns you — so you can stand still and point the other way to
       // shoot without having to walk. Movement keys win if both are held (you face where you go).
       if (!K.left && !K.right) { if (K.aimLeft) p.face = -1; else if (K.aimRight) p.face = 1; }
-      dx = horizVel(K, speed, grounded, p.vx, glideState(glideEffect, K, p.onGround, p.climbing, p.vy), slideResolved, dtMul);
+      const glideMove = glideState(glideEffect, K, p.onGround, p.climbing, p.vy);
+      dx = horizVel(K, speed, grounded, p.vx, glideMove, slideResolved, dtMul);
+      if (!grounded && !(glideMove && glideMove.active)) dx = capAirborneSpeed(dx, speed);
       // Ramp feel: last frame's slope check set p.onSlope/p.slideVx. Standing on a ramp with
       // nothing held SLIDES you downhill — so dropping or jumping onto a ramp turns into a slide
       // the moment the surface catches you — walking DOWN gets the slide added on top, and
@@ -7068,7 +7082,7 @@ export default function AssetStudio() {
                     const hasDeathPose = ea.type === "enemy" && !!(ea.angles && (ea.angles.death || []).length);
                     const deadBlocks = bake(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"));
                     const layDown = !hasDeathPose;
-                    const deadFlip = ((ep && ep.face < 0) !== !ea.faceRight) ? "scaleX(-1) " : "";
+                    const deadFlip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1) " : "";
                     return (
                       <div key={"enp" + k} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop, width: eRenderW, height: eph, pointerEvents: "none", zIndex: 6, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% 100%" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
                         {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + k, keyPrefix: "dead" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
@@ -7139,7 +7153,7 @@ export default function AssetStudio() {
                     }
                   }
                   const hpFrac = Math.max(0, Math.min(1, curHp / maxHp));
-                  const flip = ((ep && ep.face < 0) !== !ea.faceRight) ? "scaleX(-1)" : "none";
+                  const flip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1)" : "none";
                   return (
                     <div key={"enp" + k} className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: flip, ...((ep && ep.friendly) ? { filter: "drop-shadow(0 0 2px #b46cf5) drop-shadow(0 0 5px #a855f7)" } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? "🟣 " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you)" : "") + (ducking ? " (ducking)" : "")}>
                       <div className="enemyHpTrack" style={{ left: hitboxOffset, width: epw }}><div className="enemyHpFill" style={{ width: (hpFrac * 100) + "%", background: hpFrac > 0.5 ? "#6bd06b" : hpFrac > 0.2 ? "#c8a23c" : "#b0504f" }} /></div>
@@ -7534,7 +7548,7 @@ export default function AssetStudio() {
     </div>
   );
   return (
-    <div className="bb" onPointerDownCapture={snapshot}><style>{css}</style>
+    <div className={"bb" + (asset.type === "weapon" ? " weaponEditor" : "")} onPointerDownCapture={snapshot}><style>{css}</style>
       {asset._recoveredFrom && (
         <div className="recoverBanner">🩹 This body was auto-recovered from "{asset._recoveredFrom}" — it's a best-effort guess. Pieces marked 🩹 in the layer list might actually be fused-in clothing rather than original body parts; check each one and delete anything that doesn't belong.</div>
       )}
@@ -7561,6 +7575,7 @@ export default function AssetStudio() {
           <span className="hint2">Draw each frame of the animation. One frame = a static object; several frames cycle (e.g. a flickering fire). Only the Front pose is used.</span>
         </div>
       )}
+      <div className={asset.type === "weapon" ? "weaponSettings" : "editorSettings"}>
       {asset.type === "weapon" && (
         <div className="wstates">
           <span className="wslab">Weapon state:</span>
@@ -7699,6 +7714,7 @@ export default function AssetStudio() {
           </div>
         );
       })()}
+      </div>
 
       {!effEdit && asset.type !== "prop" && (
       <div className="angles">
@@ -8235,6 +8251,10 @@ export default function AssetStudio() {
 
 const css = `
 .bb{height:100vh;display:flex;flex-direction:column;background:#0f1117;color:#e7e9ee;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
+.bb.weaponEditor{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto}
+.weaponEditor>.bar{grid-row:1}.weaponEditor>.main{grid-row:2;min-height:0}.weaponEditor>.angles{grid-row:3}.weaponEditor>.weaponSettings{grid-row:4}
+.weaponSettings{min-height:0;max-height:34vh;overflow:auto;border-top:2px solid #2c3245;background:#14111a}
+.editorSettings{display:contents}
 .bb button,.bb input,.bb textarea,.bb select{font:inherit;color:inherit}
 .bar{display:flex;align-items:center;gap:10px;padding:11px 14px;background:#161922;border-bottom:1px solid #232838;flex-shrink:0}
 .logo{font-weight:700;font-size:16px}
