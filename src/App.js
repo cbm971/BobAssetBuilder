@@ -1,0 +1,8516 @@
+import React, { useRef, useEffect, useState, useMemo } from "react";
+
+/* ============================================================================
+   BOB ASSET STUDIO  — HTML canvas (reliable emoji + easy dragging on mobile)
+   ========================================================================== */
+
+const W = 200, H = 260;
+const SKIN = "#e2b48c";
+const ANGLES = ["front", "back", "side", "up", "crouch"];
+const ALABEL = { front: "Front", back: "Back", side: "Side", up: "Aim up", crouch: "Crouch", attack: "⚔️ Attack", death: "💀 Death" };
+const COLORS = ["#e2b48c", "#c98f63", "#5d6b39", "#3d4a28", "#2a2017", "#8a929c",
+  "#c8a23c", "#7aa2d6", "#b0504f", "#7a3b8f", "#2b2b2b", "#f4f4f4"];
+// Full emoji set, generated correctly (whole characters) from the Unicode emoji
+// blocks. We then keep only the ones THIS device can actually draw, so the
+// picker never shows broken boxes — and shows everything that does render.
+const EMOJI_RANGES = [[0x1F300, 0x1F5FF], [0x1F600, 0x1F64F], [0x1F680, 0x1F6FF], [0x1F900, 0x1F9FF], [0x1FA70, 0x1FAFF], [0x2600, 0x26FF], [0x2700, 0x27BF], [0x2B00, 0x2BFF], [0x1F000, 0x1F0FF]];
+function candidateEmojis() {
+  const out = [];
+  for (const [a, b] of EMOJI_RANGES) for (let cp = a; cp <= b; cp++) {
+    let s = String.fromCodePoint(cp);
+    if (cp < 0x1F000) s += "\uFE0F"; // ask for the colorful version of older symbols
+    out.push(s);
+  }
+  return out;
+}
+function buildEmojiList() {
+  const list = candidateEmojis();
+  try {
+    const c = document.createElement("canvas"); c.width = c.height = 18;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.textBaseline = "top"; ctx.font = "16px sans-serif";
+    const sig = (ch) => { ctx.clearRect(0, 0, 18, 18); ctx.fillText(ch, 0, 0); const d = ctx.getImageData(0, 0, 18, 18).data; let nz = 0, s = 0; for (let i = 0; i < d.length; i += 4) if (d[i + 3]) { nz++; s = (s + d[i] * 3 + d[i + 1] * 5 + d[i + 2] * 7 + i) >>> 0; } return nz === 0 ? "blank" : nz + ":" + s; };
+    const tofuA = sig("\uFFFF"), tofuB = sig(String.fromCodePoint(0x10FFFF));
+    const keep = list.filter((ch) => { const x = sig(ch); return x !== "blank" && x !== tofuA && x !== tofuB; });
+    return keep.length > 200 ? keep : list; // safety net: never return an empty/tiny picker
+  } catch (e) { return list; }
+}
+// A search index for the ~1000+ candidate emoji — there's no keyword metadata to draw on (just
+// raw Unicode code points), so this is a hand-curated map for the ones a game/asset builder is
+// actually likely to search for. An emoji with no entry here simply won't match a search (it's
+// still there when browsing with an empty search box) — better to nail the common searches than
+// half-cover everything with guessed/auto-generated names.
+const EMOJI_KEYWORDS = {
+  "💥": "explosion boom blast bang impact hit crash effect", "💢": "anger burst impact effect", "✨": "sparkle magic shine effect stars",
+  "⚡": "lightning bolt electric shock zap thunder energy", "🔥": "fire flame burn heat blaze", "🌟": "star glow shine sparkle magic",
+  "⭐": "star", "💫": "dizzy star swirl magic effect", "💨": "dash wind smoke speed poof gas fart",
+  "☄️": "comet meteor fireball impact", "🌠": "shooting star wish", "🧨": "explosive dynamite firecracker bomb",
+  "💣": "bomb explosive", "☠️": "skull death poison danger", "💀": "skull death bone",
+  "🩸": "blood drop gore damage", "🗡️": "dagger sword blade knife weapon melee", "⚔️": "swords crossed weapon fight battle",
+  "🛡️": "shield defense armor block", "🏹": "bow arrow ranged weapon hunt", "🔫": "gun pistol firearm ranged weapon",
+  "🪓": "axe hatchet weapon chop", "🔨": "hammer tool weapon build", "⚒️": "hammer pick tools craft",
+  "🛠️": "tools wrench hammer craft build", "🪃": "boomerang throwing weapon", "🔱": "trident weapon spear",
+  "🗿": "statue stone moai", "🪄": "wand magic staff spell", "📯": "horn alert", "🔔": "bell alert notify",
+  "🧪": "potion vial flask chemistry poison", "⚗️": "alchemy potion flask brew", "💊": "pill potion medicine heal",
+  "🧬": "dna genetics magic science", "🩹": "bandage heal patch health", "❤️": "heart health life love red",
+  "💚": "heart health life green", "💙": "heart health life blue", "🖤": "heart dark black", "💛": "heart health life yellow",
+  "🧡": "heart health life orange", "💜": "heart health life purple", "💔": "broken heart death damage",
+  "💯": "hundred perfect score", "🆙": "level up up", "🔝": "top rank", "🏆": "trophy win victory reward",
+  "🥇": "gold medal first win", "🥈": "silver medal second", "🥉": "bronze medal third",
+  "🎖️": "medal award military", "🏅": "medal award reward", "👑": "crown king royal ruler",
+  "💰": "money bag gold coins treasure", "🪙": "coin gold currency money", "💎": "gem diamond treasure jewel loot",
+  "🔑": "key unlock item", "🗝️": "key old ornate unlock", "🔓": "unlock open", "🔒": "lock locked closed security",
+  "📦": "box crate chest item container", "🎁": "gift present box reward chest", "🧰": "toolbox chest container",
+  "🪙": "coin currency", "📜": "scroll paper document quest", "📖": "book open read lore", "📚": "books library lore",
+  "🕯️": "candle light flame", "🏮": "lantern light lamp", "💡": "light bulb idea lamp",
+  "🌳": "tree oak forest plant nature", "🌲": "tree pine evergreen forest", "🌴": "palm tree tropical",
+  "🌵": "cactus desert plant", "🍄": "mushroom fungus forest", "🌿": "herb leaf plant nature",
+  "☘️": "clover leaf plant luck", "🍀": "clover luck plant leaf", "🌾": "wheat grain crop farm",
+  "🌷": "tulip flower", "🌹": "rose flower red", "🌺": "hibiscus flower tropical", "🌻": "sunflower flower yellow",
+  "🌼": "daisy flower", "🌸": "cherry blossom flower spring", "💐": "bouquet flowers", "🍂": "leaves autumn fall",
+  "🍁": "maple leaf autumn fall", "🌊": "wave water ocean sea", "💧": "water drop droplet",
+  "🌈": "rainbow", "⛰️": "mountain peak", "🏔️": "mountain snow peak", "🌋": "volcano lava mountain eruption",
+  "🏕️": "camp tent camping outdoor", "🏝️": "island beach tropical", "🕳️": "hole pit trap dark",
+  "🪨": "rock stone boulder", "🧱": "brick wall block build", "🏰": "castle fortress fantasy building",
+  "🏯": "castle japanese fortress building", "🏛️": "temple building ancient pillar", "⛩️": "shrine gate torii japanese",
+  "🗼": "tower building landmark", "🏚️": "abandoned house ruin building", "🏠": "house home building",
+  "🏡": "house home building garden", "🏘️": "houses village buildings", "🏪": "shop store market building",
+  "⛺": "tent camp shelter", "🌉": "bridge night", "🌁": "bridge fog", "🚪": "door entrance exit",
+  "🪟": "window", "🧭": "compass navigation map direction", "🗺️": "map treasure world", "📍": "pin marker location",
+  "🐉": "dragon fantasy monster", "🐲": "dragon face fantasy monster", "🦇": "bat night creature vampire",
+  "🕷️": "spider creature bug", "🕸️": "web spider cobweb", "🦂": "scorpion creature poison desert",
+  "🐍": "snake serpent creature poison", "🐺": "wolf creature animal", "🦁": "lion animal king",
+  "🐻": "bear animal", "🐗": "boar pig wild animal", "🦅": "eagle bird animal",
+  "🦉": "owl bird night animal", "🐸": "frog creature animal", "🐢": "turtle shell animal",
+  "🦖": "dinosaur trex monster creature", "🦕": "dinosaur creature", "👹": "ogre demon monster enemy",
+  "👺": "goblin demon monster enemy mask", "👻": "ghost spirit undead", "🧟": "zombie undead monster",
+  "🧛": "vampire undead monster", "🧙": "wizard mage magic sorcerer", "🧝": "elf fantasy character",
+  "🧚": "fairy fantasy magic", "🦹": "villain enemy bad", "🦸": "hero character good",
+  "🤺": "fencer swordsman fighter", "⚰️": "coffin death grave", "⚱️": "urn death grave ashes",
+  "🪦": "tombstone grave death", "🔮": "crystal ball magic fortune", "🎯": "target bullseye aim hit",
+  "🧲": "magnet pull attract", "⏳": "hourglass time timer", "⌛": "hourglass time timer",
+  "🌀": "cyclone swirl vortex spiral effect", "🌪️": "tornado wind storm", "⛈️": "storm lightning thunder rain",
+  "🌩️": "lightning cloud storm", "❄️": "snowflake ice cold winter", "☃️": "snowman winter",
+  "🌡️": "temperature thermometer", "☀️": "sun light day", "🌙": "moon night crescent",
+  "🌑": "moon dark new night", "☁️": "cloud sky weather",
+  "😀": "happy smile face", "😃": "happy smile face joy", "😄": "happy smile face laugh", "😁": "grin smile face",
+  "😆": "laugh smile face happy", "😅": "sweat smile nervous face", "😂": "laughing crying tears face",
+  "🙂": "smile neutral face", "😉": "wink face", "😊": "smile blush happy face", "😍": "love heart eyes face",
+  "😘": "kiss love face", "😢": "cry sad tear face", "😭": "cry sad sob face", "😡": "angry mad rage face",
+  "😱": "scared shock scream face", "😴": "sleep tired face", "🤔": "think thinking face",
+  "😎": "cool sunglasses face", "🤯": "mind blown shock face", "🥶": "cold freezing face",
+  "🥵": "hot sweating face", "🤢": "sick nauseous face", "😷": "mask sick face",
+};
+
+const SLOTS = {
+  hat: { label: "Hat", icon: "🎩", z: 70 },
+  jacket: { label: "Jacket / Cape", icon: "🧥", z: 60 },
+  shoes: { label: "Shoes", icon: "👟", z: 45 },
+  shirt: { label: "Shirt", icon: "👕", z: 40 },
+  pants: { label: "Pants", icon: "👖", z: 30 },
+  under_top: { label: "Underwear top", icon: "🩱", z: 20 },
+  under_bottom: { label: "Underwear bottom", icon: "🩲", z: 10 },
+};
+const SLOT_ORDER = ["under_bottom", "under_top", "pants", "shirt", "shoes", "jacket", "hat"];
+// Lower body always sits below the arm — pants/underwear/shoes logically can't be in front of
+// an arm. Upper body is ambiguous (a sleeved jacket should cover the arm, a tank top shouldn't)
+// so it's a per-piece toggle instead of an assumption.
+const LOWER_BODY_SLOTS = new Set(["pants", "under_bottom", "shoes"]);
+const UPPER_BODY_SLOTS = new Set(["shirt", "jacket", "under_top"]);
+
+const uid = () => Math.random().toString(36).slice(2, 9);
+const rect = (x, y, w, h, color = SKIN) => ({ id: uid(), kind: "rect", x, y, w, h, color, mirror: true });
+const arm = (x, y, w, h, pivot = "top") => ({ ...rect(x, y, w, h), locked: true, role: "weaponArm", limb: "arm", armPivot: pivot });   // the arm the game swings — can't be deleted; pivots at the shoulder end
+// ---- Shoulder-pivot helpers (4-way) ----------------------------------------
+// armPivot picks which SIDE of the arm piece is the shoulder — the fixed point the swing turns
+// about: "top" (default) / "bottom" for vertical arms, "left" / "right" for an arm drawn as a
+// horizontal bar (where top/bottom-center sits mid-bar, so the swing read as spinning around the
+// arm's middle). Selected per piece in the editor — never guessed.
+export const armShoulderPoint = (p) => {
+  const pv = p.armPivot || "top";
+  if (pv === "left") return { x: p.x, y: p.y + p.h / 2 };
+  if (pv === "right") return { x: p.x + p.w, y: p.y + p.h / 2 };
+  if (pv === "bottom") return { x: p.x + p.w / 2, y: p.y + p.h };
+  return { x: p.x + p.w / 2, y: p.y };
+};
+// CSS transform-origin string for that shoulder side.
+export const armPivotOrigin = (pv0) => { const pv = pv0 || "top"; return pv === "left" ? "0% 50%" : pv === "right" ? "100% 50%" : pv === "bottom" ? "50% 100%" : "50% 0%"; };
+// Which stored-rotation sign sweeps the HAND forward — same convention the vertical arms always
+// used (-forward for a top pivot), extended to the horizontal ones.
+export const armPivotSign = (pv0) => { const pv = pv0 || "top"; return (pv === "bottom" || pv === "right") ? 1 : -1; };
+// Absolute stored rot that points the arm LEVEL/extended forward (ranged aim hold) — matches the
+// -90/90 the vertical arms always used; a left-pivot arm already points forward (0), a right-pivot
+// one points backward so 180 extends it forward on screen.
+export const armAimAbs = (pv0) => { const pv = pv0 || "top"; return pv === "top" ? -90 : pv === "bottom" ? 90 : pv === "left" ? 0 : 180; };
+// Absolute stored rot that points the arm straight UP (climbing reach) — matches the 180/0 the
+// vertical arms always used.
+export const armClimbAbs = (pv0) => { const pv = pv0 || "top"; return pv === "top" ? 180 : pv === "bottom" ? 0 : pv === "left" ? -90 : 90; };
+const leg = (x, y, w, h) => ({ ...rect(x, y, w, h), limb: "leg" }); // flagged so the walk/climb cycle animates it
+
+const DEFAULT_BODY = {
+  front: [rect(60, 88, 80, 102), rect(72, 34, 56, 56), arm(140, 94, 20, 82, "top"), leg(102, 188, 28, 72)],
+  back: [rect(60, 88, 80, 102), rect(72, 34, 56, 56), arm(140, 94, 20, 82, "top"), leg(102, 188, 28, 72)],
+  // Side used to only span 24% of the canvas width (a realistic but paper-thin human profile) —
+  // widened to 85% so the visible body actually fills the (aspect-locked, necessarily wide)
+  // hitbox instead of leaving a huge margin on both sides.
+  side: [leg(52, 188, 94, 72), rect(15, 88, 170, 102), arm(70, 96, 55, 80, "top"), rect(44, 34, 119, 56)],
+  up: [rect(60, 88, 80, 102), rect(72, 34, 56, 56), arm(134, 36, 18, 70, "bottom"), leg(102, 188, 28, 72)],
+  crouch: [rect(60, 118, 80, 74), rect(72, 70, 56, 50), arm(140, 124, 18, 60, "top"), leg(104, 188, 30, 42)],
+};
+// --- Skin tone -------------------------------------------------------------------------------
+// A "skin" asset is drawn art (hair/eyes/teeth) laid OVER a body — the flesh colour itself lives
+// on the BODY's pieces, which is why the skin palette could never change it. A skin may now
+// carry a `tone`: when the skin is worn, every body piece whose colour is in the flesh-hue
+// family (warm hue near the default #e2b48c, reasonably saturated, not near-black — so shading
+// shades like #c98f63 come along, while hair #2b2b2b, lips #b0504f and eye whites stay put) is
+// remapped by the per-channel ratio tone/default. That keeps the body's light/shadow flesh
+// relationship intact instead of flattening it to one colour.
+const _hexRgb = (h) => { const s = String(h || "").replace("#", ""); if (s.length < 6) return null; const v = [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)]; return v.some(isNaN) ? null : v; };
+const _rgbHex = (r) => "#" + r.map((c) => Math.max(0, Math.min(255, Math.round(c))).toString(16).padStart(2, "0")).join("");
+const _hueSat = ([r, g, b]) => { const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; const s = mx === 0 ? 0 : d / mx; let h = 0; if (d) { if (mx === r) h = 60 * (((g - b) / d + 6) % 6); else if (mx === g) h = 60 * ((b - r) / d + 2); else h = 60 * ((r - g) / d + 4); } return [h, s, mx]; };
+const _SKIN_RGB = [0xe2, 0xb4, 0x8c]; // #e2b48c — the default flesh the ratio is measured against
+const _SKIN_HUE = _hueSat(_SKIN_RGB)[0];
+export const isFleshColor = (hex) => { const rgb = _hexRgb(hex); if (!rgb) return false; const [h, s, mx] = _hueSat(rgb); return Math.abs(h - _SKIN_HUE) <= 14 && s >= 0.15 && mx >= 60; };
+export const skinToneShade = (hex, tone) => { const c = _hexRgb(hex), t = _hexRgb(tone); if (!c || !t) return hex; return _rgbHex(c.map((v, i) => v * t[i] / _SKIN_RGB[i])); };
+export const applySkinTone = (bodyAsset, tone) => {
+  if (!bodyAsset || !tone || tone.toLowerCase() === "#e2b48c") return bodyAsset;
+  const mapAngles = (angles) => { const out = {}; for (const k of Object.keys(angles || {})) out[k] = (angles[k] || []).map((p) => (p.color && isFleshColor(p.color)) ? { ...p, color: skinToneShade(p.color, tone) } : p); return out; };
+  return { ...bodyAsset, angles: mapAngles(bodyAsset.angles) };
+};
+const DEFAULT_HAND = { front: { x: 150, y: 176 }, back: { x: 150, y: 176 }, side: { x: 104, y: 176 }, up: { x: 143, y: 44 }, crouch: { x: 149, y: 182 } };
+// The weapon arm pivots around its SHOULDER end. So the shoulder is fixed and the
+// hand (the far end, where the weapon snaps) sweeps around it as the arm twists.
+// Everything is derived from the arm's live geometry, so the markers, the dressed
+// export, and the gameplay rig can never drift out of sync — including under twist.
+export const armOf = (list) => (list || []).find((p) => p.role === "weaponArm") || null;
+// The arm an ENEMY should aim/attach a weapon to. If it was drawn with a real weapon arm
+// (role:"weaponArm" — i.e. 💪 Has arms was toggled), use that, unchanged. But most enemies are
+// drawn WITHOUT that flag, so armOf() returns null — and the render's arm-lift + weapon-attach
+// both silently no-op, which is exactly why "enemies with guns never lift their arm and shoot".
+// In that case synthesize a stand-in arm anchored at the enemy's upper body, so a ranged enemy
+// can still raise it and fire a visible, correctly-placed shot. Marked __synthArm so the render
+// knows it isn't a real drawn piece (it must NOT try to attach the gun to a body-part that isn't
+// there in a way that looks wrong — it just gives the aim geometry + hand point).
+export const enemyAimArm = (blocks) => {
+  const real = armOf(blocks);
+  if (real) return real;
+  const list = (blocks || []).filter((b) => !b.isHitbox && !b.isMuzzle);
+  if (!list.length) return null;
+  // Anchor the synthetic arm at the upper-body: use the overall bounding box, place a short arm
+  // reaching forward from roughly shoulder height (upper third) at the front edge of the body.
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const b of list) { minX = Math.min(minX, b.x); minY = Math.min(minY, b.y); maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h); }
+  const bw = maxX - minX, bh = maxY - minY;
+  const w = Math.max(12, Math.round(bw * 0.28)), h = Math.max(40, Math.round(bh * 0.42));
+  const shoulderY = minY + bh * 0.30;            // upper third = shoulder height
+  const cx = minX + bw / 2;
+  return { id: "__enemyAimArm", __synthArm: true, kind: "rect", role: "weaponArm", limb: "arm",
+    x: Math.round(cx - w / 2), y: Math.round(shoulderY), w, h, armPivot: "top", rot: 0,
+    color: "transparent" }; // invisible: it exists only to carry the aim geometry + hand point
+};
+const rotatePt = (pt, c, deg) => {
+  if (!deg) return { x: pt.x, y: pt.y };
+  const r = deg * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
+  const dx = pt.x - c.x, dy = pt.y - c.y;
+  return { x: Math.round(c.x + dx * cs - dy * sn), y: Math.round(c.y + dx * sn + dy * cs) };
+};
+const armRig = (a) => {
+  if (!a) return null;
+  const shoulder = armShoulderPoint(a);          // pivot — stays put as the arm twists
+  const cx = a.x + a.w / 2, cy = a.y + a.h / 2;
+  const far = { x: Math.round(2 * cx - shoulder.x), y: Math.round(2 * cy - shoulder.y) }; // hand end — the opposite side, sweeps around the shoulder
+  return { shoulder: { x: Math.round(shoulder.x), y: Math.round(shoulder.y) }, hand: rotatePt(far, shoulder, a.rot || 0) };
+};
+const DEFAULT_SHOULDER = (() => { const o = {}; for (const ang of ANGLES) { const r = armRig(armOf(DEFAULT_BODY[ang])); o[ang] = r ? r.shoulder : { x: 100, y: 100 }; } return o; })();
+// Rigidly attaches already-baked weapon pieces to the CURRENT weapon-arm piece. Translates the
+// weapon's own guide-hand reference point onto the arm's current hand position, then — if the
+// arm has rotated any further than baseArmRot (its rotation when the attachment offset was
+// last "neutral", e.g. the rest pose) — rotates every weapon piece around the arm's shoulder
+// (the pivot, which doesn't move with rotation) by that same delta. This is what makes the
+// weapon track the arm through climbing, swinging, or any other runtime rotation, instead of
+// freezing wherever it was when first composed.
+export const attachWeaponBlocks = (weaponPieces, curArm, guideHand, baseArmRot) => {
+  const rig = armRig(curArm);
+  if (!rig) return weaponPieces;
+  const deltaRot = (curArm.rot || 0) - (baseArmRot || 0);
+  // A single block happened to look fine translated-only (rig.hand already reflects the arm's
+  // CURRENT rotation, so a straight offset gets ITS position right). But a multi-piece weapon —
+  // barrel, grip, sight as separate shapes — needs every piece's CENTER swept around the shared
+  // grip point as one rigid body, not just shifted by a constant offset and spun individually
+  // around its own middle (which is what scattered a complex weapon's shapes apart the moment
+  // the arm rotated any real distance, e.g. snapping into the aim pose). So: each piece's center,
+  // relative to the weapon's own baked guide-hand point, gets rotated by deltaRot and then placed
+  // relative to the LIVE hand point — that's the rigid-body sweep. Adding deltaRot to the piece's
+  // own `rot` on top of that is what turns the piece's own orientation to match.
+  //
+  // MIRRORED pieces (a machete built with mirror:true twins, `_m:true`) render through an extra
+  // scaleX(-1) that shapeStyle applies around each piece's OWN center — which visually reverses
+  // that piece's rotation direction. So the value the renderer effectively rotates a mirrored
+  // piece by is -(rot) (unless mirrorTwist===false pins it), and a mirrored piece's whole local
+  // frame is x-flipped. Sweeping every piece's center with the same unsigned deltaRot — as this
+  // did before — placed the un-mirrored pieces right but flung each mirrored piece to a different
+  // wrong spot, because its placement (rotated +deltaRot) and its rendered orientation (rotated
+  // -deltaRot about a flipped center) disagreed. The whole weapon looked like it came apart the
+  // instant the arm turned. Fix: sweep each piece's center in the SAME rotational sense the
+  // renderer will actually apply to that piece, and add the delta to `.rot` with the matching
+  // sign, so placement and rendered orientation stay locked together for mirrored and
+  // un-mirrored pieces alike.
+  return weaponPieces.map((pc) => {
+    // ---- Pivot reconciliation — THE fix for "the machete falls apart the instant I enter the
+    // level tester". ----
+    // Weapon pieces are usually authored flagged limb:"arm" so they track the arm. In the weapon
+    // EDITOR, shapeStyle rotates such a piece around its TOP edge (transform-origin 50% 0%) — that
+    // is the picture the user drew and confirmed correct. But we strip limb/role just below (a
+    // weapon piece must not reach the body-arm swing/pivot code), so in the level TESTER the exact
+    // same piece renders around its CENTER (50% 50%) instead. For a piece with a nonzero baked
+    // rotation, rotating about the top edge vs. the center lands the box in two DIFFERENT places,
+    // offset by (I - R(rot))·(center→edge vector). Every machete piece has a big rot (180°, 356°,
+    // 258°, …), so each shifted by a different amount and the whole weapon scattered — and because
+    // this comes from the pivot CHANGE, not from arm rotation, it's visible even standing still
+    // (deltaRot 0), which is exactly what the bug report shows. Pre-shift the box by that offset
+    // so center-pivot rendering reproduces the identical on-screen result the editor showed.
+    const wasTopPivot = (pc.role === "weaponArm" || (pc.limb === "arm" && !pc._isShoe));
+    let bx = pc.x, by = pc.y;
+    if (wasTopPivot) {
+      const pvv = pc.armPivot || "top"; // center→shoulder-edge vector along the piece's own unrotated axes (4-way)
+      const vx = pvv === "left" ? -pc.w / 2 : pvv === "right" ? pc.w / 2 : 0;
+      const vy = pvv === "top" ? -pc.h / 2 : pvv === "bottom" ? pc.h / 2 : 0;
+      const r0 = (pc.rot || 0) * Math.PI / 180, c0 = Math.cos(r0), s0 = Math.sin(r0);
+      // box shift = (I - R(rot)) · v
+      bx += vx - (vx * c0 - vy * s0);
+      by += vy - (vx * s0 + vy * c0);
+    }
+    // sign of the rotation the RENDERER applies to this piece: a mirrored twin's scaleX(-1)
+    // negates it (matching shapeStyle's `mirrored ? -(rot) : rot` when mirrorTwist!==false).
+    const renderSign = (pc._m && pc.mirrorTwist !== false) ? -1 : 1;
+    const pieceDelta = deltaRot * renderSign;
+    const rad = pieceDelta * Math.PI / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+    // offset of the piece center from the grip, in the piece's rendered frame: a mirrored piece
+    // is x-flipped about the grip, so its horizontal offset reads negated.
+    const rawCx = bx + pc.w / 2 - guideHand.x, rawCy = by + pc.h / 2 - guideHand.y;
+    const cx = (pc._m ? -rawCx : rawCx), cy = rawCy;
+    const rx0 = cx * cos - cy * sin, ry0 = cx * sin + cy * cos;
+    const rx = (pc._m ? -rx0 : rx0); // flip the swept offset back out of the mirrored frame
+    const newCx = rig.hand.x + rx, newCy = rig.hand.y + ry0;
+    // limb/role flags are stripped here: a weapon piece flagged limb:"arm" in its own designer
+    // (so it visibly tracks the arm) must NOT reach the renderer that way — shapeStyle gives
+    // limb:"arm" pieces a top-edge transform origin (body-arm shoulder pivot), while this
+    // function's rigid-body math places pieces assuming center rotation. Two different pivots
+    // meant every piece drifted by its own height-dependent offset as the arm turned — the gun
+    // visibly pulling apart, worse the further the arm rotated. It also keeps the walk/climb/aim
+    // arm overlays from ever re-rotating weapon art a second time.
+    return { ...pc, limb: undefined, role: undefined, x: newCx - pc.w / 2, y: newCy - pc.h / 2, rot: (pc.rot || 0) + pieceDelta, _isWeapon: true };
+  });
+};
+// Hitboxes and the arm trajectory:
+// A weapon's damage box rides the swinging arm automatically — the drawn hitbox piece(s) are just
+// ordinary weapon pieces flagged isHitbox, so attachWeaponBlocks sweeps them around the grip with
+// everything else and they already follow the whole swing arc. The only friction was having to
+// DRAW a hitbox into every pose of every per-body variant. weaponHitboxPieces removes that: if the
+// weapon's own art (this pose/variant) already contains hitbox piece(s), those win — draw one right
+// over the blade for precise reach. If it contains NONE, we synthesize one from the bounding box of
+// the weapon's actual drawn art, so an un-boxed weapon still lands hits along the same trajectory
+// (roughly "the whole blade is the hitbox") instead of doing nothing. Bare-handed (no weapon) keeps
+// its small fist box, handled at the call site.
+export const weaponHitboxPieces = (bakedWeaponArt) => {
+  const drawn = (bakedWeaponArt || []).filter((p) => p.isHitbox);
+  if (drawn.length) return drawn;
+  const art = (bakedWeaponArt || []).filter((p) => !p.isHitbox && !p.isMuzzle);
+  if (!art.length) return [];
+  // AABB of the art in the piece's own layout space. Rotated pieces still contribute only their
+  // upright box here — a deliberately generous, simple auto-box; the user draws an explicit hitbox
+  // when they want it tight to a rotated blade.
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of art) { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x + p.w); maxY = Math.max(maxY, p.y + p.h); }
+  return [{ id: "autoHit", kind: "rect", x: minX, y: minY, w: maxX - minX, h: maxY - minY, isHitbox: true }];
+};
+// The MUZZLE: where a ranged weapon's shots actually come out of. It's just another weapon
+// piece, flagged isMuzzle — so attachWeaponBlocks sweeps it around the grip exactly like the
+// blade/barrel art and the hitbox already are, meaning the spawn point automatically tracks
+// the arm through aiming, walking, crouching and any future arm pose, with no separate math to
+// keep in sync. Never drawn (every finished-look render site filters it out, same as isHitbox)
+// and never counted as art (see weaponHitboxPieces above — an auto-hitbox that swallowed a
+// muzzle sitting out at the barrel tip would balloon to cover the empty space between them).
+// Returns the ALREADY-ATTACHED piece's centre in the character's own 200x260 layout space, or
+// null when the weapon has no muzzle drawn — the caller then keeps its old default spawn point,
+// so a weapon made before this existed still fires from roughly the chest as it always did.
+export const muzzleLocalPoint = (attachedWeaponPieces) => {
+  const m = (attachedWeaponPieces || []).filter((p) => p.isMuzzle);
+  if (!m.length) return null;
+  const p0 = m[0];
+  return { x: p0.x + p0.w / 2, y: p0.y + p0.h / 2 };
+};
+// Which pose array a weapon should render at the moment its Fire animation plays. A weapon
+// whose Fire state was never drawn for this pose has an EMPTY fire array — and baking that
+// produced no pieces at all, so the weapon silently disappeared for the few frames between the
+// swing's impact and the end of its recover phase. That's the "the fire animation doesn't work
+// on melee weapons" report: it wasn't that the swap never happened, it's that it swapped to
+// nothing. Fall back to the Rest art for that pose, so an un-drawn Fire state simply means "the
+// weapon looks the same while swinging" instead of "the weapon blinks out".
+export const weaponFireArt = (states, ang) => {
+  const rest = (states && states.rest) || blankAngles();
+  const fire = (states && states.fire) || blankAngles();
+  return (fire[ang] || []).length ? fire : rest;
+};
+// When the weapon's Fire pose REPLACES its Rest pose. One rule, shared by the player and by
+// enemies, so the two can never drift apart.
+//   Ranged — the instant the trigger is pulled, for the whole firing window. That's what makes a
+//     drawn recoil / slide-back / muzzle-flash / open-breech frame actually read as a shot.
+//   Melee  — from the START of the strike phase (the downswing) through the recover, i.e. the
+//     whole second half of the swing. It used to swap only at the impact angle — the last quarter,
+//     ~3 frames, which flashed by too fast to ever read as a slash. Showing it during the raise
+//     still reads as firing before the swing has gone anywhere, so the windup stays on Rest.
+// Either way it's a REPLACEMENT — Rest is not drawn underneath, so nothing is ever doubled up.
+export const weaponPoseFired = (isRangedWeapon, firing) => !!firing && (!!isRangedWeapon || (firing.t / firing.dur) >= MELEE_WINDUP_FRAC);
+// --- Ranged weapon: fire rate, clip, reload -------------------------------------------------
+// Everything below is a pure function over a small { clip, ammo, cd, reloadT } record so the
+// Playtest loop only has to hold one ref and the rules stay testable outside the browser.
+// clip 0 means "unlimited ammo" — no clip, no reload, fire rate only.
+export const DEFAULT_FIRE_RATE = 3;    // shots per second
+export const DEFAULT_CLIP_SIZE = 6;    // rounds before a reload
+export const DEFAULT_RELOAD_TIME = 1.2; // seconds
+// Frames are the loop's native unit (dtMul makes them real-time), so both convert at 60fps.
+export const weaponFireCooldownFrames = (fireRate) => Math.max(1, Math.round(60 / Math.max(0.1, fireRate || DEFAULT_FIRE_RATE)));
+export const weaponReloadFrames = (reloadTime) => Math.max(1, Math.round((reloadTime ?? DEFAULT_RELOAD_TIME) * 60));
+export const newWeaponAmmo = (clipSize) => { const clip = Math.max(0, clipSize || 0); return { clip, ammo: clip, cd: 0, reloadT: 0 }; };
+export const canFireNow = (w) => !!w && w.reloadT <= 0 && w.cd <= 0 && (w.clip <= 0 || w.ammo > 0);
+export const consumeShot = (w, cdFrames) => ({ ...w, ammo: w.clip > 0 ? w.ammo - 1 : w.ammo, cd: cdFrames });
+export const needsReload = (w) => !!w && w.clip > 0 && w.ammo <= 0 && w.reloadT <= 0;
+export const startReload = (w, reloadFrames) => (!w || w.reloadT > 0 || w.clip <= 0 || w.ammo >= w.clip) ? w : { ...w, reloadT: reloadFrames };
+export const advanceWeapon = (w, dt) => {
+  if (!w) return w;
+  const cd = Math.max(0, w.cd - dt);
+  let reloadT = w.reloadT, ammo = w.ammo;
+  if (reloadT > 0) { reloadT = Math.max(0, reloadT - dt); if (reloadT === 0) ammo = w.clip; }
+  return { ...w, cd, reloadT, ammo };
+};
+const bodyRig = (b, ang) => {
+  const r = b && b.angles && armRig(armOf(b.angles[ang]));
+  return r || { shoulder: (b && b.shoulder && b.shoulder[ang]) || DEFAULT_SHOULDER[ang], hand: (b && b.hand && b.hand[ang]) || DEFAULT_HAND[ang] };
+};
+// Recompute the cached hand/shoulder from the arm so downstream (assembler, export) stays correct.
+const withRig = (a) => {
+  if (!a || (a.type !== "body" && a.type !== "enemy") || !a.angles) return a;
+  const hand = {}, shoulder = {};
+  for (const ang of ANGLES) { const r = bodyRig(a, ang); hand[ang] = r.hand; shoulder[ang] = r.shoulder; }
+  return { ...a, hand, shoulder };
+};
+const blankAngles = () => ({ front: [], back: [], side: [], up: [], crouch: [] });
+// Assets that get a per-body "fit" (a separate saved layout per body, switchable via the guide
+// picker, tracked by confirmedFits so an unconfirmed preview never silently overwrites a real
+// save). Originally skin/equipment only — weapons need this exactly as much (see fitVariant
+// helpers below): a machete sized for one body's arm is not automatically right for another's.
+const HAS_FIT_VARIANTS = (a) => !!a && (a.type === "skin" || a.type === "equipment" || a.type === "weapon");
+// A "fit variant" is what gets stored per body under a.variants[bodyId]. For skins/equipment
+// that's just a flat 5-pose angles object. A weapon's fit additionally needs its own hand/grip
+// reference point (a.hand) — attachWeaponBlocks translates the weapon relative to THAT point
+// onto the live arm, so different bodies' weapons need their own grip point as much as their
+// own piece geometry; bundling both together is what lets a per-body weapon fit round-trip
+// through switchGuideFit/syncFit/copyFitToOtherBodies via the exact same code paths skins use.
+const blankFitVariant = (type) => type === "weapon" ? { states: { rest: blankAngles(), fire: blankAngles() } } : blankAngles();
+const fitVariantEmpty = (type, v) => type === "weapon" ? (anglesEmpty(v && v.states && v.states.rest) && anglesEmpty(v && v.states && v.states.fire)) : anglesEmpty(v);
+// Weapon pieces normally all render on top of the whole body (they're simply concatenated
+// after it). A piece flagged behindArm should tuck behind the arm specifically — not the whole
+// body — so it's spliced in right before the arm piece in the body's own list instead of being
+// appended at the very end with the rest of the weapon. Falls back to plain concatenation if no
+// arm piece is found (e.g. an armless enemy holding nothing).
+export const mergeWeaponBlocks = (bodyBlocks, weaponBlocks) => {
+  const armIdx = (bodyBlocks || []).findIndex((b) => b.role === "weaponArm");
+  const behind = weaponBlocks.filter((p) => p.behindArm);
+  const front = weaponBlocks.filter((p) => !p.behindArm);
+  if (armIdx === -1 || !behind.length) return (bodyBlocks || []).concat(weaponBlocks);
+  return bodyBlocks.slice(0, armIdx).concat(behind, bodyBlocks.slice(armIdx)).concat(front);
+};
+
+// Swap every occurrence of one fill color for another across an ENTIRE asset — every piece, in
+// all 5 poses, in the live .angles, in a weapon's rest/fire states, and in every per-body fit
+// under .variants. Only `p.color` is touched: outlineColor, fx.glowColor and an emoji's tint are
+// deliberately left alone (a near-miss shade stays a near-miss shade — Blake finishes those by
+// hand). Matching is case-insensitive on the hex so "#45552A" and "#45552a" are the same color.
+const recolorPieces = (arr, from, to) => (arr || []).map((p) => (typeof p.color === "string" && p.color.toLowerCase() === from ? { ...p, color: to } : p));
+const recolorAngles = (ang, from, to) => { if (!ang) return ang; const o = {}; for (const k of Object.keys(ang)) o[k] = recolorPieces(ang[k], from, to); return o; };
+const recolorFitVariant = (v, from, to) => (v && v.states) ? { ...v, states: { ...v.states, rest: recolorAngles(v.states.rest, from, to), fire: recolorAngles(v.states.fire, from, to) } } : recolorAngles(v, from, to);
+export const recolorAsset = (a, from, to) => {
+  if (!a || typeof from !== "string" || typeof to !== "string") return a;
+  const f = from.toLowerCase();
+  const out = { ...a };
+  if (out.angles) out.angles = recolorAngles(out.angles, f, to);
+  if (out.states) out.states = { ...out.states, rest: recolorAngles(out.states.rest, f, to), fire: recolorAngles(out.states.fire, f, to) };
+  if (out.variants) { const v = {}; for (const k of Object.keys(out.variants)) v[k] = recolorFitVariant(out.variants[k], f, to); out.variants = v; }
+  return out;
+};
+// Every distinct fill colour this asset uses, with how many pieces use each, most-used first
+// (so a character's base skin tone — the largest area — tends to sit at the top). Walks the exact
+// same places recolorAsset paints (every pose, weapon rest/fire states, and every body fit under
+// .variants), deduping arrays by reference so the a.angles alias of the active variant is not
+// double-counted. Outline/glow colours and emoji tints are ignored on purpose — recolorAsset
+// leaves those alone too, so the palette only lists what a tap here can actually remap.
+export const collectAssetColors = (a) => {
+  if (!a || typeof a !== "object") return [];
+  const counts = new Map(), seen = new Set();
+  const addArr = (arr) => { if (!Array.isArray(arr) || seen.has(arr)) return; seen.add(arr); for (const p of arr) { if (p && typeof p.color === "string") { const k = p.color.toLowerCase(); counts.set(k, (counts.get(k) || 0) + 1); } } };
+  const addAngles = (ang) => { if (ang && typeof ang === "object") for (const k of Object.keys(ang)) addArr(ang[k]); };
+  const addVariant = (v) => { if (v && v.states) { addAngles(v.states.rest); addAngles(v.states.fire); } else addAngles(v); };
+  addAngles(a.angles);
+  if (a.states) { addAngles(a.states.rest); addAngles(a.states.fire); }
+  if (a.variants) for (const k of Object.keys(a.variants)) addVariant(a.variants[k]);
+  return [...counts.entries()].map(([color, count]) => ({ color, count })).sort((x, y) => y.count - x.count || (x.color < y.color ? -1 : 1));
+};
+
+// Which index entry a Save should write to. Saving under a name that already exists IN THE SAME
+// CATEGORY overwrites that entry instead of piling up a second identical-looking save (Blake was
+// hand-deleting the old one every time). Category = the asset's `type`, matching the Load
+// browser's own grouping — an enemy named "Army Shirt" never collides with a shirt named the
+// same. A rename away from a name nothing else uses still forks a fresh id, exactly as before.
+export const resolveSaveTarget = (list, payload) => {
+  const entries = list || [];
+  const existing = entries.find((x) => x.id === payload.id);
+  const isRename = !!existing && existing.name !== payload.name;
+  const nameHit = entries.find((x) => x.id !== payload.id && x.type === payload.type && x.name === payload.name);
+  if (nameHit) return { id: nameHit.id, mode: "overwrite" };
+  if (isRename) return { id: null, mode: "rename" }; // caller mints a new id
+  return { id: payload.id, mode: "update" };
+};
+
+// A saved Dressed Look embeds full copies of its components, so editing the source shirt used to
+// leave every look wearing a stale copy of it until it was re-equipped and re-saved by hand. Given
+// a freshly-saved asset, report whether this look wears it, and splice the new copy in.
+export const lookWearsAsset = (look, assetId) => {
+  const r = look && look.recipe; if (!r || !assetId) return false;
+  if (r.bodyId === assetId || r.skinId === assetId || r.weaponId === assetId) return true;
+  return Object.values(r.slots || {}).some((v) => v === assetId);
+};
+export const swapLookComponent = (look, updated) => {
+  const r = look.recipe, c = { ...(look.components || {}) };
+  const fresh = JSON.parse(JSON.stringify(updated));
+  if (r.bodyId === updated.id) c.body = fresh;
+  if (r.skinId === updated.id) c.skin = fresh;
+  if (r.weaponId === updated.id) c.weapon = fresh;
+  const slots = r.slots || {};
+  for (const s of Object.keys(slots)) if (slots[s] === updated.id) c.equipment = { ...(c.equipment || {}), [s]: fresh };
+  return { ...look, components: c };
+};
+
+const TYPES = {
+  body: { label: "Body", icon: "🧍", blurb: "The shape/hitbox. Has the weapon arm, shoulder pivot + hand point." },
+  skin: { label: "Skin", icon: "🎨", blurb: "Skin tone, face & hair — drawn on a body." },
+  weapon: { label: "Weapon", icon: "⚔️", blurb: "Snaps onto the hand point." },
+  enemy: { label: "Enemy", icon: "👹", blurb: "A monster body — shapes only, no clothes/skin. Flag a piece 💪 Arm to let it swing/wield a weapon like Bob." },
+  projectile: { label: "Projectile", icon: "🔮", blurb: "A bullet/arrow/bolt — build it once, then load it onto any Ranged weapon. Gets its own hitbox." },
+  prop: { label: "Object / Prop", icon: "🌿", blurb: "A piece of scenery — draw it once (pixel art, optionally animated), then place it in a level at any size. Great for a real fire drawn over the fire-hazard symbol." },
+  item: { label: "Item", icon: "🧪", blurb: "A single-use pickup — draw it once, then it heals or temporarily boosts a stat when taken. Drops from a pedestal, Binding-of-Isaac style." },
+};
+// A weapon's wtype is "melee" or "ranged" going forward. Old saves may still say "projectile"
+// (what "ranged" used to be called, back when the projectile itself was built INSIDE the
+// weapon instead of as its own loadable asset) — migrate() normalizes that to "ranged" on
+// load, so nothing downstream needs to know the old name ever existed.
+export const isRanged = (wtype) => wtype === "ranged" || wtype === "projectile";
+// A THROWABLE (grenade/bomb) is a third weapon type: you throw it with G, it arcs out a distance
+// set by its weight vs your Strength, and triggers a landing effect (fire for now) where it hits.
+// It's a limited, single-use PICKUP — you carry however many you've found, like Isaac's bombs —
+// so it never mounts on the hand like a melee/ranged weapon; it lives only in the throw system.
+export const isThrowable = (wtype) => wtype === "throw";
+// The poses an asset type actually offers in the editor (and that gameplay can render). Creatures
+// (enemies) only ever draw Side, Aim-up, Crouch and their 💀 Death pose — Front/Back would be pure
+// wasted work since the game never shows an enemy facing the camera. One source of truth so the
+// pose tabs, the reference-copy dropdown and the full "copy to other poses" button all agree.
+export const editablePoses = (type, wtype) =>
+  type === "weapon" ? (isRanged(wtype) ? ["back", "side", "up", "crouch"] : ["back", "side", "crouch"])
+  : type === "projectile" || type === "item" ? ["front"]
+  : type === "enemy" ? ["side", "up", "crouch", "attack", "death"]
+  : ANGLES;
+export const DEFAULT_THROW_WEIGHT = 3;      // 1 (light, flies far) .. 10 (heavy, drops short)
+export const DEFAULT_LAND_RADIUS = 1;       // cells of landing effect painted around the impact point (1 = a 3x3 splash)
+// Throw distance in BLOCKS. Base 5, +1 every 2 points of Strength (Str 5 baseline -> ~7). Heavier
+// throwables fly shorter: each weight point above the light end trims the throw, floored so even a
+// boulder still leaves your hand. Weight 3 is treated as the neutral reference so a default
+// grenade at Strength 5 throws about the stated 5-block base + strength bonus.
+export const throwRangeBlocks = (strength, weight) => {
+  const str = strength ?? 5, w = weight ?? DEFAULT_THROW_WEIGHT;
+  const base = 5 + Math.floor(str / 2);            // Str 1->5, Str 5->7, Str 10->10
+  const weightPenalty = Math.max(0, (w - DEFAULT_THROW_WEIGHT)) * 0.6; // heavier than the reference drops it short
+  return Math.max(2, base - weightPenalty);         // never less than a 2-block lob
+};
+// Launch velocity for a thrown grenade. Given the desired range in PIXELS, gravity g, and a fixed
+// launch angle (45°-ish gives a natural arc), solve the projectile-range equation R = v²·sin(2θ)/g
+// for v, then split into vx/vy by the facing. So a stronger throw (longer range) simply leaves the
+// hand faster; the arc shape stays consistent. Heavier throwables get a slightly flatter, shorter
+// arc via the reduced range already baked into throwRangeBlocks.
+export const throwLaunchVel = (rangePx, g, face, angleRad) => {
+  const ang = angleRad ?? (Math.PI / 4);
+  const v = Math.sqrt(Math.max(1, rangePx * g / Math.sin(2 * ang)));
+  return { vx: (face || 1) * v * Math.cos(ang), vy: -v * Math.sin(ang) };
+};
+// The set of cells a grenade's landing effect covers: a square of the given radius around the
+// impact cell (radius 0 = just that one cell, 1 = 3x3, etc.), clamped to the level bounds.
+export const landingCells = (r0, c0, radius, rows, cols) => {
+  const out = [];
+  const rad = Math.max(0, radius | 0);
+  for (let r = r0 - rad; r <= r0 + rad; r++) for (let c = c0 - rad; c <= c0 + rad; c++) {
+    if (r >= 0 && c >= 0 && r < rows && c < cols) out.push(r + "," + c);
+  }
+  return out;
+};
+// A thrown grenade's landing fire should sit ON the ground where it lands, not hang in the air.
+// landingCells() paints a full (2r+1)x(2r+1) box centered on impact, so the upper rows float and
+// the row inside the block is buried. This keeps only cells that (a) aren't inside a solid block
+// and (b) have ground directly beneath them (a block, a ramp, or the level floor) — i.e. the fire
+// that actually rests on a surface. cellState(r,c) returns "block" (solid, no fire inside),
+// "ground" (a ramp — fire may sit in its mostly-empty cell AND it supports fire above), or null.
+export const groundedLandingCells = (r0, c0, radius, rows, cols, cellState) => {
+  const rad = Math.max(0, radius | 0), out = [];
+  for (let c = c0 - rad; c <= c0 + rad; c++) for (let r = r0 - rad; r <= r0 + rad; r++) {
+    if (r < 0 || c < 0 || r >= rows || c >= cols) continue;
+    if (cellState(r, c) === "block") continue;
+    const below = (r + 1 >= rows) ? "block" : cellState(r + 1, c);
+    if (below) out.push(r + "," + c);
+  }
+  return out;
+};
+// Build the hazard + fx patch for a grenade landing. With a chosen landPropId the fire is DRAWN by
+// that Object/Prop (in front of the player) and the hazard is hidden-in-play but still burns; with
+// no prop it stays the plain 🔥 emoji hazard exactly as before. Existing fx at a cell is kept, and
+// only newly-created keys are reported back so Stop can strip just the grenade's own fires/props.
+export const applyLandingEffect = (hazardIn, fxIn, keys, dps, life, landPropId, propSize) => {
+  const hazard = { ...(hazardIn || {}) };
+  const fx = { ...(fxIn || {}) };
+  const newHazKeys = [], newPropKeys = [];
+  for (const key of keys) {
+    if (!hazard[key]) newHazKeys.push(key);
+    hazard[key] = { kind: "fire", dps, life, ...(landPropId ? { hideInPlay: true } : {}) };
+    if (landPropId) {
+      const stack = fx[key] ? fx[key].slice() : [];
+      stack.push({ kind: "prop", propId: landPropId, solid: false, size: propSize || 1, inFront: true, _thrown: true });
+      fx[key] = stack;
+      newPropKeys.push(key);
+    }
+  }
+  return { hazard, fx, newHazKeys, newPropKeys };
+};
+// Undo the above when Playtest stops: delete the grenade-made fires and pull only the _thrown
+// props out of their fx stacks, leaving any hand-placed objects sharing that cell intact.
+export const stripThrownLanding = (hazardIn, fxIn, hazKeys, propKeys) => {
+  let changed = false, hazard = hazardIn, fx = fxIn;
+  if (hazKeys && hazKeys.length && hazardIn) { hazard = { ...hazardIn }; for (const key of hazKeys) if (hazard[key]) { delete hazard[key]; changed = true; } }
+  if (propKeys && propKeys.length && fxIn) { fx = { ...fxIn }; for (const key of propKeys) { if (!fx[key]) continue; const s2 = fx[key].filter((o) => !o._thrown); if (s2.length) fx[key] = s2; else delete fx[key]; changed = true; } }
+  return { hazard, fx, changed };
+};
+// Projectile launch angle (radians) from the aim direction held at the moment of firing.
+// Holding ↑ fully (aimDir -1) switches the player to the dedicated "Aim up" drawn pose (see the
+// angle formula in the render section) — the shot itself needs to actually go straight up to
+// match, not just partway (the old flat 40°-off-horizontal cap read as firing sideways while
+// visibly aiming up). Holding ↓ has no equivalent dedicated pose, just a partial arm dip, so it
+// keeps the shallower partial-angle behavior.
+export const projectileAimRad = (aimDir) => (aimDir === -1 ? -Math.PI / 2 : aimDir * (Math.PI * 40 / 180));
+// Melee swing timing — shared by both the hit-test geometry (game loop) and the visual arm
+// render, which used to each duplicate their own copy of a single symmetric sine sweep. Now a
+// deliberate 3-phase motion instead: a WINDUP raising the arm well past its eventual impact
+// point (0° → 150°, taking the first half of the swing so the raise actually reads on screen
+// instead of flashing by), a short STRIKE dropping it down through the actual impact angle
+// (150° → 90°) — reaching the end of this phase is "the fire animation fires", i.e. the moment
+// the weapon's own drawn Fire-pose art swaps in (previously that swapped in immediately at the
+// very first frame of the button press, which read as firing before the swing had gone
+// anywhere) — and a RECOVER phase easing back down to rest (90° → 0°) to finish the swing.
+const MELEE_WINDUP_DEG = 150, MELEE_IMPACT_DEG = 90;
+const MELEE_WINDUP_FRAC = 0.5, MELEE_STRIKE_FRAC = 0.25; // remaining (1 - both) is the recover phase
+export const meleeSwingAngle = (t, dur) => {
+  const prog = Math.max(0, Math.min(1, t / dur));
+  const windupEnd = MELEE_WINDUP_FRAC, strikeEnd = MELEE_WINDUP_FRAC + MELEE_STRIKE_FRAC;
+  if (prog <= windupEnd) return (prog / windupEnd) * MELEE_WINDUP_DEG;
+  if (prog <= strikeEnd) return MELEE_WINDUP_DEG + (MELEE_IMPACT_DEG - MELEE_WINDUP_DEG) * ((prog - windupEnd) / (strikeEnd - windupEnd));
+  return MELEE_IMPACT_DEG * (1 - (prog - strikeEnd) / (1 - strikeEnd));
+};
+// True from the instant the swing reaches its 90° impact angle through the end of the recover
+// phase — this is the window the weapon's Fire-pose art (and nothing else — hit detection
+// itself still just follows wherever the arm/hitbox actually is, every frame, same as before).
+export const meleeHasFired = (t, dur) => (t / dur) >= (MELEE_WINDUP_FRAC + MELEE_STRIKE_FRAC);
+// Defense reduces incoming damage with DIMINISHING returns and never fully negates it: the
+// multiplier is 10 / (10 + Defense). So 10 Defense = half damage (the calibration point), 20 =
+// a third, 30 = a quarter — it keeps helping past 10 but the curve flattens and can never reach
+// 0 (and incomingPlayerDamage still floors every hit at 1). Defense below 0 is clamped to 0.
+// Applied to damage an enemy deals to the player (see the enemy attack logic in the playtest
+// physics loop) — armor/equipment defense was always meant to soften exactly this.
+export const defenseDamageMultiplier = (def) => 10 / (10 + Math.max(0, def || 0));
+export const applyDefense = (rawDamage, def) => rawDamage * defenseDamageMultiplier(def);
+
+// ── Item categories & pedestal search ───────────────────────
+// Every "item" (equipment or weapon) can carry up to 3 free-text categories Blake types in
+// himself — "T1", "Shirt", "Strong". A pedestal placed in a level searches the saved item pool
+// and spawns one at random (Binding-of-Isaac style). The pedestal's own search is 0/1/2 category
+// filters (0 = match ANY item) combined with AND (item must carry every listed tag) or OR (at
+// least one). Matching is case-insensitive and whitespace-trimmed on both sides.
+export const HAS_CATEGORIES = (a) => !!a && (a.type === "equipment" || a.type === "weapon" || a.type === "item");
+const normCats = (arr) => (arr || []).map((c) => (typeof c === "string" ? c.trim().toLowerCase() : "")).filter(Boolean);
+export const itemMatchesPedestal = (item, cats, logic) => {
+  const filters = normCats(cats);
+  if (!filters.length) return true; // no filter set = "search all items"
+  const itemCats = normCats(item && item.categories);
+  const has = (f) => itemCats.includes(f);
+  return logic === "and" ? filters.every(has) : filters.some(has);
+};
+export const pedestalItemPool = (assets, cats, logic) => (assets || []).filter((a) => HAS_CATEGORIES(a) && itemMatchesPedestal(a, cats, logic));
+export const rollPedestalItem = (assets, cats, logic, rnd) => {
+  const pool = pedestalItemPool(assets, cats, logic);
+  if (!pool.length) return null;
+  const r = typeof rnd === "number" ? rnd : Math.random();
+  return pool[Math.min(pool.length - 1, Math.floor(r * pool.length))];
+};
+export const pedestalSummary = (m) => { const cs = ((m && m.cats) || []).map((c) => (c || "").trim()).filter(Boolean); return cs.length ? cs.join((m && m.logic) === "and" ? " AND " : " OR ") : "any item"; };
+// ── Single-use passive items (heal / temporary stat boost) ───────────────────
+// An "item" is a consumable placed on a pedestal (Binding-of-Isaac style). Taking it applies its
+// effect immediately and empties the pedestal — nothing swaps back, unlike gear. Two effect kinds:
+//   { kind: "heal", amount }                  — instantly restores `amount` HP (clamped to your max)
+//   { kind: "stat", stat, amount, duration }  — adds `amount` to a stat for `duration` seconds
+// It carries `categories` like gear so the SAME pedestal search finds it. Only the stats the player
+// actually reads in play are offered: Speed (move), Agility (jump), Strength (melee+throw damage),
+// Intelligence (melee crit chance) — every one has a live effect.
+export const ITEM_STAT_KEYS = ["speed", "agility", "intelligence", "strength"];
+export const ITEM_STAT_LABEL = { speed: "Speed", agility: "Agility", intelligence: "Int", strength: "Str" };
+export const DEFAULT_ITEM_EFFECT = () => ({ kind: "heal", amount: 5 });
+export const normItemEffect = (e) => {
+  if (!e || typeof e !== "object") return DEFAULT_ITEM_EFFECT();
+  if (e.kind === "stat") {
+    const stat = ITEM_STAT_KEYS.includes(e.stat) ? e.stat : "speed";
+    return { kind: "stat", stat, amount: Number.isFinite(e.amount) ? e.amount : 2, duration: Number.isFinite(e.duration) ? e.duration : 8 };
+  }
+  return { kind: "heal", amount: Number.isFinite(e.amount) ? e.amount : 5 };
+};
+// One-line human summary for the pedestal callout / pickup flash.
+export const itemEffectSummary = (e) => {
+  const x = normItemEffect(e);
+  return x.kind === "heal" ? "Heal " + x.amount + " HP"
+    : "+" + x.amount + " " + (ITEM_STAT_LABEL[x.stat] || x.stat) + " for " + x.duration + "s";
+};
+// Heal is clamped to [0, max] and never lowers HP (a negative amount is treated as 0). Pure.
+export const applyHeal = (curHP, maxHP, amount) => Math.max(0, Math.min(maxHP, curHP + Math.max(0, amount || 0)));
+// Still-active temporary buffs summed per stat at time nowMs, as { stat: totalAmount }. Expired
+// entries (until <= nowMs) contribute nothing; two buffs on the same stat stack. Pure.
+export const activeBuffSum = (buffs, nowMs) => {
+  const out = {};
+  for (const b of (buffs || [])) { if (b && b.until > nowMs) out[b.stat] = (out[b.stat] || 0) + (b.amount || 0); }
+  return out;
+};
+// Drop buffs whose timer has elapsed (called every frame so the list can't grow unbounded).
+export const pruneBuffs = (buffs, nowMs) => (buffs || []).filter((b) => b && b.until > nowMs);
+// ── Rooms: small levels (isRoom) with a roomTag; a level door pulls a seeded pick from the pool ─
+// A door carries a tag; entering it collects every saved room whose roomTag matches (case-
+// insensitive), then picks one deterministically from a seed so the same door in the same play
+// session always lands on the same room — different doors/sessions can differ (Isaac-style).
+export const roomPool = (levels, tag) => {
+  const t = (tag || "").trim().toLowerCase();
+  if (!t) return [];
+  return (levels || []).filter((l) => l && l.isRoom && ((l.roomTag || "").trim().toLowerCase() === t));
+};
+export const roomSeed = (str) => { let h = 2166136261 >>> 0; const s = String(str); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return (h >>> 0) / 4294967296; };
+export const pickRoom = (levels, tag, seedStr) => {
+  const pool = roomPool(levels, tag);
+  if (!pool.length) return null;
+  return pool[Math.min(pool.length - 1, Math.floor(roomSeed(seedStr) * pool.length))];
+};
+// Playtest spawn: you "enter" a level through an OPEN gate (connector), favouring top-left then
+// the left side — the way the real game brings you in. You only land on a door when you exit a
+// room; inside a room you appear at that room's own door.
+export const GATE_SPAWN_ORDER = ["N1", "W1", "N2", "W2", "S1", "S2", "E1", "E2"];
+export const preferredOpenGate = (conns) => { for (const k of GATE_SPAWN_ORDER) { if (conns && conns[k] && conns[k].open) return k; } return null; };
+export const firstDoorKey = (markers) => { for (const k in (markers || {})) { const m = markers[k]; if (m && m.kind === "door") return k; } return null; };
+// An enemy is hostile (attacks the player) unless its "Not hostile" box is ticked — then it's a
+// neutral NPC that just stands there and never attacks, though the player can still fight it.
+export const enemyIsHostile = (ea) => !ea || ea.hostile !== false;
+// A unit's side. A resurrected unit is "friendly" (fights for you) regardless of its asset; else
+// "hostile" if its asset is hostile, else a "neutral" NPC. Only friendly/hostile units act.
+export const unitSide = (ea, ep) => (ep && ep.friendly) ? "friendly" : (enemyIsHostile(ea) ? "hostile" : "neutral");
+export const nearestUnitCX = (fromCX, candidates) => {
+  let best = null, bd = Infinity;
+  for (const c of (candidates || [])) { if (!c) continue; const d = Math.abs(c.cx - fromCX); if (d < bd) { bd = d; best = c; } }
+  return best;
+};
+// A body can be raised only if it's dead and has never been raised before — resurrection is one-and-done.
+export const canResurrect = (hp, ep) => hp <= 0 && !(ep && ep.resurrectedOnce);
+// Which currently-worn slot comes off when you equip `item`: its own slot if that's occupied,
+// otherwise the first worn slot holding something that shares one of the item's category tags —
+// so you can't end up wearing two items of the same category. Exactly one item is ever displaced
+// (it goes back onto the pedestal). null = a clean equip into an empty slot with nothing to swap.
+export const equipDisplacedSlot = (item, equippedMap) => {
+  if (!item) return null;
+  if (equippedMap && equippedMap[item.slot]) return item.slot;
+  const xCats = normCats(item.categories);
+  if (!xCats.length) return null;
+  return SLOT_ORDER.find((sl) => { const it = equippedMap && equippedMap[sl]; return it && normCats(it.categories).some((c) => xCats.includes(c)); }) || null;
+};
+// A hit is "from behind" when the attacker is on the opposite side to the way the wearer faces.
+// face is -1 (facing left) or 1 (facing right); attacker/wearer are world x positions. A hit
+// coming from exactly the same column (dx 0) is treated as NOT behind — you can't be flanked by
+// something you're standing on top of. Used by the Back Guard cape effect.
+export const isHitFromBehind = (face, attackerX, wearerX) => {
+  const dx = attackerX - wearerX;
+  if (dx === 0) return false;
+  return Math.sign(dx) !== (face || 1); // attacker is on the side you're NOT facing
+};
+// Back Guard: eats `reduce` (0..1) of a hit, but only when it lands from behind. Applied AFTER
+// normal Defense (so it's the cape catching what armor didn't). reduce 0.5 halves the blow.
+export const applyBackGuard = (damage, fromBehind, reduce) => fromBehind ? damage * (1 - Math.max(0, Math.min(1, reduce || 0))) : damage;
+// The combined incoming-damage pipeline for a player hit: normal Defense first, then any Back
+// Guard cape if the hit came from behind, floored at 1 so a hit always stings a little. `backGuard`
+// is the effect object (or null); passing the wearer's own facing + the attacker's x decides
+// whether the guard applies. Keeps every hit site (melee, projectile) from re-deriving the order.
+export const incomingPlayerDamage = (raw, def, face, attackerX, wearerX, backGuardReduce) => {
+  let d = applyDefense(raw, def);
+  if (backGuardReduce != null) d = applyBackGuard(d, isHitFromBehind(face, attackerX, wearerX), backGuardReduce);
+  return Math.max(1, Math.round(d));
+};
+// A clothing "Tag Damage" ability empowers a KIND of weapon: any equipped weapon whose
+// category tags include the tag the ability is set to (e.g. "bow") deals multiplied damage
+// while the item is worn. Given the wearer's resolved effects (post-mergeEquip) and the
+// weapon's own categories, returns the damage multiplier to apply (1 = no boost). Multiple
+// matching tag abilities stack multiplicatively. Tag match is the same case-insensitive,
+// trimmed compare pedestals use.
+export const tagDamageMultiplier = (effects, weaponCategories) => {
+  const cats = normCats(weaponCategories);
+  if (!cats.length) return 1;
+  let mult = 1;
+  for (const e of (effects || [])) {
+    if (e.type !== "tagBoost") continue;
+    const tag = (e.tag || "").trim().toLowerCase();
+    if (tag && cats.includes(tag)) mult *= (e.mult ?? 1.5);
+  }
+  return mult;
+};
+// Horizontal movement rule. On the ground (or on a ladder/bars) your speed is driven by the keys
+// AND remembered as momentum. In the air the keys do NOT steer you (no air control) — you keep
+// whatever horizontal momentum you left the ground with, so running and jumping carries you along,
+// while a standing jump goes straight up. Returns this frame's dx.
+export const horizVel = (K, speed, grounded, prevVx, glide, slide, dtMul) => {
+  if (grounded) {
+    let target = 0; if (K.left) target = -speed; if (K.right) target = speed;
+    if (slide) {
+      // Low-grip surface (skates/ice): ease toward the key's target speed instead of snapping to
+      // it, so starting takes a moment and — the whole point — LETTING GO coasts on momentum
+      // rather than stopping dead. grip is the fraction of the speed gap closed per 60fps-frame.
+      const t = Math.min(1, (slide.grip ?? 0.15) * (dtMul || 1));
+      const v = (prevVx || 0) + (target - (prevVx || 0)) * t;
+      return (target === 0 && Math.abs(v) < 0.05) ? 0 : v;
+    }
+    return target;
+  }
+  // Gliding restores air control: the keys steer you again (normally they don't mid-air), scaled
+  // by the cape's `control` factor. Releasing both keys while gliding coasts on your momentum,
+  // so you don't stall dead in the air. Without a glide, air frames keep launch momentum as before.
+  if (glide && glide.active) {
+    if (K.left) return -speed * glide.control;
+    if (K.right) return speed * glide.control;
+    return prevVx || 0;
+  }
+  return prevVx || 0;
+};
+// Glide is active only while airborne, actually falling (vy > 0 — you can't glide up out of a
+// jump), the cape is equipped, and the player is holding Jump. Edge cases: not while climbing,
+// and it needs to be past the jump's apex so holding Jump off the ground to jump-boost doesn't
+// instantly flip into a glide. Returns the resolved { active, fall, control } or null.
+export const glideState = (effect, K, onGround, climbing, vy) => {
+  if (!effect || onGround || climbing || vy <= 0 || !K.jump) return null;
+  return { active: true, fall: Math.max(0.05, Math.min(1, effect.fall ?? 0.35)), control: Math.max(0, Math.min(1, effect.control ?? 1)) };
+};
+// Slide (skates / ice): resolves the equipped effect into { grip, slope } clamped to sane ranges.
+// grip is the per-frame fraction of the speed gap ground movement closes (low = slippery, coasts
+// when you let go); slope multiplies the downhill ramp pull. null when no slide item is worn.
+export const slideState = (effect) => effect ? { grip: Math.max(0.05, Math.min(1, effect.grip ?? 0.15)), slope: Math.max(1, Math.min(4, effect.slope ?? 2)) } : null;
+// Turns the raw key state (WASD move keys and arrow aim keys tracked separately) into the merged
+// "intent" the physics loop reads. The split is the whole point: WASD only moves, arrows only
+// aim — so aiming up no longer walks you into a wall, and climbing a ladder with W/S no longer
+// forces the gun to point up/down. up/down still mean "climb or crouch" and accept EITHER source
+// (W/S or ↑/↓) so a keyboard-only player can climb; the four aim* intents are surfaced raw for
+// the aim logic. Left/right come from WASD alone.
+export const mergeInputIntent = (RK) => ({
+  left: !!RK.left, right: !!RK.right,
+  up: !!(RK.up || RK.aimUp), down: !!(RK.down || RK.aimDown),
+  // crouch is S (WASD-down) or the dedicated C key — NOT the down arrow, which is for aiming
+  // down; conflating them would make it impossible to aim a gun downward while standing.
+  jump: !!RK.jump, fire: !!RK.fire, crouch: !!(RK.crouch || RK.down), reload: !!RK.reload, throw: !!RK.throw,
+  melee: !!RK.melee,
+  aimUp: !!RK.aimUp, aimDown: !!RK.aimDown, aimLeft: !!RK.aimLeft, aimRight: !!RK.aimRight,
+  interact: !!RK.interact,
+});
+// Whether this frame's ledge step-assist (auto-climb a single solid cell of rise so a small step
+// doesn't need a jump) should run at all. It must NOT run while the player is actively climbing a
+// ladder/bars/cliff: climbing already owns vertical position through its own dedicated logic
+// further down the loop, so a wall cell brushed while shifting sideways on a ladder (a completely
+// normal, intended move) was tripping this same step-assist and snapping the player up by a full
+// cell's height — a visible teleport, not a climb. `climbing` here is deliberately last FRAME's
+// value (this frame's isn't computed yet at the point step-assist runs), matching how `grounded`
+// a few lines earlier already reads it — so the very first frame you grab a ladder can still
+// step-assist once, but every frame after that (i.e. all of actual climbing) is correctly exempt.
+// This does NOT touch the separate plain wall-clamp right after it — walking/climbing sideways
+// into a genuine wall still just stops you there, no teleport, exactly as it should.
+export const shouldStepAssist = (hitCount, dx, climbing, onSlope) => hitCount > 0 && dx !== 0 && !climbing && !onSlope;
+// A limb-tracking equipment piece (a jacket sleeve, a cuff — anything flagged limb:"arm") turns
+// by the SAME rotational delta its arm is making, added straight onto the piece's own baked rest
+// rotation, so it stays glued to the arm as the arm swings/climbs. It must NOT get a mirror-twist
+// sign flip: a mirrored twin is already drawn inside scaleX(-1), which flips the delta on screen,
+// so flipping it a second time here (the old bug) double-flipped it — the twin sleeve swung the
+// wrong way, pointing down while the arm went up. Both copies take the same delta; the scaleX on
+// the twin does the mirroring. See the climb/aim arm branches in the playtest renderer.
+export const limbFollowRot = (piece, target, baseArmRot) => (piece.rot || 0) + (target - baseArmRot);
+// Rigid-rotate a clothing limb piece (sleeve, cuff, pant-leg, calf triangle) around the actual
+// JOINT (shoulder / hip) rather than around its own top. A piece drawn far from the joint — a cuff
+// near the hand, a triangle at the calf — otherwise spins about its own middle and slides off the
+// limb during a big rotation (measured ~14px of drift on the jacket climb). `visDeg` is the joint
+// rotation as it appears ON SCREEN (already sign-flipped for a mirror twin by the caller); the
+// piece's own `rot` (newRot) still spins it about its own top, and moving its top-centre along the
+// joint arc turns the two together into one rigid rotation about the joint — so it stays glued.
+export const rigidLimbTransform = (piece, jointX, jointY, visDeg, newRot) => {
+  const rad = visDeg * Math.PI / 180;
+  // The piece's own VISUAL pivot — the exact point the renderer turns it about: its chosen
+  // shoulder side for an arm piece, top-centre for everything else (legs, shoes, clothing).
+  // Orbiting an assumed top-centre while the renderer pivots elsewhere is what detached
+  // followers whose shoulder side wasn't "top".
+  const isArmP = piece.role === "weaponArm" || (piece.limb === "arm" && !piece._isShoe);
+  const op = isArmP ? armShoulderPoint(piece) : { x: piece.x + piece.w / 2, y: piece.y };
+  const dx = op.x - jointX, dy = op.y - jointY;
+  const nx = jointX + dx * Math.cos(rad) - dy * Math.sin(rad);
+  const ny = jointY + dx * Math.sin(rad) + dy * Math.cos(rad);
+  return { ...piece, x: piece.x + (nx - op.x), y: piece.y + (ny - op.y), rot: newRot };
+};
+// The rotation a piece actually SHOWS on screen for a given stored rot, accounting for the
+// mirror-twin scaleX(-1) flip and the per-piece mirrorTwist opt-out (same rules shapeStyle
+// applies at render time). Needed to compute an arm's true on-screen rotation delta.
+export const visualRotOf = (piece, rot) => { const r = (piece._m && piece.mirrorTwist === false) ? -(rot || 0) : (rot || 0); return piece._m ? -r : r; };
+// Finds, for any clothing piece, the body weapon-arm it should ride: the NEAREST one by
+// on-screen x. Matching by mirror parity (original->original, twin->twin) was wrong whenever a
+// garment was DRAWN on the opposite side of the canvas from the body's own arm (the Army
+// Shirt's sleeve square, drawn at x~41 while the body's weapon arm original sits at x~139) —
+// the follower then orbited the far shoulder and got flung across the body. Which twin is the
+// "original" is an accident of which side it was drawn on; the piece's actual position is not.
+// Same principle applyLimbSwing already uses for legs (sideSign).
+export const armAnchorFinder = (blocks) => {
+  let arms = blocks.filter((b) => b.role === "weaponArm");
+  // No role:"weaponArm" (a drawn enemy with only 💪-flagged pieces): anchor on the LARGEST
+  // flagged arm piece per mirror side instead, so a multi-piece flagged arm still swings
+  // rigidly about one shoulder — without this each piece spun about its own top and the
+  // swing read as pivoting around the arm's middle.
+  if (!arms.length) {
+    const flagged = blocks.filter((b) => b.limb === "arm" && !b._isShoe);
+    if (flagged.length) { const biggest = flagged.reduce((a, c) => (c.w * c.h > a.w * a.h ? c : a)); arms = [biggest]; }
+  }
+  if (!arms.length) return () => null;
+  return (b) => { const cx = b.x + b.w / 2; return arms.reduce((a, c) => (Math.abs(c.x + c.w / 2 - cx) < Math.abs(a.x + a.w / 2 - cx) ? c : a)); };
+};
+// The piece an enemy swings/aims/attaches a weapon to: the explicit weapon arm if one exists,
+// else the largest piece flagged 💪 Arm. One rule shared by the AI render and the melee code.
+export const flaggedArmOf = (list) => {
+  const real = armOf(list);
+  if (real) return real;
+  const flagged = (list || []).filter((b) => b.limb === "arm" && !b._isShoe && !b._m);
+  if (!flagged.length) return null;
+  return flagged.reduce((a, c) => (c.w * c.h > a.w * a.h ? c : a));
+};
+// Rigidly carry a clothing piece (sleeve, cuff, shoulder square) along with its anchor arm as
+// the arm's stored rot goes arm.rot -> armNewRot: the piece's top-centre orbits the arm's
+// shoulder by the arm's ON-SCREEN delta, and its own rot changes so its on-screen rotation
+// matches that same delta (converted back to stored form for the piece's own mirror state).
+// This is the ONE follow rule every arm-moving branch (ladder, bars, melee swing, aim hold)
+// shares — rot-only follows detached any sleeve whose own top wasn't exactly at the shoulder
+// (the Army Jacket's side sleeve pivots ~35px below it, so it visibly fell below the arm the
+// moment the player aimed). For a piece whose top-centre IS the shoulder, the orbit is a
+// no-op and this reduces to exactly the old rotation-follow.
+export const rigidArmFollow = (b, arm, armNewRot) => {
+  const vis = visualRotOf(arm, armNewRot) - visualRotOf(arm, arm.rot);
+  const flip = (b._m && b.mirrorTwist !== false) ? -1 : 1;
+  const newRot = (b.rot || 0) + vis * flip;
+  const sp = armShoulderPoint(arm), jx = sp.x, jy = sp.y;
+  return rigidLimbTransform(b, jx, jy, vis, newRot);
+};
+// Clamps/rounds the art canvas zoom level to a sane range. 1 = the design area (200×260) fills
+// the whole canvas, same as always. Below that, the design area shrinks WITHIN a fixed-size
+// canvas (see .artDesign) instead of the whole canvas shrinking — so zooming out reveals real,
+// placeable space above/beside the character instead of just making everything smaller. Never
+// below 40% — much smaller and there's barely a design area left to see at all.
+export const ARTZOOM_MIN = 0.4, ARTZOOM_MAX = 1;
+export const clampArtZoom = (z, delta) => Math.max(ARTZOOM_MIN, Math.min(ARTZOOM_MAX, +(z + delta).toFixed(2)));
+// Categories for the "Load" browser. `fitTracked` marks types that carry per-body variants
+// (skin/equipment) — those get the body-fit checklist in the item list; weapons and bodies
+// themselves don't need one (a weapon's hand-attachment point already adapts to any body
+// automatically, with no per-body art to fit).
+const LOAD_CATEGORIES = [
+  { key: "body", label: "Bodies", icon: "🧍", match: (a) => a.type === "body", fitTracked: false },
+  { key: "skin", label: "Skins", icon: "🎨", match: (a) => a.type === "skin", fitTracked: true },
+  { key: "equipment", label: "Clothes & Armor", icon: "👕", match: (a) => a.type === "equipment", fitTracked: true },
+  { key: "weapon", label: "Weapons", icon: "⚔️", match: (a) => a.type === "weapon", fitTracked: true },
+  { key: "projectile", label: "Projectiles", icon: "🔮", match: (a) => a.type === "projectile", fitTracked: false },
+  { key: "prop", label: "Objects / Props", icon: "🌿", match: (a) => a.type === "prop", fitTracked: false },
+  { key: "item", label: "Items", icon: "🧪", match: (a) => a.type === "item", fitTracked: false },
+  { key: "enemy", label: "Enemies", icon: "👹", match: (a) => a.type === "enemy", fitTracked: false },
+  { key: "character", label: "Dressed Looks", icon: "🧩", match: (a) => a.type === "character", fitTracked: false },
+];
+
+// 5 is the "unmodified human" baseline for every stat — matches how items are meant to read
+// (a stat of 5 + a +2 item = 7), and runtime formulas below treat 5 as the neutral multiplier
+// point (stat/5 === 1×) so existing speed/jump feel is unchanged until someone touches a stat.
+// HP follows the same convention (baseline 5) — it's the player's own stat, not to be confused
+// with an Enemy's separate `.hp` field (a raw, uncapped number — how tanky that one enemy is —
+// which this doesn't touch).
+const DEFAULT_STATS = () => ({ hp: 5, speed: 5, agility: 5, intelligence: 5, strength: 5 });
+// The player's actual HP pool in Playtest — same baseline-5 convention as every other stat
+// (5 = 1×, unmodified). PLAYER_BASE_HP mirrors the default 10 a freshly-created enemy asset
+// starts with, so a stat-5 player and a freshly-made enemy are equally tanky by default.
+const PLAYER_BASE_HP = 10;
+export const maxPlayerHP = (playerAsset) => Math.max(1, Math.round(PLAYER_BASE_HP * ((playerAsset?.stats?.hp ?? 5) / 5)));
+const DEFAULT_ATTACK_RANGE = 60;   // px — used when an enemy asset hasn't set its own attackRange
+const DEFAULT_RANGED_ATTACK_RANGE = 540; // px = 18 cells @ 30px — an enemy holding a bow/gun engages from far further out than a fist
+const ATTACK_COOLDOWN_FRAMES = 45; // frames between one enemy's attacks (~0.75s)
+const ATTACK_SWING_FRAMES = 14;    // how long the attack's arm-swing/lunge visual plays
+const PLAYER_INVULN_FRAMES = 40;   // brief invulnerability after the player is hit, so standing in one enemy's range doesn't melt HP every frame
+/* --- Enemy AI: every decision an enemy makes is driven by its Intelligence stat -------------
+   5 is the baseline (as for every other stat), so an Intelligence-5 enemy behaves the way the
+   old hard-coded numbers did, and moving the stat up or down is what actually changes it. */
+// Chance an enemy even TRIES to dodge an incoming shot. 50% at baseline, capped short of certain
+// so a genius still occasionally eats one. (This is the "confirm dodge chance based on
+// intelligence" item — it used to be an inline literal; it's one named, tested function now, and
+// it drives BOTH the duck and the new hop.)
+export const enemyDodgeChance = (intelligence) => Math.min(0.95, 0.5 * ((intelligence ?? 5) / 5));
+// How the enemy should dodge a shot heading for it, given where the shot is vertically within
+// its hitbox: a high shot is ducked under, a low one is hopped over. null = it'd miss anyway.
+export const dodgeMoveFor = (shotY, hitTop, hitH) => {
+  if (!(hitH > 0) || shotY < hitTop || shotY > hitTop + hitH) return null;
+  return (shotY - hitTop) / hitH < 0.45 ? "crouch" : "jump";
+};
+// The enemy's reaction time: a short, RANDOM wind-up between "the player is in range" and the
+// attack actually landing, instead of the old instant hit the moment you crossed the range line.
+// A dim enemy dawdles (~0.3-0.8s), a sharp one snaps (~0.05-0.15s). `rnd` is injectable so the
+// randomness can be pinned in a test.
+export const enemyReactionFrames = (intelligence, rnd) => {
+  const base = Math.max(3, Math.round(36 - (intelligence ?? 5) * 3)); // int 1 -> 33, int 5 -> 21, int 10 -> 6
+  const r = rnd === undefined ? Math.random() : rnd;
+  return Math.max(1, Math.round(base * (0.5 + r)));
+};
+// An enemy's effective engagement range: whatever it's set to, but a weapon that shoots defaults
+// to a far longer reach than a fist, so a bow-carrying enemy doesn't insist on walking into your
+// face before doing anything.
+export const enemyAttackRange = (ea, weapon) => {
+  const set = (ea && ea.attackRange !== undefined && ea.attackRange !== null) ? ea.attackRange : null;
+  // A ranged enemy whose range was never raised past the melee baseline (e.g. one made by dressing
+  // Bob, which bakes the 2-cell melee default) would otherwise refuse to shoot until you were on
+  // top of it — and then only get one point-blank shot before you stepped back out of its tiny
+  // reach. Treat any still-melee-sized value as "unset" for a shooter, so it engages from range.
+  // A shooter opens fire — and holds station — at TWICE its nominal reach, so a bow/gun enemy
+  // engages from far out rather than the close distance a fist implies. Doubles both the ranged
+  // default and any hand-set ranged range; the enemy's sight range (enemyDetects) still caps how
+  // far it can actually notice you, so it can't fire at something it can't yet see.
+  if (weapon && isRanged(weapon.wtype)) return ((set !== null && set > DEFAULT_ATTACK_RANGE) ? set : DEFAULT_RANGED_ATTACK_RANGE) * 2;
+  return set !== null ? set : DEFAULT_ATTACK_RANGE;
+};
+// Enemies now CONSIDER their range when moving. Seek closes only until it's comfortably inside
+// its own reach, then holds station — and backs off if the player crowds it (an archer shouldn't
+// stand nose-to-nose to shoot). Avoid and Guard behave exactly as before.
+// `dist` is signed: player position minus enemy position.
+export const ENEMY_STANDOFF_FAR = 0.85, ENEMY_STANDOFF_NEAR = 0.45;
+export const enemyMoveIntent = (ai, dist, range, speed, detected) => {
+  if (!detected) return 0;
+  const ad = Math.abs(dist), s = Math.sign(dist) || 1;
+  if (ai === "avoid") return -s * speed;
+  if (ai !== "seek") return 0; // guard holds its ground
+  if (ad > range * ENEMY_STANDOFF_FAR) return s * speed;
+  if (ad < range * ENEMY_STANDOFF_NEAR) return -s * speed;
+  return 0;
+};
+// Same block-height jump math the player uses (h = v^2/2g, inverted), so an enemy's hop clears
+// the same obstacles a player of that Agility could.
+export const enemyJumpVelocity = (agility, cellH) => Math.sqrt(2 * 0.175 * (0.5 * Math.min(10, Math.max(1, agility ?? 5)) + 0.5) * cellH);
+// Which weapon an enemy is holding. A plain Enemy asset carries `weaponId`; a Dress Bob look
+// flagged 👹 Enemy already records its weapon in the recipe it was composed from.
+export const enemyWeaponIdOf = (ea) => (ea && (ea.weaponId || (ea.recipe && ea.recipe.weaponId) || (ea.components && ea.components.weapon && ea.components.weapon.id))) || null;
+// Damage one swing/shot from this enemy deals, before the player's Defense is applied. A weapon
+// supplies the base damage, scaled by the enemy's Strength (5 = 1x, same as the player's own
+// formula); bare-handed it's just Strength, exactly as it was before enemies could hold weapons.
+export const enemyAttackDamage = (ea, weapon) => {
+  const str = ea?.stats?.strength ?? 5;
+  return weapon ? Math.max(1, (weapon.damage ?? 5) * (str / 5)) : str;
+};
+// Equipment-only: additive on top of the wearer's own stat (5 + a +2 item reads as 7). 0 = no change.
+const DEFAULT_STAT_BOOSTS = () => ({ hp: 0, speed: 0, agility: 0, intelligence: 0, strength: 0 });
+// Effects catalog (equipment only). Each entry's `params` drives the sliders generically — adding
+// a future effect is a new entry here plus its own runtime hook in the Playtest loop, not new UI.
+const EFFECT_TYPES = {
+  doubleJump: {
+    label: "Double Jump", icon: "⤴️",
+    blurb: "Grants one bonus mid-air jump. Design a custom Side-view animation for it, per body — a body with none yet just plays this item's normal look during the jump.",
+    params: [
+      { key: "height", label: "Height", min: 4, max: 16, step: 0.5, def: 9 },
+      { key: "speed", label: "Speed", min: 1, max: 10, step: 1, def: 5 },
+    ],
+  },
+  // A cape that soaks part of a hit taken from BEHIND — the direction the wearer is facing tells
+  // us their front, so an attacker on the opposite side is behind them. "Reduce" is the fraction
+  // of the blow it eats (0.5 = half), applied on top of (after) the wearer's normal Defense.
+  backGuard: {
+    label: "Back Guard", icon: "🛡️",
+    blurb: "Blocks part of any hit that lands from BEHIND you (a cape catching the blow). Front and side hits are unaffected. Stacks after your normal Defense. No animation of its own.",
+    noAnim: true,
+    params: [
+      { key: "reduce", label: "Block %", min: 0.1, max: 1, step: 0.05, def: 0.5 },
+    ],
+  },
+  // A cape that lets you fall gently and steer in the air. Normally you keep whatever horizontal
+  // momentum you left the ground with (no air control); while gliding, the keys steer you again,
+  // and gravity is scaled down. Only active while airborne and FALLING, and only while the key is
+  // held (see the loop) so you choose when to glide.
+  glide: {
+    label: "Glide", icon: "🪂",
+    blurb: "Hold Jump while falling to glide: fall speed is cut and you regain full mid-air steering (normally you keep your launch momentum with no air control). Design a Side-view animation for it, per body — a body with none yet just plays this item's normal look while gliding.",
+    params: [
+      { key: "fall", label: "Fall slow", min: 0.1, max: 0.9, step: 0.05, def: 0.35 },
+      { key: "control", label: "Air control", min: 0.3, max: 1, step: 0.05, def: 1 },
+    ],
+  },
+  // Low-grip footwear (skates, rollerblades, ice): you don't stop on a dime — release the keys
+  // and you COAST on your momentum, and downhill ramps pull you faster (up to a terminal glide).
+  // No animation of its own; it just changes how the ground feels underfoot.
+  slide: {
+    label: "Slide", icon: "🛼",
+    blurb: "Low grip, like skates or ice: starting and stopping take a moment — you coast when you let go instead of stopping dead — and you slide faster down ramps. No animation of its own.",
+    noAnim: true,
+    params: [
+      { key: "grip", label: "Grip", min: 0.05, max: 1, step: 0.05, def: 0.15 },
+      { key: "slope", label: "Downhill", min: 1, max: 4, step: 0.5, def: 2 },
+    ],
+  },
+  // A clothing ability that empowers a KIND of weapon: any equipped weapon whose category
+  // tags include the tag typed below (e.g. "bow") deals multiplied damage while this item is
+  // worn. No animation of its own; it's purely a damage buff resolved in the playtest math.
+  tagBoost: {
+    label: "Tag Damage", icon: "🏹",
+    blurb: "Empowers a kind of weapon: any equipped weapon whose category tags include the tag you set below (e.g. \"bow\") deals multiplied damage while this is worn. Set the tag and the multiplier. No animation of its own.",
+    noAnim: true,
+    tagParam: true,
+    params: [
+      { key: "mult", label: "Damage ×", min: 1, max: 5, step: 0.25, def: 1.5 },
+    ],
+  },
+};
+// Live pedestal pickup: layer a taken equipment item's stat boosts / defense / effects onto the
+// player during Playtest. Mirrors assembleLook's stat/effect math (additive stat boosts, summed
+// defense, effects resolved to the worn body's animation) but for one-off live pickups instead of
+// a saved dressed look. `equippedMap` is slot -> equipment item; weapons are handled separately
+// via playtestWeaponId. Returns a shallow clone of `base` with merged stats/defense/effects.
+export const mergeEquip = (base, equippedMap, bodyId) => {
+  if (!base) return base;
+  const items = Object.keys(equippedMap || {}).map((sl) => equippedMap[sl]).filter(Boolean);
+  if (!items.length) return base;
+  const stats = { ...(base.stats || {}) };
+  let defense = base.defense || 0;
+  const effects = [...(base.effects || [])];
+  for (const eq of items) {
+    if (eq.statBoosts) for (const k of Object.keys(eq.statBoosts)) stats[k] = (stats[k] ?? 5) + (eq.statBoosts[k] || 0);
+    defense += eq.defense || 0;
+    for (const eff of (eq.effects || [])) {
+      const animByBody = eff.animByBody || {};
+      const frames = (bodyId && animByBody[bodyId] && animByBody[bodyId].length) ? animByBody[bodyId]
+        : (eff.lastFit && animByBody[eff.lastFit] && animByBody[eff.lastFit].length) ? animByBody[eff.lastFit]
+        : (animByBody.default || []);
+      const packed = { type: eff.type, frames, slot: eff.slot || null };
+      for (const pm of (EFFECT_TYPES[eff.type]?.params || [])) packed[pm.key] = eff[pm.key] ?? pm.def;
+      if (EFFECT_TYPES[eff.type]?.tagParam) packed.tag = eff.tag || "";
+      effects.push(packed);
+    }
+  }
+  return { ...base, stats, defense, effects };
+};
+// Human-readable "what changed" for a pedestal equip: stat deltas, defense delta, and any NEW
+// effect types gained. Both args are the output of mergeEquip (before/after the pickup).
+export const EQUIP_STAT_KEYS = ["hp", "speed", "agility", "intelligence", "strength"];
+export const EQUIP_STAT_LABEL = { hp: "HP", speed: "Speed", agility: "Agility", intelligence: "Int", strength: "Str" };
+export const equipEffectSummary = (before, after) => {
+  const parts = [];
+  const bs = (before && before.stats) || {}, as = (after && after.stats) || {};
+  for (const k of EQUIP_STAT_KEYS) { const b = bs[k] ?? 5, a = as[k] ?? 5; if (a !== b) parts.push(EQUIP_STAT_LABEL[k] + " " + b + "\u2192" + a); }
+  const bd = (before && before.defense) || 0, ad = (after && after.defense) || 0;
+  if (ad !== bd) parts.push("Def " + bd + "\u2192" + ad);
+  const had = new Set(((before && before.effects) || []).map((e) => e.type));
+  for (const e of ((after && after.effects) || [])) if (!had.has(e.type)) { had.add(e.type); parts.push("+" + ((EFFECT_TYPES[e.type] && EFFECT_TYPES[e.type].label) || e.type)); }
+  return parts;
+};
+// One effect-animation frame — the SAME 5-pose shape normal art uses, so it can be edited with
+// the exact same piece toolbar (add/select/drag/resize). Only .side is ever shown/used, since
+// Playtest only ever renders the player in its Side pose while airborne.
+const blankFrame = () => blankAngles();
+// Skin/equipment layouts are keyed by whichever BODY's id was the active guide when that
+// layout was drawn ("default" when no specific body is selected) — see the guideId picker's
+// onChange below. No separate tagging vocabulary; the body you were designing for IS the key.
+const blankVariants = () => ({ default: blankAngles() });
+export function newAsset(type, slot, wtype) {
+  const a = { id: uid(), name: slot ? SLOTS[slot].label : (TYPES[type] ? TYPES[type].label : type), type, angles: blankAngles(), guideId: "default" };
+  if (type === "body") { a.angles = JSON.parse(JSON.stringify(DEFAULT_BODY)); return withRig(a); }
+  if (type === "skin") { a.stats = DEFAULT_STATS(); a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; }
+  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.stun = 0; a.categories = ["", "", ""]; }
+  if (type === "enemy") { a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = 10; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; return withRig(a); }
+  if (type === "equipment") { a.slot = slot; a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; a.statBoosts = DEFAULT_STAT_BOOSTS(); a.defense = 0; a.effects = []; a.categories = ["", "", ""]; }
+  if (type === "projectile") { a.size = 1; }
+  // A prop/object: single-canvas pixel art (like a projectile), placed into levels at any size.
+  // Optionally animated — `frames` is an ordered list of front-pose piece lists; frame 0 is the
+  // live `angles` (what the piece editor edits when frameIdx 0 is selected). animFps drives the
+  // cycle speed in Playtest. Only the Front pose is ever used (props don't rotate/face).
+  if (type === "prop") { a.size = 2; a.frames = [blankAngles()]; a.angles = a.frames[0]; a.animFps = 6; a.solidDefault = false; }
+  // A single-use item: one Front canvas (drawn like a projectile), an effect, and category tags so
+  // a pedestal can roll it. No poses/frames/rig — it only ever shows on a pedestal and in menus.
+  if (type === "item") { a.effect = DEFAULT_ITEM_EFFECT(); a.categories = ["", "", ""]; }
+  return a;
+}
+const guideAsset = { angles: DEFAULT_BODY, hand: DEFAULT_HAND, shoulder: DEFAULT_SHOULDER };
+/* --- Loading asset JSON that didn't come out of this app ---------------------------------- */
+// "Load this text" / "Open a file" used to do exactly two checks: JSON.parse, and `if (!c.angles)
+// throw`. Everything else — a missing type, a missing pose, a piece with no id or no width, a
+// dressed look (which the piece editor cannot render at all) — either failed with the same
+// useless "That text isn't an asset file." or loaded into a broken editor. That's why an asset
+// written by hand (or by another AI) wouldn't load: it's usually a perfectly sensible object
+// that just doesn't happen to carry every field this app's own Save writes.
+//
+// normalizeAssetJson repairs what it safely can, infers what it can't, and throws an error whose
+// MESSAGE says what's actually wrong. It never invents art: a pose with no blocks stays empty.
+export const KNOWN_ASSET_TYPES = ["body", "skin", "weapon", "enemy", "equipment", "projectile", "prop", "item", "character"];
+export const inferAssetType = (raw) => {
+  if (raw.type && KNOWN_ASSET_TYPES.includes(raw.type)) return raw.type;
+  if (raw.recipe || raw.components) return "character";
+  if (raw.effect && typeof raw.effect === "object" && (raw.effect.kind === "heal" || raw.effect.kind === "stat")) return "item";
+  if (raw.slot) return "equipment";
+  if (raw.wtype || raw.projectileId !== undefined || (raw.states && raw.states.fire)) return "weapon";
+  if (raw.hasArms !== undefined || (raw.states && raw.states.onFire)) return "enemy";
+  if (raw.hand || raw.shoulder) return "body";
+  if (raw.frames && raw.size !== undefined) return "prop"; // a prop carries its own animation-frames array; a projectile never does
+  if (raw.size !== undefined && raw.angles) return "projectile";
+  return null;
+};
+const normalizePiece = (p) => {
+  if (!p || typeof p !== "object") return null;
+  const num = (v, d) => (typeof v === "number" && isFinite(v) ? v : d);
+  const q = { ...p, id: p.id || uid(), kind: p.kind || "rect", x: num(p.x, 0), y: num(p.y, 0), w: Math.max(1, num(p.w, 20)), h: Math.max(1, num(p.h, 20)) };
+  if (q.mirror === undefined) q.mirror = false;
+  if (q.rot !== undefined) q.rot = num(q.rot, 0);
+  if (q.kind === "emoji" && !q.char) q.char = "❓";
+  if (q.kind === "text" && !q.text) q.text = "TEXT";
+  if (q.kind !== "emoji" && q.kind !== "text" && !q.color) q.color = SKIN;
+  return q;
+};
+const normalizeAngles = (src) => { const out = blankAngles(); if (!src || typeof src !== "object") return out; for (const ang of ANGLES) out[ang] = Array.isArray(src[ang]) ? src[ang].map(normalizePiece).filter(Boolean) : []; return out; };
+export const normalizeAssetJson = (raw) => {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("That isn't an asset — it should be one JSON object starting with { and ending with }.");
+  if (raw.conns && raw.cols) throw new Error("That's a level, not an asset — load it in the Level Creator instead.");
+  const type = inferAssetType(raw);
+  if (!type) throw new Error("Couldn't tell what kind of asset that is. Add a \"type\" of: " + KNOWN_ASSET_TYPES.join(", ") + ".");
+  const a = { ...raw, type };
+  // Poses can live under .angles, or (for weapons/enemies saved mid-state) under .states.
+  a.angles = normalizeAngles(a.angles && Object.keys(a.angles).length ? a.angles : (a.states && (a.states.rest || a.states.normal)));
+  if (type === "weapon") a.states = { rest: normalizeAngles((a.states && a.states.rest) || a.angles), fire: normalizeAngles(a.states && a.states.fire) };
+  if (type === "enemy") a.states = { normal: normalizeAngles((a.states && a.states.normal) || a.angles), onFire: normalizeAngles(a.states && a.states.onFire), charge: normalizeAngles(a.states && a.states.charge) };
+  if (type === "equipment" && !SLOTS[a.slot]) a.slot = "shirt"; // an unknown slot would drop it out of every picker; shirt is the safe visible default
+  if (type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
+  if (!a.id) a.id = uid();
+  if (typeof a.name !== "string" || !a.name.trim()) a.name = (type === "equipment" ? SLOTS[a.slot].label : (TYPES[type] ? TYPES[type].label : type));
+  if (!a.guideId) a.guideId = "default";
+  return a;
+};
+
+// Best-effort un-bake of an OLD-format dressed character (saved before looks embedded their
+// component layers). The bake order is deterministic: [behindBody overlays] [body non-arm]
+// [lower clothing] [upper-under clothing] [body arm(s)] [over-arm clothing] [skin & weapon].
+// So: skip the leading behindBody run, take through the end of the arm run, and drop the
+// mirror-expanded twins (_m) so the pieces' own mirror flags take over again. Exact when the
+// look wore no lower/under-top clothing (skin bakes AFTER the arm); fused otherwise.
+export const recoverBodyFromBake = (ch) => {
+  const angles = blankAngles();
+  const isArm = (p) => p.role === "weaponArm" || p.limb === "arm";
+  for (const ang of ANGLES) {
+    const src = (ch.angles && ch.angles[ang]) || [];
+    let i = 0; while (i < src.length && src[i].behindBody) i++;
+    const armIdx = src.findIndex((p) => p.role === "weaponArm");
+    let end;
+    if (armIdx < 0) end = src.length - 1; // no weapon arm — take everything after the back run
+    else { end = armIdx; while (end + 1 < src.length && isArm(src[end + 1])) end++; }
+    // Tag every recovered piece _recovered so the editor can flag them for review — this
+    // reconstruction is a guess, and any piece could turn out to be fused-in clothing
+    // rather than an original body part (see the function comment above).
+    angles[ang] = src.slice(i, end + 1).filter((p) => !p._m).map((p) => { const c = { ...p, id: uid(), _recovered: true }; delete c._m; return c; });
+  }
+  const out = withRig({ id: uid(), name: (ch.name || "look") + " — recovered body", type: "body", angles, guideId: "default" });
+  out._recoveredFrom = ch.name || "a dressed look"; // drives the review banner in the piece editor
+  return out;
+};
+function defaultFx() { return { opacity: 1, glow: 0, glowColor: "#ffd76b", bright: 1 }; }
+const anglesEmpty = (ag) => ANGLES.every((a) => !(ag && ag[a] && ag[a].length));
+
+/* ============================ LEVEL CREATOR =============================== */
+// 8 connection points: 2 per side. Opposing points pair up (W1<->E1 etc.).
+const CONN_KEYS = ["N1", "N2", "E1", "E2", "S1", "S2", "W1", "W2"];
+const LV_CELL = 30;
+const CONN_OPP = { N1: "S1", N2: "S2", S1: "N1", S2: "N2", W1: "E1", W2: "E2", E1: "W1", E2: "W2" };
+const CONN_POS = { // %-position on the level rect
+  N1: { x: 30, y: 0 }, N2: { x: 70, y: 0 }, S1: { x: 30, y: 100 }, S2: { x: 70, y: 100 },
+  W1: { x: 0, y: 35 }, W2: { x: 0, y: 70 }, E1: { x: 100, y: 35 }, E2: { x: 100, y: 70 },
+};
+// Human-readable names for the 8 connector points — what's actually shown in the UI.
+// The internal keys (N1/E1/etc.) stay the same under the hood so old saved levels keep working.
+const CONN_LABEL = {
+  N1: "Top Left", N2: "Top Right", S1: "Bottom Left", S2: "Bottom Right",
+  W1: "Left Upper", W2: "Left Lower", E1: "Right Upper", E2: "Right Lower",
+};
+// Emoji-object size multipliers (× a cell). Scaled up alongside the finer grid below.
+const LV_OBJ_SIZES = [1, 2, 3, 4, 6, 8, 10, 12];
+// Paint brush sizes (in cells) — applies to Foreground/Background only. Objects/Markers/Climb
+// all stay single-cell: Objects/Markers place discrete items, and Climb is a toggle flag where
+// a lingering large brush size could silently flood a huge area from one click.
+const BRUSH_SIZES = [1, 2, 3, 4, 6, 8];
+// The player's actual in-world size, in cells — not a display trick. 7 tall so the grid reads
+// as fine detail around a properly human-sized character, not the other way around.
+// The player's collision box must keep the SAME aspect ratio as the design canvas (W:H) —
+// pieces are positioned by percentage of their container, so any mismatch between this box's
+// aspect ratio and the design canvas's directly stretches/squishes the character. This was the
+// real bug: at 1.2:7 the box was ~4.5x more squished than the 200:260 canvas, making every
+// body look far skinnier in playtest than in the designer, no matter how it was drawn.
+// Which painted Front-layer tiles the player's hitbox currently covers — these are the exact
+// cells that should go translucent so the player stays visible while walking behind, say, a
+// tree built out of Front tiles (they render above the player by design, z-index 6). Only the
+// covered cells fade — the rest of the tree stays fully solid, so the effect reads as a soft
+// window around the player rather than the whole object washing out.
+export const frontFadeKeys = (front, x, y, pw, ph, CW, CH) => {
+  const keys = [];
+  if (!front) return keys;
+  const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW);
+  const r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH);
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { const k = r + "," + c; if (front[k]) keys.push(k); }
+  return keys;
+};
+const PLAYER_H_CELLS = 7;
+const PLAYER_RENDER_W_CELLS = PLAYER_H_CELLS * (W / H); // aspect-correct VISUAL width — never changes, avoids the squish
+const PLAYER_CROUCH_H_CELLS = 4.2;
+// Per-enemy size multiplier (default 1). enemyRenderW/enemyStandH/enemyCrouchH are the ONE source of
+// enemy pixel dimensions, so the visible body and its hitbox/collision always scale by the same factor
+// (every enemy dimension site routes through them). Clamped so a stray value can't break spawning.
+// Sight range (PLAYER_BODY_LEN_PX) stays fixed on purpose — it's a sensing distance, not a body size.
+export const enemyScale = (ea) => { const s = ea && typeof ea.scale === "number" ? ea.scale : 1; return s > 0 ? Math.max(0.5, Math.min(4, s)) : 1; };
+export const enemyRenderW = (ea, cell) => cell * PLAYER_RENDER_W_CELLS * enemyScale(ea);
+export const enemyStandH = (ea, cell) => cell * PLAYER_H_CELLS * enemyScale(ea);
+export const enemyCrouchH = (ea, cell) => cell * PLAYER_CROUCH_H_CELLS * enemyScale(ea);
+// Free-flying art (a fired Projectile, a thrown grenade) is drawn in the exact same 200×260
+// design canvas every asset uses — the Projectile/Throwable editor just displays that canvas
+// much bigger on screen than usual for precision. "The size it is in the creator" means: at the
+// SAME px-per-design-unit scale the player's own body renders at, since that's the one shared
+// scale everything in Playtest is actually compared against. These two helpers compute exactly
+// that, replacing the old flat "one grid cell, always" / "N grid cells" sizing that had no
+// relationship to the drawn art at all — a projectile or grenade drawn to fill its design canvas
+// rendered many times smaller in Playtest than it looked while drawing it (the reported "teeny
+// tiny, idk if it's even the right thing" bug), and a thrown grenade was always squashed into an
+// exact 1-cell square regardless of its actual drawn shape.
+//
+// Bounding box of the actual drawn (non-hitbox, non-muzzle) art, in design units — the same units
+// a body or weapon is drawn in. Falls back to a reasonable default box when there's no measurable
+// art (e.g. a bare emoji fallback with no rect pieces at all), so an unmeasurable object still
+// gets a sane size instead of collapsing to zero.
+export const worldArtBox = (pieces) => {
+  const art = (pieces || []).filter((p) => !p.isHitbox && !p.isMuzzle);
+  if (!art.length) return { w: 44, h: 44, minX: (W - 44) / 2, minY: (H - 44) / 2 };
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of art) { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x + p.w); maxY = Math.max(maxY, p.y + p.h); }
+  return { w: Math.max(6, maxX - minX), h: Math.max(6, maxY - minY), minX, minY };
+};
+// Px-per-design-unit at the same scale the player's own body renders at (the player's full render
+// box is exactly PLAYER_H_CELLS cells tall over the design canvas's H units) — the one shared
+// scale that makes "as big as it looked in the creator, next to Bob" a real, checkable thing.
+export const worldUnitPx = (cellPx) => cellPx * PLAYER_H_CELLS / H;
+// Prepares a free-flying piece list (fired Projectile, thrown grenade) for rendering in the level.
+// THE critical detail: every piece renders at a PERCENTAGE-of-the-200×260-canvas position
+// (that's how shapeStyle places pieces, everywhere) — so the render container must be the FULL
+// design canvas scaled to world px. The previous fix sized the container to the art's own
+// bounding box, which shrank the art a second time by (bbox / canvas) — a hand-sized molotov
+// (17×42 units of the 200×260 canvas) came out 13.7px × (17/200) ≈ 1px wide: exactly the
+// reported "still only about 1 pixel large". This returns:
+//   pieces / hitbox — translated so the ART's center sits at the canvas center, so the container
+//                     (and any spin rotation about its center) is centered on the art itself
+//   canvasWPx/canvasHPx — the render container's size: the full canvas at world scale
+//   wPx/hPx — the art's own on-screen size (bbox × world scale): what hit-tests should use
+export const prepFlyingArt = (allPieces, cellPx, sizeUnits) => {
+  const box = worldArtBox(allPieces);
+  const unit = worldUnitPx(cellPx) * (sizeUnits || 1);
+  const dx = W / 2 - (box.minX + box.w / 2), dy = H / 2 - (box.minY + box.h / 2);
+  const art = (allPieces || []).filter((p) => !p.isHitbox && !p.isMuzzle).map((p) => ({ ...p, x: p.x + dx, y: p.y + dy }));
+  const hb0 = (allPieces || []).find((p) => p.isHitbox) || null;
+  return {
+    pieces: art, hitbox: hb0 ? { ...hb0, x: hb0.x + dx, y: hb0.y + dy } : null,
+    wPx: Math.max(4, box.w * unit), hPx: Math.max(4, box.h * unit),
+    canvasWPx: W * unit, canvasHPx: H * unit,
+  };
+};
+// How much of its own bounding box a character's "side" silhouette fills horizontally, and
+// where its center sits. The COLLISION box is sized/positioned from this so the hitbox always
+// tightly tracks whatever body is actually loaded — not a fixed guess that only fits the
+// default. The wider render box is still used for drawing (so pieces never get distorted);
+// it's just offset to keep the ACTUAL visible pixels aligned over this narrower hitbox.
+const sideBodyShape = (asset) => {
+  // A dressed character bakes its whole outfit into .angles.side — including a wide NIXON-style
+  // hat brim, a cape, anything that sticks out well past the actual body. Measuring the collision
+  // box from that full art made the hitbox a cell too wide in each direction (Bob, with his hat,
+  // got frac ~0.66; hatless Bobette measured ~0.42 and looked correct — that asymmetry was the
+  // reported "Bob's hitbox is a cell wider than it should be" bug, and it's the same over-wide
+  // box behind the ramp/wall teleporting). The collision box should track the BODY, not the
+  // costume: for a dressed look, measure the underlying body component directly; for a raw body/
+  // enemy, measure it but drop pieces flagged as a hat/over-body accessory (_slot hat, behindBody
+  // capes) so an accessory can never inflate the hitbox. Height uses the FULL art (a tall hat
+  // shouldn't shrink standing height), only WIDTH/center are taken from the body-only box.
+  const src = (asset && asset.components && asset.components.body && asset.components.body.angles && asset.components.body.angles.side && asset.components.body.angles.side.length)
+    ? asset.components.body.angles.side
+    : (asset && asset.angles && asset.angles.side) || null;
+  if (!src || !src.length) return { fraction: 0.36, centerFrac: 0.5, topFrac: 0, heightFrac: 1 };
+  const full = asset.angles && asset.angles.side && asset.angles.side.length ? asset.angles.side : src;
+  // Width/center from the body only: drop hat and behind-body (cape) pieces, which stick out
+  // past the torso without being part of the collision silhouette. If that leaves nothing
+  // (e.g. an asset that's ONLY a hat, pathological), fall back to the full set.
+  const isAccessory = (p) => p._slot === "hat" || p.behindBody;
+  const bodyPieces = src.filter((p) => !isAccessory(p));
+  const wps = bodyPieces.length ? bodyPieces : src;
+  const minX = Math.min(...wps.map((p) => p.x)), maxX = Math.max(...wps.map((p) => p.x + p.w));
+  const fraction = Math.max(0.15, Math.min(1, (maxX - minX) / W));
+  const centerFrac = ((minX + maxX) / 2) / W;
+  // Vertical extent from the FULL art (crop the hit box to real art height for compact enemies,
+  // but never let a tall hat clip standing height): how far down pieces start and how tall the
+  // drawn extent is, as fractions of the full canvas. Visual render box stays full-height.
+  const minY = Math.min(...full.map((p) => p.y)), maxY = Math.max(...full.map((p) => p.y + p.h));
+  const topFrac = Math.max(0, Math.min(1, minY / H));
+  const heightFrac = Math.max(0.1, Math.min(1, (maxY - minY) / H));
+  return { fraction, centerFrac, topFrac, heightFrac };
+};
+// The game only ever renders enemies in Side (walking) or Crouch (ducking). If the enemy was
+// only drawn in some other pose — the extremely common case of drawing Front (the pose the
+// editor opens on) and stopping — that pose comes back EMPTY from bake() and the enemy renders
+// as literally nothing, i.e. invisible. Fall back to whichever pose actually has art so a drawn
+// enemy is never invisible; the requested pose (and Side) still win whenever they have art, so
+// a properly-drawn enemy is completely unaffected.
+export const enemyPoseKey = (ea, want) => {
+  const has = (ang) => !!(ea && ea.angles && (ea.angles[ang] || []).length);
+  for (const ang of [want, "side", "front", "back", "up", "crouch"]) if (has(ang)) return ang;
+  return want;
+};
+// Which pieces (by id) should walk/climb-cycle. Uses explicit limb flags if this pose has any —
+// but flags are per-pose, and forgetting to set them on the one pose gameplay actually uses
+// (Side for walking, Back for climbing) is an easy mistake. Rather than silently animating
+// nothing in that case, fall back to a geometric guess: the piece(s) nearest the ground are
+// almost certainly the leg, and the weapon arm (always present, guaranteed identifiable) is
+// used as the arm if nothing else is flagged. Manual flags always win when they exist.
+export const identifyLimbs = (blocks) => {
+  const legIds = new Set(blocks.filter((b) => b.limb === "leg").map((b) => b.id));
+  // Shoes are auto-flagged "leg" so they always follow one (see layerBodyAndOverlays), but that
+  // shouldn't by itself satisfy "a leg is flagged" and suppress the fallback below — a shoe
+  // with no actual leg in legIds has nothing to compute its foot-arc from and would just sit
+  // still. Only a genuine (non-shoe) leg flag should skip the geometric fallback.
+  const hasRealLeg = blocks.some((b) => b.limb === "leg" && !b._isShoe);
+  const armIds = new Set(blocks.filter((b) => b.limb === "arm" && b.role !== "weaponArm").map((b) => b.id));
+  if (!hasRealLeg) {
+    const candidates = blocks.filter((b) => b.role !== "weaponArm" && !b._isShoe);
+    if (candidates.length) {
+      const maxBottom = Math.max(...candidates.map((b) => b.y + b.h));
+      candidates.forEach((b) => { if (b.y + b.h >= maxBottom - 1) legIds.add(b.id); });
+    }
+  }
+  if (!armIds.size) {
+    const weaponArm = blocks.find((b) => b.role === "weaponArm");
+    if (weaponArm) armIds.add(weaponArm.id);
+  }
+  return { legIds, armIds };
+};
+// Applies one walk/climb swing pose to a set of already-identified limbs. A real leg segment
+// pivots at its own top (the hip) — but a shoe sits at the far end of that swinging leg, so
+// rotating it around ITS OWN top just wobbles it in place, disconnected from the leg's actual
+// arc (this was "shoes don't follow the walking cycle"). Shoes are approximated as rigidly
+// attached to the leg instead: translated by the same arc offset the leg's own bottom tip
+// traces for this swing angle (using the tallest true leg piece as the "upper leg" length),
+// plus a small local tilt so the foot angles slightly with the stride.
+// A leg is a CONNECTED chain of pieces running hip -> foot. Given the leg-flagged pieces, keep
+// only the ones that actually link up to the lowest of them, walking outward by vertical-span
+// overlap (a small gap is tolerated for art that doesn't quite touch). This exists because the
+// hip pivot was taken as "the topmost leg-flagged piece", full stop — so a single piece flagged
+// limb:"leg" by mistake somewhere up in the torso silently became the hip joint, and the whole
+// leg (plus its shoe, which tracks a separate arc) orbited a point that could be ~90px too high.
+// The leg visibly tore away from the body. For any body whose leg pieces do touch each other —
+// which is every correctly-flagged body — the chain is all of them and nothing changes at all.
+export const LEG_LINK_GAP = 8; // px of slack allowed between two pieces of the same leg
+export const legChain = (legs) => {
+  if (legs.length < 2) return legs;
+  const lowest = legs.reduce((a, l) => (l.y + l.h > a.y + a.h ? l : a));
+  const linked = (p, q) => p.y <= q.y + q.h + LEG_LINK_GAP && q.y <= p.y + p.h + LEG_LINK_GAP;
+  const chain = [lowest];
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const p of legs) { if (chain.includes(p)) continue; if (chain.some((q) => linked(p, q))) { chain.push(p); grew = true; } }
+  }
+  return chain;
+};
+export const applyLimbSwing = (blocks, legIds, armIds, swing, opts) => {
+  const o = opts || {};
+  const trueLegs = blocks.filter((b) => legIds.has(b.id) && !b._isShoe);
+  // Only the body's own connected leg chain decides where the hip joint is.
+  const bodyLegs = trueLegs.filter((l) => !l._slot);
+  const chain = legChain(bodyLegs.length ? bodyLegs : trueLegs);
+  // A body leg piece that isn't part of that chain isn't a leg — it's a mis-flag. Leave it be
+  // rather than swinging a chunk of torso around the hip.
+  const stray = new Set(bodyLegs.filter((l) => !chain.includes(l)).map((l) => l.id));
+  // Per-side alternation (o.alternate — the climb/back pose): mirror twins render inside
+  // scaleX(-1), which visually REVERSES their rotation — the ladder alternation relied on
+  // that. But which twin of a mirrored pair is the "original" is just an accident of which
+  // side it was drawn on, so a pant-leg drawn on the opposite side of the canvas from the
+  // body's own leg counter-rotated over it. Instead, pick each piece's ON-SCREEN swing purely
+  // by which side of the body it sits on, then undo the mirror-render reversal so that's what
+  // actually shows — anything covering the same physical leg now swings identically.
+  const sideSign = (b) => (b.x + b.w / 2 >= W / 2 ? 1 : -1);
+  // Legs group into COLUMNS by horizontal footprint: a leg = the pieces stacked over the same
+  // spot (body leg + pant leg + shoe). A biped's one drawn leg is one column — exactly the old
+  // behavior. A quadruped's front and back legs are SEPARATE columns: each anchors to ITS OWN
+  // hip (before this, every leg orbited the single topmost hip — a back leg ~80px from the
+  // front hip swept a huge vertical arc: the "second pair of legs pumps up and down" bug), and
+  // neighbouring columns swing in OPPOSITE phase so a 4-legged walk reads as a gait, not a hop.
+  const legColGap = 6;
+  const xOverlap = (a, b) => a.x <= b.x + b.w + legColGap && b.x <= a.x + a.w + legColGap;
+  const columns = [];
+  for (const l of trueLegs) {
+    const hits = columns.filter((c) => c.some((q) => xOverlap(q, l)));
+    if (!hits.length) columns.push([l]);
+    else { hits[0].push(l); for (const h of hits.slice(1)) { hits[0].push(...h); columns.splice(columns.indexOf(h), 1); } }
+  }
+  columns.sort((a, b) => Math.min(...a.map((p) => p.x)) - Math.min(...b.map((p) => p.x)));
+  const colIndexOf = (b) => { let i = columns.findIndex((c) => c.includes(b)); if (i === -1) i = columns.findIndex((c) => c.some((q) => xOverlap(q, b))); return i; };
+  const colSign = (b) => { if (columns.length < 2) return 1; const i = colIndexOf(b); return i >= 0 && i % 2 === 1 ? -1 : 1; };
+  // Arm-limb pieces (equipment sleeves, etc.) anchor to the canonical weapon arm's own side
+  // instead of each computing sideSign from its own x-position independently — a sleeve's
+  // drawn shape doesn't always sit exactly symmetric to the arm underneath (a looser cuff, a
+  // fold), so right at the canvas midline the two could disagree on which side they're "on",
+  // visibly drifting apart during the climb's up/down reach (armReach, below).
+  const weaponArmPiece = blocks.find((b) => b.role === "weaponArm" && !b._m);
+  const armSideSign = weaponArmPiece ? sideSign(weaponArmPiece) : 1;
+  const armSide = (b) => (b._m ? -armSideSign : armSideSign);
+  // A clothing arm piece pumps in the same direction as the arm it RIDES — its nearest body
+  // arm by position — not by its own mirror parity, which is meaningless when the garment was
+  // drawn on the opposite side of the canvas from the body's arm (see armAnchorFinder).
+  const nearestArm = armAnchorFinder(blocks);
+  const renderFlip = (b) => (b._m && b.mirrorTwist !== false ? -1 : 1);
+  // The hip joint a given leg piece orbits: the top-centre of the topmost piece of its own
+  // leg, preferring the BODY's own leg (no _slot) over clothing so garments anchor to the leg
+  // underneath them, grouped per on-screen side in alternate (ladder) mode since the two legs
+  // swing oppositely there. Shared by the true-leg rotation and the shoe's foot-arc below, so
+  // the two can never disagree about where the leg is hinged.
+  const hipFor = (b) => {
+    const col = o.alternate ? null : columns[colIndexOf(b)];
+    const group = o.alternate ? trueLegs.filter((l) => sideSign(l) === sideSign(b)) : (col && col.length ? col : trueLegs);
+    const linkedGroup = group.filter((l) => !stray.has(l.id));
+    const anchors = linkedGroup.some((l) => !l._slot) ? linkedGroup.filter((l) => !l._slot) : linkedGroup;
+    return anchors.length ? anchors.reduce((a, l) => (l.y < a.y ? l : a)) : null;
+  };
+  return blocks.map((b) => {
+    // Climb arm reach (o.armReach): hands pump vertically, alternating sides like rungs —
+    // a translation, not a rotation, and it includes the weapon arm (which the climb pose
+    // points upward) so the whole reach reads as actually climbing.
+    if (o.armReach && (b.role === "weaponArm" || armIds.has(b.id))) { const a = b.role === "weaponArm" ? b : (nearestArm(b) || b); return { ...b, y: b.y + armSide(a) * o.armReach }; }
+    if (b.role === "weaponArm" || armIds.has(b.id)) return b; // clothing/equipment over the arm: only moves when the arm itself does (see the weaponArm-rotation call sites in the render section, which now also cover armIds)
+    if (legIds.has(b.id)) {
+      if (stray.has(b.id)) return b; // leg-flagged, but detached from the leg — don't swing torso
+      // Ladder legs (o.legLift): a STEP, not a swing. Rotating a leg about the hip is a
+      // sagittal motion — perfectly readable from the Side pose, invisible from the Back pose
+      // the ladder actually uses, where the same rotation can only render as the leg splaying
+      // left and right. Combined with o.alternate (each leg swinging by which side it is on)
+      // that produced two legs scissoring open and shut every rung: a breaststroke kick, not a
+      // climb. From behind, a climbing leg simply LIFTS to the next rung, alternating sides and
+      // running contralateral to the hands (right hand reaches up as the left foot rises) —
+      // which is exactly the vertical pump o.armReach already gives the arms, mirrored in sign.
+      // Everything riding the leg (pant legs, shoes) is leg-flagged too, so it lifts with it.
+      if (o.legLift) return { ...b, y: b.y - sideSign(b) * o.legLift };
+      // Non-alternate walk: each column swings by its column's phase (colSign), folded through
+      // the mirror-render flip so what alternates is the ON-SCREEN motion — a far leg drawn via
+      // the mirror flag renders inside scaleX(-1), which visually reverses stored rotation.
+      // Single-column bodies (every biped) reduce to exactly the old `swing`.
+      const vis = o.alternate ? sideSign(b) * swing : colSign(b) * swing * renderFlip(b); // the swing this piece should SHOW on screen (alternate) / apply in stored space (walk)
+      // A SHOE gets no special case any more. It used to ride a translation-only foot-arc plus a
+      // token 0.3x tilt, on the theory that a foot angles only slightly with the stride. But the
+      // body's own foot/ankle art is part of the leg chain and rotates the FULL swing (28 degrees
+      // at the peak of a walk), so a 8.4-degree shoe simply fell off the end of a 28-degree foot:
+      // the bare skin foot swung out from under the shoe and past the pant cuff. A shoe is worn
+      // ON the foot, so it must move exactly as the foot does. rigidLimbTransform below already
+      // does the right thing for any piece far from the hip (orbit the hip, then rotate about the
+      // piece's own top by the same angle) — which is precisely what "rigidly attached" means, and
+      // is the same path every pant leg has always taken. The old worry that a shoe would "wobble
+      // in place" applied only to rotating it about its own top WITHOUT the hip orbit.
+      const newRot = (b.rot || 0) + vis * (o.alternate ? renderFlip(b) : 1);
+      // Every leg piece rotates RIGIDLY about the actual hip joint, not about its own top.
+      // Own-top pivots meant a pant leg whose waistband sits a few px above/below the body
+      // leg's hip swept a slightly different arc (the "pants lag the leg and it clips out"
+      // walking bug — 2.4px measured on the Military Fatigues), and a piece drawn far down
+      // the leg (a calf triangle, a knee pocket) barely moved at all while the leg swept
+      // away under it (12-27px measured on the ladder). The hip is the top-centre of the
+      // topmost true leg piece, preferring the BODY's own leg (no _slot) over clothing so
+      // garments anchor to the leg underneath them, grouped per on-screen side in alternate
+      // (ladder) mode since the two legs swing oppositely there. For the topmost piece
+      // itself the orbit is a no-op (it IS the pivot), so a plain body leg — and any
+      // single-piece leg wearing nothing — behaves exactly as before.
+      const hip = hipFor(b);
+      if (hip && hip.id !== b.id) return { ...rigidLimbTransform(b, hip.x + hip.w / 2, hip.y, vis, newRot), _animPivotTop: true };
+      return { ...b, rot: newRot, _animPivotTop: true };
+    }
+    return b;
+  });
+};
+// Arms swing during a plain walk, opposite phase to the legs. applyLimbSwing deliberately never
+// rotates arms (every other arm motion — melee, aim-hold, the climb reach — is an absolute pose
+// SET by the render code), so the walk cycle had no arm motion at all: the weapon arm hung dead
+// straight while the legs strode.
+//
+// SCOPE, and it matters: this moves the weapon arm and the GARMENT pieces riding it (sleeves and
+// cuffs, which the composed character tags with _slot). It does not touch any other body piece,
+// even one flagged limb:"arm". Before this function existed, a walk moved no arm-flagged piece at
+// all; a body that walked correctly must keep walking correctly, so the walk cycle only ever adds
+// motion to the one piece the body designates its arm (role:"weaponArm") plus the clothing on it.
+// The melee/aim branches are broader by design — those are poses the player triggers.
+export const WALK_ARM_SWING = 0.55; // arm amplitude as a fraction of the leg swing — subtle on purpose
+export const walkArmMoves = (b) => b.role === "weaponArm" || (b.limb === "arm" && !!b._slot && !b._isShoe);
+export const applyWalkArmSwing = (blocks, swing) => {
+  const delta = swing * WALK_ARM_SWING;
+  const twist = (b) => (b._m && b.mirrorTwist !== false ? -1 : 1);
+  const armRot = (a) => (a.rot || 0) + armPivotSign(a.armPivot) * delta * twist(a);
+  const anchorOf = armAnchorFinder(blocks);
+  return blocks.map((b) => {
+    if (!walkArmMoves(b)) return b;
+    if (b.role === "weaponArm") return { ...b, rot: armRot(b) };
+    const a = anchorOf(b);
+    return a ? rigidArmFollow(b, a, armRot(a)) : { ...b, rot: armRot(b) };
+  });
+};
+// Synthesizes a second, phase-opposite leg from whatever identifyLimbs already found (real leg
+// piece(s) plus any shoe riding on them via _isShoe), so a body with only one drawn leg still
+// reads as a normal two-legged walk cycle — a "back" leg swinging opposite the real one —
+// instead of one leg pendulum-swinging alone in front of a static torso. The clone is swung
+// with applyLimbSwing itself (same call, opposite sign), so it automatically gets the exact
+// same hip-pivot/shoe-arc/mirror-twist behavior as the real leg, nothing to keep in sync by
+// hand. Cloned pieces get their own ids (original + "_backLeg") so they never collide with the
+// real leg's own ids in any later legIds-keyed lookup, and are placed FIRST in the returned
+// array — with no explicit z-index anywhere in this renderer, DOM order alone decides
+// front/behind, and earlier-in-array paints first, i.e. behind everything already in `blocks`
+// (torso included), which is what actually makes it read as the trailing leg.
+export const addBackLeg = (blocks, legIds, swing) => {
+  const legPieces = blocks.filter((b) => legIds.has(b.id));
+  if (!legPieces.length) return blocks;
+  // A body that DRAWS multiple separate legs (a quadruped's front+back pair, or a mirrored
+  // left/right pair) already has its own far leg(s). The synthetic counter-phase clone exists
+  // only for one-drawn-leg bipeds — cloning over a multi-leg body doubled every leg in place
+  // and scissored the pairs against each other.
+  const bodyLegs = legPieces.filter((b) => !b._slot && !b._isShoe);
+  const gap = 6, xov = (a, b) => a.x <= b.x + b.w + gap && b.x <= a.x + a.w + gap;
+  const cols = [];
+  for (const l of bodyLegs) {
+    const hits = cols.filter((c) => c.some((q) => xov(q, l)));
+    if (!hits.length) cols.push([l]);
+    else { hits[0].push(l); for (const h of hits.slice(1)) { hits[0].push(...h); cols.splice(cols.indexOf(h), 1); } }
+  }
+  if (cols.length > 1) return blocks;
+  const backLegIds = new Set();
+  const backLeg = legPieces.map((b) => { const nb = { ...b, id: b.id + "_backLeg" }; backLegIds.add(nb.id); return nb; });
+  return applyLimbSwing(backLeg, backLegIds, new Set(), -swing).concat(blocks);
+};
+const LV_COLORS = ["#6b7b3a", "#4a5a28", "#8a929c", "#5b4636", "#2a2017", "#7aa2d6", "#3a3f52", "#b0894f", "#c8a23c", "#2b2b2b"];
+function newLevel() {
+  const conns = {};
+  for (const k of CONN_KEYS) conns[k] = { open: k === "E1" || k === "W1", accepts: "" };
+  return { id: uid(), name: "Level", floor: "1", section: "", cols: 160, rows: 46, fg: {}, bg: {}, front: {}, fx: {}, climb: {}, hazard: {}, markers: {}, enemies: {}, conns };
+}
+// A ROOM is just a small level (isRoom + roomTag), entered through a door in a bigger level. Far
+// smaller than a level (40×24 vs 160×46) and it doesn't use the 8 edge connectors — you reach it
+// through doors that match its tag, and leave through a door back to where you came from.
+function newRoom() {
+  const conns = {};
+  for (const k of CONN_KEYS) conns[k] = { open: false, accepts: "" };
+  return { id: uid(), name: "Room", isRoom: true, roomTag: "", floor: "", section: "", cols: 40, rows: 24, fg: {}, bg: {}, front: {}, fx: {}, climb: {}, hazard: {}, markers: {}, enemies: {}, conns };
+}
+// Backfill older saves: category/field->floor+section (old thematic category becomes the
+// Section label so nothing's silently lost, Floor starts blank for you to fill in), per-connector
+// type->accepts, missing fx/climb/markers layers, and old single-object-per-cell fx entries get
+// wrapped into the new stacked-array format.
+function migrateLevel(lv) {
+  if (!lv) return lv;
+  const out = { ...lv };
+  if (out.floor === undefined) { out.floor = ""; out.section = out.category || out.field || ""; }
+  delete out.category; delete out.field;
+  if (!out.bg) out.bg = {};
+  if (!out.front) out.front = {};
+  if (!out.fx) out.fx = {};
+  const fx2 = {}; for (const k of Object.keys(out.fx)) { const v = out.fx[k]; const arr = Array.isArray(v) ? v : [v]; fx2[k] = arr.map((o) => o.kind ? o : { ...o, kind: "emoji" }); }
+  out.fx = fx2;
+  if (!out.climb) out.climb = {};
+  const climb2 = {}; for (const k of Object.keys(out.climb)) climb2[k] = { kind: climbKindOf(out.climb[k]) || "ladder" };
+  out.climb = climb2;
+  if (!out.hazard) out.hazard = {};
+  const haz2 = {}; for (const k of Object.keys(out.hazard)) { const v = out.hazard[k]; haz2[k] = (v && typeof v === "object") ? { kind: v.kind || "fire", dps: v.dps ?? DEFAULT_HAZARD_DPS[v.kind || "fire"], life: v.life ?? 0, ...(v.hideInPlay ? { hideInPlay: true } : {}) } : { kind: "fire", dps: DEFAULT_HAZARD_DPS.fire, life: 0 }; }
+  out.hazard = haz2;
+  if (!out.markers) out.markers = {};
+  if (out.isRoom) out.roomTag = out.roomTag || "";
+  if (!out.enemies) out.enemies = {};
+  const conns = {};
+  for (const k of CONN_KEYS) { const c = (out.conns && out.conns[k]) || { open: false }; conns[k] = { open: !!c.open, accepts: c.accepts !== undefined ? c.accepts : (c.type || "") }; }
+  out.conns = conns;
+  return out;
+}
+const cellKey = (r, c) => r + "," + c;
+// Monotonic token identifying the newest Playtest loop. Only the loop whose local generation
+// still equals this may advance physics; any older loop left alive by an overlapping remount
+// (React StrictMode double-invoke, fast level/loadout re-key) sees it's been superseded and
+// stops — so player.current can never be driven by two loops at once (the double-mount
+// teleport/jitter). Module scope on purpose: it must be shared across every effect instance.
+let __ptLoopGen = 0;
+// Flood-fill's region finder — shared by the actual Fill commit and its live hover preview, so
+// what you SEE before clicking is guaranteed to match what clicking would actually do. Standard
+// bucket semantics: whatever value the clicked cell currently holds (including "nothing" — the
+// common case of filling empty space) spreads to every 4-directionally connected cell sharing
+// that same value. Capped at a generous cell count so a mis-click on a huge open level can't
+// hang the tab.
+const computeFillRegion = (lv, layerName, r0, c0) => {
+  const layer = lv[layerName];
+  const startVal = layer[cellKey(r0, c0)] ?? null;
+  const sameAsStart = (v) => {
+    if (startVal === null) return v === undefined || v === null;
+    if (v === undefined || v === null) return false;
+    // One rule for every layer now (see cellSig): base color + ramp shape + texture. Previously
+    // Background/Front compared with `===`, which can't see that two cells share a color but
+    // carry different textures.
+    return cellSig(v) === cellSig(startVal);
+  };
+  const visited = new Set();
+  const stack = [[r0, c0]];
+  const cells = [];
+  const MAX_CELLS = 8000;
+  while (stack.length && cells.length < MAX_CELLS) {
+    const [r, c] = stack.pop();
+    if (r < 0 || c < 0 || r >= lv.rows || c >= lv.cols) continue;
+    const k = cellKey(r, c);
+    if (visited.has(k)) continue;
+    visited.add(k);
+    if (!sameAsStart(layer[k] ?? null)) continue;
+    cells.push(k);
+    stack.push([r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]);
+  }
+  return { cells, startVal, hitCap: cells.length >= MAX_CELLS };
+};
+// A Foreground cell is normally a plain color string (a full solid block). It can instead be
+// a ramp cell: { c: color, slope: 1 | -1, run: N, step: i }. slope 1 rises left→right, -1
+// rises right→left. A ramp can span several cells in the same row that together bridge a
+// single 1-cell height change: run is the ramp's total length in cells, step (0-indexed,
+// always counted left-to-right regardless of slope direction) is this cell's position in it.
+// A lone 45° ramp is just run:1, step:0 — old saves without run/step default to that via
+// fgRun()/fgStep() below, so they keep rendering and colliding exactly as before.
+const fgHasDiagonalShape = (cell) => !!(cell && typeof cell === "object" && (cell.slope === 1 || cell.slope === -1));
+// Upside-down ramps (cell.upsideDown) are visual only — a cliff-underside/overhang look, not a
+// walkable surface — so they're excluded here (collides as a plain solid block) even though
+// fgHasDiagonalShape still renders their diagonal clip-path.
+export const fgIsSlope = (cell) => fgHasDiagonalShape(cell) && !cell.upsideDown;
+const fgColor = (cell) => (cell && typeof cell === "object") ? cell.c : cell;
+const fgRun = (cell) => (fgHasDiagonalShape(cell) && cell.run > 0) ? cell.run : 1;
+const fgStep = (cell) => (fgHasDiagonalShape(cell) && cell.step >= 0) ? cell.step : 0;
+// How far this x position is from the ramp's LOW end, in cell-widths (0 at the low end, `run`
+// at the high end) — step is always left-to-right, so which end is "low" depends on slope.
+const fgDistFromLow = (cell, localFrac) => {
+  const run = fgRun(cell), step = fgStep(cell);
+  return cell.slope > 0 ? (step + localFrac) : (run - step - localFrac);
+};
+// The ramp surface's y-pixel under a given x column, sampled across rows r0..r1, or null if
+// none of those cells hold a slope in that column. Returns the direction too, so the caller
+// can tell ascending from descending. When multiple slope rows overlap, the highest (smallest
+// y) surface wins, matching how solid-block landing already prefers the topmost hit.
+export const slopeSurfaceAt = (lv, xPixel, r0, r1, CW, CH) => {
+  const c = Math.floor(xPixel / CW); if (c < 0 || c >= lv.cols) return null;
+  let best = null;
+  for (let r = r0; r <= r1; r++) {
+    if (r < 0 || r >= lv.rows) continue;
+    const cell = lv.fg[cellKey(r, c)];
+    if (!fgIsSlope(cell)) continue;
+    const localFrac = Math.min(1, Math.max(0, (xPixel - c * CW) / CW));
+    const overallFrac = fgDistFromLow(cell, localFrac) / fgRun(cell); // 0 at the ramp's low end, 1 at its high end
+    const y = (r + 1) * CH - overallFrac * CH;
+    if (best === null || y < best.y) best = { y, dir: cell.slope };
+  }
+  return best;
+};
+// Player-ground variant: pick the ramp surface NEAREST the feet within reach this frame.
+// slopeSurfaceAt always took the highest (smallest-y) surface in a wide row band, which grabbed
+// the wrong tier when dropping onto a downslope and teleported the player sideways/down into
+// unrelated geometry. Row scan is also tightened — never probe a full cell below the feet unless
+// the player is actually falling (vy > 0).
+export const slopeSurfaceForPlayer = (lv, xPixel, headY, feetBottom, vy, dx, dtMul, CW, CH) => {
+  const c = Math.floor(xPixel / CW); if (c < 0 || c >= lv.cols) return null;
+  const headRow = Math.floor(headY / CH);
+  const feetRow = Math.floor((feetBottom - 0.001) / CH);
+  const sR0 = headRow;
+  // While falling, the scan must cover every row the feet swept through this frame — at the
+  // loop's dt clamp of 3, a long fall moves vy*dt (up to ~100px+) in one step, so a fixed +1
+  // row starved the down-reach. Walking (vy <= 0.5) keeps the old rows exactly.
+  const sweep = vy > 0.5 ? vy * (dtMul || 1) : 0;
+  const sR1 = feetRow + (vy > 0.5 ? Math.max(1, Math.ceil(sweep / CH)) : 0);
+  // downReach is how far BELOW the feet a ramp surface may still be snapped to this frame.
+  // It must NOT depend on horizontal INPUT: the old `+ Math.abs(dx)` meant a player HOLDING a
+  // direction (dx = full walk speed) could catch a ramp lip that an IDLE player (dx = 0, or
+  // only the ~1.6px slide) could not — so letting go of Right on a stairs+ramp formation
+  // dropped you THROUGH the ramp onto the stair backing underneath, or slid you off to the
+  // side. Reach is a vertical question (how far the feet could have moved past the surface),
+  // so base it on fall speed plus a fixed stick equal to one normal ground step (7px), and
+  // still honour any larger actual dx so a fast walker reaches at least as far as before.
+  const reachStick = Math.max(Math.abs(dx || 0), 7 * (dtMul || 1)); // 7 = base ground speed
+  const downReach = Math.max(2, vy * (dtMul || 1) + reachStick + 2);
+  let best = null;
+  for (let r = sR0; r <= sR1; r++) {
+    if (r < 0 || r >= lv.rows) continue;
+    const cell = lv.fg[cellKey(r, c)];
+    if (!fgIsSlope(cell)) continue;
+    const localFrac = Math.min(1, Math.max(0, (xPixel - c * CW) / CW));
+    const overallFrac = fgDistFromLow(cell, localFrac) / fgRun(cell);
+    const surfaceY = (r + 1) * CH - overallFrac * CH;
+    const gap = surfaceY - feetBottom; // >0 surface below feet, <0 surface above feet
+    if (vy < 0) continue;
+    // Above-feet window: the classic 31px catches burial after modest steps; the sweep term
+    // additionally accepts any surface the feet CROSSED during this frame's motion (fast-fall
+    // straddle at big dt). It never exceeds the actual swept distance, so a player standing or
+    // falling in the corridor UNDER a ramp — whose feet were already below the surface before
+    // this frame — can never be snapped up through it.
+    const canSnap = gap <= 0 ? gap >= -Math.max(CH + 1, sweep + 2) : gap <= downReach;
+    if (!canSnap) continue;
+    if (best === null || Math.abs(gap) < Math.abs(best.gap)) best = { y: surfaceY, dir: cell.slope, gap };
+  }
+  return best;
+};
+// CSS clip-path for a Foreground cell: "none" for a solid block, or a triangle/trapezoid
+// slice of the ramp's diagonal for a slope cell (a trapezoid for any interior cell of a
+// multi-cell ramp — only the ramp's two end cells are true triangles).
+const fgClipPath = (cell) => {
+  if (!fgHasDiagonalShape(cell)) return "none";
+  const run = fgRun(cell);
+  const frac = (localFrac) => (fgDistFromLow(cell, localFrac) / run) * 100; // % from the ramp's low end
+  if (cell.upsideDown) return "polygon(0 0%, 100% 0%, 100% " + frac(1) + "%, 0 " + frac(0) + "%)"; // solid hangs from the top — cliff underside/overhang look
+  const topFrac = (localFrac) => 100 - frac(localFrac);
+  return "polygon(0 " + topFrac(0) + "%, 100% " + topFrac(1) + "%, 100% 100%, 0 100%)";
+};
+// A comparable shape signature for a Foreground cell — used by flood-fill/move to tell "same
+// shape" apart (plain block vs. an up-ramp vs. a down-ramp vs. either's upside-down/visual twin).
+const fgShapeSig = (cell) => !fgHasDiagonalShape(cell) ? "block" : (cell.slope > 0 ? "up" : "down") + (cell.upsideDown ? "_ud" : "");
+
+/* ============================== TEXTURES ==================================
+   A painted cell has always been either a plain color string, or an object carrying a ramp
+   shape. It can now also carry `tex` — the id of a saved TEXTURE INSTANCE. An instance is just
+   { id, name, tex: "brick", colors: {...}, params: {...} }: you never draw a texture, you pick
+   one of the built-in patterns and decide its colors (and, for metal, how rusty it is).
+
+   Each pattern is rendered once into an SVG data-URI tile and used as a repeating CSS
+   background. Crucially the tile is positioned by the cell's WORLD position (r, c), not per
+   cell — so a wall of bricks lines up across every cell it spans instead of restarting the
+   pattern in each 30px square. Everything here is deterministic: the same palette always
+   produces the same bytes, so the data-URI cache never misses and nothing shimmers between
+   frames.
+
+   A cell still keeps a flat base color `c` alongside `tex`. That's what the minimap, the
+   eyedropper and the flood-fill match on, and what the cell falls back to if its texture is
+   ever deleted — a textured level can never render as nothing. */
+const px = (n) => Math.round(n * 100) / 100;
+// Deterministic pseudo-random in [0,1). Same seed, same value, forever — no Math.random() in
+// any texture, or the pattern would change on every re-render.
+const trnd = (seed) => { const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+const svgRect = (x, y, w, h, fill, extra) => `<rect x="${px(x)}" y="${px(y)}" width="${px(w)}" height="${px(h)}" fill="${fill}"${extra || ""}/>`;
+
+// Rows of offset bricks. Shared by Brick / Big brick / Stone brick — they differ only in unit
+// size, gap, and how much the row widths wander.
+const brickCourse = (tw, th, bw, bh, gap, mortar, shades, jitter) => {
+  let out = svgRect(-2, -2, tw + 4, th + 4, mortar);
+  const rows = Math.round(th / bh);
+  for (let row = 0; row < rows; row++) {
+    const y = row * bh;
+    const off = (row % 2) ? -bw / 2 : 0;
+    let x = off - bw;
+    let i = 0;
+    while (x < tw + bw) {
+      const w = jitter ? bw * (0.72 + trnd(row * 7.3 + i * 3.1) * 0.55) : bw;
+      const shade = shades[Math.floor(trnd(row * 13.7 + i * 5.9) * shades.length) % shades.length];
+      out += svgRect(x + gap / 2, y + gap / 2, Math.max(2, w - gap), Math.max(2, bh - gap), shade);
+      x += w; i++;
+    }
+  }
+  return out;
+};
+
+export const TEXTURES = {
+  brick: {
+    label: "Brick", icon: "🧱", tile: [60, 30], base: "a",
+    colors: [["mortar", "Mortar", "#8a8580"], ["a", "Brick", "#8f3b2e"], ["b", "Brick (light)", "#a4483a"], ["c", "Brick (dark)", "#71301f"]],
+    params: [],
+    svg: (co) => brickCourse(60, 30, 30, 15, 2.5, co.mortar, [co.a, co.b, co.c, co.a], false),
+  },
+  bigBrick: {
+    label: "Big brick", icon: "🟫", tile: [120, 60], base: "a",
+    colors: [["mortar", "Mortar", "#7d7a74"], ["a", "Block", "#8a4536"], ["b", "Block (light)", "#9e5442"], ["c", "Block (dark)", "#6d3327"]],
+    params: [],
+    svg: (co) => brickCourse(120, 60, 60, 30, 4, co.mortar, [co.a, co.b, co.c, co.b], false),
+  },
+  stoneBrick: {
+    label: "Stone brick", icon: "🪨", tile: [90, 45], base: "a",
+    colors: [["mortar", "Mortar", "#3f423f"], ["a", "Stone", "#7f8479"], ["b", "Stone (light)", "#949a8c"], ["c", "Stone (dark)", "#666b62"]],
+    params: [],
+    svg: (co) => brickCourse(90, 45, 30, 15, 3, co.mortar, [co.a, co.b, co.c], true),
+  },
+  wood: {
+    label: "Wood planks", icon: "🪵", tile: [60, 40], base: "plank",
+    colors: [["plank", "Plank", "#8a5a33"], ["plankAlt", "Plank (alt)", "#7a4e2c"], ["grain", "Grain", "#61391f"], ["seam", "Seam", "#3d2413"]],
+    params: [],
+    svg: (co, _t, pa) => {
+      const tw = 90, th = 60, ph = 20;
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.plank);
+      for (let row = 0; row < 3; row++) {
+        const y = row * ph;
+        out += svgRect(0, y, tw, ph, row % 2 ? co.plankAlt : co.plank);
+        // grain: a few thin, staggered streaks per plank
+        const n = 3;
+        for (let g = 0; g < n; g++) {
+          const gy = y + 4 + g * 5 + trnd(row * 3.3 + g) * 2;
+          const gx = trnd(row * 9.1 + g * 2.7) * tw * 0.5;
+          const gw = tw * (0.25 + trnd(row * 4.4 + g * 1.9) * 0.5);
+          out += svgRect(gx, gy, gw, 1, co.grain, ` opacity="${px(0.25 + (pa.grain ?? 0.5) * 0.6)}"`);
+        }
+        out += svgRect(0, y + ph - 1.5, tw, 1.5, co.seam);          // horizontal plank seam
+        const bx = (row % 2 ? 45 : 15);                              // staggered butt joint
+        out += svgRect(bx, y, 1.5, ph, co.seam);
+      }
+      return out;
+    },
+  },
+  rock: {
+    label: "Rock / mine", icon: "⛏️", tile: [60, 60], base: "base",
+    colors: [["base", "Rock", "#5b5750"], ["light", "Highlight", "#726d64"], ["dark", "Shadow", "#403c37"], ["speck", "Speckle", "#8a8378"]],
+    params: [],
+    svg: (co) => {
+      const tw = 60, th = 60;
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.base);
+      // Angular chunks: deterministic quads, drawn twice (offset by a tile) so they wrap seamlessly.
+      for (let i = 0; i < 7; i++) {
+        const cx = trnd(i * 2.1) * tw, cy = trnd(i * 3.7) * th;
+        const s = 8 + trnd(i * 5.5) * 14;
+        const fill = trnd(i * 7.9) > 0.5 ? co.light : co.dark;
+        const pts = [];
+        for (let k = 0; k < 5; k++) {
+          const ang = (k / 5) * Math.PI * 2 + trnd(i * 11 + k) * 0.7;
+          const rad = s * (0.6 + trnd(i * 13 + k) * 0.6);
+          pts.push(px(cx + Math.cos(ang) * rad) + "," + px(cy + Math.sin(ang) * rad));
+        }
+        out += `<polygon points="${pts.join(" ")}" fill="${fill}" opacity="0.55"/>`;
+      }
+      for (let i = 0; i < 22; i++) out += svgRect(trnd(i * 17.3) * tw, trnd(i * 19.7) * th, 1.5, 1.5, co.speck, ' opacity="0.5"');
+      return out;
+    },
+  },
+  metal: {
+    label: "Metal", icon: "⚙️", tile: [40, 40], base: "base",
+    colors: [["base", "Metal", "#8a929c"], ["light", "Sheen", "#a8b0b9"], ["dark", "Groove", "#666d76"], ["rust", "Rust", "#8a4a24"]],
+    // Rust 0 = factory fresh. 1 = eaten through. Blotches are deterministic, so sliding rust up
+    // deepens and spreads the SAME patches rather than reshuffling them every keystroke.
+    params: [{ key: "rust", label: "Rust", min: 0, max: 1, step: 0.05, def: 0 }],
+    svg: (co, _t, pa) => {
+      const tw = 40, th = 40;
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.base);
+      for (let i = 0; i < 10; i++) { // brushed vertical grain
+        const x = trnd(i * 2.3) * tw;
+        out += svgRect(x, -2, 0.8 + trnd(i * 4.1) * 1.4, th + 4, trnd(i * 6.7) > 0.5 ? co.light : co.dark, ' opacity="0.35"');
+      }
+      // Rivets sit ON the tile corners, so four quarter-circles meet into one whole rivet.
+      for (const [rx, ry] of [[0, 0], [tw, 0], [0, th], [tw, th]]) {
+        out += `<circle cx="${rx}" cy="${ry}" r="3" fill="${co.dark}"/><circle cx="${px(rx - 0.7)}" cy="${px(ry - 0.7)}" r="1.6" fill="${co.light}"/>`;
+      }
+      const rust = Math.max(0, Math.min(1, pa.rust ?? 0));
+      if (rust > 0) {
+        const blobs = Math.round(rust * 14);
+        for (let i = 0; i < blobs; i++) {
+          const cx = trnd(i * 3.9) * tw, cy = trnd(i * 8.3) * th;
+          const rr = 2 + trnd(i * 12.1) * (3 + rust * 7);
+          out += `<circle cx="${px(cx)}" cy="${px(cy)}" r="${px(rr)}" fill="${co.rust}" opacity="${px(0.25 + rust * 0.55)}"/>`;
+          out += `<circle cx="${px(cx + rr * 0.5)}" cy="${px(cy + rr * 0.3)}" r="${px(rr * 0.55)}" fill="${co.rust}" opacity="${px(0.2 + rust * 0.5)}"/>`;
+        }
+      }
+      return out;
+    },
+  },
+};
+export const TEXTURE_KEYS = Object.keys(TEXTURES);
+// A brand-new instance of a pattern, with every color/param at its default.
+export const newTexture = (texKey) => {
+  const key = TEXTURES[texKey] ? texKey : "brick"; // an unknown pattern must not produce a cell that renders as nothing
+  const def = TEXTURES[key];
+  const colors = {}; def.colors.forEach(([k, , d]) => { colors[k] = d; });
+  const params = {}; (def.params || []).forEach((p) => { params[p.key] = p.def; });
+  return { id: uid(), name: def.label, tex: key, colors, params };
+};
+// Everything that changes the rendered bytes, and nothing that doesn't (name and id are excluded
+// on purpose — renaming a texture must not invalidate its cache).
+export const textureSig = (t) => !t ? "" : t.tex + ":" + TEXTURES[t.tex].colors.map(([k]) => t.colors[k]).join(",") + ":" + (TEXTURES[t.tex].params || []).map((p) => t.params[p.key]).join(",");
+export const textureBaseColor = (t) => (t && TEXTURES[t.tex] && t.colors[TEXTURES[t.tex].base]) || "#8a8580";
+const texUriCache = new Map();
+export const textureDataUri = (t) => {
+  const def = t && TEXTURES[t.tex];
+  if (!def) return null;
+  const sig = textureSig(t);
+  const hit = texUriCache.get(sig);
+  if (hit) return hit;
+  const [tw, th] = def.tile;
+  const body = def.svg(t.colors, def.tile, t.params || {});
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${tw}" height="${th}" viewBox="0 0 ${tw} ${th}" shape-rendering="crispEdges">${body}</svg>`;
+  const uri = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  texUriCache.set(sig, uri);
+  return uri;
+};
+// A cell's texture id, whatever shape the cell is in (plain string, ramp object, textured object).
+export const cellTexId = (cell) => (cell && typeof cell === "object" && cell.tex) ? cell.tex : null;
+export const resolveTexture = (texLib, id) => (id && (texLib || []).find((t) => t.id === id)) || null;
+// What flood-fill / move / "is this the same paint?" compare on: the base color, the ramp shape,
+// and the texture. Two cells that differ ONLY in texture are correctly seen as different paint.
+export const cellSig = (cell) => (cell === undefined || cell === null) ? "" : fgColor(cell) + "|" + fgShapeSig(cell) + "|" + (cellTexId(cell) || "");
+// The CSS a painted cell renders with. Tiles are anchored to the cell's WORLD position, so a
+// brick pattern runs continuously across every cell of a wall rather than restarting each cell.
+export const cellPaintStyle = (cell, r, c, texLib) => {
+  const base = fgColor(cell);
+  const t = resolveTexture(texLib, cellTexId(cell));
+  if (!t || !TEXTURES[t.tex]) return { background: base };
+  const [tw, th] = TEXTURES[t.tex].tile;
+  return {
+    backgroundColor: base,
+    backgroundImage: textureDataUri(t),
+    backgroundSize: tw + "px " + th + "px",
+    backgroundPosition: (-(c * LV_CELL) % tw) + "px " + (-(r * LV_CELL) % th) + "px",
+  };
+};
+// The value a paint stroke writes into a cell: a plain color when no texture is selected (exactly
+// as before), otherwise the texture's own base color plus its id.
+export const paintValue = (color, texture, shape) => {
+  const s = shape || null;
+  if (!texture) return s ? { c: color, ...s } : color;
+  return { c: textureBaseColor(texture), tex: texture.id, ...(s || {}) };
+};
+// A cell painted in Outline mode carries `ol` (its outline colour) alongside its normal fill.
+// withOutline() attaches it losslessly. cellOutlineStyle() KEEPS the cell fill/texture and draws a
+// thin line in `ol` only on the sides that face empty space on the same layer, so a clean border
+// traces the OUTER EDGE of whatever you paint — at any brush size — without hiding the fill (a
+// 1-cell-thick platform still shows its fill colour, just with an outline around it). Inset
+// box-shadows are used so nothing shifts layout and it still composes with a ramp clip-path.
+export const withOutline = (val, ol) => ol ? (typeof val === "object" ? { ...val, ol } : { c: val, ol }) : val;
+const outlineBoxShadow = (map, r, c, ol) => {
+  const s = [];
+  if (!map[cellKey(r - 1, c)]) s.push("inset 0 2px 0 " + ol);
+  if (!map[cellKey(r + 1, c)]) s.push("inset 0 -2px 0 " + ol);
+  if (!map[cellKey(r, c - 1)]) s.push("inset 2px 0 0 " + ol);
+  if (!map[cellKey(r, c + 1)]) s.push("inset -2px 0 0 " + ol);
+  return s.join(", ");
+};
+const cellOutlineStyle = (map, cell, r, c, texLib) => {
+  const base = cellPaintStyle(cell, r, c, texLib);
+  if (!(cell && typeof cell === "object" && cell.ol)) return base;
+  const bs = outlineBoxShadow(map, r, c, cell.ol);
+  return bs ? { ...base, boxShadow: bs } : base;
+};
+
+// Climb cells carry a kind now: { kind: "ladder" | "bars" | "cliff" }. Old saves stored a plain
+// `true` — migrateLevel() normalizes those to { kind: "ladder" } on load, but this stays
+// defensive (treats any truthy non-object, or an object with no kind, as a ladder) so nothing
+// downstream has to know or care whether a given level has been through migration yet.
+const climbKindOf = (cell) => cell ? ((typeof cell === "object" ? cell.kind : null) || "ladder") : null;
+/* ============================== HAZARDS ==================================
+   A hazard is a painted cell that hurts whoever stands in it — right now just Fire, but the
+   layer is a generic { kind, dps } so more (acid, spikes) drop in the same way later. It's a
+   pure damage-over-time volume: it does NOT block movement, is NOT destructible, and nothing
+   consumes or extinguishes it — you're expected to walk through it and take the hit, or route
+   around. dps is damage-per-SECOND; the loop scales it by real elapsed time (dtMul) so it's
+   frame-rate independent and, importantly, tickable in fractions rather than whole hits per
+   frame (which at 60fps would be an instant kill). */
+const HAZARDS = {
+  fire: { kind: "fire", label: "Fire", icon: "🔥", glyph: "🔥", color: "#ff6a1f" },
+};
+export const HAZARD_KEYS = Object.keys(HAZARDS);
+export const DEFAULT_HAZARD_DPS = { fire: 6 }; // ~6 HP/sec — a couple seconds in the flames is a real threat, a quick dash across is survivable
+export const DEFAULT_HAZARD_LIFE = 6; // seconds a painted fire burns before it goes out; 0 = never goes out
+export const hazardKindOf = (cell) => cell ? ((typeof cell === "object" ? cell.kind : cell) || "fire") : null;
+export const hazardDps = (cell) => { const k = hazardKindOf(cell); return (cell && typeof cell === "object" && typeof cell.dps === "number") ? cell.dps : (DEFAULT_HAZARD_DPS[k] ?? 0); };
+// Lifetime in SECONDS a fire cell burns during play before it goes out. 0 (or missing on an old
+// save) means it never burns out — a permanent hazard, the way it behaved before lifetimes
+// existed. Only ticked during Playtest; the painted level itself is never mutated.
+export const hazardLife = (cell) => (cell && typeof cell === "object" && typeof cell.life === "number") ? cell.life : 0;
+// Total damage-per-second a box (player or enemy) is standing in, summed over every hazard cell
+// it overlaps — so straddling two fire cells hurts more than clipping one corner of one. Returns
+// 0 when clear. The caller multiplies by real elapsed seconds to get the actual HP lost.
+export const hazardDpsAt = (lv, x, y, pw, ph, CW, CH, alive) => {
+  const haz = lv && lv.hazard; if (!haz) return 0;
+  const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH);
+  let dps = 0;
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    if (r < 0 || c < 0 || r >= lv.rows || c >= lv.cols) continue;
+    const key = cellKey(r, c);
+    const cell = haz[key];
+    if (cell && (!alive || alive(key))) dps += hazardDps(cell);
+  }
+  return dps;
+};
+// Polygon shapes as fraction-of-box points (0..1), one source of truth shared by the fill
+// (shapeStyle), the outline (outlineStyle), and the cutter SVG mask (cutterMaskCss) — adding a
+// new polygon shape only ever means adding one entry here instead of keeping three separate
+// implementations (CSS clip-path %, SVG mask pixels, outline clip-path %) in sync by hand.
+// "circle" and "rect" aren't here — they use borderRadius/plain rect instead of clip-path.
+// A half circle can't be a border-radius (that only rounds corners of the box) — but every
+// "normal circle effect" the piece editor offers (outline ring, glow/brightness, cutter hole,
+// eyedropper, resize, rotate) is already driven off SHAPE_POINTS for polygon shapes, so a
+// finely-tessellated semicircle gets all of them for free with one entry here. Flat edge on
+// the bottom, dome on top; rotate the piece for any other orientation.
+const SEMICIRCLE_SEGS = 32;
+const semicirclePoints = (n) => { const pts = []; for (let i = 0; i <= n; i++) { const t = Math.PI * (1 - i / n); pts.push([+(0.5 + 0.5 * Math.cos(t)).toFixed(4), +(1 - Math.sin(t)).toFixed(4)]); } return pts; };
+export const SHAPE_POINTS = {
+  tri: [[0.5, 0], [0, 1], [1, 1]],
+  halfcircle: semicirclePoints(SEMICIRCLE_SEGS),
+  tri2: [[0, 0], [1, 1], [0, 1]], // right triangle — rotate via p.rot for any corner
+  diamond: [[0.5, 0], [1, 0.5], [0.5, 1], [0, 0.5]],
+  pentagon: [[0.5, 0], [1, 0.38], [0.82, 1], [0.18, 1], [0, 0.38]],
+  hexagon: [[0.25, 0], [0.75, 0], [1, 0.5], [0.75, 1], [0.25, 1], [0, 0.5]],
+  star: [[0.5, 0], [0.61, 0.35], [0.98, 0.35], [0.68, 0.57], [0.79, 0.91], [0.5, 0.7], [0.21, 0.91], [0.32, 0.57], [0.02, 0.35], [0.39, 0.35]],
+  trapezoid: [[0.2, 0], [0.8, 0], [1, 1], [0, 1]],
+};
+// Which asset a composed piece came from. Looks saved before _src existed still carry _slot
+// (one asset per slot, so it identifies the garment just as well) and _isWeapon; anything left
+// over is body/skin art.
+export const pieceSrcKey = (p) => p._src || p._slot || (p._isWeapon ? "__weapon" : "__body");
+// Splits a composed, already-ordered piece list into contiguous runs sharing one source asset.
+// A cutter's hole is cut with a mask on a CONTAINER (see cutterMaskCss), which unavoidably
+// masks everything inside that container — so putting the mask on the whole character wrapper
+// meant an eye-hole in a mask punched straight through the head, the hair and the background
+// behind them (it read as a black square: you were seeing the level through Bob). Each run gets
+// its own wrapper and its own mask instead, so a cutter only ever cuts the garment it was drawn
+// on. Runs stay contiguous and in order, so nothing about the existing draw order changes.
+export const cutterRuns = (pieces) => {
+  const runs = [];
+  for (const p of pieces || []) {
+    const key = pieceSrcKey(p);
+    const last = runs[runs.length - 1];
+    if (last && last.key === key) last.pieces.push(p);
+    else runs.push({ key, pieces: [p] });
+  }
+  for (const r of runs) { r.hasCutter = r.pieces.some((p) => p.isCutter); r.drawn = r.pieces.filter((p) => !p.isCutter); }
+  return runs;
+};
+// Renders one finished (non-editable) piece list, wrapping only the runs that actually contain
+// a cutter. `drawPiece(piece, key)` supplies the renderer, `maskCss(runPieces, cacheKey)` the
+// hole. Returns a flat-ish node array for JSX to splat.
+// A piece flagged `noCut` opts OUT of the cutter: the mask lives on a container, so the only way
+// to spare a piece is to render it outside that container. Rather than pulling those pieces to
+// the front (which would wreck layering), the run is split into CONTIGUOUS segments of cut /
+// not-cut pieces — each normal segment gets its own wrapper carrying the same mask, each noCut
+// segment renders bare, and because the segments stay in order the finished stack is pixel-identical
+// to before except the spared pieces now show through the holes. That's the peek-through case: a
+// root flagged noCut sits behind leaves whose cutter holes let glimpses of it come through.
+export const renderPieceRuns = ({ pieces, cacheKey, keyPrefix, drawPiece, maskCss }) =>
+  cutterRuns(pieces).map((r, gi) => {
+    if (!r.hasCutter) return r.drawn.map((p, n) => drawPiece(p, keyPrefix + gi + "_" + n));
+    const segs = [];
+    r.drawn.forEach((p, n) => {
+      const skip = !!p.noCut;
+      const last = segs[segs.length - 1];
+      if (last && last.skip === skip) last.items.push([p, n]);
+      else segs.push({ skip, items: [[p, n]] });
+    });
+    if (segs.length === 1 && !segs[0].skip) return <div key={keyPrefix + "g" + gi} style={{ position: "absolute", inset: 0, ...maskCss(r.pieces, cacheKey + ":" + r.key) }}>{r.drawn.map((p, n) => drawPiece(p, keyPrefix + gi + "_" + n))}</div>;
+    const css = maskCss(r.pieces, cacheKey + ":" + r.key);
+    return segs.map((s, si) => (s.skip
+      ? s.items.map(([p, n]) => drawPiece(p, keyPrefix + gi + "_" + n))
+      : <div key={keyPrefix + "g" + gi + "s" + si} style={{ position: "absolute", inset: 0, ...css }}>{s.items.map(([p, n]) => drawPiece(p, keyPrefix + gi + "_" + n))}</div>));
+  });
+export const shapePolyPoints = (p) => (p && p.kind === "poly" && p.points) ? p.points : (p && SHAPE_POINTS[p.kind]) || (typeof p === "string" ? SHAPE_POINTS[p] : null);
+export const shapeClipPath = (pieceOrKind) => { const pts = shapePolyPoints(typeof pieceOrKind === "string" ? { kind: pieceOrKind } : pieceOrKind); return pts ? "polygon(" + pts.map(([x, y]) => (x * 100) + "% " + (y * 100) + "%").join(",") + ")" : null; };
+export const SHAPE_LIST = [
+  ["rect", "▮", "Square"], ["circle", "●", "Circle"], ["halfcircle", "◓", "Half circle"], ["tri", "▲", "Triangle"], ["tri2", "◺", "Half triangle"],
+  ["diamond", "◆", "Diamond"], ["pentagon", "⬠", "Pentagon"], ["hexagon", "⬡", "Hexagon"], ["star", "★", "Star"], ["trapezoid", "⏢", "Trapezoid"],
+];
+// A placed level Object is either an emoji (o.char, tinted via CSS text-as-background) or a
+// plain colored shape (o.kind==="shape" — no emoji needed, same shape vocabulary as the piece
+// editor: rect/circle/tri/tri2). Shared by every render site that draws a cell's object stack
+// (the normal edit-mode layer, the ghost preview, and the Playtest "in front of player" pass)
+// so all three stay in sync automatically instead of needing the same branch copy-pasted three
+// separate times and drifting out of sync with each other.
+const objInner = (o, sz) => {
+  if (o.kind === "shape") {
+    const t = o.tint || "#7aa2d6";
+    if (o.shape === "topOutline") return <div style={{ width: "100%", height: "100%", position: "relative" }}><div style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "25%", background: t }} /></div>;
+    if (o.shape === "vineWeb") return (
+      <svg viewBox="0 0 100 100" style={{ width: "100%", height: "100%", display: "block" }} preserveAspectRatio="none">
+        <path d="M0,20 Q50,0 100,20 M0,50 Q50,30 100,50 M0,80 Q50,60 100,80 M20,0 Q0,50 20,100 M50,0 Q30,50 50,100 M80,0 Q100,50 80,100" stroke={t} strokeWidth="4" fill="none" />
+      </svg>
+    );
+    if (o.shape === "ladder") return (
+      <svg viewBox="0 0 100 100" style={{ width: "100%", height: "100%", display: "block" }} preserveAspectRatio="none">
+        <rect x="12" y="0" width="10" height="100" fill={t} />
+        <rect x="78" y="0" width="10" height="100" fill={t} />
+        <rect x="22" y="12" width="56" height="9" fill={t} />
+        <rect x="22" y="45.5" width="56" height="9" fill={t} />
+        <rect x="22" y="79" width="56" height="9" fill={t} />
+      </svg>
+    );
+    const s = { width: "100%", height: "100%", boxSizing: "border-box", background: t };
+    if (o.shape === "circle") s.borderRadius = "50%";
+    else if (o.shape === "tri") s.clipPath = "polygon(50% 0,0% 100%,100% 100%)";
+    else if (o.shape === "tri2") s.clipPath = "polygon(0% 0%, 100% 100%, 0% 100%)";
+    return <div style={s} />;
+  }
+  const span = { fontSize: sz * 0.85 + "px", lineHeight: 1 };
+  if (o.tint) Object.assign(span, { backgroundColor: o.tint, backgroundImage: "none", color: "transparent", WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text" });
+  return <span style={span}>{o.char}</span>;
+};
+// Is any part of the player's bounding box overlapping a climbable cell?
+// (Rectangle overlap, not just the dead-center point — that was the bug: you had to be
+// pixel-perfectly centered on a single 1-cell column to ever trigger climbing.)
+// Returns the KIND touched — "ladder" wins if a box somehow overlaps more than one kind at
+// once, so behavior stays deterministic instead of depending on Object.keys() ordering.
+export const climbKindAt = (lv, x, y, pw, ph, CW, CH) => {
+  const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH);
+  let found = null;
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    if (r < 0 || c < 0 || r >= lv.rows || c >= lv.cols) continue;
+    const kind = climbKindOf(lv.climb && lv.climb[cellKey(r, c)]);
+    if (!kind) continue;
+    if (kind === "ladder") return "ladder";
+    if (!found) found = kind;
+  }
+  return found;
+};
+// The y of the TOP edge of the highest climb cell of `kind` the player's box overlaps, or null.
+export const climbGripTop = (lv, x, y, pw, ph, CW, CH, kind) => {
+  const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH);
+  let top = null;
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    if (r < 0 || c < 0 || r >= lv.rows || c >= lv.cols) continue;
+    if (climbKindOf(lv.climb && lv.climb[cellKey(r, c)]) !== kind) continue;
+    const t = r * CH;
+    if (top === null || t < top) top = t;
+  }
+  return top;
+};
+// Monkey bars and a cliff ledge are a HANG, not a climb: the arms go straight up, so the grip
+// point is the TOP of the player's box. Overlap alone used to be enough to grab, which meant you
+// could jump off (Space), re-grab at the apex with your whole body already above the bar, jump
+// again, and walk yourself straight over the top of it — the hands ended up higher than the thing
+// they were supposedly hanging from. A hang can only be established while the grip point is at or
+// below the top of the bar/ledge being gripped. Ladders are a real climb (you go up and off the
+// top on purpose) and are never gated.
+export const canGripClimb = (lv, x, y, pw, ph, CW, CH, kind) => {
+  if (kind === "ladder") return true;
+  const top = climbGripTop(lv, x, y, pw, ph, CW, CH, kind);
+  return top === null || y >= top - 0.001;
+};
+// Which climb kind actually grips this frame — the version the playtest loop uses. Two changes
+// over the raw box-overlap climbKindAt above (which stays as-is for generic overlap questions):
+//
+// 1. A LADDER cell only counts while the player's horizontal CENTER is on the ladder's own
+//    column, give or take half a cell. Whole-box overlap let a wide-bodied character keep
+//    hanging while visually a full body-width off the ladder's side ("can go left too far
+//    without being on the ladder"). Drifting past that window now just lets go and you fall,
+//    like stepping off the side of a real ladder. Side-to-side movement ON the ladder is
+//    completely untouched — within the window you shimmy exactly as before. This is NOT a
+//    removal of side-to-side movement; it only sets where the ladder's side actually ends.
+//
+// 2. Ladder no longer has ABSOLUTE priority over bars/cliff. The old rule ("ladder always wins
+//    while any ladder cell is overlapped") made a monkey-bar/cliff ridge near the top of a
+//    ladder physically ungrabbable: the box still overlapped the ladder, so the hang never got
+//    a turn — and by the ladder's pinned top the grip point had already risen past the bar,
+//    which canGripClimb correctly refuses (no grabbing a bar from above it). Now, while
+//    ascending (wantsUp) — or while already hanging on that kind (curKind, so an established
+//    hang can't flicker back to ladder the moment ↑ is released) — a bars/cliff cell whose grip
+//    is currently VALID wins over the ladder: climbing up a ladder past a grabbable ridge hands
+//    you off onto it.
+export const resolveClimbKind = (lv, x, y, pw, ph, CW, CH, wantsUp, curKind) => {
+  const cx = x + pw / 2;
+  const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH);
+  let ladder = false, other = null;
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    if (r < 0 || c < 0 || r >= lv.rows || c >= lv.cols) continue;
+    const kind = climbKindOf(lv.climb && lv.climb[cellKey(r, c)]);
+    if (!kind) continue;
+    if (kind === "ladder") { if (cx >= c * CW - CW / 2 && cx <= (c + 1) * CW + CW / 2) ladder = true; }
+    else if (!other) other = kind;
+  }
+  if (ladder && other && (wantsUp || curKind === other)) {
+    const top = climbGripTop(lv, x, y, pw, ph, CW, CH, other);
+    if (top !== null && y >= top - 0.001) return other; // valid overhead grip while heading up: the hang wins
+  }
+  return ladder ? "ladder" : other;
+};
+// Simulated flight path for the throw-aim preview (hold G): the exact same per-frame integration
+// the thrown grenade itself uses (gravity accumulates into vy, position steps by velocity), so
+// the dots you see are precisely where a release right now would send it. Stops at the first
+// solid surface (isSolid callback) or after maxSteps; `stride` thins the sampled points into a
+// dotted arc instead of a solid line.
+export const throwTrajectoryPoints = (x0, y0, vx0, vy0, g, isSolid, maxSteps = 150, stride = 5) => {
+  const pts = [];
+  let x = x0, y = y0, vx = vx0, vy = vy0;
+  for (let i = 0; i < maxSteps; i++) {
+    vy = Math.min(40, vy + g);
+    x += vx; y += vy;
+    if (isSolid && isSolid(x, y)) { pts.push({ x, y }); break; }
+    if (i % stride === 0) pts.push({ x, y });
+  }
+  return pts;
+};
+const isOnClimb = (lv, x, y, pw, ph, CW, CH) => !!climbKindAt(lv, x, y, pw, ph, CW, CH);
+// Is the player (centered at cx,cy) overlapping a gameplay marker (door/pedestal)?
+const markerAt = (lv, cx, cy, CW, CH) => { const c = Math.floor(cx / CW), r = Math.floor(cy / CH); if (c < 0 || c >= lv.cols || r < 0 || r >= lv.rows) return null; const m = lv.markers && lv.markers[cellKey(r, c)]; return m || null; };
+// A pedestal sits at foot level, so a marker check on the player's CENTER point (~3-4 cells up)
+// silently missed it and the "Press E" pickup never armed. This finds a pedestal anywhere the
+// player's whole BODY box overlaps, which is what "standing on the pedestal" actually means.
+const pedestalOverlapping = (lv, x, y, w, h, CW, CH) => {
+  if (!lv.markers) return null;
+  const c0 = Math.floor(x / CW), c1 = Math.floor((x + w - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + h - 0.001) / CH);
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    const m = lv.markers[cellKey(r, c)];
+    if (m && m.kind === "pedestal") return { key: cellKey(r, c), marker: m };
+  }
+  return null;
+};
+// Same body-overlap test for a DOOR — so "standing at the door" arms the Press-E prompt even
+// though the door cell is at foot level and the player's centre point sits well above it.
+const doorOverlapping = (lv, x, y, w, h, CW, CH) => {
+  if (!lv.markers) return null;
+  const c0 = Math.floor(x / CW), c1 = Math.floor((x + w - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + h - 0.001) / CH);
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    const m = lv.markers[cellKey(r, c)];
+    if (m && m.kind === "door") return { key: cellKey(r, c), marker: m };
+  }
+  return null;
+};
+// A door's tag (which room pool it opens); blank = an exit back to where you came from. Reads
+// the new `tag` field, falling back to older doors that stored it as `accepts`.
+export const doorTagOf = (m) => ((m && (m.tag !== undefined ? m.tag : m.accepts)) || "").trim();
+// "Accepts" is free text, comma/space separated. Blank = matches this level's own floor.
+const parseCats = (text, own) => { const t = (text || "").trim(); const list = t ? t.split(/[,\n]/).map((s) => s.trim().toLowerCase()).filter(Boolean) : [(own || "").trim().toLowerCase()]; return list; };
+// A connector matches a neighbour if it's open, the neighbour's floor is in
+// what it accepts, AND the neighbour's connector likewise accepts this floor
+// (mutual — like a lock and key, not just one-way).
+const connMatch = (connA, levelA, connB, levelB) => {
+  if (!connA || !connB || !connA.open || !connB.open) return false;
+  const aAccepts = parseCats(connA.accepts, levelA.floor);
+  const bAccepts = parseCats(connB.accepts, levelB.floor);
+  return aAccepts.includes((levelB.floor || "").trim().toLowerCase()) && bAccepts.includes((levelA.floor || "").trim().toLowerCase());
+};
+// A single point-pair "agrees" if both ends are closed (wall meets wall) or both are open + mutually matching.
+const pairAgrees = (connA, levelA, connB, levelB) => !!(connA && connB && ((!connA.open && !connB.open) || connMatch(connA, levelA, connB, levelB)));
+// Two levels attach on `side` only if BOTH point-pairs on that seam agree
+// (point 1 with point 1, point 2 with point 2 — never crossed), AND at least
+// one of the two pairs is an actual open+matching passage (two blank walls
+// touching isn't a connection).
+const canAttach = (left, right, side) => { // does `right` attach to `side` of `left`?
+  if (!left || !right) return false;
+  const pairs = side === "E" ? [["E1", "W1"], ["E2", "W2"]] : side === "W" ? [["W1", "E1"], ["W2", "E2"]]
+    : side === "S" ? [["S1", "N1"], ["S2", "N2"]] : [["N1", "S1"], ["N2", "S2"]];
+  const allAgree = pairs.every(([la, rb]) => pairAgrees(left.conns[la], left, right.conns[rb], right));
+  const hasPassage = pairs.some(([la, rb]) => connMatch(left.conns[la], left, right.conns[rb], right));
+  return allAgree && hasPassage;
+};
+// Beta generator: build a horizontal chain by matching each tile's East to the next tile's West.
+function generateChain(levels, maxLen = 8) {
+  const usable = levels.filter((l) => l && l.conns);
+  const anyOpen = usable.filter((l) => l.conns.E1.open || l.conns.E2.open || l.conns.W1.open || l.conns.W2.open);
+  if (!anyOpen.length) return [];
+  const starters = usable.filter((l) => l.conns.E1.open || l.conns.E2.open);
+  const pool = starters.length ? starters : anyOpen;
+  const chain = [pool[Math.floor(Math.random() * pool.length)]];
+  for (let i = 0; i < maxLen - 1; i++) {
+    const last = chain[chain.length - 1];
+    const cands = usable.filter((l) => canAttach(last, l, "E"));
+    if (!cands.length) break;
+    chain.push(cands[Math.floor(Math.random() * cands.length)]);
+  }
+  return chain;
+}
+
+
+
+
+/* ---- Enemy senses & hill-collision helpers (module-level, exported for tests) ------------- */
+// One "player body length" — the unit enemy senses are specified in: the standing player is
+// PLAYER_H_CELLS tall, so a body length is that height in pixels (210px at the 30px cell).
+export const PLAYER_BODY_LEN_PX = LV_CELL * PLAYER_H_CELLS;
+export const ENEMY_SIGHT_AHEAD_LENGTHS = 6;  // sees 6 body lengths in the direction it FACES
+export const ENEMY_SIGHT_BEHIND_LENGTHS = 1; // ...but only 1 body length behind its back
+export const enemyDetects = (distToPlayer, face) => {
+  const facing = distToPlayer === 0 || Math.sign(distToPlayer) === (face || 1);
+  return Math.abs(distToPlayer) <= PLAYER_BODY_LEN_PX * (facing ? ENEMY_SIGHT_AHEAD_LENGTHS : ENEMY_SIGHT_BEHIND_LENGTHS);
+};
+// The direction an enemy should be FACING this frame. An enemy that can sense the player — out
+// to its full forward range in ANY direction, so it reacts to someone who walked up on its blind
+// side — turns to face them. This is deliberately separate from (and evaluated before) the
+// facing-gated enemyDetects: without it, a Guard (which never moves, and so never changes facing
+// through movement) spawned looking away from where the player is could NEVER turn toward them,
+// so it never detected them, never raised its weapon, and never attacked — the "guard only reacts
+// when I walk right up to it, and never shoots" bug. Returns the current face unchanged when the
+// player is out of sensing range entirely, so an unaware enemy keeps its placed facing.
+export const enemyFaceToward = (distToPlayer, face) => {
+  if (distToPlayer === 0) return face || 1;
+  return (Math.abs(distToPlayer) <= PLAYER_BODY_LEN_PX * ENEMY_SIGHT_AHEAD_LENGTHS) ? Math.sign(distToPlayer) : (face || 1);
+};
+// Edge-to-edge horizontal gap between two hitboxes (0 while they overlap). Every enemy range —
+// attack range AND the seek stand-off — is measured with THIS now. Center-to-center distance
+// silently spent (pw + epw) / 2 ≈ 140px of any range budget just crossing the two bodies
+// themselves, so the default 60px melee range meant "stand inside the enemy": the "0 range" bug.
+export const boxGap = (aCx, aW, bCx, bW) => Math.max(0, Math.abs(aCx - bCx) - (aW + bW) / 2);
+// Walking UP a ramp is deliberately slow — half speed. Walking down is normal (plus the slide).
+export const SLOPE_UP_MUL = 0.5;
+// Downhill auto-slide speed (px per 60fps-frame). Gentle on purpose — a ramp is a gentle pull,
+// not a launch. Was 4.0, which read as a fling; 1.6 slides you down smoothly without yanking.
+export const SLOPE_SLIDE_SPEED = 1.6;
+// Is this solid cell part of a RAMP FORMATION — the hill's flesh under/beside a ramp, which the
+// slope-surface pass owns, rather than a wall the player should clamp against?
+//
+// The OLD version only looked HILL_NEAR=3 cells away in every direction. That's fine for a short
+// ramp, but a LONG ramp has solid backing filled MANY cells deep below the diagonal — so backing
+// cells more than 3 rows under the ramp read as "walls", the wide hitbox's leading edge clamped
+// on them, and slow characters stuttered / got flung back partway up (exactly Blake's long ramp).
+//
+// The correct test: a backing cell is hill if there's a ramp cell ANYWHERE in its own column at
+// or above it (the entire vertical run beneath a ramp is that ramp's body), OR within a small
+// horizontal tolerance to catch the leading-edge lip beside the diagonal. Column search is
+// unbounded upward (a hill can be any height); horizontal stays tight so a real wall a couple
+// cells over from a ramp is still a wall.
+export const HILL_NEAR = 2; // horizontal tolerance only (leading-edge lip beside the diagonal)
+export const isHillFormationCell = (lv, r, c) => {
+  for (let cc = Math.max(0, c - HILL_NEAR); cc <= Math.min(lv.cols - 1, c + HILL_NEAR); cc++)
+    for (let rr = r; rr >= 0; rr--) {
+      const cell = lv.fg[cellKey(rr, cc)];
+      if (fgIsSlope(cell)) return true;
+      // Stop climbing this column once we pass out the TOP of a contiguous solid+ramp stack:
+      // an empty cell far above means we've left the hill and are now scanning open air, so a
+      // slope found even higher up isn't this cell's hill. Only break on the SAME column though
+      // (cc===c); neighbouring columns we always scan fully for the lip case.
+      if (cc === c && rr < r && !cell) break;
+    }
+  return false;
+};
+// Split blocking cells into real { walls } vs { hill } cells. A hill cell must ALSO sit near
+// foot level (its top no more than ~2.5 cells above the feet — the deepest a 45° ramp can put
+// the wide hitbox's leading edge into the hill face) so a genuine wall standing next to a ramp
+// still blocks you at chest/head height instead of becoming a ghost.
+export const splitHillHits = (lv, hits, footY, CH) => {
+  const out = { walls: [], hill: [] };
+  for (const h of hits) ((h.r * CH >= footY - CH * 2.5) && isHillFormationCell(lv, h.r, h.c) ? out.hill : out.walls).push(h);
+  return out;
+};
+// Step-assist smoothing: when the physics snaps the player up a one-cell stair, the RENDER
+// instead eases up over ~7 frames (p.stepEase holds the remaining visual offset, decaying at
+// STEP_EASE_SPEED px per 60fps-frame). Physics stays exact; only the drawn position eases — so
+// collision can never desync, and the old same-frame teleport is gone.
+export const STEP_EASE_SPEED = 4.5;
+export const easeStep = (v, dtMul) => Math.max(0, (v || 0) - STEP_EASE_SPEED * (dtMul || 1));
+// A solid cell in the player's centre column counts as a CEILING only if its underside is at
+// (or within this frame's upward travel of) the player's HEAD. The old inline check accepted
+// solid cells at ANY depth in the body — so jumping diagonally up a stair/hill formation, the
+// instant the centre column crossed into the next step, that step's solid backing (down at
+// FOOT level) was read as a "ceiling" and the head was shoved beneath it: a multi-cell
+// downward teleport into the hill, whose burial ejection then flung the player back down the
+// slope — the "jump while walking up a ramp teleports you to the bottom" bug. A cell whose
+// underside sits deeper than the head could have risen this frame is a side-clip owned by the
+// wall/hill pass, never a ceiling.
+export const ceilingBonkRows = (lv, centerC, headY, ph, vy, dtMul, CW, CH) => {
+  const r0 = Math.floor(headY / CH), r1 = Math.floor((headY + ph - 0.001) / CH);
+  const bonkLimit = headY + Math.abs(vy) * (dtMul || 1) + 2; // deepest a genuine head-bonk can reach this frame
+  const rows = [];
+  for (let r = r0; r <= r1; r++) {
+    const cell = lv.fg[cellKey(r, centerC)];
+    if (cell && !fgIsSlope(cell) && (r + 1) * CH <= bonkLimit) rows.push(r);
+  }
+  return rows;
+};
+
+export default function AssetStudio() {
+  const [screen, setScreen] = useState("menu");
+  const [asset, setAsset] = useState(null);
+  const [library, setLibrary] = useState([]);
+  const [angle, setAngle] = useState("front");
+  const [selId, setSelId] = useState(null);
+  const [multiSelect, setMultiSelect] = useState(false); // group-select mode: clicking blocks toggles them into groupIds instead of the normal single select+drag
+  const [groupIds, setGroupIds] = useState([]); // piece ids currently selected as a group — dragging any one of them moves all of them together, same delta
+  const [stamps, setStamps] = useState([]);     // stored groups: real piece copies, saved outside any asset so they can be stamped onto other bodies/poses
+  const [stampName, setStampName] = useState("");
+  const [confirmStampDel, setConfirmStampDel] = useState(null); // stamp id armed for deletion — a second tap actually deletes it
+  useEffect(() => { setGroupIds([]); setMultiSelect(false); }, [angle, asset?.id]);
+  const [newColor, setNewColor] = useState("#7aa2d6");
+  const [newFx, setNewFx] = useState(defaultFx()); // brightness/glow/fade for the NEXT block created — the eyedropper feeds this too, alongside newColor
+  const [eyedrop, setEyedrop] = useState(false); // eyedropper mode: next block clicked donates its color instead of being selected/picked up
+  const [shapePicker, setShapePicker] = useState(false); // true while the "Shapes" picker (Square/Circle/Triangle/.../Star/...) is open
+  const [artZoom, setArtZoom] = useState(1); // shrinks the design area within the fixed-size .art canvas, revealing space around it — 1 = design area fills the canvas, down to ARTZOOM_MIN
+  const [drawMode, setDrawMode] = useState(null);         // null | "line" | "fill" — which click-to-place tool is active on the .art canvas
+  const [linePt1, setLinePt1] = useState(null);           // first clicked point while placing a line
+  const [fillPts, setFillPts] = useState([]);             // clicked points while outlining a Fill polygon
+  const [confirmDel, setConfirmDel] = useState(null); // asset id armed for deletion — second tap actually deletes
+  const [niche, setNiche] = useState(false); // "Niche controls" modal (layer recovery from dressed looks)
+  const [loadOpen, setLoadOpen] = useState(false); // Load browser modal open/closed
+  const [loadCategory, setLoadCategory] = useState(null); // null = category list; a type key = that category's item list
+  const [loadSlot, setLoadSlot] = useState(null);         // Clothes & Armor only: null = slot list; a slot key = that slot's item list
+  const [wtypeChoice, setWtypeChoice] = useState(false); // true while the melee/projectile chooser is open (new weapon)
+  const [propItemChoice, setPropItemChoice] = useState(false); // true while the Object-vs-Item chooser is open
+  const [emoji, setEmoji] = useState("⚔️");
+  const [picker, setPicker] = useState(null);
+  const [sheet, setSheet] = useState(false);
+  const [text, setText] = useState("");
+  const [toast, setToast] = useState("");
+  const [hasStore, setHasStore] = useState(false);
+  const [sessionAssets, setSessionAssets] = useState([]);
+  const [loadout, setLoadout] = useState({ bodyId: "", skinId: "", slots: {}, weaponId: "" });
+  const [dressedBobName, setDressedBobName] = useState(""); // editable — blank falls back to "<body> — dressed"
+  const [markAsEnemy, setMarkAsEnemy] = useState(false);    // saves this Dress Bob look as a player-like enemy (isEnemy flag) instead of a plain playable character
+  const [dressedHp, setDressedHp] = useState(10);            // HP for that look, when saved as an enemy — the body's speed/agility/intelligence/strength come along for free via components.body.stats
+  const [savedDressedIds, setSavedDressedIds] = useState({}); // name -> id, so re-saving under the SAME name updates it; a different name saves as a new, separate entry
+  const [viewDressed, setViewDressed] = useState(null); // a previously-saved dressed character currently being viewed
+  const [aAngle, setAAngle] = useState("front");
+  const [combo, setCombo] = useState(null);
+  const [chooser, setChooser] = useState(false);
+  const [box, setBox] = useState({ w: 300, h: 400 });
+  const [emojis, setEmojis] = useState([]);
+  const [recolorAll, setRecolorAll] = useState(false); // color swatches repaint every piece sharing the selected piece's color, across all poses + all body fits
+  const palFrom = useRef({}); // skin-palette: original swatch colour -> the colour it currently maps to, during a remap drag
+  const [recent, setRecent] = useState([]);            // last-used custom colors
+  const [recentEmoji, setRecentEmoji] = useState([]);   // last-used emoji — the picker had no memory of this at all before
+  const [emojiQuery, setEmojiQuery] = useState("");     // search box in the emoji picker
+  const [wState, setWState] = useState("rest");        // weapon: rest | fire
+  const [eState, setEState] = useState("normal");       // enemy: normal | onFire | charge
+  const [effEdit, setEffEdit] = useState(null);         // equipment only: { effId, bodyKey, frameIdx } while designing an effect's animation; null = editing the item's normal art
+  const [poseCopySrc, setPoseCopySrc] = useState(null); // body creator only: angle currently shown as a copy-from reference
+  const [propFrame, setPropFrame] = useState(0);        // prop only: which animation frame index is being edited (0 = base look)
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [level, setLevel] = useState(null);            // current level being edited
+  const [levelLib, setLevelLib] = useState([]);
+  const [pendingLevelAction, setPendingLevelAction] = useState(null); // { label, run } — shown as a confirm modal when about to discard unsaved level changes
+  const [levelLoadOpen, setLevelLoadOpen] = useState(false);          // true while the "Load a level" picker modal is open
+  const [bgLib, setBgLib] = useState([]);               // saved reusable backgrounds — {id, name} index; full data fetched on load
+  const [bgName, setBgName] = useState("");             // name field for saving the current level's background
+  const [lLayer, setLLayer] = useState("fg");          // fg (collision) | bg | obj
+  const [lTool, setLTool] = useState("paint");         // paint | erase
+  const [layerMove, setLayerMove] = useState(null);    // { layer, cells: {key: val} } — a flood-matched region picked up with the Move tool, awaiting a destination layer
+  const [lColor, setLColor] = useState("#6b7b3a");
+  const [texLib, setTexLib] = useState([]);          // saved texture instances — { id, name, tex, colors, params }
+  const [lTexId, setLTexId] = useState(null);        // texture the paint tool is currently painting with; null = plain color, exactly as before
+  const [texPick, setTexPick] = useState(false);     // texture picker modal open
+  const [texEdit, setTexEdit] = useState(null);      // texture instance being created/edited in the texture creator; null = closed
+  // The texture every paint/fill/ramp stroke uses right now. null = plain color (the old behavior,
+  // unchanged). Derived rather than stored so deleting a texture can never leave the brush
+  // pointing at something that no longer exists.
+  const activeTexture = useMemo(() => resolveTexture(texLib, lTexId), [texLib, lTexId]);
+  const [lFgShape, setLFgShape] = useState("block"); // "block" | "slopeUp" | "slopeDown" — shape painted onto Foreground cells
+  const [lFgUpsideDown, setLFgUpsideDown] = useState(false); // flips a ramp's diagonal to hang from the top — visual cliff-underside/overhang, not walkable
+  const [lHoverCell, setLHoverCell] = useState(null); // {r,c} under the pointer — drives the placement ghost preview
+  const [rampDragOn, setRampDragOn] = useState(false); // true while dragging out a multi-cell ramp — drives the live ramp-span preview
+  const [areaDragOn, setAreaDragOn] = useState(false); // true while dragging out an area-copy selection rectangle
+  const [hasClipboard, setHasClipboard] = useState(false); // just drives the toolbar label — the actual data lives in clipboard.current
+  const [lEmoji, setLEmoji] = useState("🌳");           // selected emoji for the Objects layer
+  const [lObjKind, setLObjKind] = useState("emoji");    // "emoji" (a character), "shape" (a plain colored block), or "prop" (a saved Object/Prop asset's pixel art)
+  const [lObjShape, setLObjShape] = useState("rect");   // shape used when lObjKind === "shape": rect/circle/tri/tri2, same vocabulary as the piece editor
+  const [lPropId, setLPropId] = useState("");           // which saved prop asset the Objects layer paints when lObjKind === "prop"
+  const [lTint, setLTint] = useState(null);             // tint for placed emoji objects (null = natural colors) — doubles as the fill color when lObjKind === "shape"
+  const [lSolid, setLSolid] = useState(true);           // do placed objects block the player? (on by default — decoration is the exception, not the rule)
+  const [lInFront, setLInFront] = useState(false);      // render placed objects in front of the player instead of behind (off by default — matches how it always worked before)
+  const [lObjSize, setLObjSize] = useState(1);          // emoji footprint in cells (1 = one tile, 4 = 4x4)
+  const [lBrush, setLBrush] = useState(1);              // paint brush size in cells, for fg/bg/climb
+  const [lOutline, setLOutline] = useState(false);      // brush option: outline the perimeter of the brush footprint
+  const [lOutlineColor, setLOutlineColor] = useState("#1a1a1a"); // color that brush outline paints with
+  const [movingActive, setMovingActive] = useState(false); // true while Select has picked something up (UI feedback only)
+  const moving = useRef(null);                          // { key, item, from: "fx" | "markers" } — the actual picked-up data
+  const [lFxSel, setLFxSel] = useState(null);           // cell key currently showing its object stack in the side panel
+  const [lFxEditIdx, setLFxEditIdx] = useState(null);   // index within that cell's stack currently expanded for tweaking
+  const [lMarkerKind, setLMarkerKind] = useState("door"); // door | pedestal
+  const [lMarkerCat, setLMarkerCat] = useState("");      // door's accepted destination category (free text)
+  const [lPedCat1, setLPedCat1] = useState("");        // pedestal search: first category filter (blank = any)
+  const [lPedCat2, setLPedCat2] = useState("");        // pedestal search: second category filter (blank = any)
+  const [lPedLogic, setLPedLogic] = useState("or");     // pedestal search logic: "or" (either tag) | "and" (both tags)
+  const [lClimbKind, setLClimbKind] = useState("ladder"); // ladder | bars | cliff — which climb layer paints
+  const [lHazDps, setLHazDps] = useState(DEFAULT_HAZARD_DPS.fire); // fire hazard damage-per-second the Hazard tool paints with
+  const [lHazLife, setLHazLife] = useState(DEFAULT_HAZARD_LIFE);   // seconds a painted fire burns before going out (0 = permanent)
+  const [lHazHide, setLHazHide] = useState(false);                // paint fire that's INVISIBLE during play (still deals damage) — so you can lay your own pixel-art fire Object on top of it via the Front layer
+  const [lEnemyId, setLEnemyId] = useState("");          // which enemy/isEnemy-character asset the Enemies layer paints with
+  const [lEnemyFace, setLEnemyFace] = useState(-1);       // which way newly-placed enemies face: -1 left (default — enemies confront a left-to-right player), 1 right
+  const [lEnemyAi, setLEnemyAi] = useState("guard");      // AI behavior stamped onto newly-placed enemies (set HERE in the level tester, not the enemy creator) — "asset" = use the enemy's own saved default
+  const [lSel, setLSel] = useState(null);              // selected connector key
+  const [gen, setGen] = useState(null);                // generated chain preview
+  const [play, setPlay] = useState(false);             // playtest mode
+  const [playerId, setPlayerId] = useState("");        // asset used as the player
+  const [playtestWeaponId, setPlaytestWeaponId] = useState(""); // weapon equipped for playtest — separate from a saved dressed look, so a weapon can be tested on any body
+  const [playtestThrowId, setPlaytestThrowId] = useState("");   // throwable carried for playtest (single-use grenade thrown with G)
+  const [playtestThrowCount, setPlaytestThrowCount] = useState(3); // how many of it to start a test with — stands in for level pickups
+  const projectiles = useRef([]);                        // live projectile entities: {x,y,vx,vy,char,tint,size,life}
+  const booms = useRef([]);                              // live explosion visuals (play-only, front layer): {x,y,propId,size,life,maxLife} — an explode-tagged shot spawns one on impact; never touches saved level data
+  const thrown = useRef([]);                             // live thrown-grenade entities mid-arc: {x,y,vx,vy,rot,asset,pieces}
+  const throwCarry = useRef(0);                          // how many of the carried throwable the player still has this session (single-use)
+  const throwPickup = useRef(null);                       // set to a count (e.g. 3) when a throwable is TAKEN from a pedestal, so a fresh pickup arrives stocked regardless of the test-count knob; consumed on the next loop init
+  const throwCd = useRef(0);                             // small cooldown after a throw so one G press = one grenade
+  const thrownFireKeys = useRef(new Set());              // hazard keys created by grenades this session — removed on Stop so they don't persist into the saved level
+  const thrownPropKeys = useRef(new Set());              // fx-prop keys stamped by grenades this session (custom fire art) — pulled back off on Stop, same as thrownFireKeys
+  const wpn = useRef(newWeaponAmmo(0));                   // equipped ranged weapon's live { clip, ammo, cd, reloadT } this Playtest session — re-seeded whenever Playtest starts or the weapon changes
+  const hazLife = useRef({});                             // cellKey -> remaining burn seconds this Playtest session (only cells with a finite life appear here); a key present and <=0 means burnt out
+  const playRunId = useRef(0);                            // bumped once each time Playtest actually STARTS — lets the loop tell a genuine new session from an incidental effect re-run (e.g. a grenade's setLevel), so fire countdowns aren't reset mid-play
+  const lastSeededRun = useRef(-1);                       // the playRunId hazLife was last freshly seeded for; equal => this is a re-run of the same session, so preserve in-progress countdowns
+  const enemyHP = useRef({});                             // spawnKey -> remaining HP this Playtest session (lazily seeded from the enemy asset's base hp on first hit)
+  const meleeReach = useRef({});                          // enemyId|weaponId -> swept melee-hitbox reach in px, so the engage gate doesn't re-sweep the whole swing arc every frame
+  const enemyPos = useRef({});                            // spawnKey -> { y, vy, onGround } — lets enemies fall to the ground on Playtest start ("drop into place") instead of being frozen at their placed cell
+  const playerHP = useRef(10);                            // player's remaining HP this Playtest session — seeded from the player asset's HP stat when Playtest starts
+  const pedestalRolls = useRef({});
+  const pedestalDepleted = useRef(new Set());              // pedestal keys the player emptied (took the item, had nothing to swap back) — these vanish rather than showing "no match"
+  const equipped = useRef({});                            // slot -> equipment item taken from a pedestal this session (weapons go through playtestWeaponId instead)
+  const itemBuffs = useRef([]);                            // active temporary stat boosts from consumed items: [{ stat, amount, until }] (until = performance.now ms). Pruned every frame.
+  const roomReturn = useRef(null);                         // while inside a room during play: { level: <the level to return to>, x, y } — set on enter, consumed on exit/stop
+  const roomState = useRef({});                             // per-level PERSISTENT state for the current play session, keyed by level id: { rolls, depleted, eHP, ePos, haz }. Never cleared on a transition — only on a fresh Playtest. This is what makes a level/room keep what you did to it when you leave and come back.
+  const sessionRooms = useRef({});                          // "originLevelId|doorCell" -> chosen room id, so a given door leads to the SAME room all session (re-entering doesn't re-roll)
+  const spawnReq = useRef(null);                            // one-shot spawn placement for the next frame: { gate:true } | { roomDoor:true } | { x, y }. Resolved once, using the real player size, then cleared.
+  const playerLookCache = useRef({ key: "", look: null }); // memoises the live-composed player look (all angles) so re-composing every frame is free until the equipped set actually changes
+  const [equipGen, setEquipGen] = useState(0);            // bumped when pedestal equipment changes, so the playtest loop re-keys and the merged stats/effects take effect live
+  const [pedPrompt, setPedPrompt] = useState(null);       // { key, name, type, slot } | { key, empty, summary } | null — pedestal the player is standing on, for the "Press E" HUD                       // cellKey -> the item this pedestal rolled this Playtest session (stable; pre-rolled at Playtest start, Binding-of-Isaac style)
+  const [doorPrompt, setDoorPrompt] = useState(null);     // { enter: bool, tag, n } | null — door the player is standing on, for the "Press E to enter/exit" HUD
+  const [pframe, setPframe] = useState(0);             // playtest re-render tick
+  // The playtest loop re-renders this whole component every frame (setPframe above) — but the
+  // level's own tile layers never change mid-playtest, and even while editing they only change
+  // when a paint actually commits (a new `level` object). Rebuilding every Background/
+  // Foreground/Front/Object/Climb cell element from scratch 60x a second just for React to
+  // diff-and-discard them all was the single biggest per-frame cost on any real-sized level.
+  // Memoizing each layer keyed on the state it actually reads returns the IDENTICAL element
+  // array across playtest frames, so React skips reconciling those thousands of nodes entirely.
+  const lvBgLayer = useMemo(() => level ? Object.keys(level.bg || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"b" + k} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.bg, level.bg[k], r, c, texLib) }} />; }) : null, [level, texLib]);
+  const lvFgLayer = useMemo(() => level ? Object.keys(level.fg || {}).map((k) => { const [r, c] = k.split(",").map(Number); const cell = level.fg[k]; return <div key={"f" + k} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, cell, r, c, texLib), clipPath: fgClipPath(cell) }} />; }) : null, [level, texLib]);
+  const lvFrontLayer = useMemo(() => level ? Object.keys(level.front || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.front, level.front[k], r, c, texLib) }} />; }) : null, [level, texLib]);
+  const lvFxLayer = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = (level.fx[k] || []).filter((o) => (!play || !o.inFront) && o.kind !== "prop"); return stack.map((o, si) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj" + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; }); }) : null, [level, play, lFxSel, lTool]);
+  // Prop objects (pixel-art assets) are pulled OUT of the memoized fx layer above and rendered in
+  // a separate LIVE pass (see the level render body) — the memo runs before the component-scoped
+  // prop renderer exists, and animated props need to redraw every frame in play anyway. This
+  // carries just position/stack metadata; the scaled art itself is drawn with renderObj.
+  const lvPropMeta = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = level.fx[k] || []; return stack.map((o, si) => ({ o, si, r, c, k })).filter(({ o }) => o.kind === "prop" && (!play || !o.inFront)); }) : [], [level, play]);
+  // Position/content only — NOT the rendered JSX itself, since a solid front object's opacity
+  // now depends on the player's live position (see the "in front of player" render below), which
+  // changes every playtest frame. Keeping that part of the work memoized on just `level` still
+  // avoids rebuilding this list on every one of those frames; only the small per-frame map over
+  // it (done at the actual render site) needs to run live.
+  const lvFxInFrontMeta = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = (level.fx[k] || []).filter((o) => o.inFront); return stack.map((o, si) => ({ key: "xf" + k + "_" + si, r, c, o, sz: (o.size || 1) * LV_CELL })); }) : [], [level]);
+  // Climb glyphs are directly erasable: Erase tool + click the glyph = gone, no matter which
+  // layer tab is active. Erasing a visible thing by clicking it should just work — requiring
+  // the Climb layer tab to be selected first made climb cells feel impossible to delete.
+  const lvClimbLayer = useMemo(() => level && level.climb ? Object.keys(level.climb).map((k) => { const [r, c] = k.split(",").map(Number); const kind = climbKindOf(level.climb[k]); const glyph = kind === "bars" ? "🙌" : kind === "cliff" ? "🧗" : "🪜"; const label = kind === "bars" ? "Monkey bars — hang & shimmy ← →, ↓ to drop" : kind === "cliff" ? "Cliff ledge — hang & shimmy ← →, ↓ to drop (forward-facing)" : "Ladder — climb straight up/down"; return <div key={"cl" + k} className={"lclimb kind-" + kind} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} title={label} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv) => { const climb = { ...lv.climb }; delete climb[k]; return { ...lv, climb }; }); } : undefined}>{glyph}</div>; }) : null, [level, lTool]);
+  // Fire hazard cells: shown in the editor AND during play (it's a real, visible danger volume,
+  // not an invisible marker). Erasable by clicking with the Erase tool on any layer, same as
+  // climb. The flicker is CSS-only, so re-rendering this list every playtest frame isn't needed —
+  // it's memoized on the level + tool, exactly like the climb layer.
+  const lvHazardLayer = useMemo(() => level && level.hazard ? Object.keys(level.hazard).map((k) => { const [r, c] = k.split(",").map(Number); const cell = level.hazard[k]; const kind = hazardKindOf(cell); const info = HAZARDS[kind] || HAZARDS.fire; const eraseNow = !play && lTool === "erase"; const life = hazardLife(cell); const hidden = !!(cell && typeof cell === "object" && cell.hideInPlay); if (play && hidden) return null; /* invisible-in-play fire: still hurts (damage runs off level.hazard), just draws nothing during play so a prop fire can sit on top */ return <div key={"hz" + k} data-hk={k} className={"lhazard kind-" + kind + (hidden ? " hazHidden" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} title={info.label + " — " + hazardDps(cell) + " HP/sec" + (life > 0 ? " · burns " + life + "s" : " · permanent") + (hidden ? " · invisible during play" : "")} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv) => { const hazard = { ...lv.hazard }; delete hazard[k]; return { ...lv, hazard }; }); } : undefined}><span className="hzflame">{hidden ? "🚫" : info.glyph}</span></div>; }) : null, [level, lTool, play]);
+  const [canUndoLevel, setCanUndoLevel] = useState(false);
+  const [canRedoLevel, setCanRedoLevel] = useState(false);
+  const artRef = useRef(null);
+  const drag = useRef(null);
+  // Which guide bodies (for a skin/equipment asset) actually had piece content edited this
+  // session — switching the guide dropdown alone does NOT add to this (that's just cloning a
+  // starting point, per confirmedFits' own rule); only a real edit while that guide is active
+  // does. Cleared whenever a fresh asset is started/opened. Read at Save time so a session
+  // where several bodies were each genuinely edited — not just the one active when Save was
+  // finally clicked — all get confirmed, not just the last one.
+  const dirtyGuides = useRef(new Set());
+  const history = useRef([]);
+  const future = useRef([]);
+  const levelHistory = useRef([]);
+  const levelFuture = useRef([]);
+  const lpaint = useRef(null);                          // level paint drag state
+  const rampAnchor = useRef(null);                       // {r, c} anchor cell while dragging out a multi-cell ramp — cleared on commit
+  const areaAnchor = useRef(null);                       // {r, c} anchor cell while dragging out an area-copy rectangle — cleared on commit
+  const clipboard = useRef(null);                        // { w, h, fg, bg, fx } captured from the last area-copy selection, keyed relative to its own top-left corner
+  const frontCellsRef = useRef(null);      // wrapper around the memoized Front tile layer — lets the playtest loop fade covered cells imperatively, without re-rendering the whole (memoized) layer every frame
+  const hazardCellsRef = useRef(null);     // same idea for fire: the layer is memoized (not rebuilt every frame), so a burnt-out cell is hidden imperatively by toggling its own element's opacity
+  const fadedFrontKeys = useRef(new Set()); // Front cell keys currently faded, so leaving a cell restores it and unchanged cells aren't touched at all
+  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0 });
+  const keys = useRef({});
+  const lvRef = useRef(null);
+
+  const addRecent = (c) => { if (!c) return; setRecent((r) => [c, ...r.filter((x) => x !== c)].slice(0, 8)); };
+  const addRecentEmoji = (m) => { if (!m) return; setRecentEmoji((r) => [m, ...r.filter((x) => x !== m)].slice(0, 16)); };
+  const snapshot = () => { if (!asset) return; const s = JSON.stringify(asset); const h = history.current; if (h[h.length - 1] === s) return; h.push(s); if (h.length > 80) h.shift(); future.current = []; setCanUndo(true); setCanRedo(false); };
+  const undo = () => {
+    if (!asset) return;
+    const h = history.current; const cur = JSON.stringify(asset);
+    while (h.length) {
+      const prev = h.pop();
+      if (prev !== cur) { future.current.push(cur); if (future.current.length > 80) future.current.shift(); try { setAsset(JSON.parse(prev)); } catch {} setSelId(null); break; }
+    }
+    setCanUndo(h.length > 0); setCanRedo(future.current.length > 0);
+  };
+  const redo = () => {
+    if (!asset) return;
+    const f = future.current; if (!f.length) return;
+    const next = f.pop(); const cur = JSON.stringify(asset);
+    history.current.push(cur); if (history.current.length > 80) history.current.shift();
+    try { setAsset(JSON.parse(next)); } catch {} setSelId(null);
+    setCanUndo(true); setCanRedo(f.length > 0);
+  };
+  const resetHistory = () => { history.current = []; future.current = []; setCanUndo(false); setCanRedo(false); };
+
+  const snapshotLevel = () => { if (!level) return; const s = JSON.stringify(level); const h = levelHistory.current; if (h[h.length - 1] === s) return; h.push(s); if (h.length > 80) h.shift(); levelFuture.current = []; setCanUndoLevel(true); setCanRedoLevel(false); };
+  const undoLevel = () => {
+    if (!level) return;
+    const h = levelHistory.current; const cur = JSON.stringify(level);
+    while (h.length) {
+      const prev = h.pop();
+      if (prev !== cur) { levelFuture.current.push(cur); if (levelFuture.current.length > 80) levelFuture.current.shift(); try { setLevel(JSON.parse(prev)); } catch {} setLSel(null); break; }
+    }
+    setCanUndoLevel(h.length > 0); setCanRedoLevel(levelFuture.current.length > 0);
+  };
+  const redoLevel = () => {
+    if (!level) return;
+    const f = levelFuture.current; if (!f.length) return;
+    const next = f.pop(); const cur = JSON.stringify(level);
+    levelHistory.current.push(cur); if (levelHistory.current.length > 80) levelHistory.current.shift();
+    try { setLevel(JSON.parse(next)); } catch {} setLSel(null);
+    setCanUndoLevel(true); setCanRedoLevel(f.length > 0);
+  };
+  const resetLevelHistory = () => { levelHistory.current = []; levelFuture.current = []; setCanUndoLevel(false); setCanRedoLevel(false); };
+  // Tracks the level exactly as it was last saved/opened/created — compared against the live
+  // level to detect unsaved work. null means "nothing loaded yet" (no dirty-check needed).
+  const levelBaseline = useRef(null);
+  const levelIsDirty = () => !!level && levelBaseline.current !== null && JSON.stringify(level) !== levelBaseline.current;
+  // Any action that REPLACES the whole current level (New, Open a saved level, Open a file)
+  // routes through here first. If there's unsaved work, it stops and asks — this is the fix for
+  // losing hours of work to one misclick on a level list with no confirmation at all.
+  const guardLevelSwitch = (label, run) => { if (levelIsDirty()) setPendingLevelAction({ label, run }); else run(); };
+
+  const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 1600); };
+  // saves to Claude's storage when present, otherwise the browser's localStorage
+  const sget = async (k) => { try { if (typeof window !== "undefined" && window.storage) { const r = await window.storage.get(k, false); return r ? r.value : null; } return localStorage.getItem(k); } catch { return null; } };
+  const sset = async (k, v) => { try { if (typeof window !== "undefined" && window.storage) { await window.storage.set(k, v, false); return true; } localStorage.setItem(k, v); return true; } catch { return false; } };
+  const sdel = async (k) => { try { if (typeof window !== "undefined" && window.storage) { await window.storage.delete(k, false); return true; } localStorage.removeItem(k); return true; } catch { return false; } };
+  useEffect(() => {
+    let ok = false;
+    try { if (typeof window !== "undefined" && window.storage) ok = true; else { localStorage.setItem("__p", "1"); localStorage.removeItem("__p"); ok = true; } } catch { ok = false; }
+    setHasStore(ok); loadLibrary(); loadStamps();
+  }, []); // eslint-disable-line
+  useEffect(() => { setEmojis(buildEmojiList()); }, []);
+  // Persist the active paint color + recent-colors history so they survive a reload — previously
+  // these were plain useState with no storage backing, so the last color used was silently lost
+  // every time. colorPrefsLoaded guards against the two save-effects below firing with the
+  // hardcoded default before the async load below has had a chance to restore the real value.
+  const colorPrefsLoaded = useRef(false);
+  useEffect(() => {
+    (async () => {
+      const savedColor = await sget("lColor");
+      if (savedColor) setLColor(savedColor);
+      const savedRecent = await sget("recentColors");
+      if (savedRecent) { try { setRecent(JSON.parse(savedRecent)); } catch {} }
+      colorPrefsLoaded.current = true;
+    })();
+  }, []); // eslint-disable-line
+  useEffect(() => { if (colorPrefsLoaded.current) sset("lColor", lColor); }, [lColor]);
+  useEffect(() => { if (colorPrefsLoaded.current) sset("recentColors", JSON.stringify(recent)); }, [recent]);
+
+  // Playtest: keyboard + a simple gravity/collision loop against the foreground layer.
+  useEffect(() => {
+    if (!play || screen !== "level" || !level) return;
+    // Stuck-key guard: this ref is never recreated, and a key held at the instant Playtest
+    // stopped had its keyup land AFTER the listener was removed — leaving e.g. up:true stuck
+    // forever, so the next session spawned already aiming up and every shot went upward until
+    // that key was pressed and released again. Clear on every session start, and on window
+    // blur (alt-tab mid-hold has the same missed-keyup problem).
+    keys.current = {};
+    const onBlur = () => { keys.current = {}; };
+    window.addEventListener("blur", onBlur);
+    // WASD moves, the arrow keys aim (that's the "move with WASD, aim with the arrows" split).
+    // Up/down still double as ladder climb and as the crouch input, so a keyboard player never
+    // needs the mouse. Jump is Space; crouch is also S-held / C. The move-vs-aim keys are kept
+    // as SEPARATE actions below so aiming up doesn't also walk you into a wall, and so a claw of
+    // W+↑ reads as "run while aiming up" rather than one cancelling the other.
+    const map = {
+      w: "up", a: "left", s: "down", d: "right", W: "up", A: "left", S: "down", D: "right",
+      ArrowUp: "aimUp", ArrowDown: "aimDown", ArrowLeft: "aimLeft", ArrowRight: "aimRight",
+      " ": "jump", f: "fire", F: "fire", j: "fire", J: "fire", q: "melee", Q: "melee", v: "melee", V: "melee", g: "throw", G: "throw", c: "crouch", C: "crouch", r: "reload", R: "reload", e: "interact", E: "interact",
+    };
+    const isTyping = (e) => { const t = e.target; return !!(t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)); };
+    const kd = (e) => { if (isTyping(e)) return; const k = map[e.key]; if (k) { keys.current[k] = true; if (e.key === " " || e.key.startsWith("Arrow")) e.preventDefault(); } };
+    const ku = (e) => { if (isTyping(e)) return; const k = map[e.key]; if (k) keys.current[k] = false; };
+    window.addEventListener("keydown", kd); window.addEventListener("keyup", ku);
+    const CW = LV_CELL, CH = LV_CELL;
+    // Quartered from the original 10px/frame — climbing was moving (and therefore animating,
+    // since the climb animation's phase advance is driven directly by how far you actually
+    // moved) too fast to see the swing cycle clearly. This single constant governs both.
+    const CLIMB_SPEED = 2.5;
+    const JUMP_HOLD_BOOST_FRAMES = 12; // ~0.2s at 60fps — a short window right at takeoff, not an unlimited hover
+    const JUMP_HOLD_BOOST_ACCEL = 0.022; // extra upward accel per frame, per point of Agility above 5, while held
+    const CROUCH_DODGE_RANGE = 140;   // px — how close an incoming shot has to be for a crouch-capable enemy to try ducking
+    const DODGE_LOOKOUT_RANGE = 200;  // px — how far out an enemy notices an incoming shot at all. Wider than the duck-only value above, because a JUMP needs lead time to actually get off the ground before the shot arrives.
+    const CROUCH_HOLD_FRAMES = 24;    // how long a dodge-crouch holds once triggered, absent a fresh threat
+    const lv = level;
+    const basePlayerAsset = findA(playerId);
+    const playerAsset = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
+    const playtestWeapon = playtestWeaponId ? findA(playtestWeaponId) : null;
+    const bodyShape = sideBodyShape(playerAsset);
+    const doubleJumpEffect = (playerAsset?.effects || []).find((e) => e.type === "doubleJump") || null;
+    const backGuardEffect = (playerAsset?.effects || []).find((e) => e.type === "backGuard") || null;
+    const glideEffect = (playerAsset?.effects || []).find((e) => e.type === "glide") || null;
+    const slideEffect = (playerAsset?.effects || []).find((e) => e.type === "slide") || null;
+    const slideResolved = slideState(slideEffect);
+    const backGuardReduce = backGuardEffect ? (backGuardEffect.reduce ?? 0.5) : null; // null = no cape, skip the behind check entirely
+    // Ranged weapon ammo: a fresh full clip each Playtest session (this effect re-runs whenever
+    // Playtest starts/stops or the equipped weapon changes). Melee weapons get an "unlimited"
+    // record (clip 0), so nothing below ever gates a swing on ammo.
+    const wpnIsRanged = !!(playtestWeapon && isRanged(playtestWeapon.wtype));
+    const fireCdFrames = weaponFireCooldownFrames(playtestWeapon?.fireRate);
+    const reloadFrames = weaponReloadFrames(playtestWeapon?.reloadTime);
+    wpn.current = newWeaponAmmo(wpnIsRanged ? (playtestWeapon.clipSize ?? DEFAULT_CLIP_SIZE) : 0);
+    // Throwable the player is carrying this session (chosen separately from the held weapon), plus
+    // the count they start with. Single-use: each throw decrements throwCarry; at 0, G does nothing.
+    const carriedThrow = playtestThrowId ? findA(playtestThrowId) : null;
+    if (carriedThrow && isThrowable(carriedThrow.wtype)) { throwCarry.current = throwPickup.current != null ? throwPickup.current : Math.max(0, playtestThrowCount || 0); } else { throwCarry.current = 0; }
+    throwPickup.current = null;
+    thrown.current = []; throwCd.current = 0; booms.current = [];
+    // PERSISTENT per-level state (this play session). Point the live refs at THIS level's bucket, so
+    // everything you did here — pedestals taken, enemies defeated, fires burned down — is still here
+    // when you leave through a door and come back. Each level/room gets its own bucket by id; only a
+    // fresh Playtest (the button) wipes them. hazLife is (re)built by the seeding just below and then
+    // written back into the bucket so its countdowns persist across visits too.
+    let _bkt = roomState.current[lv.id];
+    if (!_bkt) { _bkt = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, haz: {} }; roomState.current[lv.id] = _bkt; }
+    pedestalRolls.current = _bkt.rolls; pedestalDepleted.current = _bkt.depleted; enemyHP.current = _bkt.eHP; enemyPos.current = _bkt.ePos; hazLife.current = _bkt.haz;
+    // Seed each finite-life fire cell's countdown. Permanent cells (life 0) deliberately never
+    // enter the ref, so alive() below treats them as always burning.
+    // IMPORTANT: this effect re-runs mid-play whenever `level` changes — and it changes every
+    // time a thrown grenade paints its fire (setLevel, below). A blanket `hazLife = {}` reseed
+    // on every such re-run reset every already-burning fire's countdown back to full, so lobbing
+    // one grenade silently relit every fire in the room (and reset the fresh grenade fire's own
+    // clock too). Preserve any countdown already in progress (prevLife) across re-runs; only a
+    // genuinely NEW session (Playtest just started, tracked by playRunId) wipes the slate so
+    // re-entering Playtest correctly relights everything from full.
+    const prevLife = playRunId.current === lastSeededRun.current ? hazLife.current : {};
+    lastSeededRun.current = playRunId.current;
+    hazLife.current = {};
+    for (const key of Object.keys(lv.hazard || {})) {
+      const life = hazardLife(lv.hazard[key]);
+      if (life > 0) hazLife.current[key] = (key in prevLife) ? prevLife[key] : life;
+    }
+    _bkt.haz = hazLife.current; // the seeding replaced the object above; keep the bucket pointing at the live one
+    // Pre-roll this level's not-yet-taken pedestals so each shows its item immediately (not the
+    // "no match" placeholder) the first time it's on screen — rooms included, since this runs on
+    // every level swap. Already-rolled or spent pedestals in the bucket are left as they are.
+    if (lv.markers) for (const _mk in lv.markers) { const _pm = lv.markers[_mk]; if (_pm && _pm.kind === "pedestal" && pedestalRolls.current[_mk] === undefined && !pedestalDepleted.current.has(_mk)) pedestalRolls.current[_mk] = rollPedestalItem(allAssets, _pm.cats, _pm.logic); }
+    // A hazard cell is still burning if it's permanent (never entered the ref) or its countdown
+    // hasn't hit zero. Shared by the damage sampler and the visual, so they can't disagree.
+    const hazardAlive = (key) => !(key in hazLife.current) || hazLife.current[key] > 0;
+    const SPAWN = { x: 60, y: 40 };
+    // Precompute solid object footprints (a sized emoji can cover more than its anchor cell).
+    // "In front of player" objects are a purely visual overlay (that's the whole point of the
+    // 3-state model: Behind / In front / Same-layer-solid) — they must NEVER block movement,
+    // no matter what the Solid checkbox says, or you'd be stopped by something that's rendering
+    // on top of you, which defeats the entire reason to flag it "in front" in the first place.
+    const solidFx = []; for (const k of Object.keys(lv.fx || {})) { const [r, c] = k.split(",").map(Number); for (const o of (lv.fx[k] || [])) if (o.solid) solidFx.push({ r, c, size: o.size || 1 }); }
+    const fxBlocks = (r, c) => solidFx.some((o) => r >= o.r && r < o.r + o.size && c >= o.c && c < o.c + o.size);
+    const cellsHit = (x, y, pw, ph) => { const hits = []; const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH); for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { if (c < 0 || c >= lv.cols || r < 0 || r >= lv.rows) continue; const cell = lv.fg[cellKey(r, c)]; if ((cell && !fgIsSlope(cell)) || fxBlocks(r, c)) hits.push({ r, c }); } return hits; };
+    let lastPedestalKey = null;
+    let lastDoorKey = null;
+    let raf;
+    // Frame-rate independence: every increment below was originally a fixed amount PER RENDERED
+    // FRAME, tuned assuming 60fps — so whenever the browser throttled requestAnimationFrame
+    // (background tab, GPU load, battery saver, sandbox overhead), move speed, fall speed, and
+    // every timer all slowed down by exactly the same factor, simultaneously. dtMul rescales each
+    // frame's increments by how much real time actually passed (1.0 at a true 60fps frame),
+    // clamped so a huge hitch (tab switch, GC pause) can't teleport the player through walls.
+    let lastT = null;
+    const myGen = ++__ptLoopGen; // this run is now the authoritative loop
+    const loop = () => {
+      if (myGen !== __ptLoopGen) return; // a newer loop exists — stop; don't touch player or reschedule
+      const p = player.current, RK = keys.current;
+      // RK is the raw key state (move keys and aim keys tracked separately). K is the merged
+      // "intent" the rest of the loop reads, via mergeInputIntent — so none of the movement/
+      // climb/fire code below had to change when WASD/arrows were split apart.
+      const K = mergeInputIntent(RK);
+      const nowT = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+      const dtMul = lastT == null ? 1 : Math.min(3, Math.max(0.25, (nowT - lastT) / (1000 / 60)));
+      lastT = nowT;
+      // Temporary stat boosts from consumed items: expire by wall-clock, then layer what's still
+      // active onto the player's base stats. Every stat read below (speed/agility/strength/int)
+      // goes through pstats, so a boost fades on its own the moment its timer runs out — no re-key.
+      itemBuffs.current = pruneBuffs(itemBuffs.current, nowT);
+      const buffSum = activeBuffSum(itemBuffs.current, nowT);
+      const pstats = {
+        speed: (playerAsset?.stats?.speed ?? 5) + (buffSum.speed || 0),
+        agility: (playerAsset?.stats?.agility ?? 5) + (buffSum.agility || 0),
+        strength: (playerAsset?.stats?.strength ?? 5) + (buffSum.strength || 0),
+        intelligence: (playerAsset?.stats?.intelligence ?? 5) + (buffSum.intelligence || 0),
+      };
+
+      // Door transition: controls frozen, character's back to camera, then the level swaps.
+      if (p.transitioning) {
+        p.transitioning.t += dtMul;
+        if (p.transitioning.t >= 30) {
+          const tr = p.transitioning;
+          p.transitioning = null; p.climbing = false; p.crouch = false; p.vy = 0;
+          // No state is cleared here — each level/room keeps its own PERSISTENT bucket (roomState),
+          // repointed at the top of the effect, so a level remembers what you did and a room you
+          // re-enter is the same room in the same state. Worn gear and item buffs travel with you.
+          setDoorPrompt(null); setPedPrompt(null);
+          if (tr.mode === "enter") {
+            const room = (levelLib || []).find((l) => l.id === tr.roomId);
+            if (room) {
+              roomReturn.current = { level: JSON.parse(JSON.stringify(lv)), x: tr.retX, y: tr.retY };
+              spawnReq.current = { roomDoor: true };        // appear at the room's own door
+              setLevel(JSON.parse(JSON.stringify(room)));   // swaps the active level — the loop effect re-runs with the room
+              return;                                       // a fresh loop takes over; don't schedule another frame here
+            }
+          } else if (tr.mode === "exit") {
+            const back = roomReturn.current; roomReturn.current = null;
+            if (back && back.level) { spawnReq.current = { x: back.x, y: back.y }; setLevel(back.level); return; }
+            spawnReq.current = { gate: true };
+          }
+        }
+        setPframe((f) => (f + 1) % 1000000);
+        raf = requestAnimationFrame(loop);
+        return;
+      }
+
+      const wasCrouch = p.crouch;
+      const crouch = !!K.crouch && p.onGround;
+      const oldPh = wasCrouch ? CH * PLAYER_CROUCH_H_CELLS : CH * PLAYER_H_CELLS;
+      const pw = CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, ph = crouch ? CH * PLAYER_CROUCH_H_CELLS : CH * PLAYER_H_CELLS;
+      if (ph !== oldPh) p.y += (oldPh - ph); // keep the feet planted — only the head should move when crouch toggles
+      p.crouch = crouch;
+      // One-shot spawn placement (start of test, or the moment a room/level loads). Uses the real
+      // player size so nothing clips. Gate = enter through a connector (top-left first); roomDoor =
+      // appear at this room's door; {x,y} = the exact door you came back out to.
+      if (spawnReq.current) {
+        const sr = spawnReq.current; spawnReq.current = null;
+        const maxX = lv.cols * CW - pw, maxY = lv.rows * CH - ph;
+        if (sr.x !== undefined) { p.x = sr.x; p.y = sr.y; }
+        else if (sr.roomDoor) { const dk = firstDoorKey(lv.markers); if (dk) { const [dr, dc] = dk.split(",").map(Number); p.x = dc * CW + CW / 2 - pw / 2; p.y = dr * CH + CH - ph; } else { p.x = SPAWN.x; p.y = SPAWN.y; } }
+        else if (sr.gate) { const gk = preferredOpenGate(lv.conns); if (gk) { const gp = CONN_POS[gk]; p.x = (gp.x / 100) * lv.cols * CW - pw / 2; p.y = (gp.y / 100) * lv.rows * CH - ph * 0.5; } else { p.x = SPAWN.x; p.y = SPAWN.y; } }
+        p.x = Math.max(0, Math.min(maxX, p.x)); p.y = Math.max(0, Math.min(maxY, p.y));
+        // Spawn safety: never start with the body inside solid. A room door at the map edge, or a
+        // wide body in a tight room, can land the box in fill — which the wall pass would then read
+        // as an inverted teleport. If embedded, hop to the nearest clear box position (scanning a
+        // small neighbourhood, preferring the same height) so the player can actually move.
+        if (cellsHit(p.x, p.y, pw, ph).length) { let best = null, bestD = Infinity; for (let dyc = 0; dyc <= 6; dyc++) for (let dxc = -6; dxc <= 6; dxc++) { const tx = Math.max(0, Math.min(maxX, p.x + dxc * CW)), ty = Math.max(0, Math.min(maxY, p.y - dyc * CH)); if (!cellsHit(tx, ty, pw, ph).length) { const d = dxc * dxc + dyc * dyc * 4; if (d < bestD) { bestD = d; best = { x: tx, y: ty }; } } } if (best) { p.x = best.x; p.y = best.y; } }
+        p.vx = 0; p.vy = 0; p.wasInteract = true; // swallow the E that opened the door so you don't instantly step back through
+      }
+      // Speed: linear, anchored so Speed 5 (baseline) is a plain 1× — same convention every
+      // other stat in the game uses. Speed 1 sits at 0.6× (40% below baseline, not 40% below
+      // whatever a broken formula used to produce), Speed 10 at 1.5×. Low stat now genuinely
+      // means slow, high stat genuinely means fast — the previous version floored EVERY stat
+      // value at 2× base and only went up from there, so even Speed 1 was already faster than
+      // an unscaled character, which is what "sends you to the moon" was actually describing.
+      const speedStat = Math.min(10, Math.max(1, pstats.speed));
+      const speedMul = 0.6 + (speedStat - 1) * 0.1;
+      const speed = (crouch ? 3.5 : 7) * speedMul * dtMul; // px per 60fps-frame — dtMul makes this real-time, not per-rendered-frame
+      // Jump height is specified directly in BLOCKS, not as a multiplier: 1 block at Agility 1,
+      // rising half a block per point (1.5 at 2, 2 at 3, ... 3 at baseline 5, 5.5 at 10).
+      // Converted to launch velocity via h = v²/2g (inverted: v = √(2gh)) so a stated block
+      // height actually lands at that height under this game's real gravity, rather than
+      // guessing at a velocity multiplier and hoping the height comes out reasonable — which is
+      // exactly how the last version ended up sending Agility 1 to the moon: a "2×" velocity
+      // multiplier sounds modest, but height scales with velocity SQUARED, and the unscaled
+      // base velocity (18) already produced a ~31-block jump on its own.
+      const agilityStat = Math.min(10, Math.max(1, pstats.agility));
+      const jumpHeightBlocks = 0.5 * agilityStat + 0.5;
+      const jumpV = Math.sqrt(2 * 0.175 * jumpHeightBlocks * CH);
+      const jumpVMulRel = jumpV / Math.sqrt(2 * 0.175 * 3 * CH); // same relative scaling (1.0× at baseline Agility 5), reused below for the double-jump effect's own configurable height
+      let dx = 0;
+      const grounded = p.onGround || p.climbing;
+      if (K.left) p.face = -1; if (K.right) p.face = 1; // facing follows movement, even mid-air
+      // Aiming left/right also turns you — so you can stand still and point the other way to
+      // shoot without having to walk. Movement keys win if both are held (you face where you go).
+      if (!K.left && !K.right) { if (K.aimLeft) p.face = -1; else if (K.aimRight) p.face = 1; }
+      dx = horizVel(K, speed, grounded, p.vx, glideState(glideEffect, K, p.onGround, p.climbing, p.vy), slideResolved, dtMul);
+      // Ramp feel: last frame's slope check set p.onSlope/p.slideVx. Standing on a ramp with
+      // nothing held SLIDES you downhill — so dropping or jumping onto a ramp turns into a slide
+      // the moment the surface catches you — walking DOWN gets the slide added on top, and
+      // walking UP fights gravity: your walk wins, but at half speed (SLOPE_UP_MUL). Slide is
+      // dtMul-scaled like every other movement, so it's real-time, not per-rendered-frame.
+      let uphillSlideVx = null; // slide+uphill: un-halved velocity to keep as momentum (see below)
+      if (p.onGround && p.onSlope) {
+        const walkingUphill = dx !== 0 && Math.sign(dx) === p.slopeDir;
+        if (walkingUphill) {
+          // With a Slide item worn (socks/skates), ground movement is momentum-based: horizVel
+          // eases p.vx toward the key target and the result is stored back into p.vx below. The
+          // uphill multiplier used to scale dx AFTER that easing and the HALVED value got stored
+          // as the new momentum — so next frame halved it again, compounding to a crawl (~9% of
+          // walk speed with grip 0.1, not the intended 50%). Remember the pre-slope velocity and
+          // store THAT as momentum instead: the slope then scales your movement every frame
+          // exactly once, matching how it behaves without a slide item.
+          if (slideResolved) uphillSlideVx = dx;
+          dx *= SLOPE_UP_MUL;
+        } else {
+          const slopeBoost = slideResolved ? slideResolved.slope : 1;
+          dx += (p.slideVx || 0) * dtMul * slopeBoost;
+          // With Slide equipped the loop carries p.vx frame-to-frame, so an uncapped downhill push
+          // would compound into a runaway fling. Cap the downhill glide at a terminal speed.
+          if (slideResolved) { const cap = SLOPE_SLIDE_SPEED * slopeBoost * 2 * dtMul; if (Math.abs(dx) > cap) dx = Math.sign(dx) * cap; }
+        }
+      }
+      if (grounded) p.vx = uphillSlideVx !== null ? uphillSlideVx : dx; // remember momentum to carry into the air; air frames keep it, keys don't steer (uphill+slide keeps the PRE-slope velocity — see the walkingUphill comment)
+      else if (glideEffect && p.vy > 0 && K.jump && !p.climbing) p.vx = dx; // while gliding, the steered velocity BECOMES your momentum, so it carries if you stop steering or the glide ends
+      const prevX = p.x;
+      p.x += dx; if (p.x < 0) p.x = 0; if (p.x > lv.cols * CW - pw) p.x = lv.cols * CW - pw;
+      let hits = cellsHit(p.x, p.y, pw, ph);
+      // Hill suppression (splitHillHits): blocking cells that belong to a RAMP FORMATION and sit
+      // near foot level are handed to the slope-surface pass below instead of being treated as
+      // walls here. The hitbox is ~4.6 cells wide, so its leading edge pokes into a hill's solid
+      // backing / plateau lip a column or two before the player's CENTER (where the surface is
+      // sampled) gets there — step-snapping onto that backing is exactly what made every ramp
+      // act like stairs (the teleport up each tier), and wall-clamping against it is what made
+      // ramps impossible to walk up at all. Cells more than ~2.5 cells above the feet still
+      // count as walls, so a real wall next to a ramp still blocks you at chest height.
+      let wallHits = splitHillHits(lv, hits, p.y + ph, CH).walls;
+      // Step-assist: a single-cell-tall lip (a genuine stair) is walked over, not blocked. Snap
+      // up to exactly the blocking row's top, capped at one cell, and only if the raised spot is
+      // actually clear. Skipped while climbing a ladder. The PHYSICS snap stays instant (so
+      // collision is always exact) but the RENDER eases up over a few frames via p.stepEase —
+      // the old same-frame visual jump was the "jarring teleport up one block".
+      if (shouldStepAssist(wallHits.length, dx, p.climbing, p.onSlope)) {
+        const targetY = Math.min(...wallHits.map((h) => h.r * CH)) - ph;
+        const rise = p.y - targetY;
+        if (rise > 0 && rise <= CH && cellsHit(p.x, targetY, pw, ph).length === 0) { p.y = targetY; p.stepEase = Math.min(CH, (p.stepEase || 0) + rise); wallHits = []; }
+      }
+      // Anything still solid after step-assist is a real wall (taller than one cell) — clamp to
+      // it. Ramp surfaces never appear here at all (fgIsSlope cells aren't solid), and hill
+      // backing / plateau lips were filtered above; only genuine walls block sideways movement.
+      // Only clamp against walls this move NEWLY entered — never against solid the player was
+      // already overlapping. Without this, standing inside/against a solid mass (a too-narrow room
+      // channel, or a spawn that lands in fill) snapped the player to the FAR edge of that mass, so
+      // "press right" threw you to the left wall and vice-versa, teleport-fast (the room bug). A
+      // genuinely new wall ahead still blocks normally, and it lets an embedded player walk OUT
+      // toward open space instead of being flung.
+      const preWallKeys = new Set(cellsHit(prevX, p.y, pw, ph).map((h) => h.r + "," + h.c));
+      const newWalls = wallHits.filter((h) => !preWallKeys.has(h.r + "," + h.c));
+      if (newWalls.length) { if (dx > 0) { p.x = Math.min(...newWalls.map((h) => h.c * CW)) - pw; p.vx = 0; } else if (dx < 0) { p.x = Math.max(...newWalls.map((h) => (h.c + 1) * CW)); p.vx = 0; } }
+
+      // "climbJump" suppresses ladder re-grab while ascending after jumping off one —
+      // without it, the very next frame would see you still overlapping the climb zone
+      // and zero your jump velocity. Clears at the apex (vy >= 0) or once clear of the zone.
+      // resolveClimbKind (not raw box-overlap climbKindAt): ladder grip needs the player's
+      // CENTER near the ladder column, and a valid bars/cliff grip wins over the ladder while
+      // heading up — see resolveClimbKind's own comment for both fixes.
+      const climbKindHere = resolveClimbKind(lv, p.x, p.y, pw, ph, CW, CH, !!K.up, p.climbKind);
+      const overlapClimb = !!climbKindHere;
+      if (p.climbJump && (p.vy >= 0 || !overlapClimb)) p.climbJump = false;
+      if (p.dropCooldown > 0) p.dropCooldown -= dtMul;
+      if (p.invuln > 0) p.invuln -= dtMul;
+      p.stepEase = easeStep(p.stepEase, dtMul); // step-assist smoothing: the DRAWN player eases up to the physics position instead of teleporting (see the player style)
+      // Weapon timers advance in real time like everything else (dtMul), so fire rate and reload
+      // length don't quietly change with the frame rate. R reloads early; a partly-spent clip is
+      // topped straight back up to full (no "keep the loose round" bookkeeping).
+      wpn.current = advanceWeapon(wpn.current, dtMul);
+      // Throwing (G) — hold-to-aim, release-to-throw. Holding G "grabs" the throwable
+      // (p.throwAiming drives the dotted trajectory preview in the render section, simulated
+      // with throwTrajectoryPoints from the exact same launch numbers used below); letting go
+      // of G is what actually throws it. Launch velocity comes from the throwable's own weight
+      // vs the player's Strength (throwRangeBlocks -> throwLaunchVel), thrown the way you face
+      // and slightly upward for a natural arc. Decrements the single-use carry count. The throw
+      // plays the arm swing: it rides the same p.firing channel the melee swing render already
+      // uses (hitRegistered is pre-set so a bare-handed swing can't also land a punch).
+      if (throwCd.current > 0) throwCd.current -= dtMul;
+      const canThrowNow = carriedThrow && throwCarry.current > 0 && throwCd.current <= 0 && !p.transitioning;
+      p.throwAiming = !!(K.throw && canThrowNow);
+      if (!K.throw && p.wasThrow && canThrowNow) {
+        const strength = pstats.strength;
+        const rangeBlocks = throwRangeBlocks(strength, carriedThrow.weight);
+        const { vx, vy } = throwLaunchVel(rangeBlocks * CW, 0.175, p.face, Math.PI / 4);
+        const artPieces = bake({ ...carriedThrow, angles: (carriedThrow.states?.rest || carriedThrow.angles || blankAngles()) }, "side");
+        // prepFlyingArt: pieces re-centered in the design canvas + the container sized as the
+        // FULL canvas at world scale — see its comment; this is the actual fix for the grenade
+        // rendering ~1px (art-bbox-sized containers shrank canvas-percentage-positioned pieces
+        // a second time).
+        const fly = prepFlyingArt(artPieces, CW, 1);
+        thrown.current.push({
+          x: p.x + pw / 2, y: p.y + ph * 0.4, vx, vy, rot: 0,
+          spin: (p.face || 1) * 8, asset: carriedThrow, pieces: fly.pieces.length ? fly.pieces : null,
+          cwPx: fly.canvasWPx, chPx: fly.canvasHPx, wPx: fly.wPx, hPx: fly.hPx,
+        });
+        throwCarry.current -= 1;
+        throwCd.current = 18; // ~0.3s between throws so mashing G doesn't dump the whole stash at once
+        p.firing = { t: 0, dur: 12 };  // the throwing arm swing — same 3-phase motion as a melee swing
+        p.throwFiring = 12;            // frames the throwable shows its FIRE pose in-hand after release (counts down)
+        p.hitRegistered = true;        // ...but it must never double as a bare-handed punch hit
+        flash("💣 Thrown — " + throwCarry.current + " left");
+      }
+      p.wasThrow = !!K.throw;
+      if (p.throwFiring > 0) p.throwFiring -= dtMul;
+      // Finite fires burn down in real time (dtMul/60 sec per frame). A cell that reaches 0 stops
+      // dealing damage and stops rendering — it's "gone out" — without ever touching the saved
+      // level, so leaving Playtest brings every fire back exactly as painted.
+      for (const key in hazLife.current) { if (hazLife.current[key] > 0) hazLife.current[key] = Math.max(0, hazLife.current[key] - dtMul / 60); }
+      if (K.reload) wpn.current = startReload(wpn.current, reloadFrames);
+      p.reloading = wpn.current.reloadT > 0;
+      // A ladder must be OPTED INTO with ↑/↓ (then stays grabbed while you're on it) — mere
+      // overlap used to auto-grab, so simply walking past a ladder planted on the ground froze
+      // you mid-stride (vy=0, hanging) against whatever solid sat behind it: an invisible wall.
+      // Bars/cliff grabs stay automatic — they're overhead hangs you can only reach on purpose.
+      const wantsLadder = p.climbing || K.up || K.down;
+      let climbing = overlapClimb && !p.climbJump && p.dropCooldown <= 0 && (climbKindHere !== "ladder" || wantsLadder);
+      // Bars/cliff: no grabbing one from above it (see canGripClimb). Falling back down onto the
+      // bar re-grabs on the first frame the grip point is level with it again, so this reads as
+      // "you can hang, you can drop, you can shimmy — you cannot get on top of it."
+      if (climbing && !canGripClimb(lv, p.x, p.y, pw, ph, CW, CH, climbKindHere)) climbing = false;
+      if (climbing && K.jump) { p.climbJump = true; climbing = false; p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0; } // jump straight off — same agility-scaled jump height as a ground jump
+      let climbMove = 0;
+      if (climbing && climbKindHere === "ladder") {
+        if (K.up) {
+          // Climbing above the top of the climb zone used to exit it, flip to the falling
+          // pose, drift back down into the zone, and repeat — a visible flicker. Instead,
+          // take the full step only if it stays on the ladder; otherwise inch up to the
+          // exact top and pin there. Space (jump) is how you leave from the top.
+          const climbStep = CLIMB_SPEED * dtMul;
+          if (isOnClimb(lv, p.x, p.y - climbStep, pw, ph, CW, CH)) { p.y -= climbStep; climbMove = climbStep; }
+          else { let moved = 0; while (moved < climbStep && isOnClimb(lv, p.x, p.y - 1, pw, ph, CW, CH)) { p.y -= 1; moved++; } climbMove = moved; }
+        } else if (K.down) {
+          const climbStep = CLIMB_SPEED * dtMul;
+          const below = cellsHit(p.x, p.y + climbStep, pw, ph);
+          if (below.length) { /* solid floor at the ladder's foot: stop here, don't descend INTO the map */ }
+          else if (isOnClimb(lv, p.x, p.y + climbStep, pw, ph, CW, CH)) { p.y += climbStep; climbMove = climbStep; } // still on the ladder
+          else { climbing = false; p.dropCooldown = 8; } // stepped off the bottom into open air: let go and fall normally (never clip through)
+        }
+        p.vy = 0; p.onGround = false;
+      } else if (climbing && K.down) {
+        // Monkey bars / cliff ledge: ↓ lets go. A short, deterministic cooldown (not a velocity
+        // check) so the very next frame's still-overlapping bar cell can't instantly re-grab you
+        // before gravity has actually carried you clear of it.
+        climbing = false; p.dropCooldown = 15;
+        p.vy = Math.min(60, p.vy + 0.175 * dtMul); p.y += p.vy * dtMul; p.onGround = false;
+      } else if (climbing) {
+        // Hanging from monkey bars or a cliff ledge — arms up, feet dangling, no vertical climb.
+        // Left/right is already handled above like normal walking (dx), so nothing more to do
+        // here beyond killing gravity for as long as the grip holds.
+        p.vy = 0; p.onGround = false;
+      } else {
+        if (K.jump && p.onGround) { p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0; } // Agility-scaled jump HEIGHT, given directly in blocks — see jumpHeightBlocks above
+        else if (doubleJumpEffect && !p.onGround && !p.extraJumped && K.jump && !p.wasJump) {
+          // Double Jump effect: one bonus mid-air jump, available once per airborne period —
+          // however you got airborne, not just off an actual jump. Edge-triggered off wasJump so
+          // holding the key through the whole first jump's rise can't silently consume it the
+          // instant onGround drops. Height reuses the same agility scaling as the base jump;
+          // Speed instead scales gravity ONLY for the duration of this specific jump (rise AND
+          // fall) — it never touches normal fall/single-jump feel, and reverts the moment
+          // extraJumped clears on landing.
+          p.vy = -(doubleJumpEffect.height ?? 9) * jumpVMulRel;
+          p.extraJumped = true;
+          p.jumpHoldT = 0;
+          const djSpeed = doubleJumpEffect.speed ?? 5;
+          p.djGravMul = Math.max(0.4, djSpeed / 5);
+          p.effectAnim = (doubleJumpEffect.frames && doubleJumpEffect.frames.length)
+            ? { slot: doubleJumpEffect.slot, frames: doubleJumpEffect.frames, t: 0, frameDur: Math.max(2, Math.round(14 - djSpeed)), oneShot: true }
+            : null;
+        }
+        const djActive = p.extraJumped && p.djGravMul !== 1;
+        // Glide: while airborne, falling, and holding Jump with a glide cape, gravity is scaled
+        // down (a gentle descent). Resolved fresh here off this frame's live vy so it engages the
+        // moment you start falling and drops the instant you let go of Jump or touch down. It
+        // never applies during the rise, so it can't turn a jump into a float upward.
+        const glide = glideState(glideEffect, K, p.onGround, climbing, p.vy);
+        const wasGliding = p.gliding;
+        p.gliding = !!(glide && glide.active);
+        // Play the glide cape's own Side animation while gliding — reusing the same effectAnim
+        // channel Double Jump uses, so the render swap needs no new code. Started when the glide
+        // begins and looped (frameDur small, index wraps in the renderer via modulo below), and
+        // handed back to null the moment gliding stops so the normal look returns. Guarded so it
+        // doesn't stomp an active double-jump animation that's still playing.
+        if (p.gliding && !wasGliding && glideEffect && glideEffect.frames && glideEffect.frames.length && !(p.effectAnim && p.effectAnim.oneShot)) {
+          p.effectAnim = { slot: glideEffect.slot, frames: glideEffect.frames, t: 0, frameDur: 6, loop: true };
+        } else if (!p.gliding && p.effectAnim && p.effectAnim.loop) {
+          p.effectAnim = null;
+        }
+        const gravMul = p.gliding ? glide.fall : (djActive ? p.djGravMul : 1);
+        // Above baseline Agility (5), holding Jump through the rise adds extra height on top —
+        // a separate reward for higher agility beyond the taller base jump it already gets.
+        // Capped in duration (not just by leaving the ground) so it's a short assist right at
+        // takeoff, not an unlimited hover the whole time the key is held.
+        if (p.vy < 0 && K.jump && agilityStat > 5 && (p.jumpHoldT || 0) < JUMP_HOLD_BOOST_FRAMES) {
+          p.vy -= (agilityStat - 5) * JUMP_HOLD_BOOST_ACCEL * dtMul;
+          p.jumpHoldT = (p.jumpHoldT || 0) + dtMul;
+        }
+        p.vy = Math.min(60, p.vy + 0.175 * dtMul * gravMul); p.y += p.vy * dtMul; p.onGround = false;
+      }
+      p.climbing = climbing;
+      p.climbKind = climbing ? climbKindHere : null;
+      p.wasJump = !!K.jump;
+      if (p.effectAnim) p.effectAnim.t += dtMul;
+
+      // Live aim tracking — a projectile weapon lets ↑/↓ preview the shot's angle before you
+      // ever pull the trigger, not just snapshot it at the instant of firing. Climbing already
+      // owns ↑/↓ for movement, so aiming is suppressed there. Drops back to neutral (0) the
+      // instant nothing is held, so releasing both keys always means "aim straight ahead".
+      // Reloading LOWERS the weapon: dropping p.aiming here is what does it — the aim branch in
+      // the renderer is the only thing that lifts the arm from its resting hang, so suppressing
+      // it puts the arm (and the weapon rigidly gripped in it) back down at the player's side
+      // for the whole reload, and blocks the dedicated Aim-up pose too.
+      // Aim is driven by the ARROW keys only now (up/down), so climbing a ladder with W/S no
+      // longer forces the gun to point up or down. Suppressed while climbing or reloading.
+      p.aiming = !!(playtestWeapon && isRanged(playtestWeapon.wtype) && !climbing && !p.reloading && (K.aimUp || K.aimDown || p.firing));
+      p.aimDir = p.aiming ? (K.aimUp ? -1 : K.aimDown ? 1 : 0) : 0;
+
+      // --- Ground: ramps first, flat solids second -------------------------------------------
+      // Ramps own the centre column whenever a surface is in reach. Flat block landing must NOT
+      // run first — that was the stair-step / teleport bug: centerHits included hill backing cells
+      // in the centre column and snapped the player to the plateau lip before the ramp pass ran.
+      p.onSlope = false; p.slopeDir = 0;
+      if (!climbing) {
+        const feetBottom = p.y + ph;
+        const slopeHit = slopeSurfaceForPlayer(lv, p.x + pw / 2, p.y, feetBottom, p.vy, dx, dtMul, CW, CH);
+        if (slopeHit) {
+          const surfY = slopeHit.y - ph;
+          const headTestH = Math.max(1, ph - CH);
+          // Only GENUINE walls/roofs may veto or shorten the snap. The raw box scan also catches
+          // the hill's own solid backing (a wide hitbox straddles the next stair step at chest
+          // height while climbing) — treating that as a "ceiling" shoved the head to its underside:
+          // a ~7-cell downward teleport into the floor whose ejection then hurled the player back
+          // to the bottom of the ramp. splitHillHits (same idiom as the flat-landing pass) keeps
+          // real roofs blocking while the formation's own backing is ignored.
+          const above = splitHillHits(lv, cellsHit(p.x, surfY, pw, headTestH), slopeHit.y, CH).walls;
+          if (above.length) {
+            const ceilBottom = Math.max(...above.map((h) => (h.r + 1) * CH));
+            if (ceilBottom > surfY) { p.y = ceilBottom; p.vy = 0; }
+            else { p.y = surfY; p.vy = 0; }
+          } else { p.y = surfY; p.vy = 0; }
+          p.onGround = true; p.onSlope = true; p.slopeDir = slopeHit.dir;
+        }
+      }
+      hits = cellsHit(p.x, p.y, pw, ph);
+      if (hits.length) {
+        if (p.vy > 0 && !p.onSlope) {
+          // Flat landing only when the ramp pass didn't catch us. Centre-column hits must still
+          // exclude hill backing while falling toward a ramp face — otherwise the wide hitbox's
+          // centre sits over solid fill under the ramp and you land on the stair-step lip.
+          // Once ON the plateau (feet near the hill top), hill cells in the centre column ARE
+          // valid floor so walking off the top of a ramp doesn't drop you through.
+          const centerCol = Math.floor((p.x + pw / 2) / CW);
+          const centerHits = hits.filter((h) => h.c === centerCol);
+          const centerSplit = splitHillHits(lv, centerHits, p.y + ph, CH);
+          let landHits = centerSplit.walls;
+          if (!landHits.length && centerSplit.hill.length) {
+            const hillTop = Math.min(...centerSplit.hill.map((h) => h.r * CH));
+            const feetBottom = p.y + ph;
+            if (feetBottom >= hillTop - CH && feetBottom <= hillTop + CH * 0.5) landHits = centerSplit.hill;
+          }
+          if (!landHits.length) landHits = splitHillHits(lv, hits, p.y + ph, CH).walls;
+          // A landing may only bring the feet DOWN onto a surface at/below them, never snap them
+          // UP. Without this, jumping while your head is inside an overhang (the ramp tops out
+          // under the fire platform) let the highest overlapping cell — the platform above your
+          // head — become the floor, teleporting you onto its top. Cells whose top sits above the
+          // feet are ceilings, not floors; drop them so the platform blocks from below instead.
+          const feetNow = p.y + ph;
+          landHits = landHits.filter((h) => h.r * CH >= feetNow - CH * 0.5);
+          if (landHits.length) { p.y = Math.min(...landHits.map((h) => h.r * CH)) - ph; p.vy = 0; p.onGround = true; }
+        }
+        else if (p.vy < 0) {
+          // Ceiling: cap the head at the underside of a solid the head actually rose INTO this
+          // frame (ceilingBonkRows — see its comment for the jump-up-a-hill teleport this kills).
+          // Sampled at the player's horizontal center so a wide hitbox straddling a staircase
+          // doesn't grab the next tier over. Kills upward velocity — no teleport.
+          const centerC = Math.floor((p.x + pw / 2) / CW);
+          const ceilRows = ceilingBonkRows(lv, centerC, p.y, ph, p.vy, dtMul, CW, CH);
+          if (ceilRows.length) { p.y = Math.max(...ceilRows.map((r) => (r + 1) * CH)); p.vy = 0; }
+        }
+      }
+      // Auto-slide down a ramp: standing on a slope, you slide downhill and can't stop by
+      // standing still — but you CAN walk uphill against it. Rather than hacking position here
+      // (which fought the snap and teleported the player at the ramp/plateau seam), the slide is
+      // expressed as a horizontal VELOCITY that gets spent through the SAME movement+snap path at
+      // the top of next frame. Downhill for a dir=+1 ramp (rises L→R) is left (−x); dir=−1 is right.
+      if (p.onSlope && !climbing) {
+        const downhill = -p.slopeDir;
+        const walkingUphill = (dx !== 0 && Math.sign(dx) === -downhill);
+        p.sliding = !walkingUphill;
+        // Record the slide as this frame's carried horizontal velocity. Next frame, if the player
+        // isn't actively walking uphill, horizVel/ground movement uses it; walking uphill zeroes it.
+        p.slideVx = p.sliding ? downhill * SLOPE_SLIDE_SPEED : 0;
+      } else { p.sliding = false; p.slideVx = 0; }
+      if (p.y > lv.rows * CH - ph) { p.y = lv.rows * CH - ph; p.vy = 0; p.onGround = true; }
+      if (p.onGround) { p.extraJumped = false; p.effectAnim = null; p.djGravMul = 1; p.jumpHoldT = 0; p.gliding = false; }
+      if (climbing) p.gliding = false;
+      if (p.y < -200) { p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; }
+
+      // Fire hazard: continuous damage-over-time while the player's box overlaps a fire cell.
+      // dps is per SECOND, scaled by real elapsed time (dtMul/60), so it's frame-rate independent
+      // and can tick fractional HP — a quick dash costs a sliver, lingering melts you. It ignores
+      // the post-hit invulnerability window on purpose: that's for discrete enemy hits, whereas
+      // fire is meant to be a steady drain the whole time you stand in it. Accumulates into a
+      // fractional pool so sub-1-HP ticks aren't rounded away to nothing each frame.
+      const pDps = hazardDpsAt(lv, p.x, p.y, pw, ph, CW, CH, hazardAlive);
+      if (pDps > 0 && !p.transitioning) {
+        p.burnPool = (p.burnPool || 0) + pDps * (dtMul / 60);
+        if (p.burnPool >= 1) {
+          const loss = Math.floor(p.burnPool); p.burnPool -= loss;
+          playerHP.current = Math.max(0, playerHP.current - loss);
+          p.onFire = 12; // frames of the "burning" red flicker on the player sprite
+          if (playerHP.current <= 0) { flash("🔥 Burned to a crisp — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; playerHP.current = maxPlayerHP(playerAsset); p.burnPool = 0; }
+        }
+      } else { p.burnPool = 0; }
+      if (p.onFire > 0) p.onFire -= dtMul;
+
+      // Walk/climb-cycle phase for limb-flagged pieces — advances with actual movement so
+      // animation speed naturally scales with how fast (or slow, e.g. crouched) you're moving.
+      p.walking = dx !== 0 && p.onGround && !climbing;
+      if (p.walking) p.walkPhase = (p.walkPhase || 0) + Math.abs(dx) * 0.03;
+      else if (climbing && climbMove) p.walkPhase = (p.walkPhase || 0) + climbMove * 0.03;
+
+      // Enemies: AI movement + gravity + crouch-dodge, all before the hit-tests below so a hit
+      // is always checked against this frame's live position, not last frame's. No pathfinding
+      // or wall-avoidance yet — Seek/Avoid move in a straight line toward/away from the player,
+      // so terrain can still block or trap them; that's a later pass, same as attacks are.
+      if (lv.enemies) {
+        for (const k of Object.keys(lv.enemies)) {
+          if (enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0) continue; // defeated
+          const spawn = lv.enemies[k];
+          const ea = findA(spawn.enemyId);
+          if (!ea) continue;
+          const [er, ec] = k.split(",").map(Number);
+          const eShape = sideBodyShape(ea);
+          const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
+          const standEph = enemyStandH(ea, CW), crouchEph = enemyCrouchH(ea, CW);
+          const canCrouch = !!(ea.angles && ea.angles.crouch && ea.angles.crouch.length);
+
+          if (!enemyPos.current[k]) {
+            const spawnLeft = ec * CW + CW / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2);
+            enemyPos.current[k] = { x: spawnLeft, y: (er + 1) * CH - standEph, vy: 0, onGround: false, face: spawn.facing === 1 ? 1 : -1, crouch: false, crouchT: 0, dodgeRolled: false, willDodge: false, attackT: 0, swingT: 0, reactT: 0, aimHold: 0, walkPhase: 0, walking: false };
+          }
+          const ep = enemyPos.current[k];
+          const stunned = (ep.stun || 0) > 0; // hit by a stun weapon — frozen: the dodge/face/move/attack gates below all skip it while this lasts
+          if (stunned) ep.stun -= dtMul;
+          const oldEph = ep.crouch ? crouchEph : standEph;
+          const eIntel = ea.stats?.intelligence ?? 5;
+          const ew = findA(enemyWeaponIdOf(ea)) || (ea.components && ea.components.weapon) || null; // the weapon this enemy is actually holding — falls back to the look's own embedded copy if the source asset is gone from the library
+          // A player-based look engages at its WEAPON'S actual swept reach; only drawn
+          // enemy-type monsters still use the ⚔️ range number.
+          const meleeGeom = enemyMeleeGeom(ea, ew);
+          const engageRange = meleeGeom ? enemyMeleeReach(ea, ew, meleeGeom) : enemyAttackRange(ea, ew);
+
+          // Dodging an incoming shot. The enemy picks the move that would actually help — duck
+          // under a high shot, hop over a low one (see dodgeMoveFor) — rather than only ever
+          // ducking, and only when it CAN: ducking needs a hand-drawn crouch pose, hopping needs
+          // to be standing on the ground. Whether it bothers is one roll per incoming shot,
+          // straight off Intelligence (enemyDodgeChance).
+          {
+            const eCenterX = ep.x + epw / 2;
+            const feetY = ep.y + (ep.crouch ? crouchEph : standEph);
+            const standTop = feetY - standEph;
+            const standHitTop = standTop + eShape.topFrac * standEph, standHitH = eShape.heightFrac * standEph;
+            let threat = null;
+            for (const pr of projectiles.current) {
+              if (pr.foe) continue; // an enemy never flinches at its own side's shots
+              const approaching = (pr.x < eCenterX && pr.vx > 0) || (pr.x > eCenterX && pr.vx < 0);
+              if (!approaching || Math.abs(pr.x - eCenterX) > DODGE_LOOKOUT_RANGE) continue;
+              const move = dodgeMoveFor(pr.y, standHitTop, standHitH);
+              if (move) { threat = move; break; }
+            }
+            if (threat && !stunned) {
+              // Decide once per threat window, not every frame — otherwise a shot in flight for
+              // several frames would get "re-rolled" repeatedly and the intended odds would creep
+              // toward near-certain over a long enough approach.
+              if (!ep.dodgeRolled) { ep.willDodge = Math.random() < enemyDodgeChance(eIntel); ep.dodgeRolled = true; }
+              if (ep.willDodge) {
+                if (threat === "crouch" && canCrouch) { ep.crouch = true; ep.crouchT = CROUCH_HOLD_FRAMES; }
+                else if (threat === "jump" && ep.onGround && !ep.crouch) { ep.vy = -enemyJumpVelocity(ea.stats?.agility, CH); ep.onGround = false; }
+              }
+            } else {
+              ep.dodgeRolled = false;
+              if (ep.crouchT > 0) { ep.crouchT -= dtMul; if (ep.crouchT <= 0) ep.crouch = false; }
+            }
+            if (!canCrouch) { ep.crouch = false; ep.crouchT = 0; }
+          }
+          if (stunned) { ep.walking = false; ep.aimHold = 0; } // frozen pose — no walk cycle, no aim tracking
+          const newEph = ep.crouch ? crouchEph : standEph;
+          if (newEph !== oldEph) ep.y += (oldEph - newEph); // keep feet planted through the height change, same trick the player's own crouch uses
+
+          // AI: Guard holds its spawn point, Seek closes the distance, Avoid keeps away — all
+          // gated by a detection range so something across the level doesn't react to a player it
+          // can't plausibly have noticed. Seek now stops at its own engagement range rather than
+          // burying itself in the player, and backs off if crowded — so an enemy holding a bow
+          // stands off and shoots instead of jogging into punching distance (enemyMoveIntent).
+          // ep.x is the RENDER-box left; the VISIBLE body sits centerFrac into that box (spawn
+          // places it so the visible center lands on the cell). ep.x + epw/2 was ~1.6 cells left
+          // of the true body for a typical shape, skewing detection/stand-off asymmetrically.
+          const eCenterXNow = ep.x + eShape.centerFrac * eRenderW;
+          // Sides. A resurrected unit is friendly and fights FOR you; a normal enemy is hostile; a
+          // "Not hostile" NPC is neutral (idles, never fights). Only friendly/hostile units act.
+          const side = unitSide(ea, ep);
+          const hostile = side === "hostile", friendly = side === "friendly", acts = hostile || friendly;
+          // Pick a target on the opposite side. Friendly → nearest hostile (else follow you, no attack).
+          // Hostile → nearest of you and your friendlies (a real brawl). Neutral → nothing.
+          const unitCenter = (ea2, ep2) => ep2.x + sideBodyShape(ea2).centerFrac * enemyRenderW(ea2, CW);
+          const aliveOpposite = (wantFriendly) => {
+            const out = [];
+            for (const k2 of Object.keys(lv.enemies)) {
+              if (k2 === k) continue;
+              const ep2 = enemyPos.current[k2]; if (!ep2) continue;
+              const ea2 = findA(lv.enemies[k2].enemyId); if (!ea2) continue;
+              if (enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) continue; // corpse
+              const s2 = unitSide(ea2, ep2);
+              if (wantFriendly ? (s2 === "friendly") : (s2 === "hostile")) out.push({ key: k2, cx: unitCenter(ea2, ep2), ea: ea2, ep: ep2 });
+            }
+            return out;
+          };
+          let targetKind = null, targetKey = null, targetCX = p.x + pw / 2, targetW = pw, targetEp = null, targetEa = null;
+          if (friendly) {
+            const near = nearestUnitCX(eCenterXNow, aliveOpposite(false)); // nearest hostile
+            if (near) { targetKind = "unit"; targetKey = near.key; targetCX = near.cx; targetEp = near.ep; targetEa = near.ea; targetW = enemyRenderW(near.ea, CW) * sideBodyShape(near.ea).fraction; }
+            else { targetKind = "followPlayer"; targetCX = p.x + pw / 2; targetW = pw; } // no enemies left → tag along
+          } else if (hostile) {
+            const cands = aliveOpposite(true).concat([{ key: null, cx: p.x + pw / 2 }]); // your friendlies + you
+            const near = nearestUnitCX(eCenterXNow, cands);
+            if (near && near.key) { targetKind = "unit"; targetKey = near.key; targetCX = near.cx; targetEp = near.ep; targetEa = near.ea; targetW = enemyRenderW(near.ea, CW) * sideBodyShape(near.ea).fraction; }
+            else { targetKind = "player"; targetCX = p.x + pw / 2; targetW = pw; }
+          }
+          const distToTarget = targetCX - eCenterXNow;
+          const aiSpeed = 2.2 * ((ea.stats?.speed ?? 5) / 5) * dtMul;
+          const ai = friendly ? "seek" : (spawn.ai || ea.ai || "guard"); // friendlies always chase their foe; hostiles keep their set behavior
+          if (!stunned && acts) ep.face = enemyFaceToward(distToTarget, ep.face);
+          // Detection/stealth only matters for a hostile hunting the PLAYER; allies and unit-vs-unit
+          // brawls always "see" their target (you can't stealth past a melee your minion started).
+          const detected = (hostile && targetKind === "player") ? enemyDetects(distToTarget, ep.face) : acts;
+          const gapSigned = (Math.sign(distToTarget) || 1) * boxGap(targetCX, targetW, eCenterXNow, epw);
+          const dxMove = (stunned || !acts) ? 0 : enemyMoveIntent(ai, gapSigned, engageRange, aiSpeed, detected);
+          if (dxMove) ep.face = Math.sign(dxMove);
+          // Walls actually stop enemies now — they used to have NO horizontal collision at all:
+          // a Seek enemy walked INTO a wall and the vertical snap then popped it on top, so a
+          // chase across any real terrain read as completely broken. A one-cell lip gets the
+          // same step-up the player has, so stairs and ledge lips don't dead-end the chase.
+          const exBefore = ep.x; // remember where it was, so we can tell if it actually moved (walk cycle)
+          if (dxMove) {
+            const nx = Math.max(0, Math.min(lv.cols * CW - epw, ep.x + dxMove));
+            const eWallHits = cellsHit(nx, ep.y, epw, newEph);
+            if (!eWallHits.length) ep.x = nx;
+            else {
+              const stepY = Math.min(...eWallHits.map((h) => h.r * CH)) - newEph;
+              const rise = ep.y - stepY;
+              if (rise > 0 && rise <= CH && cellsHit(nx, stepY, epw, newEph).length === 0) { ep.x = nx; ep.y = stepY; }
+            }
+          }
+
+          // Gravity + ground collision — identical rule to the player's own fall, reusing the
+          // same generic cellsHit() so enemies land on and are stopped by the same terrain.
+          ep.vy = Math.min(60, ep.vy + 0.175 * dtMul);
+          ep.y += ep.vy * dtMul;
+          const eHits = cellsHit(ep.x, ep.y, epw, newEph);
+          // Land only on a surface AT OR BELOW the feet — never snap UP onto elevated terrain the
+          // (now possibly tall, scaled) body merely overlaps. Same feet-filter the player's own
+          // landing uses; without it a big enemy near forest canopy floats up onto the leaves.
+          const eFeet = ep.y + newEph;
+          const eFloor = eHits.filter((h) => h.r * CH >= eFeet - CH * 0.5);
+          if (eFloor.length) { if (ep.vy > 0) { ep.y = Math.min(...eFloor.map((h) => h.r * CH)) - newEph; ep.vy = 0; ep.onGround = true; } }
+          else { ep.onGround = false; }
+          if (ep.y > lv.rows * CH - newEph) { ep.y = lv.rows * CH - newEph; ep.vy = 0; ep.onGround = true; }
+          // Walk cycle: advance the enemy's stride by how far it actually moved on the ground this
+          // frame, exactly like the player's walkPhase. Enemies had no walk phase at all, so their
+          // legs stayed frozen mid-chase. Blocked-by-a-wall (no displacement) reads as not walking.
+          const eStep = Math.abs(ep.x - exBefore);
+          ep.walking = ep.onGround && eStep > 0.05;
+          if (ep.walking) ep.walkPhase = (ep.walkPhase || 0) + eStep * 0.03;
+
+          // Enemies burn in fire the same way the player does — same per-second drain into a
+          // per-enemy fractional pool. Fire is universal: it doesn't care whose side you're on.
+          const eDps = hazardDpsAt(lv, ep.x, ep.y, epw, newEph, CW, CH, hazardAlive);
+          if (eDps > 0) {
+            if (enemyHP.current[k] === undefined) enemyHP.current[k] = ea.hp ?? 10;
+            ep.burnPool = (ep.burnPool || 0) + eDps * (dtMul / 60);
+            if (ep.burnPool >= 1) {
+              const loss = Math.floor(ep.burnPool); ep.burnPool -= loss;
+              enemyHP.current[k] = Math.max(0, enemyHP.current[k] - loss);
+              ep.onFire = 12;
+              if (enemyHP.current[k] <= 0) { flash("🔥 " + ea.name + " burned up!"); continue; }
+            }
+          } else { ep.burnPool = 0; }
+          if (ep.onFire > 0) ep.onFire -= dtMul;
+
+          // Attack: independent of AI type — Guard attacks without chasing, Seek/Avoid can also
+          // attack mid-chase/retreat. Gated by range (weapon-aware, see enemyAttackRange),
+          // roughly standing on the same level (not a floor above/below), a simple line-of-sight
+          // check against solid Foreground, and a per-enemy cooldown.
+          //
+          // NEW: even once all of that lines up, the enemy doesn't strike instantly. It spends a
+          // short, randomized wind-up (enemyReactionFrames — long for a dim enemy, near-instant
+          // for a clever one) with the target held, and only then commits. Step out of range or
+          // behind cover during the wind-up and the attack is abandoned. That's what stops an
+          // enemy from landing a hit on the exact frame you cross its range line.
+          // Resolve the current target (the player, or another unit in a brawl) into a hittable box,
+          // a feet line, and an aim point, plus a damage sink — so the SAME reaction-timed, line-of-
+          // sight-gated, melee-OR-ranged pipeline below fights whichever one this unit is up against.
+          const atkCX = ep.x + eShape.centerFrac * eRenderW;
+          let tgtBoxLeft = 0, tgtBoxTop = 0, tgtBoxW = pw, tgtBoxH = ph, tgtFeetY = 0, tgtAimCX = targetCX, tgtAimCY = 0;
+          if (targetKind === "player") {
+            tgtBoxLeft = p.x; tgtBoxTop = p.y; tgtBoxW = pw; tgtBoxH = ph; tgtFeetY = p.y + ph; tgtAimCY = p.y + ph * 0.5;
+          } else if (targetKind === "unit" && targetEp && targetEa) {
+            const tShape = sideBodyShape(targetEa);
+            const tRenderW = enemyRenderW(targetEa, CW), tpw2 = tRenderW * tShape.fraction;
+            const tEph = targetEp.crouch ? crouchEph : standEph;
+            tgtBoxLeft = targetEp.x + (tShape.centerFrac * tRenderW - tpw2 / 2);
+            tgtBoxTop = targetEp.y + tShape.topFrac * tEph;
+            tgtBoxW = tpw2; tgtBoxH = tShape.heightFrac * tEph;
+            tgtFeetY = targetEp.y + tEph; tgtAimCY = targetEp.y + tEph * 0.5;
+          }
+          const attacking = (targetKind === "player" || targetKind === "unit"); // has someone to fight (not just following you)
+          // Land a hit on whatever this unit is fighting. The player gets the full incoming-damage
+          // treatment (defense, back-guard, i-frames, respawn); a unit target simply loses HP.
+          const applyAttackHit = (rawDmg) => {
+            if (targetKind === "player") {
+              if (p.invuln > 0) return false;
+              const dmg = incomingPlayerDamage(rawDmg, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce);
+              playerHP.current = Math.max(0, playerHP.current - dmg);
+              p.invuln = PLAYER_INVULN_FRAMES;
+              if (playerHP.current <= 0) { flash("💀 " + ea.name + " defeated you — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; playerHP.current = maxPlayerHP(playerAsset); }
+              else flash("👹 " + ea.name + " hit you for " + dmg + " (" + playerHP.current + " HP left)");
+              return true;
+            }
+            if (targetKind === "unit" && targetKey) {
+              const cur = enemyHP.current[targetKey] === undefined ? (targetEa.hp ?? 10) : enemyHP.current[targetKey];
+              enemyHP.current[targetKey] = Math.max(0, cur - Math.max(1, Math.round(rawDmg)));
+              if (enemyHP.current[targetKey] <= 0) flash(friendly ? ("🟣 Your " + ea.name + " defeated " + (targetEa.name || "a foe") + "!") : ("💔 Your " + (targetEa.name || "ally") + " fell."));
+              return true;
+            }
+            return false;
+          };
+          // PLAYER-BASED melee connects like the player's own swing: while the swing timer runs, place
+          // the weapon's hitbox on the swung arm and land the hit the frame it overlaps the target's
+          // body. One hit per swing (swingHit) — against the player or a brawl opponent alike.
+          if (!stunned && attacking && meleeGeom && ep.swingT > 0 && ep.swingHit === false) {
+            const tSw = Math.max(0, ATTACK_SWING_FRAMES - ep.swingT);
+            const saNow = meleeSwingAngle(tSw, ATTACK_SWING_FRAMES);
+            for (const hb of enemyMeleeHitboxAt(meleeGeom, ew, saNow)) {
+              const lxE = (hb.x / W) * eRenderW, lwE = (hb.w / W) * eRenderW;
+              const hbX = ep.x + (ep.face < 0 ? eRenderW - (lxE + lwE) : lxE);
+              const hbY = ep.y + (hb.y / H) * newEph, hbH = (hb.h / H) * newEph;
+              if (hbX < tgtBoxLeft + tgtBoxW && hbX + lwE > tgtBoxLeft && hbY < tgtBoxTop + tgtBoxH && hbY + hbH > tgtBoxTop) {
+                applyAttackHit(enemyAttackDamage(ea, ew));
+                ep.swingHit = true;
+                break;
+              }
+            }
+          }
+          if (ep.attackT > 0) ep.attackT -= dtMul;
+          if (ep.swingT > 0) ep.swingT -= dtMul;
+          const attackRange = engageRange; // weapon-swept reach for player-based looks, ⚔️ number for monsters
+          const eCenterXFinal = ep.x + eShape.centerFrac * eRenderW;
+          const gapNow = attacking ? boxGap(tgtAimCX, tgtBoxW, eCenterXFinal, epw) : Infinity;
+          const sameLevel = attacking ? (Math.abs((ep.y + newEph) - tgtFeetY) < newEph) : false;
+          let inSight = false;
+          // A brawl opponent is always "seen" (no stealth between two fighters); only a hostile
+          // hunting the PLAYER has to sense them first. Cover still blocks the line either way.
+          if (!stunned && attacking && gapNow <= attackRange && sameLevel && (targetKind === "unit" || enemyDetects(tgtAimCX - eCenterXFinal, ep.face))) {
+            const chestY = ep.y + newEph * 0.5;
+            const STEPS = 6;
+            let blocked = false;
+            for (let s = 1; s < STEPS; s++) {
+              const sx = eCenterXFinal + (tgtAimCX - eCenterXFinal) * (s / STEPS);
+              if (cellsHit(sx, chestY, 1, 1).length) { blocked = true; break; }
+            }
+            inSight = !blocked;
+          }
+          // Ranged units visibly TRACK their target: aimHold keeps the arm raised in the aim pose
+          // the whole time the target is in their sights, not just the shot frame.
+          if (inSight && ew && isRanged(ew.wtype)) ep.aimHold = 14; else if (ep.aimHold > 0) ep.aimHold -= dtMul;
+          if (!inSight) ep.reactT = 0; // lost the target mid-wind-up: abandon it, don't bank the delay
+          else if (ep.attackT <= 0) {
+            if (ep.reactT <= 0) ep.reactT = enemyReactionFrames(eIntel); // spotted the target — start winding up
+            else {
+              ep.reactT -= dtMul;
+              if (ep.reactT <= 0) {
+                ep.reactT = 0;
+                ep.face = Math.sign(tgtAimCX - eCenterXFinal) || ep.face;
+                const rangedNow = !!(ew && isRanged(ew.wtype));
+                ep.attackT = rangedNow ? Math.max(20, weaponFireCooldownFrames(ew.fireRate)) : ATTACK_COOLDOWN_FRAMES;
+                ep.swingT = ATTACK_SWING_FRAMES;
+                if (rangedNow) {
+                  // Shoots at the target, aimed from its own chest. The shot is flagged for the side
+                  // it should hurt: a hostile's shot is `foe` (tested against you AND your friendlies),
+                  // a friendly's shot is a normal player-side shot (tested against hostiles).
+                  const projAsset = ew.projectileId ? findA(ew.projectileId) : null;
+                  let drawnPieces = null, hitboxPiece = null, sizeUnits = 1;
+                  if (projAsset) {
+                    const front = (projAsset.angles && projAsset.angles.front) || [];
+                    drawnPieces = front.filter((pc) => !pc.isHitbox);
+                    hitboxPiece = front.find((pc) => pc.isHitbox) || null;
+                    sizeUnits = projAsset.size || 1;
+                  }
+                  const spd = ew.projectileSpeed ?? 12;
+                  const sx = eCenterXFinal, sy = ep.y + newEph * 0.42;
+                  const shotAng = Math.atan2(tgtAimCY - sy, tgtAimCX - sx);
+                  projectiles.current.push({
+                    x: sx, y: sy, vx: Math.cos(shotAng) * spd, vy: Math.sin(shotAng) * spd,
+                    char: ew.projectile?.char || "🔥", tint: ew.projectile?.tint || null,
+                    pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece,
+                    rot: shotAng * 180 / Math.PI, size: sizeUnits,
+                    damage: enemyAttackDamage(ea, ew), life: 0, foe: hostile,
+                    explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
+                  });
+                } else if (meleeGeom) {
+                  ep.swingHit = false; // weapon-hitbox melee: committing only STARTS the swing; the hit lands in the swing test above
+                } else {
+                  // Bare-handed / drawn-monster melee: an instant hit on commit (applyAttackHit
+                  // respects the player's i-frames, and routes to a unit's HP in a brawl).
+                  applyAttackHit(enemyAttackDamage(ea, ew));
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Fire — edge-detected (fires once per press, not every frame while held) so holding the
+      // key doesn't spam-fire. Melee starts a brief swing timer that drives both the arm's
+      // swing angle and which weapon pose renders (see the render section below). Projectile
+      // spawns a travelling entity aimed by whatever of ↑/↓ is held at the moment of firing —
+      // neither held means straight ahead in the facing direction.
+      // Melee stays edge-triggered — one swing per press. Ranged instead fires for as long as
+      // the key is held, gated by its own fire-rate cooldown (that's what a fire rate IS), and
+      // refuses to fire on an empty clip, kicking off a reload instead.
+      const wantFire = wpnIsRanged ? !!K.fire : (K.fire && !p.wasFire);
+      if (wantFire && wpnIsRanged && !canFireNow(wpn.current)) {
+        if (needsReload(wpn.current)) wpn.current = startReload(wpn.current, reloadFrames);
+      } else if (wantFire) {
+        if (playtestWeapon && isRanged(playtestWeapon.wtype)) {
+          const aimDir = p.aimDir; // live-tracked above, not re-snapshotted here
+          const spd = playtestWeapon.projectileSpeed ?? playtestWeapon.projectile?.speed ?? 12;
+          const aimRad = projectileAimRad(aimDir); // straight up when aimDir is -1 — see projectileAimRad
+          const vx = p.face * spd * Math.cos(aimRad), vy = spd * Math.sin(aimRad);
+          // Where the shot comes OUT of. If the weapon has a 🔴 muzzle piece drawn on it, the
+          // spawn point is that piece's live position — attached to the arm through exactly the
+          // same attachWeaponBlocks call the visible art goes through, then converted from the
+          // character's 200x260 layout space into world pixels (mirroring horizontally about the
+          // render box when facing left, which is what the wrapper's scaleX(-1) does on screen).
+          // So the bullet leaves the barrel tip, at the right height, however the arm is posed.
+          // No muzzle drawn (every weapon made before this existed) -> the old chest-height
+          // spawn point, unchanged.
+          let spawnX = p.x + pw / 2 + p.face * pw * 0.3, spawnY = p.y + ph * 0.35;
+          const angleNow = p.climbing ? (p.climbKind === "bars" ? "side" : "back") : (p.aiming && aimDir === -1 && !p.walking ? "up" : (p.crouch && !p.walking ? "crouch" : "side"));
+          const armPieceM = playerAsset ? armOf(playerAsset.angles[angleNow] || []) : null;
+          if (armPieceM) {
+            const baseArmRotM = armPieceM.rot || 0;
+            const aimAbsM = armAimAbs(armPieceM.armPivot);
+            // Matches the renderer's own aim branch: the arm is SET to a horizontal, extended
+            // angle plus the aim tilt — except in the dedicated Aim-up pose, which is drawn pointing
+            // up. Crouch DOES extend now, so a ducked shot leaves the barrel instead of thin air.
+            const aimingNow = p.aiming && angleNow !== "up";
+            const curArmM = { ...armPieceM, rot: aimingNow ? (aimAbsM + aimDir * 50) : baseArmRotM };
+            const wfitM = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
+            const guideHandM = handForGuideId(wfitM.guideId)[angleNow] || DEFAULT_HAND[angleNow];
+            const muzArt = bake({ ...playtestWeapon, angles: wfitM.states.rest || blankAngles() }, angleNow).filter((pc) => pc.isMuzzle);
+            const mp = muzArt.length ? muzzleLocalPoint(attachWeaponBlocks(muzArt, curArmM, guideHandM, baseArmRotM)) : null;
+            if (mp) {
+              const renderWM = CW * PLAYER_RENDER_W_CELLS;
+              const wrapLeftM = p.x - (bodyShape.centerFrac * renderWM - pw / 2);
+              const lx = (mp.x / W) * renderWM;
+              spawnX = wrapLeftM + (p.face < 0 ? renderWM - lx : lx);
+              spawnY = p.y + (mp.y / H) * ph;
+            }
+          }
+          // The equipped Projectile asset (built once, loadable onto any Ranged weapon) is the
+          // primary source of both the visual and its own hitbox. A weapon that hasn't been
+          // assigned one yet (old saves, migrated from when "ranged" was called "projectile"
+          // and built its bullet inline) falls back to whatever it already had — drawn art if
+          // any was made, else the plain emoji — so nothing that used to work stops working.
+          const projAsset = playtestWeapon.projectileId ? findA(playtestWeapon.projectileId) : null;
+          let drawnPieces = null, hitboxPiece = null, sizeUnits = 1;
+          if (projAsset) {
+            const front = (projAsset.angles && projAsset.angles.front) || [];
+            drawnPieces = front.filter((pc) => !pc.isHitbox);
+            hitboxPiece = front.find((pc) => pc.isHitbox) || null;
+            sizeUnits = projAsset.size || 1;
+          } else {
+            const legacyState = playtestWeapon.states?.projectile;
+            if (legacyState && !anglesEmpty(legacyState)) drawnPieces = bake({ ...playtestWeapon, angles: legacyState }, "front").filter((pc) => !pc.isHitbox);
+            sizeUnits = playtestWeapon.projectile?.size || 1;
+          }
+          projectiles.current.push({
+            x: spawnX, y: spawnY,
+            vx, vy,
+            char: playtestWeapon.projectile?.char || "🔥", tint: playtestWeapon.projectile?.tint || null,
+            pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
+            size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
+            explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
+          });
+          wpn.current = consumeShot(wpn.current, fireCdFrames); // spends a round (unless clip 0 = unlimited) and starts the fire-rate cooldown
+          p.firing = { t: 0, dur: 16 }; // long enough to actually see the arm lift and hold, not just a flash
+        } else {
+          p.firing = { t: 0, dur: 12 }; // swing duration — same for a real melee weapon or a bare-handed swing (faster than the old sine sweep)
+          p.hitRegistered = false; // a fresh swing can land a fresh hit
+        }
+      }
+      p.wasFire = !!K.fire;
+      // Melee button (Q/V): a bare-handed swing you can throw even while holding a ranged weapon —
+      // pistol-whip style. Fist reach, unarmed (Strength) damage; no bonus range. Edge-triggered so
+      // one tap = one swing, and it won't start on top of an in-progress shot/swing.
+      const wantMelee = K.melee && !p.wasMelee;
+      if (wantMelee && !p.firing) { p.firing = { t: 0, dur: 12, unarmed: true }; p.hitRegistered = false; }
+      p.wasMelee = !!K.melee;
+      if (p.firing) {
+        p.firing.t += dtMul;
+        // Melee hit-test — reconstructs just enough of the render section's arm-swing/weapon-
+        // attach geometry (swingAngle, attachWeaponBlocks) to place the hitbox piece in world
+        // space, without needing the full visual bake() pipeline. Guarded by p.hitRegistered so
+        // a swing can only land one hit, no matter how many frames it overlaps an enemy for.
+        // With no weapon equipped, this is a bare-handed swing: a small fist-sized hitbox
+        // centered on the same guide-hand point a weapon would use, riding the arm the same way.
+        const unarmedSwing = !!(p.firing && p.firing.unarmed); // Q/V bare-handed swing — ignores the held weapon entirely
+        if ((unarmedSwing || !playtestWeapon || !isRanged(playtestWeapon.wtype)) && !p.hitRegistered) {
+          const angleNow = p.climbing ? (p.climbKind === "bars" ? "side" : "back") : (p.crouch && !p.walking ? "crouch" : "side");
+          const armPiece = playerAsset ? armOf(playerAsset.angles[angleNow] || []) : null;
+          if (armPiece) {
+            const baseArmRot = armPiece.rot || 0;
+            const swingAngle = meleeSwingAngle(p.firing.t, p.firing.dur);
+            const curArm = { ...armPiece, rot: baseArmRot + armPivotSign(armPiece.armPivot) * swingAngle };
+            const wfit = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
+            const guideHand = handForGuideId(wfit.guideId)[angleNow] || DEFAULT_HAND[angleNow];
+            const useFist = unarmedSwing || !playtestWeapon; // bare-handed reach/damage; a real melee weapon (not forced-unarmed) uses its own hitbox
+            const hbPieces = !useFist
+              ? attachWeaponBlocks(weaponHitboxPieces(bake({ ...playtestWeapon, angles: weaponFireArt(wfit.states, angleNow) }, angleNow)), curArm, guideHand, baseArmRot)
+              : attachWeaponBlocks([{ id: "fist", kind: "rect", x: guideHand.x - 20, y: guideHand.y - 20, w: 40, h: 40, isHitbox: true }], curArm, guideHand, baseArmRot);
+            if (hbPieces.length) {
+              const wrapLeft = p.x - (bodyShape.centerFrac * (CW * PLAYER_RENDER_W_CELLS) - pw / 2);
+              const strength = pstats.strength, intelligence = pstats.intelligence;
+              hitLoop:
+              for (const hb of hbPieces) {
+                const renderWNow = CW * PLAYER_RENDER_W_CELLS;
+                const lxP = (hb.x / W) * renderWNow, hbW = (hb.w / W) * renderWNow;
+                // Mirror into world space when facing LEFT, exactly like the muzzle-spawn math —
+                // the wrapper renders the whole character through scaleX(-1) about the render box,
+                // so a right-facing-space hitbox lands on the WRONG side without this: facing left,
+                // your swing was still hitting enemies standing on your RIGHT.
+                const hbX = wrapLeft + (p.face < 0 ? renderWNow - (lxP + hbW) : lxP), hbY = p.y + (hb.y / H) * ph;
+                const hbH = (hb.h / H) * ph;
+                for (const k of Object.keys(lv.enemies || {})) {
+                  const spawn = lv.enemies[k];
+                  const ea = findA(spawn.enemyId);
+                  if (!ea) continue;
+                  if (enemyHP.current[k] === undefined) enemyHP.current[k] = ea.hp ?? 10;
+                  if (enemyHP.current[k] <= 0) continue; // already defeated
+                  if (enemyPos.current[k] && enemyPos.current[k].friendly) continue; // don't clobber your own minion
+                  const eShape = sideBodyShape(ea);
+                  const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
+                  const ep = enemyPos.current[k];
+                  const eph = ep && ep.crouch ? CW * PLAYER_CROUCH_H_CELLS : CW * PLAYER_H_CELLS;
+                  const [er, ec] = k.split(",").map(Number);
+                  const eLeft = ep ? ep.x : ec * CW + CW / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2);
+                  const eTop = ep ? ep.y : (er + 1) * CW - eph;
+                  const hitTop = eTop + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
+                  // Enemy's VISIBLE body X-span sits INSIDE the wider render box (same offset the HP bar and
+                  // draw use). Test against THAT, exactly as the Y-axis already does with hitTop/hitH — not the
+                  // full eRenderW, which added ~1.6 cells of phantom horizontal reach on the enemy's near side and
+                  // made even a short melee weapon connect from a full cell past its blade tip (the 'sniper range').
+                  const eHitLeft = eLeft + (eShape.centerFrac * eRenderW - epw / 2);
+                  const overlap = hbX < eHitLeft + epw && hbX + hbW > eHitLeft && hbY < hitTop + hitH && hbY + hbH > hitTop;
+                  if (overlap) {
+                    // Armed damage scales the weapon's own damage by strength (5 = neutral).
+                    // Bare-handed there's no weapon damage to scale — it's just the strength
+                    // stat directly, per request.
+                    const base = (!unarmedSwing && playtestWeapon) ? Math.max(1, Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories) * (strength / 5))) : Math.max(1, Math.round(strength));
+                    const isCrit = Math.random() < Math.min(0.6, intelligence * 0.02);
+                    const dmg = isCrit ? base * 2 : base;
+                    enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+                    if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon && (playtestWeapon.stun ?? 0) > 0) { ep.stun = Math.round(playtestWeapon.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
+                    p.hitRegistered = true;
+                    flash((isCrit ? "💥 Critical! " : ((!unarmedSwing && playtestWeapon) ? "⚔️ " : "👊 ")) + "Hit " + ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
+                    break hitLoop;
+                  }
+                }
+              }
+            }
+          }
+        }
+        if (p.firing && p.firing.t >= p.firing.dur) p.firing = null;
+      }
+
+      // Advance live projectiles and cull anything expired, off-level, that hit solid ground, or
+      // that connect with a living enemy. Enemy hit-test uses the projectile's own rendered box
+      // (see the `sz` math in the render section below — kept identical here so the hitbox always
+      // matches what's on screen) and the same strength/intelligence damage formula the melee
+      // hit-test uses, so both weapon types scale with player stats identically.
+      // Thrown grenades: gravity arc until they hit a solid cell, the floor, or a wall, then they
+      // "land" — painting their fire (or future effect) into the hazard layer at the impact, in a
+      // splash of the configured radius, and seeding each new cell's burn life so it goes out on
+      // schedule exactly like painted fire. The grenade art spins while airborne.
+      if (thrown.current.length) {
+        const stillFlying = [];
+        for (const g of thrown.current) {
+          g.vy = Math.min(40, g.vy + 0.175 * dtMul);
+          g.x += g.vx * dtMul; g.y += g.vy * dtMul; g.rot += (g.spin || 6) * dtMul;
+          const offLevel = g.x < 0 || g.x > lv.cols * CW || g.y > lv.rows * CH;
+          const hitSolid = !offLevel && cellsHit(g.x - 4, g.y - 4, 8, 8).length > 0;
+          const landed = offLevel || hitSolid || g.y >= lv.rows * CH - 1;
+          if (!landed) { stillFlying.push(g); continue; }
+          // Impact cell: clamp inside the level. Paint the landing effect there + its splash.
+          const r0 = Math.max(0, Math.min(lv.rows - 1, Math.floor(g.y / CH)));
+          const c0 = Math.max(0, Math.min(lv.cols - 1, Math.floor(g.x / CW)));
+          const a = g.asset || {};
+          const dps = a.landEffectDps ?? 6, life = a.landEffectLife ?? 6, radius = a.landRadius ?? DEFAULT_LAND_RADIUS;
+          const landProp = a.landPropId ? findA(a.landPropId) : null;   // a chosen Object/Prop draws the fire instead of the 🔥 emoji
+          const propSize = landProp ? (landProp.size || 1) : 1;
+          const cellState = (r, c) => { const cell = lv.fg[cellKey(r, c)]; if (cell && !fgIsSlope(cell)) return "block"; if (fxBlocks(r, c)) return "block"; if (cell && fgIsSlope(cell)) return "ground"; return null; };
+          let keys = groundedLandingCells(r0, c0, radius, lv.rows, lv.cols, cellState);
+          if (!keys.length) keys = [r0 + "," + c0]; // never a total dud: if nothing is grounded (rare), fall back to the impact cell
+          setLevel((lv2) => {
+            const { hazard, fx, newHazKeys, newPropKeys } = applyLandingEffect(lv2.hazard, lv2.fx, keys, dps, life, landProp ? a.landPropId : null, propSize);
+            for (const key of newHazKeys) thrownFireKeys.current.add(key);
+            for (const key of newPropKeys) thrownPropKeys.current.add(key);
+            return { ...lv2, hazard, fx };
+          });
+          // Seed these fires' playtest lifetimes immediately so they start counting down now (the
+          // level-state update above is async; the loop reads hazLife, so seed it directly too).
+          if (life > 0) for (const key of keys) hazLife.current[key] = life;
+          flash("💥 " + (a.name || "Grenade") + " landed" + (landProp ? " — " + landProp.name : " — 🔥"));
+        }
+        thrown.current = stillFlying;
+      }
+
+      if (projectiles.current.length) {
+        const strength = pstats.strength, intelligence = pstats.intelligence;
+        // An "explode" shot doesn't just hit one target — on impact it bursts: a wide splash of
+        // damage over a radius, plus a transient explosion drawn in the FRONT layer from whatever
+        // Object/Prop the weapon points at (Blake draws the boom in the prop maker). The boom is a
+        // play-only visual (booms ref) — it never writes into the saved level, and auto-clears when
+        // its short life runs out. Player/friendly shots splash hostiles; a foe's shot splashes the
+        // player + your friendly NPCs. Called at the moment the shot is consumed, at the impact point.
+        const detonate = (pr, ix, iy) => {
+          if (!pr.explode) return;
+          const radPx = Math.max(0.5, pr.explodeRadius ?? 2) * CW;
+          booms.current.push({ x: ix, y: iy, propId: pr.explodePropId || null, size: pr.explodeSize ?? 3, life: 0, maxLife: Math.max(8, Math.round((pr.explodeLife ?? 0.5) * 60)) });
+          const baseDmg = pr.damage ?? 5;
+          if (pr.foe) {
+            if (p.invuln <= 0) {
+              const pcx = p.x + pw / 2, pcy = p.y + ph / 2;
+              if (Math.hypot(pcx - ix, pcy - iy) <= radPx) {
+                const dmg = incomingPlayerDamage(baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce);
+                playerHP.current = Math.max(0, playerHP.current - dmg);
+                p.invuln = PLAYER_INVULN_FRAMES;
+                if (playerHP.current <= 0) { flash("💀 Caught in the blast — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; playerHP.current = maxPlayerHP(playerAsset); }
+                else flash("💥 Blast hit for " + dmg + " (" + playerHP.current + " HP left)");
+              }
+            }
+            for (const k of Object.keys(lv.enemies || {})) {
+              const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0)) continue;
+              const ea = findA(lv.enemies[k].enemyId); if (!ea) continue;
+              const ecx = ep.x + enemyRenderW(ea, CW) / 2, ecy = ep.y + enemyStandH(ea, CW) / 2;
+              if (Math.hypot(ecx - ix, ecy - iy) <= radPx) enemyHP.current[k] = Math.max(0, enemyHP.current[k] - Math.max(1, baseDmg));
+            }
+          } else {
+            let hits = 0;
+            for (const k of Object.keys(lv.enemies || {})) {
+              const ea = findA(lv.enemies[k].enemyId); if (!ea) continue;
+              if (enemyHP.current[k] === undefined) enemyHP.current[k] = ea.hp ?? 10;
+              if (enemyHP.current[k] <= 0) continue;
+              const ep = enemyPos.current[k]; if (!ep || ep.friendly) continue;
+              const ecx = ep.x + enemyRenderW(ea, CW) / 2, ecy = ep.y + enemyStandH(ea, CW) / 2;
+              if (Math.hypot(ecx - ix, ecy - iy) <= radPx) {
+                const base = Math.max(1, Math.round(baseDmg * (strength / 5)));
+                const dmg = (Math.random() < Math.min(0.6, intelligence * 0.02)) ? base * 2 : base;
+                enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+                if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
+                hits++;
+              }
+            }
+            flash("💥 Explosion" + (hits ? " — hit " + hits + (hits === 1 ? " enemy" : " enemies") : ""));
+          }
+        };
+        projectiles.current = projectiles.current.filter((pr) => {
+          pr.x += pr.vx * dtMul; pr.y += pr.vy * dtMul; pr.life += dtMul;
+          if (pr.life > 90) return false;
+          if (pr.x < 0 || pr.x > lv.cols * CW || pr.y < 0 || pr.y > lv.rows * CH) return false;
+          const sz = LV_CELL * (pr.size || 1);
+          let boxW = sz, boxH = sz, boxCx = pr.x, boxCy = pr.y;
+          if (pr.hitbox) {
+            const hb = pr.hitbox;
+            boxW = hb.w / W * sz; boxH = hb.h / H * sz;
+            const rad = (pr.rot || 0) * Math.PI / 180;
+            const offX = (hb.x + hb.w / 2 - W / 2) / W * sz, offY = (hb.y + hb.h / 2 - H / 2) / H * sz;
+            boxCx = pr.x + (offX * Math.cos(rad) - offY * Math.sin(rad));
+            boxCy = pr.y + (offX * Math.sin(rad) + offY * Math.cos(rad));
+          }
+          const prLeft = boxCx - boxW / 2, prTop = boxCy - boxH / 2;
+          if (pr.foe) {
+            // Fired BY an enemy: tested against the player, never against other enemies (no
+            // friendly fire), and it can't be dodged by the shooter's own crouch/jump logic.
+            if (prLeft < p.x + pw && prLeft + boxW > p.x && prTop < p.y + ph && prTop + boxH > p.y) {
+              if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
+              if (p.invuln <= 0) {
+                // For a projectile, "from behind" is decided by which way the shot is travelling
+                // relative to the way you're facing — a bullet catching you in the back is one
+                // moving the same way you face while coming from behind you. Using the shot's own
+                // x as the attacker position captures exactly that.
+                const dmg = incomingPlayerDamage(pr.damage ?? 5, playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce);
+                playerHP.current = Math.max(0, playerHP.current - dmg);
+                p.invuln = PLAYER_INVULN_FRAMES;
+                if (playerHP.current <= 0) { flash("💀 Shot down — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; playerHP.current = maxPlayerHP(playerAsset); }
+                else flash("🏹 Hit for " + dmg + " (" + playerHP.current + " HP left)");
+                return false; // consumed on impact
+              }
+              return false; // struck an invulnerable player: still consumed, just does nothing
+            }
+            // Brawl: an enemy shot can also hit one of YOUR friendly NPCs it flies into.
+            for (const k of Object.keys(lv.enemies || {})) {
+              const ep = enemyPos.current[k]; if (!ep || !ep.friendly) continue;
+              if (enemyHP.current[k] === undefined || enemyHP.current[k] <= 0) continue;
+              const ea = findA(lv.enemies[k].enemyId); if (!ea) continue;
+              const eShape = sideBodyShape(ea);
+              const eRenderW = enemyRenderW(ea, CW), eph = ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
+              const hitTop = ep.y + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
+              if (prLeft < ep.x + eRenderW && prLeft + boxW > ep.x && prTop < hitTop + hitH && prTop + boxH > hitTop) {
+                if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
+                enemyHP.current[k] = Math.max(0, enemyHP.current[k] - Math.max(1, pr.damage ?? 5));
+                if (enemyHP.current[k] <= 0) flash("💔 Your " + ea.name + " fell.");
+                return false;
+              }
+            }
+          } else if (pr.resurrect) {
+            // Resurrect staff shot: raise a defeated body it overlaps into a friendly, once. It does
+            // no damage and passes through the living / empty space (keeps flying until it hits a body).
+            for (const k of Object.keys(lv.enemies || {})) {
+              const ep = enemyPos.current[k];
+              const ea = findA(lv.enemies[k].enemyId);
+              if (!ea || !ep) continue;
+              const hp = enemyHP.current[k] === undefined ? (ea.hp ?? 10) : enemyHP.current[k];
+              if (!canResurrect(hp, ep)) continue; // must be a dead body that's never been raised
+              const eShape = sideBodyShape(ea);
+              const eRenderW = enemyRenderW(ea, CW), eph = enemyStandH(ea, CW);
+              const hitTop = ep.y + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
+              if (prLeft < ep.x + eRenderW && prLeft + boxW > ep.x && prTop < hitTop + hitH && prTop + boxH > hitTop) {
+                enemyHP.current[k] = ea.hp ?? 10;          // back on its feet, full HP
+                ep.friendly = true; ep.resurrectedOnce = true; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
+                flash("🔮 Raised " + ea.name + " — now fighting for you!");
+                return false;
+              }
+            }
+          } else {
+          for (const k of Object.keys(lv.enemies || {})) {
+            const spawn = lv.enemies[k];
+            const ea = findA(spawn.enemyId);
+            if (!ea) continue;
+            if (enemyHP.current[k] === undefined) enemyHP.current[k] = ea.hp ?? 10;
+            if (enemyHP.current[k] <= 0) continue; // already defeated
+            const epK = enemyPos.current[k];
+            if (epK && epK.friendly) continue; // your own resurrected minion — your shots pass through it
+            const eShape = sideBodyShape(ea);
+            const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
+            const ep = epK;
+            const eph = ep && ep.crouch ? CW * PLAYER_CROUCH_H_CELLS : CW * PLAYER_H_CELLS;
+            const [er, ec] = k.split(",").map(Number);
+            const eLeft = ep ? ep.x : ec * CW + CW / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2);
+            const eTop = ep ? ep.y : (er + 1) * CW - eph;
+            const hitTop = eTop + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
+            const overlap = prLeft < eLeft + eRenderW && prLeft + boxW > eLeft && prTop < hitTop + hitH && prTop + boxH > hitTop;
+            if (overlap) {
+              if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
+              const base = Math.max(1, Math.round((pr.damage ?? 5) * (strength / 5)));
+              const isCrit = Math.random() < Math.min(0.6, intelligence * 0.02);
+              const dmg = isCrit ? base * 2 : base;
+              enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+              if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
+              flash((isCrit ? "💥 Critical! " : "🎯 ") + "Hit " + ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
+              return false; // projectile consumed on impact
+            }
+          }
+          }
+          if (cellsHit(pr.x, pr.y, 2, 2).length) { if (pr.explode) detonate(pr, pr.x, pr.y); return false; }
+          return true;
+        });
+      }
+
+      if (booms.current.length) { for (const b of booms.current) b.life += dtMul; booms.current = booms.current.filter((b) => b.life <= b.maxLife); }
+
+      let curPedKey = null, curDoorKey = null;
+      const doorHit = doorOverlapping(lv, p.x, p.y, pw, ph, CW, CH);
+      const pedHit = doorHit ? null : pedestalOverlapping(lv, p.x, p.y, pw, ph, CW, CH); // a cell is a door OR a pedestal, never both
+      if (doorHit) {
+        curDoorKey = doorHit.key;
+        if (curDoorKey !== lastDoorKey) {
+          const tag = doorTagOf(doorHit.marker);
+          if (roomReturn.current) setDoorPrompt({ key: curDoorKey, enter: false });        // inside a room → this door leaves
+          else setDoorPrompt({ key: curDoorKey, enter: true, tag, n: roomPool(levelLib, tag).length });
+          lastDoorKey = curDoorKey;
+        }
+        if (lastPedestalKey !== null) { setPedPrompt(null); lastPedestalKey = null; }
+      } else {
+        if (lastDoorKey !== null) { setDoorPrompt(null); lastDoorKey = null; }
+        if (pedHit) {
+          const mk = pedHit.key, pm = pedHit.marker;
+          if (pedestalRolls.current[mk] === undefined) pedestalRolls.current[mk] = rollPedestalItem(allAssets, pm.cats, pm.logic);
+          curPedKey = mk;
+          if (mk !== lastPedestalKey) {
+            const item = pedestalRolls.current[mk];
+            if (item) setPedPrompt({ key: mk, name: item.name, type: item.type, slot: item.slot });
+            else setPedPrompt({ key: mk, empty: true, summary: pedestalSummary(pm) });
+            lastPedestalKey = mk;
+          }
+        } else { curPedKey = null; if (lastPedestalKey !== null) { setPedPrompt(null); lastPedestalKey = null; } }
+      }
+      // Press E on a door to enter (a matching room) or leave (back to the level you came from).
+      if (K.interact && !p.wasInteract && curDoorKey && !p.transitioning) {
+        if (roomReturn.current) { p.transitioning = { mode: "exit", t: 0 }; }
+        else {
+          const tag = doorTagOf(lv.markers[curDoorKey]);
+          const cacheKey = lv.id + "|" + curDoorKey;
+          let roomId = sessionRooms.current[cacheKey];              // a door leads to the SAME room all session
+          if (!roomId) { const r = pickRoom(levelLib, tag, playRunId.current + "|" + cacheKey + "|" + tag); roomId = r && r.id; if (roomId) sessionRooms.current[cacheKey] = roomId; }
+          if (roomId) { const [dr, dc] = curDoorKey.split(",").map(Number); p.transitioning = { mode: "enter", t: 0, roomId, retX: dc * CW, retY: dr * CH + CH - ph }; }
+          else flash(tag ? "🚪 No room tagged \"" + tag + "\" yet — make one in the Room Creator." : "🚪 This is an exit door (blank tag) — it only does something from inside a room.");
+        }
+      }
+      // Press E on a pedestal to take its item, or swap the one you're already carrying back onto
+      // it. Weapons swap the held playtest weapon (playtestWeaponId, which re-keys the loop and
+      // keeps the player where they stand); equipment layers its stat/defense/effect boosts onto
+      // the player live via mergeEquip, re-keyed by equipGen. Rising-edge so one tap = one swap.
+      if (K.interact && !p.wasInteract && curPedKey) {
+        const pk = curPedKey, item = pedestalRolls.current[pk];
+        if (item) {
+          if (item.type === "item") {
+            // Single-use consumable: apply its effect right now and empty the pedestal (nothing
+            // swaps back). Heal restores HP up to your max; a stat item pushes a timed buff that
+            // pstats layers in until it expires. No equip, no re-key — the loop already reads pstats.
+            const eff = normItemEffect(item.effect);
+            if (eff.kind === "heal") {
+              const mx = maxPlayerHP(playerAsset), was = playerHP.current;
+              playerHP.current = applyHeal(playerHP.current, mx, eff.amount);
+              flash("🧪 " + item.name + " · +" + (playerHP.current - was) + " HP (" + playerHP.current + "/" + mx + ")");
+            } else {
+              itemBuffs.current = pruneBuffs(itemBuffs.current, nowT);
+              itemBuffs.current.push({ stat: eff.stat, amount: eff.amount, until: nowT + eff.duration * 1000 });
+              flash("🧪 " + item.name + " · +" + eff.amount + " " + (ITEM_STAT_LABEL[eff.stat] || eff.stat) + " for " + eff.duration + "s");
+            }
+            pedestalRolls.current[pk] = null;
+            pedestalDepleted.current.add(pk);
+          } else if (item.type === "weapon") {
+            if (isThrowable(item.wtype)) {
+              // Throwables live in their OWN slot (thrown with G), separate from the held gun/melee,
+              // so taking one never displaces your weapon — you can carry both. Swap with whatever
+              // throwable you were already carrying, and a fresh pickup arrives with 3 (throwPickup).
+              const prevId = playtestThrowId, prev = prevId ? findA(prevId) : null;
+              pedestalRolls.current[pk] = prev || null;
+              if (prev) pedestalDepleted.current.delete(pk); else pedestalDepleted.current.add(pk);
+              throwPickup.current = 3;
+              flash("💣 Carrying " + item.name + " ×3" + (prev ? " (put " + prev.name + " back)" : ""));
+              setPlaytestThrowId(item.id);
+            } else {
+              const prevId = playtestWeaponId, prev = prevId ? findA(prevId) : null;
+              pedestalRolls.current[pk] = prev || null;
+              if (prev) pedestalDepleted.current.delete(pk); else pedestalDepleted.current.add(pk);
+              const wl = isRanged(item.wtype) ? "ranged" : "melee";
+              flash("🗡️ Wielding " + item.name + " · " + wl + " · " + (item.damage ?? 5) + " dmg" + (prev ? " (put " + prev.name + " back)" : ""));
+              setPlaytestWeaponId(item.id);
+            }
+          } else {
+            // Take it off the slot it fills — or, if that slot's free, off whatever you're wearing
+            // that shares a category with it (equipDisplacedSlot), so two same-category items never
+            // stack. The one that comes off goes back onto the pedestal; if nothing comes off, the
+            // pedestal is now empty and gets marked depleted so it disappears (see the play render).
+            const slot = item.slot, offSlot = equipDisplacedSlot(item, equipped.current), prev = offSlot ? equipped.current[offSlot] : null;
+            const before = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
+            const nextMap = { ...equipped.current }; if (offSlot) delete nextMap[offSlot]; nextMap[slot] = item;
+            const after = mergeEquip(basePlayerAsset, nextMap, equippedBodyIdFor(basePlayerAsset));
+            equipped.current = nextMap;
+            pedestalRolls.current[pk] = prev || null;
+            if (prev) pedestalDepleted.current.delete(pk); else pedestalDepleted.current.add(pk);
+            const parts = equipEffectSummary(before, after);
+            flash("🧥 Equipped " + item.name + (parts.length ? " · " + parts.join(" · ") : " · no stat change") + (prev ? " (put " + prev.name + " back)" : ""));
+            playerHP.current = Math.min(playerHP.current, maxPlayerHP(after));
+            setEquipGen((g) => g + 1);
+          }
+        }
+      }
+      p.wasInteract = !!K.interact;
+
+      // Front tiles the player is currently behind go translucent — imperatively, on just the
+      // handful of covered cells, because this layer is deliberately memoized for playtest
+      // performance and must NOT rebuild every frame. Touch only cells whose state changed.
+      if (frontCellsRef.current) {
+        const want = new Set(frontFadeKeys(lv.front, p.x, p.y, pw, ph, CW, CH));
+        for (const k of fadedFrontKeys.current) if (!want.has(k)) { const d = frontCellsRef.current.querySelector(`[data-fk="${k}"]`); if (d) d.style.opacity = ""; }
+        for (const k of want) if (!fadedFrontKeys.current.has(k)) { const d = frontCellsRef.current.querySelector(`[data-fk="${k}"]`); if (d) d.style.opacity = "0.55"; }
+        fadedFrontKeys.current = want;
+      }
+
+      // Hide any fire cell that has burned out (life reached 0). Same imperative approach as the
+      // Front fade above — the hazard layer is memoized, so we toggle just the elements that
+      // changed rather than rebuild it. Only touch keys tracked in hazLife (permanent fires never
+      // enter it and so are never hidden).
+      if (hazardCellsRef.current) {
+        for (const key in hazLife.current) {
+          const gone = hazLife.current[key] <= 0;
+          const el = hazardCellsRef.current.querySelector(`[data-hk="${key}"]`);
+          if (el) { const want = gone ? "none" : ""; if (el.style.display !== want) el.style.display = want; }
+        }
+      }
+
+      setPframe((f) => (f + 1) % 1000000);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => {
+      cancelAnimationFrame(raf); if (myGen === __ptLoopGen) __ptLoopGen++; window.removeEventListener("keydown", kd); window.removeEventListener("keyup", ku); window.removeEventListener("blur", onBlur);
+      // Playtest over (or level/loadout changed): the memoized Front layer lives on, so any cells
+      // left faded must be restored by hand or they'd stay see-through back in the editor.
+      if (frontCellsRef.current) for (const k of fadedFrontKeys.current) { const d = frontCellsRef.current.querySelector(`[data-fk="${k}"]`); if (d) d.style.opacity = ""; }
+      fadedFrontKeys.current = new Set();
+      // Fires that burned out during play are only hidden imperatively; the level still has them.
+      // Restore every hazard element's display so the editor shows the full painted set again.
+      if (hazardCellsRef.current) for (const el of hazardCellsRef.current.querySelectorAll("[data-hk]")) el.style.display = "";
+      // NOTE: grenade-spawned fires are transient, but they are NOT stripped here. This cleanup
+      // runs on every incidental re-run of the loop (this effect lists `level` in its deps, and
+      // a landing grenade calls setLevel to paint its fire) — stripping the fires here deleted
+      // each grenade's own flames a frame or two after they landed (that was the "molotov burns
+      // for a fraction of a second" bug). The strip now lives in a dedicated effect keyed only on
+      // `play`, so it fires exactly once, when Playtest actually stops. See below.
+    };
+  }, [play, screen, level, playerId, playtestWeaponId, playtestThrowId, playtestThrowCount, equipGen]);
+  // Strip grenade-spawned (transient) fires out of the level the moment Playtest STOPS — keyed on
+  // `play` alone, so it never runs on the mid-play re-runs a landing grenade's setLevel triggers.
+  // Painted fires are untouched; only cells recorded in thrownFireKeys (created by grenades this
+  // session) are removed, so they never bleed into the saved design.
+  useEffect(() => {
+    if (play) return; // only act on the transition INTO the stopped state
+    const dropHaz = thrownFireKeys.current, dropProp = thrownPropKeys.current;
+    if (!dropHaz.size && !dropProp.size) return;
+    thrownFireKeys.current = new Set(); thrownPropKeys.current = new Set();
+    setLevel((lv2) => { if (!lv2) return lv2; const { hazard, fx, changed } = stripThrownLanding(lv2.hazard, lv2.fx, [...dropHaz], [...dropProp]); return changed ? { ...lv2, hazard, fx } : lv2; });
+  }, [play]);
+
+  useEffect(() => { const up = () => { lpaint.current = null; }; window.addEventListener("pointerup", up); return () => window.removeEventListener("pointerup", up); }, []);
+
+  // Commits a multi-cell ramp on release, as ONE action (one undo step, already snapshotted by
+  // the level editor's onPointerDownCapture at the start of the drag). A plain click (never
+  // dragged, or dragged back to the anchor cell) falls back to using the brush-size control as
+  // the ramp's length, centered on the click — so changing "size" while a ramp shape is active
+  // makes one longer, shallower ramp instead of stamping several separate 45° ones. Re-registers
+  // whenever the values it reads change, so it can never read a stale lColor/lFgShape/lBrush.
+  useEffect(() => {
+    const up = () => {
+      if (!rampAnchor.current) return;
+      const { r, c: c0 } = rampAnchor.current;
+      rampAnchor.current = null; setRampDragOn(false);
+      let lo, hi;
+      if (lHoverCell && lHoverCell.r === r && lHoverCell.c !== c0) { lo = Math.min(c0, lHoverCell.c); hi = Math.max(c0, lHoverCell.c); }
+      else { const half = Math.floor((lBrush - 1) / 2); lo = c0 - half; hi = c0 - half + lBrush - 1; }
+      const dir = lFgShape === "slopeUp" ? 1 : -1;
+      const run = hi - lo + 1;
+      setLevel((lv) => {
+        if (!lv) return lv;
+        const fg = { ...lv.fg };
+        for (let c = lo; c <= hi; c++) { if (c < 0 || c >= lv.cols) continue; fg[cellKey(r, c)] = paintValue(lColor, activeTexture, { slope: dir, run, step: c - lo, ...(lFgUpsideDown ? { upsideDown: true } : {}) }); }
+        return { ...lv, fg };
+      });
+    };
+    window.addEventListener("pointerup", up);
+    return () => window.removeEventListener("pointerup", up);
+  }, [lHoverCell, lFgShape, lFgUpsideDown, lColor, lBrush, activeTexture]);
+
+  // Area copy: drag from anchor to a different cell to CAPTURE that rectangle (fg/bg/objects,
+  // relative to its own top-left corner) into the clipboard. A plain click with no drag instead
+  // STAMPS the existing clipboard, anchored at the clicked cell — so one selection can be
+  // stamped down as many times as you like (a hand-painted tree, scattered across a forest)
+  // without re-selecting it each time. Only writes cells the clipboard actually has data for,
+  // so stamping never blanks out unrelated paint it lands on top of.
+  useEffect(() => {
+    const up = () => {
+      if (!areaAnchor.current) return;
+      const anchor = areaAnchor.current;
+      areaAnchor.current = null; setAreaDragOn(false);
+      const target = lHoverCell;
+      if (!target) return;
+      if (target.r !== anchor.r || target.c !== anchor.c) {
+        const r0 = Math.min(anchor.r, target.r), r1 = Math.max(anchor.r, target.r);
+        const c0 = Math.min(anchor.c, target.c), c1 = Math.max(anchor.c, target.c);
+        const clip = { w: c1 - c0 + 1, h: r1 - r0 + 1, fg: {}, bg: {}, front: {}, fx: {} };
+        for (const ln of ["fg", "bg", "front", "fx"]) {
+          const src = (level && level[ln]) || {};
+          for (const key of Object.keys(src)) {
+            const [r, c] = key.split(",").map(Number);
+            if (r >= r0 && r <= r1 && c >= c0 && c <= c1) clip[ln][(r - r0) + "," + (c - c0)] = src[key];
+          }
+        }
+        clipboard.current = clip; setHasClipboard(true);
+        flash("📋 Copied " + clip.w + "×" + clip.h + " — click anywhere to stamp it, or drag again to copy something else.");
+      } else if (clipboard.current) {
+        const clip = clipboard.current;
+        setLevel((lv) => {
+          if (!lv) return lv;
+          const fg = { ...lv.fg }, bg = { ...lv.bg }, front = { ...lv.front }, fx = { ...lv.fx };
+          const dest = { fg, bg, front, fx };
+          for (const ln of ["fg", "bg", "front", "fx"]) {
+            for (const key of Object.keys(clip[ln])) {
+              const [dr, dc] = key.split(",").map(Number);
+              const rr = target.r + dr, cc = target.c + dc;
+              if (rr >= 0 && cc >= 0 && rr < lv.rows && cc < lv.cols) dest[ln][cellKey(rr, cc)] = clip[ln][key];
+            }
+          }
+          return { ...lv, fg, bg, front, fx };
+        });
+        flash("✅ Stamped " + clip.w + "×" + clip.h + ".");
+      } else {
+        flash("Drag to select an area to copy first.");
+      }
+    };
+    window.addEventListener("pointerup", up);
+    return () => window.removeEventListener("pointerup", up);
+  }, [lHoverCell, level]);
+
+
+  useEffect(() => {
+    const el = artRef.current; if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => { const r = el.getBoundingClientRect(); if (r.width) setBox({ w: r.width, h: r.height }); });
+    ro.observe(el); return () => ro.disconnect();
+  }, [screen]);
+
+  const loadLibrary = async () => {
+    try {
+      const idx = await sget("assetIndex");
+      const list = idx ? JSON.parse(idx) : [];
+      const full = [];
+      for (const it of list) { const r = await sget("asset:" + it.id); if (r) full.push(migrate(JSON.parse(r))); }
+      setLibrary(full);
+    } catch { setLibrary([]); }
+  };
+  const loadStamps = async () => {
+    try {
+      const idx = await sget("stampIndex"); const list = idx ? JSON.parse(idx) : [];
+      const full = [];
+      for (const e of list) { const raw = await sget("stamp:" + e.id); if (raw) try { full.push(JSON.parse(raw)); } catch { /* skip a corrupt stamp */ } }
+      setStamps(full);
+    } catch { setStamps([]); }
+  };
+
+  const pieces = asset ? (asset.angles[angle] || []) : [];
+  const sel = pieces.find((p) => p.id === selId) || null;
+  const setPieces = (fn) => setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return { ...a, angles: { ...a.angles, [angle]: fn(a.angles[angle] || []) } }; });
+  // A group is a list of piece IDs, so it must never outlive the pieces it points at. The
+  // pose/asset reset below only fires on angle + asset.id — but the live piece list also swaps
+  // underneath a group when you change weapon state (rest/fire), switch fit variant, open an
+  // effect frame, delete a member, or load a different look. Those left ids in groupIds that no
+  // longer exist: the group still *looked* selected (count in the toolbar, Twist hint on screen)
+  // while every group op silently skipped the dead ids — the "it still has previous objects
+  // grabbed" behaviour. Pruning to what's actually present makes the selection always mean what
+  // it says. Keyed on the id signature, so it only fires when the set of pieces really changes.
+  const pieceIdSig = pieces.map((p) => p.id).join(",");
+  useEffect(() => {
+    const live = new Set(pieces.map((p) => p.id));
+    setGroupIds((g) => (g.length && g.some((id) => !live.has(id)) ? g.filter((id) => live.has(id)) : g));
+    if (selId && !live.has(selId)) setSelId(null);
+  }, [pieceIdSig]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Select exactly one piece and nothing else. Used whenever a BRAND NEW block appears (add,
+  // duplicate, line, filled shape): a new block is a fresh start, so it must never be swept into
+  // whatever group was still selected from earlier work — that's what made a newly spawned square
+  // "group itself with the block I was working with prior". Leaving group mode on with a stale
+  // member list meant the very next click on the new block appended it to the old group.
+  const selectOnly = (id) => { setSelId(id); setGroupIds([]); setMultiSelect(false); };
+  // Saved groups: a named set of piece ids for THIS pose, persisted on the asset itself (so it
+  // comes back next time this weapon/body/etc. is opened) — separate from groupIds, which is
+  // just the live in-progress selection while Group select is on.
+  const savedGroups = (asset?.groups && asset.groups[angle]) || [];
+  const saveGroup = () => {
+    if (groupIds.length < 2) { flash("Select at least 2 blocks first."); return; }
+    const name = "Group " + (savedGroups.length + 1);
+    setAsset((a) => { const groups = { ...(a.groups || {}) }; groups[angle] = [...(groups[angle] || []), { id: uid(), name, ids: [...groupIds] }]; return { ...a, groups }; });
+    flash("Saved as \"" + name + "\" — reload it anytime from the list below.");
+  };
+  const loadGroup = (g) => {
+    const validIds = g.ids.filter((id) => pieces.some((p) => p.id === id));
+    // Anchor the selection INSIDE the group being loaded. Without this the properties panel stayed
+    // pointed at whatever was selected before — so Twist/resize/flip acted on that leftover block
+    // (a group op only fires when the selected piece is itself a member), which read as the loaded
+    // group being ignored while an old object was still "grabbed".
+    setMultiSelect(true); setGroupIds(validIds); setSelId(validIds[validIds.length - 1] || null);
+    flash(validIds.length + "/" + g.ids.length + " block(s) from \"" + g.name + "\" selected.");
+  };
+  const deleteGroup = (id) => setAsset((a) => { const groups = { ...(a.groups || {}) }; groups[angle] = (groups[angle] || []).filter((g) => g.id !== id); return { ...a, groups }; });
+  // STORED groups ("stamps") are a different thing from the saved groups above. A saved group is
+  // a list of piece IDS inside one pose of one asset — reselect-only. A stamp is a deep COPY of
+  // the pieces themselves, kept in device storage outside any asset, so the same shirt logo can
+  // be dropped into another pose, another body's fit, or a completely different garment. Pieces
+  // keep their absolute x/y, so stamping onto each body's variant of the same shirt lands the
+  // icon in the same place every time — then nudge it to fit that body.
+  // When STORING a group as a stamp, bake out any live mirroring: a piece flagged mirror:true
+  // renders a scaleX(-1) twin at render time, and that twin is never a real member of the group —
+  // so rotating/resizing the group rotates the original but leaves the twin behaving wrong (the
+  // "rotation doesn't work on mirrored items in a group" bug). Replacing each mirrored piece with
+  // TWO concrete, independent, non-mirrored pieces — the original plus a real reflected copy —
+  // removes all live mirroring, so every stamped piece is a plain block that rotates and scales
+  // correctly as part of a group. The reflected copy mirrors geometry (x = W-(x+w)) and negates
+  // its own rotation (a mirror reverses spin), matching exactly what the scaleX(-1) twin looked
+  // like before, so the baked pair is visually identical to the mirrored original at rest.
+  const bakeMirrorOut = (list) => {
+    const out = [];
+    for (const p of list) {
+      if (!p.mirror) { out.push({ ...p, id: uid() }); continue; }
+      out.push({ ...p, id: uid(), mirror: false }); // the original, now standalone
+      const twinRot = (p.mirrorTwist === false) ? (p.rot || 0) : -(p.rot || 0); // scaleX(-1) reverses rotation unless mirrorTwist pinned it
+      out.push({ ...p, id: uid(), mirror: false, x: W - (p.x + p.w), rot: twinRot }); // concrete reflected copy
+    }
+    return out;
+  };
+  const storeGroup = async () => {
+    if (!groupIds.length) { flash("Select at least 1 block first."); return; }
+    const name = (stampName || "").trim() || ("Stamp " + (stamps.length + 1));
+    const chosen = pieces.filter((p) => groupIds.includes(p.id));
+    const baked = bakeMirrorOut(JSON.parse(JSON.stringify(chosen))); // mirrored pieces become concrete twin pairs so the stamp rotates/scales as one rigid object
+    const stamp = { id: uid(), name, savedAt: Date.now(), pieces: baked };
+    let list = []; const idx = await sget("stampIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    list = list.filter((x) => x.name !== name); list.push({ id: stamp.id, name: stamp.name }); // same name replaces, same as asset saves
+    const ok1 = await sset("stamp:" + stamp.id, JSON.stringify(stamp));
+    const ok2 = await sset("stampIndex", JSON.stringify(list));
+    if (ok1 && ok2) { setStampName(""); loadStamps(); flash("Stored \"" + name + "\" (" + baked.length + " block" + (baked.length === 1 ? "" : "s") + ") — place it into any pose or body. Mirrored parts were baked into real copies so the group rotates as one."); }
+    else flash("Couldn't store here — use Download.");
+  };
+  const placeStamp = (s) => {
+    const fresh = s.pieces.map((p) => ({ ...p, id: uid() }));
+    setPieces((list) => list.concat(fresh));
+    setMultiSelect(true); setGroupIds(fresh.map((p) => p.id)); setSelId(fresh[fresh.length - 1]?.id || null); // land selected AND anchored, so it can be dragged/twisted into place immediately
+    flash("Placed \"" + s.name + "\" — drag to position it.");
+  };
+  const deleteStamp = async (id) => {
+    let list = []; const idx = await sget("stampIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    await sdel("stamp:" + id);
+    await sset("stampIndex", JSON.stringify(list.filter((x) => x.id !== id)));
+    loadStamps();
+  };
+  const updSel = (patch) => setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig({ ...a, angles: { ...a.angles, [angle]: (a.angles[angle] || []).map((p) => (p.id === selId ? { ...p, ...patch } : p)) } }); });
+  // Setting a block's color with "Replace everywhere" on repaints every block in the asset that
+  // already shares that exact color — all 5 poses, a weapon's rest AND fire states, and every
+  // per-body fit under .variants — instead of just the selected one. Only the fill changes;
+  // outline color, glow color and emoji tints are untouched, so a shade that's merely CLOSE to
+  // the old one is left for Blake to catch by hand rather than silently flattened.
+  const applyPieceColor = (c) => {
+    const from = sel && sel.color;
+    if (!recolorAll || !from || effEdit || (sel && sel.kind === "emoji") || c === from) { updSel({ color: c }); return; }
+    setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(recolorAsset(a, from, c)); });
+  };
+  // Skin-palette remap: repaint one of the skin's colours everywhere it appears. palFrom.current
+  // remembers, per original swatch, the colour it currently maps to — so dragging a colour input
+  // (which fires repeatedly) chains from the last-applied shade instead of the now-gone original,
+  // and a mobile colour dialog (one final value) just does a single clean remap.
+  const remapPalette = (orig, to) => {
+    if (!orig || !to) return;
+    const from = palFrom.current[orig] || orig;
+    palFrom.current[orig] = to;
+    if (from.toLowerCase() === to.toLowerCase()) return;
+    setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(recolorAsset(a, from, to)); });
+  };
+  // Twisting one piece while a group is selected turns the WHOLE group together, like one rigid
+  // object (e.g. a machete's blade + handle + guard) — not just the single piece the Twist
+  // control happens to be bound to. Every group member's own rot turns by the same delta, and
+  // their positions swing around the group's shared center so the pieces stay correctly arranged
+  // relative to each other instead of each just spinning in place around its own center.
+  //
+  // The whole transform (position AND rotation) is computed as ONE absolute step from a frozen
+  // `baseline` snapshot of the group taken at the start of this call — never incrementally on
+  // top of whatever's already in state. That matters because the Twist slider fires onChange
+  // continuously while dragged, and React can queue several of those calls before this
+  // component actually re-renders (so `pieces`/`sel` in the closure stay stale across them).
+  // Reading each member's rotation back out of the live `ps` array (as this used to) meant a
+  // member's rot would pick up an earlier queued call's delta and then have a fresh delta added
+  // on top of that — double- (or triple-) rotating it — while position, computed fresh from the
+  // frozen closure each time, still snapped straight to the correct spot. Rotation and position
+  // disagreeing like that is exactly what made a twisted group look like it had come apart: each
+  // piece still landed in the right place, just facing the wrong way, so the assembly read as
+  // broken instead of turned. Keying rot off the same frozen baseline as position makes every
+  // call idempotent — it always lands on the one correct final state regardless of how many
+  // intermediate calls happened first.
+  //
+  // Second, positions must move each piece's VISUAL pivot — the exact point shapeStyle hands to
+  // CSS as transform-origin — not its box center. They're the same for most pieces, but arm
+  // pieces (role weaponArm, or limb:"arm" that isn't a shoe — e.g. a weapon piece flagged to
+  // track the arm) spin around their shoulder EDGE, top or bottom per armPivot. For those, the
+  // box math can be perfectly self-consistent while the rendered piece, pivoting somewhere else,
+  // swings clean out of formation — worse the further the twist — which is exactly the "each
+  // part twists on its own instead of the group turning as one" look. Same pivot-mismatch trap
+  // attachWeaponBlocks already documents; the group math has to respect it too.
+  const groupVisPivot = (p) => {
+    if (p.role === "weaponArm" || (p.limb === "arm" && !p._isShoe)) return armShoulderPoint(p);
+    return { x: p.x + p.w / 2, y: p.y + p.h / 2 };
+  };
+  const updSelRot = (newRot) => {
+    if (!(groupIds.length > 1 && groupIds.includes(selId))) { updSel({ rot: newRot }); return; }
+    const oldRot = sel.rot || 0;
+    const delta = ((newRot - oldRot + 180) % 360 + 360) % 360 - 180; // shortest-path, so dragging across the 0/360 wrap doesn't spin the long way
+    const members = pieces.filter((p) => groupIds.includes(p.id));
+    const cx = members.reduce((s, p) => s + p.x + p.w / 2, 0) / members.length;
+    const cy = members.reduce((s, p) => s + p.y + p.h / 2, 0) / members.length;
+    const rad = delta * Math.PI / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+    const baseline = new Map(members.map((p) => [p.id, p]));
+    setPieces((ps) => ps.map((p) => {
+      const base = baseline.get(p.id);
+      if (!base) return p;
+      const piv = groupVisPivot(base);
+      const dx = piv.x - cx, dy = piv.y - cy;
+      const nx = cx + dx * cos - dy * sin, ny = cy + dx * sin + dy * cos;
+      const nrot = p.id === selId ? newRot : (((base.rot || 0) + delta) % 360 + 360) % 360;
+      return { ...p, rot: nrot, x: base.x + (nx - piv.x), y: base.y + (ny - piv.y) };
+    }));
+  };
+  // Resizing while a group is selected scales the WHOLE group like one object: every member's
+  // width/height AND its distance from the group's shared centre scale by the same factor, so the
+  // pieces keep their relative arrangement (a machete's blade + handle grow together and stay
+  // attached) instead of only the one anchor piece changing. `dim` is "w" or "h"; the scale is
+  // derived from the anchor piece's requested new size vs. its current size, then applied to both
+  // dimensions of every member (uniform scale — the natural feel of dragging a group corner). A
+  // single-piece selection just resizes that one piece on the one axis, exactly as before.
+  const updSelSize = (dim, val) => {
+    if (!sel) return;
+    if (!(groupIds.length > 1 && groupIds.includes(selId))) { updSel({ [dim]: Math.max(1, Math.round(val)) }); return; }
+    const cur = dim === "w" ? sel.w : sel.h;
+    const scale = Math.max(0.05, val / Math.max(1, cur));
+    const members = pieces.filter((p) => groupIds.includes(p.id));
+    const cx = members.reduce((s, p) => s + p.x + p.w / 2, 0) / members.length;
+    const cy = members.reduce((s, p) => s + p.y + p.h / 2, 0) / members.length;
+    const baseline = new Map(members.map((p) => [p.id, p]));
+    setPieces((ps) => ps.map((p) => {
+      const base = baseline.get(p.id);
+      if (!base) return p;
+      const bcx = base.x + base.w / 2, bcy = base.y + base.h / 2;
+      const ncx = cx + (bcx - cx) * scale, ncy = cy + (bcy - cy) * scale;
+      const nw = Math.max(1, Math.round(base.w * scale)), nh = Math.max(1, Math.round(base.h * scale));
+      return { ...p, w: nw, h: nh, x: Math.round(ncx - nw / 2), y: Math.round(ncy - nh / 2) };
+    }));
+  };
+  const updFx = (patch) => setPieces((ps) => ps.map((p) => (p.id === selId ? { ...p, fx: { ...defaultFx(), ...(p.fx || {}), ...patch } } : p)));
+  // Horizontally mirror the selection like one rigid object (a "flip orientation" for a grouped
+  // prop). Three parts, which together are exactly scaleX(-1) about the group's vertical centre:
+  // reflect every member's box across that centre; negate each one's rotation (a mirror reverses
+  // spin); and flip the SILHOUETTE of any asymmetric polygon (a half-triangle, a hand-drawn poly)
+  // by mapping its normalized points x -> 1-x so it truly faces the other way. Vertically-symmetric
+  // shapes (rect, circle, isoceles triangle, pentagon, hexagon…) are their own mirror image, so
+  // their kind is left untouched. A single-piece selection flips just that piece, in place.
+  const polySymmetricX = (pts) => pts.every(([x, y]) => pts.some(([x2, y2]) => Math.abs(x2 - (1 - x)) < 1e-4 && Math.abs(y2 - y) < 1e-4));
+  const flipSelH = () => {
+    if (!sel) return;
+    const members = (groupIds.length > 1 && groupIds.includes(selId)) ? pieces.filter((p) => groupIds.includes(p.id)) : [sel];
+    const cx = members.reduce((s, p) => s + p.x + p.w / 2, 0) / members.length;
+    const ids = new Set(members.map((p) => p.id));
+    setPieces((ps) => ps.map((p) => {
+      if (!ids.has(p.id)) return p;
+      const q = { ...p, x: Math.round(2 * cx - (p.x + p.w)), rot: (((-(p.rot || 0)) % 360) + 360) % 360 };
+      const pts = shapePolyPoints(p);
+      if (pts && !polySymmetricX(pts)) { q.kind = "poly"; q.points = pts.map(([x, y]) => [+(1 - x).toFixed(4), y]); }
+      return q;
+    }));
+  };
+  const pmirror = (p, ang) => p && p.mirror && ang !== "side";
+
+  /* ---- pointer ---------------------------------------------------------- */
+  const toXY = (e) => { const r = artRef.current.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H }; };
+  const grabPiece = (e, p) => {
+    e.stopPropagation();
+    if (eyedrop) {
+      if (!p.color) { flash("That block has no fill color (emoji) — click a colored block."); return; }
+      setNewColor(p.color); addRecent(p.color); setNewFx({ ...defaultFx(), ...(p.fx || {}) }); setEyedrop(false); flash("Picked up color + brightness/glow/fade 🎨");
+      return;
+    }
+    if (multiSelect) {
+      setSelId(p.id); // shows the properties panel (Twist, etc.) for this piece — without this, building a group from scratch left nothing selected and the whole panel (including Twist) never appeared at all
+      if (groupIds.includes(p.id)) {
+        // Already in the group — this could be a plain tap (toggle it back OUT) or the start of
+        // a drag that should move the WHOLE group. Can't tell which yet from pointerdown alone,
+        // so stash every group member's starting x/y and decide in the pointerup handler below
+        // based on whether the pointer actually moved.
+        const m = toXY(e);
+        drag.current = { mode: "groupMove", anchorId: p.id, startMouse: m, moved: false, starts: pieces.filter((pc) => groupIds.includes(pc.id)).map((pc) => ({ id: pc.id, x: pc.x, y: pc.y })) };
+      } else {
+        setGroupIds((g) => [...g, p.id]);
+      }
+      return;
+    }
+    setSelId(p.id); const m = toXY(e); drag.current = { mode: "move", id: p.id, dx: m.x - p.x, dy: m.y - p.y };
+  };
+  const grabCorner = (e, p) => { e.stopPropagation(); setSelId(p.id); const m = toXY(e); const gm = (groupIds.length > 1 && groupIds.includes(p.id)) ? pieces.filter((q) => groupIds.includes(q.id)) : null; const group = gm ? { base: gm.map((q) => ({ id: q.id, x: q.x, y: q.y, w: q.w, h: q.h })), cx: gm.reduce((s, q) => s + q.x + q.w / 2, 0) / gm.length, cy: gm.reduce((s, q) => s + q.y + q.h / 2, 0) / gm.length, startDiag: Math.hypot(p.w, p.h) } : null; drag.current = { mode: "size", id: p.id, rot: p.rot || 0, startW: p.w, startH: p.h, startMouse: m, group }; };
+  const grabHand = (e) => { e.stopPropagation(); drag.current = { mode: "hand" }; };
+
+  useEffect(() => {
+    const move = (e) => {
+      const d = drag.current; if (!d || !artRef.current) return;
+      const m = toXY(e);
+      if (d.mode === "hand") { setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return { ...a, hand: { ...a.hand, [angle]: { x: Math.round(m.x), y: Math.round(m.y) } } }; }); return; }
+      if (d.mode === "groupMove") {
+        const dx = m.x - d.startMouse.x, dy = m.y - d.startMouse.y;
+        if (Math.abs(dx) > 1 || Math.abs(dy) > 1) d.moved = true; // past a tiny jitter threshold — this is a real drag, not a tap
+        setAsset((a) => {
+          if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default");
+          const list = a.angles[angle] || [];
+          const startMap = new Map(d.starts.map((s) => [s.id, s]));
+          const next = list.map((p) => { const st = startMap.get(p.id); return st ? { ...p, x: Math.round(st.x + dx), y: Math.round(st.y + dy) } : p; });
+          return withRig({ ...a, angles: { ...a.angles, [angle]: next } });
+        });
+        return;
+      }
+      if (d.mode === "size" && d.group) {
+        // Corner-resizing a grouped piece scales the WHOLE group like one object: derive a single
+        // uniform factor from how far this corner dragged (the box diagonal vs. its start), then
+        // scale every member's w/h AND its distance from the group's shared centre by it — so the
+        // pieces keep their exact relative arrangement instead of only the dragged block growing.
+        // Everything is recomputed from the frozen baseline each move, so it never drifts.
+        const rad = -d.rot * Math.PI / 180;
+        const dxC = m.x - d.startMouse.x, dyC = m.y - d.startMouse.y;
+        const dxL = dxC * Math.cos(rad) - dyC * Math.sin(rad), dyL = dxC * Math.sin(rad) + dyC * Math.cos(rad);
+        const nw = Math.max(6, d.startW + dxL), nh = Math.max(6, d.startH + dyL);
+        const scale = Math.max(0.05, Math.hypot(nw, nh) / Math.max(1, d.group.startDiag));
+        const cx = d.group.cx, cy = d.group.cy, baseMap = new Map(d.group.base.map((b) => [b.id, b]));
+        setAsset((a) => {
+          if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default");
+          const list = a.angles[angle] || [];
+          const next = list.map((p) => {
+            const b = baseMap.get(p.id); if (!b) return p;
+            const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+            const ncx = cx + (bcx - cx) * scale, ncy = cy + (bcy - cy) * scale;
+            const nwid = Math.max(1, Math.round(b.w * scale)), nhei = Math.max(1, Math.round(b.h * scale));
+            return { ...p, w: nwid, h: nhei, x: Math.round(ncx - nwid / 2), y: Math.round(ncy - nhei / 2) };
+          });
+          return withRig({ ...a, angles: { ...a.angles, [angle]: next } });
+        });
+        return;
+      }
+      setAsset((a) => {
+        if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default");
+        const list = a.angles[angle] || [];
+        const next = list.map((p) => {
+          if (p.id !== d.id) return p;
+          if (d.mode === "move") return { ...p, x: Math.round(m.x - d.dx), y: Math.round(m.y - d.dy) };
+          // Un-rotate the drag delta into the piece's own local axes (inverse of the CSS
+          // rotate() the piece itself renders with) before applying it to w/h — dragging
+          // "along the shape's own wider direction" now actually makes it wider, whichever way
+          // that direction currently points on screen, instead of always growing along the raw
+          // canvas x/y axes regardless of rotation.
+          const rad = -d.rot * Math.PI / 180;
+          const dxC = m.x - d.startMouse.x, dyC = m.y - d.startMouse.y;
+          const dxL = dxC * Math.cos(rad) - dyC * Math.sin(rad);
+          const dyL = dxC * Math.sin(rad) + dyC * Math.cos(rad);
+          return { ...p, w: Math.max(6, Math.round(d.startW + dxL)), h: Math.max(6, Math.round(d.startH + dyL)) };
+        });
+        return withRig({ ...a, angles: { ...a.angles, [angle]: next } });
+      });
+    };
+    const up = () => {
+      const d = drag.current;
+      if (d && d.mode === "groupMove" && !d.moved) setGroupIds((g) => g.filter((id) => id !== d.anchorId));
+      drag.current = null;
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+  });
+
+  /* ---- block actions ---------------------------------------------------- */
+  const addBlock = (kind, char, extra) => {
+    const w = kind === "emoji" ? 40 : 44, h = 44;
+    const p = { id: uid(), kind, x: Math.round(W / 2 - w / 2), y: Math.round(H / 2 - h / 2), w, h, color: newColor, mirror: false, char: kind === "emoji" ? (char || emoji) : undefined, fx: { ...newFx }, ...(extra || {}) };
+    setPieces((ps) => [...ps, p]); selectOnly(p.id); flash("Added — now drag it anywhere.");
+  };
+  const addText = () => {
+    const w = 90, h = 24;
+    const p = { id: uid(), kind: "text", text: "TEXT", font: TEXT_FONTS[0][0], x: Math.round(W / 2 - w / 2), y: Math.round(H / 2 - h / 2), w, h, color: newColor, mirror: false, fx: { ...newFx } };
+    setPieces((ps) => [...ps, p]); selectOnly(p.id); flash("Text added — type your text and pick a font in the panel below.");
+  };
+  // Weapon-only: a collision box, separate from the weapon's visual pieces. Blake's own words —
+  // emoji-based art has "weird quirks" as a hit-detection shape, so damage is checked against
+  // this manually-placed rect instead, regardless of what the weapon looks like. Rendered as a
+  // distinct dashed box in the editor (see shapeStyle's isHitbox branch); invisible everywhere
+  // the weapon is actually drawn as art (Dress Bob, Playtest) — filtered out at those call sites.
+  const addHitbox = () => {
+    const w = 50, h = 50;
+    const p = { id: uid(), kind: "rect", x: Math.round(W / 2 - w / 2), y: Math.round(H / 2 - h / 2), w, h, color: "#ff3c3c", mirror: false, isHitbox: true };
+    setPieces((ps) => [...ps, p]); selectOnly(p.id); flash("Hitbox added — drag/resize it to cover the weapon's business end. Invisible in-game; only used for damage.");
+  };
+  // Ranged-only: the point shots come out of. Read from the weapon's REST art (the pose the gun
+  // is actually held in when it fires), so draw it there — one per pose is enough. It rides the
+  // arm through the same attach math the art does, so the shot always leaves the barrel tip at
+  // the barrel's height, whatever the aim.
+  const addMuzzle = () => {
+    const w = 16, h = 16;
+    const p = { id: uid(), kind: "circle", x: Math.round(W / 2 - w / 2), y: Math.round(H / 2 - h / 2), w, h, color: "#42d6ff", mirror: false, isMuzzle: true };
+    setPieces((ps) => [...ps, p]); selectOnly(p.id); flash("Muzzle added — drag it to the barrel tip (or wherever shots should appear). Invisible in-game.");
+  };
+  // Line tool: click a start point, then an end point — instead of manually dragging/resizing/
+  // twisting a Square into a thin rotated bar, the two clicks directly compute its length and
+  // angle. It's still a completely ordinary "rect" piece afterward (color, outline, fx, resize,
+  // rotate all just work), only the CREATION step is different.
+  const addLine = (p1, p2) => {
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const length = Math.max(6, Math.round(Math.hypot(dx, dy)));
+    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+    const thickness = 5;
+    const midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2;
+    const piece = { id: uid(), kind: "rect", x: Math.round(midX - length / 2), y: Math.round(midY - thickness / 2), w: length, h: thickness, rot: Math.round(angle * 10) / 10, color: newColor, mirror: false, fx: { ...newFx } };
+    setPieces((ps) => [...ps, piece]); selectOnly(piece.id);
+    flash("Line added — drag its resize handle to change length/thickness, Twist to re-angle it.");
+  };
+  // Fill tool: click 3+ points to outline an arbitrary angled shape (a lapel, a diagonal cuff,
+  // an angular collar — anything Square/Circle/Triangle can't approximate), then Finish bakes
+  // those clicks into a "poly" piece: a bounding box (x,y,w,h) plus the clicked points stored as
+  // 0–1 FRACTIONS of that box. Resize/rotate/drag then all work exactly like any other piece —
+  // scaling the box automatically rescales the polygon with it, no special-casing needed.
+  const finishFill = () => {
+    if (fillPts.length < 3) { flash("Need at least 3 points to fill a shape."); return; }
+    const xs = fillPts.map((q) => q.x), ys = fillPts.map((q) => q.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    const w = Math.max(6, Math.round(maxX - minX)), h = Math.max(6, Math.round(maxY - minY));
+    const points = fillPts.map((q) => [(q.x - minX) / (maxX - minX || 1), (q.y - minY) / (maxY - minY || 1)]);
+    const piece = { id: uid(), kind: "poly", points, x: Math.round(minX), y: Math.round(minY), w, h, color: newColor, mirror: false, fx: { ...newFx } };
+    setPieces((ps) => [...ps, piece]); selectOnly(piece.id); setFillPts([]); setDrawMode(null);
+    flash("Filled shape added — drag/resize/rotate it like any other block.");
+  };
+  const cancelDraw = () => { setDrawMode(null); setLinePt1(null); setFillPts([]); };
+  // Routes a click on the .art canvas to whichever draw tool is active, instead of the normal
+  // "tap empty space to deselect" behavior — only intercepts while Line or Fill is actually on.
+  const handleArtClick = (e) => {
+    if (!drawMode) { setSelId(null); return; }
+    const m = toXY(e);
+    if (drawMode === "line") {
+      if (!linePt1) setLinePt1(m);
+      else { addLine(linePt1, m); setLinePt1(null); setDrawMode(null); }
+    } else if (drawMode === "fill") {
+      setFillPts((pts) => [...pts, m]);
+    }
+  };
+  const duplicate = () => { if (!sel) return; const c = { ...sel, id: uid(), x: sel.x + 12, y: sel.y + 12 }; setPieces((ps) => [...ps, c]); selectOnly(c.id); };
+  const remove = () => { if (!sel) return; if (sel.locked) { flash("This block is needed for the game — can't delete it (you can still edit it)."); return; } setPieces((ps) => ps.filter((p) => p.id !== selId)); setSelId(null); };
+  // Send to front / back moves the WHOLE group when one is selected, not just the block that
+  // happens to be the anchor — sending one member of a bush's leaf cluster forward while the rest
+  // stayed put was the "it only sends the object you clicked" bug. The members' order RELATIVE to
+  // each other is preserved (they travel as one slab), and everything else keeps its order too.
+  const layerIds = () => (groupIds.length > 1 && groupIds.includes(selId) ? new Set(groupIds) : new Set([selId]));
+  const toFront = () => { if (!sel) return; const ids = layerIds(); setPieces((ps) => [...ps.filter((p) => !ids.has(p.id)), ...ps.filter((p) => ids.has(p.id))]); };
+  const toBack = () => { if (!sel) return; const ids = layerIds(); setPieces((ps) => [...ps.filter((p) => ids.has(p.id)), ...ps.filter((p) => !ids.has(p.id))]); };
+  const movePiece = (id, dir) => setPieces((ps) => { const i = ps.findIndex((p) => p.id === id); const j = i + dir; if (i < 0 || j < 0 || j >= ps.length) return ps; const a = ps.slice();[a[i], a[j]] = [a[j], a[i]]; return a; });
+  const copyAngle = () => setAsset((a) => {
+    if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default");
+    const src = a.angles[angle] || [];
+    const next = { ...a.angles };
+    const srcGroups = (a.groups && a.groups[angle]) || [];
+    const groups = { ...(a.groups || {}) };
+    // Copy into every OTHER pose this type exposes — Death included; if you're bulk-copying a
+    // pose across, the Death pose gets it too (redraw it afterward if you want it lying down).
+    for (const ag of editablePoses(a.type, a.wtype)) if (ag !== angle) {
+      const idMap = new Map();
+      next[ag] = src.map((p) => { const nid = uid(); idMap.set(p.id, nid); return { ...p, id: nid }; });
+      groups[ag] = srcGroups.map((g) => ({ ...g, id: uid(), ids: g.ids.map((oid) => idMap.get(oid)).filter(Boolean) })).filter((g) => g.ids.length > 1);
+    }
+    return { ...a, angles: next, groups };
+  });
+  // Body creator only: pull one block out of the read-only "copy pose" reference panel into the live pose.
+  // Comes in as a brand-new, fully independent, easily-deletable block — doesn't touch the source pose.
+  const pullPoseCopyPiece = (p) => {
+    const clone = { ...p, id: uid() }; delete clone._m;
+    setAsset((a) => ({ ...a, angles: { ...a.angles, [angle]: [...(a.angles[angle] || []), clone] } }));
+    setSelId(clone.id);
+    flash("Pulled into " + ALABEL[angle] + " — drag it into place.");
+  };
+  // Level-mode branch sets layer/tool directly rather than via selectTool(): selectTool has an
+  // "already-active-tool click resets to Foreground" shortcut meant for manual toolbar clicks,
+  // and it was firing here too whenever Paint was already selected — silently kicking the
+  // layer back to Foreground right after this call set it to Objects, so choosing an emoji
+  // left you painting Foreground blocks instead of placing the object you just picked.
+  const pickEmoji = (m) => { setEmoji(m); addRecentEmoji(m); if (picker?.mode === "change" && sel) updSel({ char: m }); else if (picker?.mode === "level") { setLEmoji(m); setLLayer("obj"); setLTool("paint"); } else addBlock("emoji", m); setPicker(null); setEmojiQuery(""); };
+  const closePicker = () => { setPicker(null); setEmojiQuery(""); };
+  const switchWState = (st) => { if (st === wState) return; setAsset((a) => { const states = { rest: blankAngles(), fire: blankAngles(), ...(a.states || {}) }; states[wState] = a.angles; let nxt = states[st]; if (st === "fire" && anglesEmpty(nxt)) nxt = JSON.parse(JSON.stringify(states.rest)); states[st] = nxt; return { ...a, states, angles: nxt }; }); setSelId(null); setWState(st); };
+  const copyWState = () => { const other = wState === "rest" ? "fire" : "rest"; setAsset((a) => { if (!effEdit) dirtyGuides.current.add(a.guideId || "default"); const states = { rest: blankAngles(), fire: blankAngles(), ...(a.states || {}) }; states[wState] = a.angles; states[other] = JSON.parse(JSON.stringify(a.angles)); return { ...a, states }; }); flash("Copied " + wState + " → " + other); };
+  // Enemy appearance variants — same rest/fire pattern as weapons, but three states. Switching
+  // into an empty onFire/charge inherits Normal (same "auto-clone from the base look" the
+  // weapon's Fire state already does), so 💪 arms drawn on Normal show up automatically the
+  // first time you visit a variant instead of starting from a blank canvas.
+  const switchEState = (st) => { if (st === eState) return; setAsset((a) => { const states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles(), ...(a.states || {}) }; states[eState] = a.angles; let nxt = states[st]; if (st !== "normal" && anglesEmpty(nxt)) nxt = JSON.parse(JSON.stringify(states.normal)); states[st] = nxt; return { ...a, states, angles: nxt }; }); setSelId(null); setEState(st); };
+  const copyEState = () => { if (eState === "normal") return; setAsset((a) => { const states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles(), ...(a.states || {}) }; const cloned = JSON.parse(JSON.stringify(states.normal)); states[eState] = cloned; return { ...a, states, angles: cloned }; }); flash("Copied normal → " + eState); };
+  // Prop animation frames. `a.frames` is the ordered list of front-pose piece lists; `a.angles`
+  // points at whichever frame is being edited right now (so the piece editor's normal
+  // add/select/drag machinery just works). switchPropFrame flushes the live edits back into
+  // frames[old] before loading frames[new]. syncProp (below, in the save pipeline) does the same
+  // flush at save time, mirroring how syncWeapon/syncEnemy flush their live state.
+  const switchPropFrame = (idx) => {
+    setAsset((a) => { const frames = [...(a.frames || [blankAngles()])]; frames[propFrame] = a.angles; if (!frames[idx]) frames[idx] = blankAngles(); return { ...a, frames, angles: frames[idx] }; });
+    setSelId(null); setPropFrame(idx);
+  };
+  const addPropFrame = (mode) => { // "blank" | "duplicate"
+    setAsset((a) => {
+      const frames = [...(a.frames || [blankAngles()])];
+      frames[propFrame] = a.angles; // flush current edits first
+      const nf = mode === "duplicate" ? (() => { const c = JSON.parse(JSON.stringify(a.angles)); for (const ang of ANGLES) (c[ang] || []).forEach((p) => { p.id = uid(); }); return c; })() : blankAngles();
+      frames.splice(propFrame + 1, 0, nf);
+      return { ...a, frames, angles: frames[propFrame + 1] };
+    });
+    setSelId(null); setPropFrame((i) => i + 1);
+    flash(mode === "duplicate" ? "Duplicated frame ✓" : "Blank frame added ✓");
+  };
+  const deletePropFrame = () => {
+    const frames0 = asset.frames || [];
+    if (frames0.length <= 1) { flash("Can't delete the only frame."); return; }
+    const newIdx = Math.min(propFrame, frames0.length - 2);
+    setAsset((a) => { const frames = [...(a.frames || [])]; frames.splice(propFrame, 1); return { ...a, frames, angles: frames[newIdx] }; });
+    setSelId(null); setPropFrame(newIdx);
+    flash("Frame deleted ✓");
+  };
+  const movePropFrame = (dir) => {
+    const frames0 = asset.frames || [];
+    const j = propFrame + dir; if (j < 0 || j >= frames0.length) return;
+    setAsset((a) => { const frames = [...(a.frames || [])]; frames[propFrame] = a.angles; [frames[propFrame], frames[j]] = [frames[j], frames[propFrame]]; return { ...a, frames }; });
+    setPropFrame(j);
+  };
+  // Skin/equipment per-body layouts — keyed by whichever body's id was the active guide
+  // (asset.guideId) when that layout was drawn; "default" when no specific body is picked.
+  // Switching the EXISTING "🧍 Load body" guide picker now also swaps which layout you're
+  // editing: it saves the current work under the body you were just designing for, then loads
+  // that NEW body's own layout if one exists — or, if this body has never been designed for,
+  // clones whichever layout was worked on most recently (lastFit) as a starting point, so
+  // switching bodies never dumps you back to a blank canvas.
+  //
+  // Weapons work the same way, with one addition: a fit variant bundles states (rest/fire)
+  // AND the weapon's own hand/grip reference point together (see blankFitVariant), and cloning
+  // a fallback fit for a body that's never been designed for SHIFTS every piece (and the grip
+  // point) by the difference between that body's hand position and the fallback body's — so a
+  // machete that was fit to Bob starts out already roughly sitting in Bobette's hand instead of
+  // wherever it sat in Bob's, compensating for their different arm lengths right away. It's
+  // still just a starting point — fully editable and saved as ITS OWN fit from there, exactly
+  // like skins already work.
+  const currentFitSnapshot = (a) => a.type === "weapon" ? { states: { ...(a.states || { rest: blankAngles(), fire: blankAngles() }), [wState]: a.angles } } : a.angles;
+  const applyFitVariant = (a, v) => a.type === "weapon" ? { states: v.states, angles: (v.states && v.states[wState]) || blankAngles() } : { angles: v };
+  const shiftWeaponFitToGuide = (fallback, fromGuideId, toGuideId) => {
+    const fromHand = handForGuideId(fromGuideId), toHand = handForGuideId(toGuideId);
+    const shiftPieces = (pieces, ang) => { const dx = toHand[ang].x - fromHand[ang].x, dy = toHand[ang].y - fromHand[ang].y; return (pieces || []).map((p) => ({ ...p, x: p.x + dx, y: p.y + dy })); };
+    const shiftAngles = (ag) => { const out = {}; for (const ang of ANGLES) out[ang] = shiftPieces((ag || {})[ang], ang); return out; };
+    return { states: { rest: shiftAngles(fallback.states.rest), fire: shiftAngles(fallback.states.fire) } };
+  };
+  const switchGuideFit = (newGuide) => {
+    setAsset((a) => {
+      if (!a.variants) return { ...a, guideId: newGuide }; // shouldn't happen now that weapons get variants too — kept as a safety net for any other future type
+      const curKey = a.guideId || "default";
+      const variants = { default: blankFitVariant(a.type), ...a.variants };
+      variants[curKey] = currentFitSnapshot(a);
+      const nextKey = newGuide || "default";
+      let nxt = variants[nextKey];
+      if (!nxt) {
+        const fallbackKey = (a.lastFit && variants[a.lastFit]) ? a.lastFit : curKey;
+        const fallback = variants[fallbackKey] || blankFitVariant(a.type);
+        nxt = a.type === "weapon" ? shiftWeaponFitToGuide(fallback, fallbackKey, nextKey) : JSON.parse(JSON.stringify(fallback));
+        variants[nextKey] = nxt;
+      }
+      return { ...a, guideId: newGuide, variants, ...applyFitVariant(a, nxt), lastFit: nextKey };
+    });
+    setSelId(null);
+  };
+  // Copies the fit currently being edited to every OTHER body at once, instead of refitting each
+  // one by hand — e.g. renaming/reworking "Bob's shoes" into "#2 Socks" doesn't retroactively fit
+  // any other character; this is the fast way to push one good fit everywhere. Overwrites those
+  // bodies' existing layouts for this item, so it asks first.
+  const copyFitToOtherBodies = () => {
+    const bodies = library.filter((a) => a.type === "body");
+    const curId = asset.guideId || "default";
+    const others = bodies.filter((b) => b.id !== curId);
+    if (!others.length) { flash("No other bodies to copy to yet."); return; }
+    const ok = window.confirm("Copy this fit to " + others.length + " other " + (others.length === 1 ? "body" : "bodies") + "? This overwrites their existing layout for this item.");
+    if (!ok) return;
+    setAsset((a) => {
+      const variants = { ...(a.variants || {}) };
+      const confirmed = new Set(a.confirmedFits || []);
+      const snapshot = currentFitSnapshot(a);
+      for (const b of others) { variants[b.id] = JSON.parse(JSON.stringify(snapshot)); confirmed.add(b.id); }
+      return { ...a, variants, confirmedFits: [...confirmed] };
+    });
+    flash("Copied to " + others.length + " " + (others.length === 1 ? "body" : "bodies") + ".");
+  };
+  // This equipment's own Side-pose art for a given body (same fallback chain fitFor uses when
+  // composing a look) — used to seed a brand-new effect-animation frame as a starting copy,
+  // per the brief ("it will initially copy the side appearance and I can customize from there").
+  const equipmentSideFor = (a, bodyId) => {
+    if (!a.variants) return (a.angles && a.angles.side) || [];
+    const key = (bodyId && a.variants[bodyId]) ? bodyId : (a.lastFit && a.variants[a.lastFit] ? a.lastFit : "default");
+    const src = a.variants[key] || a.variants.default || blankAngles();
+    return src.side || [];
+  };
+  const addEffect = (type) => {
+    setAsset((a) => {
+      if ((a.effects || []).some((e) => e.type === type)) return a; // one of each effect type per item, for now
+      const def = EFFECT_TYPES[type];
+      const params = {}; def.params.forEach((p) => { params[p.key] = p.def; });
+      const eff = { id: uid(), type, ...params, animByBody: {}, lastFit: "default", ...(def.tagParam ? { tag: "" } : {}) };
+      return { ...a, effects: [...(a.effects || []), eff] };
+    });
+    flash(EFFECT_TYPES[type].label + " added — set it up below.");
+  };
+  const removeEffect = (effId) => {
+    setAsset((a) => ({ ...a, effects: (a.effects || []).filter((e) => e.id !== effId) }));
+    if (effEdit && effEdit.effId === effId) setEffEdit(null);
+  };
+  const updateEffectParam = (effId, key, val) => {
+    setAsset((a) => ({ ...a, effects: a.effects.map((e) => (e.id === effId ? { ...e, [key]: val } : e)) }));
+  };
+  // Enters the animation designer for one effect: stashes the equipment's own current working
+  // art back into its variant map first (same save-back switchGuideFit does) since asset.angles
+  // is about to point at a FRAME instead — this asset never stops being type "equipment", so
+  // that stash is what keeps the real art from getting clobbered (see syncEffectAnim). Then loads
+  // whichever body this effect was last designed for, seeding one frame from this equipment's own
+  // Side art for that body if nothing's been drawn for it yet.
+  const openEffectAnim = (effId) => {
+    const eff = (asset.effects || []).find((e) => e.id === effId);
+    if (!eff) return;
+    const bodyKey = eff.lastFit || "default";
+    setAsset((a) => {
+      let next = a;
+      if (a.variants) {
+        const curKey = a.guideId || "default";
+        const variants = { default: blankAngles(), ...a.variants };
+        variants[curKey] = a.angles;
+        next = { ...a, variants };
+      }
+      const effects2 = next.effects.map((e) => {
+        if (e.id !== effId) return e;
+        const animByBody = { ...e.animByBody };
+        let frames = animByBody[bodyKey];
+        if (!frames || !frames.length) {
+          const src = equipmentSideFor(next, bodyKey === "default" ? null : bodyKey);
+          frames = [{ ...blankFrame(), side: JSON.parse(JSON.stringify(src)).map((p) => ({ ...p, id: uid() })) }];
+          animByBody[bodyKey] = frames;
+        }
+        return { ...e, animByBody };
+      });
+      const effOut = effects2.find((e) => e.id === effId);
+      return { ...next, effects: effects2, angles: effOut.animByBody[bodyKey][0] };
+    });
+    setEffEdit({ effId, bodyKey, frameIdx: 0 });
+    setAngle("side");
+    setSelId(null);
+  };
+  const closeEffectAnim = () => {
+    setAsset((a) => syncEffectAnim(a));
+    setEffEdit(null);
+    setSelId(null);
+  };
+  const switchEffectFrame = (newIdx) => {
+    if (!effEdit) return;
+    setAsset((a) => {
+      const effects = a.effects.map((e) => {
+        if (e.id !== effEdit.effId) return e;
+        const animByBody = { ...e.animByBody };
+        const frames = [...(animByBody[effEdit.bodyKey] || [])];
+        frames[effEdit.frameIdx] = a.angles;
+        animByBody[effEdit.bodyKey] = frames;
+        return { ...e, animByBody };
+      });
+      const eff = effects.find((e) => e.id === effEdit.effId);
+      const frames = eff.animByBody[effEdit.bodyKey];
+      return { ...a, effects, angles: frames[newIdx] };
+    });
+    setEffEdit((s) => ({ ...s, frameIdx: newIdx }));
+    setSelId(null);
+  };
+  const switchEffectBody = (newBodyKey) => {
+    if (!effEdit) return;
+    setAsset((a) => {
+      const effects = a.effects.map((e) => {
+        if (e.id !== effEdit.effId) return e;
+        const animByBody = { ...e.animByBody };
+        const oldFrames = [...(animByBody[effEdit.bodyKey] || [])];
+        oldFrames[effEdit.frameIdx] = a.angles;
+        animByBody[effEdit.bodyKey] = oldFrames;
+        let frames = animByBody[newBodyKey];
+        if (!frames || !frames.length) {
+          // Never designed for this body yet — seed ONE frame from this equipment's own Side
+          // art for it, so it starts as a recognizable copy instead of a blank canvas.
+          const src = equipmentSideFor(a, newBodyKey === "default" ? null : newBodyKey);
+          frames = [{ ...blankFrame(), side: JSON.parse(JSON.stringify(src)).map((p) => ({ ...p, id: uid() })) }];
+          animByBody[newBodyKey] = frames;
+        }
+        return { ...e, animByBody, lastFit: newBodyKey };
+      });
+      const eff = effects.find((e) => e.id === effEdit.effId);
+      return { ...a, effects, angles: eff.animByBody[newBodyKey][0] };
+    });
+    setEffEdit({ effId: effEdit.effId, bodyKey: newBodyKey, frameIdx: 0 });
+    setSelId(null);
+  };
+  const addAnimFrame = (mode) => { // mode: "blank" | "duplicate"
+    if (!effEdit) return;
+    setAsset((a) => {
+      const effects = a.effects.map((e) => {
+        if (e.id !== effEdit.effId) return e;
+        const animByBody = { ...e.animByBody };
+        const frames = [...(animByBody[effEdit.bodyKey] || [])];
+        frames[effEdit.frameIdx] = a.angles; // flush current edits before inserting
+        let newFrame;
+        if (mode === "duplicate") { newFrame = JSON.parse(JSON.stringify(a.angles)); for (const ang of ANGLES) (newFrame[ang] || []).forEach((p) => { p.id = uid(); }); }
+        else newFrame = blankFrame();
+        frames.splice(effEdit.frameIdx + 1, 0, newFrame);
+        animByBody[effEdit.bodyKey] = frames;
+        return { ...e, animByBody };
+      });
+      const eff = effects.find((e) => e.id === effEdit.effId);
+      return { ...a, effects, angles: eff.animByBody[effEdit.bodyKey][effEdit.frameIdx + 1] };
+    });
+    setEffEdit((s) => ({ ...s, frameIdx: s.frameIdx + 1 }));
+    setSelId(null);
+    flash(mode === "duplicate" ? "Duplicated frame ✓" : "Blank frame added ✓");
+  };
+  const deleteAnimFrame = () => {
+    if (!effEdit) return;
+    const eff0 = asset.effects.find((e) => e.id === effEdit.effId);
+    const frames0 = eff0.animByBody[effEdit.bodyKey] || [];
+    if (frames0.length <= 1) { flash("Can't delete the only frame."); return; }
+    const newIdx = Math.min(effEdit.frameIdx, frames0.length - 2);
+    setAsset((a) => {
+      const effects = a.effects.map((e) => {
+        if (e.id !== effEdit.effId) return e;
+        const animByBody = { ...e.animByBody };
+        const frames = [...(animByBody[effEdit.bodyKey] || [])];
+        frames.splice(effEdit.frameIdx, 1);
+        animByBody[effEdit.bodyKey] = frames;
+        return { ...e, animByBody };
+      });
+      const eff = effects.find((e) => e.id === effEdit.effId);
+      return { ...a, effects, angles: eff.animByBody[effEdit.bodyKey][newIdx] };
+    });
+    setEffEdit((s) => ({ ...s, frameIdx: newIdx }));
+    setSelId(null);
+    flash("Frame deleted ✓");
+  };
+  const moveAnimFrame = (dir) => {
+    if (!effEdit) return;
+    const eff0 = asset.effects.find((e) => e.id === effEdit.effId);
+    const frames0 = eff0.animByBody[effEdit.bodyKey] || [];
+    const j = effEdit.frameIdx + dir;
+    if (j < 0 || j >= frames0.length) return;
+    setAsset((a) => {
+      const effects = a.effects.map((e) => {
+        if (e.id !== effEdit.effId) return e;
+        const animByBody = { ...e.animByBody };
+        const frames = [...(animByBody[effEdit.bodyKey] || [])];
+        frames[effEdit.frameIdx] = a.angles;
+        [frames[effEdit.frameIdx], frames[j]] = [frames[j], frames[effEdit.frameIdx]];
+        animByBody[effEdit.bodyKey] = frames;
+        return { ...e, animByBody };
+      });
+      return { ...a, effects };
+    });
+    setEffEdit((s) => ({ ...s, frameIdx: j }));
+  };
+
+  /* ---- render helpers (HTML) -------------------------------------------- */
+  const reflect = (p) => ({ ...p, id: p.id + "_m", x: W - (p.x + p.w), _m: true });
+  // Dressed characters are ALREADY fully baked — their mirror twins are stored as real pieces
+  // (still carrying mirror:true from the source assets). Re-expanding them stacked a flipped
+  // duplicate on every mirrored piece (4 copies in non-side poses), invisible at rest but
+  // counter-rotating against each other the moment the climb cycle animated them.
+  const bake = (a, ang) => { if (a && a.type === "character") return (a.angles[ang] || []).slice(); const out = []; for (const p of (a.angles[ang] || [])) { out.push(p); if (pmirror(p, ang)) out.push(reflect(p)); } return out; };
+  // Layers a body + its clothing correctly: lower-body items (pants, underwear, shoes) always
+  // render below the arm; upper-body items render above or below it per their own "Over arms"
+  // flag. Everything else (skin, hats, anything without a recognized slot) keeps the old simple
+  // behindBody/front split. Shared by the Dress Bob preview and the final composed character so
+  // testing and the real export always match.
+  const layerBodyAndOverlays = (body, overlays, ang) => {
+    // _src tags which asset a piece came from. A cutter must only punch a hole through the
+    // garment it belongs to (the mask it was drawn on), never through the body under it — so
+    // every finished-look render site groups pieces by _src and masks each group separately.
+    const bodyPieces = (body ? bake(body, ang) : []).map((p) => ({ ...p, _src: body.id }));
+    const isArm = (p) => p.role === "weaponArm" || p.limb === "arm";
+    const bodyNonArm = bodyPieces.filter((p) => !isArm(p));
+    const bodyArm = bodyPieces.filter(isArm);
+    // Which body pieces count as "the leg" for the crouch reorder below — explicit flag first,
+    // falling back to the same bottommost-piece heuristic identifyLimbs already uses elsewhere.
+    // Crouch is usually a static (non-animated) pose, so Blake doesn't always bother flagging
+    // it — this makes "shirt goes behind the leg" work automatically either way.
+    const { legIds: bodyLegIds } = identifyLimbs(bodyNonArm);
+    // Pick the overlay's layout for the WORN body's build (skinny/average/fat) — falling back
+    // to Default if that build has no dedicated fit yet, and to the asset's plain .angles for
+    // anything saved before the variants system existed at all.
+    // Pick the overlay's layout for the body actually being WORN — matched by that body's own
+    // id (whichever layout was drawn with this body picked as the guide). If this body has
+    // never been designed for, fall back to whichever layout was most recently worked on
+    // (lastFit), then Default, then the asset's plain .angles for pre-variants saves.
+    const fitFor = (a) => {
+      if (!a.variants) return a;
+      const bodyId = body && body.id;
+      const key = (bodyId && a.variants[bodyId]) ? bodyId : (a.lastFit && a.variants[a.lastFit] ? a.lastFit : "default");
+      return { ...a, angles: a.variants[key] || a.variants.default || a.angles };
+    };
+    const belowLegs = [], back = [], shoesLower = [], lower = [], upperUnder = [], upperOver = [], skinDecor = [], other = [];
+    const hatEquipped = overlays.some((a) => a.slot === "hat" && !a.ignoreHideIfHat);
+    for (const a0 of overlays) {
+      const a = fitFor(a0);
+      for (const p of bake(a, ang)) {
+        if (hatEquipped && p.hideIfHat) continue; // covered by the hat — skip it entirely instead of letting it show/fade through
+        p._src = a0.id; // which asset this piece came from -- scopes its cutter holes (see cutterRuns)
+        p._slot = a.slot; // internal marker only — lets the crouch-pose reorder below (and nothing else) know which piece is a shirt/jacket
+        if (a.slot === "shoes") { p.limb = "leg"; p._isShoe = true; } // shoes always follow the leg — no manual flagging needed, and see the foot-arc handling in the walk/climb animation below
+        if (p.behindBody) back.push(p);
+        else if (a.slot === "shoes") shoesLower.push(p); // shoes sit UNDER pants/underwear (a pant leg falls over the shoe), but still over the bare leg
+        else if (LOWER_BODY_SLOTS.has(a.slot)) (p.behindLegs ? belowLegs : lower).push(p);
+        else if (UPPER_BODY_SLOTS.has(a.slot)) (p.overArms ? upperOver : upperUnder).push(p);
+        else if (a.type === "skin") skinDecor.push(p); // drawn-on skin art (hair/eyes/teeth) sits ON the body but UNDER clothing — never frontmost over a shirt/cape
+        else other.push(p);
+      }
+    }
+    // Skin decor (face/eyes/teeth/hair) is painted ON the body — so it renders directly over the
+    // body and UNDER every piece of clothing automatically. Clothing that isn't flagged
+    // behind-body wraps AROUND the body, so it covers skin wherever they overlap (a cape's front
+    // piece over the face); the face can never phase through it. No flags needed for any of this.
+    let out = back.concat(belowLegs).concat(bodyNonArm).concat(skinDecor).concat(shoesLower).concat(lower).concat(upperUnder).concat(bodyArm).concat(upperOver).concat(other);
+    if (ang === "crouch") {
+      // Crouching brings a bent knee up in front of the torso — a shirt shouldn't paint over
+      // it. Move every shirt/jacket piece to just before the FIRST leg piece, instead of
+      // moving legs forward past everything — moving legs forward would also leapfrog them
+      // past unrelated pieces (pants) that happen to sit between the leg and the shirt in the
+      // base order, silently flipping the leg/pants relationship too even though only the
+      // leg/shirt relationship was supposed to change.
+      // A piece flagged "Over arms only" (overArms) is authored to render frontmost — a cape/jacket
+      // front panel that sits over the character. It must NOT be tucked behind the bent knee here,
+      // or it lands behind the head in crouch. Only plain (non-over-arms) shirt panels tuck back.
+      // Skin rides along: it's re-inserted with the shirts as [skin, shirts] so the stack stays
+      // body → skin → shirt → knee — the face under the cape, the cape under the bent knee.
+      const skinSet = new Set(skinDecor);
+      const isShirtPiece = (p) => p._slot && UPPER_BODY_SLOTS.has(p._slot) && !p.overArms && !p.behindBody;
+      const shirts = out.filter(isShirtPiece);
+      const isLegPiece = (p) => p.limb === "leg" || bodyLegIds.has(p.id);
+      if (shirts.length) {
+        const rest = out.filter((p) => !isShirtPiece(p) && !skinSet.has(p));
+        // Anchor the tuck to the BODY, not to "the first leg in draw order": insert
+        // [skin, shirts] right after the LAST non-leg body piece (torso/head). A body that
+        // draws a rear leg EARLY (behind its torso) made the old first-leg rule shove the
+        // skin and shirts behind the head — eyes hidden by the head itself, and the head's
+        // own features (the nose) poking out in front of the cape. Any leg drawn after the
+        // torso — the bent front knee — still lands in front of the shirts and covers them.
+        const bodySet = new Set(bodyNonArm.filter((p) => !isLegPiece(p)));
+        let anchorIdx = -1;
+        rest.forEach((p, i) => { if (bodySet.has(p)) anchorIdx = i; });
+        const insert = skinDecor.concat(shirts);
+        if (anchorIdx !== -1) out = rest.slice(0, anchorIdx + 1).concat(insert).concat(rest.slice(anchorIdx + 1));
+        else { const firstLegIdx = rest.findIndex(isLegPiece); out = firstLegIdx === -1 ? rest.concat(insert) : rest.slice(0, firstLegIdx).concat(insert).concat(rest.slice(firstLegIdx)); }
+      }
+    }
+    return out;
+  };
+  const fxCss = (p) => { const f = p.fx; if (!f) return {}; const parts = []; if (f.glow > 0) parts.push(`drop-shadow(0 0 ${f.glow}px ${f.glowColor})`); if (f.bright !== 1) parts.push(`brightness(${f.bright})`); const o = {}; if (f.opacity !== 1) o.opacity = f.opacity; if (parts.length) o.filter = parts.join(" "); return o; };
+  // Outer wrapper: position, size, transform, opacity, and the piece's own Effects filter
+  // (fxCss — glow/brightness). Deliberately carries NO clip-path — a clip-path on the SAME
+  // element as a filter clips away any part of that filter (drop-shadow glow, and even a plain
+  // CSS `outline`) that would render outside the box, even when the clip-path traces the exact
+  // same rectangle as the box. That silently killed Glow (and the selection/group outline) on
+  // every non-rect/circle shape — triangle, diamond, pentagon, hexagon, star, trapezoid, any
+  // Fill/poly shape. See shapeFillStyle for the clipped inner child this wraps.
+  const shapeStyle = (p, off, faded, mirrored) => {
+    const ox = off ? off.x : 0, oy = off ? off.y : 0;
+    const s = { position: "absolute", left: ((p.x + ox) / W * 100) + "%", top: ((p.y + oy) / H * 100) + "%", width: (p.w / W * 100) + "%", height: (p.h / H * 100) + "%", boxSizing: "border-box" };
+    if (faded) s.opacity = 0.25; else Object.assign(s, fxCss(p));
+    const t = [];
+    const rot = mirrored ? (p.mirrorTwist === false ? -(p.rot || 0) : (p.rot || 0)) : (p.rot || 0);
+    if (mirrored) t.push("scaleX(-1)");
+    if (rot) t.push(`rotate(${rot}deg)`);
+    if (t.length) s.transform = t.join(" ");
+    if (p.role === "weaponArm" || (p.limb === "arm" && !p._isShoe)) s.transformOrigin = armPivotOrigin(p.armPivot);
+    else if (p._animPivotTop) s.transformOrigin = "50% 0%"; // walk/climb-swung legs: hip stays anchored, only the lower leg sweeps
+    return s;
+  };
+  // Inner fill: the piece's actual visible paint (clip-path silhouette + color), sized 100%/100%
+  // to exactly fill shapeStyle's outer box. No filter/opacity/transform here — those live on the
+  // outer wrapper now so they aren't clipped away (see shapeStyle's comment above).
+  const shapeFillStyle = (p) => {
+    const s = { width: "100%", height: "100%", boxSizing: "border-box" };
+    if (p.kind === "circle") s.borderRadius = "50%";
+    else { const cp = shapeClipPath(p); if (cp) s.clipPath = cp; }
+    // A cutter punches a transparent hole through whatever renders before it (eye sockets, a
+    // buttonhole, a belt buckle gap) instead of adding its own color. This used to be attempted
+    // with `mixBlendMode:"destination-out"` — but that string isn't a real CSS mix-blend-mode
+    // value (mix-blend-mode can only blend colors; it can never punch actual transparency into a
+    // backdrop), so the browser silently dropped it and the piece just rendered as an ordinary
+    // solid-colored shape. The real hole is now cut with an actual SVG mask on the CONTAINER
+    // (see cutterMaskCss, applied at every finished-look render site: Dress Bob, Playtest player,
+    // Playtest enemies) — so a cutter piece itself should paint no color of its own anywhere.
+    if (p.kind !== "emoji" && p.kind !== "text" && !p.isCutter) s.background = p.color;
+    // A hitbox piece is a game-logic box, not art — always shown this way regardless of its
+    // own color/kind, so it reads unmistakably differently from every other piece while editing.
+    if (p.isHitbox) { s.background = "rgba(255,60,60,.32)"; s.border = "2px dashed #ff3c3c"; s.boxShadow = "none"; }
+    // Same idea as the hitbox: a muzzle is a game-logic MARKER (where shots spawn), not art, so
+    // it reads unmistakably in the editor and is filtered out of every render that draws the
+    // weapon for real (Dress Bob, Playtest, a saved dressed look).
+    if (p.isMuzzle) { s.background = "rgba(66,214,255,.30)"; s.border = "2px dashed #42d6ff"; s.borderRadius = "50%"; s.boxShadow = "none"; }
+    return s;
+  };
+  // Outer wrapper for the outline layer: position/transform/opacity + the outline's own filter
+  // (glow, brightness, and — for clip-path shapes — the ring of small drop-shadow offsets that
+  // fakes a uniform outline). No clip-path here, for the same reason as shapeStyle above: a
+  // clip-path on the SAME element as a filter clips away anything that filter renders outside the
+  // box — which was silently killing the entire outline ring (not just its glow/brightness), on
+  // every non-rect/circle shape. Text pieces have no separate fill child (see outlineFillStyle) —
+  // their own stroke IS the outline, rendered directly inside this wrapper.
+  const outlineStyle = (p, off, mirrored, faded) => {
+    const ox = off ? off.x : 0, oy = off ? off.y : 0;
+    const s = { position: "absolute", left: ((p.x + ox) / W * 100) + "%", top: ((p.y + oy) / H * 100) + "%", width: (p.w / W * 100) + "%", height: (p.h / H * 100) + "%", boxSizing: "border-box", pointerEvents: "none" };
+    const t = [];
+    const rot = mirrored ? (p.mirrorTwist === false ? -(p.rot || 0) : (p.rot || 0)) : (p.rot || 0);
+    if (mirrored) t.push("scaleX(-1)");
+    if (rot) t.push(`rotate(${rot}deg)`);
+    if (t.length) s.transform = t.join(" ");
+    if (p.role === "weaponArm" || (p.limb === "arm" && !p._isShoe)) s.transformOrigin = armPivotOrigin(p.armPivot);
+    else if (p._animPivotTop) s.transformOrigin = "50% 0%";
+    const ofx = p.outlineFx || {};
+    if (faded) s.opacity = 0.25; // guide-preview reference — stays uniformly translucent, like before
+    else if (ofx.opacity !== undefined && ofx.opacity !== 1) s.opacity = ofx.opacity;
+    const filterParts = [];
+    if (ofx.glow > 0) filterParts.push(`drop-shadow(0 0 ${ofx.glow}px ${ofx.glowColor || "#ffd76b"})`);
+    if (ofx.bright !== undefined && ofx.bright !== 1) filterParts.push(`brightness(${ofx.bright})`);
+    if (p.kind !== "text") {
+      const oc = p.outlineColor || "#000";
+      const cp = shapeClipPath(p);
+      if (cp) {
+        // box-shadow renders outside the element's border-box, but clip-path clips the entire
+        // rendered box — shadow included — so it silently never showed on any clip-path shape.
+        // drop-shadow instead follows the actual post-clip silhouette (of outlineFillStyle's fill
+        // sibling, which sits right below this wrapper) — one drop-shadow only casts in a single
+        // direction though, so 8 tiny same-color offsets in a ring approximate a uniform outline.
+        const d = 1.4;
+        const dirs = [[d, 0], [-d, 0], [0, d], [0, -d], [d, d], [d, -d], [-d, d], [-d, -d]];
+        filterParts.push(...dirs.map(([dx, dy]) => `drop-shadow(${dx}px ${dy}px 0 ${oc})`));
+      }
+    }
+    if (filterParts.length) s.filter = filterParts.join(" ");
+    return s;
+  };
+  // Inner outline fill (everything but text — see outlineStyle above): a clip-path shape gets a
+  // solid silhouette in the outline color for the ring drop-shadows above to key their alpha off
+  // of; rect/circle instead just uses a plain box-shadow ring (fine there since there's no
+  // clip-path on this element to fight with).
+  const outlineFillStyle = (p) => {
+    const s = { width: "100%", height: "100%", boxSizing: "border-box" };
+    const oc = p.outlineColor || "#000";
+    const cp = shapeClipPath(p);
+    if (cp) { s.clipPath = cp; s.background = oc; }
+    else { if (p.kind === "circle") s.borderRadius = "50%"; s.boxShadow = "0 0 0 2px " + oc; }
+    return s;
+  };
+  // Builds a CSS mask-image for a CONTAINER that hosts a finished (non-editable) render of
+  // `pieces`, punching a real transparent hole wherever a cutter piece sits. mix-blend-mode
+  // cannot do this (see shapeStyle) — masks can, but only against the element they're applied
+  // to, not sibling pieces — so the hole is computed once here and applied to the shared
+  // wrapper instead of the individual cutter piece. An SVG <mask> (white keep / black cut)
+  // is rasterized first and used purely for its resulting ALPHA channel (the outer rect is
+  // "cut out" internally by the SVG's own mask, which turns each hole into real alpha:0 pixels
+  // in the flattened image) — that sidesteps the luminance-vs-alpha ambiguity browsers have
+  // for CSS mask-image sources, since alpha:0/alpha:1 mean the same thing under either mode.
+  // Rotation/position match shapeStyle's own math exactly (rotate about the piece's own
+  // center); mirrored twins get the same scaleX(-1)-about-center flip shapeStyle applies, so a
+  // mirrored cutter's hole lines up with its mirrored piece. Callers must also filter cutter
+  // pieces OUT of their own piece-render list — this only supplies the hole, not the piece.
+  const cutterMaskCache = useRef({});
+  const cutterMaskCss = (pieces, cacheKey) => {
+    const cutters = (pieces || []).filter((p) => p.isCutter);
+    if (!cutters.length) return {};
+    // Cheap signature of just what actually affects the mask's shape — if this hasn't changed
+    // since last frame (the common case: a static face/eye cutter on a body that's just
+    // walking around), skip rebuilding the SVG string and reuse the exact same style object.
+    const sig = cutters.map((p) => [p.id, Math.round(p.x), Math.round(p.y), Math.round(p.w), Math.round(p.h), Math.round((p.rot || 0) * 10), p.kind, p._m ? 1 : 0, p.mirrorTwist === false ? 1 : 0].join(":")).join("|");
+    const key = cacheKey || "default";
+    const cached = cutterMaskCache.current[key];
+    if (cached && cached.sig === sig) return cached.css;
+    const shapes = cutters.map((p) => {
+      const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+      const mirrored = !!p._m;
+      const rot = mirrored ? (p.mirrorTwist === false ? -(p.rot || 0) : (p.rot || 0)) : (p.rot || 0);
+      const ops = [];
+      if (mirrored) ops.push(`translate(${cx} ${cy}) scale(-1,1) translate(${-cx} ${-cy})`);
+      if (rot) ops.push(`rotate(${rot} ${cx} ${cy})`);
+      const tAttr = ops.length ? ` transform="${ops.join(" ")}"` : "";
+      if (p.kind === "circle") return `<ellipse cx="${cx}" cy="${cy}" rx="${p.w / 2}" ry="${p.h / 2}" fill="#000"${tAttr}/>`;
+      const pts = shapePolyPoints(p);
+      if (pts) return `<polygon points="${pts.map(([fx, fy]) => (p.x + fx * p.w) + "," + (p.y + fy * p.h)).join(" ")}" fill="#000"${tAttr}/>`;
+      return `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" fill="#000"${tAttr}/>`;
+    }).join("");
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}"><mask id="cm"><rect width="${W}" height="${H}" fill="#fff"/>${shapes}</mask><rect width="${W}" height="${H}" fill="#fff" mask="url(#cm)"/></svg>`;
+    const url = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+    const css = { WebkitMaskImage: url, maskImage: url, WebkitMaskSize: "100% 100%", maskSize: "100% 100%", WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat" };
+    cutterMaskCache.current[key] = { sig, css };
+    return css;
+  };
+  // Curated web-safe fonts — no external loading (network dependency / FOUC risk), just
+  // reasonably distinct built-in system fonts covering different vibes: clean sans, bold
+  // poster, classic serif, and a typewriter/vintage look (handy for period pieces).
+  const TEXT_FONTS = [
+    ["Arial, sans-serif", "Sans (Arial)"],
+    ["Georgia, 'Times New Roman', serif", "Serif (Georgia)"],
+    ["Impact, 'Arial Narrow', sans-serif", "Bold Poster (Impact)"],
+    ["'Courier New', monospace", "Typewriter (Courier)"],
+    ["'Trebuchet MS', sans-serif", "Rounded (Trebuchet)"],
+    ["'Brush Script MT', cursive", "Script (Brush)"],
+  ];
+  const textInner = (p, outlineOnly) => {
+    // Same auto-scaling trick as emojiInner (cqh = 1% of THIS block's own rendered height) —
+    // the same piece renders in many differently-sized containers (editor canvas, Dress Bob,
+    // playtest), so a fixed px size would be wildly wrong everywhere but the one it was tuned in.
+    // Playtest in particular renders this piece just a handful of CSS px tall — several things
+    // were smearing it into a blob there ("fades into itself" / "can't make out the text"):
+    // (1) hinted rasterization at tiny font sizes — countered by rendering the glyph SC times
+    // bigger than its final size and scaling the whole span back down with a transform (a
+    // downsample after the fact), plus geometricPrecision so glyph geometry scales linearly
+    // instead of snapping to the pixel grid; (2) the outline stroke was a FIXED pixel width
+    // (2px), tuned against the big editor canvas — now proportional to the font (em) instead,
+    // scaling down to a hairline at playtest size; (3) — still not fine enough on tight text
+    // like "1968" — every block of text was forced bold (weight 700) regardless of font, and
+    // bold glyphs have physically thicker strokes baked into their own outlines, which is what
+    // was actually clogging shut the small enclosed counters in numerals/letters at tiny sizes,
+    // no amount of rasterization fixing could undo that. Normal weight, a slightly thinner
+    // outline, and a hair more letter-spacing all trim total ink so the shapes stay legible
+    // small; the editor canvas is big enough that none of this reads as noticeably lighter there.
+    const SC = 4;
+    const wrap = { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", userSelect: "none", pointerEvents: "none", containerType: "size", overflow: "hidden" };
+    const scaleWrap = { transform: `scale(${1 / SC})`, transformOrigin: "50% 50%", display: "inline-block" };
+    const span = { fontSize: (80 * SC) + "cqh", lineHeight: 1, display: "inline-block", whiteSpace: "nowrap", fontFamily: p.font || TEXT_FONTS[0][0], fontWeight: 400, textRendering: "geometricPrecision", letterSpacing: "0.035em" };
+    if (outlineOnly) { span.color = "transparent"; span.WebkitTextStroke = "0.022em " + (p.outlineColor || "#000"); }
+    else span.color = p.color || "#ffffff";
+    return <div style={wrap}><div style={scaleWrap}><span style={span}>{p.text || "TEXT"}</span></div></div>;
+  };
+  const emojiInner = (p) => {
+    // Font size must scale with the block's own rendered size, not the measured main-canvas
+    // height (box.h) — the same piece renders in many differently-sized containers (editor
+    // canvas, Dress Bob, pose-copy panel, playtest player), and a px size computed from one
+    // canvas is wildly oversized in a smaller one. cqh = 1% of this block's own height.
+    const wrap = { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", userSelect: "none", pointerEvents: "none", containerType: "size" };
+    const span = { fontSize: "92cqh", lineHeight: 1, display: "inline-block" };
+    if (p.outline) span.WebkitTextStroke = "1.5px " + (p.outlineColor || "#000");
+    if (p.tint) Object.assign(span, { backgroundColor: p.tint, backgroundImage: "none", color: "transparent", WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text" });
+    return <div style={wrap}><span style={span}>{p.char}</span></div>;
+  };
+  const pieceInner = (p) => p.kind === "emoji" ? emojiInner(p) : p.kind === "text" ? textInner(p, false) : null;
+  const pieceShowsOutline = (p) => p.outline && p.kind !== "emoji";
+  // Shared by Static/MirrorGhost/Block: renders the outline layer as outer(outlineStyle) +
+  // inner(outlineFillStyle), except text, which has no separate fill child (see outlineStyle).
+  const OutlineLayer = (p, off, mirrored, faded) => !pieceShowsOutline(p) ? null : (
+    p.kind === "text"
+      ? <div style={outlineStyle(p, off, mirrored, faded)}>{textInner(p, true)}</div>
+      : <div style={outlineStyle(p, off, mirrored, faded)}><div style={outlineFillStyle(p)} /></div>
+  );
+  const Static = (p, off, faded, flip, key) => { const s = shapeStyle(p, off, faded, flip); s.pointerEvents = "none"; return <React.Fragment key={key}>{OutlineLayer(p, off, flip, faded)}<div style={s}><div style={shapeFillStyle(p)}>{pieceInner(p)}</div></div></React.Fragment>; };
+  // Renders a PROP asset's pixel art scaled to fill a placement box of `sz` px, at animation frame
+  // `frameIdx`. The prop's pieces are positioned by percentage of the 200×260 design canvas (that's
+  // what shapeStyle does everywhere), so a plain inner container at 100%/100% of the sz-box makes
+  // every piece scale together to fit — it never tiles or duplicates, whatever size is chosen. The
+  // wrapper is the 200x260 canvas mapped onto the sz-box at TRUE aspect (uniform "contain" scale,
+  // centred) — NOT stretched to fill the square, which would shear rotated pieces out of alignment.
+  const propArtInner = (propAsset, sz, frameIdx, keyBase) => {
+    const frames = (propAsset && propAsset.frames) || [propAsset && propAsset.angles].filter(Boolean);
+    const frame = frames.length ? frames[Math.min(frames.length - 1, Math.max(0, frameIdx || 0))] : null;
+    const front = (frame && frame.front) || (propAsset && propAsset.angles && propAsset.angles.front) || [];
+    const pieces = [];
+    // Cutter pieces must stay IN this list: renderPieceRuns needs to see them to build the hole
+    // mask, and it drops them from the drawn set itself, so they still paint nothing. Filtering
+    // them out here meant a prop's run never reported hasCutter and the cutter tool silently did
+    // nothing on props — no hole was ever cut in a placed object.
+    for (const p of front) { if (p.isHitbox) continue; pieces.push(p); if (pmirror(p, "front")) pieces.push(reflect(p)); }
+    if (!pieces.some((p) => !p.isCutter)) return <span style={{ fontSize: sz * 0.6 + "px", opacity: 0.5 }}>🌿</span>;
+    const _k = Math.min(sz / W, sz / H), _bw = W * _k, _bh = H * _k; return <div style={{ position: "absolute", left: (sz - _bw) / 2, top: (sz - _bh) / 2, width: _bw, height: _bh }}>{renderPieceRuns({ pieces, cacheKey: keyBase || "prop", keyPrefix: (keyBase || "prop") + "_", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k), maskCss: cutterMaskCss })}</div>;
+  };
+  // One place that turns a placed level object into its inner JSX — emoji/shape via objInner,
+  // or a prop via propArtInner (looking the asset up + choosing its current animation frame).
+  // `animT` is a running frame counter (only advanced during play) so animated props cycle.
+  const renderObj = (o, sz, keyBase, animT) => {
+    if (o && o.kind === "prop") {
+      const pa = findA(o.propId);
+      if (!pa) return <span style={{ fontSize: sz * 0.5 + "px", opacity: 0.5 }}>❓</span>;
+      const frames = (pa.frames && pa.frames.length) ? pa.frames.length : 1;
+      const fps = pa.animFps || 6;
+      const frameIdx = (play && frames > 1) ? Math.floor(((animT || 0) / 60) * fps) % frames : 0;
+      return propArtInner(pa, sz, frameIdx, keyBase);
+    }
+    return objInner(o, sz);
+  };
+  // Renders a piece's mirrored twin. When the original is selected — single or as part of a
+  // group — the twin gets the same dashed highlight so it's visually obvious the two sides are
+  // linked (e.g. arms, legs).
+  const MirrorGhost = (p, key) => {
+    const mirrored = reflect(p);
+    const s = shapeStyle(mirrored, null, false, true);
+    s.pointerEvents = "none";
+    if (groupIds.includes(p.id)) { s.outline = "2px dashed #ffb84f"; s.outlineOffset = "1px"; }
+    else if (p.id === selId) { s.outline = "2px dashed #4f7cf6"; s.outlineOffset = "1px"; }
+    return <React.Fragment key={key}>{OutlineLayer(mirrored, null, true, false)}<div style={s}><div style={shapeFillStyle(mirrored)}>{pieceInner(mirrored)}</div></div></React.Fragment>;
+  };
+  // A cutter piece paints nothing of its own in shapeFillStyle (its hole is a container-level
+  // mask applied at final-render sites — see cutterMaskCss) — but while EDITING it still needs to
+  // read as "a hole lives here" and stay grabbable, so it gets its own unmistakable look here,
+  // same idea as the isHitbox treatment in shapeFillStyle (editor-only, never reaches gameplay
+  // because gameplay render sites filter isCutter pieces out before mapping them to Static).
+  const Block = (p) => {
+    const s = shapeStyle(p, null, false, false);
+    const fillS = shapeFillStyle(p);
+    fillS.cursor = "grab";
+    if (p.isCutter) { fillS.background = "repeating-conic-gradient(#5b6478 0% 25%, #232838 0% 50%) 0 0/10px 10px"; fillS.border = "2px dashed #cfd6e6"; }
+    if (groupIds.includes(p.id)) { s.outline = "2px dashed #ffb84f"; s.outlineOffset = "1px"; } else if (p.id === selId) { s.outline = "2px dashed #4f7cf6"; s.outlineOffset = "1px"; }
+    return <React.Fragment key={p.id}>{OutlineLayer(p, null, false, false)}<div style={s}><div style={fillS} onPointerDown={(e) => grabPiece(e, p)}>{pieceInner(p)}</div></div></React.Fragment>;
+  };
+  const pctBox = (q) => ({ left: (q.x / W * 100) + "%", top: (q.y / H * 100) + "%", width: (q.w / W * 100) + "%", height: (q.h / H * 100) + "%" });
+
+  /* ---- save / open ------------------------------------------------------ */
+  const syncWeapon = (a) => { if (!a || a.type !== "weapon") return a; const states = { rest: blankAngles(), fire: blankAngles(), ...(a.states || {}) }; states[wState] = a.angles; return { ...a, states, angles: states.rest }; };
+  const syncEnemy = (a) => { if (!a || a.type !== "enemy") return a; const states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles(), ...(a.states || {}) }; states[eState] = a.angles; return { ...a, states, angles: states.normal }; };
+  // While designing an effect's animation, asset.angles points at a FRAME, not this equipment's
+  // own art — but the asset never stops being type "equipment", so syncFit below must never see
+  // that frame sitting in asset.angles or it would save it into variants[guideId], clobbering the
+  // item's real appearance. This flushes the frame back into effects[].animByBody first, then
+  // restores asset.angles to the equipment's real working layout, exactly like the other sync*
+  // functions restore their own state's real angles before syncFit runs.
+  const syncEffectAnim = (a) => {
+    if (!a || a.type !== "equipment" || !effEdit) return a;
+    const effects = (a.effects || []).map((e) => {
+      if (e.id !== effEdit.effId) return e;
+      const animByBody = { ...e.animByBody };
+      const frames = [...(animByBody[effEdit.bodyKey] || [blankFrame()])];
+      frames[effEdit.frameIdx] = a.angles;
+      animByBody[effEdit.bodyKey] = frames;
+      return { ...e, animByBody, lastFit: effEdit.bodyKey };
+    });
+    const restoredAngles = (a.variants && (a.variants[a.guideId] || a.variants.default)) || a.angles;
+    return { ...a, effects, angles: restoredAngles };
+  };
+  const syncFit = (a) => {
+    if (!a || !HAS_FIT_VARIANTS(a)) return a;
+    const curKey = a.guideId || "default";
+    const variants = { default: blankFitVariant(a.type), ...(a.variants || {}) };
+    // syncWeapon (which runs before this in the pipeline) has already flushed whichever state
+    // was being viewed into a.states, so for weapons the save-time snapshot reads a.states/
+    // a.hand directly rather than re-deriving from the live wState the way switchGuideFit does.
+    const snapshot = a.type === "weapon" ? { states: a.states || { rest: blankAngles(), fire: blankAngles() } } : a.angles;
+    // Clobber guard: an entirely blank working layout never silently overwrites a stored
+    // variant that has real content — unless this guide was genuinely edited this session
+    // (dirtyGuides), i.e. the person deliberately deleted every piece. This makes save-time
+    // data destruction structurally impossible even if some future load-path bug reappears.
+    const storedHasArt = variants[curKey] && !fitVariantEmpty(a.type, variants[curKey]);
+    const workingBlank = fitVariantEmpty(a.type, snapshot);
+    if (!(workingBlank && storedHasArt && !dirtyGuides.current.has(curKey))) variants[curKey] = snapshot;
+    const stored = variants[curKey];
+    const patch = a.type === "weapon" ? { states: stored.states, angles: stored.states.rest } : { angles: stored };
+    return { ...a, variants, ...patch, lastFit: curKey };
+  };
+  // Prop: flush the frame currently being edited (a.angles) back into a.frames[propFrame], and
+  // point a.angles at frame 0 as the canonical "base look". Same idea as syncWeapon/syncEnemy
+  // flushing their live state before save.
+  const syncProp = (a) => { if (!a || a.type !== "prop") return a; const frames = [...(a.frames || [blankAngles()])]; frames[propFrame] = a.angles; return { ...a, frames, angles: frames[0] }; };
+  const data = () => JSON.stringify(syncProp(syncFit(syncEnemy(syncWeapon(syncEffectAnim(asset))))), null, 2);
+  const openSheet = () => { setText(data()); setSheet(true); };
+  const saveAsset = async () => {
+    let payload = syncProp(syncFit(syncEnemy(syncWeapon(asset))));
+    if (HAS_FIT_VARIANTS(payload)) {
+      // Confirm every guide body actually EDITED this session (dirtyGuides — set by real piece
+      // mutations, never by merely switching the guide dropdown to look at one), plus whichever
+      // is active right now even if this exact save has no new edits on it (e.g. re-saving to
+      // flag a fit that was already finished). Covers switching through and editing several
+      // bodies before a single Save at the end — not just whichever happened to be active then.
+      const key = payload.guideId || "default";
+      const confirmed = new Set(payload.confirmedFits || []);
+      confirmed.add(key);
+      for (const g of dirtyGuides.current) confirmed.add(g);
+      payload = { ...payload, confirmedFits: [...confirmed] };
+      dirtyGuides.current = new Set();
+    }
+    payload = { ...payload, savedAt: Date.now() };
+    let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    // Loading a saved asset and re-saving it under a CHANGED name must create a separate new
+    // save, not overwrite the original entry under its old name (e.g. open "Iron Boots", recolor,
+    // rename to "Gold Boots", Save → should leave "Iron Boots" untouched and add a new "Gold
+    // Boots"). The id only keeps writing to the same entry when the name still matches what's on
+    // record for it — that's a plain re-save/update, same as it's always worked. A never-yet-
+    // saved id (nothing in the index for it) is always a first save, never a "rename".
+    const target = resolveSaveTarget(list, payload);
+    if (target.mode === "rename") payload = { ...payload, id: uid() };
+    else if (target.id !== payload.id) payload = { ...payload, id: target.id };
+    const ok1 = await sset("asset:" + payload.id, JSON.stringify(payload));
+    list = list.filter((x) => x.id !== payload.id); list.push({ id: payload.id, name: payload.name, type: payload.type });
+    const ok2 = await sset("assetIndex", JSON.stringify(list));
+    // Push this edit into every saved Dressed Look already wearing it, re-baking that look's art
+    // from its own embedded components. Without this a shirt edit only reached Playtest after
+    // manually re-equipping the shirt in Dress Bob and re-saving the look over the top of itself.
+    let refreshed = 0;
+    if (ok1 && ok2) {
+      for (const entry of list.filter((x) => x.type === "character")) {
+        try {
+          const raw = await sget("asset:" + entry.id); if (!raw) continue;
+          const look = migrate(JSON.parse(raw));
+          if (!lookWearsAsset(look, payload.id)) continue;
+          const rebuilt = rebuildLook(swapLookComponent(look, payload));
+          if (!rebuilt) continue;
+          if (await sset("asset:" + entry.id, JSON.stringify(rebuilt))) refreshed++;
+        } catch { /* a look that won't parse or rebuild is left exactly as it was */ }
+      }
+    }
+    if (ok1 && ok2) {
+      if (payload.id !== asset.id) setAsset((a) => ({ ...a, id: payload.id }));
+      const worn = refreshed ? " — updated " + refreshed + " dressed look" + (refreshed === 1 ? "" : "s") : "";
+      flash(target.mode === "overwrite" ? "Replaced \"" + payload.name + "\" ✓" + worn
+        : target.mode === "rename" ? "Saved as a new \"" + payload.name + "\" ✓"
+        : "Saved to this device ✓" + worn);
+      loadLibrary();
+    } else flash("Couldn't save here — use Download.");
+  };
+  const convertLegacyProjectile = async () => {
+    const legacyDrawn = asset.states?.projectile;
+    const hasDrawnArt = legacyDrawn && !anglesEmpty(legacyDrawn);
+    const na = newAsset("projectile");
+    na.name = (asset.name || "Weapon") + " — projectile";
+    if (hasDrawnArt) {
+      na.angles = JSON.parse(JSON.stringify(legacyDrawn));
+      na.size = asset.projectile?.size || 1;
+    } else {
+      // No drawn art existed — rebuild an equivalent single emoji piece + a matching hitbox,
+      // so the fallback keeps looking and hitting exactly like it did before conversion.
+      const legacy = asset.projectile || {};
+      const sz = 44;
+      na.angles.front = [
+        { id: uid(), kind: "emoji", x: Math.round(W / 2 - sz / 2), y: Math.round(H / 2 - sz / 2), w: sz, h: sz, char: legacy.char || "🔥", tint: legacy.tint || null, mirror: false, fx: defaultFx() },
+        { id: uid(), kind: "rect", x: Math.round(W / 2 - sz / 2), y: Math.round(H / 2 - sz / 2), w: sz, h: sz, color: "#ff3c3c", mirror: false, isHitbox: true },
+      ];
+      na.size = legacy.size || 1;
+    }
+    na.savedAt = Date.now();
+    let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    const ok1 = await sset("asset:" + na.id, JSON.stringify(na));
+    list = list.filter((x) => x.id !== na.id); list.push({ id: na.id, name: na.name, type: na.type });
+    const ok2 = await sset("assetIndex", JSON.stringify(list));
+    if (ok1 && ok2) { setAsset((a) => ({ ...a, projectileId: na.id })); flash("Saved \"" + na.name + "\" as its own Projectile ✓ — assigned to this weapon."); loadLibrary(); } else flash("Couldn't save here — use Download, then Upload it manually.");
+  };
+  const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
+  const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
+  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; } if (a.type === "projectile" && a.size === undefined) a.size = 1;
+    if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
+    if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; }
+    if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
+    if (a.type === "enemy") { if (!a.states) a.states = { normal: a.angles || blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.angles = a.states.normal || a.angles; if (a.hasArms === undefined) a.hasArms = !!(a.angles && ANGLES.some((ang) => (a.angles[ang] || []).some((p) => p.role === "weaponArm"))); for (const k of Object.keys(a.angles || {})) (a.angles[k] || []).forEach((p) => { if (p.locked) delete p.locked; }); if (!a.stats) a.stats = DEFAULT_STATS(); if (a.hp === undefined) a.hp = 10; if (!a.ai) a.ai = "guard"; if (a.weaponId === undefined) a.weaponId = null; }
+    if (a.type === "skin" && !a.stats) a.stats = DEFAULT_STATS();
+    if (HAS_FIT_VARIANTS(a) && !a.variants) {
+      if (a.type === "weapon") { a.variants = { default: { states: a.states || { rest: a.angles || blankAngles(), fire: blankAngles() } } }; }
+      else { a.variants = { default: a.angles || blankAngles() }; a.angles = a.variants.default; }
+      a.lastFit = "default";
+    }
+    if (HAS_FIT_VARIANTS(a) && a.variants) {
+      // Load the layout this asset was saved as designing for (guideId), NOT whatever the
+      // top-level angles field happens to hold — pre-fix saves always wrote angles=default
+      // there, so opening showed a blank/stale canvas while the real art sat unloaded in
+      // variants[bodyId], and a re-save from that state then overwrote the real art with the
+      // blank ("my pants keep reverting"). Fallback chain for odd/partial states: the guide's
+      // own layout → lastFit's → default → ANY variant that still has content, so whatever art
+      // still exists anywhere in the save is what comes up, never a silent blank over real work.
+      const gk = a.guideId || "default";
+      let loadKey = null;
+      if (a.variants[gk] && !fitVariantEmpty(a.type, a.variants[gk])) loadKey = gk;
+      else if (a.lastFit && a.variants[a.lastFit] && !fitVariantEmpty(a.type, a.variants[a.lastFit])) loadKey = a.lastFit;
+      else if (a.variants.default && !fitVariantEmpty(a.type, a.variants.default)) loadKey = "default";
+      else loadKey = Object.keys(a.variants).find((k) => !fitVariantEmpty(a.type, a.variants[k])) || gk;
+      if (!a.variants[loadKey]) a.variants[loadKey] = blankFitVariant(a.type);
+      if (a.type === "weapon") { a.states = a.variants[loadKey].states; a.angles = a.states.rest; }
+      else { a.angles = a.variants[loadKey]; }
+      a.guideId = loadKey === "default" ? (a.guideId || "default") : loadKey; // keep the editor's guide picker pointing at the layout actually on screen
+    }
+    if (HAS_FIT_VARIANTS(a) && a.variants && !a.lastFit) a.lastFit = "default";
+    if (HAS_FIT_VARIANTS(a) && !a.confirmedFits) a.confirmedFits = []; // no retroactive guessing — starts as "confirmed for nobody" until re-saved
+    if (a.type === "equipment") {
+      if (!a.statBoosts) a.statBoosts = DEFAULT_STAT_BOOSTS();
+      if (a.defense === undefined) a.defense = 0;
+      if (!a.effects) a.effects = [];
+      a.effects.forEach((e) => {
+        const def = EFFECT_TYPES[e.type];
+        if (!e.animByBody) e.animByBody = {}; // leave unseeded — openEffectAnim seeds a real frame from this equipment's own art the first time the designer opens for a body
+        if (!e.lastFit) e.lastFit = "default";
+        if (def) def.params.forEach((p) => { if (e[p.key] === undefined) e[p.key] = p.def; });
+      });
+    }
+    // Back-tag the baked weapon pieces in character saves made before _isWeapon existed.
+    // composeLook appends the weapon LAST per angle, so the trailing N pieces are the weapon
+    // — N recomputed from the embedded weapon component (counting its mirror twins for
+    // non-side angles, exactly as bake() expanded them). Old-format looks without embedded
+    // components can't be back-tagged; re-save them through Dress Bob to fix.
+    if (a.type === "character" && a.components && a.components.weapon && a.angles) {
+      const wsrc = a.components.weapon.angles || (a.components.weapon.states && a.components.weapon.states.rest) || {};
+      for (const ang of ANGLES) {
+        const arr = a.angles[ang] || [];
+        if (!arr.length || arr.some((p) => p._isWeapon)) continue;
+        const n = (wsrc[ang] || []).reduce((s, p) => s + 1 + ((p.mirror && ang !== "side") ? 1 : 0), 0);
+        for (let i = Math.max(0, arr.length - n); i < arr.length; i++) arr[i]._isWeapon = true;
+      }
+    } } catch (e) {} return withRig(a); };
+  // Pasted text goes through the SAME door as a file: normalize (repair + explain), then
+  // openAsset, which is the only path that knows a dressed look has to open in Dress Bob rather
+  // than the piece editor (which cannot render one). loadText used to setAsset() directly and
+  // skip that, so pasting a look's JSON dropped you into an editor that couldn't draw it.
+  const loadText = () => {
+    let c;
+    // Tolerate the ways a chatbot (Grok, etc.) commonly hands back JSON: wrapped in ```json fences,
+    // with a sentence of preamble before it, or trailing commentary after. Pull out the substring
+    // from the first { to its matching last }, so a copy-paste that includes extra prose still loads.
+    const raw = (text || "").trim();
+    const tryParse = (s) => { try { return JSON.parse(s); } catch { return undefined; } };
+    c = tryParse(raw);
+    if (c === undefined) {
+      const fenced = raw.replace(/^[\s\S]*?```(?:json)?\s*/i, "").replace(/```[\s\S]*$/, "").trim();
+      c = tryParse(fenced);
+    }
+    if (c === undefined) {
+      const first = raw.indexOf("{"), last = raw.lastIndexOf("}");
+      if (first !== -1 && last > first) c = tryParse(raw.slice(first, last + 1));
+    }
+    if (c === undefined) { flash("That text isn't valid JSON — copy the whole asset, from the first { to the last }."); return; }
+    let a;
+    try { a = normalizeAssetJson(c); } catch (e) { flash(e.message || "That text isn't an asset file."); return; }
+    setSheet(false);
+    openAsset(a);
+    flash("Loaded ✓");
+  };
+  const upload = (e) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => { try { const parsed = JSON.parse(r.result); if (parsed && Array.isArray(parsed.assets) && parsed.assetBuilderBackup) { restoreBackup(parsed); return; } const c = normalizeAssetJson(parsed); openAsset(c); setSheet(false); flash("Opened file ✓"); } catch (err) { flash(err && err.message ? err.message : "Couldn't read that file."); } }; r.readAsText(f); };
+  // One-file backup of EVERY saved asset — everything lives in the browser's storage, so this is
+  // the only way to get it out to a safe place. Re-opening the same file via ⬆ Open a file
+  // restores every asset back into the save store (same id = updated in place, never duplicated).
+  const exportAllAssets = () => {
+    try {
+      if (!library.length) { flash("Nothing saved yet — nothing to export."); return; }
+      const stamp = new Date().toISOString().slice(0, 10);
+      const payload = JSON.stringify({ assetBuilderBackup: 1, exportedAt: Date.now(), assets: library }, null, 1);
+      const b = new Blob([payload], { type: "application/json" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "assetbuilder-backup-" + stamp + ".json"; a.click();
+      flash("Exported all " + library.length + " saved assets ✓ — keep that file somewhere safe.");
+    } catch { flash("Download blocked — try again."); }
+  };
+  const restoreBackup = async (bk) => {
+    let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    let n = 0;
+    for (const raw of bk.assets) {
+      try {
+        const a = normalizeAssetJson(raw);
+        const ok = await sset("asset:" + a.id, JSON.stringify(a));
+        if (ok) { list = list.filter((x) => x.id !== a.id); list.push({ id: a.id, name: a.name, type: a.type }); n++; }
+      } catch { /* skip a corrupt entry, restore the rest */ }
+    }
+    await sset("assetIndex", JSON.stringify(list));
+    loadLibrary();
+    flash("Restored " + n + " asset(s) from the backup ✓");
+  };
+
+  const start = (type, slot, wtype) => { setAsset(newAsset(type, slot, wtype)); setAngle(type === "weapon" || type === "enemy" ? "side" : "front"); setSelId(null); setWState("rest"); setEState("normal"); setEffEdit(null); setPoseCopySrc(null); setPropFrame(0); setEyedrop(false); resetHistory(); dirtyGuides.current = new Set(); setScreen("editor"); };
+  // Dressed characters are baked composites — the piece editor has no concept of them and
+  // used to white-screen (TYPES["character"] is undefined). View them in Dress Bob instead.
+  const openAsset = (a) => {
+    setConfirmDel(null);
+    if (a.type === "character") { openDressedLook(a); setAAngle("front"); setScreen("assemble"); flash("Viewing \"" + a.name + "\" — dressed looks open in Dress Bob."); return; }
+    setAsset(migrate(JSON.parse(JSON.stringify(a)))); setAngle(a.type === "weapon" || a.type === "enemy" ? "side" : "front"); setSelId(null); setWState("rest"); setEState("normal"); setEffEdit(null); setPoseCopySrc(null); setPropFrame(0); setEyedrop(false); resetHistory(); dirtyGuides.current = new Set(); setScreen("editor");
+  };
+
+  /* ---- assembler -------------------------------------------------------- */
+  const allAssets = useMemo(() => [...library, ...sessionAssets.filter((s) => !library.find((l) => l.id === s.id))], [library, sessionAssets]);
+  // O(1) instead of allAssets.find()'s O(n) — findA is called several times PER ENEMY PER
+  // FRAME during Playtest (physics loop + render loop each look up the same spawn's asset
+  // independently), so with n enemies and a library of m saved assets this was O(n*m) of
+  // wasted linear scanning every single frame, on top of allAssets itself being rebuilt from
+  // scratch (including a nested O(n*m) filter) on every render before this fix.
+  const assetById = useMemo(() => { const m = new Map(); for (const a of allAssets) m.set(a.id, a); return m; }, [allAssets]);
+  const findA = (id) => assetById.get(id) || null;
+  // Permanently remove a saved asset: its own storage entry, its index row, and any
+  // session copy. Guarded by a confirm in the UI — this is not undoable.
+  const deleteAsset = async (a) => {
+    await sdel("asset:" + a.id);
+    let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    await sset("assetIndex", JSON.stringify(list.filter((x) => x.id !== a.id)));
+    setSessionAssets((s) => s.filter((x) => x.id !== a.id));
+    flash("Deleted \"" + a.name + "\"");
+    loadLibrary();
+  };
+  // Write a recovered/embedded layer back into the saved library. Keeps the asset's original
+  // id, so recovering is idempotent and anything referencing it (loadouts, guideId) re-links.
+  const restoreComponent = async (a) => {
+    const c = { ...migrate(JSON.parse(JSON.stringify(a))), savedAt: Date.now() };
+    const ok1 = await sset("asset:" + c.id, JSON.stringify(c));
+    let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    list = list.filter((x) => x.id !== c.id); list.push({ id: c.id, name: c.name, type: c.type });
+    const ok2 = await sset("assetIndex", JSON.stringify(list));
+    if (ok1 && ok2) { flash("Recovered \"" + c.name + "\" into your saved assets ✓"); loadLibrary(); } else flash("Couldn't save here.");
+  };
+  const handForGuideId = (guideId) => { if (guideId && guideId !== "default") { const g = findA(guideId); if (g) { const o = {}; for (const ang of ANGLES) o[ang] = bodyRig(g, ang).hand; return o; } } return DEFAULT_HAND; };
+  const handForGuide = (a) => handForGuideId(a && a.guideId); // the weapon EDITOR's own canvas preview only — keyed by whatever body is selected in "Design for body", unrelated to playtest attach below
+  // Resolves which of a weapon's per-body fits should actually attach to `equippedBodyId` right
+  // now: its own saved fit if it has one, else the fit last worked on, else default — the same
+  // fallback chain skins/equipment use. This — NOT whatever body happens to be selected in the
+  // weapon editor's own "Design for body" preview dropdown (asset.guideId) — is what decides
+  // guideHand at the two attachWeaponBlocks call sites below. Previously those both read
+  // handForGuide(playtestWeapon), i.e. the EDITOR's last-touched guideId, so a weapon's actual
+  // attached position during Playtest depended on which body someone had last clicked "Design
+  // for" on in a completely different screen — moving it while previewing one body visibly
+  // moved it for every body, since there was only ever one shared position, period.
+  const weaponFitFor = (w, equippedBodyId) => {
+    const blank = { states: { rest: blankAngles(), fire: blankAngles() } };
+    if (!w) return { ...blank, guideId: "default" };
+    if (!w.variants) return { states: w.states || blank.states, guideId: "default" };
+    const key = (equippedBodyId && w.variants[equippedBodyId] && !fitVariantEmpty("weapon", w.variants[equippedBodyId])) ? equippedBodyId : (w.lastFit && w.variants[w.lastFit] ? w.lastFit : "default");
+    const v = w.variants[key] || w.variants.default || blank;
+    return { states: v.states || blank.states, guideId: key };
+  };
+  // Which BODY asset a currently-equipped playerAsset actually resolves to, for weapon-fit
+  // lookup — playerAsset may be a raw body (its own id is the answer) or a saved Dress Bob
+  // look composed FROM a body (its recipe records which one).
+  const equippedBodyIdFor = (pa) => !pa ? null : (pa.type === "body" ? pa.id : (pa.recipe && pa.recipe.bodyId) || null);
+  // ---- PLAYER-BASED enemy melee: weapon-hitbox driven, exactly like the player --------------
+  // A Dress Bob look saved as an enemy fights the way the player fights: its melee reach IS its
+  // weapon's own (drawn or auto) hitbox swung through the same windup/strike arc, and a hit only
+  // lands on the frame that swung box physically overlaps the player. No stored range number is
+  // consulted for these — the ⚔️ field only remains for drawn enemy-type monsters, which have no
+  // weapon geometry to measure. Bare-handed looks swing the same fist box the player does.
+  const enemyMeleeGeom = (ea, ew) => {
+    if (!ea || ea.type !== "character" || !ea.isEnemy) return null;
+    if (ew && (isRanged(ew.wtype) || isThrowable(ew.wtype))) return null;
+    const side = (ea.angles && ea.angles.side) || [];
+    const armPiece = armOf(side) || enemyAimArm(side);
+    if (!armPiece) return null;
+    const wfit = ew ? weaponFitFor(ew, equippedBodyIdFor(ea)) : null;
+    const guideHand = ew ? (handForGuideId(wfit.guideId).side || DEFAULT_HAND.side) : ((ea.hand && ea.hand.side) || DEFAULT_HAND.side);
+    return { armPiece, baseArmRot: armPiece.rot || 0, wfit, guideHand };
+  };
+  const enemyMeleeHitboxAt = (geom, ew, swingAngle) => {
+    const curArm = { ...geom.armPiece, rot: geom.baseArmRot + armPivotSign(geom.armPiece.armPivot) * swingAngle };
+    const hbRaw = ew
+      ? weaponHitboxPieces(bake({ ...ew, angles: weaponFireArt(geom.wfit.states, "side") }, "side"))
+      : [{ id: "fist", kind: "rect", x: geom.guideHand.x - 20, y: geom.guideHand.y - 20, w: 40, h: 40, isHitbox: true }];
+    return attachWeaponBlocks(hbRaw, curArm, geom.guideHand, geom.baseArmRot);
+  };
+  // Engage distance = how far the swung hitbox actually extends past the visible body edge,
+  // swept over the full swing — i.e. "can my blade reach from here", same convention as boxGap.
+  const enemyMeleeReach = (ea, ew, geom) => {
+    const key = ea.id + "|" + (ew ? ew.id : "") + "|" + (ea.savedAt || 0) + "|" + ((ew && ew.savedAt) || 0);
+    const c = meleeReach.current;
+    if (c[key] !== undefined) return c[key];
+    const eShape = sideBodyShape(ea);
+    const eRenderW = enemyRenderW(ea, LV_CELL), epw = eRenderW * eShape.fraction;
+    let maxOut = 0;
+    for (let t = 0; t <= ATTACK_SWING_FRAMES; t += 0.5) {
+      const sa = meleeSwingAngle(t, ATTACK_SWING_FRAMES);
+      for (const hb of enemyMeleeHitboxAt(geom, ew, sa)) maxOut = Math.max(maxOut, ((hb.x + hb.w) / W) * eRenderW - eShape.centerFrac * eRenderW);
+    }
+    return (c[key] = Math.max(10, maxOut - epw / 2));
+  };
+  // Opening a saved look used to only set viewDressed for the frozen preview, leaving `loadout`
+  // completely untouched. Since every part-picker's onChange both updates one loadout field AND
+  // drops out of the frozen preview (setViewDressed(null)) to show the live composite, the FIRST
+  // edit after opening a look — e.g. picking a different weapon — would render on whatever body/
+  // skin `loadout` last held from an earlier session, not the look that was just opened. Syncing
+  // loadout from the look's own recipe here keeps them in lockstep from the moment it's opened.
+  const openDressedLook = (a) => { setViewDressed(a); if (a.recipe) setLoadout({ bodyId: a.recipe.bodyId || "", skinId: a.recipe.skinId || "", slots: { ...(a.recipe.slots || {}) }, weaponId: a.recipe.weaponId || "" }); };
+  // Same fix as the Playtest attach sites above, for the Dress Bob composer/preview: the offset
+  // and art shown here must come from the TARGET body's own resolved fit, not whatever body the
+  // weapon editor's guide picker was last left on.
+  const weaponOffset = (body, weapon, ang) => { if (!body || !weapon) return { x: 0, y: 0 }; const fit = weaponFitFor(weapon, body.id); const sh = bodyRig(body, ang).hand; const gh = handForGuideId(fit.guideId)[ang] || DEFAULT_HAND[ang]; return { x: sh.x - gh.x, y: sh.y - gh.y }; };
+  const weaponRestArt = (weapon, body, ang) => { if (!weapon) return []; const fit = weaponFitFor(weapon, body && body.id); return (fit.states.rest && fit.states.rest[ang]) || []; };
+  const sessionUpload = (e) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => { try { const c = migrate(normalizeAssetJson(JSON.parse(r.result))); setSessionAssets((s) => [...s.filter((x) => x.id !== c.id), c]); flash("Added " + (c.name || "asset")); } catch (err) { flash(err && err.message ? err.message : "Couldn't read that file."); } }; r.readAsText(f); };
+  // Bakes a body + skin + equipment + weapon into a finished "character": stats, defense,
+  // effects, rig points, and the flattened per-pose art. Split out of composeLook so that
+  // rebuildLook (below) can re-bake an ALREADY-SAVED look from its embedded components after one
+  // of those components is edited — same code path, so a re-baked look and a freshly dressed one
+  // can never drift apart. `base` supplies everything identity-ish (id/name/enemy fields).
+  const assembleLook = (body, skin, weapon, equipment, base) => {
+    body = applySkinTone(body, skin && skin.tone); // the worn skin's tone recolours the body's flesh before anything is layered/baked
+    const overlays = [skin, ...SLOT_ORDER.map((s) => equipment[s])].filter(Boolean);
+    const out = { ...base, angles: blankAngles(), hand: {}, shoulder: {}, stats: { ...(skin?.stats || DEFAULT_STATS()) }, defense: 0 };
+    // Equipment stat boosts stack additively on top of the skin's own stats (a 5 + a +2 item
+    // reads as 7 — see DEFAULT_STAT_BOOSTS). Defense has no wearer baseline to add onto (it's
+    // armor-only per Blake — "isn't something on the skin") — it's just the plain sum of
+    // whatever's equipped, 0 if nothing is. Equipment effects (e.g. Double Jump) travel with the
+    // look too, each resolved to whichever body it's worn on right now — same per-body fallback
+    // chain as the equipment's own art (this body's own animation → whichever body was last
+    // designed for → Default → none, which just means "no custom animation, mechanic still works").
+    for (const s of SLOT_ORDER) {
+      const eq = equipment[s]; if (!eq) continue;
+      if (eq.statBoosts) for (const k of Object.keys(eq.statBoosts)) out.stats[k] = (out.stats[k] ?? 5) + (eq.statBoosts[k] || 0);
+      out.defense += eq.defense || 0;
+    }
+    out.effects = [];
+    for (const s of SLOT_ORDER) {
+      const eq = equipment[s]; if (!eq || !eq.effects || !eq.effects.length) continue;
+      for (const eff of eq.effects) {
+        const animByBody = eff.animByBody || {};
+        const bodyId = body.id;
+        const frames = (bodyId && animByBody[bodyId] && animByBody[bodyId].length) ? animByBody[bodyId]
+          : (eff.lastFit && animByBody[eff.lastFit] && animByBody[eff.lastFit].length) ? animByBody[eff.lastFit]
+          : (animByBody.default || []);
+        // Copy every param the effect defines (height/speed for Double Jump, reduce for Back
+        // Guard, fall/control for Glide, and anything added later) so this never needs editing
+        // when a new effect type is introduced — the catalog entry is the single source of truth.
+        const packed = { type: eff.type, frames, slot: s };
+        for (const pm of (EFFECT_TYPES[eff.type]?.params || [])) packed[pm.key] = eff[pm.key] ?? pm.def;
+        if (EFFECT_TYPES[eff.type]?.tagParam) packed.tag = eff.tag || "";
+        out.effects.push(packed);
+      }
+    }
+    for (const ang of ANGLES) { const r = bodyRig(body, ang); out.hand[ang] = r.hand; out.shoulder[ang] = r.shoulder; }
+    for (const ang of ANGLES) {
+      let arr = layerBodyAndOverlays(body, overlays, ang);
+      if (weapon) { const o = weaponOffset(body, weapon, ang); arr = arr.concat(bake({ ...weapon, angles: { ...blankAngles(), [ang]: weaponRestArt(weapon, body, ang) } }, ang).filter((p) => !p.isHitbox && !p.isMuzzle).map((p) => ({ ...p, x: p.x + o.x, y: p.y + o.y, _isWeapon: true, _src: weapon.id }))); }
+      out.angles[ang] = arr.map((p) => ({ ...p, id: uid() }));
+    }
+    return out;
+  };
+  // The Playtest player's ACTUAL on-screen art for one pose. With nothing picked up this is just
+  // the base look (identical to before). The moment a pedestal item is worn, we re-run the very
+  // same compositor Dress Bob uses (assembleLook) with those items layered over the look's own
+  // clothing — so a picked-up shirt/hat/etc. visibly appears, correctly ordered (behind body, over
+  // arms, tucked under a crouch knee) instead of only changing stats. The look's own body/skin/
+  // weapon come from its embedded components; a raw-body player just gets the equipment on the body.
+  const livePlayerBlocks = (ang) => {
+    const bp = findA(playerId);
+    if (!bp) return null;
+    // A raw body (no composed components) with nothing picked up just uses its own baked art —
+    // the fast path, unchanged. A COMPOSED character is always re-run through the same compositor
+    // Dress Bob uses, even before any pedestal pickup, so the CURRENT layering rules apply live
+    // (e.g. a skin's face/teeth staying UNDER a cape) instead of whatever order happened to be
+    // frozen into its saved angles when it was first dressed. Result is memoised per equipped set.
+    const composed = bp.type === "character" && bp.components;
+    if (!composed && !SLOT_ORDER.some((sl) => equipped.current[sl])) return bake(mergeEquip(bp, equipped.current, equippedBodyIdFor(bp)), ang);
+    const eqSig = SLOT_ORDER.map((sl) => (equipped.current[sl] && equipped.current[sl].id) || "").join(",");
+    const key = playRunId.current + "|" + bp.id + "|" + eqSig;
+    if (playerLookCache.current.key === key && playerLookCache.current.look) return playerLookCache.current.look.angles[ang] || [];
+    const comp = bp.type === "character" ? (bp.components || {}) : {};
+    const body = comp.body || bp, skin = comp.skin || null, weapon = comp.weapon || null;
+    const eq = {};
+    for (const sl of SLOT_ORDER) { const it = equipped.current[sl] || (comp.equipment && comp.equipment[sl]); if (it) eq[sl] = it; }
+    const look = assembleLook(body, skin, weapon, eq, { id: bp.id, name: bp.name, type: "character" });
+    playerLookCache.current = { key, look };
+    return look.angles[ang] || [];
+  };
+  const composeLook = (idOverride) => {
+    const body = findA(loadout.bodyId); if (!body) return null;
+    const weapon = findA(loadout.weaponId);
+    const skin = findA(loadout.skinId);
+    const equipment = {}; for (const s of SLOT_ORDER) { const a = findA(loadout.slots[s]); if (a) equipment[s] = a; }
+    const base = { id: idOverride || uid(), name: body.name + " — dressed", type: "character", isEnemy: !!markAsEnemy };
+    if (markAsEnemy) { base.hp = Math.max(1, +dressedHp || 1); base.ai = "guard"; /* default only — real behavior is chosen per-placement in the level tester, which overrides this */ }
+    // The look IS its layers — embed full copies of every component so any layer can be
+    // recovered, re-edited, or swapped later, even if the source assets get deleted.
+    // The baked angles are just the pre-rendered output for playtest.
+    base.recipe = { bodyId: loadout.bodyId, skinId: loadout.skinId || "", slots: { ...loadout.slots }, weaponId: loadout.weaponId || "" };
+    base.components = { body: JSON.parse(JSON.stringify(body)) };
+    if (skin) base.components.skin = JSON.parse(JSON.stringify(skin));
+    if (weapon) base.components.weapon = JSON.parse(JSON.stringify(weapon));
+    if (Object.keys(equipment).length) { base.components.equipment = {}; for (const s of Object.keys(equipment)) base.components.equipment[s] = JSON.parse(JSON.stringify(equipment[s])); }
+    return assembleLook(body, skin, weapon, equipment, base);
+  };
+  // Re-bake a saved look from its OWN embedded components (already updated by swapLookComponent).
+  // Keeps the look's identity — id, name, savedAt, enemy settings — and replaces only the derived
+  // art/stats/rig, so a shirt edited in the creator shows up in Playtest without re-equipping it.
+  const rebuildLook = (look) => {
+    const c = look.components || {};
+    if (!c.body) return null; // pre-components legacy save: nothing to rebuild from, leave it be
+    const equipment = c.equipment || {};
+    const base = { ...look, angles: undefined, hand: undefined, shoulder: undefined, stats: undefined, defense: undefined, effects: undefined };
+    return assembleLook(c.body, c.skin || null, c.weapon || null, equipment, base);
+  };
+  const exportLook = () => { const l = composeLook(); if (!l) { flash("Pick a body first."); return; } setCombo(JSON.stringify(l, null, 2)); };
+  const saveDressedBob = async () => {
+    const body = findA(loadout.bodyId);
+    if (!body) { flash("Pick a body first."); return; }
+    const name = (dressedBobName || "").trim() || (body.name + " — dressed");
+    let list = []; const idx0 = await sget("assetIndex"); if (idx0) try { list = JSON.parse(idx0); } catch { list = []; }
+    // savedDressedIds only remembers looks saved in THIS session — after a reload, re-saving the
+    // same name used to pile up a second copy. Fall back to the index so a name always overwrites
+    // the look that already owns it.
+    const priorId = savedDressedIds[name] || (list.find((x) => x.type === "character" && x.name === name) || {}).id;
+    const l = { ...composeLook(priorId), name, savedAt: Date.now() };
+    const ok1 = await sset("asset:" + l.id, JSON.stringify(l));
+    list = list.filter((x) => x.id !== l.id); list.push({ id: l.id, name: l.name, type: l.type });
+    const ok2 = await sset("assetIndex", JSON.stringify(list));
+    if (ok1 && ok2) { setSavedDressedIds((m) => ({ ...m, [name]: l.id })); flash("Saved \"" + name + "\" ✓ — pick it under Playtest player in the level tester."); loadLibrary(); } else flash("Couldn't save here — try Export instead.");
+  };
+  const comboDownload = () => { try { const b = new Blob([combo], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "dressed-bob.json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
+  const comboCopy = () => { try { navigator.clipboard?.writeText(combo); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
+
+  /* ---- level creator ---------------------------------------------------- */
+  // Textures live in their own storage entries (textureIndex + texture:<id>), the same shape
+  // levels/backgrounds/stamps already use — so one palette can be reused across every level
+  // rather than being trapped in whichever level first painted it.
+  const loadTextures = async () => {
+    try {
+      const idx = await sget("textureIndex"); const list = idx ? JSON.parse(idx) : [];
+      const full = [];
+      for (const e of list) { const raw = await sget("texture:" + e.id); if (raw) try { full.push(JSON.parse(raw)); } catch { /* skip a corrupt texture */ } }
+      setTexLib(full);
+    } catch { setTexLib([]); }
+  };
+  const saveTexture = async (t) => {
+    if (!TEXTURES[t.tex]) { flash("Unknown texture pattern."); return; }
+    const clean = { ...t, name: (t.name || "").trim() || TEXTURES[t.tex].label };
+    let list = []; const idx = await sget("textureIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    const ok1 = await sset("texture:" + clean.id, JSON.stringify(clean));
+    list = list.filter((x) => x.id !== clean.id); list.push({ id: clean.id, name: clean.name });
+    const ok2 = await sset("textureIndex", JSON.stringify(list));
+    if (ok1 && ok2) { await loadTextures(); setTexEdit(null); setLTexId(clean.id); setLTool("paint"); flash("Texture \"" + clean.name + "\" saved ✓ — painting with it now."); }
+    else flash("Couldn't save the texture here.");
+  };
+  const deleteTexture = async (id) => {
+    let list = []; const idx = await sget("textureIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    await sdel("texture:" + id);
+    await sset("textureIndex", JSON.stringify(list.filter((x) => x.id !== id)));
+    if (lTexId === id) setLTexId(null);
+    if (texEdit && texEdit.id === id) setTexEdit(null);
+    await loadTextures();
+    // Cells painted with it aren't touched — they still carry their base color and simply render
+    // flat again, so a delete can never blank out part of a level.
+    flash("Texture deleted — cells painted with it fall back to their flat color.");
+  };
+  const loadBgLib = async () => {
+    try { const idx = await sget("backgroundIndex"); const list = idx ? JSON.parse(idx) : []; setBgLib(list); }
+    catch { setBgLib([]); }
+  };
+  // Backgrounds are saved SEPARATELY from levels (their own "background:<id>" entries +
+  // "backgroundIndex", mirroring how levels/assets already work) so one hand-painted backdrop
+  // can be reused across many levels instead of being locked inside whichever level it was
+  // first painted in.
+  const saveBackground = async () => {
+    if (!level) return;
+    const name = bgName.trim() || (level.name + " background");
+    const id = uid();
+    const ok1 = await sset("background:" + id, JSON.stringify({ id, name, bg: level.bg }));
+    let list = []; const idx = await sget("backgroundIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    list.push({ id, name });
+    const ok2 = await sset("backgroundIndex", JSON.stringify(list));
+    if (ok1 && ok2) { flash("Background \"" + name + "\" saved ✓"); setBgName(""); loadBgLib(); } else flash("Couldn't save the background.");
+  };
+  const loadBackground = async (id) => {
+    if (!id) return;
+    try {
+      const raw = await sget("background:" + id);
+      if (!raw) { flash("Couldn't find that background."); return; }
+      const { name, bg } = JSON.parse(raw);
+      setLevel((lv) => (lv ? { ...lv, bg: JSON.parse(JSON.stringify(bg || {})) } : lv));
+      flash("Loaded background \"" + name + "\" — replaced this level's Background layer.");
+    } catch { flash("Couldn't load that background."); }
+  };
+  const loadLevels = async () => {
+    try { const idx = await sget("levelIndex"); const list = idx ? JSON.parse(idx) : []; const full = [];
+      for (const it of list) { const r = await sget("level:" + it.id); if (r) full.push(migrateLevel(JSON.parse(r))); } setLevelLib(full);
+    } catch { setLevelLib([]); }
+  };
+  const openLevelCreator = () => {
+    loadLevels(); loadBgLib(); loadTextures();
+    if (!level) { moving.current = null; setMovingActive(false); setLayerMove(null); const nl = newLevel(); setLevel(nl); levelBaseline.current = JSON.stringify(nl); setLSel(null); setGen(null); setPlay(false); setLFxSel(null); setLFxEditIdx(null); setLLayer("fg"); setLTool("paint"); setLBrush(1); setEyedrop(false); }
+    setScreen("level");
+  };
+  const saveLevel = async () => {
+    if (!level) return;
+    const ok1 = await sset("level:" + level.id, JSON.stringify(level));
+    let list = []; const idx = await sget("levelIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    list = list.filter((x) => x.id !== level.id); list.push({ id: level.id, name: level.name });
+    const ok2 = await sset("levelIndex", JSON.stringify(list));
+    if (ok1 && ok2) { levelBaseline.current = JSON.stringify(level); flash("Level saved ✓"); loadLevels(); } else flash("Couldn't save — use Download.");
+  };
+  const doNewLevelFresh = () => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); const nl = newLevel(); setLevel(nl); levelBaseline.current = JSON.stringify(nl); setLSel(null); setGen(null); setLFxSel(null); setLFxEditIdx(null); setLLayer("fg"); setLTool("paint"); setLBrush(1); setEyedrop(false); flash("New blank level"); };
+  const doNewRoomFresh = () => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); const nl = newRoom(); setLevel(nl); levelBaseline.current = JSON.stringify(nl); setLSel(null); setGen(null); setLFxSel(null); setLFxEditIdx(null); setLLayer("fg"); setLTool("paint"); setLBrush(1); setEyedrop(false); flash("New blank room"); };
+  const openRoomCreator = () => { loadLevels(); loadBgLib(); loadTextures(); guardLevelSwitch("start a new room", doNewRoomFresh); setScreen("level"); };
+  const newRoomFresh = () => guardLevelSwitch("start a new blank room", doNewRoomFresh);
+  const newLevelFresh = () => guardLevelSwitch("start a new blank level", doNewLevelFresh);
+  const doOpenLevel = (lv) => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); const nl = migrateLevel(JSON.parse(JSON.stringify(lv))); setLevel(nl); levelBaseline.current = JSON.stringify(nl); setLSel(null); setGen(null); setPlay(false); setLFxSel(null); setLFxEditIdx(null); setLLayer("fg"); setLTool("paint"); setLBrush(1); setEyedrop(false); setLevelLoadOpen(false); flash("Opened \"" + lv.name + "\" ✓"); };
+  const openLevel = (lv) => guardLevelSwitch("open \"" + lv.name + "\"", () => doOpenLevel(lv));
+  const downloadLevel = () => { try { const b = new Blob([JSON.stringify(level, null, 2)], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (level.name || "level") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked."); } };
+  const uploadLevel = (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const c = migrateLevel(JSON.parse(r.result)); if (!c.conns) throw 0;
+        guardLevelSwitch("open the uploaded level file", () => { setSessionLevel(c); flash("Opened level ✓"); });
+      } catch { flash("Not a level file."); }
+    };
+    r.readAsText(f);
+  };
+  const setSessionLevel = (c) => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); setLevelLib((s) => [...s.filter((x) => x.id !== c.id), c]); const nl = JSON.parse(JSON.stringify(c)); setLevel(nl); levelBaseline.current = JSON.stringify(nl); };
+  const paintCell = (r, c, erase) => setLevel((lv) => {
+    if (!lv) return lv;
+    const k = cellKey(r, c);
+    if (lLayer === "obj") {
+      const fx = { ...lv.fx };
+      if (erase || lTool === "erase") { delete fx[k]; }
+      else if (lObjKind === "prop" && !lPropId) { return lv; /* prop kind chosen but no prop picked yet — nothing to place */ }
+      else { const stack = fx[k] ? fx[k].slice() : []; const objBase = lObjKind === "prop" ? { kind: "prop", propId: lPropId, solid: lSolid, size: lObjSize, inFront: lInFront } : lObjKind === "shape" ? { kind: "shape", shape: lObjShape, tint: lTint || "#7aa2d6", solid: lSolid, size: lObjSize, inFront: lInFront } : { kind: "emoji", char: lEmoji, tint: lTint, solid: lSolid, size: lObjSize, inFront: lInFront }; stack.push(objBase); fx[k] = stack; }
+      return { ...lv, fx };
+    }
+    if (lLayer === "climb") { const climb = { ...lv.climb }; if (erase || lTool === "erase") delete climb[k]; else climb[k] = { kind: lClimbKind }; return { ...lv, climb }; }
+    if (lLayer === "hazard") { const hazard = { ...(lv.hazard || {}) }; if (erase || lTool === "erase") delete hazard[k]; else hazard[k] = { kind: "fire", dps: lHazDps, life: lHazLife, ...(lHazHide ? { hideInPlay: true } : {}) }; return { ...lv, hazard }; }
+    if (lLayer === "marker") { const markers = { ...lv.markers }; if (erase || lTool === "erase") delete markers[k]; else markers[k] = lMarkerKind === "door" ? { kind: "door", tag: lMarkerCat } : { kind: "pedestal", cats: [lPedCat1, lPedCat2], logic: lPedLogic }; return { ...lv, markers }; }
+    const layer = { ...lv[lLayer] };
+    if (erase || lTool === "erase") delete layer[k];
+    // Foreground cells are normally a plain color string (a full solid block). Painting with
+    // a slope shape selected stores { c, slope } instead — a walkable ramp that doesn't block
+    // sideways movement, see slopeSurfaceAt(). Background never gets slopes; it's not solid.
+    // With a texture selected, paintValue() writes { c, tex } instead of a bare color — ramps
+    // and textures compose, so a textured ramp is simply both at once. In Outline mode fg/bg/front
+    // paints also carry `ol` (see withOutline / cellOutlineStyle) — the outer edge renders in it.
+    else {
+      const ol = (lOutline && (lLayer === "fg" || lLayer === "bg" || lLayer === "front")) ? lOutlineColor : null;
+      const base = (lLayer === "fg" && lFgShape !== "block") ? paintValue(lColor, activeTexture, { slope: lFgShape === "slopeUp" ? 1 : -1, ...(lFgUpsideDown ? { upsideDown: true } : {}) }) : paintValue(lColor, activeTexture);
+      layer[k] = withOutline(base, ol);
+    }
+    return { ...lv, [lLayer]: layer };
+  });
+  // Stamps paintCell across a brush-size square. Objects/Markers always stay single-cell —
+  // stacking or placing N copies per stroke isn't what a "brush" should do for discrete items.
+  const paintBrush = (r, c, erase, inb) => {
+    if (lLayer === "obj" || lLayer === "marker" || lLayer === "climb" || lBrush <= 1) { paintCell(r, c, erase); return; }
+    const half = Math.floor((lBrush - 1) / 2);
+    // Every footprint cell paints normally; Outline mode rides along on each cell (via paintCell)
+    // and the outer edge of the whole painted mass is resolved at render — not per brush stamp.
+    for (let dr = -half; dr < lBrush - half; dr++) for (let dc = -half; dc < lBrush - half; dc++) {
+      const rr = r + dr, cc = c + dc;
+      if (!inb(rr, cc)) continue;
+      paintCell(rr, cc, erase);
+    }
+  };
+  // Select tool: click an object/marker to pick it up (removes it from that cell), click any
+  // cell to place it there. Works like the body creator's drag, but as two clicks instead of
+  // a live drag, so it can't silently lose data on the pointerup listener's stale-closure risk.
+  // Copy tool: same two-click flow, but the original is left in place instead of removed.
+  const pickUpOrDrop = (r, c) => {
+    const k = cellKey(r, c);
+    if (moving.current) {
+      const { item, from } = moving.current;
+      setLevel((lv) => {
+        if (from === "fx") { const stack = lv.fx[k] ? lv.fx[k].slice() : []; stack.push(item); return { ...lv, fx: { ...lv.fx, [k]: stack } }; }
+        if (from === "enemies") return { ...lv, enemies: { ...(lv.enemies || {}), [k]: item } };
+        return { ...lv, markers: { ...lv.markers, [k]: item } };
+      });
+      moving.current = null; setMovingActive(false);
+      flash("Placed ✓");
+      return;
+    }
+    const isCopy = lTool === "copy";
+    if (lLayer === "obj" && level.fx[k] && level.fx[k].length) {
+      const stack = level.fx[k]; const item = stack[stack.length - 1];
+      if (!isCopy) setLevel((lv) => { const s2 = lv.fx[k].slice(0, -1); const fx = { ...lv.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv, fx }; });
+      moving.current = { key: k, item: { ...item }, from: "fx", copy: isCopy }; setMovingActive(true);
+      flash(isCopy ? "Copied " + item.char + " — click a cell to place the copy" : "Picked up " + item.char + " — click a cell to place it, or click it again to cancel");
+    } else if (lLayer === "marker" && level.markers[k]) {
+      const item = level.markers[k];
+      if (!isCopy) setLevel((lv) => { const markers = { ...lv.markers }; delete markers[k]; return { ...lv, markers }; });
+      moving.current = { key: k, item: { ...item }, from: "markers", copy: isCopy }; setMovingActive(true);
+      flash(isCopy ? "Copied marker — click a cell to place the copy" : "Picked up marker — click a cell to place it");
+    } else {
+      flash("Nothing here to pick up.");
+    }
+  };
+  // If a pick-up is abandoned (layer switch, level switch), drop it back where it came from
+  // rather than silently losing it. A copy was never removed from its source, so there's
+  // nothing to restore — just discard the held copy.
+  const cancelMoving = () => {
+    if (!moving.current) return;
+    const { key, item, from, copy: isCopy } = moving.current;
+    if (!isCopy) setLevel((lv) => {
+      if (!lv) return lv;
+      if (from === "fx") { const stack = lv.fx[key] ? lv.fx[key].slice() : []; stack.push(item); return { ...lv, fx: { ...lv.fx, [key]: stack } }; }
+      if (from === "enemies") return { ...lv, enemies: { ...(lv.enemies || {}), [key]: item } };
+      return { ...lv, markers: { ...lv.markers, [key]: item } };
+    });
+    moving.current = null; setMovingActive(false);
+  };
+  const cycleConn = (k) => setLevel((lv) => { const c = { ...lv.conns }; c[k] = { ...c[k], open: !c[k].open }; return { ...lv, conns: c }; });
+  // Reorder a single object within a cell's stack (dir +1 = bring forward/toward top, -1 = send back).
+  const moveFxStack = (k, i, dir) => setLevel((lv) => {
+    const stack = (lv.fx[k] || []).slice(); const j = i + dir; if (j < 0 || j >= stack.length) return lv;
+    [stack[i], stack[j]] = [stack[j], stack[i]];
+    return { ...lv, fx: { ...lv.fx, [k]: stack } };
+  });
+  const removeFxAt = (k, i) => setLevel((lv) => {
+    const stack = (lv.fx[k] || []).filter((_, idx) => idx !== i);
+    const fx = { ...lv.fx }; if (stack.length) fx[k] = stack; else delete fx[k];
+    return { ...lv, fx };
+  });
+  // Tweak one existing stacked object in place (tint / solid / size) without removing and re-placing it.
+  const updateFxAt = (k, i, patch) => setLevel((lv) => {
+    const stack = (lv.fx[k] || []).slice(); if (!stack[i]) return lv;
+    stack[i] = { ...stack[i], ...patch };
+    return { ...lv, fx: { ...lv.fx, [k]: stack } };
+  });
+  const setConnAccepts = (k, t) => setLevel((lv) => ({ ...lv, conns: { ...lv.conns, [k]: { ...lv.conns[k], accepts: t } } }));
+  const addCatSuggest = (k, tag) => setLevel((lv) => { const cur = lv.conns[k].accepts || ""; const has = cur.split(/[,\n]/).map((s) => s.trim().toLowerCase()).includes(tag); if (has) return lv; const next = cur ? cur + ", " + tag : tag; return { ...lv, conns: { ...lv.conns, [k]: { ...lv.conns[k], accepts: next } } }; });
+  const allLevels = level ? [level, ...levelLib.filter((l) => l.id !== level.id)] : levelLib;
+  const floorSuggest = [...new Set(levelLib.map((l) => (l.floor || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const catSuggest = [...new Set(allAssets.filter(HAS_CATEGORIES).flatMap((a) => (a.categories || []).map((c) => (c || "").trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  // Hoisted to component scope (not inside the level-screen block) because BOTH commit paths
+  // need it: the status-strip destination buttons AND selectLayer below — clicking a layer tab
+  // while a region is picked up is the most natural way to say "put it there", and the original
+  // behavior of silently clearing the selection on tab click was exactly how the intended
+  // pick-up-then-choose-layer flow got eaten.
+  const commitMove = (destLayer) => {
+    if (!layerMove || destLayer === layerMove.layer) return;
+    if (!level || layerMove.levelId !== level.id) { setLayerMove(null); return; } // selection belongs to a level that's no longer open — drop it instead of writing stale cells into whatever's open now
+    setLevel((lv2) => {
+      const src = { ...lv2[layerMove.layer] };
+      const dst = { ...lv2[destLayer] };
+      for (const k of Object.keys(layerMove.cells)) { delete src[k]; dst[k] = layerMove.cells[k]; }
+      return { ...lv2, [layerMove.layer]: src, [destLayer]: dst };
+    });
+    flash("Moved " + Object.keys(layerMove.cells).length + " cell(s) to " + (destLayer === "fg" ? "Foreground" : destLayer === "bg" ? "Background" : "Front") + " ✓");
+    setLayerMove(null);
+  };
+  const cancelMove = () => setLayerMove(null);
+  const selectLayer = (l) => {
+    if (moving.current && l !== "obj" && l !== "marker") cancelMoving();
+    if (lEnemyId) setLEnemyId("");            // a layer tab means "work on this layer" — leave enemy-placement so clicks stop dropping enemies
+    if ((lTool === "select" || lTool === "copy") && l !== "obj" && l !== "marker") setLTool("paint");
+    if (lTool === "fill" && l !== "fg" && l !== "bg" && l !== "front") setLTool("paint");
+    if (lTool === "move" && l !== "fg" && l !== "bg" && l !== "front") setLTool("paint");
+    if (layerMove) {
+      // A region is picked up: clicking a color-layer tab means "move it THERE" (even the tab
+      // that's already active — the pickup may have come from a different source layer). Only
+      // switching to a non-color layer (Objects/Climb/etc.) abandons the pickup.
+      if ((l === "fg" || l === "bg" || l === "front")) { if (l !== layerMove.layer) commitMove(l); }
+      else setLayerMove(null);
+    }
+    setLLayer(l);
+  };
+  // Switching tools away from Select/Copy while something is picked up would otherwise strand it —
+  // return it to where it came from instead of leaving it invisibly stuck.
+  // Clicking Paint or Erase while it's already the active tool is otherwise a wasted click —
+  // repurposed as an explicit "back to Foreground" reset, since staying on Climb/Objects/etc.
+  // after you meant to go back to normal painting was confusing.
+  const selectTool = (t) => {
+    if (moving.current && t !== "select" && t !== "copy") cancelMoving();
+    if (layerMove && t !== "move") setLayerMove(null);
+    if (lTool === t && t !== "select" && t !== "copy" && lLayer !== "fg" && lLayer !== "climb") { setLLayer("fg"); flash("Back to Foreground"); }
+    setLTool(t);
+  };
+  const runGenerate = () => { const chain = generateChain(allLevels, 8); if (chain.length < 1) { flash("Make/save a couple of levels with matching open connectors first."); return; } setGen(chain); flash("Generated a chain of " + chain.length); };
+
+
+  /* ====================================================================== */
+  if (screen === "menu") {
+    return (
+      <div className="bb"><style>{css}</style>
+        <header className="bar"><div className="logo">🧱 Bob Asset Studio</div></header>
+        <div className="menu">
+          <h2>Make a body or weapon</h2>
+          <div className="tiles">
+            <button className="tile" onClick={() => setChooser(true)}><span className="ti">🧍</span><span className="tl">Skin / Body</span><span className="tb">A body shape, or a skin (tone/face/hair).</span></button>
+            <button className="tile" onClick={() => setWtypeChoice(true)}><span className="ti">{TYPES.weapon.icon}</span><span className="tl">{TYPES.weapon.label}</span><span className="tb">{TYPES.weapon.blurb}</span></button>
+            <button className="tile" onClick={() => start("enemy")}><span className="ti">{TYPES.enemy.icon}</span><span className="tl">{TYPES.enemy.label}</span><span className="tb">{TYPES.enemy.blurb}</span></button>
+            <button className="tile" onClick={() => setPropItemChoice(true)}><span className="ti">🌿</span><span className="tl">Object / Prop / Item</span><span className="tb">Scenery you place in a level, or a single-use item pickup.</span></button>
+            <button className="tile dress" onClick={() => setScreen("assemble")}><span className="ti">🧩</span><span className="tl">Dress Bob</span><span className="tb">Lay a body, skin, clothes & weapon together.</span></button>
+            <button className="tile lvl" onClick={openLevelCreator}><span className="ti">🗺️</span><span className="tl">Level Creator</span><span className="tb">Paint a level, set its 8 connectors, then generate &amp; playtest.</span></button>
+            <button className="tile lvl" onClick={openRoomCreator}><span className="ti">🚪</span><span className="tl">Room Creator</span><span className="tb">A small room (shop, item room, secret) reached through a matching door in a level.</span></button>
+          </div>
+          <h2>Make a piece of equipment</h2>
+          <div className="slots">
+            {SLOT_ORDER.slice().reverse().map((s) => (
+              <button key={s} className="slot" onClick={() => start("equipment", s)}><span className="si">{SLOTS[s].icon}</span><span>{SLOTS[s].label}</span></button>
+            ))}
+          </div>
+          <h2>Load</h2>
+          <button className="ltbtn" onClick={() => { setLoadOpen(true); setLoadCategory(null); setLoadSlot(null); }}>📂 Load{allAssets.length ? " (" + allAssets.length + " saved)" : ""}</button>
+          <label className="openfile">⬆ Open a file<input type="file" accept="application/json" onChange={upload} hidden /></label>
+          <button className="ltbtn" onClick={exportAllAssets} title="Downloads every saved asset as one backup file. Re-open that file here later to restore them all.">⬇ Export all assets{library.length ? " (" + library.length + ")" : ""}</button>
+          <h2>Niche controls</h2>
+          <button className="ltbtn" onClick={() => setNiche(true)}>🩹 Recover layers from a dressed look</button>
+        </div>
+        {niche && (
+          <div className="modal" onClick={() => setNiche(false)}>
+            <div className="dlg" onClick={(e) => e.stopPropagation()}>
+              <div className="dt">Niche controls — recover layers</div>
+              {allAssets.filter((a) => a.type === "character").length ? (
+                <div className="nichelist">
+                  {allAssets.filter((a) => a.type === "character").map((ch) => (
+                    <div key={ch.id} className="nicherow">
+                      <div className="nichename">🧩 {ch.name}</div>
+                      {ch.components ? (
+                        <div className="nichebtns">
+                          <button onClick={() => restoreComponent(ch.components.body)}>🧍 Body</button>
+                          {ch.components.skin && <button onClick={() => restoreComponent(ch.components.skin)}>🎨 Skin</button>}
+                          {ch.components.equipment && Object.keys(ch.components.equipment).map((s) => (
+                            <button key={s} onClick={() => restoreComponent(ch.components.equipment[s])}>{SLOTS[s]?.icon || "📦"} {SLOTS[s]?.label || s}</button>
+                          ))}
+                          {ch.components.weapon && <button onClick={() => restoreComponent(ch.components.weapon)}>⚔️ Weapon</button>}
+                        </div>
+                      ) : (
+                        <div className="nichebtns">
+                          <button onClick={() => restoreComponent(recoverBodyFromBake(ch))}>🩹 Recover body (best effort)</button>
+                          <span className="hint2">Saved before looks kept their layers — the body is rebuilt from the baked pieces. Exact unless the look wore pants/under-shirts (those get fused in; delete them in the editor).</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="muted">No saved dressed looks to recover from.</p>}
+              <div className="row2"><button onClick={() => setNiche(false)}>Close</button></div>
+            </div>
+          </div>
+        )}
+        {loadOpen && (
+          <div className="modal" onClick={() => setLoadOpen(false)}>
+            <div className="dlg wide3" onClick={(e) => e.stopPropagation()}>
+              {loadCategory === null ? (
+                <>
+                  <div className="dt">📂 Load</div>
+                  {allAssets.length ? (
+                    <div className="loadcats">
+                      {LOAD_CATEGORIES.map((cat) => {
+                        const count = allAssets.filter(cat.match).length;
+                        return (
+                          <button key={cat.key} className="scard" disabled={!count} onClick={() => { setLoadCategory(cat.key); setLoadSlot(null); }}>
+                            <span className="si">{cat.icon}</span>
+                            <span className="sn">{cat.label}</span>
+                            <span className="sty">{count} saved</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : <p className="muted">{hasStore ? "Nothing saved yet — make something, then Save." : "In-browser saving isn't available here; use Open a file."}</p>}
+                  <div className="row2"><button onClick={() => setLoadOpen(false)}>Close</button></div>
+                </>
+              ) : (() => {
+                const cat = LOAD_CATEGORIES.find((c) => c.key === loadCategory);
+                const bySlot = cat.key === "equipment";
+                const inSlot = (a, sl) => (sl === "__other" ? !SLOT_ORDER.includes(a.slot) : a.slot === sl);
+                const bodies = allAssets.filter((a) => a.type === "body");
+                if (bySlot && !loadSlot) {
+                  const slotKeys = SLOT_ORDER.slice().reverse();
+                  const equip = allAssets.filter(cat.match);
+                  const otherCount = equip.filter((a) => !SLOT_ORDER.includes(a.slot)).length;
+                  return (
+                    <>
+                      <div className="dt"><button className="back" onClick={() => setLoadCategory(null)}>‹ Categories</button> {cat.icon} {cat.label}</div>
+                      <div className="loadcats">
+                        {slotKeys.map((sl) => {
+                          const n = equip.filter((a) => a.slot === sl).length;
+                          return (
+                            <button key={sl} className="scard" disabled={!n} onClick={() => setLoadSlot(sl)}>
+                              <span className="si">{SLOTS[sl].icon}</span>
+                              <span className="sn">{SLOTS[sl].label}</span>
+                              <span className="sty">{n} saved</span>
+                            </button>
+                          );
+                        })}
+                        {otherCount > 0 && (
+                          <button className="scard" onClick={() => setLoadSlot("__other")}>
+                            <span className="si">📦</span>
+                            <span className="sn">Other</span>
+                            <span className="sty">{otherCount} saved</span>
+                          </button>
+                        )}
+                      </div>
+                      <div className="row2"><button onClick={() => setLoadOpen(false)}>Close</button></div>
+                    </>
+                  );
+                }
+                const items = allAssets.filter(cat.match).filter((a) => !bySlot || inSlot(a, loadSlot));
+                const slotLabel = bySlot ? (loadSlot === "__other" ? "Other" : SLOTS[loadSlot].label) : "";
+                return (
+                  <>
+                    <div className="dt">{bySlot
+                      ? <><button className="back" onClick={() => setLoadSlot(null)}>‹ {cat.label}</button> {loadSlot === "__other" ? "📦" : SLOTS[loadSlot].icon} {slotLabel}</>
+                      : <><button className="back" onClick={() => setLoadCategory(null)}>‹ Categories</button> {cat.icon} {cat.label}</>}</div>
+                    {items.length ? (
+                      <div className="saved loaditems">
+                        {items.map((a) => (
+                          <div key={a.id} className="scardwrap">
+                            <button className="scard loaditem" onClick={() => { openAsset(a); setLoadOpen(false); }}>
+                              <span className="si">{a.type === "equipment" ? (SLOTS[a.slot]?.icon || "📦") : cat.icon}</span>
+                              <span className="sn">{a.name}</span>
+                              <span className="sty">{a.type === "equipment" && SLOTS[a.slot] ? SLOTS[a.slot].label + " · " : ""}{a.savedAt ? "Saved " + new Date(a.savedAt).toLocaleDateString() : "date unknown (saved before this was tracked)"}</span>
+                              {cat.fitTracked && (
+                                <span className="fitlist" >
+                                  {bodies.length ? bodies.map((b) => { const fitted = !!(a.confirmedFits && a.confirmedFits.includes(b.id) && a.variants && a.variants[b.id] && !fitVariantEmpty(a.type, a.variants[b.id])); return <span key={b.id} className={"fitchip" + (fitted ? " on" : "")}>{fitted ? "✓" : "—"} {b.name}</span>; }) : <span className="hint2">No bodies yet</span>}
+                                </span>
+                              )}
+                            </button>
+                            <button className={"sdel" + (confirmDel === a.id ? " arm" : "")} title={confirmDel === a.id ? "Tap again to permanently delete" : "Delete this asset"} onClick={() => { if (confirmDel === a.id) { setConfirmDel(null); deleteAsset(a); } else { setConfirmDel(a.id); flash("Tap 🗑 again to permanently delete \"" + a.name + "\""); } }}>{confirmDel === a.id ? "Sure?" : "🗑"}</button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <p className="muted">Nothing in this category yet.</p>}
+                    <div className="row2"><button onClick={() => setLoadOpen(false)}>Close</button></div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+        {chooser && (
+          <div className="modal" onClick={() => setChooser(false)}>
+            <div className="dlg" onClick={(e) => e.stopPropagation()}>
+              <div className="dt">What are you making?</div>
+              <div className="tiles">
+                <button className="tile" onClick={() => { setChooser(false); start("body"); }}><span className="ti">{TYPES.body.icon}</span><span className="tl">Body</span><span className="tb">{TYPES.body.blurb}</span></button>
+                <button className="tile" onClick={() => { setChooser(false); start("skin"); }}><span className="ti">{TYPES.skin.icon}</span><span className="tl">Skin</span><span className="tb">{TYPES.skin.blurb}</span></button>
+              </div>
+            </div>
+          </div>
+        )}
+        {wtypeChoice && (
+          <div className="modal" onClick={() => setWtypeChoice(false)}>
+            <div className="dlg" onClick={(e) => e.stopPropagation()}>
+              <div className="dt">Melee, ranged, projectile, or throwable?</div>
+              <div className="tiles">
+                <button className="tile" onClick={() => { setWtypeChoice(false); start("weapon", null, "melee"); }}><span className="ti">🗡️</span><span className="tl">Melee</span><span className="tb">Swung by hand — a sword, club, or similar. The Fire state is the swing frame.</span></button>
+                <button className="tile" onClick={() => { setWtypeChoice(false); start("weapon", null, "ranged"); }}><span className="ti">🏹</span><span className="tl">Ranged</span><span className="tb">The bow/gun/launcher itself. Pick which saved Projectile it fires, aimed with ↑/↓ in playtest.</span></button>
+                <button className="tile" onClick={() => { setWtypeChoice(false); start("weapon", null, "throw"); }}><span className="ti">💣</span><span className="tl">Throwable</span><span className="tb">A grenade/bomb thrown with G. Range comes from its weight vs your Strength; it triggers a landing effect (fire) where it hits. A single-use pickup — you carry what you've found.</span></button>
+                <button className="tile" onClick={() => { setWtypeChoice(false); start("projectile"); }}><span className="ti">🔮</span><span className="tl">Projectile</span><span className="tb">The bullet/arrow/bolt itself — build it once here, then load it onto any Ranged weapon. Gets its own hitbox + a zoomed-in canvas.</span></button>
+              </div>
+            </div>
+          </div>
+        )}
+        {propItemChoice && (
+          <div className="modal" onClick={() => setPropItemChoice(false)}>
+            <div className="dlg" onClick={(e) => e.stopPropagation()}>
+              <div className="dt">Object or Item?</div>
+              <div className="tiles">
+                <button className="tile" onClick={() => { setPropItemChoice(false); start("prop"); }}><span className="ti">{TYPES.prop.icon}</span><span className="tl">{TYPES.prop.label}</span><span className="tb">{TYPES.prop.blurb}</span></button>
+                <button className="tile" onClick={() => { setPropItemChoice(false); start("item"); }}><span className="ti">{TYPES.item.icon}</span><span className="tl">{TYPES.item.label}</span><span className="tb">{TYPES.item.blurb}</span></button>
+              </div>
+            </div>
+          </div>
+        )}
+        {toast && <div className="toast">{toast}</div>}
+      </div>
+    );
+  }
+
+  if (screen === "assemble") {
+    const bodies = allAssets.filter((a) => a.type === "body");
+    // A skin's "variants" are per-body fits, confirmed only when a Save happens while that body
+    // is the active guide (see confirmedFits) — switching the guide dropdown alone just clones a
+    // starting-point layout to work from, not a finished fit. One that's confirmed for some
+    // OTHER specific body — but never this one — used to still show up in the picker and
+    // silently do nothing when chosen (the fit-lookup falls back to that other body's layout,
+    // not the worn one). Skins never confirmed for any specific body (still just Default) are
+    // universal and stay available everywhere; with no body picked yet, nothing to filter
+    // against, so show everything.
+    const skinFitsBody = (a, bodyId) => {
+      if (!a.confirmedFits || !a.confirmedFits.length) return true; // never confirmed for a specific body — universal
+      return a.confirmedFits.includes(bodyId);
+    };
+    const skinsList = allAssets.filter((a) => a.type === "skin" && (!loadout.bodyId || skinFitsBody(a, loadout.bodyId)));
+    const weapons = allAssets.filter((a) => a.type === "weapon" && !isThrowable(a.wtype));
+    const dressedList = allAssets.filter((a) => a.type === "character");
+    const body = findA(loadout.bodyId);
+    const skin = findA(loadout.skinId);
+    const weapon = findA(loadout.weaponId);
+    const overlays = [skin, ...SLOT_ORDER.map((s) => findA(loadout.slots[s]))].filter(Boolean);
+    const layered = body ? layerBodyAndOverlays(applySkinTone(body, skin && skin.tone), overlays, aAngle) : []; // live preview matches the baked look, tone included
+    const weaponArtPieces = (body && weapon) ? (() => { const o = weaponOffset(body, weapon, aAngle); return bake({ ...weapon, angles: { ...blankAngles(), [aAngle]: weaponRestArt(weapon, body, aAngle) } }, aAngle).filter((p) => !p.isHitbox && !p.isMuzzle).map((p) => ({ ...p, x: p.x + o.x, y: p.y + o.y, _src: weapon.id })); })() : [];
+    const dressArtPieces = viewDressed ? bake(viewDressed, aAngle) : mergeWeaponBlocks(layered, weaponArtPieces);
+    return (
+      <div className="bb"><style>{css}</style>
+        <header className="bar">
+          <button className="back" onClick={() => setScreen("menu")}>‹ Menu</button>
+          <div className="logo">🧩 Dress Bob</div>
+          <input className="dressName" value={dressedBobName} onChange={(e) => setDressedBobName(e.target.value)} placeholder={(body ? body.name + " — dressed" : "name this outfit") + "…"} />
+          <label className="chk" style={{ margin: "0 8px" }} >
+            <input type="checkbox" checked={markAsEnemy} onChange={(e) => setMarkAsEnemy(e.target.checked)} /> 👹 Enemy
+          </label>
+          {markAsEnemy && <label className="chk" style={{ margin: "0 8px" }}>HP<input type="number" min="1" value={dressedHp} onChange={(e) => setDressedHp(Math.max(1, +e.target.value || 1))} style={{ width: 50, marginLeft: 4 }} /></label>}
+          {/* No ⚔️ range field here anymore: a player-based enemy's reach IS its weapon's own swung hitbox (fists included), exactly like the player — a stored number would be meaningless. */}
+          <button className="save" onClick={saveDressedBob}>💾 Save</button>
+          <button className="save" onClick={exportLook}>📤 Export look</button>
+        </header>
+        <div className="angles">{ANGLES.map((a) => <button key={a} className={aAngle === a ? "on" : ""} onClick={() => setAAngle(a)}>{ALABEL[a]}</button>)}
+          {dressedList.length > 0 && <select className="openDressed" value="" onChange={(e) => { const a = findA(e.target.value); if (a) { openDressedLook(a); flash("Viewing \"" + a.name + "\" — pick parts on the left to start a new one instead."); } }} >
+            <option value="">📂 Open saved look…</option>
+            {dressedList.map((a) => <option key={a.id} value={a.id}>{(a.isEnemy ? "👹 " : "") + a.name}</option>)}
+          </select>}
+          <label className="up" style={{ marginLeft: dressedList.length ? 0 : "auto" }}>⬆ Add asset file<input type="file" accept="application/json" onChange={sessionUpload} hidden /></label>
+        </div>
+        <div className="main">
+          <div className="stage">
+            {(body || skin) && (() => {
+              const equipmentList = SLOT_ORDER.map((s) => findA(loadout.slots[s])).filter(Boolean);
+              const pStats = { ...(skin?.stats || DEFAULT_STATS()) };
+              let pDefense = 0;
+              for (const eq of equipmentList) { if (eq.statBoosts) for (const k of Object.keys(eq.statBoosts)) pStats[k] = (pStats[k] ?? 5) + (eq.statBoosts[k] || 0); pDefense += eq.defense || 0; }
+              return <p className="statline">📊 Speed {pStats.speed ?? 5} · Agility {pStats.agility ?? 5} · Intelligence {pStats.intelligence ?? 5} · Strength {pStats.strength ?? 5} · HP {pStats.hp ?? 5} · 🛡️ Defense {pDefense}</p>;
+            })()}
+            <div ref={artRef} className="art">
+              {!body && !viewDressed && <div className="emptyart">pick a body →</div>}
+              {renderPieceRuns({ pieces: dressArtPieces, cacheKey: "dressbob", keyPrefix: "d", drawPiece: (p, k) => Static(p, null, false, !!p._m, k), maskCss: cutterMaskCss })}
+            </div>
+          </div>
+          <aside className="side">
+            <div className="card">
+              <div className="ct">Body</div>
+              <select className="big" value={loadout.bodyId} onChange={(e) => { const nb = e.target.value; const curSkin = findA(loadout.skinId); const keepSkin = !curSkin || skinFitsBody(curSkin, nb); setLoadout({ ...loadout, bodyId: nb, skinId: keepSkin ? loadout.skinId : "" }); setViewDressed(null); }}>
+                <option value="">— pick a body —</option>
+                {bodies.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+              {!bodies.length && <p className="mini">No bodies yet. Make one from the menu (or add a file above).</p>}
+            </div>
+            <div className="card">
+              <div className="ct">Skin (tone / face / hair)</div>
+              <select className="big" value={loadout.skinId} onChange={(e) => { setLoadout({ ...loadout, skinId: e.target.value }); setViewDressed(null); }}>
+                <option value="">none</option>
+                {skinsList.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+            <div className="card">
+              <div className="ct">Clothes & armor</div>
+              {SLOT_ORDER.slice().reverse().map((slot) => {
+                const opts = allAssets.filter((a) => a.type === "equipment" && a.slot === slot);
+                return (
+                  <label className="slotrow" key={slot}>
+                    <span>{SLOTS[slot].icon} {SLOTS[slot].label}</span>
+                    <select value={loadout.slots[slot] || ""} onChange={(e) => { setLoadout({ ...loadout, slots: { ...loadout.slots, [slot]: e.target.value } }); setViewDressed(null); }}>
+                      <option value="">none</option>
+                      {opts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="card">
+              <div className="ct">Weapon</div>
+              <select className="big" value={loadout.weaponId} onChange={(e) => { setLoadout({ ...loadout, weaponId: e.target.value }); setViewDressed(null); }}>
+                <option value="">none</option>
+                {weapons.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          </aside>
+        </div>
+        {combo && (
+          <div className="modal" onClick={() => setCombo(null)}>
+            <div className="dlg" onClick={(e) => e.stopPropagation()}>
+              <div className="dt">Dressed Bob — send to the game or to Claude</div>
+              <textarea value={combo} readOnly spellCheck={false} />
+              <div className="row2"><button onClick={comboCopy}>📋 Copy</button><button onClick={comboDownload}>⬇ Download</button><button onClick={() => setCombo(null)}>Close</button></div>
+            </div>
+          </div>
+        )}
+        {toast && <div className="toast">{toast}</div>}
+      </div>
+    );
+  }
+
+  /* ---- level creator ---------------------------------------------------- */
+  if (screen === "level") {
+    const lv = level;
+    const lvW = lv.cols * LV_CELL, lvH = lv.rows * LV_CELL;
+    // Anything usable as an enemy: standalone Enemy-type assets, or a Dress Bob look flagged 👹.
+    const enemyChoices = allAssets.filter((a) => a.type === "enemy" || (a.type === "character" && a.isEnemy));
+    const lvCell = (e) => { const r = lvRef.current.getBoundingClientRect(); return { c: Math.floor((e.clientX - r.left) / LV_CELL), r: Math.floor((e.clientY - r.top) / LV_CELL) }; };
+    const inb = (r, c) => r >= 0 && c >= 0 && r < lv.rows && c < lv.cols;
+    // Flood fill (paint bucket) — Foreground/Background only, where "quickly fill a gap" actually
+    // means something. Standard bucket semantics: whatever value the clicked cell currently holds
+    // (including "nothing" — the common case of filling empty space) spreads to every 4-directionally
+    // connected cell sharing that same value, replaced with the current paint color/shape. Capped
+    // at a generous cell count so a mis-click on a huge open level can't hang the tab.
+    const floodFill = (r0, c0) => {
+      const lv = level;
+      if (!lv || (lLayer !== "fg" && lLayer !== "bg" && lLayer !== "front")) return;
+      const { cells: cellsToFill, startVal, hitCap } = computeFillRegion(lv, lLayer, r0, c0);
+      const ol = lOutline ? lOutlineColor : null; // guarded to fg/bg/front above; Outline rides along so the filled region gets an outer-edge border
+      const newVal = withOutline(paintValue(lColor, activeTexture, lLayer === "fg" && lFgShape !== "block" ? { slope: lFgShape === "slopeUp" ? 1 : -1, ...(lFgUpsideDown ? { upsideDown: true } : {}) } : null), ol);
+      if (JSON.stringify(newVal) === JSON.stringify(startVal)) return; // already this value everywhere reachable — nothing to do
+      const CONFIRM_THRESHOLD = 300;
+      if (cellsToFill.length > CONFIRM_THRESHOLD) {
+        const layerName = lLayer === "fg" ? "Foreground" : lLayer === "bg" ? "Background" : "Front";
+        const ok = window.confirm("This would repaint " + cellsToFill.length + " cells on the " + layerName + " layer. If that's way more than you expected, Cancel and check you're on the right layer tab. Fill anyway?");
+        if (!ok) return;
+      }
+      setLevel((lv2) => {
+        const layer2 = { ...lv2[lLayer] };
+        for (const k of cellsToFill) layer2[k] = newVal;
+        return { ...lv2, [lLayer]: layer2 };
+      });
+      if (hitCap) flash("Filled the first 8000 cells — that region was huge, so it stopped there rather than hang.");
+    };
+    // Move to layer — same connectivity/matching rules as Fill (see above) but instead of
+    // repainting in place, this picks the matched region UP so it can be dropped on a different
+    // layer with its original colors/shapes intact. Exists because Foreground/Background/Front
+    // are easy to mix up (similar names, right next to each other), and there was previously no
+    // way to relocate a region once painted on the wrong one short of erasing and repainting it.
+    // IMPORTANT: the clicked cell is looked up across ALL three color layers, not just the
+    // active one — the natural flow is "select the DESTINATION layer, then click the thing you
+    // want moved there", and that thing is by definition sitting on a DIFFERENT layer than the
+    // active one. Requiring the source layer to be active first (the original behavior) made
+    // exactly that flow fail with "Nothing painted here". Priority: active layer first (so if
+    // two layers both have paint at that cell, the one you're on wins), then Front → Foreground
+    // → Background (visual top-down order).
+    const pickMoveRegion = (r0, c0) => {
+      const k0 = cellKey(r0, c0);
+      // If a pickup is already pending, check ITS layer first — clicking a DIFFERENT color on the
+      // SAME source layer (the trunk after the canopy, say) should grow that pending selection,
+      // not replace it. Without this, moving anything with more than one color only ever moved
+      // whichever region you clicked last, silently leaving the rest stuck on the old layer.
+      const preferred = layerMove && layerMove.levelId === lv.id ? [layerMove.layer] : [];
+      const order = [...preferred, lLayer, "front", "fg", "bg"].filter((l, i, a) => (l === "fg" || l === "bg" || l === "front") && a.indexOf(l) === i);
+      let srcLayer = null;
+      for (const l of order) { const v = (lv[l] || {})[k0]; if (v !== undefined && v !== null) { srcLayer = l; break; } }
+      if (!srcLayer) { flash("Nothing painted at this cell on Foreground, Background, or Front — click a filled-in cell."); return; }
+      const layer = lv[srcLayer] || {};
+      const startVal = layer[k0];
+      const sameAsStart = (v) => (v !== undefined && v !== null) && cellSig(v) === cellSig(startVal);
+      const visited = new Set();
+      const cells = {};
+      const stack = [[r0, c0]];
+      const MAX_CELLS = 8000;
+      while (stack.length && Object.keys(cells).length < MAX_CELLS) {
+        const [r, c] = stack.pop();
+        if (!inb(r, c)) continue;
+        const k = cellKey(r, c);
+        if (visited.has(k)) continue;
+        visited.add(k);
+        const v = layer[k] ?? null;
+        if (!sameAsStart(v)) continue;
+        cells[k] = v;
+        stack.push([r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]);
+      }
+      const growing = layerMove && layerMove.levelId === lv.id && layerMove.layer === srcLayer;
+      setLayerMove({ layer: srcLayer, cells: growing ? { ...layerMove.cells, ...cells } : cells, levelId: lv.id });
+      if (growing) flash("Added " + Object.keys(cells).length + " more cell(s) — " + (Object.keys(cells).length + Object.keys(layerMove.cells).length) + " total picked up so far.");
+    };
+    const lvDown = (e) => {
+      if (play) return;
+      const { r, c } = lvCell(e); if (!inb(r, c)) return;
+      const k = cellKey(r, c);
+      if (eyedrop) {
+        if (lLayer === "obj") {
+          const stack = lv.fx[k];
+          if (stack && stack.length) {
+            const top = stack[stack.length - 1];
+            if (top.kind === "shape") { setLObjKind("shape"); setLObjShape(top.shape || "rect"); setLTint(top.tint); addRecent(top.tint); flash("Picked up shape + color 🎨"); }
+            else if (top.tint) { setLObjKind("emoji"); setLTint(top.tint); addRecent(top.tint); flash("Picked up color 🎨"); }
+            else flash("That block uses its natural emoji colors — nothing to pick up.");
+          }
+          else flash("Nothing here to pick up.");
+        } else if (lLayer === "fg" || lLayer === "bg" || lLayer === "front") {
+          const cell = lv[lLayer][k];
+          if (cell) {
+            setLColor(fgColor(cell)); addRecent(fgColor(cell));
+            const tid = cellTexId(cell);
+            setLTexId(resolveTexture(texLib, tid) ? tid : null); // a texture that's since been deleted picks up as its plain fallback color
+            if (lLayer === "fg") { setLFgShape(fgHasDiagonalShape(cell) ? (cell.slope > 0 ? "slopeUp" : "slopeDown") : "block"); setLFgUpsideDown(fgHasDiagonalShape(cell) && !!cell.upsideDown); if (fgHasDiagonalShape(cell)) setLBrush(Math.min(8, fgRun(cell))); }
+            flash("Picked up " + (tid ? "texture 🧱" : "color 🎨") + (lLayer === "fg" && fgIsSlope(cell) ? " + ramp shape/size" : ""));
+          } else flash("Nothing here to pick up.");
+        } else {
+          flash("Eyedropper only works on Foreground, Background, or Objects.");
+        }
+        setEyedrop(false);
+        return;
+      }
+      if ((lTool === "select" || lTool === "copy") && (lLayer === "obj" || lLayer === "marker")) { pickUpOrDrop(r, c); return; }
+      // Enemy-placement mode (an enemy is picked in the menu). It OWNS both paint and erase so it's
+      // self-contained: Paint drops one here, Erase removes the one here — no falling through to
+      // erase the layer underneath. Pick "— none —" (or click a layer tab) to leave enemy mode.
+      if (lEnemyId) {
+        if (lTool === "erase") { setLevel((lv2) => { if (!lv2.enemies || !lv2.enemies[k]) return lv2; const enemies = { ...lv2.enemies }; delete enemies[k]; return { ...lv2, enemies }; }); return; }
+        if (lTool === "paint") { setLevel((lv2) => ({ ...lv2, enemies: { ...(lv2.enemies || {}), [k]: { enemyId: lEnemyId, facing: lEnemyFace, ...(lEnemyAi !== "asset" ? { ai: lEnemyAi } : {}) } } })); return; }
+      }
+      if (lTool === "areaCopy") { areaAnchor.current = { r, c }; setAreaDragOn(true); return; }
+      if (lTool === "fill") { floodFill(r, c); return; }
+      if (lTool === "move") { pickMoveRegion(r, c); return; }
+      if (lLayer === "fg" && lFgShape !== "block" && lTool === "paint") {
+        // Ramps are placed as one multi-cell unit on release (see the pointerup effect above),
+        // not stamped cell-by-cell while dragging — that's what let a bigger "size" turn into
+        // several separate 45° ramps instead of one longer, shallower one.
+        rampAnchor.current = { r, c }; setRampDragOn(true);
+        return;
+      }
+      lpaint.current = { on: true, last: k, startX: e.clientX, startY: e.clientY, moved: false };
+      paintBrush(r, c, undefined, inb);
+      if (lLayer === "obj") { setLFxSel(k); setLFxEditIdx(null); }
+    };
+    const lvMove = (e) => {
+      if (play) { setLHoverCell(null); return; }
+      const { r, c } = lvCell(e);
+      const within = inb(r, c);
+      setLHoverCell(within ? { r, c } : null);
+      if (!lpaint.current || !lpaint.current.on || !within) return;
+      // A click never sits at exactly one pixel — the pointer drifts a little between down and
+      // up even when you didn't mean to drag. Require a few real pixels of movement before this
+      // counts as an intentional drag, so a single click can't accidentally paint into the
+      // neighbouring cell (this was the "selecting one thing grabs multiple things" bug).
+      if (!lpaint.current.moved) {
+        const dxm = e.clientX - lpaint.current.startX, dym = e.clientY - lpaint.current.startY;
+        if (dxm * dxm + dym * dym < 16) return;
+        lpaint.current.moved = true;
+      }
+      const k = cellKey(r, c);
+      if (lLayer === "obj" && lpaint.current.last === k) return; // moving within the same cell shouldn't re-stack on every pointer jitter
+      lpaint.current.last = k; paintBrush(r, c, undefined, inb);
+      if (lLayer === "obj") { setLFxSel(k); setLFxEditIdx(null); }
+    };
+    const basePlayerAsset = findA(playerId);
+    const playerAsset = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
+    const playtestWeapon = playtestWeaponId ? findA(playtestWeaponId) : null; // used by the render below; the physics loop above has its own copy in its own closure
+    const layerKey = lLayer === "obj" ? "fx" : lLayer === "marker" ? "markers" : lLayer === "enemy" ? "enemies" : lLayer; // backing level property for each tool (climb/hazard use their own name directly)
+    // Live Fill preview: shows exactly what a click would affect BEFORE you click — the direct
+    // fix for "clicked what looked like the right thing but it filled way more/less than
+    // expected" (usually the wrong layer tab active, e.g. Background instead of Front). Only
+    // actually highlights cells for a reasonably-sized region (rendering thousands of preview
+    // divs on every mouse-move would be its own performance problem); a huge region still shows
+    // its cell count as text so the mismatch is obvious either way.
+    const fillPreview = (!play && lTool === "fill" && lHoverCell && lv && (lLayer === "fg" || lLayer === "bg" || lLayer === "front"))
+      ? computeFillRegion(lv, lLayer, lHoverCell.r, lHoverCell.c) : null;
+    const miniLevel = (l, w = 132) => {
+      const cw = w / l.cols, ch = cw, h = ch * l.rows;
+      return (
+        <div className="minilv" style={{ width: w, height: h }}>
+          {Object.keys(l.bg).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"b" + k} style={{ position: "absolute", left: c * cw, top: r * ch, width: cw, height: ch, background: fgColor(l.bg[k]), opacity: 0.4 }} />; })}
+          {Object.keys(l.fg).map((k) => { const [r, c] = k.split(",").map(Number); const cell = l.fg[k]; return <div key={"f" + k} style={{ position: "absolute", left: c * cw, top: r * ch, width: cw, height: ch, background: fgColor(cell), clipPath: fgClipPath(cell) }} />; })}
+          {l.fx && Object.keys(l.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = l.fx[k] || []; return stack.map((o, si) => { const sz = (o.size || 1) * cw; return <div key={"x" + k + "_" + si} style={{ position: "absolute", left: c * cw, top: r * ch, width: sz, height: sz, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.85 }}>{o.kind === "shape" ? objInner(o, sz) : o.char}</div>; }); })}
+        </div>
+      );
+    };
+    return (
+      <div className="bb" onPointerDownCapture={snapshotLevel}><style>{css}</style>
+        <header className="bar">
+          <button className="back" onClick={() => setScreen("menu")}>‹ Menu</button>
+          <input className="nm wide2" value={lv.name} onChange={(e) => setLevel({ ...lv, name: e.target.value })} />
+          <span className="badge">{lv.isRoom ? "🚪 Room" : "🗺️ Level"}</span>
+          <button className="undo" disabled={!canUndoLevel} onClick={undoLevel} title="Undo (last change)">↩ Undo</button>
+          <button className="undo" disabled={!canRedoLevel} onClick={redoLevel} title="Redo">↪ Redo</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className="save" onClick={saveLevel}>💾 Save</button>
+        </header>
+
+        <div className="catbar">
+          {lv.isRoom ? (
+            <>
+              <label className="catfield">🚪 Room tag
+                <input value={lv.roomTag || ""} onChange={(e) => setLevel({ ...lv, roomTag: e.target.value })} placeholder="e.g. shop, item, secret" />
+              </label>
+              <label className="catfield">Section
+                <input value={lv.section || ""} onChange={(e) => setLevel({ ...lv, section: e.target.value })} placeholder="optional note" />
+              </label>
+              <span className="hint2">A door tagged with this word (in any level) can open this room. Give several rooms the same tag and a door rolls a random one. Put a door in this room with a <b>blank</b> tag as the way back out.</span>
+            </>
+          ) : (
+            <>
+              <label className="catfield">Floor
+                <input value={lv.floor} onChange={(e) => setLevel({ ...lv, floor: e.target.value })} placeholder="e.g. 1, 2, B1" />
+              </label>
+              {floorSuggest.length > 0 && <div className="catchips">{floorSuggest.map((f) => <button key={f} onClick={() => setLevel({ ...lv, floor: f })}>{f}</button>)}</div>}
+              <label className="catfield">Section
+                <input value={lv.section || ""} onChange={(e) => setLevel({ ...lv, section: e.target.value })} placeholder="e.g. Market, Sewers, Boss room" />
+              </label>
+            </>
+          )}
+        </div>
+
+        <div className="ltools">
+          <div className="lgroup">
+            <span className="lgrouplabel">Layer (what you're painting):</span>
+            <div className="seg"><button className={lLayer === "fg" ? "on" : ""} onClick={() => selectLayer("fg")} >⬛ Foreground</button><button className={lLayer === "bg" ? "on" : ""} onClick={() => selectLayer("bg")} >🌫 Background</button><button className={lLayer === "front" ? "on" : ""} onClick={() => selectLayer("front")} >🎭 Front</button><button className={lLayer === "obj" ? "on" : ""} onClick={() => selectLayer("obj")} >🧩 Objects</button><button className={lLayer === "climb" ? "on" : ""} onClick={() => selectLayer("climb")} >🧗 Climb</button><button className={lLayer === "hazard" ? "on" : ""} onClick={() => selectLayer("hazard")} >🔥 Hazard</button><button className={lLayer === "marker" ? "on" : ""} onClick={() => selectLayer("marker")} title="Invisible during play">📍 Markers</button></div>
+          </div>
+          <div className="lgroup">
+            <span className="lgrouplabel">Action:</span>
+            <div className="seg"><button className={lTool === "paint" ? "on" : ""} onClick={() => selectTool("paint")}>🖌 Paint</button><button className={lTool === "erase" ? "on" : ""} onClick={() => selectTool("erase")}>🧽 Erase</button>{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={lTool === "fill" ? "on" : ""} onClick={() => selectTool("fill")} >🪣 Fill</button>}{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={lTool === "move" ? "on" : ""} onClick={() => selectTool("move")} >🔀 Move</button>}{(lLayer === "obj" || lLayer === "marker") && <button className={lTool === "select" ? "on" : ""} onClick={() => selectTool("select")} >👆 Select</button>}{(lLayer === "obj" || lLayer === "marker") && <button className={lTool === "copy" ? "on" : ""} onClick={() => selectTool("copy")} >📋 Copy</button>}<button className={lTool === "areaCopy" ? "on" : ""} onClick={() => selectTool("areaCopy")} >▭ Area Copy{hasClipboard ? " (" + clipboard.current.w + "×" + clipboard.current.h + " ready)" : ""}</button></div>
+          </div>
+          {enemyChoices.length > 0 && (
+            <div className="lgroup">
+              <span className="lgrouplabel">👹 Enemy:</span>
+              <select className="big" value={lEnemyId} onChange={(e) => { setLEnemyId(e.target.value); if (e.target.value) setLTool("paint"); }}>
+                <option value="">— none —</option>
+                {enemyChoices.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+              {lEnemyId ? <button className="ltbtn" onClick={() => setLEnemyFace((f) => -f)}>{lEnemyFace === 1 ? "Facing ▶" : "◀ Facing"}</button> : null}
+              {lEnemyId ? <select className="ltbtn" value={lEnemyAi} onChange={(e) => setLEnemyAi(e.target.value)} title="Set the placed enemy's behavior right here — no need to edit the enemy itself">
+                <option value="guard">🛡 Guard (holds ground)</option>
+                <option value="seek">🏃 Seek (chases you)</option>
+                <option value="avoid">🏹 Avoid (keeps distance)</option>
+                <option value="asset">⚙️ Use enemy's own setting</option>
+              </select> : null}
+              {lEnemyId ? <span className="hint2">Behavior is set here per placement — Seek chases, Avoid keeps its distance (good for archers), Guard holds. Attacking works from its own attack range with a clear line of sight.</span> : null}
+            </div>
+          )}
+          {(lLayer === "fg" || lLayer === "bg" || lLayer === "front" || lLayer === "hazard") && (
+            <div className="seg brushseg">{BRUSH_SIZES.map((n) => <button key={n} className={lBrush === n ? "on" : ""} onClick={() => setLBrush(n)} title={n + "x" + n + " brush"}>🖊 {n}×{n}</button>)}</div>
+          )}
+          {(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && (
+            <div className="seg">
+              <button className={lOutline ? "on" : ""} onClick={() => setLOutline((v) => !v)} title="Paint the outer edge of the painted region in a second color — works at any brush size">▢ {lOutline ? "Outline on" : "Outline"}</button>
+              {lOutline && <input type="color" value={lOutlineColor} onChange={(e) => setLOutlineColor(e.target.value)} title="Outline color" style={{ width: 44, height: 30, padding: 0, border: "none", background: "none", verticalAlign: "middle", cursor: "pointer" }} />}
+            </div>
+          )}
+          {(lLayer === "fg" || lLayer === "bg" || lLayer === "front" || lLayer === "obj") && (
+            <button className={"ltbtn" + (eyedrop ? " on" : "")} onClick={() => setEyedrop((v) => !v)} >🎨 {eyedrop ? "Click a block…" : "Eyedropper"}</button>
+          )}
+          {movingActive && <span className="movingtag">{moving.current && moving.current.copy ? "📋 Holding a copy" : "✋ Holding an item"} — click a cell to place it <button className="ltbtn" onClick={cancelMoving}>✕ Cancel</button></span>}
+          {lLayer === "obj" ? (
+            <>
+              <div className="seg"><button className={lObjKind === "emoji" ? "on" : ""} onClick={() => setLObjKind("emoji")}>😀 Emoji</button><button className={lObjKind === "shape" ? "on" : ""} onClick={() => setLObjKind("shape")} >▮ Shape</button><button className={lObjKind === "prop" ? "on" : ""} onClick={() => setLObjKind("prop")}>🌿 Object</button></div>
+              {lObjKind === "prop" ? (
+                (() => {
+                  const props = allAssets.filter((a) => a.type === "prop");
+                  return props.length ? (
+                    <select className="big" value={lPropId} onChange={(e) => { const id = e.target.value; setLPropId(id); const pa = findA(id); if (pa && pa.size) setLObjSize(pa.size); }}>
+                      <option value="">— pick an Object —</option>
+                      {props.map((a) => <option key={a.id} value={a.id}>🌿 {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
+                    </select>
+                  ) : <span className="hint2">No Objects made yet — build one from the menu (🌿 Object / Prop), then it'll show up here.</span>;
+                })()
+              ) : lObjKind === "emoji" ? (
+                <button className="objpick" onClick={() => setPicker({ mode: "level" })}><b>{lEmoji}</b> Choose emoji</button>
+              ) : (
+                <div className="seg"><button className={lObjShape === "rect" ? "on" : ""} onClick={() => setLObjShape("rect")}><b>▮</b>Square</button><button className={lObjShape === "circle" ? "on" : ""} onClick={() => setLObjShape("circle")}><b>●</b>Circle</button><button className={lObjShape === "tri" ? "on" : ""} onClick={() => setLObjShape("tri")}><b>▲</b>Triangle</button><button className={lObjShape === "tri2" ? "on" : ""} onClick={() => setLObjShape("tri2")} ><b>◺</b>Half triangle</button><button className={lObjShape === "topOutline" ? "on" : ""} onClick={() => setLObjShape("topOutline")}><b>▔</b>Top outline</button><button className={lObjShape === "vineWeb" ? "on" : ""} onClick={() => setLObjShape("vineWeb")}><b>🕸</b>Vine web</button><button className={lObjShape === "ladder" ? "on" : ""} onClick={() => setLObjShape("ladder")}><b>🪜</b>Ladder</button></div>
+              )}
+              {lObjKind !== "prop" && <div className="lswatches">
+                {lObjKind === "emoji" && <button className={!lTint ? "orig on" : "orig"} onClick={() => setLTint(null)} title="emoji's own colors">🌈</button>}
+                {COLORS.map((c) => <button key={c} className={lTint === c ? "on" : ""} style={{ background: c }} onClick={() => setLTint(c)} />)}
+                {recent.filter((c) => !COLORS.includes(c)).slice(0, 5).map((c) => <button key={"r" + c} className={"rc" + (lTint === c ? " on" : "")} style={{ background: c }} onClick={() => setLTint(c)} />)}
+                <label className="pick"><input type="color" value={lTint || "#ffffff"} onChange={(e) => setLTint(e.target.value)} onBlur={(e) => addRecent(e.target.value)} />＋</label>
+              </div>}
+              <div className="seg sizeseg">{LV_OBJ_SIZES.map((n) => <button key={n} className={lObjSize === n ? "on" : ""} onClick={() => setLObjSize(n)} title={n + "x" + n + " cells"}>{n}×</button>)}</div>
+              <label className="chk solidchk"><input type="checkbox" checked={lSolid} onChange={(e) => setLSolid(e.target.checked)} /> Solid <span className="hint2">(blocks the player)</span></label>
+              <label className="chk solidchk"><input type="checkbox" checked={lInFront} onChange={(e) => setLInFront(e.target.checked)} /> In front of player <span className="hint2">{lSolid ? "(blocks + fades when they're behind it)" : "(walk-through, fades when they're behind it)"}</span></label>
+              {lObjKind === "prop" && <span className="hint2">🌿 Objects are your own pixel art (optionally animated). They scale to the chosen size — the art stretches to fit, it never tiles. Great as a real fire drawn over a fire-hazard cell: make the hazard invisible-in-play and flag this <b>In front of player</b>.</span>}
+            </>
+          ) : lLayer === "marker" ? (
+            <>
+              <div className="seg"><button className={lMarkerKind === "door" ? "on" : ""} onClick={() => setLMarkerKind("door")}>🚪 Door</button><button className={lMarkerKind === "pedestal" ? "on" : ""} onClick={() => setLMarkerKind("pedestal")}>💎 Pedestal</button></div>
+              {lMarkerKind === "door" ? (
+                <>
+                  <input className="catinline" value={lMarkerCat} onChange={(e) => setLMarkerCat(e.target.value)} placeholder="opens room tagged… (blank = a way back out)" />
+                  {(() => { const t = (lMarkerCat || "").trim(); const n = roomPool(levelLib, t).length; return <span className="hint2">{t ? "Press E on this door in play to enter a room tagged \"" + t + "\" — " + n + " saved room" + (n === 1 ? "" : "s") + " match" + (n === 1 ? "es" : "") + (n > 1 ? " (one is picked at random per run)" : "") + "." + (n === 0 ? " ⚠ Make one in the Room Creator with this tag." : "") : "Blank tag = an EXIT door: inside a room, press E here to go back to the level you came from."}</span>; })()}
+                </>
+              ) : (
+                <>
+                  <div className="pedcfg">
+                    <input className="catinline" value={lPedCat1} onChange={(e) => setLPedCat1(e.target.value)} placeholder="Category 1 (blank = any)" />
+                    <input className="catinline" value={lPedCat2} onChange={(e) => setLPedCat2(e.target.value)} placeholder="Category 2 (blank = any)" />
+                    <div className="seg"><button className={lPedLogic === "or" ? "on" : ""} onClick={() => setLPedLogic("or")}>OR (either tag)</button><button className={lPedLogic === "and" ? "on" : ""} onClick={() => setLPedLogic("and")}>AND (both tags)</button></div>
+                  </div>
+                  {catSuggest.length > 0 && <div className="catchips">{catSuggest.map((c) => <button key={c} onClick={() => { if (!lPedCat1.trim()) setLPedCat1(c); else if (!lPedCat2.trim()) setLPedCat2(c); }}>+ {c}</button>)}</div>}
+                  {(() => { const filters = [lPedCat1, lPedCat2].filter((c) => c.trim()); const n = pedestalItemPool(allAssets, [lPedCat1, lPedCat2], lPedLogic).length; return <span className="hint2">{filters.length ? "Spawns a random item matching " + filters.join(lPedLogic === "and" ? " AND " : " OR ") + " — " + n + " match now." : "No filter — draws from all " + n + " saved items."}{n === 0 ? " ⚠ Nothing matches yet; tag equipment/weapons with these categories in the editor." : ""} Walk over it in playtest to roll one (pickup/equip isn't wired up yet).</span>; })()}
+                </>
+              )}
+            </>
+          ) : lLayer === "climb" ? (
+            <>
+              <div className="seg"><button className={lClimbKind === "ladder" ? "on" : ""} onClick={() => setLClimbKind("ladder")}>🪜 Ladder</button><button className={lClimbKind === "bars" ? "on" : ""} onClick={() => setLClimbKind("bars")}>🙌 Bars</button><button className={lClimbKind === "cliff" ? "on" : ""} onClick={() => setLClimbKind("cliff")}>🧗 Cliff</button></div>
+            </>
+          ) : lLayer === "hazard" ? (
+            <>
+              <div className="seg"><button className="on">🔥 Fire</button></div>
+              <label className="slider" style={{ minWidth: 190 }}>Damage<input type="range" min="1" max="30" step="1" value={lHazDps} onChange={(e) => setLHazDps(+e.target.value)} /><span className="hint2">{lHazDps} HP/sec</span></label>
+              <div className="seg"><button className={lHazLife === 0 ? "on" : ""} onClick={() => setLHazLife(0)} title="Fire never goes out">♾️ Permanent</button><button className={lHazLife !== 0 ? "on" : ""} onClick={() => setLHazLife((v) => v === 0 ? DEFAULT_HAZARD_LIFE : v)} title="Fire burns for a set time then goes out">⏱ Burns out</button></div>
+              {lHazLife !== 0 && <label className="slider" style={{ minWidth: 200 }}>Burns for<input type="range" min="1" max="30" step="1" value={lHazLife} onChange={(e) => setLHazLife(+e.target.value)} /><span className="hint2">{lHazLife}s</span></label>}
+              <label className="chk solidchk"><input type="checkbox" checked={lHazHide} onChange={(e) => setLHazHide(e.target.checked)} /> 🚫 Invisible during play <span className="hint2">(still burns — draw your own fire Object on top)</span></label>
+              <span className="hint2">Paint fire that hurts anyone standing in it — player and enemies alike. It doesn't block movement. <b>Permanent</b> fire never goes out; <b>Burns out</b> fire lasts its set time then extinguishes. Tick <b>Invisible during play</b> to hide the emoji in Playtest (it still deals damage) so you can place your own pixel-art fire 🌿 Object over it, flagged <b>In front of player</b>. Either way the painted level is untouched, so stopping and restarting Playtest relights everything. Brush size works here too.</span>
+            </>
+          ) : (
+            <>
+              <div className="lswatches">{LV_COLORS.map((c) => <button key={c} className={lColor === c ? "on" : ""} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}{recent.filter((c) => !LV_COLORS.includes(c)).slice(0, 5).map((c) => <button key={"r" + c} className={"rc" + (lColor === c ? " on" : "")} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}<label className="pick"><input type="color" value={lColor} onChange={(e) => { setLColor(e.target.value); setLTexId(null); setLTool("paint"); }} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
+              <button className={"ltbtn texbtn" + (activeTexture ? " on" : "")} onClick={() => setTexPick(true)} title="Paint with a repeating texture instead of a flat color">
+                {activeTexture ? <><span className="texchip" style={cellPaintStyle({ c: textureBaseColor(activeTexture), tex: activeTexture.id }, 0, 0, texLib)} /> {activeTexture.name}</> : <>🧱 Texture</>}
+              </button>
+              {activeTexture && <button className="ltbtn" onClick={() => setLTexId(null)} title="Back to painting a flat color">✕ Plain color</button>}
+              {lLayer === "fg" && (
+                <div className="seg" >
+                  <button className={lFgShape === "block" ? "on" : ""} onClick={() => setLFgShape("block")}>⬛ Block</button>
+                  <button className={lFgShape === "slopeUp" ? "on" : ""} onClick={() => setLFgShape("slopeUp")}>◢ Ramp ↗</button>
+                  <button className={lFgShape === "slopeDown" ? "on" : ""} onClick={() => setLFgShape("slopeDown")}>◣ Ramp ↖</button>
+                  {lFgShape !== "block" && <button className={lFgUpsideDown ? "on" : ""} onClick={() => setLFgUpsideDown((v) => !v)}>🙃 Upside down</button>}
+                </div>
+              )}
+            </>
+          )}
+          <button className="ltbtn" onClick={() => setLevel((x) => ({ ...x, [layerKey]: {} }))}>Clear {lLayer === "fg" ? "FG" : lLayer === "bg" ? "BG" : lLayer === "front" ? "Front" : lLayer === "obj" ? "Objects" : lLayer === "climb" ? "Climb" : lLayer === "hazard" ? "Fire" : lLayer === "enemy" ? "Enemies" : "Markers"}</button>
+          <button className="ltbtn" onClick={runGenerate}>🎲 Generate</button>
+          <button className="ltbtn" onClick={newLevelFresh}>＋ New Level</button>
+          <button className="ltbtn" onClick={newRoomFresh}>＋ New Room</button>
+          <button className="ltbtn" onClick={() => setLevelLoadOpen(true)}>📂 Load a level</button>
+          <label className="ltbtn up">⬆ Open a file<input type="file" accept="application/json" onChange={uploadLevel} hidden /></label>
+          <button className="ltbtn" onClick={downloadLevel}>⬇ Download</button>
+          <input className="bgNameInput" value={bgName} onChange={(e) => setBgName(e.target.value)} placeholder="Background name…" />
+          <button className="ltbtn" onClick={saveBackground} >💾 Save BG</button>
+          {bgLib.length > 0 && <select className="ltbtn bgLoadSelect" value="" onChange={(e) => loadBackground(e.target.value)} title="Replaces current Background">
+            <option value="">📂 Load BG…</option>
+            {bgLib.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>}
+        </div>
+
+        <div className="lmain">
+          <div className="lstage">
+            {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb · <b>J/F</b> fire · <b>Q</b> melee{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload" : ""}{playtestThrowId ? " · hold G to aim, release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
+            {play && (playtestWeaponId || SLOT_ORDER.some((sl) => equipped.current[sl])) && (() => {
+              const bits = [];
+              if (playtestWeaponId) { const w = findA(playtestWeaponId); if (w) bits.push("🗡️ " + w.name); }
+              for (const sl of SLOT_ORDER) { const it = equipped.current[sl]; if (it) bits.push((SLOTS[sl] ? SLOTS[sl].icon : "🧩") + " " + it.name); }
+              return bits.length ? <p className="statusline equipline">Carrying: {bits.join(" · ")}</p> : null;
+            })()}
+            {play && playtestThrowId && (() => {
+              const n = throwCarry.current;
+              return <p className={"statusline ammoline" + (n <= 0 ? " empty" : "")}>💣 {n > 0 ? n + " left — hold G to aim, release to throw" : "out of throwables"}</p>;
+            })()}
+            {play && playtestWeapon && isRanged(playtestWeapon.wtype) && (() => {
+              // Reads the live ref straight off; the playtest loop re-renders every frame anyway
+              // (setPframe), so this stays in step with the actual ammo without its own state.
+              const w = wpn.current || newWeaponAmmo(0);
+              if (w.reloadT > 0) {
+                const total = weaponReloadFrames(playtestWeapon.reloadTime);
+                return <p className="statusline ammoline reloading">🔄 Reloading… <span className="reloadbar"><span className="reloadfill" style={{ width: (Math.max(0, 1 - w.reloadT / total) * 100) + "%" }} /></span></p>;
+              }
+              if (w.clip <= 0) return <p className="statusline ammoline">🔫 {playtestWeapon.name} · ∞ ammo</p>;
+              return <p className={"statusline ammoline" + (w.ammo <= 0 ? " empty" : "")}>🔫 {w.ammo} / {w.clip}{w.ammo <= 0 ? " — empty! press R (or Fire) to reload" : ""}</p>;
+            })()}
+            {!play && layerMove && layerMove.levelId === lv.id && (() => {
+              const others = ["fg", "bg", "front"].filter((l) => l !== layerMove.layer);
+              const nm = (l) => (l === "fg" ? "Foreground" : l === "bg" ? "Background" : "Front");
+              return (
+                <p className="statusline">🔀 Picked up {Object.keys(layerMove.cells).length} cell(s) from {nm(layerMove.layer)}. Move to:{" "}
+                  {others.map((l) => <button key={l} className="ltbtn" onClick={() => commitMove(l)}>{l === "front" ? "🎭 " : l === "bg" ? "🌫 " : "⬛ "}{nm(l)}</button>)}
+                  <button className="ltbtn" onClick={cancelMove}>✕ Cancel</button>
+                </p>
+              );
+            })()}
+            {!play && lTool === "areaCopy" && <p className="statusline">👉 Drag a rectangle to copy that area ({hasClipboard ? "already have a " + clipboard.current.w + "×" + clipboard.current.h + " copy loaded" : "nothing copied yet"}) — or click anywhere to stamp {hasClipboard ? "it" : "the last copy (once you've made one)"}.</p>}
+            {!play && lTool === "fill" && fillPreview && <p className="statusline">🪣 Clicking here fills <b>{fillPreview.cells.length}{fillPreview.hitCap ? "+" : ""} cell{fillPreview.cells.length === 1 ? "" : "s"}</b> on <b>{lLayer === "fg" ? "Foreground" : lLayer === "bg" ? "Background" : "Front"}</b>{fillPreview.cells.length > 300 ? " — that's a lot; wrong layer tab?" : ""}</p>}
+            {!play && lTool !== "areaCopy" && !(layerMove && layerMove.levelId === lv.id) && (lEnemyId && lTool === "paint"
+              ? <p className="statusline">👉 Clicking places <b>👹 {(findA(lEnemyId) || {}).name || "enemy"}</b>. Pick <b>— none —</b> to paint normally.</p>
+              : <p className="statusline">👉 Clicking the canvas right now will <b>{lTool === "erase" ? "erase from" : lTool === "select" ? "select on" : lTool === "move" ? "pick up on" : "paint"}</b> the <b>{lLayer === "fg" ? "Foreground" : lLayer === "bg" ? "Background" : lLayer === "front" ? "Front" : lLayer === "obj" ? "Objects" : lLayer === "climb" ? "Climb" : lLayer === "hazard" ? "Fire" : "Markers"}</b> layer.</p>)}
+            <div className={"lscroll layer-" + lLayer}>
+              <div ref={lvRef} className="lgrid" style={{ width: lvW, height: lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px" }} onPointerDown={lvDown} onPointerMove={lvMove} onPointerLeave={() => setLHoverCell(null)}>
+                {lvBgLayer}
+                {lvFgLayer}
+                <div ref={frontCellsRef} style={{ display: "contents" }}>{lvFrontLayer}</div>
+                {layerMove && layerMove.levelId === lv.id && Object.keys(layerMove.cells).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"mv" + k} className="lcell moveSel" style={{ left: c * LV_CELL, top: r * LV_CELL }} />; })}
+                {lvFxLayer}
+                {lvPropMeta.map(({ o, si, r, c, k }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"xp" + k + "_" + si} className={"lobj" + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, sz, "xp" + k + "_" + si, pframe)}</div>; })}
+                {!play && lvClimbLayer}
+                <div ref={hazardCellsRef} style={{ display: "contents" }}>{lvHazardLayer}</div>
+                {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : "💎"}</div>; })}
+                {!play && lv.enemies && Object.keys(lv.enemies).map((k) => { const [r, c] = k.split(",").map(Number); const ea = findA(lv.enemies[k].enemyId); return <div key={"en" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { cursor: "pointer" } : {}) }} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv2) => { const enemies = { ...(lv2.enemies || {}) }; delete enemies[k]; return { ...lv2, enemies }; }); } : undefined}>{ea ? "👹" : "❓"}</div>; })}
+                {!play && !lv.isRoom && CONN_KEYS.map((k) => { const pos = CONN_POS[k], cc = lv.conns[k]; return (
+                  <button key={k} className={"conn " + (cc.open ? "open" : "blocked") + (lSel === k ? " sel" : "")} style={{ left: pos.x + "%", top: pos.y + "%" }} onClick={(e) => { e.stopPropagation(); setLSel(k); }} title={CONN_LABEL[k] + (cc.open ? " · accepts: " + (cc.accepts || lv.floor) : " · blocked")}>✕</button>
+                ); })}
+                {!play && lLayer === "obj" && lTool === "paint" && lHoverCell && !(lObjKind === "prop" && !lPropId) && (() => {
+                  const sz = lObjSize * LV_CELL;
+                  const ghostO = lObjKind === "prop" ? { kind: "prop", propId: lPropId } : lObjKind === "shape" ? { kind: "shape", shape: lObjShape, tint: lTint || "#7aa2d6" } : { kind: "emoji", char: lEmoji, tint: lTint };
+                  return <div className="lobjGhost" style={{ left: lHoverCell.c * LV_CELL, top: lHoverCell.r * LV_CELL, width: sz, height: sz }}>{renderObj(ghostO, sz, "ghost", 0)}</div>;
+                })()}
+                {!play && (lLayer === "bg" || lLayer === "front" || (lLayer === "fg" && lFgShape === "block")) && lTool === "paint" && lHoverCell && (() => {
+                  // Matches paintBrush's own iteration exactly (full r×c square, not just a
+                  // horizontal span like the ramp ghost) so the preview never lies about what a
+                  // click will actually stamp.
+                  const half = Math.floor((lBrush - 1) / 2);
+                  const outlinePrev = lOutline && (lLayer === "fg" || lLayer === "bg" || lLayer === "front");
+                  const pmap = lv[lLayer] || {};
+                  const foot = new Set();
+                  for (let dr = -half; dr < lBrush - half; dr++) for (let dc = -half; dc < lBrush - half; dc++) foot.add(cellKey(lHoverCell.r + dr, lHoverCell.c + dc));
+                  const has = (rr, cc) => !!pmap[cellKey(rr, cc)] || foot.has(cellKey(rr, cc));
+                  const cells = [];
+                  for (let dr = -half; dr < lBrush - half; dr++) for (let dc = -half; dc < lBrush - half; dc++) { const rr = lHoverCell.r + dr, cc = lHoverCell.c + dc; const sd = []; if (!has(rr - 1, cc)) sd.push("inset 0 2px 0 " + lOutlineColor); if (!has(rr + 1, cc)) sd.push("inset 0 -2px 0 " + lOutlineColor); if (!has(rr, cc - 1)) sd.push("inset 2px 0 0 " + lOutlineColor); if (!has(rr, cc + 1)) sd.push("inset -2px 0 0 " + lOutlineColor); cells.push([rr, cc, sd.join(", ")]); }
+                  return <>{cells.map(([r, c, bs]) => <div key={"blk" + r + "_" + c} className="blockGhost" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...cellPaintStyle(paintValue(lColor, activeTexture), r, c, texLib), ...(outlinePrev && bs ? { boxShadow: bs } : {}) }} />)}</>;
+                })()}
+                {!play && lTool === "fill" && fillPreview && fillPreview.cells.length <= 500 && (
+                  <>{fillPreview.cells.map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fp" + k} style={{ position: "absolute", left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, background: "rgba(255,255,255,.3)", outline: "1px solid rgba(255,255,255,.7)", pointerEvents: "none", zIndex: 5 }} />; })}</>
+                )}
+                {!play && lLayer === "climb" && lTool === "paint" && lHoverCell && (
+                  // Climb tiles always paint single-cell regardless of brush size (see paintBrush).
+                  <div className="blockGhost" style={{ left: lHoverCell.c * LV_CELL, top: lHoverCell.r * LV_CELL, width: LV_CELL, height: LV_CELL, background: "#7aa2d6" }} />
+                )}
+                {!play && lLayer === "hazard" && lTool === "paint" && lHoverCell && (() => {
+                  // Fire honors the brush size (fields of flame), so preview the whole r×c square.
+                  const half = Math.floor((lBrush - 1) / 2);
+                  const cells = [];
+                  for (let dr = -half; dr < lBrush - half; dr++) for (let dc = -half; dc < lBrush - half; dc++) cells.push([lHoverCell.r + dr, lHoverCell.c + dc]);
+                  return <>{cells.map(([r, c]) => <div key={"hzg" + r + "_" + c} className="blockGhost" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, background: "rgba(255,106,31,.4)" }} />)}</>;
+                })()}
+                {!play && lLayer === "fg" && lFgShape !== "block" && lTool === "paint" && lHoverCell && (() => {
+                  // Dragging previews the exact span being dragged out; just hovering (not yet
+                  // pressed) previews what a plain click would place, using the brush-size
+                  // control as the default ramp length — so the preview always matches what
+                  // release/click will actually commit.
+                  let r, lo, hi;
+                  if (rampDragOn && rampAnchor.current && rampAnchor.current.r === lHoverCell.r) { r = rampAnchor.current.r; lo = Math.min(rampAnchor.current.c, lHoverCell.c); hi = Math.max(rampAnchor.current.c, lHoverCell.c); }
+                  else { r = lHoverCell.r; const half = Math.floor((lBrush - 1) / 2); lo = lHoverCell.c - half; hi = lHoverCell.c - half + lBrush - 1; }
+                  const dir = lFgShape === "slopeUp" ? 1 : -1;
+                  const run = hi - lo + 1;
+                  const cells = [];
+                  for (let c = lo; c <= hi; c++) cells.push(c);
+                  return <>{cells.map((c) => <div key={"rg" + c} className="rampGhost" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellPaintStyle(paintValue(lColor, activeTexture), r, c, texLib), clipPath: fgClipPath({ slope: dir, run, step: c - lo, upsideDown: lFgUpsideDown }) }} />)}</>;
+                })()}
+                {!play && lEnemyId && lTool === "paint" && lHoverCell && (() => {
+                  const ea = findA(lEnemyId);
+                  if (!ea) return null;
+                  const eShape = sideBodyShape(ea);
+                  const eRenderW = enemyRenderW(ea, LV_CELL);
+                  const epw = eRenderW * eShape.fraction;
+                  const eph = enemyStandH(ea, LV_CELL);
+                  const eHitLeft = lHoverCell.c * LV_CELL + LV_CELL / 2 - epw / 2;
+                  const eLeft = eHitLeft - (eShape.centerFrac * eRenderW - epw / 2);
+                  const eTop = (lHoverCell.r + 1) * LV_CELL - eph; // matches the spawn's own feet-on-cell math
+                  return <div className="enemyGhost" style={{ left: eLeft, top: eTop, width: eRenderW, height: eph }} />;
+                })()}
+                {!play && areaDragOn && areaAnchor.current && lHoverCell && (() => {
+                  const r0 = Math.min(areaAnchor.current.r, lHoverCell.r), r1 = Math.max(areaAnchor.current.r, lHoverCell.r);
+                  const c0 = Math.min(areaAnchor.current.c, lHoverCell.c), c1 = Math.max(areaAnchor.current.c, lHoverCell.c);
+                  return <div className="areaGhost" style={{ left: c0 * LV_CELL, top: r0 * LV_CELL, width: (c1 - c0 + 1) * LV_CELL, height: (r1 - r0 + 1) * LV_CELL }} />;
+                })()}
+                {play && (() => {
+                  const p = player.current;
+                  const bodyShape = sideBodyShape(playerAsset);
+                  const pw = LV_CELL * PLAYER_RENDER_W_CELLS * bodyShape.fraction; // matches the physics hitbox exactly
+                  const renderW = LV_CELL * PLAYER_RENDER_W_CELLS; // wider, aspect-correct — keeps the body undistorted
+                  const ph = p.crouch ? LV_CELL * PLAYER_CROUCH_H_CELLS : LV_CELL * PLAYER_H_CELLS;
+                  // Crouching while standing still shows the dedicated crouch pose from the
+                  // creator (its own independent piece array — a genuinely different held
+                  // pose, not just a squished side view). Crouch-*walking* keeps using the
+                  // side pose, since that's the one with the leg-swing animation; the crouch
+                  // pose is a static stance, not an animated one.
+                  const angle = p.transitioning ? "back" : p.climbing ? (p.climbKind === "bars" ? "side" : "back") : (p.aiming && p.aimDir === -1 && !p.walking ? "up" : (p.crouch && !p.walking ? "crouch" : "side"));
+                  const airborne = !p.onGround && !p.climbing && !p.transitioning; // a jump or a fall — not standing, climbing, or mid level-transition
+                  let blocks = playerAsset ? livePlayerBlocks(angle) : null;
+                  // A drawn ENEMY used as the player: if it has a hand-drawn Attack pose and is
+                  // mid melee swing, show that pose instead — it OVERRIDES the arm-swing animation,
+                  // exactly like it does on AI enemies. Ranged/throw don't use it (those lift/aim).
+                  const playerAtkPose = !!(basePlayerAsset && basePlayerAsset.type === "enemy" && p.firing && !p.climbing && (!playtestWeapon || !isRanged(playtestWeapon.wtype)) && basePlayerAsset.angles && (basePlayerAsset.angles.attack || []).length);
+                  if (playerAtkPose && blocks) blocks = bake(basePlayerAsset, "attack");
+                  // A dressed character's angles already contain a BAKED copy of its weapon. With a
+                  // live playtest weapon attached on top, the two overlap pixel-perfectly at rest —
+                  // then the live one swings away and the frozen baked one stays behind (the
+                  // "duplicate weapon" bug). Strip the baked copy whenever a live weapon is equipped.
+                  if (blocks && playtestWeapon) blocks = blocks.filter((b) => !b._isWeapon);
+                  // Double Jump effect animation: while active, swap the granting equipment
+                  // slot's own baked pieces for the current frame of its custom animation —
+                  // IN PLACE (same array position), so it keeps whatever layering that slot was
+                  // already composed with (behind the arm, under a jacket, etc.) rather than
+                  // just dropping the frame on top of everything. Angle is always "side" here
+                  // (see the angle formula above — nothing else applies mid-jump), matching how
+                  // the animation is designed (Side view only).
+                  if (blocks && p.effectAnim) {
+                    const ea = p.effectAnim;
+                    const rawIdx = Math.floor(ea.t / ea.frameDur);
+                    const fIdx = ea.loop ? (rawIdx % ea.frames.length) : Math.min(ea.frames.length - 1, rawIdx);
+                    const framePieces = (ea.frames[fIdx]?.side || []).map((pc) => ({ ...pc, _slot: ea.slot }));
+                    const firstIdx = blocks.findIndex((b) => b._slot === ea.slot);
+                    const rest = blocks.filter((b) => b._slot !== ea.slot);
+                    blocks = firstIdx === -1 ? rest.concat(framePieces) : rest.slice(0, firstIdx).concat(framePieces, rest.slice(firstIdx));
+                  }
+                  // Captured BEFORE any climb/walk/swing modifications — this is the arm's
+                  // rotation as originally drawn, which is what the weapon's hand-alignment
+                  // point was designed against. Any later change to the arm's rot (climbing,
+                  // firing) is tracked as a delta from this baseline and applied to the
+                  // weapon too, so it stays rigidly attached instead of freezing in place.
+                  const baseArmPiece = blocks && armOf(blocks);
+                  const baseArmRot = baseArmPiece ? (baseArmPiece.rot || 0) : 0;
+                  // A mirrored twin (created for non-side poses — e.g. Back, used while
+                  // climbing) renders inside scaleX(-1), which visually REVERSES whatever
+                  // rotation it's given. Every place below that turns the arm (or equipment
+                  // riding along with it) by some delta needs this correction, or a mirrored
+                  // piece rotates backward relative to its own mirrored orientation.
+                  const armMirrorTwist = (b) => (b._m && b.mirrorTwist !== false ? -1 : 1);
+                  // The shoulder a clothing arm piece should pivot around: the body's own weapon
+                  // arm (its top/bottom edge = the shoulder), matched to the same mirror-side. If
+                  // the body has no weapon arm at all, fall back to the topmost arm piece on that
+                  // side so the sleeve+cuff still rotate together as one rigid arm.
+                  // (Shoulder anchoring for clothing arm pieces now lives in armAnchorFinder /
+                  // rigidArmFollow at module level — anchored by NEAREST on-screen arm, not by
+                  // mirror parity, and shared by the ladder, bars, melee and aim branches.)
+                  if (blocks && p.climbing && p.climbKind === "ladder") {
+                    const { legIds, armIds } = identifyLimbs(blocks);
+                    const anchorOf = armAnchorFinder(blocks);
+                    blocks = blocks.map((b) => {
+                      if (b.role !== "weaponArm" && b.limb !== "arm") return b;
+                      const target = armClimbAbs(b.armPivot);
+                      if (b.role === "weaponArm") return { ...b, rot: target };
+                      const a = anchorOf(b);
+                      if (!a) return { ...b, rot: limbFollowRot(b, target, baseArmRot) }; // no real body arm to anchor to -> simple rot-only follow (never fling a piece around a guessed pivot)
+                      return rigidArmFollow(b, a, armClimbAbs(a.armPivot)); // stay glued to the shoulder of the arm actually underneath it
+                    });
+                    const swing = Math.sin(p.walkPhase || 0) * 22; // alternate limbs like scaling a ladder
+                    // alternate: each piece swings by which SIDE it's on (so pants always match the
+                    // leg under them); armReach: arms pump up/down alternately instead of rotating.
+                    blocks = applyLimbSwing(blocks, legIds, armIds, swing, { alternate: true, armReach: Math.sin(p.walkPhase || 0) * 10, legLift: Math.sin(p.walkPhase || 0) * 8 });
+                  } else if (blocks && p.climbing) {
+                    // Monkey bars / cliff ledge: a hang, not a climb — both arms forced straight up
+                    // to the grip, legs left exactly as drawn (feet dangling, no swing cycle).
+                    const anchorOf = armAnchorFinder(blocks);
+                    blocks = blocks.map((b) => {
+                      if (b.role !== "weaponArm" && b.limb !== "arm") return b;
+                      const target = armClimbAbs(b.armPivot);
+                      if (b.role === "weaponArm") return { ...b, rot: target };
+                      const a = anchorOf(b);
+                      if (!a) return { ...b, rot: limbFollowRot(b, target, baseArmRot) };
+                      return rigidArmFollow(b, a, armClimbAbs(a.armPivot));
+                    });
+                  } else if (blocks && p.walking) {
+                    // Legs and non-weapon arms swing back and forth, opposite phase, like a normal
+                    // walk cycle. Uses flags where set; otherwise the ground-nearest piece(s) and
+                    // the weapon arm are used automatically so this never just does nothing.
+                    // Legs pivot at the hip (top edge) so the thigh stays anchored and only the
+                    // lower leg sweeps — center-pivot made the whole leg wobble in place.
+                    const { legIds, armIds } = identifyLimbs(blocks);
+                    const swing = Math.sin(p.walkPhase || 0) * 28;
+                    blocks = addBackLeg(blocks, legIds, swing);
+                    blocks = applyLimbSwing(blocks, legIds, armIds, swing);
+                    blocks = applyWalkArmSwing(blocks, swing); // arms swing opposite the legs; applyLimbSwing never touches them
+                  } else if (blocks && airborne && angle === "side" && !p.effectAnim) {
+                    // Airborne (a jump/fall) with no custom effect animation: split the legs into a
+                    // leap so the feet visibly move instead of freezing in the standing side pose —
+                    // tucked up more on the way up (vy<0), reaching back down on the way down. Arms
+                    // are left alone for the melee/aim branches below; the lean-into-the-jump body
+                    // tilt is applied on the wrap transform (see `lean`).
+                    const { legIds, armIds } = identifyLimbs(blocks);
+                    const jumpSwing = (p.vy || 0) < 0 ? 24 : 13;
+                    blocks = addBackLeg(blocks, legIds, jumpSwing);
+                    blocks = applyLimbSwing(blocks, legIds, armIds, jumpSwing);
+                  }
+                  // Melee swing: while p.firing is counting down, swing the arm through the
+                  // shared windup(0→150°)/strike(150°→90°)/recover(90°→0°) motion — see
+                  // meleeSwingAngle. Runs independently of the climb/walk branches above so a
+                  // swing mid-stride or mid-climb still shows, layered additively on whatever
+                  // rotation is already there.
+                  const meleeSwinging = blocks && p.firing && (!playtestWeapon || !isRanged(playtestWeapon.wtype)) && !playerAtkPose;
+                  if (meleeSwinging) {
+                    const swingAngle = meleeSwingAngle(p.firing.t, p.firing.dur);
+                    // CSS +rot is clockwise: for a top-pivot arm hanging DOWN that sweeps the hand
+                    // BACKWARD (behind a right-facing player), so a forward swing is -swingAngle.
+                    // A bottom-pivot arm points up, where clockwise IS forward.
+                    const meleeAnchorOf = armAnchorFinder(blocks);
+                    const meleeArmRot = (a) => (a.rot || 0) + armPivotSign(a.armPivot) * swingAngle * armMirrorTwist(a);
+                    blocks = blocks.map((b) => {
+                      if (b.role !== "weaponArm" && b.limb !== "arm") return b;
+                      if (b.role === "weaponArm") return { ...b, rot: meleeArmRot(b) };
+                      const a = meleeAnchorOf(b);
+                      if (!a) return { ...b, rot: meleeArmRot(b) };
+                      return rigidArmFollow(b, a, meleeArmRot(a)); // sleeves ride the swing rigidly instead of spinning in place about their own tops
+                    });
+                  } else if (blocks && p.throwAiming && !p.climbing) {
+                    // Throw aim (G held): the arm holds cocked back at the swing's own windup
+                    // angle — "grabbing" the throwable and winding up — matching the trajectory
+                    // preview showing at the same time. Releasing G then plays the full swing
+                    // through p.firing (the meleeSwinging branch above), so the throw is one
+                    // continuous arm motion: cock back while aiming, whip through on release.
+                    // Same arm/sleeve mechanics as the melee branch — a rigid follow so clothing
+                    // stays glued — and suppressed while climbing, where the arms are the grip.
+                    const windupAnchorOf = armAnchorFinder(blocks);
+                    const windupArmRot = (a) => (a.rot || 0) + armPivotSign(a.armPivot) * MELEE_WINDUP_DEG * armMirrorTwist(a);
+                    blocks = blocks.map((b) => {
+                      if (b.role !== "weaponArm" && b.limb !== "arm") return b;
+                      if (b.role === "weaponArm") return { ...b, rot: windupArmRot(b) };
+                      const a = windupAnchorOf(b);
+                      if (!a) return { ...b, rot: windupArmRot(b) };
+                      return rigidArmFollow(b, a, windupArmRot(a));
+                    });
+                  }
+                  const aiming = blocks && p.aiming && playtestWeapon && isRanged(playtestWeapon.wtype) && angle !== "up";
+                  if (aiming) {
+                    // A held pose, not an animated arc — the arm lifts toward wherever ↑/↓ is
+                    // currently held (0 = level/across), live — so you can see and adjust your
+                    // aim before ever pulling the trigger, not just during the post-fire flash.
+                    // This SETS an absolute rotation (extended, roughly horizontal) rather than
+                    // nudging the resting hang-down pose by a few degrees — a small delta off
+                    // "arm hanging at your side" still looks like the arm hanging at your side,
+                    // which was the actual bug: 90°/-90° is "horizontal, extended", matching how
+                    // climbing's 180°/0° means "straight up" for the same top/bottom pivots.
+                    const aimDir = p.aimDir || 0;
+                    const aimAnchorOf = armAnchorFinder(blocks);
+                    blocks = blocks.map((b) => {
+                      if (b.role !== "weaponArm" && b.limb !== "arm") return b;
+                      const target = armAimAbs(b.armPivot) + aimDir * 50;
+                      if (b.role === "weaponArm") return { ...b, rot: target * armMirrorTwist(b) };
+                      // Equipment (e.g. a jacket sleeve) flagged limb:"arm" so it tracks the arm
+                      // may have its OWN baked rest rotation for a reason — a design-time twist
+                      // so it reads correctly at rest (the jacket's rot:90, for instance). Forcing
+                      // it to the exact same absolute angle as the bare arm discarded that
+                      // baseline and visibly detached the sleeve from the arm underneath — the
+                      // reported distortion. Apply the same rotational DELTA the arm itself is
+                      // making instead, on top of the sleeve's own resting rot — the same
+                      // delta-based approach the melee swing and weapon attachment already use.
+                      const a = aimAnchorOf(b);
+                      if (!a) { const armDelta = target - baseArmRot; return { ...b, rot: (b.rot || 0) + armDelta * armMirrorTwist(b) }; }
+                      const aTarget = armAimAbs(a.armPivot) + aimDir * 50;
+                      // Same delta idea as before, but applied RIGIDLY about the anchor arm's
+                      // shoulder — the rot-only version detached any sleeve whose own pivot
+                      // wasn't at the shoulder (the jacket sleeve visibly fell below the arm
+                      // the moment the player aimed up or down).
+                      return rigidArmFollow(b, a, aTarget * armMirrorTwist(a));
+                    });
+                  }
+                  // Attach the equipped weapon. Rather than a fixed compose-time offset (which
+                  // is what broke tracking — the weapon just sat at whatever spot it was baked
+                  // at, ignoring any later arm rotation), this recomputes live every frame: the
+                  // shoulder pivot never moves regardless of rotation, so translating the
+                  // weapon's own hand-alignment point onto it and then rotating by however far
+                  // the arm has turned from its baseline keeps the weapon rigidly gripped
+                  // through climbing, swinging, or any future arm animation.
+                  // While aiming/throwing a throwable, the hand holds the GRENADE, not the
+                  // equipped weapon — so suppress the weapon render for those frames (the
+                  // throwable-in-hand block just below draws in its place). Outside a throw it's
+                  // the normal equipped-weapon render, unchanged.
+                  const throwingNow = playtestThrowId && (p.throwAiming || p.throwFiring) && !p.climbing && (() => { const ct = findA(playtestThrowId); return ct && isThrowable(ct.wtype); })();
+                  if (blocks && playtestWeapon && !throwingNow && !playerAtkPose) {
+                    const curArm = armOf(blocks);
+                    if (curArm) {
+                      const wfit = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
+                      const guideHand = handForGuideId(wfit.guideId)[angle] || DEFAULT_HAND[angle];
+                      const isProjectile = isRanged(playtestWeapon.wtype);
+                      // Fire REPLACES Rest (see weaponPoseFired) — the two are never drawn
+                      // together, so a Fire pose that redraws the whole weapon is exactly what
+                      // you're supposed to do. Ranged switches the instant you fire; melee
+                      // switches at the swing's impact. If no Fire pose was drawn for this pose,
+                      // weaponFireArt falls back to Rest rather than baking an empty array (which
+                      // is what used to make the weapon vanish mid-swing).
+                      const firedNow = weaponPoseFired(isProjectile, p.firing);
+                      const wpnAngles = firedNow ? weaponFireArt(wfit.states, angle) : (wfit.states.rest || blankAngles());
+                      const wpnPieces = bake({ ...playtestWeapon, angles: wpnAngles }, angle);
+                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocks(wpnPieces, curArm, guideHand, baseArmRot));
+                    }
+                  }
+                  // Carried throwable in hand: shown while aiming (G held) or during the brief
+                  // release swing, attached to the hand exactly like a weapon so it rides the
+                  // windup/throw arm motion. REST pose while holding (you're gripping it, wound
+                  // up); FIRE pose during the release swing (p.throwFiring) — the actual throw
+                  // frame, matching how a melee weapon swaps to Fire at its swing. It leaves the
+                  // hand the instant it's thrown (throwCarry decremented + a live grenade spawned),
+                  // so it never lingers on the arm after release.
+                  const carriedThrowRender = playtestThrowId ? findA(playtestThrowId) : null;
+                  const showThrowInHand = blocks && carriedThrowRender && isThrowable(carriedThrowRender.wtype) && (p.throwAiming || p.throwFiring) && !p.climbing;
+                  if (showThrowInHand) {
+                    const curArm = armOf(blocks);
+                    if (curArm) {
+                      const tfit = weaponFitFor(carriedThrowRender, equippedBodyIdFor(playerAsset));
+                      const guideHand = handForGuideId(tfit.guideId)[angle] || DEFAULT_HAND[angle];
+                      const useFire = !!p.throwFiring;
+                      const thrAngles = useFire ? weaponFireArt(tfit.states, angle) : (tfit.states.rest || blankAngles());
+                      const thrPieces = bake({ ...carriedThrowRender, angles: thrAngles }, angle).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
+                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocks(thrPieces, curArm, guideHand, baseArmRot));
+                    }
+                  }
+                  const tProg = p.transitioning ? Math.min(1, p.transitioning.t / 30) : 0;
+                  const flip = p.face < 0 ? "scaleX(-1)" : "";
+                  const shrink = p.transitioning ? "scale(" + (1 - tProg * 0.6) + ")" : "";
+                  // A small forward tilt while actively climbing a ramp — only when walking
+                  // AND moving in the ramp's rising direction (not just standing on one, and
+                  // not while walking back down it). Written as a constant tilt "toward the
+                  // sprite's own front"; combined with the existing face-flip above, it leans
+                  // the right way for both facings without needing a sign flip here.
+                  const ascendingSlope = p.onSlope && p.walking && p.face === p.slopeDir;
+                  // Airborne: lean the whole sprite toward horizontal travel ("into the jump"),
+                  // scaled by horizontal speed and capped so a fast leap tilts more than a gentle
+                  // hop and a straight-up jump barely tilts. flip (scaleX(-1)) is composed BEFORE
+                  // this rotate when facing left, which mirrors a rotate — so negate for that
+                  // facing to keep the on-screen tilt pointing the same way as velocity for both.
+                  let lean = "";
+                  if (ascendingSlope) lean = "rotate(10deg)";
+                  else if (airborne) {
+                    const screenLean = Math.max(-16, Math.min(16, (p.vx || 0) * 3));
+                    const localLean = p.face < 0 ? -screenLean : screenLean;
+                    if (Math.abs(localLean) > 0.5) lean = `rotate(${localLean.toFixed(1)}deg)`;
+                  }
+                  // Hanging from a ledge/bars lifts the sprite one cell so the reaching HANDS meet
+                  // the grip (the grip point is the TOP of the hitbox — see canGripClimb), instead
+                  // of the head sitting at the bar. Ladders climb rung-to-rung and stay put. Purely
+                  // visual: physics, hitbox, and grip all still run off p.y untouched.
+                  const climbLift = (p.climbing && p.climbKind && p.climbKind !== "ladder") ? LV_CELL : 0;
+                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift, width: renderW, height: ph, transform: [flip, shrink, lean].filter(Boolean).join(" ") || "none", opacity: p.transitioning ? (1 - tProg * 0.8) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
+                  if (p.onFire > 0) style.filter = "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)";
+                  const maxHp = maxPlayerHP(playerAsset), curHp = Math.max(0, Math.min(maxHp, playerHP.current));
+                  const hpFrac = maxHp > 0 ? curHp / maxHp : 0;
+                  return (
+                    <>
+                      <div className="playerHpTrack" style={{ left: p.x, top: p.y - 10 + (p.stepEase || 0) - climbLift, width: pw }}><div className="playerHpFill" style={{ width: (hpFrac * 100) + "%", background: hpFrac > 0.5 ? "#6bd06b" : hpFrac > 0.2 ? "#c8a23c" : "#b0504f" }} /></div>
+                      <div className={blocks ? "playerWrap" : "player"} style={style}>
+                        {blocks ? renderPieceRuns({ pieces: blocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "player", keyPrefix: "pl", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k), maskCss: cutterMaskCss }) : <><div className="peye" /><div className="pbody" /></>}
+                      </div>
+                    </>
+                  );
+                })()}
+                {/* Objects flagged "in front of player" (e.g. a tree to walk behind) — .lobj.infront
+                    has a higher z-index than .playerWrap, which is what actually keeps it on top
+                    (DOM order alone can't win against z-index, which was the actual bug here).
+                    Editor-mode already shows these in their normal spot above; this only matters
+                    once there's an actual player to be in front of. */}
+                {play && (() => {
+                  const p = player.current;
+                  const bodyShape = sideBodyShape(playerAsset);
+                  const pw = LV_CELL * PLAYER_RENDER_W_CELLS * bodyShape.fraction; // matches the physics hitbox exactly
+                  const ph = p.crouch ? LV_CELL * PLAYER_CROUCH_H_CELLS : LV_CELL * PLAYER_H_CELLS;
+                  return lvFxInFrontMeta.map(({ key, r, c, o, sz }) => {
+                    const left = c * LV_CELL, top = r * LV_CELL;
+                    // Fades whenever the player's own hitbox overlaps a front-layer object —
+                    // solid (a tree trunk that still blocks movement, see solidFx above) or
+                    // decorative walk-through alike. Either way the point is the same: don't let
+                    // your own scenery fully swallow you on screen. A moderate fade (not too see-
+                    // through, not too strong) so the object still clearly reads as there.
+                    const behind = p.x + pw > left && p.x < left + sz && p.y + ph > top && p.y < top + sz;
+                    return <div key={key} className={"lobj infront" + (behind ? " behindFade" : "")} style={{ left, top, width: sz, height: sz, pointerEvents: "none", opacity: behind ? 0.55 : 1 }}>{renderObj(o, sz, key, pframe)}</div>;
+                  });
+                })()}
+                {/* Enemy spawns: AI-driven (Guard/Seek/Avoid, per-enemy in the Enemy Creator), fall via
+                    gravity like the player, duck into their crouch pose when a shot looks threatening
+                    (crouch-capable enemies only), attack the player when in range with a clear line of
+                    sight, and show a live HP bar. */}
+                {play && lv.enemies && Object.keys(lv.enemies).map((k) => {
+                  const [r, c] = k.split(",").map(Number);
+                  const ea = findA(lv.enemies[k].enemyId);
+                  if (!ea) return null;
+                  const maxHp = ea.hp ?? 10;
+                  const curHp = enemyHP.current[k] ?? maxHp;
+                  const isDead = curHp <= 0;
+                  const eShape = sideBodyShape(ea);
+                  const eRenderW = enemyRenderW(ea, LV_CELL);
+                  const epw = eRenderW * eShape.fraction;
+                  const ep = enemyPos.current[k];
+                  const ducking = !!(ep && ep.crouch);
+                  const eph = ducking ? enemyCrouchH(ea, LV_CELL) : enemyStandH(ea, LV_CELL);
+                  const eLeft = ep ? ep.x : (c * LV_CELL + LV_CELL / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2));
+                  const eTop = ep ? ep.y : ((r + 1) * LV_CELL - eph); // live AI/gravity position; static fallback for the first frame before physics has run
+                  const hitboxOffset = eShape.centerFrac * eRenderW - epw / 2; // hitbox-left relative to the wider render box — constant regardless of live position
+                  const eFootAnchor = Math.max(0, 1 - eShape.topFrac - eShape.heightFrac) * eph; // empty canvas below the drawn feet: shift the art down by it so the visible feet rest on the ground instead of hovering by that gap (scales with the enemy, so big/tall enemies do not float)
+                  if (isDead) {
+                    // Defeated enemies no longer disappear — they drop where they fell and stay,
+                    // drawn in a layer IN FRONT of the player (zIndex 6 beats the player's 5). A drawn
+                    // enemy that has its own hand-drawn 💀 Death pose uses it verbatim; everything else
+                    // (player-based looks, and monsters with no death pose drawn) falls over on its own
+                    // — the standing Side pose pivoted 90° about the feet, so it lies flat on the ground
+                    // pointing whichever way it was facing. No HP bar, no AI, frozen where it died. The
+                    // dressed look keeps its baked-in weapon, so the body lies there holding its gear.
+                    const hasDeathPose = ea.type === "enemy" && !!(ea.angles && (ea.angles.death || []).length);
+                    const deadBlocks = bake(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"));
+                    const layDown = !hasDeathPose;
+                    const deadFlip = ((ep && ep.face < 0) !== !ea.faceRight) ? "scaleX(-1) " : "";
+                    return (
+                      <div key={"enp" + k} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop, width: eRenderW, height: eph, pointerEvents: "none", zIndex: 6, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% 100%" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
+                        {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + k, keyPrefix: "dead" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
+                      </div>
+                    );
+                  }
+                  const ew = findA(enemyWeaponIdOf(ea)) || (ea.components && ea.components.weapon) || null;
+                  const eRanged = !!(ew && isRanged(ew.wtype));
+                  // A drawn enemy can have an optional hand-drawn Attack pose. While it's mid melee
+                  // swing, show that pose — it OVERRIDES the arm-swing animation. If it's blank, fall
+                  // through to swinging the arm (below), exactly as before.
+                  const eUseAtkPose = !!(ep && ep.swingT > 0) && !eRanged && ea.type === "enemy" && !!(ea.angles && (ea.angles.attack || []).length);
+                  let eBlocks = bake(ea, eUseAtkPose ? "attack" : enemyPoseKey(ea, ducking ? "crouch" : "side"));
+                  // Walk cycle: swing the legs (and add a mirrored back leg) exactly like the player,
+                  // driven by the enemy's own walkPhase. Legs only — applyLimbSwing never touches arms,
+                  // so the aim/attack/weapon pipeline below is completely unaffected. Without this the
+                  // enemy slid around with frozen legs.
+                  if (ep && ep.walking && !ducking && !eUseAtkPose) {
+                    const { legIds, armIds } = identifyLimbs(eBlocks);
+                    const eSwing = Math.sin(ep.walkPhase || 0) * 28;
+                    eBlocks = addBackLeg(eBlocks, legIds, eSwing);
+                    eBlocks = applyLimbSwing(eBlocks, legIds, armIds, eSwing);
+                  }
+                  // A dressed-look enemy already has a frozen copy of its weapon baked into its
+                  // art. Strip it and re-attach the live one, exactly as the player does, so the
+                  // weapon tracks the swing instead of a second copy hanging in mid-air.
+                  if (ew) eBlocks = eBlocks.filter((b) => !b._isWeapon);
+                  // Swing/aim arm: the explicit weapon arm if one exists, else the piece(s) the
+                  // enemy has flagged 💪 Arm. Only if NEITHER exists and it holds a weapon does a
+                  // synthesized invisible stand-in (enemyAimArm) get spliced in, so a weapon can
+                  // still be lifted/attached — without one, "guns never shoot".
+                  let eArm0 = flaggedArmOf(eBlocks);
+                  if (!eArm0 && ew) { const synth = enemyAimArm(eBlocks); if (synth) { eBlocks = [...eBlocks, synth]; eArm0 = synth; } }
+                  const eBaseRot = eArm0 ? (eArm0.rot || 0) : 0;
+                  // Melee attack: swing EVERY 💪-flagged piece through the same windup/strike arc
+                  // the player's own swing uses — the primary arm rotates about its shoulder and
+                  // the other flagged pieces ride it rigidly (rigidArmFollow), so a multi-piece
+                  // arm stays in one piece instead of each block spinning on its own. Skipped
+                  // entirely while a drawn Attack pose is showing (eUseAtkPose).
+                  // RANGED: the enemy LIFTS the arm to the level aim pose — the exact -90/90
+                  // hold the player's own gun arm uses — the whole time it has you in its
+                  // sights (ep.aimHold, set in the physics loop) and through the shot itself.
+                  const eAiming = eRanged && ep && ((ep.aimHold || 0) > 0 || ep.swingT > 0);
+                  if (ep && eArm0 && !eUseAtkPose && (eAiming || (ep.swingT > 0 && !eRanged))) {
+                    const eSwingA = meleeSwingAngle(ATTACK_SWING_FRAMES - ep.swingT, ATTACK_SWING_FRAMES);
+                    const rot = eRanged
+                      ? armAimAbs(eArm0.armPivot)
+                      : eBaseRot + armPivotSign(eArm0.armPivot) * eSwingA;
+                    const primary = eArm0;
+                    eBlocks = eBlocks.map((b) => {
+                      if (b === primary) return { ...b, rot };
+                      if (b.role !== "weaponArm" && !(b.limb === "arm" && !b._isShoe)) return b;
+                      return rigidArmFollow(b, primary, rot);
+                    });
+                  }
+                  if (ew && !eUseAtkPose) {
+                    const curArm = flaggedArmOf(eBlocks);
+                    if (curArm) {
+                      const ebid = ea.type === "enemy" ? ea.id : equippedBodyIdFor(ea);
+                      const wfit = weaponFitFor(ew, ebid);
+                      const ePose = enemyPoseKey(ea, ducking ? "crouch" : "side");
+                      const guideHand = handForGuideId(wfit.guideId)[ePose] || DEFAULT_HAND[ePose];
+                      // Same rule as the player (weaponPoseFired): Fire replaces Rest — instantly
+                      // for a ranged weapon, at the impact angle for a melee one.
+                      const eFired = ep && ep.swingT > 0 && weaponPoseFired(eRanged, { t: ATTACK_SWING_FRAMES - ep.swingT, dur: ATTACK_SWING_FRAMES });
+                      const wpnAngles = eFired ? weaponFireArt(wfit.states, ePose) : (wfit.states.rest || blankAngles());
+                      eBlocks = mergeWeaponBlocks(eBlocks, attachWeaponBlocks(bake({ ...ew, angles: wpnAngles }, ePose), curArm, guideHand, eBaseRot));
+                    }
+                  }
+                  const hpFrac = Math.max(0, Math.min(1, curHp / maxHp));
+                  const flip = ((ep && ep.face < 0) !== !ea.faceRight) ? "scaleX(-1)" : "none";
+                  return (
+                    <div key={"enp" + k} className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: flip, ...((ep && ep.friendly) ? { filter: "drop-shadow(0 0 2px #b46cf5) drop-shadow(0 0 5px #a855f7)" } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? "🟣 " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you)" : "") + (ducking ? " (ducking)" : "")}>
+                      <div className="enemyHpTrack" style={{ left: hitboxOffset, width: epw }}><div className="enemyHpFill" style={{ width: (hpFrac * 100) + "%", background: hpFrac > 0.5 ? "#6bd06b" : hpFrac > 0.2 ? "#c8a23c" : "#b0504f" }} /></div>
+                      {ep && ep.stun > 0 && <div className="enemyStun" style={{ left: hitboxOffset, width: epw }}>💫</div>}
+                      {renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
+                    </div>
+                  );
+                })}
+                {play && doorPrompt && doorPrompt.key && (() => {
+                  // Doors are invisible in play (you place your own visual over the cell). All that
+                  // shows is this prompt when you're standing on one, so E has an obvious meaning.
+                  const [r, c] = doorPrompt.key.split(",").map(Number);
+                  const txt = doorPrompt.enter
+                    ? (doorPrompt.n > 0 ? "🚪 Press E to enter" + (doorPrompt.tag ? " · " + doorPrompt.tag : "") : "🚪 No room tagged" + (doorPrompt.tag ? " \"" + doorPrompt.tag + "\"" : "") + " yet")
+                    : "🚪 Press E to leave";
+                  return <div key="doorprompt" className="doorPromptFloat" style={{ left: c * LV_CELL + LV_CELL / 2, top: r * LV_CELL - 6 }}>{txt}</div>;
+                })()}
+                {play && lv.markers && Object.keys(lv.markers).map((k) => {
+                  const m = lv.markers[k]; if (!m || m.kind !== "pedestal") return null;
+                  const [r, c] = k.split(",").map(Number);
+                  const rolled = pedestalRolls.current[k];
+                  // Taken, with nothing swapped back onto it — the pedestal is spent. Render nothing
+                  // (no "no match" placeholder). A pedestal that simply never matched any item still
+                  // shows "no match" below, so a mis-tagged filter is still obvious in the editor.
+                  if (!rolled && pedestalDepleted.current.has(k)) return null;
+                  const artSrc = rolled ? (rolled.type === "weapon" && rolled.states && rolled.states.rest ? { ...rolled, angles: rolled.states.rest } : rolled) : null;
+                  const artPieces = artSrc ? bake(artSrc, "front").filter((pc) => !pc.isHitbox) : [];
+                  let bb = null;
+                  if (artPieces.length) { let a = Infinity, b = Infinity, d = -Infinity, e = -Infinity; for (const pc of artPieces) { a = Math.min(a, pc.x); b = Math.min(b, pc.y); d = Math.max(d, pc.x + pc.w); e = Math.max(e, pc.y + pc.h); } bb = { x: a, y: b, w: Math.max(1, d - a), h: Math.max(1, e - b) }; }
+                  const boxW = LV_CELL * 1.9, boxH = LV_CELL * 2.3;
+                  let planeStyle = null;
+                  if (bb) { const sc = Math.min(boxW / bb.w, boxH / bb.h) * 0.86; const tx = boxW / 2 - sc * (bb.x + bb.w / 2), ty = boxH / 2 - sc * (bb.y + bb.h / 2); planeStyle = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${tx}px,${ty}px) scale(${sc})` }; }
+                  // When the player is standing on THIS pedestal, float the call-to-action over the
+                  // item: equip (nothing comes off) vs swap (a same-slot or same-category item does),
+                  // plus the stat distance — computed exactly the way pressing E resolves it, so the
+                  // number shown is the number you'll get.
+                  let promptText = null;
+                  if (play && pedPrompt && pedPrompt.key === k && rolled) {
+                    if (rolled.type === "item") {
+                      promptText = "Press E to use · " + itemEffectSummary(rolled.effect);
+                    } else if (rolled.type === "weapon") {
+                      const held = playtestWeaponId ? findA(playtestWeaponId) : null, ad = rolled.damage ?? 5;
+                      const delta = held ? (ad !== (held.damage ?? 5) ? ["Dmg " + (held.damage ?? 5) + "\u2192" + ad] : []) : ["Dmg " + ad];
+                      promptText = "Press E to " + (held ? "swap" : "equip") + (delta.length ? " · " + delta.join(" · ") : " · no stat change");
+                    } else {
+                      const offSlot = equipDisplacedSlot(rolled, equipped.current);
+                      const before = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
+                      const nextMap = { ...equipped.current }; if (offSlot) delete nextMap[offSlot]; nextMap[rolled.slot] = rolled;
+                      const delta = equipEffectSummary(before, mergeEquip(basePlayerAsset, nextMap, equippedBodyIdFor(basePlayerAsset)));
+                      promptText = "Press E to " + (offSlot ? "swap" : "equip") + (delta.length ? " · " + delta.join(" · ") : " · no stat change");
+                    }
+                  }
+                  return (
+                    <div key={"ped" + k} className="pedestalPlay" style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
+                      <div className="pedestalArt">{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + k, keyPrefix: "ped" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}</div> : <div className="pedestalEmpty">no match</div>}</div>
+                      {promptText && <div className="pedcallout">💎 {promptText}</div>}
+                      {rolled && <div className="pedestalCap">{rolled.name}</div>}
+                    </div>
+                  );
+                })}
+                {play && projectiles.current.map((pr, i) => {
+                  // Projectiles render in a square container `size` cells across (size = the
+                  // Projectile asset's Scale slider). Pieces fill it as percentage-of-canvas, so
+                  // a bullet drawn small in its canvas AND scaled down reads small — which is the
+                  // intended, original behavior. (Throwables use prepFlyingArt below for their
+                  // creator-matched sizing; projectiles deliberately do NOT — the Scale slider is
+                  // already the artist's size control for them.)
+                  const sz = LV_CELL * (pr.size || 1);
+                  if (pr.pieces) {
+                    return (
+                      <div key={"proj" + i} className="lobj" style={{ left: pr.x - sz / 2, top: pr.y - sz / 2, width: sz, height: sz, transform: pr.rot ? `rotate(${pr.rot}deg)` : "none" }}>
+                        {renderPieceRuns({ pieces: pr.pieces, cacheKey: "proj_" + i, keyPrefix: "proj" + i + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
+                      </div>
+                    );
+                  }
+                  const span = { fontSize: sz * 0.85 + "px", lineHeight: 1 };
+                  if (pr.tint) Object.assign(span, { backgroundColor: pr.tint, backgroundImage: "none", color: "transparent", WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text" });
+                  return <div key={"proj" + i} className="lobj" style={{ left: pr.x - sz / 2, top: pr.y - sz / 2, width: sz, height: sz }}><span style={span}>{pr.char}</span></div>;
+                })}
+                {play && thrown.current.map((g, i) => {
+                  // Same full-canvas container as fired projectiles (see prepFlyingArt): pieces
+                  // position by canvas percentage, so the container is the whole canvas at world
+                  // scale, art re-centered — the spin rotation therefore turns about the art's
+                  // own center. This is the fix for the grenade rendering ~1px.
+                  const cwPx = g.cwPx ?? LV_CELL, chPx = g.chPx ?? cwPx;
+                  const emojiSz = Math.max(10, Math.min(g.wPx ?? LV_CELL, g.hPx ?? LV_CELL));
+                  return (
+                    <div key={"thr" + i} className="lobj" style={{ left: g.x - cwPx / 2, top: g.y - chPx / 2, width: cwPx, height: chPx, transform: `rotate(${g.rot}deg)`, zIndex: 8 }}>
+                      {g.pieces
+                        ? renderPieceRuns({ pieces: g.pieces, cacheKey: "thr_" + i, keyPrefix: "thr" + i + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })
+                        : <span style={{ fontSize: emojiSz * 0.85 + "px", lineHeight: 1 }}>💣</span>}
+                    </div>
+                  );
+                })}
+                {play && booms.current.map((b, i) => {
+                  // A live explosion: the weapon's chosen Object/Prop, drawn in the front layer at
+                  // the impact point, playing its animation frames once across the boom's short life
+                  // and fading out at the end. No prop assigned -> a plain 💥 so the blast is still
+                  // visible. Aspect-correct, same as any placed prop (propArtInner).
+                  const pa = b.propId ? findA(b.propId) : null;
+                  const sz = LV_CELL * (b.size || 3);
+                  const frames = (pa && pa.frames && pa.frames.length) ? pa.frames.length : 1;
+                  const prog = b.life / Math.max(1, b.maxLife);
+                  const frameIdx = Math.min(frames - 1, Math.floor(prog * frames));
+                  const fade = prog > 0.66 ? Math.max(0, 1 - (prog - 0.66) / 0.34) : 1;
+                  return (
+                    <div key={"boom" + i} className="lobj infront" style={{ left: b.x - sz / 2, top: b.y - sz / 2, width: sz, height: sz, zIndex: 9, opacity: fade }}>
+                      {pa ? propArtInner(pa, sz, frameIdx, "boom" + i) : <span style={{ fontSize: sz * 0.7 + "px", lineHeight: 1 }}>💥</span>}
+                    </div>
+                  );
+                })}
+                {/* Throw-aim trajectory preview: while G is held with a throwable in hand, dot out
+                    the exact arc a release right now would fly — computed from the same
+                    strength/weight launch numbers and the same per-frame integration the real
+                    grenade uses (throwTrajectoryPoints), stopping at the first solid tile. */}
+                {play && player.current.throwAiming && playtestThrowId && (() => {
+                  const p = player.current;
+                  const ct = findA(playtestThrowId);
+                  if (!ct) return null;
+                  const bodyShape = sideBodyShape(playerAsset);
+                  const pw = LV_CELL * PLAYER_RENDER_W_CELLS * bodyShape.fraction;
+                  const ph = p.crouch ? LV_CELL * PLAYER_CROUCH_H_CELLS : LV_CELL * PLAYER_H_CELLS;
+                  const strength = playerAsset?.stats?.strength ?? 5;
+                  const rangeBlocks = throwRangeBlocks(strength, ct.weight);
+                  const { vx, vy } = throwLaunchVel(rangeBlocks * LV_CELL, 0.175, p.face, Math.PI / 4);
+                  const isSolid = (x, y) => {
+                    const c = Math.floor(x / LV_CELL), r = Math.floor(y / LV_CELL);
+                    if (r < 0 || c < 0 || r >= lv.rows || c >= lv.cols) return y > lv.rows * LV_CELL;
+                    const cell = lv.fg[cellKey(r, c)];
+                    return !!(cell && !fgIsSlope(cell));
+                  };
+                  const pts = throwTrajectoryPoints(p.x + pw / 2, p.y + ph * 0.4, vx, vy, 0.175, isSolid);
+                  return pts.map((pt, i) => (
+                    <div key={"traj" + i} style={{ position: "absolute", left: pt.x - 3, top: pt.y - 3, width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,.85)", boxShadow: "0 0 4px rgba(0,0,0,.6)", zIndex: 9, pointerEvents: "none", opacity: Math.max(0.35, 1 - i / pts.length) }} />
+                  ));
+                })()}
+              </div>
+            </div>
+          </div>
+
+          <aside className="lside">
+            {lLayer === "obj" && (
+              lFxSel && lv.fx[lFxSel] && lv.fx[lFxSel].length > 0 ? (
+                <div className="card">
+                  <div className="ct">Layers on this cell ({lv.fx[lFxSel].length})</div>
+                  <div className="fxstack">{lv.fx[lFxSel].map((o, i) => (
+                    <div key={i} className="fxitem">
+                      <div className="fxrow" onClick={() => setLFxEditIdx(lFxEditIdx === i ? null : i)}>
+                        {o.kind === "shape" ? <span className="fxprev" style={{ display: "inline-block", width: 14, height: 14, background: o.tint || "#7aa2d6", borderRadius: o.shape === "circle" ? "50%" : 2, flexShrink: 0 }} /> : <span className="fxprev">{o.char}</span>}
+                        <span className="fxname">{(o.kind === "shape" ? { rect: "square", circle: "circle", tri: "triangle", tri2: "half-triangle" }[o.shape || "rect"] + " · " : "") + (o.solid ? "solid" : "decor") + (o.inFront ? " · in front" : "") + " · " + (o.size || 1) + "x"}</span>
+                        <button title="bring forward (closer to top)" onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, 1); }}>▲</button>
+                        <button title="send back" onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, -1); }}>▼</button>
+                        <button title="remove just this one" onClick={(e) => { e.stopPropagation(); removeFxAt(lFxSel, i); if (lFxEditIdx === i) setLFxEditIdx(null); }}>✕</button>
+                      </div>
+                      {lFxEditIdx === i && (
+                        <div className="fxedit">
+                          {o.kind === "shape" && (
+                            <div className="seg"><button className={(o.shape || "rect") === "rect" ? "on" : ""} onClick={() => updateFxAt(lFxSel, i, { shape: "rect" })}><b>▮</b>Square</button><button className={o.shape === "circle" ? "on" : ""} onClick={() => updateFxAt(lFxSel, i, { shape: "circle" })}><b>●</b>Circle</button><button className={o.shape === "tri" ? "on" : ""} onClick={() => updateFxAt(lFxSel, i, { shape: "tri" })}><b>▲</b>Triangle</button><button className={o.shape === "tri2" ? "on" : ""} onClick={() => updateFxAt(lFxSel, i, { shape: "tri2" })}><b>◺</b>Half triangle</button></div>
+                          )}
+                          <div className="lswatches">
+                            {o.kind !== "shape" && <button className={!o.tint ? "orig on" : "orig"} onClick={() => updateFxAt(lFxSel, i, { tint: null })} title="emoji's own colors">🌈</button>}
+                            {COLORS.map((c) => <button key={c} className={o.tint === c ? "on" : ""} style={{ background: c }} onClick={() => updateFxAt(lFxSel, i, { tint: c })} />)}
+                          </div>
+                          <div className="seg sizeseg">{LV_OBJ_SIZES.map((n) => <button key={n} className={(o.size || 1) === n ? "on" : ""} onClick={() => updateFxAt(lFxSel, i, { size: n })}>{n}×</button>)}</div>
+                          <label className="chk"><input type="checkbox" checked={!!o.solid} onChange={(e) => updateFxAt(lFxSel, i, { solid: e.target.checked })} /> Solid (blocks the player)</label>
+                          <label className="chk"><input type="checkbox" checked={!!o.inFront} onChange={(e) => updateFxAt(lFxSel, i, { inFront: e.target.checked })} /> In front of player <span className="hint2">(fades when they're behind it)</span></label>
+                        </div>
+                      )}
+                    </div>
+                  ))}</div>
+                </div>
+              ) : (
+                <div className="card empty"><p>Paint or click an existing <b>🧩 object</b> cell to manage its layers here — stack several on one cell to build a composite, then reorder, tweak, or delete each one individually.</p></div>
+              )
+            )}
+
+            {lSel ? (
+              <div className="card">
+                <div className="ct">Connector: {CONN_LABEL[lSel]}</div>
+                <label className="chk"><input type="checkbox" checked={lv.conns[lSel].open} onChange={() => cycleConn(lSel)} /> Open this connector</label>
+                <div className="ct2">Accepts (floors this point will connect to)</div>
+                <input className="big" value={lv.conns[lSel].accepts} onChange={(e) => setConnAccepts(lSel, e.target.value)} placeholder={"blank = only \"" + lv.floor + "\""} />
+                {floorSuggest.length > 0 && <div className="catchips">{floorSuggest.map((f) => <button key={f} onClick={() => addCatSuggest(lSel, f)}>+ {f}</button>)}</div>}
+                <p className="mini">Pairs with <b>{CONN_LABEL[CONN_OPP[lSel]]}</b> on the neighbouring level — same position, opposite edge.</p>
+                <p className="mini">Matching is <b>mutual</b>: this point must accept the neighbour's floor, and the neighbour's point must accept this level's floor back. A whole edge only connects when <b>both {CONN_LABEL[lSel[0] + "1"]}</b> and <b>{CONN_LABEL[lSel[0] + "2"]}</b> agree (each point either matching, or both closed) — one mismatch blocks the whole edge.</p>
+              </div>
+            ) : (!lv.isRoom && lLayer !== "obj") ? <div className="card empty"><p>Tap an <b>✕</b> on the edge to set up a connection point. Green = open, red = blocked. Each edge has 2 points (e.g. Right Upper + Right Lower) — both have to agree with the neighbour's matching points for that edge to connect.</p></div> : null}
+
+            {!lv.isRoom && (
+            <div className="card">
+              <div className="ct">This level’s connectors</div>
+              <div className="connlist">{CONN_KEYS.map((k) => (
+                <button key={k} className={"connrow" + (lv.conns[k].open ? " open" : "") + (lSel === k ? " on" : "")} onClick={() => setLSel(k)}>
+                  <span>{CONN_LABEL[k]}</span><span className="ctype">{lv.conns[k].open ? (lv.conns[k].accepts || lv.floor) : "blocked"}</span>
+                </button>
+              ))}</div>
+            </div>
+            )}
+
+            <div className="card">
+              <div className="ct">Playtest player</div>
+              <select className="big" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
+                <option value="">▢ Plain box</option>
+                {allAssets.filter((a) => a.type === "body" || a.type === "character" || a.type === "enemy").map((a) => <option key={a.id} value={a.id}>{(a.type === "enemy" || a.isEnemy ? "👹 " : "") + a.name}</option>)}
+              </select>
+              <label className="ltbtn up wide3b">⬆ Upload a character file<input type="file" accept="application/json" onChange={sessionUpload} hidden /></label>
+              <div className="ct" style={{ marginTop: 12 }}>Playtest weapon</div>
+              <select className="big" value={playtestWeaponId} onChange={(e) => setPlaytestWeaponId(e.target.value)}>
+                <option value="">✋ Unarmed</option>
+                {allAssets.filter((a) => a.type === "weapon" && !isThrowable(a.wtype)).map((a) => <option key={a.id} value={a.id}>{a.name} ({isRanged(a.wtype) ? "🏹" : "🗡️"})</option>)}
+              </select>
+              <div className="ct" style={{ marginTop: 12 }}>Throwable (press G)</div>
+              <select className="big" value={playtestThrowId} onChange={(e) => setPlaytestThrowId(e.target.value)}>
+                <option value="">— none carried —</option>
+                {allAssets.filter((a) => a.type === "weapon" && isThrowable(a.wtype)).map((a) => <option key={a.id} value={a.id}>💣 {a.name}</option>)}
+              </select>
+              {playtestThrowId && (
+                <label className="slider">Start with<input type="range" min="1" max="20" step="1" value={playtestThrowCount} onChange={(e) => setPlaytestThrowCount(+e.target.value)} /><span className="hint2">{playtestThrowCount} to test</span></label>
+              )}
+              <span className="hint2">Throwables are carried separately from your held weapon, and are single-use. In a finished game the player finds these as pickups; this count just lets you test with a few.</span>
+            </div>
+
+          </aside>
+        </div>
+
+        {levelLoadOpen && (
+          <div className="modal" onClick={() => setLevelLoadOpen(false)}>
+            <div className="dlg" onClick={(e) => e.stopPropagation()}>
+              <div className="dt">Load a level or room</div>
+              {levelLib.length === 0 && <p className="mini">Nothing saved yet — make a level or room, then Save.</p>}
+              {Object.entries(levelLib.reduce((groups, l) => { const k = l.isRoom ? "🚪 Rooms" : ((l.floor || "").trim() || "—"); (groups[k] = groups[k] || []).push(l); return groups; }, {}))
+                .sort(([a], [b]) => (a === "🚪 Rooms" ? 1 : b === "🚪 Rooms" ? -1 : a.localeCompare(b, undefined, { numeric: true })))
+                .map(([floor, items]) => (
+                <div key={floor} className="loadgroup">
+                  <div className="loadgrouplabel">{floor === "🚪 Rooms" ? "🚪 Rooms" : floor === "—" ? "No floor set" : "🏢 Floor " + floor}</div>
+                  <div className="loadlist">{items.map((l) => <button key={l.id} onClick={() => openLevel(l)}>{l.isRoom ? "🚪" : "🗺️"} {l.name}{l.isRoom && (l.roomTag || "").trim() ? <span className="hint2"> · tag: {l.roomTag}</span> : l.section ? <span className="hint2"> · {l.section}</span> : null}</button>)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {pendingLevelAction && (
+          <div className="modal" onClick={() => setPendingLevelAction(null)}>
+            <div className="dlg" onClick={(e) => e.stopPropagation()}>
+              <div className="dt">⚠ Unsaved changes</div>
+              <p className="mini">"{level?.name}" has changes that aren't saved. Continuing to {pendingLevelAction.label} will replace it.</p>
+              <p className="mini">(You can still Undo right after, but Save first if you want to keep it for sure.)</p>
+              <div className="tiles" style={{ marginTop: 12 }}>
+                <button className="tile" onClick={() => setPendingLevelAction(null)}><span className="ti">✕</span><span className="tl">Cancel</span><span className="tb">Go back and save first</span></button>
+                <button className="tile" onClick={() => { const run = pendingLevelAction.run; setPendingLevelAction(null); run(); }}><span className="ti">⚠</span><span className="tl">Continue anyway</span><span className="tb">Discard the unsaved changes</span></button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {texPick && (
+          <div className="modal" onClick={() => setTexPick(false)}>
+            <div className="dlg wide3" onClick={(e) => e.stopPropagation()}>
+              <div className="dt">🧱 Textures <span className="emcount">paint a repeating pattern instead of a flat color</span></div>
+              {texLib.length === 0 && <p className="mini">No textures yet. Make one — you pick the pattern and its colors; the art draws itself.</p>}
+              <div className="texgrid">
+                {texLib.map((t) => (
+                  <div key={t.id} className="texcardwrap">
+                    <button className={"texcard" + (lTexId === t.id ? " on" : "")} onClick={() => { setLTexId(t.id); setLTool("paint"); setTexPick(false); flash("Painting with \"" + t.name + "\" 🧱"); }}>
+                      <span className="texprev" style={cellPaintStyle({ c: textureBaseColor(t), tex: t.id }, 0, 0, texLib)} />
+                      <span className="sn">{t.name}</span>
+                      <span className="sty">{TEXTURES[t.tex] ? TEXTURES[t.tex].icon + " " + TEXTURES[t.tex].label : t.tex}</span>
+                    </button>
+                    <button className="sdel" title="Edit this texture" onClick={() => { setTexEdit(JSON.parse(JSON.stringify(t))); setTexPick(false); }}>✎</button>
+                  </div>
+                ))}
+              </div>
+              <div className="ct2">New texture</div>
+              <div className="texgrid">
+                {TEXTURE_KEYS.map((k) => (
+                  <button key={k} className="texcard" onClick={() => { setTexEdit(newTexture(k)); setTexPick(false); }}>
+                    <span className="texprev" style={cellPaintStyle({ c: "#000", tex: "__preview_" + k }, 0, 0, [{ id: "__preview_" + k, tex: k, colors: Object.fromEntries(TEXTURES[k].colors.map(([ck, , d]) => [ck, d])), params: Object.fromEntries((TEXTURES[k].params || []).map((p) => [p.key, p.def])) }])} />
+                    <span className="sn">＋ {TEXTURES[k].label}</span>
+                    <span className="sty">{TEXTURES[k].icon} pick its colors</span>
+                  </button>
+                ))}
+              </div>
+              <div className="row2">{activeTexture && <button onClick={() => { setLTexId(null); setTexPick(false); }}>✕ Paint plain colors</button>}<button onClick={() => setTexPick(false)}>Close</button></div>
+            </div>
+          </div>
+        )}
+
+        {texEdit && (() => {
+          const def = TEXTURES[texEdit.tex];
+          const previewLib = [texEdit]; // preview straight off the in-progress instance, not the saved library
+          const set = (fn) => setTexEdit((t) => fn({ ...t }));
+          const saved = texLib.some((t) => t.id === texEdit.id);
+          return (
+            <div className="modal" onClick={() => setTexEdit(null)}>
+              <div className="dlg wide3" onClick={(e) => e.stopPropagation()}>
+                <div className="dt">{def.icon} {saved ? "Edit" : "New"} texture</div>
+                <div className="texeditrow">
+                  <div className="texbigprev" style={cellPaintStyle({ c: textureBaseColor(texEdit), tex: texEdit.id }, 0, 0, previewLib)} />
+                  <div className="texeditcol">
+                    <input className="namefield" value={texEdit.name} onChange={(e) => set((t) => ({ ...t, name: e.target.value }))} placeholder={def.label} />
+                    <div className="ct2">Pattern</div>
+                    <div className="seg texseg">
+                      {TEXTURE_KEYS.map((k) => (
+                        // Switching pattern keeps the id and name, so an edit stays the same texture
+                        // and every cell already painted with it just re-renders in the new pattern.
+                        <button key={k} className={texEdit.tex === k ? "on" : ""} onClick={() => set((t) => ({ ...newTexture(k), id: t.id, name: t.name }))}>{TEXTURES[k].icon} {TEXTURES[k].label}</button>
+                      ))}
+                    </div>
+                    <div className="ct2">Colors</div>
+                    {def.colors.map(([key, label]) => (
+                      <label className="slider" key={key}>{label}
+                        <input type="color" className="gc" value={texEdit.colors[key]} onChange={(e) => set((t) => ({ ...t, colors: { ...t.colors, [key]: e.target.value } }))} onBlur={(e) => addRecent(e.target.value)} />
+                        <span className="hint2">{texEdit.colors[key]}</span>
+                      </label>
+                    ))}
+                    {(def.params || []).length > 0 && <div className="ct2">Wear</div>}
+                    {(def.params || []).map((pm) => (
+                      <label className="slider" key={pm.key}>{pm.label}
+                        <input type="range" min={pm.min} max={pm.max} step={pm.step} value={texEdit.params[pm.key] ?? pm.def} onChange={(e) => set((t) => ({ ...t, params: { ...t.params, [pm.key]: +e.target.value } }))} />
+                        <span className="hint2">{Math.round((texEdit.params[pm.key] ?? pm.def) * 100)}%</span>
+                      </label>
+                    ))}
+                    <p className="mini">The preview tiles exactly the way it will in the level. The first color ({def.colors.find(([k]) => k === def.base)[1]}) is also the flat fallback a painted cell keeps, so the level still reads correctly if this texture is ever deleted.</p>
+                  </div>
+                </div>
+                <div className="row2">
+                  <button onClick={() => saveTexture(texEdit)}>💾 {saved ? "Save changes" : "Save & paint with it"}</button>
+                  {saved && <button className="danger" onClick={() => deleteTexture(texEdit.id)}>🗑 Delete</button>}
+                  <button onClick={() => setTexEdit(null)}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {gen && (
+          <div className="modal" onClick={() => setGen(null)}>
+            <div className="dlg wide3" onClick={(e) => e.stopPropagation()}>
+              <div className="dt">Generated run — {gen.length} levels stitched left → right</div>
+              <div className="genrow">{gen.map((l, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && <div className="genlink">🔗</div>}
+                  <div className="gencol"><div className="genname">{l.name}</div>{miniLevel(l)}</div>
+                </React.Fragment>
+              ))}</div>
+              <p className="mini">Beta: a horizontal chain where each level's full right edge (both Right Upper + Right Lower) mutually matches the next level's left edge (both Left Upper + Left Lower) — or both closed — by floor. 2D stitching, doors and traps come later.</p>
+              <div className="row2"><button onClick={runGenerate}>🎲 Re-roll</button><button onClick={() => setGen(null)}>Close</button></div>
+            </div>
+          </div>
+        )}
+        {picker && (() => {
+          const q = emojiQuery.trim().toLowerCase();
+          const filtered = q ? emojis.filter((m) => (EMOJI_KEYWORDS[m] || "").includes(q)) : emojis;
+          return (
+            <div className="modal" onClick={closePicker}>
+              <div className="dlg" onClick={(e) => e.stopPropagation()}>
+                <div className="dt">Pick an emoji for this object <span className="emcount">{filtered.length}{q ? " match" + (filtered.length === 1 ? "" : "es") : ""}</span></div>
+                <input className="emsearch" value={emojiQuery} onChange={(e) => setEmojiQuery(e.target.value)} placeholder="Search — e.g. explosion, fire, sword, tree…" autoFocus />
+                {!q && recentEmoji.length > 0 && <><div className="emsublabel">Recent</div><div className="emgrid emgrid-recent">{recentEmoji.map((m, i) => <button key={"r" + i} onClick={() => pickEmoji(m)}>{m}</button>)}</div></>}
+                {q && !filtered.length && <p className="mini">No matches for "{emojiQuery}" — try a simpler word (explosion, fire, sword, tree, heart…), or clear the search to browse everything.</p>}
+                <div className="emgrid">{filtered.map((m, i) => <button key={i} onClick={() => pickEmoji(m)}>{m}</button>)}</div>
+                <div className="row2"><button onClick={closePicker}>Close</button></div>
+              </div>
+            </div>
+          );
+        })()}
+        {toast && <div className="toast">{toast}</div>}
+      </div>
+    );
+  }
+
+  /* ---- editor ---------------------------------------------------------- */
+  const showGuide = asset.type !== "body" && asset.type !== "enemy" && asset.type !== "projectile" && asset.type !== "prop" && asset.type !== "item";
+  const guideBodyAsset = (asset.guideId && asset.guideId !== "default" && library.find((a) => a.id === asset.guideId)) || guideAsset;
+  const slotLabel = asset.type === "equipment" ? (SLOTS[asset.slot]?.label || "Equipment") : (TYPES[asset.type]?.label || asset.type);
+  // Bodies always have arm rig math; enemies only once they've opted into 💪 Has arms — an
+  // armless enemy has no shoulder/hand concept, so showing those markers would just be a
+  // stray 🎯 floating over unrelated art (DEFAULT_SHOULDER's fallback body-shaped position).
+  const showArmRig = asset.type === "body";
+  const bodyRigNow = (asset.type === "body" || asset.type === "enemy") ? bodyRig(asset, angle) : null;
+  const hand = asset.type === "body" ? bodyRigNow.hand : (asset.type === "enemy" ? (bodyRigNow ? bodyRigNow.hand : DEFAULT_HAND[angle]) : handForGuide(asset)[angle]);
+  const shoulder = bodyRigNow ? bodyRigNow.shoulder : null;
+  const frontPieces = pieces.filter((p) => !p.behindBody);
+  const behindPieces = pieces.filter((p) => p.behindBody);
+  const lrow = (p) => (
+    <div key={p.id} className={"lrow" + (p.id === selId ? " on" : "") + (multiSelect && groupIds.includes(p.id) ? " grp" : "") + (p._recovered ? " recovered" : "")} onClick={() => { if (!multiSelect) { setSelId(p.id); return; } if (groupIds.includes(p.id)) { const ng = groupIds.filter((id) => id !== p.id); setGroupIds(ng); if (selId === p.id) setSelId(ng[ng.length - 1] || null); } else { setGroupIds((g) => [...g, p.id]); setSelId(p.id); } }}>
+      <span className="lprev" style={{ background: p.kind === "emoji" ? "transparent" : p.color }}>{p.kind === "emoji" ? p.char : (p.kind === "circle" ? "●" : p.kind === "tri" ? "▲" : "")}</span>
+      <span className="lname">{p._recovered ? "🩹 " : ""}{p.locked ? "🔒 " : ""}{p.isHitbox ? "🎯 hitbox" : p.isMuzzle ? "🔴 muzzle" : (p.kind === "emoji" ? "emoji" : p.kind)}{p.mirror ? " ⟷" : ""}{p.limb === "arm" ? " 💪" : p.limb === "leg" ? " 🦵" : ""}</span>
+      <button title="move forward" onClick={(e) => { e.stopPropagation(); movePiece(p.id, 1); }}>▲</button>
+      <button title="move back" onClick={(e) => { e.stopPropagation(); movePiece(p.id, -1); }}>▼</button>
+    </div>
+  );
+  return (
+    <div className="bb" onPointerDownCapture={snapshot}><style>{css}</style>
+      {asset._recoveredFrom && (
+        <div className="recoverBanner">🩹 This body was auto-recovered from "{asset._recoveredFrom}" — it's a best-effort guess. Pieces marked 🩹 in the layer list might actually be fused-in clothing rather than original body parts; check each one and delete anything that doesn't belong.</div>
+      )}
+      <header className="bar">
+        <button className="back" onClick={() => setScreen("menu")}>‹ Menu</button>
+        <input className="nm" value={asset.name} onChange={(e) => setAsset({ ...asset, name: e.target.value })} />
+        <span className="badge">{asset.type === "equipment" ? (SLOTS[asset.slot]?.icon || "📦") : (TYPES[asset.type]?.icon || "📦")} {slotLabel}</span>
+        <button className="undo" disabled={!canUndo} onClick={undo} title="Undo (last change)">↩ Undo</button>
+        <button className="undo" disabled={!canRedo} onClick={redo} title="Redo">↪ Redo</button>
+        <button className="save" onClick={openSheet}>💾 Save & Open</button>
+      </header>
+
+      {asset.type === "prop" && (
+        <div className="wstates">
+          <span className="wslab">🎞 Frame:</span>
+          {(asset.frames || [blankAngles()]).map((_, i) => (
+            <button key={i} className={propFrame === i ? "on" : ""} onClick={() => switchPropFrame(i)}>{i + 1}</button>
+          ))}
+          <button className="wcopy" onClick={() => addPropFrame("duplicate")} title="Duplicate this frame">⧉ Duplicate</button>
+          <button className="wcopy" onClick={() => addPropFrame("blank")}>＋ Blank frame</button>
+          <button className="wcopy" onClick={() => movePropFrame(-1)} disabled={propFrame === 0}>◀ Move</button>
+          <button className="wcopy" onClick={() => movePropFrame(1)} disabled={propFrame === (asset.frames || []).length - 1}>Move ▶</button>
+          <button className="wcopy" onClick={deletePropFrame} disabled={(asset.frames || []).length <= 1} title="Delete this frame">🗑 Delete</button>
+          <span className="hint2">Draw each frame of the animation. One frame = a static object; several frames cycle (e.g. a flickering fire). Only the Front pose is used.</span>
+        </div>
+      )}
+      {asset.type === "weapon" && (
+        <div className="wstates">
+          <span className="wslab">Weapon state:</span>
+          {["rest", "fire"].map((st) => (
+            <button key={st} className={wState === st ? "on" : ""} onClick={() => switchWState(st)}>{st === "rest" ? "🪨 Rest" : "💥 Fire"}</button>
+          ))}
+          <button className="wcopy" onClick={copyWState} title="Copy this state's blocks to the other state">copy {wState} → {wState === "rest" ? "fire" : "rest"}</button>
+          <span className="hint2">Rest = idle look. Fire = the swing/shot frame (muzzle flash, slash, etc.).</span>
+        </div>
+      )}
+      {/* The On fire / Charge alternate-look tabs are GONE: the game never rendered either state
+          anywhere — the burn/wind-up code tracks timers but always draws the Normal art. Ten whole
+          pose grids of pure busywork. Old saves keep their states harmlessly; only Normal is used. */}
+      {asset.type === "equipment" && effEdit && (() => {
+        const eff = (asset.effects || []).find((e) => e.id === effEdit.effId);
+        if (!eff) return null;
+        const def = EFFECT_TYPES[eff.type];
+        const bodies = library.filter((a) => a.type === "body");
+        const frames = eff.animByBody[effEdit.bodyKey] || [];
+        return (
+          <div className="wstates">
+            <span className="wslab">🎬 {def.label} animation — designing for:</span>
+            <select value={effEdit.bodyKey} onChange={(e) => switchEffectBody(e.target.value)} >
+              <option value="default">{eff.animByBody.default ? "✓ " : ""}Default body</option>
+              {bodies.map((b) => <option key={b.id} value={b.id}>{(eff.animByBody[b.id] ? "✓ " : "") + b.name}</option>)}
+            </select>
+            {frames.map((_, i) => (
+              <button key={i} className={effEdit.frameIdx === i ? "on" : ""} onClick={() => switchEffectFrame(i)}>Frame {i + 1}</button>
+            ))}
+            <button className="wcopy" onClick={() => addAnimFrame("duplicate")} title="Duplicate the current frame">⧉ Duplicate</button>
+            <button className="wcopy" onClick={() => addAnimFrame("blank")} >＋ Blank frame</button>
+            <button className="wcopy" onClick={() => moveAnimFrame(-1)} disabled={effEdit.frameIdx === 0}>◀ Move</button>
+            <button className="wcopy" onClick={() => moveAnimFrame(1)} disabled={effEdit.frameIdx === frames.length - 1}>Move ▶</button>
+            <button className="wcopy" onClick={deleteAnimFrame} disabled={frames.length <= 1} title="Delete this frame">🗑 Delete frame</button>
+            <button className="save" onClick={closeEffectAnim}>✕ Done — back to {SLOTS[asset.slot]?.label || "item"} art</button>
+            <span className="hint2">Side view only — this plays instead of the item's normal look while the jump is active. Starts as a copy of this item's own Side art for whichever body you pick; edit it like any other pose.</span>
+          </div>
+        );
+      })()}
+      {asset.type === "weapon" && (
+        <div className="wstates">
+          <span className="wslab">Type:</span>
+          <button className={(asset.wtype || "melee") === "melee" ? "on" : ""} onClick={() => setAsset((a) => ({ ...a, wtype: "melee" }))}>🗡️ Melee</button>
+          <button className={isRanged(asset.wtype) ? "on" : ""} onClick={() => setAsset((a) => ({ ...a, wtype: "ranged" }))}>🏹 Ranged</button>
+          <button className={isThrowable(asset.wtype) ? "on" : ""} onClick={() => setAsset((a) => ({ ...a, wtype: "throw" }))}>💣 Throwable</button>
+          <span className="hint2">Melee: playtest's Fire button swings the arm + this weapon through the Fire pose. Ranged: Fire launches whichever Projectile asset is equipped below, aimed with ↑/↓. Throwable: a single-use grenade thrown with G that triggers a landing effect where it hits.</span>
+        </div>
+      )}
+      {asset.type === "weapon" && (
+        <div className="wstates">
+          <span className="wslab">Damage:</span>
+          <input className="dmgInput" type="number" min="0" value={asset.damage ?? 5} onChange={(e) => setAsset((a) => ({ ...a, damage: Math.max(0, +e.target.value || 0) }))} style={{ width: 60 }} />
+          <span className="hint2">{(asset.wtype || "melee") === "melee" ? "Base damage dealt on a hit — scales with the wielder's Strength stat, and can crit off their Intelligence." : "Base damage this weapon's shot deals on a hit."}</span>
+        </div>
+      )}
+      {asset.type === "weapon" && !isThrowable(asset.wtype) && (
+        <div className="wstates">
+          <span className="wslab">Stun:</span>
+          <label className="slider"><input type="range" min="0" max="5" step="0.25" value={asset.stun ?? 0} onChange={(e) => setAsset((a) => ({ ...a, stun: +e.target.value }))} /><span className="hint2">{(asset.stun ?? 0) === 0 ? "off" : "a hit freezes the enemy for " + (asset.stun ?? 0) + "s — it can't move or attack (💫)"}</span></label>
+          <span className="hint2">On a connecting {(asset.wtype || "melee") === "melee" ? "swing" : "shot"}, the enemy is stunned this long. Stacks by re-hitting (the timer refreshes). Enemies still fall with gravity while stunned.</span>
+        </div>
+      )}
+      {asset.type === "weapon" && (asset.wtype || "melee") === "melee" && !ANGLES.some((ang) => {
+        const restArr = wState === "rest" ? (asset.angles?.[ang] || []) : (asset.states?.rest?.[ang] || []);
+        const fireArr = wState === "fire" ? (asset.angles?.[ang] || []) : (asset.states?.fire?.[ang] || []);
+        return restArr.concat(fireArr).some((p) => p.isHitbox);
+      }) && (
+        <p className="tip warn">⚠ No 🎯 Hitbox placed yet on any pose/state — this weapon won't deal damage in Playtest until you add one (below, "Add a block").</p>
+      )}
+      {asset.type === "weapon" && isThrowable(asset.wtype) && (
+        <div className="wstates projectilecard">
+          <span className="wslab">💣 Throwable:</span>
+          <label className="slider">Weight<input type="range" min="1" max="10" step="1" value={asset.weight ?? DEFAULT_THROW_WEIGHT} onChange={(e) => setAsset((a) => ({ ...a, weight: +e.target.value }))} /><span className="hint2">{asset.weight ?? DEFAULT_THROW_WEIGHT}/10 · {(asset.weight ?? DEFAULT_THROW_WEIGHT) <= 3 ? "light, flies far" : (asset.weight ?? DEFAULT_THROW_WEIGHT) >= 7 ? "heavy, drops short" : "medium"}</span></label>
+          <span className="hint2">Throw range = 5 blocks + 1 every 2 Strength, minus a bit for weight. At Strength 5 this throws about <b>{Math.round(throwRangeBlocks(5, asset.weight ?? DEFAULT_THROW_WEIGHT))} blocks</b> (Str 1 ≈ {Math.round(throwRangeBlocks(1, asset.weight ?? DEFAULT_THROW_WEIGHT))}, Str 10 ≈ {Math.round(throwRangeBlocks(10, asset.weight ?? DEFAULT_THROW_WEIGHT))}).</span>
+          <span className="wslab">Fire look:</span>
+          {(() => {
+            const props = allAssets.filter((pa) => pa.type === "prop");
+            return props.length ? (
+              <select className="projSel" value={asset.landPropId || ""} onChange={(e) => setAsset((a) => ({ ...a, landPropId: e.target.value || null }))}>
+                <option value="">🔥 Fire emoji (default)</option>
+                {props.map((pa) => <option key={pa.id} value={pa.id}>🌿 {pa.name}{(pa.frames && pa.frames.length > 1) ? " (animated)" : ""}</option>)}
+              </select>
+            ) : <span className="hint2">🔥 emoji — make an 🌿 Object / Prop to skin the fire with your own art.</span>;
+          })()}
+          <span className="hint2">{asset.landPropId ? "Lands as your chosen Object, drawn in front of the player on the grounded cells — it still burns for the damage/time below (the emoji is hidden). Different throwables can use different Objects." : "Lands as the 🔥 emoji hazard. Pick an Object above to skin it with your own fire art."} Fire only paints cells with ground beneath them, so it never floats.</span>
+          <label className="slider">Damage<input type="range" min="1" max="30" step="1" value={asset.landEffectDps ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectDps: +e.target.value }))} /><span className="hint2">{asset.landEffectDps ?? 6} HP/sec</span></label>
+          <label className="slider">Burns for<input type="range" min="1" max="20" step="1" value={asset.landEffectLife ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectLife: +e.target.value }))} /><span className="hint2">{asset.landEffectLife ?? 6}s</span></label>
+          <label className="slider">Splash<input type="range" min="0" max="3" step="1" value={asset.landRadius ?? DEFAULT_LAND_RADIUS} onChange={(e) => setAsset((a) => ({ ...a, landRadius: +e.target.value }))} /><span className="hint2">{(asset.landRadius ?? DEFAULT_LAND_RADIUS) === 0 ? "1 cell" : (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + "×" + (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + " cells"}</span></label>
+          <span className="hint2">Thrown in Playtest by <b>holding G to aim</b> (a dotted arc previews the exact flight path) and <b>releasing G to throw</b>, in the way you're facing — the arm swings the throw. It arcs, lands, and paints its fire where it hits (explosion + other effects can come later). It's a <b>single-use pickup</b> — the player carries just what they find, like a bomb in Binding of Isaac. Draw the grenade in the <b>Side</b> pose tab specifically, under the Rest state — that's the only pose that flies; Front/Back/Up/Crouch are never shown for a thrown item, even though the tabs are still there.</span>
+        </div>
+      )}
+      {asset.type === "weapon" && isThrowable(asset.wtype) && !(wState === "rest" ? (asset.angles?.side || []) : (asset.states?.rest?.side || [])).some((p) => !p.isHitbox && !p.isMuzzle) && (
+        <p className="tip warn">⚠ Nothing drawn on the <b>Side</b> pose yet, under <b>Rest</b> — that's the only pose+state a Throwable actually uses in Playtest (Fire is never shown for a thrown item). It'll fall back to a plain 💣 emoji until Rest → Side has art on it.</p>
+      )}
+      {asset.type === "weapon" && isRanged(asset.wtype) && (() => {
+        const hasLegacy = !!asset.projectile || (asset.states && !anglesEmpty(asset.states.projectile));
+        return (
+          <div className="wstates projectilecard">
+            <span className="wslab">Projectile:</span>
+            <select className="projSel" value={asset.projectileId || ""} onChange={(e) => setAsset((a) => ({ ...a, projectileId: e.target.value || null }))}>
+              <option value="">— none picked —</option>
+              {allAssets.filter((a) => a.type === "projectile").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            <label className="slider">Speed<input type="range" min="4" max="30" value={asset.projectileSpeed ?? 12} onChange={(e) => setAsset((a) => ({ ...a, projectileSpeed: +e.target.value }))} /></label>
+            <label className="slider">Fire rate<input type="range" min="0.5" max="15" step="0.5" value={asset.fireRate ?? DEFAULT_FIRE_RATE} onChange={(e) => setAsset((a) => ({ ...a, fireRate: +e.target.value }))} /><span className="hint2">{asset.fireRate ?? DEFAULT_FIRE_RATE}/sec</span></label>
+            <label className="slider">Clip size<input type="number" min="0" value={asset.clipSize ?? DEFAULT_CLIP_SIZE} onChange={(e) => setAsset((a) => ({ ...a, clipSize: Math.max(0, +e.target.value || 0) }))} style={{ width: 60 }} /><span className="hint2">0 = unlimited, never reloads</span></label>
+            <label className="slider">Reload<input type="range" min="0.2" max="5" step="0.1" value={asset.reloadTime ?? DEFAULT_RELOAD_TIME} onChange={(e) => setAsset((a) => ({ ...a, reloadTime: +e.target.value }))} /><span className="hint2">{asset.reloadTime ?? DEFAULT_RELOAD_TIME}s</span></label>
+            <label className="chk"><input type="checkbox" checked={!!asset.resurrect} onChange={(e) => setAsset((a) => ({ ...a, resurrect: e.target.checked }))} /> 🔮 Resurrect staff <span className="hint2">(its shot deals no damage — instead it raises a defeated body into a friendly NPC that fights for you. One body can only be raised once.)</span></label>
+            {!asset.resurrect && (
+              <div className="explodecard">
+                <label className="chk"><input type="checkbox" checked={!!asset.explode} onChange={(e) => setAsset((a) => ({ ...a, explode: e.target.checked }))} /> 💥 Explode <span className="hint2">(the shot bursts on impact — a wide splash of damage, plus an explosion drawn in front from an Object you pick)</span></label>
+                {asset.explode && (<>
+                  <label className="slider">Blast radius<input type="range" min="1" max="5" step="0.5" value={asset.explodeRadius ?? 2} onChange={(e) => setAsset((a) => ({ ...a, explodeRadius: +e.target.value }))} /><span className="hint2">{(asset.explodeRadius ?? 2)} cells — every enemy within that circle of the hit takes the shot's damage</span></label>
+                  <span className="wslab">Boom art (Object/Prop):</span>
+                  <select className="projSel" value={asset.explodePropId || ""} onChange={(e) => setAsset((a) => ({ ...a, explodePropId: e.target.value || null }))}>
+                    <option value="">— 💥 emoji (no Object) —</option>
+                    {allAssets.filter((a) => a.type === "prop").map((a) => <option key={a.id} value={a.id}>🌿 {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
+                  </select>
+                  <label className="slider">Boom size<input type="range" min="1" max="8" step="0.5" value={asset.explodeSize ?? 3} onChange={(e) => setAsset((a) => ({ ...a, explodeSize: +e.target.value }))} /><span className="hint2">{(asset.explodeSize ?? 3)} cells across</span></label>
+                  <label className="slider">Boom time<input type="range" min="0.2" max="2" step="0.1" value={asset.explodeLife ?? 0.5} onChange={(e) => setAsset((a) => ({ ...a, explodeLife: +e.target.value }))} /><span className="hint2">on screen {(asset.explodeLife ?? 0.5)}s{(() => { const pa = asset.explodePropId ? allAssets.find((x) => x.id === asset.explodePropId) : null; return pa && pa.frames && pa.frames.length > 1 ? " — its " + pa.frames.length + " frames play once over that time" : ""; })()}</span></label>
+                  <span className="hint2">Draw the explosion in the Object/Prop maker (animate it if you like), pick it above, and the shot paints it at the impact. The boom is visual only — it never sticks into the level.</span>
+                </>)}
+              </div>
+            )}
+            <button className="ltbtn" onClick={addMuzzle}><b>🔴</b> Add muzzle (shot spawn point)</button>
+            {!ANGLES.some((ang) => ((wState === "rest" ? asset.angles?.[ang] : asset.states?.rest?.[ang]) || []).some((p) => p.isMuzzle)) && (
+              <p className="tip warn">⚠ No 🔴 muzzle placed on the Rest pose yet — shots will spawn from the middle of the character instead of the barrel. Add one and drag it to the barrel tip.</p>
+            )}
+            <span className="hint2">Held Fire repeats at the fire rate. An empty clip auto-reloads (or press <b>R</b> any time) — the weapon lowers while reloading. Draw the 🔴 muzzle on the <b>Rest</b> pose; it rides the arm, so shots leave the barrel at the right height and angle.</span>
+            {!asset.projectileId && (
+              <p className="tip warn">⚠ {hasLegacy ? "No Projectile asset assigned yet — still using this weapon's old embedded projectile as a fallback." : "No Projectile picked — this won't fire anything visible in Playtest yet."} Build one from the menu (Weapon → Projectile), or pick a saved one above.{hasLegacy ? " " : ""}</p>
+            )}
+            {!asset.projectileId && hasLegacy && <button className="ltbtn" onClick={convertLegacyProjectile}>📦 Turn the old embedded projectile into its own saved Projectile asset</button>}
+            <span className="hint2">Build the bullet/arrow/bolt itself as its own Projectile asset — one Projectile can be shared across many Ranged weapons, and gets its own hitbox.</span>
+          </div>
+        );
+      })()}
+
+      {!effEdit && asset.type !== "prop" && (
+      <div className="angles">
+        {/* Only offer poses gameplay can actually render for this asset type — the audit:
+            player renders side (walk), back (climb/doors), up (ranged aim-up), crouch; NEVER front.
+            Enemies render side + crouch (others only as fallback art). Melee weapons can never
+            appear in Up (aiming is ranged-only). Projectiles read ONLY the Front pose. Editing
+            surfaces for poses that can never appear were pure wasted work. */}
+        {editablePoses(asset.type, asset.wtype).map((a) => {
+          const hasLimbs = (asset.type === "body" || asset.type === "enemy") && (asset.angles[a] || []).some((p) => p.limb === "leg" || (p.limb === "arm" && p.role !== "weaponArm"));
+          return <button key={a} className={angle === a ? "on" : ""} onClick={() => { setAngle(a); setSelId(null); if (poseCopySrc === a) setPoseCopySrc(null); }} title={hasLimbs ? "Has an arm/leg flagged for animation" : ""}>{ALABEL[a]}{hasLimbs ? " 🦴" : ""}</button>;
+        })}
+        {(asset.type === "body" || asset.type === "enemy") ? (
+          <span className="posecopy">
+            <select value={poseCopySrc || ""} onChange={(e) => setPoseCopySrc(e.target.value || null)} >
+              <option value="">📋 Copy pose…</option>
+              {editablePoses(asset.type, asset.wtype).filter((a) => a !== angle).map((a) => <option key={a} value={a}>{ALABEL[a]}</option>)}
+            </select>
+            {poseCopySrc && <button className="copyang" onClick={() => setPoseCopySrc(null)} title="Remove the reference copy">✕ remove copy</button>}
+            {/* Creatures get BOTH: the reference overlay above (trace/pull piece-by-piece) and this
+                one-click full copy of the whole current pose into all the others at once. */}
+            {asset.type === "enemy" && <button className="copyang" onClick={copyAngle} title="Copy this whole pose into all the other poses at once">⧉ copy to other poses</button>}
+          </span>
+        ) : (
+          <button className="copyang" onClick={copyAngle} >copy to other poses</button>
+        )}
+        {asset.type === "enemy" && angle === "attack" && <span className="hint2" style={{ flexBasis: "100%" }}>⚔️ Optional. Draw the pose this enemy holds while it attacks (the lunge/strike frame). If you draw anything here, it's shown during each melee attack <b>instead of</b> swinging the arm. Leave it blank and it swings the piece(s) you've flagged 💪 Arm. Drawn once, side-on — it's flipped to face you automatically, like Death.</span>}
+        {showGuide && <span className="refpick">🧍 {asset.variants ? "Design for body:" : "Load body:"}
+          <select value={asset.guideId} onChange={(e) => switchGuideFit(e.target.value)}>
+            <option value="default">Default body</option>
+            {library.filter((a) => a.type === "body").map((a) => <option key={a.id} value={a.id}>{(asset.variants && asset.variants[a.id] ? "✓ " : "") + a.name}</option>)}
+          </select>
+          {asset.variants && <button className="ltbtn" onClick={copyFitToOtherBodies}>📋 Copy to other characters</button>}
+        </span>}
+        <span className="hint2">{
+          asset.type === "weapon" ? (isRanged(asset.wtype)
+            ? "In play a ranged weapon shows in Side, Crouch, Back (climbing) and Up (aiming up) — Front never appears."
+            : "In play a melee weapon shows in Side, Crouch and Back (climbing) — Up and Front never appear.")
+          : asset.type === "projectile" ? "A projectile in flight only ever uses its Front pose."
+          : asset.type === "enemy" ? "Creatures use Side as they move (Crouch while ducking) and Aim up when a ranged shot is angled upward. 💀 Death is shown lying where it fell when defeated — draw it already lying down; leave it empty and the enemy just topples its Side pose over automatically. Copy a pose across with either the 📋 reference overlay or the one-click ⧉ copy to other poses."
+          : "In play: Side (walking), Back (climbing), Up (aiming up), Crouch. Front only appears here and in menus/previews."
+        }</span>
+      </div>
+      )}
+
+      <div className="main">
+        <div className="stage">
+          {asset.type === "body" && (() => {
+            const flagged = ANGLES.filter((a) => (asset.angles[a] || []).some((p) => p.limb === "leg" || (p.limb === "arm" && p.role !== "weaponArm")));
+            const missing = ["side", "back"].filter((a) => flagged.length > 0 && !flagged.includes(a));
+            if (!missing.length) return null;
+            return <p className="tip warn">⚠ {missing.map((m) => ALABEL[m]).join(" and ")} {missing.length > 1 ? "have" : "has"} no arm/leg flagged, even though another pose does. Flags don't carry across poses — walking uses <b>Side</b> and climbing uses <b>Back</b> specifically, so the walk/climb animation needs the flag set on those exact poses, not just wherever you set it. Use 📋 Copy pose to bring a flagged piece over (it keeps the flag), or flag it again here.</p>;
+          })()}
+          {asset.type === "enemy" && (() => {
+            const cur = asset.states?.normal || asset.angles || {};
+            if ((cur.side || []).length > 0) return null;
+            return <p className="tip warn">⚠ Side has no art yet — that's the pose the game renders as the creature moves, so it needs a drawing. Aim up, Crouch and 💀 Death are optional extras.</p>;
+          })()}
+          <div className="zoomctl">
+            <button onClick={() => setArtZoom((z) => clampArtZoom(z, -0.15))} disabled={artZoom <= ARTZOOM_MIN} title="Zoom out">−</button>
+            <button onClick={() => setArtZoom((z) => clampArtZoom(z, 0.15))} disabled={artZoom >= ARTZOOM_MAX} title="Zoom in">+</button>
+          </div>
+          <div className="artrow">
+          <div className={"art" + (asset.type === "weapon" ? " artWpn" : asset.type === "projectile" ? " artProj" : "") + (drawMode ? " drawing" : "")} onPointerDown={handleArtClick}>
+          <div ref={artRef} className="artDesign" style={(() => { const d = artZoom * 100; const o = (100 - d) / 2; return { left: o + "%", top: o + "%", width: d + "%", height: d + "%" }; })()}>
+            <div className="mline" />
+            {(() => {
+              const isLowerSlot = asset.type === "equipment" && LOWER_BODY_SLOTS.has(asset.slot);
+              const isUpperSlot = asset.type === "equipment" && UPPER_BODY_SLOTS.has(asset.slot);
+              const renderPiece = (p) => pmirror(p, angle) ? [Block(p), MirrorGhost(p, "m" + p.id)] : [Block(p)];
+              if (showGuide && (isLowerSlot || isUpperSlot)) {
+                // Split relative to the guide body's arm, matching how this piece will actually
+                // layer once worn (Dress Bob / in-game) — not just "always on top of everything".
+                const guidePieces = bake(guideBodyAsset, angle);
+                const isArmG = (gp) => gp.role === "weaponArm" || gp.limb === "arm";
+                const guideNonArm = guidePieces.filter((gp) => !isArmG(gp));
+                const guideArm = guidePieces.filter(isArmG);
+                const belowArm = frontPieces.filter((p) => isLowerSlot || !p.overArms);
+                const aboveArm = frontPieces.filter((p) => isUpperSlot && p.overArms);
+                return <>
+                  {behindPieces.flatMap(renderPiece)}
+                  {guideNonArm.map((p, i) => Static(p, null, true, !!p._m, "gna" + i))}
+                  {belowArm.flatMap(renderPiece)}
+                  {guideArm.map((p, i) => Static(p, null, true, !!p._m, "ga" + i))}
+                  {aboveArm.flatMap(renderPiece)}
+                </>;
+              }
+              return <>
+                {behindPieces.flatMap(renderPiece)}
+                {showGuide && bake(guideBodyAsset, angle).map((p, i) => Static(p, null, true, !!p._m, "g" + i))}
+                {frontPieces.flatMap(renderPiece)}
+              </>;
+            })()}
+            {sel && (() => {
+              const rot = (sel.rot || 0) * Math.PI / 180;
+              const cx = sel.x + sel.w / 2, cy = sel.y + sel.h / 2;
+              const dx0 = sel.w / 2, dy0 = sel.h / 2;
+              const hx = cx + dx0 * Math.cos(rot) - dy0 * Math.sin(rot);
+              const hy = cy + dx0 * Math.sin(rot) + dy0 * Math.cos(rot);
+              return <div onPointerDown={(e) => grabCorner(e, sel)} style={{ position: "absolute", left: `calc(${hx / W * 100}% - 9px)`, top: `calc(${hy / H * 100}% - 9px)`, width: "18px", height: "18px", background: "#4f7cf6", border: "2px solid #fff", borderRadius: "50%", cursor: "nwse-resize", boxSizing: "border-box", touchAction: "none" }} />;
+            })()}
+            {drawMode === "fill" && fillPts.length > 0 && (
+              <svg className="drawpreview" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+                <polyline points={fillPts.map((p) => `${p.x},${p.y}`).join(" ")} fill="none" stroke="#4f7cf6" strokeWidth="1.5" />
+                {fillPts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#4f7cf6" stroke="#fff" strokeWidth="1" />)}
+              </svg>
+            )}
+            {drawMode === "line" && linePt1 && (
+              <svg className="drawpreview" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+                <circle cx={linePt1.x} cy={linePt1.y} r="3.5" fill="#4f7cf6" stroke="#fff" strokeWidth="1" />
+              </svg>
+            )}
+            {showArmRig && shoulder && (
+              <svg className="armaxis" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+                <line x1={shoulder.x} y1={shoulder.y} x2={hand.x} y2={hand.y} />
+              </svg>
+            )}
+            {showArmRig && shoulder &&
+              <div className="shouldermk" style={{ left: (shoulder.x / W * 100) + "%", top: (shoulder.y / H * 100) + "%" }}>🎯</div>}
+            {asset.type === "skin"
+              ? <div onPointerDown={grabHand} className="handmk" style={{ left: (hand.x / W * 100) + "%", top: (hand.y / H * 100) + "%", cursor: "grab" }}>✋</div>
+              : (asset.type !== "enemy" || showArmRig) && <div className="handmk guide" style={{ left: (hand.x / W * 100) + "%", top: (hand.y / H * 100) + "%" }}>✋</div>}
+          </div>
+          </div>
+          {(asset.type === "body" || asset.type === "enemy") && poseCopySrc && (
+            <div className="pcp-wrap">
+              <div className="pcp-head">📋 Copy of <b>{ALABEL[poseCopySrc]}</b> — click a piece to pull it into {ALABEL[angle]}<button className="pcp-x" onClick={() => setPoseCopySrc(null)}>✕</button></div>
+              <div className="pcp-art">
+                {bake(asset, poseCopySrc).filter((p) => p.role !== "weaponArm").map((p, i) => (
+                  <div key={p.id || i} className="pcp-piece" style={shapeStyle(p, null, false, !!p._m)} onClick={() => pullPoseCopyPiece(p)} >
+                    <div style={shapeFillStyle(p)}>{p.kind === "emoji" ? emojiInner(p) : null}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          </div>
+        </div>
+
+        <aside className="side">
+          {(asset.type === "skin" || asset.type === "enemy") && (
+            <div className="card">
+              <div className="ct">📊 Stats</div>
+              {asset.type === "enemy" && <label className="slider">HP<input type="number" min="1" value={asset.hp ?? 10} onChange={(e) => setAsset((a) => ({ ...a, hp: Math.max(1, +e.target.value || 1) }))} style={{ width: 60 }} /></label>}
+              {asset.type === "enemy" && <label className="slider">Size<input type="range" min="0.5" max="4" step="0.1" value={asset.scale ?? 1} onChange={(e) => setAsset((a) => ({ ...a, scale: +e.target.value }))} /><span className="hint2" style={{ marginLeft: 6 }}>{(asset.scale ?? 1).toFixed(1)}×</span></label>}
+              {asset.type === "enemy" && <label className="chk"><input type="checkbox" checked={!!asset.faceRight} onChange={(e) => setAsset((a) => ({ ...a, faceRight: e.target.checked }))} /> ⟷ Art faces right <span className="hint2">(enemies are assumed drawn facing LEFT — only tick this if you drew this one facing right)</span></label>}
+              {asset.type === "enemy" && (
+                <label className="slider">🧭 AI behavior
+                  <select value={asset.ai || "guard"} onChange={(e) => setAsset((a) => ({ ...a, ai: e.target.value }))} style={{ marginLeft: 6 }}>
+                    <option value="guard">Guard — holds its spawn point</option>
+                    <option value="seek">Seek — chases the player when nearby</option>
+                    <option value="avoid">Avoid — keeps its distance from the player</option>
+                  </select>
+                </label>
+              )}
+              {asset.type === "enemy" && <label className="chk"><input type="checkbox" checked={asset.hostile === false} onChange={(e) => setAsset((a) => ({ ...a, hostile: !e.target.checked }))} /> 🕊️ Not hostile <span className="hint2">(a neutral NPC — never chases or attacks the player)</span></label>}
+              {asset.type === "enemy" && <label className="slider">⚔️ Attack range<input type="number" min="1" value={Math.round((asset.attackRange ?? DEFAULT_ATTACK_RANGE) / LV_CELL)} onChange={(e) => setAsset((a) => ({ ...a, attackRange: Math.max(1, +e.target.value || 1) * LV_CELL }))} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>cells · a ranged enemy always engages from ≥ 18</span></label>}
+              {(asset.type === "skin" ? ["hp", "speed", "agility", "intelligence", "strength"] : ["speed", "agility", "intelligence", "strength"]).map((s) => (
+                <label className="slider" key={s}>
+                  {s === "hp" ? "❤️ HP" : s === "speed" ? "🏃 Speed" : s === "agility" ? "🤸 Agility" : s === "intelligence" ? "🧠 Intelligence" : "💪 Strength"}
+                  <input type="range" min="1" max="10" value={asset.stats?.[s] ?? 5} onChange={(e) => setAsset((a) => ({ ...a, stats: { ...(a.stats || DEFAULT_STATS()), [s]: +e.target.value } }))} />
+                  <span className="hint2" style={{ marginLeft: 6 }}>{asset.stats?.[s] ?? 5}</span>
+                </label>
+              ))}
+              <p className="mini">5 is baseline (unchanged from default feel). {asset.type === "skin" ? "HP: max health. " : ""}Speed: move speed. Agility: jump height. Intelligence: melee crit chance. Strength: melee damage dealt.{asset.type === "enemy" ? " HP: how much damage it can take before it's defeated. AI behavior controls how it moves — Guard/Seek/Avoid — independent of Speed. Attack range (px) is how close the player needs to be before it attacks; it needs a clear line of sight too." : " A body with no skin equipped in Dress Bob just uses all 5s."}</p>
+            </div>
+          )}
+          {asset.type === "equipment" && !effEdit && (
+            <div className="card">
+              <div className="ct">📊 Stat Boosts</div>
+              {["hp", "speed", "agility", "intelligence", "strength"].map((s) => (
+                <label className="slider" key={s}>
+                  {s === "hp" ? "❤️ HP" : s === "speed" ? "🏃 Speed" : s === "agility" ? "🤸 Agility" : s === "intelligence" ? "🧠 Intelligence" : "💪 Strength"}
+                  <input type="range" min="-5" max="5" value={asset.statBoosts?.[s] ?? 0} onChange={(e) => setAsset((a) => ({ ...a, statBoosts: { ...(a.statBoosts || DEFAULT_STAT_BOOSTS()), [s]: +e.target.value } }))} />
+                  <span className="hint2" style={{ marginLeft: 6 }}>{(asset.statBoosts?.[s] ?? 0) > 0 ? "+" : ""}{asset.statBoosts?.[s] ?? 0}</span>
+                </label>
+              ))}
+              <p className="mini">Added on top of the wearer's own stat while this is equipped — a Speed of 5 plus a +2 item reads as 7. 0 = no change.</p>
+            </div>
+          )}
+          {asset.type === "equipment" && !effEdit && (
+            <div className="card">
+              <div className="ct">🛡️ Defense</div>
+              <label className="slider">Defense
+                <input type="number" value={asset.defense ?? 0} onChange={(e) => setAsset((a) => ({ ...a, defense: +e.target.value || 0 }))} style={{ width: 60 }} />
+              </label>
+              <p className="mini">Not a stat boost — armor only, no baseline to modify — just sums across everything worn (0 if nothing is). Reduces incoming damage: each point cuts 9%, so 10 Defense = 90% reduction.</p>
+            </div>
+          )}
+          {asset.type === "equipment" && !effEdit && asset.slot === "hat" && (
+            <div className="card">
+              <div className="ct">🚫 Ignore "Hide if hat"</div>
+              <label className="chk"><input type="checkbox" checked={!!asset.ignoreHideIfHat} onChange={(e) => setAsset((a) => ({ ...a, ignoreHideIfHat: e.target.checked }))} /> This hat doesn't hide "Hide if hat" pieces</label>
+              <p className="mini">On for things like glasses — sits in the Hat slot but shouldn't hide hair or anything else flagged "Hide if hat".</p>
+            </div>
+          )}
+          {asset.type === "equipment" && !effEdit && (
+            <div className="card">
+              <div className="ct">✨ Effects</div>
+              {(asset.effects || []).length === 0 && <p className="mini">No effects on this item yet.</p>}
+              {(asset.effects || []).map((eff) => {
+                const def = EFFECT_TYPES[eff.type];
+                const bodyCount = Object.keys(eff.animByBody || {}).filter((k) => k !== "default" && (eff.animByBody[k] || []).length).length;
+                return (
+                  <div key={eff.id} className="outlinefx" style={{ marginBottom: 10 }}>
+                    <div className="ct2">{def.icon} {def.label}</div>
+                    {def.tagParam && (
+                      <label className="slider">
+                        Tag to boost
+                        <input type="text" value={eff.tag || ""} placeholder="e.g. bow" onChange={(e) => updateEffectParam(eff.id, "tag", e.target.value)} style={{ marginLeft: 6 }} />
+                      </label>
+                    )}
+                    {def.params.map((p) => {
+                      const val = eff[p.key] ?? p.def;
+                      // Params that live in 0..1 (Back Guard block %, Glide fall/control) read as
+                      // percentages; whole-number params (Double Jump height/speed) read as-is.
+                      const pct = p.max <= 1;
+                      return (
+                        <label className="slider" key={p.key}>
+                          {p.label}
+                          <input type="range" min={p.min} max={p.max} step={p.step} value={val} onChange={(e) => updateEffectParam(eff.id, p.key, +e.target.value)} />
+                          <span className="hint2" style={{ marginLeft: 6 }}>{pct ? Math.round(val * 100) + "%" : val}</span>
+                        </label>
+                      );
+                    })}
+                    <p className="mini">{def.blurb}{!def.noAnim && (bodyCount ? " Animated for " + bodyCount + " " + (bodyCount === 1 ? "body" : "bodies") + " so far." : " No custom animation designed yet — plays this item's normal look.")}</p>
+                    <div className="btns">
+                      {!def.noAnim && <button onClick={() => openEffectAnim(eff.id)}>🎬 Design animation</button>}
+                      <button className="danger" onClick={() => removeEffect(eff.id)}>Remove effect</button>
+                    </div>
+                  </div>
+                );
+              })}
+              {Object.keys(EFFECT_TYPES).filter((t) => !(asset.effects || []).some((e) => e.type === t)).map((t) => (
+                <button key={t} className="ltbtn" onClick={() => addEffect(t)}>＋ Add {EFFECT_TYPES[t].icon} {EFFECT_TYPES[t].label}</button>
+              ))}
+            </div>
+          )}
+          {asset.type === "enemy" && (
+            <div className="card">
+              <div className="ct">⚔️ Weapon</div>
+              <select className="big" value={asset.weaponId || ""} onChange={(e) => {
+                const id = e.target.value || null;
+                const w = id ? allAssets.find((a) => a.id === id) : null;
+                setAsset((a) => {
+                  const next = { ...a, weaponId: id };
+                  // Switching to a bow/gun while the range is still the melee default would leave
+                  // the archer insisting on walking into your face — bump it to the ranged default
+                  // once, and only from the untouched melee default, so a hand-set range is kept.
+                  if (w && isRanged(w.wtype) && (a.attackRange ?? DEFAULT_ATTACK_RANGE) <= DEFAULT_ATTACK_RANGE) next.attackRange = DEFAULT_RANGED_ATTACK_RANGE;
+                  return next;
+                });
+              }}>
+                <option value="">✋ Unarmed (bare fists)</option>
+                {allAssets.filter((a) => a.type === "weapon" && !isThrowable(a.wtype)).map((a) => <option key={a.id} value={a.id}>{a.name} ({isRanged(a.wtype) ? "🏹" : "🗡️"})</option>)}
+              </select>
+              {asset.weaponId && !ANGLES.some((ang) => (asset.angles[ang] || []).some((p) => p.role === "weaponArm" || p.limb === "arm")) && <p className="tip warn">⚠ No piece is flagged 💪 Arm — flag one (select a piece → Animation flag 🦴) or there's no arm to hold/swing this weapon with.</p>}
+              <p className="mini">A melee weapon replaces bare fists: its Damage (scaled by Strength) is what it hits for, and it swings on the arm. A ranged weapon makes this enemy shoot its Projectile at you from a distance instead — picking one bumps Attack range to {DEFAULT_RANGED_ATTACK_RANGE}px so it stands off rather than closing in.</p>
+            </div>
+          )}
+          {asset.type === "item" && !effEdit && (() => {
+            const eff = normItemEffect(asset.effect);
+            const setEff = (patch) => setAsset((a) => ({ ...a, effect: normItemEffect({ ...normItemEffect(a.effect), ...patch }) }));
+            return (
+              <div className="card">
+                <div className="ct">🧪 Item effect</div>
+                <div className="seg">
+                  <button className={eff.kind === "heal" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "heal" ? cur : { kind: "heal", amount: 5 } }; })}>❤️ Heal</button>
+                  <button className={eff.kind === "stat" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "stat" ? cur : { kind: "stat", stat: "speed", amount: 2, duration: 8 } }; })}>📊 Boost a stat</button>
+                </div>
+                {eff.kind === "heal" ? (
+                  <label className="slider">❤️ Heal amount<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>HP</span></label>
+                ) : (
+                  <>
+                    <label className="slider">📊 Stat
+                      <select value={eff.stat} onChange={(e) => setEff({ stat: e.target.value })} style={{ marginLeft: 6 }}>
+                        {ITEM_STAT_KEYS.map((s) => <option key={s} value={s}>{ITEM_STAT_LABEL[s]}</option>)}
+                      </select>
+                    </label>
+                    <label className="slider">➕ Amount<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /></label>
+                    <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
+                  </>
+                )}
+                <p className="mini">A single-use pickup. <b>{itemEffectSummary(asset.effect)}</b> when taken from a pedestal, then it's gone. Speed = move speed, Agility = jump, Strength = melee/throw damage, Intelligence = melee crit — each boost is live for its whole duration.</p>
+              </div>
+            );
+          })()}
+          {HAS_CATEGORIES(asset) && !effEdit && (
+            <div className="card">
+              <div className="ct">🏷️ Item categories</div>
+              {[0, 1, 2].map((i) => (
+                <input key={i} className="catItemInput" value={(asset.categories || [])[i] || ""} onChange={(e) => setAsset((a) => { const cats = [...(a.categories || ["", "", ""])]; cats[i] = e.target.value; return { ...a, categories: cats }; })} placeholder={"Category " + (i + 1) + (i === 0 ? " — e.g. T1" : i === 1 ? " — e.g. Shirt" : " — e.g. Strong")} maxLength={24} />
+              ))}
+              <p className="mini">Up to 3 free-text tags. Pedestals in a level search these to pick a random item to drop — e.g. a pedestal set to "Shirt" AND "T1" only offers items tagged with both. Blank tags are ignored.</p>
+            </div>
+          )}
+          {asset.type === "skin" && !effEdit && (() => {
+            const pal = collectAssetColors(asset);
+            return (
+              <div className="card">
+                <div className="ct">🎨 Skin palette</div>
+                <label className="palchip" title="The flesh colour of whichever body wears this skin">
+                  <span className="palsw" style={{ background: asset.tone || "#e2b48c" }} />
+                  <span className="palmeta"><span className="palhex">Skin tone</span><span className="palcount">{asset.tone ? asset.tone : "body default"}</span></span>
+                  <input type="color" value={asset.tone || "#e2b48c"} onChange={(e) => setAsset((a) => ({ ...a, tone: e.target.value }))} onBlur={(e) => addRecent(e.target.value)} />
+                </label>
+                <p className="mini">☝️ The actual flesh colour lives on the <b>body</b>, not on this skin — that's why it never showed in the chips below. Set a tone here and any body wearing this skin gets its flesh (including its darker shading shades) recoloured to match, leaving hair, lips and eyes alone.</p>
+                <p className="mini">Every colour this skin uses. Tap a chip and pick a new shade — it repaints <b>everywhere</b>: all 5 poses and every body this skin's been fitted to. Handy for nudging skin tone between edits. Outlines, glow and emoji tints are left alone. This only recolours — it never resizes.</p>
+                {pal.length === 0 ? <p className="mini">Draw something and its colours show up here.</p> : (
+                  <div className="palette">
+                    {pal.map(({ color, count }) => (
+                      <label key={color} className="palchip" title={color + " · " + count + " block" + (count === 1 ? "" : "s") + " · tap to recolour everywhere"}>
+                        <span className="palsw" style={{ background: color }} />
+                        <span className="palmeta"><span className="palhex">{color}</span><span className="palcount">{count}×</span></span>
+                        <input type="color" value={color} onChange={(e) => remapPalette(color, e.target.value)} onBlur={(e) => { addRecent(e.target.value); delete palFrom.current[color]; }} />
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          {sel ? (
+            <div className="card sel">
+              <div className="ct">{sel.kind === "emoji" ? "This emoji" : "This block"} — color</div>
+              {sel.kind === "emoji" ? <>
+                <div className="swatches">
+                  <button className={!sel.tint ? "orig on" : "orig"} onClick={() => updSel({ tint: null })} title="keep the emoji's own colors">🌈</button>
+                  {COLORS.map((c) => <button key={c} className={sel.tint === c ? "on" : ""} style={{ background: c }} onClick={() => updSel({ tint: c })} />)}
+                  {recent.filter((c) => !COLORS.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.tint === c ? " on" : "")} style={{ background: c }} onClick={() => updSel({ tint: c })} title="recent" />)}
+                  <label className="pick"><input type="color" value={sel.tint || "#ffffff"} onChange={(e) => updSel({ tint: e.target.value })} onBlur={(e) => addRecent(e.target.value)} />＋</label>
+                </div>
+                <p className="mini">Tap a color to paint the emoji solid, or 🌈 for its own colors.</p>
+                <button className="wide" onClick={() => setPicker({ mode: "change" })}>Change emoji ({sel.char})</button>
+              </> : <>
+                <div className="swatches">{COLORS.map((c) => <button key={c} className={sel.color === c ? "on" : ""} style={{ background: c }} onClick={() => applyPieceColor(c)} />)}{recent.filter((c) => !COLORS.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.color === c ? " on" : "")} style={{ background: c }} onClick={() => applyPieceColor(c)} title="recent" />)}<label className="pick"><input type="color" value={sel.color} onChange={(e) => applyPieceColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
+                {!effEdit && <label className="chk"><input type="checkbox" checked={recolorAll} onChange={(e) => setRecolorAll(e.target.checked)} /> 🪣 Replace this color everywhere </label>}
+                {!effEdit && recolorAll && <p className="mini">Every block in <b>this asset</b> using {sel.color} repaints too — all 5 poses and every body it's been fitted to. Outlines, glow and emoji tints stay as they are, so a slightly different shade is left alone for you to redo by hand.</p>}
+              </>}
+              <button className="ltbtn" onClick={() => updSel(sel.kind === "emoji" ? { tint: newColor, fx: { ...newFx } } : { color: newColor, fx: { ...newFx } })} >🎨 Apply picked color + fx</button>
+              <p className="mini">Eyedrop a block (below) to load its exact look here, then hit this on any other block to copy it over — color plus brightness/glow/fade together.</p>
+              <label className="chk outlinechk"><input type="checkbox" checked={!!sel.outline} onChange={(e) => updSel({ outline: e.target.checked, outlineFx: sel.outlineFx || defaultFx() })} /> 🖍 Outline </label>
+              {sel.outline && <label className="pick" style={{ marginBottom: 8 }}>Outline color<input type="color" value={sel.outlineColor || "#000000"} onChange={(e) => updSel({ outlineColor: e.target.value })} /></label>}
+              {sel.outline && (
+                <div className="outlinefx">
+                  <div className="ct2">Outline effects ✨</div>
+                  <label className="slider">Fade<input type="range" min="0.1" max="1" step="0.05" value={sel.outlineFx?.opacity ?? 1} onChange={(e) => updSel({ outlineFx: { ...(sel.outlineFx || defaultFx()), opacity: +e.target.value } })} /></label>
+                  <label className="slider">Glow<input type="range" min="0" max="12" step="0.5" value={sel.outlineFx?.glow ?? 0} onChange={(e) => updSel({ outlineFx: { ...(sel.outlineFx || defaultFx()), glow: +e.target.value } })} /><input type="color" className="gc" value={sel.outlineFx?.glowColor ?? "#ffd76b"} onChange={(e) => updSel({ outlineFx: { ...(sel.outlineFx || defaultFx()), glowColor: e.target.value } })} /></label>
+                  <label className="slider">Brightness<input type="range" min="0.3" max="2" step="0.05" value={sel.outlineFx?.bright ?? 1} onChange={(e) => updSel({ outlineFx: { ...(sel.outlineFx || defaultFx()), bright: +e.target.value } })} /></label>
+                </div>
+              )}
+              {sel.kind === "text" && (
+                <div className="textedit">
+                  <label className="pick" style={{ marginBottom: 8 }}>Text<input type="text" value={sel.text || ""} onChange={(e) => updSel({ text: e.target.value })} placeholder="Type here…" maxLength={40} /></label>
+                  <label className="pick" style={{ marginBottom: 8 }}>Font
+                    <select value={sel.font || TEXT_FONTS[0][0]} onChange={(e) => updSel({ font: e.target.value })}>
+                      {TEXT_FONTS.map(([css, label]) => <option key={css} value={css} style={{ fontFamily: css }}>{label}</option>)}
+                    </select>
+                  </label>
+                </div>
+              )}
+              <label className="slider">Width<input type="range" min="1" max="190" value={sel.w} onChange={(e) => updSelSize("w", +e.target.value)} /></label>
+              <label className="slider">Height<input type="range" min="1" max="240" value={sel.h} onChange={(e) => updSelSize("h", +e.target.value)} /></label>
+              <label className="slider">Twist / rotate ⟳<input type="range" min="0" max="360" value={sel.rot || 0} onChange={(e) => updSelRot(+e.target.value)} /><button className="rotbtn" onClick={() => updSelRot((((sel.rot || 0) - 90) % 360 + 360) % 360)}>↺</button><button className="rotbtn" onClick={() => updSelRot(((sel.rot || 0) + 90) % 360)}>↻</button></label>
+              <label className="slider">Flip ⇋<button className="rotbtn" onClick={flipSelH} title="Mirror left-right">⇋ Flip horizontally</button></label>
+              {groupIds.length > 1 && groupIds.includes(selId) && <p className="hint2" style={{ margin: "0 0 6px" }}>⟳ Rotates · ⇋ flips · corner-drag resizes — all {groupIds.length} grouped blocks together, as one item around their shared center.</p>}
+              {sel.role === "weaponArm" && <p className="hint2" style={{ margin: "0 0 6px" }}>Twist swings the arm around the 🎯 shoulder; ✋ rides the far end.</p>}
+              <label className="chk"><input type="checkbox" checked={!!sel.mirror} onChange={(e) => updSel({ mirror: e.target.checked })} /> Mirror this block ⟷ <span className="hint2">(pairs the other side)</span></label>
+              <label className="chk"><input type="checkbox" checked={!!sel.isCutter} onChange={(e) => updSel({ isCutter: e.target.checked })} /> 🕳️ Cutter </label>
+              {!sel.isCutter && <label className="chk"><input type="checkbox" checked={!!sel.noCut} onChange={(e) => updSel({ noCut: e.target.checked })} /> 🛡️ Ignore cutters <span className="hint2">(cutter holes won't punch through this block — it shows through them instead, e.g. a root glimpsed behind leaves)</span></label>}
+              {!effEdit && showGuide && <label className="chk"><input type="checkbox" checked={!!sel.behindBody} onChange={(e) => updSel({ behindBody: e.target.checked })} /> Behind the WHOLE body <span className="hint2">(e.g. a cape)</span></label>}
+              {!effEdit && asset.type === "equipment" && (asset.slot === "pants" || asset.slot === "under_bottom") && <label className="chk"><input type="checkbox" checked={!!sel.behindLegs} onChange={(e) => updSel({ behindLegs: e.target.checked })} /> Behind legs </label>}
+              {asset.type === "weapon" && !sel.isHitbox && <label className="chk"><input type="checkbox" checked={!!sel.behindArm} onChange={(e) => updSel({ behindArm: e.target.checked })} /> Behind the arm <span className="hint2">(e.g. a strap/sheath)</span></label>}
+              {asset.type === "skin" && <label className="chk"><input type="checkbox" checked={!!sel.hideIfHat} onChange={(e) => updSel({ hideIfHat: e.target.checked })} /> Hide if hat <span className="hint2">(e.g. top of the hair)</span></label>}
+              {!effEdit && asset.type === "equipment" && LOWER_BODY_SLOTS.has(asset.slot) && <p className="mini">Pants/underwear/shoes always sit below the arm automatically — no checkbox needed for that. Each pose is a separate drawing, so flag a pant-leg block 🦵 Leg (below) in <b>both</b> the Side pose (for walking) and the Back pose (for climbing) — flagging it in one doesn't carry over to the other. In Crouch specifically, the leg always paints over a shirt/jacket automatically, flagged or not.</p>}
+              {!effEdit && asset.type === "equipment" && UPPER_BODY_SLOTS.has(asset.slot) && <label className="chk"><input type="checkbox" checked={!!sel.overArms} onChange={(e) => updSel({ overArms: e.target.checked })} /> Over arms only </label>}
+              {effEdit && asset.type === "equipment" && <p className="mini">This frame plays in place of the item's normal art at its usual layering (behind/over the arm, under a jacket, etc.) — layering flags aren't editable here since the frame always keeps whatever position the item's normal art has.</p>}
+              {sel.locked && <p className="mini">🔒 Weapon arm — the game swings this, so it can't be deleted (you can still edit it).</p>}
+              {(sel.role === "weaponArm" || sel.limb === "arm") && (<>
+                <div className="ct2">Shoulder side 🫱</div>
+                <div className="limbtabs">
+                  {[["top", "⬆ Top"], ["bottom", "⬇ Bottom"], ["left", "⬅ Left"], ["right", "➡ Right"]].map(([v, l]) => (
+                    <button key={v} className={(sel.armPivot || "top") === v ? "on" : ""} onClick={() => updSel({ armPivot: v })}>{l}</button>
+                  ))}
+                </div>
+                <p className="mini">Which side of this piece is the shoulder — the fixed point the swing pivots around. Use Left/Right for an arm drawn as a sideways bar.</p>
+              </>)}
+              {asset.type === "enemy" && sel.limb === "arm" && (
+                sel.role === "weaponArm"
+                  ? <p className="mini">🫱 <b>This is the shoulder piece.</b> The whole swing pivots at its shoulder side above; every other 💪-flagged piece rides rigidly around it.</p>
+                  : <button className="wide" onClick={() => setPieces((arr) => arr.map((p) => p.id === sel.id ? { ...p, role: "weaponArm" } : (p.role === "weaponArm" ? { ...p, role: undefined } : p)))}>🫱 Make this the shoulder piece</button>
+              )}
+              <div className="ct2">Animation flag 🦴</div>
+              <div className="limbtabs">
+                {[["", "None"], ["arm", "💪 Arm"], ["leg", "🦵 Leg"]].map(([v, l]) => (
+                  <button key={v || "none"} className={(sel.limb || "") === v ? "on" : ""} onClick={() => updSel({ limb: v || null })}>{l}</button>
+                ))}
+              </div>
+              <p className="mini">Flag a block as an arm or leg so the gameplay studio can swing or step it. The weapon arm is an arm by default.</p>
+              <div className="ct2">Effects ✨</div>
+              <label className="slider">Fade<input type="range" min="0.1" max="1" step="0.05" value={sel.fx?.opacity ?? 1} onChange={(e) => updFx({ opacity: +e.target.value })} /></label>
+              <label className="slider">Glow<input type="range" min="0" max="12" step="0.5" value={sel.fx?.glow ?? 0} onChange={(e) => updFx({ glow: +e.target.value })} /><input type="color" className="gc" value={sel.fx?.glowColor ?? "#ffd76b"} onChange={(e) => updFx({ glowColor: e.target.value })} /></label>
+              <label className="slider">Brightness<input type="range" min="0.3" max="2" step="0.05" value={sel.fx?.bright ?? 1} onChange={(e) => updFx({ bright: +e.target.value })} /></label>
+              <div className="btns"><button onClick={toFront}>Bring to front</button><button onClick={toBack}>Send to back</button><button onClick={duplicate}>📋 Copy block</button>{!sel.locked && <button className="danger" onClick={remove}>Delete</button>}</div>
+            </div>
+          ) : <div className="card empty"><p><b>Tap any block</b> on the canvas to recolor or resize it. Or add a new one below ↓</p></div>}
+
+          <div className="card">
+            <div className="ct">Add a block</div>
+            <div className="addrow">
+              <button onClick={() => setShapePicker(true)}><b>🔷</b>Shapes…</button>
+              <button className={drawMode === "line" ? "on" : ""} onClick={() => { setDrawMode(drawMode === "line" ? null : "line"); setLinePt1(null); setFillPts([]); }} ><b>📏</b>Line</button>
+              <button className={drawMode === "fill" ? "on" : ""} onClick={() => { setDrawMode(drawMode === "fill" ? null : "fill"); setLinePt1(null); setFillPts([]); }} title="Click 3+ points, then Finish"><b>🪣</b>Fill</button>
+              <button onClick={() => addBlock("circle", null, { isCutter: true })} title="Punches a hole, not a shape"><b>🕳️</b>Cutter</button>
+              <button onClick={() => setPicker({ mode: "add" })}><b>{emoji}</b>Emoji…</button>
+              <button onClick={addText} ><b>🔤</b>Text</button>
+            </div>
+            {drawMode === "line" && <p className="tip">📏 Line: {linePt1 ? "click the END point." : "click the START point."} <button className="ltbtn" onClick={cancelDraw}>✕ Cancel</button></p>}
+            {drawMode === "fill" && <p className="tip">🪣 Fill: click points to outline the shape ({fillPts.length} so far). <button className="ltbtn" onClick={finishFill} disabled={fillPts.length < 3}>✓ Finish</button> <button className="ltbtn" onClick={cancelDraw}>✕ Cancel</button></p>}
+            <div className="newcolor"><span>New block color</span><div className="ncright">{recent.filter((c) => !COLORS.includes(c)).slice(0, 5).map((c) => <button key={"n" + c} className={"rc" + (newColor === c ? " on" : "")} style={{ background: c }} onClick={() => setNewColor(c)} title="recent" />)}<input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} /></div></div>
+            <button className={"ltbtn" + (eyedrop ? " on" : "")} onClick={() => setEyedrop((v) => !v)} >🎨 {eyedrop ? "Click a block…" : "Eyedropper"}</button>
+            <button className={"ltbtn" + (multiSelect ? " on" : "")} onClick={() => { setMultiSelect((v) => !v); setGroupIds([]); }} >🔲 {multiSelect ? "Done" : "Group select"}</button>
+            {multiSelect && <p className="tip">🔲 Click blocks — on the canvas or in the Layers list — to add/remove them from the group ({groupIds.length} selected). Dragging any selected block on the canvas moves them all together.{groupIds.length > 0 && <> <button className="ltbtn" onClick={() => setGroupIds([])}>✕ Clear</button></>}{groupIds.length > 1 && <> <button className="ltbtn" onClick={saveGroup}>💾 Save group</button></>}{hasStore && groupIds.length > 0 && <> <input className="gname" value={stampName} placeholder="stamp name" onChange={(e) => setStampName(e.target.value)} /> <button className="ltbtn" onClick={storeGroup}>📦 Store group</button></>}</p>}
+            {multiSelect && <p className="mini">💾 Save group just remembers <b>which</b> blocks these are, in this pose. 📦 Store group keeps a <b>copy of the blocks themselves</b> — place it into any other pose, any other body's fit, or a different garment entirely.</p>}
+            {stamps.length > 0 && <p className="tip">📦 Stored: {stamps.map((s) => <span key={s.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => placeStamp(s)}>{s.name} ({s.pieces.length})</button><button className={"ltbtn" + (confirmStampDel === s.id ? " on" : "")} onClick={() => { if (confirmStampDel === s.id) { setConfirmStampDel(null); deleteStamp(s.id); } else { setConfirmStampDel(s.id); flash("Tap ✕ again to permanently delete stored group \"" + s.name + "\""); } }} title={confirmStampDel === s.id ? "Tap again to permanently delete" : "Delete this stored group"}>{confirmStampDel === s.id ? "Sure?" : "✕"}</button></span>)}</p>}
+            {savedGroups.length > 0 && <p className="tip">📁 Saved: {savedGroups.map((g) => <span key={g.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => loadGroup(g)}>{g.name} ({g.ids.length})</button><button className="ltbtn" onClick={() => deleteGroup(g.id)} title="Delete this saved group">✕</button></span>)}</p>}
+          </div>
+
+          {shapePicker && (
+            <div className="modal" onClick={() => setShapePicker(false)}>
+              <div className="dlg" onClick={(e) => e.stopPropagation()}>
+                <div className="dt">Pick a shape</div>
+                <div className="shapegrid">
+                  {SHAPE_LIST.map(([kind, icon, label]) => (
+                    <button key={kind} className="tile" onClick={() => { addBlock(kind); setShapePicker(false); }} title={kind === "tri2" ? "A right triangle — rotate it (below) to point any corner where you need" : undefined}>
+                      <span className="ti">{icon}</span><span className="tl">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {asset.type === "weapon" && !isRanged(asset.wtype) && (
+            <div className="card">
+              <div className="ct">🎯 Hit detection</div>
+              <p className="mini">A damage box, separate from the art — drag/resize it over wherever should actually deal damage. Invisible in-game.</p>
+              <button className="ltbtn" onClick={addHitbox}><b>🎯</b> Add hitbox</button>
+              {(() => { const n = (pieces || []).filter((p) => p.isHitbox).length; return n > 0 && <p className="mini">{n} hitbox{n === 1 ? "" : "es"} on this pose right now.</p>; })()}
+            </div>
+          )}
+
+          {asset.type === "prop" && (
+            <div className="card">
+              <div className="ct">Object settings</div>
+              <label className="slider">Default size<input type="range" min="1" max="12" step="1" value={asset.size ?? 2} onChange={(e) => setAsset((a) => ({ ...a, size: +e.target.value }))} /><span className="hint2" style={{ marginLeft: 6 }}>{asset.size ?? 2}×{asset.size ?? 2}</span></label>
+              <p className="mini">How many cells this fills when first placed (you can still resize each placement in the level). The art scales to fit — it never tiles/duplicates.</p>
+              {(asset.frames || []).length > 1 && (
+                <label className="slider">Anim speed<input type="range" min="1" max="20" step="1" value={asset.animFps ?? 6} onChange={(e) => setAsset((a) => ({ ...a, animFps: +e.target.value }))} /><span className="hint2" style={{ marginLeft: 6 }}>{asset.animFps ?? 6} fps</span></label>
+              )}
+              <label className="chk"><input type="checkbox" checked={!!asset.solidDefault} onChange={(e) => setAsset((a) => ({ ...a, solidDefault: e.target.checked }))} /> Solid by default <span className="hint2">(blocks the player when placed)</span></label>
+              <p className="mini">Only the <b>Front</b> pose is used. Add frames below to animate it (e.g. a flickering fire) — it cycles automatically in Playtest, and shows a still frame 1 in the editor so you can draw calmly.</p>
+            </div>
+          )}
+
+          {asset.type === "projectile" && (
+            <div className="card">
+              <div className="ct">Size</div>
+              <label className="slider">Scale<input type="range" min="0.5" max="3" step="0.1" value={asset.size ?? 1} onChange={(e) => setAsset((a) => ({ ...a, size: +e.target.value }))} /></label>
+              <p className="mini">How big this renders in-game once fired. Only the Front angle is used — it flies pointed however Front is drawn, rotated live to match the shot's angle.</p>
+            </div>
+          )}
+
+          {pieces.length > 0 && (
+            <div className="card"><div className="ct">Layers — top is front</div>
+              <div className="layers">
+                {frontPieces.slice().reverse().map(lrow)}
+                {showGuide && <div className="bodydiv">— BODY (one layer) —</div>}
+                {behindPieces.slice().reverse().map(lrow)}
+              </div>
+              {showGuide && <p className="mini">Tick "Behind the body" on a block to drop it below this line.</p>}
+            </div>
+          )}
+        </aside>
+      </div>
+
+      {picker && (() => {
+        const q = emojiQuery.trim().toLowerCase();
+        const filtered = q ? emojis.filter((m) => (EMOJI_KEYWORDS[m] || "").includes(q)) : emojis;
+        return (
+          <div className="modal" onClick={closePicker}>
+            <div className="dlg" onClick={(e) => e.stopPropagation()}>
+              <div className="dt">{picker.mode === "change" ? "Pick a new emoji" : "Pick an emoji to add"} <span className="emcount">{filtered.length}{q ? " match" + (filtered.length === 1 ? "" : "es") : ""}</span></div>
+              <input className="emsearch" value={emojiQuery} onChange={(e) => setEmojiQuery(e.target.value)} placeholder="Search — e.g. explosion, fire, sword, tree…" autoFocus />
+              {!q && recentEmoji.length > 0 && <><div className="emsublabel">Recent</div><div className="emgrid emgrid-recent">{recentEmoji.map((m, i) => <button key={"r" + i} onClick={() => pickEmoji(m)}>{m}</button>)}</div></>}
+              {q && !filtered.length && <p className="mini">No matches for "{emojiQuery}" — try a simpler word (explosion, fire, sword, tree, heart…), or clear the search to browse everything.</p>}
+              <div className="emgrid">{filtered.map((m, i) => <button key={i} onClick={() => pickEmoji(m)}>{m}</button>)}</div>
+              <div className="row2"><button onClick={closePicker}>Close</button></div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {sheet && (
+        <div className="modal" onClick={() => setSheet(false)}>
+          <div className="dlg" onClick={(e) => e.stopPropagation()}>
+            <div className="dt">Save & Open</div>
+            <div className="grp"><span className="gl">Name this asset</span>
+              <input className="namefield" value={asset.name} onChange={(e) => setAsset({ ...asset, name: e.target.value })} placeholder={asset.type === "equipment" ? "e.g. Wizard Hat, Iron Boots…" : "e.g. Wizard Bob, Bronze Sword…"} />
+              <p className="mini">Give it a unique name so your library isn't full of identical “{asset.type === "equipment" ? SLOTS[asset.slot].label : (TYPES[asset.type]?.label || asset.type)}” entries.</p>
+            </div>
+            <div className="grp"><span className="gl">Keep your work</span>
+              <div className="row2">{hasStore && <button onClick={saveAsset}>💾 Save</button>}<button onClick={download}>⬇ Download file</button><label className="up">⬆ Upload file<input type="file" accept="application/json" onChange={upload} hidden /></label></div>
+            </div>
+            <div className="grp"><span className="gl">Open a saved {asset.type === "equipment" ? (SLOTS[asset.slot]?.label || "item") : (TYPES[asset.type]?.label || asset.type)}</span>
+              {(() => {
+                const sameCategory = library.filter((a) => a.type === asset.type && (asset.type !== "equipment" || a.slot === asset.slot));
+                return sameCategory.length ? <div className="loadlist">{sameCategory.map((a) => (
+                  <button key={a.id} onClick={() => { openAsset(a); setSheet(false); }}>{a.type === "equipment" ? (SLOTS[a.slot]?.icon || "📦") : (TYPES[a.type]?.icon || "📦")} {a.name}</button>
+                ))}</div> : <p className="mini">Nothing saved in this category yet.</p>;
+              })()}
+            </div>
+            <div className="grp"><span className="gl">Send to the game or to Claude</span>
+              <textarea value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} />
+              <div className="row2"><button onClick={copy}>📋 Copy</button><button onClick={loadText}>Load this text</button><button onClick={() => setSheet(false)}>Close</button></div>
+            </div>
+          </div>
+        </div>
+      )}
+      {toast && <div className="toast">{toast}</div>}
+    </div>
+  );
+}
+
+const css = `
+.bb{height:100vh;display:flex;flex-direction:column;background:#0f1117;color:#e7e9ee;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
+.bb button,.bb input,.bb textarea,.bb select{font:inherit;color:inherit}
+.bar{display:flex;align-items:center;gap:10px;padding:11px 14px;background:#161922;border-bottom:1px solid #232838;flex-shrink:0}
+.logo{font-weight:700;font-size:16px}
+.dressName{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:8px 12px;font-size:13px;color:#e7e9ee;width:180px;margin-left:auto}
+.dressName:focus{border-color:#4f7cf6;outline:none}
+.back{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:8px 12px;cursor:pointer}
+.nm{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:7px 11px;width:110px;font-size:15px}
+.badge{background:#222840;border:1px solid #2c3245;border-radius:20px;padding:5px 11px;font-size:12px}
+.save{margin-left:auto;background:#4f7cf6;border:0;border-radius:9px;padding:9px 14px;font-weight:600;cursor:pointer}
+.save:hover{background:#5e89ff}
+.menu{flex:1;overflow:auto;padding:22px;max-width:780px;margin:0 auto;width:100%}
+.menu h2{font-size:15px;color:#aab2c6;margin:10px 0 12px;font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:24px}
+.shapegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:10px;max-width:480px}
+.shapegrid .tile{padding:14px 8px;text-align:center}
+.shapegrid .ti{font-size:26px;display:block;margin-bottom:4px}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:4px;background:#171b26;border:1px solid #242a3a;border-radius:16px;padding:16px;cursor:pointer;text-align:left}
+.tile:hover{border-color:#4f7cf6;background:#1b2030}.tile.dress{border-color:#3a4a7a;background:#19203a}
+.ti{font-size:30px}.tl{font-weight:700;font-size:15px}.tb{font-size:12px;color:#9aa3b8}
+.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:24px}
+.slot{display:flex;flex-direction:column;align-items:center;gap:6px;background:#171b26;border:1px solid #242a3a;border-radius:13px;padding:14px 6px;cursor:pointer;font-size:12px}
+.slot:hover{border-color:#4f7cf6}.slot .si{font-size:24px}
+.saved{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px}
+.loadcats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.loaditems{grid-template-columns:1fr}
+.loaditem{align-items:flex-start;text-align:left}
+.fitlist{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.fitchip{font-size:10px;padding:2px 7px;border-radius:7px;background:#1f2433;color:#8a93a8;border:1px solid #2c3245}
+.fitchip.on{background:#173a26;border-color:#3a7a4f;color:#7fe0a0}
+.scard{display:flex;flex-direction:column;align-items:center;gap:5px;background:#171b26;border:1px solid #242a3a;border-radius:14px;padding:15px 8px;cursor:pointer;width:100%}
+.scardwrap{position:relative}
+.sdel{position:absolute;top:6px;right:6px;background:#1f2433;border:1px solid #2c3245;border-radius:8px;padding:3px 7px;font-size:12px;cursor:pointer;color:#9aa3b8}
+.sdel:hover{border-color:#e05b5b;color:#e05b5b}
+.sdel.arm{background:#3a2020;border-color:#e05b5b;color:#ffb3b3;font-weight:600}
+.nichelist{display:flex;flex-direction:column;gap:10px;max-height:50vh;overflow:auto;margin:8px 0}
+.nicherow{background:#171b26;border:1px solid #242a3a;border-radius:12px;padding:10px}
+.nichename{font-weight:600;margin-bottom:7px}
+.nichebtns{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.nichebtns button{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:7px 10px;font-size:13px;cursor:pointer}
+.nichebtns button:hover{border-color:#4f7cf6}
+.scard:hover{border-color:#4f7cf6}.si{font-size:24px}.sn{font-weight:600;text-align:center}.sty{font-size:11px;color:#9aa3b8}
+.muted{color:#8a93a8;margin-bottom:16px}
+.openfile{display:inline-flex;background:#1f2433;border:1px solid #2c3245;border-radius:11px;padding:11px 18px;cursor:pointer;font-weight:600}
+.openfile:hover{border-color:#4f7cf6}
+.angles{display:flex;align-items:center;gap:6px;padding:9px 14px;background:#13161f;border-bottom:1px solid #232838;flex-wrap:wrap;flex-shrink:0}
+.angles>button{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:7px 13px;cursor:pointer}
+.angles>button.on{background:#4f7cf6;border-color:#4f7cf6;font-weight:600}
+.copyang{font-size:12px;color:#9aa3b8 !important;background:transparent !important;border:1px dashed #3a4258 !important}
+.posecopy{display:flex;align-items:center;gap:6px}
+.posecopy select{background:#1f2433;border:1px dashed #3a4258;border-radius:9px;padding:7px 10px;font-size:12px;color:#9aa3b8;cursor:pointer}
+.artrow{display:flex;gap:14px;align-items:flex-start;justify-content:center;width:100%;flex-wrap:wrap}
+.pcp-wrap{display:flex;flex-direction:column;gap:6px}
+.pcp-head{display:flex;align-items:center;gap:8px;font-size:11.5px;color:#9aa3b8;max-width:200px}
+.pcp-x{background:#1f2433;border:1px solid #2c3245;border-radius:7px;padding:2px 7px;cursor:pointer;font-size:12px;color:#e7e9ee;flex-shrink:0}
+.pcp-x:hover{border-color:#4f7cf6}
+.pcp-art{position:relative;height:min(70vh,560px);aspect-ratio:200/260;background:#1a1f2e;border:1.5px dashed #4f7cf6;border-radius:14px;overflow:hidden;isolation:isolate}
+.pcp-piece{cursor:pointer}
+.pcp-piece:hover{outline:2px solid #4f7cf6;outline-offset:1px}
+.mir{display:flex;align-items:center;gap:6px;font-size:13px;color:#aab2c6;padding:0 4px}
+.refpick{margin-left:auto;font-size:12px;color:#9aa3b8;display:flex;align-items:center;gap:6px}
+.refpick select,.big{background:#1f2433;border:1px solid #2c3245;border-radius:8px;padding:6px 9px}
+.big{width:100%}
+.main{flex:1;display:flex;min-height:0}
+.stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px;gap:8px;min-width:0}
+.tip{margin:0;color:#9aa3b8;font-size:12.5px;text-align:center;max-width:330px}
+.statline{margin:0 0 6px;color:#c7cede;font-size:12.5px;text-align:center;background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:5px 10px}
+.tip.warn{color:#f3d98a;background:#3a3320;border:1px solid #c8a23c;border-radius:9px;padding:8px 12px;max-width:420px}
+.art{position:relative;overflow:hidden;isolation:isolate;height:min(70vh,560px);aspect-ratio:200/260;background:#12141b;border:1px solid #2c3245;border-radius:14px;touch-action:none;box-shadow:0 8px 30px rgba(0,0,0,.35);user-select:none}
+.art.artWpn{height:min(88vh,880px)}
+.art.artProj{height:min(90vh,2240px)}
+.artDesign{position:absolute;box-sizing:border-box;background:#1d2230;background-image:linear-gradient(#262c3b 1px,transparent 1px),linear-gradient(90deg,#262c3b 1px,transparent 1px);background-size:10% 7.6923%;border:1px dashed rgba(122,162,214,.35)}
+.zoomctl{display:flex;gap:4px;align-items:center}
+.zoomctl button{width:26px;height:26px;line-height:1;border-radius:7px;border:1px solid #2c3245;background:#232a3d;color:#e7e9ee;cursor:pointer;font-size:16px}
+.zoomctl button:disabled{opacity:.35;cursor:default}
+.mline{position:absolute;left:50%;top:0;bottom:0;border-left:1px dashed #33405e}
+.emptyart{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5b667e;font-size:13px}
+.handmk{position:absolute;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:rgba(79,124,246,.18);border:1.5px solid #4f7cf6;display:flex;align-items:center;justify-content:center;font-size:13px}
+.handmk.guide{background:none;border:1px dashed #4f7cf6;opacity:.7;pointer-events:none}
+.shouldermk{position:absolute;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:rgba(200,162,60,.2);border:1.5px solid #c8a23c;display:flex;align-items:center;justify-content:center;font-size:13px;touch-action:none;z-index:2}
+.armaxis{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.armaxis line{stroke:#c8a23c;stroke-width:1.6;stroke-dasharray:4 3;opacity:.6}
+.drawpreview{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.art.drawing{cursor:crosshair}
+.limbtabs{display:flex;gap:6px;margin:2px 0 4px}
+.limbtabs button{flex:1;background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:7px 4px;cursor:pointer}
+.limbtabs button.on{background:#3a3320;border-color:#c8a23c;color:#f3d98a}
+.side{width:330px;background:#12141c;border-left:1px solid #232838;overflow:auto;padding:13px;display:flex;flex-direction:column;gap:11px;flex-shrink:0}
+.card{background:#171b26;border:1px solid #242a3a;border-radius:14px;padding:13px}
+.card.empty{color:#9aa3b8}.card.empty b{color:#e7e9ee}.card.sel{border-color:#3a4a7a;box-shadow:0 0 0 1px #2b3a63}
+.ct{font-size:12px;font-weight:700;color:#aab2c6;margin-bottom:9px;text-transform:uppercase;letter-spacing:.5px}
+.ct2{font-size:12px;font-weight:700;color:#aab2c6;margin:14px 0 4px;text-transform:uppercase;letter-spacing:.5px;border-top:1px solid #242a3a;padding-top:12px}
+.addrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.addrow button{display:flex;flex-direction:column;align-items:center;gap:3px;background:#1f2433;border:1px solid #2c3245;border-radius:11px;padding:11px 6px;cursor:pointer;font-size:12px}
+.addrow button:hover{border-color:#4f7cf6;background:#222840}.addrow button b{font-size:19px;line-height:1}
+.wide{width:100%;background:#1f2433;border:1px solid #2c3245;border-radius:10px;padding:10px;cursor:pointer;margin-top:8px}.wide:hover{border-color:#4f7cf6}
+.newcolor{display:flex;align-items:center;justify-content:space-between;margin-top:11px;color:#aab2c6;font-size:13px}
+.newcolor input[type=color]{width:46px;height:30px;border:1px solid #2c3245;border-radius:8px;background:#1f2433;padding:2px;cursor:pointer}
+.swatches{display:flex;flex-wrap:wrap;gap:7px}
+.swatches button{width:30px;height:30px;border-radius:8px;border:2px solid transparent;cursor:pointer}
+.swatches button.on{border-color:#fff;box-shadow:0 0 0 2px #4f7cf6}
+.palette{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.palchip{position:relative;display:flex;align-items:center;gap:8px;background:#1f2433;border:1px solid #2c3245;border-radius:10px;padding:6px 10px 6px 6px;cursor:pointer}
+.palchip .palsw{width:26px;height:26px;border-radius:7px;border:2px solid #3a4258;flex:0 0 auto}
+.palchip .palmeta{display:flex;flex-direction:column;line-height:1.15}
+.palchip .palhex{font-size:12px;color:#e7ecf5;text-transform:uppercase;letter-spacing:.3px}
+.palchip .palcount{font-size:10px;color:#8b93a7}
+.palchip input[type=color]{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;border:0;padding:0}
+.swatches .orig{width:30px;height:30px;border-radius:8px;border:2px solid #3a4258;background:#11141c;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
+.pick{width:30px;height:30px;border:1px dashed #4a5269;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;color:#9aa3b8;font-size:16px}
+.pick input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.slider{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:13px;color:#aab2c6}
+.slider input[type=range]{flex:1;accent-color:#4f7cf6}
+.slider .gc{width:30px;height:24px;padding:0;border:1px solid #2c3245;border-radius:6px;background:#1f2433;flex:none}
+.rotbtn{flex:none;width:30px;height:26px;border:1px solid #2c3245;border-radius:7px;background:#1f2433;cursor:pointer;font-size:15px;line-height:1}
+.rotbtn:hover{border-color:#4f7cf6}
+.chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:#cdd3df}
+.outlinechk{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:8px 10px;margin-top:12px}
+.outlinefx{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:8px 10px;margin-top:6px}
+.chk input{width:16px;height:16px;accent-color:#4f7cf6}
+.layers{display:flex;flex-direction:column;gap:5px}
+.bodydiv{text-align:center;font-size:10px;color:#7b8398;letter-spacing:1px;padding:5px 0;border-top:1px dashed #3a4258;border-bottom:1px dashed #3a4258;margin:2px 0}
+.lrow{display:flex;align-items:center;gap:8px;background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:6px 8px;cursor:pointer}
+.lrow.on{border-color:#4f7cf6;box-shadow:0 0 0 1px #26304d}
+.lrow.grp{border-color:#ffb84f;box-shadow:0 0 0 1px #3a2f16}
+.lrow.recovered{border-color:#c98f2e;background:#2a2113}
+.recoverBanner{background:#2a2113;border-bottom:1px solid #c98f2e;color:#f0d9a8;font-size:13px;padding:9px 14px;line-height:1.4}
+.lprev{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;flex:none;border:1px solid #2c3245}
+.lname{flex:1;font-size:12px;color:#cdd3df;text-transform:capitalize}
+.lrow button{flex:none;width:26px;height:24px;border:1px solid #2c3245;border-radius:6px;background:#171b26;color:#9aa3b8;cursor:pointer;font-size:11px}
+.lrow button:hover{border-color:#4f7cf6;color:#e7e9ee}
+.loadlist{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:200px;overflow:auto}
+.loadlist button{text-align:left;background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:9px 12px;cursor:pointer}
+.loadlist button:hover{border-color:#4f7cf6}
+.loadgroup{margin-bottom:14px}
+.loadgrouplabel{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#9aa3b8;margin-bottom:4px}
+.slotrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;font-size:13px;color:#cdd3df}
+.slotrow select{flex:none;width:120px;background:#1f2433;border:1px solid #2c3245;border-radius:8px;padding:6px}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.btns button{background:#1f2433;border:1px solid #2c3245;border-radius:10px;padding:10px;cursor:pointer;font-size:13px}
+.btns button:hover{border-color:#4f7cf6}.btns .danger{border-color:#5a2e36;color:#ff9b9b}.btns .danger:hover{background:#3a2024}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{width:34px;height:34px;border:1px solid #2c3245;border-radius:9px;background:#1f2433;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;overflow:hidden}
+.chip.on{border-color:#4f7cf6;box-shadow:0 0 0 2px #26304d}.chip .dot{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center}
+.mini{margin:8px 0 0;font-size:11px;color:#7b8398}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:30;padding:14px}
+.dlg{width:min(520px,96vw);max-height:90vh;overflow:auto;background:#171b26;border:1px solid #2c3245;border-radius:16px;padding:18px}
+.dt{font-weight:700;font-size:16px;margin-bottom:12px}
+.emcount{font-weight:400;font-size:12px;color:#7b8398;margin-left:6px}
+.emgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:6px;max-height:55vh;overflow:auto}
+.emgrid-recent{max-height:none;overflow:visible;margin-bottom:10px}
+.emsearch{width:100%;box-sizing:border-box;padding:8px 10px;margin:6px 0 10px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:inherit;font-size:14px}
+.emsublabel{font-size:12px;opacity:.65;margin:2px 0 6px;text-transform:uppercase;letter-spacing:.04em}
+.emgrid button{aspect-ratio:1;background:#1f2433;border:1px solid #2c3245;border-radius:9px;cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center}
+.emgrid button:hover{border-color:#4f7cf6;background:#26304d}
+.grp{margin-bottom:14px}.gl{font-size:12px;color:#9aa3b8;text-transform:uppercase;letter-spacing:.5px}
+.row2{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.row2 button,.up{background:#1f2433;border:1px solid #2c3245;border-radius:10px;padding:9px 14px;cursor:pointer;font-size:13px}
+.row2 button:hover,.up:hover{border-color:#4f7cf6}.up{display:inline-flex;align-items:center}
+.openDressed{background:#1f2433;border:1px solid #2c3245;border-radius:10px;padding:9px 14px;cursor:pointer;font-size:13px;color:#e7e9ee}
+.dlg textarea{width:100%;height:150px;margin-top:8px;background:#0f1117;border:1px solid #2c3245;border-radius:10px;padding:10px;color:#c7cdda;resize:vertical;font-family:ui-monospace,monospace;font-size:12px}
+.namefield{width:100%;margin-top:6px;background:#0f1117;border:1px solid #2c3245;border-radius:10px;padding:11px 12px;font-size:15px}
+.namefield:focus{outline:none;border-color:#4f7cf6}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#4f7cf6;color:#fff;padding:9px 20px;border-radius:22px;font-weight:600;z-index:40;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.undo{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:9px 12px;cursor:pointer;font-weight:600}
+.undo:hover:not(:disabled){border-color:#4f7cf6}.undo:disabled{opacity:.4;cursor:default}
+.tile.lvl{border-color:#3a6a4a;background:#172a1f}
+.wstates{display:flex;align-items:center;gap:8px;padding:9px 14px;background:#1a1320;border-bottom:1px solid #2b2438;flex-wrap:wrap}
+.explodecard{display:flex;flex-direction:column;gap:7px;width:100%;margin-top:4px;padding:9px 11px;background:#20141a;border:1px solid #4a2b2b;border-radius:8px}
+.wstates .wslab{color:#cbb6e6;font-weight:600}
+.wstates button{background:#241a2e;border:1px solid #3a2c48;border-radius:9px;padding:7px 13px;cursor:pointer}
+.wstates button.on{background:#5a3a8f;border-color:#7a4fbf;color:#fff;font-weight:600}
+.wstates .wcopy{background:#1f2433;border-color:#2c3245}
+.rc{position:relative}.rc::after{content:"";position:absolute;inset:-3px;border:1px dotted #6a7290;border-radius:7px;pointer-events:none}
+.ncright{display:flex;align-items:center;gap:5px}.ncright .rc{width:22px;height:22px;border-radius:6px;border:1px solid #2c3245;cursor:pointer}
+/* level creator */
+.wide2{width:150px}
+.catbar{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#161922;border-bottom:1px solid #232838;flex-wrap:wrap}
+.catfield{display:flex;align-items:center;gap:7px;font-size:12px;color:#aab2c6}
+.catfield input{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:7px 10px;color:#e7e9ee;font-size:13px;width:130px}
+.catchips{display:flex;gap:5px;flex-wrap:wrap}
+.catchips button{background:#1f2433;border:1px solid #2c3245;border-radius:14px;padding:5px 11px;cursor:pointer;font-size:12px;color:#aab2c6}
+.catchips button:hover{border-color:#4f7cf6;color:#e7e9ee}
+.save.playon{background:#b0504f}.save.playon:hover{background:#c75f5e}
+.ltools{display:flex;align-items:center;gap:8px;padding:9px 14px;background:#13161f;border-bottom:1px solid #232838;flex-wrap:wrap}
+.seg{display:flex;border:1px solid #2c3245;border-radius:9px;overflow:hidden}
+.seg button{background:#171b26;border:0;padding:8px 11px;cursor:pointer;font-size:13px}
+.seg button.on{background:#4f7cf6;color:#fff;font-weight:600}
+.lswatches{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.lswatches button{width:24px;height:24px;border-radius:7px;border:2px solid transparent;cursor:pointer}
+.lswatches button.on{border-color:#fff;box-shadow:0 0 0 2px #4f7cf6}
+.lswatches .orig{width:24px;height:24px;border-radius:7px;background:#1f2433;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;border:2px solid transparent}
+.lswatches .orig.on{border-color:#fff;box-shadow:0 0 0 2px #4f7cf6}
+.lswatches .pick{display:inline-flex;align-items:center;gap:2px;background:#1f2433;border:1px solid #2c3245;border-radius:8px;padding:2px 6px;cursor:pointer;font-size:12px}
+.lswatches .pick input{width:24px;height:24px;border:0;background:none;padding:0;cursor:pointer}
+.objpick{background:#241a2e;border:1px solid #3a2c48;border-radius:9px;padding:8px 12px;cursor:pointer;font-size:13px}
+.objpick b{margin-right:5px;font-size:16px}
+.solidchk{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:7px 11px}
+.sizeseg{flex-wrap:wrap;overflow:visible}.sizeseg button{padding:8px 10px;font-size:12px}
+.brushseg{flex-wrap:wrap;overflow:visible}.brushseg button{padding:8px 10px;font-size:12px}
+.movingtag{display:inline-flex;align-items:center;gap:8px;background:#241a2e;border:1px dashed #7a4fbf;border-radius:9px;padding:6px 11px;font-size:12px;color:#e0c7ff}
+.lgroup{display:flex;align-items:center;gap:8px}
+.lgrouplabel{font-size:11px;color:#7a8296;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.statusline{margin:0 0 4px;color:#8fb8ff;font-size:12.5px;text-align:center;background:#161d2e;border:1px solid #2a3a5c;border-radius:9px;padding:6px 12px;max-width:480px}
+.ammoline{color:#e7e9ee;background:#1a1320;border-color:#7a4fbf;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;gap:8px}
+.ammoline.empty{color:#ffb3b3;border-color:#b0504f;background:#2a1618}
+.ammoline.reloading{color:#f3d98a;border-color:#c8a23c;background:#2a2113}
+.ctrlhint{color:#9aa3b8;background:#12151d;border-color:#242a3a;font-weight:400}
+.buildtag{opacity:.5;font-size:11px;margin-left:6px}
+.ctrlhint b{color:#cdd3df}
+.reloadbar{display:inline-block;width:110px;height:6px;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.2);border-radius:4px;overflow:hidden}
+.reloadfill{display:block;height:100%;background:#c8a23c}
+.texbtn{display:inline-flex;align-items:center;gap:7px}
+.texchip{display:inline-block;width:18px;height:18px;border-radius:4px;border:1px solid #3a4258;flex:none}
+.texgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:12px}
+.texcardwrap{position:relative}
+.texcard{display:flex;flex-direction:column;align-items:center;gap:5px;background:#171b26;border:1px solid #242a3a;border-radius:14px;padding:10px 8px;cursor:pointer;width:100%}
+.texcard:hover{border-color:#4f7cf6}
+.texcard.on{border-color:#4f7cf6;box-shadow:0 0 0 1px #26304d}
+.texprev{width:100%;height:64px;border-radius:9px;border:1px solid #2c3245;display:block}
+.texeditrow{display:flex;gap:14px;flex-wrap:wrap}
+.texbigprev{flex:0 0 200px;height:200px;border-radius:12px;border:1px solid #2c3245}
+.texeditcol{flex:1;min-width:240px}
+.texseg{flex-wrap:wrap;overflow:visible}
+.texseg button{padding:7px 9px;font-size:12px}
+.row2 .danger{border-color:#5a2e36;color:#ff9b9b}
+.ltbtn{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:8px 11px;cursor:pointer;font-size:13px}
+.gname{background:#141824;border:1px solid #2c3245;border-radius:9px;padding:7px 9px;font-size:13px;color:inherit;width:110px}
+.bgNameInput{width:140px;background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:8px 11px;font-size:13px;color:inherit}
+.ltbtn.on{border-color:#4f7cf6;background:#26304d}
+.ltbtn:hover{border-color:#4f7cf6}.ltbtn.up{display:inline-flex;align-items:center}
+.wide3b{width:100%;justify-content:center;margin-top:8px}
+.lmain{flex:1;display:flex;min-height:0}
+.lstage{flex:1;display:flex;flex-direction:column;padding:12px;min-width:0}
+.lscroll{flex:1;overflow:auto;display:flex;background:#0a0c12;border:3px solid #232838;border-radius:12px;transition:border-color .15s}
+.lscroll.layer-fg{border-color:#3a4258}
+.lscroll.layer-bg{border-color:#3aa07a}
+.lscroll.layer-obj{border-color:#8a5cf6}
+.lscroll.layer-climb{border-color:#7aa2d6}
+.lscroll.layer-hazard{border-color:#ff6a1f}
+.lhazard{position:absolute;pointer-events:none;z-index:5;display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1;background:radial-gradient(circle at 50% 70%,rgba(255,120,30,.42),rgba(255,60,0,.14) 70%,transparent);box-sizing:border-box}
+.lhazard .hzflame{animation:hzflick .5s steps(2,end) infinite;filter:drop-shadow(0 0 4px rgba(255,120,30,.8))}
+.lhazard.hazHidden{background:repeating-linear-gradient(45deg,rgba(255,120,30,.18) 0 5px,transparent 5px 10px);outline:1px dashed rgba(255,120,30,.55);outline-offset:-2px}
+.lhazard.hazHidden .hzflame{animation:none;filter:none;opacity:.6}
+@keyframes hzflick{0%{opacity:1;transform:translateY(0) scale(1)}50%{opacity:.72;transform:translateY(-1px) scale(1.08)}100%{opacity:1;transform:translateY(0) scale(1)}}
+.lscroll.layer-marker{border-color:#c8a23c}
+.lgrid{position:relative;flex:none;margin:auto;background-color:#0e1018;background-image:linear-gradient(#1a1f2e 1px,transparent 1px),linear-gradient(90deg,#1a1f2e 1px,transparent 1px);touch-action:none}
+.lcell{position:absolute;width:${LV_CELL}px;height:${LV_CELL}px}
+.lcell.bg{opacity:.42}
+.lcell.front{z-index:6;transition:opacity .12s ease}
+.lcell.moveSel{z-index:9;background:rgba(79,124,246,0.28);outline:2px dashed #4f7cf6;outline-offset:-2px;pointer-events:none}
+.lobj{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:3}
+.lobj.infront{z-index:6;transition:opacity .12s ease}
+.lobjGhost{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:4;opacity:.5;outline:2px dashed rgba(255,255,255,.4);outline-offset:-2px;border-radius:4px}
+.enemyGhost{position:absolute;pointer-events:none;z-index:4;opacity:.6;outline:2px dashed #c0504f;outline-offset:-2px;border-radius:6px;box-sizing:border-box}
+.enemyHpTrack{position:absolute;top:-10px;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:6}
+.enemyStun{position:absolute;top:-30px;text-align:center;font-size:16px;line-height:1;z-index:7;pointer-events:none;animation:stunbob .6s ease-in-out infinite}
+@keyframes stunbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.enemyHpFill{height:100%;transition:width .15s ease}
+.playerHpTrack{position:absolute;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:6}
+.playerHpFill{height:100%;transition:width .15s ease}
+.rampGhost{position:absolute;width:${LV_CELL}px;height:${LV_CELL}px;pointer-events:none;z-index:4;opacity:.5}
+.blockGhost{position:absolute;pointer-events:none;z-index:4;opacity:.5;outline:2px dashed rgba(255,255,255,.55);outline-offset:-2px;box-sizing:border-box}
+.areaGhost{position:absolute;pointer-events:none;z-index:5;background:rgba(122,162,214,.22);border:2px dashed #7aa2d6;box-sizing:border-box}
+.lobj.insp{outline:2px dashed #4f7cf6;outline-offset:1px}
+.lclimb{position:absolute;pointer-events:none;z-index:4;background:repeating-linear-gradient(135deg,rgba(122,162,214,.28) 0 4px,transparent 4px 9px);border:1px dashed rgba(122,162,214,.55);box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1}
+.lclimb.kind-bars{background:repeating-linear-gradient(135deg,rgba(214,162,90,.28) 0 4px,transparent 4px 9px);border-color:rgba(214,162,90,.6)}
+.lclimb.kind-cliff{background:repeating-linear-gradient(135deg,rgba(150,122,214,.28) 0 4px,transparent 4px 9px);border-color:rgba(150,122,214,.6)}
+.lmarker{position:absolute;display:flex;align-items:center;justify-content:center;font-size:15px;z-index:7;background:rgba(0,0,0,.3);border:1px dashed #c8a23c;border-radius:4px;box-sizing:border-box;cursor:default}
+.catinline{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:7px 10px;color:#e7e9ee;font-size:13px;width:170px}
+.lobj.solid::after{content:"";position:absolute;inset:1px;border:1px dashed rgba(255,90,90,.6);border-radius:3px}
+.conn{position:absolute;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;cursor:pointer;background:rgba(0,0,0,.35);border:2px solid #6bd06b;color:#6bd06b;z-index:6}
+.conn.blocked{border-color:#c0504f;color:#c0504f;opacity:.85}
+.conn.sel{box-shadow:0 0 0 3px #4f7cf6;z-index:7}
+.player{position:absolute;background:#7aa2d6;border-radius:5px;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.5);overflow:visible}
+.playerWrap{position:absolute;z-index:5;overflow:visible;isolation:isolate}
+.player .pbody{position:absolute;inset:0;background:#7aa2d6;border-radius:5px}
+.player .peye{position:absolute;right:3px;top:5px;width:4px;height:4px;border-radius:50%;background:#0a0c12;z-index:2}
+.lside{width:300px;background:#12141c;border-left:1px solid #232838;overflow:auto;padding:13px;display:flex;flex-direction:column;gap:11px;flex-shrink:0}
+.connlist{display:grid;grid-template-columns:1fr;gap:6px}
+.connrow{display:flex;justify-content:space-between;gap:6px;background:#171b26;border:1px solid #242a3a;border-radius:9px;padding:8px 10px;cursor:pointer;font-size:12px}
+.fxstack{display:flex;flex-direction:column-reverse;gap:5px}
+.fxitem{display:flex;flex-direction:column;gap:6px}
+.fxrow{display:flex;align-items:center;gap:7px;background:#171b26;border:1px solid #242a3a;border-radius:9px;padding:6px 9px;font-size:12px;cursor:pointer}
+.fxrow:hover{border-color:#4f7cf6}
+.fxrow .fxprev{font-size:17px;flex-shrink:0}
+.fxrow .fxname{flex:1;color:#9aa3b8}
+.fxrow button{background:#1f2433;border:1px solid #2c3245;border-radius:7px;padding:3px 8px;cursor:pointer;font-size:12px;flex-shrink:0}
+.fxrow button:hover{border-color:#4f7cf6}
+.fxedit{display:flex;flex-direction:column;gap:8px;background:#13161f;border:1px dashed #2c3245;border-radius:9px;padding:9px}
+.connrow.open{border-color:#3a6a4a}.connrow.on{border-color:#4f7cf6;background:#1b2030}
+.connrow .ctype{color:#8a93a6;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.minilv{position:relative;background:#0e1018;border:1px solid #232838;border-radius:6px;overflow:hidden}
+.genrow{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:10px 0}
+.gencol{flex:0 0 auto;text-align:center}
+.genname{font-size:11px;color:#aab2c6;margin-bottom:4px;white-space:nowrap}
+.genlink{flex:0 0 auto;color:#6bd06b;font-size:18px}
+.dlg.wide3{max-width:min(94vw,820px)}
+.catItemInput{width:100%;box-sizing:border-box;background:#0f1117;border:1px solid #2c3245;border-radius:9px;padding:9px 11px;font-size:13px;margin-bottom:7px;color:#e7e9ee}
+.catItemInput:focus{outline:none;border-color:#4f7cf6}
+.pedcfg{display:flex;flex-direction:column;gap:7px;margin:6px 0}
+.pedcfg .catinline{width:100%;box-sizing:border-box}
+.pedestalPlay{position:absolute;z-index:7;pointer-events:none}
+.pedestalArt{position:absolute;inset:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.pedestalEmpty{font-size:10px;color:#ff9b9b;background:rgba(0,0,0,.6);border:1px solid #5a2e36;border-radius:5px;padding:1px 5px}
+.pedestalGem{position:absolute;left:50%;bottom:0;transform:translateX(-50%);font-size:${LV_CELL*0.75}px;line-height:1}
+.pedestalCap{position:absolute;left:50%;top:-4px;transform:translate(-50%,-100%);white-space:nowrap;background:rgba(0,0,0,.72);border:1px solid #c8a23c;border-radius:6px;padding:0 5px;font-size:10px;color:#f3d98a}
+.pedcallout{position:absolute;left:50%;top:-24px;transform:translate(-50%,-100%);white-space:nowrap;background:#241b0d;border:1px solid #c8a23c;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:600;color:#f3d98a;box-shadow:0 1px 4px rgba(0,0,0,.55)}
+.doorPromptFloat{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;background:#241b0d;border:1px solid #c8a23c;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;color:#f3d98a;box-shadow:0 1px 4px rgba(0,0,0,.55);pointer-events:none;z-index:50}
+.equipline{color:#cfe0ff;background:#131a29;border-color:#3a5c8c;font-size:12px}
+@media(max-width:820px){.main{flex-direction:column}.stage{padding:10px;flex:none}.art{height:46vh}.side{width:auto;border-left:0;border-top:1px solid #232838;flex:1}.refpick{margin-left:0}.nm{flex:1;width:auto;min-width:0}.slotrow select{width:130px}.lmain{flex-direction:column}.lside{width:auto;border-left:0;border-top:1px solid #232838}.connlist{grid-template-columns:1fr}}
+`;
