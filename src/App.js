@@ -3037,7 +3037,11 @@ export default function AssetStudio() {
         flash("💣 Thrown — " + throwCarry.current + " left");
       }
       p.wasThrow = !!K.throw;
-      if (p.throwFiring > 0) p.throwFiring -= dtMul;
+      // Clamped at 0, NOT just guarded by "> 0": dtMul is fractional, so a bare decrement
+      // overshoots to a small negative (e.g. 0.4 - 1.02) and then the guard freezes it there
+      // forever. A stuck negative is still TRUTHY, which pinned the throwable in hand and
+      // suppressed the equipped-weapon render for the rest of the run.
+      if (p.throwFiring > 0) p.throwFiring = Math.max(0, p.throwFiring - dtMul);
       // Finite fires burn down in real time (dtMul/60 sec per frame). A cell that reaches 0 stops
       // dealing damage and stops rendering — it's "gone out" — without ever touching the saved
       // level, so leaving Playtest brings every fire back exactly as painted.
@@ -6933,7 +6937,7 @@ export default function AssetStudio() {
                   // equipped weapon — so suppress the weapon render for those frames (the
                   // throwable-in-hand block just below draws in its place). Outside a throw it's
                   // the normal equipped-weapon render, unchanged.
-                  const throwingNow = playtestThrowId && (p.throwAiming || p.throwFiring) && !p.climbing && (() => { const ct = findA(playtestThrowId); return ct && isThrowable(ct.wtype); })();
+                  const throwingNow = playtestThrowId && (p.throwAiming || p.throwFiring > 0) && !p.climbing && (() => { const ct = findA(playtestThrowId); return ct && isThrowable(ct.wtype); })();
                   if (blocks && playtestWeapon && !throwingNow && !playerAtkPose) {
                     const curArm = armOf(blocks);
                     if (curArm) {
@@ -6960,13 +6964,13 @@ export default function AssetStudio() {
                   // hand the instant it's thrown (throwCarry decremented + a live grenade spawned),
                   // so it never lingers on the arm after release.
                   const carriedThrowRender = playtestThrowId ? findA(playtestThrowId) : null;
-                  const showThrowInHand = blocks && carriedThrowRender && isThrowable(carriedThrowRender.wtype) && (p.throwAiming || p.throwFiring) && !p.climbing;
+                  const showThrowInHand = blocks && carriedThrowRender && isThrowable(carriedThrowRender.wtype) && (p.throwAiming || p.throwFiring > 0) && !p.climbing;
                   if (showThrowInHand) {
                     const curArm = armOf(blocks);
                     if (curArm) {
                       const tfit = weaponFitFor(carriedThrowRender, equippedBodyIdFor(playerAsset));
                       const guideHand = handForGuideId(tfit.guideId)[angle] || DEFAULT_HAND[angle];
-                      const useFire = !!p.throwFiring;
+                      const useFire = p.throwFiring > 0;
                       const thrAngles = useFire ? weaponFireArt(tfit.states, angle) : (tfit.states.rest || blankAngles());
                       const thrPieces = bake({ ...carriedThrowRender, angles: thrAngles }, angle).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
                       blocks = mergeWeaponBlocks(blocks, attachWeaponBlocks(thrPieces, curArm, guideHand, baseArmRot));
