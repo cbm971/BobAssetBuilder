@@ -457,19 +457,13 @@ export const collectAssetColors = (a) => {
   return [...counts.entries()].map(([color, count]) => ({ color, count })).sort((x, y) => y.count - x.count || (x.color < y.color ? -1 : 1));
 };
 
-// Which index entry a Save should write to. Saving under a name that already exists IN THE SAME
-// CATEGORY overwrites that entry instead of piling up a second identical-looking save (Blake was
-// hand-deleting the old one every time). Category = the asset's `type`, matching the Load
-// browser's own grouping — an enemy named "Army Shirt" never collides with a shirt named the
-// same. A rename away from a name nothing else uses still forks a fresh id, exactly as before.
+// Asset identity is the id, never its display name. Editing or renaming a loaded asset keeps writing
+// to that id; two independently-created assets with the same name remain separate index entries.
+// This matches backup restore, which replaces `asset:<id>` and de-dupes the index by id.
 export const resolveSaveTarget = (list, payload) => {
   const entries = list || [];
   const existing = entries.find((x) => x.id === payload.id);
-  const isRename = !!existing && existing.name !== payload.name;
-  const nameHit = entries.find((x) => x.id !== payload.id && x.type === payload.type && x.name === payload.name);
-  if (nameHit) return { id: nameHit.id, mode: "overwrite" };
-  if (isRename) return { id: null, mode: "rename" }; // caller mints a new id
-  return { id: payload.id, mode: "update" };
+  return { id: payload.id, mode: existing ? "update" : "create" };
 };
 
 // A saved Dressed Look embeds full copies of its components, so editing the source shirt used to
@@ -602,6 +596,26 @@ export const stripThrownLanding = (hazardIn, fxIn, hazKeys, propKeys) => {
 // visibly aiming up). Holding ↓ has no equivalent dedicated pose, just a partial arm dip, so it
 // keeps the shallower partial-angle behavior.
 export const projectileAimRad = (aimDir) => (aimDir === -1 ? -Math.PI / 2 : aimDir * (Math.PI * 40 / 180));
+export const DEFAULT_PROJECTILE_RANGE = 14;
+// Range is measured along the aimed flight path in level pixels, never in frames. This keeps the
+// configured block count stable when projectile speed changes. The first half has no added drop;
+// the second half eases down quadratically so a neutral shot reaches the shooter's firing-time
+// ground line exactly at maximum range.
+export const projectileDropAtDistance = (startY, groundY, distance, rangePx) => {
+  const safeRange = Math.max(1, rangePx || 1), half = safeRange / 2;
+  if (distance <= half) return 0;
+  const t = Math.min(1, (distance - half) / half);
+  return (groundY - startY) * t * t;
+};
+export const projectilePositionAtDistance = (pr, distance) => {
+  const speed = Math.max(0.0001, Math.hypot(pr.vx || 0, pr.vy || 0));
+  const d = Math.max(0, Math.min(distance, pr.rangePx));
+  const time = d / speed;
+  return {
+    x: pr.startX + pr.vx * time,
+    y: pr.startY + pr.vy * time + projectileDropAtDistance(pr.startY, pr.groundY, d, pr.rangePx),
+  };
+};
 // Melee swing timing — shared by both the hit-test geometry (game loop) and the visual arm
 // render, which used to each duplicate their own copy of a single symmetric sine sweep. Now a
 // deliberate 3-phase motion instead: a WINDUP raising the arm well past its eventual impact
@@ -1140,7 +1154,7 @@ export function newAsset(type, slot, wtype) {
   const a = { id: uid(), name: slot ? SLOTS[slot].label : (TYPES[type] ? TYPES[type].label : type), type, angles: blankAngles(), guideId: "default" };
   if (type === "body") { a.angles = JSON.parse(JSON.stringify(DEFAULT_BODY)); return withRig(a); }
   if (type === "skin") { a.stats = DEFAULT_STATS(); a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; }
-  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.stun = 0; a.categories = ["", "", ""]; }
+  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.stun = 0; a.categories = ["", "", ""]; }
   if (type === "enemy") { a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = 10; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; return withRig(a); }
   if (type === "equipment") { a.slot = slot; a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; a.statBoosts = DEFAULT_STAT_BOOSTS(); a.defense = 0; a.effects = []; a.categories = ["", "", ""]; }
   if (type === "projectile") { a.size = 1; }
@@ -3521,8 +3535,10 @@ export default function AssetStudio() {
                   const spd = ew.projectileSpeed ?? 12;
                   const sx = eCenterXFinal, sy = ep.y + newEph * 0.42;
                   const shotAng = Math.atan2(tgtAimCY - sy, tgtAimCX - sx);
+                  const rangePx = Math.max(1, ew.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW;
                   projectiles.current.push({
                     x: sx, y: sy, vx: Math.cos(shotAng) * spd, vy: Math.sin(shotAng) * spd,
+                    startX: sx, startY: sy, groundY: ep.y + newEph, rangePx, traveled: 0,
                     char: ew.projectile?.char || "🔥", tint: ew.projectile?.tint || null,
                     pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece,
                     rot: shotAng * 180 / Math.PI, size: sizeUnits,
@@ -3610,6 +3626,8 @@ export default function AssetStudio() {
           projectiles.current.push({
             x: spawnX, y: spawnY,
             vx, vy,
+            startX: spawnX, startY: spawnY, groundY: p.y + ph,
+            rangePx: Math.max(1, playtestWeapon.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW, traveled: 0,
             char: playtestWeapon.projectile?.char || "🔥", tint: playtestWeapon.projectile?.tint || null,
             pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
             size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
@@ -3674,7 +3692,7 @@ export default function AssetStudio() {
                   const eShape = sideBodyShape(ea);
                   const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
                   const ep = enemyPos.current[k];
-                  const eph = ep && ep.crouch ? CW * PLAYER_CROUCH_H_CELLS : CW * PLAYER_H_CELLS;
+                  const eph = ep && ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
                   const [er, ec] = k.split(",").map(Number);
                   const eLeft = ep ? ep.x : ec * CW + CW / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2);
                   const eTop = ep ? ep.y : (er + 1) * CW - eph;
@@ -3798,9 +3816,17 @@ export default function AssetStudio() {
           }
         };
         projectiles.current = projectiles.current.filter((pr) => {
-          pr.x += pr.vx * dtMul; pr.y += pr.vy * dtMul; pr.life += dtMul;
-          if (pr.life > 90) return false;
-          if (pr.x < 0 || pr.x > lv.cols * CW || pr.y < 0 || pr.y > lv.rows * CH) return false;
+          pr.life += dtMul;
+          // Distance, not lifetime, is the normal flight limiter. Reconstruct the aimed trajectory
+          // from the firing snapshot, then add only the second-half quadratic drop.
+          pr.rangePx = Math.max(CW, pr.rangePx || DEFAULT_PROJECTILE_RANGE * CW);
+          if (pr.startX === undefined) { pr.startX = pr.x; pr.startY = pr.y; pr.groundY = pr.y; }
+          pr.traveled = Math.min(pr.rangePx, (pr.traveled || 0) + Math.hypot(pr.vx || 0, pr.vy || 0) * dtMul);
+          const rangedPos = projectilePositionAtDistance(pr, pr.traveled);
+          pr.x = rangedPos.x; pr.y = rangedPos.y;
+          const rangeReached = pr.traveled >= pr.rangePx;
+          if (pr.life > 3600) return false; // safety only: protects against a malformed zero-speed shot
+          if (pr.x < 0 || pr.x > lv.cols * CW || pr.y < 0 || pr.y > lv.rows * CH) { if (rangeReached && pr.explode) detonate(pr, pr.x, pr.y); return false; }
           const sz = LV_CELL * (pr.size || 1);
           let boxW = sz, boxH = sz, boxCx = pr.x, boxCy = pr.y;
           if (pr.hitbox) {
@@ -3837,9 +3863,11 @@ export default function AssetStudio() {
               if (enemyHP.current[k] === undefined || enemyHP.current[k] <= 0) continue;
               const ea = findA(lv.enemies[k].enemyId); if (!ea) continue;
               const eShape = sideBodyShape(ea);
-              const eRenderW = enemyRenderW(ea, CW), eph = ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
+              const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
+              const eph = ep && ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
               const hitTop = ep.y + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
-              if (prLeft < ep.x + eRenderW && prLeft + boxW > ep.x && prTop < hitTop + hitH && prTop + boxH > hitTop) {
+              const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
+              if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop) {
                 if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - Math.max(1, pr.damage ?? 5));
                 if (enemyHP.current[k] <= 0) flash("💔 Your " + ea.name + " fell.");
@@ -3856,9 +3884,11 @@ export default function AssetStudio() {
               const hp = enemyHP.current[k] === undefined ? (ea.hp ?? 10) : enemyHP.current[k];
               if (!canResurrect(hp, ep)) continue; // must be a dead body that's never been raised
               const eShape = sideBodyShape(ea);
-              const eRenderW = enemyRenderW(ea, CW), eph = enemyStandH(ea, CW);
+              const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
+              const eph = ep && ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
               const hitTop = ep.y + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
-              if (prLeft < ep.x + eRenderW && prLeft + boxW > ep.x && prTop < hitTop + hitH && prTop + boxH > hitTop) {
+              const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
+              if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop) {
                 enemyHP.current[k] = ea.hp ?? 10;          // back on its feet, full HP
                 ep.friendly = true; ep.resurrectedOnce = true; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
                 flash("🔮 Raised " + ea.name + " — now fighting for you!");
@@ -3877,12 +3907,13 @@ export default function AssetStudio() {
             const eShape = sideBodyShape(ea);
             const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
             const ep = epK;
-            const eph = ep && ep.crouch ? CW * PLAYER_CROUCH_H_CELLS : CW * PLAYER_H_CELLS;
+            const eph = ep && ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
             const [er, ec] = k.split(",").map(Number);
             const eLeft = ep ? ep.x : ec * CW + CW / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2);
             const eTop = ep ? ep.y : (er + 1) * CW - eph;
             const hitTop = eTop + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
-            const overlap = prLeft < eLeft + eRenderW && prLeft + boxW > eLeft && prTop < hitTop + hitH && prTop + boxH > hitTop;
+            const eHitLeft = eLeft + (eShape.centerFrac * eRenderW - epw / 2);
+            const overlap = prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop;
             if (overlap) {
               if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
               const base = Math.max(1, Math.round((pr.damage ?? 5) * (strength / 5)));
@@ -3896,6 +3927,7 @@ export default function AssetStudio() {
           }
           }
           if (cellsHit(pr.x, pr.y, 2, 2).length) { if (pr.explode) detonate(pr, pr.x, pr.y); return false; }
+          if (rangeReached) { if (pr.explode) detonate(pr, boxCx, boxCy); return false; }
           return true;
         });
       }
@@ -4178,7 +4210,7 @@ export default function AssetStudio() {
     const live = new Set(pieces.map((p) => p.id));
     setGroupIds((g) => (g.length && g.some((id) => !live.has(id)) ? g.filter((id) => live.has(id)) : g));
     if (selId && !live.has(selId)) setSelId(null);
-  }, [pieceIdSig]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pieceIdSig]);
   // Select exactly one piece and nothing else. Used whenever a BRAND NEW block appears (add,
   // duplicate, line, filled shape): a new block is a fresh start, so it must never be swept into
   // whatever group was still selected from earlier work — that's what made a newly spawned square
@@ -5286,15 +5318,10 @@ export default function AssetStudio() {
     }
     payload = { ...payload, savedAt: Date.now() };
     let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
-    // Loading a saved asset and re-saving it under a CHANGED name must create a separate new
-    // save, not overwrite the original entry under its old name (e.g. open "Iron Boots", recolor,
-    // rename to "Gold Boots", Save → should leave "Iron Boots" untouched and add a new "Gold
-    // Boots"). The id only keeps writing to the same entry when the name still matches what's on
-    // record for it — that's a plain re-save/update, same as it's always worked. A never-yet-
-    // saved id (nothing in the index for it) is always a first save, never a "rename".
+    // Save and restore share the same identity rule: an existing id is updated in place, while an
+    // unseen id creates a separate asset even when another entry happens to share its display name.
     const target = resolveSaveTarget(list, payload);
-    if (target.mode === "rename") payload = { ...payload, id: uid() };
-    else if (target.id !== payload.id) payload = { ...payload, id: target.id };
+    if (target.id !== payload.id) payload = { ...payload, id: target.id };
     const ok1 = await sset("asset:" + payload.id, JSON.stringify(payload));
     list = list.filter((x) => x.id !== payload.id); list.push({ id: payload.id, name: payload.name, type: payload.type });
     const ok2 = await sset("assetIndex", JSON.stringify(list));
@@ -5351,7 +5378,7 @@ export default function AssetStudio() {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; } if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; } if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
@@ -7634,6 +7661,7 @@ export default function AssetStudio() {
               {allAssets.filter((a) => a.type === "projectile").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
             <label className="slider">Speed<input type="range" min="4" max="30" value={asset.projectileSpeed ?? 12} onChange={(e) => setAsset((a) => ({ ...a, projectileSpeed: +e.target.value }))} /></label>
+            <label className="slider">Range<input type="number" min="1" value={asset.projectileRange ?? DEFAULT_PROJECTILE_RANGE} onChange={(e) => setAsset((a) => ({ ...a, projectileRange: Math.max(1, +e.target.value || 1) }))} style={{ width: 60 }} /><span className="hint2">blocks</span></label>
             <label className="slider">Fire rate<input type="range" min="0.5" max="15" step="0.5" value={asset.fireRate ?? DEFAULT_FIRE_RATE} onChange={(e) => setAsset((a) => ({ ...a, fireRate: +e.target.value }))} /><span className="hint2">{asset.fireRate ?? DEFAULT_FIRE_RATE}/sec</span></label>
             <label className="slider">Clip size<input type="number" min="0" value={asset.clipSize ?? DEFAULT_CLIP_SIZE} onChange={(e) => setAsset((a) => ({ ...a, clipSize: Math.max(0, +e.target.value || 0) }))} style={{ width: 60 }} /><span className="hint2">0 = unlimited, never reloads</span></label>
             <label className="slider">Reload<input type="range" min="0.2" max="5" step="0.1" value={asset.reloadTime ?? DEFAULT_RELOAD_TIME} onChange={(e) => setAsset((a) => ({ ...a, reloadTime: +e.target.value }))} /><span className="hint2">{asset.reloadTime ?? DEFAULT_RELOAD_TIME}s</span></label>
