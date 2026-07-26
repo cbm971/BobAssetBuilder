@@ -2414,6 +2414,16 @@ export const enemyFaceToward = (distToPlayer, face) => {
   if (distToPlayer === 0) return face || 1;
   return (Math.abs(distToPlayer) <= PLAYER_BODY_LEN_PX * ENEMY_SIGHT_AHEAD_LENGTHS) ? Math.sign(distToPlayer) : (face || 1);
 };
+// Storage order controls stacking only within the same player-relative layer. Front/back is a
+// stronger rule: a front object must render over every back object regardless of placement order.
+// Keep the original stack index so editor actions still update/delete the correct saved object.
+export const splitObjectStackByPlayerLayer = (stack) => {
+  const behind = [], front = [];
+  for (const [stackIndex, o] of (stack || []).entries()) {
+    (o && o.inFront ? front : behind).push({ o, stackIndex });
+  }
+  return { behind, front };
+};
 // Raw Enemy assets default to left-facing art unless their creator checkbox says otherwise.
 // Dressed Character assets use the same right-facing Side art as the player, so treating their
 // absent `faceRight` flag as false mirrored every armed character enemy away from its shot.
@@ -2645,18 +2655,18 @@ export default function AssetStudio() {
   const lvBgLayer = useMemo(() => level ? Object.keys(level.bg || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"b" + k} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.bg, level.bg[k], r, c, texLib) }} />; }) : null, [level, texLib]);
   const lvFgLayer = useMemo(() => level ? Object.keys(level.fg || {}).map((k) => { const [r, c] = k.split(",").map(Number); const cell = level.fg[k]; return <div key={"f" + k} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, cell, r, c, texLib), clipPath: fgClipPath(cell) }} />; }) : null, [level, texLib]);
   const lvFrontLayer = useMemo(() => level ? Object.keys(level.front || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.front, level.front[k], r, c, texLib) }} />; }) : null, [level, texLib]);
-  const lvFxLayer = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = (level.fx[k] || []).filter((o) => (!play || !o.inFront) && o.kind !== "prop"); return stack.map((o, si) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj" + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; }); }) : null, [level, play, lFxSel, lTool]);
+  const lvFxLayer = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = splitObjectStackByPlayerLayer(level.fx[k]).behind.filter(({ o }) => o.kind !== "prop"); return stack.map(({ o, stackIndex: si }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj" + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; }); }) : null, [level, play, lFxSel, lTool]);
   // Prop objects (pixel-art assets) are pulled OUT of the memoized fx layer above and rendered in
   // a separate LIVE pass (see the level render body) — the memo runs before the component-scoped
   // prop renderer exists, and animated props need to redraw every frame in play anyway. This
   // carries just position/stack metadata; the scaled art itself is drawn with renderObj.
-  const lvPropMeta = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = level.fx[k] || []; return stack.map((o, si) => ({ o, si, r, c, k })).filter(({ o }) => o.kind === "prop" && (!play || !o.inFront)); }) : [], [level, play]);
+  const lvPropMeta = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); return splitObjectStackByPlayerLayer(level.fx[k]).behind.filter(({ o }) => o.kind === "prop").map(({ o, stackIndex: si }) => ({ o, si, r, c, k })); }) : [], [level]);
   // Position/content only — NOT the rendered JSX itself, since a solid front object's opacity
   // now depends on the player's live position (see the "in front of player" render below), which
   // changes every playtest frame. Keeping that part of the work memoized on just `level` still
   // avoids rebuilding this list on every one of those frames; only the small per-frame map over
   // it (done at the actual render site) needs to run live.
-  const lvFxInFrontMeta = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = (level.fx[k] || []).filter((o) => o.inFront); return stack.map((o, si) => ({ key: "xf" + k + "_" + si, r, c, o, sz: (o.size || 1) * LV_CELL })); }) : [], [level]);
+  const lvFxInFrontMeta = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); return splitObjectStackByPlayerLayer(level.fx[k]).front.map(({ o, stackIndex: si }) => ({ key: "xf" + k + "_" + si, r, c, k, si, o, sz: (o.size || 1) * LV_CELL })); }) : [], [level]);
   // Climb glyphs are directly erasable: Erase tool + click the glyph = gone, no matter which
   // layer tab is active. Erasing a visible thing by clicking it should just work — requiring
   // the Climb layer tab to be selected first made climb cells feel impossible to delete.
@@ -6747,7 +6757,7 @@ export default function AssetStudio() {
                 {!play && lLayer === "obj" && lTool === "paint" && lHoverCell && !(lObjKind === "prop" && !lPropId) && (() => {
                   const sz = lObjSize * LV_CELL;
                   const ghostO = lObjKind === "prop" ? { kind: "prop", propId: lPropId } : lObjKind === "shape" ? { kind: "shape", shape: lObjShape, tint: lTint || "#7aa2d6" } : { kind: "emoji", char: lEmoji, tint: lTint };
-                  return <div className="lobjGhost" style={{ left: lHoverCell.c * LV_CELL, top: lHoverCell.r * LV_CELL, width: sz, height: sz }}>{renderObj(ghostO, sz, "ghost", 0)}</div>;
+                  return <div className="lobjGhost" style={{ left: lHoverCell.c * LV_CELL, top: lHoverCell.r * LV_CELL, width: sz, height: sz, zIndex: lInFront ? 6 : 4 }}>{renderObj(ghostO, sz, "ghost", 0)}</div>;
                 })()}
                 {!play && (lLayer === "bg" || lLayer === "front" || (lLayer === "fg" && lFgShape === "block")) && lTool === "paint" && lHoverCell && (() => {
                   // Matches paintBrush's own iteration exactly (full r×c square, not just a
@@ -7078,25 +7088,24 @@ export default function AssetStudio() {
                     </>
                   );
                 })()}
-                {/* Objects flagged "in front of player" (e.g. a tree to walk behind) — .lobj.infront
-                    has a higher z-index than .playerWrap, which is what actually keeps it on top
-                    (DOM order alone can't win against z-index, which was the actual bug here).
-                    Editor-mode already shows these in their normal spot above; this only matters
-                    once there's an actual player to be in front of. */}
-                {play && (() => {
+                {/* Objects flagged "in front of player" always use their own higher layer — in the
+                    editor as well as Playtest. Placement order only controls stacking among front
+                    objects or among back objects; it can never put a back bush over a front bush. */}
+                {(() => {
                   const p = player.current;
                   const bodyShape = sideBodyShape(playerAsset);
                   const pw = LV_CELL * PLAYER_RENDER_W_CELLS * bodyShape.fraction; // matches the physics hitbox exactly
                   const ph = p.crouch ? LV_CELL * PLAYER_CROUCH_H_CELLS : LV_CELL * PLAYER_H_CELLS;
-                  return lvFxInFrontMeta.map(({ key, r, c, o, sz }) => {
+                  return lvFxInFrontMeta.map(({ key, r, c, k, si, o, sz }) => {
                     const left = c * LV_CELL, top = r * LV_CELL;
                     // Fades whenever the player's own hitbox overlaps a front-layer object —
                     // solid (a tree trunk that still blocks movement, see solidFx above) or
                     // decorative walk-through alike. Either way the point is the same: don't let
                     // your own scenery fully swallow you on screen. A moderate fade (not too see-
                     // through, not too strong) so the object still clearly reads as there.
-                    const behind = p.x + pw > left && p.x < left + sz && p.y + ph > top && p.y < top + sz;
-                    return <div key={key} className={"lobj infront" + (behind ? " behindFade" : "")} style={{ left, top, width: sz, height: sz, pointerEvents: "none", opacity: behind ? 0.55 : 1 }}>{renderObj(o, sz, key, pframe)}</div>;
+                    const behind = play && p.x + pw > left && p.x < left + sz && p.y + ph > top && p.y < top + sz;
+                    const eraseNow = !play && lTool === "erase";
+                    return <div key={key} className={"lobj infront" + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "") + (behind ? " behindFade" : "")} style={{ left, top, width: sz, height: sz, pointerEvents: eraseNow ? "auto" : "none", cursor: eraseNow ? "pointer" : undefined, opacity: behind ? 0.55 : 1 }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, sz, key, pframe)}</div>;
                   });
                 })()}
                 {/* Enemy spawns: AI-driven (Guard/Seek/Avoid, per-enemy in the Enemy Creator), fall via

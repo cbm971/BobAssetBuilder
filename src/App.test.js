@@ -9,6 +9,7 @@ import {
   projectileDropAtDistance,
   projectilePositionAtDistance,
   resolveSaveTarget,
+  splitObjectStackByPlayerLayer,
 } from "./App";
 
 describe("projectile range trajectory", () => {
@@ -101,6 +102,25 @@ describe("whole-object flip", () => {
     expect(result.frames[1].front[0].x).toBe(20);
     expect(result.frames[1].front[0].isCutter).toBe(true);
     expect(result.angles).toBe(result.frames[0]);
+  });
+});
+
+describe("level object front/back layering", () => {
+  test.each([
+    [
+      { id: "front-bush", inFront: true },
+      { id: "back-bush", inFront: false },
+    ],
+    [
+      { id: "back-bush", inFront: false },
+      { id: "front-bush", inFront: true },
+    ],
+  ])("separates player-relative layers regardless of placement order", (...stack) => {
+    const layers = splitObjectStackByPlayerLayer(stack);
+    expect(layers.behind.map(({ o }) => o.id)).toEqual(["back-bush"]);
+    expect(layers.front.map(({ o }) => o.id)).toEqual(["front-bush"]);
+    expect(layers.behind[0].stackIndex).toBe(stack.findIndex((o) => o.id === "back-bush"));
+    expect(layers.front[0].stackIndex).toBe(stack.findIndex((o) => o.id === "front-bush"));
   });
 });
 
