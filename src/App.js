@@ -2154,6 +2154,38 @@ export const renderPieceRuns = ({ pieces, cacheKey, keyPrefix, drawPiece, maskCs
   });
 export const shapePolyPoints = (p) => (p && p.kind === "poly" && p.points) ? p.points : (p && SHAPE_POINTS[p.kind]) || (typeof p === "string" ? SHAPE_POINTS[p] : null);
 export const shapeClipPath = (pieceOrKind) => { const pts = shapePolyPoints(typeof pieceOrKind === "string" ? { kind: pieceOrKind } : pieceOrKind); return pts ? "polygon(" + pts.map(([x, y]) => (x * 100) + "% " + (y * 100) + "%").join(",") + ")" : null; };
+const polySymmetricX = (pts) => pts.every(([x, y]) => pts.some(([x2, y2]) => Math.abs(x2 - (1 - x)) < 1e-4 && Math.abs(y2 - y) < 1e-4));
+// Mirror a set of pieces as one rigid drawing. Position and rotation follow scaleX(-1), while
+// asymmetric polygons also reverse their actual silhouette instead of merely moving their box.
+export const flipPiecesHorizontally = (pieces, pivotX) => {
+  const src = pieces || [];
+  if (!src.length) return [];
+  const cx = Number.isFinite(pivotX)
+    ? pivotX
+    : (Math.min(...src.map((p) => p.x)) + Math.max(...src.map((p) => p.x + p.w))) / 2;
+  return src.map((p) => {
+    const q = { ...p, x: Math.round(2 * cx - (p.x + p.w)), rot: (((-(p.rot || 0)) % 360) + 360) % 360 };
+    const pts = shapePolyPoints(p);
+    if (pts && !polySymmetricX(pts)) { q.kind = "poly"; q.points = pts.map(([x, y]) => [+(1 - x).toFixed(4), y]); }
+    return q;
+  });
+};
+// Props can animate, so "Flip whole object" must use one shared pivot for every frame. Flipping
+// each frame around its own bounds would make differently-shaped frames jump sideways in play.
+export const flipPropFramesHorizontally = (frames, liveAngles, currentIndex) => {
+  const src = Array.isArray(frames) && frames.length ? [...frames] : [liveAngles || blankAngles()];
+  const idx = Math.max(0, Math.min(src.length - 1, currentIndex || 0));
+  if (liveAngles) src[idx] = liveAngles; // include edits not flushed back into frames yet
+  const all = src.flatMap((frame) => ANGLES.flatMap((ang) => (frame && frame[ang]) || []));
+  if (!all.length) return { frames: src, angles: src[idx], flipped: false };
+  const pivotX = (Math.min(...all.map((p) => p.x)) + Math.max(...all.map((p) => p.x + p.w))) / 2;
+  const flipped = src.map((frame) => {
+    const out = { ...(frame || blankAngles()) };
+    for (const ang of ANGLES) out[ang] = flipPiecesHorizontally(out[ang] || [], pivotX);
+    return out;
+  });
+  return { frames: flipped, angles: flipped[idx], flipped: true, pivotX };
+};
 export const SHAPE_LIST = [
   ["rect", "▮", "Square"], ["circle", "●", "Circle"], ["halfcircle", "◓", "Half circle"], ["tri", "▲", "Triangle"], ["tri2", "◺", "Half triangle"],
   ["diamond", "◆", "Diamond"], ["pentagon", "⬠", "Pentagon"], ["hexagon", "⬡", "Hexagon"], ["star", "★", "Star"], ["trapezoid", "⏢", "Trapezoid"],
@@ -4427,19 +4459,13 @@ export default function AssetStudio() {
   // by mapping its normalized points x -> 1-x so it truly faces the other way. Vertically-symmetric
   // shapes (rect, circle, isoceles triangle, pentagon, hexagon…) are their own mirror image, so
   // their kind is left untouched. A single-piece selection flips just that piece, in place.
-  const polySymmetricX = (pts) => pts.every(([x, y]) => pts.some(([x2, y2]) => Math.abs(x2 - (1 - x)) < 1e-4 && Math.abs(y2 - y) < 1e-4));
   const flipSelH = () => {
     if (!sel) return;
     const members = (groupIds.length > 1 && groupIds.includes(selId)) ? pieces.filter((p) => groupIds.includes(p.id)) : [sel];
     const cx = members.reduce((s, p) => s + p.x + p.w / 2, 0) / members.length;
     const ids = new Set(members.map((p) => p.id));
-    setPieces((ps) => ps.map((p) => {
-      if (!ids.has(p.id)) return p;
-      const q = { ...p, x: Math.round(2 * cx - (p.x + p.w)), rot: (((-(p.rot || 0)) % 360) + 360) % 360 };
-      const pts = shapePolyPoints(p);
-      if (pts && !polySymmetricX(pts)) { q.kind = "poly"; q.points = pts.map(([x, y]) => [+(1 - x).toFixed(4), y]); }
-      return q;
-    }));
+    const flipped = new Map(flipPiecesHorizontally(members, cx).map((p) => [p.id, p]));
+    setPieces((ps) => ps.map((p) => ids.has(p.id) ? flipped.get(p.id) : p));
   };
   const pmirror = (p, ang) => p && p.mirror && ang !== "side";
 
@@ -4697,6 +4723,15 @@ export default function AssetStudio() {
     const j = propFrame + dir; if (j < 0 || j >= frames0.length) return;
     setAsset((a) => { const frames = [...(a.frames || [])]; frames[propFrame] = a.angles; [frames[propFrame], frames[j]] = [frames[j], frames[propFrame]]; return { ...a, frames }; });
     setPropFrame(j);
+  };
+  const flipWholeProp = () => {
+    const preview = flipPropFramesHorizontally(asset.frames, asset.angles, propFrame);
+    if (!preview.flipped) { flash("Add a block before flipping the object."); return; }
+    setAsset((a) => {
+      const result = flipPropFramesHorizontally(a.frames, a.angles, propFrame);
+      return { ...a, frames: result.frames, angles: result.angles };
+    });
+    flash("Flipped the whole object — all frames ✓");
   };
   // Skin/equipment per-body layouts — keyed by whichever body's id was the active guide
   // (asset.guideId) when that layout was drawn; "default" when no specific body is picked.
@@ -7586,6 +7621,7 @@ export default function AssetStudio() {
           <button className="wcopy" onClick={() => movePropFrame(-1)} disabled={propFrame === 0}>◀ Move</button>
           <button className="wcopy" onClick={() => movePropFrame(1)} disabled={propFrame === (asset.frames || []).length - 1}>Move ▶</button>
           <button className="wcopy" onClick={deletePropFrame} disabled={(asset.frames || []).length <= 1} title="Delete this frame">🗑 Delete</button>
+          <button className="wcopy" onClick={flipWholeProp} title="Mirror every block in every animation frame">⇋ Flip whole object</button>
           <span className="hint2">Draw each frame of the animation. One frame = a static object; several frames cycle (e.g. a flickering fire). Only the Front pose is used.</span>
         </div>
       )}

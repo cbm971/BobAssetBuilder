@@ -5,6 +5,7 @@ import {
   enemyCrouchH,
   enemyNeedsFlip,
   enemyStandH,
+  flipPropFramesHorizontally,
   projectileDropAtDistance,
   projectilePositionAtDistance,
   resolveSaveTarget,
@@ -82,6 +83,24 @@ describe("cutter layer ordering", () => {
     ]);
     expect(segments[0].cutters).toEqual([]);
     expect(segments[0].items[0][0].id).toBe("top-leaf");
+  });
+});
+
+describe("whole-object flip", () => {
+  test("mirrors every animation frame around one shared pivot", () => {
+    const staleFrame = { front: [{ id: "stale", kind: "rect", x: 0, y: 0, w: 10, h: 10 }] };
+    const liveFrame = { front: [{ id: "left", kind: "tri2", x: 20, y: 0, w: 10, h: 10, rot: 30 }] };
+    const secondFrame = { front: [{ id: "right", kind: "rect", x: 70, y: 0, w: 20, h: 10, isCutter: true }] };
+    const result = flipPropFramesHorizontally([staleFrame, secondFrame], liveFrame, 0);
+
+    expect(result.flipped).toBe(true);
+    expect(result.pivotX).toBe(55);
+    expect(result.frames[0].front[0].x).toBe(80);
+    expect(result.frames[0].front[0].rot).toBe(330);
+    expect(result.frames[0].front[0].kind).toBe("poly");
+    expect(result.frames[1].front[0].x).toBe(20);
+    expect(result.frames[1].front[0].isCutter).toBe(true);
+    expect(result.angles).toBe(result.frames[0]);
   });
 });
 
