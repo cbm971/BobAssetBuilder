@@ -8,7 +8,11 @@ import {
   fgSlopeFills,
   fgSolid,
   armHoldsAimPose,
+  burstDelayFrames,
+  burstShotCount,
+  burstShotDue,
   copyAngleTargets,
+  weaponFireCooldownFrames,
   reloadIntelligenceMultiplier,
   startReload,
   displayPoseKey,
@@ -1055,5 +1059,61 @@ describe("ignore-armor shots", () => {
 
   test("damage never drops below the one-point floor", () => {
     expect(incomingPlayerDamage(1, 999, 1, 0, 100, null, null, false, false)).toBe(1);
+  });
+});
+
+describe("burst fire", () => {
+  const ammo = (o) => ({ clip: 10, ammo: 10, cd: 0, reloadT: 0, ...o });
+
+  test("a normal gun is a one-round burst, so nothing changes for existing weapons", () => {
+    expect(burstShotCount(undefined)).toBe(1);
+    expect(burstShotCount(1)).toBe(1);
+    expect(burstShotDue(0, 0, ammo())).toBe(false);   // nothing armed -> never fires on its own
+  });
+
+  test("the salvo size is clamped to something sane", () => {
+    expect(burstShotCount(3)).toBe(3);
+    expect(burstShotCount(0)).toBe(1);
+    expect(burstShotCount(-5)).toBe(1);
+    expect(burstShotCount(999)).toBe(10);
+    expect(burstShotCount(2.6)).toBe(3);
+  });
+
+  test("burst spacing is its own clock, far tighter than the fire rate", () => {
+    expect(burstDelayFrames(0.06)).toBe(4);
+    expect(burstDelayFrames(undefined)).toBe(4);
+    expect(burstDelayFrames(0)).toBe(1);              // never zero frames
+    expect(burstDelayFrames(0.06)).toBeLessThan(weaponFireCooldownFrames(3));
+  });
+
+  test("a queued round fires once its spacing has elapsed, not before", () => {
+    expect(burstShotDue(2, 3, ammo())).toBe(false);   // still counting down
+    expect(burstShotDue(2, 0, ammo())).toBe(true);
+    expect(burstShotDue(2, -1, ammo())).toBe(true);
+  });
+
+  test("a burst stops dead when the clip runs out mid-salvo", () => {
+    expect(burstShotDue(2, 0, ammo({ ammo: 0 }))).toBe(false);
+  });
+
+  test("an unlimited-ammo weapon (clip 0) bursts freely", () => {
+    expect(burstShotDue(2, 0, ammo({ clip: 0, ammo: 0 }))).toBe(true);
+  });
+
+  test("a reload cancels the rest of the burst", () => {
+    expect(burstShotDue(2, 0, ammo({ reloadT: 30 }))).toBe(false);
+  });
+
+  test("a missing ammo record can't fire a phantom round", () => {
+    expect(burstShotDue(2, 0, null)).toBe(false);
+    expect(burstShotDue(2, 0, undefined)).toBe(false);
+  });
+
+  test("a 3-round burst spends exactly 3 rounds, then needs another pull", () => {
+    // Walk the same bookkeeping the loop does: pull arms burst-1, each due shot spends one.
+    let left = burstShotCount(3) - 1, fired = 1;
+    while (burstShotDue(left, 0, ammo())) { fired += 1; left -= 1; }
+    expect(fired).toBe(3);
+    expect(left).toBe(0);
   });
 });

@@ -385,6 +385,20 @@ export const DEFAULT_CLIP_SIZE = 6;    // rounds before a reload
 export const DEFAULT_RELOAD_TIME = 1.2; // seconds
 // Frames are the loop's native unit (dtMul makes them real-time), so both convert at 60fps.
 export const weaponFireCooldownFrames = (fireRate) => Math.max(1, Math.round(60 / Math.max(0.1, fireRate || DEFAULT_FIRE_RATE)));
+// BURST FIRE. One trigger pull sends a short salvo instead of a single shot. `burst` is how many
+// rounds that salvo is; the shots inside it are spaced by burstDelay seconds, which is a separate,
+// much tighter clock than the weapon’s fire RATE — the rate still governs how soon the next PULL
+// is allowed, so a 3-round burst weapon at 3/sec fires three quick rounds and then waits, rather
+// than tripling its damage output. Capped at 10 so a stray value can’t empty a magazine in a frame.
+export const DEFAULT_BURST = 1;
+export const DEFAULT_BURST_DELAY = 0.06;
+export const burstShotCount = (burst) => Math.max(1, Math.min(10, Math.round(burst ?? DEFAULT_BURST)));
+export const burstDelayFrames = (burstDelay) => Math.max(1, Math.round((burstDelay ?? DEFAULT_BURST_DELAY) * 60));
+// Is another round of the CURRENT burst due this frame? It bypasses the fire-rate cooldown (that
+// gates the next pull, not the inside of a burst) but never the magazine: a burst that runs the
+// clip dry simply stops there, and a reload cancels whatever is left of it.
+export const burstShotDue = (burstLeft, burstT, ammo) =>
+  (burstLeft || 0) > 0 && (burstT || 0) <= 0 && !!ammo && ammo.reloadT <= 0 && (ammo.clip <= 0 || ammo.ammo > 0);
 // Intelligence scales how fast a magazine goes back in: 5 is neutral, and each direction reaches
 // 25% at the end of the stat's range — Int 1 reloads 25% SLOWER, Int 10 25% faster. The two sides
 // use their own slope because the stat isn't symmetric about 5 (1..5 is four points, 5..10 is
@@ -1351,7 +1365,7 @@ export function newAsset(type, slot, wtype) {
   const a = { id: uid(), name: slot ? SLOTS[slot].label : (TYPES[type] ? TYPES[type].label : type), type, angles: blankAngles(), guideId: "default" };
   if (type === "body") { a.angles = JSON.parse(JSON.stringify(DEFAULT_BODY)); return withRig(a); }
   if (type === "skin") { a.stats = DEFAULT_STATS(); a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; }
-  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.stun = 0; a.categories = ["", "", ""]; }
+  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.stun = 0; a.categories = ["", "", ""]; }
   if (type === "enemy") { a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = 10; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; return withRig(a); }
   if (type === "equipment") { a.slot = slot; a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; a.statBoosts = DEFAULT_STAT_BOOSTS(); a.defense = 0; a.effects = []; a.categories = ["", "", ""]; }
   if (type === "projectile") { a.size = 1; }
@@ -4085,9 +4099,15 @@ export default function AssetStudio() {
       // the key is held, gated by its own fire-rate cooldown (that's what a fire rate IS), and
       // refuses to fire on an empty clip, kicking off a reload instead.
       const wantFire = wpnIsRanged ? !!K.fire : (K.fire && !p.wasFire);
-      if (wantFire && wpnIsRanged && !canFireNow(wpn.current)) {
-        if (needsReload(wpn.current)) wpn.current = startReload(wpn.current, reloadFrames);
-      } else if (wantFire) {
+      // Burst continuation: tick the inter-shot timer and decide whether the next round of the
+      // salvo already in flight is due. Holding or releasing Fire makes no difference once a burst
+      // has started — a burst is a committed salvo, which is what separates it from full-auto.
+      if ((p.burstLeft || 0) > 0) p.burstT = (p.burstT || 0) - dtMul;
+      const burstDue = wpnIsRanged && burstShotDue(p.burstLeft, p.burstT, wpn.current);
+      if ((p.burstLeft || 0) > 0 && !burstDue && wpn.current && (wpn.current.reloadT > 0 || (wpn.current.clip > 0 && wpn.current.ammo <= 0))) p.burstLeft = 0; // ran dry or started reloading — abandon the rest
+      if (wantFire && wpnIsRanged && !canFireNow(wpn.current) && !burstDue) {
+        if (needsReload(wpn.current)) { wpn.current = startReload(wpn.current, reloadFrames); p.burstLeft = 0; }
+      } else if (wantFire || burstDue) {
         if (playtestWeapon && isRanged(playtestWeapon.wtype)) {
           const aimDir = p.aimDir; // live-tracked above, not re-snapshotted here
           const spd = playtestWeapon.projectileSpeed ?? playtestWeapon.projectile?.speed ?? 12;
@@ -4156,8 +4176,12 @@ export default function AssetStudio() {
             explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
           });
           wpn.current = consumeShot(wpn.current, fireCdFrames); // spends a round (unless clip 0 = unlimited) and starts the fire-rate cooldown
+          // A fresh pull ARMS the rest of the burst; a burst shot spends one of them. Either way the
+          // next one is scheduled off burstDelay, not the fire rate.
+          p.burstLeft = burstDue ? (p.burstLeft || 0) - 1 : burstShotCount(playtestWeapon.burst) - 1;
+          p.burstT = burstDelayFrames(playtestWeapon.burstDelay);
           p.firing = { t: 0, dur: RANGED_FIRE_POSE_FRAMES };
-        } else {
+        } else if (wantFire) {
           p.firing = { t: 0, dur: 12 }; // swing duration — same for a real melee weapon or a bare-handed swing (faster than the old sine sweep)
           p.hitRegistered = false; // a fresh swing can land a fresh hit
         }
@@ -4178,7 +4202,7 @@ export default function AssetStudio() {
         // With no weapon equipped, this is a bare-handed swing: a small fist-sized hitbox
         // centered on the same guide-hand point a weapon would use, riding the arm the same way.
         const unarmedSwing = !!(p.firing && p.firing.unarmed); // Q/V bare-handed swing — ignores the held weapon entirely
-        if ((unarmedSwing || !playtestWeapon || !isRanged(playtestWeapon.wtype)) && !p.hitRegistered) {
+        if (unarmedSwing || !playtestWeapon || !isRanged(playtestWeapon.wtype)) {
           const angleNow = p.climbing ? (p.climbKind === "bars" ? "side" : "back") : (p.crouch && !p.walking ? "crouch" : "side");
           const armPiece = playerAsset ? armOf(playerAsset.angles[angleNow] || []) : null;
           if (armPiece) {
@@ -4194,16 +4218,38 @@ export default function AssetStudio() {
             if (hbPieces.length) {
               const wrapLeft = p.x - (bodyShape.centerFrac * (CW * PLAYER_RENDER_W_CELLS) - pw / 2);
               const strength = pstats.strength, intelligence = pstats.intelligence;
+              // Every hitbox piece, resolved to world space ONCE. Mirror when facing LEFT, exactly
+              // like the muzzle-spawn math — the wrapper renders the whole character through
+              // scaleX(-1) about the render box, so a right-facing-space hitbox lands on the WRONG
+              // side without this: facing left, your swing was still hitting enemies on your RIGHT.
+              const renderWNow0 = CW * PLAYER_RENDER_W_CELLS;
+              const swingMirrored = playerSpriteMirrored(basePlayerAsset, p.face);
+              const swingBoxes = hbPieces.map((hb) => {
+                const lxP = (hb.x / W) * renderWNow0, bw = (hb.w / W) * renderWNow0;
+                return { x: wrapLeft + (swingMirrored ? renderWNow0 - (lxP + bw) : lxP), y: p.y + (hb.y / H) * ph, w: bw, h: (hb.h / H) * ph };
+              });
+              // PARRY: a swing that sweeps through an incoming shot knocks it out of the air. This
+              // is what gives melee a reason to exist against a ranged enemy — you can close the
+              // distance by batting shots down instead of just eating them. Deliberately NOT gated
+              // by hitRegistered (that budget is "one enemy damaged per swing"; a wide swing should
+              // still clear several shots) and it never consumes the swing, so the same stroke can
+              // parry and then land on the enemy behind it. An explosive shot still detonates where
+              // it was struck — parrying it away from your face is the reward, not immunity.
+              if (projectiles.current.length) {
+                projectiles.current = projectiles.current.filter((pr) => {
+                  const psz = LV_CELL * (pr.size || 1);
+                  const pl = pr.x - psz / 2, pt = pr.y - psz / 2;
+                  const struck = swingBoxes.some((b) => pl < b.x + b.w && pl + psz > b.x && pt < b.y + b.h && pt + psz > b.y);
+                  if (!struck) return true;
+                  if (pr.explode) detonate(pr, pr.x, pr.y);
+                  flash("🗡️ Blocked!");
+                  return false;
+                });
+              }
               hitLoop:
-              for (const hb of hbPieces) {
-                const renderWNow = CW * PLAYER_RENDER_W_CELLS;
-                const lxP = (hb.x / W) * renderWNow, hbW = (hb.w / W) * renderWNow;
-                // Mirror into world space when facing LEFT, exactly like the muzzle-spawn math —
-                // the wrapper renders the whole character through scaleX(-1) about the render box,
-                // so a right-facing-space hitbox lands on the WRONG side without this: facing left,
-                // your swing was still hitting enemies standing on your RIGHT.
-                const hbX = wrapLeft + (playerSpriteMirrored(basePlayerAsset, p.face) ? renderWNow - (lxP + hbW) : lxP), hbY = p.y + (hb.y / H) * ph;
-                const hbH = (hb.h / H) * ph;
+              for (const b of swingBoxes) {
+                if (p.hitRegistered) break hitLoop; // one ENEMY hit per swing; parries above are unlimited
+                const hbX = b.x, hbY = b.y, hbW = b.w, hbH = b.h;
                 for (const k of Object.keys(lv.enemies || {})) {
                   const spawn = lv.enemies[k];
                   const ea = findA(spawn.enemyId);
@@ -6071,7 +6117,7 @@ export default function AssetStudio() {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; } if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; } if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
@@ -8434,6 +8480,8 @@ export default function AssetStudio() {
             <label className="slider">Fire rate<input type="range" min="0.5" max="15" step="0.5" value={asset.fireRate ?? DEFAULT_FIRE_RATE} onChange={(e) => setAsset((a) => ({ ...a, fireRate: +e.target.value }))} /><span className="hint2">{asset.fireRate ?? DEFAULT_FIRE_RATE}/sec</span></label>
             <label className="slider">Clip size<input type="number" min="0" value={asset.clipSize ?? DEFAULT_CLIP_SIZE} onChange={(e) => setAsset((a) => ({ ...a, clipSize: Math.max(0, +e.target.value || 0) }))} style={{ width: 60 }} /><span className="hint2">0 = unlimited, never reloads</span></label>
             <label className="slider">Reload<input type="range" min="0.2" max="5" step="0.1" value={asset.reloadTime ?? DEFAULT_RELOAD_TIME} onChange={(e) => setAsset((a) => ({ ...a, reloadTime: +e.target.value }))} /><span className="hint2">{asset.reloadTime ?? DEFAULT_RELOAD_TIME}s</span></label>
+            <label className="slider">Burst<input type="range" min="1" max="10" step="1" value={burstShotCount(asset.burst)} onChange={(e) => setAsset((x) => ({ ...x, burst: +e.target.value }))} /><span className="hint2">{burstShotCount(asset.burst) === 1 ? "single shot per pull" : burstShotCount(asset.burst) + " rounds per pull"}</span></label>
+            {burstShotCount(asset.burst) > 1 && <label className="slider">Burst spacing<input type="range" min="0.02" max="0.3" step="0.01" value={asset.burstDelay ?? DEFAULT_BURST_DELAY} onChange={(e) => setAsset((x) => ({ ...x, burstDelay: +e.target.value }))} /><span className="hint2">{(asset.burstDelay ?? DEFAULT_BURST_DELAY).toFixed(2)}s between rounds — the whole burst takes {(((burstShotCount(asset.burst) - 1) * (asset.burstDelay ?? DEFAULT_BURST_DELAY))).toFixed(2)}s. Fire rate still sets how soon you can pull again, and a burst stops early if the clip runs out.</span></label>}
             <label className="chk"><input type="checkbox" checked={!!asset.ignoreArmor} onChange={(e) => setAsset((a) => ({ ...a, ignoreArmor: e.target.checked }))} /> 🗡️ Ignore armor <span className="hint2">(its shots bypass the target’s Defense entirely — full damage no matter what armour is worn. Back Guard and Crouch Guard still apply.)</span></label>
             <label className="chk"><input type="checkbox" checked={!!asset.resurrect} onChange={(e) => setAsset((a) => ({ ...a, resurrect: e.target.checked }))} /> 🔮 Resurrect staff <span className="hint2">(its shot deals no damage — instead it raises a defeated body into a friendly NPC that fights for you. One body can only be raised once.)</span></label>
             {!asset.resurrect && (
