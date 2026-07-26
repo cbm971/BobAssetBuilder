@@ -791,6 +791,18 @@ export const tagDamageMultiplier = (effects, weaponCategories) => {
   }
   return mult;
 };
+// A clothing "Long Shot" ability stretches how far your SHOTS fly: every ranged weapon fired
+// while the item is worn has its flight distance multiplied. Range is also what shapes the
+// trajectory (no drop over the first half of it, quadratic drop over the second — see
+// projectileDropAtDistance), so a boosted shot flies FLATTER as well as farther, which is
+// what "more range" should feel like. Applies to the player's own shots only, never to an
+// enemy's. Mirrors tagDamageMultiplier: several worn range abilities stack multiplicatively,
+// 1 = no boost. Floored so a corrupt save can't multiply a shot's range down to nothing.
+export const rangeBoostMultiplier = (effects) => {
+  let mult = 1;
+  for (const e of (effects || [])) if (e.type === "rangeBoost") mult *= (e.mult ?? 1.5);
+  return Math.max(0.1, mult);
+};
 // Horizontal movement rule. On the ground (or on a ladder/bars) your speed is driven by the keys
 // AND remembered as momentum. In the air the keys do NOT steer you (no air control) — you keep
 // whatever horizontal momentum you left the ground with, so running and jumping carries you along,
@@ -1106,6 +1118,19 @@ const EFFECT_TYPES = {
     tagParam: true,
     params: [
       { key: "mult", label: "Damage ×", min: 1, max: 5, step: 0.25, def: 1.5 },
+    ],
+  },
+  // A clothing ability that makes your GUNS/BOWS reach farther: multiplies the flight distance
+  // of every shot you fire while it's worn (see rangeBoostMultiplier). Since range also sets
+  // where a shot starts dropping, a boosted shot flies flatter too. Unlike Tag Damage this
+  // isn't tag-scoped — it lifts every ranged weapon — and it leaves melee and thrown weapons
+  // alone (a throw's distance comes from Strength vs the throwable's weight instead).
+  rangeBoost: {
+    label: "Long Shot", icon: "🎯",
+    blurb: "Your shots fly farther: multiplies the range of ANY ranged weapon you're holding while this is worn (a 14-block gun at ×1.5 reaches 21). Longer range also means the shot drops later, so it flies flatter. Melee and thrown weapons are unaffected. No animation of its own.",
+    noAnim: true,
+    params: [
+      { key: "mult", label: "Range ×", min: 1, max: 4, step: 0.25, def: 1.5 },
     ],
   },
 };
@@ -3702,7 +3727,7 @@ export default function AssetStudio() {
             x: spawnX, y: spawnY,
             vx, vy,
             startX: spawnX, startY: spawnY, groundY: p.y + ph,
-            rangePx: Math.max(1, playtestWeapon.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW, traveled: 0,
+            rangePx: Math.max(1, playtestWeapon.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW * rangeBoostMultiplier(playerAsset.effects), traveled: 0,
             char: playtestWeapon.projectile?.char || "🔥", tint: playtestWeapon.projectile?.tint || null,
             pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
             size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,

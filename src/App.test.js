@@ -8,6 +8,7 @@ import {
   flipPropFramesHorizontally,
   projectileDropAtDistance,
   projectilePositionAtDistance,
+  rangeBoostMultiplier,
   resolveSaveTarget,
   splitObjectStackByPlayerLayer,
 } from "./App";
@@ -31,6 +32,40 @@ describe("projectile range trajectory", () => {
     const down = { ...up, vy: 12 };
     expect(projectilePositionAtDistance(up, rangePx).y).toBe(-200);
     expect(projectilePositionAtDistance(down, rangePx).y).toBe(640);
+  });
+});
+
+describe("Long Shot range boost", () => {
+  test("no boost worn leaves range untouched", () => {
+    expect(rangeBoostMultiplier(undefined)).toBe(1);
+    expect(rangeBoostMultiplier([])).toBe(1);
+    expect(rangeBoostMultiplier([{ type: "tagBoost", mult: 3 }])).toBe(1);
+  });
+
+  test("uses the worn ability's multiplier, falling back to the catalog default", () => {
+    expect(rangeBoostMultiplier([{ type: "rangeBoost", mult: 2 }])).toBe(2);
+    expect(rangeBoostMultiplier([{ type: "rangeBoost" }])).toBe(1.5);
+  });
+
+  test("multiple worn range abilities stack multiplicatively", () => {
+    expect(rangeBoostMultiplier([{ type: "rangeBoost", mult: 2 }, { type: "rangeBoost", mult: 1.5 }])).toBe(3);
+  });
+
+  test("a corrupt zero multiplier cannot shrink range to nothing", () => {
+    expect(rangeBoostMultiplier([{ type: "rangeBoost", mult: 0 }])).toBe(0.1);
+  });
+
+  test("a boosted shot flies farther and drops later", () => {
+    const base = DEFAULT_PROJECTILE_RANGE * 30;
+    const boosted = base * rangeBoostMultiplier([{ type: "rangeBoost", mult: 2 }]);
+    expect(boosted).toBe(base * 2);
+    // Same flat shot, boosted range: at the un-boosted weapon's max distance it is still
+    // dead level (that point is now only half of its longer range), where the un-boosted
+    // one has already fallen all the way to the ground it was fired over.
+    const shot = { startX: 0, startY: 100, groundY: 220, vx: 12, vy: 0 };
+    expect(projectilePositionAtDistance({ ...shot, rangePx: base }, base).y).toBe(220);
+    expect(projectilePositionAtDistance({ ...shot, rangePx: boosted }, base).y).toBe(100);
+    expect(projectilePositionAtDistance({ ...shot, rangePx: boosted }, boosted).x).toBe(base * 2);
   });
 });
 
