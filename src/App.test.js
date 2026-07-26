@@ -1,6 +1,7 @@
 import {
   DEFAULT_PROJECTILE_RANGE,
   capAirborneSpeed,
+  connectedFrontRegion,
   cutterLayerSegments,
   advanceAutoReloadWeapon,
   canFireNow,
@@ -80,6 +81,41 @@ describe("scaled enemy dimensions", () => {
   test("standing and crouching heights share the enemy scale", () => {
     expect(enemyStandH({ scale: 2 }, 30)).toBe(420);
     expect(enemyCrouchH({ scale: 2 }, 30)).toBe(252);
+  });
+});
+
+describe("connected Front sheet (pedestal x-ray)", () => {
+  // Two separate 2x2 walls: rows 0-1 at cols 0-1, and rows 0-1 at cols 5-6.
+  const front = {
+    "0,0": 1, "0,1": 1, "1,0": 1, "1,1": 1,
+    "0,5": 1, "0,6": 1, "1,5": 1, "1,6": 1,
+  };
+  const sorted = (set) => [...set].sort();
+
+  test("spreads across one whole wall from any cell in it", () => {
+    expect(sorted(connectedFrontRegion(front, ["1,1"]))).toEqual(["0,0", "0,1", "1,0", "1,1"]);
+    expect(sorted(connectedFrontRegion(front, ["0,0"]))).toEqual(["0,0", "0,1", "1,0", "1,1"]);
+  });
+
+  test("does not leak into a separate wall", () => {
+    expect(connectedFrontRegion(front, ["0,0"]).has("0,5")).toBe(false);
+  });
+
+  test("standing behind both walls at once covers both", () => {
+    expect(sorted(connectedFrontRegion(front, ["0,0", "0,5"]))).toEqual(
+      ["0,0", "0,1", "0,5", "0,6", "1,0", "1,1", "1,5", "1,6"]
+    );
+  });
+
+  test("corner-touching walls stay separate", () => {
+    // "2,2" touches "1,1" only diagonally, so it must not join that sheet.
+    expect(connectedFrontRegion({ ...front, "2,2": 1 }, ["0,0"]).has("2,2")).toBe(false);
+  });
+
+  test("empty or unpainted starts yield nothing", () => {
+    expect(connectedFrontRegion(front, []).size).toBe(0);
+    expect(connectedFrontRegion(front, ["9,9"]).size).toBe(0);
+    expect(connectedFrontRegion(null, ["0,0"]).size).toBe(0);
   });
 });
 

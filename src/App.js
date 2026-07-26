@@ -607,11 +607,11 @@ export const stripThrownLanding = (hazardIn, fxIn, hazKeys, propKeys) => {
 export const projectileAimRad = (aimDir) => (aimDir === -1 ? -Math.PI / 2 : aimDir * (Math.PI * 40 / 180));
 export const DEFAULT_PROJECTILE_RANGE = 14;
 // Idle dangle for a monkey-bars / ledge hang. Speed is radians per 60fps frame (0.05 ≈ one full
-// sway every ~2s — a slow pendulum, not a kick), and the amplitude is deliberately small: this is
-// meant to read as "hanging weight shifting", so it should be noticeable without ever competing
-// with the ladder climb's real 22° alternating stride.
+// sway every ~2s — a slow pendulum, not a kick). The amplitude is a sideways SHIFT in design-canvas
+// px (the sprite is W=200 wide), not an angle: see the o.legSway branch in applyLimbSwing for why a
+// translation is the only mirror-safe way to move a leg and everything worn on it as one unit.
 export const HANG_SWAY_SPEED = 0.05;
-export const HANG_SWAY_DEG = 6;
+export const HANG_SWAY_PX = 5;
 // Range is measured along the aimed flight path in level pixels, never in frames. This keeps the
 // configured block count stable when projectile speed changes. The first half has no added drop;
 // the second half eases down quadratically so a neutral shot reaches the shooter's firing-time
@@ -1374,6 +1374,26 @@ export const frontFadeKeys = (front, x, y, pw, ph, CW, CH) => {
   for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { const k = r + "," + c; if (front[k]) keys.push(k); }
   return keys;
 };
+// Every Front cell reachable from `startKeys` by 4-way adjacency — i.e. one connected SHEET of
+// Front tiles, such as the near wall/roof a building interior is painted with. The pedestal x-ray
+// keys off this rather than off distance: the moment you step behind any part of an interior's
+// covering you are "inside", so the whole covering should give up what it hides. Diagonals are
+// deliberately NOT connected — two walls touching only at a corner are separate rooms, and
+// leaking through that pixel would x-ray the building next door.
+export const connectedFrontRegion = (front, startKeys) => {
+  const seen = new Set();
+  if (!front) return seen;
+  const stack = [];
+  for (const k of startKeys || []) if (front[k] && !seen.has(k)) { seen.add(k); stack.push(k); }
+  while (stack.length) {
+    const [r, c] = stack.pop().split(",").map(Number);
+    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nk = (r + dr) + "," + (c + dc);
+      if (front[nk] && !seen.has(nk)) { seen.add(nk); stack.push(nk); }
+    }
+  }
+  return seen;
+};
 const PLAYER_H_CELLS = 7;
 const PLAYER_RENDER_W_CELLS = PLAYER_H_CELLS * (W / H); // aspect-correct VISUAL width — never changes, avoids the squish
 const PLAYER_CROUCH_H_CELLS = 4.2;
@@ -1614,6 +1634,15 @@ export const applyLimbSwing = (blocks, legIds, armIds, swing, opts) => {
       // which is exactly the vertical pump o.armReach already gives the arms, mirrored in sign.
       // Everything riding the leg (pant legs, shoes) is leg-flagged too, so it lifts with it.
       if (o.legLift) return { ...b, y: b.y - sideSign(b) * o.legLift };
+      // A hanging DANGLE (o.legSway): the legs drift side to side together, and — like o.legLift
+      // directly above — this is deliberately a TRANSLATION, not a rotation about the hip.
+      // A mirror twin's x is already reflected into ordinary canvas space (see the reflect() that
+      // builds twins), so one shared dx moves every piece over a leg — body leg, pant leg, shoe —
+      // by the identical on-screen amount, and nothing worn on the leg can fall out of register.
+      // Rotation cannot promise that: stored rot is sign-flipped for twins (renderFlip), so a pant
+      // twin sitting over a non-twin body leg counter-rotates against it. That asymmetry is
+      // exactly what made the cliff dangle peel the pants off the legs.
+      if (o.legSway) return { ...b, x: b.x + o.legSway };
       // Non-alternate walk: each column swings by its column's phase (colSign), folded through
       // the mirror-render flip so what alternates is the ON-SCREEN motion — a far leg drawn via
       // the mirror flag renders inside scaleX(-1), which visually reverses stored rotation.
@@ -2773,6 +2802,8 @@ export default function AssetStudio() {
   const frontCellsRef = useRef(null);      // wrapper around the memoized Front tile layer — lets the playtest loop fade covered cells imperatively, without re-rendering the whole (memoized) layer every frame
   const hazardCellsRef = useRef(null);     // same idea for fire: the layer is memoized (not rebuilt every frame), so a burnt-out cell is hidden imperatively by toggling its own element's opacity
   const fadedFrontKeys = useRef(new Set()); // Front cell keys currently faded, so leaving a cell restores it and unchanged cells aren't touched at all
+  const xrayFrontRegion = useRef(null);    // the connected Front sheet the player is currently behind (Set of cell keys), or null when they're in the open — pedestals inside it x-ray through
+  const xrayFrontSig = useRef("");         // signature of the Front cells the player was behind last frame; the flood fill above only re-runs when this changes, so standing still costs nothing
   const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
   const keys = useRef({});
   const lvRef = useRef(null);
@@ -4211,11 +4242,22 @@ export default function AssetStudio() {
       // Front tiles the player is currently behind go translucent — imperatively, on just the
       // handful of covered cells, because this layer is deliberately memoized for playtest
       // performance and must NOT rebuild every frame. Touch only cells whose state changed.
+      const behindKeys = frontFadeKeys(lv.front, p.x, p.y, pw, ph, CW, CH);
       if (frontCellsRef.current) {
-        const want = new Set(frontFadeKeys(lv.front, p.x, p.y, pw, ph, CW, CH));
+        const want = new Set(behindKeys);
         for (const k of fadedFrontKeys.current) if (!want.has(k)) { const d = frontCellsRef.current.querySelector(`[data-fk="${k}"]`); if (d) d.style.opacity = ""; }
         for (const k of want) if (!fadedFrontKeys.current.has(k)) { const d = frontCellsRef.current.querySelector(`[data-fk="${k}"]`); if (d) d.style.opacity = "0.55"; }
         fadedFrontKeys.current = want;
+      }
+      // Which connected Front sheet (if any) the player is currently tucked behind. Pedestals
+      // under that same sheet x-ray through in the render below, so walking into an interior
+      // announces what's in it instead of hiding it until you're standing on top of it. The
+      // flood fill is skipped entirely unless the exact set of covered cells changed, which for
+      // ordinary play means once as you cross into a building and once as you leave.
+      const behindSig = behindKeys.join("|");
+      if (behindSig !== xrayFrontSig.current) {
+        xrayFrontSig.current = behindSig;
+        xrayFrontRegion.current = behindKeys.length ? connectedFrontRegion(lv.front, behindKeys) : null;
       }
 
       // Hide any fire cell that has burned out (life reached 0). Same imperative approach as the
@@ -4240,6 +4282,7 @@ export default function AssetStudio() {
       // left faded must be restored by hand or they'd stay see-through back in the editor.
       if (frontCellsRef.current) for (const k of fadedFrontKeys.current) { const d = frontCellsRef.current.querySelector(`[data-fk="${k}"]`); if (d) d.style.opacity = ""; }
       fadedFrontKeys.current = new Set();
+      xrayFrontRegion.current = null; xrayFrontSig.current = ""; // no stale interior left x-rayed once play stops
       // Fires that burned out during play are only hidden imperatively; the level still has them.
       // Restore every hazard element's display so the editor shows the full painted set again.
       if (hazardCellsRef.current) for (const el of hazardCellsRef.current.querySelectorAll("[data-hk]")) el.style.display = "";
@@ -7008,8 +7051,9 @@ export default function AssetStudio() {
                       if (!a) return { ...b, rot: limbFollowRot(b, target, baseArmRot) };
                       return rigidArmFollow(b, a, armClimbAbs(a.armPivot));
                     });
-                    // Legs only — no armReach opt, so the arms stay locked to the grip above.
-                    blocks = applyLimbSwing(blocks, legIds, armIds, Math.sin(p.hangPhase || 0) * HANG_SWAY_DEG);
+                    // Legs only — no armReach opt, so the arms stay locked to the grip above. The
+                    // swing argument is unused by the legSway branch, hence 0.
+                    blocks = applyLimbSwing(blocks, legIds, armIds, 0, { legSway: Math.sin(p.hangPhase || 0) * HANG_SWAY_PX });
                   } else if (blocks && p.walking) {
                     // Legs and non-weapon arms swing back and forth, opposite phase, like a normal
                     // walk cycle. Uses flags where set; otherwise the ground-nearest piece(s) and
@@ -7347,6 +7391,20 @@ export default function AssetStudio() {
                   let bb = null;
                   if (artPieces.length) { let a = Infinity, b = Infinity, d = -Infinity, e = -Infinity; for (const pc of artPieces) { a = Math.min(a, pc.x); b = Math.min(b, pc.y); d = Math.max(d, pc.x + pc.w); e = Math.max(e, pc.y + pc.h); } bb = { x: a, y: b, w: Math.max(1, d - a), h: Math.max(1, e - b) }; }
                   const boxW = LV_CELL * 1.9, boxH = LV_CELL * 2.3;
+                  // X-ray: is this pedestal under the same connected Front sheet the player is
+                  // currently behind? Tested against every cell the pedestal's ART BOX covers, not
+                  // just its marker cell — the art stands ~2 cells tall above the marker, and the
+                  // marker cell itself (floor level) often isn't painted Front even when the wall
+                  // in front of the item is. Checking only the marker cell made the reveal miss.
+                  const xrayed = (() => {
+                    const reg = xrayFrontRegion.current;
+                    if (!play || !reg || !reg.size) return false;
+                    const left = c * LV_CELL + LV_CELL / 2 - boxW / 2, top = r * LV_CELL - boxH + LV_CELL;
+                    const c0 = Math.floor(left / LV_CELL), c1 = Math.floor((left + boxW - 0.001) / LV_CELL);
+                    const r0 = Math.floor(top / LV_CELL), r1 = Math.floor((top + boxH - 0.001) / LV_CELL);
+                    for (let rr = r0; rr <= r1; rr++) for (let cc = c0; cc <= c1; cc++) if (reg.has(rr + "," + cc)) return true;
+                    return false;
+                  })();
                   let planeStyle = null;
                   if (bb) { const sc = Math.min(boxW / bb.w, boxH / bb.h) * 0.86; const tx = boxW / 2 - sc * (bb.x + bb.w / 2), ty = boxH / 2 - sc * (bb.y + bb.h / 2); planeStyle = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${tx}px,${ty}px) scale(${sc})` }; }
                   // When the player is standing on THIS pedestal, float the call-to-action over the
@@ -7370,7 +7428,7 @@ export default function AssetStudio() {
                     }
                   }
                   return (
-                    <div key={"ped" + k} className="pedestalPlay" style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
+                    <div key={"ped" + k} className={"pedestalPlay" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
                       <div className="pedestalArt">{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + k, keyPrefix: "ped" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}</div> : <div className="pedestalEmpty">no match</div>}</div>
                       {promptText && <div className="pedcallout">💎 {promptText}</div>}
                       {rolled && <div className="pedestalCap">{rolled.name}</div>}
@@ -8735,6 +8793,12 @@ const css = `
 .pedcfg{display:flex;flex-direction:column;gap:7px;margin:6px 0}
 .pedcfg .catinline{width:100%;box-sizing:border-box}
 .pedestalPlay{position:absolute;z-index:5;pointer-events:none}
+/* Seen THROUGH a Front wall: lifted above the Front layer's z-index 6 and rendered as a cool,
+   washed-out glow so it reads as showing through the wall rather than standing in front of it.
+   The name plate stays legible — knowing an interior HAS a pedestal is the whole point. */
+.pedestalPlay.xray{z-index:7}
+.pedestalPlay.xray .pedestalArt{opacity:.5;filter:saturate(.25) brightness(1.45) drop-shadow(0 0 5px rgba(130,215,255,.95))}
+.pedestalPlay.xray .pedestalCap{opacity:.85;border-color:#7ad2ff;color:#d6f1ff;background:rgba(6,20,30,.72)}
 .pedestalArt{position:absolute;inset:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
 .pedestalEmpty{font-size:10px;color:#ff9b9b;background:rgba(0,0,0,.6);border:1px solid #5a2e36;border-radius:5px;padding:1px 5px}
 .pedestalGem{position:absolute;left:50%;bottom:0;transform:translateX(-50%);font-size:${LV_CELL*0.75}px;line-height:1}
