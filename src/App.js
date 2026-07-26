@@ -1368,8 +1368,13 @@ const CONN_LABEL = {
   N1: "Top Left", N2: "Top Right", S1: "Bottom Left", S2: "Bottom Right",
   W1: "Left Upper", W2: "Left Lower", E1: "Right Upper", E2: "Right Lower",
 };
-// Emoji-object size multipliers (× a cell). Scaled up alongside the finer grid below.
-const LV_OBJ_SIZES = [1, 2, 3, 4, 6, 8, 10, 12];
+// Object size multipliers (× a cell), for emoji, shapes and props alike. The steps stay fine at
+// the small end, where most scenery lives and a single cell of difference is visible, and coarsen
+// as they grow — past ~16 cells a one-cell change isn't perceptible, so offering every value would
+// only pad the picker. The top end reaches 60 so a prop can be a piece of landscape (a cliff face,
+// a whole building) rather than a decoration; a solid one blocks the matching 60x60 cell square,
+// since fxBlocks derives its footprint straight from this number.
+export const LV_OBJ_SIZES = [1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 30, 40, 50, 60];
 // Paint brush sizes (in cells) — applies to Foreground/Background only. Objects/Markers/Climb
 // all stay single-cell: Objects/Markers place discrete items, and Climb is a toggle flag where
 // a lingering large brush size could silently flood a huge area from one click.

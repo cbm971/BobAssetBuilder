@@ -2,6 +2,7 @@ import {
   DEFAULT_PROJECTILE_RANGE,
   capAirborneSpeed,
   carveFgBlock,
+  LV_OBJ_SIZES,
   objectLayerClass,
   complementFgShape,
   shouldCarveFgBlock,
@@ -424,6 +425,29 @@ describe("whole-object flip", () => {
     expect(result.frames[1].front[0].x).toBe(20);
     expect(result.frames[1].front[0].isCutter).toBe(true);
     expect(result.angles).toBe(result.frames[0]);
+  });
+});
+
+describe("object size options", () => {
+  test("reaches five times the old 12-cell ceiling", () => {
+    expect(Math.max(...LV_OBJ_SIZES)).toBe(60);
+  });
+
+  test("every size that already existed is still offered, so saved levels keep their exact sizes", () => {
+    for (const old of [1, 2, 3, 4, 6, 8, 10, 12]) expect(LV_OBJ_SIZES).toContain(old);
+  });
+
+  test("starts at one cell and only ever grows", () => {
+    expect(LV_OBJ_SIZES[0]).toBe(1);
+    for (let i = 1; i < LV_OBJ_SIZES.length; i++) {
+      expect(LV_OBJ_SIZES[i]).toBeGreaterThan(LV_OBJ_SIZES[i - 1]);
+    }
+  });
+
+  test("every option is a whole number of cells", () => {
+    // fxBlocks walks cell indices as `c < o.c + o.size`, so a fractional size would leave the
+    // collision footprint disagreeing with the drawn art.
+    for (const n of LV_OBJ_SIZES) expect(Number.isInteger(n)).toBe(true);
   });
 });
 
