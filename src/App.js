@@ -2111,31 +2111,44 @@ export const cutterRuns = (pieces) => {
   for (const r of runs) { r.hasCutter = r.pieces.some((p) => p.isCutter); r.drawn = r.pieces.filter((p) => !p.isCutter); }
   return runs;
 };
+// A cutter is itself a layer: it may punch through ordinary pieces below it, but must never
+// affect pieces drawn later (above it). Walk the run from front to back so every visible piece
+// snapshots exactly the cutters that are above it. `noCut` removes that piece from every mask,
+// allowing something such as a stem below a leaf cutter to remain visible through the gaps.
+export const cutterLayerSegments = (pieces) => {
+  const entries = [];
+  let cuttersAbove = [];
+  for (let i = (pieces || []).length - 1; i >= 0; i--) {
+    const p = pieces[i];
+    if (p.isCutter) {
+      cuttersAbove = [{ piece: p, index: i }, ...cuttersAbove];
+      continue;
+    }
+    const cutters = p.noCut ? [] : cuttersAbove.slice();
+    entries.push({ piece: p, index: i, cutters, cutterKey: cutters.map((c) => c.index).join(",") });
+  }
+  entries.reverse();
+  const segments = [];
+  for (const entry of entries) {
+    const last = segments[segments.length - 1];
+    if (last && last.cutterKey === entry.cutterKey) last.items.push([entry.piece, entry.index]);
+    else segments.push({ cutterKey: entry.cutterKey, cutters: entry.cutters.map((c) => c.piece), items: [[entry.piece, entry.index]] });
+  }
+  return segments;
+};
 // Renders one finished (non-editable) piece list, wrapping only the runs that actually contain
 // a cutter. `drawPiece(piece, key)` supplies the renderer, `maskCss(runPieces, cacheKey)` the
 // hole. Returns a flat-ish node array for JSX to splat.
-// A piece flagged `noCut` opts OUT of the cutter: the mask lives on a container, so the only way
-// to spare a piece is to render it outside that container. Rather than pulling those pieces to
-// the front (which would wreck layering), the run is split into CONTIGUOUS segments of cut /
-// not-cut pieces — each normal segment gets its own wrapper carrying the same mask, each noCut
-// segment renders bare, and because the segments stay in order the finished stack is pixel-identical
-// to before except the spared pieces now show through the holes. That's the peek-through case: a
-// root flagged noCut sits behind leaves whose cutter holes let glimpses of it come through.
+// The run is split into contiguous segments according to which later (higher) cutters affect
+// each piece. Unmasked segments include both `noCut` pieces and pieces above every cutter. Since
+// all segments stay in original order, the finished stack preserves its exact layer ordering.
 export const renderPieceRuns = ({ pieces, cacheKey, keyPrefix, drawPiece, maskCss }) =>
   cutterRuns(pieces).map((r, gi) => {
     if (!r.hasCutter) return r.drawn.map((p, n) => drawPiece(p, keyPrefix + gi + "_" + n));
-    const segs = [];
-    r.drawn.forEach((p, n) => {
-      const skip = !!p.noCut;
-      const last = segs[segs.length - 1];
-      if (last && last.skip === skip) last.items.push([p, n]);
-      else segs.push({ skip, items: [[p, n]] });
-    });
-    if (segs.length === 1 && !segs[0].skip) return <div key={keyPrefix + "g" + gi} style={{ position: "absolute", inset: 0, ...maskCss(r.pieces, cacheKey + ":" + r.key) }}>{r.drawn.map((p, n) => drawPiece(p, keyPrefix + gi + "_" + n))}</div>;
-    const css = maskCss(r.pieces, cacheKey + ":" + r.key);
-    return segs.map((s, si) => (s.skip
+    const segs = cutterLayerSegments(r.pieces);
+    return segs.map((s, si) => (!s.cutters.length
       ? s.items.map(([p, n]) => drawPiece(p, keyPrefix + gi + "_" + n))
-      : <div key={keyPrefix + "g" + gi + "s" + si} style={{ position: "absolute", inset: 0, ...css }}>{s.items.map(([p, n]) => drawPiece(p, keyPrefix + gi + "_" + n))}</div>));
+      : <div key={keyPrefix + "g" + gi + "s" + si} style={{ position: "absolute", inset: 0, ...maskCss(s.cutters, cacheKey + ":" + r.key + ":" + si) }}>{s.items.map(([p, n]) => drawPiece(p, keyPrefix + gi + "_" + n))}</div>));
   });
 export const shapePolyPoints = (p) => (p && p.kind === "poly" && p.points) ? p.points : (p && SHAPE_POINTS[p.kind]) || (typeof p === "string" ? SHAPE_POINTS[p] : null);
 export const shapeClipPath = (pieceOrKind) => { const pts = shapePolyPoints(typeof pieceOrKind === "string" ? { kind: pieceOrKind } : pieceOrKind); return pts ? "polygon(" + pts.map(([x, y]) => (x * 100) + "% " + (y * 100) + "%").join(",") + ")" : null; };
@@ -8084,7 +8097,7 @@ export default function AssetStudio() {
               {sel.role === "weaponArm" && <p className="hint2" style={{ margin: "0 0 6px" }}>Twist swings the arm around the 🎯 shoulder; ✋ rides the far end.</p>}
               <label className="chk"><input type="checkbox" checked={!!sel.mirror} onChange={(e) => updSel({ mirror: e.target.checked })} /> Mirror this block ⟷ <span className="hint2">(pairs the other side)</span></label>
               <label className="chk"><input type="checkbox" checked={!!sel.isCutter} onChange={(e) => updSel({ isCutter: e.target.checked })} /> 🕳️ Cutter </label>
-              {!sel.isCutter && <label className="chk"><input type="checkbox" checked={!!sel.noCut} onChange={(e) => updSel({ noCut: e.target.checked })} /> 🛡️ Ignore cutters <span className="hint2">(cutter holes won't punch through this block — it shows through them instead, e.g. a root glimpsed behind leaves)</span></label>}
+              {!sel.isCutter && <label className="chk"><input type="checkbox" checked={!!sel.noCut} onChange={(e) => updSel({ noCut: e.target.checked })} /> 🛡️ Ignore cutters <span className="hint2">(if this block is below a cutter, it stays whole and shows through the hole; blocks above cutters are always unaffected)</span></label>}
               {!effEdit && showGuide && <label className="chk"><input type="checkbox" checked={!!sel.behindBody} onChange={(e) => updSel({ behindBody: e.target.checked })} /> Behind the WHOLE body <span className="hint2">(e.g. a cape)</span></label>}
               {!effEdit && asset.type === "equipment" && (asset.slot === "pants" || asset.slot === "under_bottom") && <label className="chk"><input type="checkbox" checked={!!sel.behindLegs} onChange={(e) => updSel({ behindLegs: e.target.checked })} /> Behind legs </label>}
               {asset.type === "weapon" && !sel.isHitbox && <label className="chk"><input type="checkbox" checked={!!sel.behindArm} onChange={(e) => updSel({ behindArm: e.target.checked })} /> Behind the arm <span className="hint2">(e.g. a strap/sheath)</span></label>}

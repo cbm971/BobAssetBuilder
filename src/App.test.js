@@ -1,6 +1,7 @@
 import {
   DEFAULT_PROJECTILE_RANGE,
   capAirborneSpeed,
+  cutterLayerSegments,
   enemyCrouchH,
   enemyNeedsFlip,
   enemyStandH,
@@ -51,6 +52,36 @@ describe("movement and facing regressions", () => {
     expect(enemyNeedsFlip({ type: "enemy" }, -1)).toBe(false);
     expect(enemyNeedsFlip({ type: "enemy" }, 1)).toBe(true);
     expect(enemyNeedsFlip({ type: "enemy", faceRight: true }, -1)).toBe(true);
+  });
+});
+
+describe("cutter layer ordering", () => {
+  test("cuts ordinary lower layers but not checked lower layers or layers above it", () => {
+    const pieces = [
+      { id: "back-leaf" },
+      { id: "stem", noCut: true },
+      { id: "gap", isCutter: true },
+      { id: "front-leaf" },
+    ];
+    const segments = cutterLayerSegments(pieces);
+    const cuttersFor = (id) => {
+      const segment = segments.find((s) => s.items.some(([p]) => p.id === id));
+      return segment.cutters.map((p) => p.id);
+    };
+
+    expect(cuttersFor("back-leaf")).toEqual(["gap"]);
+    expect(cuttersFor("stem")).toEqual([]);
+    expect(cuttersFor("front-leaf")).toEqual([]);
+    expect(segments.flatMap((s) => s.items.map(([p]) => p.id))).toEqual(["back-leaf", "stem", "front-leaf"]);
+  });
+
+  test("a cutter below an object cannot cut the object", () => {
+    const segments = cutterLayerSegments([
+      { id: "low-gap", isCutter: true },
+      { id: "top-leaf" },
+    ]);
+    expect(segments[0].cutters).toEqual([]);
+    expect(segments[0].items[0][0].id).toBe("top-leaf");
   });
 });
 
