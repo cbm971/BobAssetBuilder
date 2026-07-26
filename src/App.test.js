@@ -8,6 +8,8 @@ import {
   fgSlopeFills,
   fgSolid,
   mergeFgFill,
+  normalizeAssetJson,
+  playerSpriteMirrored,
   slopeSurfaceAt,
   TEXTURES,
   TEXTURE_KEYS,
@@ -706,5 +708,100 @@ describe("changing a color everywhere covers brightness/glow/fade too", () => {
     expect(restyleAsset(null, "#2E7D32", { bright: 0.6 })).toBe(null);
     const a = asset();
     expect(restyleAsset(a, "#2E7D32", null)).toBe(a);
+  });
+});
+
+describe("enemy Attack/Death poses survive a round-trip", () => {
+  const enemyJson = () => ({
+    type: "enemy", id: "eleph-1", name: "Elephant", hasArms: true,
+    angles: {
+      side: [{ id: "s1", kind: "rect", x: 0, y: 0, w: 40, h: 40, color: "#8d8578" }],
+      attack: [{ id: "a1", kind: "rect", x: 5, y: 5, w: 30, h: 30, color: "#8d8578" }],
+      death: [{ id: "d1", kind: "rect", x: 0, y: 30, w: 40, h: 10, color: "#8d8578" }],
+    },
+  });
+
+  test("the Attack pose is still there after import, so the strike frame can play", () => {
+    const out = normalizeAssetJson(enemyJson());
+    expect(out.angles.attack).toHaveLength(1);
+    expect(out.angles.attack[0].id).toBe("a1");
+  });
+
+  test("the Death pose survives too", () => {
+    expect(normalizeAssetJson(enemyJson()).angles.death).toHaveLength(1);
+  });
+
+  test("the five base angles are still always present, even when the source omits them", () => {
+    const out = normalizeAssetJson(enemyJson());
+    for (const a of ["front", "back", "side", "up", "crouch"]) expect(Array.isArray(out.angles[a])).toBe(true);
+  });
+
+  test("an enemy's own states keep their extra poses as well", () => {
+    const src = enemyJson();
+    src.states = { normal: src.angles };
+    expect(normalizeAssetJson(src).states.normal.attack).toHaveLength(1);
+  });
+
+  test("a junk pose value becomes an empty array rather than throwing", () => {
+    const src = enemyJson();
+    src.angles.attack = "not an array";
+    expect(normalizeAssetJson(src).angles.attack).toEqual([]);
+  });
+});
+
+describe("which way the player sprite faces", () => {
+  test("Bob and any dressed look face right, so they mirror when walking left", () => {
+    for (const type of ["body", "skin", "character", "equipment"]) {
+      expect(playerSpriteMirrored({ type }, -1)).toBe(true);
+      expect(playerSpriteMirrored({ type }, 1)).toBe(false);
+    }
+  });
+
+  test("no player asset at all keeps the old right-facing default", () => {
+    expect(playerSpriteMirrored(null, -1)).toBe(true);
+    expect(playerSpriteMirrored(undefined, 1)).toBe(false);
+  });
+
+  test("playing AS a raw enemy mirrors on the other facing, since its art is drawn left", () => {
+    expect(playerSpriteMirrored({ type: "enemy" }, 1)).toBe(true);
+    expect(playerSpriteMirrored({ type: "enemy" }, -1)).toBe(false);
+  });
+
+  test("an enemy whose creator ticked faceRight behaves like Bob", () => {
+    expect(playerSpriteMirrored({ type: "enemy", faceRight: true }, -1)).toBe(true);
+    expect(playerSpriteMirrored({ type: "enemy", faceRight: true }, 1)).toBe(false);
+  });
+
+  test("playing as an enemy agrees with how that same enemy is drawn when spawned", () => {
+    // The whole point: the sprite must not face one way as a spawn and the other as the player.
+    for (const ea of [{ type: "enemy" }, { type: "enemy", faceRight: true }, { type: "character" }]) {
+      for (const face of [1, -1]) expect(playerSpriteMirrored(ea, face)).toBe(enemyNeedsFlip(ea, face));
+    }
+  });
+
+  test("a missing facing is treated as facing right", () => {
+    expect(playerSpriteMirrored({ type: "enemy" }, 0)).toBe(true);
+    expect(playerSpriteMirrored({ type: "body" }, undefined)).toBe(false);
+  });
+});
+
+describe("enemy reload bar progress", () => {
+  test("fills from empty to full across the weapon's own reload time", () => {
+    const total = weaponReloadFrames(2);           // 2s -> 120 frames
+    const done = (reloadT) => Math.max(0, Math.min(1, 1 - reloadT / total));
+    expect(done(total)).toBe(0);                   // just started reloading
+    expect(done(total / 2)).toBeCloseTo(0.5);
+    expect(done(0)).toBe(1);                       // about to fire again
+  });
+
+  test("a longer reload takes proportionally longer to fill", () => {
+    expect(weaponReloadFrames(4)).toBe(2 * weaponReloadFrames(2));
+  });
+
+  test("never overshoots if the counter is stale or negative", () => {
+    const total = weaponReloadFrames(1);
+    const done = (reloadT) => Math.max(0, Math.min(1, 1 - reloadT / total));
+    expect(done(-5)).toBe(1);
+    expect(done(total * 3)).toBe(0);
   });
 });

@@ -1322,7 +1322,18 @@ const normalizePiece = (p) => {
   if (q.kind !== "emoji" && q.kind !== "text" && !q.color) q.color = SKIN;
   return q;
 };
-const normalizeAngles = (src) => { const out = blankAngles(); if (!src || typeof src !== "object") return out; for (const ang of ANGLES) out[ang] = Array.isArray(src[ang]) ? src[ang].map(normalizePiece).filter(Boolean) : []; return out; };
+// Normalising a pose set must not THROW POSES AWAY. This walked only ANGLES (front/back/side/up/
+// crouch) and rebuilt from blankAngles(), so an Enemy's `attack` and `death` art — real, editable
+// poses per editablePoses() — was silently deleted on every export/import round-trip. The enemy
+// then had no attack pose to show, so eUseAtkPose went false and it fell back to swinging an arm.
+// Any pose key the source actually has is kept now; the five base angles are still guaranteed
+// present (blankAngles) so nothing downstream has to null-check them.
+const normalizeAngles = (src) => {
+  const out = blankAngles();
+  if (!src || typeof src !== "object") return out;
+  for (const ang of new Set([...ANGLES, ...Object.keys(src)])) out[ang] = Array.isArray(src[ang]) ? src[ang].map(normalizePiece).filter(Boolean) : [];
+  return out;
+};
 export const normalizeAssetJson = (raw) => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("That isn't an asset — it should be one JSON object starting with { and ending with }.");
   if (raw.conns && raw.cols) throw new Error("That's a level, not an asset — load it in the Level Creator instead.");
@@ -2735,6 +2746,16 @@ export const splitObjectStackByPlayerLayer = (stack) => {
 // absent `faceRight` flag as false mirrored every armed character enemy away from its shot.
 export const enemyArtFacesRight = (ea) => !!(ea && (ea.type === "character" || ea.faceRight));
 export const enemyNeedsFlip = (ea, face) => ((face || 1) < 0) === enemyArtFacesRight(ea);
+// The PLAYER sprite has the opposite default: a body/skin/dressed look is drawn facing RIGHT, the
+// way Bob's Side pose is, so it mirrors when walking left. A raw Enemy asset is drawn facing LEFT
+// unless its creator ticked faceRight — so playing AS an enemy in the level tester used the wrong
+// convention and the sprite faced away from the direction it was moving. Everything that is NOT a
+// raw enemy keeps the right-facing rule exactly as before, so Bob is untouched.
+export const playerArtFacesRight = (a) => !a || a.type !== "enemy" || !!a.faceRight;
+// Single source of truth for "is the player sprite mirrored this frame". The wrapper's scaleX(-1)
+// and every piece-local x derived from it (muzzle spawn, melee hitbox) must read this same answer,
+// or shots leave from the wrong side of the body.
+export const playerSpriteMirrored = (a, face) => ((face || 1) < 0) === playerArtFacesRight(a);
 // Edge-to-edge horizontal gap between two hitboxes (0 while they overlap). Every enemy range —
 // attack range AND the seek stand-off — is measured with THIS now. Center-to-center distance
 // silently spent (pw + epw) / 2 ≈ 140px of any range budget just crossing the two bodies
@@ -4015,7 +4036,10 @@ export default function AssetStudio() {
               const renderWM = CW * PLAYER_RENDER_W_CELLS;
               const wrapLeftM = p.x - (bodyShape.centerFrac * renderWM - pw / 2);
               const lx = (mp.x / W) * renderWM;
-              spawnX = wrapLeftM + (p.face < 0 ? renderWM - lx : lx);
+              // Mirrored-ness, not raw facing: an enemy-as-player sprite mirrors on the OTHER
+              // facing (playerSpriteMirrored), and the muzzle has to follow the art or the shot
+              // leaves from behind the body.
+              spawnX = wrapLeftM + (playerSpriteMirrored(basePlayerAsset, p.face) ? renderWM - lx : lx);
               spawnY = p.y + (mp.y / H) * ph;
             }
           }
@@ -4093,7 +4117,7 @@ export default function AssetStudio() {
                 // the wrapper renders the whole character through scaleX(-1) about the render box,
                 // so a right-facing-space hitbox lands on the WRONG side without this: facing left,
                 // your swing was still hitting enemies standing on your RIGHT.
-                const hbX = wrapLeft + (p.face < 0 ? renderWNow - (lxP + hbW) : lxP), hbY = p.y + (hb.y / H) * ph;
+                const hbX = wrapLeft + (playerSpriteMirrored(basePlayerAsset, p.face) ? renderWNow - (lxP + hbW) : lxP), hbY = p.y + (hb.y / H) * ph;
                 const hbH = (hb.h / H) * ph;
                 for (const k of Object.keys(lv.enemies || {})) {
                   const spawn = lv.enemies[k];
@@ -7549,7 +7573,7 @@ export default function AssetStudio() {
                     }
                   }
                   const tProg = p.transitioning ? Math.min(1, p.transitioning.t / 30) : 0;
-                  const flip = p.face < 0 ? "scaleX(-1)" : "";
+                  const flip = playerSpriteMirrored(basePlayerAsset, p.face) ? "scaleX(-1)" : "";
                   const shrink = p.transitioning ? "scale(" + (1 - tProg * 0.6) + ")" : "";
                   // A small forward tilt while actively climbing a ramp — only when walking
                   // AND moving in the ramp's rising direction (not just standing on one, and
@@ -7714,6 +7738,18 @@ export default function AssetStudio() {
                   return (
                     <div key={"enp" + k} className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: flip, ...((ep && ep.friendly) ? { filter: "drop-shadow(0 0 2px #b46cf5) drop-shadow(0 0 5px #a855f7)" } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? "🟣 " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you)" : "") + (ducking ? " (ducking)" : "")}>
                       <div className="enemyHpTrack" style={{ left: hitboxOffset, width: epw }}><div className="enemyHpFill" style={{ width: (hpFrac * 100) + "%", background: hpFrac > 0.5 ? "#6bd06b" : hpFrac > 0.2 ? "#c8a23c" : "#b0504f" }} /></div>
+                      {/* Reload timer, directly above the HP bar: a ranged enemy caught mid-reload
+                          is the window you push in, and until now the only tell was that it had
+                          stopped shooting — you couldn't see how long you had. Fills left-to-right
+                          as the reload completes, so a full bar means it's about to fire again.
+                          Drawn inside the flipped wrapper like the HP bar, so it un-mirrors itself
+                          (see reloadCounterFlip) rather than filling backwards for a left-facing
+                          enemy. */}
+                      {ep && ep.reloading && ep.weaponAmmo && ew && (() => {
+                        const total = weaponReloadFrames(ew.reloadTime);
+                        const done = Math.max(0, Math.min(1, 1 - ep.weaponAmmo.reloadT / total));
+                        return <div className="enemyReloadTrack" style={{ left: hitboxOffset, width: epw, transform: flip === "scaleX(-1)" ? "scaleX(-1)" : undefined }}><div className="enemyReloadFill" style={{ width: (done * 100) + "%" }} /></div>;
+                      })()}
                       {ep && ep.stun > 0 && <div className="enemyStun" style={{ left: hitboxOffset, width: epw }}>💫</div>}
                       {renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
                     </div>
@@ -9125,6 +9161,11 @@ const css = `
 .enemyStun{position:absolute;top:-30px;text-align:center;font-size:16px;line-height:1;z-index:7;pointer-events:none;animation:stunbob .6s ease-in-out infinite}
 @keyframes stunbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 .enemyHpFill{height:100%;transition:width .15s ease}
+/* Reload timer, sitting just above the HP bar (which is at -10px, 5px tall). Deliberately thinner
+   and a different colour from HP so a glance can't confuse "nearly dead" with "nearly loaded". No
+   width transition: it tracks a frame counter, and easing would lag the real reload. */
+.enemyReloadTrack{position:absolute;top:-17px;height:4px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:6}
+.enemyReloadFill{height:100%;background:linear-gradient(90deg,#4a86c8,#7ab6f0)}
 .playerHpTrack{position:absolute;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:6}
 .playerHpFill{height:100%;transition:width .15s ease}
 .rampGhost{position:absolute;width:${LV_CELL}px;height:${LV_CELL}px;pointer-events:none;z-index:4;opacity:.5}
