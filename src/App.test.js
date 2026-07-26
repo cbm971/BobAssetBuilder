@@ -9,6 +9,8 @@ import {
   fgSolid,
   armHoldsAimPose,
   copyAngleTargets,
+  reloadIntelligenceMultiplier,
+  startReload,
   displayPoseKey,
   editablePoses,
   groupWeaponBlocksByArm,
@@ -949,5 +951,109 @@ describe("copying a pose onto poses you pick", () => {
 
   test("picking every other pose matches copying to all", () => {
     expect(copyAngleTargets(enemy, "attack", enemy)).toEqual(copyAngleTargets(enemy, "attack", []));
+  });
+});
+
+describe("projectiles fly until they land, so height adds range", () => {
+  const shot = (startY, groundY) => ({ startX: 0, startY, groundY, vx: 10, vy: 0, rangePx: 600 });
+
+  test("the configured range still brings a level shot down to the firing ground exactly", () => {
+    const pr = shot(100, 220);
+    expect(projectilePositionAtDistance(pr, 600).y).toBe(220);
+    expect(projectilePositionAtDistance(pr, 300).y).toBe(100); // first half stays flat
+  });
+
+  test("past its range the shot keeps travelling instead of being clamped", () => {
+    const pr = shot(100, 220);
+    const atRange = projectilePositionAtDistance(pr, 600);
+    const beyond = projectilePositionAtDistance(pr, 900);
+    expect(beyond.x).toBeGreaterThan(atRange.x);   // used to stop dead at rangePx
+    expect(beyond.y).toBeGreaterThan(atRange.y);   // and keeps falling
+  });
+
+  test("drop keeps accelerating on the same curve, with no ceiling", () => {
+    expect(projectileDropAtDistance(100, 220, 600, 600)).toBe(120);   // t=1
+    expect(projectileDropAtDistance(100, 220, 900, 600)).toBe(480);   // t=2 -> 4x
+    expect(projectileDropAtDistance(100, 220, 1200, 600)).toBe(1080); // t=3 -> 9x
+  });
+
+  test("firing from higher up covers more ground before reaching the same depth", () => {
+    // Same weapon, same range, fired from a cliff (startY 100) vs at ground level (startY 400),
+    // both measured to where the shot passes y=520. The high shot travels farther.
+    const depth = 520;
+    const distanceToDepth = (startY, groundY) => {
+      const pr = shot(startY, groundY);
+      for (let d = 1; d < 20000; d += 5) if (projectilePositionAtDistance(pr, d).y >= depth) return d;
+      return Infinity;
+    };
+    expect(distanceToDepth(100, 220)).toBeGreaterThan(distanceToDepth(400, 520));
+  });
+
+  test("a shot with nowhere to fall still behaves — flat ground, no drop at all", () => {
+    const pr = shot(200, 200);
+    expect(projectilePositionAtDistance(pr, 5000).y).toBe(200);
+  });
+});
+
+describe("Intelligence scales reload speed", () => {
+  test("5 is neutral", () => {
+    expect(reloadIntelligenceMultiplier(5)).toBe(1);
+    expect(weaponReloadFrames(2, 5)).toBe(weaponReloadFrames(2));
+  });
+
+  test("the low end is a full 25% slower, the high end 25% faster", () => {
+    expect(reloadIntelligenceMultiplier(1)).toBeCloseTo(1.25);
+    expect(reloadIntelligenceMultiplier(10)).toBeCloseTo(0.75);
+  });
+
+  test("it moves smoothly and in the right direction either side of 5", () => {
+    for (let i = 1; i < 10; i++) expect(reloadIntelligenceMultiplier(i)).toBeGreaterThan(reloadIntelligenceMultiplier(i + 1));
+    expect(reloadIntelligenceMultiplier(3)).toBeCloseTo(1.125);
+    expect(reloadIntelligenceMultiplier(7)).toBeCloseTo(0.9);
+  });
+
+  test("out-of-range or missing Intelligence is clamped, never inverted", () => {
+    expect(reloadIntelligenceMultiplier(-99)).toBeCloseTo(1.25);
+    expect(reloadIntelligenceMultiplier(99)).toBeCloseTo(0.75);
+    expect(reloadIntelligenceMultiplier(undefined)).toBe(1);
+    expect(reloadIntelligenceMultiplier(null)).toBe(1);
+  });
+
+  test("it reaches actual reload frames, and a genius still takes at least one frame", () => {
+    expect(weaponReloadFrames(2, 10)).toBe(90);   // 120 frames * 0.75
+    expect(weaponReloadFrames(2, 1)).toBe(150);   // 120 frames * 1.25
+    expect(weaponReloadFrames(0, 10)).toBe(1);
+  });
+
+  test("a reload records its own total so the on-screen bar can't disagree with the timer", () => {
+    const w = startReload({ clip: 1, ammo: 0, cd: 0, reloadT: 0 }, weaponReloadFrames(2, 10));
+    expect(w.reloadT).toBe(90);
+    expect(w.reloadTotal).toBe(90);
+  });
+});
+
+describe("ignore-armor shots", () => {
+  const hit = (ignore) => incomingPlayerDamage(20, 30, 1, 0, 100, null, null, false, ignore);
+
+  test("armour normally soaks a big chunk of the hit", () => {
+    expect(hit(false)).toBeLessThan(20);
+  });
+
+  test("an ignore-armor shot lands its full damage regardless of Defense", () => {
+    expect(hit(true)).toBe(20);
+    expect(incomingPlayerDamage(20, 999, 1, 0, 100, null, null, false, true)).toBe(20);
+  });
+
+  test("omitting the flag keeps every existing caller's behaviour", () => {
+    expect(incomingPlayerDamage(20, 30, 1, 0, 100, null, null, false)).toBe(hit(false));
+  });
+
+  test("Back Guard and Crouch Guard still apply — piercing armour isn't piercing everything", () => {
+    const guarded = incomingPlayerDamage(20, 30, 1, 0, 100, 0.5, null, false, true);
+    expect(guarded).toBeLessThan(20);
+  });
+
+  test("damage never drops below the one-point floor", () => {
+    expect(incomingPlayerDamage(1, 999, 1, 0, 100, null, null, false, false)).toBe(1);
   });
 });

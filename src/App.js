@@ -385,12 +385,28 @@ export const DEFAULT_CLIP_SIZE = 6;    // rounds before a reload
 export const DEFAULT_RELOAD_TIME = 1.2; // seconds
 // Frames are the loop's native unit (dtMul makes them real-time), so both convert at 60fps.
 export const weaponFireCooldownFrames = (fireRate) => Math.max(1, Math.round(60 / Math.max(0.1, fireRate || DEFAULT_FIRE_RATE)));
-export const weaponReloadFrames = (reloadTime) => Math.max(1, Math.round((reloadTime ?? DEFAULT_RELOAD_TIME) * 60));
-export const newWeaponAmmo = (clipSize) => { const clip = Math.max(0, clipSize || 0); return { clip, ammo: clip, cd: 0, reloadT: 0 }; };
+// Intelligence scales how fast a magazine goes back in: 5 is neutral, and each direction reaches
+// 25% at the end of the stat's range — Int 1 reloads 25% SLOWER, Int 10 25% faster. The two sides
+// use their own slope because the stat isn't symmetric about 5 (1..5 is four points, 5..10 is
+// five), so both ends land on exactly 25% instead of one side overshooting.
+export const RELOAD_INT_SWING = 0.25;
+export const reloadIntelligenceMultiplier = (intelligence) => {
+  const i = Math.max(1, Math.min(10, intelligence ?? 5));
+  if (i < 5) return 1 + RELOAD_INT_SWING * ((5 - i) / 4);
+  if (i > 5) return 1 - RELOAD_INT_SWING * ((i - 5) / 5);
+  return 1;
+};
+// `intelligence` is optional so every existing caller keeps the unscaled timing; pass it to get
+// the stat applied. Still floored at one frame so a genius can never reload instantaneously.
+export const weaponReloadFrames = (reloadTime, intelligence) =>
+  Math.max(1, Math.round((reloadTime ?? DEFAULT_RELOAD_TIME) * 60 * reloadIntelligenceMultiplier(intelligence)));
+export const newWeaponAmmo = (clipSize) => { const clip = Math.max(0, clipSize || 0); return { clip, ammo: clip, cd: 0, reloadT: 0, reloadTotal: 0 }; };
 export const canFireNow = (w) => !!w && w.reloadT <= 0 && w.cd <= 0 && (w.clip <= 0 || w.ammo > 0);
 export const consumeShot = (w, cdFrames) => ({ ...w, ammo: w.clip > 0 ? w.ammo - 1 : w.ammo, cd: cdFrames });
 export const needsReload = (w) => !!w && w.clip > 0 && w.ammo <= 0 && w.reloadT <= 0;
-export const startReload = (w, reloadFrames) => (!w || w.reloadT > 0 || w.clip <= 0 || w.ammo >= w.clip) ? w : { ...w, reloadT: reloadFrames };
+// reloadTotal remembers how long THIS reload is, so the progress bars read the real figure —
+// Intelligence-scaled, buffs included — instead of recomputing it and quietly disagreeing.
+export const startReload = (w, reloadFrames) => (!w || w.reloadT > 0 || w.clip <= 0 || w.ammo >= w.clip) ? w : { ...w, reloadT: reloadFrames, reloadTotal: reloadFrames };
 export const advanceWeapon = (w, dt) => {
   if (!w) return w;
   const cd = Math.max(0, w.cd - dt);
@@ -684,15 +700,21 @@ export const HANG_SWAY_PX = 5;
 // configured block count stable when projectile speed changes. The first half has no added drop;
 // the second half eases down quadratically so a neutral shot reaches the shooter's firing-time
 // ground line exactly at maximum range.
+// `rangePx` is no longer a wall the shot vanishes at — it's the distance at which the shot has
+// descended to the shooter's firing-time ground line. Past that the SAME quadratic simply keeps
+// going (t is no longer clamped at 1), so the projectile carries on falling while its horizontal
+// speed is unchanged, and only ground, a target, or the level edge stops it. That's what makes
+// height pay: fired off a cliff, the configured range brings it level with where you were standing
+// and then it keeps flying and dropping all the way to whatever is actually below.
 export const projectileDropAtDistance = (startY, groundY, distance, rangePx) => {
   const safeRange = Math.max(1, rangePx || 1), half = safeRange / 2;
   if (distance <= half) return 0;
-  const t = Math.min(1, (distance - half) / half);
+  const t = (distance - half) / half;
   return (groundY - startY) * t * t;
 };
 export const projectilePositionAtDistance = (pr, distance) => {
   const speed = Math.max(0.0001, Math.hypot(pr.vx || 0, pr.vy || 0));
-  const d = Math.max(0, Math.min(distance, pr.rangePx));
+  const d = Math.max(0, distance);
   const time = d / speed;
   return {
     x: pr.startX + pr.vx * time,
@@ -878,8 +900,11 @@ export const applyCrouchGuard = (damage, crouching, reduce) => crouching ? damag
 // worn — skip the check entirely". Keeps every hit site (melee, projectile, explosion) from
 // re-deriving the order. Both guards can apply to the same blow: crouching behind cover with a
 // cape on and taking one in the back stacks them, which is exactly what wearing both should buy.
-export const incomingPlayerDamage = (raw, def, face, attackerX, wearerX, backGuardReduce, crouchGuardReduce, crouching) => {
-  let d = applyDefense(raw, def);
+// `ignoreArmor` skips the Defense step only. Back Guard and Crouch Guard are timing/positioning
+// abilities rather than armour, so they still apply — an armour-piercing shot rewards being caught
+// out of position, it does not make guarding pointless.
+export const incomingPlayerDamage = (raw, def, face, attackerX, wearerX, backGuardReduce, crouchGuardReduce, crouching, ignoreArmor) => {
+  let d = ignoreArmor ? raw : applyDefense(raw, def);
   if (backGuardReduce != null) d = applyBackGuard(d, isHitFromBehind(face, attackerX, wearerX), backGuardReduce);
   if (crouchGuardReduce != null) d = applyCrouchGuard(d, !!crouching, crouchGuardReduce);
   return Math.max(1, Math.round(d));
@@ -1326,7 +1351,7 @@ export function newAsset(type, slot, wtype) {
   const a = { id: uid(), name: slot ? SLOTS[slot].label : (TYPES[type] ? TYPES[type].label : type), type, angles: blankAngles(), guideId: "default" };
   if (type === "body") { a.angles = JSON.parse(JSON.stringify(DEFAULT_BODY)); return withRig(a); }
   if (type === "skin") { a.stats = DEFAULT_STATS(); a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; }
-  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.stun = 0; a.categories = ["", "", ""]; }
+  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.stun = 0; a.categories = ["", "", ""]; }
   if (type === "enemy") { a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = 10; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; return withRig(a); }
   if (type === "equipment") { a.slot = slot; a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; a.statBoosts = DEFAULT_STAT_BOOSTS(); a.defense = 0; a.effects = []; a.categories = ["", "", ""]; }
   if (type === "projectile") { a.size = 1; }
@@ -3224,7 +3249,6 @@ export default function AssetStudio() {
     // record (clip 0), so nothing below ever gates a swing on ammo.
     const wpnIsRanged = !!(playtestWeapon && isRanged(playtestWeapon.wtype));
     const fireCdFrames = weaponFireCooldownFrames(playtestWeapon?.fireRate);
-    const reloadFrames = weaponReloadFrames(playtestWeapon?.reloadTime);
     wpn.current = newWeaponAmmo(wpnIsRanged ? effectiveMagazineSize(playtestWeapon.clipSize, playerAsset?.effects) : 0);
     // Throwable the player is carrying this session (chosen separately from the held weapon), plus
     // the count they start with. Single-use: each throw decrements throwCarry; at 0, G does nothing.
@@ -3305,6 +3329,10 @@ export default function AssetStudio() {
         strength: (playerAsset?.stats?.strength ?? 5) + (buffSum.strength || 0),
         intelligence: (playerAsset?.stats?.intelligence ?? 5) + (buffSum.intelligence || 0),
       };
+      // Reload speed rides Intelligence (reloadIntelligenceMultiplier), so it is resolved HERE off
+      // live pstats rather than once at loop setup — a worn or picked-up Int boost then affects the
+      // very next reload instead of only the next playtest.
+      const reloadFrames = weaponReloadFrames(playtestWeapon?.reloadTime, pstats.intelligence);
 
       // Door transition: controls frozen, character's back to camera, then the level swaps.
       if (p.transitioning) {
@@ -3761,7 +3789,7 @@ export default function AssetStudio() {
           if (rangedEnemy) {
             const enemyClip = effectiveMagazineSize(ew.clipSize, ea.effects);
             if (!ep.weaponAmmo || ep.weaponAmmo.clip !== enemyClip) ep.weaponAmmo = newWeaponAmmo(enemyClip);
-            ep.weaponAmmo = advanceAutoReloadWeapon(ep.weaponAmmo, dtMul, weaponReloadFrames(ew.reloadTime));
+            ep.weaponAmmo = advanceAutoReloadWeapon(ep.weaponAmmo, dtMul, weaponReloadFrames(ew.reloadTime, eIntel));
             ep.reloading = ep.weaponAmmo.reloadT > 0;
             if (ep.reloading) { ep.aimHold = 0; ep.swingT = 0; }
           } else {
@@ -4031,6 +4059,7 @@ export default function AssetStudio() {
                     pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece,
                     rot: shotAng * 180 / Math.PI, size: sizeUnits,
                     damage: enemyAttackDamage(ea, ew), life: 0, foe: hostile,
+                    ignoreArmor: !!ew.ignoreArmor,
                     explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
                   });
                   ep.weaponAmmo = consumeShot(ep.weaponAmmo, weaponFireCooldownFrames(ew.fireRate));
@@ -4123,6 +4152,7 @@ export default function AssetStudio() {
             char: playtestWeapon.projectile?.char || "🔥", tint: playtestWeapon.projectile?.tint || null,
             pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
             size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
+            ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor,
             explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
           });
           wpn.current = consumeShot(wpn.current, fireCdFrames); // spends a round (unless clip 0 = unlimited) and starts the fire-rate cooldown
@@ -4353,9 +4383,12 @@ export default function AssetStudio() {
           // from the firing snapshot, then add only the second-half quadratic drop.
           pr.rangePx = Math.max(CW, pr.rangePx || DEFAULT_PROJECTILE_RANGE * CW);
           if (pr.startX === undefined) { pr.startX = pr.x; pr.startY = pr.y; pr.groundY = pr.y; }
-          pr.traveled = Math.min(pr.rangePx, (pr.traveled || 0) + Math.hypot(pr.vx || 0, pr.vy || 0) * dtMul);
+          pr.traveled = (pr.traveled || 0) + Math.hypot(pr.vx || 0, pr.vy || 0) * dtMul;
           const rangedPos = projectilePositionAtDistance(pr, pr.traveled);
           pr.x = rangedPos.x; pr.y = rangedPos.y;
+          // Past its configured range the shot is still airborne, just falling — "spent" now only
+          // means it has passed the range mark, used to decide whether an out-of-bounds exit should
+          // still detonate. It is NOT a despawn condition any more.
           const rangeReached = pr.traveled >= pr.rangePx;
           if (pr.life > 3600) return false; // safety only: protects against a malformed zero-speed shot
           if (pr.x < 0 || pr.x > lv.cols * CW || pr.y < 0 || pr.y > lv.rows * CH) { if (rangeReached && pr.explode) detonate(pr, pr.x, pr.y); return false; }
@@ -4380,7 +4413,7 @@ export default function AssetStudio() {
                 // relative to the way you're facing — a bullet catching you in the back is one
                 // moving the same way you face while coming from behind you. Using the shot's own
                 // x as the attacker position captures exactly that.
-                const dmg = incomingPlayerDamage(pr.damage ?? 5, playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch);
+                const dmg = incomingPlayerDamage(pr.damage ?? 5, playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, pr.ignoreArmor);
                 playerHP.current = Math.max(0, playerHP.current - dmg);
                 p.invuln = PLAYER_INVULN_FRAMES;
                 if (playerHP.current <= 0) { flash("💀 Shot down — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; playerHP.current = maxPlayerHP(playerAsset); }
@@ -4458,8 +4491,9 @@ export default function AssetStudio() {
             }
           }
           }
+          // Ground (or any solid) is what ends a shot now — not the range mark. A shot fired from
+          // high up keeps travelling until it actually lands, which is the whole point.
           if (cellsHit(pr.x, pr.y, 2, 2).length) { if (pr.explode) detonate(pr, pr.x, pr.y); return false; }
-          if (rangeReached) { if (pr.explode) detonate(pr, boxCx, boxCy); return false; }
           return true;
         });
       }
@@ -6037,7 +6071,7 @@ export default function AssetStudio() {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; } if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; } if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
@@ -7324,7 +7358,7 @@ export default function AssetStudio() {
               // (setPframe), so this stays in step with the actual ammo without its own state.
               const w = wpn.current || newWeaponAmmo(0);
               if (w.reloadT > 0) {
-                const total = weaponReloadFrames(playtestWeapon.reloadTime);
+                const total = w.reloadTotal || weaponReloadFrames(playtestWeapon.reloadTime);
                 return <p className="statusline ammoline reloading">🔄 Reloading… <span className="reloadbar"><span className="reloadfill" style={{ width: (Math.max(0, 1 - w.reloadT / total) * 100) + "%" }} /></span></p>;
               }
               if (w.clip <= 0) return <p className="statusline ammoline">🔫 {playtestWeapon.name} · ∞ ammo</p>;
@@ -7847,7 +7881,7 @@ export default function AssetStudio() {
                           (see reloadCounterFlip) rather than filling backwards for a left-facing
                           enemy. */}
                       {ep && ep.reloading && ep.weaponAmmo && ew && (() => {
-                        const total = weaponReloadFrames(ew.reloadTime);
+                        const total = ep.weaponAmmo.reloadTotal || weaponReloadFrames(ew.reloadTime, ea.stats?.intelligence ?? 5);
                         const done = Math.max(0, Math.min(1, 1 - ep.weaponAmmo.reloadT / total));
                         return <div className="enemyReloadTrack" style={{ left: hitboxOffset, width: epw, transform: flip === "scaleX(-1)" ? "scaleX(-1)" : undefined }}><div className="enemyReloadFill" style={{ width: (done * 100) + "%" }} /></div>;
                       })()}
@@ -8400,6 +8434,7 @@ export default function AssetStudio() {
             <label className="slider">Fire rate<input type="range" min="0.5" max="15" step="0.5" value={asset.fireRate ?? DEFAULT_FIRE_RATE} onChange={(e) => setAsset((a) => ({ ...a, fireRate: +e.target.value }))} /><span className="hint2">{asset.fireRate ?? DEFAULT_FIRE_RATE}/sec</span></label>
             <label className="slider">Clip size<input type="number" min="0" value={asset.clipSize ?? DEFAULT_CLIP_SIZE} onChange={(e) => setAsset((a) => ({ ...a, clipSize: Math.max(0, +e.target.value || 0) }))} style={{ width: 60 }} /><span className="hint2">0 = unlimited, never reloads</span></label>
             <label className="slider">Reload<input type="range" min="0.2" max="5" step="0.1" value={asset.reloadTime ?? DEFAULT_RELOAD_TIME} onChange={(e) => setAsset((a) => ({ ...a, reloadTime: +e.target.value }))} /><span className="hint2">{asset.reloadTime ?? DEFAULT_RELOAD_TIME}s</span></label>
+            <label className="chk"><input type="checkbox" checked={!!asset.ignoreArmor} onChange={(e) => setAsset((a) => ({ ...a, ignoreArmor: e.target.checked }))} /> 🗡️ Ignore armor <span className="hint2">(its shots bypass the target’s Defense entirely — full damage no matter what armour is worn. Back Guard and Crouch Guard still apply.)</span></label>
             <label className="chk"><input type="checkbox" checked={!!asset.resurrect} onChange={(e) => setAsset((a) => ({ ...a, resurrect: e.target.checked }))} /> 🔮 Resurrect staff <span className="hint2">(its shot deals no damage — instead it raises a defeated body into a friendly NPC that fights for you. One body can only be raised once.)</span></label>
             {!asset.resurrect && (
               <div className="explodecard">
