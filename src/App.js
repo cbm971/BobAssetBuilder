@@ -1921,10 +1921,34 @@ const computeFillRegion = (lv, layerName, r0, c0) => {
 // A lone 45° ramp is just run:1, step:0 — old saves without run/step default to that via
 // fgRun()/fgStep() below, so they keep rendering and colliding exactly as before.
 const fgHasDiagonalShape = (cell) => !!(cell && typeof cell === "object" && (cell.slope === 1 || cell.slope === -1));
+// A Foreground cell can hold MORE THAN ONE FILL, because two materials genuinely have to coexist
+// in one cell for terrain to read as continuous: a gravel ramp crossing grass blocks, or an
+// ascending grass ramp meeting a descending gravel one to make a peak. A cell used to be a single
+// value with a single shape, so the second paint had nowhere to go — it either wiped the first out
+// or (worse) kept the first's material in the shape of the second and dropped the new paint
+// entirely, which is what turned a grass block under a gravel ramp into a lone grass splinter.
+//
+// So a cell object may carry `more`: extra fills sitting UNDER the primary one, each with its own
+// colour / texture / outline / shape. The primary fill stays exactly where it has always been on
+// the cell object and `more` is simply absent on a single-material cell, so every existing reader
+// and every already-saved level keeps working untouched.
+//
+// A "fill" is the same vocabulary as a cell minus the nesting: { c, tex, ol, slope, run, step,
+// upsideDown }. fgFills() hands them back newest-first (primary, then progressively older) — the
+// render walks that list backwards so the newest paint lands on top.
+const fgFillOf = (cell) => { if (cell === null || cell === undefined) return null; if (typeof cell !== "object") return { c: cell }; const { more, ...fill } = cell; return fill; };
+export const fgFills = (cell) => { const f = fgFillOf(cell); if (!f) return []; const more = (typeof cell === "object" && Array.isArray(cell.more)) ? cell.more : []; return [f, ...more]; };
 // Upside-down ramps (cell.upsideDown) are visual only — a cliff-underside/overhang look, not a
 // walkable surface — so they're excluded here (collides as a plain solid block) even though
-// fgHasDiagonalShape still renders their diagonal clip-path.
+// fgHasDiagonalShape still renders their diagonal clip-path. Works on a fill and on a whole cell
+// alike, since a fill is just a cell without `more`.
 export const fgIsSlope = (cell) => fgHasDiagonalShape(cell) && !cell.upsideDown;
+// Collision on a multi-fill cell is the UNION of what was painted there. It BLOCKS if any fill
+// occupies the whole cell (a plain block, or an upside-down wedge — those have always collided
+// solid), and the walkable surfaces are every slope fill, so an up-ramp meeting a down-ramp
+// collides as the peak the two of them draw instead of only the last one painted.
+export const fgSlopeFills = (cell) => fgFills(cell).filter(fgIsSlope);
+export const fgSolid = (cell) => fgFills(cell).some((f) => !fgIsSlope(f));
 const fgColor = (cell) => (cell && typeof cell === "object") ? cell.c : cell;
 const fgRun = (cell) => (fgHasDiagonalShape(cell) && cell.run > 0) ? cell.run : 1;
 const fgStep = (cell) => (fgHasDiagonalShape(cell) && cell.step >= 0) ? cell.step : 0;
@@ -1943,12 +1967,14 @@ export const slopeSurfaceAt = (lv, xPixel, r0, r1, CW, CH) => {
   let best = null;
   for (let r = r0; r <= r1; r++) {
     if (r < 0 || r >= lv.rows) continue;
-    const cell = lv.fg[cellKey(r, c)];
-    if (!fgIsSlope(cell)) continue;
-    const localFrac = Math.min(1, Math.max(0, (xPixel - c * CW) / CW));
-    const overallFrac = fgDistFromLow(cell, localFrac) / fgRun(cell); // 0 at the ramp's low end, 1 at its high end
-    const y = (r + 1) * CH - overallFrac * CH;
-    if (best === null || y < best.y) best = { y, dir: cell.slope };
+    // Every slope fill in the cell is a real surface — a cell holding both an up-ramp and a
+    // down-ramp offers two, and the highest wins just as it does across rows.
+    for (const cell of fgSlopeFills(lv.fg[cellKey(r, c)])) {
+      const localFrac = Math.min(1, Math.max(0, (xPixel - c * CW) / CW));
+      const overallFrac = fgDistFromLow(cell, localFrac) / fgRun(cell); // 0 at the ramp's low end, 1 at its high end
+      const y = (r + 1) * CH - overallFrac * CH;
+      if (best === null || y < best.y) best = { y, dir: cell.slope };
+    }
   }
   return best;
 };
@@ -1980,21 +2006,23 @@ export const slopeSurfaceForPlayer = (lv, xPixel, headY, feetBottom, vy, dx, dtM
   let best = null;
   for (let r = sR0; r <= sR1; r++) {
     if (r < 0 || r >= lv.rows) continue;
-    const cell = lv.fg[cellKey(r, c)];
-    if (!fgIsSlope(cell)) continue;
-    const localFrac = Math.min(1, Math.max(0, (xPixel - c * CW) / CW));
-    const overallFrac = fgDistFromLow(cell, localFrac) / fgRun(cell);
-    const surfaceY = (r + 1) * CH - overallFrac * CH;
-    const gap = surfaceY - feetBottom; // >0 surface below feet, <0 surface above feet
+    // Same as slopeSurfaceAt: a cell can hold more than one ramp (an up meeting a down), and each
+    // one is a surface the feet could legitimately land on this frame.
     if (vy < 0) continue;
-    // Above-feet window: the classic 31px catches burial after modest steps; the sweep term
-    // additionally accepts any surface the feet CROSSED during this frame's motion (fast-fall
-    // straddle at big dt). It never exceeds the actual swept distance, so a player standing or
-    // falling in the corridor UNDER a ramp — whose feet were already below the surface before
-    // this frame — can never be snapped up through it.
-    const canSnap = gap <= 0 ? gap >= -Math.max(CH + 1, sweep + 2) : gap <= downReach;
-    if (!canSnap) continue;
-    if (best === null || Math.abs(gap) < Math.abs(best.gap)) best = { y: surfaceY, dir: cell.slope, gap };
+    for (const cell of fgSlopeFills(lv.fg[cellKey(r, c)])) {
+      const localFrac = Math.min(1, Math.max(0, (xPixel - c * CW) / CW));
+      const overallFrac = fgDistFromLow(cell, localFrac) / fgRun(cell);
+      const surfaceY = (r + 1) * CH - overallFrac * CH;
+      const gap = surfaceY - feetBottom; // >0 surface below feet, <0 surface above feet
+      // Above-feet window: the classic 31px catches burial after modest steps; the sweep term
+      // additionally accepts any surface the feet CROSSED during this frame's motion (fast-fall
+      // straddle at big dt). It never exceeds the actual swept distance, so a player standing or
+      // falling in the corridor UNDER a ramp — whose feet were already below the surface before
+      // this frame — can never be snapped up through it.
+      const canSnap = gap <= 0 ? gap >= -Math.max(CH + 1, sweep + 2) : gap <= downReach;
+      if (!canSnap) continue;
+      if (best === null || Math.abs(gap) < Math.abs(best.gap)) best = { y: surfaceY, dir: cell.slope, gap };
+    }
   }
   return best;
 };
@@ -2012,36 +2040,31 @@ const fgClipPath = (cell) => {
 // A comparable shape signature for a Foreground cell — used by flood-fill/move to tell "same
 // shape" apart (plain block vs. an up-ramp vs. a down-ramp vs. either's upside-down/visual twin).
 const fgShapeSig = (cell) => !fgHasDiagonalShape(cell) ? "block" : (cell.slope > 0 ? "up" : "down") + (cell.upsideDown ? "_ud" : "");
-// The COMPLEMENT of a ramp shape within its cell: the SAME diagonal edge, with the other side of
-// it filled. A normal ramp fills below its diagonal; the upside-down variant fills above it. Flip
-// both the direction and the upside-down flag and the two shapes share an edge exactly — check
-// fgClipPath: a normal {slope:d} runs from 100-frac to the bottom, and {slope:-d, upsideDown}
-// runs from the top down to frac, and for any run/step those meet on the same line. So the two
-// are precisely the halves a cell splits into along the diagonal you drew. Involutive: taking the
-// complement twice gives the original shape back.
-export const complementFgShape = (shape) => {
-  if (!shape || (shape.slope !== 1 && shape.slope !== -1)) return shape;
-  const out = { ...shape, slope: -shape.slope };
-  if (shape.upsideDown) delete out.upsideDown; else out.upsideDown = true;
-  return out;
+// What painting `val` onto a cell that already holds something produces. A RAMP never destroys
+// what was already there — it stacks on top of it, so the old material keeps filling its own
+// shape and the new ramp draws its diagonal in the newly-selected one. That is what makes all
+// three of these work, none of which a single-value cell could express:
+//
+//   grass blocks, then a gravel ramp across them  -> gravel diagonal over intact grass
+//   gravel ramp, then the opposing grass ramp     -> a two-material peak, both ramps walkable
+//   either order, any number of times             -> same result, because order only decides
+//                                                    which one draws on top
+//
+// Two rules keep the stack from turning into junk. Repainting a shape that is ALREADY in the cell
+// replaces that fill instead of stacking a second copy of it — so painting the same ramp twice is
+// the escape hatch for "no, I just want a plain ramp in the selected colour here". And a plain
+// BLOCK fills the whole cell, so nothing could show underneath it: painting one is a clean reset
+// rather than a merge, which is the escape hatch for "clear all of this out". Between them the
+// stack is bounded by the five distinct shapes a cell has (block, up, down, and each ramp's
+// upside-down twin), with no arbitrary cap needed.
+export const mergeFgFill = (cell, val) => {
+  if (cell === null || cell === undefined) return val;           // empty cell — nothing to merge with
+  const fill = fgFillOf(val);
+  if (!fgHasDiagonalShape(fill)) return val;                     // a solid block hides everything under it
+  const sig = fgShapeSig(fill);
+  const under = fgFills(cell).filter((f) => fgShapeSig(f) !== sig);
+  return under.length ? { ...fill, more: under } : val;          // `val` unchanged keeps a plain colour string plain
 };
-// Painting a ramp over a cell that is ALREADY a plain solid block carves that block along the
-// ramp's diagonal instead of wiping it out. The block keeps everything about its own paint —
-// colour, texture, outline — and what survives is the material on the far side of the cut. That
-// is what makes the underside of a ramp: previously the block was deleted and replaced by a
-// triangle of freshly-selected paint, leaving an empty wedge where the block used to be.
-export const carveFgBlock = (cell, shape) => {
-  const kept = (cell && typeof cell === "object") ? { ...cell } : { c: cell };
-  delete kept.slope; delete kept.run; delete kept.step; delete kept.upsideDown; // the shape comes from the cut, never from the old cell
-  return { ...kept, ...complementFgShape(shape) };
-};
-// Carve only a cell that is genuinely a plain solid block: an empty cell has nothing to cut (place
-// the ramp normally), and one that is already a ramp is being re-shaped rather than carved — which
-// also means painting the same spot twice replaces it outright, the escape hatch for "actually I
-// just want a plain ramp in the selected colour here". An explicit 🙃 Upside down is a literal
-// instruction about which half to keep, so it is never second-guessed either.
-export const shouldCarveFgBlock = (cell, explicitUpsideDown) =>
-  cell !== undefined && cell !== null && !fgHasDiagonalShape(cell) && !explicitUpsideDown;
 
 /* ============================== TEXTURES ==================================
    A painted cell has always been either a plain color string, or an object carrying a ramp
@@ -2255,7 +2278,10 @@ export const cellTexId = (cell) => (cell && typeof cell === "object" && cell.tex
 export const resolveTexture = (texLib, id) => (id && (texLib || []).find((t) => t.id === id)) || null;
 // What flood-fill / move / "is this the same paint?" compare on: the base color, the ramp shape,
 // and the texture. Two cells that differ ONLY in texture are correctly seen as different paint.
-export const cellSig = (cell) => (cell === undefined || cell === null) ? "" : fgColor(cell) + "|" + fgShapeSig(cell) + "|" + (cellTexId(cell) || "");
+// Every fill counts, so a cell with a gravel ramp stacked over grass is not "the same paint" as a
+// bare gravel ramp — otherwise flood-fill would bleed straight through a merged cell.
+export const cellSig = (cell) => (cell === undefined || cell === null) ? ""
+  : fgFills(cell).map((f) => fgColor(f) + "|" + fgShapeSig(f) + "|" + (cellTexId(f) || "")).join("&");
 // The CSS a painted cell renders with. Tiles are anchored to the cell's WORLD position, so a
 // brick pattern runs continuously across every cell of a wall rather than restarting each cell.
 export const cellPaintStyle = (cell, r, c, texLib) => {
@@ -2737,7 +2763,7 @@ export const isHillFormationCell = (lv, r, c) => {
   for (let cc = Math.max(0, c - HILL_NEAR); cc <= Math.min(lv.cols - 1, c + HILL_NEAR); cc++)
     for (let rr = r; rr >= 0; rr--) {
       const cell = lv.fg[cellKey(rr, cc)];
-      if (fgIsSlope(cell)) return true;
+      if (fgSlopeFills(cell).length) return true;
       // Stop climbing this column once we pass out the TOP of a contiguous solid+ramp stack:
       // an empty cell far above means we've left the hill and are now scanning open air, so a
       // slope found even higher up isn't this cell's hill. Only break on the SAME column though
@@ -2776,7 +2802,7 @@ export const ceilingBonkRows = (lv, centerC, headY, ph, vy, dtMul, CW, CH) => {
   const rows = [];
   for (let r = r0; r <= r1; r++) {
     const cell = lv.fg[cellKey(r, centerC)];
-    if (cell && !fgIsSlope(cell) && (r + 1) * CH <= bonkLimit) rows.push(r);
+    if (fgSolid(cell) && (r + 1) * CH <= bonkLimit) rows.push(r);
   }
   return rows;
 };
@@ -2934,7 +2960,12 @@ export default function AssetStudio() {
   // Memoizing each layer keyed on the state it actually reads returns the IDENTICAL element
   // array across playtest frames, so React skips reconciling those thousands of nodes entirely.
   const lvBgLayer = useMemo(() => level ? Object.keys(level.bg || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"b" + k} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.bg, level.bg[k], r, c, texLib) }} />; }) : null, [level, texLib]);
-  const lvFgLayer = useMemo(() => level ? Object.keys(level.fg || {}).map((k) => { const [r, c] = k.split(",").map(Number); const cell = level.fg[k]; return <div key={"f" + k} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, cell, r, c, texLib), clipPath: fgClipPath(cell) }} />; }) : null, [level, texLib]);
+  // One div per FILL, not per cell: a cell holding a gravel ramp over grass blocks draws both,
+  // the grass first and the ramp over it. fgFills is newest-first, so it's walked backwards to
+  // put the most recent paint on top. Single-material cells (every cell in an older save) come
+  // back as a one-item list and render exactly one div, as they always did.
+  // (Same z-index for every fill in a cell, so DOM order alone decides what covers what.)
+  const lvFgLayer = useMemo(() => level ? Object.keys(level.fg || {}).flatMap((k) => { const [r, c] = k.split(",").map(Number); return fgFills(level.fg[k]).map((fill, i) => <div key={"f" + k + "_" + i} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse(); }) : null, [level, texLib]);
   const lvFrontLayer = useMemo(() => level ? Object.keys(level.front || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.front, level.front[k], r, c, texLib) }} />; }) : null, [level, texLib]);
   const lvFxLayer = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = splitObjectStackByPlayerLayer(level.fx[k]).behind.filter(({ o }) => o.kind !== "prop"); return stack.map(({ o, stackIndex: si }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; }); }) : null, [level, play, lFxSel, lTool]);
   // Prop objects (pixel-art assets) are pulled OUT of the memoized fx layer above and rendered in
@@ -3165,7 +3196,7 @@ export default function AssetStudio() {
     // on top of you, which defeats the entire reason to flag it "in front" in the first place.
     const solidFx = []; for (const k of Object.keys(lv.fx || {})) { const [r, c] = k.split(",").map(Number); for (const o of (lv.fx[k] || [])) if (o.solid) solidFx.push({ r, c, size: o.size || 1 }); }
     const fxBlocks = (r, c) => solidFx.some((o) => r >= o.r && r < o.r + o.size && c >= o.c && c < o.c + o.size);
-    const cellsHit = (x, y, pw, ph) => { const hits = []; const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH); for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { if (c < 0 || c >= lv.cols || r < 0 || r >= lv.rows) continue; const cell = lv.fg[cellKey(r, c)]; if ((cell && !fgIsSlope(cell)) || fxBlocks(r, c)) hits.push({ r, c }); } return hits; };
+    const cellsHit = (x, y, pw, ph) => { const hits = []; const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH); for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { if (c < 0 || c >= lv.cols || r < 0 || r >= lv.rows) continue; const cell = lv.fg[cellKey(r, c)]; if (fgSolid(cell) || fxBlocks(r, c)) hits.push({ r, c }); } return hits; };
     let lastPedestalKey = null;
     let lastDoorKey = null;
     let raf;
@@ -4152,7 +4183,7 @@ export default function AssetStudio() {
           }
           const landProp = a.landPropId ? findA(a.landPropId) : null;   // a chosen Object/Prop draws the fire instead of the 🔥 emoji
           const propSize = landProp ? (landProp.size || 1) : 1;
-          const cellState = (r, c) => { const cell = lv.fg[cellKey(r, c)]; if (cell && !fgIsSlope(cell)) return "block"; if (fxBlocks(r, c)) return "block"; if (cell && fgIsSlope(cell)) return "ground"; return null; };
+          const cellState = (r, c) => { const cell = lv.fg[cellKey(r, c)]; if (fgSolid(cell)) return "block"; if (fxBlocks(r, c)) return "block"; if (fgSlopeFills(cell).length) return "ground"; return null; };
           let keys = groundedLandingCells(r0, c0, radius, lv.rows, lv.cols, cellState);
           if (!keys.length) keys = [r0 + "," + c0]; // never a total dud: if nothing is grounded (rare), fall back to the impact cell
           setLevel((lv2) => {
@@ -4568,11 +4599,9 @@ export default function AssetStudio() {
           if (c < 0 || c >= lv.cols) continue;
           const key = cellKey(r, c);
           const shape = { slope: dir, run, step: c - lo, ...(lFgUpsideDown ? { upsideDown: true } : {}) };
-          // Over a solid block, cut it along this diagonal and keep its own material on the far
-          // side (see carveFgBlock) rather than deleting the block and leaving a wedge of nothing.
-          fg[key] = shouldCarveFgBlock(fg[key], lFgUpsideDown)
-            ? carveFgBlock(fg[key], shape)
-            : paintValue(lColor, activeTexture, shape);
+          // Stacks over whatever is already here instead of replacing it, so blocks and opposing
+          // ramps under this one survive with their own material — see mergeFgFill.
+          fg[key] = mergeFgFill(fg[key], paintValue(lColor, activeTexture, shape));
         }
         return { ...lv, fg };
       });
@@ -6336,7 +6365,10 @@ export default function AssetStudio() {
     else {
       const ol = (lOutline && (lLayer === "fg" || lLayer === "bg" || lLayer === "front")) ? lOutlineColor : null;
       const base = (lLayer === "fg" && lFgShape !== "block") ? paintValue(lColor, activeTexture, { slope: lFgShape === "slopeUp" ? 1 : -1, ...(lFgUpsideDown ? { upsideDown: true } : {}) }) : paintValue(lColor, activeTexture);
-      layer[k] = withOutline(base, ol);
+      // Foreground ramps stack on what's already in the cell (mergeFgFill) — same rule as the
+      // drag-committed multi-cell ramp, so a single-cell ramp doesn't behave differently. bg and
+      // front never carry diagonals, and mergeFgFill passes a plain block straight through.
+      layer[k] = lLayer === "fg" ? mergeFgFill(layer[k], withOutline(base, ol)) : withOutline(base, ol);
     }
     return { ...lv, [lLayer]: layer };
     });
@@ -6947,7 +6979,7 @@ export default function AssetStudio() {
       return (
         <div className="minilv" style={{ width: w, height: h }}>
           {Object.keys(l.bg).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"b" + k} style={{ position: "absolute", left: c * cw, top: r * ch, width: cw, height: ch, background: fgColor(l.bg[k]), opacity: 0.4 }} />; })}
-          {Object.keys(l.fg).map((k) => { const [r, c] = k.split(",").map(Number); const cell = l.fg[k]; return <div key={"f" + k} style={{ position: "absolute", left: c * cw, top: r * ch, width: cw, height: ch, background: fgColor(cell), clipPath: fgClipPath(cell) }} />; })}
+          {Object.keys(l.fg).flatMap((k) => { const [r, c] = k.split(",").map(Number); return fgFills(l.fg[k]).map((fill, i) => <div key={"f" + k + "_" + i} style={{ position: "absolute", left: c * cw, top: r * ch, width: cw, height: ch, background: fgColor(fill), clipPath: fgClipPath(fill) }} />).reverse(); })}
           {l.fx && Object.keys(l.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = l.fx[k] || []; return stack.map((o, si) => { const sz = (o.size || 1) * cw; return <div key={"x" + k + "_" + si} style={{ position: "absolute", left: c * cw, top: r * ch, width: sz, height: sz, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.85 }}>{o.kind === "shape" ? objInner(o, sz) : o.char}</div>; }); })}
         </div>
       );
@@ -7223,13 +7255,12 @@ export default function AssetStudio() {
                   const run = hi - lo + 1;
                   const cells = [];
                   for (let c = lo; c <= hi; c++) cells.push(c);
-                  // Each cell previews what IT will become: a carve over an existing block shows
-                  // that block's own material on the far side of the cut, so what you see before
-                  // releasing is exactly what lands (see carveFgBlock).
+                  // The ghost draws only the RAMP ITSELF now. Since painting stacks rather than
+                  // replaces (mergeFgFill), whatever the cell already holds keeps rendering
+                  // underneath — so ghost-over-existing-paint is already an accurate picture of
+                  // the merged result, with no need to re-derive the surviving material here.
                   return <>{cells.map((c) => {
-                    const shape = { slope: dir, run, step: c - lo, ...(lFgUpsideDown ? { upsideDown: true } : {}) };
-                    const existing = lv.fg[cellKey(r, c)];
-                    const val = shouldCarveFgBlock(existing, lFgUpsideDown) ? carveFgBlock(existing, shape) : paintValue(lColor, activeTexture, shape);
+                    const val = paintValue(lColor, activeTexture, { slope: dir, run, step: c - lo, ...(lFgUpsideDown ? { upsideDown: true } : {}) });
                     return <div key={"rg" + c} className="rampGhost" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellPaintStyle(val, r, c, texLib), clipPath: fgClipPath(val) }} />;
                   })}</>;
                 })()}
@@ -7793,7 +7824,7 @@ export default function AssetStudio() {
                     const c = Math.floor(x / LV_CELL), r = Math.floor(y / LV_CELL);
                     if (r < 0 || c < 0 || r >= lv.rows || c >= lv.cols) return y > lv.rows * LV_CELL;
                     const cell = lv.fg[cellKey(r, c)];
-                    return !!(cell && !fgIsSlope(cell));
+                    return fgSolid(cell);
                   };
                   const pts = throwTrajectoryPoints(p.x + pw / 2, p.y + ph * 0.4, vx, vy, 0.175, isSolid);
                   return pts.map((pt, i) => (

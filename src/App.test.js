@@ -1,11 +1,14 @@
 import {
   DEFAULT_PROJECTILE_RANGE,
   capAirborneSpeed,
-  carveFgBlock,
+  cellSig,
   LV_OBJ_SIZES,
   objectLayerClass,
-  complementFgShape,
-  shouldCarveFgBlock,
+  fgFills,
+  fgSlopeFills,
+  fgSolid,
+  mergeFgFill,
+  slopeSurfaceAt,
   TEXTURES,
   TEXTURE_KEYS,
   newTexture,
@@ -195,60 +198,120 @@ describe("pedestal x-ray look", () => {
   });
 });
 
-describe("carving a block with a ramp", () => {
-  test("the complement flips both the direction and the upside-down flag", () => {
-    expect(complementFgShape({ slope: 1 })).toEqual({ slope: -1, upsideDown: true });
-    expect(complementFgShape({ slope: -1 })).toEqual({ slope: 1, upsideDown: true });
-    expect(complementFgShape({ slope: 1, upsideDown: true })).toEqual({ slope: -1 });
+describe("stacking two materials in one Foreground cell", () => {
+  const GRAVEL = { c: "#8d8578", tex: "tex-gravel" };
+  const up = (extra) => ({ slope: 1, run: 3, step: 1, ...extra });
+
+  test("a ramp over grass blocks keeps the grass, in its own material", () => {
+    const merged = mergeFgFill("#2e7d32", { ...GRAVEL, ...up() });
+    expect(merged.c).toBe("#8d8578");
+    expect(merged.slope).toBe(1);
+    expect(merged.more).toEqual([{ c: "#2e7d32" }]);
   });
 
-  test("complementing twice returns the original shape", () => {
-    for (const s of [{ slope: 1, run: 3, step: 1 }, { slope: -1, run: 2, step: 0, upsideDown: true }]) {
-      expect(complementFgShape(complementFgShape(s))).toEqual(s);
-    }
+  test("the opposing ramp merges instead of deleting the one already there", () => {
+    const gravelRamp = { ...GRAVEL, slope: -1, run: 3, step: 1 };
+    const merged = mergeFgFill(gravelRamp, { c: "#2e7d32", ...up() });
+    expect(merged.c).toBe("#2e7d32");
+    expect(merged.slope).toBe(1);
+    expect(merged.more).toEqual([gravelRamp]);
   });
 
-  test("the two halves meet on exactly the same diagonal, for any run and step", () => {
-    // fgClipPath's own maths, restated: a normal ramp's TOP edge and its complement's BOTTOM edge
-    // must land on identical y values, or the cut would show a seam or an overlap.
-    const distFromLow = (sh, lf) => (sh.slope > 0 ? sh.step + lf : sh.run - sh.step - lf);
-    const edge = (sh, lf) => {
-      const f = (distFromLow(sh, lf) / sh.run) * 100;
-      return sh.upsideDown ? f : 100 - f; // upside-down fills down to f; normal fills from 100-f
-    };
-    for (const run of [1, 2, 3, 5]) {
-      for (let step = 0; step < run; step++) {
-        for (const slope of [1, -1]) {
-          const shape = { slope, run, step };
-          const comp = complementFgShape(shape);
-          for (const lf of [0, 0.5, 1]) expect(edge(comp, lf)).toBeCloseTo(edge(shape, lf));
-        }
-      }
-    }
+  test("either order gives the same two materials — only the top one differs", () => {
+    const grassRamp = { c: "#2e7d32", ...up() };
+    const gravelRamp = { ...GRAVEL, slope: -1, run: 3, step: 1 };
+    const a = mergeFgFill(gravelRamp, grassRamp);
+    const b = mergeFgFill(grassRamp, gravelRamp);
+    expect(fgFills(a).map((f) => f.c).sort()).toEqual(fgFills(b).map((f) => f.c).sort());
   });
 
-  test("carving keeps the block's own colour, texture and outline", () => {
-    const block = { c: "#8d8578", tex: "tex-1", ol: "#000000" };
-    const carved = carveFgBlock(block, { slope: 1, run: 1, step: 0 });
-    expect(carved).toEqual({ c: "#8d8578", tex: "tex-1", ol: "#000000", slope: -1, run: 1, step: 0, upsideDown: true });
+  test("three fills coexist: a block plus both ramps", () => {
+    const merged = mergeFgFill(mergeFgFill("#2e7d32", { ...GRAVEL, slope: -1, run: 1, step: 0 }), { c: "#c62828", slope: 1, run: 1, step: 0 });
+    expect(merged.more).toHaveLength(2);
+    expect(fgFills(merged).map((f) => f.c)).toEqual(["#c62828", "#8d8578", "#2e7d32"]);
   });
 
-  test("a bare colour-string block carves just as well", () => {
-    expect(carveFgBlock("#552200", { slope: -1, run: 2, step: 1 }))
-      .toEqual({ c: "#552200", slope: 1, run: 2, step: 1, upsideDown: true });
+  test("repainting the same shape replaces that fill instead of stacking a copy", () => {
+    const once = mergeFgFill("#2e7d32", { ...GRAVEL, ...up() });
+    const twice = mergeFgFill(once, { c: "#c62828", ...up() });
+    expect(twice.c).toBe("#c62828");
+    expect(twice.more).toEqual([{ c: "#2e7d32" }]);   // the grass block is still there, the old gravel ramp is not
   });
 
-  test("an old shape on the cell never leaks into the carve", () => {
-    const stale = { c: "#111111", slope: 1, run: 4, step: 2, upsideDown: true };
-    expect(carveFgBlock(stale, { slope: 1, run: 1, step: 0 })).toEqual({ c: "#111111", slope: -1, run: 1, step: 0, upsideDown: true });
+  test("a ramp of a different length still counts as the same shape", () => {
+    const once = mergeFgFill(null, { c: "#2e7d32", slope: 1, run: 5, step: 2 });
+    const twice = mergeFgFill(once, { c: "#c62828", slope: 1, run: 2, step: 0 });
+    expect(twice).toEqual({ c: "#c62828", slope: 1, run: 2, step: 0 });
   });
 
-  test("only a plain solid block is carved", () => {
-    expect(shouldCarveFgBlock("#8d8578", false)).toBe(true);
-    expect(shouldCarveFgBlock({ c: "#8d8578" }, false)).toBe(true);
-    expect(shouldCarveFgBlock(undefined, false)).toBe(false);           // empty cell — just place the ramp
-    expect(shouldCarveFgBlock({ c: "#8d8578", slope: 1 }, false)).toBe(false); // already a ramp — repaint it
-    expect(shouldCarveFgBlock("#8d8578", true)).toBe(false);            // explicit 🙃 is taken literally
+  test("an upside-down ramp is its own shape, so it stacks with the normal one", () => {
+    const merged = mergeFgFill({ c: "#2e7d32", ...up() }, { ...GRAVEL, ...up({ upsideDown: true }) });
+    expect(merged.more).toEqual([{ c: "#2e7d32", ...up() }]);
+  });
+
+  test("painting a plain block is a clean reset, since nothing shows under it", () => {
+    const messy = mergeFgFill("#2e7d32", { ...GRAVEL, ...up() });
+    expect(mergeFgFill(messy, "#111111")).toBe("#111111");
+  });
+
+  test("an empty cell just takes the paint, plain string and all", () => {
+    expect(mergeFgFill(undefined, "#2e7d32")).toBe("#2e7d32");
+    expect(mergeFgFill(null, { c: "#2e7d32", ...up() })).toEqual({ c: "#2e7d32", ...up() });
+  });
+
+  test("colour, texture and outline all survive being pushed underneath", () => {
+    const merged = mergeFgFill({ c: "#8d8578", tex: "tex-1", ol: "#000000" }, { c: "#2e7d32", ...up() });
+    expect(merged.more).toEqual([{ c: "#8d8578", tex: "tex-1", ol: "#000000" }]);
+  });
+
+  test("a single-material cell is unchanged — no more field is invented", () => {
+    expect(mergeFgFill(null, { c: "#2e7d32", ...up() }).more).toBeUndefined();
+  });
+});
+
+describe("collision over a stacked Foreground cell", () => {
+  const lvOf = (cell) => ({ rows: 4, cols: 4, fg: { "1,1": cell } });
+
+  test("a bare ramp is walkable and not solid, exactly as before", () => {
+    const lv = lvOf({ c: "#2e7d32", slope: 1, run: 1, step: 0 });
+    expect(fgSolid(lv.fg["1,1"])).toBe(false);
+    expect(slopeSurfaceAt(lv, 30 + 15, 1, 1, 30, 30).y).toBe(45);
+  });
+
+  test("a ramp stacked over a block blocks, because the block still fills the cell", () => {
+    const lv = lvOf(mergeFgFill("#2e7d32", { c: "#8d8578", slope: 1, run: 1, step: 0 }));
+    expect(fgSolid(lv.fg["1,1"])).toBe(true);
+  });
+
+  test("two opposing ramps in one cell are both walkable surfaces", () => {
+    // The up-ramp rises left-to-right, the down-ramp falls, and each fills below its own
+    // diagonal — so together they notch a V out of the cell's top middle. What matters here is
+    // that BOTH surfaces are found: at the left edge the answer (y=31) is the DOWN-ramp's, which
+    // is the one that got pushed underneath. Before this, only the last-painted ramp existed at
+    // all and the left edge read as its low end, y=59.
+    const cell = mergeFgFill({ c: "#8d8578", slope: -1, run: 1, step: 0 }, { c: "#2e7d32", slope: 1, run: 1, step: 0 });
+    const lv = lvOf(cell);
+    expect(fgSolid(cell)).toBe(false);
+    expect(fgSlopeFills(cell)).toHaveLength(2);
+    expect(slopeSurfaceAt(lv, 31, 1, 1, 30, 30).y).toBeCloseTo(31, 0); // the stacked down-ramp
+    expect(slopeSurfaceAt(lv, 59, 1, 1, 30, 30).y).toBeCloseTo(31, 0); // the up-ramp painted on top
+    expect(slopeSurfaceAt(lv, 45, 1, 1, 30, 30).y).toBeCloseTo(45, 0); // they cross in the middle
+  });
+
+  test("an upside-down wedge still collides solid, stacked or not", () => {
+    expect(fgSolid({ c: "#2e7d32", slope: 1, run: 1, step: 0, upsideDown: true })).toBe(true);
+    expect(fgSolid(mergeFgFill({ c: "#2e7d32", slope: 1, run: 1, step: 0 }, { c: "#8d8578", slope: 1, run: 1, step: 0, upsideDown: true }))).toBe(true);
+  });
+
+  test("an empty cell is neither solid nor a surface", () => {
+    expect(fgSolid(undefined)).toBe(false);
+    expect(fgSolid(null)).toBe(false);
+    expect(fgSlopeFills(undefined)).toEqual([]);
+  });
+
+  test("flood-fill tells a stacked cell apart from a bare ramp", () => {
+    const ramp = { c: "#8d8578", slope: 1, run: 1, step: 0 };
+    expect(cellSig(mergeFgFill("#2e7d32", ramp))).not.toBe(cellSig(ramp));
   });
 });
 
