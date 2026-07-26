@@ -2636,6 +2636,16 @@ export const enemyFaceToward = (distToPlayer, face) => {
 // Storage order controls stacking only within the same player-relative layer. Front/back is a
 // stronger rule: a front object must render over every back object regardless of placement order.
 // Keep the original stack index so editor actions still update/delete the correct saved object.
+// Which visual layer a placed object draws on, read from the flags it already carries — so an
+// object sits level with the BLOCKS that behave the way it does, instead of every object sharing
+// one z regardless of what it is:
+//   solid    -> Foreground. It blocks the player exactly like a Foreground block, so it belongs
+//               among them rather than floating above them.
+//   in front -> Front. It covers the player like a Front tile, and fades the same way.
+//   neither  -> Background. Scenery the player walks in front of, which is what Background is.
+// The z values these map to are in the CSS beside the matching .lcell rules, so the two ladders
+// can be read together and can't drift apart.
+export const objectLayerClass = (o) => (o && o.inFront) ? "lay-front" : (o && o.solid) ? "lay-fg" : "lay-bg";
 export const splitObjectStackByPlayerLayer = (stack) => {
   const behind = [], front = [];
   for (const [stackIndex, o] of (stack || []).entries()) {
@@ -2875,7 +2885,7 @@ export default function AssetStudio() {
   const lvBgLayer = useMemo(() => level ? Object.keys(level.bg || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"b" + k} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.bg, level.bg[k], r, c, texLib) }} />; }) : null, [level, texLib]);
   const lvFgLayer = useMemo(() => level ? Object.keys(level.fg || {}).map((k) => { const [r, c] = k.split(",").map(Number); const cell = level.fg[k]; return <div key={"f" + k} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, cell, r, c, texLib), clipPath: fgClipPath(cell) }} />; }) : null, [level, texLib]);
   const lvFrontLayer = useMemo(() => level ? Object.keys(level.front || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.front, level.front[k], r, c, texLib) }} />; }) : null, [level, texLib]);
-  const lvFxLayer = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = splitObjectStackByPlayerLayer(level.fx[k]).behind.filter(({ o }) => o.kind !== "prop"); return stack.map(({ o, stackIndex: si }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj" + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; }); }) : null, [level, play, lFxSel, lTool]);
+  const lvFxLayer = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = splitObjectStackByPlayerLayer(level.fx[k]).behind.filter(({ o }) => o.kind !== "prop"); return stack.map(({ o, stackIndex: si }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; }); }) : null, [level, play, lFxSel, lTool]);
   // Prop objects (pixel-art assets) are pulled OUT of the memoized fx layer above and rendered in
   // a separate LIVE pass (see the level render body) — the memo runs before the component-scoped
   // prop renderer exists, and animated props need to redraw every frame in play anyway. This
@@ -7084,7 +7094,7 @@ export default function AssetStudio() {
                 <div ref={frontCellsRef} style={{ display: "contents" }}>{lvFrontLayer}</div>
                 {layerMove && layerMove.levelId === lv.id && Object.keys(layerMove.cells).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"mv" + k} className="lcell moveSel" style={{ left: c * LV_CELL, top: r * LV_CELL }} />; })}
                 {lvFxLayer}
-                {lvPropMeta.map(({ o, si, r, c, k }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"xp" + k + "_" + si} className={"lobj" + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, sz, "xp" + k + "_" + si, pframe)}</div>; })}
+                {lvPropMeta.map(({ o, si, r, c, k }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"xp" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, sz, "xp" + k + "_" + si, pframe)}</div>; })}
                 {!play && lvClimbLayer}
                 <div ref={hazardCellsRef} style={{ display: "contents" }}>{lvHazardLayer}</div>
                 {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : "💎"}</div>; })}
@@ -7459,7 +7469,7 @@ export default function AssetStudio() {
                     // through, not too strong) so the object still clearly reads as there.
                     const behind = play && p.x + pw > left && p.x < left + sz && p.y + ph > top && p.y < top + sz;
                     const eraseNow = !play && lTool === "erase";
-                    return <div key={key} className={"lobj infront" + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "") + (behind ? " behindFade" : "")} style={{ left, top, width: sz, height: sz, pointerEvents: eraseNow ? "auto" : "none", cursor: eraseNow ? "pointer" : undefined, opacity: behind ? 0.55 : 1 }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, sz, key, pframe)}</div>;
+                    return <div key={key} className={"lobj infront " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "") + (behind ? " behindFade" : "")} style={{ left, top, width: sz, height: sz, pointerEvents: eraseNow ? "auto" : "none", cursor: eraseNow ? "pointer" : undefined, opacity: behind ? 0.55 : 1 }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, sz, key, pframe)}</div>;
                   });
                 })()}
                 {/* Enemy spawns: AI-driven (Guard/Seek/Avoid, per-enemy in the Enemy Creator), fall via
@@ -8955,11 +8965,24 @@ const css = `
 @keyframes hzflick{0%{opacity:1;transform:translateY(0) scale(1)}50%{opacity:.72;transform:translateY(-1px) scale(1.08)}100%{opacity:1;transform:translateY(0) scale(1)}}
 .lscroll.layer-marker{border-color:#c8a23c}
 .lgrid{position:relative;flex:none;margin:auto;background-color:#0e1018;background-image:linear-gradient(#1a1f2e 1px,transparent 1px),linear-gradient(90deg,#1a1f2e 1px,transparent 1px);touch-action:none}
-.lcell{position:absolute;width:${LV_CELL}px;height:${LV_CELL}px}
-.lcell.bg{opacity:.42}
+/* The level's layer ladder. Painted cells and placed objects share it, so an object always sits
+   level with the blocks that behave the way it does (see objectLayerClass):
+     1 Background cells + background objects   2 Foreground cells + solid objects
+     4 climb / pedestals                       5 the player and hazards
+     6 Front cells + "in front" objects
+   Within one z, DOM order decides — objects render after their cell layer, so a bush on a
+   background wall still shows over the wall. */
+.lcell{position:absolute;width:${LV_CELL}px;height:${LV_CELL}px;z-index:2}
+.lcell.bg{opacity:.42;z-index:1}
 .lcell.front{z-index:6;transition:opacity .12s ease}
 .lcell.moveSel{z-index:9;background:rgba(79,124,246,0.28);outline:2px dashed #4f7cf6;outline-offset:-2px;pointer-events:none}
+/* The bare .lobj z is for transient in-play things that aren't placed level objects — projectiles
+   and thrown grenades, which should read over the terrain they fly past. Placed objects always
+   carry a lay-* class and land on the ladder above instead. */
 .lobj{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:3}
+.lobj.lay-bg{z-index:1}
+.lobj.lay-fg{z-index:2}
+.lobj.lay-front{z-index:6}
 .lobj.infront{z-index:6;transition:opacity .12s ease}
 .lobjGhost{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:4;opacity:.5;outline:2px dashed rgba(255,255,255,.4);outline-offset:-2px;border-radius:4px}
 .enemyGhost{position:absolute;pointer-events:none;z-index:4;opacity:.6;outline:2px dashed #c0504f;outline-offset:-2px;border-radius:6px;box-sizing:border-box}

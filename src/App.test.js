@@ -2,6 +2,7 @@ import {
   DEFAULT_PROJECTILE_RANGE,
   capAirborneSpeed,
   carveFgBlock,
+  objectLayerClass,
   complementFgShape,
   shouldCarveFgBlock,
   TEXTURES,
@@ -423,6 +424,29 @@ describe("whole-object flip", () => {
     expect(result.frames[1].front[0].x).toBe(20);
     expect(result.frames[1].front[0].isCutter).toBe(true);
     expect(result.angles).toBe(result.frames[0]);
+  });
+});
+
+describe("object visual layer", () => {
+  test("a solid object draws with the Foreground blocks it behaves like", () => {
+    expect(objectLayerClass({ solid: true })).toBe("lay-fg");
+  });
+
+  test("an in-front object draws with the Front tiles, solid or not", () => {
+    expect(objectLayerClass({ inFront: true })).toBe("lay-front");
+    expect(objectLayerClass({ inFront: true, solid: true })).toBe("lay-front"); // in-front wins over solid
+  });
+
+  test("plain scenery draws with the Background, behind the player", () => {
+    expect(objectLayerClass({})).toBe("lay-bg");
+    expect(objectLayerClass({ solid: false, inFront: false })).toBe("lay-bg");
+    expect(objectLayerClass(undefined)).toBe("lay-bg");
+  });
+
+  test("every object lands on exactly one layer", () => {
+    const seen = new Set();
+    for (const solid of [true, false]) for (const inFront of [true, false]) seen.add(objectLayerClass({ solid, inFront }));
+    expect([...seen].sort()).toEqual(["lay-bg", "lay-fg", "lay-front"]);
   });
 });
 
