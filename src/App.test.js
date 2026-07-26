@@ -86,10 +86,16 @@ describe("cutter layer ordering", () => {
 });
 
 describe("asset identity", () => {
-  test("renaming and saving an existing asset retains its id", () => {
-    const list = [{ id: "weapon-1", name: "Old name", type: "weapon" }];
-    expect(resolveSaveTarget(list, { id: "weapon-1", name: "New name", type: "weapon" }))
-      .toEqual({ id: "weapon-1", mode: "update" });
+  test("saving with the same name updates the existing asset", () => {
+    const list = [{ id: "prop-1", name: "Red Berry Bush", type: "prop" }];
+    expect(resolveSaveTarget(list, { id: "prop-1", name: "Red Berry Bush", type: "prop" }, "prop-copy"))
+      .toEqual({ id: "prop-1", mode: "update" });
+  });
+
+  test("renaming a loaded asset saves a new copy and preserves the source id", () => {
+    const list = [{ id: "prop-1", name: "Red Berry Bush", type: "prop" }];
+    expect(resolveSaveTarget(list, { id: "prop-1", name: "Purple Berry Bush", type: "prop" }, "prop-copy"))
+      .toEqual({ id: "prop-copy", mode: "rename", sourceId: "prop-1" });
   });
 
   test("same-name assets with different ids remain separate", () => {

@@ -457,12 +457,14 @@ export const collectAssetColors = (a) => {
   return [...counts.entries()].map(([color, count]) => ({ color, count })).sort((x, y) => y.count - x.count || (x.color < y.color ? -1 : 1));
 };
 
-// Asset identity is the id, never its display name. Editing or renaming a loaded asset keeps writing
-// to that id; two independently-created assets with the same name remain separate index entries.
-// This matches backup restore, which replaces `asset:<id>` and de-dupes the index by id.
-export const resolveSaveTarget = (list, payload) => {
+// Saving under the same name updates the loaded asset's id. Renaming a loaded asset is "Save As":
+// it receives a fresh id, leaving the original stored asset untouched. Names still are not unique
+// identifiers — independently-created assets with the same name remain separate entries, and
+// backup restore continues to replace only exact `asset:<id>` matches.
+export const resolveSaveTarget = (list, payload, freshId) => {
   const entries = list || [];
   const existing = entries.find((x) => x.id === payload.id);
+  if (existing && existing.name !== payload.name) return { id: freshId || uid(), mode: "rename", sourceId: payload.id };
   return { id: payload.id, mode: existing ? "update" : "create" };
 };
 
@@ -5349,8 +5351,8 @@ export default function AssetStudio() {
     }
     payload = { ...payload, savedAt: Date.now() };
     let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
-    // Save and restore share the same identity rule: an existing id is updated in place, while an
-    // unseen id creates a separate asset even when another entry happens to share its display name.
+    // Same-name saves update the loaded id. A changed name is Save As: resolveSaveTarget assigns a
+    // fresh id so the original saved asset remains exactly as it was.
     const target = resolveSaveTarget(list, payload);
     if (target.id !== payload.id) payload = { ...payload, id: target.id };
     const ok1 = await sset("asset:" + payload.id, JSON.stringify(payload));
@@ -5375,8 +5377,7 @@ export default function AssetStudio() {
     if (ok1 && ok2) {
       if (payload.id !== asset.id) setAsset((a) => ({ ...a, id: payload.id }));
       const worn = refreshed ? " — updated " + refreshed + " dressed look" + (refreshed === 1 ? "" : "s") : "";
-      flash(target.mode === "overwrite" ? "Replaced \"" + payload.name + "\" ✓" + worn
-        : target.mode === "rename" ? "Saved as a new \"" + payload.name + "\" ✓"
+      flash(target.mode === "rename" ? "Saved as a new \"" + payload.name + "\" ✓ — the original was kept"
         : "Saved to this device ✓" + worn);
       loadLibrary();
     } else flash("Couldn't save here — use Download.");
