@@ -362,6 +362,20 @@ export const weaponFireArt = (states, ang) => {
 //     still reads as firing before the swing has gone anywhere, so the windup stays on Rest.
 // Either way it's a REPLACEMENT — Rest is not drawn underneath, so nothing is ever doubled up.
 export const weaponPoseFired = (isRangedWeapon, firing) => !!firing && (!!isRangedWeapon || (firing.t / firing.dur) >= MELEE_WINDUP_FRAC);
+// How long a ranged shot holds its Fire pose. Was 16 frames (~0.27s), which read as a flash rather
+// than a shot you could see — a drawn recoil or a bow at full draw barely registered before
+// snapping back. 30 frames is half a second: long enough to actually read the pose, still short
+// enough that it never gates the next shot (re-firing is limited by the fire-rate cooldown, not by
+// this, so a fast weapon still fires at its own rate straight through the pose).
+export const RANGED_FIRE_POSE_FRAMES = 30;
+// Should the arm stay LOCKED in the raised aim/fire pose this frame? Holding Fire keeps it up, even
+// mid-reload. Previously `reloading` cancelled aiming outright, so a one-shot weapon like a bow
+// (clipSize 1, which auto-reloads the instant it fires) raised the arm for a single frame and then
+// dropped it for the whole reload — holding F did nothing. You're still drawing the bow while it
+// reloads, so the pose should hold. Climbing still overrides everything (both hands are busy), and
+// letting go of Fire mid-reload still lowers the arm.
+export const armHoldsAimPose = (isRangedWeapon, climbing, fireHeld, aimUp, aimDown, firing) =>
+  !!isRangedWeapon && !climbing && (!!fireHeld || !!aimUp || !!aimDown || !!firing);
 // --- Ranged weapon: fire rate, clip, reload -------------------------------------------------
 // Everything below is a pure function over a small { clip, ammo, cd, reloadT } record so the
 // Playtest loop only has to hold one ref and the rules stay testable outside the browser.
@@ -421,10 +435,28 @@ const fitVariantEmpty = (type, v) => type === "weapon" ? (anglesEmpty(v && v.sta
 // body — so it's spliced in right before the arm piece in the body's own list instead of being
 // appended at the very end with the rest of the weapon. Falls back to plain concatenation if no
 // arm piece is found (e.g. an armless enemy holding nothing).
+// A CUTTER has to travel with the piece it cuts. Cutters only punch through pieces in the same
+// contiguous same-source run (see cutterRuns / cutterLayerSegments), so splitting the weapon into
+// behind-arm and front-arm halves with the whole body spliced between them could tear a cutter
+// away from its target: a bow drawn as a dark limb flagged behindArm plus an unflagged cutter
+// carving the bow's curve out of it ended up as limb | body | cutter, three separate runs, and the
+// cut silently did nothing — the bow rendered as a solid filled half-circle, a big "D". In the
+// editor the two sit next to each other in one list, so it looked right there and only broke in
+// play. A cutter now inherits the behindArm grouping of the nearest piece BELOW it (the piece it
+// is cutting), which keeps the pair adjacent in whichever half that piece lands in.
+export const groupWeaponBlocksByArm = (weaponBlocks) => {
+  const behind = [], front = [];
+  let carry = false; // behindArm of the last non-cutter piece seen
+  for (const p of weaponBlocks || []) {
+    if (p.isCutter) { (carry ? behind : front).push(p); continue; }
+    carry = !!p.behindArm;
+    (carry ? behind : front).push(p);
+  }
+  return { behind, front };
+};
 export const mergeWeaponBlocks = (bodyBlocks, weaponBlocks) => {
   const armIdx = (bodyBlocks || []).findIndex((b) => b.role === "weaponArm");
-  const behind = weaponBlocks.filter((p) => p.behindArm);
-  const front = weaponBlocks.filter((p) => !p.behindArm);
+  const { behind, front } = groupWeaponBlocksByArm(weaponBlocks);
   if (armIdx === -1 || !behind.length) return (bodyBlocks || []).concat(weaponBlocks);
   return bodyBlocks.slice(0, armIdx).concat(behind, bodyBlocks.slice(armIdx)).concat(front);
 };
@@ -714,6 +746,17 @@ export const itemMatchesPedestal = (item, cats, logic) => {
   return logic === "and" ? filters.every(has) : filters.some(has);
 };
 export const pedestalItemPool = (assets, cats, logic) => (assets || []).filter((a) => HAS_CATEGORIES(a) && itemMatchesPedestal(a, cats, logic));
+// Which pose to draw an item in when it's displayed on its own (on a pedestal). Front is the right
+// choice for equipment and items and stays first — but a WEAPON has no editable front pose at all
+// (editablePoses gives a ranged weapon only back/side/up/crouch), so baking "front" produced zero
+// pieces and the pedestal fell through to its "no match" placeholder even though it had rolled the
+// weapon perfectly well. Side is a weapon's natural display profile, so it's next in line. Falls
+// back to whatever pose actually holds art, so nothing that was drawn can render as "no match".
+export const displayPoseKey = (a) => {
+  const has = (ang) => !!(a && a.angles && (a.angles[ang] || []).length);
+  for (const ang of ["front", "side", "back", "up", "crouch"]) if (has(ang)) return ang;
+  return "front";
+};
 export const rollPedestalItem = (assets, cats, logic, rnd) => {
   const pool = pedestalItemPool(assets, cats, logic);
   if (!pool.length) return null;
@@ -3560,7 +3603,7 @@ export default function AssetStudio() {
       // for the whole reload, and blocks the dedicated Aim-up pose too.
       // Aim is driven by the ARROW keys only now (up/down), so climbing a ladder with W/S no
       // longer forces the gun to point up or down. Suppressed while climbing or reloading.
-      p.aiming = !!(playtestWeapon && isRanged(playtestWeapon.wtype) && !climbing && !p.reloading && (K.aimUp || K.aimDown || p.firing));
+      p.aiming = armHoldsAimPose(playtestWeapon && isRanged(playtestWeapon.wtype), climbing, K.fire, K.aimUp, K.aimDown, p.firing);
       p.aimDir = p.aiming ? (K.aimUp ? -1 : K.aimDown ? 1 : 0) : 0;
 
       // --- Ground: ramps first, flat solids second -------------------------------------------
@@ -4071,7 +4114,7 @@ export default function AssetStudio() {
             explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
           });
           wpn.current = consumeShot(wpn.current, fireCdFrames); // spends a round (unless clip 0 = unlimited) and starts the fire-rate cooldown
-          p.firing = { t: 0, dur: 16 }; // long enough to actually see the arm lift and hold, not just a flash
+          p.firing = { t: 0, dur: RANGED_FIRE_POSE_FRAMES };
         } else {
           p.firing = { t: 0, dur: 12 }; // swing duration — same for a real melee weapon or a bare-handed swing (faster than the old sine sweep)
           p.hitRegistered = false; // a fresh swing can land a fresh hit
@@ -7773,7 +7816,7 @@ export default function AssetStudio() {
                   // shows "no match" below, so a mis-tagged filter is still obvious in the editor.
                   if (!rolled && pedestalDepleted.current.has(k)) return null;
                   const artSrc = rolled ? (rolled.type === "weapon" && rolled.states && rolled.states.rest ? { ...rolled, angles: rolled.states.rest } : rolled) : null;
-                  const artPieces = artSrc ? bake(artSrc, "front").filter((pc) => !pc.isHitbox) : [];
+                  const artPieces = artSrc ? bake(artSrc, displayPoseKey(artSrc)).filter((pc) => !pc.isHitbox) : [];
                   let bb = null;
                   if (artPieces.length) { let a = Infinity, b = Infinity, d = -Infinity, e = -Infinity; for (const pc of artPieces) { a = Math.min(a, pc.x); b = Math.min(b, pc.y); d = Math.max(d, pc.x + pc.w); e = Math.max(e, pc.y + pc.h); } bb = { x: a, y: b, w: Math.max(1, d - a), h: Math.max(1, e - b) }; }
                   const boxW = LV_CELL * PED_BOX_W_CELLS, boxH = LV_CELL * PED_BOX_H_CELLS;

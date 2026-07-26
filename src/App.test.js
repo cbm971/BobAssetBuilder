@@ -7,9 +7,15 @@ import {
   fgFills,
   fgSlopeFills,
   fgSolid,
+  armHoldsAimPose,
+  displayPoseKey,
+  groupWeaponBlocksByArm,
   mergeFgFill,
+  mergeWeaponBlocks,
   normalizeAssetJson,
   playerSpriteMirrored,
+  RANGED_FIRE_POSE_FRAMES,
+  weaponPoseFired,
   slopeSurfaceAt,
   TEXTURES,
   TEXTURE_KEYS,
@@ -803,5 +809,111 @@ describe("enemy reload bar progress", () => {
     const done = (reloadT) => Math.max(0, Math.min(1, 1 - reloadT / total));
     expect(done(-5)).toBe(1);
     expect(done(total * 3)).toBe(0);
+  });
+});
+
+describe("a weapon's cutter stays with the piece it cuts", () => {
+  // Bobs Bow's real Side pieces: a dark limb flagged behindArm, an unflagged cutter that carves the
+  // bow's curve out of it, then the bowstring.
+  const limb = { id: "rlnpmov", behindArm: true, _isWeapon: true };
+  const cutter = { id: "gyc7d2z", isCutter: true, _isWeapon: true };
+  const string = { id: "u91kmak", _isWeapon: true };
+  const bow = [limb, cutter, string];
+
+  test("the cutter follows its target behind the arm instead of being stranded in front", () => {
+    const { behind, front } = groupWeaponBlocksByArm(bow);
+    expect(behind.map((p) => p.id)).toEqual(["rlnpmov", "gyc7d2z"]);
+    expect(front.map((p) => p.id)).toEqual(["u91kmak"]);
+  });
+
+  test("cutter and target end up ADJACENT in the merged list, which is what makes the cut apply", () => {
+    const body = [{ id: "torso" }, { id: "arm", role: "weaponArm" }, { id: "leg" }];
+    const merged = mergeWeaponBlocks(body, bow);
+    const iLimb = merged.findIndex((p) => p.id === "rlnpmov");
+    const iCut = merged.findIndex((p) => p.id === "gyc7d2z");
+    expect(iCut - iLimb).toBe(1);
+    // and the cutter must still come BEFORE the arm it tucks behind
+    expect(iCut).toBeLessThan(merged.findIndex((p) => p.id === "arm"));
+  });
+
+  test("a cutter over a front-arm piece stays in front", () => {
+    const { behind, front } = groupWeaponBlocksByArm([{ id: "blade" }, { id: "cut", isCutter: true }]);
+    expect(behind).toEqual([]);
+    expect(front.map((p) => p.id)).toEqual(["blade", "cut"]);
+  });
+
+  test("several behind/front pairs each keep their own cutter", () => {
+    const { behind, front } = groupWeaponBlocksByArm([
+      { id: "b1", behindArm: true }, { id: "c1", isCutter: true },
+      { id: "f1" }, { id: "c2", isCutter: true },
+      { id: "b2", behindArm: true }, { id: "c3", isCutter: true },
+    ]);
+    expect(behind.map((p) => p.id)).toEqual(["b1", "c1", "b2", "c3"]);
+    expect(front.map((p) => p.id)).toEqual(["f1", "c2"]);
+  });
+
+  test("a leading cutter with nothing below it goes in front, not behind", () => {
+    expect(groupWeaponBlocksByArm([{ id: "c", isCutter: true }]).front.map((p) => p.id)).toEqual(["c"]);
+  });
+
+  test("no behindArm piece at all still just concatenates, as before", () => {
+    const body = [{ id: "arm", role: "weaponArm" }];
+    expect(mergeWeaponBlocks(body, [{ id: "w1" }]).map((p) => p.id)).toEqual(["arm", "w1"]);
+  });
+});
+
+describe("what pose an item is displayed in on a pedestal", () => {
+  const withPose = (ang) => ({ angles: { front: [], side: [], back: [], up: [], crouch: [], [ang]: [{ id: "p" }] } });
+
+  test("equipment and items keep drawing front-on", () => {
+    expect(displayPoseKey(withPose("front"))).toBe("front");
+  });
+
+  test("a weapon with no front art falls to Side instead of rendering as \"no match\"", () => {
+    // Bobs Bow: front is empty, side/back/up/crouch are drawn.
+    const bow = { angles: { front: [], back: [{ id: "b" }], side: [{ id: "s" }], up: [{ id: "u" }], crouch: [{ id: "c" }] } };
+    expect(displayPoseKey(bow)).toBe("side");
+  });
+
+  test("falls further back if even Side is empty, so anything drawn still shows", () => {
+    expect(displayPoseKey(withPose("up"))).toBe("up");
+    expect(displayPoseKey(withPose("crouch"))).toBe("crouch");
+  });
+
+  test("a genuinely empty asset reports front and lets the caller show its placeholder", () => {
+    expect(displayPoseKey({ angles: { front: [], side: [] } })).toBe("front");
+    expect(displayPoseKey(null)).toBe("front");
+  });
+});
+
+describe("holding Fire locks the aim pose", () => {
+  const held = (o) => armHoldsAimPose(true, false, o.fire, o.up, o.down, o.firing);
+
+  test("a one-shot bow keeps the arm up through its auto-reload while F is held", () => {
+    // The exact case: shot spent, nothing in p.firing any more, reloading — F still held.
+    expect(held({ fire: true, firing: null })).toBe(true);
+  });
+
+  test("letting go of Fire mid-reload lowers the arm", () => {
+    expect(held({ fire: false, firing: null })).toBe(false);
+  });
+
+  test("the firing window and the aim keys still raise it on their own", () => {
+    expect(held({ fire: false, firing: { t: 0, dur: 30 } })).toBe(true);
+    expect(held({ fire: false, up: true })).toBe(true);
+    expect(held({ fire: false, down: true })).toBe(true);
+  });
+
+  test("climbing always wins — both hands are busy", () => {
+    expect(armHoldsAimPose(true, true, true, true, true, { t: 0, dur: 30 })).toBe(false);
+  });
+
+  test("a melee weapon never holds the ranged aim pose", () => {
+    expect(armHoldsAimPose(false, false, true, false, false, null)).toBe(false);
+  });
+
+  test("the fire pose is held long enough to read, and outlasts the old flash", () => {
+    expect(RANGED_FIRE_POSE_FRAMES).toBeGreaterThan(16);
+    expect(weaponPoseFired(true, { t: RANGED_FIRE_POSE_FRAMES - 1, dur: RANGED_FIRE_POSE_FRAMES })).toBe(true);
   });
 });
