@@ -5501,9 +5501,21 @@ export default function AssetStudio() {
     const mirrored = reflect(p);
     const s = shapeStyle(mirrored, null, false, true);
     s.pointerEvents = "none";
+    const fillS = shapeFillStyle(mirrored);
+    // A cutter paints no colour of its own — shapeFillStyle deliberately skips it, because the real
+    // hole is a container mask applied at render time. Block() compensates with a hatch so the
+    // cutter is visible while editing; this ghost did not, so a MIRRORED cutter drew as literally
+    // nothing. Ticking "Mirror this block" on a cutter therefore looked like it did nothing at all,
+    // even though the twin has always cut correctly in the finished render (cutterMaskCss mirrors
+    // it). Same hatch, dimmed — this is the un-grabbable half of the pair.
+    if (p.isCutter) {
+      fillS.background = "repeating-conic-gradient(#5b6478 0% 25%, #232838 0% 50%) 0 0/10px 10px";
+      fillS.border = "2px dashed #cfd6e6";
+      fillS.opacity = 0.55;
+    }
     if (groupIds.includes(p.id)) { s.outline = "2px dashed #ffb84f"; s.outlineOffset = "1px"; }
     else if (p.id === selId) { s.outline = "2px dashed #4f7cf6"; s.outlineOffset = "1px"; }
-    return <React.Fragment key={key}>{OutlineLayer(mirrored, null, true, false)}<div style={s}><div style={shapeFillStyle(mirrored)}>{pieceInner(mirrored)}</div></div></React.Fragment>;
+    return <React.Fragment key={key}>{OutlineLayer(mirrored, null, true, false)}<div style={s}><div style={fillS}>{pieceInner(mirrored)}</div></div></React.Fragment>;
   };
   // A cutter piece paints nothing of its own in shapeFillStyle (its hole is a container-level
   // mask applied at final-render sites — see cutterMaskCss) — but while EDITING it still needs to
@@ -8359,7 +8371,11 @@ export default function AssetStudio() {
               )}
               <label className="slider">Width<input type="range" min="1" max="190" value={sel.w} onChange={(e) => updSelSize("w", +e.target.value)} /></label>
               <label className="slider">Height<input type="range" min="1" max="240" value={sel.h} onChange={(e) => updSelSize("h", +e.target.value)} /></label>
-              <label className="slider">Twist / rotate ⟳<input type="range" min="0" max="360" value={sel.rot || 0} onChange={(e) => updSelRot(+e.target.value)} /><button className="rotbtn" onClick={() => updSelRot((((sel.rot || 0) - 90) % 360 + 360) % 360)}>↺</button><button className="rotbtn" onClick={() => updSelRot(((sel.rot || 0) + 90) % 360)}>↻</button></label>
+              {/* "0°" straightens: back to the piece's own default, unrotated orientation — the quick
+                  way to make a hand-drawn line flat again. Goes through updSelRot like the ↺/↻
+                  buttons, so with a group selected the whole group turns rigidly until the selected
+                  piece sits flat, rather than every member independently snapping to 0. */}
+              <label className="slider">Twist / rotate ⟳<input type="range" min="0" max="360" value={sel.rot || 0} onChange={(e) => updSelRot(+e.target.value)} /><button className="rotbtn" onClick={() => updSelRot((((sel.rot || 0) - 90) % 360 + 360) % 360)}>↺</button><button className="rotbtn" onClick={() => updSelRot(((sel.rot || 0) + 90) % 360)}>↻</button><button className="rotbtn" disabled={!(sel.rot || 0)} onClick={() => updSelRot(0)} title="Straighten — back to its default, unrotated orientation (makes a drawn line flat)">0°</button></label>
               <label className="slider">Flip ⇋<button className="rotbtn" onClick={flipSelH} title="Mirror left-right">⇋ Flip horizontally</button></label>
               {groupIds.length > 1 && groupIds.includes(selId) && <p className="hint2" style={{ margin: "0 0 6px" }}>⟳ Rotates · ⇋ flips · corner-drag resizes — all {groupIds.length} grouped blocks together, as one item around their shared center.</p>}
               {sel.role === "weaponArm" && <p className="hint2" style={{ margin: "0 0 6px" }}>Twist swings the arm around the 🎯 shoulder; ✋ rides the far end.</p>}
@@ -8409,7 +8425,9 @@ export default function AssetStudio() {
               <button onClick={() => setShapePicker(true)}><b>🔷</b>Shapes…</button>
               <button className={drawMode === "line" ? "on" : ""} onClick={() => { setDrawMode(drawMode === "line" ? null : "line"); setLinePt1(null); setFillPts([]); }} ><b>📏</b>Line</button>
               <button className={drawMode === "fill" ? "on" : ""} onClick={() => { setDrawMode(drawMode === "fill" ? null : "fill"); setLinePt1(null); setFillPts([]); }} title="Click 3+ points, then Finish"><b>🪣</b>Fill</button>
-              <button onClick={() => addBlock("circle", null, { isCutter: true })} title="Punches a hole, not a shape"><b>🕳️</b>Cutter</button>
+              {/* No "Cutter" entry here: it only ever made a circle cutter, while the 🕳️ Cutter
+                  checkbox on a selected block turns ANY shape into one. Two doors to the same
+                  feature, one of them worse — so the checkbox is the only one. */}
               <button onClick={() => setPicker({ mode: "add" })}><b>{emoji}</b>Emoji…</button>
               <button onClick={addText} ><b>🔤</b>Text</button>
             </div>

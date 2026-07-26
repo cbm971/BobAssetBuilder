@@ -246,6 +246,18 @@ describe("cutter layer ordering", () => {
     expect(segments.flatMap((s) => s.items.map(([p]) => p.id))).toEqual(["back-leaf", "stem", "front-leaf"]);
   });
 
+  test("a mirrored cutter's twin cuts everything the original does", () => {
+    // bake()/propArtInner expand a mirrored piece into the original plus a reflected `_m` twin,
+    // pushed straight after it. Both halves must register as cutters over the art below them.
+    const segments = cutterLayerSegments([
+      { id: "leaf" },
+      { id: "hole", isCutter: true },
+      { id: "hole_m", isCutter: true, _m: true },
+    ]);
+    const seg = segments.find((s) => s.items.some(([p]) => p.id === "leaf"));
+    expect(seg.cutters.map((p) => p.id)).toEqual(["hole", "hole_m"]);
+  });
+
   test("a cutter below an object cannot cut the object", () => {
     const segments = cutterLayerSegments([
       { id: "low-gap", isCutter: true },
