@@ -2,6 +2,11 @@ import {
   DEFAULT_PROJECTILE_RANGE,
   capAirborneSpeed,
   connectedFrontRegion,
+  frontFadeKeys,
+  pedestalCoverKeys,
+  pedestalXrayGhost,
+  PED_XRAY_NEAR_CELLS,
+  PED_XRAY_FAR_CELLS,
   cutterLayerSegments,
   advanceAutoReloadWeapon,
   canFireNow,
@@ -116,6 +121,58 @@ describe("connected Front sheet (pedestal x-ray)", () => {
     expect(connectedFrontRegion(front, []).size).toBe(0);
     expect(connectedFrontRegion(front, ["9,9"]).size).toBe(0);
     expect(connectedFrontRegion(null, ["0,0"]).size).toBe(0);
+  });
+});
+
+describe("see-through window radius", () => {
+  // A 1x1 cell player at cell (5,5) on a 30px grid, with Front paint everywhere nearby.
+  const front = {};
+  for (let r = 0; r <= 12; r++) for (let c = 0; c <= 12; c++) front[r + "," + c] = 1;
+
+  test("no padding fades only the cells the body actually covers", () => {
+    expect(frontFadeKeys(front, 150, 150, 30, 30, 30, 30)).toEqual(["5,5"]);
+    expect(frontFadeKeys(front, 150, 150, 30, 30, 30, 30, 0)).toEqual(["5,5"]);
+  });
+
+  test("padding reaches that many blocks out in every direction", () => {
+    const keys = frontFadeKeys(front, 150, 150, 30, 30, 30, 30, 2);
+    expect(keys).toContain("3,5"); // 2 up
+    expect(keys).toContain("7,5"); // 2 down
+    expect(keys).toContain("5,3"); // 2 left
+    expect(keys).toContain("5,7"); // 2 right
+    expect(keys).toContain("3,3"); // and the corners
+    expect(keys).not.toContain("2,5"); // but not 3 out
+    expect(keys).toHaveLength(25);  // a full 5x5 block of cells
+  });
+
+  test("only painted cells are returned, padding or not", () => {
+    expect(frontFadeKeys({ "5,5": 1 }, 150, 150, 30, 30, 30, 30, 4)).toEqual(["5,5"]);
+    expect(frontFadeKeys(null, 150, 150, 30, 30, 30, 30, 4)).toEqual([]);
+  });
+});
+
+describe("pedestal x-ray look", () => {
+  test("the art box covers the marker cell, one either side, and two rows up", () => {
+    const keys = pedestalCoverKeys(7, 4);
+    expect(keys).toContain("7,4"); // the marker cell itself
+    expect(keys).toContain("5,4"); // the item floats ~2 cells above it
+    expect(keys).toContain("7,3");
+    expect(keys).toContain("7,5");
+    expect(keys).not.toContain("8,4"); // never below the marker
+    expect(keys).not.toContain("7,6");
+  });
+
+  test("full texture up close, fully washed out far away", () => {
+    expect(pedestalXrayGhost(0)).toBe(0);
+    expect(pedestalXrayGhost(PED_XRAY_NEAR_CELLS)).toBe(0);
+    expect(pedestalXrayGhost(PED_XRAY_FAR_CELLS)).toBe(1);
+    expect(pedestalXrayGhost(999)).toBe(1);
+  });
+
+  test("eases between the two, and tolerates no argument", () => {
+    const mid = (PED_XRAY_NEAR_CELLS + PED_XRAY_FAR_CELLS) / 2;
+    expect(pedestalXrayGhost(mid)).toBeCloseTo(0.5);
+    expect(pedestalXrayGhost(undefined)).toBe(0);
   });
 });
 

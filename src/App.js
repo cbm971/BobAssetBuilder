@@ -1366,14 +1366,21 @@ const BRUSH_SIZES = [1, 2, 3, 4, 6, 8];
 // tree built out of Front tiles (they render above the player by design, z-index 6). Only the
 // covered cells fade — the rest of the tree stays fully solid, so the effect reads as a soft
 // window around the player rather than the whole object washing out.
-export const frontFadeKeys = (front, x, y, pw, ph, CW, CH) => {
+// `padCells` grows that window outward in every direction, so you see a generous area around
+// yourself rather than a keyhole traced exactly on your hitbox. Passing 0 (or nothing) gives the
+// original hitbox-only behaviour, which is what the x-ray "am I actually inside this building?"
+// test still wants — that question is about overlap, not about visibility.
+export const frontFadeKeys = (front, x, y, pw, ph, CW, CH, padCells) => {
   const keys = [];
   if (!front) return keys;
-  const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW);
-  const r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH);
+  const pad = Math.max(0, padCells || 0);
+  const c0 = Math.floor(x / CW) - pad, c1 = Math.floor((x + pw - 0.001) / CW) + pad;
+  const r0 = Math.floor(y / CH) - pad, r1 = Math.floor((y + ph - 0.001) / CH) + pad;
   for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { const k = r + "," + c; if (front[k]) keys.push(k); }
   return keys;
 };
+// How far past the player's own body the see-through window reaches, in level blocks.
+export const FRONT_FADE_PAD_CELLS = 5;
 // Every Front cell reachable from `startKeys` by 4-way adjacency — i.e. one connected SHEET of
 // Front tiles, such as the near wall/roof a building interior is painted with. The pedestal x-ray
 // keys off this rather than off distance: the moment you step behind any part of an interior's
@@ -1394,6 +1401,26 @@ export const connectedFrontRegion = (front, startKeys) => {
   }
   return seen;
 };
+// A pedestal's art box, in cells: ~1.9 wide, centred on its marker cell, and ~2.3 tall standing UP
+// from it (the item floats above the marker, which sits at floor level). One definition, shared by
+// the render that draws the box and the x-ray logic that asks which Front cells hide it — they must
+// never disagree about where a pedestal visually is.
+export const PED_BOX_W_CELLS = 1.9, PED_BOX_H_CELLS = 2.3;
+export const pedestalCoverKeys = (r, c) => {
+  const left = c + 0.5 - PED_BOX_W_CELLS / 2, top = r + 1 - PED_BOX_H_CELLS;
+  const c0 = Math.floor(left), c1 = Math.floor(left + PED_BOX_W_CELLS - 0.001);
+  const r0 = Math.floor(top), r1 = Math.floor(top + PED_BOX_H_CELLS - 0.001);
+  const keys = [];
+  for (let rr = r0; rr <= r1; rr++) for (let cc = c0; cc <= c1; cc++) keys.push(rr + "," + cc);
+  return keys;
+};
+// How ghosted an x-rayed pedestal should look, by how far the player is from it in blocks:
+// 0 = its own normal texture, 1 = fully washed out. Close up you want to actually SEE the item
+// you're walking toward; the wash-out is only there to say "this is somewhere over there, through
+// a wall" at a distance. Anything nearer than NEAR is simply drawn normally.
+export const PED_XRAY_NEAR_CELLS = 6, PED_XRAY_FAR_CELLS = 16;
+export const pedestalXrayGhost = (distCells) =>
+  Math.max(0, Math.min(1, ((distCells || 0) - PED_XRAY_NEAR_CELLS) / (PED_XRAY_FAR_CELLS - PED_XRAY_NEAR_CELLS)));
 const PLAYER_H_CELLS = 7;
 const PLAYER_RENDER_W_CELLS = PLAYER_H_CELLS * (W / H); // aspect-correct VISUAL width — never changes, avoids the squish
 const PLAYER_CROUCH_H_CELLS = 4.2;
@@ -2802,8 +2829,9 @@ export default function AssetStudio() {
   const frontCellsRef = useRef(null);      // wrapper around the memoized Front tile layer — lets the playtest loop fade covered cells imperatively, without re-rendering the whole (memoized) layer every frame
   const hazardCellsRef = useRef(null);     // same idea for fire: the layer is memoized (not rebuilt every frame), so a burnt-out cell is hidden imperatively by toggling its own element's opacity
   const fadedFrontKeys = useRef(new Set()); // Front cell keys currently faded, so leaving a cell restores it and unchanged cells aren't touched at all
-  const xrayFrontRegion = useRef(null);    // the connected Front sheet the player is currently behind (Set of cell keys), or null when they're in the open — pedestals inside it x-ray through
   const xrayFrontSig = useRef("");         // signature of the Front cells the player was behind last frame; the flood fill above only re-runs when this changes, so standing still costs nothing
+  const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
+  const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
   const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
   const keys = useRef({});
   const lvRef = useRef(null);
@@ -4239,25 +4267,44 @@ export default function AssetStudio() {
       }
       p.wasInteract = !!K.interact;
 
-      // Front tiles the player is currently behind go translucent — imperatively, on just the
-      // handful of covered cells, because this layer is deliberately memoized for playtest
-      // performance and must NOT rebuild every frame. Touch only cells whose state changed.
+      // Which connected Front sheet (if any) the player is currently tucked behind — asked of the
+      // UNPADDED hitbox, because "am I inside this building" is a question about overlap, not about
+      // how far I can see. Pedestals under that same sheet get the wall over them faded just below,
+      // so walking into an interior announces what's in it instead of hiding it until you're
+      // standing on top of it. Both this flood fill and the pedestal scan are skipped entirely
+      // unless the set of covered cells changed — for ordinary play, once entering and once leaving.
+      playerCenter.current = { x: p.x + pw / 2, y: p.y + ph / 2 };
       const behindKeys = frontFadeKeys(lv.front, p.x, p.y, pw, ph, CW, CH);
-      if (frontCellsRef.current) {
-        const want = new Set(behindKeys);
-        for (const k of fadedFrontKeys.current) if (!want.has(k)) { const d = frontCellsRef.current.querySelector(`[data-fk="${k}"]`); if (d) d.style.opacity = ""; }
-        for (const k of want) if (!fadedFrontKeys.current.has(k)) { const d = frontCellsRef.current.querySelector(`[data-fk="${k}"]`); if (d) d.style.opacity = "0.55"; }
-        fadedFrontKeys.current = want;
-      }
-      // Which connected Front sheet (if any) the player is currently tucked behind. Pedestals
-      // under that same sheet x-ray through in the render below, so walking into an interior
-      // announces what's in it instead of hiding it until you're standing on top of it. The
-      // flood fill is skipped entirely unless the exact set of covered cells changed, which for
-      // ordinary play means once as you cross into a building and once as you leave.
       const behindSig = behindKeys.join("|");
       if (behindSig !== xrayFrontSig.current) {
         xrayFrontSig.current = behindSig;
-        xrayFrontRegion.current = behindKeys.length ? connectedFrontRegion(lv.front, behindKeys) : null;
+        const reg = behindKeys.length ? connectedFrontRegion(lv.front, behindKeys) : null;
+        const peds = new Set();
+        if (reg && reg.size && lv.markers) {
+          for (const mk in lv.markers) {
+            const mm = lv.markers[mk];
+            if (!mm || mm.kind !== "pedestal") continue;
+            const [pr0, pc0] = mk.split(",").map(Number);
+            if (pedestalCoverKeys(pr0, pc0).some((ck) => reg.has(ck))) peds.add(mk);
+          }
+        }
+        xrayPedKeys.current = peds;
+      }
+      // Front tiles the player is currently behind go translucent — imperatively, on just the
+      // handful of covered cells, because this layer is deliberately memoized for playtest
+      // performance and must NOT rebuild every frame. Touch only cells whose state changed.
+      if (frontCellsRef.current) {
+        // The see-through window (padded), PLUS the wall directly over any x-rayed pedestal. Fading
+        // the wall — rather than lifting the pedestal above it — is what lets the item keep its own
+        // colours and stay BEHIND the player, exactly like the player's own see-through window.
+        const want = new Set(frontFadeKeys(lv.front, p.x, p.y, pw, ph, CW, CH, FRONT_FADE_PAD_CELLS));
+        for (const mk of xrayPedKeys.current) {
+          const [pr0, pc0] = mk.split(",").map(Number);
+          for (const ck of pedestalCoverKeys(pr0, pc0)) if (lv.front[ck]) want.add(ck);
+        }
+        for (const k of fadedFrontKeys.current) if (!want.has(k)) { const d = frontCellsRef.current.querySelector(`[data-fk="${k}"]`); if (d) d.style.opacity = ""; }
+        for (const k of want) if (!fadedFrontKeys.current.has(k)) { const d = frontCellsRef.current.querySelector(`[data-fk="${k}"]`); if (d) d.style.opacity = "0.55"; }
+        fadedFrontKeys.current = want;
       }
 
       // Hide any fire cell that has burned out (life reached 0). Same imperative approach as the
@@ -4282,7 +4329,7 @@ export default function AssetStudio() {
       // left faded must be restored by hand or they'd stay see-through back in the editor.
       if (frontCellsRef.current) for (const k of fadedFrontKeys.current) { const d = frontCellsRef.current.querySelector(`[data-fk="${k}"]`); if (d) d.style.opacity = ""; }
       fadedFrontKeys.current = new Set();
-      xrayFrontRegion.current = null; xrayFrontSig.current = ""; // no stale interior left x-rayed once play stops
+      xrayFrontSig.current = ""; xrayPedKeys.current = new Set(); // no stale interior left x-rayed once play stops
       // Fires that burned out during play are only hidden imperatively; the level still has them.
       // Restore every hazard element's display so the editor shows the full painted set again.
       if (hazardCellsRef.current) for (const el of hazardCellsRef.current.querySelectorAll("[data-hk]")) el.style.display = "";
@@ -7390,21 +7437,19 @@ export default function AssetStudio() {
                   const artPieces = artSrc ? bake(artSrc, "front").filter((pc) => !pc.isHitbox) : [];
                   let bb = null;
                   if (artPieces.length) { let a = Infinity, b = Infinity, d = -Infinity, e = -Infinity; for (const pc of artPieces) { a = Math.min(a, pc.x); b = Math.min(b, pc.y); d = Math.max(d, pc.x + pc.w); e = Math.max(e, pc.y + pc.h); } bb = { x: a, y: b, w: Math.max(1, d - a), h: Math.max(1, e - b) }; }
-                  const boxW = LV_CELL * 1.9, boxH = LV_CELL * 2.3;
-                  // X-ray: is this pedestal under the same connected Front sheet the player is
-                  // currently behind? Tested against every cell the pedestal's ART BOX covers, not
-                  // just its marker cell — the art stands ~2 cells tall above the marker, and the
-                  // marker cell itself (floor level) often isn't painted Front even when the wall
-                  // in front of the item is. Checking only the marker cell made the reveal miss.
-                  const xrayed = (() => {
-                    const reg = xrayFrontRegion.current;
-                    if (!play || !reg || !reg.size) return false;
-                    const left = c * LV_CELL + LV_CELL / 2 - boxW / 2, top = r * LV_CELL - boxH + LV_CELL;
-                    const c0 = Math.floor(left / LV_CELL), c1 = Math.floor((left + boxW - 0.001) / LV_CELL);
-                    const r0 = Math.floor(top / LV_CELL), r1 = Math.floor((top + boxH - 0.001) / LV_CELL);
-                    for (let rr = r0; rr <= r1; rr++) for (let cc = c0; cc <= c1; cc++) if (reg.has(rr + "," + cc)) return true;
-                    return false;
-                  })();
+                  const boxW = LV_CELL * PED_BOX_W_CELLS, boxH = LV_CELL * PED_BOX_H_CELLS;
+                  // Seen through a wall (the loop decided which pedestals that sheet hides, and has
+                  // already faded the Front cells over this one). How washed out it draws depends on
+                  // how far away the player is: a distant one is a pale hint that something is over
+                  // there, but once you're close it wears its own texture, full colour. Never
+                  // ghosted at all when the item isn't behind a wall in the first place.
+                  const xrayed = xrayPedKeys.current.has(k);
+                  const ghost = xrayed
+                    ? pedestalXrayGhost(Math.hypot((c + 0.5) * LV_CELL - playerCenter.current.x, (r + 0.5) * LV_CELL - playerCenter.current.y) / LV_CELL)
+                    : 0;
+                  const artStyle = ghost > 0.01
+                    ? { opacity: 1 - 0.45 * ghost, filter: `saturate(${(1 - 0.6 * ghost).toFixed(3)}) brightness(${(1 + 0.35 * ghost).toFixed(3)}) drop-shadow(0 0 ${(5 * ghost).toFixed(2)}px rgba(130,215,255,.95))` }
+                    : undefined;
                   let planeStyle = null;
                   if (bb) { const sc = Math.min(boxW / bb.w, boxH / bb.h) * 0.86; const tx = boxW / 2 - sc * (bb.x + bb.w / 2), ty = boxH / 2 - sc * (bb.y + bb.h / 2); planeStyle = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${tx}px,${ty}px) scale(${sc})` }; }
                   // When the player is standing on THIS pedestal, float the call-to-action over the
@@ -7429,7 +7474,7 @@ export default function AssetStudio() {
                   }
                   return (
                     <div key={"ped" + k} className={"pedestalPlay" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
-                      <div className="pedestalArt">{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + k, keyPrefix: "ped" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}</div> : <div className="pedestalEmpty">no match</div>}</div>
+                      <div className="pedestalArt" style={artStyle}>{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + k, keyPrefix: "ped" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}</div> : <div className="pedestalEmpty">no match</div>}</div>
                       {promptText && <div className="pedcallout">💎 {promptText}</div>}
                       {rolled && <div className="pedestalCap">{rolled.name}</div>}
                     </div>
@@ -8792,14 +8837,13 @@ const css = `
 .catItemInput:focus{outline:none;border-color:#4f7cf6}
 .pedcfg{display:flex;flex-direction:column;gap:7px;margin:6px 0}
 .pedcfg .catinline{width:100%;box-sizing:border-box}
-.pedestalPlay{position:absolute;z-index:5;pointer-events:none}
-/* Seen THROUGH a Front wall: lifted above the Front layer's z-index 6 and rendered as a cool,
-   washed-out glow so it reads as showing through the wall rather than standing in front of it.
-   The name plate stays legible — knowing an interior HAS a pedestal is the whole point. */
-.pedestalPlay.xray{z-index:7}
-.pedestalPlay.xray .pedestalArt{opacity:.5;filter:saturate(.25) brightness(1.45) drop-shadow(0 0 5px rgba(130,215,255,.95))}
-.pedestalPlay.xray .pedestalCap{opacity:.85;border-color:#7ad2ff;color:#d6f1ff;background:rgba(6,20,30,.72)}
-.pedestalArt{position:absolute;inset:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
+/* Below .playerWrap (5) so the player always walks IN FRONT of an item on its stand, and below
+   the Front layer (6) so a wall genuinely hides it — the x-ray works by fading that wall (see the
+   playtest loop), not by lifting the pedestal over it. The washed-out look while it shows through
+   is applied inline per pedestal, since it eases off with distance. */
+.pedestalPlay{position:absolute;z-index:4;pointer-events:none}
+.pedestalPlay.xray .pedestalCap{border-color:#7ad2ff;color:#d6f1ff;background:rgba(6,20,30,.72)}
+.pedestalArt{position:absolute;inset:0;overflow:hidden;display:flex;align-items:center;justify-content:center;transition:opacity .15s ease,filter .15s ease}
 .pedestalEmpty{font-size:10px;color:#ff9b9b;background:rgba(0,0,0,.6);border:1px solid #5a2e36;border-radius:5px;padding:1px 5px}
 .pedestalGem{position:absolute;left:50%;bottom:0;transform:translateX(-50%);font-size:${LV_CELL*0.75}px;line-height:1}
 .pedestalCap{position:absolute;left:50%;top:-4px;transform:translate(-50%,-100%);white-space:nowrap;background:rgba(0,0,0,.72);border:1px solid #c8a23c;border-radius:6px;padding:0 5px;font-size:10px;color:#f3d98a}
