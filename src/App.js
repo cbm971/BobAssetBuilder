@@ -2072,6 +2072,45 @@ export const TEXTURES = {
       return out;
     },
   },
+  gravel: {
+    label: "Gravel", icon: "⛰️", tile: [60, 60], base: "base",
+    colors: [["base", "Dirt", "#544d45"], ["a", "Stone", "#8d8578"], ["b", "Stone (light)", "#a9a192"], ["c", "Stone (dark)", "#6a6358"]],
+    // Coarse 0 = fine grit, a dense bed of small chips. 1 = chunky rubble, fewer and much bigger.
+    // Every stone's position and outline is derived from its own index, so dragging the slider
+    // grows the SAME stones rather than reshuffling the whole bed on each keystroke — the same
+    // rule metal's Rust follows.
+    params: [{ key: "coarse", label: "Coarse", min: 0, max: 1, step: 0.05, def: 0.5 }],
+    svg: (co, _t, pa) => {
+      const tw = 60, th = 60;
+      const coarse = Math.max(0, Math.min(1, pa.coarse ?? 0.5));
+      const count = Math.round(95 - coarse * 58);   // fine = many little chips; coarse = fewer, larger
+      const rBase = 1.5 + coarse * 4.3;
+      const shades = [co.a, co.b, co.c, co.a, co.b];
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.base);
+      for (let i = 0; i < count; i++) {
+        const cx = trnd(i * 2.7) * tw, cy = trnd(i * 5.3) * th;
+        const rad = rBase * (0.55 + trnd(i * 7.1) * 0.9);
+        const fill = shades[Math.floor(trnd(i * 9.4) * shades.length) % shades.length];
+        // Angular chip rather than a dot — gravel is broken stone, so 5-6 uneven corners.
+        const n = 5 + Math.floor(trnd(i * 11.9) * 2);
+        const pts = [];
+        for (let k = 0; k < n; k++) {
+          const ang = (k / n) * Math.PI * 2 + trnd(i * 13.3 + k) * 0.55;
+          const rr = rad * (0.62 + trnd(i * 17.7 + k) * 0.62);
+          pts.push([Math.cos(ang) * rr, Math.sin(ang) * rr]);
+        }
+        // A stone straddling an edge is redrawn on the opposite side, so the bed tiles seamlessly.
+        // Without this, every 60px you'd see a row of half-stones stopping dead at the tile seam —
+        // very visible once a gravel floor runs across more than one cell.
+        const xs = [0].concat(cx - rad < 0 ? [tw] : [], cx + rad > tw ? [-tw] : []);
+        const ys = [0].concat(cy - rad < 0 ? [th] : [], cy + rad > th ? [-th] : []);
+        for (const ox of xs) for (const oy of ys) {
+          out += `<polygon points="${pts.map(([dx, dy]) => px(cx + ox + dx) + "," + px(cy + oy + dy)).join(" ")}" fill="${fill}"/>`;
+        }
+      }
+      return out;
+    },
+  },
   metal: {
     label: "Metal", icon: "⚙️", tile: [40, 40], base: "base",
     colors: [["base", "Metal", "#8a929c"], ["light", "Sheen", "#a8b0b9"], ["dark", "Groove", "#666d76"], ["rust", "Rust", "#8a4a24"]],

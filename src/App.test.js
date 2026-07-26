@@ -1,6 +1,11 @@
 import {
   DEFAULT_PROJECTILE_RANGE,
   capAirborneSpeed,
+  TEXTURES,
+  TEXTURE_KEYS,
+  newTexture,
+  textureBaseColor,
+  textureDataUri,
   CLUSTER_POP_VY,
   CLUSTER_SPREAD_VX,
   clusterBombletVelocity,
@@ -177,6 +182,40 @@ describe("pedestal x-ray look", () => {
     const mid = (PED_XRAY_NEAR_CELLS + PED_XRAY_FAR_CELLS) / 2;
     expect(pedestalXrayGhost(mid)).toBeCloseTo(0.5);
     expect(pedestalXrayGhost(undefined)).toBe(0);
+  });
+});
+
+describe("gravel texture", () => {
+  test("is registered, so the picker and pattern switcher both offer it", () => {
+    expect(TEXTURE_KEYS).toContain("gravel");
+    expect(TEXTURES.gravel.label).toBe("Gravel");
+  });
+
+  test("a new instance starts at every default, and falls back to its dirt colour", () => {
+    const t = newTexture("gravel");
+    expect(t.tex).toBe("gravel");
+    expect(t.params.coarse).toBe(0.5);
+    expect(Object.keys(t.colors).sort()).toEqual(["a", "b", "base", "c"]);
+    expect(textureBaseColor(t)).toBe(t.colors.base);
+  });
+
+  test("renders deterministically — same settings, same bytes, so nothing shimmers", () => {
+    expect(textureDataUri(newTexture("gravel"))).toBe(textureDataUri(newTexture("gravel")));
+  });
+
+  test("coarseness changes the bed", () => {
+    const base = newTexture("gravel");
+    expect(textureDataUri({ ...base, params: { coarse: 1 } })).not.toBe(textureDataUri(base));
+    expect(textureDataUri({ ...base, params: { coarse: 0 } })).not.toBe(textureDataUri(base));
+  });
+
+  test("every colour control actually reaches the render", () => {
+    const base = newTexture("gravel");
+    for (const key of ["base", "a", "b", "c"]) {
+      const recoloured = { ...base, colors: { ...base.colors, [key]: "#ff00ff" } };
+      // A swatch wired to nothing would render identical bytes — that's the failure this catches.
+      expect(textureDataUri(recoloured)).not.toBe(textureDataUri(base));
+    }
   });
 });
 
