@@ -434,17 +434,33 @@ export const mergeWeaponBlocks = (bodyBlocks, weaponBlocks) => {
 // under .variants. Only `p.color` is touched: outlineColor, fx.glowColor and an emoji's tint are
 // deliberately left alone (a near-miss shade stays a near-miss shade — Blake finishes those by
 // hand). Matching is case-insensitive on the hex so "#45552A" and "#45552a" are the same color.
-const recolorPieces = (arr, from, to) => (arr || []).map((p) => (typeof p.color === "string" && p.color.toLowerCase() === from ? { ...p, color: to } : p));
-const recolorAngles = (ang, from, to) => { if (!ang) return ang; const o = {}; for (const k of Object.keys(ang)) o[k] = recolorPieces(ang[k], from, to); return o; };
-const recolorFitVariant = (v, from, to) => (v && v.states) ? { ...v, states: { ...v.states, rest: recolorAngles(v.states.rest, from, to), fire: recolorAngles(v.states.fire, from, to) } } : recolorAngles(v, from, to);
+// The walk itself lives in one place because more than one "…everywhere" action needs it: the
+// recolor below and the brightness/glow/fade restyle under it must visit the exact same pieces,
+// or "everywhere" would mean two different things depending on which control you touched.
+const mapPieces = (arr, fn) => (arr || []).map(fn);
+const mapAngles = (ang, fn) => { if (!ang) return ang; const o = {}; for (const k of Object.keys(ang)) o[k] = mapPieces(ang[k], fn); return o; };
+const mapFitVariant = (v, fn) => (v && v.states) ? { ...v, states: { ...v.states, rest: mapAngles(v.states.rest, fn), fire: mapAngles(v.states.fire, fn) } } : mapAngles(v, fn);
+const mapAssetPieces = (a, fn) => {
+  const out = { ...a };
+  if (out.angles) out.angles = mapAngles(out.angles, fn);
+  if (out.states) out.states = { ...out.states, rest: mapAngles(out.states.rest, fn), fire: mapAngles(out.states.fire, fn) };
+  if (out.variants) { const v = {}; for (const k of Object.keys(out.variants)) v[k] = mapFitVariant(out.variants[k], fn); out.variants = v; }
+  return out;
+};
 export const recolorAsset = (a, from, to) => {
   if (!a || typeof from !== "string" || typeof to !== "string") return a;
   const f = from.toLowerCase();
-  const out = { ...a };
-  if (out.angles) out.angles = recolorAngles(out.angles, f, to);
-  if (out.states) out.states = { ...out.states, rest: recolorAngles(out.states.rest, f, to), fire: recolorAngles(out.states.fire, f, to) };
-  if (out.variants) { const v = {}; for (const k of Object.keys(out.variants)) v[k] = recolorFitVariant(out.variants[k], f, to); out.variants = v; }
-  return out;
+  return mapAssetPieces(a, (p) => (typeof p.color === "string" && p.color.toLowerCase() === f ? { ...p, color: to } : p));
+};
+// "Replace this colour everywhere" is about the COLOUR, not just its hex: dimming one leaf
+// should dim every leaf that shares its green, the same way repainting one repaints them all.
+// So the brightness/glow/fade sliders reuse the toggle and land here — same pieces recolorAsset
+// would touch, but patching fx instead of color. The patch merges over defaultFx() so a piece
+// that never had fx of its own gets a complete one rather than a half-filled object.
+export const restyleAsset = (a, from, patch) => {
+  if (!a || typeof from !== "string" || !patch) return a;
+  const f = from.toLowerCase();
+  return mapAssetPieces(a, (p) => (typeof p.color === "string" && p.color.toLowerCase() === f ? { ...p, fx: { ...defaultFx(), ...(p.fx || {}), ...patch } } : p));
 };
 // Every distinct fill colour this asset uses, with how many pieces use each, most-used first
 // (so a character's base skin tone — the largest area — tends to sit at the top). Walks the exact
@@ -1828,6 +1844,36 @@ function migrateLevel(lv) {
   return out;
 }
 const cellKey = (r, c) => r + "," + c;
+// Objects are stored under their TOP-LEFT cell in lv.fx, but you aim them by their MIDDLE:
+// clicking places a size-N object centred on the cell you clicked, so a 20× tree lands where you
+// pointed instead of hanging down-and-right of it. Corner-anchoring made anything bigger than a
+// few cells impossible to aim — you had to click well off to one side and guess. Only placement
+// moves; the renderer and the solid-hitbox scan still read the key as the top-left corner, so
+// levels built before this sit exactly where they always did. Clamped at 0 so an object aimed
+// near the top/left edge keeps a real on-map key instead of a negative one that renders
+// off-canvas. Even sizes can't straddle a cell, so they lean up-left by the half cell.
+export const objAnchor = (r, c, size) => { const off = Math.floor(((size || 1) - 1) / 2); return { r: Math.max(0, r - off), c: Math.max(0, c - off) }; };
+export const objAnchorKey = (r, c, size) => { const a = objAnchor(r, c, size); return cellKey(a.r, a.c); };
+// The reverse lookup. Now that objects are centred, the cell you click is almost never an
+// object's anchor cell, so erase / pick-up / inspect can't just index lv.fx by the clicked key
+// any more — they have to find which stored footprint the cell falls inside. An exact anchor hit
+// still wins; otherwise the SMALLEST object covering the cell does, so a little prop resting on
+// a huge backdrop is the one you grab rather than the backdrop swallowing every click over it.
+export const objKeyAt = (lv, r, c) => {
+  if (!lv || !lv.fx) return null;
+  const exact = cellKey(r, c);
+  if (lv.fx[exact] && lv.fx[exact].length) return exact;
+  let best = null, bestSz = Infinity;
+  for (const k of Object.keys(lv.fx)) {
+    const stack = lv.fx[k]; if (!stack || !stack.length) continue;
+    const [rr, cc] = k.split(",").map(Number);
+    for (const o of stack) {
+      const sz = o.size || 1;
+      if (r >= rr && r < rr + sz && c >= cc && c < cc + sz && sz < bestSz) { best = k; bestSz = sz; }
+    }
+  }
+  return best;
+};
 // Monotonic token identifying the newest Playtest loop. Only the loop whose local generation
 // still equals this may advance physics; any older loop left alive by an overlapping remount
 // (React StrictMode double-invoke, fast level/loadout re-key) sees it's been superseded and
@@ -4704,7 +4750,7 @@ export default function AssetStudio() {
     loadStamps();
   };
   const updSel = (patch) => setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig({ ...a, angles: { ...a.angles, [angle]: (a.angles[angle] || []).map((p) => (p.id === selId ? { ...p, ...patch } : p)) } }); });
-  // Setting a block's color with "Replace everywhere" on repaints every block in the asset that
+  // Setting a block's color with "Change this color everywhere" on repaints every block that
   // already shares that exact color — all 5 poses, a weapon's rest AND fire states, and every
   // per-body fit under .variants — instead of just the selected one. Only the fill changes;
   // outline color, glow color and emoji tints are untouched, so a shade that's merely CLOSE to
@@ -4802,7 +4848,16 @@ export default function AssetStudio() {
       return { ...p, w: nw, h: nh, x: Math.round(ncx - nw / 2), y: Math.round(ncy - nh / 2) };
     }));
   };
-  const updFx = (patch) => setPieces((ps) => ps.map((p) => (p.id === selId ? { ...p, fx: { ...defaultFx(), ...(p.fx || {}), ...patch } } : p)));
+  // Brightness / glow / fade obey the same "Change this color everywhere" toggle the swatches
+  // do — checking it and then dragging Brightness dims every block sharing this one's color,
+  // across all 5 poses and every body fit, instead of only the selected block. Same exclusions
+  // as applyPieceColor: an emoji has a tint rather than a fill color, and effect-editing mode
+  // works on its own piece list, so both fall back to editing just the selection.
+  const updFx = (patch) => {
+    const from = sel && sel.color;
+    if (!recolorAll || !from || effEdit || (sel && sel.kind === "emoji")) { setPieces((ps) => ps.map((p) => (p.id === selId ? { ...p, fx: { ...defaultFx(), ...(p.fx || {}), ...patch } } : p))); return; }
+    setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(restyleAsset(a, from, patch)); });
+  };
   // Horizontally mirror the selection like one rigid object (a "flip orientation" for a grouped
   // prop). Three parts, which together are exactly scaleX(-1) about the group's vertical centre:
   // reflect every member's box across that centre; negate each one's rotation (a mirror reverses
@@ -6252,14 +6307,19 @@ export default function AssetStudio() {
     r.readAsText(f);
   };
   const setSessionLevel = (c) => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); setLevelLib((s) => [...s.filter((x) => x.id !== c.id), c]); const nl = JSON.parse(JSON.stringify(c)); setLevel(nl); levelBaseline.current = JSON.stringify(nl); };
-  const paintCell = (r, c, erase) => setLevel((lv) => {
+  // Which fx key a click on (r,c) acts on: placing centres the new object (objAnchorKey),
+  // erasing targets whatever footprint is actually under the pointer (objKeyAt).
+  const objPaintKey = (r, c, erase) => ((erase || lTool === "erase") ? (objKeyAt(level, r, c) || cellKey(r, c)) : objAnchorKey(r, c, lObjSize));
+  const paintCell = (r, c, erase) => {
+    const objKey = lLayer === "obj" ? objPaintKey(r, c, erase) : null;
+    setLevel((lv) => {
     if (!lv) return lv;
     const k = cellKey(r, c);
     if (lLayer === "obj") {
       const fx = { ...lv.fx };
-      if (erase || lTool === "erase") { delete fx[k]; }
+      if (erase || lTool === "erase") { delete fx[objKey]; }
       else if (lObjKind === "prop" && !lPropId) { return lv; /* prop kind chosen but no prop picked yet — nothing to place */ }
-      else { const stack = fx[k] ? fx[k].slice() : []; const objBase = lObjKind === "prop" ? { kind: "prop", propId: lPropId, solid: lSolid, size: lObjSize, inFront: lInFront } : lObjKind === "shape" ? { kind: "shape", shape: lObjShape, tint: lTint || "#7aa2d6", solid: lSolid, size: lObjSize, inFront: lInFront } : { kind: "emoji", char: lEmoji, tint: lTint, solid: lSolid, size: lObjSize, inFront: lInFront }; stack.push(objBase); fx[k] = stack; }
+      else { const stack = fx[objKey] ? fx[objKey].slice() : []; const objBase = lObjKind === "prop" ? { kind: "prop", propId: lPropId, solid: lSolid, size: lObjSize, inFront: lInFront } : lObjKind === "shape" ? { kind: "shape", shape: lObjShape, tint: lTint || "#7aa2d6", solid: lSolid, size: lObjSize, inFront: lInFront } : { kind: "emoji", char: lEmoji, tint: lTint, solid: lSolid, size: lObjSize, inFront: lInFront }; stack.push(objBase); fx[objKey] = stack; }
       return { ...lv, fx };
     }
     if (lLayer === "climb") { const climb = { ...lv.climb }; if (erase || lTool === "erase") delete climb[k]; else climb[k] = { kind: lClimbKind }; return { ...lv, climb }; }
@@ -6279,7 +6339,8 @@ export default function AssetStudio() {
       layer[k] = withOutline(base, ol);
     }
     return { ...lv, [lLayer]: layer };
-  });
+    });
+  };
   // Stamps paintCell across a brush-size square. Objects/Markers always stay single-cell —
   // stacking or placing N copies per stroke isn't what a "brush" should do for discrete items.
   const paintBrush = (r, c, erase, inb) => {
@@ -6302,7 +6363,9 @@ export default function AssetStudio() {
     if (moving.current) {
       const { item, from } = moving.current;
       setLevel((lv) => {
-        if (from === "fx") { const stack = lv.fx[k] ? lv.fx[k].slice() : []; stack.push(item); return { ...lv, fx: { ...lv.fx, [k]: stack } }; }
+        // Dropping re-centres on the click too, so a picked-up object lands the same way a
+        // freshly placed one does instead of jumping down-right by half its own size.
+        if (from === "fx") { const ok = objAnchorKey(r, c, item.size); const stack = lv.fx[ok] ? lv.fx[ok].slice() : []; stack.push(item); return { ...lv, fx: { ...lv.fx, [ok]: stack } }; }
         if (from === "enemies") return { ...lv, enemies: { ...(lv.enemies || {}), [k]: item } };
         return { ...lv, markers: { ...lv.markers, [k]: item } };
       });
@@ -6311,10 +6374,13 @@ export default function AssetStudio() {
       return;
     }
     const isCopy = lTool === "copy";
-    if (lLayer === "obj" && level.fx[k] && level.fx[k].length) {
-      const stack = level.fx[k]; const item = stack[stack.length - 1];
-      if (!isCopy) setLevel((lv) => { const s2 = lv.fx[k].slice(0, -1); const fx = { ...lv.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv, fx }; });
-      moving.current = { key: k, item: { ...item }, from: "fx", copy: isCopy }; setMovingActive(true);
+    // Grab by footprint, not by anchor cell — clicking the middle of a big centred object has to
+    // pick it up, and its anchor cell is nowhere near where you clicked (see objKeyAt).
+    const fk = lLayer === "obj" ? objKeyAt(level, r, c) : null;
+    if (fk) {
+      const stack = level.fx[fk]; const item = stack[stack.length - 1];
+      if (!isCopy) setLevel((lv) => { const s2 = (lv.fx[fk] || []).slice(0, -1); const fx = { ...lv.fx }; if (s2.length) fx[fk] = s2; else delete fx[fk]; return { ...lv, fx }; });
+      moving.current = { key: fk, item: { ...item }, from: "fx", copy: isCopy }; setMovingActive(true);
       flash(isCopy ? "Copied " + item.char + " — click a cell to place the copy" : "Picked up " + item.char + " — click a cell to place it, or click it again to cancel");
     } else if (lLayer === "marker" && level.markers[k]) {
       const item = level.markers[k];
@@ -6840,7 +6906,9 @@ export default function AssetStudio() {
       }
       lpaint.current = { on: true, last: k, startX: e.clientX, startY: e.clientY, moved: false };
       paintBrush(r, c, undefined, inb);
-      if (lLayer === "obj") { setLFxSel(k); setLFxEditIdx(null); }
+      // The inspector follows the object that was just placed, which lives at its centred
+      // anchor — not at the clicked cell (objPaintKey).
+      if (lLayer === "obj") { setLFxSel(objPaintKey(r, c)); setLFxEditIdx(null); }
     };
     const lvMove = (e) => {
       if (play) { setLHoverCell(null); return; }
@@ -6860,7 +6928,7 @@ export default function AssetStudio() {
       const k = cellKey(r, c);
       if (lLayer === "obj" && lpaint.current.last === k) return; // moving within the same cell shouldn't re-stack on every pointer jitter
       lpaint.current.last = k; paintBrush(r, c, undefined, inb);
-      if (lLayer === "obj") { setLFxSel(k); setLFxEditIdx(null); }
+      if (lLayer === "obj") { setLFxSel(objPaintKey(r, c)); setLFxEditIdx(null); }
     };
     const basePlayerAsset = findA(playerId);
     const playerAsset = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
@@ -7110,7 +7178,10 @@ export default function AssetStudio() {
                 {!play && lLayer === "obj" && lTool === "paint" && lHoverCell && !(lObjKind === "prop" && !lPropId) && (() => {
                   const sz = lObjSize * LV_CELL;
                   const ghostO = lObjKind === "prop" ? { kind: "prop", propId: lPropId } : lObjKind === "shape" ? { kind: "shape", shape: lObjShape, tint: lTint || "#7aa2d6" } : { kind: "emoji", char: lEmoji, tint: lTint };
-                  return <div className="lobjGhost" style={{ left: lHoverCell.c * LV_CELL, top: lHoverCell.r * LV_CELL, width: sz, height: sz, zIndex: lInFront ? 6 : 4 }}>{renderObj(ghostO, sz, "ghost", 0)}</div>;
+                  // Ghost sits exactly where a click would put it — same objAnchor, edge clamp
+                  // included, so the preview never lies about where a big object will land.
+                  const ga = objAnchor(lHoverCell.r, lHoverCell.c, lObjSize);
+                  return <div className="lobjGhost" style={{ left: ga.c * LV_CELL, top: ga.r * LV_CELL, width: sz, height: sz, zIndex: lInFront ? 6 : 4 }}>{renderObj(ghostO, sz, "ghost", 0)}</div>;
                 })()}
                 {!play && (lLayer === "bg" || lLayer === "front" || (lLayer === "fg" && lFgShape === "block")) && lTool === "paint" && lHoverCell && (() => {
                   // Matches paintBrush's own iteration exactly (full r×c square, not just a
@@ -8514,8 +8585,8 @@ export default function AssetStudio() {
                 <button className="wide" onClick={() => setPicker({ mode: "change" })}>Change emoji ({sel.char})</button>
               </> : <>
                 <div className="swatches">{COLORS.map((c) => <button key={c} className={sel.color === c ? "on" : ""} style={{ background: c }} onClick={() => applyPieceColor(c)} />)}{recent.filter((c) => !COLORS.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.color === c ? " on" : "")} style={{ background: c }} onClick={() => applyPieceColor(c)} title="recent" />)}<label className="pick"><input type="color" value={sel.color} onChange={(e) => applyPieceColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
-                {!effEdit && <label className="chk"><input type="checkbox" checked={recolorAll} onChange={(e) => setRecolorAll(e.target.checked)} /> 🪣 Replace this color everywhere </label>}
-                {!effEdit && recolorAll && <p className="mini">Every block in <b>this asset</b> using {sel.color} repaints too — all 5 poses and every body it's been fitted to. Outlines, glow and emoji tints stay as they are, so a slightly different shade is left alone for you to redo by hand.</p>}
+                {!effEdit && <label className="chk"><input type="checkbox" checked={recolorAll} onChange={(e) => setRecolorAll(e.target.checked)} /> 🪣 Change this color everywhere </label>}
+                {!effEdit && recolorAll && <p className="mini">Every block in <b>this asset</b> using {sel.color} changes too — all 5 poses and every body it's been fitted to. That covers a new color <i>and</i> the Brightness / Glow / Fade sliders below, so you can dim or light up a whole color at once. Outlines, outline glow and emoji tints stay as they are, so a slightly different shade is left alone for you to redo by hand.</p>}
               </>}
               <button className="ltbtn" onClick={() => updSel(sel.kind === "emoji" ? { tint: newColor, fx: { ...newFx } } : { color: newColor, fx: { ...newFx } })} >🎨 Apply picked color + fx</button>
               <p className="mini">Eyedrop a block (below) to load its exact look here, then hit this on any other block to copy it over — color plus brightness/glow/fade together.</p>

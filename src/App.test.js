@@ -32,6 +32,11 @@ import {
   flipPropFramesHorizontally,
   incomingPlayerDamage,
   newWeaponAmmo,
+  objAnchor,
+  objAnchorKey,
+  objKeyAt,
+  recolorAsset,
+  restyleAsset,
   projectileDropAtDistance,
   projectilePositionAtDistance,
   rangeBoostMultiplier,
@@ -539,5 +544,104 @@ describe("asset identity", () => {
     const list = [{ id: "weapon-1", name: "Bow", type: "weapon" }];
     expect(resolveSaveTarget(list, { id: "weapon-2", name: "Bow", type: "weapon" }))
       .toEqual({ id: "weapon-2", mode: "create" });
+  });
+});
+
+describe("objects place centred on the clicked cell", () => {
+  test("a 1x object still lands exactly where it was clicked", () => {
+    expect(objAnchor(10, 20, 1)).toEqual({ r: 10, c: 20 });
+    expect(objAnchorKey(10, 20, 1)).toBe("10,20");
+  });
+
+  test("a big object straddles the clicked cell instead of hanging down-right of it", () => {
+    // 20x anchored at row 1 / col 11 covers rows 1..20 and cols 11..30 — the clicked cell (10,20)
+    // sits inside it, which is the whole point. Corner-anchoring put it at rows 10..29.
+    expect(objAnchor(10, 20, 20)).toEqual({ r: 1, c: 11 });
+    expect(objAnchor(30, 30, 3)).toEqual({ r: 29, c: 29 });
+  });
+
+  test("an object aimed near the top-left edge keeps an on-map anchor", () => {
+    expect(objAnchor(0, 0, 60)).toEqual({ r: 0, c: 0 });
+    expect(objAnchor(2, 40, 10)).toEqual({ r: 0, c: 36 });
+  });
+
+  test("size defaults to 1 when it is missing", () => {
+    expect(objAnchor(5, 5)).toEqual({ r: 5, c: 5 });
+  });
+});
+
+describe("finding the object under a clicked cell", () => {
+  const lv = { fx: { "1,11": [{ kind: "emoji", char: "🌳", size: 20 }], "10,20": [{ kind: "emoji", char: "🍄", size: 1 }] } };
+
+  test("the cell a big object was aimed at finds that object, not nothing", () => {
+    expect(objKeyAt({ fx: { "1,11": [{ size: 20 }] } }, 10, 20)).toBe("1,11");
+  });
+
+  test("an exact anchor hit wins outright", () => {
+    expect(objKeyAt(lv, 1, 11)).toBe("1,11");
+  });
+
+  test("the smallest object covering the cell wins, so a prop beats the backdrop under it", () => {
+    expect(objKeyAt(lv, 10, 20)).toBe("10,20");
+  });
+
+  test("a cell outside every footprint finds nothing", () => {
+    expect(objKeyAt(lv, 40, 40)).toBe(null);
+    expect(objKeyAt({ fx: {} }, 0, 0)).toBe(null);
+    expect(objKeyAt(null, 0, 0)).toBe(null);
+  });
+
+  test("an emptied stack is not treated as an object", () => {
+    expect(objKeyAt({ fx: { "3,3": [] } }, 3, 3)).toBe(null);
+  });
+});
+
+describe("changing a color everywhere covers brightness/glow/fade too", () => {
+  const asset = () => ({
+    angles: {
+      front: [{ id: "a", color: "#2E7D32" }, { id: "b", color: "#8D6E63", fx: { opacity: 1, glow: 0, glowColor: "#ffd76b", bright: 1 } }],
+      side: [{ id: "c", color: "#2e7d32", fx: { opacity: 0.5, glow: 4, glowColor: "#fff", bright: 1 } }],
+    },
+    variants: { tall: { front: [{ id: "d", color: "#2E7D32" }] } },
+  });
+
+  test("every piece sharing the color is dimmed, in all poses and every body fit", () => {
+    const out = restyleAsset(asset(), "#2E7D32", { bright: 0.6 });
+    expect(out.angles.front[0].fx.bright).toBe(0.6);
+    expect(out.angles.side[0].fx.bright).toBe(0.6);
+    expect(out.variants.tall.front[0].fx.bright).toBe(0.6);
+  });
+
+  test("a piece in a different color is untouched", () => {
+    const out = restyleAsset(asset(), "#2E7D32", { bright: 0.6 });
+    expect(out.angles.front[1].fx.bright).toBe(1);
+  });
+
+  test("matching is case-insensitive on the hex, same as recolor", () => {
+    expect(restyleAsset(asset(), "#2e7d32", { glow: 8 }).angles.front[0].fx.glow).toBe(8);
+  });
+
+  test("the patch merges over a full default so a piece with no fx gets a complete one", () => {
+    expect(restyleAsset(asset(), "#2E7D32", { bright: 0.6 }).angles.front[0].fx)
+      .toEqual({ opacity: 1, glow: 0, glowColor: "#ffd76b", bright: 0.6 });
+  });
+
+  test("the rest of a piece's existing fx survives the patch", () => {
+    const out = restyleAsset(asset(), "#2E7D32", { bright: 0.6 });
+    expect(out.angles.side[0].fx).toEqual({ opacity: 0.5, glow: 4, glowColor: "#fff", bright: 0.6 });
+  });
+
+  test("recolor still walks the same pieces after the shared-walk refactor", () => {
+    const out = recolorAsset(asset(), "#2E7D32", "#C62828");
+    expect(out.angles.front[0].color).toBe("#C62828");
+    expect(out.angles.side[0].color).toBe("#C62828");
+    expect(out.variants.tall.front[0].color).toBe("#C62828");
+    expect(out.angles.front[1].color).toBe("#8D6E63");
+  });
+
+  test("a missing asset or patch is a no-op rather than a crash", () => {
+    expect(restyleAsset(null, "#2E7D32", { bright: 0.6 })).toBe(null);
+    const a = asset();
+    expect(restyleAsset(a, "#2E7D32", null)).toBe(a);
   });
 });
