@@ -544,6 +544,26 @@ export const throwLaunchVel = (rangePx, g, face, angleRad) => {
   const v = Math.sqrt(Math.max(1, rangePx * g / Math.sin(2 * ang)));
   return { vx: (face || 1) * v * Math.cos(ang), vy: -v * Math.sin(ang) };
 };
+// ── Throwable payloads: Cluster and Stun ────────────────────
+// CLUSTER: on impact the throwable BECOMES several smaller copies of itself, which arc away, land,
+// and each pay out the landing effect on their own — so it bursts instead of paying out once where
+// it hit. Bomblets are marked so they never cluster again: one generation only, or 4 would become
+// 16, then 64, and the level would fill with grenades.
+// The fan is deterministic and symmetric — bomblet i takes an even share of the spread from full
+// left to full right, all with the same upward pop — so a burst reads as a spray rather than a
+// random scatter, and looks the same every throw.
+export const DEFAULT_CLUSTER_SCALE = 0.5;
+export const CLUSTER_SPREAD_VX = 3.2, CLUSTER_POP_VY = 4;
+export const clusterBombletVelocity = (i, count, spread, pop) => {
+  const n = Math.max(1, count || 1);
+  const t = n === 1 ? 0 : (i / (n - 1)) * 2 - 1; // -1 = hard left, +1 = hard right, 0 = straight up
+  return { vx: t * (spread ?? CLUSTER_SPREAD_VX), vy: -(pop ?? CLUSTER_POP_VY) };
+};
+// STUN: a landing throwable freezes every living enemy in its blast (the same ep.stun channel a
+// stun weapon's hit uses, so the 💫 marker and the can't-move/can't-attack gates all apply
+// unchanged). Reach is the landing splash plus one block, so even a 0-splash "point" grenade still
+// catches whatever is standing on top of it — a shock grenade that stunned nothing would be a dud.
+export const throwStunRadiusCells = (landRadius) => Math.max(0, landRadius || 0) + 1;
 // The set of cells a grenade's landing effect covers: a square of the given radius around the
 // impact cell (radius 0 = just that one cell, 1 = 3x3, etc.), clamped to the level bounds.
 export const landingCells = (r0, c0, radius, rows, cols) => {
@@ -3979,6 +3999,27 @@ export default function AssetStudio() {
           const c0 = Math.max(0, Math.min(lv.cols - 1, Math.floor(g.x / CW)));
           const a = g.asset || {};
           const dps = a.landEffectDps ?? 6, life = a.landEffectLife ?? 6, radius = a.landRadius ?? DEFAULT_LAND_RADIUS;
+          // Cluster: burst into bomblets INSTEAD of paying out here — the throwable "becomes" the
+          // little copies, so the payout happens wherever each of THEM lands. Only the thrown parent
+          // bursts (every bomblet carries noCluster), and a grenade that sailed off the level edge
+          // never bursts — its bomblets would spawn out of bounds and vanish the same frame.
+          const clusterCount = Math.max(0, Math.round(a.clusterCount ?? 0));
+          if (clusterCount > 0 && !g.noCluster && !offLevel) {
+            const scale = Math.max(0.15, Math.min(1, a.clusterScale ?? DEFAULT_CLUSTER_SCALE));
+            const bombArt = bake({ ...a, angles: (a.states?.rest || a.angles || blankAngles()) }, "side");
+            const bombFly = prepFlyingArt(bombArt, CW, scale);
+            for (let i = 0; i < clusterCount; i++) {
+              const cv = clusterBombletVelocity(i, clusterCount);
+              stillFlying.push({
+                x: g.x, y: g.y - 2, vx: cv.vx, vy: cv.vy, rot: 0,   // nudged up so they don't re-collide with the cell they burst on
+                spin: (cv.vx >= 0 ? 1 : -1) * 10, asset: a, pieces: bombFly.pieces.length ? bombFly.pieces : null,
+                cwPx: bombFly.canvasWPx, chPx: bombFly.canvasHPx, wPx: bombFly.wPx, hPx: bombFly.hPx,
+                noCluster: true,
+              });
+            }
+            flash("💥 " + (a.name || "Grenade") + " burst into " + clusterCount);
+            continue;
+          }
           const landProp = a.landPropId ? findA(a.landPropId) : null;   // a chosen Object/Prop draws the fire instead of the 🔥 emoji
           const propSize = landProp ? (landProp.size || 1) : 1;
           const cellState = (r, c) => { const cell = lv.fg[cellKey(r, c)]; if (cell && !fgIsSlope(cell)) return "block"; if (fxBlocks(r, c)) return "block"; if (cell && fgIsSlope(cell)) return "ground"; return null; };
@@ -3993,7 +4034,26 @@ export default function AssetStudio() {
           // Seed these fires' playtest lifetimes immediately so they start counting down now (the
           // level-state update above is async; the loop reads hazLife, so seed it directly too).
           if (life > 0) for (const key of keys) hazLife.current[key] = life;
-          flash("💥 " + (a.name || "Grenade") + " landed" + (landProp ? " — " + landProp.name : " — 🔥"));
+          // Shock payload: freeze every living, non-allied enemy caught in the blast. Runs for a
+          // bomblet exactly as for a whole grenade, so a cluster of shock charges blankets an area.
+          const stunSecs = a.stun ?? 0;
+          let stunnedCount = 0;
+          if (stunSecs > 0) {
+            const stunRadPx = throwStunRadiusCells(radius) * CW;
+            for (const k of Object.keys(lv.enemies || {})) {
+              const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
+              if (enemyHP.current[k] === undefined) enemyHP.current[k] = ea2.hp ?? 10;
+              if (enemyHP.current[k] <= 0) continue;
+              const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly) continue; // your own resurrected allies aren't shocked
+              const ecx = ep2.x + enemyRenderW(ea2, CW) / 2, ecy = ep2.y + enemyStandH(ea2, CW) / 2;
+              if (Math.hypot(ecx - g.x, ecy - g.y) <= stunRadPx) {
+                ep2.stun = Math.round(stunSecs * 60); ep2.reactT = 0; ep2.swingT = 0; ep2.aimHold = 0;
+                stunnedCount++;
+              }
+            }
+          }
+          flash("💥 " + (a.name || "Grenade") + " landed" + (landProp ? " — " + landProp.name : " — 🔥")
+            + (stunnedCount ? " · 💫 stunned " + stunnedCount + " for " + stunSecs + "s" : ""));
         }
         thrown.current = stillFlying;
       }
@@ -7943,7 +8003,16 @@ export default function AssetStudio() {
           <label className="slider">Damage<input type="range" min="1" max="30" step="1" value={asset.landEffectDps ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectDps: +e.target.value }))} /><span className="hint2">{asset.landEffectDps ?? 6} HP/sec</span></label>
           <label className="slider">Burns for<input type="range" min="1" max="20" step="1" value={asset.landEffectLife ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectLife: +e.target.value }))} /><span className="hint2">{asset.landEffectLife ?? 6}s</span></label>
           <label className="slider">Splash<input type="range" min="0" max="3" step="1" value={asset.landRadius ?? DEFAULT_LAND_RADIUS} onChange={(e) => setAsset((a) => ({ ...a, landRadius: +e.target.value }))} /><span className="hint2">{(asset.landRadius ?? DEFAULT_LAND_RADIUS) === 0 ? "1 cell" : (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + "×" + (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + " cells"}</span></label>
-          <span className="hint2">Thrown in Playtest by <b>holding G to aim</b> (a dotted arc previews the exact flight path) and <b>releasing G to throw</b>, in the way you're facing — the arm swings the throw. It arcs, lands, and paints its fire where it hits (explosion + other effects can come later). It's a <b>single-use pickup</b> — the player carries just what they find, like a bomb in Binding of Isaac. Draw the grenade in the <b>Side</b> pose tab specifically, under the Rest state — that's the only pose that flies; Front/Back/Up/Crouch are never shown for a thrown item, even though the tabs are still there.</span>
+          <span className="wslab">💥 Cluster:</span>
+          <label className="slider">Bomblets<input type="range" min="0" max="8" step="1" value={asset.clusterCount ?? 0} onChange={(e) => setAsset((a) => ({ ...a, clusterCount: +e.target.value }))} /><span className="hint2">{(asset.clusterCount ?? 0) === 0 ? "off — lands normally" : (asset.clusterCount ?? 0) + " little copies"}</span></label>
+          {(asset.clusterCount ?? 0) > 0 && (<>
+            <label className="slider">Bomblet size<input type="range" min="0.2" max="0.8" step="0.05" value={asset.clusterScale ?? DEFAULT_CLUSTER_SCALE} onChange={(e) => setAsset((a) => ({ ...a, clusterScale: +e.target.value }))} /><span className="hint2">{Math.round((asset.clusterScale ?? DEFAULT_CLUSTER_SCALE) * 100)}% of full size</span></label>
+            <span className="hint2">On impact this <b>becomes</b> {asset.clusterCount} smaller copies of itself, fanned left-to-right, which arc off and land separately — so it does <b>not</b> pay out its own fire where it first hit; each bomblet pays out instead (same damage, burn time, splash and stun as above, wherever it comes down). Bomblets don't cluster again.</span>
+          </>)}
+          <span className="wslab">💫 Stun:</span>
+          <label className="slider">Freeze<input type="range" min="0" max="5" step="0.25" value={asset.stun ?? 0} onChange={(e) => setAsset((a) => ({ ...a, stun: +e.target.value }))} /><span className="hint2">{(asset.stun ?? 0) === 0 ? "off" : "enemies caught in the blast freeze for " + (asset.stun ?? 0) + "s (💫)"}</span></label>
+          <span className="hint2">A shock grenade: on landing, every enemy within the splash <b>+ 1 block</b> is frozen this long — it can't move or attack, though it still falls with gravity. Re-landing one refreshes the timer. Your own resurrected allies are never shocked. Works with or without fire damage, so a pure stun grenade just needs Damage low.</span>
+          <span className="hint2">Thrown in Playtest by <b>holding G to aim</b> (a dotted arc previews the exact flight path) and <b>releasing G to throw</b>, in the way you're facing — the arm swings the throw. It arcs, lands, and pays out its payload where it hits — fire, plus any Cluster and Stun set above. It's a <b>single-use pickup</b> — the player carries just what they find, like a bomb in Binding of Isaac. Draw the grenade in the <b>Side</b> pose tab specifically, under the Rest state — that's the only pose that flies; Front/Back/Up/Crouch are never shown for a thrown item, even though the tabs are still there.</span>
         </div>
       )}
       {asset.type === "weapon" && isThrowable(asset.wtype) && !(wState === "rest" ? (asset.angles?.side || []) : (asset.states?.rest?.side || [])).some((p) => !p.isHitbox && !p.isMuzzle) && (

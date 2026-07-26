@@ -1,7 +1,11 @@
 import {
   DEFAULT_PROJECTILE_RANGE,
   capAirborneSpeed,
+  CLUSTER_POP_VY,
+  CLUSTER_SPREAD_VX,
+  clusterBombletVelocity,
   connectedFrontRegion,
+  throwStunRadiusCells,
   frontFadeKeys,
   pedestalCoverKeys,
   pedestalXrayGhost,
@@ -173,6 +177,43 @@ describe("pedestal x-ray look", () => {
     const mid = (PED_XRAY_NEAR_CELLS + PED_XRAY_FAR_CELLS) / 2;
     expect(pedestalXrayGhost(mid)).toBeCloseTo(0.5);
     expect(pedestalXrayGhost(undefined)).toBe(0);
+  });
+});
+
+describe("throwable cluster burst", () => {
+  test("bomblets fan symmetrically from full left to full right", () => {
+    const vs = [0, 1, 2, 3, 4].map((i) => clusterBombletVelocity(i, 5));
+    expect(vs[0].vx).toBeCloseTo(-CLUSTER_SPREAD_VX);
+    expect(vs[2].vx).toBeCloseTo(0);
+    expect(vs[4].vx).toBeCloseTo(CLUSTER_SPREAD_VX);
+    // Mirrored pairs cancel, so the spray is even rather than lopsided.
+    expect(vs[0].vx + vs[4].vx).toBeCloseTo(0);
+    expect(vs[1].vx + vs[3].vx).toBeCloseTo(0);
+  });
+
+  test("every bomblet pops upward by the same amount", () => {
+    for (const i of [0, 1, 2]) expect(clusterBombletVelocity(i, 3).vy).toBe(-CLUSTER_POP_VY);
+  });
+
+  test("a lone bomblet goes straight up rather than veering off", () => {
+    expect(clusterBombletVelocity(0, 1).vx).toBe(0);
+    expect(clusterBombletVelocity(0, 0).vx).toBe(0); // guards a 0/degenerate count
+  });
+
+  test("spread and pop can be overridden", () => {
+    expect(clusterBombletVelocity(0, 2, 10, 7)).toEqual({ vx: -10, vy: -7 });
+  });
+});
+
+describe("throwable stun radius", () => {
+  test("always reaches at least one block past the impact", () => {
+    expect(throwStunRadiusCells(0)).toBe(1);
+    expect(throwStunRadiusCells(3)).toBe(4);
+  });
+
+  test("a missing or negative splash still stuns what's standing on it", () => {
+    expect(throwStunRadiusCells(undefined)).toBe(1);
+    expect(throwStunRadiusCells(-5)).toBe(1);
   });
 });
 
