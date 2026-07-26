@@ -62,6 +62,8 @@ import {
   resolveSaveTarget,
   splitObjectStackByPlayerLayer,
   weaponReloadFrames,
+  BLOCK_FRAMES,
+  blockStopsHit,
 } from "./App";
 
 describe("projectile range trajectory", () => {
@@ -1115,5 +1117,35 @@ describe("burst fire", () => {
     while (burstShotDue(left, 0, ammo())) { fired += 1; left -= 1; }
     expect(fired).toBe(3);
     expect(left).toBe(0);
+  });
+});
+
+describe("melee block (Q/V with a melee weapon in hand)", () => {
+  const guard = { t: 0, dur: BLOCK_FRAMES };
+
+  test("a blow from the front, facing right, is turned aside", () => {
+    expect(blockStopsHit(guard, 1, 200, 100)).toBe(true);
+  });
+
+  test("a blow from the front, facing left, is turned aside", () => {
+    expect(blockStopsHit(guard, -1, 20, 100)).toBe(true);
+  });
+
+  test("no guard up means no block", () => {
+    expect(blockStopsHit(null, 1, 200, 100)).toBe(false);
+    expect(blockStopsHit(undefined, 1, 200, 100)).toBe(false);
+  });
+
+  test("an arm held out in front can't cover your back", () => {
+    expect(blockStopsHit(guard, 1, 20, 100)).toBe(false);
+    expect(blockStopsHit(guard, -1, 200, 100)).toBe(false);
+  });
+
+  test("an attacker standing in your own column counts as in front, same as Back Guard", () => {
+    expect(blockStopsHit(guard, 1, 100, 100)).toBe(true);
+  });
+
+  test("the guard is about a second long", () => {
+    expect(BLOCK_FRAMES).toBe(60);
   });
 });

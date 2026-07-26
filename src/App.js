@@ -923,6 +923,21 @@ export const incomingPlayerDamage = (raw, def, face, attackerX, wearerX, backGua
   if (crouchGuardReduce != null) d = applyCrouchGuard(d, !!crouching, crouchGuardReduce);
   return Math.max(1, Math.round(d));
 };
+// BLOCK — what the melee button (Q/V) does when you're actually HOLDING a melee weapon. Fire
+// already swings a melee weapon, so a second swing button bought you nothing; bracing is the move
+// that was missing. The arm goes straight out with the weapon held across you for one second, and
+// any enemy MELEE blow landing on your guarded front in that window is turned aside for free
+// (before Defense — a block is a block, not damage reduction).
+//
+// It deliberately does NOT stop shots. Sweeping a swing through an incoming projectile already
+// knocks it out of the air (the PARRY in the player's melee hit-test) — that's the timed, skilful
+// answer to a ranged enemy, and a guard that also ate bullets would just replace it with a button
+// you hold. So: melee is blocked, ranged is parried, and the two stay distinct.
+export const BLOCK_FRAMES = 60;   // ~1s at 60fps. A committed brace, not a hold-to-turtle stance.
+// Does an active guard stop this blow? Only from the front — the same flank rule Back Guard uses,
+// since a shield arm held out in front of you cannot cover your back.
+export const blockStopsHit = (blocking, face, attackerX, wearerX) =>
+  !!blocking && !isHitFromBehind(face, attackerX, wearerX);
 // A clothing "Tag Damage" ability empowers a KIND of weapon: any equipped weapon whose
 // category tags include the tag the ability is set to (e.g. "bow") deals multiplied damage
 // while the item is worn. Given the wearer's resolved effects (post-mergeEquip) and the
@@ -3128,7 +3143,7 @@ export default function AssetStudio() {
   const xrayFrontSig = useRef("");         // signature of the Front cells the player was behind last frame; the flood fill above only re-runs when this changes, so standing still costs nothing
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
-  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
+  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
   const keys = useRef({});
   const lvRef = useRef(null);
 
@@ -3984,6 +3999,14 @@ export default function AssetStudio() {
           const applyAttackHit = (rawDmg) => {
             if (targetKind === "player") {
               if (p.invuln > 0) return false;
+              // Guard up (Q/V with a melee weapon): a blow onto your front is turned aside for
+              // nothing. Only this melee path consults it — an enemy's SHOT resolves in the
+              // projectile pipeline and is untouched on purpose (see BLOCK_FRAMES). Returns true
+              // so the caller still counts the swing as spent: one swing, one block.
+              if (blockStopsHit(p.blocking, p.face, atkCX, p.x + pw / 2)) {
+                flash("🛡️ Blocked " + (ea.name || "the hit") + "!");
+                return true;
+              }
               const dmg = incomingPlayerDamage(rawDmg, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch);
               playerHP.current = Math.max(0, playerHP.current - dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
@@ -4187,12 +4210,26 @@ export default function AssetStudio() {
         }
       }
       p.wasFire = !!K.fire;
-      // Melee button (Q/V): a bare-handed swing you can throw even while holding a ranged weapon —
-      // pistol-whip style. Fist reach, unarmed (Strength) damage; no bonus range. Edge-triggered so
-      // one tap = one swing, and it won't start on top of an in-progress shot/swing.
+      // Melee button (Q/V) does one of two things, decided by what's in your hand:
+      //   Ranged weapon, or empty hands — a bare-handed swing you can throw WITHOUT holstering the
+      //     gun: pistol-whip style. Fist reach, unarmed (Strength) damage, no bonus range.
+      //   Melee weapon — a BLOCK instead (see BLOCK_FRAMES). Fire is already the swing for a melee
+      //     weapon, so this button was a duplicate there; now it's the guard.
+      // Both are edge-triggered (one tap = one action) and neither starts on top of an in-progress
+      // shot, swing or block.
       const wantMelee = K.melee && !p.wasMelee;
-      if (wantMelee && !p.firing) { p.firing = { t: 0, dur: 12, unarmed: true }; p.hitRegistered = false; }
+      const meleeInHand = !!playtestWeapon && !isRanged(playtestWeapon.wtype); // a real melee weapon — bare hands still swing
+      if (wantMelee && !p.firing && !p.blocking) {
+        if (meleeInHand && !p.climbing) p.blocking = { t: 0, dur: BLOCK_FRAMES };
+        else if (!meleeInHand) { p.firing = { t: 0, dur: 12, unarmed: true }; p.hitRegistered = false; }
+      }
       p.wasMelee = !!K.melee;
+      // The guard runs down on its own — a committed second, not something you can sit behind — and
+      // drops the moment you attack or grab a ladder (both hands go elsewhere).
+      if (p.blocking) {
+        if (p.firing || p.climbing) p.blocking = null;
+        else { p.blocking.t += dtMul; if (p.blocking.t >= p.blocking.dur) p.blocking = null; }
+      }
       if (p.firing) {
         p.firing.t += dtMul;
         // Melee hit-test — reconstructs just enough of the render section's arm-swing/weapon-
@@ -7225,7 +7262,7 @@ export default function AssetStudio() {
           <span className="badge">{lv.isRoom ? "🚪 Room" : "🗺️ Level"}</span>
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel} title="Undo (last change)">↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel} title="Redo">↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -7388,7 +7425,7 @@ export default function AssetStudio() {
 
         <div className="lmain">
           <div className="lstage">
-            {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb · <b>J/F</b> fire · <b>Q</b> melee{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload" : ""}{playtestThrowId ? " · hold G to aim, release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
+            {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb · <b>J/F</b> fire · <b>Q</b> {playtestWeapon && !isRanged(playtestWeapon.wtype) ? "block" : "melee"}{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload" : ""}{playtestThrowId ? " · hold G to aim, release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
             {play && (playtestWeaponId || SLOT_ORDER.some((sl) => equipped.current[sl])) && (() => {
               const bits = [];
               if (playtestWeaponId) { const w = findA(playtestWeaponId); if (w) bits.push("🗡️ " + w.name); }
@@ -7667,6 +7704,24 @@ export default function AssetStudio() {
                       const a = windupAnchorOf(b);
                       if (!a) return { ...b, rot: windupArmRot(b) };
                       return rigidArmFollow(b, a, windupArmRot(a));
+                    });
+                  } else if (blocks && p.blocking) {
+                    // BLOCK (Q/V holding a melee weapon): a HELD pose, not an arc. The arm sets to
+                    // the same absolute "extended, level" rotation the ranged aim hold uses
+                    // (armAimAbs) and simply stays there for the second the guard is up, so the
+                    // weapon reads as held out across you rather than swung. Same rigid sleeve
+                    // follow as every other arm pose; the weapon attaches below unchanged and stays
+                    // on its Rest art, since p.firing is null throughout a block.
+                    const blockAnchorOf = armAnchorFinder(blocks);
+                    blocks = blocks.map((b) => {
+                      if (b.role !== "weaponArm" && b.limb !== "arm") return b;
+                      const target = armAimAbs(b.armPivot);
+                      if (b.role === "weaponArm") return { ...b, rot: target * armMirrorTwist(b) };
+                      const a = blockAnchorOf(b);
+                      // Sleeve with no anchor arm: same rotational DELTA the arm made, kept on top
+                      // of the sleeve's own baked rest rot — see the aim branch for why.
+                      if (!a) { const armDelta = target - baseArmRot; return { ...b, rot: (b.rot || 0) + armDelta * armMirrorTwist(b) }; }
+                      return rigidArmFollow(b, a, armAimAbs(a.armPivot) * armMirrorTwist(a));
                     });
                   }
                   const aiming = blocks && p.aiming && playtestWeapon && isRanged(playtestWeapon.wtype) && angle !== "up";
