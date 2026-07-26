@@ -4667,14 +4667,34 @@ export default function AssetStudio() {
     ro.observe(el); return () => ro.disconnect();
   }, [screen]);
 
+  // ONE unreadable record must never hide the whole library. This used to be a single try/catch
+  // around the entire loop: if any asset's JSON failed to parse — a write truncated by a storage
+  // hiccup, a quota failure mid-save — the throw escaped before setLibrary() ever ran, so every
+  // other asset silently vanished from the UI at once. All the records were still sitting in
+  // storage untouched; nothing had been lost. But an empty library is indistinguishable from lost
+  // work, which is about the worst way this can fail for someone with hours of unbacked-up art.
+  //
+  // Now the index and each record are parsed independently. A record that can't be read is
+  // skipped and REPORTED (flash + console.warn with its id) instead of being swallowed, so the
+  // other 69 assets still load and the damaged one can be identified and re-saved by hand.
   const loadLibrary = async () => {
-    try {
-      const idx = await sget("assetIndex");
-      const list = idx ? JSON.parse(idx) : [];
-      const full = [];
-      for (const it of list) { const r = await sget("asset:" + it.id); if (r) full.push(migrate(JSON.parse(r))); }
-      setLibrary(full);
-    } catch { setLibrary([]); }
+    let list = [];
+    try { const idx = await sget("assetIndex"); list = idx ? JSON.parse(idx) : []; } catch { list = []; }
+    if (!Array.isArray(list)) list = [];
+    const full = [], bad = [];
+    for (const it of list) {
+      const id = it && it.id;
+      try {
+        const raw = await sget("asset:" + id);
+        if (raw === null || raw === undefined) { bad.push((it && it.name) || id); continue; } // indexed but the record is gone
+        full.push(migrate(JSON.parse(raw)));
+      } catch { bad.push((it && it.name) || id); }
+    }
+    setLibrary(full);
+    if (bad.length) {
+      console.warn("[Bob] " + bad.length + " asset record(s) could not be read and were skipped:", bad);
+      flash("⚠ " + bad.length + " asset" + (bad.length > 1 ? "s" : "") + " couldn't be read and " + (bad.length > 1 ? "were" : "was") + " skipped — the other " + full.length + " loaded fine. Check the console for which.");
+    }
   };
   const loadStamps = async () => {
     try {
@@ -6298,10 +6318,18 @@ export default function AssetStudio() {
       flash("Loaded background \"" + name + "\" — replaced this level's Background layer.");
     } catch { flash("Couldn't load that background."); }
   };
+  // Same all-or-nothing trap as loadLibrary had — one unparseable level used to hide every level.
   const loadLevels = async () => {
-    try { const idx = await sget("levelIndex"); const list = idx ? JSON.parse(idx) : []; const full = [];
-      for (const it of list) { const r = await sget("level:" + it.id); if (r) full.push(migrateLevel(JSON.parse(r))); } setLevelLib(full);
-    } catch { setLevelLib([]); }
+    let list = [];
+    try { const idx = await sget("levelIndex"); list = idx ? JSON.parse(idx) : []; } catch { list = []; }
+    if (!Array.isArray(list)) list = [];
+    const full = [], bad = [];
+    for (const it of list) {
+      try { const r = await sget("level:" + (it && it.id)); if (r) full.push(migrateLevel(JSON.parse(r))); else bad.push((it && it.name) || (it && it.id)); }
+      catch { bad.push((it && it.name) || (it && it.id)); }
+    }
+    setLevelLib(full);
+    if (bad.length) { console.warn("[Bob] " + bad.length + " level(s) could not be read and were skipped:", bad); flash("⚠ " + bad.length + " level" + (bad.length > 1 ? "s" : "") + " couldn't be read — the other " + full.length + " loaded. See console."); }
   };
   const openLevelCreator = () => {
     loadLevels(); loadBgLib(); loadTextures();
