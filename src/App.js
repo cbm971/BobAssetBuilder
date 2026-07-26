@@ -384,6 +384,13 @@ export const advanceWeapon = (w, dt) => {
   if (reloadT > 0) { reloadT = Math.max(0, reloadT - dt); if (reloadT === 0) ammo = w.clip; }
   return { ...w, cd, reloadT, ammo };
 };
+// AI-held guns reload themselves as soon as their magazine is empty. The player has an explicit
+// reload key (and Fire-on-empty), but enemies have no input edge to trigger that action, so their
+// per-frame timer step owns the automatic transition into the gun's configured reload duration.
+export const advanceAutoReloadWeapon = (w, dt, reloadFrames) => {
+  const next = advanceWeapon(w, dt);
+  return needsReload(next) ? startReload(next, reloadFrames) : next;
+};
 const bodyRig = (b, ang) => {
   const r = b && b.angles && armRig(armOf(b.angles[ang]));
   return r || { shoulder: (b && b.shoulder && b.shoulder[ang]) || DEFAULT_SHOULDER[ang], hand: (b && b.hand && b.hand[ang]) || DEFAULT_HAND[ang] };
@@ -803,6 +810,15 @@ export const rangeBoostMultiplier = (effects) => {
   for (const e of (effects || [])) if (e.type === "rangeBoost") mult *= (e.mult ?? 1.5);
   return Math.max(0.1, mult);
 };
+// Clothing can add rounds to any finite ranged-weapon magazine. Bonuses stack additively; a clip
+// size of 0 still means unlimited ammo and deliberately stays 0 rather than becoming finite.
+export const effectiveMagazineSize = (clipSize, effects) => {
+  const base = Math.max(0, Math.round(clipSize ?? DEFAULT_CLIP_SIZE));
+  if (base === 0) return 0;
+  let bonus = 0;
+  for (const e of (effects || [])) if (e && e.type === "magazineSize") bonus += Math.max(0, Math.round(e.rounds ?? 2));
+  return base + bonus;
+};
 // Horizontal movement rule. On the ground (or on a ladder/bars) your speed is driven by the keys
 // AND remembered as momentum. In the air the keys do NOT steer you (no air control) — you keep
 // whatever horizontal momentum you left the ground with, so running and jumping carries you along,
@@ -1131,6 +1147,14 @@ const EFFECT_TYPES = {
     noAnim: true,
     params: [
       { key: "mult", label: "Range ×", min: 1, max: 4, step: 0.25, def: 1.5 },
+    ],
+  },
+  magazineSize: {
+    label: "Magazine Size", icon: "➕",
+    blurb: "Adds rounds to the magazine of any finite-ammo ranged weapon while this is worn. Multiple clothing bonuses stack. Weapons set to unlimited ammo stay unlimited. No animation of its own.",
+    noAnim: true,
+    params: [
+      { key: "rounds", label: "Extra rounds", min: 1, max: 30, step: 1, def: 2 },
     ],
   },
 };
@@ -2857,7 +2881,7 @@ export default function AssetStudio() {
     const wpnIsRanged = !!(playtestWeapon && isRanged(playtestWeapon.wtype));
     const fireCdFrames = weaponFireCooldownFrames(playtestWeapon?.fireRate);
     const reloadFrames = weaponReloadFrames(playtestWeapon?.reloadTime);
-    wpn.current = newWeaponAmmo(wpnIsRanged ? (playtestWeapon.clipSize ?? DEFAULT_CLIP_SIZE) : 0);
+    wpn.current = newWeaponAmmo(wpnIsRanged ? effectiveMagazineSize(playtestWeapon.clipSize, playerAsset?.effects) : 0);
     // Throwable the player is carrying this session (chosen separately from the held weapon), plus
     // the count they start with. Single-use: each throw decrements throwCarry; at 0, G does nothing.
     const carriedThrow = playtestThrowId ? findA(playtestThrowId) : null;
@@ -3373,7 +3397,7 @@ export default function AssetStudio() {
 
           if (!enemyPos.current[k]) {
             const spawnLeft = ec * CW + CW / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2);
-            enemyPos.current[k] = { x: spawnLeft, y: (er + 1) * CH - standEph, vy: 0, onGround: false, face: spawn.facing === 1 ? 1 : -1, crouch: false, crouchT: 0, dodgeRolled: false, willDodge: false, attackT: 0, swingT: 0, reactT: 0, aimHold: 0, walkPhase: 0, walking: false };
+            enemyPos.current[k] = { x: spawnLeft, y: (er + 1) * CH - standEph, vy: 0, onGround: false, face: spawn.facing === 1 ? 1 : -1, crouch: false, crouchT: 0, dodgeRolled: false, willDodge: false, attackT: 0, swingT: 0, reactT: 0, aimHold: 0, walkPhase: 0, walking: false, weaponAmmo: null, reloading: false };
           }
           const ep = enemyPos.current[k];
           const stunned = (ep.stun || 0) > 0; // hit by a stun weapon — frozen: the dodge/face/move/attack gates below all skip it while this lasts
@@ -3381,6 +3405,20 @@ export default function AssetStudio() {
           const oldEph = ep.crouch ? crouchEph : standEph;
           const eIntel = ea.stats?.intelligence ?? 5;
           const ew = findA(enemyWeaponIdOf(ea)) || (ea.components && ea.components.weapon) || null; // the weapon this enemy is actually holding — falls back to the look's own embedded copy if the source asset is gone from the library
+          const rangedEnemy = !!(ew && isRanged(ew.wtype));
+          // Enemies use the same clip and reload-time settings as the gun itself (including any
+          // Magazine Size clothing on a dressed enemy). Keep the ammo record on this spawn's live
+          // state so leaving/re-entering a room preserves an in-progress reload just like its HP.
+          if (rangedEnemy) {
+            const enemyClip = effectiveMagazineSize(ew.clipSize, ea.effects);
+            if (!ep.weaponAmmo || ep.weaponAmmo.clip !== enemyClip) ep.weaponAmmo = newWeaponAmmo(enemyClip);
+            ep.weaponAmmo = advanceAutoReloadWeapon(ep.weaponAmmo, dtMul, weaponReloadFrames(ew.reloadTime));
+            ep.reloading = ep.weaponAmmo.reloadT > 0;
+            if (ep.reloading) { ep.aimHold = 0; ep.swingT = 0; }
+          } else {
+            ep.weaponAmmo = null;
+            ep.reloading = false;
+          }
           // A player-based look engages at its WEAPON'S actual swept reach; only drawn
           // enemy-type monsters still use the ⚔️ range number.
           const meleeGeom = enemyMeleeGeom(ea, ew);
@@ -3608,8 +3646,9 @@ export default function AssetStudio() {
           }
           // Ranged units visibly TRACK their target: aimHold keeps the arm raised in the aim pose
           // the whole time the target is in their sights, not just the shot frame.
-          if (inSight && ew && isRanged(ew.wtype)) ep.aimHold = 14; else if (ep.aimHold > 0) ep.aimHold -= dtMul;
-          if (!inSight) ep.reactT = 0; // lost the target mid-wind-up: abandon it, don't bank the delay
+          if (inSight && rangedEnemy && !ep.reloading) ep.aimHold = 14; else if (ep.aimHold > 0) ep.aimHold -= dtMul;
+          const rangedReady = !rangedEnemy || canFireNow(ep.weaponAmmo);
+          if (!inSight || !rangedReady) ep.reactT = 0; // lost the target or is reloading: abandon the wind-up, don't bank the delay
           else if (ep.attackT <= 0) {
             if (ep.reactT <= 0) ep.reactT = enemyReactionFrames(eIntel); // spotted the target — start winding up
             else {
@@ -3617,7 +3656,7 @@ export default function AssetStudio() {
               if (ep.reactT <= 0) {
                 ep.reactT = 0;
                 ep.face = Math.sign(tgtAimCX - eCenterXFinal) || ep.face;
-                const rangedNow = !!(ew && isRanged(ew.wtype));
+                const rangedNow = rangedEnemy;
                 ep.attackT = rangedNow ? Math.max(20, weaponFireCooldownFrames(ew.fireRate)) : ATTACK_COOLDOWN_FRAMES;
                 ep.swingT = ATTACK_SWING_FRAMES;
                 if (rangedNow) {
@@ -3645,6 +3684,7 @@ export default function AssetStudio() {
                     damage: enemyAttackDamage(ea, ew), life: 0, foe: hostile,
                     explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
                   });
+                  ep.weaponAmmo = consumeShot(ep.weaponAmmo, weaponFireCooldownFrames(ew.fireRate));
                 } else if (meleeGeom) {
                   ep.swingHit = false; // weapon-hitbox melee: committing only STARTS the swing; the hit lands in the swing test above
                 } else {
@@ -7208,7 +7248,7 @@ export default function AssetStudio() {
                   // RANGED: the enemy LIFTS the arm to the level aim pose — the exact -90/90
                   // hold the player's own gun arm uses — the whole time it has you in its
                   // sights (ep.aimHold, set in the physics loop) and through the shot itself.
-                  const eAiming = eRanged && ep && ((ep.aimHold || 0) > 0 || ep.swingT > 0);
+                  const eAiming = eRanged && ep && !ep.reloading && ((ep.aimHold || 0) > 0 || ep.swingT > 0);
                   if (ep && eArm0 && !eUseAtkPose && (eAiming || (ep.swingT > 0 && !eRanged))) {
                     const eSwingA = meleeSwingAngle(ATTACK_SWING_FRAMES - ep.swingT, ATTACK_SWING_FRAMES);
                     const rot = eRanged
@@ -8640,7 +8680,7 @@ const css = `
 .catItemInput:focus{outline:none;border-color:#4f7cf6}
 .pedcfg{display:flex;flex-direction:column;gap:7px;margin:6px 0}
 .pedcfg .catinline{width:100%;box-sizing:border-box}
-.pedestalPlay{position:absolute;z-index:7;pointer-events:none}
+.pedestalPlay{position:absolute;z-index:5;pointer-events:none}
 .pedestalArt{position:absolute;inset:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
 .pedestalEmpty{font-size:10px;color:#ff9b9b;background:rgba(0,0,0,.6);border:1px solid #5a2e36;border-radius:5px;padding:1px 5px}
 .pedestalGem{position:absolute;left:50%;bottom:0;transform:translateX(-50%);font-size:${LV_CELL*0.75}px;line-height:1}

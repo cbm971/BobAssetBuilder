@@ -2,15 +2,21 @@ import {
   DEFAULT_PROJECTILE_RANGE,
   capAirborneSpeed,
   cutterLayerSegments,
+  advanceAutoReloadWeapon,
+  canFireNow,
+  consumeShot,
   enemyCrouchH,
   enemyNeedsFlip,
   enemyStandH,
+  effectiveMagazineSize,
   flipPropFramesHorizontally,
+  newWeaponAmmo,
   projectileDropAtDistance,
   projectilePositionAtDistance,
   rangeBoostMultiplier,
   resolveSaveTarget,
   splitObjectStackByPlayerLayer,
+  weaponReloadFrames,
 } from "./App";
 
 describe("projectile range trajectory", () => {
@@ -156,6 +162,35 @@ describe("level object front/back layering", () => {
     expect(layers.front.map(({ o }) => o.id)).toEqual(["front-bush"]);
     expect(layers.behind[0].stackIndex).toBe(stack.findIndex((o) => o.id === "back-bush"));
     expect(layers.front[0].stackIndex).toBe(stack.findIndex((o) => o.id === "front-bush"));
+  });
+});
+
+describe("weapon magazines and enemy reloads", () => {
+  test("magazine-size clothing adds rounds and stacks without changing unlimited weapons", () => {
+    const effects = [
+      { type: "magazineSize", rounds: 2 },
+      { type: "doubleJump", height: 9 },
+      { type: "magazineSize", rounds: 3 },
+    ];
+    expect(effectiveMagazineSize(6, effects)).toBe(11);
+    expect(effectiveMagazineSize(0, effects)).toBe(0);
+  });
+
+  test("an AI weapon empties, waits for its gun's reload time, then refills", () => {
+    let ammo = newWeaponAmmo(2);
+    ammo = consumeShot(ammo, 1);
+    ammo = consumeShot(ammo, 1);
+    expect(canFireNow(ammo)).toBe(false);
+
+    const reloadFrames = weaponReloadFrames(0.5);
+    ammo = advanceAutoReloadWeapon(ammo, 1, reloadFrames);
+    expect(ammo.reloadT).toBe(reloadFrames);
+    expect(ammo.ammo).toBe(0);
+
+    ammo = advanceAutoReloadWeapon(ammo, reloadFrames, reloadFrames);
+    expect(ammo.reloadT).toBe(0);
+    expect(ammo.ammo).toBe(2);
+    expect(canFireNow(ammo)).toBe(true);
   });
 });
 
