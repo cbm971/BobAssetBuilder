@@ -1961,6 +1961,36 @@ const fgClipPath = (cell) => {
 // A comparable shape signature for a Foreground cell — used by flood-fill/move to tell "same
 // shape" apart (plain block vs. an up-ramp vs. a down-ramp vs. either's upside-down/visual twin).
 const fgShapeSig = (cell) => !fgHasDiagonalShape(cell) ? "block" : (cell.slope > 0 ? "up" : "down") + (cell.upsideDown ? "_ud" : "");
+// The COMPLEMENT of a ramp shape within its cell: the SAME diagonal edge, with the other side of
+// it filled. A normal ramp fills below its diagonal; the upside-down variant fills above it. Flip
+// both the direction and the upside-down flag and the two shapes share an edge exactly — check
+// fgClipPath: a normal {slope:d} runs from 100-frac to the bottom, and {slope:-d, upsideDown}
+// runs from the top down to frac, and for any run/step those meet on the same line. So the two
+// are precisely the halves a cell splits into along the diagonal you drew. Involutive: taking the
+// complement twice gives the original shape back.
+export const complementFgShape = (shape) => {
+  if (!shape || (shape.slope !== 1 && shape.slope !== -1)) return shape;
+  const out = { ...shape, slope: -shape.slope };
+  if (shape.upsideDown) delete out.upsideDown; else out.upsideDown = true;
+  return out;
+};
+// Painting a ramp over a cell that is ALREADY a plain solid block carves that block along the
+// ramp's diagonal instead of wiping it out. The block keeps everything about its own paint —
+// colour, texture, outline — and what survives is the material on the far side of the cut. That
+// is what makes the underside of a ramp: previously the block was deleted and replaced by a
+// triangle of freshly-selected paint, leaving an empty wedge where the block used to be.
+export const carveFgBlock = (cell, shape) => {
+  const kept = (cell && typeof cell === "object") ? { ...cell } : { c: cell };
+  delete kept.slope; delete kept.run; delete kept.step; delete kept.upsideDown; // the shape comes from the cut, never from the old cell
+  return { ...kept, ...complementFgShape(shape) };
+};
+// Carve only a cell that is genuinely a plain solid block: an empty cell has nothing to cut (place
+// the ramp normally), and one that is already a ramp is being re-shaped rather than carved — which
+// also means painting the same spot twice replaces it outright, the escape hatch for "actually I
+// just want a plain ramp in the selected colour here". An explicit 🙃 Upside down is a literal
+// instruction about which half to keep, so it is never second-guessed either.
+export const shouldCarveFgBlock = (cell, explicitUpsideDown) =>
+  cell !== undefined && cell !== null && !fgHasDiagonalShape(cell) && !explicitUpsideDown;
 
 /* ============================== TEXTURES ==================================
    A painted cell has always been either a plain color string, or an object carrying a ramp
@@ -4473,7 +4503,16 @@ export default function AssetStudio() {
       setLevel((lv) => {
         if (!lv) return lv;
         const fg = { ...lv.fg };
-        for (let c = lo; c <= hi; c++) { if (c < 0 || c >= lv.cols) continue; fg[cellKey(r, c)] = paintValue(lColor, activeTexture, { slope: dir, run, step: c - lo, ...(lFgUpsideDown ? { upsideDown: true } : {}) }); }
+        for (let c = lo; c <= hi; c++) {
+          if (c < 0 || c >= lv.cols) continue;
+          const key = cellKey(r, c);
+          const shape = { slope: dir, run, step: c - lo, ...(lFgUpsideDown ? { upsideDown: true } : {}) };
+          // Over a solid block, cut it along this diagonal and keep its own material on the far
+          // side (see carveFgBlock) rather than deleting the block and leaving a wedge of nothing.
+          fg[key] = shouldCarveFgBlock(fg[key], lFgUpsideDown)
+            ? carveFgBlock(fg[key], shape)
+            : paintValue(lColor, activeTexture, shape);
+        }
         return { ...lv, fg };
       });
     };
@@ -7098,7 +7137,15 @@ export default function AssetStudio() {
                   const run = hi - lo + 1;
                   const cells = [];
                   for (let c = lo; c <= hi; c++) cells.push(c);
-                  return <>{cells.map((c) => <div key={"rg" + c} className="rampGhost" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellPaintStyle(paintValue(lColor, activeTexture), r, c, texLib), clipPath: fgClipPath({ slope: dir, run, step: c - lo, upsideDown: lFgUpsideDown }) }} />)}</>;
+                  // Each cell previews what IT will become: a carve over an existing block shows
+                  // that block's own material on the far side of the cut, so what you see before
+                  // releasing is exactly what lands (see carveFgBlock).
+                  return <>{cells.map((c) => {
+                    const shape = { slope: dir, run, step: c - lo, ...(lFgUpsideDown ? { upsideDown: true } : {}) };
+                    const existing = lv.fg[cellKey(r, c)];
+                    const val = shouldCarveFgBlock(existing, lFgUpsideDown) ? carveFgBlock(existing, shape) : paintValue(lColor, activeTexture, shape);
+                    return <div key={"rg" + c} className="rampGhost" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellPaintStyle(val, r, c, texLib), clipPath: fgClipPath(val) }} />;
+                  })}</>;
                 })()}
                 {!play && lEnemyId && lTool === "paint" && lHoverCell && (() => {
                   const ea = findA(lEnemyId);

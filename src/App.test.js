@@ -1,6 +1,9 @@
 import {
   DEFAULT_PROJECTILE_RANGE,
   capAirborneSpeed,
+  carveFgBlock,
+  complementFgShape,
+  shouldCarveFgBlock,
   TEXTURES,
   TEXTURE_KEYS,
   newTexture,
@@ -182,6 +185,63 @@ describe("pedestal x-ray look", () => {
     const mid = (PED_XRAY_NEAR_CELLS + PED_XRAY_FAR_CELLS) / 2;
     expect(pedestalXrayGhost(mid)).toBeCloseTo(0.5);
     expect(pedestalXrayGhost(undefined)).toBe(0);
+  });
+});
+
+describe("carving a block with a ramp", () => {
+  test("the complement flips both the direction and the upside-down flag", () => {
+    expect(complementFgShape({ slope: 1 })).toEqual({ slope: -1, upsideDown: true });
+    expect(complementFgShape({ slope: -1 })).toEqual({ slope: 1, upsideDown: true });
+    expect(complementFgShape({ slope: 1, upsideDown: true })).toEqual({ slope: -1 });
+  });
+
+  test("complementing twice returns the original shape", () => {
+    for (const s of [{ slope: 1, run: 3, step: 1 }, { slope: -1, run: 2, step: 0, upsideDown: true }]) {
+      expect(complementFgShape(complementFgShape(s))).toEqual(s);
+    }
+  });
+
+  test("the two halves meet on exactly the same diagonal, for any run and step", () => {
+    // fgClipPath's own maths, restated: a normal ramp's TOP edge and its complement's BOTTOM edge
+    // must land on identical y values, or the cut would show a seam or an overlap.
+    const distFromLow = (sh, lf) => (sh.slope > 0 ? sh.step + lf : sh.run - sh.step - lf);
+    const edge = (sh, lf) => {
+      const f = (distFromLow(sh, lf) / sh.run) * 100;
+      return sh.upsideDown ? f : 100 - f; // upside-down fills down to f; normal fills from 100-f
+    };
+    for (const run of [1, 2, 3, 5]) {
+      for (let step = 0; step < run; step++) {
+        for (const slope of [1, -1]) {
+          const shape = { slope, run, step };
+          const comp = complementFgShape(shape);
+          for (const lf of [0, 0.5, 1]) expect(edge(comp, lf)).toBeCloseTo(edge(shape, lf));
+        }
+      }
+    }
+  });
+
+  test("carving keeps the block's own colour, texture and outline", () => {
+    const block = { c: "#8d8578", tex: "tex-1", ol: "#000000" };
+    const carved = carveFgBlock(block, { slope: 1, run: 1, step: 0 });
+    expect(carved).toEqual({ c: "#8d8578", tex: "tex-1", ol: "#000000", slope: -1, run: 1, step: 0, upsideDown: true });
+  });
+
+  test("a bare colour-string block carves just as well", () => {
+    expect(carveFgBlock("#552200", { slope: -1, run: 2, step: 1 }))
+      .toEqual({ c: "#552200", slope: 1, run: 2, step: 1, upsideDown: true });
+  });
+
+  test("an old shape on the cell never leaks into the carve", () => {
+    const stale = { c: "#111111", slope: 1, run: 4, step: 2, upsideDown: true };
+    expect(carveFgBlock(stale, { slope: 1, run: 1, step: 0 })).toEqual({ c: "#111111", slope: -1, run: 1, step: 0, upsideDown: true });
+  });
+
+  test("only a plain solid block is carved", () => {
+    expect(shouldCarveFgBlock("#8d8578", false)).toBe(true);
+    expect(shouldCarveFgBlock({ c: "#8d8578" }, false)).toBe(true);
+    expect(shouldCarveFgBlock(undefined, false)).toBe(false);           // empty cell — just place the ramp
+    expect(shouldCarveFgBlock({ c: "#8d8578", slope: 1 }, false)).toBe(false); // already a ramp — repaint it
+    expect(shouldCarveFgBlock("#8d8578", true)).toBe(false);            // explicit 🙃 is taken literally
   });
 });
 
