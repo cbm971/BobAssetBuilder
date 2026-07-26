@@ -10,6 +10,7 @@ import {
   enemyStandH,
   effectiveMagazineSize,
   flipPropFramesHorizontally,
+  incomingPlayerDamage,
   newWeaponAmmo,
   projectileDropAtDistance,
   projectilePositionAtDistance,
@@ -79,6 +80,40 @@ describe("scaled enemy dimensions", () => {
   test("standing and crouching heights share the enemy scale", () => {
     expect(enemyStandH({ scale: 2 }, 30)).toBe(420);
     expect(enemyCrouchH({ scale: 2 }, 30)).toBe(252);
+  });
+});
+
+describe("Crouch Guard", () => {
+  // Hit for 20 with no Defense, so the raw number survives to the guards unchanged.
+  const hit = (backReduce, crouchReduce, crouching, attackerX = 100) =>
+    incomingPlayerDamage(20, 0, 1, attackerX, 0, backReduce, crouchReduce, crouching);
+
+  test("halves a hit taken while crouched and leaves a standing hit alone", () => {
+    expect(hit(null, 0.5, true)).toBe(10);
+    expect(hit(null, 0.5, false)).toBe(20);
+    expect(hit(null, null, true)).toBe(20);
+  });
+
+  test("applies from any direction, unlike Back Guard", () => {
+    expect(hit(null, 0.5, true, 100)).toBe(10);  // attacker in front
+    expect(hit(null, 0.5, true, -100)).toBe(10); // attacker behind
+  });
+
+  test("stacks with Back Guard on a crouched hit from behind", () => {
+    expect(hit(0.5, 0.5, true, -100)).toBe(5);  // 20 -> back guard 10 -> crouch guard 5
+    expect(hit(0.5, 0.5, true, 100)).toBe(10);  // not from behind, so only crouch applies
+  });
+
+  test("runs after Defense, not before", () => {
+    expect(incomingPlayerDamage(20, 10, 1, 100, 0, null, 0.5, true)).toBe(5); // defense halves to 10, crouch halves to 5
+  });
+
+  test("a full block still leaves the one-point floor", () => {
+    expect(incomingPlayerDamage(1, 0, 1, 100, 0, null, 1, true)).toBe(1);
+  });
+
+  test("callers that pass no crouch arguments are unaffected", () => {
+    expect(incomingPlayerDamage(20, 0, 1, -100, 0, 0.5)).toBe(10); // back guard only, exactly as before
   });
 });
 

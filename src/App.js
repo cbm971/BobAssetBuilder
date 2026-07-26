@@ -606,6 +606,12 @@ export const stripThrownLanding = (hazardIn, fxIn, hazKeys, propKeys) => {
 // keeps the shallower partial-angle behavior.
 export const projectileAimRad = (aimDir) => (aimDir === -1 ? -Math.PI / 2 : aimDir * (Math.PI * 40 / 180));
 export const DEFAULT_PROJECTILE_RANGE = 14;
+// Idle dangle for a monkey-bars / ledge hang. Speed is radians per 60fps frame (0.05 ≈ one full
+// sway every ~2s — a slow pendulum, not a kick), and the amplitude is deliberately small: this is
+// meant to read as "hanging weight shifting", so it should be noticeable without ever competing
+// with the ladder climb's real 22° alternating stride.
+export const HANG_SWAY_SPEED = 0.05;
+export const HANG_SWAY_DEG = 6;
 // Range is measured along the aimed flight path in level pixels, never in frames. This keeps the
 // configured block count stable when projectile speed changes. The first half has no added drop;
 // the second half eases down quadratically so a neutral shot reaches the shooter's firing-time
@@ -772,13 +778,21 @@ export const isHitFromBehind = (face, attackerX, wearerX) => {
 // Back Guard: eats `reduce` (0..1) of a hit, but only when it lands from behind. Applied AFTER
 // normal Defense (so it's the cape catching what armor didn't). reduce 0.5 halves the blow.
 export const applyBackGuard = (damage, fromBehind, reduce) => fromBehind ? damage * (1 - Math.max(0, Math.min(1, reduce || 0))) : damage;
+// Crouch Guard: the ducking counterpart to Back Guard — eats `reduce` (0..1) of a hit, but only
+// while the wearer is CROUCHED (a shield braced in front of you as you hunker down). Unlike Back
+// Guard, direction is irrelevant: being crouched is the entire condition, so it covers a hit from
+// any side. Same 0..1 clamp and same "applied after Defense" placement.
+export const applyCrouchGuard = (damage, crouching, reduce) => crouching ? damage * (1 - Math.max(0, Math.min(1, reduce || 0))) : damage;
 // The combined incoming-damage pipeline for a player hit: normal Defense first, then any Back
-// Guard cape if the hit came from behind, floored at 1 so a hit always stings a little. `backGuard`
-// is the effect object (or null); passing the wearer's own facing + the attacker's x decides
-// whether the guard applies. Keeps every hit site (melee, projectile) from re-deriving the order.
-export const incomingPlayerDamage = (raw, def, face, attackerX, wearerX, backGuardReduce) => {
+// Guard cape if the hit came from behind, then any Crouch Guard if the wearer is ducking, floored
+// at 1 so a hit always stings a little. Each `*Reduce` is that effect's strength or null for "not
+// worn — skip the check entirely". Keeps every hit site (melee, projectile, explosion) from
+// re-deriving the order. Both guards can apply to the same blow: crouching behind cover with a
+// cape on and taking one in the back stacks them, which is exactly what wearing both should buy.
+export const incomingPlayerDamage = (raw, def, face, attackerX, wearerX, backGuardReduce, crouchGuardReduce, crouching) => {
   let d = applyDefense(raw, def);
   if (backGuardReduce != null) d = applyBackGuard(d, isHitFromBehind(face, attackerX, wearerX), backGuardReduce);
+  if (crouchGuardReduce != null) d = applyCrouchGuard(d, !!crouching, crouchGuardReduce);
   return Math.max(1, Math.round(d));
 };
 // A clothing "Tag Damage" ability empowers a KIND of weapon: any equipped weapon whose
@@ -1095,6 +1109,17 @@ const EFFECT_TYPES = {
   backGuard: {
     label: "Back Guard", icon: "🛡️",
     blurb: "Blocks part of any hit that lands from BEHIND you (a cape catching the blow). Front and side hits are unaffected. Stacks after your normal Defense. No animation of its own.",
+    noAnim: true,
+    params: [
+      { key: "reduce", label: "Block %", min: 0.1, max: 1, step: 0.05, def: 0.5 },
+    ],
+  },
+  // The ducking counterpart to Back Guard: a shield/plate that only pays off while you're
+  // CROUCHED, from any direction (Back Guard is direction-gated instead). Same Block % knob and
+  // the same after-Defense placement, so the two read identically and can be worn together.
+  crouchGuard: {
+    label: "Crouch Guard", icon: "🧎",
+    blurb: "Blocks part of any hit that lands while you are CROUCHING — duck behind it and you take less. Direction doesn't matter (that's Back Guard's job); staying crouched is the whole trick. Stacks after your normal Defense. No animation of its own.",
     noAnim: true,
     params: [
       { key: "reduce", label: "Block %", min: 0.1, max: 1, step: 0.05, def: 0.5 },
@@ -2603,6 +2628,7 @@ export default function AssetStudio() {
   const [wState, setWState] = useState("rest");        // weapon: rest | fire
   const [eState, setEState] = useState("normal");       // enemy: normal | onFire | charge
   const [effEdit, setEffEdit] = useState(null);         // equipment only: { effId, bodyKey, frameIdx } while designing an effect's animation; null = editing the item's normal art
+  const [fxPickerOpen, setFxPickerOpen] = useState(false); // ✨ Effects: the "add an effect" catalog starts COLLAPSED. It grows by one button per effect type, while a given item usually only wants one or two — so the default view is the effects this item actually HAS, not the menu of everything it could have.
   const [poseCopySrc, setPoseCopySrc] = useState(null); // body creator only: angle currently shown as a copy-from reference
   const [propFrame, setPropFrame] = useState(0);        // prop only: which animation frame index is being edited (0 = base look)
   const [canUndo, setCanUndo] = useState(false);
@@ -2747,7 +2773,7 @@ export default function AssetStudio() {
   const frontCellsRef = useRef(null);      // wrapper around the memoized Front tile layer — lets the playtest loop fade covered cells imperatively, without re-rendering the whole (memoized) layer every frame
   const hazardCellsRef = useRef(null);     // same idea for fire: the layer is memoized (not rebuilt every frame), so a burnt-out cell is hidden imperatively by toggling its own element's opacity
   const fadedFrontKeys = useRef(new Set()); // Front cell keys currently faded, so leaving a cell restores it and unchanged cells aren't touched at all
-  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0 });
+  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
   const keys = useRef({});
   const lvRef = useRef(null);
 
@@ -2875,6 +2901,8 @@ export default function AssetStudio() {
     const slideEffect = (playerAsset?.effects || []).find((e) => e.type === "slide") || null;
     const slideResolved = slideState(slideEffect);
     const backGuardReduce = backGuardEffect ? (backGuardEffect.reduce ?? 0.5) : null; // null = no cape, skip the behind check entirely
+    const crouchGuardEffect = (playerAsset?.effects || []).find((e) => e.type === "crouchGuard") || null;
+    const crouchGuardReduce = crouchGuardEffect ? (crouchGuardEffect.reduce ?? 0.5) : null; // null = not worn, skip the crouch check entirely
     // Ranged weapon ammo: a fresh full clip each Playtest session (this effect re-runs whenever
     // Playtest starts/stops or the equipped weapon changes). Melee weapons get an "unlimited"
     // record (clip 0), so nothing below ever gates a swing on ammo.
@@ -3378,6 +3406,11 @@ export default function AssetStudio() {
       p.walking = dx !== 0 && p.onGround && !climbing;
       if (p.walking) p.walkPhase = (p.walkPhase || 0) + Math.abs(dx) * 0.03;
       else if (climbing && climbMove) p.walkPhase = (p.walkPhase || 0) + climbMove * 0.03;
+      // Hanging is a DANGLE, not a stride: the legs need to keep moving even when you're gripping
+      // still, which walkPhase can't do (it only advances with actual movement — hold still on the
+      // bars and it freezes). So hanging gets its own phase, advanced by time rather than distance.
+      // Reset on release so the next grab starts at sin(0) = 0 — dead centre, no visible snap.
+      p.hangPhase = climbing ? (p.hangPhase || 0) + dtMul * HANG_SWAY_SPEED : 0;
 
       // Enemies: AI movement + gravity + crouch-dodge, all before the hit-tests below so a hit
       // is always checked against this frame's live position, not last frame's. No pathfinding
@@ -3593,7 +3626,7 @@ export default function AssetStudio() {
           const applyAttackHit = (rawDmg) => {
             if (targetKind === "player") {
               if (p.invuln > 0) return false;
-              const dmg = incomingPlayerDamage(rawDmg, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce);
+              const dmg = incomingPlayerDamage(rawDmg, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch);
               playerHP.current = Math.max(0, playerHP.current - dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
               if (playerHP.current <= 0) { flash("💀 " + ea.name + " defeated you — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; playerHP.current = maxPlayerHP(playerAsset); }
@@ -3923,7 +3956,7 @@ export default function AssetStudio() {
             if (p.invuln <= 0) {
               const pcx = p.x + pw / 2, pcy = p.y + ph / 2;
               if (Math.hypot(pcx - ix, pcy - iy) <= radPx) {
-                const dmg = incomingPlayerDamage(baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce);
+                const dmg = incomingPlayerDamage(baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch);
                 playerHP.current = Math.max(0, playerHP.current - dmg);
                 p.invuln = PLAYER_INVULN_FRAMES;
                 if (playerHP.current <= 0) { flash("💀 Caught in the blast — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; playerHP.current = maxPlayerHP(playerAsset); }
@@ -3988,7 +4021,7 @@ export default function AssetStudio() {
                 // relative to the way you're facing — a bullet catching you in the back is one
                 // moving the same way you face while coming from behind you. Using the shot's own
                 // x as the attacker position captures exactly that.
-                const dmg = incomingPlayerDamage(pr.damage ?? 5, playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce);
+                const dmg = incomingPlayerDamage(pr.damage ?? 5, playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch);
                 playerHP.current = Math.max(0, playerHP.current - dmg);
                 p.invuln = PLAYER_INVULN_FRAMES;
                 if (playerHP.current <= 0) { flash("💀 Shot down — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; playerHP.current = maxPlayerHP(playerAsset); }
@@ -6604,7 +6637,7 @@ export default function AssetStudio() {
           <span className="badge">{lv.isRoom ? "🚪 Room" : "🗺️ Level"}</span>
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel} title="Undo (last change)">↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel} title="Redo">↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -6960,7 +6993,12 @@ export default function AssetStudio() {
                     blocks = applyLimbSwing(blocks, legIds, armIds, swing, { alternate: true, armReach: Math.sin(p.walkPhase || 0) * 10, legLift: Math.sin(p.walkPhase || 0) * 8 });
                   } else if (blocks && p.climbing) {
                     // Monkey bars / cliff ledge: a hang, not a climb — both arms forced straight up
-                    // to the grip, legs left exactly as drawn (feet dangling, no swing cycle).
+                    // to the grip. The legs get a slow pendulum sway rather than the ladder's
+                    // alternating stride: hanging by your hands, both feet drift together as your
+                    // weight shifts, so this deliberately does NOT pass `alternate` (that would
+                    // scissor them like a climb). Driven by hangPhase, so it keeps swaying while
+                    // you hang motionless — the whole point, since walkPhase stops when you do.
+                    const { legIds, armIds } = identifyLimbs(blocks);
                     const anchorOf = armAnchorFinder(blocks);
                     blocks = blocks.map((b) => {
                       if (b.role !== "weaponArm" && b.limb !== "arm") return b;
@@ -6970,6 +7008,8 @@ export default function AssetStudio() {
                       if (!a) return { ...b, rot: limbFollowRot(b, target, baseArmRot) };
                       return rigidArmFollow(b, a, armClimbAbs(a.armPivot));
                     });
+                    // Legs only — no armReach opt, so the arms stay locked to the grip above.
+                    blocks = applyLimbSwing(blocks, legIds, armIds, Math.sin(p.hangPhase || 0) * HANG_SWAY_DEG);
                   } else if (blocks && p.walking) {
                     // Legs and non-weapon arms swing back and forth, opposite phase, like a normal
                     // walk cycle. Uses flags where set; otherwise the ground-nearest piece(s) and
@@ -8072,9 +8112,23 @@ export default function AssetStudio() {
                   </div>
                 );
               })}
-              {Object.keys(EFFECT_TYPES).filter((t) => !(asset.effects || []).some((e) => e.type === t)).map((t) => (
-                <button key={t} className="ltbtn" onClick={() => addEffect(t)}>＋ Add {EFFECT_TYPES[t].icon} {EFFECT_TYPES[t].label}</button>
-              ))}
+              {/* The catalog of effects NOT yet on this item, behind a ＋/－ toggle. Collapsed by
+                  default (see fxPickerOpen) so the card stays short as the catalog grows; picking
+                  one closes it again, putting the effect you just added straight back in view. */}
+              {(() => {
+                const addable = Object.keys(EFFECT_TYPES).filter((t) => !(asset.effects || []).some((e) => e.type === t));
+                if (!addable.length) return <p className="mini">Every effect is already on this item.</p>;
+                return (
+                  <>
+                    <button className="ltbtn" onClick={() => setFxPickerOpen((v) => !v)}>
+                      {fxPickerOpen ? "－" : "＋"} Add an effect ({addable.length} available)
+                    </button>
+                    {fxPickerOpen && addable.map((t) => (
+                      <button key={t} className="ltbtn" onClick={() => { addEffect(t); setFxPickerOpen(false); }}>＋ Add {EFFECT_TYPES[t].icon} {EFFECT_TYPES[t].label}</button>
+                    ))}
+                  </>
+                );
+              })()}
             </div>
           )}
           {asset.type === "enemy" && (
