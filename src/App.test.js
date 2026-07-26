@@ -8,7 +8,9 @@ import {
   fgSlopeFills,
   fgSolid,
   armHoldsAimPose,
+  copyAngleTargets,
   displayPoseKey,
+  editablePoses,
   groupWeaponBlocksByArm,
   mergeFgFill,
   mergeWeaponBlocks,
@@ -915,5 +917,37 @@ describe("holding Fire locks the aim pose", () => {
   test("the fire pose is held long enough to read, and outlasts the old flash", () => {
     expect(RANGED_FIRE_POSE_FRAMES).toBeGreaterThan(16);
     expect(weaponPoseFired(true, { t: RANGED_FIRE_POSE_FRAMES - 1, dur: RANGED_FIRE_POSE_FRAMES })).toBe(true);
+  });
+});
+
+describe("copying a pose onto poses you pick", () => {
+  const enemy = editablePoses("enemy");            // side, up, crouch, attack, death
+
+  test("only the ticked poses are written — Attack and Death are left alone", () => {
+    expect(copyAngleTargets(enemy, "side", ["up", "crouch"])).toEqual(["up", "crouch"]);
+  });
+
+  test("the pose you are copying FROM is never a target, even if it is ticked", () => {
+    expect(copyAngleTargets(enemy, "side", ["side", "up"])).toEqual(["up"]);
+    expect(copyAngleTargets(enemy, "side", ["side"])).toEqual([]);
+  });
+
+  test("no picks still means every other pose, so the old one-click behaviour is intact", () => {
+    expect(copyAngleTargets(enemy, "side", [])).toEqual(["up", "crouch", "attack", "death"]);
+    expect(copyAngleTargets(enemy, "side", undefined)).toEqual(["up", "crouch", "attack", "death"]);
+  });
+
+  test("a pose this asset type doesn't have is ignored rather than invented", () => {
+    // "front" is not editable on an enemy; a stale tick must not write it.
+    expect(copyAngleTargets(enemy, "side", ["front", "crouch"])).toEqual(["crouch"]);
+    expect(copyAngleTargets(editablePoses("weapon", "melee"), "side", ["up"])).toEqual([]);
+  });
+
+  test("result follows the pose order, not the order they were ticked", () => {
+    expect(copyAngleTargets(enemy, "side", ["death", "up", "attack"])).toEqual(["up", "attack", "death"]);
+  });
+
+  test("picking every other pose matches copying to all", () => {
+    expect(copyAngleTargets(enemy, "attack", enemy)).toEqual(copyAngleTargets(enemy, "attack", []));
   });
 });

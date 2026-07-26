@@ -752,6 +752,16 @@ export const pedestalItemPool = (assets, cats, logic) => (assets || []).filter((
 // pieces and the pedestal fell through to its "no match" placeholder even though it had rolled the
 // weapon perfectly well. Side is a weapon's natural display profile, so it's next in line. Falls
 // back to whatever pose actually holds art, so nothing that was drawn can render as "no match".
+// Which poses a "copy this pose onto…" action actually writes. The source pose is never a target
+// (copying onto itself is a no-op that would still burn an undo step), unknown names are ignored so
+// a stale tick from a previous asset type can't write a pose this type doesn't have, and the result
+// keeps editablePoses' own order rather than click order. Passing no picks means "all of them",
+// which is the pre-submenu behaviour every existing caller relied on.
+export const copyAngleTargets = (allPoses, current, picked) => {
+  const others = (allPoses || []).filter((ag) => ag !== current);
+  if (!picked || !picked.length) return others;
+  return others.filter((ag) => picked.includes(ag));
+};
 export const displayPoseKey = (a) => {
   const has = (ang) => !!(a && a.angles && (a.angles[ang] || []).length);
   for (const ang of ["front", "side", "back", "up", "crouch"]) if (has(ang)) return ang;
@@ -2926,6 +2936,8 @@ export default function AssetStudio() {
   const [effEdit, setEffEdit] = useState(null);         // equipment only: { effId, bodyKey, frameIdx } while designing an effect's animation; null = editing the item's normal art
   const [fxPickerOpen, setFxPickerOpen] = useState(false); // ✨ Effects: the "add an effect" catalog starts COLLAPSED. It grows by one button per effect type, while a given item usually only wants one or two — so the default view is the effects this item actually HAS, not the menu of everything it could have.
   const [poseCopySrc, setPoseCopySrc] = useState(null); // body creator only: angle currently shown as a copy-from reference
+  const [copyToOpen, setCopyToOpen] = useState(false);  // "copy to other poses" submenu is showing
+  const [copyToPicked, setCopyToPicked] = useState([]); // poses ticked in that submenu (empty = nothing to copy yet)
   const [propFrame, setPropFrame] = useState(0);        // prop only: which animation frame index is being edited (0 = base look)
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
@@ -5174,21 +5186,67 @@ export default function AssetStudio() {
   const toFront = () => { if (!sel) return; const ids = layerIds(); setPieces((ps) => [...ps.filter((p) => !ids.has(p.id)), ...ps.filter((p) => ids.has(p.id))]); };
   const toBack = () => { if (!sel) return; const ids = layerIds(); setPieces((ps) => [...ps.filter((p) => ids.has(p.id)), ...ps.filter((p) => !ids.has(p.id))]); };
   const movePiece = (id, dir) => setPieces((ps) => { const i = ps.findIndex((p) => p.id === id); const j = i + dir; if (i < 0 || j < 0 || j >= ps.length) return ps; const a = ps.slice();[a[i], a[j]] = [a[j], a[i]]; return a; });
-  const copyAngle = () => setAsset((a) => {
+  // Copy the current pose onto CHOSEN other poses. `targets` is the explicit list to overwrite;
+  // passing none keeps the old behaviour of every other pose this type exposes. Copying is
+  // destructive to whatever was in the target, which is exactly why picking targets matters —
+  // "copy to other poses" used to also flatten Death and Attack, so using it late in a build
+  // wiped poses you'd already finished.
+  const copyAngle = (targets) => setAsset((a) => {
+    const want = copyAngleTargets(editablePoses(a.type, a.wtype), angle, targets);
+    if (!want.length) return a;
     if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default");
     const src = a.angles[angle] || [];
     const next = { ...a.angles };
     const srcGroups = (a.groups && a.groups[angle]) || [];
     const groups = { ...(a.groups || {}) };
-    // Copy into every OTHER pose this type exposes — Death included; if you're bulk-copying a
-    // pose across, the Death pose gets it too (redraw it afterward if you want it lying down).
-    for (const ag of editablePoses(a.type, a.wtype)) if (ag !== angle) {
+    for (const ag of want) {
       const idMap = new Map();
       next[ag] = src.map((p) => { const nid = uid(); idMap.set(p.id, nid); return { ...p, id: nid }; });
       groups[ag] = srcGroups.map((g) => ({ ...g, id: uid(), ids: g.ids.map((oid) => idMap.get(oid)).filter(Boolean) })).filter((g) => g.ids.length > 1);
     }
     return { ...a, angles: next, groups };
   });
+  // "copy to other poses" is a SUBMENU rather than one destructive button. Copying overwrites the
+  // target outright, and the old one-click version hit EVERY other pose — so reaching for it after
+  // you'd already drawn Attack or Death silently flattened them. Now you tick exactly which poses
+  // to overwrite. Each row says whether that pose is empty or how many blocks it would lose, so
+  // the destructive ones are visible before you commit. Nothing copies until Copy is pressed, and
+  // the ticks reset every time the menu opens so a stale selection can't fire by accident.
+  const copyTargets = asset ? editablePoses(asset.type, asset.wtype).filter((ag) => ag !== angle) : [];
+  const closeCopyTo = () => { setCopyToOpen(false); setCopyToPicked([]); };
+  const runCopyTo = () => {
+    const n = copyToPicked.length;
+    if (!n) return;
+    copyAngle(copyToPicked);
+    flash("Copied " + ALABEL[angle] + " onto " + n + " pose" + (n > 1 ? "s" : "") + " ✓");
+    closeCopyTo();
+  };
+  const copyToPosesMenu = (!asset || !copyTargets.length) ? null : (
+    <span className="copytowrap">
+      <button className={"copyang" + (copyToOpen ? " on" : "")} onClick={() => { if (copyToOpen) closeCopyTo(); else { setCopyToPicked([]); setCopyToOpen(true); } }} title="Copy this pose onto poses you pick">⧉ copy to other poses {copyToOpen ? "▴" : "▾"}</button>
+      {copyToOpen && (
+        <div className="copytomenu">
+          <div className="ct">Copy {ALABEL[angle]} onto…</div>
+          {copyTargets.map((ag) => {
+            const n = (asset.angles[ag] || []).length;
+            return (
+              <label key={ag} className="chk">
+                <input type="checkbox" checked={copyToPicked.includes(ag)} onChange={() => setCopyToPicked((s) => s.includes(ag) ? s.filter((x) => x !== ag) : [...s, ag])} />
+                {ALABEL[ag]}
+                <span className="hint2">{n ? " — replaces " + n + " block" + (n > 1 ? "s" : "") : " — empty"}</span>
+              </label>
+            );
+          })}
+          <div className="copytorow">
+            <button onClick={() => setCopyToPicked(copyTargets.slice())}>All</button>
+            <button onClick={() => setCopyToPicked([])}>None</button>
+            <button className="prim" disabled={!copyToPicked.length} onClick={runCopyTo}>Copy{copyToPicked.length ? " (" + copyToPicked.length + ")" : ""}</button>
+            <button onClick={closeCopyTo}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </span>
+  );
   // Body creator only: pull one block out of the read-only "copy pose" reference panel into the live pose.
   // Comes in as a brand-new, fully independent, easily-deletable block — doesn't touch the source pose.
   const pullPoseCopyPiece = (p) => {
@@ -8383,7 +8441,7 @@ export default function AssetStudio() {
             surfaces for poses that can never appear were pure wasted work. */}
         {editablePoses(asset.type, asset.wtype).map((a) => {
           const hasLimbs = (asset.type === "body" || asset.type === "enemy") && (asset.angles[a] || []).some((p) => p.limb === "leg" || (p.limb === "arm" && p.role !== "weaponArm"));
-          return <button key={a} className={angle === a ? "on" : ""} onClick={() => { setAngle(a); setSelId(null); if (poseCopySrc === a) setPoseCopySrc(null); }} title={hasLimbs ? "Has an arm/leg flagged for animation" : ""}>{ALABEL[a]}{hasLimbs ? " 🦴" : ""}</button>;
+          return <button key={a} className={angle === a ? "on" : ""} onClick={() => { setAngle(a); setSelId(null); if (poseCopySrc === a) setPoseCopySrc(null); closeCopyTo(); }} title={hasLimbs ? "Has an arm/leg flagged for animation" : ""}>{ALABEL[a]}{hasLimbs ? " 🦴" : ""}</button>;
         })}
         {(asset.type === "body" || asset.type === "enemy") ? (
           <span className="posecopy">
@@ -8394,10 +8452,10 @@ export default function AssetStudio() {
             {poseCopySrc && <button className="copyang" onClick={() => setPoseCopySrc(null)} title="Remove the reference copy">✕ remove copy</button>}
             {/* Creatures get BOTH: the reference overlay above (trace/pull piece-by-piece) and this
                 one-click full copy of the whole current pose into all the others at once. */}
-            {asset.type === "enemy" && <button className="copyang" onClick={copyAngle} title="Copy this whole pose into all the other poses at once">⧉ copy to other poses</button>}
+            {asset.type === "enemy" && copyToPosesMenu}
           </span>
         ) : (
-          <button className="copyang" onClick={copyAngle} >copy to other poses</button>
+          copyToPosesMenu
         )}
         {asset.type === "enemy" && angle === "attack" && <span className="hint2" style={{ flexBasis: "100%" }}>⚔️ Optional. Draw the pose this enemy holds while it attacks (the lunge/strike frame). If you draw anything here, it's shown during each melee attack <b>instead of</b> swinging the arm. Leave it blank and it swings the piece(s) you've flagged 💪 Arm. Drawn once, side-on — it's flipped to face you automatically, like Death.</span>}
         {showGuide && <span className="refpick">🧍 {asset.variants ? "Design for body:" : "Load body:"}
@@ -8982,6 +9040,16 @@ const css = `
 .angles>button.on{background:#4f7cf6;border-color:#4f7cf6;font-weight:600}
 .copyang{font-size:12px;color:#9aa3b8 !important;background:transparent !important;border:1px dashed #3a4258 !important}
 .posecopy{display:flex;align-items:center;gap:6px}
+/* "copy to other poses" submenu. Anchored to its own button so it drops directly under it, and
+   above everything else in the toolbar (z-index) since the pose tabs sit in the same strip. */
+.copytowrap{position:relative;display:inline-flex}
+.copytomenu{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:230px;display:flex;flex-direction:column;gap:4px;padding:10px;background:#161a26;border:1px solid #3a4258;border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.55)}
+.copytomenu .ct{font-size:12px;color:#9aa3b8;margin-bottom:2px}
+.copytomenu .chk{display:flex;align-items:center;gap:7px;font-size:13px;white-space:nowrap;cursor:pointer}
+.copytorow{display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid #2a3040}
+.copytorow button{flex:1;font-size:12px;padding:6px 8px;border-radius:8px;background:#1f2433;border:1px solid #3a4258;color:#c8cfdd;cursor:pointer}
+.copytorow button.prim{background:#2f6fb5;border-color:#3f80c9;color:#fff}
+.copytorow button:disabled{opacity:.45;cursor:not-allowed}
 .posecopy select{background:#1f2433;border:1px dashed #3a4258;border-radius:9px;padding:7px 10px;font-size:12px;color:#9aa3b8;cursor:pointer}
 .artrow{display:flex;gap:14px;align-items:flex-start;justify-content:center;width:100%;flex-wrap:wrap}
 .pcp-wrap{display:flex;flex-direction:column;gap:6px}
