@@ -4903,6 +4903,12 @@ export default function AssetStudio() {
 
   const pieces = asset ? (asset.angles[angle] || []) : [];
   const sel = pieces.find((p) => p.id === selId) || null;
+  // Is a real multi-block group live — more than one member, with the properties panel's anchor
+  // inside it? Every group-aware control keys off this one answer instead of re-deriving it.
+  const groupSel = groupIds.length > 1 && groupIds.includes(selId);
+  // The distinct animation flags across that group, already labelled. A group whose blocks don't
+  // agree can then SAY so, rather than showing only the anchor's flag and looking already-set.
+  const groupLimbs = groupSel ? [...new Set(pieces.filter((p) => groupIds.includes(p.id)).map((p) => p.limb === "arm" ? "💪 Arm" : p.limb === "leg" ? "🦵 Leg" : "None"))] : [];
   const setPieces = (fn) => setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return { ...a, angles: { ...a.angles, [angle]: fn(a.angles[angle] || []) } }; });
   // A group is a list of piece IDs, so it must never outlive the pieces it points at. The
   // pose/asset reset below only fires on angle + asset.id — but the live piece list also swaps
@@ -4995,6 +5001,24 @@ export default function AssetStudio() {
     loadStamps();
   };
   const updSel = (patch) => setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig({ ...a, angles: { ...a.angles, [angle]: (a.angles[angle] || []).map((p) => (p.id === selId ? { ...p, ...patch } : p)) } }); });
+  // Which pieces a whole-selection edit touches: every member of a live group, else just the
+  // selected piece. Shared by the layering buttons (toFront/toBack) and by updSelAll below.
+  const selOrGroupIds = () => (groupSel ? new Set(groupIds) : new Set([selId]));
+  // FLAG edits apply to the whole group. An arm drawn as five blocks is one arm, and flagging it
+  // meant selecting each block in turn and clicking 💪 five times — with nothing on screen saying
+  // that's what was needed, which is exactly the "I can't assign a grouped object to arms" report.
+  // Geometry and colour deliberately do NOT come through here: rotate/resize/flip already treat a
+  // group as one rigid object about its shared centre, which is a different and correct meaning.
+  // A flag has no shared-centre notion — "these blocks are the arm" is simply true of each one —
+  // so for flags the right group behaviour is to set them all.
+  // `only` narrows it to the members the flag actually means something for — the shoulder side is
+  // an arm's property, so grouping an arm with the torso it's drawn over must not stamp an armPivot
+  // onto the torso. Omitted = every member.
+  const updSelAll = (patch, only) => setAsset((a) => {
+    if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default");
+    const ids = selOrGroupIds();
+    return withRig({ ...a, angles: { ...a.angles, [angle]: (a.angles[angle] || []).map((p) => (ids.has(p.id) && (!only || only(p)) ? { ...p, ...patch } : p)) } });
+  });
   // Setting a block's color with "Change this color everywhere" on repaints every block that
   // already shares that exact color — all 5 poses, a weapon's rest AND fire states, and every
   // per-body fit under .variants — instead of just the selected one. Only the fill changes;
@@ -5050,7 +5074,7 @@ export default function AssetStudio() {
     return { x: p.x + p.w / 2, y: p.y + p.h / 2 };
   };
   const updSelRot = (newRot) => {
-    if (!(groupIds.length > 1 && groupIds.includes(selId))) { updSel({ rot: newRot }); return; }
+    if (!groupSel) { updSel({ rot: newRot }); return; }
     const oldRot = sel.rot || 0;
     const delta = ((newRot - oldRot + 180) % 360 + 360) % 360 - 180; // shortest-path, so dragging across the 0/360 wrap doesn't spin the long way
     const members = pieces.filter((p) => groupIds.includes(p.id));
@@ -5077,7 +5101,7 @@ export default function AssetStudio() {
   // single-piece selection just resizes that one piece on the one axis, exactly as before.
   const updSelSize = (dim, val) => {
     if (!sel) return;
-    if (!(groupIds.length > 1 && groupIds.includes(selId))) { updSel({ [dim]: Math.max(1, Math.round(val)) }); return; }
+    if (!groupSel) { updSel({ [dim]: Math.max(1, Math.round(val)) }); return; }
     const cur = dim === "w" ? sel.w : sel.h;
     const scale = Math.max(0.05, val / Math.max(1, cur));
     const members = pieces.filter((p) => groupIds.includes(p.id));
@@ -5112,7 +5136,7 @@ export default function AssetStudio() {
   // their kind is left untouched. A single-piece selection flips just that piece, in place.
   const flipSelH = () => {
     if (!sel) return;
-    const members = (groupIds.length > 1 && groupIds.includes(selId)) ? pieces.filter((p) => groupIds.includes(p.id)) : [sel];
+    const members = groupSel ? pieces.filter((p) => groupIds.includes(p.id)) : [sel];
     const cx = members.reduce((s, p) => s + p.x + p.w / 2, 0) / members.length;
     const ids = new Set(members.map((p) => p.id));
     const flipped = new Map(flipPiecesHorizontally(members, cx).map((p) => [p.id, p]));
@@ -5299,7 +5323,7 @@ export default function AssetStudio() {
   // happens to be the anchor — sending one member of a bush's leaf cluster forward while the rest
   // stayed put was the "it only sends the object you clicked" bug. The members' order RELATIVE to
   // each other is preserved (they travel as one slab), and everything else keeps its order too.
-  const layerIds = () => (groupIds.length > 1 && groupIds.includes(selId) ? new Set(groupIds) : new Set([selId]));
+  const layerIds = selOrGroupIds;
   const toFront = () => { if (!sel) return; const ids = layerIds(); setPieces((ps) => [...ps.filter((p) => !ids.has(p.id)), ...ps.filter((p) => ids.has(p.id))]); };
   const toBack = () => { if (!sel) return; const ids = layerIds(); setPieces((ps) => [...ps.filter((p) => ids.has(p.id)), ...ps.filter((p) => !ids.has(p.id))]); };
   const movePiece = (id, dir) => setPieces((ps) => { const i = ps.findIndex((p) => p.id === id); const j = i + dir; if (i < 0 || j < 0 || j >= ps.length) return ps; const a = ps.slice();[a[i], a[j]] = [a[j], a[i]]; return a; });
@@ -8952,40 +8976,45 @@ export default function AssetStudio() {
                   piece sits flat, rather than every member independently snapping to 0. */}
               <label className="slider">Twist / rotate ⟳<input type="range" min="0" max="360" value={sel.rot || 0} onChange={(e) => updSelRot(+e.target.value)} /><button className="rotbtn" onClick={() => updSelRot((((sel.rot || 0) - 90) % 360 + 360) % 360)}>↺</button><button className="rotbtn" onClick={() => updSelRot(((sel.rot || 0) + 90) % 360)}>↻</button><button className="rotbtn" disabled={!(sel.rot || 0)} onClick={() => updSelRot(0)} title="Straighten — back to its default, unrotated orientation (makes a drawn line flat)">0°</button></label>
               <label className="slider">Flip ⇋<button className="rotbtn" onClick={flipSelH} title="Mirror left-right">⇋ Flip horizontally</button></label>
-              {groupIds.length > 1 && groupIds.includes(selId) && <p className="hint2" style={{ margin: "0 0 6px" }}>⟳ Rotates · ⇋ flips · corner-drag resizes — all {groupIds.length} grouped blocks together, as one item around their shared center.</p>}
+              {groupSel && <p className="hint2" style={{ margin: "0 0 6px" }}>⟳ Rotates · ⇋ flips · corner-drag resizes — all {groupIds.length} grouped blocks together, as one item around their shared center.</p>}
               {sel.role === "weaponArm" && <p className="hint2" style={{ margin: "0 0 6px" }}>Twist swings the arm around the 🎯 shoulder; ✋ rides the far end.</p>}
-              <label className="chk"><input type="checkbox" checked={!!sel.mirror} onChange={(e) => updSel({ mirror: e.target.checked })} /> Mirror this block ⟷ <span className="hint2">(pairs the other side)</span></label>
-              <label className="chk"><input type="checkbox" checked={!!sel.isCutter} onChange={(e) => updSel({ isCutter: e.target.checked })} /> 🕳️ Cutter </label>
-              {!sel.isCutter && <label className="chk"><input type="checkbox" checked={!!sel.noCut} onChange={(e) => updSel({ noCut: e.target.checked })} /> 🛡️ Ignore cutters <span className="hint2">(if this block is below a cutter, it stays whole and shows through the hole; blocks above cutters are always unaffected)</span></label>}
-              {!effEdit && showGuide && <label className="chk"><input type="checkbox" checked={!!sel.behindBody} onChange={(e) => updSel({ behindBody: e.target.checked })} /> Behind the WHOLE body <span className="hint2">(e.g. a cape)</span></label>}
-              {!effEdit && asset.type === "equipment" && (asset.slot === "pants" || asset.slot === "under_bottom") && <label className="chk"><input type="checkbox" checked={!!sel.behindLegs} onChange={(e) => updSel({ behindLegs: e.target.checked })} /> Behind legs </label>}
-              {asset.type === "weapon" && !sel.isHitbox && <label className="chk"><input type="checkbox" checked={!!sel.behindArm} onChange={(e) => updSel({ behindArm: e.target.checked })} /> Behind the arm <span className="hint2">(e.g. a strap/sheath)</span></label>}
-              {asset.type === "skin" && <label className="chk"><input type="checkbox" checked={!!sel.hideIfHat} onChange={(e) => updSel({ hideIfHat: e.target.checked })} /> Hide if hat <span className="hint2">(e.g. top of the hair)</span></label>}
+              {/* Every flag from here down is written through updSelAll, so with a group selected
+                  it lands on all of them at once — see updSelAll for why flags and geometry take
+                  opposite views of what "the group" means. */}
+              {groupSel && <p className="hint2" style={{ margin: "0 0 6px" }}>🔗 Every flag below (mirror, layering, 💪/🦵) sets all {groupIds.length} grouped blocks at once. The buttons show the block you tapped last.</p>}
+              <label className="chk"><input type="checkbox" checked={!!sel.mirror} onChange={(e) => updSelAll({ mirror: e.target.checked })} /> Mirror this block ⟷ <span className="hint2">(pairs the other side)</span></label>
+              <label className="chk"><input type="checkbox" checked={!!sel.isCutter} onChange={(e) => updSelAll({ isCutter: e.target.checked })} /> 🕳️ Cutter </label>
+              {!sel.isCutter && <label className="chk"><input type="checkbox" checked={!!sel.noCut} onChange={(e) => updSelAll({ noCut: e.target.checked })} /> 🛡️ Ignore cutters <span className="hint2">(if this block is below a cutter, it stays whole and shows through the hole; blocks above cutters are always unaffected)</span></label>}
+              {!effEdit && showGuide && <label className="chk"><input type="checkbox" checked={!!sel.behindBody} onChange={(e) => updSelAll({ behindBody: e.target.checked })} /> Behind the WHOLE body <span className="hint2">(e.g. a cape)</span></label>}
+              {!effEdit && asset.type === "equipment" && (asset.slot === "pants" || asset.slot === "under_bottom") && <label className="chk"><input type="checkbox" checked={!!sel.behindLegs} onChange={(e) => updSelAll({ behindLegs: e.target.checked })} /> Behind legs </label>}
+              {asset.type === "weapon" && !sel.isHitbox && <label className="chk"><input type="checkbox" checked={!!sel.behindArm} onChange={(e) => updSelAll({ behindArm: e.target.checked })} /> Behind the arm <span className="hint2">(e.g. a strap/sheath)</span></label>}
+              {asset.type === "skin" && <label className="chk"><input type="checkbox" checked={!!sel.hideIfHat} onChange={(e) => updSelAll({ hideIfHat: e.target.checked })} /> Hide if hat <span className="hint2">(e.g. top of the hair)</span></label>}
               {!effEdit && asset.type === "equipment" && LOWER_BODY_SLOTS.has(asset.slot) && <p className="mini">Pants/underwear/shoes always sit below the arm automatically — no checkbox needed for that. Each pose is a separate drawing, so flag a pant-leg block 🦵 Leg (below) in <b>both</b> the Side pose (for walking) and the Back pose (for climbing) — flagging it in one doesn't carry over to the other. In Crouch specifically, the leg always paints over a shirt/jacket automatically, flagged or not.</p>}
-              {!effEdit && asset.type === "equipment" && UPPER_BODY_SLOTS.has(asset.slot) && <label className="chk"><input type="checkbox" checked={!!sel.overArms} onChange={(e) => updSel({ overArms: e.target.checked })} /> Over arms only </label>}
+              {!effEdit && asset.type === "equipment" && UPPER_BODY_SLOTS.has(asset.slot) && <label className="chk"><input type="checkbox" checked={!!sel.overArms} onChange={(e) => updSelAll({ overArms: e.target.checked })} /> Over arms only </label>}
               {effEdit && asset.type === "equipment" && <p className="mini">This frame plays in place of the item's normal art at its usual layering (behind/over the arm, under a jacket, etc.) — layering flags aren't editable here since the frame always keeps whatever position the item's normal art has.</p>}
               {sel.locked && <p className="mini">🔒 Weapon arm — the game swings this, so it can't be deleted (you can still edit it).</p>}
               {(sel.role === "weaponArm" || sel.limb === "arm") && (<>
                 <div className="ct2">Shoulder side 🫱</div>
                 <div className="limbtabs">
                   {[["top", "⬆ Top"], ["bottom", "⬇ Bottom"], ["left", "⬅ Left"], ["right", "➡ Right"]].map(([v, l]) => (
-                    <button key={v} className={(sel.armPivot || "top") === v ? "on" : ""} onClick={() => updSel({ armPivot: v })}>{l}</button>
+                    <button key={v} className={(sel.armPivot || "top") === v ? "on" : ""} onClick={() => updSelAll({ armPivot: v }, (p) => p.role === "weaponArm" || p.limb === "arm")}>{l}</button>
                   ))}
                 </div>
-                <p className="mini">Which side of this piece is the shoulder — the fixed point the swing pivots around. Use Left/Right for an arm drawn as a sideways bar.</p>
+                <p className="mini">Which side of this piece is the shoulder — the fixed point the swing pivots around. Use Left/Right for an arm drawn as a sideways bar.{groupSel ? " With a group selected this sets every 💪 arm block in it — the others are left alone." : ""}</p>
               </>)}
               {asset.type === "enemy" && sel.limb === "arm" && (
                 sel.role === "weaponArm"
                   ? <p className="mini">🫱 <b>This is the shoulder piece.</b> The whole swing pivots at its shoulder side above; every other 💪-flagged piece rides rigidly around it.</p>
                   : <button className="wide" onClick={() => setPieces((arr) => arr.map((p) => p.id === sel.id ? { ...p, role: "weaponArm" } : (p.role === "weaponArm" ? { ...p, role: undefined } : p)))}>🫱 Make this the shoulder piece</button>
               )}
-              <div className="ct2">Animation flag 🦴</div>
+              <div className="ct2">Animation flag 🦴{groupSel ? <span className="hint2"> — sets all {groupIds.length}</span> : null}</div>
               <div className="limbtabs">
                 {[["", "None"], ["arm", "💪 Arm"], ["leg", "🦵 Leg"]].map(([v, l]) => (
-                  <button key={v || "none"} className={(sel.limb || "") === v ? "on" : ""} onClick={() => updSel({ limb: v || null })}>{l}</button>
+                  <button key={v || "none"} className={(sel.limb || "") === v ? "on" : ""} onClick={() => updSelAll({ limb: v || null })}>{l}</button>
                 ))}
               </div>
-              <p className="mini">Flag a block as an arm or leg so the gameplay studio can swing or step it. The weapon arm is an arm by default.</p>
+              <p className="mini">Flag a block as an arm or leg so the gameplay studio can swing or step it. The weapon arm is an arm by default. An arm drawn as several blocks: group-select them all, then tap 💪 Arm once — the whole group gets flagged.{groupSel && groupLimbs.length > 1 ? <> <b>Right now the {groupIds.length} grouped blocks aren't all the same</b> ({groupLimbs.join(" · ")}) — tapping one of these makes them match.</> : null}</p>
+              {asset.type === "weapon" && <p className="mini">On a <b>weapon</b> you don't need this. The whole weapon is gripped by the hand and rides the arm's swing on its own; the flag only changes how a block pivots here in the editor, and it's dropped when the weapon goes into a level. It's 💪 <b>Arm on an enemy</b> that matters — that's what tells the game which blocks are the arm to swing.</p>}
               <div className="ct2">Effects ✨</div>
               <label className="slider">Fade<input type="range" min="0.1" max="1" step="0.05" value={sel.fx?.opacity ?? 1} onChange={(e) => updFx({ opacity: +e.target.value })} /></label>
               <label className="slider">Glow<input type="range" min="0" max="12" step="0.5" value={sel.fx?.glow ?? 0} onChange={(e) => updFx({ glow: +e.target.value })} /><input type="color" className="gc" value={sel.fx?.glowColor ?? "#ffd76b"} onChange={(e) => updFx({ glowColor: e.target.value })} /></label>
