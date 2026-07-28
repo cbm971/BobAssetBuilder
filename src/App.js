@@ -3105,6 +3105,11 @@ export default function AssetStudio() {
   const [lSolid, setLSolid] = useState(true);           // do placed objects block the player? (on by default — decoration is the exception, not the rule)
   const [lInFront, setLInFront] = useState(false);      // render placed objects in front of the player instead of behind (off by default — matches how it always worked before)
   const [lObjSize, setLObjSize] = useState(1);          // emoji footprint in cells (1 = one tile, 4 = 4x4)
+  // Angle the NEXT object is placed at. Rotation belongs with size, colour and solid — the settings
+  // you dial in on the toolbar while holding an object, before you put it down. Offering it only
+  // after placement was the whole reason "there is no rotate": you pick Objects > Object > Trailer,
+  // look at the strip you just used, and it isn't there. Every object painted carries this angle.
+  const [lObjRot, setLObjRot] = useState(0);
   const [lBrush, setLBrush] = useState(1);              // paint brush size in cells, for fg/bg/climb
   const [lOutline, setLOutline] = useState(false);      // brush option: outline the perimeter of the brush footprint
   const [lOutlineColor, setLOutlineColor] = useState("#1a1a1a"); // color that brush outline paints with
@@ -6803,7 +6808,7 @@ export default function AssetStudio() {
       const fx = { ...lv.fx };
       if (erase || lTool === "erase") { delete fx[objKey]; }
       else if (lObjKind === "prop" && !lPropId) { return lv; /* prop kind chosen but no prop picked yet — nothing to place */ }
-      else { const stack = fx[objKey] ? fx[objKey].slice() : []; const objBase = lObjKind === "prop" ? { kind: "prop", propId: lPropId, solid: lSolid, size: lObjSize, inFront: lInFront } : lObjKind === "shape" ? { kind: "shape", shape: lObjShape, tint: lTint || "#7aa2d6", solid: lSolid, size: lObjSize, inFront: lInFront } : { kind: "emoji", char: lEmoji, tint: lTint, solid: lSolid, size: lObjSize, inFront: lInFront }; stack.push(objBase); fx[objKey] = stack; }
+      else { const stack = fx[objKey] ? fx[objKey].slice() : []; const objBase = lObjKind === "prop" ? { kind: "prop", propId: lPropId, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot } : lObjKind === "shape" ? { kind: "shape", shape: lObjShape, tint: lTint || "#7aa2d6", solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot } : { kind: "emoji", char: lEmoji, tint: lTint, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot }; stack.push(objBase); fx[objKey] = stack; }
       return { ...lv, fx };
     }
     if (lLayer === "climb") { const climb = { ...lv.climb }; if (erase || lTool === "erase") delete climb[k]; else climb[k] = { kind: lClimbKind }; return { ...lv, climb }; }
@@ -7549,21 +7554,24 @@ export default function AssetStudio() {
               <div className="seg sizeseg">{LV_OBJ_SIZES.map((n) => <button key={n} className={lObjSize === n ? "on" : ""} onClick={() => setLObjSize(n)} title={n + "x" + n + " cells"}>{n}×</button>)}</div>
               <label className="chk solidchk"><input type="checkbox" checked={lSolid} onChange={(e) => setLSolid(e.target.checked)} /> Solid <span className="hint2">(blocks the player)</span></label>
               <label className="chk solidchk"><input type="checkbox" checked={lInFront} onChange={(e) => setLInFront(e.target.checked)} /> In front of player <span className="hint2">{lSolid ? "(blocks + fades when they're behind it)" : "(walk-through, fades when they're behind it)"}</span></label>
-              {/* TWIST, on the main toolbar rather than only in the side panel. This is the control
-                  you go looking for the moment you drop a big prop next to a hill, so it belongs
-                  where your eyes already are — on the strip you just picked the object and its size
-                  from. Acts on the object you last placed or clicked; the side panel has the same
-                  control per layer when a cell holds several. */}
-              {fxOpen ? (
-                <span className="objtwist">
-                  <b>Twist</b>
-                  <input type="range" min="0" max="359" step="1" value={fxOpen.rot || 0} onChange={(e) => updateFxAt(lFxSel, fxOpenIdx, { rot: normalizeObjRot(+e.target.value || 0) })} title="turn the object you last placed or clicked" />
-                  <span className="hint2">{(fxOpen.rot || 0)}°</span>
-                  <button className="rotbtn" title={"turn " + OBJ_ROT_NUDGE + "° anticlockwise"} onClick={() => nudgeFxRot(lFxSel, fxOpenIdx, -OBJ_ROT_NUDGE)}>↺</button>
-                  <button className="rotbtn" title={"turn " + OBJ_ROT_NUDGE + "° clockwise"} onClick={() => nudgeFxRot(lFxSel, fxOpenIdx, OBJ_ROT_NUDGE)}>↻</button>
-                  <button className="rotbtn" disabled={!(fxOpen.rot || 0)} title="straighten — back to upright" onClick={() => updateFxAt(lFxSel, fxOpenIdx, { rot: 0 })}>0°</button>
-                </span>
-              ) : <span className="hint2">Place an object, or click one you've placed, to twist / resize / restyle it.</span>}
+              {/* TWIST — always on the strip, right next to Size, because it is a PLACEMENT setting
+                  like size and colour: you dial the angle in while holding the object, then put it
+                  down already tilted. Hiding it until something was selected is what made it
+                  invisible — you pick Objects > Object > Trailer, look at the strip you just used,
+                  and there's no rotate. With an object selected the same control edits THAT object;
+                  otherwise it sets the angle for the next one you place. */}
+              <span className="objtwist">
+                <b>Twist</b>
+                <input type="range" min="0" max="359" step="1"
+                  value={fxOpen ? (fxOpen.rot || 0) : lObjRot}
+                  onChange={(e) => { const v = normalizeObjRot(+e.target.value || 0); if (fxOpen) updateFxAt(lFxSel, fxOpenIdx, { rot: v }); else setLObjRot(v); }}
+                  title={fxOpen ? "turn the object you last placed or clicked" : "angle every object you place from here on"} />
+                <span className="hint2">{(fxOpen ? (fxOpen.rot || 0) : lObjRot)}°</span>
+                <button className="rotbtn" title={"turn " + OBJ_ROT_NUDGE + "° anticlockwise"} onClick={() => { if (fxOpen) nudgeFxRot(lFxSel, fxOpenIdx, -OBJ_ROT_NUDGE); else setLObjRot((v) => normalizeObjRot(v - OBJ_ROT_NUDGE)); }}>↺</button>
+                <button className="rotbtn" title={"turn " + OBJ_ROT_NUDGE + "° clockwise"} onClick={() => { if (fxOpen) nudgeFxRot(lFxSel, fxOpenIdx, OBJ_ROT_NUDGE); else setLObjRot((v) => normalizeObjRot(v + OBJ_ROT_NUDGE)); }}>↻</button>
+                <button className="rotbtn" disabled={!(fxOpen ? (fxOpen.rot || 0) : lObjRot)} title="straighten — back to upright" onClick={() => { if (fxOpen) updateFxAt(lFxSel, fxOpenIdx, { rot: 0 }); else setLObjRot(0); }}>0°</button>
+                <span className="hint2">{fxOpen ? "editing the selected object" : "sets the angle for the next one you place"}</span>
+              </span>
               {lObjKind === "prop" && <span className="hint2">🌿 Objects are your own pixel art (optionally animated). They scale to the chosen size — the art stretches to fit, it never tiles. Great as a real fire drawn over a fire-hazard cell: make the hazard invisible-in-play and flag this <b>In front of player</b>.</span>}
             </>
           ) : lLayer === "marker" ? (
@@ -7691,7 +7699,9 @@ export default function AssetStudio() {
                   // Ghost sits exactly where a click would put it — same objAnchor, edge clamp
                   // included, so the preview never lies about where a big object will land.
                   const ga = objAnchor(lHoverCell.r, lHoverCell.c, lObjSize);
-                  return <div className="lobjGhost" style={{ left: ga.c * LV_CELL, top: ga.r * LV_CELL, width: sz, height: sz, zIndex: lInFront ? 6 : 4 }}>{renderObj(ghostO, sz, "ghost", 0)}</div>;
+                  // ...including the angle: the preview tilts with Twist, so you line a trailer up
+                  // against the hill before you commit rather than placing it and then fixing it.
+                  return <div className="lobjGhost" style={{ left: ga.c * LV_CELL, top: ga.r * LV_CELL, width: sz, height: sz, zIndex: lInFront ? 6 : 4, ...objRotStyle({ rot: lObjRot }) }}>{renderObj(ghostO, sz, "ghost", 0)}</div>;
                 })()}
                 {!play && (lLayer === "bg" || lLayer === "front" || (lLayer === "fg" && lFgShape === "block")) && lTool === "paint" && lHoverCell && (() => {
                   // Matches paintBrush's own iteration exactly (full r×c square, not just a
