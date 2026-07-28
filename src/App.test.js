@@ -3,6 +3,9 @@ import {
   capAirborneSpeed,
   cellSig,
   LV_OBJ_SIZES,
+  objRotStyle,
+  normalizeObjRot,
+  OBJ_ROT_NUDGE,
   objectLayerClass,
   fgFills,
   fgSlopeFills,
@@ -1133,6 +1136,29 @@ describe("burst fire", () => {
     while (burstShotDue(left, 0, ammo())) { fired += 1; left -= 1; }
     expect(fired).toBe(3);
     expect(left).toBe(0);
+  });
+});
+
+describe("twisting a placed object", () => {
+  test("no twist means no transform at all", () => {
+    expect(objRotStyle({ size: 4 })).toBe(null);
+    expect(objRotStyle({ size: 4, rot: 0 })).toBe(null);
+    expect(objRotStyle(null)).toBe(null);
+  });
+
+  test("a twist turns the art about its middle", () => {
+    expect(objRotStyle({ rot: 26 })).toEqual({ transform: "rotate(26deg)" });
+  });
+
+  test("nudging past either end wraps instead of running off", () => {
+    expect(normalizeObjRot(-OBJ_ROT_NUDGE)).toBe(360 - OBJ_ROT_NUDGE);
+    expect(normalizeObjRot(360)).toBe(0);
+    expect(normalizeObjRot(365)).toBe(5);
+    expect(normalizeObjRot(-370)).toBe(350);
+  });
+
+  test("the nudge is shallow enough to angle something along a slope", () => {
+    expect(OBJ_ROT_NUDGE).toBeLessThanOrEqual(15);
   });
 });
 

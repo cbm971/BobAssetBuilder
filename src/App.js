@@ -378,8 +378,12 @@ export const RANGED_FIRE_POSE_FRAMES = 30;
 // dropped it for the whole reload — holding F did nothing. You're still drawing the bow while it
 // reloads, so the pose should hold. Climbing still overrides everything (both hands are busy), and
 // letting go of Fire mid-reload still lowers the arm.
+// An UNARMED swing is not an aim: the pistol-whip shares the p.firing channel, so holding the aim
+// pose through one made the whip read as "raise the gun for a fifth of a second" instead of a
+// strike. It plays the melee swing arc instead (see meleeSwinging), gun still gripped and riding
+// the arm round.
 export const armHoldsAimPose = (isRangedWeapon, climbing, fireHeld, aimUp, aimDown, firing) =>
-  !!isRangedWeapon && !climbing && (!!fireHeld || !!aimUp || !!aimDown || !!firing);
+  !!isRangedWeapon && !climbing && (!!fireHeld || !!aimUp || !!aimDown || (!!firing && !firing.unarmed));
 // --- Ranged weapon: fire rate, clip, reload -------------------------------------------------
 // Everything below is a pure function over a small { clip, ammo, cd, reloadT } record so the
 // Playtest loop only has to hold one ref and the rules stay testable outside the browser.
@@ -1572,6 +1576,17 @@ const CONN_LABEL = {
 // a whole building) rather than a decoration; a solid one blocks the matching 60x60 cell square,
 // since fxBlocks derives its footprint straight from this number.
 export const LV_OBJ_SIZES = [1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 30, 40, 50, 60];
+// A placed object can be TWISTED: `rot` degrees, turned about its own middle. This is what lets a
+// big prop sit ON something rather than beside it — a trailer parked along a hillside, a fallen
+// sign, a leaning post — instead of every object in the level standing bolt upright.
+//
+// The ART turns; the FOOTPRINT does not. A solid object still blocks the same square of cells it
+// always did (fxBlocks reads size, not rot), because the collision grid is axis-aligned cells and
+// tilting that would mean rewriting how the whole level is walked. Worth knowing when you angle
+// something you're also standing on — the ground stays where the square is.
+export const objRotStyle = (o) => ((o && o.rot) ? { transform: "rotate(" + o.rot + "deg)" } : null);
+export const OBJ_ROT_NUDGE = 5;   // degrees per ↺/↻ tap — hillside angles are shallow, so 90° steps are useless here
+export const normalizeObjRot = (deg) => ((Math.round(deg) % 360) + 360) % 360;
 // Paint brush sizes (in cells) — applies to Foreground/Background only. Objects/Markers/Climb
 // all stay single-cell: Objects/Markers place discrete items, and Climb is a toggle flag where
 // a lingering large brush size could silently flood a huge area from one click.
@@ -3160,7 +3175,7 @@ export default function AssetStudio() {
   // (Same z-index for every fill in a cell, so DOM order alone decides what covers what.)
   const lvFgLayer = useMemo(() => level ? Object.keys(level.fg || {}).flatMap((k) => { const [r, c] = k.split(",").map(Number); return fgFills(level.fg[k]).map((fill, i) => <div key={"f" + k + "_" + i} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse(); }) : null, [level, texLib]);
   const lvFrontLayer = useMemo(() => level ? Object.keys(level.front || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.front, level.front[k], r, c, texLib) }} />; }) : null, [level, texLib]);
-  const lvFxLayer = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = splitObjectStackByPlayerLayer(level.fx[k]).behind.filter(({ o }) => o.kind !== "prop"); return stack.map(({ o, stackIndex: si }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; }); }) : null, [level, play, lFxSel, lTool]);
+  const lvFxLayer = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = splitObjectStackByPlayerLayer(level.fx[k]).behind.filter(({ o }) => o.kind !== "prop"); return stack.map(({ o, stackIndex: si }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; }); }) : null, [level, play, lFxSel, lTool]);
   // Prop objects (pixel-art assets) are pulled OUT of the memoized fx layer above and rendered in
   // a separate LIVE pass (see the level render body) — the memo runs before the component-scoped
   // prop renderer exists, and animated props need to redraw every frame in play anyway. This
@@ -6849,6 +6864,14 @@ export default function AssetStudio() {
     stack[i] = { ...stack[i], ...patch };
     return { ...lv, fx: { ...lv.fx, [k]: stack } };
   });
+  // Turning by a fixed step has to read the CURRENT angle inside the state updater. Computing it
+  // from the object captured at render time meant five quick taps on ↻ all saw 0° and all wrote 5°,
+  // so the prop stopped turning if you tapped faster than React re-rendered.
+  const nudgeFxRot = (k, i, delta) => setLevel((lv) => {
+    const stack = (lv.fx[k] || []).slice(); if (!stack[i]) return lv;
+    stack[i] = { ...stack[i], rot: normalizeObjRot((stack[i].rot || 0) + delta) };
+    return { ...lv, fx: { ...lv.fx, [k]: stack } };
+  });
   const setConnAccepts = (k, t) => setLevel((lv) => ({ ...lv, conns: { ...lv.conns, [k]: { ...lv.conns[k], accepts: t } } }));
   const addCatSuggest = (k, tag) => setLevel((lv) => { const cur = lv.conns[k].accepts || ""; const has = cur.split(/[,\n]/).map((s) => s.trim().toLowerCase()).includes(tag); if (has) return lv; const next = cur ? cur + ", " + tag : tag; return { ...lv, conns: { ...lv.conns, [k]: { ...lv.conns[k], accepts: next } } }; });
   const allLevels = level ? [level, ...levelLib.filter((l) => l.id !== level.id)] : levelLib;
@@ -7593,7 +7616,7 @@ export default function AssetStudio() {
                 <div ref={frontCellsRef} style={{ display: "contents" }}>{lvFrontLayer}</div>
                 {layerMove && layerMove.levelId === lv.id && Object.keys(layerMove.cells).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"mv" + k} className="lcell moveSel" style={{ left: c * LV_CELL, top: r * LV_CELL }} />; })}
                 {lvFxLayer}
-                {lvPropMeta.map(({ o, si, r, c, k }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"xp" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, sz, "xp" + k + "_" + si, pframe)}</div>; })}
+                {lvPropMeta.map(({ o, si, r, c, k }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"xp" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, sz, "xp" + k + "_" + si, pframe)}</div>; })}
                 {!play && lvClimbLayer}
                 <div ref={hazardCellsRef} style={{ display: "contents" }}>{lvHazardLayer}</div>
                 {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : "💎"}</div>; })}
@@ -7797,7 +7820,10 @@ export default function AssetStudio() {
                   // meleeSwingAngle. Runs independently of the climb/walk branches above so a
                   // swing mid-stride or mid-climb still shows, layered additively on whatever
                   // rotation is already there.
-                  const meleeSwinging = blocks && p.firing && (!playtestWeapon || !isRanged(playtestWeapon.wtype)) && !playerAtkPose;
+                  // An unarmed swing gets the arc whatever is in your hand — that's the pistol-whip:
+                  // the gun stays gripped and sweeps round with the arm (it's the thing you're
+                  // hitting with), on its Rest art since no round was fired.
+                  const meleeSwinging = blocks && p.firing && (p.firing.unarmed || !playtestWeapon || !isRanged(playtestWeapon.wtype)) && !playerAtkPose;
                   if (meleeSwinging) {
                     const swingAngle = meleeSwingAngle(p.firing.t, p.firing.dur);
                     // CSS +rot is clockwise: for a top-pivot arm hanging DOWN that sweeps the hand
@@ -7989,7 +8015,7 @@ export default function AssetStudio() {
                     // through, not too strong) so the object still clearly reads as there.
                     const behind = play && p.x + pw > left && p.x < left + sz && p.y + ph > top && p.y < top + sz;
                     const eraseNow = !play && lTool === "erase";
-                    return <div key={key} className={"lobj infront " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "") + (behind ? " behindFade" : "")} style={{ left, top, width: sz, height: sz, pointerEvents: eraseNow ? "auto" : "none", cursor: eraseNow ? "pointer" : undefined, opacity: behind ? 0.55 : 1 }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, sz, key, pframe)}</div>;
+                    return <div key={key} className={"lobj infront " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "") + (behind ? " behindFade" : "")} style={{ left, top, width: sz, height: sz, ...objRotStyle(o), pointerEvents: eraseNow ? "auto" : "none", cursor: eraseNow ? "pointer" : undefined, opacity: behind ? 0.55 : 1 }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, sz, key, pframe)}</div>;
                   });
                 })()}
                 {/* Enemy spawns: AI-driven (Guard/Seek/Avoid, per-enemy in the Enemy Creator), fall via
@@ -8269,7 +8295,7 @@ export default function AssetStudio() {
                     <div key={i} className="fxitem">
                       <div className="fxrow" onClick={() => setLFxEditIdx(lFxEditIdx === i ? null : i)}>
                         {o.kind === "shape" ? <span className="fxprev" style={{ display: "inline-block", width: 14, height: 14, background: o.tint || "#7aa2d6", borderRadius: o.shape === "circle" ? "50%" : 2, flexShrink: 0 }} /> : <span className="fxprev">{o.char}</span>}
-                        <span className="fxname">{(o.kind === "shape" ? { rect: "square", circle: "circle", tri: "triangle", tri2: "half-triangle" }[o.shape || "rect"] + " · " : "") + (o.solid ? "solid" : "decor") + (o.inFront ? " · in front" : "") + " · " + (o.size || 1) + "x"}</span>
+                        <span className="fxname">{(o.kind === "shape" ? { rect: "square", circle: "circle", tri: "triangle", tri2: "half-triangle" }[o.shape || "rect"] + " · " : "") + (o.solid ? "solid" : "decor") + (o.inFront ? " · in front" : "") + " · " + (o.size || 1) + "x" + ((o.rot || 0) ? " · " + o.rot + "°" : "")}</span>
                         <button title="bring forward (closer to top)" onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, 1); }}>▲</button>
                         <button title="send back" onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, -1); }}>▼</button>
                         <button title="remove just this one" onClick={(e) => { e.stopPropagation(); removeFxAt(lFxSel, i); if (lFxEditIdx === i) setLFxEditIdx(null); }}>✕</button>
@@ -8284,6 +8310,11 @@ export default function AssetStudio() {
                             {COLORS.map((c) => <button key={c} className={o.tint === c ? "on" : ""} style={{ background: c }} onClick={() => updateFxAt(lFxSel, i, { tint: c })} />)}
                           </div>
                           <div className="seg sizeseg">{LV_OBJ_SIZES.map((n) => <button key={n} className={(o.size || 1) === n ? "on" : ""} onClick={() => updateFxAt(lFxSel, i, { size: n })}>{n}×</button>)}</div>
+                          {/* Twist — the point of it is props that lie ALONG something (a trailer on a
+                              hillside) rather than standing upright. Nudges are 5° because slope
+                              angles are shallow; the piece editor's 90° steps would be useless here. */}
+                          <label className="slider">Twist ⟳<input type="range" min="0" max="359" step="1" value={o.rot || 0} onChange={(e) => updateFxAt(lFxSel, i, { rot: normalizeObjRot(+e.target.value || 0) })} /><span className="hint2">{(o.rot || 0)}°</span><button className="rotbtn" title={"turn " + OBJ_ROT_NUDGE + "° anticlockwise"} onClick={() => nudgeFxRot(lFxSel, i, -OBJ_ROT_NUDGE)}>↺</button><button className="rotbtn" title={"turn " + OBJ_ROT_NUDGE + "° clockwise"} onClick={() => nudgeFxRot(lFxSel, i, OBJ_ROT_NUDGE)}>↻</button><button className="rotbtn" disabled={!(o.rot || 0)} title="Straighten — back to upright" onClick={() => updateFxAt(lFxSel, i, { rot: 0 })}>0°</button></label>
+                          <span className="hint2">Turns the art about its own middle, so a big prop can lie along a slope instead of standing upright. Its footprint doesn't turn: a solid object still blocks the same square of cells whatever angle it's drawn at.</span>
                           <label className="chk"><input type="checkbox" checked={!!o.solid} onChange={(e) => updateFxAt(lFxSel, i, { solid: e.target.checked })} /> Solid (blocks the player)</label>
                           <label className="chk"><input type="checkbox" checked={!!o.inFront} onChange={(e) => updateFxAt(lFxSel, i, { inFront: e.target.checked })} /> In front of player <span className="hint2">(fades when they're behind it)</span></label>
                         </div>
