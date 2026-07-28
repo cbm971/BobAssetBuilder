@@ -4946,7 +4946,9 @@ export default function AssetStudio() {
     // pointed at whatever was selected before — so Twist/resize/flip acted on that leftover block
     // (a group op only fires when the selected piece is itself a member), which read as the loaded
     // group being ignored while an old object was still "grabbed".
-    setMultiSelect(true); setGroupIds(validIds); setSelId(validIds[validIds.length - 1] || null);
+    // Add-mode stays OFF for the same reason placeStamp leaves it off — reloading a saved group is
+    // "select these", not "start collecting more".
+    setMultiSelect(false); setGroupIds(validIds); setSelId(validIds[validIds.length - 1] || null);
     flash(validIds.length + "/" + g.ids.length + " block(s) from \"" + g.name + "\" selected.");
   };
   const deleteGroup = (id) => setAsset((a) => { const groups = { ...(a.groups || {}) }; groups[angle] = (groups[angle] || []).filter((g) => g.id !== id); return { ...a, groups }; });
@@ -4991,8 +4993,12 @@ export default function AssetStudio() {
   const placeStamp = (s) => {
     const fresh = s.pieces.map((p) => ({ ...p, id: uid() }));
     setPieces((list) => list.concat(fresh));
-    setMultiSelect(true); setGroupIds(fresh.map((p) => p.id)); setSelId(fresh[fresh.length - 1]?.id || null); // land selected AND anchored, so it can be dragged/twisted into place immediately
-    flash("Placed \"" + s.name + "\" — drag to position it.");
+    // Land selected AND anchored, so it can be dragged/twisted into place immediately — but with
+    // add-mode OFF. Turning it on was the bug: you never asked for Group select, so nothing told
+    // you the very next block you grabbed would be swallowed by the stamp's group (and then get
+    // dragged around with it, or baked into the next 📦 Store).
+    setMultiSelect(false); setGroupIds(fresh.map((p) => p.id)); setSelId(fresh[fresh.length - 1]?.id || null);
+    flash("Placed \"" + s.name + "\" — drag to position it. Grab any other block to let go of it.");
   };
   const deleteStamp = async (id) => {
     let list = []; const idx = await sget("stampIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
@@ -5153,20 +5159,25 @@ export default function AssetStudio() {
       setNewColor(p.color); addRecent(p.color); setNewFx({ ...defaultFx(), ...(p.fx || {}) }); setEyedrop(false); flash("Picked up color + brightness/glow/fade 🎨");
       return;
     }
-    if (multiSelect) {
+    // A live group DRAGS AS ONE whether or not Group-select mode is still on — grabbing a member is
+    // always "move this group". Only ADDING a block on touch needs the mode, which is the whole
+    // point: placing a stored group leaves it selected but NOT in add-mode, so the next block you
+    // reach for is yours to move, not another member swept into the group behind your back.
+    if (groupIds.includes(p.id)) {
       setSelId(p.id); // shows the properties panel (Twist, etc.) for this piece — without this, building a group from scratch left nothing selected and the whole panel (including Twist) never appeared at all
-      if (groupIds.includes(p.id)) {
-        // Already in the group — this could be a plain tap (toggle it back OUT) or the start of
-        // a drag that should move the WHOLE group. Can't tell which yet from pointerdown alone,
-        // so stash every group member's starting x/y and decide in the pointerup handler below
-        // based on whether the pointer actually moved.
-        const m = toXY(e);
-        drag.current = { mode: "groupMove", anchorId: p.id, startMouse: m, moved: false, starts: pieces.filter((pc) => groupIds.includes(pc.id)).map((pc) => ({ id: pc.id, x: pc.x, y: pc.y })) };
-      } else {
-        setGroupIds((g) => [...g, p.id]);
-      }
+      // This could be a plain tap (toggle it back OUT, in add-mode) or the start of a drag that
+      // should move the WHOLE group. Can't tell which yet from pointerdown alone, so stash every
+      // group member's starting x/y and decide in the pointerup handler below based on whether the
+      // pointer actually moved.
+      const m = toXY(e);
+      drag.current = { mode: "groupMove", anchorId: p.id, startMouse: m, moved: false, starts: pieces.filter((pc) => groupIds.includes(pc.id)).map((pc) => ({ id: pc.id, x: pc.x, y: pc.y })) };
       return;
     }
+    if (multiSelect) { setSelId(p.id); setGroupIds((g) => [...g, p.id]); return; }
+    // Outside add-mode, reaching for a block that isn't in the group ENDS the group — the same
+    // fresh-start rule selectOnly applies to a brand new block. Otherwise a group left over from a
+    // stamp keeps quietly re-grouping whatever you touch next.
+    if (groupIds.length) setGroupIds([]);
     setSelId(p.id); const m = toXY(e); drag.current = { mode: "move", id: p.id, dx: m.x - p.x, dy: m.y - p.y };
   };
   const grabCorner = (e, p) => { e.stopPropagation(); setSelId(p.id); const m = toXY(e); const gm = (groupIds.length > 1 && groupIds.includes(p.id)) ? pieces.filter((q) => groupIds.includes(q.id)) : null; const group = gm ? { base: gm.map((q) => ({ id: q.id, x: q.x, y: q.y, w: q.w, h: q.h })), cx: gm.reduce((s, q) => s + q.x + q.w / 2, 0) / gm.length, cy: gm.reduce((s, q) => s + q.y + q.h / 2, 0) / gm.length, startDiag: Math.hypot(p.w, p.h) } : null; drag.current = { mode: "size", id: p.id, rot: p.rot || 0, startW: p.w, startH: p.h, startMouse: m, group }; };
@@ -5237,7 +5248,10 @@ export default function AssetStudio() {
     };
     const up = () => {
       const d = drag.current;
-      if (d && d.mode === "groupMove" && !d.moved) setGroupIds((g) => g.filter((id) => id !== d.anchorId));
+      // A tap that didn't move toggles the block back OUT — but only in add-mode. Outside it, a tap
+      // on a member just anchors the panel there; dropping it from the group would make a placed
+      // stamp fall apart the moment you tapped one of its blocks.
+      if (d && d.mode === "groupMove" && !d.moved && multiSelect) setGroupIds((g) => g.filter((id) => id !== d.anchorId));
       drag.current = null;
     };
     window.addEventListener("pointermove", move);
@@ -8405,7 +8419,7 @@ export default function AssetStudio() {
   const frontPieces = pieces.filter((p) => !p.behindBody);
   const behindPieces = pieces.filter((p) => p.behindBody);
   const lrow = (p) => (
-    <div key={p.id} className={"lrow" + (p.id === selId ? " on" : "") + (multiSelect && groupIds.includes(p.id) ? " grp" : "") + (p._recovered ? " recovered" : "")} onClick={() => { if (!multiSelect) { setSelId(p.id); return; } if (groupIds.includes(p.id)) { const ng = groupIds.filter((id) => id !== p.id); setGroupIds(ng); if (selId === p.id) setSelId(ng[ng.length - 1] || null); } else { setGroupIds((g) => [...g, p.id]); setSelId(p.id); } }}>
+    <div key={p.id} className={"lrow" + (p.id === selId ? " on" : "") + (groupIds.includes(p.id) ? " grp" : "") + (p._recovered ? " recovered" : "")} onClick={() => { if (!multiSelect) { setSelId(p.id); if (!groupIds.includes(p.id) && groupIds.length) setGroupIds([]); return; } if (groupIds.includes(p.id)) { const ng = groupIds.filter((id) => id !== p.id); setGroupIds(ng); if (selId === p.id) setSelId(ng[ng.length - 1] || null); } else { setGroupIds((g) => [...g, p.id]); setSelId(p.id); } }}>
       <span className="lprev" style={{ background: p.kind === "emoji" ? "transparent" : p.color }}>{p.kind === "emoji" ? p.char : (p.kind === "circle" ? "●" : p.kind === "tri" ? "▲" : "")}</span>
       <span className="lname">{p._recovered ? "🩹 " : ""}{p.locked ? "🔒 " : ""}{p.isHitbox ? "🎯 hitbox" : p.isMuzzle ? "🔴 muzzle" : (p.kind === "emoji" ? "emoji" : p.kind)}{p.mirror ? " ⟷" : ""}{p.limb === "arm" ? " 💪" : p.limb === "leg" ? " 🦵" : ""}</span>
       <button title="move forward" onClick={(e) => { e.stopPropagation(); movePiece(p.id, 1); }}>▲</button>
@@ -9007,14 +9021,20 @@ export default function AssetStudio() {
                   ? <p className="mini">🫱 <b>This is the shoulder piece.</b> The whole swing pivots at its shoulder side above; every other 💪-flagged piece rides rigidly around it.</p>
                   : <button className="wide" onClick={() => setPieces((arr) => arr.map((p) => p.id === sel.id ? { ...p, role: "weaponArm" } : (p.role === "weaponArm" ? { ...p, role: undefined } : p)))}>🫱 Make this the shoulder piece</button>
               )}
-              <div className="ct2">Animation flag 🦴{groupSel ? <span className="hint2"> — sets all {groupIds.length}</span> : null}</div>
-              <div className="limbtabs">
-                {[["", "None"], ["arm", "💪 Arm"], ["leg", "🦵 Leg"]].map(([v, l]) => (
-                  <button key={v || "none"} className={(sel.limb || "") === v ? "on" : ""} onClick={() => updSelAll({ limb: v || null })}>{l}</button>
-                ))}
-              </div>
-              <p className="mini">Flag a block as an arm or leg so the gameplay studio can swing or step it. The weapon arm is an arm by default. An arm drawn as several blocks: group-select them all, then tap 💪 Arm once — the whole group gets flagged.{groupSel && groupLimbs.length > 1 ? <> <b>Right now the {groupIds.length} grouped blocks aren't all the same</b> ({groupLimbs.join(" · ")}) — tapping one of these makes them match.</> : null}</p>
-              {asset.type === "weapon" && <p className="mini">On a <b>weapon</b> you don't need this. The whole weapon is gripped by the hand and rides the arm's swing on its own; the flag only changes how a block pivots here in the editor, and it's dropped when the weapon goes into a level. It's 💪 <b>Arm on an enemy</b> that matters — that's what tells the game which blocks are the arm to swing.</p>}
+              {/* No animation flag on a WEAPON. The whole weapon is gripped by the hand and rides
+                  the arm's swing on its own, and attachWeaponBlocks strips limb/role on the way
+                  into a level — so the control did nothing there but take up room. Weapons drawn
+                  before this still carry the flag in their data, and the pivot reconciliation in
+                  attachWeaponBlocks still honours it, so none of that art moves. */}
+              {asset.type !== "weapon" && (<>
+                <div className="ct2">Animation flag 🦴{groupSel ? <span className="hint2"> — sets all {groupIds.length}</span> : null}</div>
+                <div className="limbtabs">
+                  {[["", "None"], ["arm", "💪 Arm"], ["leg", "🦵 Leg"]].map(([v, l]) => (
+                    <button key={v || "none"} className={(sel.limb || "") === v ? "on" : ""} onClick={() => updSelAll({ limb: v || null })}>{l}</button>
+                  ))}
+                </div>
+                <p className="mini">Flag a block as an arm or leg so the gameplay studio can swing or step it. The weapon arm is an arm by default. An arm drawn as several blocks: group-select them all, then tap 💪 Arm once — the whole group gets flagged.{groupSel && groupLimbs.length > 1 ? <> <b>Right now the {groupIds.length} grouped blocks aren't all the same</b> ({groupLimbs.join(" · ")}) — tapping one of these makes them match.</> : null}</p>
+              </>)}
               <div className="ct2">Effects ✨</div>
               <label className="slider">Fade<input type="range" min="0.1" max="1" step="0.05" value={sel.fx?.opacity ?? 1} onChange={(e) => updFx({ opacity: +e.target.value })} /></label>
               <label className="slider">Glow<input type="range" min="0" max="12" step="0.5" value={sel.fx?.glow ?? 0} onChange={(e) => updFx({ glow: +e.target.value })} /><input type="color" className="gc" value={sel.fx?.glowColor ?? "#ffd76b"} onChange={(e) => updFx({ glowColor: e.target.value })} /></label>
@@ -9039,8 +9059,13 @@ export default function AssetStudio() {
             {drawMode === "fill" && <p className="tip">🪣 Fill: click points to outline the shape ({fillPts.length} so far). <button className="ltbtn" onClick={finishFill} disabled={fillPts.length < 3}>✓ Finish</button> <button className="ltbtn" onClick={cancelDraw}>✕ Cancel</button></p>}
             <div className="newcolor"><span>New block color</span><div className="ncright">{recent.filter((c) => !COLORS.includes(c)).slice(0, 5).map((c) => <button key={"n" + c} className={"rc" + (newColor === c ? " on" : "")} style={{ background: c }} onClick={() => setNewColor(c)} title="recent" />)}<input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} /></div></div>
             <button className={"ltbtn" + (eyedrop ? " on" : "")} onClick={() => setEyedrop((v) => !v)} >🎨 {eyedrop ? "Click a block…" : "Eyedropper"}</button>
-            <button className={"ltbtn" + (multiSelect ? " on" : "")} onClick={() => { setMultiSelect((v) => !v); setGroupIds([]); }} >🔲 {multiSelect ? "Done" : "Group select"}</button>
-            {multiSelect && <p className="tip">🔲 Click blocks — on the canvas or in the Layers list — to add/remove them from the group ({groupIds.length} selected). Dragging any selected block on the canvas moves them all together.{groupIds.length > 0 && <> <button className="ltbtn" onClick={() => setGroupIds([])}>✕ Clear</button></>}{groupIds.length > 1 && <> <button className="ltbtn" onClick={saveGroup}>💾 Save group</button></>}{hasStore && groupIds.length > 0 && <> <input className="gname" value={stampName} placeholder="stamp name" onChange={(e) => setStampName(e.target.value)} /> <button className="ltbtn" onClick={storeGroup}>📦 Store group</button></>}</p>}
+            {/* Turning add-mode ON keeps any group that's already held, so a stamp you just placed
+                can be extended. Turning it OFF ends the group. */}
+            <button className={"ltbtn" + (multiSelect ? " on" : "")} onClick={() => { if (multiSelect) setGroupIds([]); setMultiSelect((v) => !v); }} >🔲 {multiSelect ? "Done" : "Group select"}</button>
+            {/* A group can be live WITHOUT add-mode (that's what placing a stamp leaves you with),
+                so the count and the group buttons key off the group itself. Only the "click blocks
+                to add/remove" line is about the mode. */}
+            {(multiSelect || groupIds.length > 0) && <p className="tip">{multiSelect ? "🔲 Click blocks — on the canvas or in the Layers list — to add/remove them from the group" : "🔗 Group held"} ({groupIds.length} selected). Dragging any selected block on the canvas moves them all together.{!multiSelect && groupIds.length > 0 && " Grab any block outside it to let go."}{groupIds.length > 0 && <> <button className="ltbtn" onClick={() => setGroupIds([])}>✕ Clear</button></>}{groupIds.length > 1 && <> <button className="ltbtn" onClick={saveGroup}>💾 Save group</button></>}{hasStore && groupIds.length > 0 && <> <input className="gname" value={stampName} placeholder="stamp name" onChange={(e) => setStampName(e.target.value)} /> <button className="ltbtn" onClick={storeGroup}>📦 Store group</button></>}</p>}
             {multiSelect && <p className="mini">💾 Save group just remembers <b>which</b> blocks these are, in this pose. 📦 Store group keeps a <b>copy of the blocks themselves</b> — place it into any other pose, any other body's fit, or a different garment entirely.</p>}
             {stamps.length > 0 && <p className="tip">📦 Stored: {stamps.map((s) => <span key={s.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => placeStamp(s)}>{s.name} ({s.pieces.length})</button><button className={"ltbtn" + (confirmStampDel === s.id ? " on" : "")} onClick={() => { if (confirmStampDel === s.id) { setConfirmStampDel(null); deleteStamp(s.id); } else { setConfirmStampDel(s.id); flash("Tap ✕ again to permanently delete stored group \"" + s.name + "\""); } }} title={confirmStampDel === s.id ? "Tap again to permanently delete" : "Delete this stored group"}>{confirmStampDel === s.id ? "Sure?" : "✕"}</button></span>)}</p>}
             {savedGroups.length > 0 && <p className="tip">📁 Saved: {savedGroups.map((g) => <span key={g.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => loadGroup(g)}>{g.name} ({g.ids.length})</button><button className="ltbtn" onClick={() => deleteGroup(g.id)} title="Delete this saved group">✕</button></span>)}</p>}
