@@ -6748,6 +6748,16 @@ export default function AssetStudio() {
   // Which fx key a click on (r,c) acts on: placing centres the new object (objAnchorKey),
   // erasing targets whatever footprint is actually under the pointer (objKeyAt).
   const objPaintKey = (r, c, erase) => ((erase || lTool === "erase") ? (objKeyAt(level, r, c) || cellKey(r, c)) : objAnchorKey(r, c, lObjSize));
+  // The object stack on the selected cell, and WHICH of its layers is open for editing.
+  //
+  // It used to be "none until you click a row". Nothing on screen said those rows were clickable,
+  // so every per-object control — Twist most of all — was invisible unless you happened to try it:
+  // you'd place a prop, look around for a way to turn it, and find nothing. Now the top layer (the
+  // one you just placed or clicked) is open by default and its controls are simply THERE. Clicking
+  // a row still toggles; -1 is "you explicitly closed it", which is why this can't just be null.
+  const fxStack = (lFxSel && level && level.fx && level.fx[lFxSel]) || [];
+  const fxOpenIdx = lFxEditIdx == null ? (fxStack.length ? fxStack.length - 1 : null) : lFxEditIdx;
+  const fxOpen = fxOpenIdx != null && fxOpenIdx >= 0 ? fxStack[fxOpenIdx] : null;
   const paintCell = (r, c, erase) => {
     const objKey = lLayer === "obj" ? objPaintKey(r, c, erase) : null;
     setLevel((lv) => {
@@ -7503,6 +7513,21 @@ export default function AssetStudio() {
               <div className="seg sizeseg">{LV_OBJ_SIZES.map((n) => <button key={n} className={lObjSize === n ? "on" : ""} onClick={() => setLObjSize(n)} title={n + "x" + n + " cells"}>{n}×</button>)}</div>
               <label className="chk solidchk"><input type="checkbox" checked={lSolid} onChange={(e) => setLSolid(e.target.checked)} /> Solid <span className="hint2">(blocks the player)</span></label>
               <label className="chk solidchk"><input type="checkbox" checked={lInFront} onChange={(e) => setLInFront(e.target.checked)} /> In front of player <span className="hint2">{lSolid ? "(blocks + fades when they're behind it)" : "(walk-through, fades when they're behind it)"}</span></label>
+              {/* TWIST, on the main toolbar rather than only in the side panel. This is the control
+                  you go looking for the moment you drop a big prop next to a hill, so it belongs
+                  where your eyes already are — on the strip you just picked the object and its size
+                  from. Acts on the object you last placed or clicked; the side panel has the same
+                  control per layer when a cell holds several. */}
+              {fxOpen ? (
+                <span className="objtwist">
+                  <b>Twist</b>
+                  <input type="range" min="0" max="359" step="1" value={fxOpen.rot || 0} onChange={(e) => updateFxAt(lFxSel, fxOpenIdx, { rot: normalizeObjRot(+e.target.value || 0) })} title="turn the object you last placed or clicked" />
+                  <span className="hint2">{(fxOpen.rot || 0)}°</span>
+                  <button className="rotbtn" title={"turn " + OBJ_ROT_NUDGE + "° anticlockwise"} onClick={() => nudgeFxRot(lFxSel, fxOpenIdx, -OBJ_ROT_NUDGE)}>↺</button>
+                  <button className="rotbtn" title={"turn " + OBJ_ROT_NUDGE + "° clockwise"} onClick={() => nudgeFxRot(lFxSel, fxOpenIdx, OBJ_ROT_NUDGE)}>↻</button>
+                  <button className="rotbtn" disabled={!(fxOpen.rot || 0)} title="straighten — back to upright" onClick={() => updateFxAt(lFxSel, fxOpenIdx, { rot: 0 })}>0°</button>
+                </span>
+              ) : <span className="hint2">Place an object, or click one you've placed, to twist / resize / restyle it.</span>}
               {lObjKind === "prop" && <span className="hint2">🌿 Objects are your own pixel art (optionally animated). They scale to the chosen size — the art stretches to fit, it never tiles. Great as a real fire drawn over a fire-hazard cell: make the hazard invisible-in-play and flag this <b>In front of player</b>.</span>}
             </>
           ) : lLayer === "marker" ? (
@@ -8313,14 +8338,14 @@ export default function AssetStudio() {
                   <div className="ct">Layers on this cell ({lv.fx[lFxSel].length})</div>
                   <div className="fxstack">{lv.fx[lFxSel].map((o, i) => (
                     <div key={i} className="fxitem">
-                      <div className="fxrow" onClick={() => setLFxEditIdx(lFxEditIdx === i ? null : i)}>
+                      <div className="fxrow" onClick={() => setLFxEditIdx(fxOpenIdx === i ? -1 : i)}>
                         {o.kind === "shape" ? <span className="fxprev" style={{ display: "inline-block", width: 14, height: 14, background: o.tint || "#7aa2d6", borderRadius: o.shape === "circle" ? "50%" : 2, flexShrink: 0 }} /> : <span className="fxprev">{o.char}</span>}
                         <span className="fxname">{(o.kind === "shape" ? { rect: "square", circle: "circle", tri: "triangle", tri2: "half-triangle" }[o.shape || "rect"] + " · " : "") + (o.solid ? "solid" : "decor") + (o.inFront ? " · in front" : "") + " · " + (o.size || 1) + "x" + ((o.rot || 0) ? " · " + o.rot + "°" : "")}</span>
                         <button title="bring forward (closer to top)" onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, 1); }}>▲</button>
                         <button title="send back" onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, -1); }}>▼</button>
                         <button title="remove just this one" onClick={(e) => { e.stopPropagation(); removeFxAt(lFxSel, i); if (lFxEditIdx === i) setLFxEditIdx(null); }}>✕</button>
                       </div>
-                      {lFxEditIdx === i && (
+                      {fxOpenIdx === i && (
                         <div className="fxedit">
                           {o.kind === "shape" && (
                             <div className="seg"><button className={(o.shape || "rect") === "rect" ? "on" : ""} onClick={() => updateFxAt(lFxSel, i, { shape: "rect" })}><b>▮</b>Square</button><button className={o.shape === "circle" ? "on" : ""} onClick={() => updateFxAt(lFxSel, i, { shape: "circle" })}><b>●</b>Circle</button><button className={o.shape === "tri" ? "on" : ""} onClick={() => updateFxAt(lFxSel, i, { shape: "tri" })}><b>▲</b>Triangle</button><button className={o.shape === "tri2" ? "on" : ""} onClick={() => updateFxAt(lFxSel, i, { shape: "tri2" })}><b>◺</b>Half triangle</button></div>
@@ -9561,6 +9586,10 @@ const css = `
 .ncright{display:flex;align-items:center;gap:5px}.ncright .rc{width:22px;height:22px;border-radius:6px;border:1px solid #2c3245;cursor:pointer}
 /* level creator */
 .wide2{width:150px}
+/* Twist, sitting on the object toolbar. Boxed and tinted so it reads as "this acts on the
+   object you have", not as another placement setting like size or colour. */
+.objtwist{display:flex;align-items:center;gap:7px;padding:5px 10px;background:#1b2233;border:1px solid #3a4258;border-radius:9px;font-size:13px}
+.objtwist input[type=range]{width:120px;accent-color:#4f7cf6}
 .catbar{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#161922;border-bottom:1px solid #232838;flex-wrap:wrap}
 .catfield{display:flex;align-items:center;gap:7px;font-size:12px;color:#aab2c6}
 .catfield input{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:7px 10px;color:#e7e9ee;font-size:13px;width:130px}
