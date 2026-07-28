@@ -63,6 +63,10 @@ import {
   splitObjectStackByPlayerLayer,
   weaponReloadFrames,
   BLOCK_FRAMES,
+  blastHitsBox,
+  pointBoxDistance,
+  WEAPON_ABILITIES,
+  weaponAbilityKeys,
   BLOCK_STAGGER_SECS,
   blockStopsHit,
 } from "./App";
@@ -1118,6 +1122,57 @@ describe("burst fire", () => {
     while (burstShotDue(left, 0, ammo())) { fired += 1; left -= 1; }
     expect(fired).toBe(3);
     expect(left).toBe(0);
+  });
+});
+
+describe("explosion blast reach", () => {
+  // A 5-cell-wide, 7-cell-tall enemy at (400,200) on a 30px grid — a normal scale-1 monster.
+  const bx = 400, by = 200, bw = 150, bh = 210;
+
+  test("a direct hit always counts, however big the target", () => {
+    // Struck square in the chest. The old centre-distance test put this ~100px from the centre,
+    // outside a default 2-cell (60px) radius, and dealt nothing: the "my RPG does 0 damage" bug.
+    expect(blastHitsBox(bx + 10, by + 20, bx, by, bw, bh, 60)).toBe(true);
+    expect(blastHitsBox(bx + bw / 2, by + bh / 2, bx, by, bw, bh, 60)).toBe(true);
+    expect(blastHitsBox(bx, by + bh, bx, by, bw, bh, 0)).toBe(true); // even a zero radius, right on the corner
+  });
+
+  test("radius measures how far PAST the body the splash reaches", () => {
+    expect(blastHitsBox(bx - 59, by + 100, bx, by, bw, bh, 60)).toBe(true);
+    expect(blastHitsBox(bx - 61, by + 100, bx, by, bw, bh, 60)).toBe(false);
+  });
+
+  test("a bigger enemy is easier to catch, not harder", () => {
+    const small = blastHitsBox(bx - 30, by, bx, by, 40, 40, 60);
+    const big = blastHitsBox(bx - 30, by, bx, by, bw, bh, 60);
+    expect(small).toBe(true);
+    expect(big).toBe(true);
+  });
+
+  test("distance to a box is zero inside it and euclidean outside", () => {
+    expect(pointBoxDistance(bx + 5, by + 5, bx, by, bw, bh)).toBe(0);
+    expect(pointBoxDistance(bx - 3, by - 4, bx, by, bw, bh)).toBe(5); // 3-4-5 off the corner
+    expect(pointBoxDistance(bx + bw + 10, by + 50, bx, by, bw, bh)).toBe(10);
+  });
+});
+
+describe("weapon abilities registry", () => {
+  test("a resurrect staff and an explosive shot can never both be live", () => {
+    const asExplosive = { explode: true };
+    const nowRaising = { ...asExplosive, ...WEAPON_ABILITIES.resurrect.on };
+    expect(weaponAbilityKeys(nowRaising)).toEqual(["resurrect"]);
+    const backToBoom = { ...nowRaising, ...WEAPON_ABILITIES.explode.on };
+    expect(weaponAbilityKeys(backToBoom)).toEqual(["explode"]);
+  });
+
+  test("removing an ability leaves the others alone", () => {
+    const both = { explode: true, ignoreArmor: true };
+    expect(weaponAbilityKeys({ ...both, ...WEAPON_ABILITIES.explode.off })).toEqual(["ignoreArmor"]);
+  });
+
+  test("a plain weapon has none", () => {
+    expect(weaponAbilityKeys({})).toEqual([]);
+    expect(weaponAbilityKeys(null)).toEqual([]);
   });
 });
 

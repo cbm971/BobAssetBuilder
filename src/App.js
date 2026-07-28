@@ -591,6 +591,34 @@ export const isRanged = (wtype) => wtype === "ranged" || wtype === "projectile";
 // It's a limited, single-use PICKUP — you carry however many you've found, like Isaac's bombs —
 // so it never mounts on the hand like a melee/ranged weapon; it lives only in the throw system.
 export const isThrowable = (wtype) => wtype === "throw";
+// WEAPON ABILITIES — the optional powers a ranged weapon can carry. These live as plain flags on
+// the asset (explode / ignoreArmor / resurrect) and always did; what's new is that the EDITOR reads
+// them from this registry instead of hard-coding one checkbox each. A checkbox per power meant every
+// ability was permanently on screen whether or not the weapon had it, which is what made the weapon
+// panel a wall of boxes — you pick an ability from a dropdown now, and only the ones actually on the
+// weapon take up room. Same registry-drives-the-UI shape EFFECT_TYPES uses for clothing.
+//
+// `on` / `off` are the exact patches applied when an ability is added or removed, so a
+// mutually-exclusive pair is stated once here rather than re-derived in the JSX: a Resurrect staff
+// deals no damage at all, so it and Explode can never both be live.
+export const WEAPON_ABILITIES = {
+  explode: {
+    icon: "💥", label: "Explode",
+    blurb: "The shot bursts on impact: everything within the blast radius of where it lands takes the weapon's damage, plus an explosion drawn in front from an Object you pick.",
+    on: { explode: true, resurrect: false }, off: { explode: false },
+  },
+  ignoreArmor: {
+    icon: "🗡️", label: "Ignore armor",
+    blurb: "Its shots bypass the target's Defense entirely — full damage no matter what armour is worn. Back Guard and Crouch Guard still apply.",
+    on: { ignoreArmor: true }, off: { ignoreArmor: false },
+  },
+  resurrect: {
+    icon: "🔮", label: "Resurrect staff",
+    blurb: "Its shot deals no damage — instead it raises a defeated body into a friendly NPC that fights for you. One body can only be raised once.",
+    on: { resurrect: true, explode: false }, off: { resurrect: false },
+  },
+};
+export const weaponAbilityKeys = (a) => Object.keys(WEAPON_ABILITIES).filter((k) => !!(a && a[k]));
 // The poses an asset type actually offers in the editor (and that gameplay can render). Creatures
 // (enemies) only ever draw Side, Aim-up, Crouch and their 💀 Death pose — Front/Back would be pure
 // wasted work since the game never shows an enemy facing the camera. One source of truth so the
@@ -939,6 +967,21 @@ export const incomingPlayerDamage = (raw, def, face, attackerX, wearerX, backGua
 // it for good ("my character puts his arms down and does no blocking"), and an enemy swinging every
 // 0.75s simply hit you in the gaps between taps. BLOCK_FRAMES is now a MINIMUM instead: a tap still
 // buys a full second of guard, and holding keeps it up for as long as you hold.
+// Distance from a point to the nearest point of an axis-aligned box — 0 when the point is inside it.
+export const pointBoxDistance = (px, py, bx, by, bw, bh) => {
+  const dx = Math.max(bx - px, 0, px - (bx + bw));
+  const dy = Math.max(by - py, 0, py - (by + bh));
+  return Math.hypot(dx, dy);
+};
+// Is a body caught in a blast? Measured against the body's BOX, never its centre point.
+//
+// This is the "my RPG does 0 damage" bug. The old test was hypot(impact -> target CENTRE) <= radius,
+// but a character is several cells wide and tall, so a rocket that struck an enemy square in the
+// chest detonated ~80-100px away from that enemy's centre — outside the default 2-cell (60px)
+// radius — and dealt nothing at all. The bigger the target, the more reliably a direct hit missed:
+// exactly backwards. A direct hit is now always caught (distance 0), and the radius finally reads
+// the way the editor words it — how far PAST the body the splash still reaches.
+export const blastHitsBox = (ix, iy, bx, by, bw, bh, radPx) => pointBoxDistance(ix, iy, bx, by, bw, bh) <= radPx;
 export const BLOCK_FRAMES = 60;   // ~1s at 60fps — the minimum a single tap gives you
 export const BLOCK_STAGGER_SECS = 1; // how long a blocked attacker is left reeling and unable to swing
 // Does an active guard stop this blow? Only from the front — the same flank rule Back Guard uses,
@@ -4424,8 +4467,12 @@ export default function AssetStudio() {
               if (enemyHP.current[k] === undefined) enemyHP.current[k] = ea2.hp ?? 10;
               if (enemyHP.current[k] <= 0) continue;
               const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly) continue; // your own resurrected allies aren't shocked
-              const ecx = ep2.x + enemyRenderW(ea2, CW) / 2, ecy = ep2.y + enemyStandH(ea2, CW) / 2;
-              if (Math.hypot(ecx - g.x, ecy - g.y) <= stunRadPx) {
+              // Same box-not-centre rule the explosion uses (blastHitsBox) — measuring to a big
+              // enemy's centre made a grenade that landed at its feet miss it entirely.
+              const sShape = sideBodyShape(ea2);
+              const sRenderW = enemyRenderW(ea2, CW), spw = sRenderW * sShape.fraction;
+              const sph = ep2.crouch ? enemyCrouchH(ea2, CW) : enemyStandH(ea2, CW);
+              if (blastHitsBox(g.x, g.y, ep2.x + (sShape.centerFrac * sRenderW - spw / 2), ep2.y + sShape.topFrac * sph, spw, sShape.heightFrac * sph, stunRadPx)) {
                 ep2.stun = Math.round(stunSecs * 60); ep2.reactT = 0; ep2.swingT = 0; ep2.aimHold = 0;
                 stunnedCount++;
               }
@@ -4450,10 +4497,19 @@ export default function AssetStudio() {
           const radPx = Math.max(0.5, pr.explodeRadius ?? 2) * CW;
           booms.current.push({ x: ix, y: iy, propId: pr.explodePropId || null, size: pr.explodeSize ?? 3, life: 0, maxLife: Math.max(8, Math.round((pr.explodeLife ?? 0.5) * 60)) });
           const baseDmg = pr.damage ?? 5;
+          // Every target's blast box, resolved the same way the direct-hit tests do: the VISIBLE
+          // body, not the wider render box. Shared by all three branches below so the player, your
+          // friendlies and the hostiles can't drift apart on what "caught in it" means.
+          const enemyBlastBox = (ea2, ep2) => {
+            const eShape = sideBodyShape(ea2);
+            const eRenderW = enemyRenderW(ea2, CW), epw2 = eRenderW * eShape.fraction;
+            const eph2 = ep2 && ep2.crouch ? enemyCrouchH(ea2, CW) : enemyStandH(ea2, CW);
+            return { x: ep2.x + (eShape.centerFrac * eRenderW - epw2 / 2), y: ep2.y + eShape.topFrac * eph2, w: epw2, h: eShape.heightFrac * eph2 };
+          };
           if (pr.foe) {
             if (p.invuln <= 0) {
-              const pcx = p.x + pw / 2, pcy = p.y + ph / 2;
-              if (Math.hypot(pcx - ix, pcy - iy) <= radPx) {
+              const pcx = p.x + pw / 2;
+              if (blastHitsBox(ix, iy, p.x, p.y, pw, ph, radPx)) {
                 const dmg = incomingPlayerDamage(baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch);
                 playerHP.current = Math.max(0, playerHP.current - dmg);
                 p.invuln = PLAYER_INVULN_FRAMES;
@@ -4464,8 +4520,8 @@ export default function AssetStudio() {
             for (const k of Object.keys(lv.enemies || {})) {
               const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0)) continue;
               const ea = findA(lv.enemies[k].enemyId); if (!ea) continue;
-              const ecx = ep.x + enemyRenderW(ea, CW) / 2, ecy = ep.y + enemyStandH(ea, CW) / 2;
-              if (Math.hypot(ecx - ix, ecy - iy) <= radPx) enemyHP.current[k] = Math.max(0, enemyHP.current[k] - Math.max(1, baseDmg));
+              const bx = enemyBlastBox(ea, ep);
+              if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) enemyHP.current[k] = Math.max(0, enemyHP.current[k] - Math.max(1, baseDmg));
             }
           } else {
             let hits = 0;
@@ -4474,8 +4530,8 @@ export default function AssetStudio() {
               if (enemyHP.current[k] === undefined) enemyHP.current[k] = ea.hp ?? 10;
               if (enemyHP.current[k] <= 0) continue;
               const ep = enemyPos.current[k]; if (!ep || ep.friendly) continue;
-              const ecx = ep.x + enemyRenderW(ea, CW) / 2, ecy = ep.y + enemyStandH(ea, CW) / 2;
-              if (Math.hypot(ecx - ix, ecy - iy) <= radPx) {
+              const bx = enemyBlastBox(ea, ep);
+              if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
                 const base = Math.max(1, Math.round(baseDmg * (strength / 5)));
                 const dmg = (Math.random() < Math.min(0.6, intelligence * 0.02)) ? base * 2 : base;
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
@@ -8602,24 +8658,47 @@ export default function AssetStudio() {
             <label className="slider">Reload<input type="range" min="0.2" max="5" step="0.1" value={asset.reloadTime ?? DEFAULT_RELOAD_TIME} onChange={(e) => setAsset((a) => ({ ...a, reloadTime: +e.target.value }))} /><span className="hint2">{asset.reloadTime ?? DEFAULT_RELOAD_TIME}s</span></label>
             <label className="slider">Burst<input type="range" min="1" max="10" step="1" value={burstShotCount(asset.burst)} onChange={(e) => setAsset((x) => ({ ...x, burst: +e.target.value }))} /><span className="hint2">{burstShotCount(asset.burst) === 1 ? "single shot per pull" : burstShotCount(asset.burst) + " rounds per pull"}</span></label>
             {burstShotCount(asset.burst) > 1 && <label className="slider">Burst spacing<input type="range" min="0.02" max="0.3" step="0.01" value={asset.burstDelay ?? DEFAULT_BURST_DELAY} onChange={(e) => setAsset((x) => ({ ...x, burstDelay: +e.target.value }))} /><span className="hint2">{(asset.burstDelay ?? DEFAULT_BURST_DELAY).toFixed(2)}s between rounds — the whole burst takes {(((burstShotCount(asset.burst) - 1) * (asset.burstDelay ?? DEFAULT_BURST_DELAY))).toFixed(2)}s. Fire rate still sets how soon you can pull again, and a burst stops early if the clip runs out.</span></label>}
-            <label className="chk"><input type="checkbox" checked={!!asset.ignoreArmor} onChange={(e) => setAsset((a) => ({ ...a, ignoreArmor: e.target.checked }))} /> 🗡️ Ignore armor <span className="hint2">(its shots bypass the target’s Defense entirely — full damage no matter what armour is worn. Back Guard and Crouch Guard still apply.)</span></label>
-            <label className="chk"><input type="checkbox" checked={!!asset.resurrect} onChange={(e) => setAsset((a) => ({ ...a, resurrect: e.target.checked }))} /> 🔮 Resurrect staff <span className="hint2">(its shot deals no damage — instead it raises a defeated body into a friendly NPC that fights for you. One body can only be raised once.)</span></label>
-            {!asset.resurrect && (
-              <div className="explodecard">
-                <label className="chk"><input type="checkbox" checked={!!asset.explode} onChange={(e) => setAsset((a) => ({ ...a, explode: e.target.checked }))} /> 💥 Explode <span className="hint2">(the shot bursts on impact — a wide splash of damage, plus an explosion drawn in front from an Object you pick)</span></label>
-                {asset.explode && (<>
-                  <label className="slider">Blast radius<input type="range" min="1" max="5" step="0.5" value={asset.explodeRadius ?? 2} onChange={(e) => setAsset((a) => ({ ...a, explodeRadius: +e.target.value }))} /><span className="hint2">{(asset.explodeRadius ?? 2)} cells — every enemy within that circle of the hit takes the shot's damage</span></label>
-                  <span className="wslab">Boom art (Object/Prop):</span>
-                  <select className="projSel" value={asset.explodePropId || ""} onChange={(e) => setAsset((a) => ({ ...a, explodePropId: e.target.value || null }))}>
-                    <option value="">— 💥 emoji (no Object) —</option>
-                    {allAssets.filter((a) => a.type === "prop").map((a) => <option key={a.id} value={a.id}>🌿 {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
-                  </select>
-                  <label className="slider">Boom size<input type="range" min="1" max="8" step="0.5" value={asset.explodeSize ?? 3} onChange={(e) => setAsset((a) => ({ ...a, explodeSize: +e.target.value }))} /><span className="hint2">{(asset.explodeSize ?? 3)} cells across</span></label>
-                  <label className="slider">Boom time<input type="range" min="0.2" max="2" step="0.1" value={asset.explodeLife ?? 0.5} onChange={(e) => setAsset((a) => ({ ...a, explodeLife: +e.target.value }))} /><span className="hint2">on screen {(asset.explodeLife ?? 0.5)}s{(() => { const pa = asset.explodePropId ? allAssets.find((x) => x.id === asset.explodePropId) : null; return pa && pa.frames && pa.frames.length > 1 ? " — its " + pa.frames.length + " frames play once over that time" : ""; })()}</span></label>
-                  <span className="hint2">Draw the explosion in the Object/Prop maker (animate it if you like), pick it above, and the shot paints it at the impact. The boom is visual only — it never sticks into the level.</span>
-                </>)}
-              </div>
-            )}
+            {/* Abilities: pick from a dropdown, and only what's actually ON the weapon takes up
+                room. Driven by WEAPON_ABILITIES so adding a power later is one registry entry. */}
+            {(() => {
+              const on = weaponAbilityKeys(asset);
+              const addable = Object.keys(WEAPON_ABILITIES).filter((k) => !on.includes(k));
+              return (
+                <div className="abilcard">
+                  <div className="abilbar">
+                    <span className="wslab">Abilities:</span>
+                    {addable.length > 0 ? (
+                      <select className="abilAdd" value="" onChange={(e) => { const k = e.target.value; if (k) setAsset((a) => ({ ...a, ...WEAPON_ABILITIES[k].on })); e.target.value = ""; }}>
+                        <option value="">＋ Add an ability…</option>
+                        {addable.map((k) => <option key={k} value={k}>{WEAPON_ABILITIES[k].icon} {WEAPON_ABILITIES[k].label}</option>)}
+                      </select>
+                    ) : <span className="hint2">All {Object.keys(WEAPON_ABILITIES).length} are on this weapon.</span>}
+                    {on.length === 0 && <span className="hint2">None yet — a plain weapon that just deals its damage.</span>}
+                  </div>
+                  {on.map((k) => (
+                    <div key={k} className="abilrow">
+                      <div className="abilhead"><b>{WEAPON_ABILITIES[k].icon} {WEAPON_ABILITIES[k].label}</b><button className="ltbtn abilx" onClick={() => setAsset((a) => ({ ...a, ...WEAPON_ABILITIES[k].off }))} title={"Remove " + WEAPON_ABILITIES[k].label}>✕ Remove</button></div>
+                      <span className="hint2">{WEAPON_ABILITIES[k].blurb}</span>
+                      {k === "explode" && (<>
+                        <label className="slider">Blast radius<input type="range" min="1" max="5" step="0.5" value={asset.explodeRadius ?? 2} onChange={(e) => setAsset((a) => ({ ...a, explodeRadius: +e.target.value }))} /><span className="hint2">{(asset.explodeRadius ?? 2)} cells — how far PAST a body the splash still reaches. A direct hit always counts, however big the target.</span></label>
+                        <span className="wslab">Boom art (Object/Prop):</span>
+                        <select className="projSel" value={asset.explodePropId || ""} onChange={(e) => setAsset((a) => ({ ...a, explodePropId: e.target.value || null }))}>
+                          <option value="">— 💥 emoji (no Object) —</option>
+                          {allAssets.filter((a) => a.type === "prop").map((a) => <option key={a.id} value={a.id}>🌿 {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
+                        </select>
+                        {/* Boom size is the ART; blast radius is the DAMAGE. They're separate numbers,
+                            and the default 3-cell art under a 2-cell radius draws a fireball much
+                            smaller than the area that actually hurts — "the fire was smaller than I
+                            expected". One tap matches them rather than us silently resizing anyone's art. */}
+                        <label className="slider">Boom size<input type="range" min="1" max="8" step="0.5" value={asset.explodeSize ?? 3} onChange={(e) => setAsset((a) => ({ ...a, explodeSize: +e.target.value }))} /><span className="hint2">{(asset.explodeSize ?? 3)} cells of art{(() => { const want = Math.min(8, Math.max(1, Math.round((asset.explodeRadius ?? 2) * 2 * 2) / 2)); return Math.abs((asset.explodeSize ?? 3) - want) > 0.4 ? <> — the blast itself covers about {want}. <button className="ltbtn" onClick={() => setAsset((a) => ({ ...a, explodeSize: want }))}>Match the blast</button></> : " — matches the blast"; })()}</span></label>
+                        <label className="slider">Boom time<input type="range" min="0.2" max="2" step="0.1" value={asset.explodeLife ?? 0.5} onChange={(e) => setAsset((a) => ({ ...a, explodeLife: +e.target.value }))} /><span className="hint2">on screen {(asset.explodeLife ?? 0.5)}s{(() => { const pa = asset.explodePropId ? allAssets.find((x) => x.id === asset.explodePropId) : null; return pa && pa.frames && pa.frames.length > 1 ? " — its " + pa.frames.length + " frames play once over that time" : ""; })()}</span></label>
+                        <span className="hint2">Draw the explosion in the Object/Prop maker (animate it if you like), pick it above, and the shot paints it at the impact. The boom is visual only — it never sticks into the level.</span>
+                      </>)}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
             <button className="ltbtn" onClick={addMuzzle}><b>🔴</b> Add muzzle (shot spawn point)</button>
             {!ANGLES.some((ang) => ((wState === "rest" ? asset.angles?.[ang] : asset.states?.rest?.[ang]) || []).some((p) => p.isMuzzle)) && (
               <p className="tip warn">⚠ No 🔴 muzzle placed on the Rest pose yet — shots will spawn from the middle of the character instead of the barrel. Add one and drag it to the barrel tip.</p>
@@ -9089,6 +9168,12 @@ export default function AssetStudio() {
             {/* Turning add-mode ON keeps any group that's already held, so a stamp you just placed
                 can be extended. Turning it OFF ends the group. */}
             <button className={"ltbtn" + (multiSelect ? " on" : "")} onClick={() => { if (multiSelect) setGroupIds([]); setMultiSelect((v) => !v); }} >🔲 {multiSelect ? "Done" : "Group select"}</button>
+            {/* Select all — one tap to hold every block in this pose, so a multi-part item (a rocket
+                launcher drawn from a dozen blocks) can be dragged, rotated or resized as one object
+                without hunting each block first. Sits next to the mode toggle rather than inside the
+                group tip so it's reachable from a cold start. This POSE's blocks only: a group is a
+                list of piece ids inside one pose, so it can never span them. */}
+            {pieces.length > 0 && <button className="ltbtn" onClick={() => { setGroupIds(pieces.map((pc) => pc.id)); setSelId(pieces[pieces.length - 1].id); }} title="Hold every block in this pose as one group">▣ Select all ({pieces.length})</button>}
             {/* A group can be live WITHOUT add-mode (that's what placing a stamp leaves you with),
                 so the count and the group buttons key off the group itself. Only the "click blocks
                 to add/remove" line is about the mode. */}
@@ -9211,6 +9296,18 @@ const css = `
 .weaponSettings{min-height:0;max-height:34vh;overflow:auto;border-top:2px solid #2c3245;background:#14111a}
 .editorSettings{display:contents}
 .bb button,.bb input,.bb textarea,.bb select{font:inherit;color:inherit}
+/* Every control inherits the app's near-WHITE text (above) but keeps the browser's default WHITE
+   background unless something explicitly styles it — which is how the weapon editor ended up with
+   white text in white boxes: its three dropdowns (Projectile, Boom art, Fire look) and its bare
+   number inputs (Range, Clip size, Damage) had no rule of their own at all, so the text in them was
+   invisible. This is the floor for every text-entry control in the app, so no new one can be born
+   white-on-white; anything wanting a different look overrides it further down the sheet. Range,
+   colour and checkbox inputs are deliberately excluded — they are painted by accent-color. */
+.bb select,.bb textarea,.bb input[type=text],.bb input[type=number],.bb input[type=search],.bb input:not([type]){background:#1d2230;border:1px solid #3a4258;border-radius:8px;padding:7px 10px;color:#e7e9ee}
+.bb select{cursor:pointer}
+.bb option{background:#1d2230;color:#e7e9ee}
+.bb select:focus,.bb textarea:focus,.bb input[type=text]:focus,.bb input[type=number]:focus,.bb input[type=search]:focus,.bb input:not([type]):focus{outline:none;border-color:#4f7cf6}
+.bb select:hover{border-color:#4f7cf6}
 .bar{display:flex;align-items:center;gap:10px;padding:11px 14px;background:#161922;border-bottom:1px solid #232838;flex-shrink:0}
 .logo{font-weight:700;font-size:16px}
 .dressName{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:8px 12px;font-size:13px;color:#e7e9ee;width:180px;margin-left:auto}
@@ -9218,8 +9315,8 @@ const css = `
 .back{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:8px 12px;cursor:pointer}
 .nm{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:7px 11px;width:110px;font-size:15px}
 .badge{background:#222840;border:1px solid #2c3245;border-radius:20px;padding:5px 11px;font-size:12px}
-.save{margin-left:auto;background:#4f7cf6;border:0;border-radius:9px;padding:9px 14px;font-weight:600;cursor:pointer}
-.save:hover{background:#5e89ff}
+.save{margin-left:auto;background:#3558c0;border:0;border-radius:9px;padding:9px 14px;font-weight:600;cursor:pointer}
+.save:hover{background:#3f66d8}
 .menu{flex:1;overflow:auto;padding:22px;max-width:780px;margin:0 auto;width:100%}
 .menu h2{font-size:15px;color:#aab2c6;margin:10px 0 12px;font-weight:600}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:24px}
@@ -9256,7 +9353,7 @@ const css = `
 .openfile:hover{border-color:#4f7cf6}
 .angles{display:flex;align-items:center;gap:6px;padding:9px 14px;background:#13161f;border-bottom:1px solid #232838;flex-wrap:wrap;flex-shrink:0}
 .angles>button{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:7px 13px;cursor:pointer}
-.angles>button.on{background:#4f7cf6;border-color:#4f7cf6;font-weight:600}
+.angles>button.on{background:#3558c0;border-color:#6f92f0;font-weight:600}
 .copyang{font-size:12px;color:#9aa3b8 !important;background:transparent !important;border:1px dashed #3a4258 !important}
 .posecopy{display:flex;align-items:center;gap:6px}
 /* "copy to other poses" submenu. Anchored to its own button so it drops directly under it, and
@@ -9382,7 +9479,7 @@ const css = `
 .dlg textarea{width:100%;height:150px;margin-top:8px;background:#0f1117;border:1px solid #2c3245;border-radius:10px;padding:10px;color:#c7cdda;resize:vertical;font-family:ui-monospace,monospace;font-size:12px}
 .namefield{width:100%;margin-top:6px;background:#0f1117;border:1px solid #2c3245;border-radius:10px;padding:11px 12px;font-size:15px}
 .namefield:focus{outline:none;border-color:#4f7cf6}
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#4f7cf6;color:#fff;padding:9px 20px;border-radius:22px;font-weight:600;z-index:40;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#3558c0;color:#fff;padding:9px 20px;border-radius:22px;font-weight:600;z-index:40;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 .undo{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:9px 12px;cursor:pointer;font-weight:600}
 .undo:hover:not(:disabled){border-color:#4f7cf6}.undo:disabled{opacity:.4;cursor:default}
 .tile.lvl{border-color:#3a6a4a;background:#172a1f}
@@ -9392,6 +9489,19 @@ const css = `
 .wstates button{background:#241a2e;border:1px solid #3a2c48;border-radius:9px;padding:7px 13px;cursor:pointer}
 .wstates button.on{background:#5a3a8f;border-color:#7a4fbf;color:#fff;font-weight:600}
 .wstates .wcopy{background:#1f2433;border-color:#2c3245}
+/* Hints had NO rule at all, so every "(the shot bursts on impact…)" aside rendered at full body
+   size and colour — the same weight as the label it was explaining. That's most of why the weapon
+   panel read as a soup of text. Muted and a size down, still ~7:1 on the panel background. */
+.hint2{font-size:12px;color:#9aa3b8;line-height:1.45}
+.wstates .hint2{flex:1 1 220px;min-width:0}
+/* Weapon abilities: a picker plus one card per ability actually on the weapon. */
+.abilcard{display:flex;flex-direction:column;gap:8px;width:100%;margin-top:6px}
+.abilbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.abilAdd{min-width:190px}
+.abilrow{display:flex;flex-direction:column;gap:7px;padding:10px 12px;background:#1c1626;border:1px solid #46375e;border-left:3px solid #8a6ac4;border-radius:9px}
+.abilhead{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13.5px;color:#efe6ff}
+.abilx{padding:4px 9px;font-size:12px;border-color:#5a3a4a;color:#e6b8c4}
+.abilx:hover{border-color:#c76a86;background:#33202a}
 .rc{position:relative}.rc::after{content:"";position:absolute;inset:-3px;border:1px dotted #6a7290;border-radius:7px;pointer-events:none}
 .ncright{display:flex;align-items:center;gap:5px}.ncright .rc{width:22px;height:22px;border-radius:6px;border:1px solid #2c3245;cursor:pointer}
 /* level creator */
@@ -9406,7 +9516,7 @@ const css = `
 .ltools{display:flex;align-items:center;gap:8px;padding:9px 14px;background:#13161f;border-bottom:1px solid #232838;flex-wrap:wrap}
 .seg{display:flex;border:1px solid #2c3245;border-radius:9px;overflow:hidden}
 .seg button{background:#171b26;border:0;padding:8px 11px;cursor:pointer;font-size:13px}
-.seg button.on{background:#4f7cf6;color:#fff;font-weight:600}
+.seg button.on{background:#3558c0;color:#fff;font-weight:600}
 .lswatches{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .lswatches button{width:24px;height:24px;border-radius:7px;border:2px solid transparent;cursor:pointer}
 .lswatches button.on{border-color:#fff;box-shadow:0 0 0 2px #4f7cf6}
