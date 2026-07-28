@@ -361,7 +361,11 @@ export const weaponFireArt = (states, ang) => {
 //     ~3 frames, which flashed by too fast to ever read as a slash. Showing it during the raise
 //     still reads as firing before the swing has gone anywhere, so the windup stays on Rest.
 // Either way it's a REPLACEMENT — Rest is not drawn underneath, so nothing is ever doubled up.
-export const weaponPoseFired = (isRangedWeapon, firing) => !!firing && (!!isRangedWeapon || (firing.t / firing.dur) >= MELEE_WINDUP_FRAC);
+// An UNARMED swing never counts, whatever is in your hand. The pistol-whip (Q/V with a gun) rides
+// the same p.firing channel a shot does, so a ranged weapon was swapping to its Fire art — recoil,
+// muzzle flash, an open breech — for a strike that fires no round at all. The gun stays on Rest
+// through a whip now; the flag is on the swing, so nothing else has to know about it.
+export const weaponPoseFired = (isRangedWeapon, firing) => !!firing && !firing.unarmed && (!!isRangedWeapon || (firing.t / firing.dur) >= MELEE_WINDUP_FRAC);
 // How long a ranged shot holds its Fire pose. Was 16 frames (~0.27s), which read as a flash rather
 // than a shot you could see — a drawn recoil or a bow at full draw barely registered before
 // snapping back. 30 frames is half a second: long enough to actually read the pose, still short

@@ -931,6 +931,17 @@ describe("holding Fire locks the aim pose", () => {
     expect(RANGED_FIRE_POSE_FRAMES).toBeGreaterThan(16);
     expect(weaponPoseFired(true, { t: RANGED_FIRE_POSE_FRAMES - 1, dur: RANGED_FIRE_POSE_FRAMES })).toBe(true);
   });
+
+  test("a pistol-whip leaves the gun on Rest — no round left the barrel", () => {
+    const whip = { t: 6, dur: 12, unarmed: true };
+    expect(weaponPoseFired(true, whip)).toBe(false);
+    expect(weaponPoseFired(true, { ...whip, t: 11 })).toBe(false); // right through to the end of the swing
+  });
+
+  test("an unarmed swing can't fire a melee weapon's pose either", () => {
+    expect(weaponPoseFired(false, { t: 11, dur: 12, unarmed: true })).toBe(false);
+    expect(weaponPoseFired(false, { t: 11, dur: 12 })).toBe(true); // a real swing still swaps at the strike
+  });
 });
 
 describe("copying a pose onto poses you pick", () => {
