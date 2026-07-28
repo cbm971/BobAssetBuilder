@@ -7992,6 +7992,18 @@ export default function AssetStudio() {
                   return (
                     <>
                       <div className="playerHpTrack" style={{ left: p.x, top: p.y - 10 + (p.stepEase || 0) - climbLift, width: pw }}><div className="playerHpFill" style={{ width: (hpFrac * 100) + "%", background: hpFrac > 0.5 ? "#6bd06b" : hpFrac > 0.2 ? "#c8a23c" : "#b0504f" }} /></div>
+                      {/* Your own reload timer, over your head, the same bar a ranged enemy gets and
+                          in the same place above the HP bar. The ammo line in the HUD already said
+                          "Reloading…", but that's at the bottom of the screen while your eyes are on
+                          the fight — the one moment you most need to know how long you're helpless is
+                          the one where you can't afford to look away. */}
+                      {playtestWeapon && isRanged(playtestWeapon.wtype) && (() => {
+                        const w = wpn.current;
+                        if (!w || !(w.reloadT > 0)) return null;
+                        const total = w.reloadTotal || weaponReloadFrames(playtestWeapon.reloadTime); // reloadTotal is the real figure; the fallback only covers a record from before it existed
+                        const done = Math.max(0, Math.min(1, 1 - w.reloadT / total));
+                        return <div className="playerReloadTrack" style={{ left: p.x, top: p.y - 17 + (p.stepEase || 0) - climbLift, width: pw }}><div className="playerReloadFill" style={{ width: (done * 100) + "%" }} /></div>;
+                      })()}
                       <div className={blocks ? "playerWrap" : "player"} style={style}>
                         {blocks ? renderPieceRuns({ pieces: blocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "player", keyPrefix: "pl", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k), maskCss: cutterMaskCss }) : <><div className="peye" /><div className="pbody" /></>}
                       </div>
@@ -8123,23 +8135,31 @@ export default function AssetStudio() {
                   const hpFrac = Math.max(0, Math.min(1, curHp / maxHp));
                   const flip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1)" : "none";
                   return (
-                    <div key={"enp" + k} className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: flip, ...((ep && ep.friendly) ? { filter: "drop-shadow(0 0 2px #b46cf5) drop-shadow(0 0 5px #a855f7)" } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? "🟣 " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you)" : "") + (ducking ? " (ducking)" : "")}>
-                      <div className="enemyHpTrack" style={{ left: hitboxOffset, width: epw }}><div className="enemyHpFill" style={{ width: (hpFrac * 100) + "%", background: hpFrac > 0.5 ? "#6bd06b" : hpFrac > 0.2 ? "#c8a23c" : "#b0504f" }} /></div>
-                      {/* Reload timer, directly above the HP bar: a ranged enemy caught mid-reload
-                          is the window you push in, and until now the only tell was that it had
-                          stopped shooting — you couldn't see how long you had. Fills left-to-right
-                          as the reload completes, so a full bar means it's about to fire again.
-                          Drawn inside the flipped wrapper like the HP bar, so it un-mirrors itself
-                          (see reloadCounterFlip) rather than filling backwards for a left-facing
-                          enemy. */}
-                      {ep && ep.reloading && ep.weaponAmmo && ew && (() => {
-                        const total = ep.weaponAmmo.reloadTotal || weaponReloadFrames(ew.reloadTime, ea.stats?.intelligence ?? 5);
-                        const done = Math.max(0, Math.min(1, 1 - ep.weaponAmmo.reloadT / total));
-                        return <div className="enemyReloadTrack" style={{ left: hitboxOffset, width: epw, transform: flip === "scaleX(-1)" ? "scaleX(-1)" : undefined }}><div className="enemyReloadFill" style={{ width: (done * 100) + "%" }} /></div>;
-                      })()}
-                      {ep && ep.stun > 0 && <div className="enemyStun" style={{ left: hitboxOffset, width: epw }}>💫</div>}
-                      {renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
-                    </div>
+                    <React.Fragment key={"enp" + k}>
+                      {/* Status readouts live OUTSIDE the sprite wrapper, in their own layer above
+                          the Front tiles. Inside it they were unreachable: the wrapper carries the
+                          facing scaleX(-1), and a transform makes its own stacking context, so no
+                          z-index on a child can lift it past scenery at z 6 — an enemy standing
+                          behind a tree had its HP, reload and 💫 swallowed by the leaves, which is
+                          the one time you most want to read them. Out here there's also no mirror
+                          to undo, so the reload bar just fills left-to-right on its own. */}
+                      <div className="unitStatus" style={{ left: eLeft + hitboxOffset, top: eTop + eFootAnchor, width: epw }}>
+                        <div className="enemyHpTrack"><div className="enemyHpFill" style={{ width: (hpFrac * 100) + "%", background: hpFrac > 0.5 ? "#6bd06b" : hpFrac > 0.2 ? "#c8a23c" : "#b0504f" }} /></div>
+                        {/* Reload timer, directly above the HP bar: a ranged enemy caught mid-reload
+                            is the window you push in, and the only other tell is that it stopped
+                            shooting — which doesn't say how long you have. Fills left-to-right as
+                            the reload completes, so a full bar means it's about to fire again. */}
+                        {ep && ep.reloading && ep.weaponAmmo && ew && (() => {
+                          const total = ep.weaponAmmo.reloadTotal || weaponReloadFrames(ew.reloadTime, ea.stats?.intelligence ?? 5);
+                          const done = Math.max(0, Math.min(1, 1 - ep.weaponAmmo.reloadT / total));
+                          return <div className="enemyReloadTrack"><div className="enemyReloadFill" style={{ width: (done * 100) + "%" }} /></div>;
+                        })()}
+                        {ep && ep.stun > 0 && <div className="enemyStun">💫</div>}
+                      </div>
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: flip, ...((ep && ep.friendly) ? { filter: "drop-shadow(0 0 2px #b46cf5) drop-shadow(0 0 5px #a855f7)" } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? "🟣 " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you)" : "") + (ducking ? " (ducking)" : "")}>
+                        {renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
+                      </div>
+                    </React.Fragment>
                   );
                 })}
                 {play && doorPrompt && doorPrompt.key && (() => {
@@ -9632,16 +9652,25 @@ const css = `
 .lobj.infront{z-index:6;transition:opacity .12s ease}
 .lobjGhost{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:4;opacity:.5;outline:2px dashed rgba(255,255,255,.4);outline-offset:-2px;border-radius:4px}
 .enemyGhost{position:absolute;pointer-events:none;z-index:4;opacity:.6;outline:2px dashed #c0504f;outline-offset:-2px;border-radius:6px;box-sizing:border-box}
-.enemyHpTrack{position:absolute;top:-10px;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:6}
-.enemyStun{position:absolute;top:-30px;text-align:center;font-size:16px;line-height:1;z-index:7;pointer-events:none;animation:stunbob .6s ease-in-out infinite}
+/* THE STATUS LAYER. Sits above the Front tiles (z 6) on purpose: a unit's HP, reload and 💫 are
+   information you need even when the unit itself is behind a tree. It is a plain positioned box
+   with no transform of its own, so the bars inside are free of the sprite wrapper's facing flip
+   and simply fill left-to-right. Spans the VISIBLE body, and the bars hang off its top edge. */
+.unitStatus{position:absolute;height:0;pointer-events:none;z-index:8}
+.enemyHpTrack{position:absolute;left:0;right:0;top:-10px;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden}
+.enemyStun{position:absolute;left:0;right:0;top:-30px;text-align:center;font-size:16px;line-height:1;pointer-events:none;animation:stunbob .6s ease-in-out infinite}
 @keyframes stunbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 .enemyHpFill{height:100%;transition:width .15s ease}
 /* Reload timer, sitting just above the HP bar (which is at -10px, 5px tall). Deliberately thinner
    and a different colour from HP so a glance can't confuse "nearly dead" with "nearly loaded". No
    width transition: it tracks a frame counter, and easing would lag the real reload. */
-.enemyReloadTrack{position:absolute;top:-17px;height:4px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:6}
+.enemyReloadTrack{position:absolute;left:0;right:0;top:-17px;height:4px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden}
 .enemyReloadFill{height:100%;background:linear-gradient(90deg,#4a86c8,#7ab6f0)}
-.playerHpTrack{position:absolute;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:6}
+/* The player's own bars are already siblings of the sprite rather than children of it, so they
+   only needed lifting onto the same status layer the enemies use. */
+.playerHpTrack{position:absolute;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:8;pointer-events:none}
+.playerReloadTrack{position:absolute;height:4px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:8;pointer-events:none}
+.playerReloadFill{height:100%;background:linear-gradient(90deg,#4a86c8,#7ab6f0)}
 .playerHpFill{height:100%;transition:width .15s ease}
 .rampGhost{position:absolute;width:${LV_CELL}px;height:${LV_CELL}px;pointer-events:none;z-index:4;opacity:.5}
 .blockGhost{position:absolute;pointer-events:none;z-index:4;opacity:.5;outline:2px dashed rgba(255,255,255,.55);outline-offset:-2px;box-sizing:border-box}
