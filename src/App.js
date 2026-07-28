@@ -933,11 +933,27 @@ export const incomingPlayerDamage = (raw, def, face, attackerX, wearerX, backGua
 // knocks it out of the air (the PARRY in the player's melee hit-test) — that's the timed, skilful
 // answer to a ranged enemy, and a guard that also ate bullets would just replace it with a button
 // you hold. So: melee is blocked, ranged is parried, and the two stay distinct.
-export const BLOCK_FRAMES = 60;   // ~1s at 60fps. A committed brace, not a hold-to-turtle stance.
+// HOLD Q/V to keep the guard up; it is not a one-second flash you have to re-time. The first
+// version expired after BLOCK_FRAMES and, being edge-triggered, refused to re-arm until you let go
+// and pressed again — so holding the button through a fight put the arm out once and then dropped
+// it for good ("my character puts his arms down and does no blocking"), and an enemy swinging every
+// 0.75s simply hit you in the gaps between taps. BLOCK_FRAMES is now a MINIMUM instead: a tap still
+// buys a full second of guard, and holding keeps it up for as long as you hold.
+export const BLOCK_FRAMES = 60;   // ~1s at 60fps — the minimum a single tap gives you
+export const BLOCK_STAGGER_SECS = 1; // how long a blocked attacker is left reeling and unable to swing
 // Does an active guard stop this blow? Only from the front — the same flank rule Back Guard uses,
-// since a shield arm held out in front of you cannot cover your back.
-export const blockStopsHit = (blocking, face, attackerX, wearerX) =>
-  !!blocking && !isHitFromBehind(face, attackerX, wearerX);
+// since a shield arm held out in front of you cannot cover your back. The tolerance matters at
+// MELEE range specifically: two sprites trading blows overlap, so a centre-vs-centre compare can
+// read "behind you" while you are still plainly face to face, and the guard would refuse for no
+// reason a player could see. Anything closer than half your own width counts as in front. Walk
+// clean PAST an enemy and it is genuinely behind you, which still (correctly) refuses.
+export const BLOCK_FRONT_TOLERANCE_FRAC = 0.5; // of the wearer's own width
+export const blockStopsHit = (blocking, face, attackerX, wearerX, wearerW) => {
+  if (!blocking) return false;
+  const tol = Math.max(0, (wearerW || 0) * BLOCK_FRONT_TOLERANCE_FRAC);
+  if (Math.abs(attackerX - wearerX) <= tol) return true; // practically inside each other — that's the front
+  return !isHitFromBehind(face, attackerX, wearerX);
+};
 // A clothing "Tag Damage" ability empowers a KIND of weapon: any equipped weapon whose
 // category tags include the tag the ability is set to (e.g. "bow") deals multiplied damage
 // while the item is worn. Given the wearer's resolved effects (post-mergeEquip) and the
@@ -4003,8 +4019,14 @@ export default function AssetStudio() {
               // nothing. Only this melee path consults it — an enemy's SHOT resolves in the
               // projectile pipeline and is untouched on purpose (see BLOCK_FRAMES). Returns true
               // so the caller still counts the swing as spent: one swing, one block.
-              if (blockStopsHit(p.blocking, p.face, atkCX, p.x + pw / 2)) {
-                flash("🛡️ Blocked " + (ea.name || "the hit") + "!");
+              if (blockStopsHit(p.blocking, p.face, atkCX, p.x + pw / 2, pw)) {
+                // Turning a blow aside STAGGERS whoever threw it: they lose BLOCK_STAGGER_SECS to
+                // the same stun channel a stun weapon uses (💫 over their head, no attacking, no
+                // walk cycle). Without it a blocked enemy simply swung again off its own cooldown
+                // and the guard bought you nothing but the damage — now a good block is what opens
+                // the window to hit back, which is the whole reason to raise it.
+                if (ep) { ep.stun = Math.max(ep.stun || 0, Math.round(BLOCK_STAGGER_SECS * 60)); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; ep.attackT = Math.max(ep.attackT || 0, Math.round(BLOCK_STAGGER_SECS * 60)); }
+                flash("🛡️ Blocked " + (ea.name || "the hit") + "! — 💫 staggered");
                 return true;
               }
               const dmg = incomingPlayerDamage(rawDmg, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch);
@@ -4214,21 +4236,25 @@ export default function AssetStudio() {
       //   Ranged weapon, or empty hands — a bare-handed swing you can throw WITHOUT holstering the
       //     gun: pistol-whip style. Fist reach, unarmed (Strength) damage, no bonus range.
       //   Melee weapon — a BLOCK instead (see BLOCK_FRAMES). Fire is already the swing for a melee
-      //     weapon, so this button was a duplicate there; now it's the guard.
-      // Both are edge-triggered (one tap = one action) and neither starts on top of an in-progress
-      // shot, swing or block.
+      //     weapon, so this button was a duplicate there; now it's the guard, and it is HELD: the
+      //     arm stays out the whole time you hold the button, with one second guaranteed on a tap.
+      // The pistol-whip stays edge-triggered (one tap = one swing) and neither action starts on top
+      // of an in-progress shot or swing.
       const wantMelee = K.melee && !p.wasMelee;
       const meleeInHand = !!playtestWeapon && !isRanged(playtestWeapon.wtype); // a real melee weapon — bare hands still swing
-      if (wantMelee && !p.firing && !p.blocking) {
-        if (meleeInHand && !p.climbing) p.blocking = { t: 0, dur: BLOCK_FRAMES };
-        else if (!meleeInHand) { p.firing = { t: 0, dur: 12, unarmed: true }; p.hitRegistered = false; }
+      if (meleeInHand) {
+        if (K.melee && !p.firing && !p.climbing && !p.blocking) p.blocking = { t: 0 };
+      } else if (wantMelee && !p.firing) {
+        p.firing = { t: 0, dur: 12, unarmed: true }; p.hitRegistered = false;
       }
       p.wasMelee = !!K.melee;
-      // The guard runs down on its own — a committed second, not something you can sit behind — and
-      // drops the moment you attack or grab a ladder (both hands go elsewhere).
+      // The guard stays up while the button is down, and for at least BLOCK_FRAMES after the press
+      // so a quick tap still buys a real second of cover rather than a single frame. It drops the
+      // moment you attack or grab a ladder (both hands go elsewhere).
       if (p.blocking) {
-        if (p.firing || p.climbing) p.blocking = null;
-        else { p.blocking.t += dtMul; if (p.blocking.t >= p.blocking.dur) p.blocking = null; }
+        p.blocking.t += dtMul;
+        if (p.firing || p.climbing || !meleeInHand) p.blocking = null;
+        else if (!K.melee && p.blocking.t >= BLOCK_FRAMES) p.blocking = null;
       }
       if (p.firing) {
         p.firing.t += dtMul;
@@ -7463,7 +7489,7 @@ export default function AssetStudio() {
 
         <div className="lmain">
           <div className="lstage">
-            {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb · <b>J/F</b> fire · <b>Q</b> {playtestWeapon && !isRanged(playtestWeapon.wtype) ? "block" : "melee"}{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload" : ""}{playtestThrowId ? " · hold G to aim, release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
+            {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb · <b>J/F</b> fire · <b>Q</b> {playtestWeapon && !isRanged(playtestWeapon.wtype) ? "hold to block" : "melee"}{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload" : ""}{playtestThrowId ? " · hold G to aim, release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
             {play && (playtestWeaponId || SLOT_ORDER.some((sl) => equipped.current[sl])) && (() => {
               const bits = [];
               if (playtestWeaponId) { const w = findA(playtestWeaponId); if (w) bits.push("🗡️ " + w.name); }
@@ -7746,8 +7772,9 @@ export default function AssetStudio() {
                   } else if (blocks && p.blocking) {
                     // BLOCK (Q/V holding a melee weapon): a HELD pose, not an arc. The arm sets to
                     // the same absolute "extended, level" rotation the ranged aim hold uses
-                    // (armAimAbs) and simply stays there for the second the guard is up, so the
-                    // weapon reads as held out across you rather than swung. Same rigid sleeve
+                    // (armAimAbs) and stays there for as long as the guard is up — which is as long
+                    // as you hold the button — so the weapon reads as held out across you rather
+                    // than swung, and the arm never drops while you're still asking for it. Same rigid sleeve
                     // follow as every other arm pose; the weapon attaches below unchanged and stays
                     // on its Rest art, since p.firing is null throughout a block.
                     const blockAnchorOf = armAnchorFinder(blocks);

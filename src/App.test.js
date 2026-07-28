@@ -63,6 +63,7 @@ import {
   splitObjectStackByPlayerLayer,
   weaponReloadFrames,
   BLOCK_FRAMES,
+  BLOCK_STAGGER_SECS,
   blockStopsHit,
 } from "./App";
 
@@ -1145,7 +1146,26 @@ describe("melee block (Q/V with a melee weapon in hand)", () => {
     expect(blockStopsHit(guard, 1, 100, 100)).toBe(true);
   });
 
-  test("the guard is about a second long", () => {
+  test("a tap guarantees about a second of guard", () => {
     expect(BLOCK_FRAMES).toBe(60);
+  });
+
+  test("toe to toe still counts as in front, whichever way you face", () => {
+    // Sprites trading blows overlap, so the attacker centre can drift a little past yours while
+    // you are plainly face to face. Anything inside half your own width is still the front.
+    expect(blockStopsHit(guard, 1, 80, 100, 80)).toBe(true);
+    expect(blockStopsHit(guard, -1, 120, 100, 80)).toBe(true);
+  });
+
+  test("but walking clean past an enemy still leaves it behind you", () => {
+    expect(blockStopsHit(guard, 1, 20, 100, 80)).toBe(false);
+  });
+
+  test("no width given means no tolerance — the plain flank rule", () => {
+    expect(blockStopsHit(guard, 1, 80, 100)).toBe(false);
+  });
+
+  test("a blocked attacker is left reeling for a beat", () => {
+    expect(BLOCK_STAGGER_SECS).toBeGreaterThan(0);
   });
 });
