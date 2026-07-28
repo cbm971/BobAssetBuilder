@@ -4974,10 +4974,35 @@ export default function AssetStudio() {
   // Now the index and each record are parsed independently. A record that can't be read is
   // skipped and REPORTED (flash + console.warn with its id) instead of being swallowed, so the
   // other 69 assets still load and the damaged one can be identified and re-saved by hand.
+  // Every id actually sitting in storage under a given prefix. localStorage is enumerable, so a
+  // lost or truncated index can be rebuilt from what is really on disk. A host-provided
+  // window.storage backend has no key listing, so this returns nothing there and the index stays
+  // authoritative — the rescue simply does not apply, it never misfires.
+  const scanStoredIds = (prefix) => {
+    try {
+      if (typeof window === "undefined" || window.storage || typeof localStorage === "undefined") return [];
+      const out = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(prefix)) out.push(k.slice(prefix.length));
+      }
+      return out;
+    } catch { return []; }
+  };
+  // The index is only a POINTER; the asset:<id> records are the actual work. Trusting the index
+  // alone means one bad write to that single key hides every asset behind it — the library reads as
+  // empty, which is indistinguishable from the art being destroyed, and that is exactly how this has
+  // gone wrong twice now. So the index is treated as a hint and the RECORDS are treated as the
+  // truth: anything sitting in storage under an asset: key is loaded whether the index mentions it
+  // or not, and the index is then rewritten to match what was really found. Purely additive — it
+  // can resurrect an orphaned asset, it can never drop one.
   const loadLibrary = async () => {
     let list = [];
     try { const idx = await sget("assetIndex"); list = idx ? JSON.parse(idx) : []; } catch { list = []; }
     if (!Array.isArray(list)) list = [];
+    const indexed = new Set(list.map((it) => it && it.id).filter(Boolean));
+    const orphanIds = scanStoredIds("asset:").filter((id) => !indexed.has(id));
+    if (orphanIds.length) list = list.concat(orphanIds.map((id) => ({ id })));
     const full = [], bad = [];
     for (const it of list) {
       const id = it && it.id;
@@ -4988,6 +5013,13 @@ export default function AssetStudio() {
       } catch { bad.push((it && it.name) || id); }
     }
     setLibrary(full);
+    // Heal the index so the rescue is permanent rather than repeated every load.
+    if (orphanIds.length && full.length) {
+      const healed = full.map((x) => ({ id: x.id, name: x.name, type: x.type }));
+      await sset("assetIndex", JSON.stringify(healed));
+      console.warn("[Bob] recovered " + orphanIds.length + " asset(s) that were in storage but missing from the index:", orphanIds);
+      flash("🛟 Recovered " + orphanIds.length + " asset" + (orphanIds.length > 1 ? "s" : "") + " that were in storage but missing from the index — " + full.length + " loaded.");
+    }
     if (bad.length) {
       console.warn("[Bob] " + bad.length + " asset record(s) could not be read and were skipped:", bad);
       flash("⚠ " + bad.length + " asset" + (bad.length > 1 ? "s" : "") + " couldn't be read and " + (bad.length > 1 ? "were" : "was") + " skipped — the other " + full.length + " loaded fine. Check the console for which.");
@@ -6704,12 +6736,16 @@ export default function AssetStudio() {
     let list = [];
     try { const idx = await sget("levelIndex"); list = idx ? JSON.parse(idx) : []; } catch { list = []; }
     if (!Array.isArray(list)) list = [];
+    const indexedL = new Set(list.map((it) => it && it.id).filter(Boolean));
+    const orphanL = scanStoredIds("level:").filter((id) => !indexedL.has(id)); // same rescue as loadLibrary
+    if (orphanL.length) list = list.concat(orphanL.map((id) => ({ id })));
     const full = [], bad = [];
     for (const it of list) {
       try { const r = await sget("level:" + (it && it.id)); if (r) full.push(migrateLevel(JSON.parse(r))); else bad.push((it && it.name) || (it && it.id)); }
       catch { bad.push((it && it.name) || (it && it.id)); }
     }
     setLevelLib(full);
+    if (orphanL.length && full.length) { await sset("levelIndex", JSON.stringify(full.map((l) => ({ id: l.id, name: l.name })))); console.warn("[Bob] recovered " + orphanL.length + " level(s) missing from the index:", orphanL); }
     if (bad.length) { console.warn("[Bob] " + bad.length + " level(s) could not be read and were skipped:", bad); flash("⚠ " + bad.length + " level" + (bad.length > 1 ? "s" : "") + " couldn't be read — the other " + full.length + " loaded. See console."); }
   };
   const openLevelCreator = () => {
