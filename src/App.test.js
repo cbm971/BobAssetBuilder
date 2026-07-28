@@ -71,6 +71,8 @@ import {
   WEAPON_ABILITIES,
   weaponAbilityKeys,
   BLOCK_STAGGER_SECS,
+  BLOCK_RECOVER_FRAMES,
+  advanceBlock,
   blockStopsHit,
 } from "./App";
 
@@ -1240,6 +1242,78 @@ describe("melee block (Q/V with a melee weapon in hand)", () => {
 
   test("a tap guarantees about a second of guard", () => {
     expect(BLOCK_FRAMES).toBe(60);
+  });
+
+  // advanceBlock — the tap/expire/recover cycle. Runs a whole guard the way the physics loop
+  // does, one frame at a time, so these read as "what happens after N frames of holding Q".
+  const runGuard = (frames, held, canGuard = true) => {
+    let s = { t: null, cd: 0 };
+    const log = [];
+    for (let i = 0; i < frames; i++) {
+      s = advanceBlock(s.t, s.cd, typeof held === "function" ? held(i) : held, canGuard, 1);
+      log.push(s.t != null);
+    }
+    return { state: s, up: log };
+  };
+
+  test("pressing raises the guard", () => {
+    expect(advanceBlock(null, 0, true, true).t).toBe(0);
+  });
+
+  test("a tap gives a full second even after the button comes back up", () => {
+    // Press for one frame, then release: the guard still runs its whole BLOCK_FRAMES.
+    const { up } = runGuard(BLOCK_FRAMES, (i) => i === 0);
+    expect(up.every(Boolean)).toBe(true);
+  });
+
+  test("the arm comes down on its own — holding does NOT keep it up", () => {
+    // The bug this whole change exists to fix: v2 let a held button guard forever.
+    const { up } = runGuard(BLOCK_FRAMES + 1, true);
+    expect(up[BLOCK_FRAMES - 1]).toBe(true);
+    expect(up[BLOCK_FRAMES]).toBe(false);
+  });
+
+  test("holding auto-reengages once the recovery is paid, leaving a real gap", () => {
+    const { up } = runGuard(BLOCK_FRAMES + BLOCK_RECOVER_FRAMES + 1, true);
+    const down = up.slice(BLOCK_FRAMES, BLOCK_FRAMES + BLOCK_RECOVER_FRAMES);
+    expect(down.some(Boolean)).toBe(false);                       // a genuine arms-down window
+    expect(up[BLOCK_FRAMES + BLOCK_RECOVER_FRAMES]).toBe(true);   // then back up, unprompted
+  });
+
+  test("a held guard is up well under all of the time — that's the timing incentive", () => {
+    const { up } = runGuard(600, true);
+    const uptime = up.filter(Boolean).length / up.length;
+    expect(uptime).toBeLessThan(0.75);
+    expect(uptime).toBeGreaterThan(0.5); // but still worth holding — not a punishment
+  });
+
+  test("tapping again during the recovery doesn't skip it", () => {
+    const { up } = runGuard(BLOCK_FRAMES + BLOCK_RECOVER_FRAMES, (i) => i % 2 === 0);
+    expect(up.slice(BLOCK_FRAMES).some(Boolean)).toBe(false);
+  });
+
+  test("busy arms drop the guard at once, and cost no recovery", () => {
+    const mid = advanceBlock(10, 0, true, true);
+    const dropped = advanceBlock(mid.t, mid.cd, true, false); // started a swing
+    expect(dropped.t).toBe(null);
+    expect(dropped.cd).toBe(0);
+    expect(advanceBlock(dropped.t, dropped.cd, true, true).t).toBe(0); // swing over, guard back up
+  });
+
+  test("after a tap expires, nothing happens until you press again", () => {
+    // Auto-reengage is a property of HOLDING the button, not something the guard does by itself:
+    // tap once and never touch it again and the arm stays down.
+    const { state, up } = runGuard(BLOCK_FRAMES + BLOCK_RECOVER_FRAMES + 30, (i) => i === 0);
+    expect(up.slice(0, BLOCK_FRAMES).every(Boolean)).toBe(true);
+    expect(up.slice(BLOCK_FRAMES).some(Boolean)).toBe(false);
+    expect(state.cd).toBe(0); // recovery fully paid, so the next press raises instantly
+  });
+
+  test("fractional dtMul still expires the guard on time", () => {
+    // dtMul is fractional on a slow frame; the guard must not outlive BLOCK_FRAMES because of it.
+    let s = { t: null, cd: 0 }, frames = 0;
+    do { s = advanceBlock(s.t, s.cd, true, true, 0.5); frames++; } while (s.t != null && frames < 1000);
+    expect(frames).toBe(BLOCK_FRAMES * 2 + 1);
   });
 
   test("toe to toe still counts as in front, whichever way you face", () => {

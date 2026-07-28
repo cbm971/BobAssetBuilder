@@ -969,12 +969,22 @@ export const incomingPlayerDamage = (raw, def, face, attackerX, wearerX, backGua
 // knocks it out of the air (the PARRY in the player's melee hit-test) — that's the timed, skilful
 // answer to a ranged enemy, and a guard that also ate bullets would just replace it with a button
 // you hold. So: melee is blocked, ranged is parried, and the two stay distinct.
-// HOLD Q/V to keep the guard up; it is not a one-second flash you have to re-time. The first
-// version expired after BLOCK_FRAMES and, being edge-triggered, refused to re-arm until you let go
-// and pressed again — so holding the button through a fight put the arm out once and then dropped
-// it for good ("my character puts his arms down and does no blocking"), and an enemy swinging every
-// 0.75s simply hit you in the gaps between taps. BLOCK_FRAMES is now a MINIMUM instead: a tap still
-// buys a full second of guard, and holding keeps it up for as long as you hold.
+// The guard is TAPPED, not held open. One press braces for BLOCK_FRAMES and then the arm comes
+// down on its own, so covering a blow means pressing when the blow comes — that timing IS the
+// mechanic, and a guard you could pin up permanently deleted it.
+//
+// Holding the button is a convenience, not a stronger option: it re-taps for you, raising the arm
+// again the moment the guard's BLOCK_RECOVER_FRAMES of hands-down recovery run out. A held button
+// therefore pulses ~1s up / ~0.5s down, and an enemy swinging into a down beat lands the hit —
+// exactly as it would on a player who mistimed a tap.
+//
+// This is the third version, and the recovery gap is the whole difference. v1 expired after
+// BLOCK_FRAMES but was EDGE-triggered, so holding put the arm out once and then dropped it for
+// good ("my character puts his arms down and does no blocking"). v2 fixed that by keeping the
+// guard up for as long as the button was down — which made holding Q strictly correct and turned
+// the block into a toggle nobody had to time. Reading the button LEVEL (v1's real bug was the
+// edge, not the expiry) with a recovery debt that must be paid keeps both halves: a held button
+// never leaves you stuck with your arms down, and never buys permanent cover either.
 // Distance from a point to the nearest point of an axis-aligned box — 0 when the point is inside it.
 export const pointBoxDistance = (px, py, bx, by, bw, bh) => {
   const dx = Math.max(bx - px, 0, px - (bx + bw));
@@ -990,8 +1000,31 @@ export const pointBoxDistance = (px, py, bx, by, bw, bh) => {
 // exactly backwards. A direct hit is now always caught (distance 0), and the radius finally reads
 // the way the editor words it — how far PAST the body the splash still reaches.
 export const blastHitsBox = (ix, iy, bx, by, bw, bh, radPx) => pointBoxDistance(ix, iy, bx, by, bw, bh) <= radPx;
-export const BLOCK_FRAMES = 60;   // ~1s at 60fps — the minimum a single tap gives you
+export const BLOCK_FRAMES = 60;   // ~1s at 60fps — how long ONE guard lasts, tap or hold alike
+export const BLOCK_RECOVER_FRAMES = 30; // ~0.5s of arms-down recovery owed after every guard, before another can start
 export const BLOCK_STAGGER_SECS = 1; // how long a blocked attacker is left reeling and unable to swing
+// One frame of the guard's state machine, lifted out of the physics loop so the timing itself is
+// testable. `t` is how long the current guard has been up in frames (null = arms down), `cd` is
+// the recovery still owed, and `canGuard` is false whenever the arms are busy elsewhere (mid-
+// swing, climbing, or no melee weapon in hand). Returns the next { t, cd }.
+//
+// The button is read LEVEL, not on its edge — that is what makes holding re-tap itself — but a
+// guard ALWAYS ends at BLOCK_FRAMES and ALWAYS owes BLOCK_RECOVER_FRAMES afterwards, so reading
+// it level can never add up to permanent cover. Losing the guard because the arms got busy costs
+// no recovery: the swing or the ladder was its own commitment, and charging for it would mean a
+// player who blocked, swung back, and re-blocked was punished for playing it exactly right.
+export const advanceBlock = (t, cd, held, canGuard, dtMul = 1) => {
+  const step = dtMul > 0 ? dtMul : 0;
+  const cooling = Math.max(0, (cd || 0) - step);
+  if (!canGuard) return { t: null, cd: cooling };
+  if (t != null) {
+    const nt = t + step;
+    // Expiry stamps the FULL recovery rather than `cooling`: the countdown starts when the arm
+    // drops, so a guard that ran its course can't have been quietly paying it off while it was up.
+    return nt >= BLOCK_FRAMES ? { t: null, cd: BLOCK_RECOVER_FRAMES } : { t: nt, cd: cooling };
+  }
+  return (held && cooling <= 0) ? { t: 0, cd: 0 } : { t: null, cd: cooling };
+};
 // Does an active guard stop this blow? Only from the front — the same flank rule Back Guard uses,
 // since a shield arm held out in front of you cannot cover your back. The tolerance matters at
 // MELEE range specifically: two sprites trading blows overlap, so a centre-vs-centre compare can
@@ -3226,7 +3259,7 @@ export default function AssetStudio() {
   const xrayFrontSig = useRef("");         // signature of the Front cells the player was behind last frame; the flood fill above only re-runs when this changes, so standing still costs nothing
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
-  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
+  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
   const keys = useRef({});
   const lvRef = useRef(null);
 
@@ -4303,26 +4336,26 @@ export default function AssetStudio() {
       //   Ranged weapon, or empty hands — a bare-handed swing you can throw WITHOUT holstering the
       //     gun: pistol-whip style. Fist reach, unarmed (Strength) damage, no bonus range.
       //   Melee weapon — a BLOCK instead (see BLOCK_FRAMES). Fire is already the swing for a melee
-      //     weapon, so this button was a duplicate there; now it's the guard, and it is HELD: the
-      //     arm stays out the whole time you hold the button, with one second guaranteed on a tap.
+      //     weapon, so this button was a duplicate there; now it's the guard: one TAP braces for a
+      //     second and then the arm comes back down, and holding simply re-taps it for you.
       // The pistol-whip stays edge-triggered (one tap = one swing) and neither action starts on top
       // of an in-progress shot or swing.
       const wantMelee = K.melee && !p.wasMelee;
       const meleeInHand = !!playtestWeapon && !isRanged(playtestWeapon.wtype); // a real melee weapon — bare hands still swing
-      if (meleeInHand) {
-        if (K.melee && !p.firing && !p.climbing && !p.blocking) p.blocking = { t: 0 };
-      } else if (wantMelee && !p.firing) {
+      if (!meleeInHand && wantMelee && !p.firing) {
         p.firing = { t: 0, dur: 12, unarmed: true }; p.hitRegistered = false;
       }
       p.wasMelee = !!K.melee;
-      // The guard stays up while the button is down, and for at least BLOCK_FRAMES after the press
-      // so a quick tap still buys a real second of cover rather than a single frame. It drops the
-      // moment you attack or grab a ladder (both hands go elsewhere).
-      if (p.blocking) {
-        p.blocking.t += dtMul;
-        if (p.firing || p.climbing || !meleeInHand) p.blocking = null;
-        else if (!K.melee && p.blocking.t >= BLOCK_FRAMES) p.blocking = null;
-      }
+      // All of the guard's timing is advanceBlock: the press raises it, BLOCK_FRAMES later the arm
+      // comes down on its own, and BLOCK_RECOVER_FRAMES after THAT a still-held button raises it
+      // again. Attacking or grabbing a ladder drops it immediately (both hands go elsewhere), and
+      // so does swapping off the melee weapon. p.blocking is mutated in place rather than replaced
+      // so the object identity survives a frame — this runs 60 times a second.
+      const guard = advanceBlock(p.blocking ? p.blocking.t : null, p.blockCd || 0, !!K.melee, meleeInHand && !p.firing && !p.climbing, dtMul);
+      if (guard.t == null) p.blocking = null;
+      else if (p.blocking) p.blocking.t = guard.t;
+      else p.blocking = { t: guard.t };
+      p.blockCd = guard.cd;
       if (p.firing) {
         p.firing.t += dtMul;
         // Melee hit-test — reconstructs just enough of the render section's arm-swing/weapon-
@@ -7460,7 +7493,7 @@ export default function AssetStudio() {
           <span className="badge">{lv.isRoom ? "🚪 Room" : "🗺️ Level"}</span>
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel} title="Undo (last change)">↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel} title="Redo">↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -7641,7 +7674,7 @@ export default function AssetStudio() {
 
         <div className="lmain">
           <div className="lstage">
-            {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb · <b>J/F</b> fire · <b>Q</b> {playtestWeapon && !isRanged(playtestWeapon.wtype) ? "hold to block" : "melee"}{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload" : ""}{playtestThrowId ? " · hold G to aim, release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
+            {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb · <b>J/F</b> fire · <b>Q</b> {playtestWeapon && !isRanged(playtestWeapon.wtype) ? "tap to block" : "melee"}{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload" : ""}{playtestThrowId ? " · hold G to aim, release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
             {play && (playtestWeaponId || SLOT_ORDER.some((sl) => equipped.current[sl])) && (() => {
               const bits = [];
               if (playtestWeaponId) { const w = findA(playtestWeaponId); if (w) bits.push("🗡️ " + w.name); }
@@ -7929,11 +7962,12 @@ export default function AssetStudio() {
                   } else if (blocks && p.blocking) {
                     // BLOCK (Q/V holding a melee weapon): a HELD pose, not an arc. The arm sets to
                     // the same absolute "extended, level" rotation the ranged aim hold uses
-                    // (armAimAbs) and stays there for as long as the guard is up — which is as long
-                    // as you hold the button — so the weapon reads as held out across you rather
-                    // than swung, and the arm never drops while you're still asking for it. Same rigid sleeve
-                    // follow as every other arm pose; the weapon attaches below unchanged and stays
-                    // on its Rest art, since p.firing is null throughout a block.
+                    // (armAimAbs) and stays there for the ~1s the guard lasts, so the weapon reads
+                    // as braced across you rather than swung. The arm dropping when the guard
+                    // expires is the POINT, not a glitch — it's the tell that the window has closed
+                    // and you have to press again (see advanceBlock). Same rigid sleeve follow as
+                    // every other arm pose; the weapon attaches below unchanged and stays on its
+                    // Rest art, since p.firing is null throughout a block.
                     const blockAnchorOf = armAnchorFinder(blocks);
                     blocks = blocks.map((b) => {
                       if (b.role !== "weaponArm" && b.limb !== "arm") return b;
