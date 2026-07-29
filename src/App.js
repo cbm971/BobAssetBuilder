@@ -2626,6 +2626,19 @@ export const paintValue = (color, texture, shape) => {
   if (!texture) return s ? { c: color, ...s } : color;
   return { c: textureBaseColor(texture), tex: texture.id, ...(s || {}) };
 };
+// Foreground and Background share the same visual block/ramp vocabulary. Foreground adds
+// collision (and may be collision-only); Background uses the exact same authored diagonal but
+// never participates in physics. Keeping the shape construction in one place prevents the
+// click, drag, fill, and ghost paths from quietly disagreeing about which layers support ramps.
+export const terrainPaintShape = (layer, selectedShape, upsideDown = false, hideInPlay = false, extra = null) => {
+  if (layer !== "fg" && layer !== "bg") return null;
+  const ramp = selectedShape === "slopeUp" || selectedShape === "slopeDown";
+  const out = ramp
+    ? { slope: selectedShape === "slopeUp" ? 1 : -1, ...(extra || {}), ...(upsideDown ? { upsideDown: true } : {}) }
+    : {};
+  if (layer === "fg" && hideInPlay) out.hideInPlay = true;
+  return Object.keys(out).length ? out : null;
+};
 // A cell painted in Outline mode carries `ol` (its outline colour) alongside its normal fill.
 // withOutline() attaches it losslessly. cellOutlineStyle() KEEPS the cell fill/texture and draws a
 // thin line in `ol` only on the sides that face empty space on the same layer, so a clean border
@@ -3256,8 +3269,8 @@ export default function AssetStudio() {
   // unchanged). Derived rather than stored so deleting a texture can never leave the brush
   // pointing at something that no longer exists.
   const activeTexture = useMemo(() => resolveTexture(texLib, lTexId), [texLib, lTexId]);
-  const [lFgShape, setLFgShape] = useState("block"); // "block" | "slopeUp" | "slopeDown" — shape painted onto Foreground cells
-  const [lFgUpsideDown, setLFgUpsideDown] = useState(false); // flips a ramp's diagonal to hang from the top — visual cliff-underside/overhang, not walkable
+  const [lFgShape, setLFgShape] = useState("block"); // "block" | "slopeUp" | "slopeDown" — visual shape painted onto Foreground or Background cells
+  const [lFgUpsideDown, setLFgUpsideDown] = useState(false); // flips either layer's ramp diagonal to hang from the top; only Foreground participates in collision
   const [lFgHide, setLFgHide] = useState(false);       // collision-only Foreground paint: visible/marked in the editor, omitted from Playtest art while collision remains live
   const [lHoverCell, setLHoverCell] = useState(null); // {r,c} under the pointer — drives the placement ghost preview
   const [rampDragOn, setRampDragOn] = useState(false); // true while dragging out a multi-cell ramp — drives the live ramp-span preview
@@ -3338,7 +3351,7 @@ export default function AssetStudio() {
   // diff-and-discard them all was the single biggest per-frame cost on any real-sized level.
   // Memoizing each layer keyed on the state it actually reads returns the IDENTICAL element
   // array across playtest frames, so React skips reconciling those thousands of nodes entirely.
-  const lvBgLayer = useMemo(() => level ? Object.keys(level.bg || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"b" + k} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.bg, level.bg[k], r, c, texLib) }} />; }) : null, [level, texLib]);
+  const lvBgLayer = useMemo(() => level ? Object.keys(level.bg || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"b" + k} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.bg, level.bg[k], r, c, texLib), clipPath: fgClipPath(level.bg[k]) }} />; }) : null, [level, texLib]);
   // One div per FILL, not per cell: a cell holding a gravel ramp over grass blocks draws both,
   // the grass first and the ramp over it. fgFills is newest-first, so it's walked backwards to
   // put the most recent paint on top. Single-material cells (every cell in an older save) come
@@ -5066,25 +5079,26 @@ export default function AssetStudio() {
       let lo, hi;
       if (lHoverCell && lHoverCell.r === r && lHoverCell.c !== c0) { lo = Math.min(c0, lHoverCell.c); hi = Math.max(c0, lHoverCell.c); }
       else { const half = Math.floor((lBrush - 1) / 2); lo = c0 - half; hi = c0 - half + lBrush - 1; }
-      const dir = lFgShape === "slopeUp" ? 1 : -1;
       const run = hi - lo + 1;
       setLevel((lv) => {
         if (!lv) return lv;
-        const fg = { ...lv.fg };
+        const targetLayer = lLayer === "bg" ? "bg" : "fg";
+        const terrain = { ...lv[targetLayer] };
         for (let c = lo; c <= hi; c++) {
           if (c < 0 || c >= lv.cols) continue;
           const key = cellKey(r, c);
-          const shape = { slope: dir, run, step: c - lo, ...(lFgUpsideDown ? { upsideDown: true } : {}), ...(lFgHide ? { hideInPlay: true } : {}) };
-          // Stacks over whatever is already here instead of replacing it, so blocks and opposing
-          // ramps under this one survive with their own material — see mergeFgFill.
-          fg[key] = mergeFgFill(fg[key], paintValue(lColor, activeTexture, shape));
+          const shape = terrainPaintShape(targetLayer, lFgShape, lFgUpsideDown, lFgHide, { run, step: c - lo });
+          const value = paintValue(lColor, activeTexture, shape);
+          // Foreground stacks ramps over its existing collision fills. Background is decorative
+          // and remains one fill per cell, so repainting simply replaces its previous visual.
+          terrain[key] = targetLayer === "fg" ? mergeFgFill(terrain[key], value) : value;
         }
-        return { ...lv, fg };
+        return { ...lv, [targetLayer]: terrain };
       });
     };
     window.addEventListener("pointerup", up);
     return () => window.removeEventListener("pointerup", up);
-  }, [lHoverCell, lFgShape, lFgUpsideDown, lFgHide, lColor, lBrush, activeTexture]);
+  }, [lHoverCell, lLayer, lFgShape, lFgUpsideDown, lFgHide, lColor, lBrush, activeTexture]);
 
   // Area copy: drag from anchor to a different cell to CAPTURE that rectangle (fg/bg/objects,
   // relative to its own top-left corner) into the clipboard. A plain click with no drag instead
@@ -7030,21 +7044,18 @@ export default function AssetStudio() {
     if (lLayer === "marker") { const markers = { ...lv.markers }; if (erase || lTool === "erase") delete markers[k]; else markers[k] = lMarkerKind === "door" ? { kind: "door", tag: lMarkerCat } : { kind: "pedestal", cats: [lPedCat1, lPedCat2], logic: lPedLogic }; return { ...lv, markers }; }
     const layer = { ...lv[lLayer] };
     if (erase || lTool === "erase") delete layer[k];
-    // Foreground cells are normally a plain color string (a full solid block). Painting with
-    // a slope shape selected stores { c, slope } instead — a walkable ramp that doesn't block
-    // sideways movement, see slopeSurfaceAt(). Background never gets slopes; it's not solid.
+    // Foreground and Background cells are normally a plain color string (a full visual block).
+    // Painting with a slope shape selected stores { c, slope } instead. Foreground uses it as a
+    // walkable ramp (see slopeSurfaceAt); Background renders the same diagonal but stays non-solid.
     // With a texture selected, paintValue() writes { c, tex } instead of a bare color — ramps
     // and textures compose, so a textured ramp is simply both at once. In Outline mode fg/bg/front
     // paints also carry `ol` (see withOutline / cellOutlineStyle) — the outer edge renders in it.
     else {
       const ol = (lOutline && (lLayer === "fg" || lLayer === "bg" || lLayer === "front")) ? lOutlineColor : null;
-      const fgShape = lLayer === "fg"
-        ? { ...(lFgShape !== "block" ? { slope: lFgShape === "slopeUp" ? 1 : -1, ...(lFgUpsideDown ? { upsideDown: true } : {}) } : {}), ...(lFgHide ? { hideInPlay: true } : {}) }
-        : null;
-      const base = paintValue(lColor, activeTexture, fgShape && Object.keys(fgShape).length ? fgShape : null);
-      // Foreground ramps stack on what's already in the cell (mergeFgFill) — same rule as the
-      // drag-committed multi-cell ramp, so a single-cell ramp doesn't behave differently. bg and
-      // front never carry diagonals, and mergeFgFill passes a plain block straight through.
+      const shape = terrainPaintShape(lLayer, lFgShape, lFgUpsideDown, lFgHide);
+      const base = paintValue(lColor, activeTexture, shape);
+      // Foreground ramps stack on what's already in the cell (mergeFgFill). Background ramps
+      // replace the previous decorative fill, and Front remains block-only.
       layer[k] = lLayer === "fg" ? mergeFgFill(layer[k], withOutline(base, ol)) : withOutline(base, ol);
     }
     return { ...lv, [lLayer]: layer };
@@ -7515,10 +7526,8 @@ export default function AssetStudio() {
       if (!lv || (lLayer !== "fg" && lLayer !== "bg" && lLayer !== "front")) return;
       const { cells: cellsToFill, startVal, hitCap } = computeFillRegion(lv, lLayer, r0, c0);
       const ol = lOutline ? lOutlineColor : null; // guarded to fg/bg/front above; Outline rides along so the filled region gets an outer-edge border
-      const fgShape = lLayer === "fg"
-        ? { ...(lFgShape !== "block" ? { slope: lFgShape === "slopeUp" ? 1 : -1, ...(lFgUpsideDown ? { upsideDown: true } : {}) } : {}), ...(lFgHide ? { hideInPlay: true } : {}) }
-        : null;
-      const newVal = withOutline(paintValue(lColor, activeTexture, fgShape && Object.keys(fgShape).length ? fgShape : null), ol);
+      const shape = terrainPaintShape(lLayer, lFgShape, lFgUpsideDown, lFgHide);
+      const newVal = withOutline(paintValue(lColor, activeTexture, shape), ol);
       if (JSON.stringify(newVal) === JSON.stringify(startVal)) return; // already this value everywhere reachable — nothing to do
       const CONFIRM_THRESHOLD = 300;
       if (cellsToFill.length > CONFIRM_THRESHOLD) {
@@ -7598,8 +7607,8 @@ export default function AssetStudio() {
             setLColor(fgColor(cell)); addRecent(fgColor(cell));
             const tid = cellTexId(cell);
             setLTexId(resolveTexture(texLib, tid) ? tid : null); // a texture that's since been deleted picks up as its plain fallback color
-            if (lLayer === "fg") { setLFgShape(fgHasDiagonalShape(cell) ? (cell.slope > 0 ? "slopeUp" : "slopeDown") : "block"); setLFgUpsideDown(fgHasDiagonalShape(cell) && !!cell.upsideDown); setLFgHide(fgHiddenInPlay(cell)); if (fgHasDiagonalShape(cell)) setLBrush(Math.min(8, fgRun(cell))); }
-            flash("Picked up " + (tid ? "texture 🧱" : "color 🎨") + (lLayer === "fg" && fgIsSlope(cell) ? " + ramp shape/size" : "") + (lLayer === "fg" && fgHiddenInPlay(cell) ? " + collision only" : ""));
+            if (lLayer === "fg" || lLayer === "bg") { setLFgShape(fgHasDiagonalShape(cell) ? (cell.slope > 0 ? "slopeUp" : "slopeDown") : "block"); setLFgUpsideDown(fgHasDiagonalShape(cell) && !!cell.upsideDown); if (lLayer === "fg") setLFgHide(fgHiddenInPlay(cell)); if (fgHasDiagonalShape(cell)) setLBrush(Math.min(8, fgRun(cell))); }
+            flash("Picked up " + (tid ? "texture 🧱" : "color 🎨") + ((lLayer === "fg" || lLayer === "bg") && fgHasDiagonalShape(cell) ? " + ramp shape/size" : "") + (lLayer === "fg" && fgHiddenInPlay(cell) ? " + collision only" : ""));
           } else flash("Nothing here to pick up.");
         } else {
           flash("Eyedropper only works on Foreground, Background, or Objects.");
@@ -7618,7 +7627,7 @@ export default function AssetStudio() {
       if (lTool === "areaCopy") { areaAnchor.current = { r, c }; setAreaDragOn(true); return; }
       if (lTool === "fill") { floodFill(r, c); return; }
       if (lTool === "move") { pickMoveRegion(r, c); return; }
-      if (lLayer === "fg" && lFgShape !== "block" && lTool === "paint") {
+      if ((lLayer === "fg" || lLayer === "bg") && lFgShape !== "block" && lTool === "paint") {
         // Ramps are placed as one multi-cell unit on release (see the pointerup effect above),
         // not stamped cell-by-cell while dragging — that's what let a bigger "size" turn into
         // several separate 45° ramps instead of one longer, shallower one.
@@ -7667,7 +7676,7 @@ export default function AssetStudio() {
       const cw = w / l.cols, ch = cw, h = ch * l.rows;
       return (
         <div className="minilv" style={{ width: w, height: h }}>
-          {Object.keys(l.bg).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"b" + k} style={{ position: "absolute", left: c * cw, top: r * ch, width: cw, height: ch, background: fgColor(l.bg[k]), opacity: 0.4 }} />; })}
+          {Object.keys(l.bg).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"b" + k} style={{ position: "absolute", left: c * cw, top: r * ch, width: cw, height: ch, background: fgColor(l.bg[k]), opacity: 0.4, clipPath: fgClipPath(l.bg[k]) }} />; })}
           {Object.keys(l.fg).flatMap((k) => { const [r, c] = k.split(",").map(Number); return fgFills(l.fg[k]).map((fill, i) => <div key={"f" + k + "_" + i} style={{ position: "absolute", left: c * cw, top: r * ch, width: cw, height: ch, background: fgColor(fill), clipPath: fgClipPath(fill), ...(fgHiddenInPlay(fill) ? { opacity: 0.45, outline: "1px dashed #62d9ff", outlineOffset: "-1px" } : {}) }} />).reverse(); })}
           {l.fx && Object.keys(l.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = l.fx[k] || []; return stack.map((o, si) => { const sz = (o.size || 1) * cw; return <div key={"x" + k + "_" + si} style={{ position: "absolute", left: c * cw, top: r * ch, width: sz, height: sz, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.85 }}>{o.kind === "shape" ? objInner(o, sz) : o.char}</div>; }); })}
         </div>
@@ -7835,7 +7844,7 @@ export default function AssetStudio() {
                 {activeTexture ? <><span className="texchip" style={cellPaintStyle({ c: textureBaseColor(activeTexture), tex: activeTexture.id }, 0, 0, texLib)} /> {activeTexture.name}</> : <>🧱 Texture</>}
               </button>
               {activeTexture && <button className="ltbtn" onClick={() => setLTexId(null)} title="Back to painting a flat color">✕ Plain color</button>}
-              {lLayer === "fg" && (
+              {(lLayer === "fg" || lLayer === "bg") && (
                 <>
                   <div className="seg" >
                     <button className={lFgShape === "block" ? "on" : ""} onClick={() => setLFgShape("block")}>⬛ Block</button>
@@ -7843,8 +7852,9 @@ export default function AssetStudio() {
                     <button className={lFgShape === "slopeDown" ? "on" : ""} onClick={() => setLFgShape("slopeDown")}>◣ Ramp ↖</button>
                     {lFgShape !== "block" && <button className={lFgUpsideDown ? "on" : ""} onClick={() => setLFgUpsideDown((v) => !v)}>🙃 Upside down</button>}
                   </div>
-                  <label className="chk solidchk"><input type="checkbox" checked={lFgHide} onChange={(e) => setLFgHide(e.target.checked)} /> 🚫 Collision only <span className="hint2">(visible here, invisible during Playtest)</span></label>
-                  <span className="hint2">Collision-only blocks and ramps keep their normal solid or walkable hitbox. The editor marks them with a cyan dashed overlay, but Playtest draws nothing—use them to trace complex Object roofs and walls.</span>
+                  {lLayer === "fg" && <><label className="chk solidchk"><input type="checkbox" checked={lFgHide} onChange={(e) => setLFgHide(e.target.checked)} /> 🚫 Collision only <span className="hint2">(visible here, invisible during Playtest)</span></label>
+                    <span className="hint2">Collision-only blocks and ramps keep their normal solid or walkable hitbox. The editor marks them with a cyan dashed overlay, but Playtest draws nothing—use them to trace complex Object roofs and walls.</span></>}
+                  {lLayer === "bg" && <span className="hint2">Background ramps are decorative only. They use the same draggable multi-cell shape, but never block or carry the player.</span>}
                 </>
               )}
             </>
@@ -7928,7 +7938,7 @@ export default function AssetStudio() {
                   // against the hill before you commit rather than placing it and then fixing it.
                   return <div className="lobjGhost" style={{ left: ga.c * LV_CELL, top: ga.r * LV_CELL, width: layout.width, height: layout.height, zIndex: lInFront ? 6 : 4, ...objRotStyle({ rot: lObjRot }) }}>{renderObj(ghostO, layout.width, "ghost", 0, layout.height, layout.box)}</div>;
                 })()}
-                {!play && (lLayer === "bg" || lLayer === "front" || (lLayer === "fg" && lFgShape === "block")) && lTool === "paint" && lHoverCell && (() => {
+                {!play && (lLayer === "front" || ((lLayer === "fg" || lLayer === "bg") && lFgShape === "block")) && lTool === "paint" && lHoverCell && (() => {
                   // Matches paintBrush's own iteration exactly (full r×c square, not just a
                   // horizontal span like the ramp ghost) so the preview never lies about what a
                   // click will actually stamp.
@@ -7957,7 +7967,7 @@ export default function AssetStudio() {
                   for (let dr = -half; dr < lBrush - half; dr++) for (let dc = -half; dc < lBrush - half; dc++) cells.push([lHoverCell.r + dr, lHoverCell.c + dc]);
                   return <>{cells.map(([r, c]) => <div key={"hzg" + r + "_" + c} className="blockGhost" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, background: "rgba(255,106,31,.4)" }} />)}</>;
                 })()}
-                {!play && lLayer === "fg" && lFgShape !== "block" && lTool === "paint" && lHoverCell && (() => {
+                {!play && (lLayer === "fg" || lLayer === "bg") && lFgShape !== "block" && lTool === "paint" && lHoverCell && (() => {
                   // Dragging previews the exact span being dragged out; just hovering (not yet
                   // pressed) previews what a plain click would place, using the brush-size
                   // control as the default ramp length — so the preview always matches what
@@ -7965,17 +7975,14 @@ export default function AssetStudio() {
                   let r, lo, hi;
                   if (rampDragOn && rampAnchor.current && rampAnchor.current.r === lHoverCell.r) { r = rampAnchor.current.r; lo = Math.min(rampAnchor.current.c, lHoverCell.c); hi = Math.max(rampAnchor.current.c, lHoverCell.c); }
                   else { r = lHoverCell.r; const half = Math.floor((lBrush - 1) / 2); lo = lHoverCell.c - half; hi = lHoverCell.c - half + lBrush - 1; }
-                  const dir = lFgShape === "slopeUp" ? 1 : -1;
                   const run = hi - lo + 1;
                   const cells = [];
                   for (let c = lo; c <= hi; c++) cells.push(c);
-                  // The ghost draws only the RAMP ITSELF now. Since painting stacks rather than
-                  // replaces (mergeFgFill), whatever the cell already holds keeps rendering
-                  // underneath — so ghost-over-existing-paint is already an accurate picture of
-                  // the merged result, with no need to re-derive the surviving material here.
+                  // The ghost draws only the ramp itself. Foreground may keep an older fill under
+                  // it; Background replaces its old decorative fill when the ramp is committed.
                   return <>{cells.map((c) => {
-                    const val = paintValue(lColor, activeTexture, { slope: dir, run, step: c - lo, ...(lFgUpsideDown ? { upsideDown: true } : {}), ...(lFgHide ? { hideInPlay: true } : {}) });
-                    return <div key={"rg" + c} className={"rampGhost" + (lFgHide ? " collisionOnly" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellPaintStyle(val, r, c, texLib), clipPath: fgClipPath(val) }} />;
+                    const val = paintValue(lColor, activeTexture, terrainPaintShape(lLayer, lFgShape, lFgUpsideDown, lFgHide, { run, step: c - lo }));
+                    return <div key={"rg" + c} className={"rampGhost" + (lLayer === "fg" && lFgHide ? " collisionOnly" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellPaintStyle(val, r, c, texLib), clipPath: fgClipPath(val) }} />;
                   })}</>;
                 })()}
                 {!play && lEnemyId && lTool === "paint" && lHoverCell && (() => {

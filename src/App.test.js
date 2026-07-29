@@ -31,6 +31,7 @@ import {
   groupWeaponBlocksByArm,
   mergeFgFill,
   paintValue,
+  terrainPaintShape,
   mergeWeaponBlocks,
   normalizeAssetJson,
   playerSpriteMirrored,
@@ -433,6 +434,32 @@ describe("collision-only Foreground paint", () => {
     expect(fgHiddenInPlay(fills[0])).toBe(false);
     expect(fgHiddenInPlay(fills[1])).toBe(true);
     expect(fgSolid({ ...fills[0], more: fills.slice(1) })).toBe(true);
+  });
+});
+
+describe("Background ramp paint", () => {
+  test("uses the same multi-cell diagonal geometry without collision-only metadata", () => {
+    expect(terrainPaintShape("bg", "slopeUp", false, true, { run: 4, step: 2 })).toEqual({
+      slope: 1,
+      run: 4,
+      step: 2,
+    });
+    expect(terrainPaintShape("bg", "slopeDown", true, false)).toEqual({
+      slope: -1,
+      upsideDown: true,
+    });
+  });
+
+  test("blocks stay plain and Front remains block-only", () => {
+    expect(terrainPaintShape("bg", "block")).toBeNull();
+    expect(terrainPaintShape("front", "slopeUp")).toBeNull();
+  });
+
+  test("a Background ramp never enters Foreground collision", () => {
+    const ramp = paintValue("#6b7b3a", null, terrainPaintShape("bg", "slopeUp", false, false, { run: 1, step: 0 }));
+    const lv = { rows: 3, cols: 3, fg: {}, bg: { "1,1": ramp } };
+    expect(fgSolid(lv.fg["1,1"])).toBe(false);
+    expect(slopeSurfaceAt(lv, 45, 1, 1, 30, 30)).toBeNull();
   });
 });
 
