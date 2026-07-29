@@ -8,6 +8,7 @@ import {
   OBJ_ROT_NUDGE,
   objectLayerClass,
   fgFills,
+  fgHiddenInPlay,
   fgSlopeFills,
   fgSolid,
   armHoldsAimPose,
@@ -29,6 +30,7 @@ import {
   editablePoses,
   groupWeaponBlocksByArm,
   mergeFgFill,
+  paintValue,
   mergeWeaponBlocks,
   normalizeAssetJson,
   playerSpriteMirrored,
@@ -395,6 +397,42 @@ describe("collision over a stacked Foreground cell", () => {
   test("flood-fill tells a stacked cell apart from a bare ramp", () => {
     const ramp = { c: "#8d8578", slope: 1, run: 1, step: 0 };
     expect(cellSig(mergeFgFill("#2e7d32", ramp))).not.toBe(cellSig(ramp));
+  });
+});
+
+describe("collision-only Foreground paint", () => {
+  test("a hidden block remains a full solid collision cell", () => {
+    const block = paintValue("#62d9ff", null, { hideInPlay: true });
+    expect(block).toEqual({ c: "#62d9ff", hideInPlay: true });
+    expect(fgHiddenInPlay(block)).toBe(true);
+    expect(fgSolid(block)).toBe(true);
+    expect(fgSlopeFills(block)).toEqual([]);
+  });
+
+  test("a hidden ramp remains a walkable slope with its original geometry", () => {
+    const ramp = paintValue("#62d9ff", null, { slope: 1, run: 1, step: 0, hideInPlay: true });
+    const lv = { rows: 3, cols: 3, fg: { "1,1": ramp } };
+    expect(fgHiddenInPlay(ramp)).toBe(true);
+    expect(fgSolid(ramp)).toBe(false);
+    expect(fgSlopeFills(ramp)).toEqual([ramp]);
+    expect(slopeSurfaceAt(lv, 45, 1, 1, 30, 30).y).toBe(45);
+  });
+
+  test("ordinary Foreground paint stays visible and flood-fill distinguishes it", () => {
+    const visible = { c: "#62d9ff", slope: -1, run: 2, step: 0 };
+    const hidden = { ...visible, hideInPlay: true };
+    expect(fgHiddenInPlay(visible)).toBe(false);
+    expect(cellSig(hidden)).not.toBe(cellSig(visible));
+  });
+
+  test("stacking preserves collision-only state on each independent fill", () => {
+    const hiddenBlock = { c: "#62d9ff", hideInPlay: true };
+    const visibleRamp = { c: "#8d8578", slope: 1, run: 1, step: 0 };
+    const fills = fgFills(mergeFgFill(hiddenBlock, visibleRamp));
+    expect(fills).toEqual([visibleRamp, hiddenBlock]);
+    expect(fgHiddenInPlay(fills[0])).toBe(false);
+    expect(fgHiddenInPlay(fills[1])).toBe(true);
+    expect(fgSolid({ ...fills[0], more: fills.slice(1) })).toBe(true);
   });
 });
 

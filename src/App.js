@@ -2254,10 +2254,13 @@ const fgHasDiagonalShape = (cell) => !!(cell && typeof cell === "object" && (cel
 // and every already-saved level keeps working untouched.
 //
 // A "fill" is the same vocabulary as a cell minus the nesting: { c, tex, ol, slope, run, step,
-// upsideDown }. fgFills() hands them back newest-first (primary, then progressively older) — the
-// render walks that list backwards so the newest paint lands on top.
+// upsideDown, hideInPlay }. `hideInPlay` is collision-only terrain: it remains visible (marked)
+// in the editor, disappears from Playtest, and still uses the exact same block/ramp collision
+// path. fgFills() hands fills back newest-first (primary, then progressively older) — the render
+// walks that list backwards so the newest paint lands on top.
 const fgFillOf = (cell) => { if (cell === null || cell === undefined) return null; if (typeof cell !== "object") return { c: cell }; const { more, ...fill } = cell; return fill; };
 export const fgFills = (cell) => { const f = fgFillOf(cell); if (!f) return []; const more = (typeof cell === "object" && Array.isArray(cell.more)) ? cell.more : []; return [f, ...more]; };
+export const fgHiddenInPlay = (fill) => !!(fill && typeof fill === "object" && fill.hideInPlay);
 // Upside-down ramps (cell.upsideDown) are visual only — a cliff-underside/overhang look, not a
 // walkable surface — so they're excluded here (collides as a plain solid block) even though
 // fgHasDiagonalShape still renders their diagonal clip-path. Works on a fill and on a whole cell
@@ -2601,7 +2604,7 @@ export const resolveTexture = (texLib, id) => (id && (texLib || []).find((t) => 
 // Every fill counts, so a cell with a gravel ramp stacked over grass is not "the same paint" as a
 // bare gravel ramp — otherwise flood-fill would bleed straight through a merged cell.
 export const cellSig = (cell) => (cell === undefined || cell === null) ? ""
-  : fgFills(cell).map((f) => fgColor(f) + "|" + fgShapeSig(f) + "|" + (cellTexId(f) || "")).join("&");
+  : fgFills(cell).map((f) => fgColor(f) + "|" + fgShapeSig(f) + "|" + (cellTexId(f) || "") + "|" + (fgHiddenInPlay(f) ? "hidden" : "visible")).join("&");
 // The CSS a painted cell renders with. Tiles are anchored to the cell's WORLD position, so a
 // brick pattern runs continuously across every cell of a wall rather than restarting each cell.
 export const cellPaintStyle = (cell, r, c, texLib) => {
@@ -3255,6 +3258,7 @@ export default function AssetStudio() {
   const activeTexture = useMemo(() => resolveTexture(texLib, lTexId), [texLib, lTexId]);
   const [lFgShape, setLFgShape] = useState("block"); // "block" | "slopeUp" | "slopeDown" — shape painted onto Foreground cells
   const [lFgUpsideDown, setLFgUpsideDown] = useState(false); // flips a ramp's diagonal to hang from the top — visual cliff-underside/overhang, not walkable
+  const [lFgHide, setLFgHide] = useState(false);       // collision-only Foreground paint: visible/marked in the editor, omitted from Playtest art while collision remains live
   const [lHoverCell, setLHoverCell] = useState(null); // {r,c} under the pointer — drives the placement ghost preview
   const [rampDragOn, setRampDragOn] = useState(false); // true while dragging out a multi-cell ramp — drives the live ramp-span preview
   const [areaDragOn, setAreaDragOn] = useState(false); // true while dragging out an area-copy selection rectangle
@@ -3340,7 +3344,14 @@ export default function AssetStudio() {
   // put the most recent paint on top. Single-material cells (every cell in an older save) come
   // back as a one-item list and render exactly one div, as they always did.
   // (Same z-index for every fill in a cell, so DOM order alone decides what covers what.)
-  const lvFgLayer = useMemo(() => level ? Object.keys(level.fg || {}).flatMap((k) => { const [r, c] = k.split(",").map(Number); return fgFills(level.fg[k]).map((fill, i) => <div key={"f" + k + "_" + i} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse(); }) : null, [level, texLib]);
+  const lvFgLayer = useMemo(() => level ? Object.keys(level.fg || {}).flatMap((k) => {
+    const [r, c] = k.split(",").map(Number);
+    return fgFills(level.fg[k]).map((fill, i) => {
+      const hidden = fgHiddenInPlay(fill);
+      if (play && hidden) return null; // collision reads level.fg directly; only its Playtest art is omitted
+      return <div key={"f" + k + "_" + i} data-fg-hidden={hidden ? "true" : undefined} className={"lcell" + (hidden ? " collisionOnly" : "")} title={hidden ? "Collision only — invisible during play" : undefined} style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />;
+    }).reverse();
+  }) : null, [level, texLib, play]);
   const lvFrontLayer = useMemo(() => level ? Object.keys(level.front || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.front, level.front[k], r, c, texLib) }} />; }) : null, [level, texLib]);
   const lvFxLayer = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = splitObjectStackByPlayerLayer(level.fx[k]).behind.filter(({ o }) => o.kind !== "prop"); return stack.map(({ o, stackIndex: si }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; }); }) : null, [level, play, lFxSel, lTool]);
   // Prop objects (pixel-art assets) are pulled OUT of the memoized fx layer above and rendered in
@@ -5063,7 +5074,7 @@ export default function AssetStudio() {
         for (let c = lo; c <= hi; c++) {
           if (c < 0 || c >= lv.cols) continue;
           const key = cellKey(r, c);
-          const shape = { slope: dir, run, step: c - lo, ...(lFgUpsideDown ? { upsideDown: true } : {}) };
+          const shape = { slope: dir, run, step: c - lo, ...(lFgUpsideDown ? { upsideDown: true } : {}), ...(lFgHide ? { hideInPlay: true } : {}) };
           // Stacks over whatever is already here instead of replacing it, so blocks and opposing
           // ramps under this one survive with their own material — see mergeFgFill.
           fg[key] = mergeFgFill(fg[key], paintValue(lColor, activeTexture, shape));
@@ -5073,7 +5084,7 @@ export default function AssetStudio() {
     };
     window.addEventListener("pointerup", up);
     return () => window.removeEventListener("pointerup", up);
-  }, [lHoverCell, lFgShape, lFgUpsideDown, lColor, lBrush, activeTexture]);
+  }, [lHoverCell, lFgShape, lFgUpsideDown, lFgHide, lColor, lBrush, activeTexture]);
 
   // Area copy: drag from anchor to a different cell to CAPTURE that rectangle (fg/bg/objects,
   // relative to its own top-left corner) into the clipboard. A plain click with no drag instead
@@ -7027,7 +7038,10 @@ export default function AssetStudio() {
     // paints also carry `ol` (see withOutline / cellOutlineStyle) — the outer edge renders in it.
     else {
       const ol = (lOutline && (lLayer === "fg" || lLayer === "bg" || lLayer === "front")) ? lOutlineColor : null;
-      const base = (lLayer === "fg" && lFgShape !== "block") ? paintValue(lColor, activeTexture, { slope: lFgShape === "slopeUp" ? 1 : -1, ...(lFgUpsideDown ? { upsideDown: true } : {}) }) : paintValue(lColor, activeTexture);
+      const fgShape = lLayer === "fg"
+        ? { ...(lFgShape !== "block" ? { slope: lFgShape === "slopeUp" ? 1 : -1, ...(lFgUpsideDown ? { upsideDown: true } : {}) } : {}), ...(lFgHide ? { hideInPlay: true } : {}) }
+        : null;
+      const base = paintValue(lColor, activeTexture, fgShape && Object.keys(fgShape).length ? fgShape : null);
       // Foreground ramps stack on what's already in the cell (mergeFgFill) — same rule as the
       // drag-committed multi-cell ramp, so a single-cell ramp doesn't behave differently. bg and
       // front never carry diagonals, and mergeFgFill passes a plain block straight through.
@@ -7501,7 +7515,10 @@ export default function AssetStudio() {
       if (!lv || (lLayer !== "fg" && lLayer !== "bg" && lLayer !== "front")) return;
       const { cells: cellsToFill, startVal, hitCap } = computeFillRegion(lv, lLayer, r0, c0);
       const ol = lOutline ? lOutlineColor : null; // guarded to fg/bg/front above; Outline rides along so the filled region gets an outer-edge border
-      const newVal = withOutline(paintValue(lColor, activeTexture, lLayer === "fg" && lFgShape !== "block" ? { slope: lFgShape === "slopeUp" ? 1 : -1, ...(lFgUpsideDown ? { upsideDown: true } : {}) } : null), ol);
+      const fgShape = lLayer === "fg"
+        ? { ...(lFgShape !== "block" ? { slope: lFgShape === "slopeUp" ? 1 : -1, ...(lFgUpsideDown ? { upsideDown: true } : {}) } : {}), ...(lFgHide ? { hideInPlay: true } : {}) }
+        : null;
+      const newVal = withOutline(paintValue(lColor, activeTexture, fgShape && Object.keys(fgShape).length ? fgShape : null), ol);
       if (JSON.stringify(newVal) === JSON.stringify(startVal)) return; // already this value everywhere reachable — nothing to do
       const CONFIRM_THRESHOLD = 300;
       if (cellsToFill.length > CONFIRM_THRESHOLD) {
@@ -7581,8 +7598,8 @@ export default function AssetStudio() {
             setLColor(fgColor(cell)); addRecent(fgColor(cell));
             const tid = cellTexId(cell);
             setLTexId(resolveTexture(texLib, tid) ? tid : null); // a texture that's since been deleted picks up as its plain fallback color
-            if (lLayer === "fg") { setLFgShape(fgHasDiagonalShape(cell) ? (cell.slope > 0 ? "slopeUp" : "slopeDown") : "block"); setLFgUpsideDown(fgHasDiagonalShape(cell) && !!cell.upsideDown); if (fgHasDiagonalShape(cell)) setLBrush(Math.min(8, fgRun(cell))); }
-            flash("Picked up " + (tid ? "texture 🧱" : "color 🎨") + (lLayer === "fg" && fgIsSlope(cell) ? " + ramp shape/size" : ""));
+            if (lLayer === "fg") { setLFgShape(fgHasDiagonalShape(cell) ? (cell.slope > 0 ? "slopeUp" : "slopeDown") : "block"); setLFgUpsideDown(fgHasDiagonalShape(cell) && !!cell.upsideDown); setLFgHide(fgHiddenInPlay(cell)); if (fgHasDiagonalShape(cell)) setLBrush(Math.min(8, fgRun(cell))); }
+            flash("Picked up " + (tid ? "texture 🧱" : "color 🎨") + (lLayer === "fg" && fgIsSlope(cell) ? " + ramp shape/size" : "") + (lLayer === "fg" && fgHiddenInPlay(cell) ? " + collision only" : ""));
           } else flash("Nothing here to pick up.");
         } else {
           flash("Eyedropper only works on Foreground, Background, or Objects.");
@@ -7651,7 +7668,7 @@ export default function AssetStudio() {
       return (
         <div className="minilv" style={{ width: w, height: h }}>
           {Object.keys(l.bg).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"b" + k} style={{ position: "absolute", left: c * cw, top: r * ch, width: cw, height: ch, background: fgColor(l.bg[k]), opacity: 0.4 }} />; })}
-          {Object.keys(l.fg).flatMap((k) => { const [r, c] = k.split(",").map(Number); return fgFills(l.fg[k]).map((fill, i) => <div key={"f" + k + "_" + i} style={{ position: "absolute", left: c * cw, top: r * ch, width: cw, height: ch, background: fgColor(fill), clipPath: fgClipPath(fill) }} />).reverse(); })}
+          {Object.keys(l.fg).flatMap((k) => { const [r, c] = k.split(",").map(Number); return fgFills(l.fg[k]).map((fill, i) => <div key={"f" + k + "_" + i} style={{ position: "absolute", left: c * cw, top: r * ch, width: cw, height: ch, background: fgColor(fill), clipPath: fgClipPath(fill), ...(fgHiddenInPlay(fill) ? { opacity: 0.45, outline: "1px dashed #62d9ff", outlineOffset: "-1px" } : {}) }} />).reverse(); })}
           {l.fx && Object.keys(l.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = l.fx[k] || []; return stack.map((o, si) => { const sz = (o.size || 1) * cw; return <div key={"x" + k + "_" + si} style={{ position: "absolute", left: c * cw, top: r * ch, width: sz, height: sz, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.85 }}>{o.kind === "shape" ? objInner(o, sz) : o.char}</div>; }); })}
         </div>
       );
@@ -7819,12 +7836,16 @@ export default function AssetStudio() {
               </button>
               {activeTexture && <button className="ltbtn" onClick={() => setLTexId(null)} title="Back to painting a flat color">✕ Plain color</button>}
               {lLayer === "fg" && (
-                <div className="seg" >
-                  <button className={lFgShape === "block" ? "on" : ""} onClick={() => setLFgShape("block")}>⬛ Block</button>
-                  <button className={lFgShape === "slopeUp" ? "on" : ""} onClick={() => setLFgShape("slopeUp")}>◢ Ramp ↗</button>
-                  <button className={lFgShape === "slopeDown" ? "on" : ""} onClick={() => setLFgShape("slopeDown")}>◣ Ramp ↖</button>
-                  {lFgShape !== "block" && <button className={lFgUpsideDown ? "on" : ""} onClick={() => setLFgUpsideDown((v) => !v)}>🙃 Upside down</button>}
-                </div>
+                <>
+                  <div className="seg" >
+                    <button className={lFgShape === "block" ? "on" : ""} onClick={() => setLFgShape("block")}>⬛ Block</button>
+                    <button className={lFgShape === "slopeUp" ? "on" : ""} onClick={() => setLFgShape("slopeUp")}>◢ Ramp ↗</button>
+                    <button className={lFgShape === "slopeDown" ? "on" : ""} onClick={() => setLFgShape("slopeDown")}>◣ Ramp ↖</button>
+                    {lFgShape !== "block" && <button className={lFgUpsideDown ? "on" : ""} onClick={() => setLFgUpsideDown((v) => !v)}>🙃 Upside down</button>}
+                  </div>
+                  <label className="chk solidchk"><input type="checkbox" checked={lFgHide} onChange={(e) => setLFgHide(e.target.checked)} /> 🚫 Collision only <span className="hint2">(visible here, invisible during Playtest)</span></label>
+                  <span className="hint2">Collision-only blocks and ramps keep their normal solid or walkable hitbox. The editor marks them with a cyan dashed overlay, but Playtest draws nothing—use them to trace complex Object roofs and walls.</span>
+                </>
               )}
             </>
           )}
@@ -7919,7 +7940,8 @@ export default function AssetStudio() {
                   const has = (rr, cc) => !!pmap[cellKey(rr, cc)] || foot.has(cellKey(rr, cc));
                   const cells = [];
                   for (let dr = -half; dr < lBrush - half; dr++) for (let dc = -half; dc < lBrush - half; dc++) { const rr = lHoverCell.r + dr, cc = lHoverCell.c + dc; const sd = []; if (!has(rr - 1, cc)) sd.push("inset 0 2px 0 " + lOutlineColor); if (!has(rr + 1, cc)) sd.push("inset 0 -2px 0 " + lOutlineColor); if (!has(rr, cc - 1)) sd.push("inset 2px 0 0 " + lOutlineColor); if (!has(rr, cc + 1)) sd.push("inset -2px 0 0 " + lOutlineColor); cells.push([rr, cc, sd.join(", ")]); }
-                  return <>{cells.map(([r, c, bs]) => <div key={"blk" + r + "_" + c} className="blockGhost" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...cellPaintStyle(paintValue(lColor, activeTexture), r, c, texLib), ...(outlinePrev && bs ? { boxShadow: bs } : {}) }} />)}</>;
+                  const ghostVal = paintValue(lColor, activeTexture, lLayer === "fg" && lFgHide ? { hideInPlay: true } : null);
+                  return <>{cells.map(([r, c, bs]) => <div key={"blk" + r + "_" + c} className={"blockGhost" + (lLayer === "fg" && lFgHide ? " collisionOnly" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...cellPaintStyle(ghostVal, r, c, texLib), ...(outlinePrev && bs ? { boxShadow: bs } : {}) }} />)}</>;
                 })()}
                 {!play && lTool === "fill" && fillPreview && fillPreview.cells.length <= 500 && (
                   <>{fillPreview.cells.map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fp" + k} style={{ position: "absolute", left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, background: "rgba(255,255,255,.3)", outline: "1px solid rgba(255,255,255,.7)", pointerEvents: "none", zIndex: 5 }} />; })}</>
@@ -7952,8 +7974,8 @@ export default function AssetStudio() {
                   // underneath — so ghost-over-existing-paint is already an accurate picture of
                   // the merged result, with no need to re-derive the surviving material here.
                   return <>{cells.map((c) => {
-                    const val = paintValue(lColor, activeTexture, { slope: dir, run, step: c - lo, ...(lFgUpsideDown ? { upsideDown: true } : {}) });
-                    return <div key={"rg" + c} className="rampGhost" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellPaintStyle(val, r, c, texLib), clipPath: fgClipPath(val) }} />;
+                    const val = paintValue(lColor, activeTexture, { slope: dir, run, step: c - lo, ...(lFgUpsideDown ? { upsideDown: true } : {}), ...(lFgHide ? { hideInPlay: true } : {}) });
+                    return <div key={"rg" + c} className={"rampGhost" + (lFgHide ? " collisionOnly" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellPaintStyle(val, r, c, texLib), clipPath: fgClipPath(val) }} />;
                   })}</>;
                 })()}
                 {!play && lEnemyId && lTool === "paint" && lHoverCell && (() => {
@@ -9971,6 +9993,7 @@ const css = `
 .conn.sel{box-shadow:0 0 0 3px #4f7cf6;z-index:7}
 .player{position:absolute;background:#7aa2d6;border-radius:5px;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.5);overflow:visible}
 .playerWrap{position:absolute;z-index:5;overflow:visible;isolation:isolate}
+.lcell.collisionOnly,.blockGhost.collisionOnly,.rampGhost.collisionOnly{opacity:.48;outline:2px dashed #62d9ff;outline-offset:-2px;filter:saturate(.55)}
 .player .pbody{position:absolute;inset:0;background:#7aa2d6;border-radius:5px}
 .player .peye{position:absolute;right:3px;top:5px;width:4px;height:4px;border-radius:50%;background:#0a0c12;z-index:2}
 .lside{width:300px;background:#12141c;border-left:1px solid #232838;overflow:auto;padding:13px;display:flex;flex-direction:column;gap:11px;flex-shrink:0}
