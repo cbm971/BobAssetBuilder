@@ -540,10 +540,20 @@ describe("movement and facing regressions", () => {
 describe("cutter layer ordering", () => {
   test("masked weapon pieces keep the authoring origin but can rotate beyond its edges", () => {
     const frame = cutterMaskFrameLayout();
-    expect(frame.outer.left + frame.inner.left).toBe(0);
-    expect(frame.outer.top + frame.inner.top).toBe(0);
-    expect(frame.inner.width).toBe(200);
-    expect(frame.inner.height).toBe(260);
+    const pct = (value) => parseFloat(value) / 100;
+    // Check a deliberately non-authoring-size render. The expanded outer frame must put its inner
+    // origin back at 0,0 and make the inner canvas exactly as large as the asset's actual display
+    // box—not 200×260 CSS pixels.
+    const displayW = 73;
+    const displayH = 41;
+    const outerLeft = pct(frame.outer.left) * displayW;
+    const outerTop = pct(frame.outer.top) * displayH;
+    const outerW = pct(frame.outer.width) * displayW;
+    const outerH = pct(frame.outer.height) * displayH;
+    expect(outerLeft + pct(frame.inner.left) * outerW).toBeCloseTo(0);
+    expect(outerTop + pct(frame.inner.top) * outerH).toBeCloseTo(0);
+    expect(pct(frame.inner.width) * outerW).toBeCloseTo(displayW);
+    expect(pct(frame.inner.height) * outerH).toBeCloseTo(displayH);
     expect(frame.viewBox.x).toBe(-CUTTER_MASK_PAD);
     expect(frame.viewBox.y).toBe(-CUTTER_MASK_PAD);
     expect(frame.viewBox.width).toBeGreaterThan(200 * 3);

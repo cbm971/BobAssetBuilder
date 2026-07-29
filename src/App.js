@@ -2761,8 +2761,22 @@ export const cutterLayerSegments = (pieces) => {
 // canvas diagonal: no point authored inside the canvas can rotate farther than that from it.
 export const CUTTER_MASK_PAD = Math.ceil(Math.hypot(W, H));
 export const cutterMaskFrameLayout = () => ({
-  outer: { left: -CUTTER_MASK_PAD, top: -CUTTER_MASK_PAD, width: W + CUTTER_MASK_PAD * 2, height: H + CUTTER_MASK_PAD * 2 },
-  inner: { left: CUTTER_MASK_PAD, top: CUTTER_MASK_PAD, width: W, height: H },
+  // Finished assets are not necessarily displayed at their 200×260 authoring size: props,
+  // pedestals, enemies, and player art all scale that canvas differently. These bounds therefore
+  // have to be proportional to the finished render box. Fixed pixel dimensions make every masked
+  // piece jump back to editor scale and pull multi-piece assets apart.
+  outer: {
+    left: (-CUTTER_MASK_PAD / W * 100) + "%",
+    top: (-CUTTER_MASK_PAD / H * 100) + "%",
+    width: ((W + CUTTER_MASK_PAD * 2) / W * 100) + "%",
+    height: ((H + CUTTER_MASK_PAD * 2) / H * 100) + "%",
+  },
+  inner: {
+    left: (CUTTER_MASK_PAD / (W + CUTTER_MASK_PAD * 2) * 100) + "%",
+    top: (CUTTER_MASK_PAD / (H + CUTTER_MASK_PAD * 2) * 100) + "%",
+    width: (W / (W + CUTTER_MASK_PAD * 2) * 100) + "%",
+    height: (H / (H + CUTTER_MASK_PAD * 2) * 100) + "%",
+  },
   viewBox: { x: -CUTTER_MASK_PAD, y: -CUTTER_MASK_PAD, width: W + CUTTER_MASK_PAD * 2, height: H + CUTTER_MASK_PAD * 2 },
 });
 // Renders one finished (non-editable) piece list, wrapping only the runs that actually contain
