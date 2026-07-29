@@ -1585,6 +1585,29 @@ export const recoverBodyFromBake = (ch) => {
   return out;
 };
 function defaultFx() { return { opacity: 1, glow: 0, glowColor: "#ffd76b", bright: 1 }; }
+
+// Piece records are JSON-shaped, but several of their appearance settings live in nested
+// objects/arrays (fx, outlineFx, polygon points, and so on). A copied block must own an
+// independent copy of all of that data: consulting newFx here would make it inherit the current
+// "next block" sliders, while a shallow spread would leave the source and copy sharing nested
+// state. Filtering first also keeps a copied group's original front-to-back layer order.
+const clonePieceValue = (value) => {
+  if (Array.isArray(value)) return value.map(clonePieceValue);
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, clonePieceValue(child)]));
+  return value;
+};
+export const duplicateSelectedPieces = (pieces, selectedIds, makeId, offset = 12) => {
+  const wanted = new Set(selectedIds || []);
+  return (pieces || []).filter((piece) => wanted.has(piece.id)).map((piece) => {
+    const copy = clonePieceValue(piece);
+    return {
+      ...copy,
+      id: makeId(),
+      x: (Number.isFinite(piece.x) ? piece.x : 0) + offset,
+      y: (Number.isFinite(piece.y) ? piece.y : 0) + offset,
+    };
+  });
+};
 const anglesEmpty = (ag) => ANGLES.every((a) => !(ag && ag[a] && ag[a].length));
 
 /* ============================ LEVEL CREATOR =============================== */
@@ -5502,7 +5525,24 @@ export default function AssetStudio() {
       setFillPts((pts) => [...pts, m]);
     }
   };
-  const duplicate = () => { if (!sel) return; const c = { ...sel, id: uid(), x: sel.x + 12, y: sel.y + 12 }; setPieces((ps) => [...ps, c]); selectOnly(c.id); };
+  const duplicate = () => {
+    if (!sel) return;
+    const sourceIds = groupSel ? groupIds : [selId];
+    const sourcePieces = pieces.filter((piece) => sourceIds.includes(piece.id));
+    const copies = duplicateSelectedPieces(pieces, sourceIds, uid);
+    if (!copies.length) return;
+    setPieces((ps) => [...ps, ...copies]);
+    if (groupSel) {
+      const copiedIdBySource = new Map(sourcePieces.map((piece, i) => [piece.id, copies[i].id]));
+      setGroupIds(copies.map((piece) => piece.id));
+      setSelId(copiedIdBySource.get(selId) || copies[copies.length - 1].id);
+      setMultiSelect(false);
+      flash("Copied group — " + copies.length + " blocks.");
+    } else {
+      selectOnly(copies[0].id);
+      flash("Copied block with its effects.");
+    }
+  };
   const remove = () => { if (!sel) return; if (sel.locked) { flash("This block is needed for the game — can't delete it (you can still edit it)."); return; } setPieces((ps) => ps.filter((p) => p.id !== selId)); setSelId(null); };
   // Send to front / back moves the WHOLE group when one is selected, not just the block that
   // happens to be the anchor — sending one member of a bush's leaf cluster forward while the rest
@@ -9305,7 +9345,7 @@ export default function AssetStudio() {
               <label className="slider">Fade<input type="range" min="0.1" max="1" step="0.05" value={sel.fx?.opacity ?? 1} onChange={(e) => updFx({ opacity: +e.target.value })} /></label>
               <label className="slider">Glow<input type="range" min="0" max="12" step="0.5" value={sel.fx?.glow ?? 0} onChange={(e) => updFx({ glow: +e.target.value })} /><input type="color" className="gc" value={sel.fx?.glowColor ?? "#ffd76b"} onChange={(e) => updFx({ glowColor: e.target.value })} /></label>
               <label className="slider">Brightness<input type="range" min="0.3" max="2" step="0.05" value={sel.fx?.bright ?? 1} onChange={(e) => updFx({ bright: +e.target.value })} /></label>
-              <div className="btns"><button onClick={toFront}>Bring to front</button><button onClick={toBack}>Send to back</button><button onClick={duplicate}>📋 Copy block</button>{!sel.locked && <button className="danger" onClick={remove}>Delete</button>}</div>
+              <div className="btns"><button onClick={toFront}>Bring to front</button><button onClick={toBack}>Send to back</button><button onClick={duplicate}>📋 {groupSel ? "Copy group" : "Copy block"}</button>{!sel.locked && <button className="danger" onClick={remove}>Delete</button>}</div>
             </div>
           ) : <div className="card empty"><p><b>Tap any block</b> on the canvas to recolor or resize it. Or add a new one below ↓</p></div>}
 

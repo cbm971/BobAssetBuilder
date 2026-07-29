@@ -74,7 +74,49 @@ import {
   BLOCK_RECOVER_FRAMES,
   advanceBlock,
   blockStopsHit,
+  duplicateSelectedPieces,
 } from "./App";
+
+describe("copying blocks and groups", () => {
+  test("a block keeps independent copies of all appearance settings", () => {
+    const source = {
+      id: "source",
+      kind: "poly",
+      x: 20,
+      y: 35,
+      color: "#123456",
+      fx: { opacity: 0.35, glow: 6, glowColor: "#abcdef", bright: 1.7 },
+      outlineFx: { opacity: 0.6, bright: 0.8 },
+      points: [[0, 0], [1, 0], [0.5, 1]],
+    };
+
+    const [copy] = duplicateSelectedPieces([source], ["source"], () => "copy");
+
+    expect(copy).toEqual({ ...source, id: "copy", x: 32, y: 47 });
+    copy.fx.opacity = 0.9;
+    copy.outlineFx.bright = 1.4;
+    copy.points[0][0] = 99;
+    expect(source.fx.opacity).toBe(0.35);
+    expect(source.outlineFx.bright).toBe(0.8);
+    expect(source.points[0][0]).toBe(0);
+  });
+
+  test("copies every selected group member in layer order and preserves spacing", () => {
+    const pieces = [
+      { id: "back", x: 2, y: 4, fx: { opacity: 0.2, bright: 0.7 } },
+      { id: "skip", x: 50, y: 60, fx: { opacity: 1, bright: 1 } },
+      { id: "front", x: 12, y: 24, fx: { opacity: 0.8, bright: 1.8 } },
+    ];
+    let nextId = 0;
+
+    const copies = duplicateSelectedPieces(pieces, ["front", "back"], () => "copy-" + (++nextId));
+
+    expect(copies.map((piece) => piece.id)).toEqual(["copy-1", "copy-2"]);
+    expect(copies.map((piece) => [piece.x, piece.y])).toEqual([[14, 16], [24, 36]]);
+    expect(copies.map((piece) => piece.fx)).toEqual([pieces[0].fx, pieces[2].fx]);
+    expect(copies).toHaveLength(2);
+  });
+});
 
 describe("projectile range trajectory", () => {
   const rangePx = DEFAULT_PROJECTILE_RANGE * 30;
