@@ -2754,6 +2754,17 @@ export const cutterLayerSegments = (pieces) => {
   }
   return segments;
 };
+// A cutter mask used to be exactly the 200×260 authoring canvas. Runtime arm rotations can move a
+// perfectly valid weapon piece beyond that box (a long rifle raised to fire or turned on a ladder),
+// and CSS masks clip all of their children to the mask wrapper's own bounds. That made only the
+// cutter-affected half of a weapon disappear while the unmasked half kept rendering. Pad by the
+// canvas diagonal: no point authored inside the canvas can rotate farther than that from it.
+export const CUTTER_MASK_PAD = Math.ceil(Math.hypot(W, H));
+export const cutterMaskFrameLayout = () => ({
+  outer: { left: -CUTTER_MASK_PAD, top: -CUTTER_MASK_PAD, width: W + CUTTER_MASK_PAD * 2, height: H + CUTTER_MASK_PAD * 2 },
+  inner: { left: CUTTER_MASK_PAD, top: CUTTER_MASK_PAD, width: W, height: H },
+  viewBox: { x: -CUTTER_MASK_PAD, y: -CUTTER_MASK_PAD, width: W + CUTTER_MASK_PAD * 2, height: H + CUTTER_MASK_PAD * 2 },
+});
 // Renders one finished (non-editable) piece list, wrapping only the runs that actually contain
 // a cutter. `drawPiece(piece, key)` supplies the renderer, `maskCss(runPieces, cacheKey)` the
 // hole. Returns a flat-ish node array for JSX to splat.
@@ -2764,9 +2775,12 @@ export const renderPieceRuns = ({ pieces, cacheKey, keyPrefix, drawPiece, maskCs
   cutterRuns(pieces).map((r, gi) => {
     if (!r.hasCutter) return r.drawn.map((p, n) => drawPiece(p, keyPrefix + gi + "_" + n));
     const segs = cutterLayerSegments(r.pieces);
+    const frame = cutterMaskFrameLayout();
     return segs.map((s, si) => (!s.cutters.length
       ? s.items.map(([p, n]) => drawPiece(p, keyPrefix + gi + "_" + n))
-      : <div key={keyPrefix + "g" + gi + "s" + si} style={{ position: "absolute", inset: 0, ...maskCss(s.cutters, cacheKey + ":" + r.key + ":" + si) }}>{s.items.map(([p, n]) => drawPiece(p, keyPrefix + gi + "_" + n))}</div>));
+      : <div key={keyPrefix + "g" + gi + "s" + si} style={{ position: "absolute", ...frame.outer, ...maskCss(s.cutters, cacheKey + ":" + r.key + ":" + si) }}>
+          <div style={{ position: "absolute", ...frame.inner }}>{s.items.map(([p, n]) => drawPiece(p, keyPrefix + gi + "_" + n))}</div>
+        </div>));
   });
 export const shapePolyPoints = (p) => (p && p.kind === "poly" && p.points) ? p.points : (p && SHAPE_POINTS[p.kind]) || (typeof p === "string" ? SHAPE_POINTS[p] : null);
 export const shapeClipPath = (pieceOrKind) => { const pts = shapePolyPoints(typeof pieceOrKind === "string" ? { kind: pieceOrKind } : pieceOrKind); return pts ? "polygon(" + pts.map(([x, y]) => (x * 100) + "% " + (y * 100) + "%").join(",") + ")" : null; };
@@ -6224,7 +6238,9 @@ export default function AssetStudio() {
       if (pts) return `<polygon points="${pts.map(([fx, fy]) => (p.x + fx * p.w) + "," + (p.y + fy * p.h)).join(" ")}" fill="#000"${tAttr}/>`;
       return `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" fill="#000"${tAttr}/>`;
     }).join("");
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}"><mask id="cm"><rect width="${W}" height="${H}" fill="#fff"/>${shapes}</mask><rect width="${W}" height="${H}" fill="#fff" mask="url(#cm)"/></svg>`;
+    const frame = cutterMaskFrameLayout();
+    const vb = frame.viewBox;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb.x} ${vb.y} ${vb.width} ${vb.height}"><mask id="cm" maskUnits="userSpaceOnUse" x="${vb.x}" y="${vb.y}" width="${vb.width}" height="${vb.height}"><rect x="${vb.x}" y="${vb.y}" width="${vb.width}" height="${vb.height}" fill="#fff"/>${shapes}</mask><rect x="${vb.x}" y="${vb.y}" width="${vb.width}" height="${vb.height}" fill="#fff" mask="url(#cm)"/></svg>`;
     const url = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
     const css = { WebkitMaskImage: url, maskImage: url, WebkitMaskSize: "100% 100%", maskSize: "100% 100%", WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat" };
     cutterMaskCache.current[key] = { sig, css };

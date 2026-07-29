@@ -11,6 +11,7 @@ import {
   fgSlopeFills,
   fgSolid,
   armHoldsAimPose,
+  attachWeaponBlocks,
   burstDelayFrames,
   burstShotCount,
   burstShotDue,
@@ -50,6 +51,8 @@ import {
   PED_XRAY_NEAR_CELLS,
   PED_XRAY_FAR_CELLS,
   cutterLayerSegments,
+  CUTTER_MASK_PAD,
+  cutterMaskFrameLayout,
   advanceAutoReloadWeapon,
   canFireNow,
   consumeShot,
@@ -535,6 +538,46 @@ describe("movement and facing regressions", () => {
 });
 
 describe("cutter layer ordering", () => {
+  test("masked weapon pieces keep the authoring origin but can rotate beyond its edges", () => {
+    const frame = cutterMaskFrameLayout();
+    expect(frame.outer.left + frame.inner.left).toBe(0);
+    expect(frame.outer.top + frame.inner.top).toBe(0);
+    expect(frame.inner.width).toBe(200);
+    expect(frame.inner.height).toBe(260);
+    expect(frame.viewBox.x).toBe(-CUTTER_MASK_PAD);
+    expect(frame.viewBox.y).toBe(-CUTTER_MASK_PAD);
+    expect(frame.viewBox.width).toBeGreaterThan(200 * 3);
+    expect(frame.viewBox.height).toBeGreaterThan(260 * 3);
+  });
+
+  test("the M16 barrel tip remains inside the padded mask after the arm raises to fire", () => {
+    const raisedArm = { x: 70, y: 96, w: 55, h: 80, armPivot: "top", rot: -90 };
+    const [tip] = attachWeaponBlocks(
+      [{ id: "m16-tip", kind: "rect", x: 109, y: 233, w: 16, h: 4, rot: 90 }],
+      raisedArm,
+      { x: 104, y: 176 },
+      0
+    );
+    const frame = cutterMaskFrameLayout().viewBox;
+    expect(tip.x).toBeGreaterThan(200); // the old 200-wide cutter wrapper clipped it here
+    expect(tip.x).toBeGreaterThanOrEqual(frame.x);
+    expect(tip.x + tip.w).toBeLessThanOrEqual(frame.x + frame.width);
+  });
+
+  test("the M16 barrel remains inside the padded mask through the ladder rotation", () => {
+    const climbingArm = { x: 140, y: 94, w: 20, h: 82, armPivot: "top", rot: 180 };
+    const [tip] = attachWeaponBlocks(
+      [{ id: "m16-tip-back", kind: "rect", x: 171, y: 231, w: 16, h: 4, rot: 90 }],
+      climbingArm,
+      { x: 150, y: 176 },
+      0
+    );
+    const frame = cutterMaskFrameLayout().viewBox;
+    expect(tip.y).toBeLessThan(0); // the old 260-high cutter wrapper clipped it here
+    expect(tip.y).toBeGreaterThanOrEqual(frame.y);
+    expect(tip.y + tip.h).toBeLessThanOrEqual(frame.y + frame.height);
+  });
+
   test("cuts ordinary lower layers but not checked lower layers or layers above it", () => {
     const pieces = [
       { id: "back-leaf" },
