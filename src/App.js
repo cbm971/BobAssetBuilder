@@ -302,6 +302,13 @@ export const attachWeaponBlocks = (weaponPieces, curArm, guideHand, baseArmRot) 
     return { ...pc, limb: undefined, role: undefined, x: newCx - pc.w / 2, y: newCy - pc.h / 2, rot: (pc.rot || 0) + pieceDelta, _isWeapon: true };
   });
 };
+// Climbing uses both hands and drives the body arm through a large rung-to-rung rotation/reach.
+// A weapon's authored Back pose is already its intended climbing/stowed placement, so attaching it
+// to that animated hand makes a long multi-piece gun whip around the body (and exaggerates every
+// tiny fit offset). Keep the attachment on the unanimated Back-pose arm while climbing; ordinary
+// walking/aiming/firing still follows the live arm exactly as before.
+export const weaponAttachArmForPose = (baseArm, liveArm, climbing) =>
+  climbing ? (baseArm || liveArm) : (liveArm || baseArm);
 // Hitboxes and the arm trajectory:
 // A weapon's damage box rides the swinging arm automatically — the drawn hitbox piece(s) are just
 // ordinary weapon pieces flagged isHitbox, so attachWeaponBlocks sweeps them around the grip with
@@ -417,14 +424,14 @@ export const weaponFireMode = (weapon) => weapon && weapon.burstFire ? "burst" :
 export const rangedTriggerWantsFire = (fireHeld, wasFire, weapon) =>
   weaponFireMode(weapon) === "auto" ? !!fireHeld : !!fireHeld && !wasFire;
 export const weaponBurstShotCount = (weapon) => weaponFireMode(weapon) === "burst" ? burstShotCount(weapon && weapon.burst) : 1;
-// Before firing modes were abilities, every ranged weapon repeated while held and `burst > 1`
-// silently changed that into a burst. Preserve those exact behaviors when an older saved weapon
-// is opened; new weapons write both flags explicitly and therefore start semi-auto.
+// Before firing modes were abilities, saved weapons had neither flag. Missing flags must now mean
+// the clean default — semi-auto — rather than silently granting Full Auto to every old weapon.
+// The only legacy behavior worth inferring is an explicitly configured multi-round burst.
 export const migratedWeaponFireModes = (weapon) => {
   const legacy = weapon && weapon.burstFire === undefined && weapon.fullAuto === undefined;
   if (legacy) {
     const burstFire = burstShotCount(weapon.burst) > 1;
-    return { burstFire, fullAuto: !burstFire };
+    return { burstFire, fullAuto: false };
   }
   return { burstFire: !!(weapon && weapon.burstFire), fullAuto: !!(weapon && weapon.fullAuto) };
 };
@@ -2293,7 +2300,7 @@ export const slopeSurfaceAt = (lv, xPixel, r0, r1, CW, CH) => {
       const localFrac = Math.min(1, Math.max(0, (xPixel - c * CW) / CW));
       const overallFrac = fgDistFromLow(cell, localFrac) / fgRun(cell); // 0 at the ramp's low end, 1 at its high end
       const y = (r + 1) * CH - overallFrac * CH;
-      if (best === null || y < best.y) best = { y, dir: cell.slope };
+      if (best === null || y < best.y) best = { y, dir: cell.slope, run: fgRun(cell) };
     }
   }
   return best;
@@ -2341,7 +2348,7 @@ export const slopeSurfaceForPlayer = (lv, xPixel, headY, feetBottom, vy, dx, dtM
       // this frame — can never be snapped up through it.
       const canSnap = gap <= 0 ? gap >= -Math.max(CH + 1, sweep + 2) : gap <= downReach;
       if (!canSnap) continue;
-      if (best === null || Math.abs(gap) < Math.abs(best.gap)) best = { y: surfaceY, dir: cell.slope, gap };
+      if (best === null || Math.abs(gap) < Math.abs(best.gap)) best = { y: surfaceY, dir: cell.slope, run: fgRun(cell), gap };
     }
   }
   return best;
@@ -3075,6 +3082,16 @@ export const SLOPE_UP_MUL = 0.5;
 // Downhill auto-slide speed (px per 60fps-frame). Gentle on purpose — a ramp is a gentle pull,
 // not a launch. Was 4.0, which read as a fling; 1.6 slides you down smoothly without yanking.
 export const SLOPE_SLIDE_SPEED = 1.6;
+// A ramp rises one cell over `run` horizontal cells. Without the Slide effect, ordinary shoes grip
+// gentle hills and only lose their footing on the steepest 1:1 and 1:2 ramps. Slide deliberately
+// defeats that grip, so skates/ice still coast down every incline.
+export const STEEP_SLOPE_MAX_RUN = 2;
+export const slopeShouldAutoSlide = (run, hasSlideEffect) =>
+  !!hasSlideEffect || (Number.isFinite(+run) && +run > 0 && +run <= STEEP_SLOPE_MAX_RUN);
+// Leg animation describes deliberate steps, not momentum. A passive hill slide (with or without
+// the Slide effect) and a flat-ground coast both keep the legs settled instead of air-running.
+export const groundLegsShouldWalk = (dx, onGround, climbing, sliding, moveHeld) =>
+  !!dx && !!onGround && !climbing && !sliding && !!moveHeld;
 // Is this solid cell part of a RAMP FORMATION — the hill's flesh under/beside a ramp, which the
 // slope-surface pass owns, rather than a wall the player should clamp against?
 //
@@ -3350,7 +3367,7 @@ export default function AssetStudio() {
   const xrayFrontSig = useRef("");         // signature of the Front cells the player was behind last frame; the flood fill above only re-runs when this changes, so standing still costs nothing
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
-  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
+  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
   const keys = useRef({});
   const lvRef = useRef(null);
 
@@ -3886,7 +3903,7 @@ export default function AssetStudio() {
       // Ramps own the centre column whenever a surface is in reach. Flat block landing must NOT
       // run first — that was the stair-step / teleport bug: centerHits included hill backing cells
       // in the centre column and snapped the player to the plateau lip before the ramp pass ran.
-      p.onSlope = false; p.slopeDir = 0;
+      p.onSlope = false; p.slopeDir = 0; p.slopeRun = 0;
       if (!climbing) {
         const feetBottom = p.y + ph;
         const slopeHit = slopeSurfaceForPlayer(lv, p.x + pw / 2, p.y, feetBottom, p.vy, dx, dtMul, CW, CH);
@@ -3905,7 +3922,7 @@ export default function AssetStudio() {
             if (ceilBottom > surfY) { p.y = ceilBottom; p.vy = 0; }
             else { p.y = surfY; p.vy = 0; }
           } else { p.y = surfY; p.vy = 0; }
-          p.onGround = true; p.onSlope = true; p.slopeDir = slopeHit.dir;
+          p.onGround = true; p.onSlope = true; p.slopeDir = slopeHit.dir; p.slopeRun = slopeHit.run;
         }
       }
       hits = cellsHit(p.x, p.y, pw, ph);
@@ -3945,15 +3962,16 @@ export default function AssetStudio() {
           if (ceilRows.length) { p.y = Math.max(...ceilRows.map((r) => (r + 1) * CH)); p.vy = 0; }
         }
       }
-      // Auto-slide down a ramp: standing on a slope, you slide downhill and can't stop by
-      // standing still — but you CAN walk uphill against it. Rather than hacking position here
+      // Auto-slide down a ramp: Slide footwear coasts on any slope; ordinary footwear grips a
+      // gentle incline and only gives way on a steep 1:1 or 1:2 hill. You can still walk uphill
+      // against either slide. Rather than hacking position here
       // (which fought the snap and teleported the player at the ramp/plateau seam), the slide is
       // expressed as a horizontal VELOCITY that gets spent through the SAME movement+snap path at
       // the top of next frame. Downhill for a dir=+1 ramp (rises L→R) is left (−x); dir=−1 is right.
       if (p.onSlope && !climbing) {
         const downhill = -p.slopeDir;
         const walkingUphill = (dx !== 0 && Math.sign(dx) === -downhill);
-        p.sliding = !walkingUphill;
+        p.sliding = slopeShouldAutoSlide(p.slopeRun, !!slideResolved) && !walkingUphill;
         // Record the slide as this frame's carried horizontal velocity. Next frame, if the player
         // isn't actively walking uphill, horizVel/ground movement uses it; walking uphill zeroes it.
         p.slideVx = p.sliding ? downhill * SLOPE_SLIDE_SPEED : 0;
@@ -3983,7 +4001,7 @@ export default function AssetStudio() {
 
       // Walk/climb-cycle phase for limb-flagged pieces — advances with actual movement so
       // animation speed naturally scales with how fast (or slow, e.g. crouched) you're moving.
-      p.walking = dx !== 0 && p.onGround && !climbing;
+      p.walking = groundLegsShouldWalk(dx, p.onGround, climbing, p.sliding, K.left || K.right);
       if (p.walking) p.walkPhase = (p.walkPhase || 0) + Math.abs(dx) * 0.03;
       else if (climbing && climbMove) p.walkPhase = (p.walkPhase || 0) + climbMove * 0.03;
       // Hanging is a DANGLE, not a stride: the legs need to keep moving even when you're gripping
@@ -7623,7 +7641,7 @@ export default function AssetStudio() {
           <span className="badge">{lv.isRoom ? "🚪 Room" : "🗺️ Level"}</span>
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel} title="Undo (last change)">↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel} title="Redo">↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -8171,7 +8189,11 @@ export default function AssetStudio() {
                       const firedNow = weaponPoseFired(isProjectile, p.firing);
                       const wpnAngles = firedNow ? weaponFireArt(wfit.states, angle) : (wfit.states.rest || blankAngles());
                       const wpnPieces = bake({ ...playtestWeapon, angles: wpnAngles }, angle);
-                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocks(wpnPieces, curArm, guideHand, baseArmRot));
+                      // On a climb, the Back-pose weapon stays in its authored/stowed position
+                      // instead of riding the hand-over-hand arm rotation. This keeps long,
+                      // multi-piece rifles rigid while the arms and legs climb underneath them.
+                      const attachArm = weaponAttachArmForPose(baseArmPiece, curArm, p.climbing);
+                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocks(wpnPieces, attachArm, guideHand, baseArmRot));
                     }
                   }
                   // Carried throwable in hand: shown while aiming (G held) or during the brief

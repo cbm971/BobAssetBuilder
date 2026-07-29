@@ -18,6 +18,9 @@ import {
   migratedWeaponFireModes,
   weaponBurstShotCount,
   weaponFireMode,
+  weaponAttachArmForPose,
+  groundLegsShouldWalk,
+  slopeShouldAutoSlide,
   copyAngleTargets,
   weaponFireCooldownFrames,
   reloadIntelligenceMultiplier,
@@ -353,6 +356,7 @@ describe("collision over a stacked Foreground cell", () => {
     const lv = lvOf({ c: "#2e7d32", slope: 1, run: 1, step: 0 });
     expect(fgSolid(lv.fg["1,1"])).toBe(false);
     expect(slopeSurfaceAt(lv, 30 + 15, 1, 1, 30, 30).y).toBe(45);
+    expect(slopeSurfaceAt(lv, 30 + 15, 1, 1, 30, 30).run).toBe(1);
   });
 
   test("a ramp stacked over a block blocks, because the block still fills the cell", () => {
@@ -510,6 +514,33 @@ describe("movement and facing regressions", () => {
     expect(enemyNeedsFlip({ type: "enemy" }, -1)).toBe(false);
     expect(enemyNeedsFlip({ type: "enemy" }, 1)).toBe(true);
     expect(enemyNeedsFlip({ type: "enemy", faceRight: true }, -1)).toBe(true);
+  });
+
+  test("ordinary grip holds gentle hills but fails on steep ones", () => {
+    expect(slopeShouldAutoSlide(5, false)).toBe(false);
+    expect(slopeShouldAutoSlide(3, false)).toBe(false);
+    expect(slopeShouldAutoSlide(2, false)).toBe(true);
+    expect(slopeShouldAutoSlide(1, false)).toBe(true);
+  });
+
+  test("the Slide effect defeats grip on every incline", () => {
+    expect(slopeShouldAutoSlide(8, true)).toBe(true);
+    expect(slopeShouldAutoSlide(2, true)).toBe(true);
+  });
+
+  test("legs settle during a passive slide or coast", () => {
+    expect(groundLegsShouldWalk(4, true, false, false, true)).toBe(true);
+    expect(groundLegsShouldWalk(4, true, false, true, true)).toBe(false);
+    expect(groundLegsShouldWalk(4, true, false, false, false)).toBe(false);
+  });
+});
+
+describe("weapon placement while climbing", () => {
+  test("a climbing weapon uses the stable authored Back-pose arm", () => {
+    const baseArm = { id: "base", y: 90, rot: 0 };
+    const rungArm = { id: "live", y: 102, rot: 180 };
+    expect(weaponAttachArmForPose(baseArm, rungArm, true)).toBe(baseArm);
+    expect(weaponAttachArmForPose(baseArm, rungArm, false)).toBe(rungArm);
   });
 });
 
@@ -1254,10 +1285,11 @@ describe("ranged firing-mode abilities", () => {
     expect(weaponBurstShotCount(malformed)).toBe(3);
   });
 
-  test("older saved weapons keep their prior trigger behavior", () => {
-    expect(migratedWeaponFireModes({ burst: 1 })).toEqual({ burstFire: false, fullAuto: true });
+  test("older saved weapons default to semi-auto unless they explicitly configured a burst", () => {
+    expect(migratedWeaponFireModes({ burst: 1 })).toEqual({ burstFire: false, fullAuto: false });
     expect(migratedWeaponFireModes({ burst: 3 })).toEqual({ burstFire: true, fullAuto: false });
     expect(migratedWeaponFireModes({ burst: 1, burstFire: false, fullAuto: false })).toEqual({ burstFire: false, fullAuto: false });
+    expect(migratedWeaponFireModes({ burst: 1, burstFire: false, fullAuto: true })).toEqual({ burstFire: false, fullAuto: true });
   });
 });
 
