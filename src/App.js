@@ -407,6 +407,27 @@ export const burstDelayFrames = (burstDelay) => Math.max(1, Math.round((burstDel
 // clip dry simply stops there, and a reload cancels whatever is left of it.
 export const burstShotDue = (burstLeft, burstT, ammo) =>
   (burstLeft || 0) > 0 && (burstT || 0) <= 0 && !!ammo && ammo.reloadT <= 0 && (ammo.clip <= 0 || ammo.ammo > 0);
+// Fire mode is an ability choice, not an always-on weapon setting:
+//   plain ranged weapon = one shot per press
+//   Burst Fire          = one press commits a configured salvo
+//   Full Auto           = holding Fire repeats at the normal fire-rate cooldown
+// Burst wins defensively if a malformed/imported weapon has both flags; the ability registry keeps
+// newly edited weapons mutually exclusive.
+export const weaponFireMode = (weapon) => weapon && weapon.burstFire ? "burst" : weapon && weapon.fullAuto ? "auto" : "semi";
+export const rangedTriggerWantsFire = (fireHeld, wasFire, weapon) =>
+  weaponFireMode(weapon) === "auto" ? !!fireHeld : !!fireHeld && !wasFire;
+export const weaponBurstShotCount = (weapon) => weaponFireMode(weapon) === "burst" ? burstShotCount(weapon && weapon.burst) : 1;
+// Before firing modes were abilities, every ranged weapon repeated while held and `burst > 1`
+// silently changed that into a burst. Preserve those exact behaviors when an older saved weapon
+// is opened; new weapons write both flags explicitly and therefore start semi-auto.
+export const migratedWeaponFireModes = (weapon) => {
+  const legacy = weapon && weapon.burstFire === undefined && weapon.fullAuto === undefined;
+  if (legacy) {
+    const burstFire = burstShotCount(weapon.burst) > 1;
+    return { burstFire, fullAuto: !burstFire };
+  }
+  return { burstFire: !!(weapon && weapon.burstFire), fullAuto: !!(weapon && weapon.fullAuto) };
+};
 // Intelligence scales how fast a magazine goes back in: 5 is neutral, and each direction reaches
 // 25% at the end of the stat's range — Int 1 reloads 25% SLOWER, Int 10 25% faster. The two sides
 // use their own slope because the stat isn't symmetric about 5 (1..5 is four points, 5..10 is
@@ -599,8 +620,8 @@ export const isRanged = (wtype) => wtype === "ranged" || wtype === "projectile";
 // It's a limited, single-use PICKUP — you carry however many you've found, like Isaac's bombs —
 // so it never mounts on the hand like a melee/ranged weapon; it lives only in the throw system.
 export const isThrowable = (wtype) => wtype === "throw";
-// WEAPON ABILITIES — the optional powers a ranged weapon can carry. These live as plain flags on
-// the asset (explode / ignoreArmor / resurrect) and always did; what's new is that the EDITOR reads
+// WEAPON ABILITIES — the optional powers and firing modes a ranged weapon can carry. These live as
+// plain flags on the asset; the EDITOR reads
 // them from this registry instead of hard-coding one checkbox each. A checkbox per power meant every
 // ability was permanently on screen whether or not the weapon had it, which is what made the weapon
 // panel a wall of boxes — you pick an ability from a dropdown now, and only the ones actually on the
@@ -610,6 +631,16 @@ export const isThrowable = (wtype) => wtype === "throw";
 // mutually-exclusive pair is stated once here rather than re-derived in the JSX: a Resurrect staff
 // deals no damage at all, so it and Explode can never both be live.
 export const WEAPON_ABILITIES = {
+  burstFire: {
+    icon: "🔫", label: "Burst fire",
+    blurb: "One press commits a quick salvo. The normal Fire rate controls when another burst may begin; Burst spacing controls the rounds inside it. Mutually exclusive with Full Auto.",
+    on: { burstFire: true, fullAuto: false, burst: 3, burstDelay: DEFAULT_BURST_DELAY }, off: { burstFire: false },
+  },
+  fullAuto: {
+    icon: "🔥", label: "Full auto",
+    blurb: "Hold Fire to keep shooting at the weapon's Fire rate until the trigger is released, the magazine empties, or a reload begins. Mutually exclusive with Burst Fire.",
+    on: { fullAuto: true, burstFire: false }, off: { fullAuto: false },
+  },
   explode: {
     icon: "💥", label: "Explode",
     blurb: "The shot bursts on impact: everything within the blast radius of where it lands takes the weapon's damage, plus an explosion drawn in front from an Object you pick.",
@@ -1480,7 +1511,7 @@ export function newAsset(type, slot, wtype) {
   const a = { id: uid(), name: slot ? SLOTS[slot].label : (TYPES[type] ? TYPES[type].label : type), type, angles: blankAngles(), guideId: "default" };
   if (type === "body") { a.angles = JSON.parse(JSON.stringify(DEFAULT_BODY)); return withRig(a); }
   if (type === "skin") { a.stats = DEFAULT_STATS(); a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; }
-  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.stun = 0; a.categories = ["", "", ""]; }
+  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.stun = 0; a.categories = ["", "", ""]; }
   if (type === "enemy") { a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = 10; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; return withRig(a); }
   if (type === "equipment") { a.slot = slot; a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; a.statBoosts = DEFAULT_STAT_BOOSTS(); a.defense = 0; a.effects = []; a.categories = ["", "", ""]; }
   if (type === "projectile") { a.size = 1; }
@@ -4300,10 +4331,10 @@ export default function AssetStudio() {
       // swing angle and which weapon pose renders (see the render section below). Projectile
       // spawns a travelling entity aimed by whatever of ↑/↓ is held at the moment of firing —
       // neither held means straight ahead in the facing direction.
-      // Melee stays edge-triggered — one swing per press. Ranged instead fires for as long as
-      // the key is held, gated by its own fire-rate cooldown (that's what a fire rate IS), and
-      // refuses to fire on an empty clip, kicking off a reload instead.
-      const wantFire = wpnIsRanged ? !!K.fire : (K.fire && !p.wasFire);
+      // Melee stays edge-triggered — one swing per press. A plain ranged weapon is semi-auto;
+      // Full Auto is the explicit ability that turns a held key into repeated trigger pulls.
+      // Burst is edge-triggered too, then its committed-salvo timer supplies the later rounds.
+      const wantFire = wpnIsRanged ? rangedTriggerWantsFire(K.fire, p.wasFire, playtestWeapon) : (K.fire && !p.wasFire);
       // Burst continuation: tick the inter-shot timer and decide whether the next round of the
       // salvo already in flight is due. Holding or releasing Fire makes no difference once a burst
       // has started — a burst is a committed salvo, which is what separates it from full-auto.
@@ -4383,7 +4414,7 @@ export default function AssetStudio() {
           wpn.current = consumeShot(wpn.current, fireCdFrames); // spends a round (unless clip 0 = unlimited) and starts the fire-rate cooldown
           // A fresh pull ARMS the rest of the burst; a burst shot spends one of them. Either way the
           // next one is scheduled off burstDelay, not the fire rate.
-          p.burstLeft = burstDue ? (p.burstLeft || 0) - 1 : burstShotCount(playtestWeapon.burst) - 1;
+          p.burstLeft = burstDue ? (p.burstLeft || 0) - 1 : weaponBurstShotCount(playtestWeapon) - 1;
           p.burstT = burstDelayFrames(playtestWeapon.burstDelay);
           p.firing = { t: 0, dur: RANGED_FIRE_POSE_FRAMES };
         } else if (wantFire) {
@@ -6448,7 +6479,7 @@ export default function AssetStudio() {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; } if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; } if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
@@ -8917,8 +8948,6 @@ export default function AssetStudio() {
             <label className="slider">Fire rate<input type="range" min="0.5" max="15" step="0.5" value={asset.fireRate ?? DEFAULT_FIRE_RATE} onChange={(e) => setAsset((a) => ({ ...a, fireRate: +e.target.value }))} /><span className="hint2">{asset.fireRate ?? DEFAULT_FIRE_RATE}/sec</span></label>
             <label className="slider">Clip size<input type="number" min="0" value={asset.clipSize ?? DEFAULT_CLIP_SIZE} onChange={(e) => setAsset((a) => ({ ...a, clipSize: Math.max(0, +e.target.value || 0) }))} style={{ width: 60 }} /><span className="hint2">0 = unlimited, never reloads</span></label>
             <label className="slider">Reload<input type="range" min="0.2" max="5" step="0.1" value={asset.reloadTime ?? DEFAULT_RELOAD_TIME} onChange={(e) => setAsset((a) => ({ ...a, reloadTime: +e.target.value }))} /><span className="hint2">{asset.reloadTime ?? DEFAULT_RELOAD_TIME}s</span></label>
-            <label className="slider">Burst<input type="range" min="1" max="10" step="1" value={burstShotCount(asset.burst)} onChange={(e) => setAsset((x) => ({ ...x, burst: +e.target.value }))} /><span className="hint2">{burstShotCount(asset.burst) === 1 ? "single shot per pull" : burstShotCount(asset.burst) + " rounds per pull"}</span></label>
-            {burstShotCount(asset.burst) > 1 && <label className="slider">Burst spacing<input type="range" min="0.02" max="0.3" step="0.01" value={asset.burstDelay ?? DEFAULT_BURST_DELAY} onChange={(e) => setAsset((x) => ({ ...x, burstDelay: +e.target.value }))} /><span className="hint2">{(asset.burstDelay ?? DEFAULT_BURST_DELAY).toFixed(2)}s between rounds — the whole burst takes {(((burstShotCount(asset.burst) - 1) * (asset.burstDelay ?? DEFAULT_BURST_DELAY))).toFixed(2)}s. Fire rate still sets how soon you can pull again, and a burst stops early if the clip runs out.</span></label>}
             {/* Abilities: pick from a dropdown, and only what's actually ON the weapon takes up
                 room. Driven by WEAPON_ABILITIES so adding a power later is one registry entry. */}
             {(() => {
@@ -8940,6 +8969,10 @@ export default function AssetStudio() {
                     <div key={k} className="abilrow">
                       <div className="abilhead"><b>{WEAPON_ABILITIES[k].icon} {WEAPON_ABILITIES[k].label}</b><button className="ltbtn abilx" onClick={() => setAsset((a) => ({ ...a, ...WEAPON_ABILITIES[k].off }))} title={"Remove " + WEAPON_ABILITIES[k].label}>✕ Remove</button></div>
                       <span className="hint2">{WEAPON_ABILITIES[k].blurb}</span>
+                      {k === "burstFire" && (<>
+                        <label className="slider">Rounds per burst<input type="range" min="2" max="10" step="1" value={Math.max(2, burstShotCount(asset.burst))} onChange={(e) => setAsset((a) => ({ ...a, burst: +e.target.value }))} /><span className="hint2">{Math.max(2, burstShotCount(asset.burst))} rounds per press</span></label>
+                        <label className="slider">Burst spacing<input type="range" min="0.02" max="0.3" step="0.01" value={asset.burstDelay ?? DEFAULT_BURST_DELAY} onChange={(e) => setAsset((a) => ({ ...a, burstDelay: +e.target.value }))} /><span className="hint2">{(asset.burstDelay ?? DEFAULT_BURST_DELAY).toFixed(2)}s between rounds — the salvo takes {(((Math.max(2, burstShotCount(asset.burst)) - 1) * (asset.burstDelay ?? DEFAULT_BURST_DELAY))).toFixed(2)}s and stops early if the clip runs out.</span></label>
+                      </>)}
                       {k === "explode" && (<>
                         <label className="slider">Blast radius<input type="range" min="1" max="5" step="0.5" value={asset.explodeRadius ?? 2} onChange={(e) => setAsset((a) => ({ ...a, explodeRadius: +e.target.value }))} /><span className="hint2">{(asset.explodeRadius ?? 2)} cells — how far PAST a body the splash still reaches. A direct hit always counts, however big the target.</span></label>
                         <span className="wslab">Boom art (Object/Prop):</span>
@@ -8964,7 +8997,7 @@ export default function AssetStudio() {
             {!ANGLES.some((ang) => ((wState === "rest" ? asset.angles?.[ang] : asset.states?.rest?.[ang]) || []).some((p) => p.isMuzzle)) && (
               <p className="tip warn">⚠ No 🔴 muzzle placed on the Rest pose yet — shots will spawn from the middle of the character instead of the barrel. Add one and drag it to the barrel tip.</p>
             )}
-            <span className="hint2">Held Fire repeats at the fire rate. An empty clip auto-reloads (or press <b>R</b> any time) — the weapon lowers while reloading. Draw the 🔴 muzzle on the <b>Rest</b> pose; it rides the arm, so shots leave the barrel at the right height and angle.</span>
+            <span className="hint2">{weaponFireMode(asset) === "auto" ? "Hold Fire to shoot continuously at the fire rate." : weaponFireMode(asset) === "burst" ? "Each Fire press commits one configured burst." : "Fire once per press — add Full Auto or Burst Fire above to change the trigger."} An empty clip auto-reloads (or press <b>R</b> any time) — the weapon lowers while reloading. Draw the 🔴 muzzle on the <b>Rest</b> pose; it rides the arm, so shots leave the barrel at the right height and angle.</span>
             {!asset.projectileId && (
               <p className="tip warn">⚠ {hasLegacy ? "No Projectile asset assigned yet — still using this weapon's old embedded projectile as a fallback." : "No Projectile picked — this won't fire anything visible in Playtest yet."} Build one from the menu (Weapon → Projectile), or pick a saved one above.{hasLegacy ? " " : ""}</p>
             )}

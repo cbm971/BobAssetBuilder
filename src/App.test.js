@@ -14,6 +14,10 @@ import {
   burstDelayFrames,
   burstShotCount,
   burstShotDue,
+  rangedTriggerWantsFire,
+  migratedWeaponFireModes,
+  weaponBurstShotCount,
+  weaponFireMode,
   copyAngleTargets,
   weaponFireCooldownFrames,
   reloadIntelligenceMultiplier,
@@ -1216,6 +1220,47 @@ describe("burst fire", () => {
   });
 });
 
+describe("ranged firing-mode abilities", () => {
+  test("a plain ranged weapon is semi-auto: one shot on the press edge", () => {
+    const weapon = {};
+    expect(weaponFireMode(weapon)).toBe("semi");
+    expect(rangedTriggerWantsFire(true, false, weapon)).toBe(true);
+    expect(rangedTriggerWantsFire(true, true, weapon)).toBe(false);
+    expect(rangedTriggerWantsFire(false, false, weapon)).toBe(false);
+    expect(weaponBurstShotCount(weapon)).toBe(1);
+  });
+
+  test("Full Auto repeats while Fire remains held", () => {
+    const weapon = { fullAuto: true };
+    expect(weaponFireMode(weapon)).toBe("auto");
+    expect(rangedTriggerWantsFire(true, false, weapon)).toBe(true);
+    expect(rangedTriggerWantsFire(true, true, weapon)).toBe(true);
+    expect(rangedTriggerWantsFire(false, true, weapon)).toBe(false);
+    expect(weaponBurstShotCount(weapon)).toBe(1);
+  });
+
+  test("Burst Fire stays edge-triggered and arms its configured salvo", () => {
+    const weapon = { burstFire: true, burst: 4 };
+    expect(weaponFireMode(weapon)).toBe("burst");
+    expect(rangedTriggerWantsFire(true, false, weapon)).toBe(true);
+    expect(rangedTriggerWantsFire(true, true, weapon)).toBe(false);
+    expect(weaponBurstShotCount(weapon)).toBe(4);
+  });
+
+  test("Burst wins defensively if imported data has both mode flags", () => {
+    const malformed = { burstFire: true, fullAuto: true, burst: 3 };
+    expect(weaponFireMode(malformed)).toBe("burst");
+    expect(rangedTriggerWantsFire(true, true, malformed)).toBe(false);
+    expect(weaponBurstShotCount(malformed)).toBe(3);
+  });
+
+  test("older saved weapons keep their prior trigger behavior", () => {
+    expect(migratedWeaponFireModes({ burst: 1 })).toEqual({ burstFire: false, fullAuto: true });
+    expect(migratedWeaponFireModes({ burst: 3 })).toEqual({ burstFire: true, fullAuto: false });
+    expect(migratedWeaponFireModes({ burst: 1, burstFire: false, fullAuto: false })).toEqual({ burstFire: false, fullAuto: false });
+  });
+});
+
 describe("twisting a placed object", () => {
   test("no twist means no transform at all", () => {
     expect(objRotStyle({ size: 4 })).toBe(null);
@@ -1271,6 +1316,20 @@ describe("explosion blast reach", () => {
 });
 
 describe("weapon abilities registry", () => {
+  test("Burst Fire and Full Auto replace one another", () => {
+    const burst = { ...WEAPON_ABILITIES.burstFire.on };
+    expect(weaponAbilityKeys(burst)).toEqual(["burstFire"]);
+    expect(weaponFireMode(burst)).toBe("burst");
+
+    const automatic = { ...burst, ...WEAPON_ABILITIES.fullAuto.on };
+    expect(weaponAbilityKeys(automatic)).toEqual(["fullAuto"]);
+    expect(weaponFireMode(automatic)).toBe("auto");
+
+    const burstAgain = { ...automatic, ...WEAPON_ABILITIES.burstFire.on };
+    expect(weaponAbilityKeys(burstAgain)).toEqual(["burstFire"]);
+    expect(weaponFireMode(burstAgain)).toBe("burst");
+  });
+
   test("a resurrect staff and an explosive shot can never both be live", () => {
     const asExplosive = { explode: true };
     const nowRaising = { ...asExplosive, ...WEAPON_ABILITIES.resurrect.on };
