@@ -302,13 +302,6 @@ export const attachWeaponBlocks = (weaponPieces, curArm, guideHand, baseArmRot) 
     return { ...pc, limb: undefined, role: undefined, x: newCx - pc.w / 2, y: newCy - pc.h / 2, rot: (pc.rot || 0) + pieceDelta, _isWeapon: true };
   });
 };
-// Climbing uses both hands and drives the body arm through a large rung-to-rung rotation/reach.
-// A weapon's authored Back pose is already its intended climbing/stowed placement, so attaching it
-// to that animated hand makes a long multi-piece gun whip around the body (and exaggerates every
-// tiny fit offset). Keep the attachment on the unanimated Back-pose arm while climbing; ordinary
-// walking/aiming/firing still follows the live arm exactly as before.
-export const weaponAttachArmForPose = (baseArm, liveArm, climbing) =>
-  climbing ? (baseArm || liveArm) : (liveArm || baseArm);
 // Hitboxes and the arm trajectory:
 // A weapon's damage box rides the swinging arm automatically — the drawn hitbox piece(s) are just
 // ordinary weapon pieces flagged isHitbox, so attachWeaponBlocks sweeps them around the grip with
@@ -8189,11 +8182,7 @@ export default function AssetStudio() {
                       const firedNow = weaponPoseFired(isProjectile, p.firing);
                       const wpnAngles = firedNow ? weaponFireArt(wfit.states, angle) : (wfit.states.rest || blankAngles());
                       const wpnPieces = bake({ ...playtestWeapon, angles: wpnAngles }, angle);
-                      // On a climb, the Back-pose weapon stays in its authored/stowed position
-                      // instead of riding the hand-over-hand arm rotation. This keeps long,
-                      // multi-piece rifles rigid while the arms and legs climb underneath them.
-                      const attachArm = weaponAttachArmForPose(baseArmPiece, curArm, p.climbing);
-                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocks(wpnPieces, attachArm, guideHand, baseArmRot));
+                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocks(wpnPieces, curArm, guideHand, baseArmRot));
                     }
                   }
                   // Carried throwable in hand: shown while aiming (G held) or during the brief

@@ -18,7 +18,6 @@ import {
   migratedWeaponFireModes,
   weaponBurstShotCount,
   weaponFireMode,
-  weaponAttachArmForPose,
   groundLegsShouldWalk,
   slopeShouldAutoSlide,
   copyAngleTargets,
@@ -532,15 +531,6 @@ describe("movement and facing regressions", () => {
     expect(groundLegsShouldWalk(4, true, false, false, true)).toBe(true);
     expect(groundLegsShouldWalk(4, true, false, true, true)).toBe(false);
     expect(groundLegsShouldWalk(4, true, false, false, false)).toBe(false);
-  });
-});
-
-describe("weapon placement while climbing", () => {
-  test("a climbing weapon uses the stable authored Back-pose arm", () => {
-    const baseArm = { id: "base", y: 90, rot: 0 };
-    const rungArm = { id: "live", y: 102, rot: 180 };
-    expect(weaponAttachArmForPose(baseArm, rungArm, true)).toBe(baseArm);
-    expect(weaponAttachArmForPose(baseArm, rungArm, false)).toBe(rungArm);
   });
 });
 
