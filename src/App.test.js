@@ -55,8 +55,11 @@ import {
   incomingPlayerDamage,
   newWeaponAmmo,
   objAnchor,
+  objAnchorForObject,
   objAnchorKey,
   objKeyAt,
+  levelObjectFootprint,
+  propVisibleArtBox,
   recolorAsset,
   restyleAsset,
   projectileDropAtDistance,
@@ -701,6 +704,28 @@ describe("objects place centred on the clicked cell", () => {
   test("size defaults to 1 when it is missing", () => {
     expect(objAnchor(5, 5)).toEqual({ r: 5, c: 5 });
   });
+
+  test("a wide 40x Prop uses its visible art height instead of a 40-row invisible square", () => {
+    const prop = {
+      frames: [{
+        front: [
+          { id: "trailer", x: 0, y: 190, w: 200, h: 50 },
+          { id: "bad-hitbox", x: 0, y: 0, w: 200, h: 260, isHitbox: true },
+          { id: "cutter", x: 0, y: 20, w: 200, h: 100, isCutter: true },
+        ],
+      }],
+    };
+    expect(propVisibleArtBox(prop)).toEqual({ minX: 0, minY: 190, w: 200, h: 50 });
+    const footprint = levelObjectFootprint({ kind: "prop", size: 40, fitArt: true }, prop);
+    expect(footprint.cols).toBe(40);
+    expect(footprint.rows).toBe(10);
+    expect(objAnchorForObject(2, 30, { kind: "prop", size: 40, fitArt: true }, prop)).toEqual({ r: 0, c: 11 });
+  });
+
+  test("legacy Prop placements keep their square bounds until explicitly converted", () => {
+    const prop = { angles: { front: [{ id: "wide", x: 0, y: 200, w: 200, h: 40 }] } };
+    expect(levelObjectFootprint({ kind: "prop", size: 40 }, prop)).toEqual({ cols: 40, rows: 40, box: null });
+  });
 });
 
 describe("finding the object under a clicked cell", () => {
@@ -726,6 +751,14 @@ describe("finding the object under a clicked cell", () => {
 
   test("an emptied stack is not treated as an object", () => {
     expect(objKeyAt({ fx: { "3,3": [] } }, 3, 3)).toBe(null);
+  });
+
+  test("tight Prop lookup ignores the old square's empty rows", () => {
+    const prop = { id: "trailer", angles: { front: [{ id: "wide", x: 0, y: 200, w: 200, h: 40 }] } };
+    const lv = { fx: { "0,11": [{ kind: "prop", propId: "trailer", size: 40, fitArt: true }] } };
+    const findAsset = (id) => id === "trailer" ? prop : null;
+    expect(objKeyAt(lv, 4, 20, findAsset)).toBe("0,11");
+    expect(objKeyAt(lv, 12, 20, findAsset)).toBe(null);
   });
 });
 

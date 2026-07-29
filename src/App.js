@@ -2096,6 +2096,40 @@ function migrateLevel(lv) {
   return out;
 }
 const cellKey = (r, c) => r + "," + c;
+// A Prop is authored on the same tall 200x260 canvas as every other asset, but the visible art
+// may occupy only a small, wide strip of it (a trailer near the bottom is the common example).
+// Level placement used to turn the chosen size into a size-by-size SQUARE regardless, so a 40x
+// trailer acquired a huge empty collision/selection box above it. Measure the union of every
+// animation frame's actually drawn art instead. Authored hitbox and muzzle helpers are editor
+// metadata, cutters draw holes rather than pixels, and none of them may inflate this box.
+export const propVisibleArtBox = (propAsset) => {
+  const frames = (propAsset && propAsset.frames && propAsset.frames.length)
+    ? propAsset.frames
+    : [propAsset && propAsset.angles].filter(Boolean);
+  const visible = [];
+  for (const frame of frames) for (const piece of ((frame && frame.front) || [])) {
+    if (piece.isHitbox || piece.isMuzzle || piece.isCutter) continue;
+    visible.push(piece);
+    if (piece.mirror) visible.push({ ...piece, x: W - (piece.x + piece.w) });
+  }
+  return worldArtBox(visible);
+};
+// Existing saved placements intentionally keep their old square layout unless `fitArt` is set:
+// silently opting every old level into tight bounds would move already-positioned scenery. New
+// Prop placements set fitArt=true, and the object inspector offers the same conversion explicitly.
+export const levelObjectFootprint = (object, propAsset) => {
+  const size = Math.max(1, (object && object.size) || 1);
+  if (!object || object.kind !== "prop" || !object.fitArt || !propAsset) return { cols: size, rows: size, box: null };
+  const box = propVisibleArtBox(propAsset);
+  const scale = size / Math.max(box.w, box.h);
+  return { cols: Math.max(1, box.w * scale), rows: Math.max(1, box.h * scale), box };
+};
+export const objFootprintAnchor = (r, c, footprint) => {
+  const rows = Math.max(1, (footprint && footprint.rows) || 1);
+  const cols = Math.max(1, (footprint && footprint.cols) || 1);
+  const rowOff = Math.floor((rows - 1) / 2), colOff = Math.floor((cols - 1) / 2);
+  return { r: Math.max(0, r - rowOff), c: Math.max(0, c - colOff) };
+};
 // Objects are stored under their TOP-LEFT cell in lv.fx, but you aim them by their MIDDLE:
 // clicking places a size-N object centred on the cell you clicked, so a 20× tree lands where you
 // pointed instead of hanging down-and-right of it. Corner-anchoring made anything bigger than a
@@ -2104,24 +2138,27 @@ const cellKey = (r, c) => r + "," + c;
 // levels built before this sit exactly where they always did. Clamped at 0 so an object aimed
 // near the top/left edge keeps a real on-map key instead of a negative one that renders
 // off-canvas. Even sizes can't straddle a cell, so they lean up-left by the half cell.
-export const objAnchor = (r, c, size) => { const off = Math.floor(((size || 1) - 1) / 2); return { r: Math.max(0, r - off), c: Math.max(0, c - off) }; };
+export const objAnchor = (r, c, size) => objFootprintAnchor(r, c, { rows: size || 1, cols: size || 1 });
 export const objAnchorKey = (r, c, size) => { const a = objAnchor(r, c, size); return cellKey(a.r, a.c); };
+export const objAnchorForObject = (r, c, object, propAsset) => objFootprintAnchor(r, c, levelObjectFootprint(object, propAsset));
+export const objAnchorKeyForObject = (r, c, object, propAsset) => { const a = objAnchorForObject(r, c, object, propAsset); return cellKey(a.r, a.c); };
 // The reverse lookup. Now that objects are centred, the cell you click is almost never an
 // object's anchor cell, so erase / pick-up / inspect can't just index lv.fx by the clicked key
 // any more — they have to find which stored footprint the cell falls inside. An exact anchor hit
 // still wins; otherwise the SMALLEST object covering the cell does, so a little prop resting on
 // a huge backdrop is the one you grab rather than the backdrop swallowing every click over it.
-export const objKeyAt = (lv, r, c) => {
+export const objKeyAt = (lv, r, c, findAsset) => {
   if (!lv || !lv.fx) return null;
   const exact = cellKey(r, c);
   if (lv.fx[exact] && lv.fx[exact].length) return exact;
-  let best = null, bestSz = Infinity;
+  let best = null, bestArea = Infinity;
   for (const k of Object.keys(lv.fx)) {
     const stack = lv.fx[k]; if (!stack || !stack.length) continue;
     const [rr, cc] = k.split(",").map(Number);
     for (const o of stack) {
-      const sz = o.size || 1;
-      if (r >= rr && r < rr + sz && c >= cc && c < cc + sz && sz < bestSz) { best = k; bestSz = sz; }
+      const fp = levelObjectFootprint(o, o.kind === "prop" && findAsset ? findAsset(o.propId) : null);
+      const area = fp.rows * fp.cols;
+      if (r >= rr && r < rr + fp.rows && c >= cc && c < cc + fp.cols && area < bestArea) { best = k; bestArea = area; }
     }
   }
   return best;
@@ -3462,8 +3499,8 @@ export default function AssetStudio() {
     // 3-state model: Behind / In front / Same-layer-solid) — they must NEVER block movement,
     // no matter what the Solid checkbox says, or you'd be stopped by something that's rendering
     // on top of you, which defeats the entire reason to flag it "in front" in the first place.
-    const solidFx = []; for (const k of Object.keys(lv.fx || {})) { const [r, c] = k.split(",").map(Number); for (const o of (lv.fx[k] || [])) if (o.solid) solidFx.push({ r, c, size: o.size || 1 }); }
-    const fxBlocks = (r, c) => solidFx.some((o) => r >= o.r && r < o.r + o.size && c >= o.c && c < o.c + o.size);
+    const solidFx = []; for (const k of Object.keys(lv.fx || {})) { const [r, c] = k.split(",").map(Number); for (const o of (lv.fx[k] || [])) if (o.solid) { const fp = levelObjectFootprint(o, o.kind === "prop" ? findA(o.propId) : null); solidFx.push({ r, c, rows: fp.rows, cols: fp.cols }); } }
+    const fxBlocks = (r, c) => solidFx.some((o) => r >= o.r && r < o.r + o.rows && c >= o.c && c < o.c + o.cols);
     const cellsHit = (x, y, pw, ph) => { const hits = []; const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH); for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { if (c < 0 || c >= lv.cols || r < 0 || r >= lv.rows) continue; const cell = lv.fg[cellKey(r, c)]; if (fgSolid(cell) || fxBlocks(r, c)) hits.push({ r, c }); } return hits; };
     let lastPedestalKey = null;
     let lastDoorKey = null;
@@ -6209,13 +6246,13 @@ export default function AssetStudio() {
       : <div style={outlineStyle(p, off, mirrored, faded)}><div style={outlineFillStyle(p)} /></div>
   );
   const Static = (p, off, faded, flip, key) => { const s = shapeStyle(p, off, faded, flip); s.pointerEvents = "none"; return <React.Fragment key={key}>{OutlineLayer(p, off, flip, faded)}<div style={s}><div style={shapeFillStyle(p)}>{pieceInner(p)}</div></div></React.Fragment>; };
-  // Renders a PROP asset's pixel art scaled to fill a placement box of `sz` px, at animation frame
+  // Renders a PROP asset's pixel art scaled to fill its placement box, at animation frame
   // `frameIdx`. The prop's pieces are positioned by percentage of the 200×260 design canvas (that's
   // what shapeStyle does everywhere), so a plain inner container at 100%/100% of the sz-box makes
   // every piece scale together to fit — it never tiles or duplicates, whatever size is chosen. The
   // wrapper is the 200x260 canvas mapped onto the sz-box at TRUE aspect (uniform "contain" scale,
   // centred) — NOT stretched to fill the square, which would shear rotated pieces out of alignment.
-  const propArtInner = (propAsset, sz, frameIdx, keyBase) => {
+  const propArtInner = (propAsset, widthPx, heightPx, frameIdx, keyBase, tightBox) => {
     const frames = (propAsset && propAsset.frames) || [propAsset && propAsset.angles].filter(Boolean);
     const frame = frames.length ? frames[Math.min(frames.length - 1, Math.max(0, frameIdx || 0))] : null;
     const front = (frame && frame.front) || (propAsset && propAsset.angles && propAsset.angles.front) || [];
@@ -6225,22 +6262,30 @@ export default function AssetStudio() {
     // them out here meant a prop's run never reported hasCutter and the cutter tool silently did
     // nothing on props — no hole was ever cut in a placed object.
     for (const p of front) { if (p.isHitbox) continue; pieces.push(p); if (pmirror(p, "front")) pieces.push(reflect(p)); }
-    if (!pieces.some((p) => !p.isCutter)) return <span style={{ fontSize: sz * 0.6 + "px", opacity: 0.5 }}>🌿</span>;
+    if (!pieces.some((p) => !p.isCutter)) return <span style={{ fontSize: Math.max(widthPx, heightPx) * 0.6 + "px", opacity: 0.5 }}>🌿</span>;
+    if (tightBox) {
+      // Render the full design canvas (shapeStyle positions pieces as percentages of it), but
+      // translate that canvas so the measured visible-art box begins at the placement's 0,0.
+      // This crops empty authoring-canvas space without stretching or relocating any piece.
+      const scale = Math.min(widthPx / tightBox.w, heightPx / tightBox.h);
+      return <div style={{ position: "absolute", left: -tightBox.minX * scale, top: -tightBox.minY * scale, width: W * scale, height: H * scale }}>{renderPieceRuns({ pieces, cacheKey: keyBase || "prop", keyPrefix: (keyBase || "prop") + "_", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k), maskCss: cutterMaskCss })}</div>;
+    }
+    const sz = Math.max(widthPx, heightPx);
     const _k = Math.min(sz / W, sz / H), _bw = W * _k, _bh = H * _k; return <div style={{ position: "absolute", left: (sz - _bw) / 2, top: (sz - _bh) / 2, width: _bw, height: _bh }}>{renderPieceRuns({ pieces, cacheKey: keyBase || "prop", keyPrefix: (keyBase || "prop") + "_", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k), maskCss: cutterMaskCss })}</div>;
   };
   // One place that turns a placed level object into its inner JSX — emoji/shape via objInner,
   // or a prop via propArtInner (looking the asset up + choosing its current animation frame).
   // `animT` is a running frame counter (only advanced during play) so animated props cycle.
-  const renderObj = (o, sz, keyBase, animT) => {
+  const renderObj = (o, widthPx, keyBase, animT, heightPx = widthPx, tightBox = null) => {
     if (o && o.kind === "prop") {
       const pa = findA(o.propId);
-      if (!pa) return <span style={{ fontSize: sz * 0.5 + "px", opacity: 0.5 }}>❓</span>;
+      if (!pa) return <span style={{ fontSize: Math.max(widthPx, heightPx) * 0.5 + "px", opacity: 0.5 }}>❓</span>;
       const frames = (pa.frames && pa.frames.length) ? pa.frames.length : 1;
       const fps = pa.animFps || 6;
       const frameIdx = (play && frames > 1) ? Math.floor(((animT || 0) / 60) * fps) % frames : 0;
-      return propArtInner(pa, sz, frameIdx, keyBase);
+      return propArtInner(pa, widthPx, heightPx, frameIdx, keyBase, tightBox);
     }
-    return objInner(o, sz);
+    return objInner(o, widthPx);
   };
   // Renders a piece's mirrored twin. When the original is selected — single or as part of a
   // group — the twin gets the same dashed highlight so it's visually obvious the two sides are
@@ -6534,6 +6579,10 @@ export default function AssetStudio() {
   // scratch (including a nested O(n*m) filter) on every render before this fix.
   const assetById = useMemo(() => { const m = new Map(); for (const a of allAssets) m.set(a.id, a); return m; }, [allAssets]);
   const findA = (id) => assetById.get(id) || null;
+  const levelObjectPixelLayout = (object, cellPx = LV_CELL) => {
+    const fp = levelObjectFootprint(object, object && object.kind === "prop" ? findA(object.propId) : null);
+    return { width: fp.cols * cellPx, height: fp.rows * cellPx, box: fp.box };
+  };
   // Permanently remove a saved asset: its own storage entry, its index row, and any
   // session copy. Guarded by a confirm in the UI — this is not undoable.
   const deleteAsset = async (a) => {
@@ -6859,9 +6908,18 @@ export default function AssetStudio() {
     r.readAsText(f);
   };
   const setSessionLevel = (c) => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); setLevelLib((s) => [...s.filter((x) => x.id !== c.id), c]); const nl = JSON.parse(JSON.stringify(c)); setLevel(nl); levelBaseline.current = JSON.stringify(nl); };
-  // Which fx key a click on (r,c) acts on: placing centres the new object (objAnchorKey),
-  // erasing targets whatever footprint is actually under the pointer (objKeyAt).
-  const objPaintKey = (r, c, erase) => ((erase || lTool === "erase") ? (objKeyAt(level, r, c) || cellKey(r, c)) : objAnchorKey(r, c, lObjSize));
+  // One record for the NEXT object. Props opt into art-tight bounds; old saved placements without
+  // this flag retain their legacy square geometry until the user converts them in the inspector.
+  const nextLevelObject = lObjKind === "prop"
+    ? { kind: "prop", propId: lPropId, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot, fitArt: true }
+    : lObjKind === "shape"
+      ? { kind: "shape", shape: lObjShape, tint: lTint || "#7aa2d6", solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot }
+      : { kind: "emoji", char: lEmoji, tint: lTint, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot };
+  const assetForLevelObject = (object) => object && object.kind === "prop" ? findA(object.propId) : null;
+  const anchorKeyForLevelObject = (r, c, object) => objAnchorKeyForObject(r, c, object, assetForLevelObject(object));
+  // Which fx key a click on (r,c) acts on: placing centres the new object around its REAL
+  // footprint; erasing targets whatever real footprint is actually under the pointer.
+  const objPaintKey = (r, c, erase) => ((erase || lTool === "erase") ? (objKeyAt(level, r, c, findA) || cellKey(r, c)) : anchorKeyForLevelObject(r, c, nextLevelObject));
   // The object stack on the selected cell, and WHICH of its layers is open for editing.
   //
   // It used to be "none until you click a row". Nothing on screen said those rows were clickable,
@@ -6881,7 +6939,7 @@ export default function AssetStudio() {
       const fx = { ...lv.fx };
       if (erase || lTool === "erase") { delete fx[objKey]; }
       else if (lObjKind === "prop" && !lPropId) { return lv; /* prop kind chosen but no prop picked yet — nothing to place */ }
-      else { const stack = fx[objKey] ? fx[objKey].slice() : []; const objBase = lObjKind === "prop" ? { kind: "prop", propId: lPropId, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot } : lObjKind === "shape" ? { kind: "shape", shape: lObjShape, tint: lTint || "#7aa2d6", solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot } : { kind: "emoji", char: lEmoji, tint: lTint, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot }; stack.push(objBase); fx[objKey] = stack; }
+      else { const stack = fx[objKey] ? fx[objKey].slice() : []; stack.push({ ...nextLevelObject }); fx[objKey] = stack; }
       return { ...lv, fx };
     }
     if (lLayer === "climb") { const climb = { ...lv.climb }; if (erase || lTool === "erase") delete climb[k]; else climb[k] = { kind: lClimbKind }; return { ...lv, climb }; }
@@ -6930,18 +6988,19 @@ export default function AssetStudio() {
       setLevel((lv) => {
         // Dropping re-centres on the click too, so a picked-up object lands the same way a
         // freshly placed one does instead of jumping down-right by half its own size.
-        if (from === "fx") { const ok = objAnchorKey(r, c, item.size); const stack = lv.fx[ok] ? lv.fx[ok].slice() : []; stack.push(item); return { ...lv, fx: { ...lv.fx, [ok]: stack } }; }
+        if (from === "fx") { const ok = anchorKeyForLevelObject(r, c, item); const stack = lv.fx[ok] ? lv.fx[ok].slice() : []; stack.push(item); return { ...lv, fx: { ...lv.fx, [ok]: stack } }; }
         if (from === "enemies") return { ...lv, enemies: { ...(lv.enemies || {}), [k]: item } };
         return { ...lv, markers: { ...lv.markers, [k]: item } };
       });
       moving.current = null; setMovingActive(false);
+      if (from === "fx") { setLFxSel(anchorKeyForLevelObject(r, c, item)); setLFxEditIdx(null); }
       flash("Placed ✓");
       return;
     }
     const isCopy = lTool === "copy";
     // Grab by footprint, not by anchor cell — clicking the middle of a big centred object has to
     // pick it up, and its anchor cell is nowhere near where you clicked (see objKeyAt).
-    const fk = lLayer === "obj" ? objKeyAt(level, r, c) : null;
+    const fk = lLayer === "obj" ? objKeyAt(level, r, c, findA) : null;
     if (fk) {
       const stack = level.fx[fk]; const item = stack[stack.length - 1];
       if (!isCopy) setLevel((lv) => { const s2 = (lv.fx[fk] || []).slice(0, -1); const fx = { ...lv.fx }; if (s2.length) fx[fk] = s2; else delete fx[fk]; return { ...lv, fx }; });
@@ -7602,12 +7661,12 @@ export default function AssetStudio() {
           {movingActive && <span className="movingtag">{moving.current && moving.current.copy ? "📋 Holding a copy" : "✋ Holding an item"} — click a cell to place it <button className="ltbtn" onClick={cancelMoving}>✕ Cancel</button></span>}
           {lLayer === "obj" ? (
             <>
-              <div className="seg"><button className={lObjKind === "emoji" ? "on" : ""} onClick={() => setLObjKind("emoji")}>😀 Emoji</button><button className={lObjKind === "shape" ? "on" : ""} onClick={() => setLObjKind("shape")} >▮ Shape</button><button className={lObjKind === "prop" ? "on" : ""} onClick={() => setLObjKind("prop")}>🌿 Object</button></div>
+              <div className="seg"><button className={lObjKind === "emoji" ? "on" : ""} onClick={() => { setLObjKind("emoji"); setLFxSel(null); setLFxEditIdx(null); }}>😀 Emoji</button><button className={lObjKind === "shape" ? "on" : ""} onClick={() => { setLObjKind("shape"); setLFxSel(null); setLFxEditIdx(null); }} >▮ Shape</button><button className={lObjKind === "prop" ? "on" : ""} onClick={() => { setLObjKind("prop"); setLFxSel(null); setLFxEditIdx(null); }}>🌿 Object</button></div>
               {lObjKind === "prop" ? (
                 (() => {
                   const props = allAssets.filter((a) => a.type === "prop");
                   return props.length ? (
-                    <select className="big" value={lPropId} onChange={(e) => { const id = e.target.value; setLPropId(id); const pa = findA(id); if (pa && pa.size) setLObjSize(pa.size); }}>
+                    <select className="big" value={lPropId} onChange={(e) => { const id = e.target.value; setLPropId(id); setLFxSel(null); setLFxEditIdx(null); const pa = findA(id); if (pa && pa.size) setLObjSize(pa.size); }}>
                       <option value="">— pick an Object —</option>
                       {props.map((a) => <option key={a.id} value={a.id}>🌿 {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
                     </select>
@@ -7758,7 +7817,7 @@ export default function AssetStudio() {
                 <div ref={frontCellsRef} style={{ display: "contents" }}>{lvFrontLayer}</div>
                 {layerMove && layerMove.levelId === lv.id && Object.keys(layerMove.cells).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"mv" + k} className="lcell moveSel" style={{ left: c * LV_CELL, top: r * LV_CELL }} />; })}
                 {lvFxLayer}
-                {lvPropMeta.map(({ o, si, r, c, k }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"xp" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, sz, "xp" + k + "_" + si, pframe)}</div>; })}
+                {lvPropMeta.map(({ o, si, r, c, k }) => { const layout = levelObjectPixelLayout(o); const eraseNow = !play && lTool === "erase"; return <div key={"xp" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: layout.width, height: layout.height, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box)}</div>; })}
                 {!play && lvClimbLayer}
                 <div ref={hazardCellsRef} style={{ display: "contents" }}>{lvHazardLayer}</div>
                 {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : "💎"}</div>; })}
@@ -7767,14 +7826,14 @@ export default function AssetStudio() {
                   <button key={k} className={"conn " + (cc.open ? "open" : "blocked") + (lSel === k ? " sel" : "")} style={{ left: pos.x + "%", top: pos.y + "%" }} onClick={(e) => { e.stopPropagation(); setLSel(k); }} title={CONN_LABEL[k] + (cc.open ? " · accepts: " + (cc.accepts || lv.floor) : " · blocked")}>✕</button>
                 ); })}
                 {!play && lLayer === "obj" && lTool === "paint" && lHoverCell && !(lObjKind === "prop" && !lPropId) && (() => {
-                  const sz = lObjSize * LV_CELL;
-                  const ghostO = lObjKind === "prop" ? { kind: "prop", propId: lPropId } : lObjKind === "shape" ? { kind: "shape", shape: lObjShape, tint: lTint || "#7aa2d6" } : { kind: "emoji", char: lEmoji, tint: lTint };
+                  const ghostO = nextLevelObject;
+                  const layout = levelObjectPixelLayout(ghostO);
                   // Ghost sits exactly where a click would put it — same objAnchor, edge clamp
                   // included, so the preview never lies about where a big object will land.
-                  const ga = objAnchor(lHoverCell.r, lHoverCell.c, lObjSize);
+                  const ga = objAnchorForObject(lHoverCell.r, lHoverCell.c, ghostO, assetForLevelObject(ghostO));
                   // ...including the angle: the preview tilts with Twist, so you line a trailer up
                   // against the hill before you commit rather than placing it and then fixing it.
-                  return <div className="lobjGhost" style={{ left: ga.c * LV_CELL, top: ga.r * LV_CELL, width: sz, height: sz, zIndex: lInFront ? 6 : 4, ...objRotStyle({ rot: lObjRot }) }}>{renderObj(ghostO, sz, "ghost", 0)}</div>;
+                  return <div className="lobjGhost" style={{ left: ga.c * LV_CELL, top: ga.r * LV_CELL, width: layout.width, height: layout.height, zIndex: lInFront ? 6 : 4, ...objRotStyle({ rot: lObjRot }) }}>{renderObj(ghostO, layout.width, "ghost", 0, layout.height, layout.box)}</div>;
                 })()}
                 {!play && (lLayer === "bg" || lLayer === "front" || (lLayer === "fg" && lFgShape === "block")) && lTool === "paint" && lHoverCell && (() => {
                   // Matches paintBrush's own iteration exactly (full r×c square, not just a
@@ -8163,16 +8222,17 @@ export default function AssetStudio() {
                   const bodyShape = sideBodyShape(playerAsset);
                   const pw = LV_CELL * PLAYER_RENDER_W_CELLS * bodyShape.fraction; // matches the physics hitbox exactly
                   const ph = p.crouch ? LV_CELL * PLAYER_CROUCH_H_CELLS : LV_CELL * PLAYER_H_CELLS;
-                  return lvFxInFrontMeta.map(({ key, r, c, k, si, o, sz }) => {
+                  return lvFxInFrontMeta.map(({ key, r, c, k, si, o }) => {
                     const left = c * LV_CELL, top = r * LV_CELL;
+                    const layout = levelObjectPixelLayout(o);
                     // Fades whenever the player's own hitbox overlaps a front-layer object —
                     // solid (a tree trunk that still blocks movement, see solidFx above) or
                     // decorative walk-through alike. Either way the point is the same: don't let
                     // your own scenery fully swallow you on screen. A moderate fade (not too see-
                     // through, not too strong) so the object still clearly reads as there.
-                    const behind = play && p.x + pw > left && p.x < left + sz && p.y + ph > top && p.y < top + sz;
+                    const behind = play && p.x + pw > left && p.x < left + layout.width && p.y + ph > top && p.y < top + layout.height;
                     const eraseNow = !play && lTool === "erase";
-                    return <div key={key} className={"lobj infront " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "") + (behind ? " behindFade" : "")} style={{ left, top, width: sz, height: sz, ...objRotStyle(o), pointerEvents: eraseNow ? "auto" : "none", cursor: eraseNow ? "pointer" : undefined, opacity: behind ? 0.55 : 1 }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, sz, key, pframe)}</div>;
+                    return <div key={key} className={"lobj infront " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "") + (behind ? " behindFade" : "")} style={{ left, top, width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: eraseNow ? "auto" : "none", cursor: eraseNow ? "pointer" : undefined, opacity: behind ? 0.55 : 1 }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, layout.width, key, pframe, layout.height, layout.box)}</div>;
                   });
                 })()}
                 {/* Enemy spawns: AI-driven (Guard/Seek/Avoid, per-enemy in the Enemy Creator), fall via
@@ -8475,6 +8535,7 @@ export default function AssetStudio() {
                             {COLORS.map((c) => <button key={c} className={o.tint === c ? "on" : ""} style={{ background: c }} onClick={() => updateFxAt(lFxSel, i, { tint: c })} />)}
                           </div>
                           <div className="seg sizeseg">{LV_OBJ_SIZES.map((n) => <button key={n} className={(o.size || 1) === n ? "on" : ""} onClick={() => updateFxAt(lFxSel, i, { size: n })}>{n}×</button>)}</div>
+                          {o.kind === "prop" && <label className="chk"><input type="checkbox" checked={!!o.fitArt} onChange={(e) => updateFxAt(lFxSel, i, { fitArt: e.target.checked })} /> Tight bounds around visible art <span className="hint2">(removes empty canvas from placement and collision)</span></label>}
                           {/* Twist — the point of it is props that lie ALONG something (a trailer on a
                               hillside) rather than standing upright. Nudges are 5° because slope
                               angles are shallow; the piece editor's 90° steps would be useless here. */}
