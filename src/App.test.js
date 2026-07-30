@@ -22,6 +22,7 @@ import {
   weaponFireMode,
   groundLegsShouldWalk,
   slopeShouldAutoSlide,
+  SHAPE_LIST,
   copyAngleTargets,
   weaponFireCooldownFrames,
   reloadIntelligenceMultiplier,
@@ -132,6 +133,14 @@ describe("copying blocks and groups", () => {
     expect(copies.map((piece) => [piece.x, piece.y])).toEqual([[14, 16], [24, 36]]);
     expect(copies.map((piece) => piece.fx)).toEqual([pieces[0].fx, pieces[2].fx]);
     expect(copies).toHaveLength(2);
+  });
+});
+
+describe("creator shape picker", () => {
+  test("offers one reusable rounded square shape", () => {
+    expect(SHAPE_LIST.filter(([kind]) => kind === "roundrect")).toEqual([
+      ["roundrect", "▣", "Rounded square"],
+    ]);
   });
 });
 

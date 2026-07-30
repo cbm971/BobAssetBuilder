@@ -2716,7 +2716,8 @@ export const hazardDpsAt = (lv, x, y, pw, ph, CW, CH, alive) => {
 // (shapeStyle), the outline (outlineStyle), and the cutter SVG mask (cutterMaskCss) — adding a
 // new polygon shape only ever means adding one entry here instead of keeping three separate
 // implementations (CSS clip-path %, SVG mask pixels, outline clip-path %) in sync by hand.
-// "circle" and "rect" aren't here — they use borderRadius/plain rect instead of clip-path.
+// "circle", "roundrect", and "rect" aren't here — they use borderRadius/plain rect instead of
+// clip-path.
 // A half circle can't be a border-radius (that only rounds corners of the box) — but every
 // "normal circle effect" the piece editor offers (outline ring, glow/brightness, cutter hole,
 // eyedropper, resize, rotate) is already driven off SHAPE_POINTS for polygon shapes, so a
@@ -2858,7 +2859,7 @@ export const flipPropFramesHorizontally = (frames, liveAngles, currentIndex) => 
   return { frames: flipped, angles: flipped[idx], flipped: true, pivotX };
 };
 export const SHAPE_LIST = [
-  ["rect", "▮", "Square"], ["circle", "●", "Circle"], ["halfcircle", "◓", "Half circle"], ["tri", "▲", "Triangle"], ["tri2", "◺", "Half triangle"],
+  ["rect", "▮", "Square"], ["roundrect", "▣", "Rounded square"], ["circle", "●", "Circle"], ["halfcircle", "◓", "Half circle"], ["tri", "▲", "Triangle"], ["tri2", "◺", "Half triangle"],
   ["diamond", "◆", "Diamond"], ["pentagon", "⬠", "Pentagon"], ["hexagon", "⬡", "Hexagon"], ["star", "★", "Star"], ["trapezoid", "⏢", "Trapezoid"],
 ];
 export const levelShapeLabel = (shape) => ({
@@ -6193,6 +6194,7 @@ export default function AssetStudio() {
   const shapeFillStyle = (p) => {
     const s = { width: "100%", height: "100%", boxSizing: "border-box" };
     if (p.kind === "circle") s.borderRadius = "50%";
+    else if (p.kind === "roundrect") s.borderRadius = "22%";
     else { const cp = shapeClipPath(p); if (cp) s.clipPath = cp; }
     // A cutter punches a transparent hole through whatever renders before it (eye sockets, a
     // buttonhole, a belt buckle gap) instead of adding its own color. This used to be attempted
@@ -6261,7 +6263,7 @@ export default function AssetStudio() {
     const oc = p.outlineColor || "#000";
     const cp = shapeClipPath(p);
     if (cp) { s.clipPath = cp; s.background = oc; }
-    else { if (p.kind === "circle") s.borderRadius = "50%"; s.boxShadow = "0 0 0 2px " + oc; }
+    else { if (p.kind === "circle") s.borderRadius = "50%"; else if (p.kind === "roundrect") s.borderRadius = "22%"; s.boxShadow = "0 0 0 2px " + oc; }
     return s;
   };
   // Builds a CSS mask-image for a CONTAINER that hosts a finished (non-editable) render of
@@ -6297,6 +6299,7 @@ export default function AssetStudio() {
       if (rot) ops.push(`rotate(${rot} ${cx} ${cy})`);
       const tAttr = ops.length ? ` transform="${ops.join(" ")}"` : "";
       if (p.kind === "circle") return `<ellipse cx="${cx}" cy="${cy}" rx="${p.w / 2}" ry="${p.h / 2}" fill="#000"${tAttr}/>`;
+      if (p.kind === "roundrect") return `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="${p.w * 0.22}" ry="${p.h * 0.22}" fill="#000"${tAttr}/>`;
       const pts = shapePolyPoints(p);
       if (pts) return `<polygon points="${pts.map(([fx, fy]) => (p.x + fx * p.w) + "," + (p.y + fy * p.h)).join(" ")}" fill="#000"${tAttr}/>`;
       return `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" fill="#000"${tAttr}/>`;
@@ -8906,8 +8909,8 @@ export default function AssetStudio() {
   const behindPieces = pieces.filter((p) => p.behindBody);
   const lrow = (p) => (
     <div key={p.id} className={"lrow" + (p.id === selId ? " on" : "") + (groupIds.includes(p.id) ? " grp" : "") + (p._recovered ? " recovered" : "")} onClick={() => { if (!multiSelect) { setSelId(p.id); if (!groupIds.includes(p.id) && groupIds.length) setGroupIds([]); return; } if (groupIds.includes(p.id)) { const ng = groupIds.filter((id) => id !== p.id); setGroupIds(ng); if (selId === p.id) setSelId(ng[ng.length - 1] || null); } else { setGroupIds((g) => [...g, p.id]); setSelId(p.id); } }}>
-      <span className="lprev" style={{ background: p.kind === "emoji" ? "transparent" : p.color }}>{p.kind === "emoji" ? p.char : (p.kind === "circle" ? "●" : p.kind === "tri" ? "▲" : "")}</span>
-      <span className="lname">{p._recovered ? "🩹 " : ""}{p.locked ? "🔒 " : ""}{p.isHitbox ? "🎯 hitbox" : p.isMuzzle ? "🔴 muzzle" : (p.kind === "emoji" ? "emoji" : p.kind)}{p.mirror ? " ⟷" : ""}{p.limb === "arm" ? " 💪" : p.limb === "leg" ? " 🦵" : ""}</span>
+      <span className="lprev" style={{ background: p.kind === "emoji" ? "transparent" : p.color }}>{p.kind === "emoji" ? p.char : (p.kind === "circle" ? "●" : p.kind === "roundrect" ? "▣" : p.kind === "tri" ? "▲" : "")}</span>
+      <span className="lname">{p._recovered ? "🩹 " : ""}{p.locked ? "🔒 " : ""}{p.isHitbox ? "🎯 hitbox" : p.isMuzzle ? "🔴 muzzle" : (p.kind === "emoji" ? "emoji" : p.kind === "roundrect" ? "rounded square" : p.kind)}{p.mirror ? " ⟷" : ""}{p.limb === "arm" ? " 💪" : p.limb === "leg" ? " 🦵" : ""}</span>
       <button title="move forward" onClick={(e) => { e.stopPropagation(); movePiece(p.id, 1); }}>▲</button>
       <button title="move back" onClick={(e) => { e.stopPropagation(); movePiece(p.id, -1); }}>▼</button>
     </div>
