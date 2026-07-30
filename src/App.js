@@ -2861,9 +2861,13 @@ export const SHAPE_LIST = [
   ["rect", "▮", "Square"], ["circle", "●", "Circle"], ["halfcircle", "◓", "Half circle"], ["tri", "▲", "Triangle"], ["tri2", "◺", "Half triangle"],
   ["diamond", "◆", "Diamond"], ["pentagon", "⬠", "Pentagon"], ["hexagon", "⬡", "Hexagon"], ["star", "★", "Star"], ["trapezoid", "⏢", "Trapezoid"],
 ];
+export const levelShapeLabel = (shape) => ({
+  rect: "square", circle: "circle", tri: "triangle", tri2: "half-triangle",
+  topOutline: "top outline", vineWeb: "vine web", ladder: "ladder", fence: "fence",
+}[shape || "rect"] || shape || "shape");
 // A placed level Object is either an emoji (o.char, tinted via CSS text-as-background) or a
-// plain colored shape (o.kind==="shape" — no emoji needed, same shape vocabulary as the piece
-// editor: rect/circle/tri/tri2). Shared by every render site that draws a cell's object stack
+// plain colored shape (o.kind==="shape" — no emoji needed, plus open scenery silhouettes such as
+// ladders and fences). Shared by every render site that draws a cell's object stack
 // (the normal edit-mode layer, the ghost preview, and the Playtest "in front of player" pass)
 // so all three stay in sync automatically instead of needing the same branch copy-pasted three
 // separate times and drifting out of sync with each other.
@@ -2883,6 +2887,15 @@ const objInner = (o, sz) => {
         <rect x="22" y="12" width="56" height="9" fill={t} />
         <rect x="22" y="45.5" width="56" height="9" fill={t} />
         <rect x="22" y="79" width="56" height="9" fill={t} />
+      </svg>
+    );
+    if (o.shape === "fence") return (
+      <svg viewBox="0 0 100 100" style={{ width: "100%", height: "100%", display: "block" }} preserveAspectRatio="none">
+        {/* Two rails and five pointed pickets leave real open gaps, so scenery remains visible
+            through the fence without making its painted material itself look faded. */}
+        <rect x="0" y="40" width="100" height="9" rx="1.5" fill={t} />
+        <rect x="0" y="72" width="100" height="9" rx="1.5" fill={t} />
+        {[4, 25, 46, 67, 88].map((x) => <path key={x} d={`M${x},100 V20 L${x + 6},8 L${x + 12},20 V100 Z`} fill={t} />)}
       </svg>
     );
     const s = { width: "100%", height: "100%", boxSizing: "border-box", background: t };
@@ -7799,7 +7812,7 @@ export default function AssetStudio() {
               ) : lObjKind === "emoji" ? (
                 <button className="objpick" onClick={() => setPicker({ mode: "level" })}><b>{lEmoji}</b> Choose emoji</button>
               ) : (
-                <div className="seg"><button className={lObjShape === "rect" ? "on" : ""} onClick={() => setLObjShape("rect")}><b>▮</b>Square</button><button className={lObjShape === "circle" ? "on" : ""} onClick={() => setLObjShape("circle")}><b>●</b>Circle</button><button className={lObjShape === "tri" ? "on" : ""} onClick={() => setLObjShape("tri")}><b>▲</b>Triangle</button><button className={lObjShape === "tri2" ? "on" : ""} onClick={() => setLObjShape("tri2")} ><b>◺</b>Half triangle</button><button className={lObjShape === "topOutline" ? "on" : ""} onClick={() => setLObjShape("topOutline")}><b>▔</b>Top outline</button><button className={lObjShape === "vineWeb" ? "on" : ""} onClick={() => setLObjShape("vineWeb")}><b>🕸</b>Vine web</button><button className={lObjShape === "ladder" ? "on" : ""} onClick={() => setLObjShape("ladder")}><b>🪜</b>Ladder</button></div>
+                <div className="seg"><button className={lObjShape === "rect" ? "on" : ""} onClick={() => setLObjShape("rect")}><b>▮</b>Square</button><button className={lObjShape === "circle" ? "on" : ""} onClick={() => setLObjShape("circle")}><b>●</b>Circle</button><button className={lObjShape === "tri" ? "on" : ""} onClick={() => setLObjShape("tri")}><b>▲</b>Triangle</button><button className={lObjShape === "tri2" ? "on" : ""} onClick={() => setLObjShape("tri2")} ><b>◺</b>Half triangle</button><button className={lObjShape === "topOutline" ? "on" : ""} onClick={() => setLObjShape("topOutline")}><b>▔</b>Top outline</button><button className={lObjShape === "vineWeb" ? "on" : ""} onClick={() => setLObjShape("vineWeb")}><b>🕸</b>Vine web</button><button className={lObjShape === "ladder" ? "on" : ""} onClick={() => setLObjShape("ladder")}><b>🪜</b>Ladder</button><button className={lObjShape === "fence" ? "on" : ""} onClick={() => setLObjShape("fence")} title="Open picket fence — scenery stays visible through the gaps"><b>♯</b>Fence</button></div>
               )}
               {lObjKind !== "prop" && <div className="lswatches">
                 {lObjKind === "emoji" && <button className={!lTint ? "orig on" : "orig"} onClick={() => setLTint(null)} title="emoji's own colors">🌈</button>}
@@ -8649,7 +8662,7 @@ export default function AssetStudio() {
                     <div key={i} className="fxitem">
                       <div className="fxrow" onClick={() => setLFxEditIdx(fxOpenIdx === i ? -1 : i)}>
                         {o.kind === "shape" ? <span className="fxprev" style={{ display: "inline-block", width: 14, height: 14, background: o.tint || "#7aa2d6", borderRadius: o.shape === "circle" ? "50%" : 2, flexShrink: 0 }} /> : <span className="fxprev">{o.char}</span>}
-                        <span className="fxname">{(o.kind === "shape" ? { rect: "square", circle: "circle", tri: "triangle", tri2: "half-triangle" }[o.shape || "rect"] + " · " : "") + (o.solid ? "solid" : "decor") + (o.inFront ? " · in front" : "") + " · " + (o.size || 1) + "x" + ((o.rot || 0) ? " · " + o.rot + "°" : "")}</span>
+                        <span className="fxname">{(o.kind === "shape" ? levelShapeLabel(o.shape) + " · " : "") + (o.solid ? "solid" : "decor") + (o.inFront ? " · in front" : "") + " · " + (o.size || 1) + "x" + ((o.rot || 0) ? " · " + o.rot + "°" : "")}</span>
                         <button title="bring forward (closer to top)" onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, 1); }}>▲</button>
                         <button title="send back" onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, -1); }}>▼</button>
                         <button title="remove just this one" onClick={(e) => { e.stopPropagation(); removeFxAt(lFxSel, i); if (lFxEditIdx === i) setLFxEditIdx(null); }}>✕</button>

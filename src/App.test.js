@@ -72,6 +72,7 @@ import {
   objKeyAt,
   removeLevelObject,
   levelObjectFootprint,
+  levelShapeLabel,
   propVisibleArtBox,
   recolorAsset,
   restyleAsset,
@@ -756,6 +757,15 @@ describe("object visual layer", () => {
     const seen = new Set();
     for (const solid of [true, false]) for (const inFront of [true, false]) seen.add(objectLayerClass({ solid, inFront }));
     expect([...seen].sort()).toEqual(["lay-bg", "lay-fg", "lay-front"]);
+  });
+});
+
+describe("level object shape labels", () => {
+  test("names the open fence and every older special scenery shape", () => {
+    expect(levelShapeLabel("fence")).toBe("fence");
+    expect(levelShapeLabel("ladder")).toBe("ladder");
+    expect(levelShapeLabel("vineWeb")).toBe("vine web");
+    expect(levelShapeLabel("topOutline")).toBe("top outline");
   });
 });
 
