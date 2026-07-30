@@ -2194,6 +2194,17 @@ export const objKeyAt = (lv, r, c, findAsset) => {
   }
   return best;
 };
+// Removes one exact object from a stored stack. Object erase clicks carry both the anchor key and
+// stack index from the artwork that was actually hit; deleting by footprint alone is ambiguous
+// whenever two props overlap or one prop has transparent space inside its placement rectangle.
+export const removeLevelObject = (lv, key, stackIndex) => {
+  if (!lv || !lv.fx || !Array.isArray(lv.fx[key]) || stackIndex < 0 || stackIndex >= lv.fx[key].length) return lv;
+  const remaining = lv.fx[key].filter((_, i) => i !== stackIndex);
+  const fx = { ...lv.fx };
+  if (remaining.length) fx[key] = remaining;
+  else delete fx[key];
+  return { ...lv, fx };
+};
 // Monotonic token identifying the newest Playtest loop. Only the loop whose local generation
 // still equals this may advance physics; any older loop left alive by an overlapping remount
 // (React StrictMode double-invoke, fast level/loadout re-key) sees it's been superseded and
@@ -6342,14 +6353,23 @@ export default function AssetStudio() {
       ? <div style={outlineStyle(p, off, mirrored, faded)}>{textInner(p, true)}</div>
       : <div style={outlineStyle(p, off, mirrored, faded)}><div style={outlineFillStyle(p)} /></div>
   );
-  const Static = (p, off, faded, flip, key) => { const s = shapeStyle(p, off, faded, flip); s.pointerEvents = "none"; return <React.Fragment key={key}>{OutlineLayer(p, off, flip, faded)}<div style={s}><div style={shapeFillStyle(p)}>{pieceInner(p)}</div></div></React.Fragment>; };
+  const Static = (p, off, faded, flip, key, onPiecePointerDown) => {
+    const s = shapeStyle(p, off, faded, flip);
+    // The positioning wrapper is rectangular, even for circles, triangles, stars, and sparse
+    // prop art. Keep that transparent rectangle out of hit-testing. When an interaction is
+    // supplied, only the clipped/painted inner shape receives the click.
+    s.pointerEvents = "none";
+    const fill = shapeFillStyle(p);
+    if (onPiecePointerDown) { fill.pointerEvents = "auto"; fill.cursor = "pointer"; }
+    return <React.Fragment key={key}>{OutlineLayer(p, off, flip, faded)}<div style={s}><div style={fill} onPointerDown={onPiecePointerDown}>{pieceInner(p)}</div></div></React.Fragment>;
+  };
   // Renders a PROP asset's pixel art scaled to fill its placement box, at animation frame
   // `frameIdx`. The prop's pieces are positioned by percentage of the 200×260 design canvas (that's
   // what shapeStyle does everywhere), so a plain inner container at 100%/100% of the sz-box makes
   // every piece scale together to fit — it never tiles or duplicates, whatever size is chosen. The
   // wrapper is the 200x260 canvas mapped onto the sz-box at TRUE aspect (uniform "contain" scale,
   // centred) — NOT stretched to fill the square, which would shear rotated pieces out of alignment.
-  const propArtInner = (propAsset, widthPx, heightPx, frameIdx, keyBase, tightBox) => {
+  const propArtInner = (propAsset, widthPx, heightPx, frameIdx, keyBase, tightBox, onPiecePointerDown) => {
     const frames = (propAsset && propAsset.frames) || [propAsset && propAsset.angles].filter(Boolean);
     const frame = frames.length ? frames[Math.min(frames.length - 1, Math.max(0, frameIdx || 0))] : null;
     const front = (frame && frame.front) || (propAsset && propAsset.angles && propAsset.angles.front) || [];
@@ -6359,28 +6379,28 @@ export default function AssetStudio() {
     // them out here meant a prop's run never reported hasCutter and the cutter tool silently did
     // nothing on props — no hole was ever cut in a placed object.
     for (const p of front) { if (p.isHitbox) continue; pieces.push(p); if (pmirror(p, "front")) pieces.push(reflect(p)); }
-    if (!pieces.some((p) => !p.isCutter)) return <span style={{ fontSize: Math.max(widthPx, heightPx) * 0.6 + "px", opacity: 0.5 }}>🌿</span>;
+    if (!pieces.some((p) => !p.isCutter)) return <span style={{ fontSize: Math.max(widthPx, heightPx) * 0.6 + "px", opacity: 0.5, pointerEvents: onPiecePointerDown ? "auto" : undefined, cursor: onPiecePointerDown ? "pointer" : undefined }} onPointerDown={onPiecePointerDown}>🌿</span>;
     if (tightBox) {
       // Render the full design canvas (shapeStyle positions pieces as percentages of it), but
       // translate that canvas so the measured visible-art box begins at the placement's 0,0.
       // This crops empty authoring-canvas space without stretching or relocating any piece.
       const scale = Math.min(widthPx / tightBox.w, heightPx / tightBox.h);
-      return <div style={{ position: "absolute", left: -tightBox.minX * scale, top: -tightBox.minY * scale, width: W * scale, height: H * scale }}>{renderPieceRuns({ pieces, cacheKey: keyBase || "prop", keyPrefix: (keyBase || "prop") + "_", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k), maskCss: cutterMaskCss })}</div>;
+      return <div style={{ position: "absolute", left: -tightBox.minX * scale, top: -tightBox.minY * scale, width: W * scale, height: H * scale, pointerEvents: "none" }}>{renderPieceRuns({ pieces, cacheKey: keyBase || "prop", keyPrefix: (keyBase || "prop") + "_", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k, onPiecePointerDown), maskCss: cutterMaskCss })}</div>;
     }
     const sz = Math.max(widthPx, heightPx);
-    const _k = Math.min(sz / W, sz / H), _bw = W * _k, _bh = H * _k; return <div style={{ position: "absolute", left: (sz - _bw) / 2, top: (sz - _bh) / 2, width: _bw, height: _bh }}>{renderPieceRuns({ pieces, cacheKey: keyBase || "prop", keyPrefix: (keyBase || "prop") + "_", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k), maskCss: cutterMaskCss })}</div>;
+    const _k = Math.min(sz / W, sz / H), _bw = W * _k, _bh = H * _k; return <div style={{ position: "absolute", left: (sz - _bw) / 2, top: (sz - _bh) / 2, width: _bw, height: _bh, pointerEvents: "none" }}>{renderPieceRuns({ pieces, cacheKey: keyBase || "prop", keyPrefix: (keyBase || "prop") + "_", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k, onPiecePointerDown), maskCss: cutterMaskCss })}</div>;
   };
   // One place that turns a placed level object into its inner JSX — emoji/shape via objInner,
   // or a prop via propArtInner (looking the asset up + choosing its current animation frame).
   // `animT` is a running frame counter (only advanced during play) so animated props cycle.
-  const renderObj = (o, widthPx, keyBase, animT, heightPx = widthPx, tightBox = null) => {
+  const renderObj = (o, widthPx, keyBase, animT, heightPx = widthPx, tightBox = null, onPiecePointerDown) => {
     if (o && o.kind === "prop") {
       const pa = findA(o.propId);
-      if (!pa) return <span style={{ fontSize: Math.max(widthPx, heightPx) * 0.5 + "px", opacity: 0.5 }}>❓</span>;
+      if (!pa) return <span style={{ fontSize: Math.max(widthPx, heightPx) * 0.5 + "px", opacity: 0.5, pointerEvents: onPiecePointerDown ? "auto" : undefined, cursor: onPiecePointerDown ? "pointer" : undefined }} onPointerDown={onPiecePointerDown}>❓</span>;
       const frames = (pa.frames && pa.frames.length) ? pa.frames.length : 1;
       const fps = pa.animFps || 6;
       const frameIdx = (play && frames > 1) ? Math.floor(((animT || 0) / 60) * fps) % frames : 0;
-      return propArtInner(pa, widthPx, heightPx, frameIdx, keyBase, tightBox);
+      return propArtInner(pa, widthPx, heightPx, frameIdx, keyBase, tightBox, onPiecePointerDown);
     }
     return objInner(o, widthPx);
   };
@@ -7033,9 +7053,12 @@ export default function AssetStudio() {
     if (!lv) return lv;
     const k = cellKey(r, c);
     if (lLayer === "obj") {
+      // Visible object nodes own erasing because they know the exact stack entry that was hit.
+      // A grid-cell fallback can only guess from overlapping rectangular footprints and was able
+      // to delete a completely different prop through transparent canvas space.
+      if (erase || lTool === "erase") return lv;
       const fx = { ...lv.fx };
-      if (erase || lTool === "erase") { delete fx[objKey]; }
-      else if (lObjKind === "prop" && !lPropId) { return lv; /* prop kind chosen but no prop picked yet — nothing to place */ }
+      if (lObjKind === "prop" && !lPropId) { return lv; /* prop kind chosen but no prop picked yet — nothing to place */ }
       else { const stack = fx[objKey] ? fx[objKey].slice() : []; stack.push({ ...nextLevelObject }); fx[objKey] = stack; }
       return { ...lv, fx };
     }
@@ -7634,6 +7657,9 @@ export default function AssetStudio() {
         rampAnchor.current = { r, c }; setRampDragOn(true);
         return;
       }
+      // Object art handles erase directly. Clicking transparent space must do nothing rather than
+      // beginning a cell-based erase stroke that guesses which overlapping footprint was meant.
+      if (lLayer === "obj" && lTool === "erase") return;
       lpaint.current = { on: true, last: k, startX: e.clientX, startY: e.clientY, moved: false };
       paintBrush(r, c, undefined, inb);
       // The inspector follows the object that was just placed, which lives at its centred
@@ -7920,7 +7946,7 @@ export default function AssetStudio() {
                 <div ref={frontCellsRef} style={{ display: "contents" }}>{lvFrontLayer}</div>
                 {layerMove && layerMove.levelId === lv.id && Object.keys(layerMove.cells).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"mv" + k} className="lcell moveSel" style={{ left: c * LV_CELL, top: r * LV_CELL }} />; })}
                 {lvFxLayer}
-                {lvPropMeta.map(({ o, si, r, c, k }) => { const layout = levelObjectPixelLayout(o); const eraseNow = !play && lTool === "erase"; return <div key={"xp" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: layout.width, height: layout.height, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box)}</div>; })}
+                {lvPropMeta.map(({ o, si, r, c, k }) => { const layout = levelObjectPixelLayout(o); const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
                 {!play && lvClimbLayer}
                 <div ref={hazardCellsRef} style={{ display: "contents" }}>{lvHazardLayer}</div>
                 {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : "💎"}</div>; })}
@@ -8333,7 +8359,9 @@ export default function AssetStudio() {
                     // through, not too strong) so the object still clearly reads as there.
                     const behind = play && p.x + pw > left && p.x < left + layout.width && p.y + ph > top && p.y < top + layout.height;
                     const eraseNow = !play && lTool === "erase";
-                    return <div key={key} className={"lobj infront " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "") + (behind ? " behindFade" : "")} style={{ left, top, width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: eraseNow ? "auto" : "none", cursor: eraseNow ? "pointer" : undefined, opacity: behind ? 0.55 : 1 }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{renderObj(o, layout.width, key, pframe, layout.height, layout.box)}</div>;
+                    const eraseObject = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined;
+                    const prop = o.kind === "prop";
+                    return <div key={key} data-object-key={k} data-object-index={si} className={"lobj infront " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "") + (behind ? " behindFade" : "")} style={{ left, top, width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: eraseNow && !prop ? "auto" : "none", cursor: eraseNow && !prop ? "pointer" : undefined, opacity: behind ? 0.55 : 1 }} onPointerDown={eraseNow && !prop ? eraseObject : undefined}>{renderObj(o, layout.width, key, pframe, layout.height, layout.box, prop ? eraseObject : undefined)}</div>;
                   });
                 })()}
                 {/* Enemy spawns: AI-driven (Guard/Seek/Avoid, per-enemy in the Enemy Creator), fall via

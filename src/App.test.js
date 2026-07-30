@@ -70,6 +70,7 @@ import {
   objAnchorForObject,
   objAnchorKey,
   objKeyAt,
+  removeLevelObject,
   levelObjectFootprint,
   propVisibleArtBox,
   recolorAsset,
@@ -902,6 +903,32 @@ describe("finding the object under a clicked cell", () => {
     const findAsset = (id) => id === "trailer" ? prop : null;
     expect(objKeyAt(lv, 4, 20, findAsset)).toBe("0,11");
     expect(objKeyAt(lv, 12, 20, findAsset)).toBe(null);
+  });
+});
+
+describe("erasing one exact level object", () => {
+  test("removes only the clicked stack entry and leaves overlapping props intact", () => {
+    const bottom = { kind: "prop", propId: "house" };
+    const clicked = { kind: "prop", propId: "tree" };
+    const top = { kind: "prop", propId: "awning" };
+    const lv = { fx: { "4,7": [bottom, clicked, top], "8,2": [{ kind: "emoji", char: "x" }] } };
+
+    const out = removeLevelObject(lv, "4,7", 1);
+
+    expect(out.fx["4,7"]).toEqual([bottom, top]);
+    expect(out.fx["8,2"]).toEqual(lv.fx["8,2"]);
+    expect(out.fx).not.toBe(lv.fx);
+    expect(lv.fx["4,7"]).toEqual([bottom, clicked, top]);
+  });
+
+  test("drops the anchor only when its last object is erased", () => {
+    expect(removeLevelObject({ fx: { "2,3": [{ kind: "shape" }] } }, "2,3", 0).fx["2,3"]).toBeUndefined();
+  });
+
+  test("a stale target is a safe no-op", () => {
+    const lv = { fx: { "2,3": [{ kind: "shape" }] } };
+    expect(removeLevelObject(lv, "missing", 0)).toBe(lv);
+    expect(removeLevelObject(lv, "2,3", 4)).toBe(lv);
   });
 });
 
