@@ -6369,6 +6369,23 @@ export default function AssetStudio() {
       ? <div style={outlineStyle(p, off, mirrored, faded)}>{textInner(p, true)}</div>
       : <div style={outlineStyle(p, off, mirrored, faded)}><div style={outlineFillStyle(p)} /></div>
   );
+  // Editor selection must trace the painted silhouette, not the piece's rectangular layout box.
+  // That box is especially misleading for a half-triangle: half of the old blue rectangle was
+  // transparent, and clicking there bubbled to the canvas and deselected the piece. An SVG stroke
+  // uses the same normalized polygon points as the fill/cutter/normal outline, so it stays exact
+  // through resize, rotation, custom Fill polygons, and mirrored copies.
+  const SelectionOutline = (p, mirrored, color) => {
+    const s = shapeStyle({ ...p, fx: null }, null, false, mirrored);
+    Object.assign(s, { pointerEvents: "none", overflow: "visible" });
+    const common = { fill: "none", stroke: color, strokeWidth: 2, strokeDasharray: "5 3", strokeLinejoin: "round", vectorEffect: "non-scaling-stroke" };
+    const pts = shapePolyPoints(p);
+    let shape;
+    if (pts) shape = <polygon points={pts.map(([x, y]) => `${x * 100},${y * 100}`).join(" ")} {...common} />;
+    else if (p.kind === "circle") shape = <ellipse cx="50" cy="50" rx="50" ry="50" {...common} />;
+    else if (p.kind === "roundrect") shape = <rect x="0" y="0" width="100" height="100" rx="22" ry="22" {...common} />;
+    else shape = <rect x="0" y="0" width="100" height="100" {...common} />;
+    return <svg style={s} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">{shape}</svg>;
+  };
   const Static = (p, off, faded, flip, key, onPiecePointerDown) => {
     const s = shapeStyle(p, off, faded, flip);
     // The positioning wrapper is rectangular, even for circles, triangles, stars, and sparse
@@ -6439,9 +6456,8 @@ export default function AssetStudio() {
       fillS.border = "2px dashed #cfd6e6";
       fillS.opacity = 0.55;
     }
-    if (groupIds.includes(p.id)) { s.outline = "2px dashed #ffb84f"; s.outlineOffset = "1px"; }
-    else if (p.id === selId) { s.outline = "2px dashed #4f7cf6"; s.outlineOffset = "1px"; }
-    return <React.Fragment key={key}>{OutlineLayer(mirrored, null, true, false)}<div style={s}><div style={fillS}>{pieceInner(mirrored)}</div></div></React.Fragment>;
+    const selectionColor = groupIds.includes(p.id) ? "#ffb84f" : p.id === selId ? "#4f7cf6" : null;
+    return <React.Fragment key={key}>{OutlineLayer(mirrored, null, true, false)}<div style={s}><div style={fillS}>{pieceInner(mirrored)}</div></div>{selectionColor && SelectionOutline(mirrored, true, selectionColor)}</React.Fragment>;
   };
   // A cutter piece paints nothing of its own in shapeFillStyle (its hole is a container-level
   // mask applied at final-render sites — see cutterMaskCss) — but while EDITING it still needs to
@@ -6450,11 +6466,16 @@ export default function AssetStudio() {
   // because gameplay render sites filter isCutter pieces out before mapping them to Static).
   const Block = (p) => {
     const s = shapeStyle(p, null, false, false);
+    // Only the painted/clipped inner shape is a hit target. Leaving the transparent outer layout
+    // rectangle interactive made the empty half of a half-triangle swallow clicks and immediately
+    // deselect it via handleArtClick, while also blocking pieces drawn underneath that empty half.
+    s.pointerEvents = "none";
     const fillS = shapeFillStyle(p);
+    fillS.pointerEvents = "auto";
     fillS.cursor = "grab";
     if (p.isCutter) { fillS.background = "repeating-conic-gradient(#5b6478 0% 25%, #232838 0% 50%) 0 0/10px 10px"; fillS.border = "2px dashed #cfd6e6"; }
-    if (groupIds.includes(p.id)) { s.outline = "2px dashed #ffb84f"; s.outlineOffset = "1px"; } else if (p.id === selId) { s.outline = "2px dashed #4f7cf6"; s.outlineOffset = "1px"; }
-    return <React.Fragment key={p.id}>{OutlineLayer(p, null, false, false)}<div style={s}><div style={fillS} onPointerDown={(e) => grabPiece(e, p)}>{pieceInner(p)}</div></div></React.Fragment>;
+    const selectionColor = groupIds.includes(p.id) ? "#ffb84f" : p.id === selId ? "#4f7cf6" : null;
+    return <React.Fragment key={p.id}>{OutlineLayer(p, null, false, false)}<div style={s}><div style={fillS} onPointerDown={(e) => grabPiece(e, p)}>{pieceInner(p)}</div></div>{selectionColor && SelectionOutline(p, false, selectionColor)}</React.Fragment>;
   };
   const pctBox = (q) => ({ left: (q.x / W * 100) + "%", top: (q.y / H * 100) + "%", width: (q.w / W * 100) + "%", height: (q.h / H * 100) + "%" });
 
