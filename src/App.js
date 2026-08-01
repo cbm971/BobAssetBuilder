@@ -1250,44 +1250,21 @@ export const armAnchorFinder = (blocks) => {
   if (!arms.length) return () => null;
   return (b) => { const cx = b.x + b.w / 2; return arms.reduce((a, c) => (Math.abs(c.x + c.w / 2 - cx) < Math.abs(a.x + a.w / 2 - cx) ? c : a)); };
 };
-// The playtest crouch wrapper is intentionally shorter than the normal 200x260 art ratio. That
-// makes a horizontal sleeve rotated down the arm lose thickness: its local height is scaled by
-// the compressed Y axis, while the vertical body arm's width is still scaled by X. Restore only
-// the missing cross-arm coverage on substantial over-arm clothing pieces. Tiny cuffs/details stay
-// authored as drawn, and preserving armShoulderPoint keeps every adjusted sleeve glued to the same
-// shoulder when the arm later walks, aims, climbs, or swings.
-export const fitCrouchSleeves = (blocks, renderW, renderH, paddingDesignPx = 2) => {
-  if (!blocks || !blocks.length || !(renderW > 0) || !(renderH > 0)) return blocks;
-  const sx = renderW / W, sy = renderH / H;
-  if (sy >= sx - 0.0001) return blocks; // standing/aspect-correct art needs no compensation
-  const anchorOf = armAnchorFinder(blocks);
-  const screenWidth = (p) => {
-    const rad = (p.rot || 0) * Math.PI / 180;
-    return Math.abs(p.w * sx * Math.cos(rad)) + Math.abs(p.h * sy * Math.sin(rad));
-  };
-  return blocks.map((p) => {
-    if (!p._slot || p.limb !== "arm" || !p.overArms || p.role === "weaponArm") return p;
-    const arm = anchorOf(p);
-    if (!arm || Math.max(p.w, p.h) < Math.max(arm.w, arm.h) * 0.4) return p;
-    const target = screenWidth(arm) + paddingDesignPx * sx;
-    if (screenWidth(p) >= target - 0.001) return p;
-
-    const rad = (p.rot || 0) * Math.PI / 180;
-    const growH = p.w >= p.h;
-    const fixed = growH ? Math.abs(p.w * sx * Math.cos(rad)) : Math.abs(p.h * sy * Math.sin(rad));
-    const unit = growH ? sy * Math.abs(Math.sin(rad)) : sx * Math.abs(Math.cos(rad));
-    if (unit < 0.0001) return p;
-    const oldSize = growH ? p.h : p.w;
-    const newSize = Math.min(oldSize * 2.25, Math.max(oldSize, (target - fixed) / unit));
-    if (newSize <= oldSize + 0.001) return p;
-
-    const shoulder = armShoulderPoint(p);
-    const next = growH ? { ...p, h: newSize } : { ...p, w: newSize };
-    const movedShoulder = armShoulderPoint(next);
-    next.x += shoulder.x - movedShoulder.x;
-    next.y += shoulder.y - movedShoulder.y;
-    return next;
-  });
+// Crouch physics is shorter, but the authored pose still lives on the ordinary 200x260 art
+// canvas. Stretching that canvas down to the crouch hitbox distorted every rotated piece: a long
+// sleeve became thin, and compensating by changing its box merely made it too long during a
+// crouch-walk. Render crouch art on a uniformly-scaled inner plane instead, then place that plane
+// so the authored feet meet the physics floor. Piece dimensions and arm/sleeve overlap remain
+// exactly as drawn in Dress Bob, including while the rigid arm-follow animation is running.
+export const crouchArtPlane = (blocks, renderW, hitH) => {
+  if (!blocks || !blocks.length || !(renderW > 0) || !(hitH > 0)) return null;
+  const visible = blocks.filter((p) => !p.isHitbox && !p.isMuzzle);
+  if (!visible.length) return null;
+  const legs = visible.filter((p) => p.limb === "leg");
+  const baselineSource = legs.length ? legs : visible;
+  const baseline = Math.max(...baselineSource.map((p) => p.y + p.h));
+  const scale = renderW / W;
+  return { top: hitH - baseline * scale, height: H * scale, baseline };
 };
 // The piece an enemy swings/aims/attaches a weapon to: the explicit weapon arm if one exists,
 // else the largest piece flagged 💪 Arm. One rule shared by the AI render and the melee code.
@@ -2084,13 +2061,14 @@ export const applyLimbSwing = (blocks, legIds, armIds, swing, opts) => {
     return b;
   });
 };
-// A multi-column creature already draws complete front/back leg stacks. The biped rotation used by
-// applyLimbSwing is wrong for those stacks: it rotates every authored calf/foot block and can turn
-// one four-piece dog leg into a broken-looking chain. Quadrupeds instead get a small opposite-phase
-// horizontal stride. Every member of one column receives the exact same translation, so the stack
-// cannot separate, its foot baseline never rises, and single-column bipeds keep their old swing.
-export const MULTI_LEG_STRIDE_SCALE = 0.34;
-export const multiLegStride = (blocks, legIds, swing) => {
+// A multi-column creature already draws complete front/back leg stacks. Rotate each whole authored
+// stack as one rigid assembly around its own hip instead of either rotating every calf/paw around
+// a separate local pivot (which breaks the stack) or sliding the stack horizontally (which is not
+// a jointed walk). Piece centres orbit the shared hip and every piece receives the same visible
+// angle, preserving all authored distances and existing local rotations. Neighbouring columns use
+// opposite phase; a one-column biped still falls through to its established walk path.
+export const MULTI_LEG_SWING_SCALE = 0.65;
+export const multiLegPivot = (blocks, legIds, swing) => {
   const legs = (blocks || []).filter((b) => legIds.has(b.id));
   const gap = 6, overlaps = (a, b) => a.x <= b.x + b.w + gap && b.x <= a.x + a.w + gap;
   const columns = [];
@@ -2101,9 +2079,26 @@ export const multiLegStride = (blocks, legIds, swing) => {
   }
   if (columns.length < 2) return null;
   columns.sort((a, b) => Math.min(...a.map((p) => p.x)) - Math.min(...b.map((p) => p.x)));
-  const offsets = new Map();
-  columns.forEach((col, i) => { const dx = (i % 2 ? -1 : 1) * swing * MULTI_LEG_STRIDE_SCALE; for (const p of col) offsets.set(p.id, dx); });
-  return (blocks || []).map((p) => offsets.has(p.id) ? { ...p, x: p.x + offsets.get(p.id) } : p);
+  const moved = new Map();
+  columns.forEach((col, i) => {
+    const bodyPieces = col.filter((p) => !p._slot && !p._isShoe);
+    const hipPiece = (bodyPieces.length ? bodyPieces : col).reduce((a, p) => (p.y < a.y ? p : a));
+    const jointX = hipPiece.x + hipPiece.w / 2, jointY = hipPiece.y;
+    const visibleDelta = (i % 2 ? -1 : 1) * swing * MULTI_LEG_SWING_SCALE;
+    const rad = visibleDelta * Math.PI / 180;
+    for (const p of col) {
+      // Leg pieces normally rotate about their centre. Orbit that exact render pivot around the
+      // shared hip, then add the same ON-SCREEN angle. A live mirror reverses stored rotation, so
+      // its stored delta is reversed too while its centre still follows the same world-space arc.
+      const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+      const dx = cx - jointX, dy = cy - jointY;
+      const nx = jointX + dx * Math.cos(rad) - dy * Math.sin(rad);
+      const ny = jointY + dx * Math.sin(rad) + dy * Math.cos(rad);
+      const storedDelta = visibleDelta * (p._m && p.mirrorTwist !== false ? -1 : 1);
+      moved.set(p.id, { ...p, x: p.x + nx - cx, y: p.y + ny - cy, rot: (p.rot || 0) + storedDelta });
+    }
+  });
+  return (blocks || []).map((p) => moved.get(p.id) || p);
 };
 // Align a hand-drawn action pose to the ordinary Side-pose foot line. The Jumping Pit Bull's
 // Attack art intentionally reaches much higher, but its back foot is also authored 22px lower;
@@ -2406,8 +2401,8 @@ export const slopeSurfaceAt = (lv, xPixel, r0, r1, CW, CH) => {
 // Player-ground variant: pick the ramp surface NEAREST the feet within reach this frame.
 // slopeSurfaceAt always took the highest (smallest-y) surface in a wide row band, which grabbed
 // the wrong tier when dropping onto a downslope and teleported the player sideways/down into
-// unrelated geometry. Row scan is also tightened — never probe a full cell below the feet unless
-// the player is actually falling (vy > 0).
+// unrelated geometry. Lower-row scanning is bounded by the distance the feet can actually reach
+// this frame, so joined downhill pieces stay connected without grabbing distant terrain.
 export const slopeSurfaceForPlayer = (lv, xPixel, headY, feetBottom, vy, dx, dtMul, CW, CH) => {
   const c = Math.floor(xPixel / CW); if (c < 0 || c >= lv.cols) return null;
   const headRow = Math.floor(headY / CH);
@@ -2415,9 +2410,8 @@ export const slopeSurfaceForPlayer = (lv, xPixel, headY, feetBottom, vy, dx, dtM
   const sR0 = headRow;
   // While falling, the scan must cover every row the feet swept through this frame — at the
   // loop's dt clamp of 3, a long fall moves vy*dt (up to ~100px+) in one step, so a fixed +1
-  // row starved the down-reach. Walking (vy <= 0.5) keeps the old rows exactly.
+  // row starved the down-reach. Grounded movement adds only the rows downReach can really cover.
   const sweep = vy > 0.5 ? vy * (dtMul || 1) : 0;
-  const sR1 = feetRow + (vy > 0.5 ? Math.max(1, Math.ceil(sweep / CH)) : 0);
   // downReach is how far BELOW the feet a ramp surface may still be snapped to this frame.
   // It must NOT depend on horizontal INPUT: the old `+ Math.abs(dx)` meant a player HOLDING a
   // direction (dx = full walk speed) could catch a ramp lip that an IDLE player (dx = 0, or
@@ -2428,6 +2422,13 @@ export const slopeSurfaceForPlayer = (lv, xPixel, headY, feetBottom, vy, dx, dtM
   // still honour any larger actual dx so a fast walker reaches at least as far as before.
   const reachStick = Math.max(Math.abs(dx || 0), 7 * (dtMul || 1)); // 7 = base ground speed
   const downReach = Math.max(2, vy * (dtMul || 1) + reachStick + 2);
+  // A joined downhill ramp starts its next piece in the row BELOW the old one. Just before the
+  // feet cross that row boundary, scanning only feetRow loses the ramp for a frame even though
+  // its next surface is merely a few pixels below and inside downReach. Scan as many lower rows
+  // as the real reach can cover. The loop rejects an above-feet surface from those extra rows,
+  // so this cannot pull somebody upward through a ramp while walking in a corridor underneath.
+  const belowRows = Math.max(1, Math.ceil(downReach / CH));
+  const sR1 = feetRow + (vy > 0.5 ? Math.max(belowRows, Math.ceil(sweep / CH)) : belowRows);
   let best = null;
   for (let r = sR0; r <= sR1; r++) {
     if (r < 0 || r >= lv.rows) continue;
@@ -2439,6 +2440,7 @@ export const slopeSurfaceForPlayer = (lv, xPixel, headY, feetBottom, vy, dx, dtM
       const overallFrac = fgDistFromLow(cell, localFrac) / fgRun(cell);
       const surfaceY = (r + 1) * CH - overallFrac * CH;
       const gap = surfaceY - feetBottom; // >0 surface below feet, <0 surface above feet
+      if (r > feetRow && gap < 0) continue; // extra downward probe is for the next floor, never an overhead ramp
       // Above-feet window: the classic 31px catches burial after modest steps; the sweep term
       // additionally accepts any surface the feet CROSSED during this frame's motion (fast-fall
       // straddle at big dt). It never exceeds the actual swept distance, so a player standing or
@@ -8258,7 +8260,7 @@ export default function AssetStudio() {
                     const rest = blocks.filter((b) => b._slot !== ea.slot);
                     blocks = firstIdx === -1 ? rest.concat(framePieces) : rest.slice(0, firstIdx).concat(framePieces, rest.slice(firstIdx));
                   }
-                  if (blocks && p.crouch) blocks = fitCrouchSleeves(blocks, renderW, ph);
+                  const crouchPlane = blocks && p.crouch ? crouchArtPlane(blocks, renderW, ph) : null;
                   // Captured BEFORE any climb/walk/swing modifications — this is the arm's
                   // rotation as originally drawn, which is what the weapon's hand-alignment
                   // point was designed against. Any later change to the arm's rot (climbing,
@@ -8527,7 +8529,10 @@ export default function AssetStudio() {
                         return <div className="playerReloadTrack" style={{ left: p.x, top: p.y - 17 + (p.stepEase || 0) - climbLift, width: pw }}><div className="playerReloadFill" style={{ width: (done * 100) + "%" }} /></div>;
                       })()}
                       <div className={blocks ? "playerWrap" : "player"} style={style}>
-                        {blocks ? renderPieceRuns({ pieces: blocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "player", keyPrefix: "pl", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k), maskCss: cutterMaskCss }) : <><div className="peye" /><div className="pbody" /></>}
+                        {blocks ? (() => {
+                          const art = renderPieceRuns({ pieces: blocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "player", keyPrefix: "pl", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k), maskCss: cutterMaskCss });
+                          return crouchPlane ? <div style={{ position: "absolute", left: 0, top: crouchPlane.top, width: renderW, height: crouchPlane.height }}>{art}</div> : art;
+                        })() : <><div className="peye" /><div className="pbody" /></>}
                       </div>
                     </>
                   );
@@ -8603,7 +8608,6 @@ export default function AssetStudio() {
                   const ePoseKey = eUseAtkPose ? "attack" : enemyPoseKey(ea, ducking ? "crouch" : "side");
                   let eBlocks = bake(ea, ePoseKey);
                   if (eUseAtkPose) eBlocks = alignPoseFootBaseline(bake(ea, enemyPoseKey(ea, "side")), eBlocks);
-                  if (ducking) eBlocks = fitCrouchSleeves(eBlocks, eRenderW, eph);
                   // Walk cycle: swing the legs (and add a mirrored back leg) exactly like the player,
                   // driven by the enemy's own walkPhase. Legs only — applyLimbSwing never touches arms,
                   // so the aim/attack/weapon pipeline below is completely unaffected. Without this the
@@ -8611,8 +8615,8 @@ export default function AssetStudio() {
                   if (ep && ep.walking && !ducking && !eUseAtkPose) {
                     const { legIds, armIds } = identifyLimbs(eBlocks);
                     const eSwing = Math.sin(ep.walkPhase || 0) * 28;
-                    const stackedStride = multiLegStride(eBlocks, legIds, eSwing);
-                    if (stackedStride) eBlocks = stackedStride;
+                    const stackedPivot = multiLegPivot(eBlocks, legIds, eSwing);
+                    if (stackedPivot) eBlocks = stackedPivot;
                     else { eBlocks = addBackLeg(eBlocks, legIds, eSwing); eBlocks = applyLimbSwing(eBlocks, legIds, armIds, eSwing); }
                   }
                   // A dressed-look enemy already has a frozen copy of its weapon baked into its

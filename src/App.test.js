@@ -39,6 +39,7 @@ import {
   RANGED_FIRE_POSE_FRAMES,
   weaponPoseFired,
   slopeSurfaceAt,
+  slopeSurfaceForPlayer,
   TEXTURES,
   TEXTURE_KEYS,
   newTexture,
@@ -96,9 +97,9 @@ import {
   ENEMY_ITEM_DROP_CHANCE,
   enemyDropOverlapping,
   rollEnemyItemDrop,
-  multiLegStride,
-  MULTI_LEG_STRIDE_SCALE,
-  fitCrouchSleeves,
+  multiLegPivot,
+  MULTI_LEG_SWING_SCALE,
+  crouchArtPlane,
   alignPoseFootBaseline,
 } from "./App";
 
@@ -166,7 +167,7 @@ describe("enemy item drops", () => {
 });
 
 describe("multi-leg enemy walk", () => {
-  test("moves each authored Pit Bull leg stack as one planted unit", () => {
+  test("pivots each authored Pit Bull leg stack rigidly around its own hip", () => {
     const rest = [
       { id: "frontHip", x: 60, y: 101, w: 17, h: 35, rot: 180 },
       { id: "frontShin", x: 63, y: 124, w: 11, h: 24 },
@@ -178,21 +179,24 @@ describe("multi-leg enemy walk", () => {
       { id: "backPaw", x: 122, y: 137, w: 16, h: 13 },
     ];
     const legIds = new Set(rest.map((p) => p.id));
-    const moved = multiLegStride(rest, legIds, 28);
-    const frontDx = ["frontHip", "frontShin", "frontFoot", "frontPaw"].map((id) => moved.find((p) => p.id === id).x - rest.find((p) => p.id === id).x);
-    const backDx = ["backHip", "backShin", "backFoot", "backPaw"].map((id) => moved.find((p) => p.id === id).x - rest.find((p) => p.id === id).x);
-    frontDx.forEach((dx) => expect(dx).toBeCloseTo(frontDx[0], 8));
-    backDx.forEach((dx) => expect(dx).toBeCloseTo(backDx[0], 8));
-    expect(Math.abs(frontDx[0])).toBeCloseTo(28 * MULTI_LEG_STRIDE_SCALE, 8);
-    expect(Math.abs(frontDx[0])).toBeGreaterThan(9);
-    expect(frontDx[0]).toBeCloseTo(-backDx[0], 6);
-    expect(moved.map((p) => p.y)).toEqual(rest.map((p) => p.y));
-    expect(moved.map((p) => p.rot)).toEqual(rest.map((p) => p.rot));
+    const moved = multiLegPivot(rest, legIds, 28);
+    const ids = ["frontHip", "frontShin", "frontFoot", "frontPaw"];
+    const center = (p) => ({ x: p.x + p.w / 2, y: p.y + p.h / 2 });
+    const distance = (a, b) => Math.hypot(center(a).x - center(b).x, center(a).y - center(b).y);
+    for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+      expect(distance(moved.find((p) => p.id === ids[i]), moved.find((p) => p.id === ids[j]))).toBeCloseTo(distance(rest.find((p) => p.id === ids[i]), rest.find((p) => p.id === ids[j])), 8);
+    }
+    const frontDelta = ids.map((id) => (moved.find((p) => p.id === id).rot || 0) - (rest.find((p) => p.id === id).rot || 0));
+    frontDelta.forEach((deg) => expect(deg).toBeCloseTo(28 * MULTI_LEG_SWING_SCALE, 8));
+    const backDelta = ["backHip", "backShin", "backFoot", "backPaw"].map((id) => (moved.find((p) => p.id === id).rot || 0) - (rest.find((p) => p.id === id).rot || 0));
+    backDelta.forEach((deg) => expect(deg).toBeCloseTo(-28 * MULTI_LEG_SWING_SCALE, 8));
+    const frontDx = ids.map((id) => moved.find((p) => p.id === id).x - rest.find((p) => p.id === id).x);
+    expect(Math.max(...frontDx) - Math.min(...frontDx)).toBeGreaterThan(3); // an arc around the hip, not one shared slide
   });
 
   test("leaves a single-column biped for the normal swing code", () => {
     const oneLeg = [{ id: "hip", x: 60, y: 100, w: 15, h: 35 }, { id: "foot", x: 60, y: 135, w: 15, h: 10 }];
-    expect(multiLegStride(oneLeg, new Set(["hip", "foot"]), 28)).toBeNull();
+    expect(multiLegPivot(oneLeg, new Set(["hip", "foot"]), 28)).toBeNull();
   });
 
   test("raises the Pit Bull attack pose until its back foot matches the Side baseline", () => {
@@ -208,26 +212,44 @@ describe("crouching sleeve coverage", () => {
   const bodyArm = { id: "arm", x: 140, y: 124, w: 18, h: 60, role: "weaponArm", limb: "arm", armPivot: "top" };
   const jacketSleeve = { id: "sleeve", x: 131, y: 148, w: 54, h: 21, rot: 88, limb: "arm", armPivot: "top", overArms: true, _slot: "jacket" };
   const cuff = { id: "cuff", x: 154, y: 143, w: 13, h: 9, rot: 87, limb: "arm", armPivot: "top", overArms: true, _slot: "jacket" };
+  const leg = { id: "leg", x: 104, y: 188, w: 30, h: 42, limb: "leg" };
   const renderW = 161.5, crouchH = 126;
-  const aabbWidth = (p, h = crouchH) => {
-    const rad = (p.rot || 0) * Math.PI / 180;
-    return Math.abs(p.w * (renderW / 200) * Math.cos(rad)) + Math.abs(p.h * (h / 260) * Math.sin(rad));
-  };
 
-  test("widens the Army Jacket's main sleeve across the crouched arm without moving its shoulder", () => {
-    expect(aabbWidth(jacketSleeve)).toBeLessThan(aabbWidth(bodyArm));
-    const fitted = fitCrouchSleeves([bodyArm, jacketSleeve, cuff], renderW, crouchH);
-    const sleeve = fitted.find((p) => p.id === "sleeve");
-    expect(aabbWidth(sleeve)).toBeGreaterThan(aabbWidth(bodyArm));
-    expect(sleeve.h).toBeGreaterThan(jacketSleeve.h);
-    expect({ x: sleeve.x + sleeve.w / 2, y: sleeve.y }).toEqual({ x: jacketSleeve.x + jacketSleeve.w / 2, y: jacketSleeve.y });
+  test("keeps authored sleeve proportions on a uniformly scaled crouch plane", () => {
+    const blocks = [bodyArm, jacketSleeve, cuff, leg];
+    const plane = crouchArtPlane(blocks, renderW, crouchH);
+    const scale = renderW / 200;
+    expect(plane.height).toBeCloseTo(260 * scale, 8);
+    expect(plane.height / renderW).toBeCloseTo(260 / 200, 8);
+    expect(plane.top + (leg.y + leg.h) * scale).toBeCloseTo(crouchH, 8);
+    expect(jacketSleeve).toEqual({ id: "sleeve", x: 131, y: 148, w: 54, h: 21, rot: 88, limb: "arm", armPivot: "top", overArms: true, _slot: "jacket" });
   });
 
-  test("leaves small cuff details and aspect-correct standing art unchanged", () => {
-    const crouched = fitCrouchSleeves([bodyArm, jacketSleeve, cuff], renderW, crouchH);
-    expect(crouched.find((p) => p.id === "cuff")).toBe(cuff);
-    const original = [bodyArm, jacketSleeve, cuff];
-    expect(fitCrouchSleeves(original, renderW, renderW * 260 / 200)).toBe(original);
+  test("falls back to the visible-art baseline when a pose has no flagged leg", () => {
+    const plane = crouchArtPlane([bodyArm, jacketSleeve, cuff], renderW, crouchH);
+    expect(plane.baseline).toBe(bodyArm.y + bodyArm.h);
+    expect(crouchArtPlane([], renderW, crouchH)).toBeNull();
+  });
+});
+
+describe("joined downhill ramp pieces", () => {
+  test("keeps contact when the next ramp section starts in the row below the feet", () => {
+    const lv = { cols: 30, rows: 30, fg: {
+      "20,17": { c: "#544d45", slope: -1, run: 8, step: 7 },
+      "21,18": { c: "#544d45", slope: -1, run: 6, step: 0 },
+    } };
+    const feetBottom = 629.5; // still in row 20, just before the 630px seam
+    const hit = slopeSurfaceForPlayer(lv, 18 * 30 + 10, 420, feetBottom, 0.175, 7, 1, 30, 30);
+    expect(hit).not.toBeNull();
+    expect(hit.dir).toBe(-1);
+    expect(hit.run).toBe(6);
+    expect(hit.y).toBeCloseTo(631.667, 2);
+    expect(hit.gap).toBeGreaterThan(0);
+  });
+
+  test("does not reach a lower-row ramp that is farther away than this frame can travel", () => {
+    const lv = { cols: 30, rows: 30, fg: { "21,18": { c: "#544d45", slope: -1, run: 6, step: 5 } } };
+    expect(slopeSurfaceForPlayer(lv, 18 * 30 + 25, 420, 620, 0.175, 7, 1, 30, 30)).toBeNull();
   });
 });
 
