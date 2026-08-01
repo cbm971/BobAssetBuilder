@@ -2045,12 +2045,13 @@ export const applyLimbSwing = (blocks, legIds, armIds, swing, opts) => {
     return b;
   });
 };
-// A multi-column creature already draws its front and back leg. Rotating both stacks around their
-// hips makes the bottom of each straight leg trace an upward arc, which reads as floating feet on
-// long-bodied animals. Preserve the swing's horizontal stride but lower each complete authored
-// stack just enough to keep its original lowest point planted. Single-column bipeds are untouched.
-export const plantMultiLegFeet = (restBlocks, movedBlocks, legIds) => {
-  const legs = (restBlocks || []).filter((b) => legIds.has(b.id));
+// A multi-column creature already draws complete front/back leg stacks. The biped rotation used by
+// applyLimbSwing is wrong for those stacks: it rotates every authored calf/foot block and can turn
+// one four-piece dog leg into a broken-looking chain. Quadrupeds instead get a small opposite-phase
+// horizontal stride. Every member of one column receives the exact same translation, so the stack
+// cannot separate, its foot baseline never rises, and single-column bipeds keep their old swing.
+export const multiLegStride = (blocks, legIds, swing) => {
+  const legs = (blocks || []).filter((b) => legIds.has(b.id));
   const gap = 6, overlaps = (a, b) => a.x <= b.x + b.w + gap && b.x <= a.x + a.w + gap;
   const columns = [];
   for (const leg of legs) {
@@ -2058,18 +2059,25 @@ export const plantMultiLegFeet = (restBlocks, movedBlocks, legIds) => {
     if (!hits.length) columns.push([leg]);
     else { hits[0].push(leg); for (const extra of hits.slice(1)) { hits[0].push(...extra); columns.splice(columns.indexOf(extra), 1); } }
   }
-  if (columns.length < 2) return movedBlocks;
+  if (columns.length < 2) return null;
+  columns.sort((a, b) => Math.min(...a.map((p) => p.x)) - Math.min(...b.map((p) => p.x)));
   const offsets = new Map();
-  for (const col of columns) {
-    const ids = new Set(col.map((p) => p.id));
-    const moved = (movedBlocks || []).filter((p) => ids.has(p.id));
-    if (!moved.length) continue;
-    const restBottom = Math.max(...col.map((p) => p.y + p.h));
-    const movedBottom = Math.max(...moved.map((p) => p.y + p.h));
-    const dy = Math.max(0, restBottom - movedBottom);
-    for (const id of ids) offsets.set(id, dy);
-  }
-  return (movedBlocks || []).map((p) => offsets.has(p.id) ? { ...p, y: p.y + offsets.get(p.id) } : p);
+  columns.forEach((col, i) => { const dx = (i % 2 ? -1 : 1) * swing * 0.18; for (const p of col) offsets.set(p.id, dx); });
+  return (blocks || []).map((p) => offsets.has(p.id) ? { ...p, x: p.x + offsets.get(p.id) } : p);
+};
+// Align a hand-drawn action pose to the ordinary Side-pose foot line. The Jumping Pit Bull's
+// Attack art intentionally reaches much higher, but its back foot is also authored 22px lower;
+// without this translation the renderer buries that foot instead of showing the extra height.
+export const alignPoseFootBaseline = (baseBlocks, actionBlocks) => {
+  const baseline = (list) => {
+    const legs = (list || []).filter((p) => p.limb === "leg" && !p._slot);
+    const source = legs.length ? legs : (list || []).filter((p) => !p.isHitbox && !p.isMuzzle);
+    return source.length ? Math.max(...source.map((p) => p.y + p.h)) : null;
+  };
+  const baseY = baseline(baseBlocks), actionY = baseline(actionBlocks);
+  if (baseY === null || actionY === null) return actionBlocks;
+  const dy = baseY - actionY;
+  return Math.abs(dy) < 0.001 ? actionBlocks : (actionBlocks || []).map((p) => ({ ...p, y: p.y + dy }));
 };
 // Arms swing during a plain walk, opposite phase to the legs. applyLimbSwing deliberately never
 // rotates arms (every other arm motion — melee, aim-hold, the climb reach — is an absolute pose
@@ -2503,6 +2511,31 @@ export const TEXTURES = {
     colors: [["mortar", "Mortar", "#3f423f"], ["a", "Stone", "#7f8479"], ["b", "Stone (light)", "#949a8c"], ["c", "Stone (dark)", "#666b62"]],
     params: [],
     svg: (co) => brickCourse(90, 45, 30, 15, 3, co.mortar, [co.a, co.b, co.c], true),
+  },
+  grass: {
+    label: "Grass", icon: "🌱", tile: [60, 60], base: "base",
+    // The base deliberately matches the level editor's original grass-green swatch. Selecting
+    // Grass + Fill can therefore replace a connected region of the old flat grass colour without
+    // changing its overall palette or collision shape.
+    colors: [["base", "Ground", "#6b7b3a"], ["light", "Fresh blades", "#93a85a"], ["dark", "Shadow blades", "#405126"], ["tip", "Dry tips", "#bdc77a"]],
+    params: [{ key: "lush", label: "Lush", min: 0, max: 1, step: 0.05, def: 0.65 }],
+    svg: (co, _t, pa) => {
+      const tw = 60, th = 60, lush = Math.max(0, Math.min(1, pa.lush ?? 0.65));
+      const count = Math.round(34 + lush * 42);
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.base);
+      for (let i = 0; i < count; i++) {
+        const x = trnd(i * 2.9) * tw, y = 5 + trnd(i * 5.7) * (th - 3);
+        const len = 3 + trnd(i * 7.3) * (5 + lush * 6), lean = (trnd(i * 11.1) - 0.5) * 7;
+        const shadeRoll = trnd(i * 13.9), stroke = shadeRoll > 0.82 ? co.tip : shadeRoll > 0.42 ? co.light : co.dark;
+        out += `<path d="M${px(x)},${px(y)} Q${px(x + lean * 0.25)},${px(y - len * 0.55)} ${px(x + lean)},${px(y - len)}" stroke="${stroke}" stroke-width="${px(0.8 + trnd(i * 17.3) * 1.1)}" stroke-linecap="round" fill="none" opacity="${px(0.55 + lush * 0.4)}"/>`;
+      }
+      // Small darker clumps break the even wallpaper look without introducing random shimmer.
+      for (let i = 0; i < 9; i++) {
+        const x = trnd(i * 19.1) * tw, y = trnd(i * 23.7) * th;
+        out += `<ellipse cx="${px(x)}" cy="${px(y)}" rx="${px(1.2 + lush * 1.2)}" ry="${px(0.6 + lush * 0.5)}" fill="${co.dark}" opacity="0.35"/>`;
+      }
+      return out;
+    },
   },
   wood: {
     label: "Wood planks", icon: "🪵", tile: [60, 40], base: "plank",
@@ -3263,6 +3296,7 @@ export default function AssetStudio() {
   const [screen, setScreen] = useState("menu");
   const [asset, setAsset] = useState(null);
   const [library, setLibrary] = useState([]);
+  const [libraryLoading, setLibraryLoading] = useState(true); // never present the initial async read as an empty/deleted library
   const [angle, setAngle] = useState("front");
   const [selId, setSelId] = useState(null);
   const [multiSelect, setMultiSelect] = useState(false); // group-select mode: clicking blocks toggles them into groupIds instead of the normal single select+drag
@@ -5281,6 +5315,8 @@ export default function AssetStudio() {
   // or not, and the index is then rewritten to match what was really found. Purely additive — it
   // can resurrect an orphaned asset, it can never drop one.
   const loadLibrary = async () => {
+    setLibraryLoading(true);
+    try {
     let list = [];
     try { const idx = await sget("assetIndex"); list = idx ? JSON.parse(idx) : []; } catch { list = []; }
     if (!Array.isArray(list)) list = [];
@@ -5308,6 +5344,7 @@ export default function AssetStudio() {
       console.warn("[Bob] " + bad.length + " asset record(s) could not be read and were skipped:", bad);
       flash("⚠ " + bad.length + " asset" + (bad.length > 1 ? "s" : "") + " couldn't be read and " + (bad.length > 1 ? "were" : "was") + " skipped — the other " + full.length + " loaded fine. Check the console for which.");
     }
+    } finally { setLibraryLoading(false); }
   };
   const loadStamps = async () => {
     try {
@@ -7033,14 +7070,20 @@ export default function AssetStudio() {
     } catch { setTexLib([]); }
   };
   const saveTexture = async (t) => {
-    if (!TEXTURES[t.tex]) { flash("Unknown texture pattern."); return; }
+    if (!TEXTURES[t.tex]) { flash("Unknown texture pattern."); return null; }
     const clean = { ...t, name: (t.name || "").trim() || TEXTURES[t.tex].label };
     let list = []; const idx = await sget("textureIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     const ok1 = await sset("texture:" + clean.id, JSON.stringify(clean));
     list = list.filter((x) => x.id !== clean.id); list.push({ id: clean.id, name: clean.name });
     const ok2 = await sset("textureIndex", JSON.stringify(list));
-    if (ok1 && ok2) { await loadTextures(); setTexEdit(null); setLTexId(clean.id); setLTool("paint"); flash("Texture \"" + clean.name + "\" saved ✓ — painting with it now."); }
-    else flash("Couldn't save the texture here.");
+    if (ok1 && ok2) { await loadTextures(); setTexEdit(null); setLTexId(clean.id); setLTool("paint"); flash("Texture \"" + clean.name + "\" saved ✓ — painting with it now."); return clean; }
+    flash("Couldn't save the texture here."); return null;
+  };
+  const useGrassTexture = async () => {
+    const saved = texLib.find((t) => t.tex === "grass");
+    if (saved) { setLTexId(saved.id); setLTool("paint"); setTexPick(false); flash("Painting with \"" + saved.name + "\" 🌱"); return; }
+    const made = await saveTexture(newTexture("grass"));
+    if (made) setTexPick(false);
   };
   const deleteTexture = async (id) => {
     let list = []; const idx = await sget("textureIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
@@ -7356,9 +7399,10 @@ export default function AssetStudio() {
             ))}
           </div>
           <h2>Load</h2>
-          <button className="ltbtn" onClick={() => { setLoadOpen(true); setLoadCategory(null); setLoadSlot(null); }}>📂 Load{allAssets.length ? " (" + allAssets.length + " saved)" : ""}</button>
+          <button className="ltbtn saveRead" disabled={libraryLoading} onClick={() => { setLoadOpen(true); setLoadCategory(null); setLoadSlot(null); }}>{libraryLoading ? "⏳ Loading your saves…" : "📂 Load (" + allAssets.length + " saved)"}</button>
+          {libraryLoading && <p className="mini saveLoading">Your saved assets are still being read from this browser. Nothing has been cleared.</p>}
           <label className="openfile">⬆ Open a file<input type="file" accept="application/json" onChange={upload} hidden /></label>
-          <button className="ltbtn" onClick={exportAllAssets} title="Downloads every saved asset as one backup file. Re-open that file here later to restore them all.">⬇ Export all assets{library.length ? " (" + library.length + ")" : ""}</button>
+          <button className="ltbtn saveRead" disabled={libraryLoading} onClick={exportAllAssets} title="Downloads every saved asset as one backup file. Re-open that file here later to restore them all.">⬇ Export all assets{libraryLoading ? " (loading…)" : " (" + library.length + ")"}</button>
           <h2>Niche controls</h2>
           <button className="ltbtn" onClick={() => setNiche(true)}>🩹 Recover layers from a dressed look</button>
         </div>
@@ -7975,7 +8019,7 @@ export default function AssetStudio() {
               <button className={"ltbtn texbtn" + (activeTexture ? " on" : "")} onClick={() => setTexPick(true)} title="Paint with a repeating texture instead of a flat color">
                 {activeTexture ? <><span className="texchip" style={cellPaintStyle({ c: textureBaseColor(activeTexture), tex: activeTexture.id }, 0, 0, texLib)} /> {activeTexture.name}</> : <>🧱 Texture</>}
               </button>
-              {activeTexture && <button className="ltbtn" onClick={() => setLTexId(null)} title="Back to painting a flat color">✕ Plain color</button>}
+              {activeTexture && <><button className={"ltbtn" + (lTool === "paint" ? " on" : "")} onClick={() => setLTool("paint")}>🖌 Texture paint</button>{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={"ltbtn" + (lTool === "fill" ? " on" : "")} onClick={() => setLTool("fill")} title="Click an existing flat-color region to replace that whole connected color with this texture">🪣 Fill matching color</button>}<button className="ltbtn" onClick={() => setLTexId(null)} title="Back to painting a flat color">✕ Plain color</button><span className="hint2 texusehint">Paint draws new texture. Fill replaces the connected flat-color area you click — useful for turning existing grass green into Grass.</span></>}
               {(lLayer === "fg" || lLayer === "bg") && (
                 <>
                   <div className="seg" >
@@ -8515,7 +8559,9 @@ export default function AssetStudio() {
                   // swing, show that pose — it OVERRIDES the arm-swing animation. If it's blank, fall
                   // through to swinging the arm (below), exactly as before.
                   const eUseAtkPose = !!(ep && ep.swingT > 0) && !eRanged && ea.type === "enemy" && !!(ea.angles && (ea.angles.attack || []).length);
-                  let eBlocks = bake(ea, eUseAtkPose ? "attack" : enemyPoseKey(ea, ducking ? "crouch" : "side"));
+                  const ePoseKey = eUseAtkPose ? "attack" : enemyPoseKey(ea, ducking ? "crouch" : "side");
+                  let eBlocks = bake(ea, ePoseKey);
+                  if (eUseAtkPose) eBlocks = alignPoseFootBaseline(bake(ea, enemyPoseKey(ea, "side")), eBlocks);
                   // Walk cycle: swing the legs (and add a mirrored back leg) exactly like the player,
                   // driven by the enemy's own walkPhase. Legs only — applyLimbSwing never touches arms,
                   // so the aim/attack/weapon pipeline below is completely unaffected. Without this the
@@ -8523,10 +8569,9 @@ export default function AssetStudio() {
                   if (ep && ep.walking && !ducking && !eUseAtkPose) {
                     const { legIds, armIds } = identifyLimbs(eBlocks);
                     const eSwing = Math.sin(ep.walkPhase || 0) * 28;
-                    const eRestBlocks = eBlocks;
-                    eBlocks = addBackLeg(eBlocks, legIds, eSwing);
-                    eBlocks = applyLimbSwing(eBlocks, legIds, armIds, eSwing);
-                    eBlocks = plantMultiLegFeet(eRestBlocks, eBlocks, legIds);
+                    const stackedStride = multiLegStride(eBlocks, legIds, eSwing);
+                    if (stackedStride) eBlocks = stackedStride;
+                    else { eBlocks = addBackLeg(eBlocks, legIds, eSwing); eBlocks = applyLimbSwing(eBlocks, legIds, armIds, eSwing); }
                   }
                   // A dressed-look enemy already has a frozen copy of its weapon baked into its
                   // art. Strip it and re-attach the live one, exactly as the player does, so the
@@ -8879,6 +8924,7 @@ export default function AssetStudio() {
           <div className="modal" onClick={() => setTexPick(false)}>
             <div className="dlg wide3" onClick={(e) => e.stopPropagation()}>
               <div className="dt">🧱 Textures <span className="emcount">paint a repeating pattern instead of a flat color</span></div>
+              <div className="row2 grassQuick"><button onClick={useGrassTexture}>🌱 Use Grass now</button><span className="mini">Creates the default Grass once, then reuses it. After choosing it, use Texture paint or Fill matching color.</span></div>
               {texLib.length === 0 && <p className="mini">No textures yet. Make one — you pick the pattern and its colors; the art draws itself.</p>}
               <div className="texgrid">
                 {texLib.map((t) => (
@@ -10052,6 +10098,7 @@ const css = `
 .reloadfill{display:block;height:100%;background:#c8a23c}
 .texbtn{display:inline-flex;align-items:center;gap:7px}
 .texchip{display:inline-block;width:18px;height:18px;border-radius:4px;border:1px solid #3a4258;flex:none}
+.texusehint{max-width:360px;line-height:1.25}.grassQuick{align-items:center;margin:8px 0 12px;padding:8px;background:#142016;border:1px solid #38552e;border-radius:10px}.grassQuick .mini{margin:0;color:#b9cca8}
 .texgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:12px}
 .texcardwrap{position:relative}
 .texcard{display:flex;flex-direction:column;align-items:center;gap:5px;background:#171b26;border:1px solid #242a3a;border-radius:14px;padding:10px 8px;cursor:pointer;width:100%}
@@ -10065,6 +10112,7 @@ const css = `
 .texseg button{padding:7px 9px;font-size:12px}
 .row2 .danger{border-color:#5a2e36;color:#ff9b9b}
 .ltbtn{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:8px 11px;cursor:pointer;font-size:13px}
+.ltbtn.saveRead:disabled{opacity:.55;cursor:wait}.saveLoading{max-width:360px;color:#f3d98a;background:#241b0d;border:1px solid #5c481d;border-radius:8px;padding:6px 8px}
 .gname{background:#141824;border:1px solid #2c3245;border-radius:9px;padding:7px 9px;font-size:13px;color:inherit;width:110px}
 .stampShelf{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:6px;margin:7px 0;padding:7px 8px;background:#171b26;border:1px solid #2c3245;border-radius:10px;font-size:12px;color:#aeb6c9}
 .stampShelf select{min-width:0;width:100%;background:#141824;border:1px solid #2c3245;border-radius:8px;padding:7px 8px;color:inherit;font-size:12px}

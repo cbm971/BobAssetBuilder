@@ -96,8 +96,8 @@ import {
   ENEMY_ITEM_DROP_CHANCE,
   enemyDropOverlapping,
   rollEnemyItemDrop,
-  applyLimbSwing,
-  plantMultiLegFeet,
+  multiLegStride,
+  alignPoseFootBaseline,
 } from "./App";
 
 describe("copying blocks and groups", () => {
@@ -164,24 +164,39 @@ describe("enemy item drops", () => {
 });
 
 describe("multi-leg enemy walk", () => {
-  test("keeps both authored Pit Bull leg stacks planted without changing their spacing", () => {
+  test("moves each authored Pit Bull leg stack as one planted unit", () => {
     const rest = [
       { id: "frontHip", x: 60, y: 101, w: 17, h: 35, rot: 180 },
       { id: "frontShin", x: 63, y: 124, w: 11, h: 24 },
       { id: "frontFoot", x: 55, y: 138, w: 16, h: 10 },
+      { id: "frontPaw", x: 57, y: 136, w: 16, h: 13 },
       { id: "backHip", x: 125, y: 102, w: 17, h: 35, rot: 180 },
       { id: "backShin", x: 128, y: 125, w: 11, h: 24 },
       { id: "backFoot", x: 120, y: 139, w: 16, h: 10 },
+      { id: "backPaw", x: 122, y: 137, w: 16, h: 13 },
     ];
     const legIds = new Set(rest.map((p) => p.id));
-    const moved = applyLimbSwing(rest, legIds, new Set(), 28);
-    const planted = plantMultiLegFeet(rest, moved, legIds);
-    const bottom = (list, ids) => Math.max(...list.filter((p) => ids.includes(p.id)).map((p) => p.y + p.h));
-    for (const ids of [["frontHip", "frontShin", "frontFoot"], ["backHip", "backShin", "backFoot"]]) {
-      expect(bottom(planted, ids)).toBeCloseTo(bottom(rest, ids), 6);
-      const shifts = ids.map((id) => planted.find((p) => p.id === id).y - moved.find((p) => p.id === id).y);
-      expect(Math.max(...shifts) - Math.min(...shifts)).toBeCloseTo(0, 6);
-    }
+    const moved = multiLegStride(rest, legIds, 28);
+    const frontDx = ["frontHip", "frontShin", "frontFoot", "frontPaw"].map((id) => moved.find((p) => p.id === id).x - rest.find((p) => p.id === id).x);
+    const backDx = ["backHip", "backShin", "backFoot", "backPaw"].map((id) => moved.find((p) => p.id === id).x - rest.find((p) => p.id === id).x);
+    frontDx.forEach((dx) => expect(dx).toBeCloseTo(frontDx[0], 8));
+    backDx.forEach((dx) => expect(dx).toBeCloseTo(backDx[0], 8));
+    expect(frontDx[0]).toBeCloseTo(-backDx[0], 6);
+    expect(moved.map((p) => p.y)).toEqual(rest.map((p) => p.y));
+    expect(moved.map((p) => p.rot)).toEqual(rest.map((p) => p.rot));
+  });
+
+  test("leaves a single-column biped for the normal swing code", () => {
+    const oneLeg = [{ id: "hip", x: 60, y: 100, w: 15, h: 35 }, { id: "foot", x: 60, y: 135, w: 15, h: 10 }];
+    expect(multiLegStride(oneLeg, new Set(["hip", "foot"]), 28)).toBeNull();
+  });
+
+  test("raises the Pit Bull attack pose until its back foot matches the Side baseline", () => {
+    const side = [{ id: "sideLeg", limb: "leg", x: 60, y: 101, w: 17, h: 49 }];
+    const attack = [{ id: "backLeg", limb: "leg", x: 68, y: 127, w: 17, h: 45 }, { id: "head", x: 50, y: 15, w: 30, h: 30 }];
+    const aligned = alignPoseFootBaseline(side, attack);
+    expect(Math.max(...aligned.filter((p) => p.limb === "leg").map((p) => p.y + p.h))).toBe(150);
+    expect(aligned.find((p) => p.id === "head").y).toBe(-7);
   });
 });
 
@@ -520,6 +535,34 @@ describe("Background ramp paint", () => {
     const lv = { rows: 3, cols: 3, fg: {}, bg: { "1,1": ramp } };
     expect(fgSolid(lv.fg["1,1"])).toBe(false);
     expect(slopeSurfaceAt(lv, 45, 1, 1, 30, 30)).toBeNull();
+  });
+});
+
+describe("grass texture", () => {
+  test("is registered and starts on the existing flat grass colour", () => {
+    expect(TEXTURE_KEYS).toContain("grass");
+    expect(TEXTURES.grass.label).toBe("Grass");
+    const t = newTexture("grass");
+    expect(textureBaseColor(t)).toBe("#6b7b3a");
+    expect(paintValue("#ffffff", t)).toEqual({ c: "#6b7b3a", tex: t.id });
+  });
+
+  test("renders deterministically so the blades do not shimmer", () => {
+    expect(textureDataUri(newTexture("grass"))).toBe(textureDataUri(newTexture("grass")));
+  });
+
+  test("lushness changes the number and shape of blades", () => {
+    const base = newTexture("grass");
+    expect(textureDataUri({ ...base, params: { lush: 1 } })).not.toBe(textureDataUri(base));
+    expect(textureDataUri({ ...base, params: { lush: 0 } })).not.toBe(textureDataUri(base));
+  });
+
+  test("every grass colour control contributes to the rendered texture", () => {
+    const base = newTexture("grass");
+    for (const key of ["base", "light", "dark", "tip"]) {
+      const recoloured = { ...base, colors: { ...base.colors, [key]: "#ff00ff" } };
+      expect(textureDataUri(recoloured)).not.toBe(textureDataUri(base));
+    }
   });
 });
 
