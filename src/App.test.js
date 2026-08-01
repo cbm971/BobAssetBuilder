@@ -103,6 +103,7 @@ import {
   alignPoseFootBaseline,
   horizVel,
   resolvePlayerCrouch,
+  playerPoseKey,
 } from "./App";
 
 describe("copying blocks and groups", () => {
@@ -245,6 +246,19 @@ describe("crouch walking", () => {
   test("still produces horizontal movement in both directions at crouch speed", () => {
     expect(horizVel({ right: true }, 3.5, true, 0, null, null, 1)).toBe(3.5);
     expect(horizVel({ left: true }, 3.5, true, 0, null, null, 1)).toBe(-3.5);
+  });
+
+  test("keeps a created character's authored Crouch pose while it is moving", () => {
+    expect(playerPoseKey({ crouch: true, walking: false })).toBe("crouch");
+    expect(playerPoseKey({ crouch: true, walking: true })).toBe("crouch");
+    expect(playerPoseKey({ crouch: false, walking: true })).toBe("side");
+  });
+
+  test("keeps higher-priority transition, climb, and stationary aim poses", () => {
+    expect(playerPoseKey({ transitioning: true, crouch: true, walking: true })).toBe("back");
+    expect(playerPoseKey({ climbing: true, climbKind: "ladder", crouch: true })).toBe("back");
+    expect(playerPoseKey({ climbing: true, climbKind: "bars", crouch: true })).toBe("side");
+    expect(playerPoseKey({ aiming: true, aimDir: -1, crouch: true, walking: false })).toBe("up");
   });
 });
 

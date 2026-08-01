@@ -1192,6 +1192,15 @@ export const mergeInputIntent = (RK) => ({
 // expanding to standing height during that gap can enter nearby terrain and clamp horizontal
 // movement. Releasing the key always stands immediately, and this does not grant air steering.
 export const resolvePlayerCrouch = (held, onGround, wasCrouch) => !!held && (!!onGround || !!wasCrouch);
+// One shared player-art pose rule for rendering and for the weapon/hitbox geometry that must match
+// it. Walking does not cancel crouch: a created character must keep its authored Crouch pose while
+// the shorter physics box moves, then the ordinary walk animation can animate that crouched art.
+export const playerPoseKey = ({ transitioning, climbing, climbKind, aiming, aimDir, crouch, walking } = {}) => {
+  if (transitioning) return "back";
+  if (climbing) return climbKind === "bars" ? "side" : "back";
+  if (aiming && aimDir === -1 && !walking) return "up";
+  return crouch ? "crouch" : "side";
+};
 // Whether this frame's ledge step-assist (auto-climb a single solid cell of rise so a small step
 // doesn't need a jump) should run at all. It must NOT run while the player is actively climbing a
 // ladder/bars/cliff: climbing already owns vertical position through its own dedicated logic
@@ -4574,7 +4583,7 @@ export default function AssetStudio() {
           // No muzzle drawn (every weapon made before this existed) -> the old chest-height
           // spawn point, unchanged.
           let spawnX = p.x + pw / 2 + p.face * pw * 0.3, spawnY = p.y + ph * 0.35;
-          const angleNow = p.climbing ? (p.climbKind === "bars" ? "side" : "back") : (p.aiming && aimDir === -1 && !p.walking ? "up" : (p.crouch && !p.walking ? "crouch" : "side"));
+          const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, aiming: p.aiming, aimDir, crouch: p.crouch, walking: p.walking });
           const armPieceM = playerAsset ? armOf(playerAsset.angles[angleNow] || []) : null;
           if (armPieceM) {
             const baseArmRotM = armPieceM.rot || 0;
@@ -4673,7 +4682,7 @@ export default function AssetStudio() {
         // centered on the same guide-hand point a weapon would use, riding the arm the same way.
         const unarmedSwing = !!(p.firing && p.firing.unarmed); // Q/V bare-handed swing — ignores the held weapon entirely
         if (unarmedSwing || !playtestWeapon || !isRanged(playtestWeapon.wtype)) {
-          const angleNow = p.climbing ? (p.climbKind === "bars" ? "side" : "back") : (p.crouch && !p.walking ? "crouch" : "side");
+          const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, crouch: p.crouch, walking: p.walking });
           const armPiece = playerAsset ? armOf(playerAsset.angles[angleNow] || []) : null;
           if (armPiece) {
             const baseArmRot = armPiece.rot || 0;
@@ -8232,12 +8241,11 @@ export default function AssetStudio() {
                   const pw = LV_CELL * PLAYER_RENDER_W_CELLS * bodyShape.fraction; // matches the physics hitbox exactly
                   const renderW = LV_CELL * PLAYER_RENDER_W_CELLS; // wider, aspect-correct — keeps the body undistorted
                   const ph = p.crouch ? LV_CELL * PLAYER_CROUCH_H_CELLS : LV_CELL * PLAYER_H_CELLS;
-                  // Crouching while standing still shows the dedicated crouch pose from the
-                  // creator (its own independent piece array — a genuinely different held
-                  // pose, not just a squished side view). Crouch-*walking* keeps using the
-                  // side pose, since that's the one with the leg-swing animation; the crouch
-                  // pose is a static stance, not an animated one.
-                  const angle = p.transitioning ? "back" : p.climbing ? (p.climbKind === "bars" ? "side" : "back") : (p.aiming && p.aimDir === -1 && !p.walking ? "up" : (p.crouch && !p.walking ? "crouch" : "side"));
+                  // Crouching uses the dedicated creator pose whether still or moving (its own
+                  // independent piece array — a genuinely different pose, not a compressed Side
+                  // view). The walking branch below animates whatever flagged limbs that Crouch
+                  // pose owns without ever replacing it with the upright Side art.
+                  const angle = playerPoseKey(p);
                   const airborne = !p.onGround && !p.climbing && !p.transitioning; // a jump or a fall — not standing, climbing, or mid level-transition
                   let blocks = playerAsset ? livePlayerBlocks(angle) : null;
                   // A drawn ENEMY used as the player: if it has a hand-drawn Attack pose and is
@@ -9897,6 +9905,12 @@ const css = `
 .bb.weaponEditor{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto}
 .weaponEditor>.bar{grid-row:1}.weaponEditor>.main{grid-row:2;min-height:0}.weaponEditor>.angles{grid-row:3}.weaponEditor>.weaponSettings{grid-row:4}
 .weaponSettings{min-height:0;max-height:34vh;overflow:auto;border-top:2px solid #2c3245;background:#14111a}
+/* The weapon settings consume a bottom grid row, so an 88vh canvas cannot fit in the remaining
+   middle row. Its overflowing transparent artrow covered Menu, Fire, and the settings and stole
+   every pointer click. Make the stage/artrow shrink and size the canvas from that real remainder. */
+.weaponEditor .stage{min-height:0;overflow:hidden}
+.weaponEditor .artrow{flex:1 1 auto;min-height:0;flex-wrap:nowrap;align-items:center}
+.weaponEditor .art.artWpn{height:100%;max-height:880px}
 .editorSettings{display:contents}
 .bb button,.bb input,.bb textarea,.bb select{font:inherit;color:inherit}
 /* Every control inherits the app's near-WHITE text (above) but keeps the browser's default WHITE
