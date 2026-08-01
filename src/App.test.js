@@ -97,6 +97,8 @@ import {
   enemyDropOverlapping,
   rollEnemyItemDrop,
   multiLegStride,
+  MULTI_LEG_STRIDE_SCALE,
+  fitCrouchSleeves,
   alignPoseFootBaseline,
 } from "./App";
 
@@ -181,6 +183,8 @@ describe("multi-leg enemy walk", () => {
     const backDx = ["backHip", "backShin", "backFoot", "backPaw"].map((id) => moved.find((p) => p.id === id).x - rest.find((p) => p.id === id).x);
     frontDx.forEach((dx) => expect(dx).toBeCloseTo(frontDx[0], 8));
     backDx.forEach((dx) => expect(dx).toBeCloseTo(backDx[0], 8));
+    expect(Math.abs(frontDx[0])).toBeCloseTo(28 * MULTI_LEG_STRIDE_SCALE, 8);
+    expect(Math.abs(frontDx[0])).toBeGreaterThan(9);
     expect(frontDx[0]).toBeCloseTo(-backDx[0], 6);
     expect(moved.map((p) => p.y)).toEqual(rest.map((p) => p.y));
     expect(moved.map((p) => p.rot)).toEqual(rest.map((p) => p.rot));
@@ -197,6 +201,33 @@ describe("multi-leg enemy walk", () => {
     const aligned = alignPoseFootBaseline(side, attack);
     expect(Math.max(...aligned.filter((p) => p.limb === "leg").map((p) => p.y + p.h))).toBe(150);
     expect(aligned.find((p) => p.id === "head").y).toBe(-7);
+  });
+});
+
+describe("crouching sleeve coverage", () => {
+  const bodyArm = { id: "arm", x: 140, y: 124, w: 18, h: 60, role: "weaponArm", limb: "arm", armPivot: "top" };
+  const jacketSleeve = { id: "sleeve", x: 131, y: 148, w: 54, h: 21, rot: 88, limb: "arm", armPivot: "top", overArms: true, _slot: "jacket" };
+  const cuff = { id: "cuff", x: 154, y: 143, w: 13, h: 9, rot: 87, limb: "arm", armPivot: "top", overArms: true, _slot: "jacket" };
+  const renderW = 161.5, crouchH = 126;
+  const aabbWidth = (p, h = crouchH) => {
+    const rad = (p.rot || 0) * Math.PI / 180;
+    return Math.abs(p.w * (renderW / 200) * Math.cos(rad)) + Math.abs(p.h * (h / 260) * Math.sin(rad));
+  };
+
+  test("widens the Army Jacket's main sleeve across the crouched arm without moving its shoulder", () => {
+    expect(aabbWidth(jacketSleeve)).toBeLessThan(aabbWidth(bodyArm));
+    const fitted = fitCrouchSleeves([bodyArm, jacketSleeve, cuff], renderW, crouchH);
+    const sleeve = fitted.find((p) => p.id === "sleeve");
+    expect(aabbWidth(sleeve)).toBeGreaterThan(aabbWidth(bodyArm));
+    expect(sleeve.h).toBeGreaterThan(jacketSleeve.h);
+    expect({ x: sleeve.x + sleeve.w / 2, y: sleeve.y }).toEqual({ x: jacketSleeve.x + jacketSleeve.w / 2, y: jacketSleeve.y });
+  });
+
+  test("leaves small cuff details and aspect-correct standing art unchanged", () => {
+    const crouched = fitCrouchSleeves([bodyArm, jacketSleeve, cuff], renderW, crouchH);
+    expect(crouched.find((p) => p.id === "cuff")).toBe(cuff);
+    const original = [bodyArm, jacketSleeve, cuff];
+    expect(fitCrouchSleeves(original, renderW, renderW * 260 / 200)).toBe(original);
   });
 });
 
