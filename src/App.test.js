@@ -101,6 +101,8 @@ import {
   MULTI_LEG_SWING_SCALE,
   crouchArtPlane,
   alignPoseFootBaseline,
+  horizVel,
+  resolvePlayerCrouch,
 } from "./App";
 
 describe("copying blocks and groups", () => {
@@ -229,6 +231,20 @@ describe("crouching sleeve coverage", () => {
     const plane = crouchArtPlane([bodyArm, jacketSleeve, cuff], renderW, crouchH);
     expect(plane.baseline).toBe(bodyArm.y + bodyArm.h);
     expect(crouchArtPlane([], renderW, crouchH)).toBeNull();
+  });
+});
+
+describe("crouch walking", () => {
+  test("keeps the short hitbox through a one-frame ground miss while crouch remains held", () => {
+    expect(resolvePlayerCrouch(true, true, false)).toBe(true);
+    expect(resolvePlayerCrouch(true, false, true)).toBe(true);
+    expect(resolvePlayerCrouch(false, true, true)).toBe(false);
+    expect(resolvePlayerCrouch(true, false, false)).toBe(false);
+  });
+
+  test("still produces horizontal movement in both directions at crouch speed", () => {
+    expect(horizVel({ right: true }, 3.5, true, 0, null, null, 1)).toBe(3.5);
+    expect(horizVel({ left: true }, 3.5, true, 0, null, null, 1)).toBe(-3.5);
   });
 });
 

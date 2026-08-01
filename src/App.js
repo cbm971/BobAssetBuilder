@@ -1186,6 +1186,12 @@ export const mergeInputIntent = (RK) => ({
   aimUp: !!RK.aimUp, aimDown: !!RK.aimDown, aimLeft: !!RK.aimLeft, aimRight: !!RK.aimRight,
   interact: !!RK.interact,
 });
+// Starting a crouch still requires ground contact, but once the player is crouched the held key
+// keeps that shorter hitbox active through a one-frame ground miss. Small drops, joined ramps and
+// uneven block seams can legitimately lose `onGround` until the landing pass later in the frame;
+// expanding to standing height during that gap can enter nearby terrain and clamp horizontal
+// movement. Releasing the key always stands immediately, and this does not grant air steering.
+export const resolvePlayerCrouch = (held, onGround, wasCrouch) => !!held && (!!onGround || !!wasCrouch);
 // Whether this frame's ledge step-assist (auto-climb a single solid cell of rise so a small step
 // doesn't need a jump) should run at all. It must NOT run while the player is actively climbing a
 // ladder/bars/cliff: climbing already owns vertical position through its own dedicated logic
@@ -3809,7 +3815,7 @@ export default function AssetStudio() {
       }
 
       const wasCrouch = p.crouch;
-      const crouch = !!K.crouch && p.onGround;
+      const crouch = resolvePlayerCrouch(K.crouch, p.onGround, wasCrouch);
       const oldPh = wasCrouch ? CH * PLAYER_CROUCH_H_CELLS : CH * PLAYER_H_CELLS;
       const pw = CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, ph = crouch ? CH * PLAYER_CROUCH_H_CELLS : CH * PLAYER_H_CELLS;
       if (ph !== oldPh) p.y += (oldPh - ph); // keep the feet planted — only the head should move when crouch toggles
