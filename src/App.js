@@ -876,6 +876,23 @@ export const rollPedestalItem = (assets, cats, logic, rnd) => {
   const r = typeof rnd === "number" ? rnd : Math.random();
   return pool[Math.min(pool.length - 1, Math.floor(r * pool.length))];
 };
+export const ENEMY_ITEM_DROP_CHANCE = 0.02;
+// Enemy loot uses the same "any item" pool as an unfiltered pedestal. Keep the chance roll
+// separate from the item roll so the 2% gate stays exact even when the library only has one item.
+export const rollEnemyItemDrop = (assets, chanceRnd, itemRnd) => {
+  const chance = typeof chanceRnd === "number" ? chanceRnd : Math.random();
+  if (chance >= ENEMY_ITEM_DROP_CHANCE) return null;
+  return rollPedestalItem(assets, [], "or", itemRnd);
+};
+export const enemyDropOverlapping = (drops, x, y, w, h, cellSize) => {
+  const box = Math.max(18, (cellSize || 30) * 1.35), half = box / 2;
+  for (const [key, drop] of Object.entries(drops || {})) {
+    if (!drop || !drop.item) continue;
+    const left = drop.x - half, top = drop.y - box;
+    if (x < left + box && x + w > left && y < top + box && y + h > top) return { key, drop };
+  }
+  return null;
+};
 export const pedestalSummary = (m) => { const cs = ((m && m.cats) || []).map((c) => (c || "").trim()).filter(Boolean); return cs.length ? cs.join((m && m.logic) === "and" ? " AND " : " OR ") : "any item"; };
 // ── Single-use passive items (heal / temporary stat boost) ───────────────────
 // An "item" is a consumable placed on a pedestal (Binding-of-Isaac style). Taking it applies its
@@ -2027,6 +2044,32 @@ export const applyLimbSwing = (blocks, legIds, armIds, swing, opts) => {
     }
     return b;
   });
+};
+// A multi-column creature already draws its front and back leg. Rotating both stacks around their
+// hips makes the bottom of each straight leg trace an upward arc, which reads as floating feet on
+// long-bodied animals. Preserve the swing's horizontal stride but lower each complete authored
+// stack just enough to keep its original lowest point planted. Single-column bipeds are untouched.
+export const plantMultiLegFeet = (restBlocks, movedBlocks, legIds) => {
+  const legs = (restBlocks || []).filter((b) => legIds.has(b.id));
+  const gap = 6, overlaps = (a, b) => a.x <= b.x + b.w + gap && b.x <= a.x + a.w + gap;
+  const columns = [];
+  for (const leg of legs) {
+    const hits = columns.filter((col) => col.some((p) => overlaps(p, leg)));
+    if (!hits.length) columns.push([leg]);
+    else { hits[0].push(leg); for (const extra of hits.slice(1)) { hits[0].push(...extra); columns.splice(columns.indexOf(extra), 1); } }
+  }
+  if (columns.length < 2) return movedBlocks;
+  const offsets = new Map();
+  for (const col of columns) {
+    const ids = new Set(col.map((p) => p.id));
+    const moved = (movedBlocks || []).filter((p) => ids.has(p.id));
+    if (!moved.length) continue;
+    const restBottom = Math.max(...col.map((p) => p.y + p.h));
+    const movedBottom = Math.max(...moved.map((p) => p.y + p.h));
+    const dy = Math.max(0, restBottom - movedBottom);
+    for (const id of ids) offsets.set(id, dy);
+  }
+  return (movedBlocks || []).map((p) => offsets.has(p.id) ? { ...p, y: p.y + offsets.get(p.id) } : p);
 };
 // Arms swing during a plain walk, opposite phase to the legs. applyLimbSwing deliberately never
 // rotates arms (every other arm motion — melee, aim-hold, the climb reach — is an absolute pose
@@ -3226,6 +3269,7 @@ export default function AssetStudio() {
   const [groupIds, setGroupIds] = useState([]); // piece ids currently selected as a group — dragging any one of them moves all of them together, same delta
   const [stamps, setStamps] = useState([]);     // stored groups: real piece copies, saved outside any asset so they can be stamped onto other bodies/poses
   const [stampName, setStampName] = useState("");
+  const [stampPick, setStampPick] = useState(""); // selected reusable group in the compact stored-group shelf
   const [confirmStampDel, setConfirmStampDel] = useState(null); // stamp id armed for deletion — a second tap actually deletes it
   useEffect(() => { setGroupIds([]); setMultiSelect(false); }, [angle, asset?.id]);
   const [newColor, setNewColor] = useState("#7aa2d6");
@@ -3353,6 +3397,7 @@ export default function AssetStudio() {
   const playRunId = useRef(0);                            // bumped once each time Playtest actually STARTS — lets the loop tell a genuine new session from an incidental effect re-run (e.g. a grenade's setLevel), so fire countdowns aren't reset mid-play
   const lastSeededRun = useRef(-1);                       // the playRunId hazLife was last freshly seeded for; equal => this is a re-run of the same session, so preserve in-progress countdowns
   const enemyHP = useRef({});                             // spawnKey -> remaining HP this Playtest session (lazily seeded from the enemy asset's base hp on first hit)
+  const enemyDrops = useRef({});                          // spawnKey -> null (no loot) | { item, x, y }; rolled once per defeated enemy
   const meleeReach = useRef({});                          // enemyId|weaponId -> swept melee-hitbox reach in px, so the engage gate doesn't re-sweep the whole swing arc every frame
   const enemyPos = useRef({});                            // spawnKey -> { y, vy, onGround } — lets enemies fall to the ground on Playtest start ("drop into place") instead of being frozen at their placed cell
   const playerHP = useRef(10);                            // player's remaining HP this Playtest session — seeded from the player asset's HP stat when Playtest starts
@@ -3361,7 +3406,7 @@ export default function AssetStudio() {
   const equipped = useRef({});                            // slot -> equipment item taken from a pedestal this session (weapons go through playtestWeaponId instead)
   const itemBuffs = useRef([]);                            // active temporary stat boosts from consumed items: [{ stat, amount, until }] (until = performance.now ms). Pruned every frame.
   const roomReturn = useRef(null);                         // while inside a room during play: { level: <the level to return to>, x, y } — set on enter, consumed on exit/stop
-  const roomState = useRef({});                             // per-level PERSISTENT state for the current play session, keyed by level id: { rolls, depleted, eHP, ePos, haz }. Never cleared on a transition — only on a fresh Playtest. This is what makes a level/room keep what you did to it when you leave and come back.
+  const roomState = useRef({});                             // per-level PERSISTENT state for the current play session, keyed by level id: { rolls, depleted, eHP, ePos, drops, haz }. Never cleared on a transition — only on a fresh Playtest. This is what makes a level/room keep what you did to it when you leave and come back.
   const sessionRooms = useRef({});                          // "originLevelId|doorCell" -> chosen room id, so a given door leads to the SAME room all session (re-entering doesn't re-roll)
   const spawnReq = useRef(null);                            // one-shot spawn placement for the next frame: { gate:true } | { roomDoor:true } | { x, y }. Resolved once, using the real player size, then cleared.
   const playerLookCache = useRef({ key: "", look: null }); // memoises the live-composed player look (all angles) so re-composing every frame is free until the equipped set actually changes
@@ -3585,8 +3630,9 @@ export default function AssetStudio() {
     // fresh Playtest (the button) wipes them. hazLife is (re)built by the seeding just below and then
     // written back into the bucket so its countdowns persist across visits too.
     let _bkt = roomState.current[lv.id];
-    if (!_bkt) { _bkt = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, haz: {} }; roomState.current[lv.id] = _bkt; }
-    pedestalRolls.current = _bkt.rolls; pedestalDepleted.current = _bkt.depleted; enemyHP.current = _bkt.eHP; enemyPos.current = _bkt.ePos; hazLife.current = _bkt.haz;
+    if (!_bkt) { _bkt = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, haz: {} }; roomState.current[lv.id] = _bkt; }
+    if (!_bkt.drops) _bkt.drops = {}; // migrate a bucket created earlier in this same hot-reloaded play session
+    pedestalRolls.current = _bkt.rolls; pedestalDepleted.current = _bkt.depleted; enemyHP.current = _bkt.eHP; enemyPos.current = _bkt.ePos; enemyDrops.current = _bkt.drops; hazLife.current = _bkt.haz;
     // Seed each finite-life fire cell's countdown. Permanent cells (life 0) deliberately never
     // enter the ref, so alive() below treats them as always burning.
     // IMPORTANT: this effect re-runs mid-play whenever `level` changes — and it changes every
@@ -4901,9 +4947,23 @@ export default function AssetStudio() {
 
       if (booms.current.length) { for (const b of booms.current) b.life += dtMul; booms.current = booms.current.filter((b) => b.life <= b.maxLife); }
 
-      let curPedKey = null, curDoorKey = null;
+      // Resolve loot in one central pass so fire, melee, bullets, explosions and friendly enemies
+      // all get the same single 2% roll. A stored null records the failed roll and prevents rerolls.
+      for (const k of Object.keys(lv.enemies || {})) {
+        if (!(enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0) || Object.prototype.hasOwnProperty.call(enemyDrops.current, k)) continue;
+        const item = rollEnemyItemDrop(allAssets);
+        if (!item) { enemyDrops.current[k] = null; continue; }
+        const [er, ec] = k.split(",").map(Number), ea = findA(lv.enemies[k].enemyId), ep = enemyPos.current[k];
+        const shape = ea ? sideBodyShape(ea) : { fraction: 1 }, renderW = ea ? enemyRenderW(ea, CW) : CW;
+        const hitW = renderW * shape.fraction, standH = ea ? enemyStandH(ea, CH) : CH;
+        enemyDrops.current[k] = { item, x: ep ? ep.x + hitW / 2 : ec * CW + CW / 2, y: ep ? ep.y + standH : (er + 1) * CH };
+        flash("🎁 " + item.name + " dropped!");
+      }
+
+      let curPedKey = null, curDropKey = null, curDoorKey = null;
       const doorHit = doorOverlapping(lv, p.x, p.y, pw, ph, CW, CH);
       const pedHit = doorHit ? null : pedestalOverlapping(lv, p.x, p.y, pw, ph, CW, CH); // a cell is a door OR a pedestal, never both
+      const dropHit = (doorHit || pedHit) ? null : enemyDropOverlapping(enemyDrops.current, p.x, p.y, pw, ph, CW);
       if (doorHit) {
         curDoorKey = doorHit.key;
         if (curDoorKey !== lastDoorKey) {
@@ -4925,7 +4985,11 @@ export default function AssetStudio() {
             else setPedPrompt({ key: mk, empty: true, summary: pedestalSummary(pm) });
             lastPedestalKey = mk;
           }
-        } else { curPedKey = null; if (lastPedestalKey !== null) { setPedPrompt(null); lastPedestalKey = null; } }
+        } else if (dropHit) {
+          curDropKey = dropHit.key;
+          const promptKey = "drop:" + curDropKey, item = dropHit.drop.item;
+          if (promptKey !== lastPedestalKey) { setPedPrompt({ key: promptKey, name: item.name, type: item.type, slot: item.slot, dropped: true }); lastPedestalKey = promptKey; }
+        } else { curPedKey = null; curDropKey = null; if (lastPedestalKey !== null) { setPedPrompt(null); lastPedestalKey = null; } }
       }
       // Press E on a door to enter (a matching room) or leave (back to the level you came from).
       if (K.interact && !p.wasInteract && curDoorKey && !p.transitioning) {
@@ -4939,12 +5003,18 @@ export default function AssetStudio() {
           else flash(tag ? "🚪 No room tagged \"" + tag + "\" yet — make one in the Room Creator." : "🚪 This is an exit door (blank tag) — it only does something from inside a room.");
         }
       }
-      // Press E on a pedestal to take its item, or swap the one you're already carrying back onto
-      // it. Weapons swap the held playtest weapon (playtestWeaponId, which re-keys the loop and
+      // Press E on a pedestal or dropped item to take it, or swap the one you're already carrying
+      // back onto that same spot. Weapons swap the held playtest weapon (playtestWeaponId, which re-keys the loop and
       // keeps the player where they stand); equipment layers its stat/defense/effect boosts onto
       // the player live via mergeEquip, re-keyed by equipGen. Rising-edge so one tap = one swap.
-      if (K.interact && !p.wasInteract && curPedKey) {
-        const pk = curPedKey, item = pedestalRolls.current[pk];
+      if (K.interact && !p.wasInteract && (curPedKey || curDropKey)) {
+        const pk = curPedKey, drop = curDropKey ? enemyDrops.current[curDropKey] : null;
+        const item = drop ? drop.item : pedestalRolls.current[pk];
+        const putBack = (next) => {
+          if (curDropKey) enemyDrops.current[curDropKey] = { ...drop, item: next || null };
+          else { pedestalRolls.current[pk] = next || null; if (next) pedestalDepleted.current.delete(pk); else pedestalDepleted.current.add(pk); }
+          lastPedestalKey = null;
+        };
         if (item) {
           if (item.type === "item") {
             // Single-use consumable: apply its effect right now and empty the pedestal (nothing
@@ -4960,23 +5030,20 @@ export default function AssetStudio() {
               itemBuffs.current.push({ stat: eff.stat, amount: eff.amount, until: nowT + eff.duration * 1000 });
               flash("🧪 " + item.name + " · +" + eff.amount + " " + (ITEM_STAT_LABEL[eff.stat] || eff.stat) + " for " + eff.duration + "s");
             }
-            pedestalRolls.current[pk] = null;
-            pedestalDepleted.current.add(pk);
+            putBack(null);
           } else if (item.type === "weapon") {
             if (isThrowable(item.wtype)) {
               // Throwables live in their OWN slot (thrown with G), separate from the held gun/melee,
               // so taking one never displaces your weapon — you can carry both. Swap with whatever
               // throwable you were already carrying, and a fresh pickup arrives with 3 (throwPickup).
               const prevId = playtestThrowId, prev = prevId ? findA(prevId) : null;
-              pedestalRolls.current[pk] = prev || null;
-              if (prev) pedestalDepleted.current.delete(pk); else pedestalDepleted.current.add(pk);
+              putBack(prev);
               throwPickup.current = 3;
               flash("💣 Carrying " + item.name + " ×3" + (prev ? " (put " + prev.name + " back)" : ""));
               setPlaytestThrowId(item.id);
             } else {
               const prevId = playtestWeaponId, prev = prevId ? findA(prevId) : null;
-              pedestalRolls.current[pk] = prev || null;
-              if (prev) pedestalDepleted.current.delete(pk); else pedestalDepleted.current.add(pk);
+              putBack(prev);
               const wl = isRanged(item.wtype) ? "ranged" : "melee";
               flash("🗡️ Wielding " + item.name + " · " + wl + " · " + (item.damage ?? 5) + " dmg" + (prev ? " (put " + prev.name + " back)" : ""));
               setPlaytestWeaponId(item.id);
@@ -4991,8 +5058,7 @@ export default function AssetStudio() {
             const nextMap = { ...equipped.current }; if (offSlot) delete nextMap[offSlot]; nextMap[slot] = item;
             const after = mergeEquip(basePlayerAsset, nextMap, equippedBodyIdFor(basePlayerAsset));
             equipped.current = nextMap;
-            pedestalRolls.current[pk] = prev || null;
-            if (prev) pedestalDepleted.current.delete(pk); else pedestalDepleted.current.add(pk);
+            putBack(prev);
             const parts = equipEffectSummary(before, after);
             flash("🧥 Equipped " + item.name + (parts.length ? " · " + parts.join(" · ") : " · no stat change") + (prev ? " (put " + prev.name + " back)" : ""));
             playerHP.current = Math.min(playerHP.current, maxPlayerHP(after));
@@ -5254,6 +5320,8 @@ export default function AssetStudio() {
 
   const pieces = asset ? (asset.angles[angle] || []) : [];
   const sel = pieces.find((p) => p.id === selId) || null;
+  const pickedStamp = stamps.find((s) => s.id === stampPick) || null;
+  useEffect(() => { if (stampPick && !stamps.some((s) => s.id === stampPick)) setStampPick(""); }, [stamps, stampPick]);
   // Is a real multi-block group live — more than one member, with the properties panel's anchor
   // inside it? Every group-aware control keys off this one answer instead of re-deriving it.
   const groupSel = groupIds.length > 1 && groupIds.includes(selId);
@@ -5338,7 +5406,7 @@ export default function AssetStudio() {
     list = list.filter((x) => x.name !== name); list.push({ id: stamp.id, name: stamp.name }); // same name replaces, same as asset saves
     const ok1 = await sset("stamp:" + stamp.id, JSON.stringify(stamp));
     const ok2 = await sset("stampIndex", JSON.stringify(list));
-    if (ok1 && ok2) { setStampName(""); loadStamps(); flash("Stored \"" + name + "\" (" + baked.length + " block" + (baked.length === 1 ? "" : "s") + ") — place it into any pose or body. Mirrored parts were baked into real copies so the group rotates as one."); }
+    if (ok1 && ok2) { setStampName(""); setStampPick(stamp.id); loadStamps(); flash("Stored \"" + name + "\" (" + baked.length + " block" + (baked.length === 1 ? "" : "s") + ") — place it into any pose or body. Mirrored parts were baked into real copies so the group rotates as one."); }
     else flash("Couldn't store here — use Download.");
   };
   const placeStamp = (s) => {
@@ -5355,6 +5423,7 @@ export default function AssetStudio() {
     let list = []; const idx = await sget("stampIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     await sdel("stamp:" + id);
     await sset("stampIndex", JSON.stringify(list.filter((x) => x.id !== id)));
+    if (stampPick === id) setStampPick("");
     loadStamps();
   };
   const updSel = (patch) => setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig({ ...a, angles: { ...a.angles, [angle]: (a.angles[angle] || []).map((p) => (p.id === selId ? { ...p, ...patch } : p)) } }); });
@@ -7753,7 +7822,7 @@ export default function AssetStudio() {
           <span className="badge">{lv.isRoom ? "🚪 Room" : "🗺️ Level"}</span>
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel} title="Undo (last change)">↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel} title="Redo">↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -8454,8 +8523,10 @@ export default function AssetStudio() {
                   if (ep && ep.walking && !ducking && !eUseAtkPose) {
                     const { legIds, armIds } = identifyLimbs(eBlocks);
                     const eSwing = Math.sin(ep.walkPhase || 0) * 28;
+                    const eRestBlocks = eBlocks;
                     eBlocks = addBackLeg(eBlocks, legIds, eSwing);
                     eBlocks = applyLimbSwing(eBlocks, legIds, armIds, eSwing);
+                    eBlocks = plantMultiLegFeet(eRestBlocks, eBlocks, legIds);
                   }
                   // A dressed-look enemy already has a frozen copy of its weapon baked into its
                   // art. Strip it and re-attach the live one, exactly as the player does, so the
@@ -8542,6 +8613,11 @@ export default function AssetStudio() {
                     : "🚪 Press E to leave";
                   return <div key="doorprompt" className="doorPromptFloat" style={{ left: c * LV_CELL + LV_CELL / 2, top: r * LV_CELL - 6 }}>{txt}</div>;
                 })()}
+                {play && Object.entries(enemyDrops.current).map(([k, drop]) => {
+                  if (!drop || !drop.item) return null;
+                  const item = drop.item, icon = item.type === "weapon" ? "⚔️" : item.type === "equipment" ? "🎒" : "🧪";
+                  return <div key={"drop" + k} className="enemyDropPlay" style={{ left: drop.x, top: drop.y }} title={"Dropped " + item.name}><div className="enemyDropOrb">{icon}</div>{pedPrompt && pedPrompt.key === "drop:" + k && <div className="pedcallout">🎁 Press E to pick up</div>}<div className="enemyDropCap">{item.name}</div></div>;
+                })}
                 {play && lv.markers && Object.keys(lv.markers).map((k) => {
                   const m = lv.markers[k]; if (!m || m.kind !== "pedestal") return null;
                   const [r, c] = k.split(",").map(Number);
@@ -9608,7 +9684,7 @@ export default function AssetStudio() {
                 to add/remove" line is about the mode. */}
             {(multiSelect || groupIds.length > 0) && <p className="tip">{multiSelect ? "🔲 Click blocks — on the canvas or in the Layers list — to add/remove them from the group" : "🔗 Group held"} ({groupIds.length} selected). Dragging any selected block on the canvas moves them all together.{!multiSelect && groupIds.length > 0 && " Grab any block outside it to let go."}{groupIds.length > 0 && <> <button className="ltbtn" onClick={() => setGroupIds([])}>✕ Clear</button></>}{groupIds.length > 1 && <> <button className="ltbtn" onClick={saveGroup}>💾 Save group</button></>}{hasStore && groupIds.length > 0 && <> <input className="gname" value={stampName} placeholder="stamp name" onChange={(e) => setStampName(e.target.value)} /> <button className="ltbtn" onClick={storeGroup}>📦 Store group</button></>}</p>}
             {multiSelect && <p className="mini">💾 Save group just remembers <b>which</b> blocks these are, in this pose. 📦 Store group keeps a <b>copy of the blocks themselves</b> — place it into any other pose, any other body's fit, or a different garment entirely.</p>}
-            {stamps.length > 0 && <p className="tip">📦 Stored: {stamps.map((s) => <span key={s.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => placeStamp(s)}>{s.name} ({s.pieces.length})</button><button className={"ltbtn" + (confirmStampDel === s.id ? " on" : "")} onClick={() => { if (confirmStampDel === s.id) { setConfirmStampDel(null); deleteStamp(s.id); } else { setConfirmStampDel(s.id); flash("Tap ✕ again to permanently delete stored group \"" + s.name + "\""); } }} title={confirmStampDel === s.id ? "Tap again to permanently delete" : "Delete this stored group"}>{confirmStampDel === s.id ? "Sure?" : "✕"}</button></span>)}</p>}
+            {stamps.length > 0 && <div className="stampShelf"><span>📦 Stored</span><select aria-label="Stored group" value={stampPick} onChange={(e) => { setStampPick(e.target.value); setConfirmStampDel(null); }}><option value="">Choose a group…</option>{stamps.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.pieces.length})</option>)}</select><button className="ltbtn" disabled={!pickedStamp} onClick={() => pickedStamp && placeStamp(pickedStamp)}>Place</button><button className={"ltbtn" + (pickedStamp && confirmStampDel === pickedStamp.id ? " on" : "")} disabled={!pickedStamp} onClick={() => { if (!pickedStamp) return; if (confirmStampDel === pickedStamp.id) { setConfirmStampDel(null); deleteStamp(pickedStamp.id); } else { setConfirmStampDel(pickedStamp.id); flash("Tap Sure? to permanently delete stored group \"" + pickedStamp.name + "\""); } }} title={pickedStamp && confirmStampDel === pickedStamp.id ? "Tap again to permanently delete" : "Delete the selected stored group"}>{pickedStamp && confirmStampDel === pickedStamp.id ? "Sure?" : "✕"}</button></div>}
             {savedGroups.length > 0 && <p className="tip">📁 Saved: {savedGroups.map((g) => <span key={g.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => loadGroup(g)}>{g.name} ({g.ids.length})</button><button className="ltbtn" onClick={() => deleteGroup(g.id)} title="Delete this saved group">✕</button></span>)}</p>}
           </div>
 
@@ -9990,6 +10066,9 @@ const css = `
 .row2 .danger{border-color:#5a2e36;color:#ff9b9b}
 .ltbtn{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:8px 11px;cursor:pointer;font-size:13px}
 .gname{background:#141824;border:1px solid #2c3245;border-radius:9px;padding:7px 9px;font-size:13px;color:inherit;width:110px}
+.stampShelf{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:6px;margin:7px 0;padding:7px 8px;background:#171b26;border:1px solid #2c3245;border-radius:10px;font-size:12px;color:#aeb6c9}
+.stampShelf select{min-width:0;width:100%;background:#141824;border:1px solid #2c3245;border-radius:8px;padding:7px 8px;color:inherit;font-size:12px}
+.stampShelf .ltbtn{padding:7px 9px}.stampShelf .ltbtn:disabled{opacity:.45;cursor:default}
 .bgNameInput{width:140px;background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:8px 11px;font-size:13px;color:inherit}
 .ltbtn.on{border-color:#4f7cf6;background:#26304d}
 .ltbtn:hover{border-color:#4f7cf6}.ltbtn.up{display:inline-flex;align-items:center}
@@ -10103,6 +10182,11 @@ const css = `
 .pedestalGem{position:absolute;left:50%;bottom:0;transform:translateX(-50%);font-size:${LV_CELL*0.75}px;line-height:1}
 .pedestalCap{position:absolute;left:50%;top:-4px;transform:translate(-50%,-100%);white-space:nowrap;background:rgba(0,0,0,.72);border:1px solid #c8a23c;border-radius:6px;padding:0 5px;font-size:10px;color:#f3d98a}
 .pedcallout{position:absolute;left:50%;top:-24px;transform:translate(-50%,-100%);white-space:nowrap;background:#241b0d;border:1px solid #c8a23c;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:600;color:#f3d98a;box-shadow:0 1px 4px rgba(0,0,0,.55)}
+.enemyDropPlay{position:absolute;z-index:7;pointer-events:none;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 0 5px rgba(243,217,138,.7));animation:lootBob .9s ease-in-out infinite alternate}
+.enemyDropOrb{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%,#fff5bf,#c8a23c 55%,#6a4b12);border:1px solid #f3d98a;font-size:15px}
+.enemyDropCap{margin-top:2px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.78);border:1px solid #c8a23c;border-radius:6px;padding:0 5px;font-size:10px;color:#f3d98a}
+.enemyDropPlay .pedcallout{top:-8px}
+@keyframes lootBob{from{margin-top:0}to{margin-top:-3px}}
 .doorPromptFloat{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;background:#241b0d;border:1px solid #c8a23c;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;color:#f3d98a;box-shadow:0 1px 4px rgba(0,0,0,.55);pointer-events:none;z-index:50}
 .equipline{color:#cfe0ff;background:#131a29;border-color:#3a5c8c;font-size:12px}
 @media(max-width:820px){.main{flex-direction:column}.stage{padding:10px;flex:none}.art{height:46vh}.side{width:auto;border-left:0;border-top:1px solid #232838;flex:1}.refpick{margin-left:0}.nm{flex:1;width:auto;min-width:0}.slotrow select{width:130px}.lmain{flex-direction:column}.lside{width:auto;border-left:0;border-top:1px solid #232838}.connlist{grid-template-columns:1fr}}

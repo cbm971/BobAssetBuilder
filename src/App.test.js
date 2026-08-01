@@ -93,6 +93,11 @@ import {
   advanceBlock,
   blockStopsHit,
   duplicateSelectedPieces,
+  ENEMY_ITEM_DROP_CHANCE,
+  enemyDropOverlapping,
+  rollEnemyItemDrop,
+  applyLimbSwing,
+  plantMultiLegFeet,
 } from "./App";
 
 describe("copying blocks and groups", () => {
@@ -133,6 +138,50 @@ describe("copying blocks and groups", () => {
     expect(copies.map((piece) => [piece.x, piece.y])).toEqual([[14, 16], [24, 36]]);
     expect(copies.map((piece) => piece.fx)).toEqual([pieces[0].fx, pieces[2].fx]);
     expect(copies).toHaveLength(2);
+  });
+});
+
+describe("enemy item drops", () => {
+  const assets = [
+    { id: "potion", name: "Potion", type: "item" },
+    { id: "sword", name: "Sword", type: "weapon" },
+    { id: "dog", name: "Dog", type: "enemy" },
+  ];
+
+  test("uses an exact 2% gate and draws from every pickup item type", () => {
+    expect(ENEMY_ITEM_DROP_CHANCE).toBe(0.02);
+    expect(rollEnemyItemDrop(assets, 0.019999, 0).id).toBe("potion");
+    expect(rollEnemyItemDrop(assets, 0.019999, 0.999999).id).toBe("sword");
+    expect(rollEnemyItemDrop(assets, 0.02, 0)).toBeNull();
+    expect(rollEnemyItemDrop([{ id: "dog", type: "enemy" }], 0, 0)).toBeNull();
+  });
+
+  test("only offers live dropped items when the player overlaps them", () => {
+    const drops = { dead1: { item: assets[0], x: 60, y: 90 }, dead2: null, taken: { item: null, x: 20, y: 20 } };
+    expect(enemyDropOverlapping(drops, 45, 55, 25, 35, 30).key).toBe("dead1");
+    expect(enemyDropOverlapping(drops, 120, 120, 20, 20, 30)).toBeNull();
+  });
+});
+
+describe("multi-leg enemy walk", () => {
+  test("keeps both authored Pit Bull leg stacks planted without changing their spacing", () => {
+    const rest = [
+      { id: "frontHip", x: 60, y: 101, w: 17, h: 35, rot: 180 },
+      { id: "frontShin", x: 63, y: 124, w: 11, h: 24 },
+      { id: "frontFoot", x: 55, y: 138, w: 16, h: 10 },
+      { id: "backHip", x: 125, y: 102, w: 17, h: 35, rot: 180 },
+      { id: "backShin", x: 128, y: 125, w: 11, h: 24 },
+      { id: "backFoot", x: 120, y: 139, w: 16, h: 10 },
+    ];
+    const legIds = new Set(rest.map((p) => p.id));
+    const moved = applyLimbSwing(rest, legIds, new Set(), 28);
+    const planted = plantMultiLegFeet(rest, moved, legIds);
+    const bottom = (list, ids) => Math.max(...list.filter((p) => ids.includes(p.id)).map((p) => p.y + p.h));
+    for (const ids of [["frontHip", "frontShin", "frontFoot"], ["backHip", "backShin", "backFoot"]]) {
+      expect(bottom(planted, ids)).toBeCloseTo(bottom(rest, ids), 6);
+      const shifts = ids.map((id) => planted.find((p) => p.id === id).y - moved.find((p) => p.id === id).y);
+      expect(Math.max(...shifts) - Math.min(...shifts)).toBeCloseTo(0, 6);
+    }
   });
 });
 
