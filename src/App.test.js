@@ -104,6 +104,9 @@ import {
   horizVel,
   resolvePlayerCrouch,
   playerPoseKey,
+  pieceGroupBounds,
+  scalePieceGroup,
+  removePieceSelection,
 } from "./App";
 
 describe("copying blocks and groups", () => {
@@ -225,6 +228,8 @@ describe("crouching sleeve coverage", () => {
     expect(plane.height).toBeCloseTo(260 * scale, 8);
     expect(plane.height / renderW).toBeCloseTo(260 / 200, 8);
     expect(plane.top + (leg.y + leg.h) * scale).toBeCloseTo(crouchH, 8);
+    expect(plane.top + plane.originY).toBeCloseTo(crouchH, 8);
+    expect(plane.walkScaleY).toBeCloseTo(crouchH / plane.height, 8);
     expect(jacketSleeve).toEqual({ id: "sleeve", x: 131, y: 148, w: 54, h: 21, rot: 88, limb: "arm", armPivot: "top", overArms: true, _slot: "jacket" });
   });
 
@@ -248,9 +253,9 @@ describe("crouch walking", () => {
     expect(horizVel({ left: true }, 3.5, true, 0, null, null, 1)).toBe(-3.5);
   });
 
-  test("keeps a created character's authored Crouch pose while it is moving", () => {
+  test("keeps the original sideways walk pose while moving and uses Crouch only when still", () => {
     expect(playerPoseKey({ crouch: true, walking: false })).toBe("crouch");
-    expect(playerPoseKey({ crouch: true, walking: true })).toBe("crouch");
+    expect(playerPoseKey({ crouch: true, walking: true })).toBe("side");
     expect(playerPoseKey({ crouch: false, walking: true })).toBe("side");
   });
 
@@ -259,6 +264,38 @@ describe("crouch walking", () => {
     expect(playerPoseKey({ climbing: true, climbKind: "ladder", crouch: true })).toBe("back");
     expect(playerPoseKey({ climbing: true, climbKind: "bars", crouch: true })).toBe("side");
     expect(playerPoseKey({ aiming: true, aimDir: -1, crouch: true, walking: false })).toBe("up");
+  });
+});
+
+describe("complex prop group editing", () => {
+  const joined = [
+    { id: "left", x: 20, y: 30, w: 20, h: 10 },
+    { id: "detail", x: 40, y: 30, w: 4, h: 10 },
+    { id: "right", x: 44, y: 30, w: 16, h: 10 },
+  ];
+
+  test("can shrink, grow, and return to the same minimum size without an anchor-size jump", () => {
+    const small = scalePieceGroup(joined, 0.25);
+    const grown = scalePieceGroup(small, 2);
+    const smallAgain = scalePieceGroup(grown, 0.5);
+    expect(smallAgain).toEqual(small);
+    expect(Math.min(...small.map((p) => p.w), ...small.map((p) => p.h))).toBe(1);
+  });
+
+  test("keeps touching element edges synchronized through repeated slider-like scaling", () => {
+    let resized = joined;
+    for (const scale of [0.6, 1.7, 0.8, 1.25, 0.5]) resized = scalePieceGroup(resized, scale);
+    const [left, detail, right] = resized;
+    expect(left.x + left.w).toBe(detail.x);
+    expect(detail.x + detail.w).toBe(right.x);
+    const bounds = pieceGroupBounds(resized);
+    expect(bounds.width).toBeCloseTo(right.x + right.w - left.x, 8);
+  });
+
+  test("deletes every selected prop element together while preserving required locked pieces", () => {
+    const pieces = [...joined, { id: "keep", x: 0, y: 0, w: 5, h: 5 }, { id: "locked", x: 0, y: 0, w: 5, h: 5, locked: true }];
+    expect(removePieceSelection(pieces, new Set(["left", "detail", "right"])).map((p) => p.id)).toEqual(["keep", "locked"]);
+    expect(removePieceSelection(pieces, new Set(["left", "locked"])).map((p) => p.id)).toEqual(["detail", "right", "keep", "locked"]);
   });
 });
 

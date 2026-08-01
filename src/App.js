@@ -1199,7 +1199,9 @@ export const playerPoseKey = ({ transitioning, climbing, climbKind, aiming, aimD
   if (transitioning) return "back";
   if (climbing) return climbKind === "bars" ? "side" : "back";
   if (aiming && aimDir === -1 && !walking) return "up";
-  return crouch ? "crouch" : "side";
+  // The authored Crouch pose is a stationary, front-facing duck. Moving keeps the established
+  // sideways Side walk and the renderer lowers that complete artwork as one aligned assembly.
+  return crouch && !walking ? "crouch" : "side";
 };
 // Whether this frame's ledge step-assist (auto-climb a single solid cell of rise so a small step
 // doesn't need a jump) should run at all. It must NOT run while the player is actively climbing a
@@ -1265,12 +1267,11 @@ export const armAnchorFinder = (blocks) => {
   if (!arms.length) return () => null;
   return (b) => { const cx = b.x + b.w / 2; return arms.reduce((a, c) => (Math.abs(c.x + c.w / 2 - cx) < Math.abs(a.x + a.w / 2 - cx) ? c : a)); };
 };
-// Crouch physics is shorter, but the authored pose still lives on the ordinary 200x260 art
-// canvas. Stretching that canvas down to the crouch hitbox distorted every rotated piece: a long
-// sleeve became thin, and compensating by changing its box merely made it too long during a
-// crouch-walk. Render crouch art on a uniformly-scaled inner plane instead, then place that plane
-// so the authored feet meet the physics floor. Piece dimensions and arm/sleeve overlap remain
-// exactly as drawn in Dress Bob, including while the rigid arm-follow animation is running.
+// Crouch physics is shorter, but every authored pose still lives on the ordinary 200x260 canvas.
+// First render pieces on this normal-aspect inner plane so every rotation and sleeve/arm overlap is
+// resolved without distortion. A moving crouch can then scaleY this COMPLETE plane about the foot
+// baseline: it gets the established low sideways silhouette, while the already-composed sleeve and
+// arm undergo one common transform and cannot separate or change thickness relative to each other.
 export const crouchArtPlane = (blocks, renderW, hitH) => {
   if (!blocks || !blocks.length || !(renderW > 0) || !(hitH > 0)) return null;
   const visible = blocks.filter((p) => !p.isHitbox && !p.isMuzzle);
@@ -1279,7 +1280,8 @@ export const crouchArtPlane = (blocks, renderW, hitH) => {
   const baselineSource = legs.length ? legs : visible;
   const baseline = Math.max(...baselineSource.map((p) => p.y + p.h));
   const scale = renderW / W;
-  return { top: hitH - baseline * scale, height: H * scale, baseline };
+  const height = H * scale, originY = baseline * scale;
+  return { top: hitH - originY, height, baseline, originY, walkScaleY: Math.min(1, hitH / height) };
 };
 // The piece an enemy swings/aims/attaches a weapon to: the explicit weapon arm if one exists,
 // else the largest piece flagged 💪 Arm. One rule shared by the AI render and the melee code.
@@ -1686,6 +1688,34 @@ export const duplicateSelectedPieces = (pieces, selectedIds, makeId, offset = 12
       y: (Number.isFinite(piece.y) ? piece.y : 0) + offset,
     };
   });
+};
+
+// Geometry shared by group corner-resize and the Width/Height sliders. Scaling transformed box
+// EDGES (rather than independently rounding each centre and size) keeps touching pieces touching.
+// A single uniform minimum scale stops the entire assembly when its smallest dimension reaches one
+// design pixel, so no member freezes early and desynchronizes from neighbours.
+export const pieceGroupBounds = (pieces) => {
+  if (!pieces || !pieces.length) return null;
+  const minX = Math.min(...pieces.map((p) => p.x)), minY = Math.min(...pieces.map((p) => p.y));
+  const maxX = Math.max(...pieces.map((p) => p.x + p.w)), maxY = Math.max(...pieces.map((p) => p.y + p.h));
+  return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+};
+export const scalePieceGroup = (pieces, requestedScale, center = null) => {
+  if (!pieces || !pieces.length) return [];
+  const bounds = pieceGroupBounds(pieces);
+  const cx = center?.x ?? bounds.cx, cy = center?.y ?? bounds.cy;
+  const minScale = pieces.reduce((m, p) => Math.max(m, 1 / Math.max(0.001, p.w), 1 / Math.max(0.001, p.h)), 0);
+  const scale = Math.max(minScale, Number.isFinite(requestedScale) ? requestedScale : 1);
+  const r3 = (n) => Math.round(n * 1000) / 1000;
+  return pieces.map((p) => {
+    const left = r3(cx + (p.x - cx) * scale), right = r3(cx + (p.x + p.w - cx) * scale);
+    const top = r3(cy + (p.y - cy) * scale), bottom = r3(cy + (p.y + p.h - cy) * scale);
+    return { ...p, x: left, y: top, w: r3(right - left), h: r3(bottom - top) };
+  });
+};
+export const removePieceSelection = (pieces, selectedIds) => {
+  const ids = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
+  return (pieces || []).filter((p) => !ids.has(p.id) || p.locked);
 };
 const anglesEmpty = (ag) => ANGLES.every((a) => !(ag && ag[a] && ag[a].length));
 
@@ -5625,16 +5655,10 @@ export default function AssetStudio() {
     const cur = dim === "w" ? sel.w : sel.h;
     const scale = Math.max(0.05, val / Math.max(1, cur));
     const members = pieces.filter((p) => groupIds.includes(p.id));
-    const cx = members.reduce((s, p) => s + p.x + p.w / 2, 0) / members.length;
-    const cy = members.reduce((s, p) => s + p.y + p.h / 2, 0) / members.length;
-    const baseline = new Map(members.map((p) => [p.id, p]));
+    const scaled = new Map(scalePieceGroup(members, scale).map((p) => [p.id, p]));
     setPieces((ps) => ps.map((p) => {
-      const base = baseline.get(p.id);
-      if (!base) return p;
-      const bcx = base.x + base.w / 2, bcy = base.y + base.h / 2;
-      const ncx = cx + (bcx - cx) * scale, ncy = cy + (bcy - cy) * scale;
-      const nw = Math.max(1, Math.round(base.w * scale)), nh = Math.max(1, Math.round(base.h * scale));
-      return { ...p, w: nw, h: nh, x: Math.round(ncx - nw / 2), y: Math.round(ncy - nh / 2) };
+      const geometry = scaled.get(p.id);
+      return geometry ? { ...p, x: geometry.x, y: geometry.y, w: geometry.w, h: geometry.h } : p;
     }));
   };
   // Brightness / glow / fade obey the same "Change this color everywhere" toggle the swatches
@@ -5694,7 +5718,18 @@ export default function AssetStudio() {
     if (groupIds.length) setGroupIds([]);
     setSelId(p.id); const m = toXY(e); drag.current = { mode: "move", id: p.id, dx: m.x - p.x, dy: m.y - p.y };
   };
-  const grabCorner = (e, p) => { e.stopPropagation(); setSelId(p.id); const m = toXY(e); const gm = (groupIds.length > 1 && groupIds.includes(p.id)) ? pieces.filter((q) => groupIds.includes(q.id)) : null; const group = gm ? { base: gm.map((q) => ({ id: q.id, x: q.x, y: q.y, w: q.w, h: q.h })), cx: gm.reduce((s, q) => s + q.x + q.w / 2, 0) / gm.length, cy: gm.reduce((s, q) => s + q.y + q.h / 2, 0) / gm.length, startDiag: Math.hypot(p.w, p.h) } : null; drag.current = { mode: "size", id: p.id, rot: p.rot || 0, startW: p.w, startH: p.h, startMouse: m, group }; };
+  const grabCorner = (e, p) => {
+    e.stopPropagation(); setSelId(p.id);
+    const m = toXY(e);
+    const gm = (groupIds.length > 1 && groupIds.includes(p.id)) ? pieces.filter((q) => groupIds.includes(q.id)) : null;
+    const bounds = gm ? pieceGroupBounds(gm) : null;
+    const group = gm ? {
+      base: gm.map((q) => ({ id: q.id, x: q.x, y: q.y, w: q.w, h: q.h })),
+      cx: bounds.cx, cy: bounds.cy,
+      startRadius: Math.max(1, Math.hypot(m.x - bounds.cx, m.y - bounds.cy)),
+    } : null;
+    drag.current = { mode: "size", id: p.id, rot: p.rot || 0, startW: p.w, startH: p.h, startMouse: m, group };
+  };
   const grabHand = (e) => { e.stopPropagation(); drag.current = { mode: "hand" }; };
 
   useEffect(() => {
@@ -5715,26 +5750,17 @@ export default function AssetStudio() {
         return;
       }
       if (d.mode === "size" && d.group) {
-        // Corner-resizing a grouped piece scales the WHOLE group like one object: derive a single
-        // uniform factor from how far this corner dragged (the box diagonal vs. its start), then
-        // scale every member's w/h AND its distance from the group's shared centre by it — so the
-        // pieces keep their exact relative arrangement instead of only the dragged block growing.
-        // Everything is recomputed from the frozen baseline each move, so it never drifts.
-        const rad = -d.rot * Math.PI / 180;
-        const dxC = m.x - d.startMouse.x, dyC = m.y - d.startMouse.y;
-        const dxL = dxC * Math.cos(rad) - dyC * Math.sin(rad), dyL = dxC * Math.sin(rad) + dyC * Math.cos(rad);
-        const nw = Math.max(6, d.startW + dxL), nh = Math.max(6, d.startH + dyL);
-        const scale = Math.max(0.05, Math.hypot(nw, nh) / Math.max(1, d.group.startDiag));
-        const cx = d.group.cx, cy = d.group.cy, baseMap = new Map(d.group.base.map((b) => [b.id, b]));
+        // Distance from the WHOLE group's centre gives one stable scale regardless of how tiny the
+        // anchor piece became. The old 6px anchor clamp made a once-shrunk group jump larger on the
+        // next drag and prevented it from ever returning to the same small size.
+        const scale = Math.hypot(m.x - d.group.cx, m.y - d.group.cy) / d.group.startRadius;
+        const scaledMap = new Map(scalePieceGroup(d.group.base, scale, { x: d.group.cx, y: d.group.cy }).map((b) => [b.id, b]));
         setAsset((a) => {
           if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default");
           const list = a.angles[angle] || [];
           const next = list.map((p) => {
-            const b = baseMap.get(p.id); if (!b) return p;
-            const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
-            const ncx = cx + (bcx - cx) * scale, ncy = cy + (bcy - cy) * scale;
-            const nwid = Math.max(1, Math.round(b.w * scale)), nhei = Math.max(1, Math.round(b.h * scale));
-            return { ...p, w: nwid, h: nhei, x: Math.round(ncx - nwid / 2), y: Math.round(ncy - nhei / 2) };
+            const b = scaledMap.get(p.id);
+            return b ? { ...p, x: b.x, y: b.y, w: b.w, h: b.h } : p;
           });
           return withRig({ ...a, angles: { ...a.angles, [angle]: next } });
         });
@@ -5863,7 +5889,16 @@ export default function AssetStudio() {
       flash("Copied block with its effects.");
     }
   };
-  const remove = () => { if (!sel) return; if (sel.locked) { flash("This block is needed for the game — can't delete it (you can still edit it)."); return; } setPieces((ps) => ps.filter((p) => p.id !== selId)); setSelId(null); };
+  const remove = () => {
+    if (!sel) return;
+    const ids = selOrGroupIds();
+    const deletable = pieces.filter((p) => ids.has(p.id) && !p.locked);
+    if (!deletable.length) { flash("This block is needed for the game — can't delete it (you can still edit it)."); return; }
+    setPieces((ps) => removePieceSelection(ps, ids));
+    setGroupIds((g) => g.filter((id) => !ids.has(id)));
+    setSelId(null);
+    if (groupSel) flash("Deleted grouped prop — " + deletable.length + " blocks removed together.");
+  };
   // Send to front / back moves the WHOLE group when one is selected, not just the block that
   // happens to be the anchor — sending one member of a bush's leaf cluster forward while the rest
   // stayed put was the "it only sends the object you clicked" bug. The members' order RELATIVE to
@@ -8241,10 +8276,9 @@ export default function AssetStudio() {
                   const pw = LV_CELL * PLAYER_RENDER_W_CELLS * bodyShape.fraction; // matches the physics hitbox exactly
                   const renderW = LV_CELL * PLAYER_RENDER_W_CELLS; // wider, aspect-correct — keeps the body undistorted
                   const ph = p.crouch ? LV_CELL * PLAYER_CROUCH_H_CELLS : LV_CELL * PLAYER_H_CELLS;
-                  // Crouching uses the dedicated creator pose whether still or moving (its own
-                  // independent piece array — a genuinely different pose, not a compressed Side
-                  // view). The walking branch below animates whatever flagged limbs that Crouch
-                  // pose owns without ever replacing it with the upright Side art.
+                  // Standing crouch uses the authored front-facing Crouch pose. Crouch-walking keeps
+                  // the established sideways Side pose and its leg cycle, then lowers the completed
+                  // art plane below — movement must never turn the character toward the camera.
                   const angle = playerPoseKey(p);
                   const airborne = !p.onGround && !p.climbing && !p.transitioning; // a jump or a fall — not standing, climbing, or mid level-transition
                   let blocks = playerAsset ? livePlayerBlocks(angle) : null;
@@ -8545,7 +8579,8 @@ export default function AssetStudio() {
                       <div className={blocks ? "playerWrap" : "player"} style={style}>
                         {blocks ? (() => {
                           const art = renderPieceRuns({ pieces: blocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "player", keyPrefix: "pl", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k), maskCss: cutterMaskCss });
-                          return crouchPlane ? <div style={{ position: "absolute", left: 0, top: crouchPlane.top, width: renderW, height: crouchPlane.height }}>{art}</div> : art;
+                          const crouchWalk = p.crouch && p.walking;
+                          return crouchPlane ? <div style={{ position: "absolute", left: 0, top: crouchPlane.top, width: renderW, height: crouchPlane.height, transform: crouchWalk ? `scaleY(${crouchPlane.walkScaleY})` : undefined, transformOrigin: crouchWalk ? `50% ${crouchPlane.originY}px` : undefined }}>{art}</div> : art;
                         })() : <><div className="peye" /><div className="pbody" /></>}
                       </div>
                     </>
@@ -9756,7 +9791,7 @@ export default function AssetStudio() {
               <label className="slider">Fade<input type="range" min="0.1" max="1" step="0.05" value={sel.fx?.opacity ?? 1} onChange={(e) => updFx({ opacity: +e.target.value })} /></label>
               <label className="slider">Glow<input type="range" min="0" max="12" step="0.5" value={sel.fx?.glow ?? 0} onChange={(e) => updFx({ glow: +e.target.value })} /><input type="color" className="gc" value={sel.fx?.glowColor ?? "#ffd76b"} onChange={(e) => updFx({ glowColor: e.target.value })} /></label>
               <label className="slider">Brightness<input type="range" min="0.3" max="2" step="0.05" value={sel.fx?.bright ?? 1} onChange={(e) => updFx({ bright: +e.target.value })} /></label>
-              <div className="btns"><button onClick={toFront}>Bring to front</button><button onClick={toBack}>Send to back</button><button onClick={duplicate}>📋 {groupSel ? "Copy group" : "Copy block"}</button>{!sel.locked && <button className="danger" onClick={remove}>Delete</button>}</div>
+              <div className="btns"><button onClick={toFront}>Bring to front</button><button onClick={toBack}>Send to back</button><button onClick={duplicate}>📋 {groupSel ? "Copy group" : "Copy block"}</button>{(!sel.locked || groupSel) && <button className="danger" onClick={remove}>{groupSel ? "Delete group" : "Delete"}</button>}</div>
             </div>
           ) : <div className="card empty"><p><b>Tap any block</b> on the canvas to recolor or resize it. Or add a new one below ↓</p></div>}
 
