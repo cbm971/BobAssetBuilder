@@ -398,6 +398,7 @@ export const weaponFireCooldownFrames = (fireRate) => Math.max(1, Math.round(60 
 // much tighter clock than the weapon’s fire RATE — the rate still governs how soon the next PULL
 // is allowed, so a 3-round burst weapon at 3/sec fires three quick rounds and then waits, rather
 // than tripling its damage output. Capped at 10 so a stray value can’t empty a magazine in a frame.
+export const DEFAULT_STUN_SECS = 1; // seconds a freshly added Stun ability freezes for
 export const DEFAULT_BURST = 1;
 export const DEFAULT_BURST_DELAY = 0.06;
 export const burstShotCount = (burst) => Math.max(1, Math.min(10, Math.round(burst ?? DEFAULT_BURST)));
@@ -651,6 +652,12 @@ export const WEAPON_ABILITIES = {
     blurb: "Its shots bypass the target's Defense entirely — full damage no matter what armour is worn. Back Guard and Crouch Guard still apply.",
     melee: true,
     on: { ignoreArmor: true }, off: { ignoreArmor: false },
+  },
+  stun: {
+    icon: "💫", label: "Stun",
+    blurb: "A connecting hit freezes the target for a moment — it can't move or attack. Re-hitting refreshes the timer.",
+    melee: true,
+    on: { stun: DEFAULT_STUN_SECS }, off: { stun: 0 },
   },
   resurrect: {
     icon: "🔮", label: "Resurrect staff",
@@ -1797,6 +1804,16 @@ export const pieceGroupBounds = (pieces) => {
   const maxX = Math.max(...pieces.map((p) => p.x + p.w)), maxY = Math.max(...pieces.map((p) => p.y + p.h));
   return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
 };
+// HOW FINE THE EDITOR IS. Dragging a block used to land on whole units of the 200x260 design
+// canvas, and a block could never be smaller than 6 of them — so lining two pieces up sometimes
+// had no move that fit, and a block was either a touch too big or a touch too small with nothing
+// in between. Both halved: half-unit positioning and sizing, and a minimum block a third smaller.
+// Everything downstream already works in fractions (pieces are positioned as a PERCENTAGE of the
+// canvas, and group scaling has always produced 3-decimal values), so nothing else has to change
+// and no existing art moves — whole numbers are still whole numbers.
+export const PIECE_STEP = 0.5;
+export const snapPiece = (v) => Math.round(v / PIECE_STEP) * PIECE_STEP;
+export const MIN_PIECE_SIZE = 3;
 export const scalePieceGroup = (pieces, requestedScale, center = null) => {
   if (!pieces || !pieces.length) return [];
   const bounds = pieceGroupBounds(pieces);
@@ -1837,7 +1854,11 @@ const CONN_LABEL = {
 // only pad the picker. The top end reaches 60 so a prop can be a piece of landscape (a cliff face,
 // a whole building) rather than a decoration; a solid one blocks the matching 60x60 cell square,
 // since fxBlocks derives its footprint straight from this number.
-export const LV_OBJ_SIZES = [1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 30, 40, 50, 60];
+// Half steps through the small end, where half a cell is plainly visible and where lining an
+// object up against terrain actually happens. Above 8 cells a half-cell change isn't worth a
+// button, so the large end keeps its original coarse ladder. Every original value is still here,
+// so no saved placement changes size.
+export const LV_OBJ_SIZES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 10, 12, 16, 20, 24, 30, 40, 50, 60];
 // A placed object can be TWISTED: `rot` degrees, turned about its own middle. This is what lets a
 // big prop sit ON something rather than beside it — a trailer parked along a hillside, a fallen
 // sign, a leaning post — instead of every object in the level standing bolt upright.
@@ -1847,6 +1868,19 @@ export const LV_OBJ_SIZES = [1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 30, 40, 50, 6
 // tilting that would mean rewriting how the whole level is walked. Worth knowing when you angle
 // something you're also standing on — the ground stays where the square is.
 export const objRotStyle = (o) => ((o && o.rot) ? { transform: "rotate(" + o.rot + "deg)" } : null);
+// FINE POSITIONING. Objects are stored under a whole cell, so the smallest move used to be a
+// full cell — which is why an object could never quite line up with the terrain under it. A nudge
+// shifts the drawn object by a fraction of a cell without moving which cell it belongs to.
+//
+// Like Twist, this moves the ART and not the FOOTPRINT: a solid object still blocks the same
+// square it always did, because the collision grid is axis-aligned cells. Same trade, same reason
+// — and for decoration, which is what you're usually lining up, there's no difference at all.
+// Absent (every object saved before this) means 0, so nothing that exists moves.
+export const OBJ_NUDGE_STEP = 0.5;                       // cells per tap — half a cell, i.e. twice as fine as placement
+export const OBJ_NUDGE_LIMIT = 4;                        // cells of offset allowed either way, so an object can't be nudged off into a different part of the level
+export const clampObjNudge = (v) => Math.max(-OBJ_NUDGE_LIMIT, Math.min(OBJ_NUDGE_LIMIT, Math.round((v || 0) / OBJ_NUDGE_STEP) * OBJ_NUDGE_STEP));
+export const objNudgedLeft = (o, c, cellPx) => c * cellPx + ((o && o.ox) || 0) * cellPx;
+export const objNudgedTop = (o, r, cellPx) => r * cellPx + ((o && o.oy) || 0) * cellPx;
 export const OBJ_ROT_NUDGE = 5;   // degrees per ↺/↻ tap — hillside angles are shallow, so 90° steps are useless here
 export const normalizeObjRot = (deg) => ((Math.round(deg) % 360) + 360) % 360;
 // Paint brush sizes (in cells) — applies to Foreground/Background only. Objects/Markers/Climb
@@ -3670,7 +3704,7 @@ export default function AssetStudio() {
     }).reverse();
   }) : null, [level, texLib, play]);
   const lvFrontLayer = useMemo(() => level ? Object.keys(level.front || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.front, level.front[k], r, c, texLib) }} />; }) : null, [level, texLib]);
-  const lvFxLayer = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = splitObjectStackByPlayerLayer(level.fx[k]).behind.filter(({ o }) => o.kind !== "prop"); return stack.map(({ o, stackIndex: si }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; }); }) : null, [level, play, lFxSel, lTool]);
+  const lvFxLayer = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = splitObjectStackByPlayerLayer(level.fx[k]).behind.filter(({ o }) => o.kind !== "prop"); return stack.map(({ o, stackIndex: si }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; }); }) : null, [level, play, lFxSel, lTool]);
   // Prop objects (pixel-art assets) are pulled OUT of the memoized fx layer above and rendered in
   // a separate LIVE pass (see the level render body) — the memo runs before the component-scoped
   // prop renderer exists, and animated props need to redraw every frame in play anyway. This
@@ -5938,7 +5972,7 @@ export default function AssetStudio() {
     const move = (e) => {
       const d = drag.current; if (!d || !artRef.current) return;
       const m = toXY(e);
-      if (d.mode === "hand") { setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return { ...a, hand: { ...a.hand, [angle]: { x: Math.round(m.x), y: Math.round(m.y) } } }; }); return; }
+      if (d.mode === "hand") { setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return { ...a, hand: { ...a.hand, [angle]: { x: snapPiece(m.x), y: snapPiece(m.y) } } }; }); return; }
       if (d.mode === "groupMove") {
         const dx = m.x - d.startMouse.x, dy = m.y - d.startMouse.y;
         if (Math.abs(dx) > 1 || Math.abs(dy) > 1) d.moved = true; // past a tiny jitter threshold — this is a real drag, not a tap
@@ -5946,7 +5980,7 @@ export default function AssetStudio() {
           if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default");
           const list = a.angles[angle] || [];
           const startMap = new Map(d.starts.map((s) => [s.id, s]));
-          const next = list.map((p) => { const st = startMap.get(p.id); return st ? { ...p, x: Math.round(st.x + dx), y: Math.round(st.y + dy) } : p; });
+          const next = list.map((p) => { const st = startMap.get(p.id); return st ? { ...p, x: snapPiece(st.x + dx), y: snapPiece(st.y + dy) } : p; });
           return withRig({ ...a, angles: { ...a.angles, [angle]: next } });
         });
         return;
@@ -5973,7 +6007,7 @@ export default function AssetStudio() {
         const list = a.angles[angle] || [];
         const next = list.map((p) => {
           if (p.id !== d.id) return p;
-          if (d.mode === "move") return { ...p, x: Math.round(m.x - d.dx), y: Math.round(m.y - d.dy) };
+          if (d.mode === "move") return { ...p, x: snapPiece(m.x - d.dx), y: snapPiece(m.y - d.dy) };
           // Un-rotate the drag delta into the piece's own local axes (inverse of the CSS
           // rotate() the piece itself renders with) before applying it to w/h — dragging
           // "along the shape's own wider direction" now actually makes it wider, whichever way
@@ -5983,7 +6017,7 @@ export default function AssetStudio() {
           const dxC = m.x - d.startMouse.x, dyC = m.y - d.startMouse.y;
           const dxL = dxC * Math.cos(rad) - dyC * Math.sin(rad);
           const dyL = dxC * Math.sin(rad) + dyC * Math.cos(rad);
-          return { ...p, w: Math.max(6, Math.round(d.startW + dxL)), h: Math.max(6, Math.round(d.startH + dyL)) };
+          return { ...p, w: Math.max(MIN_PIECE_SIZE, snapPiece(d.startW + dxL)), h: Math.max(MIN_PIECE_SIZE, snapPiece(d.startH + dyL)) };
         });
         return withRig({ ...a, angles: { ...a.angles, [angle]: next } });
       });
@@ -6165,6 +6199,9 @@ export default function AssetStudio() {
         {on.map((k) => (
           <div key={k} className="abilrow">
             <div className="abilhead"><b>{WEAPON_ABILITIES[k].icon} {WEAPON_ABILITIES[k].label}</b><button className="ltbtn abilx" onClick={() => setAsset((a) => ({ ...a, ...WEAPON_ABILITIES[k].off }))} title={"Remove " + WEAPON_ABILITIES[k].label}>✕ Remove</button></div>
+            {k === "stun" && (
+              <label className="slider">Freeze for<input type="range" min="0.25" max="5" step="0.25" value={asset.stun || DEFAULT_STUN_SECS} onChange={(e) => setAsset((a) => ({ ...a, stun: +e.target.value }))} /><span className="hint2">{(asset.stun || DEFAULT_STUN_SECS)}s</span></label>
+            )}
             {k === "burstFire" && (<>
               <label className="slider">Rounds per burst<input type="range" min="2" max="10" step="1" value={Math.max(2, burstShotCount(asset.burst))} onChange={(e) => setAsset((a) => ({ ...a, burst: +e.target.value }))} /><span className="hint2">{Math.max(2, burstShotCount(asset.burst))} rounds per press</span></label>
               <label className="slider">Burst spacing<input type="range" min="0.02" max="0.3" step="0.01" value={asset.burstDelay ?? DEFAULT_BURST_DELAY} onChange={(e) => setAsset((a) => ({ ...a, burstDelay: +e.target.value }))} /><span className="hint2">{(asset.burstDelay ?? DEFAULT_BURST_DELAY).toFixed(2)}s apart · salvo {(((Math.max(2, burstShotCount(asset.burst)) - 1) * (asset.burstDelay ?? DEFAULT_BURST_DELAY))).toFixed(2)}s</span></label>
@@ -6555,7 +6592,7 @@ export default function AssetStudio() {
       const key = (bodyId && a.variants[bodyId]) ? bodyId : (a.lastFit && a.variants[a.lastFit] ? a.lastFit : "default");
       return { ...a, angles: a.variants[key] || a.variants.default || a.angles };
     };
-    const belowLegs = [], back = [], shoesLower = [], lower = [], upperUnder = [], upperOver = [], skinDecor = [], other = [];
+    const belowLegs = [], back = [], shoesLower = [], underTop = [], lower = [], upperUnder = [], upperOver = [], skinDecor = [], other = [];
     const hatEquipped = overlays.some((a) => a.slot === "hat" && !a.ignoreHideIfHat);
     for (const a0 of overlays) {
       const a = fitFor(a0);
@@ -6567,6 +6604,12 @@ export default function AssetStudio() {
         if (p.behindBody) back.push(p);
         else if (a.slot === "shoes") shoesLower.push(p); // shoes sit UNDER pants/underwear (a pant leg falls over the shoe), but still over the bare leg
         else if (LOWER_BODY_SLOTS.has(a.slot)) (p.behindLegs ? belowLegs : lower).push(p);
+        // An UNDERSHIRT goes under the pants, not over them — it's the one upper-body garment
+        // that tucks in. A long undershirt was painting straight over the waistband because
+        // under_top shared the shirt/jacket bucket, which draws after the lower body. It keeps
+        // its "Over arms only" flag: ticking that is a deliberate choice to bring a piece
+        // frontmost, and still does exactly that.
+        else if (a.slot === "under_top" && !p.overArms) underTop.push(p);
         else if (UPPER_BODY_SLOTS.has(a.slot)) (p.overArms ? upperOver : upperUnder).push(p);
         else if (a.type === "skin") skinDecor.push(p); // drawn-on skin art (hair/eyes/teeth) sits ON the body but UNDER clothing — never frontmost over a shirt/cape
         else other.push(p);
@@ -6576,7 +6619,7 @@ export default function AssetStudio() {
     // body and UNDER every piece of clothing automatically. Clothing that isn't flagged
     // behind-body wraps AROUND the body, so it covers skin wherever they overlap (a cape's front
     // piece over the face); the face can never phase through it. No flags needed for any of this.
-    let out = back.concat(belowLegs).concat(bodyNonArm).concat(skinDecor).concat(shoesLower).concat(lower).concat(upperUnder).concat(bodyArm).concat(upperOver).concat(other);
+    let out = back.concat(belowLegs).concat(bodyNonArm).concat(skinDecor).concat(shoesLower).concat(underTop).concat(lower).concat(upperUnder).concat(bodyArm).concat(upperOver).concat(other);
     if (ang === "crouch") {
       // Crouching brings a bent knee up in front of the torso — a shirt shouldn't paint over
       // it. Move every shirt/jacket piece to just before the FIRST leg piece, instead of
@@ -8191,7 +8234,7 @@ export default function AssetStudio() {
         <div className="minilv" style={{ width: w, height: h }}>
           {Object.keys(l.bg).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"b" + k} style={{ position: "absolute", left: c * cw, top: r * ch, width: cw, height: ch, background: fgColor(l.bg[k]), opacity: 0.4, clipPath: fgClipPath(l.bg[k]) }} />; })}
           {Object.keys(l.fg).flatMap((k) => { const [r, c] = k.split(",").map(Number); return fgFills(l.fg[k]).map((fill, i) => <div key={"f" + k + "_" + i} style={{ position: "absolute", left: c * cw, top: r * ch, width: cw, height: ch, background: fgColor(fill), clipPath: fgClipPath(fill), ...(fgHiddenInPlay(fill) ? { opacity: 0.45, outline: "1px dashed #62d9ff", outlineOffset: "-1px" } : {}) }} />).reverse(); })}
-          {l.fx && Object.keys(l.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = l.fx[k] || []; return stack.map((o, si) => { const sz = (o.size || 1) * cw; return <div key={"x" + k + "_" + si} style={{ position: "absolute", left: c * cw, top: r * ch, width: sz, height: sz, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.85 }}>{o.kind === "shape" ? objInner(o, sz) : o.char}</div>; }); })}
+          {l.fx && Object.keys(l.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = l.fx[k] || []; return stack.map((o, si) => { const sz = (o.size || 1) * cw; return <div key={"x" + k + "_" + si} style={{ position: "absolute", left: objNudgedLeft(o, c, cw), top: objNudgedTop(o, r, ch), width: sz, height: sz, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.85 }}>{o.kind === "shape" ? objInner(o, sz) : o.char}</div>; }); })}
         </div>
       );
     };
@@ -8434,7 +8477,7 @@ export default function AssetStudio() {
                 <div ref={frontCellsRef} style={{ display: "contents" }}>{lvFrontLayer}</div>
                 {layerMove && layerMove.levelId === lv.id && Object.keys(layerMove.cells).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"mv" + k} className="lcell moveSel" style={{ left: c * LV_CELL, top: r * LV_CELL }} />; })}
                 {lvFxLayer}
-                {lvPropMeta.map(({ o, si, r, c, k }) => { const layout = levelObjectPixelLayout(o); const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
+                {lvPropMeta.map(({ o, si, r, c, k }) => { const layout = levelObjectPixelLayout(o); const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
                 {!play && lvClimbLayer}
                 <div ref={hazardCellsRef} style={{ display: "contents" }}>{lvHazardLayer}</div>
                 {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : "💎"}</div>; })}
@@ -8450,7 +8493,7 @@ export default function AssetStudio() {
                   const ga = objAnchorForObject(lHoverCell.r, lHoverCell.c, ghostO, assetForLevelObject(ghostO));
                   // ...including the angle: the preview tilts with Twist, so you line a trailer up
                   // against the hill before you commit rather than placing it and then fixing it.
-                  return <div className="lobjGhost" style={{ left: ga.c * LV_CELL, top: ga.r * LV_CELL, width: layout.width, height: layout.height, zIndex: lInFront ? 6 : 4, ...objRotStyle({ rot: lObjRot }) }}>{renderObj(ghostO, layout.width, "ghost", 0, layout.height, layout.box)}</div>;
+                  return <div className="lobjGhost" style={{ left: objNudgedLeft(ghostO, ga.c, LV_CELL), top: objNudgedTop(ghostO, ga.r, LV_CELL), width: layout.width, height: layout.height, zIndex: lInFront ? 6 : 4, ...objRotStyle({ rot: lObjRot }) }}>{renderObj(ghostO, layout.width, "ghost", 0, layout.height, layout.box)}</div>;
                 })()}
                 {!play && (lLayer === "front" || ((lLayer === "fg" || lLayer === "bg") && lFgShape === "block")) && lTool === "paint" && lHoverCell && (() => {
                   // Matches paintBrush's own iteration exactly (full r×c square, not just a
@@ -8841,7 +8884,7 @@ export default function AssetStudio() {
                   const pw = LV_CELL * PLAYER_RENDER_W_CELLS * bodyShape.fraction; // matches the physics hitbox exactly
                   const ph = p.crouch ? LV_CELL * PLAYER_CROUCH_H_CELLS : LV_CELL * PLAYER_H_CELLS;
                   return lvFxInFrontMeta.map(({ key, r, c, k, si, o }) => {
-                    const left = c * LV_CELL, top = r * LV_CELL;
+                    const left = objNudgedLeft(o, c, LV_CELL), top = objNudgedTop(o, r, LV_CELL);
                     const layout = levelObjectPixelLayout(o);
                     // Fades whenever the player's own hitbox overlaps a front-layer object —
                     // solid (a tree trunk that still blocks movement, see solidFx above) or
@@ -9207,6 +9250,15 @@ export default function AssetStudio() {
                               hillside) rather than standing upright. Nudges are 5° because slope
                               angles are shallow; the piece editor's 90° steps would be useless here. */}
                           <label className="slider">Twist ⟳<input type="range" min="0" max="359" step="1" value={o.rot || 0} onChange={(e) => updateFxAt(lFxSel, i, { rot: normalizeObjRot(+e.target.value || 0) })} /><span className="hint2">{(o.rot || 0)}°</span><button className="rotbtn" onClick={() => nudgeFxRot(lFxSel, i, -OBJ_ROT_NUDGE)}>↺</button><button className="rotbtn" onClick={() => nudgeFxRot(lFxSel, i, OBJ_ROT_NUDGE)}>↻</button><button className="rotbtn" disabled={!(o.rot || 0)} onClick={() => updateFxAt(lFxSel, i, { rot: 0 })}>0°</button></label>
+                          <span className="objnudge">
+                            <b>Nudge</b>
+                            <button className="rotbtn" onClick={() => updateFxAt(lFxSel, i, { ox: clampObjNudge((o.ox || 0) - OBJ_NUDGE_STEP) })}>←</button>
+                            <button className="rotbtn" onClick={() => updateFxAt(lFxSel, i, { ox: clampObjNudge((o.ox || 0) + OBJ_NUDGE_STEP) })}>→</button>
+                            <button className="rotbtn" onClick={() => updateFxAt(lFxSel, i, { oy: clampObjNudge((o.oy || 0) - OBJ_NUDGE_STEP) })}>↑</button>
+                            <button className="rotbtn" onClick={() => updateFxAt(lFxSel, i, { oy: clampObjNudge((o.oy || 0) + OBJ_NUDGE_STEP) })}>↓</button>
+                            <span className="hint2">{(o.ox || 0) + ", " + (o.oy || 0)}</span>
+                            <button className="rotbtn" disabled={!(o.ox || o.oy)} onClick={() => updateFxAt(lFxSel, i, { ox: 0, oy: 0 })}>0</button>
+                          </span>
                           <label className="chk"><input type="checkbox" checked={!!o.solid} onChange={(e) => updateFxAt(lFxSel, i, { solid: e.target.checked })} /> Solid</label>
                           <label className="chk"><input type="checkbox" checked={!!o.inFront} onChange={(e) => updateFxAt(lFxSel, i, { inFront: e.target.checked })} /> In front of player</label>
                         </div>
@@ -9510,12 +9562,6 @@ export default function AssetStudio() {
         <div className="wstates">
           <span className="wslab">Damage:</span>
           <input className="dmgInput" type="number" min="0" value={asset.damage ?? 5} onChange={(e) => setAsset((a) => ({ ...a, damage: Math.max(0, +e.target.value || 0) }))} style={{ width: 60 }} />
-        </div>
-      )}
-      {asset.type === "weapon" && !isThrowable(asset.wtype) && (
-        <div className="wstates">
-          <span className="wslab">Stun:</span>
-          <label className="slider"><input type="range" min="0" max="5" step="0.25" value={asset.stun ?? 0} onChange={(e) => setAsset((a) => ({ ...a, stun: +e.target.value }))} /><span className="hint2">{(asset.stun ?? 0) === 0 ? "off" : (asset.stun ?? 0) + "s 💫"}</span></label>
         </div>
       )}
       {asset.type === "weapon" && (asset.wtype || "melee") === "melee" && (
@@ -10366,6 +10412,7 @@ const css = `
 .wide2{width:150px}
 /* Twist, sitting on the object toolbar. Boxed and tinted so it reads as "this acts on the
    object you have", not as another placement setting like size or colour. */
+.objnudge{display:inline-flex;align-items:center;gap:4px;margin-left:8px}
 .objtwist{display:flex;align-items:center;gap:7px;padding:5px 10px;background:#1b2233;border:1px solid #3a4258;border-radius:9px;font-size:13px}
 .objtwist input[type=range]{width:120px;accent-color:#4f7cf6}
 .catbar{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#161922;border-bottom:1px solid #232838;flex-wrap:wrap}

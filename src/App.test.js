@@ -61,6 +61,14 @@ import {
   cutterMaskFrameLayout,
   advanceAutoReloadWeapon,
   weaponAbilitiesFor,
+  snapPiece,
+  PIECE_STEP,
+  MIN_PIECE_SIZE,
+  clampObjNudge,
+  objNudgedLeft,
+  objNudgedTop,
+  OBJ_NUDGE_STEP,
+  OBJ_NUDGE_LIMIT,
   canFireNow,
   consumeShot,
   enemyCrouchH,
@@ -1043,10 +1051,21 @@ describe("object size options", () => {
     }
   });
 
-  test("every option is a whole number of cells", () => {
-    // fxBlocks walks cell indices as `c < o.c + o.size`, so a fractional size would leave the
-    // collision footprint disagreeing with the drawn art.
-    for (const n of LV_OBJ_SIZES) expect(Number.isInteger(n)).toBe(true);
+  test("offers half-cell steps at the small end, where lining things up actually happens", () => {
+    for (const half of [1.5, 2.5, 3.5]) expect(LV_OBJ_SIZES).toContain(half);
+    for (const n of LV_OBJ_SIZES) expect(Number.isInteger(n * 2)).toBe(true); // halves at most — never a third of a cell
+  });
+
+  test("a solid half-size object still blocks whole cells, and never fewer than its art covers", () => {
+    // fxBlocks walks cell indices as `c < o.c + o.cols`, so a 1.5-cell object blocks 2 — the
+    // collision square rounds UP. That is the safe direction (you can never fall through the art)
+    // and it is the same trade a fitArt prop, whose footprint has always been fractional, makes.
+    const fp = levelObjectFootprint({ kind: "emoji", size: 1.5 }, null);
+    expect(fp.cols).toBe(1.5);
+    let blocked = 0;
+    for (let c = 0; c < 5; c++) if (c >= 0 && c < 0 + fp.cols) blocked++;
+    expect(blocked).toBe(2);
+    expect(blocked).toBeGreaterThanOrEqual(fp.cols);
   });
 });
 
@@ -1157,8 +1176,8 @@ describe("weapon magazines and enemy reloads", () => {
 
 describe("which abilities a weapon may carry", () => {
   test("a melee weapon is offered exactly the powers a swing can carry", () => {
-    expect(weaponAbilitiesFor("melee").sort()).toEqual(["ignoreArmor", "resurrect"]);
-    expect(weaponAbilitiesFor(undefined).sort()).toEqual(["ignoreArmor", "resurrect"]); // older saves have no wtype
+    expect(weaponAbilitiesFor("melee").sort()).toEqual(["ignoreArmor", "resurrect", "stun"]);
+    expect(weaponAbilitiesFor(undefined).sort()).toEqual(["ignoreArmor", "resurrect", "stun"]); // older saves have no wtype
   });
 
   test("a ranged weapon still gets the full list", () => {
@@ -1171,6 +1190,42 @@ describe("which abilities a weapon may carry", () => {
   test("a flag already set on a melee weapon stays listed so it can be taken off", () => {
     expect(weaponAbilitiesFor("melee", { explode: true })).toContain("explode");
     expect(weaponAbilitiesFor("melee", { explode: false })).not.toContain("explode");
+  });
+});
+
+describe("how fine the editors are", () => {
+  test("blocks land on half units, and whole numbers stay whole", () => {
+    expect(PIECE_STEP).toBe(0.5);
+    expect(snapPiece(10.2)).toBe(10);
+    expect(snapPiece(10.3)).toBe(10.5);
+    expect(snapPiece(10.7)).toBe(10.5);
+    expect(snapPiece(10.8)).toBe(11);
+    expect(snapPiece(-3.3)).toBe(-3.5);
+    for (const whole of [0, 7, 42, 199]) expect(snapPiece(whole)).toBe(whole); // existing art never shifts
+  });
+
+  test("a block can be half the old minimum size", () => {
+    expect(MIN_PIECE_SIZE).toBe(3);
+    expect(Math.max(MIN_PIECE_SIZE, snapPiece(1))).toBe(3);
+    expect(Math.max(MIN_PIECE_SIZE, snapPiece(4.4))).toBe(4.5);
+  });
+
+  test("the object nudge moves half a cell at a time and is clamped", () => {
+    expect(OBJ_NUDGE_STEP).toBe(0.5);
+    expect(clampObjNudge(0.5)).toBe(0.5);
+    expect(clampObjNudge(-0.5)).toBe(-0.5);
+    expect(clampObjNudge(0.3)).toBe(0.5);
+    expect(clampObjNudge(999)).toBe(OBJ_NUDGE_LIMIT);
+    expect(clampObjNudge(-999)).toBe(-OBJ_NUDGE_LIMIT);
+    expect(clampObjNudge(undefined)).toBe(0);
+  });
+
+  test("an object with no nudge draws exactly where it always did", () => {
+    expect(objNudgedLeft({}, 4, 30)).toBe(120);
+    expect(objNudgedTop({}, 7, 30)).toBe(210);
+    expect(objNudgedLeft(undefined, 4, 30)).toBe(120);
+    expect(objNudgedLeft({ ox: 0.5 }, 4, 30)).toBe(135);
+    expect(objNudgedTop({ oy: -0.5 }, 7, 30)).toBe(195);
   });
 });
 
