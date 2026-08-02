@@ -124,6 +124,24 @@ the block welds to the first edge it brushes and can never be pulled off; and ed
 use the same rotation origin the renderer does (`pieceOriginFrac`, arms pivot at the shoulder).
 A held group only ever translates — turning it to suit one member would tear the assembly apart.
 
+**Playtest performance.** The loop re-renders this whole component every frame (`setPframe`), so
+anything in the level render body runs 60x a second. What is actually true, measured on Forest M1
+(160x46, ~8,400 painted cells) — do not re-guess this, measure:
+
+* the physics loop itself is **0.2ms**; JS render+commit is **~2.4ms**; forced layout **<0.5ms**.
+* so the frame is not JS-bound locally. The load that was worth removing was **DOM size**:
+  `cellRuns` merges horizontally-adjacent identical cells into one box, 8,361 tiles -> 805.
+* tile layers are memoized AND each wrapped in its own memoized element (`CELL_LAYER_STYLE`).
+  A memoized array alone is not enough but is worth little either — measured at ~0.2ms.
+* `groundArt` caches the bake for items on pedestals / lying on the ground; both call sites used
+  to re-bake and re-measure every item every frame.
+
+Measuring it at all needs care: the Browser pane is usually hidden, so rAF never fires — patch it
+to `setTimeout(cb, 16)`. And **do not sample with `setTimeout(…, 0)`**: nested timeouts are clamped
+to 4ms by the spec, which made every measurement read "5ms" regardless of what was on screen and
+sent a whole investigation down the wrong path. Post a `MessageChannel` message instead (not
+clamped, and it lands after React's own scheduler task).
+
 **Facing.** Enemy art is drawn facing LEFT by default; player art (body/skin/dressed)
 faces RIGHT. `enemyNeedsFlip` and `playerSpriteMirrored` are the two answers, and
 anything deriving piece-local x from the mirror (muzzle spawn, melee hitbox) must read

@@ -2974,6 +2974,57 @@ const outlineBoxShadow = (map, r, c, ol) => {
   if (!map[cellKey(r, c + 1)]) s.push("inset -2px 0 0 " + ol);
   return s.join(", ");
 };
+// ---- Tile runs -------------------------------------------------------------
+// One box per RUN of identical neighbouring cells, instead of one box per cell. A 160-wide forest
+// level is ~8,400 tiles and the overwhelming majority are stretches of the same grass, or the same
+// sky, sitting side by side — collapsing those took Blake's Forest M1 from 8,361 tile elements to
+// about 800, which is 8,400 fewer boxes for the browser to style, lay out, paint and keep in
+// memory on a level that scrolls.
+//
+// The pixels are identical, and that is not a coincidence: a texture is anchored to the WORLD, not
+// to the cell (see cellPaintStyle's backgroundPosition), so one wide box continues the very same
+// pattern that the separate cells were each showing a 30px slice of.
+//
+// A cell only joins a run if its box would still mean the same thing at any width. Three kinds
+// never merge and keep a box each, exactly as before:
+//   · ramps — clip-path is a PERCENTAGE of the box, so a wide box would stretch the diagonal flat
+//   · outlined cells — the outline is derived per cell from its own four neighbours
+//   · cells holding several stacked fills — those draw one box per fill
+// Returning null from the signature is what marks those; note a null never matches another null,
+// so two ramps side by side stay two ramps.
+export const cellRunSig = (cell) => {
+  const fills = fgFills(cell);
+  if (fills.length !== 1) return null;
+  const f = fills[0]; // always an object — fgFillOf promotes a bare colour string to { c }
+  // Not fgClipPath(): that returns the STRING "none" for a plain block, which is perfectly
+  // truthy and quietly refused to merge anything at all. fgHasDiagonalShape is the real question.
+  if (f.ol || fgHasDiagonalShape(f)) return null;
+  return fgColor(f) + "|" + (cellTexId(f) || "") + "|" + (fgHiddenInPlay(f) ? "h" : "");
+};
+// Walks a cell map into { key, r, c, span, cell, sig } runs. Runs are emitted row by row, which
+// re-orders the layer's DOM relative to Object.keys order — harmless, because every cell in one
+// layer shares a z-index and no two of them overlap, so DOM order decides nothing visible here.
+export const cellRuns = (map, sigOf = cellRunSig) => {
+  const rows = new Map();
+  for (const k of Object.keys(map || {})) {
+    const i = k.indexOf(",");
+    const r = +k.slice(0, i), c = +k.slice(i + 1);
+    if (!rows.has(r)) rows.set(r, []);
+    rows.get(r).push(c);
+  }
+  const out = [];
+  for (const [r, cols] of rows) {
+    cols.sort((a, b) => a - b);
+    let run = null;
+    for (const c of cols) {
+      const key = r + "," + c, cell = map[key], sig = sigOf(cell);
+      if (run && sig !== null && sig === run.sig && c === run.c + run.span) { run.span++; continue; }
+      run = { key, r, c, span: 1, cell, sig };
+      out.push(run);
+    }
+  }
+  return out;
+};
 const cellOutlineStyle = (map, cell, r, c, texLib) => {
   const base = cellPaintStyle(cell, r, c, texLib);
   if (!(cell && typeof cell === "object" && cell.ol)) return base;
@@ -3823,29 +3874,49 @@ export default function AssetStudio() {
   const [pedPrompt, setPedPrompt] = useState(null);       // { key, name, type, slot } | { key, empty, summary } | null — pedestal the player is standing on, for the "Press E" HUD                       // cellKey -> the item this pedestal rolled this Playtest session (stable; pre-rolled at Playtest start, Binding-of-Isaac style)
   const [doorPrompt, setDoorPrompt] = useState(null);     // { enter: bool, tag, n } | null — door the player is standing on, for the "Press E to enter/exit" HUD
   const [pframe, setPframe] = useState(0);             // playtest re-render tick
+  const frontCellsRef = useRef(null);      // wrapper around the memoized Front tile layer — lets the playtest loop fade covered cells imperatively, without re-rendering the whole (memoized) layer every frame
+  const hazardCellsRef = useRef(null);     // same idea for fire: the layer is memoized (not rebuilt every frame), so a burnt-out cell is hidden imperatively by toggling its own element's opacity
+  // Wrapper for a whole memoized tile layer. `display:contents` means it generates no box at all,
+  // so the absolutely-positioned cells inside still lay out and stack against .lgrid exactly as
+  // they did loose (the Front layer has always been wrapped this way for its ref).
+  // Why every layer now gets one — this was measured, not assumed. A memoized ARRAY spliced
+  // straight into .lgrid does NOT let React skip the cells: .lgrid's own props are new every
+  // frame, so React re-reconciles its children list and walks all ~8,400 of them to decide each
+  // one can be reused. That walk alone was ~5ms of a 16ms frame on Blake's Forest M1 while the
+  // physics loop itself took 0.2ms. Wrapping each layer in an element that is ITSELF memoized
+  // gives that one fiber identical props, so React bails out there and never descends.
+  const CELL_LAYER_STYLE = { display: "contents" };
   // The playtest loop re-renders this whole component every frame (setPframe above) — but the
   // level's own tile layers never change mid-playtest, and even while editing they only change
   // when a paint actually commits (a new `level` object). Rebuilding every Background/
   // Foreground/Front/Object/Climb cell element from scratch 60x a second just for React to
   // diff-and-discard them all was the single biggest per-frame cost on any real-sized level.
-  // Memoizing each layer keyed on the state it actually reads returns the IDENTICAL element
-  // array across playtest frames, so React skips reconciling those thousands of nodes entirely.
-  const lvBgLayer = useMemo(() => level ? Object.keys(level.bg || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"b" + k} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.bg, level.bg[k], r, c, texLib), clipPath: fgClipPath(level.bg[k]) }} />; }) : null, [level, texLib]);
+  // Memoizing each layer keyed on the state it actually reads is half the answer; each one also
+  // has to be wrapped in its OWN element (see CELL_LAYER_STYLE) or React still walks every cell.
+  const lvBgLayer = useMemo(() => level ? <div style={CELL_LAYER_STYLE}>{cellRuns(level.bg || {}).map(({ key, r, c, span, cell }) => <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.bg, cell, r, c, texLib), clipPath: fgClipPath(cell), width: span * LV_CELL }} />)}</div> : null, [level, texLib]);
   // One div per FILL, not per cell: a cell holding a gravel ramp over grass blocks draws both,
   // the grass first and the ramp over it. fgFills is newest-first, so it's walked backwards to
   // put the most recent paint on top. Single-material cells (every cell in an older save) come
   // back as a one-item list and render exactly one div, as they always did.
   // (Same z-index for every fill in a cell, so DOM order alone decides what covers what.)
-  const lvFgLayer = useMemo(() => level ? Object.keys(level.fg || {}).flatMap((k) => {
-    const [r, c] = k.split(",").map(Number);
-    return fgFills(level.fg[k]).map((fill, i) => {
+  const lvFgLayer = useMemo(() => level ? <div style={CELL_LAYER_STYLE}>{cellRuns(level.fg || {}).flatMap(({ key, r, c, span, cell, sig }) => {
+    // A run (plain paint, no ramp, no outline, one fill) draws as a single wide box; anything
+    // cellRunSig refused to merge falls through to the original one-box-per-fill path below.
+    if (sig !== null) {
+      const fill = fgFills(cell)[0], hidden = fgHiddenInPlay(fill);
+      if (play && hidden) return [];
+      return [<div key={"f" + key + "_0"} data-fg-hidden={hidden ? "true" : undefined} className={"lcell" + (hidden ? " collisionOnly" : "")} title={hidden ? "Collision only — invisible during play" : undefined} style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, fill, r, c, texLib), width: span * LV_CELL }} />];
+    }
+    return fgFills(cell).map((fill, i) => {
       const hidden = fgHiddenInPlay(fill);
       if (play && hidden) return null; // collision reads level.fg directly; only its Playtest art is omitted
-      return <div key={"f" + k + "_" + i} data-fg-hidden={hidden ? "true" : undefined} className={"lcell" + (hidden ? " collisionOnly" : "")} title={hidden ? "Collision only — invisible during play" : undefined} style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />;
+      return <div key={"f" + key + "_" + i} data-fg-hidden={hidden ? "true" : undefined} className={"lcell" + (hidden ? " collisionOnly" : "")} title={hidden ? "Collision only — invisible during play" : undefined} style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />;
     }).reverse();
-  }) : null, [level, texLib, play]);
-  const lvFrontLayer = useMemo(() => level ? Object.keys(level.front || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.front, level.front[k], r, c, texLib) }} />; }) : null, [level, texLib]);
-  const lvFxLayer = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = splitObjectStackByPlayerLayer(level.fx[k]).behind.filter(({ o }) => o.kind !== "prop"); return stack.map(({ o, stackIndex: si }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; }); }) : null, [level, play, lFxSel, lTool]);
+  })}</div> : null, [level, texLib, play]);
+  // The Front layer keeps its ref here (the loop fades covered cells imperatively) — the wrapper it
+  // always had simply moved INSIDE the memo, so the element itself is stable across frames too.
+  const lvFrontLayer = useMemo(() => level ? <div ref={frontCellsRef} style={CELL_LAYER_STYLE}>{Object.keys(level.front || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.front, level.front[k], r, c, texLib) }} />; })}</div> : null, [level, texLib]);
+  const lvFxLayer = useMemo(() => level && level.fx ? <div style={CELL_LAYER_STYLE}>{Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = splitObjectStackByPlayerLayer(level.fx[k]).behind.filter(({ o }) => o.kind !== "prop"); return stack.map(({ o, stackIndex: si }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; }); })}</div> : null, [level, play, lFxSel, lTool]);
   // Prop objects (pixel-art assets) are pulled OUT of the memoized fx layer above and rendered in
   // a separate LIVE pass (see the level render body) — the memo runs before the component-scoped
   // prop renderer exists, and animated props need to redraw every frame in play anyway. This
@@ -3860,12 +3931,12 @@ export default function AssetStudio() {
   // Climb glyphs are directly erasable: Erase tool + click the glyph = gone, no matter which
   // layer tab is active. Erasing a visible thing by clicking it should just work — requiring
   // the Climb layer tab to be selected first made climb cells feel impossible to delete.
-  const lvClimbLayer = useMemo(() => level && level.climb ? Object.keys(level.climb).map((k) => { const [r, c] = k.split(",").map(Number); const kind = climbKindOf(level.climb[k]); const glyph = kind === "bars" ? "🙌" : kind === "cliff" ? "🧗" : "🪜"; const label = kind === "bars" ? "Monkey bars — hang & shimmy ← →, ↓ to drop" : kind === "cliff" ? "Cliff ledge — hang & shimmy ← →, ↓ to drop (forward-facing)" : "Ladder — climb straight up/down"; return <div key={"cl" + k} className={"lclimb kind-" + kind} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} title={label} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv) => { const climb = { ...lv.climb }; delete climb[k]; return { ...lv, climb }; }); } : undefined}>{glyph}</div>; }) : null, [level, lTool]);
+  const lvClimbLayer = useMemo(() => level && level.climb ? <div style={CELL_LAYER_STYLE}>{Object.keys(level.climb).map((k) => { const [r, c] = k.split(",").map(Number); const kind = climbKindOf(level.climb[k]); const glyph = kind === "bars" ? "🙌" : kind === "cliff" ? "🧗" : "🪜"; const label = kind === "bars" ? "Monkey bars — hang & shimmy ← →, ↓ to drop" : kind === "cliff" ? "Cliff ledge — hang & shimmy ← →, ↓ to drop (forward-facing)" : "Ladder — climb straight up/down"; return <div key={"cl" + k} className={"lclimb kind-" + kind} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} title={label} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv) => { const climb = { ...lv.climb }; delete climb[k]; return { ...lv, climb }; }); } : undefined}>{glyph}</div>; })}</div> : null, [level, lTool]);
   // Fire hazard cells: shown in the editor AND during play (it's a real, visible danger volume,
   // not an invisible marker). Erasable by clicking with the Erase tool on any layer, same as
   // climb. The flicker is CSS-only, so re-rendering this list every playtest frame isn't needed —
   // it's memoized on the level + tool, exactly like the climb layer.
-  const lvHazardLayer = useMemo(() => level && level.hazard ? Object.keys(level.hazard).map((k) => { const [r, c] = k.split(",").map(Number); const cell = level.hazard[k]; const kind = hazardKindOf(cell); const info = HAZARDS[kind] || HAZARDS.fire; const eraseNow = !play && lTool === "erase"; const life = hazardLife(cell); const hidden = !!(cell && typeof cell === "object" && cell.hideInPlay); if (play && hidden) return null; /* invisible-in-play fire: still hurts (damage runs off level.hazard), just draws nothing during play so a prop fire can sit on top */ return <div key={"hz" + k} data-hk={k} className={"lhazard kind-" + kind + (hidden ? " hazHidden" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} title={info.label + " — " + hazardDps(cell) + " HP/sec" + (life > 0 ? " · burns " + life + "s" : " · permanent") + (hidden ? " · invisible during play" : "")} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv) => { const hazard = { ...lv.hazard }; delete hazard[k]; return { ...lv, hazard }; }); } : undefined}><span className="hzflame">{hidden ? "🚫" : info.glyph}</span></div>; }) : null, [level, lTool, play]);
+  const lvHazardLayer = useMemo(() => level && level.hazard ? <div ref={hazardCellsRef} style={CELL_LAYER_STYLE}>{Object.keys(level.hazard).map((k) => { const [r, c] = k.split(",").map(Number); const cell = level.hazard[k]; const kind = hazardKindOf(cell); const info = HAZARDS[kind] || HAZARDS.fire; const eraseNow = !play && lTool === "erase"; const life = hazardLife(cell); const hidden = !!(cell && typeof cell === "object" && cell.hideInPlay); if (play && hidden) return null; /* invisible-in-play fire: still hurts (damage runs off level.hazard), just draws nothing during play so a prop fire can sit on top */ return <div key={"hz" + k} data-hk={k} className={"lhazard kind-" + kind + (hidden ? " hazHidden" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} title={info.label + " — " + hazardDps(cell) + " HP/sec" + (life > 0 ? " · burns " + life + "s" : " · permanent") + (hidden ? " · invisible during play" : "")} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv) => { const hazard = { ...lv.hazard }; delete hazard[k]; return { ...lv, hazard }; }); } : undefined}><span className="hzflame">{hidden ? "🚫" : info.glyph}</span></div>; })}</div> : null, [level, lTool, play]);
   const [canUndoLevel, setCanUndoLevel] = useState(false);
   const [canRedoLevel, setCanRedoLevel] = useState(false);
   const artRef = useRef(null);
@@ -3885,12 +3956,11 @@ export default function AssetStudio() {
   const rampAnchor = useRef(null);                       // {r, c} anchor cell while dragging out a multi-cell ramp — cleared on commit
   const areaAnchor = useRef(null);                       // {r, c} anchor cell while dragging out an area-copy rectangle — cleared on commit
   const clipboard = useRef(null);                        // { w, h, fg, bg, fx } captured from the last area-copy selection, keyed relative to its own top-left corner
-  const frontCellsRef = useRef(null);      // wrapper around the memoized Front tile layer — lets the playtest loop fade covered cells imperatively, without re-rendering the whole (memoized) layer every frame
-  const hazardCellsRef = useRef(null);     // same idea for fire: the layer is memoized (not rebuilt every frame), so a burnt-out cell is hidden imperatively by toggling its own element's opacity
   const fadedFrontKeys = useRef(new Set()); // Front cell keys currently faded, so leaving a cell restores it and unchanged cells aren't touched at all
   const xrayFrontSig = useRef("");         // signature of the Front cells the player was behind last frame; the flood fill above only re-runs when this changes, so standing still costs nothing
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
+  const groundArtCache = useRef(new Map());   // item id -> its baked ground art + bounding box; see groundArt() — an item on a pedestal or lying where a body dropped it is otherwise re-baked every playtest frame
   const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
   const keys = useRef({});
   const lvRef = useRef(null);
@@ -7417,6 +7487,10 @@ export default function AssetStudio() {
   // scratch (including a nested O(n*m) filter) on every render before this fix.
   const assetById = useMemo(() => { const m = new Map(); for (const a of allAssets) m.set(a.id, a); return m; }, [allAssets]);
   const findA = (id) => assetById.get(id) || null;
+  // Baked ground art is cached by item id (see groundArt), so it has to be dropped whenever the
+  // library changes underneath it — otherwise redrawing a rifle in the Asset Studio and coming
+  // back would leave the old one lying on the pedestal.
+  useEffect(() => { groundArtCache.current.clear(); }, [allAssets]);
   const levelObjectPixelLayout = (object, cellPx = LV_CELL) => {
     const fp = levelObjectFootprint(object, object && object.kind === "prop" ? findA(object.propId) : null);
     return { width: fp.cols * cellPx, height: fp.rows * cellPx, box: fp.box };
@@ -8416,6 +8490,44 @@ export default function AssetStudio() {
     const basePlayerAsset = findA(playerId);
     const playerAsset = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
     const playtestWeapon = playtestWeaponId ? findA(playtestWeaponId) : null; // used by the render below; the physics loop above has its own copy in its own closure
+    // What pressing E on an item will actually DO, in one line: "use · +20 HP", "swap · Dmg 5→7",
+    // "equip · Speed 5→7 · 🛡️ +2". Computed exactly the way the E handler resolves the take, so the
+    // number shown is the number you get.
+    // Shared by pedestals AND enemy drops. A drop used to say only "Press E to pick up", so the one
+    // way to find out what you were about to swap into was to take it and go read your own stats —
+    // and by then the thing you were wearing is on the floor. Loot off a body is the same decision
+    // as loot on a plinth, so it answers the same question.
+    const takePromptText = (it) => {
+      if (!it) return null;
+      if (it.type === "item") return "Press E to use · " + itemEffectSummary(it.effect);
+      if (it.type === "weapon") {
+        const held = playtestWeaponId ? findA(playtestWeaponId) : null, ad = it.damage ?? 5;
+        const delta = held ? (ad !== (held.damage ?? 5) ? ["Dmg " + (held.damage ?? 5) + "→" + ad] : []) : ["Dmg " + ad];
+        return "Press E to " + (held ? "swap" : "equip") + (delta.length ? " · " + delta.join(" · ") : " · no stat change");
+      }
+      const offSlot = equipDisplacedSlot(it, equipped.current);
+      const before = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
+      const nextMap = { ...equipped.current }; if (offSlot) delete nextMap[offSlot]; nextMap[it.slot] = it;
+      const delta = equipEffectSummary(before, mergeEquip(basePlayerAsset, nextMap, equippedBodyIdFor(basePlayerAsset)));
+      return "Press E to " + (offSlot ? "swap" : "equip") + (delta.length ? " · " + delta.join(" · ") : " · no stat change");
+    };
+    // An item lying on the ground — on a pedestal or dropped by a body — never changes its art, but
+    // the whole level screen re-renders every playtest frame, so both call sites were re-baking
+    // every one of them 60 times a second and re-measuring its bounding box each time. Bake once
+    // per item and keep it; the cache is keyed on the item's own id, which is what "the same item"
+    // means everywhere else here.
+    const groundArt = (it) => {
+      if (!it) return { pieces: [], bb: null };
+      const hit = groundArtCache.current.get(it.id);
+      if (hit) return hit;
+      const src = it.type === "weapon" && it.states && it.states.rest ? { ...it, angles: it.states.rest } : it;
+      const pieces = bake(src, displayPoseKey(src)).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
+      let bb = null;
+      if (pieces.length) { let a = Infinity, b = Infinity, d = -Infinity, e = -Infinity; for (const pc of pieces) { a = Math.min(a, pc.x); b = Math.min(b, pc.y); d = Math.max(d, pc.x + pc.w); e = Math.max(e, pc.y + pc.h); } bb = { x: a, y: b, w: Math.max(1, d - a), h: Math.max(1, e - b) }; }
+      const out = { pieces, bb };
+      groundArtCache.current.set(it.id, out);
+      return out;
+    };
     const layerKey = lLayer === "obj" ? "fx" : lLayer === "marker" ? "markers" : lLayer === "enemy" ? "enemies" : lLayer; // backing level property for each tool (climb/hazard use their own name directly)
     // Live Fill preview: shows exactly what a click would affect BEFORE you click — the direct
     // fix for "clicked what looked like the right thing but it filled way more/less than
@@ -8671,12 +8783,12 @@ export default function AssetStudio() {
               <div ref={lvRef} className="lgrid" style={{ width: lvW, height: lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px" }} onPointerDown={lvDown} onPointerMove={lvMove} onPointerLeave={() => setLHoverCell(null)}>
                 {lvBgLayer}
                 {lvFgLayer}
-                <div ref={frontCellsRef} style={{ display: "contents" }}>{lvFrontLayer}</div>
+                {lvFrontLayer}
                 {layerMove && layerMove.levelId === lv.id && Object.keys(layerMove.cells).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"mv" + k} className="lcell moveSel" style={{ left: c * LV_CELL, top: r * LV_CELL }} />; })}
                 {lvFxLayer}
                 {lvPropMeta.map(({ o, si, r, c, k }) => { const layout = levelObjectPixelLayout(o); const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
                 {!play && lvClimbLayer}
-                <div ref={hazardCellsRef} style={{ display: "contents" }}>{lvHazardLayer}</div>
+                {lvHazardLayer}
                 {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : "💎"}</div>; })}
                 {!play && lv.enemies && Object.keys(lv.enemies).map((k) => { const [r, c] = k.split(",").map(Number); const ea = findA(lv.enemies[k].enemyId); return <div key={"en" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { cursor: "pointer" } : {}) }} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv2) => { const enemies = { ...(lv2.enemies || {}) }; delete enemies[k]; return { ...lv2, enemies }; }); } : undefined}>{ea ? "👹" : "❓"}</div>; })}
                 {!play && !lv.isRoom && CONN_KEYS.map((k) => { const pos = CONN_POS[k], cc = lv.conns[k]; return (
@@ -9269,17 +9381,14 @@ export default function AssetStudio() {
                   // there was no way to tell which shirt or which gun was lying there without
                   // walking onto it and reading the prompt. The emoji is only the fallback now, for
                   // an item whose art is genuinely empty.
-                  const artSrc = item.type === "weapon" && item.states && item.states.rest ? { ...item, angles: item.states.rest } : item;
-                  const artPieces = bake(artSrc, displayPoseKey(artSrc)).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
-                  let bb = null;
-                  if (artPieces.length) { let a = Infinity, b = Infinity, d = -Infinity, e = -Infinity; for (const pc of artPieces) { a = Math.min(a, pc.x); b = Math.min(b, pc.y); d = Math.max(d, pc.x + pc.w); e = Math.max(e, pc.y + pc.h); } bb = { x: a, y: b, w: Math.max(1, d - a), h: Math.max(1, e - b) }; }
+                  const { pieces: artPieces, bb } = groundArt(item);
                   const dBox = LV_CELL * 1.6;
                   let dPlane = null;
                   if (bb) { const sc = Math.min(dBox / bb.w, dBox / bb.h) * 0.86; dPlane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${dBox / 2 - sc * (bb.x + bb.w / 2)}px,${dBox / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})` }; }
                   const icon = item.type === "weapon" ? "⚔️" : item.type === "equipment" ? "🎒" : "🧪";
                   return <div key={"drop" + k} className="enemyDropPlay" style={{ left: drop.x, top: drop.y }} title={"Dropped " + item.name}>
                     <div className={"enemyDropOrb" + (bb ? " art" : "")} style={bb ? { width: dBox, height: dBox } : undefined}>{bb ? <div style={dPlane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "drop_" + k, keyPrefix: "drop" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}</div> : icon}</div>
-                    {pedPrompt && pedPrompt.key === "drop:" + k && <div className="pedcallout">🎁 Press E to pick up</div>}
+                    {pedPrompt && pedPrompt.key === "drop:" + k && <div className="pedcallout">🎁 {takePromptText(item) || "Press E to pick up"}</div>}
                     <div className="enemyDropCap">{item.name}</div>
                   </div>;
                 })}
@@ -9291,10 +9400,7 @@ export default function AssetStudio() {
                   // (no "no match" placeholder). A pedestal that simply never matched any item still
                   // shows "no match" below, so a mis-tagged filter is still obvious in the editor.
                   if (!rolled && pedestalDepleted.current.has(k)) return null;
-                  const artSrc = rolled ? (rolled.type === "weapon" && rolled.states && rolled.states.rest ? { ...rolled, angles: rolled.states.rest } : rolled) : null;
-                  const artPieces = artSrc ? bake(artSrc, displayPoseKey(artSrc)).filter((pc) => !pc.isHitbox) : [];
-                  let bb = null;
-                  if (artPieces.length) { let a = Infinity, b = Infinity, d = -Infinity, e = -Infinity; for (const pc of artPieces) { a = Math.min(a, pc.x); b = Math.min(b, pc.y); d = Math.max(d, pc.x + pc.w); e = Math.max(e, pc.y + pc.h); } bb = { x: a, y: b, w: Math.max(1, d - a), h: Math.max(1, e - b) }; }
+                  const { pieces: artPieces, bb } = groundArt(rolled);
                   const boxW = LV_CELL * PED_BOX_W_CELLS, boxH = LV_CELL * PED_BOX_H_CELLS;
                   // Seen through a wall (the loop decided which pedestals that sheet hides, and has
                   // already faded the Front cells over this one). How washed out it draws depends on
@@ -9312,24 +9418,10 @@ export default function AssetStudio() {
                   if (bb) { const sc = Math.min(boxW / bb.w, boxH / bb.h) * 0.86; const tx = boxW / 2 - sc * (bb.x + bb.w / 2), ty = boxH / 2 - sc * (bb.y + bb.h / 2); planeStyle = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${tx}px,${ty}px) scale(${sc})` }; }
                   // When the player is standing on THIS pedestal, float the call-to-action over the
                   // item: equip (nothing comes off) vs swap (a same-slot or same-category item does),
-                  // plus the stat distance — computed exactly the way pressing E resolves it, so the
-                  // number shown is the number you'll get.
-                  let promptText = null;
-                  if (play && pedPrompt && pedPrompt.key === k && rolled) {
-                    if (rolled.type === "item") {
-                      promptText = "Press E to use · " + itemEffectSummary(rolled.effect);
-                    } else if (rolled.type === "weapon") {
-                      const held = playtestWeaponId ? findA(playtestWeaponId) : null, ad = rolled.damage ?? 5;
-                      const delta = held ? (ad !== (held.damage ?? 5) ? ["Dmg " + (held.damage ?? 5) + "\u2192" + ad] : []) : ["Dmg " + ad];
-                      promptText = "Press E to " + (held ? "swap" : "equip") + (delta.length ? " · " + delta.join(" · ") : " · no stat change");
-                    } else {
-                      const offSlot = equipDisplacedSlot(rolled, equipped.current);
-                      const before = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
-                      const nextMap = { ...equipped.current }; if (offSlot) delete nextMap[offSlot]; nextMap[rolled.slot] = rolled;
-                      const delta = equipEffectSummary(before, mergeEquip(basePlayerAsset, nextMap, equippedBodyIdFor(basePlayerAsset)));
-                      promptText = "Press E to " + (offSlot ? "swap" : "equip") + (delta.length ? " · " + delta.join(" · ") : " · no stat change");
-                    }
-                  }
+                  // plus the stat distance. takePromptText (up with the other playtest render helpers)
+                  // works it out exactly the way pressing E resolves the take, so the number shown is the
+                  // number you'll get — and an enemy drop now reads its callout from that same function.
+                  const promptText = (play && pedPrompt && pedPrompt.key === k && rolled) ? takePromptText(rolled) : null;
                   return (
                     <div key={"ped" + k} className={"pedestalPlay" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
                       <div className="pedestalArt" style={artStyle}>{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + k, keyPrefix: "ped" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}</div> : <div className="pedestalEmpty">no match</div>}</div>

@@ -135,6 +135,8 @@ import {
   boxPoint,
   pieceBox,
   SNAP_DIST,
+  cellRuns,
+  cellRunSig,
 } from "./App";
 
 describe("copying blocks and groups", () => {
@@ -2149,6 +2151,50 @@ describe("what the player hits for", () => {
     expect(without).toBe(7);
     expect(Math.ceil(ENEMY_HP / withHat)).toBe(2);
     expect(Math.ceil(ENEMY_HP / without)).toBe(3);
+  });
+});
+
+describe("merging tiles into runs", () => {
+  test("neighbouring cells that paint the same become one box, and every cell is still covered", () => {
+    const map = { "3,0": "#aaa", "3,1": "#aaa", "3,2": "#aaa", "3,4": "#aaa", "4,0": "#bbb" };
+    const runs = cellRuns(map);
+    expect(runs.map((r) => [r.key, r.span])).toEqual([["3,0", 3], ["3,4", 1], ["4,0", 1]]);
+    // The invariant the level's look depends on: the runs cover each painted cell exactly once.
+    expect(runs.reduce((n, r) => n + r.span, 0)).toBe(Object.keys(map).length);
+  });
+
+  test("a gap in the row breaks the run — a merged box must never paint an empty cell", () => {
+    expect(cellRuns({ "0,0": "#aaa", "0,1": "#aaa", "0,3": "#aaa" }).map((r) => r.span)).toEqual([2, 1]);
+  });
+
+  test("a different colour or a different texture is a different run", () => {
+    expect(cellRuns({ "0,0": "#aaa", "0,1": "#bbb" }).map((r) => r.span)).toEqual([1, 1]);
+    expect(cellRuns({ "0,0": { c: "#aaa", tex: "t1" }, "0,1": { c: "#aaa", tex: "t2" } }).map((r) => r.span)).toEqual([1, 1]);
+    expect(cellRuns({ "0,0": { c: "#aaa", tex: "t1" }, "0,1": { c: "#aaa", tex: "t1" } }).map((r) => r.span)).toEqual([2]);
+    // Collision-only terrain looks different in the editor and vanishes in play, so it can only
+    // merge with more of itself.
+    expect(cellRuns({ "0,0": { c: "#aaa", hideInPlay: true }, "0,1": { c: "#aaa" } }).map((r) => r.span)).toEqual([1, 1]);
+  });
+
+  test("ramps, outlines and stacked fills each keep a box of their own", () => {
+    // A ramp's clip-path is a percentage of its box — widen the box and the diagonal flattens out.
+    expect(cellRunSig({ c: "#aaa", slope: 1 })).toBe(null);
+    // An outline is derived from a cell's own four neighbours, so it isn't a property of a run.
+    expect(cellRunSig({ c: "#aaa", ol: "#000" })).toBe(null);
+    // A cell holding several fills draws one box per fill.
+    expect(cellRunSig({ c: "#aaa", more: [{ c: "#bbb" }] })).toBe(null);
+    expect(cellRunSig("#aaa")).not.toBe(null);
+    // Two ramps side by side stay two ramps — an unmergeable cell must never match another one.
+    const ramps = cellRuns({ "0,0": { c: "#aaa", slope: 1 }, "0,1": { c: "#aaa", slope: 1 } });
+    expect(ramps.map((r) => r.span)).toEqual([1, 1]);
+  });
+
+  test("a plain block is mergeable — fgClipPath says the string \"none\", which is truthy", () => {
+    // This exact trap cost a debugging round: testing fgClipPath(cell) instead of asking whether
+    // the cell actually has a diagonal shape made cellRunSig reject every cell in the level, and
+    // merging silently did nothing at all while looking completely correct.
+    expect(cellRunSig({ c: "#2d3710", tex: "qnfjme1" })).toBe("#2d3710|qnfjme1|");
+    expect(cellRuns({ "0,0": { c: "#2d3710", tex: "q" }, "0,1": { c: "#2d3710", tex: "q" } })[0].span).toBe(2);
   });
 });
 
