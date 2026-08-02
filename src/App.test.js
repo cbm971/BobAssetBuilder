@@ -60,6 +60,7 @@ import {
   CUTTER_MASK_PAD,
   cutterMaskFrameLayout,
   advanceAutoReloadWeapon,
+  weaponAbilitiesFor,
   canFireNow,
   consumeShot,
   enemyCrouchH,
@@ -1151,6 +1152,25 @@ describe("weapon magazines and enemy reloads", () => {
     }
     expect(ammo.reloadT).toBe(0);
     expect(needsReload(ammo)).toBe(false);
+  });
+});
+
+describe("which abilities a weapon may carry", () => {
+  test("a melee weapon is offered exactly the powers a swing can carry", () => {
+    expect(weaponAbilitiesFor("melee").sort()).toEqual(["ignoreArmor", "resurrect"]);
+    expect(weaponAbilitiesFor(undefined).sort()).toEqual(["ignoreArmor", "resurrect"]); // older saves have no wtype
+  });
+
+  test("a ranged weapon still gets the full list", () => {
+    expect(weaponAbilitiesFor("ranged").sort()).toEqual(Object.keys(WEAPON_ABILITIES).sort());
+    expect(weaponAbilitiesFor("projectile").sort()).toEqual(Object.keys(WEAPON_ABILITIES).sort());
+  });
+
+  // Switching a ranged weapon to melee must not strand a flag it already has where nothing can
+  // reach it — an ability that is ON is always listed, so it can at least be removed.
+  test("a flag already set on a melee weapon stays listed so it can be taken off", () => {
+    expect(weaponAbilitiesFor("melee", { explode: true })).toContain("explode");
+    expect(weaponAbilitiesFor("melee", { explode: false })).not.toContain("explode");
   });
 });
 
