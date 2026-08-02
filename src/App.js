@@ -10412,7 +10412,7 @@ const css = `
 .wide2{width:150px}
 /* Twist, sitting on the object toolbar. Boxed and tinted so it reads as "this acts on the
    object you have", not as another placement setting like size or colour. */
-.objnudge{display:inline-flex;align-items:center;gap:4px;margin-left:8px}
+.objnudge{display:inline-flex;align-items:center;gap:4px;margin-left:8px}
 .objtwist{display:flex;align-items:center;gap:7px;padding:5px 10px;background:#1b2233;border:1px solid #3a4258;border-radius:9px;font-size:13px}
 .objtwist input[type=range]{width:120px;accent-color:#4f7cf6}
 .catbar{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#161922;border-bottom:1px solid #232838;flex-wrap:wrap}
