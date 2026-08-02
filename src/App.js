@@ -833,6 +833,35 @@ export const meleeHasFired = (t, dur) => (t / dur) >= (MELEE_WINDUP_FRAC + MELEE
 export const defenseDamageMultiplier = (def) => 10 / (10 + Math.max(0, def || 0));
 export const applyDefense = (rawDamage, def) => rawDamage * defenseDamageMultiplier(def);
 
+// ── What the PLAYER hits for ────────────────────────────────
+// Melee and ranged do NOT share a formula, and the belief that they did is exactly what hid the
+// worst combat bug this game has had. Both live here, exported and tested, so the two rules are
+// stated once instead of being retyped inline at three different hit-tests that then drift.
+//
+// MELEE is muscle. The weapon's damage rides the wielder's Strength — 5 is neutral, 1 is a fifth,
+// 10 is double — and can crit for double off Intelligence. That is what every description in the
+// app promises: "Strength: melee damage dealt. Intelligence: melee crit chance."
+//
+// RANGED is not muscle. Squeezing a trigger harder does not make the bullet bigger, so a shot
+// deals the weapon's own Damage number, flat, for every character — matching the ranged Damage
+// hint in the weapon editor, "Base damage this weapon's shot deals on a hit", which pointedly
+// does NOT mention either stat the melee hint lists.
+//
+// THE BUG: both ranged hit-tests (direct hit and explosion splash) ran the MELEE formula. Firing
+// one 7-damage M16, Strength 10 dealt 14 while Strength 1 rounded down to 1 — the same gun doing
+// fourteen times the damage depending on who held it. That is why Army Bob one-shot enemies that
+// Bobette needed ten hits to drop, and why the numbers looked "wrong AND different" at once.
+// Rounding is what made the low end so brutal: 7 × (1/5) = 1.4, rounded to 1, floored at 1.
+//
+// `weaponDamage` arrives with any Tag Damage clothing multiplier already folded in (melee applies
+// it at the hit-test, ranged bakes it into the projectile at spawn) — that ability is a property
+// of the gear, not the body, so it applies to both kinds and is not what this split is about.
+export const playerMeleeDamage = (weaponDamage, strength) => Math.max(1, Math.round((weaponDamage ?? 5) * ((strength ?? 5) / 5)));
+export const playerRangedDamage = (weaponDamage) => Math.max(1, Math.round(weaponDamage ?? 5));
+// Melee crit chance: 2% per point of Intelligence, capped at 60% so even a maxed stat still has
+// ordinary hits. Ranged never calls this — guns do not crit (see above).
+export const meleeCritChance = (intelligence) => Math.min(0.6, Math.max(0, (intelligence ?? 5) * 0.02));
+
 // ── Item categories & pedestal search ───────────────────────
 // Every "item" (equipment or weapon) can carry up to 3 free-text categories Blake types in
 // himself — "T1", "Shirt", "Strong". A pedestal placed in a level searches the saved item pool
@@ -4784,8 +4813,8 @@ export default function AssetStudio() {
                     // Armed damage scales the weapon's own damage by strength (5 = neutral).
                     // Bare-handed there's no weapon damage to scale — it's just the strength
                     // stat directly, per request.
-                    const base = (!unarmedSwing && playtestWeapon) ? Math.max(1, Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories) * (strength / 5))) : Math.max(1, Math.round(strength));
-                    const isCrit = Math.random() < Math.min(0.6, intelligence * 0.02);
+                    const base = (!unarmedSwing && playtestWeapon) ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories), strength) : Math.max(1, Math.round(strength));
+                    const isCrit = Math.random() < meleeCritChance(intelligence);
                     const dmg = isCrit ? base * 2 : base;
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
                     if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon && (playtestWeapon.stun ?? 0) > 0) { ep.stun = Math.round(playtestWeapon.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
@@ -4804,8 +4833,10 @@ export default function AssetStudio() {
       // Advance live projectiles and cull anything expired, off-level, that hit solid ground, or
       // that connect with a living enemy. Enemy hit-test uses the projectile's own rendered box
       // (see the `sz` math in the render section below — kept identical here so the hitbox always
-      // matches what's on screen) and the same strength/intelligence damage formula the melee
-      // hit-test uses, so both weapon types scale with player stats identically.
+      // matches what's on screen). Damage is playerRangedDamage: the weapon's own number, flat.
+      // This comment used to claim ranged reused the melee strength/intelligence formula "so both
+      // weapon types scale with player stats identically" — the code did exactly that, and it was
+      // the bug. Guns are the one thing in this game a body's stats do NOT change.
       // Thrown grenades: gravity arc until they hit a solid cell, the floor, or a wall, then they
       // "land" — painting their fire (or future effect) into the hazard layer at the impact, in a
       // splash of the configured radius, and seeding each new cell's burn life so it goes out on
@@ -4888,7 +4919,9 @@ export default function AssetStudio() {
       }
 
       if (projectiles.current.length) {
-        const strength = pstats.strength, intelligence = pstats.intelligence;
+        // No stats are read in here on purpose: a shot's damage comes from the weapon alone, so
+        // there is deliberately nothing to pull off pstats. If a stat ever needs to reach this
+        // block again, it is not Strength.
         // An "explode" shot doesn't just hit one target — on impact it bursts: a wide splash of
         // damage over a radius, plus a transient explosion drawn in the FRONT layer from whatever
         // Object/Prop the weapon points at (Blake draws the boom in the prop maker). The boom is a
@@ -4935,8 +4968,10 @@ export default function AssetStudio() {
               const ep = enemyPos.current[k]; if (!ep || ep.friendly) continue;
               const bx = enemyBlastBox(ea, ep);
               if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
-                const base = Math.max(1, Math.round(baseDmg * (strength / 5)));
-                const dmg = (Math.random() < Math.min(0.6, intelligence * 0.02)) ? base * 2 : base;
+                // Splash is still a SHOT — flat weapon damage, no Strength, no crit, exactly like
+                // the direct hit below. A blast that scaled with the shooter's muscles was half of
+                // the same bug (playerRangedDamage).
+                const dmg = playerRangedDamage(baseDmg);
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
                 if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
                 hits++;
@@ -5049,12 +5084,13 @@ export default function AssetStudio() {
             const overlap = prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop;
             if (overlap) {
               if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
-              const base = Math.max(1, Math.round((pr.damage ?? 5) * (strength / 5)));
-              const isCrit = Math.random() < Math.min(0.6, intelligence * 0.02);
-              const dmg = isCrit ? base * 2 : base;
+              // The weapon's Damage number, flat, for whoever pulled the trigger — see
+              // playerRangedDamage. Running the melee formula here is what made one M16 do 14 in
+              // Army Bob's hands and 1 in Bobette's.
+              const dmg = playerRangedDamage(pr.damage);
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
               if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
-              flash((isCrit ? "💥 Critical! " : "🎯 ") + "Hit " + ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
+              flash("🎯 Hit " + ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
               return false; // projectile consumed on impact
             }
           }

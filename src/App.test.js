@@ -107,6 +107,9 @@ import {
   pieceGroupBounds,
   scalePieceGroup,
   removePieceSelection,
+  playerMeleeDamage,
+  playerRangedDamage,
+  meleeCritChance,
 } from "./App";
 
 describe("copying blocks and groups", () => {
@@ -1865,5 +1868,68 @@ describe("melee block (Q/V with a melee weapon in hand)", () => {
 
   test("a blocked attacker is left reeling for a beat", () => {
     expect(BLOCK_STAGGER_SECS).toBeGreaterThan(0);
+  });
+});
+
+describe("what the player hits for", () => {
+  // The regression these exist for: one 7-damage M16 did 14 damage in the hands of a Strength-10
+  // character and 1 in the hands of a Strength-1 character, because both ranged hit-tests ran the
+  // melee formula. Army Bob one-shot enemies Bobette needed ten hits to drop, with the same gun.
+  test("a gun does its own damage no matter who is holding it", () => {
+    // playerRangedDamage takes no stat at all — so the only way to prove the invariant is to show
+    // the whole roster of Strength values the sliders allow collapses to one number. If ranged ever
+    // grows a stat argument again, whoever adds it has to come here and delete this test on purpose.
+    const M16 = 7;
+    const everyStrength = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    const perCharacter = everyStrength.map(() => playerRangedDamage(M16));
+    expect(new Set(perCharacter).size).toBe(1);
+    expect(perCharacter[0]).toBe(M16);
+    // And the melee formula it used to borrow really does spread out across that same roster —
+    // this is the difference that was leaking into gunfire, not a hypothetical.
+    const meleeSpread = everyStrength.map((s) => playerMeleeDamage(M16, s));
+    expect(new Set(meleeSpread).size).toBeGreaterThan(1);
+    expect(Math.max(...meleeSpread)).toBe(14); // Strength 10
+    expect(Math.min(...meleeSpread)).toBe(1);  // Strength 1, rounded down and floored
+  });
+
+  test("the exact Army Bob vs Bobette case from the bug report", () => {
+    // Both hold the same M16 against the same 10 HP enemy. Army Bob is Strength 10, Bobette is 1.
+    const M16 = 7, ENEMY_HP = 10;
+    const shotsToKill = (dmg) => Math.ceil(ENEMY_HP / dmg);
+    const armyBob = shotsToKill(playerRangedDamage(M16));
+    const bobette = shotsToKill(playerRangedDamage(M16));
+    expect(armyBob).toBe(bobette);
+    expect(armyBob).toBe(2);
+    // What it used to be, and why the report read the way it did: a one-shot versus a full ten.
+    expect(shotsToKill(playerMeleeDamage(M16, 10))).toBe(1);
+    expect(shotsToKill(playerMeleeDamage(M16, 1))).toBe(10);
+  });
+
+  test("melee still rides Strength — 5 neutral, 1 a fifth, 10 double", () => {
+    expect(playerMeleeDamage(10, 5)).toBe(10);
+    expect(playerMeleeDamage(10, 1)).toBe(2);
+    expect(playerMeleeDamage(10, 10)).toBe(20);
+  });
+
+  test("neither kind can round or scale a hit down to nothing", () => {
+    // 7 x (1/5) = 1.4 rounds to 1: the floor is what stopped that being a 0-damage weapon, and it
+    // is also what made the Strength-1 case land on exactly a tenth of a 10 HP enemy.
+    expect(playerMeleeDamage(7, 1)).toBe(1);
+    expect(playerMeleeDamage(1, 1)).toBe(1);
+    expect(playerRangedDamage(0)).toBe(1);
+    expect(playerRangedDamage(0.4)).toBe(1);
+  });
+
+  test("a missing damage number falls back to 5 rather than NaN", () => {
+    expect(playerRangedDamage(undefined)).toBe(5);
+    expect(playerMeleeDamage(undefined, 5)).toBe(5);
+    expect(playerMeleeDamage(10, undefined)).toBe(10); // absent stat means baseline 5, not zero
+  });
+
+  test("crit chance is melee-only, 2% per point, capped so hits stay ordinary", () => {
+    expect(meleeCritChance(5)).toBeCloseTo(0.1);
+    expect(meleeCritChance(10)).toBeCloseTo(0.2);
+    expect(meleeCritChance(100)).toBe(0.6);
+    expect(meleeCritChance(0)).toBe(0);
   });
 });
