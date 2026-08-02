@@ -95,6 +95,9 @@ import {
   blockStopsHit,
   duplicateSelectedPieces,
   ENEMY_ITEM_DROP_CHANCE,
+  ENEMY_GEAR_DROP_CHANCE,
+  enemyItemDropPool,
+  enemyGearDropPool,
   enemyDropOverlapping,
   rollEnemyItemDrop,
   multiLegPivot,
@@ -157,16 +160,50 @@ describe("copying blocks and groups", () => {
 describe("enemy item drops", () => {
   const assets = [
     { id: "potion", name: "Potion", type: "item" },
+    { id: "elixir", name: "Elixir", type: "item" },
     { id: "sword", name: "Sword", type: "weapon" },
+    { id: "hat", name: "Hat", type: "equipment" },
     { id: "dog", name: "Dog", type: "enemy" },
   ];
+  const MISS = 0.99; // a roll that fails either gate
 
-  test("uses an exact 2% gate and draws from every pickup item type", () => {
-    expect(ENEMY_ITEM_DROP_CHANCE).toBe(0.02);
-    expect(rollEnemyItemDrop(assets, 0.019999, 0).id).toBe("potion");
-    expect(rollEnemyItemDrop(assets, 0.019999, 0.999999).id).toBe("sword");
-    expect(rollEnemyItemDrop(assets, 0.02, 0)).toBeNull();
-    expect(rollEnemyItemDrop([{ id: "dog", type: "enemy" }], 0, 0)).toBeNull();
+  test("consumables are the common drop at 5%, gear the rare one at 2%", () => {
+    expect(ENEMY_ITEM_DROP_CHANCE).toBe(0.05);
+    expect(ENEMY_GEAR_DROP_CHANCE).toBe(0.02);
+    // Inside the item gate you get a consumable, never a shirt.
+    expect(rollEnemyItemDrop(assets, 0.049999, 0, MISS).type).toBe("item");
+    expect(rollEnemyItemDrop(assets, 0, 0.999999, MISS).id).toBe("elixir");
+    // Past the item gate but inside the gear gate you get gear — a weapon or a piece of clothing.
+    expect(rollEnemyItemDrop(assets, 0.05, 0, 0.019999, 0).id).toBe("sword");
+    expect(rollEnemyItemDrop(assets, 0.05, 0, 0.019999, 0.999999).id).toBe("hat");
+    // Past both gates: nothing.
+    expect(rollEnemyItemDrop(assets, 0.05, 0, 0.02, 0)).toBeNull();
+  });
+
+  test("the pool split is what stops clothing flooding the drops", () => {
+    // The regression: ONE roll against the unfiltered pedestal pool (equipment+weapon+item) meant
+    // a library of 50 clothes and 2 potions dropped clothing almost every time.
+    const wardrobe = [{ id: "potion", type: "item" }];
+    for (let i = 0; i < 50; i++) wardrobe.push({ id: "shirt" + i, type: "equipment" });
+    expect(enemyItemDropPool(wardrobe)).toHaveLength(1);
+    expect(enemyGearDropPool(wardrobe)).toHaveLength(50);
+    // Every roll inside the item gate is the potion, whatever the item rnd, however many clothes exist.
+    for (const r of [0, 0.25, 0.5, 0.75, 0.999999]) {
+      expect(rollEnemyItemDrop(wardrobe, 0.01, r, MISS).id).toBe("potion");
+    }
+  });
+
+  test("an empty consumable library does not promote the gear roll", () => {
+    // Gear stays on its own 2% gate rather than inheriting the 5% one.
+    const gearOnly = [{ id: "sword", type: "weapon" }];
+    expect(rollEnemyItemDrop(gearOnly, 0, 0, MISS)).toBeNull();
+    expect(rollEnemyItemDrop(gearOnly, 0, 0, 0.01, 0).id).toBe("sword");
+  });
+
+  test("enemies and other non-pickups are never dropped", () => {
+    expect(enemyItemDropPool(assets).map((a) => a.id)).toEqual(["potion", "elixir"]);
+    expect(enemyGearDropPool(assets).map((a) => a.id)).toEqual(["sword", "hat"]);
+    expect(rollEnemyItemDrop([{ id: "dog", type: "enemy" }], 0, 0, 0, 0)).toBeNull();
   });
 
   test("only offers live dropped items when the player overlaps them", () => {

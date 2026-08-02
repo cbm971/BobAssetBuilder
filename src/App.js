@@ -904,13 +904,35 @@ export const rollPedestalItem = (assets, cats, logic, rnd) => {
   const r = typeof rnd === "number" ? rnd : Math.random();
   return pool[Math.min(pool.length - 1, Math.floor(r * pool.length))];
 };
-export const ENEMY_ITEM_DROP_CHANCE = 0.02;
-// Enemy loot uses the same "any item" pool as an unfiltered pedestal. Keep the chance roll
-// separate from the item roll so the 2% gate stays exact even when the library only has one item.
-export const rollEnemyItemDrop = (assets, chanceRnd, itemRnd) => {
-  const chance = typeof chanceRnd === "number" ? chanceRnd : Math.random();
-  if (chance >= ENEMY_ITEM_DROP_CHANCE) return null;
-  return rollPedestalItem(assets, [], "or", itemRnd);
+// Enemy loot rolls CONSUMABLES and GEAR as two separate gates, because they are not the same kind
+// of reward. A potion is the ordinary "you killed something" payout; a shirt or a rifle is a real
+// find and should stay rare.
+//
+// This used to be ONE roll against the unfiltered pedestal pool — and that pool is
+// equipment + weapon + item (see HAS_CATEGORIES). With 50-odd clothing assets saved and a handful
+// of consumables, "a random member of that pool" was overwhelmingly a piece of clothing, so
+// enemies looked like they only ever dropped clothes. The pool, not the chance, was the bug.
+export const ENEMY_ITEM_DROP_CHANCE = 0.05; // consumables (potions etc) — the common drop
+export const ENEMY_GEAR_DROP_CHANCE = 0.02; // clothing + weapons — the rare one
+export const enemyItemDropPool = (assets) => (assets || []).filter((a) => a && a.type === "item");
+export const enemyGearDropPool = (assets) => (assets || []).filter((a) => a && (a.type === "equipment" || a.type === "weapon"));
+const pickFromPool = (pool, rnd) => {
+  if (!pool.length) return null;
+  const r = typeof rnd === "number" ? rnd : Math.random();
+  return pool[Math.min(pool.length - 1, Math.floor(r * pool.length))];
+};
+// Consumables are rolled first and win outright, so gear can never crowd them out. Each rnd is
+// injectable for the tests; leaving them out uses Math.random as before. An empty consumable
+// library does NOT promote the gear roll — the two gates stay independent and honest.
+export const rollEnemyItemDrop = (assets, chanceRnd, itemRnd, gearChanceRnd, gearRnd) => {
+  const c = typeof chanceRnd === "number" ? chanceRnd : Math.random();
+  if (c < ENEMY_ITEM_DROP_CHANCE) {
+    const consumable = pickFromPool(enemyItemDropPool(assets), itemRnd);
+    if (consumable) return consumable;
+  }
+  const g = typeof gearChanceRnd === "number" ? gearChanceRnd : Math.random();
+  if (g < ENEMY_GEAR_DROP_CHANCE) return pickFromPool(enemyGearDropPool(assets), gearRnd);
+  return null;
 };
 export const enemyDropOverlapping = (drops, x, y, w, h, cellSize) => {
   const box = Math.max(18, (cellSize || 30) * 1.35), half = box / 2;
@@ -4288,7 +4310,34 @@ export default function AssetStudio() {
       // so terrain can still block or trap them; that's a later pass, same as attacks are.
       if (lv.enemies) {
         for (const k of Object.keys(lv.enemies)) {
-          if (enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0) continue; // defeated
+          if (enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0) {
+            // A DEFEATED BODY STILL FALLS. This whole per-enemy block used to be skipped the
+            // instant HP hit 0, which froze the corpse at the exact height it died — so anything
+            // killed while not standing on solid ground hung in mid-air forever. It reads as a
+            // floating dog most often over Front-layer scenery, because Front art is decoration
+            // with no collision: the enemy was never resting on it, it was falling THROUGH it, and
+            // death stopped the fall mid-frame.
+            //
+            // Only gravity runs here. No AI, no attacks, no walk cycle, no hazard damage — a
+            // corpse just needs to come to rest on the same terrain a living enemy stands on, so
+            // this mirrors the living gravity/landing rule below (including the feet-filter that
+            // stops a tall body snapping UP onto terrain it merely overlaps). Once landed we set
+            // restedDead and stop simulating, so a settled body costs nothing per frame.
+            const dep = enemyPos.current[k];
+            const dea = findA(lv.enemies[k].enemyId);
+            if (dep && dea && !dep.restedDead) {
+              const dShape = sideBodyShape(dea);
+              const dRenderW = enemyRenderW(dea, CW), dw = dRenderW * dShape.fraction;
+              const dh = dep.crouch ? enemyCrouchH(dea, CW) : enemyStandH(dea, CW);
+              dep.vy = Math.min(60, (dep.vy || 0) + 0.175 * dtMul);
+              dep.y += dep.vy * dtMul;
+              const dFeet = dep.y + dh;
+              const dFloor = cellsHit(dep.x, dep.y, dw, dh).filter((h) => h.r * CH >= dFeet - CH * 0.5);
+              if (dFloor.length && dep.vy > 0) { dep.y = Math.min(...dFloor.map((h) => h.r * CH)) - dh; dep.vy = 0; dep.restedDead = true; }
+              if (dep.y > lv.rows * CH - dh) { dep.y = lv.rows * CH - dh; dep.vy = 0; dep.restedDead = true; } // level floor
+            }
+            continue; // defeated: nothing else about it updates
+          }
           const spawn = lv.enemies[k];
           const ea = findA(spawn.enemyId);
           if (!ea) continue;
@@ -5066,6 +5115,7 @@ export default function AssetStudio() {
               if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop) {
                 enemyHP.current[k] = ea.hp ?? 10;          // back on its feet, full HP
                 ep.friendly = true; ep.resurrectedOnce = true; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
+                ep.restedDead = false; // back on its feet — let it fall again if it is ever defeated a second time
                 flash("🔮 Raised " + ea.name + " — now fighting for you!");
                 return false;
               }
@@ -5113,7 +5163,7 @@ export default function AssetStudio() {
       if (booms.current.length) { for (const b of booms.current) b.life += dtMul; booms.current = booms.current.filter((b) => b.life <= b.maxLife); }
 
       // Resolve loot in one central pass so fire, melee, bullets, explosions and friendly enemies
-      // all get the same single 2% roll. A stored null records the failed roll and prevents rerolls.
+      // all get the same single drop roll. A stored null records the failed roll and prevents rerolls.
       for (const k of Object.keys(lv.enemies || {})) {
         if (!(enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0) || Object.prototype.hasOwnProperty.call(enemyDrops.current, k)) continue;
         const item = rollEnemyItemDrop(allAssets);
@@ -8685,7 +8735,9 @@ export default function AssetStudio() {
                     // enemy that has its own hand-drawn 💀 Death pose uses it verbatim; everything else
                     // (player-based looks, and monsters with no death pose drawn) falls over on its own
                     // — the standing Side pose pivoted 90° about the feet, so it lies flat on the ground
-                    // pointing whichever way it was facing. No HP bar, no AI, frozen where it died. The
+                    // pointing whichever way it was facing. No HP bar and no AI, but it does still FALL
+                    // to the ground first (see the corpse-gravity branch in the enemy loop) — this used
+                    // to freeze it at the height it died, leaving bodies hanging in the air. The
                     // dressed look keeps its baked-in weapon, so the body lies there holding its gear.
                     const hasDeathPose = ea.type === "enemy" && !!(ea.angles && (ea.angles.death || []).length);
                     const deadBlocks = bake(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"));
@@ -8804,8 +8856,26 @@ export default function AssetStudio() {
                 })()}
                 {play && Object.entries(enemyDrops.current).map(([k, drop]) => {
                   if (!drop || !drop.item) return null;
-                  const item = drop.item, icon = item.type === "weapon" ? "⚔️" : item.type === "equipment" ? "🎒" : "🧪";
-                  return <div key={"drop" + k} className="enemyDropPlay" style={{ left: drop.x, top: drop.y }} title={"Dropped " + item.name}><div className="enemyDropOrb">{icon}</div>{pedPrompt && pedPrompt.key === "drop:" + k && <div className="pedcallout">🎁 Press E to pick up</div>}<div className="enemyDropCap">{item.name}</div></div>;
+                  const item = drop.item;
+                  // Draw the ACTUAL drawn item on the ground, exactly the way a pedestal draws the
+                  // one it rolled — same bake, same weapon-uses-its-Rest-state special case, same
+                  // fit-to-box scaling. A drop used to render as a generic 🧪/🎒/⚔️ emoji orb, so
+                  // there was no way to tell which shirt or which gun was lying there without
+                  // walking onto it and reading the prompt. The emoji is only the fallback now, for
+                  // an item whose art is genuinely empty.
+                  const artSrc = item.type === "weapon" && item.states && item.states.rest ? { ...item, angles: item.states.rest } : item;
+                  const artPieces = bake(artSrc, displayPoseKey(artSrc)).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
+                  let bb = null;
+                  if (artPieces.length) { let a = Infinity, b = Infinity, d = -Infinity, e = -Infinity; for (const pc of artPieces) { a = Math.min(a, pc.x); b = Math.min(b, pc.y); d = Math.max(d, pc.x + pc.w); e = Math.max(e, pc.y + pc.h); } bb = { x: a, y: b, w: Math.max(1, d - a), h: Math.max(1, e - b) }; }
+                  const dBox = LV_CELL * 1.6;
+                  let dPlane = null;
+                  if (bb) { const sc = Math.min(dBox / bb.w, dBox / bb.h) * 0.86; dPlane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${dBox / 2 - sc * (bb.x + bb.w / 2)}px,${dBox / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})` }; }
+                  const icon = item.type === "weapon" ? "⚔️" : item.type === "equipment" ? "🎒" : "🧪";
+                  return <div key={"drop" + k} className="enemyDropPlay" style={{ left: drop.x, top: drop.y }} title={"Dropped " + item.name}>
+                    <div className={"enemyDropOrb" + (bb ? " art" : "")} style={bb ? { width: dBox, height: dBox } : undefined}>{bb ? <div style={dPlane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "drop_" + k, keyPrefix: "drop" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}</div> : icon}</div>
+                    {pedPrompt && pedPrompt.key === "drop:" + k && <div className="pedcallout">🎁 Press E to pick up</div>}
+                    <div className="enemyDropCap">{item.name}</div>
+                  </div>;
                 })}
                 {play && lv.markers && Object.keys(lv.markers).map((k) => {
                   const m = lv.markers[k]; if (!m || m.kind !== "pedestal") return null;
@@ -9721,7 +9791,7 @@ export default function AssetStudio() {
               {[0, 1, 2].map((i) => (
                 <input key={i} className="catItemInput" value={(asset.categories || [])[i] || ""} onChange={(e) => setAsset((a) => { const cats = [...(a.categories || ["", "", ""])]; cats[i] = e.target.value; return { ...a, categories: cats }; })} placeholder={"Category " + (i + 1) + (i === 0 ? " — e.g. T1" : i === 1 ? " — e.g. Shirt" : " — e.g. Strong")} maxLength={24} />
               ))}
-              <p className="mini">Up to 3 free-text tags. Pedestals in a level search these to pick a random item to drop — e.g. a pedestal set to "Shirt" AND "T1" only offers items tagged with both. Blank tags are ignored.</p>
+              <p className="mini">Up to 3 free-text tags. A pedestal set to "Shirt" AND "T1" only offers items carrying both. Blank tags are ignored.</p>
             </div>
           )}
           {asset.type === "skin" && !effEdit && (() => {
@@ -9734,7 +9804,7 @@ export default function AssetStudio() {
                   <span className="palmeta"><span className="palhex">Skin tone</span><span className="palcount">{asset.tone ? asset.tone : "body default"}</span></span>
                   <input type="color" value={asset.tone || "#e2b48c"} onChange={(e) => setAsset((a) => ({ ...a, tone: e.target.value }))} onBlur={(e) => addRecent(e.target.value)} />
                 </label>
-                <p className="mini">☝️ The actual flesh colour lives on the <b>body</b>, not on this skin — that's why it never showed in the chips below. Set a tone here and any body wearing this skin gets its flesh (including its darker shading shades) recoloured to match, leaving hair, lips and eyes alone.</p>
+                <p className="mini">Flesh colour lives on the <b>body</b>, not the skin, so it never appears in the chips below. Hair, lips and eyes are left alone.</p>
                 <p className="mini">Repaints <b>everywhere</b>: all 5 poses and every body this skin is fitted to. Outlines, glow and emoji tints are left alone.</p>
                 {pal.length === 0 ? <p className="mini">Draw something and its colours show up here.</p> : (
                   <div className="palette">
@@ -9765,7 +9835,7 @@ export default function AssetStudio() {
               </> : <>
                 <div className="swatches">{COLORS.map((c) => <button key={c} className={sel.color === c ? "on" : ""} style={{ background: c }} onClick={() => applyPieceColor(c)} />)}{recent.filter((c) => !COLORS.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.color === c ? " on" : "")} style={{ background: c }} onClick={() => applyPieceColor(c)} title="recent" />)}<label className="pick"><input type="color" value={sel.color} onChange={(e) => applyPieceColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
                 {!effEdit && <label className="chk"><input type="checkbox" checked={recolorAll} onChange={(e) => setRecolorAll(e.target.checked)} /> 🪣 Change this color everywhere </label>}
-                {!effEdit && recolorAll && <p className="mini">Every block in <b>this asset</b> using {sel.color} changes too — all 5 poses and every body it's been fitted to. That covers a new color <i>and</i> the Brightness / Glow / Fade sliders below, so you can dim or light up a whole color at once. Outlines, outline glow and emoji tints stay as they are, so a slightly different shade is left alone for you to redo by hand.</p>}
+                {!effEdit && recolorAll && <p className="mini">Every block in <b>this asset</b> using {sel.color} changes too — all 5 poses, every fitted body, colour and Brightness/Glow/Fade alike. Outlines, outline glow and emoji tints are left alone.</p>}
               </>}
               <button className="ltbtn" onClick={() => updSel(sel.kind === "emoji" ? { tint: newColor, fx: { ...newFx } } : { color: newColor, fx: { ...newFx } })} >🎨 Apply picked color + fx</button>
               <p className="mini">Copies color plus brightness/glow/fade together.</p>
@@ -9797,15 +9867,15 @@ export default function AssetStudio() {
                   piece sits flat, rather than every member independently snapping to 0. */}
               <label className="slider">Twist / rotate ⟳<input type="range" min="0" max="360" value={sel.rot || 0} onChange={(e) => updSelRot(+e.target.value)} /><button className="rotbtn" onClick={() => updSelRot((((sel.rot || 0) - 90) % 360 + 360) % 360)}>↺</button><button className="rotbtn" onClick={() => updSelRot(((sel.rot || 0) + 90) % 360)}>↻</button><button className="rotbtn" disabled={!(sel.rot || 0)} onClick={() => updSelRot(0)}>0°</button></label>
               <label className="slider">Flip ⇋<button className="rotbtn" onClick={flipSelH}>⇋ Flip horizontally</button></label>
-              {groupSel && <p className="hint2" style={{ margin: "0 0 6px" }}>⟳ Rotates · ⇋ flips · corner-drag resizes — all {groupIds.length} grouped blocks together, as one item around their shared center.</p>}
+              
               {sel.role === "weaponArm" && <p className="hint2" style={{ margin: "0 0 6px" }}>Twist swings the arm around the 🎯 shoulder; ✋ rides the far end.</p>}
               {/* Every flag from here down is written through updSelAll, so with a group selected
                   it lands on all of them at once — see updSelAll for why flags and geometry take
                   opposite views of what "the group" means. */}
-              {groupSel && <p className="hint2" style={{ margin: "0 0 6px" }}>🔗 Every flag below (mirror, layering, 💪/🦵) sets all {groupIds.length} grouped blocks at once. The buttons show the block you tapped last.</p>}
-              <label className="chk"><input type="checkbox" checked={!!sel.mirror} onChange={(e) => updSelAll({ mirror: e.target.checked })} /> Mirror this block ⟷ <span className="hint2">(pairs the other side)</span></label>
+              {groupSel && <p className="hint2" style={{ margin: "0 0 6px" }}>🔗 Flags below apply to all {groupIds.length} grouped blocks.</p>}
+              <label className="chk"><input type="checkbox" checked={!!sel.mirror} onChange={(e) => updSelAll({ mirror: e.target.checked })} /> Mirror this block ⟷</label>
               <label className="chk"><input type="checkbox" checked={!!sel.isCutter} onChange={(e) => updSelAll({ isCutter: e.target.checked })} /> 🕳️ Cutter </label>
-              {!sel.isCutter && <label className="chk"><input type="checkbox" checked={!!sel.noCut} onChange={(e) => updSelAll({ noCut: e.target.checked })} /> 🛡️ Ignore cutters <span className="hint2">(if this block is below a cutter, it stays whole and shows through the hole; blocks above cutters are always unaffected)</span></label>}
+              {!sel.isCutter && <label className="chk"><input type="checkbox" checked={!!sel.noCut} onChange={(e) => updSelAll({ noCut: e.target.checked })} /> 🛡️ Ignore cutters <span className="hint2">(stays whole under a cutter)</span></label>}
               {!effEdit && showGuide && <label className="chk"><input type="checkbox" checked={!!sel.behindBody} onChange={(e) => updSelAll({ behindBody: e.target.checked })} /> Behind the WHOLE body <span className="hint2">(e.g. a cape)</span></label>}
               {!effEdit && asset.type === "equipment" && (asset.slot === "pants" || asset.slot === "under_bottom") && <label className="chk"><input type="checkbox" checked={!!sel.behindLegs} onChange={(e) => updSelAll({ behindLegs: e.target.checked })} /> Behind legs </label>}
               {asset.type === "weapon" && !sel.isHitbox && <label className="chk"><input type="checkbox" checked={!!sel.behindArm} onChange={(e) => updSelAll({ behindArm: e.target.checked })} /> Behind the arm <span className="hint2">(e.g. a strap/sheath)</span></label>}
@@ -9825,7 +9895,7 @@ export default function AssetStudio() {
               </>)}
               {asset.type === "enemy" && sel.limb === "arm" && (
                 sel.role === "weaponArm"
-                  ? <p className="mini">🫱 <b>This is the shoulder piece.</b> The whole swing pivots at its shoulder side above; every other 💪-flagged piece rides rigidly around it.</p>
+                  ? <p className="mini">🫱 <b>Shoulder piece</b> — the whole swing pivots here; other 💪 pieces ride rigidly around it.</p>
                   : <button className="wide" onClick={() => setPieces((arr) => arr.map((p) => p.id === sel.id ? { ...p, role: "weaponArm" } : (p.role === "weaponArm" ? { ...p, role: undefined } : p)))}>🫱 Make this the shoulder piece</button>
               )}
               {/* No animation flag on a WEAPON. The whole weapon is gripped by the hand and rides
@@ -9840,7 +9910,7 @@ export default function AssetStudio() {
                     <button key={v || "none"} className={(sel.limb || "") === v ? "on" : ""} onClick={() => updSelAll({ limb: v || null })}>{l}</button>
                   ))}
                 </div>
-                <p className="mini">Flags a block as an arm or leg so it can swing or step. The weapon arm is an arm by default.{groupSel && groupLimbs.length > 1 ? <> <b>Right now the {groupIds.length} grouped blocks aren't all the same</b> ({groupLimbs.join(" · ")}) — tapping one of these makes them match.</> : null}</p>
+                <p className="mini">Arm/leg blocks swing or step. The weapon arm is an arm by default.{groupSel && groupLimbs.length > 1 ? <> <b>Right now the {groupIds.length} grouped blocks aren't all the same</b> ({groupLimbs.join(" · ")}) — tapping one of these makes them match.</> : null}</p>
               </>)}
               <div className="ct2">Effects ✨</div>
               <label className="slider">Fade<input type="range" min="0.1" max="1" step="0.05" value={sel.fx?.opacity ?? 1} onChange={(e) => updFx({ opacity: +e.target.value })} /></label>
@@ -9878,7 +9948,7 @@ export default function AssetStudio() {
             {/* A group can be live WITHOUT add-mode (that's what placing a stamp leaves you with),
                 so the count and the group buttons key off the group itself. Only the "click blocks
                 to add/remove" line is about the mode. */}
-            {(multiSelect || groupIds.length > 0) && <p className="tip">{multiSelect ? "🔲 Click blocks — on the canvas or in the Layers list — to add/remove them from the group" : "🔗 Group held"} ({groupIds.length} selected).{!multiSelect && groupIds.length > 0 && " Grab any block outside it to let go."}{groupIds.length > 0 && <> <button className="ltbtn" onClick={() => setGroupIds([])}>✕ Clear</button></>}{groupIds.length > 1 && <> <button className="ltbtn" onClick={saveGroup}>💾 Save group</button></>}{hasStore && groupIds.length > 0 && <> <input className="gname" value={stampName} placeholder="stamp name" onChange={(e) => setStampName(e.target.value)} /> <button className="ltbtn" onClick={storeGroup}>📦 Store group</button></>}</p>}
+            {(multiSelect || groupIds.length > 0) && <p className="tip">{multiSelect ? "🔲 Multi-select" : "🔗 Group held"} ({groupIds.length} selected).{groupIds.length > 0 && <> <button className="ltbtn" onClick={() => setGroupIds([])}>✕ Clear</button></>}{groupIds.length > 1 && <> <button className="ltbtn" onClick={saveGroup}>💾 Save group</button></>}{hasStore && groupIds.length > 0 && <> <input className="gname" value={stampName} placeholder="stamp name" onChange={(e) => setStampName(e.target.value)} /> <button className="ltbtn" onClick={storeGroup}>📦 Store group</button></>}</p>}
             {multiSelect && <p className="mini">💾 Save group just remembers <b>which</b> blocks these are, in this pose. 📦 Store group keeps a <b>copy of the blocks themselves</b> — place it into any other pose, any other body's fit, or a different garment entirely.</p>}
             {stamps.length > 0 && <div className="stampShelf"><span>📦 Stored</span><select aria-label="Stored group" value={stampPick} onChange={(e) => { setStampPick(e.target.value); setConfirmStampDel(null); }}><option value="">Choose a group…</option>{stamps.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.pieces.length})</option>)}</select><button className="ltbtn" disabled={!pickedStamp} onClick={() => pickedStamp && placeStamp(pickedStamp)}>Place</button><button className={"ltbtn" + (pickedStamp && confirmStampDel === pickedStamp.id ? " on" : "")} disabled={!pickedStamp} onClick={() => { if (!pickedStamp) return; if (confirmStampDel === pickedStamp.id) { setConfirmStampDel(null); deleteStamp(pickedStamp.id); } else { setConfirmStampDel(pickedStamp.id); flash("Tap Sure? to permanently delete stored group \"" + pickedStamp.name + "\""); } }} title={pickedStamp && confirmStampDel === pickedStamp.id ? "Tap again to permanently delete" : "Delete the selected stored group"}>{pickedStamp && confirmStampDel === pickedStamp.id ? "Sure?" : "✕"}</button></div>}
             {savedGroups.length > 0 && <p className="tip">📁 Saved: {savedGroups.map((g) => <span key={g.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => loadGroup(g)}>{g.name} ({g.ids.length})</button><button className="ltbtn" onClick={() => deleteGroup(g.id)}>✕</button></span>)}</p>}
@@ -10399,6 +10469,10 @@ const css = `
 .pedcallout{position:absolute;left:50%;top:-24px;transform:translate(-50%,-100%);white-space:nowrap;background:#241b0d;border:1px solid #c8a23c;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:600;color:#f3d98a;box-shadow:0 1px 4px rgba(0,0,0,.55)}
 .enemyDropPlay{position:absolute;z-index:7;pointer-events:none;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 0 5px rgba(243,217,138,.7));animation:lootBob .9s ease-in-out infinite alternate}
 .enemyDropOrb{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%,#fff5bf,#c8a23c 55%,#6a4b12);border:1px solid #f3d98a;font-size:15px}
+/* A drop that has real drawn art shows the art itself, not the gold emoji bead — so the gradient,
+   the border and the round clip all come off, and the box becomes the positioning context for the
+   scaled art plane. The lootBob animation and gold caption still mark it as loot. */
+.enemyDropOrb.art{background:none;border:none;border-radius:0;position:relative;overflow:hidden}
 .enemyDropCap{margin-top:2px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.78);border:1px solid #c8a23c;border-radius:6px;padding:0 5px;font-size:10px;color:#f3d98a}
 .enemyDropPlay .pedcallout{top:-8px}
 @keyframes lootBob{from{margin-top:0}to{margin-top:-3px}}
