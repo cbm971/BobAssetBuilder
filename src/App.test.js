@@ -27,6 +27,7 @@ import {
   weaponFireCooldownFrames,
   reloadIntelligenceMultiplier,
   startReload,
+  needsReload,
   displayPoseKey,
   editablePoses,
   groupWeaponBlocksByArm,
@@ -106,6 +107,7 @@ import {
   MULTI_LEG_SWING_SCALE,
   crouchArtPlane,
   alignPoseFootBaseline,
+  poseFootGapFrac,
   horizVel,
   resolvePlayerCrouch,
   playerPoseKey,
@@ -281,6 +283,25 @@ describe("multi-leg enemy walk", () => {
     const aligned = alignPoseFootBaseline(side, attack);
     expect(Math.max(...aligned.filter((p) => p.limb === "leg").map((p) => p.y + p.h))).toBe(150);
     expect(aligned.find((p) => p.id === "head").y).toBe(-7);
+  });
+
+  // The canvas is 200x260, so the gap is measured against a floor of y=260.
+  test("measures the empty canvas under a pose whose feet stop short of the floor", () => {
+    expect(poseFootGapFrac([{ id: "leg", x: 60, y: 100, w: 20, h: 30 }])).toBeCloseTo(130 / 260, 8);
+    expect(poseFootGapFrac([{ id: "leg", x: 60, y: 100, w: 20, h: 160 }])).toBe(0); // drawn right down to the bottom edge
+  });
+
+  test("a lying-down death pose reports a far bigger gap than the standing pose it replaces", () => {
+    const side = [{ id: "body", x: 60, y: 40, w: 40, h: 210 }];
+    const death = [{ id: "body", x: 20, y: 120, w: 160, h: 40 }];
+    expect(poseFootGapFrac(death)).toBeGreaterThan(poseFootGapFrac(side));
+  });
+
+  test("ignores hitbox and muzzle markers, and an empty pose anchors nothing", () => {
+    const blocks = [{ id: "leg", x: 60, y: 100, w: 20, h: 30 }, { id: "hb", isHitbox: true, x: 0, y: 250, w: 10, h: 10 }, { id: "mz", isMuzzle: true, x: 0, y: 255, w: 5, h: 5 }];
+    expect(poseFootGapFrac(blocks)).toBeCloseTo(130 / 260, 8);
+    expect(poseFootGapFrac([])).toBe(0);
+    expect(poseFootGapFrac(null)).toBe(0);
   });
 });
 
@@ -1105,6 +1126,31 @@ describe("weapon magazines and enemy reloads", () => {
     expect(ammo.reloadT).toBe(0);
     expect(ammo.ammo).toBe(2);
     expect(canFireNow(ammo)).toBe(true);
+  });
+
+  // The player's loop now runs the same advanceAutoReloadWeapon step the AI does, so emptying a
+  // clip starts the reload on its own — no R, no trigger pull on an empty chamber.
+  test("emptying the clip starts a reload with no input at all", () => {
+    const reloadFrames = weaponReloadFrames(0.5);
+    let ammo = newWeaponAmmo(3);
+    for (let i = 0; i < 3; i++) {
+      ammo = advanceAutoReloadWeapon(ammo, 1, reloadFrames);
+      expect(ammo.reloadT).toBe(0); // rounds still in the clip: nothing auto-starts
+      ammo = consumeShot(ammo, 1);
+    }
+    expect(ammo.ammo).toBe(0);
+    ammo = advanceAutoReloadWeapon(ammo, 1, reloadFrames);
+    expect(ammo.reloadT).toBe(reloadFrames);
+  });
+
+  test("an unlimited-ammo weapon (clip 0) never starts a reload on its own", () => {
+    let ammo = newWeaponAmmo(0);
+    for (let i = 0; i < 5; i++) {
+      ammo = consumeShot(ammo, 1);
+      ammo = advanceAutoReloadWeapon(ammo, 1, weaponReloadFrames(0.5));
+    }
+    expect(ammo.reloadT).toBe(0);
+    expect(needsReload(ammo)).toBe(false);
   });
 });
 

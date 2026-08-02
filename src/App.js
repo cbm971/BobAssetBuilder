@@ -2247,6 +2247,21 @@ export const alignPoseFootBaseline = (baseBlocks, actionBlocks) => {
   const dy = baseY - actionY;
   return Math.abs(dy) < 0.001 ? actionBlocks : (actionBlocks || []).map((p) => ({ ...p, y: p.y + dy }));
 };
+// How much empty canvas sits BELOW the lowest drawn pixel of a pose, as a fraction of the canvas
+// height. Every sprite wrapper is the full 200x260 canvas scaled onto the unit's render box, so
+// empty canvas under the art is empty space under the body: art that stops short of the canvas
+// floor — which is most art, since nobody draws right up to the bottom edge — hangs above the
+// ground by exactly this much unless the wrapper is pushed down to compensate. Living enemies
+// already do that (eFootAnchor in the enemy render); corpses did not, which is what left defeated
+// enemies floating. Deliberately measured off the blocks actually being DRAWN rather than off Side,
+// because a hand-drawn Death pose is authored lying down in the middle of the canvas and so has a
+// completely different — much bigger — gap beneath it than the standing pose does.
+export const poseFootGapFrac = (blocks) => {
+  const art = (blocks || []).filter((p) => p && !p.isHitbox && !p.isMuzzle);
+  if (!art.length) return 0;
+  const maxY = Math.max(...art.map((p) => p.y + p.h));
+  return Math.max(0, Math.min(1, (H - maxY) / H));
+};
 // Arms swing during a plain walk, opposite phase to the legs. applyLimbSwing deliberately never
 // rotates arms (every other arm motion — melee, aim-hold, the climb reach — is an absolute pose
 // SET by the render code), so the walk cycle had no arm motion at all: the weapon arm hung dead
@@ -4074,7 +4089,16 @@ export default function AssetStudio() {
       // Weapon timers advance in real time like everything else (dtMul), so fire rate and reload
       // length don't quietly change with the frame rate. R reloads early; a partly-spent clip is
       // topped straight back up to full (no "keep the loose round" bookkeeping).
-      wpn.current = advanceWeapon(wpn.current, dtMul);
+      //
+      // AUTOMATIC RELOAD. Emptying the clip now starts the reload by itself, on the very next
+      // frame, instead of waiting for an input edge — running dry used to leave the gun sitting
+      // there doing nothing until you noticed and pressed R (or pulled the trigger on an empty
+      // chamber), which just reads as the weapon having broken. This is the same rule enemies have
+      // always played by (advanceAutoReloadWeapon in the enemy loop), so both sides now behave
+      // alike. Neither manual path is removed: R still reloads a PARTLY spent clip early, which
+      // auto-reload never does, and the fire-on-empty branch below still stands (it just becomes a
+      // no-op, since startReload leaves a reload already in progress alone).
+      wpn.current = advanceAutoReloadWeapon(wpn.current, dtMul, reloadFrames);
       // Throwing (G) — hold-to-aim, release-to-throw. Holding G "grabs" the throwable
       // (p.throwAiming drives the dotted trajectory preview in the render section, simulated
       // with throwTrajectoryPoints from the exact same launch numbers used below); letting go
@@ -8286,7 +8310,7 @@ export default function AssetStudio() {
                 level. They flow side by side now and only wrap when the stage is genuinely too
                 narrow, so the canvas keeps its vertical space. */}
             <div className="statusrow">
-            {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb · <b>J/F</b> fire · <b>Q</b> {playtestWeapon && !isRanged(playtestWeapon.wtype) ? "tap to block" : "melee"}{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload" : ""}{playtestThrowId ? " · hold G to aim, release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
+            {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb · <b>J/F</b> fire · <b>Q</b> {playtestWeapon && !isRanged(playtestWeapon.wtype) ? "tap to block" : "melee"}{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload early" : ""}{playtestThrowId ? " · hold G to aim, release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
             {play && (playtestWeaponId || SLOT_ORDER.some((sl) => equipped.current[sl])) && (() => {
               const bits = [];
               if (playtestWeaponId) { const w = findA(playtestWeaponId); if (w) bits.push("🗡️ " + w.name); }
@@ -8306,7 +8330,7 @@ export default function AssetStudio() {
                 return <p className="statusline ammoline reloading">🔄 Reloading… <span className="reloadbar"><span className="reloadfill" style={{ width: (Math.max(0, 1 - w.reloadT / total) * 100) + "%" }} /></span></p>;
               }
               if (w.clip <= 0) return <p className="statusline ammoline">🔫 {playtestWeapon.name} · ∞ ammo</p>;
-              return <p className={"statusline ammoline" + (w.ammo <= 0 ? " empty" : "")}>🔫 {w.ammo} / {w.clip}{w.ammo <= 0 ? " — empty! press R (or Fire) to reload" : ""}</p>;
+              return <p className={"statusline ammoline" + (w.ammo <= 0 ? " empty" : "")}>🔫 {w.ammo} / {w.clip}{w.ammo <= 0 ? " — empty, reloading…" : ""}</p>;
             })()}
             {!play && layerMove && layerMove.levelId === lv.id && (() => {
               const others = ["fg", "bg", "front"].filter((l) => l !== layerMove.layer);
@@ -8789,12 +8813,25 @@ export default function AssetStudio() {
                     // count rides the render cache key, or the run cache would keep serving the
                     // still-armed art after you picked the weapon up.
                     const stripped = corpseStripped.current[k] || [];
-                    const deadBlocks = bake(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"))
-                      .filter((pc) => !stripped.some((it) => pieceBelongsToAsset(pc, it)));
+                    const deadPose = bake(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"));
+                    const deadBlocks = deadPose.filter((pc) => !stripped.some((it) => pieceBelongsToAsset(pc, it)));
                     const layDown = !hasDeathPose;
+                    // FLOATING CORPSES, the second half of the same bug. Gravity (above) drops the
+                    // body onto the terrain correctly, but the body was then DRAWN in a box whose
+                    // bottom margin nothing accounted for, so it still hovered — by the height of
+                    // whatever empty canvas sits under its art. It is not a physics problem and no
+                    // amount of falling fixes it: art whose legs stop short of the canvas floor in
+                    // the creator is supposed to be pushed down by that gap, which is exactly what
+                    // a LIVING enemy does with eFootAnchor. A 💀 Death pose is the worst case,
+                    // being drawn lying down around mid-canvas.
+                    //
+                    // Measured off the pose actually being drawn (Death's gap is nothing like
+                    // Side's) and off the UNSTRIPPED art, so looting a low-hanging weapon off the
+                    // body can't change the measurement and make the corpse hop.
+                    const deadFootAnchor = poseFootGapFrac(deadPose) * eph;
                     const deadFlip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1) " : "";
                     return (
-                      <div key={"enp" + k} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop, width: eRenderW, height: eph, pointerEvents: "none", zIndex: 6, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% 100%" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
+                      <div key={"enp" + k} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop + deadFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", zIndex: 6, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (eph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
                         {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + k + "_s" + stripped.length, keyPrefix: "dead" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
                       </div>
                     );
