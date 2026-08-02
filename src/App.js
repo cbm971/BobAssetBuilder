@@ -3135,6 +3135,144 @@ export const renderPieceRuns = ({ pieces, cacheKey, keyPrefix, drawPiece, maskCs
   });
 export const shapePolyPoints = (p) => (p && p.kind === "poly" && p.points) ? p.points : (p && SHAPE_POINTS[p.kind]) || (typeof p === "string" ? SHAPE_POINTS[p] : null);
 export const shapeClipPath = (pieceOrKind) => { const pts = shapePolyPoints(typeof pieceOrKind === "string" ? { kind: pieceOrKind } : pieceOrKind); return pts ? "polygon(" + pts.map(([x, y]) => (x * 100) + "% " + (y * 100) + "%").join(",") + ")" : null; };
+
+/* ---- Snap to edges ------------------------------------------------------- */
+// The "🧲 Snap to edges" mode. While a block is being dragged, if one of its own edges comes to
+// rest near an edge of ANOTHER block that is about the same length, the dragged block jumps flush
+// against it — adopting that edge's exact angle and exact length. That's what lets a curved brim,
+// a tapered crown, or any hand-built silhouette (a 1960s cowboy hat drawn from the side) close up
+// seamlessly, instead of leaving the hairline gaps and 1° kinks that only become obvious once the
+// art is blown up to in-game size and are near-impossible to dial out by hand at half-unit steps.
+//
+// Deliberately NOT a grid snap. Grid snapping is already what dragging does (snapPiece rounds to
+// PIECE_STEP); it can't help here because the edges being joined are at arbitrary angles.
+const SNAP_R3 = (n) => Math.round(n * 1000) / 1000;                  // same 3-decimal precision group scaling already produces
+export const SNAP_DIST = 9;        // design units on the 200x260 canvas — how close "really close" has to be
+export const SNAP_ANGLE = 15;      // degrees of "roughly the same way round" — you still aim the block yourself, the snap only takes out the last few degrees
+export const SNAP_LEN_TOL = 0.35;  // an edge within 35% of the other one's length still counts as "a similar edge"
+export const SNAP_MIN_EDGE = 4;    // ignore hairline edges as candidates — a semicircle is 32 tiny arc segments plus one real flat side, and only the flat side is something you'd ever line a block up against
+// Blocks that aren't art: a hitbox and a muzzle marker are game-logic boxes that sit ON TOP of the
+// weapon they describe, so they'd otherwise be the nearest edge to everything and hijack every snap.
+export const canEdgeSnap = (p) => !!p && !p.isHitbox && !p.isMuzzle;
+
+// Where a block actually turns about. Normally its own centre, but an arm piece rotates about its
+// shoulder end (shapeStyle sets transformOrigin from armPivotOrigin) — so its corners land
+// somewhere else entirely for the same rot, and snapping has to use the same pivot the renderer does.
+export const pieceOriginFrac = (p) => {
+  if (!p || !(p.role === "weaponArm" || (p.limb === "arm" && !p._isShoe))) return [0.5, 0.5];
+  const pv = p.armPivot || "top";
+  return pv === "left" ? [0, 0.5] : pv === "right" ? [1, 0.5] : pv === "bottom" ? [0.5, 1] : [0.5, 0];
+};
+export const pieceBox = (p) => ({ x: p.x, y: p.y, w: p.w, h: p.h, rot: p.rot || 0, o: pieceOriginFrac(p) });
+// A point given as a fraction of the block's own box (0,0 = top-left corner, 1,1 = bottom-right),
+// converted to canvas coordinates through the block's rotation. Linear in box.x/box.y, which is
+// what lets applyEdgeSnap solve for a position by measuring the same point at the origin.
+export const boxPoint = (box, fx, fy) => {
+  const rad = (box.rot || 0) * Math.PI / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+  const ox = box.x + box.o[0] * box.w, oy = box.y + box.o[1] * box.h;
+  const dx = (fx - box.o[0]) * box.w, dy = (fy - box.o[1]) * box.h;
+  return { x: ox + dx * cos - dy * sin, y: oy + dx * sin + dy * cos };
+};
+const SNAP_BOX_FRACS = [[0, 0], [1, 0], [1, 1], [0, 1]];
+// The edges you can actually see. Polygon shapes snap by their real silhouette (a triangle's
+// hypotenuse, a trapezoid's slant, a hand-drawn Fill outline), which is the whole point — those
+// are the angled edges that are impossible to butt together by eye. Everything else (square,
+// round rect, circle, emoji, text) snaps by its box, which is the same rectangle its resize
+// handle and selection outline already describe, so what snaps is what you see selected.
+export const pieceSnapEdges = (p) => {
+  if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.w)) return [];
+  const fracs = shapePolyPoints(p) || SNAP_BOX_FRACS;
+  const box = pieceBox(p), out = [];
+  for (let i = 0; i < fracs.length; i++) {
+    const fa = fracs[i], fb = fracs[(i + 1) % fracs.length];
+    const a = boxPoint(box, fa[0], fa[1]), b = boxPoint(box, fb[0], fb[1]);
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len < SNAP_MIN_EDGE) continue;
+    // Which of the block's OWN axes the edge runs along decides how "make this edge that long"
+    // gets stored: an edge along local x is the block's width, one along local y is its height,
+    // and a diagonal edge belongs to neither, so the only way to lengthen it is to scale the
+    // whole block. Keeping the other dimension untouched where possible matters — matching a
+    // bar to a neighbour's edge should change its length, not silently fatten it too.
+    const axis = Math.abs(fa[1] - fb[1]) < 1e-6 ? "x" : Math.abs(fa[0] - fb[0]) < 1e-6 ? "y" : null;
+    out.push({ fa, fb, a, b, len, axis });
+  }
+  return out;
+};
+// Signed difference between two directions, folded into (-180, 180].
+const snapAngleDiff = (a, b) => { const d = ((a - b) % 360 + 540) % 360 - 180; return d; };
+// Best edge of `moving` to weld onto an edge of one of `others`, or null if nothing qualifies.
+// Three separate conditions, kept separate on purpose:
+//   · the two MIDPOINTS are within SNAP_DIST      — "really close"
+//   · the two directions agree within SNAP_ANGLE  — you have already aimed it roughly right
+//   · the two lengths are within SNAP_LEN_TOL     — "a similar edge"
+// Distance and angle deliberately are NOT one combined test. Measuring the gap at the endpoints
+// instead would fold them together, and badly: on a long edge a couple of degrees of tilt already
+// throws its far end further than the whole snap radius, so the longer the edge, the steadier your
+// hand would have to be — exactly backwards. Midpoint distance behaves the same at any length.
+export const findEdgeSnap = (moving, others, opts = {}) => {
+  if (!canEdgeSnap(moving)) return null;
+  const dist = opts.dist ?? SNAP_DIST, lenTol = opts.lenTol ?? SNAP_LEN_TOL, maxTurn = opts.angle ?? SNAP_ANGLE;
+  const mine = pieceSnapEdges(moving);
+  if (!mine.length) return null;
+  const mid = (e) => ({ x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 });
+  const dir = (e) => Math.atan2(e.b.y - e.a.y, e.b.x - e.a.x) * 180 / Math.PI;
+  let best = null;
+  for (const o of others || []) {
+    if (!o || o.id === moving.id || !canEdgeSnap(o)) continue;
+    for (const f of pieceSnapEdges(o)) {
+      const fm = mid(f), fd = dir(f);
+      for (const e of mine) {
+        if (Math.abs(e.len - f.len) > Math.max(1, lenTol * Math.max(e.len, f.len))) continue;
+        const em = mid(e);
+        const gap = Math.hypot(em.x - fm.x, em.y - fm.y);
+        if (gap > dist) continue;
+        // An edge is a segment, not an arrow: my edge may run the same way round as theirs or the
+        // opposite way (which is in fact the usual case for two shapes meeting face to face), so
+        // whichever end of theirs mine is pointing at becomes the end it gets welded to.
+        const turn = snapAngleDiff(fd, dir(e));
+        const to = Math.abs(turn) <= maxTurn ? { p: f.a, q: f.b } : Math.abs(Math.abs(turn) - 180) <= maxTurn ? { p: f.b, q: f.a } : null;
+        if (!to) continue;
+        if (!best || gap < best.gap) best = { gap, edge: e, targetId: o.id, targetEdge: f, to };
+      }
+    }
+  }
+  return best;
+};
+// Land the block on the snap found above: rotate it so its edge is parallel to the target's,
+// stretch that edge to the same length, and translate so the two edges lie exactly on top of one
+// another. Returns a new piece; passing a null snap returns the piece untouched, so callers can
+// pipe through this unconditionally.
+export const applyEdgeSnap = (p, snap) => {
+  if (!p || !snap) return p;
+  const { edge, to } = snap;
+  if (!(edge.len > 0.001)) return p;
+  const targetLen = Math.hypot(to.q.x - to.p.x, to.q.y - to.p.y);
+  const scale = targetLen / edge.len;
+  const turn = Math.atan2(to.q.y - to.p.y, to.q.x - to.p.x) - Math.atan2(edge.b.y - edge.a.y, edge.b.x - edge.a.x);
+  const rot = Math.round((((p.rot || 0) + turn * 180 / Math.PI) % 360 + 360) % 360 * 10) / 10;
+  const w = SNAP_R3(Math.max(MIN_PIECE_SIZE, edge.axis === "y" ? p.w : p.w * scale));
+  const h = SNAP_R3(Math.max(MIN_PIECE_SIZE, edge.axis === "x" ? p.h : p.h * scale));
+  // Solve for the position last, from the FINAL rotation and size, so the rounding above can't
+  // leave the joint a fraction of a unit open: measure where the snapped corner sits on a box
+  // pinned at the origin, then move the box by whatever puts that corner on the target point.
+  const at = boxPoint({ x: 0, y: 0, w, h, rot, o: pieceOriginFrac(p) }, edge.fa[0], edge.fa[1]);
+  return { ...p, w, h, rot, x: SNAP_R3(to.p.x - at.x), y: SNAP_R3(to.p.y - at.y) };
+};
+// Group version. A held group has to move as one rigid object — rotating and resizing it to suit
+// one member's edge would tear the rest of the assembly apart — so this only ever offers a
+// TRANSLATION. Both endpoint deltas are averaged so the group settles evenly along the edge
+// rather than pivoting about whichever end happened to be nearer.
+export const findGroupEdgeSnap = (members, others, opts = {}) => {
+  let best = null;
+  for (const m of members || []) { const s = findEdgeSnap(m, others, opts); if (s && (!best || s.gap < best.gap)) best = s; }
+  if (!best) return null;
+  return {
+    gap: best.gap, targetEdge: best.targetEdge, targetId: best.targetId,
+    dx: ((best.to.p.x - best.edge.a.x) + (best.to.q.x - best.edge.b.x)) / 2,
+    dy: ((best.to.p.y - best.edge.a.y) + (best.to.q.y - best.edge.b.y)) / 2,
+  };
+};
+
 const polySymmetricX = (pts) => pts.every(([x, y]) => pts.some(([x2, y2]) => Math.abs(x2 - (1 - x)) < 1e-4 && Math.abs(y2 - y) < 1e-4));
 // Mirror a set of pieces as one rigid drawing. Position and rotation follow scaleX(-1), while
 // asymmetric polygons also reverse their actual silhouette instead of merely moving their box.
@@ -3533,6 +3671,9 @@ export default function AssetStudio() {
   const [angle, setAngle] = useState("front");
   const [selId, setSelId] = useState(null);
   const [multiSelect, setMultiSelect] = useState(false); // group-select mode: clicking blocks toggles them into groupIds instead of the normal single select+drag
+  const [snapOn, setSnapOn] = useState(false);           // 🧲 Snap to edges — see findEdgeSnap; a dragged block welds itself to a similar-length edge nearby
+  const [snapMark, setSnapMark] = useState(null);        // {a,b} of the edge currently being snapped to, drawn as a green line so it's obvious WHY the block jumped
+  const snapMarkKey = useRef(null);                      // identity of that edge, so a pointermove that changes nothing doesn't churn state every frame
   const [groupIds, setGroupIds] = useState([]); // piece ids currently selected as a group — dragging any one of them moves all of them together, same delta
   const [stamps, setStamps] = useState([]);     // stored groups: real piece copies, saved outside any asset so they can be stamped onto other bodies/poses
   const [stampName, setStampName] = useState("");
@@ -3831,6 +3972,11 @@ export default function AssetStudio() {
   }, []); // eslint-disable-line
   useEffect(() => { if (colorPrefsLoaded.current) sset("lColor", lColor); }, [lColor]);
   useEffect(() => { if (colorPrefsLoaded.current) sset("recentColors", JSON.stringify(recent)); }, [recent]);
+  // Snap is a way of WORKING, not a property of any one asset — so it survives a reload like the
+  // paint colour does, instead of having to be re-ticked every time the editor is opened.
+  const snapPrefLoaded = useRef(false);
+  useEffect(() => { (async () => { const v = await sget("snapEdges"); if (v === "1") setSnapOn(true); snapPrefLoaded.current = true; })(); }, []); // eslint-disable-line
+  useEffect(() => { if (snapPrefLoaded.current) sset("snapEdges", snapOn ? "1" : "0"); }, [snapOn]);
 
   // Playtest: keyboard + a simple gravity/collision loop against the foreground layer.
   useEffect(() => {
@@ -5952,7 +6098,9 @@ export default function AssetStudio() {
     // fresh-start rule selectOnly applies to a brand new block. Otherwise a group left over from a
     // stamp keeps quietly re-grouping whatever you touch next.
     if (groupIds.length) setGroupIds([]);
-    setSelId(p.id); const m = toXY(e); drag.current = { mode: "move", id: p.id, dx: m.x - p.x, dy: m.y - p.y };
+    // `base` is the block's size/angle at the moment it was picked up. Snap re-derives its result
+    // from these every frame rather than from the block's current values — see the move handler.
+    setSelId(p.id); const m = toXY(e); drag.current = { mode: "move", id: p.id, dx: m.x - p.x, dy: m.y - p.y, base: { w: p.w, h: p.h, rot: p.rot || 0 } };
   };
   const grabCorner = (e, p) => {
     e.stopPropagation(); setSelId(p.id);
@@ -5968,6 +6116,19 @@ export default function AssetStudio() {
   };
   const grabHand = (e) => { e.stopPropagation(); drag.current = { mode: "hand" }; };
 
+  // Light up the edge a drag is currently snapping to. Called on every pointermove, so it compares
+  // an identity first: without that, each frame handed React a brand new {a,b} object and forced a
+  // re-render of the whole canvas even while the snap target hadn't changed.
+  const showSnapMark = (hit) => {
+    const key = hit ? hit.targetId + ":" + hit.targetEdge.a.x + "," + hit.targetEdge.a.y + "," + hit.targetEdge.b.x + "," + hit.targetEdge.b.y : null;
+    if (key === snapMarkKey.current) return;
+    snapMarkKey.current = key;
+    setSnapMark(hit ? { a: hit.targetEdge.a, b: hit.targetEdge.b } : null);
+  };
+  // Blocks a drag is allowed to snap ONTO: everything in this pose except the block(s) being
+  // dragged, and except the non-art markers canEdgeSnap already rules out.
+  const snapTargets = (movingIds) => pieces.filter((p) => !movingIds.has(p.id) && canEdgeSnap(p));
+
   useEffect(() => {
     const move = (e) => {
       const d = drag.current; if (!d || !artRef.current) return;
@@ -5976,14 +6137,49 @@ export default function AssetStudio() {
       if (d.mode === "groupMove") {
         const dx = m.x - d.startMouse.x, dy = m.y - d.startMouse.y;
         if (Math.abs(dx) > 1 || Math.abs(dy) > 1) d.moved = true; // past a tiny jitter threshold — this is a real drag, not a tap
+        const startMap = new Map(d.starts.map((s) => [s.id, s]));
+        // A held group snaps by SLIDING only (findGroupEdgeSnap) — turning or resizing it to suit
+        // one member's edge would pull the rest of the assembly apart. Same rule as the single
+        // block above: the candidate is rebuilt from the pick-up positions every frame, so the
+        // group is free to slide off a snap again instead of sticking to the first edge it meets.
+        let gx = 0, gy = 0;
+        if (snapOn) {
+          const movingIds = new Set(d.starts.map((s) => s.id));
+          const moved = pieces.filter((p) => movingIds.has(p.id)).map((p) => { const st = startMap.get(p.id); return { ...p, x: snapPiece(st.x + dx), y: snapPiece(st.y + dy) }; });
+          const hit = findGroupEdgeSnap(moved, snapTargets(movingIds));
+          showSnapMark(hit);
+          if (hit) { gx = hit.dx; gy = hit.dy; }
+        }
         setAsset((a) => {
           if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default");
           const list = a.angles[angle] || [];
-          const startMap = new Map(d.starts.map((s) => [s.id, s]));
-          const next = list.map((p) => { const st = startMap.get(p.id); return st ? { ...p, x: snapPiece(st.x + dx), y: snapPiece(st.y + dy) } : p; });
+          const next = list.map((p) => { const st = startMap.get(p.id); return st ? { ...p, x: SNAP_R3(snapPiece(st.x + dx) + gx), y: SNAP_R3(snapPiece(st.y + dy) + gy) } : p; });
           return withRig({ ...a, angles: { ...a.angles, [angle]: next } });
         });
         return;
+      }
+      // Moving ONE block, with 🧲 Snap on. The block tracks the pointer using the size and angle it
+      // had when it was picked up (d.base), and the snap is recomputed from THAT every frame —
+      // never from where the previous frame left it. Feeding an already-snapped block back in as
+      // the next frame's input welds it to the first edge it ever brushed: it reads as perfectly
+      // aligned forever after, so the snap can never release and the block can't be dragged away.
+      if (d.mode === "move" && snapOn) {
+        const cur = pieces.find((p) => p.id === d.id);
+        if (cur) {
+          const base = d.base || { w: cur.w, h: cur.h, rot: cur.rot || 0 };
+          const raw = { ...cur, w: base.w, h: base.h, rot: base.rot, x: snapPiece(m.x - d.dx), y: snapPiece(m.y - d.dy) };
+          const hit = findEdgeSnap(raw, snapTargets(new Set([d.id])));
+          showSnapMark(hit);
+          const placed = applyEdgeSnap(raw, hit);
+          setAsset((a) => {
+            if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default");
+            const list = a.angles[angle] || [];
+            // Geometry only — `placed` is built from a render-old copy of the block, so writing it
+            // wholesale would stamp stale colour/flags over anything else that changed meanwhile.
+            return withRig({ ...a, angles: { ...a.angles, [angle]: list.map((p) => (p.id === d.id ? { ...p, x: placed.x, y: placed.y, w: placed.w, h: placed.h, rot: placed.rot } : p)) } });
+          });
+          return;
+        }
       }
       if (d.mode === "size" && d.group) {
         // Distance from the WHOLE group's centre gives one stable scale regardless of how tiny the
@@ -6029,6 +6225,7 @@ export default function AssetStudio() {
       // stamp fall apart the moment you tapped one of its blocks.
       if (d && d.mode === "groupMove" && !d.moved && multiSelect) setGroupIds((g) => g.filter((id) => id !== d.anchorId));
       drag.current = null;
+      showSnapMark(null); // the green target line belongs to the drag, not to the result
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -9731,6 +9928,13 @@ export default function AssetStudio() {
                 {fillPts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#4f7cf6" stroke="#fff" strokeWidth="1" />)}
               </svg>
             )}
+            {/* The edge the drag is currently welded to. Without it a block appears to jump and
+                resize for no reason — this says exactly which edge it grabbed onto. */}
+            {snapMark && (
+              <svg className="drawpreview snapmark" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+                <line x1={snapMark.a.x} y1={snapMark.a.y} x2={snapMark.b.x} y2={snapMark.b.y} />
+              </svg>
+            )}
             {drawMode === "line" && linePt1 && (
               <svg className="drawpreview" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
                 <circle cx={linePt1.x} cy={linePt1.y} r="3.5" fill="#4f7cf6" stroke="#fff" strokeWidth="1" />
@@ -10073,6 +10277,11 @@ export default function AssetStudio() {
                 group tip so it's reachable from a cold start. This POSE's blocks only: a group is a
                 list of piece ids inside one pose, so it can never span them. */}
             {pieces.length > 0 && <button className="ltbtn" onClick={() => { setGroupIds(pieces.map((pc) => pc.id)); setSelId(pieces[pieces.length - 1].id); }}>▣ Select all ({pieces.length})</button>}
+            {/* Snap lives here, next to Group select, because it's a way of PLACING blocks — a mode
+                that applies to whatever you drag next — rather than a property of the selected one.
+                Ticked state is remembered across reloads (see the snapEdges pref). */}
+            <label className="chk"><input type="checkbox" checked={snapOn} onChange={(e) => setSnapOn(e.target.checked)} /> 🧲 Snap to edges</label>
+            {snapOn && <p className="mini">Aim a block roughly right (within {SNAP_ANGLE}°) and drag it up against a <b>similar-length</b> edge on another block: it jumps flush and takes that edge's exact angle and length. The edge it caught turns green. Sloped and hand-drawn shapes snap by their real outline, not their box. A held group only slides into place — it never turns or resizes.</p>}
             {/* A group can be live WITHOUT add-mode (that's what placing a stamp leaves you with),
                 so the count and the group buttons key off the group itself. Only the "click blocks
                 to add/remove" line is about the mode. */}
@@ -10297,6 +10506,7 @@ const css = `
 .armaxis{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
 .armaxis line{stroke:#c8a23c;stroke-width:1.6;stroke-dasharray:4 3;opacity:.6}
 .drawpreview{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.snapmark line{stroke:#5ce39b;stroke-width:2.4;stroke-linecap:round;opacity:.95}
 .art.drawing{cursor:crosshair}
 .limbtabs{display:flex;gap:6px;margin:2px 0 4px}
 .limbtabs button{flex:1;background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:7px 4px;cursor:pointer}

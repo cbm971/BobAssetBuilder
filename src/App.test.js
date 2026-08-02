@@ -127,6 +127,14 @@ import {
   playerRangedDamage,
   critChance,
   tagDamageMultiplier,
+  pieceSnapEdges,
+  findEdgeSnap,
+  applyEdgeSnap,
+  findGroupEdgeSnap,
+  canEdgeSnap,
+  boxPoint,
+  pieceBox,
+  SNAP_DIST,
 } from "./App";
 
 describe("copying blocks and groups", () => {
@@ -2141,5 +2149,152 @@ describe("what the player hits for", () => {
     expect(without).toBe(7);
     expect(Math.ceil(ENEMY_HP / withHat)).toBe(2);
     expect(Math.ceil(ENEMY_HP / without)).toBe(3);
+  });
+});
+
+describe("snap to edges", () => {
+  const near = (u, v, tol = 0.05) => Math.hypot(u.x - v.x, u.y - v.y) <= tol;
+  // The one assertion that matters: after snapping, some edge of the block lies exactly on the
+  // target edge. Checking the join itself rather than literal x/y numbers means the test still
+  // describes the FEATURE ("these two edges are now the same line") if the maths is ever reworked.
+  const joins = (piece, P, Q) => pieceSnapEdges(piece).some((e) => (near(e.a, P) && near(e.b, Q)) || (near(e.a, Q) && near(e.b, P)));
+  // Place a piece so a given fraction-point of its box sits on `pt` — test scaffolding only, used
+  // to set up a block APPROXIMATELY near a neighbour before letting the snap correct it.
+  const placeFracAt = (p, fx, fy, pt) => {
+    const at = boxPoint({ x: 0, y: 0, w: p.w, h: p.h, rot: p.rot || 0, o: [0.5, 0.5] }, fx, fy);
+    return { ...p, x: pt.x - at.x, y: pt.y - at.y };
+  };
+
+  test("a plain block offers its four box sides, and knows which are its width and its height", () => {
+    const edges = pieceSnapEdges({ id: "a", kind: "rect", x: 10, y: 20, w: 40, h: 12 });
+    expect(edges.map((e) => e.len)).toEqual([40, 12, 40, 12]);
+    expect(edges.map((e) => e.axis)).toEqual(["x", "y", "x", "y"]);
+    expect(edges[0].a).toEqual({ x: 10, y: 20 });
+    expect(edges[0].b).toEqual({ x: 50, y: 20 });
+  });
+
+  test("a twisted block's edges are where they LOOK, not where its unrotated box was", () => {
+    // 90° about the centre: the top side ends up running down the right-hand side.
+    const edges = pieceSnapEdges({ id: "a", kind: "rect", x: 0, y: 0, w: 40, h: 20, rot: 90 });
+    expect(near(edges[0].a, { x: 30, y: -10 })).toBe(true);
+    expect(near(edges[0].b, { x: 30, y: 30 })).toBe(true);
+    expect(edges[0].len).toBeCloseTo(40);
+  });
+
+  test("polygon shapes snap by their real silhouette, and hairline edges are ignored", () => {
+    // A triangle's hypotenuse belongs to neither of the block's own axes — matching its length can
+    // only be done by scaling the whole block, which is what axis:null records.
+    const tri = pieceSnapEdges({ id: "t", kind: "tri", x: 0, y: 0, w: 30, h: 40 });
+    expect(tri.map((e) => e.axis)).toEqual([null, "x", null]);
+    // A semicircle is 32 tiny arc segments plus one real flat side. Only the flat side is something
+    // you would ever butt another block up against, so it is the only candidate offered.
+    const semi = pieceSnapEdges({ id: "s", kind: "halfcircle", x: 0, y: 0, w: 44, h: 22 });
+    expect(semi.length).toBe(1);
+    expect(semi[0].axis).toBe("x");
+    expect(semi[0].len).toBeCloseTo(44);
+  });
+
+  test("nothing snaps until an edge is really close to a similar-length one", () => {
+    const target = { id: "t", kind: "rect", x: 60, y: 60, w: 40, h: 10 };
+    const far = { id: "m", kind: "rect", x: 60, y: 90, w: 40, h: 10 };   // 20 units of clear air below it
+    expect(findEdgeSnap(far, [target])).toBe(null);
+    const close = { id: "m", kind: "rect", x: 62, y: 73, w: 40, h: 10 }; // 3 units below the target's bottom edge
+    expect(findEdgeSnap(close, [target])).not.toBe(null);
+    // And it lets go again — the block must be draggable back OUT of a snap, which is why the
+    // live drag always re-tests from the raw pointer position instead of the snapped result.
+    expect(findEdgeSnap({ ...close, y: close.y + SNAP_DIST * 2 }, [target])).toBe(null);
+  });
+
+  test("a very different edge length is not 'a similar edge', however close it gets", () => {
+    const target = { id: "t", kind: "rect", x: 60, y: 60, w: 40, h: 10 };
+    const stub = { id: "m", kind: "rect", x: 76, y: 71, w: 8, h: 6 };
+    // Its 8-long side sits 1 unit under the middle of a 40-long side, pointing the same way, and
+    // still doesn't snap. Stretching it 5x is not "matching a really close size" — it is
+    // destroying the block you drew.
+    expect(findEdgeSnap(stub, [target])).toBe(null);
+  });
+
+  test("a block that is still visibly crooked isn't dragged straight behind your back", () => {
+    // Distance and angle are separate tests. A block sitting right on the edge but 40° off is not
+    // "nearly there" — you meant something else, and spinning it 40° would be the snap taking over
+    // the drawing. Aim it roughly (within 15°) and the snap takes out the last couple of degrees.
+    const target = { id: "t", kind: "rect", x: 60, y: 60, w: 40, h: 10 };
+    const crooked = { id: "m", kind: "rect", x: 62, y: 73, w: 40, h: 10, rot: 40 };
+    expect(findEdgeSnap(crooked, [target])).toBe(null);
+    const nearly = { id: "m", kind: "rect", x: 62, y: 73, w: 40, h: 10, rot: 8 };
+    expect(findEdgeSnap(nearly, [target])).not.toBe(null);
+    expect(applyEdgeSnap(nearly, findEdgeSnap(nearly, [target])).rot).toBeCloseTo(0, 1);
+  });
+
+  test("distance is measured the same way whatever the edge is — a long edge is no harder to land", () => {
+    // The reason midpoints are compared rather than endpoints: 6° of tilt throws the far end of a
+    // 120-long edge more than 12 units, so an endpoint rule would demand a steadier hand the
+    // longer the block got. Both of these are the same 3 units of gap and both must snap.
+    const shortT = { id: "t", kind: "rect", x: 60, y: 60, w: 20, h: 10 };
+    const longT = { id: "t", kind: "rect", x: 20, y: 60, w: 120, h: 10 };
+    expect(findEdgeSnap({ id: "m", kind: "rect", x: 60, y: 73, w: 20, h: 10, rot: 6 }, [shortT])).not.toBe(null);
+    expect(findEdgeSnap({ id: "m", kind: "rect", x: 20, y: 73, w: 120, h: 10, rot: 6 }, [longT])).not.toBe(null);
+  });
+
+  test("a block lands exactly on a twisted neighbour's edge, taking its angle and length", () => {
+    const target = { id: "t", kind: "rect", x: 60, y: 80, w: 40, h: 10, rot: 20 };
+    const bottom = pieceSnapEdges(target)[2]; // [1,1] -> [0,1]
+    // Roughly in place, but wrong in all three ways at once: 3° off, 3 units short, and 2 units adrift.
+    const rough = placeFracAt({ id: "m", kind: "rect", w: 37, h: 9, rot: 17 }, 1, 0, { x: bottom.a.x + 2, y: bottom.a.y + 1.5 });
+    expect(joins(rough, bottom.a, bottom.b)).toBe(false);
+    const snapped = applyEdgeSnap(rough, findEdgeSnap(rough, [target]));
+    expect(joins(snapped, bottom.a, bottom.b)).toBe(true);
+    expect(snapped.rot).toBeCloseTo(20, 1);   // the neighbour's angle exactly, not 17
+    expect(snapped.w).toBeCloseTo(40, 1);     // and the neighbour's edge length, not 37
+    expect(snapped.h).toBe(9);                // thickness untouched — only the matched side changed
+  });
+
+  test("matching a diagonal edge scales the whole block, since no single side owns that direction", () => {
+    // Two half-triangles hypotenuse to hypotenuse — the second one turned round so it closes the
+    // first into a square, which is exactly the "two ramps meeting along a slope" case.
+    const target = { id: "t", kind: "tri2", x: 60, y: 60, w: 40, h: 40 };
+    const slope = pieceSnapEdges(target)[0];
+    expect(slope.axis).toBe(null);
+    const rough = { id: "m", kind: "tri2", x: 66, y: 67, w: 32, h: 32, rot: 180 };
+    const snapped = applyEdgeSnap(rough, findEdgeSnap(rough, [target]));
+    expect(joins(snapped, slope.a, slope.b)).toBe(true);
+    expect(snapped.w / snapped.h).toBeCloseTo(1);      // still the same shape it was drawn as…
+    expect(snapped.w).toBeGreaterThan(rough.w);        // …just grown until its slope is the same length
+    expect(snapped.rot).toBeCloseTo(180, 1);           // the two slopes already lay along the same line, so nothing had to turn
+  });
+
+  test("hitboxes and muzzle markers neither snap nor get snapped to", () => {
+    // They are game-logic boxes drawn ON TOP of the weapon, so they are always the nearest edge to
+    // something — left in, they would hijack every snap on a weapon.
+    expect(canEdgeSnap({ kind: "rect" })).toBe(true);
+    expect(canEdgeSnap({ kind: "rect", isHitbox: true })).toBe(false);
+    expect(canEdgeSnap({ kind: "circle", isMuzzle: true })).toBe(false);
+    const hitbox = { id: "t", kind: "rect", x: 60, y: 60, w: 40, h: 10, isHitbox: true };
+    const near2 = { id: "m", kind: "rect", x: 62, y: 71, w: 40, h: 10 };
+    expect(findEdgeSnap(near2, [hitbox])).toBe(null);
+    expect(findEdgeSnap({ ...near2, isMuzzle: true }, [{ ...hitbox, isHitbox: false }])).toBe(null);
+  });
+
+  test("a held group only slides — every member moves by the same amount, none turns or resizes", () => {
+    const target = { id: "t", kind: "rect", x: 60, y: 60, w: 40, h: 10 };
+    const lead = { id: "a", kind: "rect", x: 62, y: 73, w: 40, h: 10, rot: 0 };
+    const mate = { id: "b", kind: "rect", x: 62, y: 84, w: 40, h: 10, rot: 45 };
+    const hit = findGroupEdgeSnap([lead, mate], [target]);
+    expect(hit).not.toBe(null);
+    // The lead member's top edge is 3 under the target's bottom edge and 2 to the right, so the
+    // whole group slides back by exactly that — nothing rotates, nothing changes size.
+    expect(hit.dx).toBeCloseTo(-2);
+    expect(hit.dy).toBeCloseTo(-3);
+    expect(Object.keys(hit)).not.toContain("rot");
+  });
+
+  test("an arm block snaps about its shoulder pivot, the same point the editor twists it about", () => {
+    // A weapon arm rotates about its shoulder end, not its centre — using the centre here put its
+    // edges somewhere the block visibly isn't.
+    const arm = { id: "a", kind: "rect", x: 0, y: 0, w: 20, h: 60, rot: 90, role: "weaponArm", armPivot: "top" };
+    expect(pieceBox(arm).o).toEqual([0.5, 0]);
+    const top = pieceSnapEdges(arm)[0];
+    expect(near(top.a, { x: 10, y: -10 })).toBe(true);  // pivot (10,0) stays put; the corner swings around it
+    expect(near(top.b, { x: 10, y: 10 })).toBe(true);
   });
 });

@@ -114,6 +114,16 @@ clicked cell is usually *not* the key — find an object under a click with `obj
 contiguous same-source run (`cutterRuns` / `pieceSrcKey`). Anything that reorders
 pieces must keep a cutter adjacent to what it cuts — see `groupWeaponBlocksByArm`.
 
+**Snap to edges** (🧲 checkbox, "Add a block"). While dragging, `findEdgeSnap` looks for an edge
+of another block that is near (midpoints within `SNAP_DIST`), pointing roughly the same way
+(`SNAP_ANGLE`) and of similar length (`SNAP_LEN_TOL`); `applyEdgeSnap` then welds the two edges
+together, taking the neighbour's exact angle and edge length. Polygon shapes snap by their real
+silhouette (`shapePolyPoints`), everything else by its box. Two things that are easy to get wrong:
+the drag must re-derive the snap from the pick-up size/angle (`drag.current.base`) every frame or
+the block welds to the first edge it brushes and can never be pulled off; and edge geometry must
+use the same rotation origin the renderer does (`pieceOriginFrac`, arms pivot at the shoulder).
+A held group only ever translates — turning it to suit one member would tear the assembly apart.
+
 **Facing.** Enemy art is drawn facing LEFT by default; player art (body/skin/dressed)
 faces RIGHT. `enemyNeedsFlip` and `playerSpriteMirrored` are the two answers, and
 anything deriving piece-local x from the mirror (muzzle spawn, melee hitbox) must read
