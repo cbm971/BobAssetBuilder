@@ -109,7 +109,8 @@ import {
   removePieceSelection,
   playerMeleeDamage,
   playerRangedDamage,
-  meleeCritChance,
+  critChance,
+  tagDamageMultiplier,
 } from "./App";
 
 describe("copying blocks and groups", () => {
@@ -1875,10 +1876,10 @@ describe("what the player hits for", () => {
   // The regression these exist for: one 7-damage M16 did 14 damage in the hands of a Strength-10
   // character and 1 in the hands of a Strength-1 character, because both ranged hit-tests ran the
   // melee formula. Army Bob one-shot enemies Bobette needed ten hits to drop, with the same gun.
-  test("a gun does its own damage no matter who is holding it", () => {
-    // playerRangedDamage takes no stat at all — so the only way to prove the invariant is to show
-    // the whole roster of Strength values the sliders allow collapses to one number. If ranged ever
-    // grows a stat argument again, whoever adds it has to come here and delete this test on purpose.
+  test("a gun does its own damage no matter which BODY is holding it", () => {
+    // playerRangedDamage takes no body stat at all — so the only way to prove the invariant is to
+    // show the whole roster of Strength values the sliders allow collapses to one number. If ranged
+    // ever grows a stat argument again, whoever adds it has to come here and delete this on purpose.
     const M16 = 7;
     const everyStrength = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     const perCharacter = everyStrength.map(() => playerRangedDamage(M16));
@@ -1926,10 +1927,32 @@ describe("what the player hits for", () => {
     expect(playerMeleeDamage(10, undefined)).toBe(10); // absent stat means baseline 5, not zero
   });
 
-  test("crit chance is melee-only, 2% per point, capped so hits stay ordinary", () => {
-    expect(meleeCritChance(5)).toBeCloseTo(0.1);
-    expect(meleeCritChance(10)).toBeCloseTo(0.2);
-    expect(meleeCritChance(100)).toBe(0.6);
-    expect(meleeCritChance(0)).toBe(0);
+  test("crit chance is 2% per point of Intelligence, capped so hits stay ordinary", () => {
+    // Crit applies to BOTH weapon kinds. For ranged it is the one and only thing about a character
+    // that changes output, which is exactly how Blake wants it.
+    expect(critChance(5)).toBeCloseTo(0.1);
+    expect(critChance(10)).toBeCloseTo(0.2);
+    expect(critChance(100)).toBe(0.6);
+    expect(critChance(0)).toBe(0);
+  });
+
+  test("Tag Damage gear still boosts a gun — that is a feature, not the bug", () => {
+    // Army Bob's 1.5x hat making his rifle hit harder than Bobette's is CORRECT and intended.
+    // The bug was the BODY's Strength doing it, which no amount of gear-swapping could explain.
+    // Gear is a choice you can take off; a body stat is not. Do not "fix" this into melee-only.
+    const hat = [{ type: "tagBoost", tag: "rifle", mult: 1.5 }];
+    expect(tagDamageMultiplier(hat, ["rifle"])).toBe(1.5);
+    expect(tagDamageMultiplier([], ["rifle"])).toBe(1);
+    // Stacks multiplicatively, and only for a matching tag.
+    expect(tagDamageMultiplier([...hat, { type: "tagBoost", tag: "rifle", mult: 2 }], ["rifle"])).toBe(3);
+    expect(tagDamageMultiplier(hat, ["bow"])).toBe(1);
+    // Which is how the same gun legitimately reads as 2 shots vs 3 on a 15 HP enemy.
+    const M16 = 7, ENEMY_HP = 15;
+    const withHat = playerRangedDamage(M16 * tagDamageMultiplier(hat, ["rifle"]));
+    const without = playerRangedDamage(M16 * tagDamageMultiplier([], ["rifle"]));
+    expect(withHat).toBe(11);
+    expect(without).toBe(7);
+    expect(Math.ceil(ENEMY_HP / withHat)).toBe(2);
+    expect(Math.ceil(ENEMY_HP / without)).toBe(3);
   });
 });

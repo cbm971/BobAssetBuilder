@@ -834,33 +834,32 @@ export const defenseDamageMultiplier = (def) => 10 / (10 + Math.max(0, def || 0)
 export const applyDefense = (rawDamage, def) => rawDamage * defenseDamageMultiplier(def);
 
 // ── What the PLAYER hits for ────────────────────────────────
-// Melee and ranged do NOT share a formula, and the belief that they did is exactly what hid the
-// worst combat bug this game has had. Both live here, exported and tested, so the two rules are
-// stated once instead of being retyped inline at three different hit-tests that then drift.
+// THE RULE FOR RANGED: a shot deals the WEAPON's damage. The wielder's BODY stats do not scale
+// it — no Strength. What a character is WEARING still does, because that is the whole point of
+// gear: a Tag Damage hat matching the gun's category multiplies the shot (folded in when the
+// projectile spawns), and taking the hat off takes the boost with it. Intelligence rolls a crit
+// for double. That is the complete list.
 //
-// MELEE is muscle. The weapon's damage rides the wielder's Strength — 5 is neutral, 1 is a fifth,
-// 10 is double — and can crit for double off Intelligence. That is what every description in the
-// app promises: "Strength: melee damage dealt. Intelligence: melee crit chance."
+// MELEE is muscle on top of all that: the weapon's damage also rides the wielder's Strength —
+// 5 neutral, 1 a fifth, 10 double.
 //
-// RANGED is not muscle. Squeezing a trigger harder does not make the bullet bigger, so a shot
-// deals the weapon's own Damage number, flat, for every character — matching the ranged Damage
-// hint in the weapon editor, "Base damage this weapon's shot deals on a hit", which pointedly
-// does NOT mention either stat the melee hint lists.
+// The body/gear distinction is the entire lesson here. Gear is a CHOICE the player makes and can
+// undo; a body stat is not. Army Bob's rifle hitting 1.5x harder than Bobette's because of his
+// hat is correct and intended. Army Bob's rifle hitting harder because he is a Strength-10 body
+// was the bug.
 //
-// THE BUG: both ranged hit-tests (direct hit and explosion splash) ran the MELEE formula. Firing
-// one 7-damage M16, Strength 10 dealt 14 while Strength 1 rounded down to 1 — the same gun doing
-// fourteen times the damage depending on who held it. That is why Army Bob one-shot enemies that
-// Bobette needed ten hits to drop, and why the numbers looked "wrong AND different" at once.
-// Rounding is what made the low end so brutal: 7 × (1/5) = 1.4, rounded to 1, floored at 1.
-//
-// `weaponDamage` arrives with any Tag Damage clothing multiplier already folded in (melee applies
-// it at the hit-test, ranged bakes it into the projectile at spawn) — that ability is a property
-// of the gear, not the body, so it applies to both kinds and is not what this split is about.
+// THE BUG, for anyone tempted to "simplify" this again: both ranged hit-tests ran the MELEE
+// formula outright, so one 7-damage M16 dealt 14 at Strength 10 and 1 at Strength 1 (7 × 1/5 =
+// 1.4, rounded to 1) — a fourteen-fold spread off the body alone. That is why Army Bob one-shot
+// what Bobette needed ten hits for. Removing Strength fixed it. Removing the gear multiplier as
+// well would NOT have been a further fix, it would have deleted a working feature.
 export const playerMeleeDamage = (weaponDamage, strength) => Math.max(1, Math.round((weaponDamage ?? 5) * ((strength ?? 5) / 5)));
+// One argument on purpose: `weaponDamage` already carries the weapon's own number and any Tag
+// Damage gear multiplier. There is no BODY stat to pass in, and adding one is the bug returning.
 export const playerRangedDamage = (weaponDamage) => Math.max(1, Math.round(weaponDamage ?? 5));
-// Melee crit chance: 2% per point of Intelligence, capped at 60% so even a maxed stat still has
-// ordinary hits. Ranged never calls this — guns do not crit (see above).
-export const meleeCritChance = (intelligence) => Math.min(0.6, Math.max(0, (intelligence ?? 5) * 0.02));
+// Crit chance for BOTH weapon kinds: 2% per point of Intelligence, capped at 60% so even a maxed
+// stat still lands ordinary hits. A crit is always exactly double.
+export const critChance = (intelligence) => Math.min(0.6, Math.max(0, (intelligence ?? 5) * 0.02));
 
 // ── Item categories & pedestal search ───────────────────────
 // Every "item" (equipment or weapon) can carry up to 3 free-text categories Blake types in
@@ -930,7 +929,7 @@ export const pedestalSummary = (m) => { const cs = ((m && m.cats) || []).map((c)
 //   { kind: "stat", stat, amount, duration }  — adds `amount` to a stat for `duration` seconds
 // It carries `categories` like gear so the SAME pedestal search finds it. Only the stats the player
 // actually reads in play are offered: Speed (move), Agility (jump), Strength (melee+throw damage),
-// Intelligence (melee crit chance) — every one has a live effect.
+// Intelligence (crit chance, melee and ranged) — every one has a live effect.
 export const ITEM_STAT_KEYS = ["speed", "agility", "intelligence", "strength"];
 export const ITEM_STAT_LABEL = { speed: "Speed", agility: "Agility", intelligence: "Int", strength: "Str" };
 export const DEFAULT_ITEM_EFFECT = () => ({ kind: "heal", amount: 5 });
@@ -1121,6 +1120,13 @@ export const blockStopsHit = (blocking, face, attackerX, wearerX, wearerW) => {
 // weapon's own categories, returns the damage multiplier to apply (1 = no boost). Multiple
 // matching tag abilities stack multiplicatively. Tag match is the same case-insensitive,
 // trimmed compare pedestals use.
+//
+// Applies to MELEE AND RANGED, deliberately — the example tag is "bow" for a reason. This is
+// gear, not the body: it boosts whoever wears the item, and swapping the item off removes it.
+// That is the intended way for a character to hit harder with a gun, and it is NOT the same
+// thing as the Strength bug (see playerRangedDamage) — Strength was an unremovable property of
+// the body that no amount of gear-swapping could explain. Do not "fix" this into melee-only;
+// a 1.5x hat making Army Bob's rifle hit harder is the feature working.
 export const tagDamageMultiplier = (effects, weaponCategories) => {
   const cats = normCats(weaponCategories);
   if (!cats.length) return 1;
@@ -4814,7 +4820,7 @@ export default function AssetStudio() {
                     // Bare-handed there's no weapon damage to scale — it's just the strength
                     // stat directly, per request.
                     const base = (!unarmedSwing && playtestWeapon) ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories), strength) : Math.max(1, Math.round(strength));
-                    const isCrit = Math.random() < meleeCritChance(intelligence);
+                    const isCrit = Math.random() < critChance(intelligence);
                     const dmg = isCrit ? base * 2 : base;
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
                     if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon && (playtestWeapon.stun ?? 0) > 0) { ep.stun = Math.round(playtestWeapon.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
@@ -4919,9 +4925,10 @@ export default function AssetStudio() {
       }
 
       if (projectiles.current.length) {
-        // No stats are read in here on purpose: a shot's damage comes from the weapon alone, so
-        // there is deliberately nothing to pull off pstats. If a stat ever needs to reach this
-        // block again, it is not Strength.
+        // Intelligence ONLY. A shot's damage comes from the weapon alone; the sole thing the
+        // character contributes is how often that damage doubles. Strength is deliberately not
+        // read in this block, and must not be.
+        const intelligence = pstats.intelligence;
         // An "explode" shot doesn't just hit one target — on impact it bursts: a wide splash of
         // damage over a radius, plus a transient explosion drawn in the FRONT layer from whatever
         // Object/Prop the weapon points at (Blake draws the boom in the prop maker). The boom is a
@@ -4968,10 +4975,10 @@ export default function AssetStudio() {
               const ep = enemyPos.current[k]; if (!ep || ep.friendly) continue;
               const bx = enemyBlastBox(ea, ep);
               if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
-                // Splash is still a SHOT — flat weapon damage, no Strength, no crit, exactly like
-                // the direct hit below. A blast that scaled with the shooter's muscles was half of
-                // the same bug (playerRangedDamage).
-                const dmg = playerRangedDamage(baseDmg);
+                // Splash is still a SHOT — flat weapon damage plus the same crit roll as a direct
+                // hit, and nothing else off the shooter.
+                const base = playerRangedDamage(baseDmg);
+                const dmg = (Math.random() < critChance(intelligence)) ? base * 2 : base;
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
                 if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
                 hits++;
@@ -5084,13 +5091,14 @@ export default function AssetStudio() {
             const overlap = prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop;
             if (overlap) {
               if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
-              // The weapon's Damage number, flat, for whoever pulled the trigger — see
-              // playerRangedDamage. Running the melee formula here is what made one M16 do 14 in
-              // Army Bob's hands and 1 in Bobette's.
-              const dmg = playerRangedDamage(pr.damage);
+              // The weapon's Damage number, flat, whoever pulled the trigger — then the one
+              // permitted character difference: an Intelligence crit roll for double.
+              const base = playerRangedDamage(pr.damage);
+              const isCrit = Math.random() < critChance(intelligence);
+              const dmg = isCrit ? base * 2 : base;
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
               if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
-              flash("🎯 Hit " + ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
+              flash((isCrit ? "💥 Critical! " : "🎯 ") + "Hit " + ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
               return false; // projectile consumed on impact
             }
           }
@@ -8139,7 +8147,6 @@ export default function AssetStudio() {
               <div className="seg"><button className={lHazLife === 0 ? "on" : ""} onClick={() => setLHazLife(0)} title="Fire never goes out">♾️ Permanent</button><button className={lHazLife !== 0 ? "on" : ""} onClick={() => setLHazLife((v) => v === 0 ? DEFAULT_HAZARD_LIFE : v)} title="Fire burns for a set time then goes out">⏱ Burns out</button></div>
               {lHazLife !== 0 && <label className="slider" style={{ minWidth: 200 }}>Burns for<input type="range" min="1" max="30" step="1" value={lHazLife} onChange={(e) => setLHazLife(+e.target.value)} /><span className="hint2">{lHazLife}s</span></label>}
               <label className="chk solidchk"><input type="checkbox" checked={lHazHide} onChange={(e) => setLHazHide(e.target.checked)} /> 🚫 Invisible during play <span className="hint2">(still burns — draw your own fire Object on top)</span></label>
-              <span className="hint2">Paint fire that hurts anyone standing in it — player and enemies alike. It doesn't block movement. <b>Permanent</b> fire never goes out; <b>Burns out</b> fire lasts its set time then extinguishes. Tick <b>Invisible during play</b> to hide the emoji in Playtest (it still deals damage) so you can place your own pixel-art fire 🌿 Object over it, flagged <b>In front of player</b>. Either way the painted level is untouched, so stopping and restarting Playtest relights everything. Brush size works here too.</span>
             </>
           ) : (
             <>
@@ -8156,9 +8163,8 @@ export default function AssetStudio() {
                     <button className={lFgShape === "slopeDown" ? "on" : ""} onClick={() => setLFgShape("slopeDown")}>◣ Ramp ↖</button>
                     {lFgShape !== "block" && <button className={lFgUpsideDown ? "on" : ""} onClick={() => setLFgUpsideDown((v) => !v)}>🙃 Upside down</button>}
                   </div>
-                  {lLayer === "fg" && <><label className="chk solidchk"><input type="checkbox" checked={lFgHide} onChange={(e) => setLFgHide(e.target.checked)} /> 🚫 Collision only <span className="hint2">(visible here, invisible during Playtest)</span></label>
-                    <span className="hint2">Collision-only blocks and ramps keep their normal solid or walkable hitbox. The editor marks them with a cyan dashed overlay, but Playtest draws nothing—use them to trace complex Object roofs and walls.</span></>}
-                  {lLayer === "bg" && <span className="hint2">Background ramps are decorative only. They use the same draggable multi-cell shape, but never block or carry the player.</span>}
+                  {lLayer === "fg" && <label className="chk solidchk"><input type="checkbox" checked={lFgHide} onChange={(e) => setLFgHide(e.target.checked)} /> 🚫 Collision only <span className="hint2">(visible here, invisible during Playtest)</span></label>}
+                  {lLayer === "bg" && <span className="hint2">Background ramps never block or carry the player.</span>}
                 </>
               )}
             </>
@@ -8180,6 +8186,12 @@ export default function AssetStudio() {
 
         <div className="lmain">
           <div className="lstage">
+            {/* One WRAPPING ROW, not a stack. Each of these lines is short, and stacking them
+                pushed the canvas itself down the page — with a weapon and a throwable equipped
+                that was four separate full-width bars to scroll past before you could see the
+                level. They flow side by side now and only wrap when the stage is genuinely too
+                narrow, so the canvas keeps its vertical space. */}
+            <div className="statusrow">
             {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb · <b>J/F</b> fire · <b>Q</b> {playtestWeapon && !isRanged(playtestWeapon.wtype) ? "tap to block" : "melee"}{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload" : ""}{playtestThrowId ? " · hold G to aim, release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
             {play && (playtestWeaponId || SLOT_ORDER.some((sl) => equipped.current[sl])) && (() => {
               const bits = [];
@@ -8217,6 +8229,7 @@ export default function AssetStudio() {
             {!play && lTool !== "areaCopy" && !(layerMove && layerMove.levelId === lv.id) && (lEnemyId && lTool === "paint"
               ? <p className="statusline">👉 Clicking places <b>👹 {(findA(lEnemyId) || {}).name || "enemy"}</b>. Pick <b>— none —</b> to paint normally.</p>
               : <p className="statusline">👉 Clicking the canvas right now will <b>{lTool === "erase" ? "erase from" : lTool === "select" ? "select on" : lTool === "move" ? "pick up on" : "paint"}</b> the <b>{lLayer === "fg" ? "Foreground" : lLayer === "bg" ? "Background" : lLayer === "front" ? "Front" : lLayer === "obj" ? "Objects" : lLayer === "climb" ? "Climb" : lLayer === "hazard" ? "Fire" : "Markers"}</b> layer.</p>)}
+            </div>
             <div className={"lscroll layer-" + lLayer}>
               <div ref={lvRef} className="lgrid" style={{ width: lvW, height: lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px" }} onPointerDown={lvDown} onPointerMove={lvMove} onPointerLeave={() => setLHoverCell(null)}>
                 {lvBgLayer}
@@ -8958,7 +8971,7 @@ export default function AssetStudio() {
                               hillside) rather than standing upright. Nudges are 5° because slope
                               angles are shallow; the piece editor's 90° steps would be useless here. */}
                           <label className="slider">Twist ⟳<input type="range" min="0" max="359" step="1" value={o.rot || 0} onChange={(e) => updateFxAt(lFxSel, i, { rot: normalizeObjRot(+e.target.value || 0) })} /><span className="hint2">{(o.rot || 0)}°</span><button className="rotbtn" title={"turn " + OBJ_ROT_NUDGE + "° anticlockwise"} onClick={() => nudgeFxRot(lFxSel, i, -OBJ_ROT_NUDGE)}>↺</button><button className="rotbtn" title={"turn " + OBJ_ROT_NUDGE + "° clockwise"} onClick={() => nudgeFxRot(lFxSel, i, OBJ_ROT_NUDGE)}>↻</button><button className="rotbtn" disabled={!(o.rot || 0)} title="Straighten — back to upright" onClick={() => updateFxAt(lFxSel, i, { rot: 0 })}>0°</button></label>
-                          <span className="hint2">Turns the art about its own middle, so a big prop can lie along a slope instead of standing upright. Its footprint doesn't turn: a solid object still blocks the same square of cells whatever angle it's drawn at.</span>
+                          <span className="hint2">Turns the art only — the solid footprint stays square.</span>
                           <label className="chk"><input type="checkbox" checked={!!o.solid} onChange={(e) => updateFxAt(lFxSel, i, { solid: e.target.checked })} /> Solid (blocks the player)</label>
                           <label className="chk"><input type="checkbox" checked={!!o.inFront} onChange={(e) => updateFxAt(lFxSel, i, { inFront: e.target.checked })} /> In front of player <span className="hint2">(fades when they're behind it)</span></label>
                         </div>
@@ -8967,7 +8980,7 @@ export default function AssetStudio() {
                   ))}</div>
                 </div>
               ) : (
-                <div className="card empty"><p>Paint or click an existing <b>🧩 object</b> cell to manage its layers here — stack several on one cell to build a composite, then reorder, tweak, or delete each one individually.</p></div>
+                <div className="card empty"><p>Click a <b>🧩 object</b> cell to manage its layers here.</p></div>
               )
             )}
 
@@ -8978,10 +8991,11 @@ export default function AssetStudio() {
                 <div className="ct2">Accepts (floors this point will connect to)</div>
                 <input className="big" value={lv.conns[lSel].accepts} onChange={(e) => setConnAccepts(lSel, e.target.value)} placeholder={"blank = only \"" + lv.floor + "\""} />
                 {floorSuggest.length > 0 && <div className="catchips">{floorSuggest.map((f) => <button key={f} onClick={() => addCatSuggest(lSel, f)}>+ {f}</button>)}</div>}
-                <p className="mini">Pairs with <b>{CONN_LABEL[CONN_OPP[lSel]]}</b> on the neighbouring level — same position, opposite edge.</p>
-                <p className="mini">Matching is <b>mutual</b>: this point must accept the neighbour's floor, and the neighbour's point must accept this level's floor back. A whole edge only connects when <b>both {CONN_LABEL[lSel[0] + "1"]}</b> and <b>{CONN_LABEL[lSel[0] + "2"]}</b> agree (each point either matching, or both closed) — one mismatch blocks the whole edge.</p>
+                {/* Kept: the mutual-matching rule is a real gotcha, not a how-to — an edge silently
+                    fails to connect if only one side accepts, and nothing on screen shows why. */}
+                <p className="mini">Pairs with <b>{CONN_LABEL[CONN_OPP[lSel]]}</b> on the neighbouring level. Matching is <b>mutual</b>, and <b>both</b> {CONN_LABEL[lSel[0] + "1"]} and {CONN_LABEL[lSel[0] + "2"]} must agree or the whole edge stays closed.</p>
               </div>
-            ) : (!lv.isRoom && lLayer !== "obj") ? <div className="card empty"><p>Tap an <b>✕</b> on the edge to set up a connection point. Green = open, red = blocked. Each edge has 2 points (e.g. Right Upper + Right Lower) — both have to agree with the neighbour's matching points for that edge to connect.</p></div> : null}
+            ) : (!lv.isRoom && lLayer !== "obj") ? <div className="card empty"><p>Green <b>✕</b> = open, red = blocked.</p></div> : null}
 
             {!lv.isRoom && (
             <div className="card">
@@ -9014,7 +9028,7 @@ export default function AssetStudio() {
               {playtestThrowId && (
                 <label className="slider">Start with<input type="range" min="1" max="20" step="1" value={playtestThrowCount} onChange={(e) => setPlaytestThrowCount(+e.target.value)} /><span className="hint2">{playtestThrowCount} to test</span></label>
               )}
-              <span className="hint2">Throwables are carried separately from your held weapon, and are single-use. In a finished game the player finds these as pickups; this count just lets you test with a few.</span>
+              <span className="hint2">Single-use, carried separately from your held weapon.</span>
             </div>
 
           </aside>
@@ -9264,7 +9278,6 @@ export default function AssetStudio() {
           <button className={(asset.wtype || "melee") === "melee" ? "on" : ""} onClick={() => setAsset((a) => ({ ...a, wtype: "melee" }))}>🗡️ Melee</button>
           <button className={isRanged(asset.wtype) ? "on" : ""} onClick={() => setAsset((a) => ({ ...a, wtype: "ranged" }))}>🏹 Ranged</button>
           <button className={isThrowable(asset.wtype) ? "on" : ""} onClick={() => setAsset((a) => ({ ...a, wtype: "throw" }))}>💣 Throwable</button>
-          <span className="hint2">Melee: playtest's Fire button swings the arm + this weapon through the Fire pose. Ranged: Fire launches whichever Projectile asset is equipped below, aimed with ↑/↓. Throwable: a single-use grenade thrown with G that triggers a landing effect where it hits.</span>
         </div>
       )}
       {asset.type === "weapon" && (
@@ -9311,12 +9324,12 @@ export default function AssetStudio() {
           <label className="slider">Bomblets<input type="range" min="0" max="8" step="1" value={asset.clusterCount ?? 0} onChange={(e) => setAsset((a) => ({ ...a, clusterCount: +e.target.value }))} /><span className="hint2">{(asset.clusterCount ?? 0) === 0 ? "off — lands normally" : (asset.clusterCount ?? 0) + " little copies"}</span></label>
           {(asset.clusterCount ?? 0) > 0 && (<>
             <label className="slider">Bomblet size<input type="range" min="0.2" max="0.8" step="0.05" value={asset.clusterScale ?? DEFAULT_CLUSTER_SCALE} onChange={(e) => setAsset((a) => ({ ...a, clusterScale: +e.target.value }))} /><span className="hint2">{Math.round((asset.clusterScale ?? DEFAULT_CLUSTER_SCALE) * 100)}% of full size</span></label>
-            <span className="hint2">On impact this <b>becomes</b> {asset.clusterCount} smaller copies of itself, fanned left-to-right, which arc off and land separately — so it does <b>not</b> pay out its own fire where it first hit; each bomblet pays out instead (same damage, burn time, splash and stun as above, wherever it comes down). Bomblets don't cluster again.</span>
+            <span className="hint2">Becomes {asset.clusterCount} bomblets on impact, each paying out separately instead of this one paying out where it hit.</span>
           </>)}
           <span className="wslab">💫 Stun:</span>
           <label className="slider">Freeze<input type="range" min="0" max="5" step="0.25" value={asset.stun ?? 0} onChange={(e) => setAsset((a) => ({ ...a, stun: +e.target.value }))} /><span className="hint2">{(asset.stun ?? 0) === 0 ? "off" : "enemies caught in the blast freeze for " + (asset.stun ?? 0) + "s (💫)"}</span></label>
-          <span className="hint2">A shock grenade: on landing, every enemy within the splash <b>+ 1 block</b> is frozen this long — it can't move or attack, though it still falls with gravity. Re-landing one refreshes the timer. Your own resurrected allies are never shocked. Works with or without fire damage, so a pure stun grenade just needs Damage low.</span>
-          <span className="hint2">Thrown in Playtest by <b>holding G to aim</b> (a dotted arc previews the exact flight path) and <b>releasing G to throw</b>, in the way you're facing — the arm swings the throw. It arcs, lands, and pays out its payload where it hits — fire, plus any Cluster and Stun set above. It's a <b>single-use pickup</b> — the player carries just what they find, like a bomb in Binding of Isaac. Draw the grenade in the <b>Side</b> pose tab specifically, under the Rest state — that's the only pose that flies; Front/Back/Up/Crouch are never shown for a thrown item, even though the tabs are still there.</span>
+          {/* Kept short: the splash+1 reach and the ally exemption are rules you cannot see. */}
+          <span className="hint2">Freezes every enemy within the splash <b>+ 1 block</b>. Your resurrected allies are never shocked.</span>
         </div>
       )}
       {asset.type === "weapon" && isThrowable(asset.wtype) && !(wState === "rest" ? (asset.angles?.side || []) : (asset.states?.rest?.side || [])).some((p) => !p.isHitbox && !p.isMuzzle) && (
@@ -9374,7 +9387,7 @@ export default function AssetStudio() {
                             expected". One tap matches them rather than us silently resizing anyone's art. */}
                         <label className="slider">Boom size<input type="range" min="1" max="8" step="0.5" value={asset.explodeSize ?? 3} onChange={(e) => setAsset((a) => ({ ...a, explodeSize: +e.target.value }))} /><span className="hint2">{(asset.explodeSize ?? 3)} cells of art{(() => { const want = Math.min(8, Math.max(1, Math.round((asset.explodeRadius ?? 2) * 2 * 2) / 2)); return Math.abs((asset.explodeSize ?? 3) - want) > 0.4 ? <> — the blast itself covers about {want}. <button className="ltbtn" onClick={() => setAsset((a) => ({ ...a, explodeSize: want }))}>Match the blast</button></> : " — matches the blast"; })()}</span></label>
                         <label className="slider">Boom time<input type="range" min="0.2" max="2" step="0.1" value={asset.explodeLife ?? 0.5} onChange={(e) => setAsset((a) => ({ ...a, explodeLife: +e.target.value }))} /><span className="hint2">on screen {(asset.explodeLife ?? 0.5)}s{(() => { const pa = asset.explodePropId ? allAssets.find((x) => x.id === asset.explodePropId) : null; return pa && pa.frames && pa.frames.length > 1 ? " — its " + pa.frames.length + " frames play once over that time" : ""; })()}</span></label>
-                        <span className="hint2">Draw the explosion in the Object/Prop maker (animate it if you like), pick it above, and the shot paints it at the impact. The boom is visual only — it never sticks into the level.</span>
+                        <span className="hint2">Visual only — the boom never sticks into the level.</span>
                       </>)}
                     </div>
                   ))}
@@ -9385,7 +9398,7 @@ export default function AssetStudio() {
             {!ANGLES.some((ang) => ((wState === "rest" ? asset.angles?.[ang] : asset.states?.rest?.[ang]) || []).some((p) => p.isMuzzle)) && (
               <p className="tip warn">⚠ No 🔴 muzzle placed on the Rest pose yet — shots will spawn from the middle of the character instead of the barrel. Add one and drag it to the barrel tip.</p>
             )}
-            <span className="hint2">{weaponFireMode(asset) === "auto" ? "Hold Fire to shoot continuously at the fire rate." : weaponFireMode(asset) === "burst" ? "Each Fire press commits one configured burst." : "Fire once per press — add Full Auto or Burst Fire above to change the trigger."} An empty clip auto-reloads (or press <b>R</b> any time) — the weapon lowers while reloading. Draw the 🔴 muzzle on the <b>Rest</b> pose; it rides the arm, so shots leave the barrel at the right height and angle.</span>
+            <span className="hint2">{weaponFireMode(asset) === "auto" ? "Hold Fire to shoot continuously at the fire rate." : weaponFireMode(asset) === "burst" ? "Each Fire press commits one configured burst." : "Fire once per press."}</span>
             {!asset.projectileId && (
               <p className="tip warn">⚠ {hasLegacy ? "No Projectile asset assigned yet — still using this weapon's old embedded projectile as a fallback." : "No Projectile picked — this won't fire anything visible in Playtest yet."} Build one from the menu (Weapon → Projectile), or pick a saved one above.{hasLegacy ? " " : ""}</p>
             )}
@@ -9552,27 +9565,33 @@ export default function AssetStudio() {
               )}
               {asset.type === "enemy" && <label className="chk"><input type="checkbox" checked={asset.hostile === false} onChange={(e) => setAsset((a) => ({ ...a, hostile: !e.target.checked }))} /> 🕊️ Not hostile <span className="hint2">(a neutral NPC — never chases or attacks the player)</span></label>}
               {asset.type === "enemy" && <label className="slider">⚔️ Attack range<input type="number" min="1" value={Math.round((asset.attackRange ?? DEFAULT_ATTACK_RANGE) / LV_CELL)} onChange={(e) => setAsset((a) => ({ ...a, attackRange: Math.max(1, +e.target.value || 1) * LV_CELL }))} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>cells · a ranged enemy always engages from ≥ 18</span></label>}
+              {/* Two per row: five stacked full-width sliders pushed everything below them off
+                  the panel, and each one only needs half the width it was taking. */}
+              <div className="statgrid">
               {(asset.type === "skin" ? ["hp", "speed", "agility", "intelligence", "strength"] : ["speed", "agility", "intelligence", "strength"]).map((s) => (
                 <label className="slider" key={s}>
-                  {s === "hp" ? "❤️ HP" : s === "speed" ? "🏃 Speed" : s === "agility" ? "🤸 Agility" : s === "intelligence" ? "🧠 Intelligence" : "💪 Strength"}
+                  {s === "hp" ? "❤️ HP" : s === "speed" ? "🏃 Speed" : s === "agility" ? "🤸 Agility" : s === "intelligence" ? "🧠 Int" : "💪 Str"}
                   <input type="range" min="1" max="10" value={asset.stats?.[s] ?? 5} onChange={(e) => setAsset((a) => ({ ...a, stats: { ...(a.stats || DEFAULT_STATS()), [s]: +e.target.value } }))} />
-                  <span className="hint2" style={{ marginLeft: 6 }}>{asset.stats?.[s] ?? 5}</span>
+                  <span className="hint2">{asset.stats?.[s] ?? 5}</span>
                 </label>
               ))}
-              <p className="mini">5 is baseline (unchanged from default feel). {asset.type === "skin" ? "HP: max health. " : ""}Speed: move speed. Agility: jump height. Intelligence: melee crit chance. Strength: melee damage dealt.{asset.type === "enemy" ? " HP: how much damage it can take before it's defeated. AI behavior controls how it moves — Guard/Seek/Avoid — independent of Speed. Attack range (px) is how close the player needs to be before it attacks; it needs a clear line of sight too." : " A body with no skin equipped in Dress Bob just uses all 5s."}</p>
+              </div>
+              <p className="mini">5 is baseline. Speed: move. Agility: jump. Int: crit chance. Str: melee damage.</p>
             </div>
           )}
           {asset.type === "equipment" && !effEdit && (
             <div className="card">
               <div className="ct">📊 Stat Boosts</div>
+              <div className="statgrid">
               {["hp", "speed", "agility", "intelligence", "strength"].map((s) => (
                 <label className="slider" key={s}>
-                  {s === "hp" ? "❤️ HP" : s === "speed" ? "🏃 Speed" : s === "agility" ? "🤸 Agility" : s === "intelligence" ? "🧠 Intelligence" : "💪 Strength"}
+                  {s === "hp" ? "❤️ HP" : s === "speed" ? "🏃 Speed" : s === "agility" ? "🤸 Agility" : s === "intelligence" ? "🧠 Int" : "💪 Str"}
                   <input type="range" min="-5" max="5" value={asset.statBoosts?.[s] ?? 0} onChange={(e) => setAsset((a) => ({ ...a, statBoosts: { ...(a.statBoosts || DEFAULT_STAT_BOOSTS()), [s]: +e.target.value } }))} />
-                  <span className="hint2" style={{ marginLeft: 6 }}>{(asset.statBoosts?.[s] ?? 0) > 0 ? "+" : ""}{asset.statBoosts?.[s] ?? 0}</span>
+                  <span className="hint2">{(asset.statBoosts?.[s] ?? 0) > 0 ? "+" : ""}{asset.statBoosts?.[s] ?? 0}</span>
                 </label>
               ))}
-              <p className="mini">Added on top of the wearer's own stat while this is equipped — a Speed of 5 plus a +2 item reads as 7. 0 = no change.</p>
+              </div>
+              <p className="mini">Added on top of the wearer's own stat. 0 = no change.</p>
             </div>
           )}
           {asset.type === "equipment" && !effEdit && (
@@ -10116,6 +10135,12 @@ const css = `
 .pick{width:30px;height:30px;border:1px dashed #4a5269;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;color:#9aa3b8;font-size:16px}
 .pick input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .slider{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:13px;color:#aab2c6}
+/* Short paired controls (the stat sliders) sit two per row instead of one, so a five-stat panel
+   costs two and a half rows of height rather than five. Falls back to one column if the panel is
+   ever narrowed. */
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:0 12px}
+.statgrid .slider{gap:6px;min-width:0}
+.statgrid .slider input[type=range]{min-width:0;flex:1}
 .slider input[type=range]{flex:1;accent-color:#4f7cf6}
 .slider .gc{width:30px;height:24px;padding:0;border:1px solid #2c3245;border-radius:6px;background:#1f2433;flex:none}
 .rotbtn{flex:none;width:30px;height:26px;border:1px solid #2c3245;border-radius:7px;background:#1f2433;cursor:pointer;font-size:15px;line-height:1}
@@ -10224,7 +10249,12 @@ const css = `
 .movingtag{display:inline-flex;align-items:center;gap:8px;background:#241a2e;border:1px dashed #7a4fbf;border-radius:9px;padding:6px 11px;font-size:12px;color:#e0c7ff}
 .lgroup{display:flex;align-items:center;gap:8px}
 .lgrouplabel{font-size:11px;color:#7a8296;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
-.statusline{margin:0 0 4px;color:#8fb8ff;font-size:12.5px;text-align:center;background:#161d2e;border:1px solid #2a3a5c;border-radius:9px;padding:6px 12px;max-width:480px}
+/* The playtest/editor status lines share one wrapping row instead of each taking a full line of
+   vertical space above the canvas. max-width is per-line so a long control hint still wraps
+   internally rather than squeezing the ammo readout next to it. */
+.statusrow{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:5px;margin-bottom:4px}
+.statusrow:empty{display:none}
+.statusline{margin:0;color:#8fb8ff;font-size:12.5px;text-align:center;background:#161d2e;border:1px solid #2a3a5c;border-radius:9px;padding:5px 10px;max-width:480px}
 .ammoline{color:#e7e9ee;background:#1a1320;border-color:#7a4fbf;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;gap:8px}
 .ammoline.empty{color:#ffb3b3;border-color:#b0504f;background:#2a1618}
 .ammoline.reloading{color:#f3d98a;border-color:#c8a23c;background:#2a2113}

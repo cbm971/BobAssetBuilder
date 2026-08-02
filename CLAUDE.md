@@ -126,6 +126,29 @@ defaults, a `migrate` default so older saves get it, and the editor control.
 Comments explain **why**, and usually name the bug that motivated the code. Match that
 density.
 
+## NEVER remove a feature to fix a bug
+
+This is the rule that has been broken most often, and it makes Blake angrier than the
+original bug. **Fix the defect. Do not delete the surrounding capability.** If a feature
+looks like it is causing the bug, you have almost certainly misread the bug.
+
+Both real examples come from the ranged-damage saga:
+
+* Ranged crits were deleted while removing Strength scaling. Blake had said repeatedly
+  that **crit chance is the one thing that SHOULD vary per character** on a gun.
+* Tag Damage was then made melee-only because a hat made Army Bob's rifle hit 1.5x
+  harder. That hat is **the feature working exactly as designed.**
+
+The distinction that was missed both times, and the one to reason from:
+
+> **Gear is a choice the player makes and can undo. A body stat is not.**
+> A hat boosting your gun is intended. Your Strength stat boosting your gun was the bug.
+
+So: an effect, ability, tooltip, control or behaviour that already exists is there because
+Blake wanted it. Removing one is a product decision and is **his to make, not yours** — if
+you genuinely think something must go, ask first and keep building everything else. When a
+fix and a feature seem to conflict, narrow the fix until they don't.
+
 ## Working style Blake expects
 
 * Ship it. Push fixes directly; don't present option menus. Try things before calling
@@ -134,3 +157,5 @@ density.
   wrong layer — if a fix keeps not working, the data model is probably the problem.
 * Say plainly what was verified and what wasn't. Flag behaviour changes that go
   beyond what was asked (e.g. a stat rule that also changes enemy difficulty).
+* Do the whole request. It usually has several parts (a bug fix *and* UI cleanup);
+  finishing only the interesting one reads as ignoring him.
