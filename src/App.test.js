@@ -137,6 +137,10 @@ import {
   SNAP_DIST,
   cellRuns,
   cellRunSig,
+  enemyAttackCommitted,
+  enemyFaceThisFrame,
+  enemyMoveIntent,
+  enemyFaceToward,
 } from "./App";
 
 describe("copying blocks and groups", () => {
@@ -2151,6 +2155,37 @@ describe("what the player hits for", () => {
     expect(without).toBe(7);
     expect(Math.ceil(ENEMY_HP / withHat)).toBe(2);
     expect(Math.ceil(ENEMY_HP / without)).toBe(3);
+  });
+});
+
+describe("an enemy faces what it is shooting at", () => {
+  test("walking decides which way you look — until you are lining up an attack", () => {
+    expect(enemyFaceThisFrame(-1, 3, false)).toBe(1);   // walked right, looks right
+    expect(enemyFaceThisFrame(1, -3, false)).toBe(-1);
+    expect(enemyFaceThisFrame(-1, 3, true)).toBe(-1);   // committed: the retreat does NOT turn it round
+    expect(enemyFaceThisFrame(1, 0, false)).toBe(1);    // standing still keeps the facing it had
+  });
+
+  test("winding up, mid-swing, or tracking with a raised weapon all count as committed", () => {
+    expect(enemyAttackCommitted({ reactT: 5, swingT: 0, aimHold: 0 })).toBe(true);
+    expect(enemyAttackCommitted({ reactT: 0, swingT: 3, aimHold: 0 })).toBe(true);
+    expect(enemyAttackCommitted({ reactT: 0, swingT: 0, aimHold: 12 })).toBe(true);
+    expect(enemyAttackCommitted({ reactT: 0, swingT: 0, aimHold: 0 })).toBe(false);
+    expect(enemyAttackCommitted(null)).toBe(false);
+  });
+
+  test("a fleeing shooter keeps retreating while it turns to face the player", () => {
+    // The reported bug, played out. Player on the LEFT, enemy on the right running away from them.
+    const SPEED = 2.2, dist = -100; // target is 100px to the enemy's left
+    const dxMove = enemyMoveIntent("avoid", dist, 200, SPEED, true);
+    expect(dxMove).toBeGreaterThan(0);                            // still fleeing, to the right
+    // Not yet aiming: it looks the way it runs, which is away from the player. That part is right.
+    expect(enemyFaceThisFrame(-1, dxMove, false)).toBe(1);
+    // The moment it commits to a shot it turns back toward the player — and keeps backpedalling,
+    // because the move intent above is untouched by any of this.
+    const facing = enemyFaceToward(dist, 1);
+    expect(facing).toBe(-1);
+    expect(enemyFaceThisFrame(facing, dxMove, true)).toBe(-1);
   });
 });
 

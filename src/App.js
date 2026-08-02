@@ -3597,6 +3597,22 @@ export const enemyFaceToward = (distToPlayer, face) => {
   if (distToPlayer === 0) return face || 1;
   return (Math.abs(distToPlayer) <= PLAYER_BODY_LEN_PX * ENEMY_SIGHT_AHEAD_LENGTHS) ? Math.sign(distToPlayer) : (face || 1);
 };
+// Is this enemy committed to an attack right now? Winding up to strike (reactT), mid-swing
+// (swingT), or visibly tracking a target down a raised weapon (aimHold) all count. Used to decide
+// which way it looks — see enemyFaceThisFrame.
+export const enemyAttackCommitted = (ep) => !!ep && ((ep.reactT > 0) || (ep.swingT > 0) || (ep.aimHold > 0));
+// Which way an enemy looks this frame. Normally its feet decide: walk left, look left. But an
+// enemy lining up a shot has already been turned toward its target (enemyFaceToward), and that
+// must not be undone by wherever it happens to be walking.
+//
+// This is the "fleeing enemies shoot at me without facing me" bug. An `avoid` enemy retreats every
+// frame, and the retreat used to rewrite its facing every frame — so it fired over its own
+// shoulder, aim pose, muzzle and sprite all pointing away, while the shot itself flew at the
+// player (a projectile is aimed by angle at the target, not by the shooter's facing, which is
+// exactly why nothing else caught this). It now turns to face what it is shooting at and holds
+// that through the whole wind-up; it just keeps backpedalling while it does, so fleeing still
+// flees. Reloading drops aimHold, so it turns its back and runs properly between volleys.
+export const enemyFaceThisFrame = (face, dxMove, committed) => (dxMove && !committed) ? Math.sign(dxMove) : (face || 1);
 // Storage order controls stacking only within the same player-relative layer. Front/back is a
 // stronger rule: a front object must render over every back object regardless of placement order.
 // Keep the original stack index so editor actions still update/delete the correct saved object.
@@ -4777,7 +4793,7 @@ export default function AssetStudio() {
           const detected = (hostile && targetKind === "player") ? enemyDetects(distToTarget, ep.face) : acts;
           const gapSigned = (Math.sign(distToTarget) || 1) * boxGap(targetCX, targetW, eCenterXNow, epw);
           const dxMove = (stunned || !acts) ? 0 : enemyMoveIntent(ai, gapSigned, engageRange, aiSpeed, detected);
-          if (dxMove) ep.face = Math.sign(dxMove);
+          ep.face = enemyFaceThisFrame(ep.face, dxMove, enemyAttackCommitted(ep));
           // Walls actually stop enemies now — they used to have NO horizontal collision at all:
           // a Seek enemy walked INTO a wall and the vertical snap then popped it on top, so a
           // chase across any real terrain read as completely broken. A one-cell lip gets the
