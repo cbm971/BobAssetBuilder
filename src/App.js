@@ -5988,7 +5988,7 @@ export default function AssetStudio() {
   };
   const copyToPosesMenu = (!asset || !copyTargets.length) ? null : (
     <span className="copytowrap">
-      <button className={"copyang" + (copyToOpen ? " on" : "")} onClick={() => { if (copyToOpen) closeCopyTo(); else { setCopyToPicked([]); setCopyToOpen(true); } }} title="Copy this pose onto poses you pick">⧉ copy to other poses {copyToOpen ? "▴" : "▾"}</button>
+      <button className={"copyang" + (copyToOpen ? " on" : "")} onClick={() => { if (copyToOpen) closeCopyTo(); else { setCopyToPicked([]); setCopyToOpen(true); } }}>⧉ copy to other poses {copyToOpen ? "▴" : "▾"}</button>
       {copyToOpen && (
         <div className="copytomenu">
           <div className="ct">Copy {ALABEL[angle]} onto…</div>
@@ -8000,8 +8000,8 @@ export default function AssetStudio() {
           <button className="back" onClick={() => setScreen("menu")}>‹ Menu</button>
           <input className="nm wide2" value={lv.name} onChange={(e) => setLevel({ ...lv, name: e.target.value })} />
           <span className="badge">{lv.isRoom ? "🚪 Room" : "🗺️ Level"}</span>
-          <button className="undo" disabled={!canUndoLevel} onClick={undoLevel} title="Undo (last change)">↩ Undo</button>
-          <button className="undo" disabled={!canRedoLevel} onClick={redoLevel} title="Redo">↪ Redo</button>
+          <button className="undo" disabled={!canUndoLevel} onClick={undoLevel}>↩ Undo</button>
+          <button className="undo" disabled={!canRedoLevel} onClick={redoLevel}>↪ Redo</button>
           <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
@@ -8047,7 +8047,7 @@ export default function AssetStudio() {
                 {enemyChoices.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
               {lEnemyId ? <button className="ltbtn" onClick={() => setLEnemyFace((f) => -f)}>{lEnemyFace === 1 ? "Facing ▶" : "◀ Facing"}</button> : null}
-              {lEnemyId ? <select className="ltbtn" value={lEnemyAi} onChange={(e) => setLEnemyAi(e.target.value)} title="Set the placed enemy's behavior right here — no need to edit the enemy itself">
+              {lEnemyId ? <select className="ltbtn" value={lEnemyAi} onChange={(e) => setLEnemyAi(e.target.value)}>
                 <option value="guard">🛡 Guard (holds ground)</option>
                 <option value="seek">🏃 Seek (chases you)</option>
                 <option value="avoid">🏹 Avoid (keeps distance)</option>
@@ -8061,8 +8061,8 @@ export default function AssetStudio() {
           )}
           {(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && (
             <div className="seg">
-              <button className={lOutline ? "on" : ""} onClick={() => setLOutline((v) => !v)} title="Paint the outer edge of the painted region in a second color — works at any brush size">▢ {lOutline ? "Outline on" : "Outline"}</button>
-              {lOutline && <input type="color" value={lOutlineColor} onChange={(e) => setLOutlineColor(e.target.value)} title="Outline color" style={{ width: 44, height: 30, padding: 0, border: "none", background: "none", verticalAlign: "middle", cursor: "pointer" }} />}
+              <button className={lOutline ? "on" : ""} onClick={() => setLOutline((v) => !v)}>▢ {lOutline ? "Outline on" : "Outline"}</button>
+              {lOutline && <input type="color" value={lOutlineColor} onChange={(e) => setLOutlineColor(e.target.value)} style={{ width: 44, height: 30, padding: 0, border: "none", background: "none", verticalAlign: "middle", cursor: "pointer" }} />}
             </div>
           )}
           {(lLayer === "fg" || lLayer === "bg" || lLayer === "front" || lLayer === "obj") && (
@@ -8080,12 +8080,12 @@ export default function AssetStudio() {
                       <option value="">— pick an Object —</option>
                       {props.map((a) => <option key={a.id} value={a.id}>🌿 {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
                     </select>
-                  ) : <span className="hint2">No Objects made yet — build one from the menu (🌿 Object / Prop), then it'll show up here.</span>;
+                  ) : <span className="hint2">No Objects made yet.</span>;
                 })()
               ) : lObjKind === "emoji" ? (
                 <button className="objpick" onClick={() => setPicker({ mode: "level" })}><b>{lEmoji}</b> Choose emoji</button>
               ) : (
-                <div className="seg"><button className={lObjShape === "rect" ? "on" : ""} onClick={() => setLObjShape("rect")}><b>▮</b>Square</button><button className={lObjShape === "circle" ? "on" : ""} onClick={() => setLObjShape("circle")}><b>●</b>Circle</button><button className={lObjShape === "tri" ? "on" : ""} onClick={() => setLObjShape("tri")}><b>▲</b>Triangle</button><button className={lObjShape === "tri2" ? "on" : ""} onClick={() => setLObjShape("tri2")} ><b>◺</b>Half triangle</button><button className={lObjShape === "topOutline" ? "on" : ""} onClick={() => setLObjShape("topOutline")}><b>▔</b>Top outline</button><button className={lObjShape === "vineWeb" ? "on" : ""} onClick={() => setLObjShape("vineWeb")}><b>🕸</b>Vine web</button><button className={lObjShape === "ladder" ? "on" : ""} onClick={() => setLObjShape("ladder")}><b>🪜</b>Ladder</button><button className={lObjShape === "fence" ? "on" : ""} onClick={() => setLObjShape("fence")} title="Open picket fence — scenery stays visible through the gaps"><b>♯</b>Fence</button></div>
+                <div className="seg"><button className={lObjShape === "rect" ? "on" : ""} onClick={() => setLObjShape("rect")}><b>▮</b>Square</button><button className={lObjShape === "circle" ? "on" : ""} onClick={() => setLObjShape("circle")}><b>●</b>Circle</button><button className={lObjShape === "tri" ? "on" : ""} onClick={() => setLObjShape("tri")}><b>▲</b>Triangle</button><button className={lObjShape === "tri2" ? "on" : ""} onClick={() => setLObjShape("tri2")} ><b>◺</b>Half triangle</button><button className={lObjShape === "topOutline" ? "on" : ""} onClick={() => setLObjShape("topOutline")}><b>▔</b>Top outline</button><button className={lObjShape === "vineWeb" ? "on" : ""} onClick={() => setLObjShape("vineWeb")}><b>🕸</b>Vine web</button><button className={lObjShape === "ladder" ? "on" : ""} onClick={() => setLObjShape("ladder")}><b>🪜</b>Ladder</button><button className={lObjShape === "fence" ? "on" : ""} onClick={() => setLObjShape("fence")}><b>♯</b>Fence</button></div>
               )}
               {lObjKind !== "prop" && <div className="lswatches">
                 {lObjKind === "emoji" && <button className={!lTint ? "orig on" : "orig"} onClick={() => setLTint(null)} title="emoji's own colors">🌈</button>}
@@ -8109,9 +8109,9 @@ export default function AssetStudio() {
                   onChange={(e) => { const v = normalizeObjRot(+e.target.value || 0); if (fxOpen) updateFxAt(lFxSel, fxOpenIdx, { rot: v }); else setLObjRot(v); }}
                   title={fxOpen ? "turn the object you last placed or clicked" : "angle every object you place from here on"} />
                 <span className="hint2">{(fxOpen ? (fxOpen.rot || 0) : lObjRot)}°</span>
-                <button className="rotbtn" title={"turn " + OBJ_ROT_NUDGE + "° anticlockwise"} onClick={() => { if (fxOpen) nudgeFxRot(lFxSel, fxOpenIdx, -OBJ_ROT_NUDGE); else setLObjRot((v) => normalizeObjRot(v - OBJ_ROT_NUDGE)); }}>↺</button>
-                <button className="rotbtn" title={"turn " + OBJ_ROT_NUDGE + "° clockwise"} onClick={() => { if (fxOpen) nudgeFxRot(lFxSel, fxOpenIdx, OBJ_ROT_NUDGE); else setLObjRot((v) => normalizeObjRot(v + OBJ_ROT_NUDGE)); }}>↻</button>
-                <button className="rotbtn" disabled={!(fxOpen ? (fxOpen.rot || 0) : lObjRot)} title="straighten — back to upright" onClick={() => { if (fxOpen) updateFxAt(lFxSel, fxOpenIdx, { rot: 0 }); else setLObjRot(0); }}>0°</button>
+                <button className="rotbtn" onClick={() => { if (fxOpen) nudgeFxRot(lFxSel, fxOpenIdx, -OBJ_ROT_NUDGE); else setLObjRot((v) => normalizeObjRot(v - OBJ_ROT_NUDGE)); }}>↺</button>
+                <button className="rotbtn" onClick={() => { if (fxOpen) nudgeFxRot(lFxSel, fxOpenIdx, OBJ_ROT_NUDGE); else setLObjRot((v) => normalizeObjRot(v + OBJ_ROT_NUDGE)); }}>↻</button>
+                <button className="rotbtn" disabled={!(fxOpen ? (fxOpen.rot || 0) : lObjRot)} onClick={() => { if (fxOpen) updateFxAt(lFxSel, fxOpenIdx, { rot: 0 }); else setLObjRot(0); }}>0°</button>
                 <span className="hint2">{fxOpen ? "editing the selected object" : "sets the angle for the next one you place"}</span>
               </span>
               {lObjKind === "prop" && <span className="hint2">🌿 Objects are your own pixel art (optionally animated). They scale to the chosen size — the art stretches to fit, it never tiles. Great as a real fire drawn over a fire-hazard cell: make the hazard invisible-in-play and flag this <b>In front of player</b>.</span>}
@@ -8144,17 +8144,17 @@ export default function AssetStudio() {
             <>
               <div className="seg"><button className="on">🔥 Fire</button></div>
               <label className="slider" style={{ minWidth: 190 }}>Damage<input type="range" min="1" max="30" step="1" value={lHazDps} onChange={(e) => setLHazDps(+e.target.value)} /><span className="hint2">{lHazDps} HP/sec</span></label>
-              <div className="seg"><button className={lHazLife === 0 ? "on" : ""} onClick={() => setLHazLife(0)} title="Fire never goes out">♾️ Permanent</button><button className={lHazLife !== 0 ? "on" : ""} onClick={() => setLHazLife((v) => v === 0 ? DEFAULT_HAZARD_LIFE : v)} title="Fire burns for a set time then goes out">⏱ Burns out</button></div>
+              <div className="seg"><button className={lHazLife === 0 ? "on" : ""} onClick={() => setLHazLife(0)}>♾️ Permanent</button><button className={lHazLife !== 0 ? "on" : ""} onClick={() => setLHazLife((v) => v === 0 ? DEFAULT_HAZARD_LIFE : v)}>⏱ Burns out</button></div>
               {lHazLife !== 0 && <label className="slider" style={{ minWidth: 200 }}>Burns for<input type="range" min="1" max="30" step="1" value={lHazLife} onChange={(e) => setLHazLife(+e.target.value)} /><span className="hint2">{lHazLife}s</span></label>}
               <label className="chk solidchk"><input type="checkbox" checked={lHazHide} onChange={(e) => setLHazHide(e.target.checked)} /> 🚫 Invisible during play <span className="hint2">(still burns — draw your own fire Object on top)</span></label>
             </>
           ) : (
             <>
               <div className="lswatches">{LV_COLORS.map((c) => <button key={c} className={lColor === c ? "on" : ""} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}{recent.filter((c) => !LV_COLORS.includes(c)).slice(0, 5).map((c) => <button key={"r" + c} className={"rc" + (lColor === c ? " on" : "")} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}<label className="pick"><input type="color" value={lColor} onChange={(e) => { setLColor(e.target.value); setLTexId(null); setLTool("paint"); }} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
-              <button className={"ltbtn texbtn" + (activeTexture ? " on" : "")} onClick={() => setTexPick(true)} title="Paint with a repeating texture instead of a flat color">
+              <button className={"ltbtn texbtn" + (activeTexture ? " on" : "")} onClick={() => setTexPick(true)}>
                 {activeTexture ? <><span className="texchip" style={cellPaintStyle({ c: textureBaseColor(activeTexture), tex: activeTexture.id }, 0, 0, texLib)} /> {activeTexture.name}</> : <>🧱 Texture</>}
               </button>
-              {activeTexture && <><button className={"ltbtn" + (lTool === "paint" ? " on" : "")} onClick={() => setLTool("paint")}>🖌 Texture paint</button>{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={"ltbtn" + (lTool === "fill" ? " on" : "")} onClick={() => setLTool("fill")} title="Click an existing flat-color region to replace that whole connected color with this texture">🪣 Fill matching color</button>}<button className="ltbtn" onClick={() => setLTexId(null)} title="Back to painting a flat color">✕ Plain color</button><span className="hint2 texusehint">Paint draws new texture. Fill replaces the connected flat-color area you click — useful for turning existing grass green into Grass.</span></>}
+              {activeTexture && <><button className={"ltbtn" + (lTool === "paint" ? " on" : "")} onClick={() => setLTool("paint")}>🖌 Texture paint</button>{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={"ltbtn" + (lTool === "fill" ? " on" : "")} onClick={() => setLTool("fill")}>🪣 Fill matching color</button>}<button className="ltbtn" onClick={() => setLTexId(null)}>✕ Plain color</button></>}
               {(lLayer === "fg" || lLayer === "bg") && (
                 <>
                   <div className="seg" >
@@ -8952,9 +8952,9 @@ export default function AssetStudio() {
                       <div className="fxrow" onClick={() => setLFxEditIdx(fxOpenIdx === i ? -1 : i)}>
                         {o.kind === "shape" ? <span className="fxprev" style={{ display: "inline-block", width: 14, height: 14, background: o.tint || "#7aa2d6", borderRadius: o.shape === "circle" ? "50%" : 2, flexShrink: 0 }} /> : <span className="fxprev">{o.char}</span>}
                         <span className="fxname">{(o.kind === "shape" ? levelShapeLabel(o.shape) + " · " : "") + (o.solid ? "solid" : "decor") + (o.inFront ? " · in front" : "") + " · " + (o.size || 1) + "x" + ((o.rot || 0) ? " · " + o.rot + "°" : "")}</span>
-                        <button title="bring forward (closer to top)" onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, 1); }}>▲</button>
-                        <button title="send back" onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, -1); }}>▼</button>
-                        <button title="remove just this one" onClick={(e) => { e.stopPropagation(); removeFxAt(lFxSel, i); if (lFxEditIdx === i) setLFxEditIdx(null); }}>✕</button>
+                        <button onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, 1); }}>▲</button>
+                        <button onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, -1); }}>▼</button>
+                        <button onClick={(e) => { e.stopPropagation(); removeFxAt(lFxSel, i); if (lFxEditIdx === i) setLFxEditIdx(null); }}>✕</button>
                       </div>
                       {fxOpenIdx === i && (
                         <div className="fxedit">
@@ -8970,7 +8970,7 @@ export default function AssetStudio() {
                           {/* Twist — the point of it is props that lie ALONG something (a trailer on a
                               hillside) rather than standing upright. Nudges are 5° because slope
                               angles are shallow; the piece editor's 90° steps would be useless here. */}
-                          <label className="slider">Twist ⟳<input type="range" min="0" max="359" step="1" value={o.rot || 0} onChange={(e) => updateFxAt(lFxSel, i, { rot: normalizeObjRot(+e.target.value || 0) })} /><span className="hint2">{(o.rot || 0)}°</span><button className="rotbtn" title={"turn " + OBJ_ROT_NUDGE + "° anticlockwise"} onClick={() => nudgeFxRot(lFxSel, i, -OBJ_ROT_NUDGE)}>↺</button><button className="rotbtn" title={"turn " + OBJ_ROT_NUDGE + "° clockwise"} onClick={() => nudgeFxRot(lFxSel, i, OBJ_ROT_NUDGE)}>↻</button><button className="rotbtn" disabled={!(o.rot || 0)} title="Straighten — back to upright" onClick={() => updateFxAt(lFxSel, i, { rot: 0 })}>0°</button></label>
+                          <label className="slider">Twist ⟳<input type="range" min="0" max="359" step="1" value={o.rot || 0} onChange={(e) => updateFxAt(lFxSel, i, { rot: normalizeObjRot(+e.target.value || 0) })} /><span className="hint2">{(o.rot || 0)}°</span><button className="rotbtn" onClick={() => nudgeFxRot(lFxSel, i, -OBJ_ROT_NUDGE)}>↺</button><button className="rotbtn" onClick={() => nudgeFxRot(lFxSel, i, OBJ_ROT_NUDGE)}>↻</button><button className="rotbtn" disabled={!(o.rot || 0)} onClick={() => updateFxAt(lFxSel, i, { rot: 0 })}>0°</button></label>
                           <span className="hint2">Turns the art only — the solid footprint stays square.</span>
                           <label className="chk"><input type="checkbox" checked={!!o.solid} onChange={(e) => updateFxAt(lFxSel, i, { solid: e.target.checked })} /> Solid (blocks the player)</label>
                           <label className="chk"><input type="checkbox" checked={!!o.inFront} onChange={(e) => updateFxAt(lFxSel, i, { inFront: e.target.checked })} /> In front of player <span className="hint2">(fades when they're behind it)</span></label>
@@ -9069,7 +9069,7 @@ export default function AssetStudio() {
           <div className="modal" onClick={() => setTexPick(false)}>
             <div className="dlg wide3" onClick={(e) => e.stopPropagation()}>
               <div className="dt">🧱 Textures <span className="emcount">paint a repeating pattern instead of a flat color</span></div>
-              <div className="row2 grassQuick"><button onClick={useGrassTexture}>🌱 Use Grass now</button><span className="mini">Creates the default Grass once, then reuses it. After choosing it, use Texture paint or Fill matching color.</span></div>
+              <div className="row2 grassQuick"><button onClick={useGrassTexture}>🌱 Use Grass now</button><span className="mini">Creates the default Grass once, then reuses it.</span></div>
               {texLib.length === 0 && <p className="mini">No textures yet. Make one — you pick the pattern and its colors; the art draws itself.</p>}
               <div className="texgrid">
                 {texLib.map((t) => (
@@ -9079,7 +9079,7 @@ export default function AssetStudio() {
                       <span className="sn">{t.name}</span>
                       <span className="sty">{TEXTURES[t.tex] ? TEXTURES[t.tex].icon + " " + TEXTURES[t.tex].label : t.tex}</span>
                     </button>
-                    <button className="sdel" title="Edit this texture" onClick={() => { setTexEdit(JSON.parse(JSON.stringify(t))); setTexPick(false); }}>✎</button>
+                    <button className="sdel" onClick={() => { setTexEdit(JSON.parse(JSON.stringify(t))); setTexPick(false); }}>✎</button>
                   </div>
                 ))}
               </div>
@@ -9199,8 +9199,8 @@ export default function AssetStudio() {
     <div key={p.id} className={"lrow" + (p.id === selId ? " on" : "") + (groupIds.includes(p.id) ? " grp" : "") + (p._recovered ? " recovered" : "")} onClick={() => { if (!multiSelect) { setSelId(p.id); if (!groupIds.includes(p.id) && groupIds.length) setGroupIds([]); return; } if (groupIds.includes(p.id)) { const ng = groupIds.filter((id) => id !== p.id); setGroupIds(ng); if (selId === p.id) setSelId(ng[ng.length - 1] || null); } else { setGroupIds((g) => [...g, p.id]); setSelId(p.id); } }}>
       <span className="lprev" style={{ background: p.kind === "emoji" ? "transparent" : p.color }}>{p.kind === "emoji" ? p.char : (p.kind === "circle" ? "●" : p.kind === "roundrect" ? "▣" : p.kind === "tri" ? "▲" : "")}</span>
       <span className="lname">{p._recovered ? "🩹 " : ""}{p.locked ? "🔒 " : ""}{p.isHitbox ? "🎯 hitbox" : p.isMuzzle ? "🔴 muzzle" : (p.kind === "emoji" ? "emoji" : p.kind === "roundrect" ? "rounded square" : p.kind)}{p.mirror ? " ⟷" : ""}{p.limb === "arm" ? " 💪" : p.limb === "leg" ? " 🦵" : ""}</span>
-      <button title="move forward" onClick={(e) => { e.stopPropagation(); movePiece(p.id, 1); }}>▲</button>
-      <button title="move back" onClick={(e) => { e.stopPropagation(); movePiece(p.id, -1); }}>▼</button>
+      <button onClick={(e) => { e.stopPropagation(); movePiece(p.id, 1); }}>▲</button>
+      <button onClick={(e) => { e.stopPropagation(); movePiece(p.id, -1); }}>▼</button>
     </div>
   );
   return (
@@ -9212,8 +9212,8 @@ export default function AssetStudio() {
         <button className="back" onClick={() => setScreen("menu")}>‹ Menu</button>
         <input className="nm" value={asset.name} onChange={(e) => setAsset({ ...asset, name: e.target.value })} />
         <span className="badge">{asset.type === "equipment" ? (SLOTS[asset.slot]?.icon || "📦") : (TYPES[asset.type]?.icon || "📦")} {slotLabel}</span>
-        <button className="undo" disabled={!canUndo} onClick={undo} title="Undo (last change)">↩ Undo</button>
-        <button className="undo" disabled={!canRedo} onClick={redo} title="Redo">↪ Redo</button>
+        <button className="undo" disabled={!canUndo} onClick={undo}>↩ Undo</button>
+        <button className="undo" disabled={!canRedo} onClick={redo}>↪ Redo</button>
         <button className="save" onClick={openSheet}>💾 Save & Open</button>
       </header>
 
@@ -9223,13 +9223,13 @@ export default function AssetStudio() {
           {(asset.frames || [blankAngles()]).map((_, i) => (
             <button key={i} className={propFrame === i ? "on" : ""} onClick={() => switchPropFrame(i)}>{i + 1}</button>
           ))}
-          <button className="wcopy" onClick={() => addPropFrame("duplicate")} title="Duplicate this frame">⧉ Duplicate</button>
+          <button className="wcopy" onClick={() => addPropFrame("duplicate")}>⧉ Duplicate</button>
           <button className="wcopy" onClick={() => addPropFrame("blank")}>＋ Blank frame</button>
           <button className="wcopy" onClick={() => movePropFrame(-1)} disabled={propFrame === 0}>◀ Move</button>
           <button className="wcopy" onClick={() => movePropFrame(1)} disabled={propFrame === (asset.frames || []).length - 1}>Move ▶</button>
-          <button className="wcopy" onClick={deletePropFrame} disabled={(asset.frames || []).length <= 1} title="Delete this frame">🗑 Delete</button>
-          <button className="wcopy" onClick={flipWholeProp} title="Mirror every block in every animation frame">⇋ Flip whole object</button>
-          <span className="hint2">Draw each frame of the animation. One frame = a static object; several frames cycle (e.g. a flickering fire). Only the Front pose is used.</span>
+          <button className="wcopy" onClick={deletePropFrame} disabled={(asset.frames || []).length <= 1}>🗑 Delete</button>
+          <button className="wcopy" onClick={flipWholeProp}>⇋ Flip whole object</button>
+          <span className="hint2">Only the Front pose is used.</span>
         </div>
       )}
       <div className={asset.type === "weapon" ? "weaponSettings" : "editorSettings"}>
@@ -9239,7 +9239,7 @@ export default function AssetStudio() {
           {["rest", "fire"].map((st) => (
             <button key={st} className={wState === st ? "on" : ""} onClick={() => switchWState(st)}>{st === "rest" ? "🪨 Rest" : "💥 Fire"}</button>
           ))}
-          <button className="wcopy" onClick={copyWState} title="Copy this state's blocks to the other state">copy {wState} → {wState === "rest" ? "fire" : "rest"}</button>
+          <button className="wcopy" onClick={copyWState}>copy {wState} → {wState === "rest" ? "fire" : "rest"}</button>
           <span className="hint2">Rest = idle look. Fire = the swing/shot frame (muzzle flash, slash, etc.).</span>
         </div>
       )}
@@ -9262,13 +9262,13 @@ export default function AssetStudio() {
             {frames.map((_, i) => (
               <button key={i} className={effEdit.frameIdx === i ? "on" : ""} onClick={() => switchEffectFrame(i)}>Frame {i + 1}</button>
             ))}
-            <button className="wcopy" onClick={() => addAnimFrame("duplicate")} title="Duplicate the current frame">⧉ Duplicate</button>
+            <button className="wcopy" onClick={() => addAnimFrame("duplicate")}>⧉ Duplicate</button>
             <button className="wcopy" onClick={() => addAnimFrame("blank")} >＋ Blank frame</button>
             <button className="wcopy" onClick={() => moveAnimFrame(-1)} disabled={effEdit.frameIdx === 0}>◀ Move</button>
             <button className="wcopy" onClick={() => moveAnimFrame(1)} disabled={effEdit.frameIdx === frames.length - 1}>Move ▶</button>
-            <button className="wcopy" onClick={deleteAnimFrame} disabled={frames.length <= 1} title="Delete this frame">🗑 Delete frame</button>
+            <button className="wcopy" onClick={deleteAnimFrame} disabled={frames.length <= 1}>🗑 Delete frame</button>
             <button className="save" onClick={closeEffectAnim}>✕ Done — back to {SLOTS[asset.slot]?.label || "item"} art</button>
-            <span className="hint2">Side view only — this plays instead of the item's normal look while the jump is active. Starts as a copy of this item's own Side art for whichever body you pick; edit it like any other pose.</span>
+            <span className="hint2">Side view only — this plays instead of the item's normal look while the jump is active. Starts as a copy of this item's own Side art.</span>
           </div>
         );
       })()}
@@ -9299,7 +9299,7 @@ export default function AssetStudio() {
         const fireArr = wState === "fire" ? (asset.angles?.[ang] || []) : (asset.states?.fire?.[ang] || []);
         return restArr.concat(fireArr).some((p) => p.isHitbox);
       }) && (
-        <p className="tip warn">⚠ No 🎯 Hitbox placed yet on any pose/state — this weapon won't deal damage in Playtest until you add one (below, "Add a block").</p>
+        <p className="tip warn">⚠ No 🎯 Hitbox placed yet on any pose/state — this weapon won't deal damage in Playtest.</p>
       )}
       {asset.type === "weapon" && isThrowable(asset.wtype) && (
         <div className="wstates projectilecard">
@@ -9396,14 +9396,14 @@ export default function AssetStudio() {
             })()}
             <button className="ltbtn" onClick={addMuzzle}><b>🔴</b> Add muzzle (shot spawn point)</button>
             {!ANGLES.some((ang) => ((wState === "rest" ? asset.angles?.[ang] : asset.states?.rest?.[ang]) || []).some((p) => p.isMuzzle)) && (
-              <p className="tip warn">⚠ No 🔴 muzzle placed on the Rest pose yet — shots will spawn from the middle of the character instead of the barrel. Add one and drag it to the barrel tip.</p>
+              <p className="tip warn">⚠ No 🔴 muzzle on the Rest pose — shots spawn from the middle of the character, not the barrel.</p>
             )}
             <span className="hint2">{weaponFireMode(asset) === "auto" ? "Hold Fire to shoot continuously at the fire rate." : weaponFireMode(asset) === "burst" ? "Each Fire press commits one configured burst." : "Fire once per press."}</span>
             {!asset.projectileId && (
               <p className="tip warn">⚠ {hasLegacy ? "No Projectile asset assigned yet — still using this weapon's old embedded projectile as a fallback." : "No Projectile picked — this won't fire anything visible in Playtest yet."} Build one from the menu (Weapon → Projectile), or pick a saved one above.{hasLegacy ? " " : ""}</p>
             )}
             {!asset.projectileId && hasLegacy && <button className="ltbtn" onClick={convertLegacyProjectile}>📦 Turn the old embedded projectile into its own saved Projectile asset</button>}
-            <span className="hint2">Build the bullet/arrow/bolt itself as its own Projectile asset — one Projectile can be shared across many Ranged weapons, and gets its own hitbox.</span>
+            <span className="hint2">One Projectile can be shared across many Ranged weapons, and gets its own hitbox.</span>
           </div>
         );
       })()}
@@ -9426,7 +9426,7 @@ export default function AssetStudio() {
               <option value="">📋 Copy pose…</option>
               {editablePoses(asset.type, asset.wtype).filter((a) => a !== angle).map((a) => <option key={a} value={a}>{ALABEL[a]}</option>)}
             </select>
-            {poseCopySrc && <button className="copyang" onClick={() => setPoseCopySrc(null)} title="Remove the reference copy">✕ remove copy</button>}
+            {poseCopySrc && <button className="copyang" onClick={() => setPoseCopySrc(null)}>✕ remove copy</button>}
             {/* Creatures get BOTH: the reference overlay above (trace/pull piece-by-piece) and this
                 one-click full copy of the whole current pose into all the others at once. */}
             {asset.type === "enemy" && copyToPosesMenu}
@@ -9467,8 +9467,8 @@ export default function AssetStudio() {
             return <p className="tip warn">⚠ Side has no art yet — that's the pose the game renders as the creature moves, so it needs a drawing. Aim up, Crouch and 💀 Death are optional extras.</p>;
           })()}
           <div className="zoomctl">
-            <button onClick={() => setArtZoom((z) => clampArtZoom(z, -0.15))} disabled={artZoom <= ARTZOOM_MIN} title="Zoom out">−</button>
-            <button onClick={() => setArtZoom((z) => clampArtZoom(z, 0.15))} disabled={artZoom >= ARTZOOM_MAX} title="Zoom in">+</button>
+            <button onClick={() => setArtZoom((z) => clampArtZoom(z, -0.15))} disabled={artZoom <= ARTZOOM_MIN}>−</button>
+            <button onClick={() => setArtZoom((z) => clampArtZoom(z, 0.15))} disabled={artZoom >= ARTZOOM_MAX}>+</button>
           </div>
           <div className="artrow">
           <div className={"art" + (asset.type === "weapon" ? " artWpn" : asset.type === "projectile" ? " artProj" : "") + (drawMode ? " drawing" : "")} onPointerDown={handleArtClick}>
@@ -9600,7 +9600,7 @@ export default function AssetStudio() {
               <label className="slider">Defense
                 <input type="number" value={asset.defense ?? 0} onChange={(e) => setAsset((a) => ({ ...a, defense: +e.target.value || 0 }))} style={{ width: 60 }} />
               </label>
-              <p className="mini">Not a stat boost — armor only, no baseline to modify — just sums across everything worn (0 if nothing is). Reduces incoming damage: each point cuts 9%, so 10 Defense = 90% reduction.</p>
+              <p className="mini">Not a stat boost — armor only, no baseline to modify — just sums across everything worn (0 if nothing is). Reduces incoming damage on a curve: 10 Defense = half damage, 20 = a third. It never fully blocks a hit.</p>
             </div>
           )}
           {asset.type === "equipment" && !effEdit && asset.slot === "hat" && (
@@ -9711,7 +9711,7 @@ export default function AssetStudio() {
                     <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
                   </>
                 )}
-                <p className="mini">A single-use pickup. <b>{itemEffectSummary(asset.effect)}</b> when taken from a pedestal, then it's gone. Speed = move speed, Agility = jump, Strength = melee/throw damage, Intelligence = melee crit — each boost is live for its whole duration.</p>
+                <p className="mini">A single-use pickup. <b>{itemEffectSummary(asset.effect)}</b> when taken from a pedestal, then it's gone. Speed = move, Agility = jump, Strength = melee/throw damage, Intelligence = crit chance. Live for its whole duration.</p>
               </div>
             );
           })()}
@@ -9735,7 +9735,7 @@ export default function AssetStudio() {
                   <input type="color" value={asset.tone || "#e2b48c"} onChange={(e) => setAsset((a) => ({ ...a, tone: e.target.value }))} onBlur={(e) => addRecent(e.target.value)} />
                 </label>
                 <p className="mini">☝️ The actual flesh colour lives on the <b>body</b>, not on this skin — that's why it never showed in the chips below. Set a tone here and any body wearing this skin gets its flesh (including its darker shading shades) recoloured to match, leaving hair, lips and eyes alone.</p>
-                <p className="mini">Every colour this skin uses. Tap a chip and pick a new shade — it repaints <b>everywhere</b>: all 5 poses and every body this skin's been fitted to. Handy for nudging skin tone between edits. Outlines, glow and emoji tints are left alone. This only recolours — it never resizes.</p>
+                <p className="mini">Repaints <b>everywhere</b>: all 5 poses and every body this skin is fitted to. Outlines, glow and emoji tints are left alone.</p>
                 {pal.length === 0 ? <p className="mini">Draw something and its colours show up here.</p> : (
                   <div className="palette">
                     {pal.map(({ color, count }) => (
@@ -9760,7 +9760,7 @@ export default function AssetStudio() {
                   {recent.filter((c) => !COLORS.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.tint === c ? " on" : "")} style={{ background: c }} onClick={() => updSel({ tint: c })} title="recent" />)}
                   <label className="pick"><input type="color" value={sel.tint || "#ffffff"} onChange={(e) => updSel({ tint: e.target.value })} onBlur={(e) => addRecent(e.target.value)} />＋</label>
                 </div>
-                <p className="mini">Tap a color to paint the emoji solid, or 🌈 for its own colors.</p>
+                
                 <button className="wide" onClick={() => setPicker({ mode: "change" })}>Change emoji ({sel.char})</button>
               </> : <>
                 <div className="swatches">{COLORS.map((c) => <button key={c} className={sel.color === c ? "on" : ""} style={{ background: c }} onClick={() => applyPieceColor(c)} />)}{recent.filter((c) => !COLORS.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.color === c ? " on" : "")} style={{ background: c }} onClick={() => applyPieceColor(c)} title="recent" />)}<label className="pick"><input type="color" value={sel.color} onChange={(e) => applyPieceColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
@@ -9768,7 +9768,7 @@ export default function AssetStudio() {
                 {!effEdit && recolorAll && <p className="mini">Every block in <b>this asset</b> using {sel.color} changes too — all 5 poses and every body it's been fitted to. That covers a new color <i>and</i> the Brightness / Glow / Fade sliders below, so you can dim or light up a whole color at once. Outlines, outline glow and emoji tints stay as they are, so a slightly different shade is left alone for you to redo by hand.</p>}
               </>}
               <button className="ltbtn" onClick={() => updSel(sel.kind === "emoji" ? { tint: newColor, fx: { ...newFx } } : { color: newColor, fx: { ...newFx } })} >🎨 Apply picked color + fx</button>
-              <p className="mini">Eyedrop a block (below) to load its exact look here, then hit this on any other block to copy it over — color plus brightness/glow/fade together.</p>
+              <p className="mini">Copies color plus brightness/glow/fade together.</p>
               <label className="chk outlinechk"><input type="checkbox" checked={!!sel.outline} onChange={(e) => updSel({ outline: e.target.checked, outlineFx: sel.outlineFx || defaultFx() })} /> 🖍 Outline </label>
               {sel.outline && <label className="pick" style={{ marginBottom: 8 }}>Outline color<input type="color" value={sel.outlineColor || "#000000"} onChange={(e) => updSel({ outlineColor: e.target.value })} /></label>}
               {sel.outline && (
@@ -9795,8 +9795,8 @@ export default function AssetStudio() {
                   way to make a hand-drawn line flat again. Goes through updSelRot like the ↺/↻
                   buttons, so with a group selected the whole group turns rigidly until the selected
                   piece sits flat, rather than every member independently snapping to 0. */}
-              <label className="slider">Twist / rotate ⟳<input type="range" min="0" max="360" value={sel.rot || 0} onChange={(e) => updSelRot(+e.target.value)} /><button className="rotbtn" onClick={() => updSelRot((((sel.rot || 0) - 90) % 360 + 360) % 360)}>↺</button><button className="rotbtn" onClick={() => updSelRot(((sel.rot || 0) + 90) % 360)}>↻</button><button className="rotbtn" disabled={!(sel.rot || 0)} onClick={() => updSelRot(0)} title="Straighten — back to its default, unrotated orientation (makes a drawn line flat)">0°</button></label>
-              <label className="slider">Flip ⇋<button className="rotbtn" onClick={flipSelH} title="Mirror left-right">⇋ Flip horizontally</button></label>
+              <label className="slider">Twist / rotate ⟳<input type="range" min="0" max="360" value={sel.rot || 0} onChange={(e) => updSelRot(+e.target.value)} /><button className="rotbtn" onClick={() => updSelRot((((sel.rot || 0) - 90) % 360 + 360) % 360)}>↺</button><button className="rotbtn" onClick={() => updSelRot(((sel.rot || 0) + 90) % 360)}>↻</button><button className="rotbtn" disabled={!(sel.rot || 0)} onClick={() => updSelRot(0)}>0°</button></label>
+              <label className="slider">Flip ⇋<button className="rotbtn" onClick={flipSelH}>⇋ Flip horizontally</button></label>
               {groupSel && <p className="hint2" style={{ margin: "0 0 6px" }}>⟳ Rotates · ⇋ flips · corner-drag resizes — all {groupIds.length} grouped blocks together, as one item around their shared center.</p>}
               {sel.role === "weaponArm" && <p className="hint2" style={{ margin: "0 0 6px" }}>Twist swings the arm around the 🎯 shoulder; ✋ rides the far end.</p>}
               {/* Every flag from here down is written through updSelAll, so with a group selected
@@ -9821,7 +9821,7 @@ export default function AssetStudio() {
                     <button key={v} className={(sel.armPivot || "top") === v ? "on" : ""} onClick={() => updSelAll({ armPivot: v }, (p) => p.role === "weaponArm" || p.limb === "arm")}>{l}</button>
                   ))}
                 </div>
-                <p className="mini">Which side of this piece is the shoulder — the fixed point the swing pivots around. Use Left/Right for an arm drawn as a sideways bar.{groupSel ? " With a group selected this sets every 💪 arm block in it — the others are left alone." : ""}</p>
+                <p className="mini">Which side of this piece the swing pivots around.{groupSel ? " With a group selected this sets every 💪 arm block in it — the others are left alone." : ""}</p>
               </>)}
               {asset.type === "enemy" && sel.limb === "arm" && (
                 sel.role === "weaponArm"
@@ -9840,7 +9840,7 @@ export default function AssetStudio() {
                     <button key={v || "none"} className={(sel.limb || "") === v ? "on" : ""} onClick={() => updSelAll({ limb: v || null })}>{l}</button>
                   ))}
                 </div>
-                <p className="mini">Flag a block as an arm or leg so the gameplay studio can swing or step it. The weapon arm is an arm by default. An arm drawn as several blocks: group-select them all, then tap 💪 Arm once — the whole group gets flagged.{groupSel && groupLimbs.length > 1 ? <> <b>Right now the {groupIds.length} grouped blocks aren't all the same</b> ({groupLimbs.join(" · ")}) — tapping one of these makes them match.</> : null}</p>
+                <p className="mini">Flags a block as an arm or leg so it can swing or step. The weapon arm is an arm by default.{groupSel && groupLimbs.length > 1 ? <> <b>Right now the {groupIds.length} grouped blocks aren't all the same</b> ({groupLimbs.join(" · ")}) — tapping one of these makes them match.</> : null}</p>
               </>)}
               <div className="ct2">Effects ✨</div>
               <label className="slider">Fade<input type="range" min="0.1" max="1" step="0.05" value={sel.fx?.opacity ?? 1} onChange={(e) => updFx({ opacity: +e.target.value })} /></label>
@@ -9855,7 +9855,7 @@ export default function AssetStudio() {
             <div className="addrow">
               <button onClick={() => setShapePicker(true)}><b>🔷</b>Shapes…</button>
               <button className={drawMode === "line" ? "on" : ""} onClick={() => { setDrawMode(drawMode === "line" ? null : "line"); setLinePt1(null); setFillPts([]); }} ><b>📏</b>Line</button>
-              <button className={drawMode === "fill" ? "on" : ""} onClick={() => { setDrawMode(drawMode === "fill" ? null : "fill"); setLinePt1(null); setFillPts([]); }} title="Click 3+ points, then Finish"><b>🪣</b>Fill</button>
+              <button className={drawMode === "fill" ? "on" : ""} onClick={() => { setDrawMode(drawMode === "fill" ? null : "fill"); setLinePt1(null); setFillPts([]); }}><b>🪣</b>Fill</button>
               {/* No "Cutter" entry here: it only ever made a circle cutter, while the 🕳️ Cutter
                   checkbox on a selected block turns ANY shape into one. Two doors to the same
                   feature, one of them worse — so the checkbox is the only one. */}
@@ -9874,14 +9874,14 @@ export default function AssetStudio() {
                 without hunting each block first. Sits next to the mode toggle rather than inside the
                 group tip so it's reachable from a cold start. This POSE's blocks only: a group is a
                 list of piece ids inside one pose, so it can never span them. */}
-            {pieces.length > 0 && <button className="ltbtn" onClick={() => { setGroupIds(pieces.map((pc) => pc.id)); setSelId(pieces[pieces.length - 1].id); }} title="Hold every block in this pose as one group">▣ Select all ({pieces.length})</button>}
+            {pieces.length > 0 && <button className="ltbtn" onClick={() => { setGroupIds(pieces.map((pc) => pc.id)); setSelId(pieces[pieces.length - 1].id); }}>▣ Select all ({pieces.length})</button>}
             {/* A group can be live WITHOUT add-mode (that's what placing a stamp leaves you with),
                 so the count and the group buttons key off the group itself. Only the "click blocks
                 to add/remove" line is about the mode. */}
-            {(multiSelect || groupIds.length > 0) && <p className="tip">{multiSelect ? "🔲 Click blocks — on the canvas or in the Layers list — to add/remove them from the group" : "🔗 Group held"} ({groupIds.length} selected). Dragging any selected block on the canvas moves them all together.{!multiSelect && groupIds.length > 0 && " Grab any block outside it to let go."}{groupIds.length > 0 && <> <button className="ltbtn" onClick={() => setGroupIds([])}>✕ Clear</button></>}{groupIds.length > 1 && <> <button className="ltbtn" onClick={saveGroup}>💾 Save group</button></>}{hasStore && groupIds.length > 0 && <> <input className="gname" value={stampName} placeholder="stamp name" onChange={(e) => setStampName(e.target.value)} /> <button className="ltbtn" onClick={storeGroup}>📦 Store group</button></>}</p>}
+            {(multiSelect || groupIds.length > 0) && <p className="tip">{multiSelect ? "🔲 Click blocks — on the canvas or in the Layers list — to add/remove them from the group" : "🔗 Group held"} ({groupIds.length} selected).{!multiSelect && groupIds.length > 0 && " Grab any block outside it to let go."}{groupIds.length > 0 && <> <button className="ltbtn" onClick={() => setGroupIds([])}>✕ Clear</button></>}{groupIds.length > 1 && <> <button className="ltbtn" onClick={saveGroup}>💾 Save group</button></>}{hasStore && groupIds.length > 0 && <> <input className="gname" value={stampName} placeholder="stamp name" onChange={(e) => setStampName(e.target.value)} /> <button className="ltbtn" onClick={storeGroup}>📦 Store group</button></>}</p>}
             {multiSelect && <p className="mini">💾 Save group just remembers <b>which</b> blocks these are, in this pose. 📦 Store group keeps a <b>copy of the blocks themselves</b> — place it into any other pose, any other body's fit, or a different garment entirely.</p>}
             {stamps.length > 0 && <div className="stampShelf"><span>📦 Stored</span><select aria-label="Stored group" value={stampPick} onChange={(e) => { setStampPick(e.target.value); setConfirmStampDel(null); }}><option value="">Choose a group…</option>{stamps.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.pieces.length})</option>)}</select><button className="ltbtn" disabled={!pickedStamp} onClick={() => pickedStamp && placeStamp(pickedStamp)}>Place</button><button className={"ltbtn" + (pickedStamp && confirmStampDel === pickedStamp.id ? " on" : "")} disabled={!pickedStamp} onClick={() => { if (!pickedStamp) return; if (confirmStampDel === pickedStamp.id) { setConfirmStampDel(null); deleteStamp(pickedStamp.id); } else { setConfirmStampDel(pickedStamp.id); flash("Tap Sure? to permanently delete stored group \"" + pickedStamp.name + "\""); } }} title={pickedStamp && confirmStampDel === pickedStamp.id ? "Tap again to permanently delete" : "Delete the selected stored group"}>{pickedStamp && confirmStampDel === pickedStamp.id ? "Sure?" : "✕"}</button></div>}
-            {savedGroups.length > 0 && <p className="tip">📁 Saved: {savedGroups.map((g) => <span key={g.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => loadGroup(g)}>{g.name} ({g.ids.length})</button><button className="ltbtn" onClick={() => deleteGroup(g.id)} title="Delete this saved group">✕</button></span>)}</p>}
+            {savedGroups.length > 0 && <p className="tip">📁 Saved: {savedGroups.map((g) => <span key={g.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => loadGroup(g)}>{g.name} ({g.ids.length})</button><button className="ltbtn" onClick={() => deleteGroup(g.id)}>✕</button></span>)}</p>}
           </div>
 
           {shapePicker && (
@@ -9890,7 +9890,7 @@ export default function AssetStudio() {
                 <div className="dt">Pick a shape</div>
                 <div className="shapegrid">
                   {SHAPE_LIST.map(([kind, icon, label]) => (
-                    <button key={kind} className="tile" onClick={() => { addBlock(kind); setShapePicker(false); }} title={kind === "tri2" ? "A right triangle — rotate it (below) to point any corner where you need" : undefined}>
+                    <button key={kind} className="tile" onClick={() => { addBlock(kind); setShapePicker(false); }} >
                       <span className="ti">{icon}</span><span className="tl">{label}</span>
                     </button>
                   ))}
@@ -9902,7 +9902,7 @@ export default function AssetStudio() {
           {asset.type === "weapon" && !isRanged(asset.wtype) && (
             <div className="card">
               <div className="ct">🎯 Hit detection</div>
-              <p className="mini">A damage box, separate from the art — drag/resize it over wherever should actually deal damage. Invisible in-game.</p>
+              <p className="mini">A damage box, separate from the art. Invisible in-game.</p>
               <button className="ltbtn" onClick={addHitbox}><b>🎯</b> Add hitbox</button>
               {(() => { const n = (pieces || []).filter((p) => p.isHitbox).length; return n > 0 && <p className="mini">{n} hitbox{n === 1 ? "" : "es"} on this pose right now.</p>; })()}
             </div>
@@ -9912,12 +9912,12 @@ export default function AssetStudio() {
             <div className="card">
               <div className="ct">Object settings</div>
               <label className="slider">Default size<input type="range" min="1" max="12" step="1" value={asset.size ?? 2} onChange={(e) => setAsset((a) => ({ ...a, size: +e.target.value }))} /><span className="hint2" style={{ marginLeft: 6 }}>{asset.size ?? 2}×{asset.size ?? 2}</span></label>
-              <p className="mini">How many cells this fills when first placed (you can still resize each placement in the level). The art scales to fit — it never tiles/duplicates.</p>
+              <p className="mini">How many cells this fills when first placed. The art scales to fit — it never tiles.</p>
               {(asset.frames || []).length > 1 && (
                 <label className="slider">Anim speed<input type="range" min="1" max="20" step="1" value={asset.animFps ?? 6} onChange={(e) => setAsset((a) => ({ ...a, animFps: +e.target.value }))} /><span className="hint2" style={{ marginLeft: 6 }}>{asset.animFps ?? 6} fps</span></label>
               )}
               <label className="chk"><input type="checkbox" checked={!!asset.solidDefault} onChange={(e) => setAsset((a) => ({ ...a, solidDefault: e.target.checked }))} /> Solid by default <span className="hint2">(blocks the player when placed)</span></label>
-              <p className="mini">Only the <b>Front</b> pose is used. Add frames below to animate it (e.g. a flickering fire) — it cycles automatically in Playtest, and shows a still frame 1 in the editor so you can draw calmly.</p>
+              <p className="mini">Only the <b>Front</b> pose is used. Several frames cycle in Playtest.</p>
             </div>
           )}
 
@@ -9925,7 +9925,7 @@ export default function AssetStudio() {
             <div className="card">
               <div className="ct">Size</div>
               <label className="slider">Scale<input type="range" min="0.5" max="3" step="0.1" value={asset.size ?? 1} onChange={(e) => setAsset((a) => ({ ...a, size: +e.target.value }))} /></label>
-              <p className="mini">How big this renders in-game once fired. Only the Front angle is used — it flies pointed however Front is drawn, rotated live to match the shot's angle.</p>
+              <p className="mini">How big this renders in-game. Only the Front angle is used, rotated live to match the shot.</p>
             </div>
           )}
 
