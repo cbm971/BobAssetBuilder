@@ -916,22 +916,53 @@ export const ENEMY_ITEM_DROP_CHANCE = 0.05; // consumables (potions etc) — the
 export const ENEMY_GEAR_DROP_CHANCE = 0.02; // clothing + weapons — the rare one
 export const enemyItemDropPool = (assets) => (assets || []).filter((a) => a && a.type === "item");
 export const enemyGearDropPool = (assets) => (assets || []).filter((a) => a && (a.type === "equipment" || a.type === "weapon"));
+// GEAR IS LOOTED OFF THE BODY, not conjured from the library. An enemy can only drop what it is
+// actually wearing or holding, so the rifle you pick up is the rifle it was shooting at you with
+// and the jacket is the one it had on. Consumables are different on purpose — a potion is not worn,
+// so those still roll the whole item pool.
+//
+// A dressed look records its loadout twice: `recipe.slots` / `weaponId` hold the source asset IDs,
+// and `components` holds a deep copy of each garment as it was when the look was saved. The IDs win
+// (so a later edit to that shirt is what drops), and the embedded copy is the fallback for gear
+// that has since been deleted from the library. A plain undressed enemy has only `weaponId`.
+export const enemyEquippedGear = (ea, findAsset) => {
+  if (!ea) return [];
+  const out = [], seen = new Set();
+  const add = (a) => { if (a && a.id && !seen.has(a.id)) { seen.add(a.id); out.push(a); } };
+  const resolve = (id, embedded) => (id && findAsset && findAsset(id)) || embedded || null;
+  add(resolve(enemyWeaponIdOf(ea), ea.components && ea.components.weapon));
+  const slots = (ea.recipe && ea.recipe.slots) || {};
+  const worn = (ea.components && ea.components.equipment) || {};
+  for (const s of new Set([...Object.keys(slots), ...Object.keys(worn)])) add(resolve(slots[s], worn[s]));
+  return enemyGearDropPool(out); // never a body or skin component, whatever a hand-edited save holds
+};
+// Does this baked piece belong to `asset`? Used to strip looted gear off a corpse's art. Composed
+// looks tag every piece with `_src` (the asset it came from); looks saved before that existed carry
+// `_slot` for clothing and `_isWeapon` for the weapon, which identify the garment just as well since
+// only one item occupies a slot.
+export const pieceBelongsToAsset = (p, asset) => {
+  if (!p || !asset) return false;
+  if (p._src) return p._src === asset.id;
+  if (asset.type === "weapon") return !!p._isWeapon;
+  return !!asset.slot && p._slot === asset.slot;
+};
 const pickFromPool = (pool, rnd) => {
   if (!pool.length) return null;
   const r = typeof rnd === "number" ? rnd : Math.random();
   return pool[Math.min(pool.length - 1, Math.floor(r * pool.length))];
 };
-// Consumables are rolled first and win outright, so gear can never crowd them out. Each rnd is
-// injectable for the tests; leaving them out uses Math.random as before. An empty consumable
-// library does NOT promote the gear roll — the two gates stay independent and honest.
-export const rollEnemyItemDrop = (assets, chanceRnd, itemRnd, gearChanceRnd, gearRnd) => {
+// Consumables are rolled first and win outright, so gear can never crowd them out. `ownGear` is
+// what THIS enemy has equipped (enemyEquippedGear) — an enemy carrying nothing simply never drops
+// gear. Each rnd is injectable for the tests; leaving them out uses Math.random as before. An empty
+// consumable library does NOT promote the gear roll — the two gates stay independent and honest.
+export const rollEnemyItemDrop = (assets, ownGear, chanceRnd, itemRnd, gearChanceRnd, gearRnd) => {
   const c = typeof chanceRnd === "number" ? chanceRnd : Math.random();
   if (c < ENEMY_ITEM_DROP_CHANCE) {
     const consumable = pickFromPool(enemyItemDropPool(assets), itemRnd);
     if (consumable) return consumable;
   }
   const g = typeof gearChanceRnd === "number" ? gearChanceRnd : Math.random();
-  if (g < ENEMY_GEAR_DROP_CHANCE) return pickFromPool(enemyGearDropPool(assets), gearRnd);
+  if (g < ENEMY_GEAR_DROP_CHANCE) return pickFromPool(enemyGearDropPool(ownGear), gearRnd);
   return null;
 };
 export const enemyDropOverlapping = (drops, x, y, w, h, cellSize) => {
@@ -3576,6 +3607,7 @@ export default function AssetStudio() {
   const lastSeededRun = useRef(-1);                       // the playRunId hazLife was last freshly seeded for; equal => this is a re-run of the same session, so preserve in-progress countdowns
   const enemyHP = useRef({});                             // spawnKey -> remaining HP this Playtest session (lazily seeded from the enemy asset's base hp on first hit)
   const enemyDrops = useRef({});                          // spawnKey -> null (no loot) | { item, x, y }; rolled once per defeated enemy
+  const corpseStripped = useRef({});                      // spawnKey -> [asset, ...] looted OFF that body: its art stops drawing those pieces, so a corpse you took the rifle from is visibly unarmed
   const meleeReach = useRef({});                          // enemyId|weaponId -> swept melee-hitbox reach in px, so the engage gate doesn't re-sweep the whole swing arc every frame
   const enemyPos = useRef({});                            // spawnKey -> { y, vy, onGround } — lets enemies fall to the ground on Playtest start ("drop into place") instead of being frozen at their placed cell
   const playerHP = useRef(10);                            // player's remaining HP this Playtest session — seeded from the player asset's HP stat when Playtest starts
@@ -3808,9 +3840,10 @@ export default function AssetStudio() {
     // fresh Playtest (the button) wipes them. hazLife is (re)built by the seeding just below and then
     // written back into the bucket so its countdowns persist across visits too.
     let _bkt = roomState.current[lv.id];
-    if (!_bkt) { _bkt = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, haz: {} }; roomState.current[lv.id] = _bkt; }
+    if (!_bkt) { _bkt = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, stripped: {}, haz: {} }; roomState.current[lv.id] = _bkt; }
     if (!_bkt.drops) _bkt.drops = {}; // migrate a bucket created earlier in this same hot-reloaded play session
-    pedestalRolls.current = _bkt.rolls; pedestalDepleted.current = _bkt.depleted; enemyHP.current = _bkt.eHP; enemyPos.current = _bkt.ePos; enemyDrops.current = _bkt.drops; hazLife.current = _bkt.haz;
+    if (!_bkt.stripped) _bkt.stripped = {}; // same migration for looted-corpse art
+    pedestalRolls.current = _bkt.rolls; pedestalDepleted.current = _bkt.depleted; enemyHP.current = _bkt.eHP; enemyPos.current = _bkt.ePos; enemyDrops.current = _bkt.drops; corpseStripped.current = _bkt.stripped; hazLife.current = _bkt.haz;
     // Seed each finite-life fire cell's countdown. Permanent cells (life 0) deliberately never
     // enter the ref, so alive() below treats them as always burning.
     // IMPORTANT: this effect re-runs mid-play whenever `level` changes — and it changes every
@@ -5166,9 +5199,11 @@ export default function AssetStudio() {
       // all get the same single drop roll. A stored null records the failed roll and prevents rerolls.
       for (const k of Object.keys(lv.enemies || {})) {
         if (!(enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0) || Object.prototype.hasOwnProperty.call(enemyDrops.current, k)) continue;
-        const item = rollEnemyItemDrop(allAssets);
-        if (!item) { enemyDrops.current[k] = null; continue; }
         const [er, ec] = k.split(",").map(Number), ea = findA(lv.enemies[k].enemyId), ep = enemyPos.current[k];
+        // Gear is looted off THIS body — only what it actually had equipped. Consumables still
+        // come from the whole item pool (a potion isn't something it was wearing).
+        const item = rollEnemyItemDrop(allAssets, enemyEquippedGear(ea, findA));
+        if (!item) { enemyDrops.current[k] = null; continue; }
         const shape = ea ? sideBodyShape(ea) : { fraction: 1 }, renderW = ea ? enemyRenderW(ea, CW) : CW;
         const hitW = renderW * shape.fraction, standH = ea ? enemyStandH(ea, CH) : CH;
         enemyDrops.current[k] = { item, x: ep ? ep.x + hitW / 2 : ec * CW + CW / 2, y: ep ? ep.y + standH : (er + 1) * CH };
@@ -5230,6 +5265,15 @@ export default function AssetStudio() {
           else { pedestalRolls.current[pk] = next || null; if (next) pedestalDepleted.current.delete(pk); else pedestalDepleted.current.add(pk); }
           lastPedestalKey = null;
         };
+        // Taking a body's gear STRIPS it off that body. The corpse is drawn from art that has the
+        // garment baked in, so the pieces belonging to what you just took stop rendering — loot the
+        // rifle and the body is lying there empty-handed. Keyed by the corpse, and permanent: if you
+        // later swap a DIFFERENT item back onto this spot that is a separate object on the ground,
+        // not the dead one putting its jacket back on. Consumables were never worn, so they never strip.
+        if (curDropKey && item && item.type !== "item") {
+          const already = corpseStripped.current[curDropKey] || (corpseStripped.current[curDropKey] = []);
+          if (!already.some((a) => a.id === item.id)) already.push(item);
+        }
         if (item) {
           if (item.type === "item") {
             // Single-use consumable: apply its effect right now and empty the pedestal (nothing
@@ -8052,7 +8096,7 @@ export default function AssetStudio() {
           <span className="badge">{lv.isRoom ? "🚪 Room" : "🗺️ Level"}</span>
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel}>↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel}>↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -8740,12 +8784,18 @@ export default function AssetStudio() {
                     // to freeze it at the height it died, leaving bodies hanging in the air. The
                     // dressed look keeps its baked-in weapon, so the body lies there holding its gear.
                     const hasDeathPose = ea.type === "enemy" && !!(ea.angles && (ea.angles.death || []).length);
-                    const deadBlocks = bake(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"));
+                    // Anything looted off this body stops drawing — the gear it dropped is now on
+                    // the ground (or on you), so it can't still be painted on the corpse. The strip
+                    // count rides the render cache key, or the run cache would keep serving the
+                    // still-armed art after you picked the weapon up.
+                    const stripped = corpseStripped.current[k] || [];
+                    const deadBlocks = bake(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"))
+                      .filter((pc) => !stripped.some((it) => pieceBelongsToAsset(pc, it)));
                     const layDown = !hasDeathPose;
                     const deadFlip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1) " : "";
                     return (
                       <div key={"enp" + k} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop, width: eRenderW, height: eph, pointerEvents: "none", zIndex: 6, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% 100%" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
-                        {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + k, keyPrefix: "dead" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
+                        {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + k + "_s" + stripped.length, keyPrefix: "dead" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
                       </div>
                     );
                   }

@@ -98,6 +98,8 @@ import {
   ENEMY_GEAR_DROP_CHANCE,
   enemyItemDropPool,
   enemyGearDropPool,
+  enemyEquippedGear,
+  pieceBelongsToAsset,
   enemyDropOverlapping,
   rollEnemyItemDrop,
   multiLegPivot,
@@ -166,44 +168,71 @@ describe("enemy item drops", () => {
     { id: "dog", name: "Dog", type: "enemy" },
   ];
   const MISS = 0.99; // a roll that fails either gate
+  const gear = [assets[2], assets[3]]; // sword + hat, as if the enemy had both equipped
 
   test("consumables are the common drop at 5%, gear the rare one at 2%", () => {
     expect(ENEMY_ITEM_DROP_CHANCE).toBe(0.05);
     expect(ENEMY_GEAR_DROP_CHANCE).toBe(0.02);
     // Inside the item gate you get a consumable, never a shirt.
-    expect(rollEnemyItemDrop(assets, 0.049999, 0, MISS).type).toBe("item");
-    expect(rollEnemyItemDrop(assets, 0, 0.999999, MISS).id).toBe("elixir");
+    expect(rollEnemyItemDrop(assets, gear, 0.049999, 0, MISS).type).toBe("item");
+    expect(rollEnemyItemDrop(assets, gear, 0, 0.999999, MISS).id).toBe("elixir");
     // Past the item gate but inside the gear gate you get gear — a weapon or a piece of clothing.
-    expect(rollEnemyItemDrop(assets, 0.05, 0, 0.019999, 0).id).toBe("sword");
-    expect(rollEnemyItemDrop(assets, 0.05, 0, 0.019999, 0.999999).id).toBe("hat");
+    expect(rollEnemyItemDrop(assets, gear, 0.05, 0, 0.019999, 0).id).toBe("sword");
+    expect(rollEnemyItemDrop(assets, gear, 0.05, 0, 0.019999, 0.999999).id).toBe("hat");
     // Past both gates: nothing.
-    expect(rollEnemyItemDrop(assets, 0.05, 0, 0.02, 0)).toBeNull();
+    expect(rollEnemyItemDrop(assets, gear, 0.05, 0, 0.02, 0)).toBeNull();
   });
 
-  test("the pool split is what stops clothing flooding the drops", () => {
-    // The regression: ONE roll against the unfiltered pedestal pool (equipment+weapon+item) meant
-    // a library of 50 clothes and 2 potions dropped clothing almost every time.
+  test("gear can only be what the enemy actually had equipped", () => {
+    // The whole library is irrelevant to the gear roll — an enemy carrying nothing drops nothing,
+    // however many shirts and rifles are saved. Consumables still come from the whole pool.
     const wardrobe = [{ id: "potion", type: "item" }];
     for (let i = 0; i < 50; i++) wardrobe.push({ id: "shirt" + i, type: "equipment" });
-    expect(enemyItemDropPool(wardrobe)).toHaveLength(1);
-    expect(enemyGearDropPool(wardrobe)).toHaveLength(50);
-    // Every roll inside the item gate is the potion, whatever the item rnd, however many clothes exist.
-    for (const r of [0, 0.25, 0.5, 0.75, 0.999999]) {
-      expect(rollEnemyItemDrop(wardrobe, 0.01, r, MISS).id).toBe("potion");
+    expect(rollEnemyItemDrop(wardrobe, [], 0.05, 0, 0, 0)).toBeNull();          // naked enemy: no gear
+    expect(rollEnemyItemDrop(wardrobe, [], 0.01, 0, MISS).id).toBe("potion");   // but still drops potions
+    // Wearing exactly one thing, that one thing is the only gear it can ever yield.
+    const onlyHat = [{ id: "shirt7", type: "equipment" }];
+    for (const r of [0, 0.5, 0.999999]) {
+      expect(rollEnemyItemDrop(wardrobe, onlyHat, 0.05, 0, 0.01, r).id).toBe("shirt7");
     }
   });
 
-  test("an empty consumable library does not promote the gear roll", () => {
-    // Gear stays on its own 2% gate rather than inheriting the 5% one.
-    const gearOnly = [{ id: "sword", type: "weapon" }];
-    expect(rollEnemyItemDrop(gearOnly, 0, 0, MISS)).toBeNull();
-    expect(rollEnemyItemDrop(gearOnly, 0, 0, 0.01, 0).id).toBe("sword");
+  test("equipped gear is read off the loadout, IDs first and embedded copies as fallback", () => {
+    const rifle = { id: "rifle", type: "weapon" }, jacket = { id: "jacket", type: "equipment" };
+    const lib = { rifle, jacket };
+    const find = (id) => lib[id] || null;
+    // A dressed look: recipe IDs resolve against the live library, so later edits are what drop.
+    const dressed = { recipe: { weaponId: "rifle", slots: { jacket: "jacket" } }, components: {} };
+    expect(enemyEquippedGear(dressed, find).map((a) => a.id).sort()).toEqual(["jacket", "rifle"]);
+    // Gear deleted from the library still drops, using the copy baked into the look.
+    const orphan = { recipe: { slots: { jacket: "gone" } }, components: { equipment: { jacket: { id: "old", type: "equipment" } } } };
+    expect(enemyEquippedGear(orphan, find).map((a) => a.id)).toEqual(["old"]);
+    // A plain undressed enemy has only its weaponId, and a body/skin component is never loot.
+    expect(enemyEquippedGear({ weaponId: "rifle" }, find).map((a) => a.id)).toEqual(["rifle"]);
+    expect(enemyEquippedGear({ components: { body: { id: "b", type: "body" }, skin: { id: "s", type: "skin" } } }, find)).toEqual([]);
+    expect(enemyEquippedGear(null, find)).toEqual([]);
+  });
+
+  test("looted gear is matched back to the corpse pieces that drew it", () => {
+    const jacket = { id: "jacket", type: "equipment", slot: "jacket" };
+    const rifle = { id: "rifle", type: "weapon" };
+    // Composed looks tag every piece with _src.
+    expect(pieceBelongsToAsset({ _src: "jacket" }, jacket)).toBe(true);
+    expect(pieceBelongsToAsset({ _src: "body1" }, jacket)).toBe(false);
+    // Older saves have no _src: clothing falls back to its slot, the weapon to _isWeapon.
+    expect(pieceBelongsToAsset({ _slot: "jacket" }, jacket)).toBe(true);
+    expect(pieceBelongsToAsset({ _slot: "hat" }, jacket)).toBe(false);
+    expect(pieceBelongsToAsset({ _isWeapon: true }, rifle)).toBe(true);
+    expect(pieceBelongsToAsset({}, rifle)).toBe(false);
+    // Bare body art is never stripped by anything.
+    expect(pieceBelongsToAsset({}, jacket)).toBe(false);
+    expect(pieceBelongsToAsset(null, jacket)).toBe(false);
   });
 
   test("enemies and other non-pickups are never dropped", () => {
     expect(enemyItemDropPool(assets).map((a) => a.id)).toEqual(["potion", "elixir"]);
     expect(enemyGearDropPool(assets).map((a) => a.id)).toEqual(["sword", "hat"]);
-    expect(rollEnemyItemDrop([{ id: "dog", type: "enemy" }], 0, 0, 0, 0)).toBeNull();
+    expect(rollEnemyItemDrop([{ id: "dog", type: "enemy" }], [], 0, 0, 0, 0)).toBeNull();
   });
 
   test("only offers live dropped items when the player overlaps them", () => {
