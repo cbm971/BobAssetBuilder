@@ -1308,9 +1308,17 @@ export const resolvePlayerCrouch = (held, onGround, wasCrouch) => !!held && (!!o
 // One shared player-art pose rule for rendering and for the weapon/hitbox geometry that must match
 // it. Walking does not cancel crouch: a created character must keep its authored Crouch pose while
 // the shorter physics box moves, then the ordinary walk animation can animate that crouched art.
-export const playerPoseKey = ({ transitioning, climbing, climbKind, aiming, aimDir, crouch, walking } = {}) => {
+export const playerPoseKey = ({ transitioning, climbing, climbKind, climbJumpKind, aiming, aimDir, crouch, walking } = {}) => {
   if (transitioning) return "back";
   if (climbing) return climbKind === "bars" ? "side" : "back";
+  // PUSHING OFF a ladder/vine keeps the climbing pose for the rest of the leap. You were facing
+  // into the ladder with your back to the camera; snapping to the sideways airborne pose on the
+  // very frame you let go read as the character spinning round in mid-air for one jump's worth of
+  // rise. `climbJumpKind` is the kind you jumped OFF (see the physics loop) and clears at the apex,
+  // so you turn side-on again as you start to come down — which is the moment it looks right.
+  // Monkey bars are deliberately not special-cased away from their own climbing pose: hanging
+  // from bars already shows Side, so a bars jump keeps Side and gains no pop either.
+  if (climbJumpKind) return climbJumpKind === "bars" ? "side" : "back";
   if (aiming && aimDir === -1 && !walking) return "up";
   // The authored Crouch pose is a stationary, front-facing duck. Moving keeps the established
   // sideways Side walk and the renderer lowers that complete artwork as one aligned assembly.
@@ -4120,7 +4128,7 @@ export default function AssetStudio() {
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
   const groundArtCache = useRef(new Map());   // item id -> its baked ground art + bounding box; see groundArt() — an item on a pedestal or lying where a body dropped it is otherwise re-baked every playtest frame
-  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
+  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
   const keys = useRef({});
   const lvRef = useRef(null);
 
@@ -4501,6 +4509,11 @@ export default function AssetStudio() {
       const climbKindHere = resolveClimbKind(lv, p.x, p.y, pw, ph, CW, CH, !!K.up, p.climbKind);
       const overlapClimb = !!climbKindHere;
       if (p.climbJump && (p.vy >= 0 || !overlapClimb)) p.climbJump = false;
+      // Which climb this jump came off, kept ONLY so the art can hold the climbing pose through
+      // the leap (playerPoseKey). Deliberately not climbJump itself: that also clears the instant
+      // you drift clear of the climb cells, so pushing off sideways would snap your back away one
+      // or two frames into the jump. This lasts the whole rise and clears at the apex.
+      if (p.climbJumpKind && p.vy >= 0) p.climbJumpKind = null;
       if (p.dropCooldown > 0) p.dropCooldown -= dtMul;
       if (p.invuln > 0) p.invuln -= dtMul;
       p.stepEase = easeStep(p.stepEase, dtMul); // step-assist smoothing: the DRAWN player eases up to the physics position instead of teleporting (see the player style)
@@ -4572,7 +4585,7 @@ export default function AssetStudio() {
       // bar re-grabs on the first frame the grip point is level with it again, so this reads as
       // "you can hang, you can drop, you can shimmy — you cannot get on top of it."
       if (climbing && !canGripClimb(lv, p.x, p.y, pw, ph, CW, CH, climbKindHere)) climbing = false;
-      if (climbing && K.jump) { p.climbJump = true; climbing = false; p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0; } // jump straight off — same agility-scaled jump height as a ground jump
+      if (climbing && K.jump) { p.climbJump = true; p.climbJumpKind = climbKindHere; climbing = false; p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0; } // jump straight off — same agility-scaled jump height as a ground jump; climbJumpKind is what keeps the climbing pose on screen through the rise
       let climbMove = 0;
       if (climbing && climbKindHere === "ladder") {
         if (K.up) {
@@ -5172,7 +5185,7 @@ export default function AssetStudio() {
           // No muzzle drawn (every weapon made before this existed) -> the old chest-height
           // spawn point, unchanged.
           let spawnX = p.x + pw / 2 + p.face * pw * 0.3, spawnY = p.y + ph * 0.35;
-          const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, aiming: p.aiming, aimDir, crouch: p.crouch, walking: p.walking });
+          const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, aiming: p.aiming, aimDir, crouch: p.crouch, walking: p.walking });
           const armPieceM = playerAsset ? armOf(playerAsset.angles[angleNow] || []) : null;
           if (armPieceM) {
             const baseArmRotM = armPieceM.rot || 0;
@@ -5271,7 +5284,7 @@ export default function AssetStudio() {
         // centered on the same guide-hand point a weapon would use, riding the arm the same way.
         const unarmedSwing = !!(p.firing && p.firing.unarmed); // Q/V bare-handed swing — ignores the held weapon entirely
         if (unarmedSwing || !playtestWeapon || !isRanged(playtestWeapon.wtype)) {
-          const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, crouch: p.crouch, walking: p.walking });
+          const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, crouch: p.crouch, walking: p.walking });
           const armPiece = playerAsset ? armOf(playerAsset.angles[angleNow] || []) : null;
           if (armPiece) {
             const baseArmRot = armPiece.rot || 0;
@@ -8753,7 +8766,7 @@ export default function AssetStudio() {
           <span className="badge">{lv.isRoom ? "🚪 Room" : "🗺️ Level"}</span>
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel}>↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel}>↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 

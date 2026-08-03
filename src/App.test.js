@@ -385,6 +385,30 @@ describe("crouch walking", () => {
     expect(playerPoseKey({ climbing: true, climbKind: "bars", crouch: true })).toBe("side");
     expect(playerPoseKey({ aiming: true, aimDir: -1, crouch: true, walking: false })).toBe("up");
   });
+
+  test("jumping off a ladder or vine keeps the character's back to you through the leap", () => {
+    // Letting go used to snap straight to the sideways airborne pose on the very first frame,
+    // which read as spinning round in mid-air. climbJumpKind holds the climb's own pose instead.
+    expect(playerPoseKey({ climbing: false, climbJumpKind: "ladder" })).toBe("back");
+    expect(playerPoseKey({ climbing: false, climbJumpKind: "cliff" })).toBe("back");
+    expect(playerPoseKey({ climbing: false, climbJumpKind: "ladder", walking: true })).toBe("back");
+    // Bars hang in Side already, so a bars jump keeps Side — no new pop introduced there either.
+    expect(playerPoseKey({ climbing: false, climbJumpKind: "bars" })).toBe("side");
+  });
+
+  test("the climb-jump pose never outranks a transition or an actual grab, and ends at the apex", () => {
+    // A door/room transition still wins outright.
+    expect(playerPoseKey({ transitioning: true, climbJumpKind: "ladder" })).toBe("back");
+    // Grabbing bars on the way up shows the bars pose, not the ladder you left.
+    expect(playerPoseKey({ climbing: true, climbKind: "bars", climbJumpKind: "ladder" })).toBe("side");
+    // Cleared (the loop nulls it once vy >= 0), so the fall is the ordinary airborne pose again.
+    expect(playerPoseKey({ climbing: false, climbJumpKind: null })).toBe("side");
+  });
+
+  test("crouching in mid-air off a ladder still shows the back, not the duck", () => {
+    // Crouch is checked after the climb poses, so holding ↓ through the leap can't override it.
+    expect(playerPoseKey({ climbJumpKind: "ladder", crouch: true, walking: false })).toBe("back");
+  });
 });
 
 describe("complex prop group editing", () => {
