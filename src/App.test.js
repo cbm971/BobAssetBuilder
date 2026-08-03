@@ -143,6 +143,10 @@ import {
   enemyFaceThisFrame,
   enemyMoveIntent,
   enemyFaceToward,
+  armClimbAbs,
+  armAimAbs,
+  armPushOffAbs,
+  CLIMB_PUSH_OFF_DEG,
   flipLevelHorizontally,
   flipFgFill,
   flipLevelObject,
@@ -403,6 +407,17 @@ describe("crouch walking", () => {
     expect(playerPoseKey({ climbing: true, climbKind: "bars", climbJumpKind: "ladder" })).toBe("side");
     // Cleared (the loop nulls it once vy >= 0), so the fall is the ordinary airborne pose again.
     expect(playerPoseKey({ climbing: false, climbJumpKind: null })).toBe("side");
+  });
+
+  test("pushing off a climb brings the arms half way down, not all the way", () => {
+    // Half way between the straight-up climbing reach and a level arm, for every pivot the rig
+    // supports — the shove, not a hang and not a neutral drop.
+    for (const pv of ["top", "bottom", "left", "right"]) {
+      const up = armClimbAbs(pv), fwd = armAimAbs(pv), push = armPushOffAbs(pv);
+      const arc = (a, b) => ((b - a + 540) % 360) - 180;      // shortest signed turn from a to b
+      expect(arc(up, push)).toBeCloseTo(arc(up, fwd) / 2);
+      expect(Math.abs(arc(up, push))).toBeCloseTo(CLIMB_PUSH_OFF_DEG);
+    }
   });
 
   test("crouching in mid-air off a ladder still shows the back, not the duck", () => {
@@ -1141,6 +1156,8 @@ describe("level object shape labels", () => {
     expect(levelShapeLabel("fence")).toBe("fence");
     expect(levelShapeLabel("ladder")).toBe("ladder");
     expect(levelShapeLabel("vineWeb")).toBe("vine web");
+    // A single hanging vine, distinct from the vineWeb lattice — both still exist.
+    expect(levelShapeLabel("vine")).toBe("vine");
     expect(levelShapeLabel("topOutline")).toBe("top outline");
   });
 });

@@ -145,6 +145,14 @@ export const armAimAbs = (pv0) => { const pv = pv0 || "top"; return pv === "top"
 // Absolute stored rot that points the arm straight UP (climbing reach) — matches the 180/0 the
 // vertical arms always used.
 export const armClimbAbs = (pv0) => { const pv = pv0 || "top"; return pv === "top" ? 180 : pv === "bottom" ? 0 : pv === "left" ? -90 : 90; };
+// How far the arms come DOWN from that straight-up reach while pushing off a climb — half way to
+// level (armAimAbs), i.e. the shove you'd give a ladder rung to launch yourself up it, rather than
+// either hanging on to nothing or snapping back to a neutral hang. Going from the up angle toward
+// the level one is +90 in stored rot for every pivot (check it against armClimbAbs/armAimAbs: top
+// 180->-90, bottom 0->90, left -90->0, right 90->180 all travel +90 the short way round), so the
+// half-way pose is simply the climb angle plus 45.
+export const CLIMB_PUSH_OFF_DEG = 45;
+export const armPushOffAbs = (pv0) => armClimbAbs(pv0) + CLIMB_PUSH_OFF_DEG;
 const leg = (x, y, w, h) => ({ ...rect(x, y, w, h), limb: "leg" }); // flagged so the walk/climb cycle animates it
 
 const DEFAULT_BODY = {
@@ -3509,7 +3517,7 @@ export const SHAPE_LIST = [
 ];
 export const levelShapeLabel = (shape) => ({
   rect: "square", circle: "circle", tri: "triangle", tri2: "half-triangle",
-  topOutline: "top outline", vineWeb: "vine web", ladder: "ladder", fence: "fence",
+  topOutline: "top outline", vineWeb: "vine web", vine: "vine", ladder: "ladder", fence: "fence",
 }[shape || "rect"] || shape || "shape");
 // A placed level Object is either an emoji (o.char, tinted via CSS text-as-background) or a
 // plain colored shape (o.kind==="shape" — no emoji needed, plus open scenery silhouettes such as
@@ -3524,6 +3532,20 @@ const objInner = (o, sz) => {
     if (o.shape === "vineWeb") return (
       <svg viewBox="0 0 100 100" style={{ width: "100%", height: "100%", display: "block" }} preserveAspectRatio="none">
         <path d="M0,20 Q50,0 100,20 M0,50 Q50,30 100,50 M0,80 Q50,60 100,80 M20,0 Q0,50 20,100 M50,0 Q30,50 50,100 M80,0 Q100,50 80,100" stroke={t} strokeWidth="4" fill="none" />
+      </svg>
+    );
+    // A single HANGING VINE — a trailing stem with leaves, drawn to tile head-to-tail so stacking
+    // them straight down makes one continuous vine of any length. Distinct from vineWeb above,
+    // which is a lattice/net that covers an area; this is the thing you hang down a cliff face or
+    // run alongside a ladder. The stem meets both the top and bottom edge at the same x (50) so
+    // consecutive tiles join without a visible step.
+    if (o.shape === "vine") return (
+      <svg viewBox="0 0 100 100" style={{ width: "100%", height: "100%", display: "block" }} preserveAspectRatio="none">
+        <path d="M50,0 C34,18 66,32 50,50 C34,68 66,82 50,100" stroke={t} strokeWidth="7" fill="none" strokeLinecap="round" />
+        {[[40, 14, -1], [62, 36, 1], [38, 60, -1], [62, 84, 1]].map(([lx, ly, dir], i) => (
+          <ellipse key={i} cx={lx + dir * 12} cy={ly} rx="15" ry="8" fill={t}
+            transform={"rotate(" + (dir * 22) + " " + (lx + dir * 12) + " " + ly + ")"} />
+        ))}
       </svg>
     );
     if (o.shape === "ladder") return (
@@ -4128,7 +4150,7 @@ export default function AssetStudio() {
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
   const groundArtCache = useRef(new Map());   // item id -> its baked ground art + bounding box; see groundArt() — an item on a pedestal or lying where a body dropped it is otherwise re-baked every playtest frame
-  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
+  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
   const keys = useRef({});
   const lvRef = useRef(null);
 
@@ -4579,13 +4601,21 @@ export default function AssetStudio() {
       // overlap used to auto-grab, so simply walking past a ladder planted on the ground froze
       // you mid-stride (vy=0, hanging) against whatever solid sat behind it: an invisible wall.
       // Bars/cliff grabs stay automatic — they're overhead hangs you can only reach on purpose.
-      const wantsLadder = p.climbing || K.up || K.down;
+      // ...but a player who just PUSHED OFF a climb and is still in that jump counts as opting in.
+      // The opt-in rule exists for one case only: walking past a ladder planted on the ground must
+      // not grab you. Someone who jumped off a powerline strung across a ladder is not walking
+      // past anything — they are visibly going up. Without this you had to be HOLDING ↑ at the
+      // apex to catch the ladder above the ledge, so the natural "press Space, then press up"
+      // wasted the whole jump and dropped you back onto the same ledge: the two-jumps-per-ledge
+      // bug. climbJumpGrab lasts until you land or grab something, and only ever unlocks LADDERS
+      // (bars/cliff grabs were always automatic), so nothing else changes.
+      const wantsLadder = p.climbing || K.up || K.down || p.climbJumpGrab;
       let climbing = overlapClimb && !p.climbJump && p.dropCooldown <= 0 && (climbKindHere !== "ladder" || wantsLadder);
       // Bars/cliff: no grabbing one from above it (see canGripClimb). Falling back down onto the
       // bar re-grabs on the first frame the grip point is level with it again, so this reads as
       // "you can hang, you can drop, you can shimmy — you cannot get on top of it."
       if (climbing && !canGripClimb(lv, p.x, p.y, pw, ph, CW, CH, climbKindHere)) climbing = false;
-      if (climbing && K.jump) { p.climbJump = true; p.climbJumpKind = climbKindHere; climbing = false; p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0; } // jump straight off — same agility-scaled jump height as a ground jump; climbJumpKind is what keeps the climbing pose on screen through the rise
+      if (climbing && K.jump) { p.climbJump = true; p.climbJumpKind = climbKindHere; p.climbJumpGrab = true; climbing = false; p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0; } // jump straight off — same agility-scaled jump height as a ground jump; climbJumpKind keeps the climbing pose on screen through the rise, climbJumpGrab lets the ladder above catch you without holding ↑
       let climbMove = 0;
       if (climbing && climbKindHere === "ladder") {
         if (K.up) {
@@ -4665,6 +4695,10 @@ export default function AssetStudio() {
       }
       p.climbing = climbing;
       p.climbKind = climbing ? climbKindHere : null;
+      // The climb-jump's ladder unlock is spent the moment it does its job (you caught something)
+      // or the moment the jump is over (you landed). It must not survive into the next jump, or a
+      // plain ground jump near a ladder would start grabbing it without you asking.
+      if (p.climbJumpGrab && (climbing || p.onGround)) p.climbJumpGrab = false;
       p.wasJump = !!K.jump;
       if (p.effectAnim) p.effectAnim.t += dtMul;
 
@@ -8766,7 +8800,7 @@ export default function AssetStudio() {
           <span className="badge">{lv.isRoom ? "🚪 Room" : "🗺️ Level"}</span>
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel}>↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel}>↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -8847,7 +8881,7 @@ export default function AssetStudio() {
               ) : lObjKind === "emoji" ? (
                 <button className="objpick" onClick={() => setPicker({ mode: "level" })}><b>{lEmoji}</b> Choose emoji</button>
               ) : (
-                <div className="seg"><button className={lObjShape === "rect" ? "on" : ""} onClick={() => setLObjShape("rect")}><b>▮</b>Square</button><button className={lObjShape === "circle" ? "on" : ""} onClick={() => setLObjShape("circle")}><b>●</b>Circle</button><button className={lObjShape === "tri" ? "on" : ""} onClick={() => setLObjShape("tri")}><b>▲</b>Triangle</button><button className={lObjShape === "tri2" ? "on" : ""} onClick={() => setLObjShape("tri2")} ><b>◺</b>Half triangle</button><button className={lObjShape === "topOutline" ? "on" : ""} onClick={() => setLObjShape("topOutline")}><b>▔</b>Top outline</button><button className={lObjShape === "vineWeb" ? "on" : ""} onClick={() => setLObjShape("vineWeb")}><b>🕸</b>Vine web</button><button className={lObjShape === "ladder" ? "on" : ""} onClick={() => setLObjShape("ladder")}><b>🪜</b>Ladder</button><button className={lObjShape === "fence" ? "on" : ""} onClick={() => setLObjShape("fence")}><b>♯</b>Fence</button></div>
+                <div className="seg"><button className={lObjShape === "rect" ? "on" : ""} onClick={() => setLObjShape("rect")}><b>▮</b>Square</button><button className={lObjShape === "circle" ? "on" : ""} onClick={() => setLObjShape("circle")}><b>●</b>Circle</button><button className={lObjShape === "tri" ? "on" : ""} onClick={() => setLObjShape("tri")}><b>▲</b>Triangle</button><button className={lObjShape === "tri2" ? "on" : ""} onClick={() => setLObjShape("tri2")} ><b>◺</b>Half triangle</button><button className={lObjShape === "topOutline" ? "on" : ""} onClick={() => setLObjShape("topOutline")}><b>▔</b>Top outline</button><button className={lObjShape === "vineWeb" ? "on" : ""} onClick={() => setLObjShape("vineWeb")}><b>🕸</b>Vine web</button><button className={lObjShape === "vine" ? "on" : ""} onClick={() => setLObjShape("vine")}><b>🌿</b>Vine</button><button className={lObjShape === "ladder" ? "on" : ""} onClick={() => setLObjShape("ladder")}><b>🪜</b>Ladder</button><button className={lObjShape === "fence" ? "on" : ""} onClick={() => setLObjShape("fence")}><b>♯</b>Fence</button></div>
               )}
               {lObjKind !== "prop" && <div className="lswatches">
                 {lObjKind === "emoji" && <button className={!lTint ? "orig on" : "orig"} onClick={() => setLTint(null)} title="emoji's own colors">🌈</button>}
@@ -9178,6 +9212,22 @@ export default function AssetStudio() {
                     // Legs only — no armReach opt, so the arms stay locked to the grip above. The
                     // swing argument is unused by the legSway branch, hence 0.
                     blocks = applyLimbSwing(blocks, legIds, armIds, 0, { legSway: Math.sin(p.hangPhase || 0) * HANG_SWAY_PX });
+                  } else if (blocks && p.climbJumpKind) {
+                    // PUSHING OFF a climb. The arms don't drop to a neutral airborne hang — they
+                    // come down only half way, to armPushOffAbs, which reads as having just shoved
+                    // off the rung you were holding. They stay there for the rest of the rise and
+                    // the ordinary airborne art takes over at the apex, exactly like the pose does
+                    // (climbJumpKind clears on vy >= 0). Grabbing something new on the way up puts
+                    // them straight back up, for free: both branches above run before this one.
+                    const anchorOf = armAnchorFinder(blocks);
+                    blocks = blocks.map((b) => {
+                      if (b.role !== "weaponArm" && b.limb !== "arm") return b;
+                      const target = armPushOffAbs(b.armPivot);
+                      if (b.role === "weaponArm") return { ...b, rot: target };
+                      const a = anchorOf(b);
+                      if (!a) return { ...b, rot: limbFollowRot(b, target, baseArmRot) };
+                      return rigidArmFollow(b, a, armPushOffAbs(a.armPivot)); // sleeves/cuffs ride the shoulder, same rule every other arm branch uses
+                    });
                   } else if (blocks && p.walking) {
                     // Legs and non-weapon arms swing back and forth, opposite phase, like a normal
                     // walk cycle. Uses flags where set; otherwise the ground-nearest piece(s) and
