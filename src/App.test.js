@@ -125,6 +125,8 @@ import {
   removePieceSelection,
   playerMeleeDamage,
   playerRangedDamage,
+  UNARMED_DAMAGE,
+  enemyAttackDamage,
   critChance,
   tagDamageMultiplier,
   pieceSnapEdges,
@@ -2130,6 +2132,42 @@ describe("what the player hits for", () => {
     expect(playerRangedDamage(undefined)).toBe(5);
     expect(playerMeleeDamage(undefined, 5)).toBe(5);
     expect(playerMeleeDamage(10, undefined)).toBe(10); // absent stat means baseline 5, not zero
+  });
+
+  test("bare hands are a 2-damage weapon, run through the same Strength scaling", () => {
+    expect(UNARMED_DAMAGE).toBe(2);
+    expect(playerMeleeDamage(UNARMED_DAMAGE, 5)).toBe(2);    // neutral Strength
+    expect(playerMeleeDamage(UNARMED_DAMAGE, 10)).toBe(4);   // double, like every other melee weapon
+    expect(playerMeleeDamage(UNARMED_DAMAGE, 1)).toBe(1);    // 0.4 rounds to 0, floored back to 1
+  });
+
+  test("punching is never better than swinging something — the old fists cliff is gone", () => {
+    // Fists used to BE the Strength stat (str 10 = 10 damage), which exactly matched a 5-damage
+    // weapon at every Strength and beat everything below it. A Strength-10 character punched for
+    // more than most of the arsenal, which is the thing that got reported.
+    for (let str = 1; str <= 10; str++) {
+      const fists = playerMeleeDamage(UNARMED_DAMAGE, str);
+      for (let dmg = 2; dmg <= 10; dmg++) expect(playerMeleeDamage(dmg, str)).toBeGreaterThanOrEqual(fists);
+    }
+    expect(playerMeleeDamage(UNARMED_DAMAGE, 10)).toBe(4);   // was 10, and beat a 6-damage swing outright
+    expect(playerMeleeDamage(3, 10)).toBe(6);
+  });
+
+  test("an enemy's fists are worth exactly what yours are", () => {
+    // One rule, both sides. Leaving the enemy on the raw-Strength version would have had a
+    // Strength-10 thug punching for 10 while you punched the same thug for 4.
+    for (const str of [1, 5, 10]) {
+      expect(enemyAttackDamage({ stats: { strength: str } }, null)).toBeCloseTo(playerMeleeDamage(UNARMED_DAMAGE, str), 0);
+    }
+    expect(enemyAttackDamage({ stats: { strength: 5 } }, null)).toBe(2);
+    expect(enemyAttackDamage({ stats: { strength: 10 } }, null)).toBe(4);
+  });
+
+  test("an armed enemy is untouched — only the bare-handed number moved", () => {
+    expect(enemyAttackDamage({ stats: { strength: 5 } }, { damage: 7 })).toBe(7);
+    expect(enemyAttackDamage({ stats: { strength: 10 } }, { damage: 7 })).toBe(14);
+    expect(enemyAttackDamage({ stats: { strength: 1 } }, { damage: 7 })).toBeCloseTo(1.4);
+    expect(enemyAttackDamage({}, { damage: 7 })).toBe(7);    // no stats block means baseline 5
   });
 
   test("crit chance is 2% per point of Intelligence, capped so hits stay ordinary", () => {

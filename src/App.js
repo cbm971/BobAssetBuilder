@@ -870,6 +870,15 @@ export const applyDefense = (rawDamage, def) => rawDamage * defenseDamageMultipl
 // what Bobette needed ten hits for. Removing Strength fixed it. Removing the gear multiplier as
 // well would NOT have been a further fix, it would have deleted a working feature.
 export const playerMeleeDamage = (weaponDamage, strength) => Math.max(1, Math.round((weaponDamage ?? 5) * ((strength ?? 5) / 5)));
+// BARE HANDS are a 2-damage weapon — same formula as everything else, just a small base number.
+// They used to be the Strength stat used AS the damage (str 10 = 10 damage, no scaling step), and
+// that produced a cliff: since armed melee is damage x str/5, bare hands exactly matched a
+// 5-damage weapon at EVERY Strength, so anything weaker than 5 damage was strictly worse than
+// punching, forever, and a Strength-10 character hit harder with fists than with most of the
+// arsenal. Running fists through the same damage x str/5 line fixes that at both ends: a fist is
+// now the weakest thing you can swing (str 5 -> 2, str 10 -> 4), and Strength still rewards you
+// for it in the same proportion it rewards every other melee weapon.
+export const UNARMED_DAMAGE = 2;
 // One argument on purpose: `weaponDamage` already carries the weapon's own number and any Tag
 // Damage gear multiplier. There is no BODY stat to pass in, and adding one is the bug returning.
 export const playerRangedDamage = (weaponDamage) => Math.max(1, Math.round(weaponDamage ?? 5));
@@ -1513,10 +1522,13 @@ export const enemyJumpVelocity = (agility, cellH) => Math.sqrt(2 * 0.175 * (0.5 
 export const enemyWeaponIdOf = (ea) => (ea && (ea.weaponId || (ea.recipe && ea.recipe.weaponId) || (ea.components && ea.components.weapon && ea.components.weapon.id))) || null;
 // Damage one swing/shot from this enemy deals, before the player's Defense is applied. A weapon
 // supplies the base damage, scaled by the enemy's Strength (5 = 1x, same as the player's own
-// formula); bare-handed it's just Strength, exactly as it was before enemies could hold weapons.
+// formula); bare-handed it's UNARMED_DAMAGE through that same scaling, so an enemy's fists are
+// worth exactly what yours are. This side has to move with the player's or the rule stops being
+// one rule: fists were the raw Strength stat here too, and leaving that behind would have meant a
+// Strength-10 thug punching for 10 while you punched the same thug for 4.
 export const enemyAttackDamage = (ea, weapon) => {
   const str = ea?.stats?.strength ?? 5;
-  return weapon ? Math.max(1, (weapon.damage ?? 5) * (str / 5)) : str;
+  return Math.max(1, (weapon ? (weapon.damage ?? 5) : UNARMED_DAMAGE) * (str / 5));
 };
 // Equipment-only: additive on top of the wearer's own stat (5 + a +2 item reads as 7). 0 = no change.
 const DEFAULT_STAT_BOOSTS = () => ({ hp: 0, speed: 0, agility: 0, intelligence: 0, strength: 0 });
@@ -5359,10 +5371,13 @@ export default function AssetStudio() {
                   const eHitLeft = eLeft + (eShape.centerFrac * eRenderW - epw / 2);
                   const overlap = hbX < eHitLeft + epw && hbX + hbW > eHitLeft && hbY < hitTop + hitH && hbY + hbH > hitTop;
                   if (overlap) {
-                    // Armed damage scales the weapon's own damage by strength (5 = neutral).
-                    // Bare-handed there's no weapon damage to scale — it's just the strength
-                    // stat directly, per request.
-                    const base = (!unarmedSwing && playtestWeapon) ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories), strength) : Math.max(1, Math.round(strength));
+                    // One formula for both: damage x Strength/5. Armed, the damage is the weapon's
+                    // own (times any Tag Damage gear that matches its categories); bare-handed it's
+                    // UNARMED_DAMAGE. Fists carry no categories, so no gear multiplier applies to
+                    // them — a Tag Damage hat boosts the weapon it's tagged for, not your knuckles.
+                    const base = (!unarmedSwing && playtestWeapon)
+                      ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories), strength)
+                      : playerMeleeDamage(UNARMED_DAMAGE, strength);
                     const isCrit = Math.random() < critChance(intelligence);
                     const dmg = isCrit ? base * 2 : base;
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
