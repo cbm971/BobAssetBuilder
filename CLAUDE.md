@@ -107,6 +107,16 @@ for solidity, that only sees the primary fill. Paint through `mergeFgFill`.
 **Objects** live in `lv.fx` → arrays of `{ kind, solid, inFront, size }`, keyed by the
 object's **top-left** cell. Placement centres on the click (`objAnchor`), so the
 clicked cell is usually *not* the key — find an object under a click with `objKeyAt`.
+`rot` twists the art, `flip` mirrors it, `ox`/`oy` nudge it — all three move the ART
+and never the footprint, which stays the axis-aligned square/rect `size` describes.
+
+**Mirroring a level** (`flipLevelHorizontally`, the ⇄ Flip buttons) is c -> cols-1-c on
+every layer plus a reversal of everything that carries a direction: ramp `slope` and
+`step`, object `flip`/`rot`/`ox` (and its key moves by the whole footprint, not the
+anchor), enemy `facing`, and the connectors via `CONN_FLIP_H`. It is an exact
+involution — the round-trip test is what proves nothing was missed, so **anything new
+with a left/right sense must be added there**, or a flipped level breaks in a way only
+that field shows.
 
 **Layer z-ladder:** 1 bg · 2 fg · 4 climb/pedestals · 5 player/hazards · 6 front.
 

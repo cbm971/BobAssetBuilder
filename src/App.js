@@ -1838,6 +1838,12 @@ const anglesEmpty = (ag) => ANGLES.every((a) => !(ag && ag[a] && ag[a].length));
 const CONN_KEYS = ["N1", "N2", "E1", "E2", "S1", "S2", "W1", "W2"];
 const LV_CELL = 30;
 const CONN_OPP = { N1: "S1", N2: "S2", S1: "N1", S2: "N2", W1: "E1", W2: "E2", E1: "W1", E2: "W2" };
+// Where each connector ENDS UP when the level is mirrored left↔right (see flipLevelHorizontally).
+// Not the same map as CONN_OPP: the left and right edges trade places, and so do the two top ones
+// and the two bottom ones, because N1/S1 are the LEFT-hand pair (CONN_LABEL calls them "Top Left"
+// / "Bottom Left"). A flipped level whose exits stayed put would no longer join up with its
+// neighbours, since the way out of the map is now on the other side of it.
+const CONN_FLIP_H = { N1: "N2", N2: "N1", S1: "S2", S2: "S1", W1: "E1", E1: "W1", W2: "E2", E2: "W2" };
 const CONN_POS = { // %-position on the level rect
   N1: { x: 30, y: 0 }, N2: { x: 70, y: 0 }, S1: { x: 30, y: 100 }, S2: { x: 70, y: 100 },
   W1: { x: 0, y: 35 }, W2: { x: 0, y: 70 }, E1: { x: 100, y: 35 }, E2: { x: 100, y: 70 },
@@ -1867,7 +1873,17 @@ export const LV_OBJ_SIZES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 10, 12, 16, 
 // always did (fxBlocks reads size, not rot), because the collision grid is axis-aligned cells and
 // tilting that would mean rewriting how the whole level is walked. Worth knowing when you angle
 // something you're also standing on — the ground stays where the square is.
-export const objRotStyle = (o) => ((o && o.rot) ? { transform: "rotate(" + o.rot + "deg)" } : null);
+// A placed object can also be MIRRORED (`flip`) — a tree leaning the other way, a trailer parked
+// nose-out, and every object in a level that's been mirrored left↔right (flipLevelHorizontally).
+// Order matters: rotate OUTERMOST, mirror inside it. Both orders draw the same mirror image, but
+// this one keeps Twist meaning "turn it this many degrees clockwise on screen" whether or not the
+// object is flipped, so the slider still matches what you're looking at.
+export const objRotStyle = (o) => {
+  const parts = [];
+  if (o && o.rot) parts.push("rotate(" + o.rot + "deg)");
+  if (o && o.flip) parts.push("scaleX(-1)");
+  return parts.length ? { transform: parts.join(" ") } : null;
+};
 // FINE POSITIONING. Objects are stored under a whole cell, so the smallest move used to be a
 // full cell — which is why an object could never quite line up with the terrain under it. A nudge
 // shifts the drawn object by a fraction of a cell without moving which cell it belongs to.
@@ -2481,6 +2497,117 @@ export const removeLevelObject = (lv, key, stackIndex) => {
   if (remaining.length) fx[key] = remaining;
   else delete fx[key];
   return { ...lv, fx };
+};
+/* ---- Mirroring a whole level left↔right -------------------------------------------------
+A level you have already built is most of the work of its mirror image, so a downhill run can
+become the uphill one instead of being drawn again from scratch.
+
+Every layer is keyed "r,c", so the move itself is only c -> cols-1-c. What needs care is
+everything that carries a DIRECTION, because a mirror has to reverse each one or the flipped
+level comes out subtly wrong rather than obviously wrong:
+
+  ramps       slope flips sign, and `step` (which is always counted left-to-right, whichever way
+              the ramp climbs) now counts from the other end — a 4-cell ramp's step 0 cell is its
+              step 3 cell in the mirror. Multi-fill cells flip every fill, `more` included.
+  objects     stored under their TOP-LEFT cell, so an N-wide object's new key is cols-c-N, NOT
+              cols-1-c — mirroring by the anchor alone would shove every big prop N cells right.
+              The art mirrors too (`flip`), and a Twist angle reverses along with it.
+  nudges      `ox` is a signed cell offset, so it points the other way.
+  enemies     `facing` is -1/1.
+  connectors  CONN_FLIP_H — the exits move to the sides they now sit on.
+
+Anything with no direction — colour, texture, outline, hide-in-play, climb kind, hazard, doors,
+pedestals, the level's own name/floor/section — just rides along on the new key. */
+export const flipFgFill = (fill) => {
+  if (!fill || typeof fill !== "object") return fill; // a plain colour string is a full block: nothing in it points anywhere
+  const out = { ...fill };
+  if (fill.slope === 1 || fill.slope === -1) {
+    const run = fill.run > 0 ? fill.run : 1, step = fill.step >= 0 ? fill.step : 0;
+    out.slope = -fill.slope;
+    out.run = run;
+    out.step = run - 1 - step;   // same cell of the ramp, counted from the far end
+  }
+  if (Array.isArray(fill.more)) out.more = fill.more.map(flipFgFill);
+  return out;
+};
+// fg / bg / front: cell values that can hold ramp shapes.
+export const flipCellLayer = (layer, cols) => {
+  const out = {};
+  for (const k of Object.keys(layer || {})) {
+    const [r, c] = k.split(",").map(Number);
+    out[cellKey(r, cols - 1 - c)] = flipFgFill(layer[k]);
+  }
+  return out;
+};
+// climb / hazard / markers: one directionless record per cell, so only the key moves. Copied
+// rather than shared, so the flipped level can never write through into the level it came from.
+export const flipPlainLayer = (layer, cols) => {
+  const out = {};
+  for (const k of Object.keys(layer || {})) {
+    const [r, c] = k.split(",").map(Number);
+    const v = layer[k];
+    out[cellKey(r, cols - 1 - c)] = (v && typeof v === "object") ? { ...v } : v;
+  }
+  return out;
+};
+export const flipEnemyLayer = (layer, cols) => {
+  const out = {};
+  for (const k of Object.keys(layer || {})) {
+    const [r, c] = k.split(",").map(Number);
+    const e = layer[k] || {};
+    // Absent facing means left (the playtest loop reads `spawn.facing === 1 ? 1 : -1`), so the
+    // mirror of "no facing" is an explicit right — not another left.
+    out[cellKey(r, cols - 1 - c)] = { ...e, facing: e.facing === 1 ? -1 : 1 };
+  }
+  return out;
+};
+// One placed object's new home. Returns the new anchor column and the object itself.
+// The exact mirrored left edge rarely lands on a whole cell for an art-fitted prop (its footprint
+// is fractional), so the whole-cell part becomes the key and the remainder goes into the nudge —
+// which is exactly what the nudge is for, and keeps the prop lined up against the terrain it was
+// lined up against before instead of drifting up to half a cell.
+export const flipLevelObject = (o, c, cols, propAsset) => {
+  const fp = levelObjectFootprint(o, propAsset);
+  const exactLeft = cols - (c + ((o && o.ox) || 0) + fp.cols);
+  const nc = Math.max(0, Math.round(cols - c - fp.cols));
+  const ox = Math.max(-OBJ_NUDGE_LIMIT, Math.min(OBJ_NUDGE_LIMIT, exactLeft - nc));
+  // Twist is negated rather than left alone because the flip is drawn as rotate() then scaleX(-1)
+  // (objRotStyle): with the rotation applied outermost, the slider keeps reading the angle you
+  // actually see on screen, so a prop leaning 20° into a hill reads 340° once the hill is mirrored.
+  return { c: nc, o: { ...o, flip: !(o && o.flip), rot: normalizeObjRot(-((o && o.rot) || 0)), ox } };
+};
+export const flipConns = (conns) => {
+  const out = {};
+  for (const k of CONN_KEYS) { const c = (conns || {})[k]; if (c) out[CONN_FLIP_H[k]] = { ...c }; }
+  return out;
+};
+export const flipLevelHorizontally = (lv, findAsset) => {
+  if (!lv) return lv;
+  const cols = Math.max(1, lv.cols || 1);
+  const fx = {};
+  for (const k of Object.keys(lv.fx || {})) {
+    const [r, c] = k.split(",").map(Number);
+    for (const o of (lv.fx[k] || [])) {
+      const moved = flipLevelObject(o, c, cols, (o.kind === "prop" && findAsset) ? findAsset(o.propId) : null);
+      const key = cellKey(r, moved.c);
+      // Two objects that used to sit in different cells can mirror onto the same anchor (rounding
+      // on fractional footprints). Appending keeps each stack's own paint order, which is its
+      // z-order within the cell.
+      (fx[key] = fx[key] || []).push(moved.o);
+    }
+  }
+  return {
+    ...lv,
+    fg: flipCellLayer(lv.fg, cols),
+    bg: flipCellLayer(lv.bg, cols),
+    front: flipCellLayer(lv.front, cols),
+    fx,
+    climb: flipPlainLayer(lv.climb, cols),
+    hazard: flipPlainLayer(lv.hazard, cols),
+    markers: flipPlainLayer(lv.markers, cols),
+    enemies: flipEnemyLayer(lv.enemies, cols),
+    conns: flipConns(lv.conns),
+  };
 };
 // Monotonic token identifying the newest Playtest loop. Only the loop whose local generation
 // still equals this may advance physics; any older loop left alive by an overlapping remount
@@ -3833,6 +3960,10 @@ export default function AssetStudio() {
   // after placement was the whole reason "there is no rotate": you pick Objects > Object > Trailer,
   // look at the strip you just used, and it isn't there. Every object painted carries this angle.
   const [lObjRot, setLObjRot] = useState(0);
+  // Mirror for the next object placed, alongside Twist. It exists for its own sake (a tree leaning
+  // the other way, a sign facing back up the path) and because flipping a whole level sets it on
+  // every object — without a control here you could mirror a level and then not un-mirror one prop.
+  const [lObjFlip, setLObjFlip] = useState(false);
   const [lBrush, setLBrush] = useState(1);              // paint brush size in cells, for fg/bg/climb
   const [lOutline, setLOutline] = useState(false);      // brush option: outline the perimeter of the brush footprint
   const [lOutlineColor, setLOutlineColor] = useState("#1a1a1a"); // color that brush outline paints with
@@ -7829,6 +7960,42 @@ export default function AssetStudio() {
   const newLevelFresh = () => guardLevelSwitch("start a new blank level", doNewLevelFresh);
   const doOpenLevel = (lv) => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); const nl = migrateLevel(JSON.parse(JSON.stringify(lv))); setLevel(nl); levelBaseline.current = JSON.stringify(nl); setLSel(null); setGen(null); setPlay(false); setLFxSel(null); setLFxEditIdx(null); setLLayer("fg"); setLTool("paint"); setLBrush(1); setEyedrop(false); setLevelLoadOpen(false); flash("Opened \"" + lv.name + "\" ✓"); };
   const openLevel = (lv) => guardLevelSwitch("open \"" + lv.name + "\"", () => doOpenLevel(lv));
+  // MIRROR THE LEVEL left↔right. Two doors on the same operation because they answer two different
+  // questions, and picking the wrong one silently costs you the original:
+  //
+  //   Flip           — in place, on the level you're editing. Undo takes it back, and so does
+  //                    pressing it a second time; it's an exact involution.
+  //   Flip to a copy — the variant workflow. A downhill level and its uphill twin are two levels,
+  //                    and Save writes back to level:<id>, so flipping in place and saving would
+  //                    REPLACE the level you flipped instead of giving you the pair. This forks a
+  //                    new id first, so the original is still on disk exactly as it was.
+  //
+  // Both drop anything held mid-move: a picked-up object and a Move selection both name cells by
+  // their old keys, and dropping one after the mirror would put it somewhere nobody asked for.
+  const dropHeldForFlip = () => { moving.current = null; setMovingActive(false); setLayerMove(null); setLFxSel(null); setLFxEditIdx(null); setLSel(null); };
+  const flipLevelNow = () => {
+    if (!level) return;
+    snapshotLevel();
+    dropHeldForFlip();
+    setLevel((lv) => flipLevelHorizontally(lv, findA));
+    flash("Flipped left↔right ⇄ (Undo puts it back)");
+  };
+  const flipLevelToCopy = () => {
+    if (!level) return;
+    snapshotLevel();
+    dropHeldForFlip();
+    const base = flipLevelHorizontally(JSON.parse(JSON.stringify(level)), findA);
+    // A brand new id, so the first Save creates a second level rather than overwriting the one
+    // this was mirrored from. Not saved here — you get to look at it and rename it first.
+    const copy = { ...base, id: uid(), name: (level.name || "Level") + " (flipped)" };
+    setLevel(copy);
+    // The copy has never been saved, so it must read as unsaved work — otherwise clicking a level
+    // in Load straight afterwards would throw it away without the warning. "" is a baseline no
+    // stringified level can ever equal; null would mean "no baseline yet", which counts as clean.
+    levelBaseline.current = "";
+    setGen(null);
+    flash("Made \"" + copy.name + "\" — 💾 Save to keep it (the original is untouched)");
+  };
   const downloadLevel = () => { try { const b = new Blob([JSON.stringify(level, null, 2)], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (level.name || "level") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked."); } };
   const uploadLevel = (e) => {
     const f = e.target.files?.[0]; if (!f) return;
@@ -7845,10 +8012,10 @@ export default function AssetStudio() {
   // One record for the NEXT object. Props opt into art-tight bounds; old saved placements without
   // this flag retain their legacy square geometry until the user converts them in the inspector.
   const nextLevelObject = lObjKind === "prop"
-    ? { kind: "prop", propId: lPropId, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot, fitArt: true }
+    ? { kind: "prop", propId: lPropId, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot, flip: lObjFlip, fitArt: true }
     : lObjKind === "shape"
-      ? { kind: "shape", shape: lObjShape, tint: lTint || "#7aa2d6", solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot }
-      : { kind: "emoji", char: lEmoji, tint: lTint, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot };
+      ? { kind: "shape", shape: lObjShape, tint: lTint || "#7aa2d6", solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot, flip: lObjFlip }
+      : { kind: "emoji", char: lEmoji, tint: lTint, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot, flip: lObjFlip };
   const assetForLevelObject = (object) => object && object.kind === "prop" ? findA(object.propId) : null;
   const anchorKeyForLevelObject = (r, c, object) => objAnchorKeyForObject(r, c, object, assetForLevelObject(object));
   // Which fx key a click on (r,c) acts on: placing centres the new object around its REAL
@@ -8679,6 +8846,9 @@ export default function AssetStudio() {
                 <button className="rotbtn" onClick={() => { if (fxOpen) nudgeFxRot(lFxSel, fxOpenIdx, -OBJ_ROT_NUDGE); else setLObjRot((v) => normalizeObjRot(v - OBJ_ROT_NUDGE)); }}>↺</button>
                 <button className="rotbtn" onClick={() => { if (fxOpen) nudgeFxRot(lFxSel, fxOpenIdx, OBJ_ROT_NUDGE); else setLObjRot((v) => normalizeObjRot(v + OBJ_ROT_NUDGE)); }}>↻</button>
                 <button className="rotbtn" disabled={!(fxOpen ? (fxOpen.rot || 0) : lObjRot)} onClick={() => { if (fxOpen) updateFxAt(lFxSel, fxOpenIdx, { rot: 0 }); else setLObjRot(0); }}>0°</button>
+                {/* Mirror, on the same strip and with the same dual meaning as Twist: it edits the
+                    selected object if there is one, otherwise it arms the next placement. */}
+                <button className={"rotbtn" + ((fxOpen ? fxOpen.flip : lObjFlip) ? " on" : "")} title="Mirror this object left↔right" onClick={() => { if (fxOpen) updateFxAt(lFxSel, fxOpenIdx, { flip: !fxOpen.flip }); else setLObjFlip((v) => !v); }}>⇄</button>
                 <span className="hint2">{fxOpen ? "editing the selected object" : "sets the angle for the next one you place"}</span>
               </span>
             </>
@@ -8735,6 +8905,8 @@ export default function AssetStudio() {
             </>
           )}
           <button className="ltbtn" onClick={() => setLevel((x) => ({ ...x, [layerKey]: {} }))}>Clear {lLayer === "fg" ? "FG" : lLayer === "bg" ? "BG" : lLayer === "front" ? "Front" : lLayer === "obj" ? "Objects" : lLayer === "climb" ? "Climb" : lLayer === "hazard" ? "Fire" : lLayer === "enemy" ? "Enemies" : "Markers"}</button>
+          <button className="ltbtn" onClick={flipLevelNow} title="Mirror the whole level left↔right — every layer, ramps, objects, enemies and exits included. Press it again (or Undo) to put it back.">⇄ Flip</button>
+          <button className="ltbtn" onClick={flipLevelToCopy} title="Same mirror, but into a NEW level so the one you're editing is left alone — this is how a downhill level becomes its uphill twin.">⇄ Flip to a copy</button>
           <button className="ltbtn" onClick={runGenerate}>🎲 Generate</button>
           <button className="ltbtn" onClick={newLevelFresh}>＋ New Level</button>
           <button className="ltbtn" onClick={newRoomFresh}>＋ New Room</button>
@@ -8818,7 +8990,7 @@ export default function AssetStudio() {
                   const ga = objAnchorForObject(lHoverCell.r, lHoverCell.c, ghostO, assetForLevelObject(ghostO));
                   // ...including the angle: the preview tilts with Twist, so you line a trailer up
                   // against the hill before you commit rather than placing it and then fixing it.
-                  return <div className="lobjGhost" style={{ left: objNudgedLeft(ghostO, ga.c, LV_CELL), top: objNudgedTop(ghostO, ga.r, LV_CELL), width: layout.width, height: layout.height, zIndex: lInFront ? 6 : 4, ...objRotStyle({ rot: lObjRot }) }}>{renderObj(ghostO, layout.width, "ghost", 0, layout.height, layout.box)}</div>;
+                  return <div className="lobjGhost" style={{ left: objNudgedLeft(ghostO, ga.c, LV_CELL), top: objNudgedTop(ghostO, ga.r, LV_CELL), width: layout.width, height: layout.height, zIndex: lInFront ? 6 : 4, ...objRotStyle({ rot: lObjRot, flip: lObjFlip }) }}>{renderObj(ghostO, layout.width, "ghost", 0, layout.height, layout.box)}</div>;
                 })()}
                 {!play && (lLayer === "front" || ((lLayer === "fg" || lLayer === "bg") && lFgShape === "block")) && lTool === "paint" && lHoverCell && (() => {
                   // Matches paintBrush's own iteration exactly (full r×c square, not just a
@@ -9555,6 +9727,7 @@ export default function AssetStudio() {
                               hillside) rather than standing upright. Nudges are 5° because slope
                               angles are shallow; the piece editor's 90° steps would be useless here. */}
                           <label className="slider">Twist ⟳<input type="range" min="0" max="359" step="1" value={o.rot || 0} onChange={(e) => updateFxAt(lFxSel, i, { rot: normalizeObjRot(+e.target.value || 0) })} /><span className="hint2">{(o.rot || 0)}°</span><button className="rotbtn" onClick={() => nudgeFxRot(lFxSel, i, -OBJ_ROT_NUDGE)}>↺</button><button className="rotbtn" onClick={() => nudgeFxRot(lFxSel, i, OBJ_ROT_NUDGE)}>↻</button><button className="rotbtn" disabled={!(o.rot || 0)} onClick={() => updateFxAt(lFxSel, i, { rot: 0 })}>0°</button></label>
+                          <label className="chk"><input type="checkbox" checked={!!o.flip} onChange={(e) => updateFxAt(lFxSel, i, { flip: e.target.checked })} /> ⇄ Mirrored</label>
                           <span className="objnudge">
                             <b>Nudge</b>
                             <button className="rotbtn" onClick={() => updateFxAt(lFxSel, i, { ox: clampObjNudge((o.ox || 0) - OBJ_NUDGE_STEP) })}>←</button>
@@ -10654,6 +10827,7 @@ const css = `
 .slider .gc{width:30px;height:24px;padding:0;border:1px solid #2c3245;border-radius:6px;background:#1f2433;flex:none}
 .rotbtn{flex:none;width:30px;height:26px;border:1px solid #2c3245;border-radius:7px;background:#1f2433;cursor:pointer;font-size:15px;line-height:1}
 .rotbtn:hover{border-color:#4f7cf6}
+.rotbtn.on{background:#2c4a8a;border-color:#4f7cf6}
 .chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:#cdd3df}
 .outlinechk{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:8px 10px;margin-top:12px}
 .outlinefx{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:8px 10px;margin-top:6px}

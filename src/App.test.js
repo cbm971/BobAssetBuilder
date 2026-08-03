@@ -141,6 +141,10 @@ import {
   enemyFaceThisFrame,
   enemyMoveIntent,
   enemyFaceToward,
+  flipLevelHorizontally,
+  flipFgFill,
+  flipLevelObject,
+  flipConns,
 } from "./App";
 
 describe("copying blocks and groups", () => {
@@ -2377,5 +2381,124 @@ describe("snap to edges", () => {
     const top = pieceSnapEdges(arm)[0];
     expect(near(top.a, { x: 10, y: -10 })).toBe(true);  // pivot (10,0) stays put; the corner swings around it
     expect(near(top.b, { x: 10, y: 10 })).toBe(true);
+  });
+});
+
+describe("mirroring a level left↔right", () => {
+  // A 10-wide level with a 3-cell ramp climbing left-to-right along row 2 (cols 2,3,4).
+  const RAMP = (step) => ({ c: "#6b7b3a", slope: 1, run: 3, step });
+  const uphillLevel = () => ({
+    id: "lv1", name: "Hill", cols: 10, rows: 4,
+    fg: { "2,2": RAMP(0), "2,3": RAMP(1), "2,4": RAMP(2), "3,0": "#2b2b2b" },
+    bg: {}, front: {}, fx: {}, climb: {}, hazard: {}, markers: {}, enemies: {},
+    conns: { N1: { open: true, accepts: "" }, W1: { open: true, accepts: "sewer" } },
+  });
+
+  test("an uphill ramp becomes the same ramp running downhill", () => {
+    const flipped = flipLevelHorizontally(uphillLevel(), null);
+    // The 3-cell ramp lands on cols 5-7, and `step` still counts left-to-right — so the cell
+    // that WAS the ramp's bottom (step 0, col 2) is now its top (step 2, col 7).
+    expect(flipped.fg["2,5"]).toEqual({ c: "#6b7b3a", slope: -1, run: 3, step: 0 });
+    expect(flipped.fg["2,6"]).toEqual({ c: "#6b7b3a", slope: -1, run: 3, step: 1 });
+    expect(flipped.fg["2,7"]).toEqual({ c: "#6b7b3a", slope: -1, run: 3, step: 2 });
+    expect(flipped.fg["2,2"]).toBeUndefined();
+    expect(flipped.fg["3,9"]).toBe("#2b2b2b");   // a plain block just moves
+  });
+
+  test("the mirrored ramp is the same walkable surface, not merely the same picture", () => {
+    // This is the check that catches getting `step` wrong: the clip-path can look right while the
+    // collision surface climbs the wrong way. Sample the real surface at mirrored x positions.
+    const lv = uphillLevel(), flipped = flipLevelHorizontally(lv, null);
+    const widthPx = lv.cols * 30;
+    for (const x of [75, 95, 135]) {                        // low, middle and high along the ramp
+      const before = slopeSurfaceAt(lv, x, 2, 2, 30, 30);
+      const after = slopeSurfaceAt(flipped, widthPx - x, 2, 2, 30, 30);
+      expect(after.y).toBeCloseTo(before.y);                // same height above the ground
+      expect(after.dir).toBe(-before.dir);                  // climbing the other way
+    }
+  });
+
+  test("every fill in a stacked cell flips, not just the one on top", () => {
+    const peak = { c: "#8d8578", slope: 1, run: 2, step: 1, more: [{ c: "#6b7b3a", slope: -1, run: 2, step: 0 }] };
+    const out = flipFgFill(peak);
+    expect(out.slope).toBe(-1);
+    expect(out.step).toBe(0);
+    expect(out.more[0]).toEqual({ c: "#6b7b3a", slope: 1, run: 2, step: 1 });
+  });
+
+  test("an object moves by its whole footprint, so a wide prop lands where its art was", () => {
+    // Anchored at col 2 and 4 cells wide, it covers cols 2-5 of a 10-wide level; mirrored it
+    // covers 4-7, so its top-left anchor is 4. Mirroring the anchor alone (10-1-2 = 7) would
+    // have shoved it four cells to the right.
+    expect(flipLevelObject({ kind: "emoji", char: "🌳", size: 4 }, 2, 10, null).c).toBe(4);
+    expect(flipLevelObject({ kind: "emoji", char: "🍄", size: 1 }, 2, 10, null).c).toBe(7);
+  });
+
+  test("an object's art, twist and sideways nudge all reverse with it", () => {
+    const { o } = flipLevelObject({ kind: "emoji", char: "🚗", size: 2, rot: 20, ox: 0.5, oy: 1 }, 3, 10, null);
+    expect(o.flip).toBe(true);
+    expect(o.rot).toBe(340);
+    expect(o.ox).toBeCloseTo(-0.5);
+    expect(o.oy).toBe(1);                                   // vertical nudge is untouched by a left-right mirror
+    expect(objRotStyle(o)).toEqual({ transform: "rotate(340deg) scaleX(-1)" });
+    // Already-mirrored art un-mirrors, so flipping twice is a true round trip.
+    expect(flipLevelObject(o, 5, 10, null).o.flip).toBe(false);
+  });
+
+  test("enemies turn to face the way they were watching", () => {
+    const lv = { ...uphillLevel(), enemies: { "1,1": { enemyId: "e1", facing: -1, ai: "guard" }, "1,8": { enemyId: "e2", facing: 1 } } };
+    const flipped = flipLevelHorizontally(lv, null);
+    expect(flipped.enemies["1,8"]).toEqual({ enemyId: "e1", facing: 1, ai: "guard" });
+    expect(flipped.enemies["1,1"]).toEqual({ enemyId: "e2", facing: -1 });
+  });
+
+  test("an enemy saved without a facing counts as left-facing, so its mirror faces right", () => {
+    const flipped = flipLevelHorizontally({ ...uphillLevel(), enemies: { "1,1": { enemyId: "e1" } } }, null);
+    expect(flipped.enemies["1,8"].facing).toBe(1);
+  });
+
+  test("the exits move to the edges they now sit on", () => {
+    expect(flipConns({ W1: { open: true, accepts: "sewer" }, N1: { open: false, accepts: "" } }))
+      .toEqual({ E1: { open: true, accepts: "sewer" }, N2: { open: false, accepts: "" } });
+  });
+
+  test("climb, hazard and marker cells move across untouched", () => {
+    const lv = {
+      ...uphillLevel(),
+      climb: { "1,1": { kind: "ladder" } },
+      hazard: { "1,2": { kind: "fire", dps: 8, life: 0 } },
+      markers: { "1,3": { kind: "door", tag: "shop" } },
+    };
+    const flipped = flipLevelHorizontally(lv, null);
+    expect(flipped.climb).toEqual({ "1,8": { kind: "ladder" } });
+    expect(flipped.hazard).toEqual({ "1,7": { kind: "fire", dps: 8, life: 0 } });
+    expect(flipped.markers).toEqual({ "1,6": { kind: "door", tag: "shop" } });
+    expect(flipped.climb["1,1"]).toBeUndefined();
+  });
+
+  test("flipping twice gives back exactly what you started with", () => {
+    // The property that makes the button safe to press: it is its own undo. Every field that the
+    // flip writes is spelled out in the fixture, so this compares like with like.
+    const lv = {
+      id: "lv1", name: "Hill", floor: "1", section: "", cols: 10, rows: 4,
+      fg: { "2,2": RAMP(0), "2,3": RAMP(1), "2,4": RAMP(2), "3,0": "#2b2b2b" },
+      bg: { "0,0": { c: "#7aa2d6", slope: -1, run: 1, step: 0 } },
+      front: { "0,9": "#3a3f52" },
+      fx: { "1,2": [{ kind: "emoji", char: "🌳", size: 4, rot: 20, ox: 0.5, oy: 1, flip: false, solid: false, inFront: false }] },
+      climb: { "1,1": { kind: "ladder" } },
+      hazard: { "1,2": { kind: "fire", dps: 8, life: 0 } },
+      markers: { "1,3": { kind: "door", tag: "shop" } },
+      enemies: { "1,1": { enemyId: "e1", facing: -1 } },
+      conns: { N1: { open: true, accepts: "" }, E2: { open: false, accepts: "" } },
+    };
+    expect(flipLevelHorizontally(flipLevelHorizontally(lv, null), null)).toEqual(lv);
+  });
+
+  test("the level's own name, size and floor survive the mirror", () => {
+    const flipped = flipLevelHorizontally(uphillLevel(), null);
+    expect(flipped.id).toBe("lv1");
+    expect(flipped.name).toBe("Hill");
+    expect(flipped.cols).toBe(10);
+    expect(flipped.rows).toBe(4);
   });
 });
