@@ -876,6 +876,39 @@ describe("flannel texture", () => {
   });
 });
 
+describe("tie dye texture", () => {
+  test("is registered, so both the level and the piece pickers offer it", () => {
+    expect(TEXTURE_KEYS).toContain("tieDye");
+    expect(TEXTURES.tieDye.label).toBe("Tie dye");
+    expect(newTexture("tieDye").tex).toBe("tieDye");
+  });
+
+  test("every ring is its own editable colour, not one fixed 1967 palette", () => {
+    const t = newTexture("tieDye");
+    expect(Object.keys(t.colors).sort()).toEqual(["base", "r1", "r2", "r3", "r4"]);
+    const svg = TEXTURES.tieDye.svg(t.colors, TEXTURES.tieDye.tile, t.params);
+    for (const c of Object.values(t.colors)) expect(svg).toContain(c);
+  });
+
+  test("rosettes straddle the tile corners, so the repeat can't read as a grid of targets", () => {
+    // Five rings centred on each of the four corners plus five in the middle. The corner ones are
+    // what make the seam disappear — each contributes a quarter and they meet into one rosette.
+    const t = newTexture("tieDye");
+    const svg = TEXTURES.tieDye.svg(t.colors, TEXTURES.tieDye.tile, t.params);
+    expect((svg.match(/<path /g) || []).length).toBe(25);
+    for (const corner of ["M", "0,"]) expect(svg).toContain(corner);
+  });
+
+  test("the rings wobble — a perfect circle is the one shape tie-dye never is", () => {
+    const t = newTexture("tieDye");
+    const neat = TEXTURES.tieDye.svg(t.colors, TEXTURES.tieDye.tile, { crinkle: 0 });
+    const scrunched = TEXTURES.tieDye.svg(t.colors, TEXTURES.tieDye.tile, { crinkle: 1 });
+    expect(neat).not.toBe(scrunched);
+    // Deterministic: the same settings must redraw the same blotches, never reshuffle them.
+    expect(TEXTURES.tieDye.svg(t.colors, TEXTURES.tieDye.tile, { crinkle: 1 })).toBe(scrunched);
+  });
+});
+
 describe("a texture painted on an art piece", () => {
   const lib = [{ id: "fl-1", name: "Red flannel", tex: "flannel", colors: { base: "#7c2b26", band: "#3a1512", over: "#e0c98a" }, params: { sett: 1 } }];
 

@@ -2860,6 +2860,28 @@ const px = (n) => Math.round(n * 100) / 100;
 // any texture, or the pattern would change on every re-render.
 const trnd = (seed) => { const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 const svgRect = (x, y, w, h, fill, extra) => `<rect x="${px(x)}" y="${px(y)}" width="${px(w)}" height="${px(h)}" fill="${fill}"${extra || ""}/>`;
+// A hand-dyed ring: a closed loop whose radius wanders instead of a perfect circle. Tie-dye rings
+// come from cloth that was scrunched and tied, so a true circle is the one shape they are never —
+// the wobble is what stops the pattern reading as a printed target. Deterministic (trnd), so the
+// same seed draws the same blotch forever and sliding Crinkle deepens THAT shape rather than
+// reshuffling it on every keystroke.
+const dyeRing = (cx, cy, r, wobble, seed, fill) => {
+  const pts = 16;
+  let d = "";
+  for (let i = 0; i < pts; i++) {
+    const a = (i / pts) * Math.PI * 2;
+    const rr = r * (1 + (trnd(seed + i * 3.7) - 0.5) * wobble);
+    d += (i === 0 ? "M" : "L") + px(cx + Math.cos(a) * rr) + "," + px(cy + Math.sin(a) * rr);
+  }
+  return `<path d="${d}Z" fill="${fill}"/>`;
+};
+// One rosette: rings drawn largest first so each colour lands inside the one before it, which is
+// exactly the order dye soaks outward from a tied centre.
+const dyeRosette = (cx, cy, r0, ring, wobble, seed) => {
+  let out = "";
+  for (let i = 0; i < ring.length; i++) out += dyeRing(cx, cy, r0 * (1 - i / ring.length), wobble, seed + i * 19.3, ring[i]);
+  return out;
+};
 
 // Rows of offset bricks. Shared by Brick / Big brick / Stone brick — they differ only in unit
 // size, gap, and how much the row widths wander.
@@ -3073,6 +3095,32 @@ export const TEXTURES = {
         for (const [f, w] of bands) out += stripe(f * tw, w, co.band, 0.5, vertical);
         for (const [f, w] of overs) out += stripe(f * tw, w, co.over, 0.4, vertical);
       }
+      return out;
+    },
+  },
+  // TIE DYE — the other 60s cloth, and the one that needed the most care to make TILE. A single
+  // rosette centred in the tile repeats as an obvious grid of targets, which is the one thing real
+  // tie-dye never looks like. So there are two: a big one in the middle, and a second centred on
+  // the tile's CORNERS — those four quarters meet across the seam into one whole rosette, exactly
+  // the way the metal texture's rivets do. The result is an interlocking field with no visible
+  // repeat, which is what scrunching and tying a whole shirt actually produces.
+  //
+  // Rings run outside-in violet -> blue -> green -> yellow -> magenta, and every one of them is a
+  // separate editable colour, so this is a palette rather than one fixed 1967 poster.
+  tieDye: {
+    label: "Tie dye", icon: "🌀", tile: [60, 60], base: "base",
+    colors: [["base", "Ground", "#3b1d6e"], ["r1", "Ring 1", "#1f6fd0"], ["r2", "Ring 2", "#12a86e"], ["r3", "Ring 3", "#e8c11c"], ["r4", "Centre", "#d4306b"]],
+    // Crinkle 0 = neat concentric circles (a bullseye tie). 1 = heavily scrunched, rings barely
+    // circular at all. The default sits where it reads as fabric rather than as geometry.
+    params: [{ key: "crinkle", label: "Crinkle", min: 0, max: 1, step: 0.05, def: 0.45 }],
+    svg: (co, _t, pa) => {
+      const tw = 60, th = 60, wob = Math.max(0, Math.min(1, pa.crinkle ?? 0.45)) * 0.5;
+      const ring = [co.base, co.r1, co.r2, co.r3, co.r4];
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.base);
+      // Corner rosette first (it's the background one), then the centre rosette over it. Drawn at
+      // all four corners with the same seed so every quarter agrees about the shape it's part of.
+      for (const [cx, cy] of [[0, 0], [tw, 0], [0, th], [tw, th]]) out += dyeRosette(cx, cy, 26, ring, wob, 5.1);
+      out += dyeRosette(tw / 2, th / 2, 30, ring, wob, 41.7);
       return out;
     },
   },
