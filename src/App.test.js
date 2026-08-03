@@ -89,6 +89,9 @@ import {
   propVisibleArtBox,
   recolorAsset,
   restyleAsset,
+  assetColorGroup,
+  recolorAssetGroup,
+  restyleAssetGroup,
   projectileDropAtDistance,
   projectilePositionAtDistance,
   rangeBoostMultiplier,
@@ -1547,6 +1550,72 @@ describe("changing a color everywhere covers brightness/glow/fade too", () => {
     expect(restyleAsset(null, "#2E7D32", { bright: 0.6 })).toBe(null);
     const a = asset();
     expect(restyleAsset(a, "#2E7D32", null)).toBe(a);
+  });
+});
+
+describe("changing a colour everywhere never swallows a block that was a different colour", () => {
+  // A shirt (green, drawn in two poses) and boots (brown) that must not get dragged along.
+  const asset = () => ({
+    angles: {
+      front: [{ id: "shirt-f", color: "#2E7D32" }, { id: "boots", color: "#8D6E63" }],
+      side: [{ id: "shirt-s", color: "#2e7d32" }],
+    },
+    states: { rest: { front: [{ id: "shirt-r", color: "#2E7D32" }] }, fire: { front: [] } },
+    variants: { tall: { front: [{ id: "shirt-t", color: "#2E7D32" }] } },
+  });
+
+  test("the group is every block wearing that colour, in every pose, state and body fit", () => {
+    const g = assetColorGroup(asset(), "#2E7D32");
+    expect([...g.ids].sort()).toEqual(["shirt-f", "shirt-r", "shirt-s", "shirt-t"]);
+  });
+
+  test("matching to build the group is case-insensitive on the hex", () => {
+    expect(assetColorGroup(asset(), "#2e7d32").ids.has("shirt-f")).toBe(true);
+  });
+
+  // The report: dragging the colour input fires onChange for every shade in between, and one of
+  // them is the exact brown the boots already are. Re-resolving by colour there would enrol the
+  // boots and carry them to wherever the drag ends.
+  test("a drag that passes through another block's exact colour leaves that block behind", () => {
+    const g = assetColorGroup(asset(), "#2E7D32");
+    const mid = recolorAssetGroup(asset(), g, "#8D6E63"); // the drag lands on the boots' brown
+    expect(mid.angles.front[1].color).toBe("#8D6E63");
+    const end = recolorAssetGroup(mid, g, "#C62828");     // ...and keeps going
+    expect(end.angles.front[0].color).toBe("#C62828");
+    expect(end.angles.side[0].color).toBe("#C62828");
+    expect(end.variants.tall.front[0].color).toBe("#C62828");
+    expect(end.angles.front[1].color).toBe("#8D6E63");    // the boots stayed brown
+  });
+
+  test("a second click in the same edit repaints the same blocks, not the new colour's twins", () => {
+    const g = assetColorGroup(asset(), "#2E7D32");
+    const red = recolorAssetGroup(asset(), g, "#8D6E63");
+    expect(recolorAssetGroup(red, g, "#1E88E5").angles.front[1].color).toBe("#8D6E63");
+  });
+
+  test("brightness/glow/fade dim exactly the blocks the swatches would repaint", () => {
+    const g = assetColorGroup(asset(), "#2E7D32");
+    const out = restyleAssetGroup(recolorAssetGroup(asset(), g, "#8D6E63"), g, { bright: 0.6 });
+    expect(out.angles.front[0].fx.bright).toBe(0.6);
+    expect(out.states.rest.front[0].fx.bright).toBe(0.6);
+    expect(out.angles.front[1].fx).toBeUndefined(); // boots, same colour now, still not in the group
+  });
+
+  test("blocks too old to have an id still follow the group by colour", () => {
+    const legacy = { angles: { front: [{ color: "#2E7D32" }, { color: "#8D6E63" }] } };
+    const g = assetColorGroup(legacy, "#2E7D32");
+    expect(g.ids.size).toBe(0);
+    const out = recolorAssetGroup(legacy, g, "#C62828");
+    expect(out.angles.front[0].color).toBe("#C62828");
+    expect(out.angles.front[1].color).toBe("#8D6E63");
+  });
+
+  test("a missing asset or group is a no-op rather than a crash", () => {
+    expect(recolorAssetGroup(null, assetColorGroup(asset(), "#2E7D32"), "#fff")).toBe(null);
+    const a = asset();
+    expect(recolorAssetGroup(a, null, "#fff")).toBe(a);
+    expect(assetColorGroup(null, "#2E7D32").ids.size).toBe(0);
+    expect(assetColorGroup(asset(), null).ids.size).toBe(0);
   });
 });
 
