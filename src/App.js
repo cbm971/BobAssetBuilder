@@ -10,6 +10,30 @@ const ANGLES = ["front", "back", "side", "up", "crouch"];
 const ALABEL = { front: "Front", back: "Back", side: "Side", up: "Aim up", crouch: "Crouch", attack: "⚔️ Attack", death: "💀 Death" };
 const COLORS = ["#e2b48c", "#c98f63", "#5d6b39", "#3d4a28", "#2a2017", "#8a929c",
   "#c8a23c", "#7aa2d6", "#b0504f", "#7a3b8f", "#2b2b2b", "#f4f4f4"];
+// A swatch row is a PALETTE, not one fixed list of twelve. Half the work in building a themed
+// scene is getting its colours right, and a period look is a small closed set of them — a 1960s
+// trailer is avocado, harvest gold, turquoise, Formica cream, candy red and birch panelling, over
+// and over. Typing those hexes back in every time is most of the effort, and eyeballing them by
+// hand is how a scene ends up with nine nearly-identical browns that don't quite agree.
+//
+// So the row is switchable and lives in a registry, exactly like TEXTURES and EFFECT_TYPES: adding
+// a theme here gets it a picker entry, in the art editor AND the level/room painter, for free. The
+// custom "＋" picker and the recent-colours strip are untouched — a palette is a starting point you
+// reach past whenever you want, never a restriction on what a block can be.
+const PALETTES = {
+  bob: { label: "Bob's kit", icon: "🎨", colors: COLORS },
+  // The level painter's original ten. It starts on this one because terrain, not clothing, is what
+  // you're reaching for the moment you open the level editor.
+  terrain: { label: "Terrain", icon: "⛰️", colors: ["#6b7b3a", "#4a5a28", "#8a929c", "#5b4636", "#2a2017", "#7aa2d6", "#3a3f52", "#b0894f", "#c8a23c", "#2b2b2b"] },
+  // 1960s trailer/diner interior. The first six are the canonical ones (avocado, harvest gold,
+  // turquoise, Formica cream, candy red, birch); the rest are what a room actually needs around
+  // them — a darker panel seam to groove the walls with, chrome for trim and appliance handles,
+  // and the burnt orange / coral / powder blue that shared every catalogue page with them.
+  trailer60s: { label: "1960s trailer", icon: "🚐", colors: ["#556b2f", "#daa520", "#40e0d0", "#f5f5dc", "#c0392b", "#8b5a2b",
+    "#6b4423", "#c1440e", "#e8917d", "#9cc3d5", "#c9cdd2", "#33302e"] },
+};
+const PALETTE_KEYS = Object.keys(PALETTES);
+const paletteColors = (key) => (PALETTES[key] || PALETTES.bob).colors;
 // Full emoji set, generated correctly (whole characters) from the Unicode emoji
 // blocks. We then keep only the ones THIS device can actually draw, so the
 // picker never shows broken boxes — and shows everything that does render.
@@ -2448,7 +2472,7 @@ export const addBackLeg = (blocks, legIds, swing) => {
   const backLeg = legPieces.map((b) => { const nb = { ...b, id: b.id + "_backLeg" }; backLegIds.add(nb.id); return nb; });
   return applyLimbSwing(backLeg, backLegIds, new Set(), -swing).concat(blocks);
 };
-const LV_COLORS = ["#6b7b3a", "#4a5a28", "#8a929c", "#5b4636", "#2a2017", "#7aa2d6", "#3a3f52", "#b0894f", "#c8a23c", "#2b2b2b"];
+const LV_COLORS = PALETTES.terrain.colors;
 function newLevel() {
   const conns = {};
   for (const k of CONN_KEYS) conns[k] = { open: k === "E1" || k === "W1", accepts: "" };
@@ -2993,7 +3017,10 @@ export const TEXTURES = {
   wood: {
     label: "Wood planks", icon: "🪵", tile: [60, 40], base: "plank",
     colors: [["plank", "Plank", "#8a5a33"], ["plankAlt", "Plank (alt)", "#7a4e2c"], ["grain", "Grain", "#61391f"], ["seam", "Seam", "#3d2413"]],
-    params: [],
+    // The streaks were always drawn at a hardcoded half strength — the slider just wasn't declared,
+    // so there was no way to reach it. Old saves have no `grain` value and fall through to the same
+    // 0.5 they have always rendered at.
+    params: [{ key: "grain", label: "Grain", min: 0, max: 1, step: 0.05, def: 0.5 }],
     svg: (co, _t, pa) => {
       const tw = 90, th = 60, ph = 20;
       let out = svgRect(-2, -2, tw + 4, th + 4, co.plank);
@@ -3011,6 +3038,109 @@ export const TEXTURES = {
         out += svgRect(0, y + ph - 1.5, tw, 1.5, co.seam);          // horizontal plank seam
         const bx = (row % 2 ? 45 : 15);                              // staggered butt joint
         out += svgRect(bx, y, 1.5, ph, co.seam);
+      }
+      return out;
+    },
+  },
+  // WOOD PANELLING — the vertical tongue-and-groove that lines the inside of a 1960s trailer, and
+  // a different thing from "Wood planks" above: those run horizontally and are floor/crate/deck
+  // boards, this runs floor-to-ceiling and is a WALL. Painting one rectangle with it is the whole
+  // back wall of a room, which is the point — the alternative is stacking six tall rectangles by
+  // hand and nudging a dark line between each pair.
+  //
+  // Two details do all the work of making it read as panelling rather than as stripes:
+  //
+  // The seam is a V-GROOVE, not a line: a dark score with a lit edge beside it, because that is
+  // what a routed groove does to light. One flat dark line reads as a drawn-on stripe every time.
+  //
+  // The grain has to survive TILING vertically, and a streak that simply stops inside the tile
+  // leaves a visible horizontal seam where the pattern repeats. So each streak is a sine whose
+  // period is exactly the tile height — its x at the bottom edge equals its x at the top, so it
+  // flows straight into its own repeat and the join disappears. Knots can't do that (they're
+  // local), so they stay small and well inside the tile, and the slider goes to zero for the
+  // uniform factory veneer a trailer usually has.
+  woodPanel: {
+    label: "Wood panelling", icon: "🚪", tile: [72, 96], base: "board",
+    colors: [["board", "Board", "#8b5a2b"], ["boardAlt", "Board (alt)", "#7a4d24"], ["groove", "Groove", "#3f2612"], ["lit", "Groove edge", "#b08050"], ["grain", "Grain", "#5c3617"], ["knot", "Knot", "#4a2a11"]],
+    params: [
+      { key: "boards", label: "Board width", min: 2, max: 6, step: 1, def: 4 },
+      { key: "grain", label: "Grain", min: 0, max: 1, step: 0.05, def: 0.55 },
+      { key: "knots", label: "Knots", min: 0, max: 1, step: 0.05, def: 0.25 },
+    ],
+    svg: (co, _t, pa) => {
+      const tw = 72, th = 96;
+      const n = Math.max(2, Math.min(6, Math.round(pa.boards ?? 4)));  // boards across the tile — fewer = wider boards
+      const bw = tw / n;
+      const grain = Math.max(0, Math.min(1, pa.grain ?? 0.55));
+      const knots = Math.max(0, Math.min(1, pa.knots ?? 0.25));
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.board);
+      for (let b = 0; b < n; b++) {
+        const x = b * bw;
+        // Veneer is cut from different parts of the log, so neighbouring boards are never the same
+        // shade. Deterministic per board index, so it never reshuffles on a re-render.
+        out += svgRect(x, -2, bw, th + 4, trnd(b * 5.3) > 0.5 ? co.boardAlt : co.board);
+        for (let g = 0; g < 4; g++) {
+          const seed = b * 17.9 + g * 3.7;
+          const x0 = x + (0.14 + trnd(seed) * 0.72) * bw;
+          const amp = (0.5 + trnd(seed + 1.3) * 1.6) * (bw / 18);     // wander scales with board width
+          const phase = trnd(seed + 2.9) * Math.PI * 2;
+          let d = "";
+          // 8 samples over exactly one sine period = one tile height, so the streak meets itself
+          // across the repeat instead of stopping dead at the seam.
+          for (let i = 0; i <= 8; i++) {
+            const y = (i / 8) * th;
+            d += (i === 0 ? "M" : "L") + px(x0 + Math.sin(phase + (y / th) * Math.PI * 2) * amp) + "," + px(y);
+          }
+          out += `<path d="${d}" stroke="${co.grain}" stroke-width="${px(0.5 + trnd(seed + 4.1) * 0.9)}" fill="none" opacity="${px(grain * 0.55)}"/>`;
+        }
+        if (knots > 0 && trnd(b * 23.1) < knots) {
+          // Inset from every edge so a knot is never clipped by the tile boundary — a half knot
+          // repeating along a seam is instantly readable as tiling.
+          const kx = x + bw / 2, ky = 14 + trnd(b * 31.7) * (th - 28);
+          const kr = 2 + knots * 2.4;
+          out += `<ellipse cx="${px(kx)}" cy="${px(ky)}" rx="${px(kr)}" ry="${px(kr * 1.5)}" fill="${co.knot}" opacity="0.75"/>`;
+          out += `<ellipse cx="${px(kx)}" cy="${px(ky)}" rx="${px(kr * 0.45)}" ry="${px(kr * 0.7)}" fill="${co.grain}" opacity="0.8"/>`;
+        }
+        // The groove itself: score on the board's left edge, lit lip just inside it.
+        out += svgRect(x - 0.7, -2, 1.4, th + 4, co.groove);
+        out += svgRect(x + 0.7, -2, 0.8, th + 4, co.lit, ' opacity="0.5"');
+      }
+      return out;
+    },
+  },
+  // CHECKER TILE — the vinyl floor under all that panelling. Straight checkerboard rather than
+  // diamond, because that is what got laid in kitchens and diners, and because a straight grid
+  // lines up with a level's cell grid instead of fighting it.
+  //
+  // The square count per tile must stay EVEN or the checkerboard breaks at the repeat: with an odd
+  // count the last column and the first column of the next tile are the same colour, giving a
+  // double-wide stripe every few tiles. So the slider picks a half-count and the pattern doubles
+  // it — there is no setting that can produce a broken board.
+  //
+  // Fleck is the other half of the period look: real 1960s lino was speckled to hide wear, and a
+  // flat two-tone checker reads as a chessboard without it.
+  checkerTile: {
+    label: "Checker tile", icon: "🏁", tile: [48, 48], base: "a",
+    colors: [["a", "Tile", "#f5f5dc"], ["b", "Tile (alt)", "#33302e"], ["grout", "Grout", "#8d8878"], ["fleck", "Fleck", "#9c9686"]],
+    params: [
+      { key: "size", label: "Tile size", min: 1, max: 3, step: 1, def: 1 },
+      { key: "speckle", label: "Fleck", min: 0, max: 1, step: 0.05, def: 0.3 },
+    ],
+    svg: (co, _t, pa) => {
+      const tw = 48, th = 48;
+      const n = 2 * Math.max(1, Math.min(3, Math.round(pa.size ?? 1)));  // always even — see above
+      const s = tw / n, gap = 0.9;
+      const speckle = Math.max(0, Math.min(1, pa.speckle ?? 0.3));
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.grout);
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+        out += svgRect(c * s + gap / 2, r * s + gap / 2, s - gap, s - gap, (r + c) % 2 ? co.b : co.a);
+      }
+      const dots = Math.round(speckle * 90);
+      for (let i = 0; i < dots; i++) {
+        // Kept a pixel inside the tile: a fleck straddling the edge would be sliced in half, since
+        // the neighbouring copy starts its own field rather than continuing this one.
+        const x = 1 + trnd(i * 3.1) * (tw - 2), y = 1 + trnd(i * 7.7) * (th - 2);
+        out += `<circle cx="${px(x)}" cy="${px(y)}" r="${px(0.4 + trnd(i * 11.3) * 0.5)}" fill="${co.fleck}" opacity="${px(0.3 + speckle * 0.45)}"/>`;
       }
       return out;
     },
@@ -4091,6 +4221,18 @@ export default function AssetStudio() {
   const [box, setBox] = useState({ w: 300, h: 400 });
   const [emojis, setEmojis] = useState([]);
   const [recolorAll, setRecolorAll] = useState(false); // color swatches repaint every piece sharing the selected piece's color, across all poses + all body fits
+  // Which PALETTES row the swatches show. Two separate picks, not one: the art editor and the
+  // level painter get reached for with different jobs in mind, and each remembers its own. They
+  // read the same registry, so a palette added there appears in both pickers.
+  const [palKey, setPalKey] = useState("bob");
+  const [lPalKey, setLPalKey] = useState("terrain");
+  const pal = paletteColors(palKey), lPal = paletteColors(lPalKey);
+  // The picker itself. Rendered next to whichever swatch row it drives.
+  const palettePicker = (value, onPick) => (
+    <select className="palsel" value={value} onChange={(e) => onPick(e.target.value)} title="Swatch palette — the ＋ picker and your recent colours still reach anything else">
+      {PALETTE_KEYS.map((k) => <option key={k} value={k}>{PALETTES[k].icon + " " + PALETTES[k].label}</option>)}
+    </select>
+  );
   const palGroup = useRef({}); // skin-palette: original swatch colour -> the frozen piece group its remap is repainting
   // The piece group the block-colour controls are repainting, held across the steps of one edit —
   // see assetColorGroup for why re-resolving it every step swallows blocks it shouldn't.
@@ -9175,8 +9317,9 @@ export default function AssetStudio() {
               )}
               {lObjKind !== "prop" && <div className="lswatches">
                 {lObjKind === "emoji" && <button className={!lTint ? "orig on" : "orig"} onClick={() => setLTint(null)} title="emoji's own colors">🌈</button>}
-                {COLORS.map((c) => <button key={c} className={lTint === c ? "on" : ""} style={{ background: c }} onClick={() => setLTint(c)} />)}
-                {recent.filter((c) => !COLORS.includes(c)).slice(0, 5).map((c) => <button key={"r" + c} className={"rc" + (lTint === c ? " on" : "")} style={{ background: c }} onClick={() => setLTint(c)} />)}
+                {palettePicker(lPalKey, setLPalKey)}
+                {lPal.map((c) => <button key={c} className={lTint === c ? "on" : ""} style={{ background: c }} onClick={() => setLTint(c)} />)}
+                {recent.filter((c) => !lPal.includes(c)).slice(0, 5).map((c) => <button key={"r" + c} className={"rc" + (lTint === c ? " on" : "")} style={{ background: c }} onClick={() => setLTint(c)} />)}
                 <label className="pick"><input type="color" value={lTint || "#ffffff"} onChange={(e) => setLTint(e.target.value)} onBlur={(e) => addRecent(e.target.value)} />＋</label>
               </div>}
               <div className="seg sizeseg">{LV_OBJ_SIZES.map((n) => <button key={n} className={lObjSize === n ? "on" : ""} onClick={() => setLObjSize(n)} title={n + "x" + n + " cells"}>{n}×</button>)}</div>
@@ -9238,7 +9381,7 @@ export default function AssetStudio() {
             </>
           ) : (
             <>
-              <div className="lswatches">{LV_COLORS.map((c) => <button key={c} className={lColor === c ? "on" : ""} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}{recent.filter((c) => !LV_COLORS.includes(c)).slice(0, 5).map((c) => <button key={"r" + c} className={"rc" + (lColor === c ? " on" : "")} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}<label className="pick"><input type="color" value={lColor} onChange={(e) => { setLColor(e.target.value); setLTexId(null); setLTool("paint"); }} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
+              <div className="lswatches">{palettePicker(lPalKey, setLPalKey)}{lPal.map((c) => <button key={c} className={lColor === c ? "on" : ""} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}{recent.filter((c) => !lPal.includes(c)).slice(0, 5).map((c) => <button key={"r" + c} className={"rc" + (lColor === c ? " on" : "")} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}<label className="pick"><input type="color" value={lColor} onChange={(e) => { setLColor(e.target.value); setLTexId(null); setLTool("paint"); }} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
               <button className={"ltbtn texbtn" + (activeTexture ? " on" : "")} onClick={() => { setTexTarget("level"); setTexPick(true); }}>
                 {activeTexture ? <><span className="texchip" style={cellPaintStyle({ c: textureBaseColor(activeTexture), tex: activeTexture.id }, 0, 0, texLib)} /> {activeTexture.name}</> : <>🧱 Texture</>}
               </button>
@@ -10087,7 +10230,8 @@ export default function AssetStudio() {
                           )}
                           <div className="lswatches">
                             {o.kind !== "shape" && <button className={!o.tint ? "orig on" : "orig"} onClick={() => updateFxAt(lFxSel, i, { tint: null })} title="emoji's own colors">🌈</button>}
-                            {COLORS.map((c) => <button key={c} className={o.tint === c ? "on" : ""} style={{ background: c }} onClick={() => updateFxAt(lFxSel, i, { tint: c })} />)}
+                            {palettePicker(lPalKey, setLPalKey)}
+                            {lPal.map((c) => <button key={c} className={o.tint === c ? "on" : ""} style={{ background: c }} onClick={() => updateFxAt(lFxSel, i, { tint: c })} />)}
                           </div>
                           <div className="seg sizeseg">{LV_OBJ_SIZES.map((n) => <button key={n} className={(o.size || 1) === n ? "on" : ""} onClick={() => updateFxAt(lFxSel, i, { size: n })}>{n}×</button>)}</div>
                           {o.kind === "prop" && <label className="chk"><input type="checkbox" checked={!!o.fitArt} onChange={(e) => updateFxAt(lFxSel, i, { fitArt: e.target.checked })} /> Tight bounds around visible art</label>}
@@ -10738,14 +10882,15 @@ export default function AssetStudio() {
               {sel.kind === "emoji" ? <>
                 <div className="swatches">
                   <button className={!sel.tint ? "orig on" : "orig"} onClick={() => updSel({ tint: null })} title="keep the emoji's own colors">🌈</button>
-                  {COLORS.map((c) => <button key={c} className={sel.tint === c ? "on" : ""} style={{ background: c }} onClick={() => updSel({ tint: c })} />)}
-                  {recent.filter((c) => !COLORS.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.tint === c ? " on" : "")} style={{ background: c }} onClick={() => updSel({ tint: c })} title="recent" />)}
+                  {palettePicker(palKey, setPalKey)}
+                  {pal.map((c) => <button key={c} className={sel.tint === c ? "on" : ""} style={{ background: c }} onClick={() => updSel({ tint: c })} />)}
+                  {recent.filter((c) => !pal.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.tint === c ? " on" : "")} style={{ background: c }} onClick={() => updSel({ tint: c })} title="recent" />)}
                   <label className="pick"><input type="color" value={sel.tint || "#ffffff"} onChange={(e) => updSel({ tint: e.target.value })} onBlur={(e) => addRecent(e.target.value)} />＋</label>
                 </div>
                 
                 <button className="wide" onClick={() => setPicker({ mode: "change" })}>Change emoji ({sel.char})</button>
               </> : <>
-                <div className="swatches">{COLORS.map((c) => <button key={c} className={sel.color === c ? "on" : ""} style={{ background: c }} onClick={() => applyPieceColor(c)} />)}{recent.filter((c) => !COLORS.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.color === c ? " on" : "")} style={{ background: c }} onClick={() => applyPieceColor(c)} title="recent" />)}<label className="pick"><input type="color" value={sel.color} onChange={(e) => applyPieceColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
+                <div className="swatches">{palettePicker(palKey, setPalKey)}{pal.map((c) => <button key={c} className={sel.color === c ? "on" : ""} style={{ background: c }} onClick={() => applyPieceColor(c)} />)}{recent.filter((c) => !pal.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.color === c ? " on" : "")} style={{ background: c }} onClick={() => applyPieceColor(c)} title="recent" />)}<label className="pick"><input type="color" value={sel.color} onChange={(e) => applyPieceColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
                 {!effEdit && <label className="chk"><input type="checkbox" checked={recolorAll} onChange={(e) => setRecolorAll(e.target.checked)} /> 🪣 Change this color everywhere </label>}
                 {/* PATTERN — the same texture library the Level Creator paints walls with, applied
                     to this block instead. Flannel is the one built for cloth, but any of them work;
@@ -10847,7 +10992,11 @@ export default function AssetStudio() {
             </div>
             {drawMode === "line" && <p className="tip">📏 Line: {linePt1 ? "click the END point." : "click the START point."} <button className="ltbtn" onClick={cancelDraw}>✕ Cancel</button></p>}
             {drawMode === "fill" && <p className="tip">🪣 Fill: click points to outline the shape ({fillPts.length} so far). <button className="ltbtn" onClick={finishFill} disabled={fillPts.length < 3}>✓ Finish</button> <button className="ltbtn" onClick={cancelDraw}>✕ Cancel</button></p>}
-            <div className="newcolor"><span>New block color</span><div className="ncright">{recent.filter((c) => !COLORS.includes(c)).slice(0, 5).map((c) => <button key={"n" + c} className={"rc" + (newColor === c ? " on" : "")} style={{ background: c }} onClick={() => setNewColor(c)} title="recent" />)}<input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} /></div></div>
+            <div className="newcolor"><span>New block color</span><div className="ncright">{recent.filter((c) => !pal.includes(c)).slice(0, 5).map((c) => <button key={"n" + c} className={"rc" + (newColor === c ? " on" : "")} style={{ background: c }} onClick={() => setNewColor(c)} title="recent" />)}<input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} /></div></div>
+            {/* The palette on the ADD side too, not just on a selected block. Building a scene is
+                dozens of blocks in a handful of period colours, and setting the colour BEFORE the
+                shape lands means each one is right on arrival instead of needing a second click. */}
+            <div className="swatches newswatches">{palettePicker(palKey, setPalKey)}{pal.map((c) => <button key={"n" + c} className={newColor === c ? "on" : ""} style={{ background: c }} onClick={() => setNewColor(c)} />)}</div>
             <button className={"ltbtn" + (eyedrop ? " on" : "")} onClick={() => setEyedrop((v) => !v)} >🎨 {eyedrop ? "Click a block…" : "Eyedropper"}</button>
             {/* Turning add-mode ON keeps any group that's already held, so a stamp you just placed
                 can be extended. Turning it OFF ends the group. */}
@@ -11107,6 +11256,12 @@ const css = `
 .swatches{display:flex;flex-wrap:wrap;gap:7px}
 .swatches button{width:30px;height:30px;border-radius:8px;border:2px solid transparent;cursor:pointer}
 .swatches button.on{border-color:#fff;box-shadow:0 0 0 2px #4f7cf6}
+/* Palette picker. Full width on its own line above the swatches so switching theme never shuffles
+   the colour buttons out from under a finger mid-tap. */
+.palsel{flex:1 0 100%;background:#1f2433;border:1px solid #2c3245;border-radius:8px;color:#e7ecf5;font-size:12px;padding:5px 7px;cursor:pointer}
+.palsel:hover{border-color:#4f7cf6}
+.newswatches{margin-top:9px;gap:6px}
+.newswatches button{width:26px;height:26px;border-radius:7px}
 .palette{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
 .palchip{position:relative;display:flex;align-items:center;gap:8px;background:#1f2433;border:1px solid #2c3245;border-radius:10px;padding:6px 10px 6px 6px;cursor:pointer}
 .palchip .palsw{width:26px;height:26px;border-radius:7px;border:2px solid #3a4258;flex:0 0 auto}
@@ -11222,6 +11377,9 @@ const css = `
 .seg button{background:#171b26;border:0;padding:8px 11px;cursor:pointer;font-size:13px}
 .seg button.on{background:#3558c0;color:#fff;font-weight:600}
 .lswatches{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+/* In the level toolbar the picker sits inline — the row is already horizontal and wraps, and a
+   full-width select there would push the whole swatch strip onto its own line. */
+.lswatches .palsel{flex:0 0 auto;padding:4px 6px}
 .lswatches button{width:24px;height:24px;border-radius:7px;border:2px solid transparent;cursor:pointer}
 .lswatches button.on{border-color:#fff;box-shadow:0 0 0 2px #4f7cf6}
 .lswatches .orig{width:24px;height:24px;border-radius:7px;background:#1f2433;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;border:2px solid transparent}
