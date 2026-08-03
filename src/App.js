@@ -3043,8 +3043,58 @@ export const TEXTURES = {
       return out;
     },
   },
+  // FLANNEL — a tartan check, for cloth rather than terrain. It's the first texture built with
+  // clothing in mind (a flannel jacket), and it's in the same registry as everything else, so it
+  // paints level cells too; nothing about it is clothing-only.
+  //
+  // A real tartan is a woven sett: the same stripe sequence runs both ways, and where two stripes
+  // cross, the colour is the two threads mixed rather than whichever was drawn last. Plain opaque
+  // bands would give a flat grid with obviously-wrong junctions. Semi-transparent bands laid warp
+  // then weft do the mixing for free — the crossings come out darker and saturated exactly the way
+  // overlapping threads do — which is the whole reason this reads as cloth and not as graph paper.
+  flannel: {
+    label: "Flannel", icon: "🧣", tile: [40, 40], base: "base",
+    colors: [["base", "Ground", "#7c2b26"], ["band", "Band", "#3a1512"], ["over", "Overcheck", "#e0c98a"]],
+    // Sett = how wide the check is. Low is a fine shirting check, high is a big lumberjack block.
+    params: [{ key: "sett", label: "Check size", min: 0.5, max: 1.6, step: 0.05, def: 1 }],
+    svg: (co, _t, pa) => {
+      const tw = 40, th = 40, sett = Math.max(0.5, Math.min(1.6, pa.sett ?? 1));
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.base);
+      // Offsets are fractions of the tile, so the sett scales without ever breaking the repeat.
+      const wide = 11 * sett, thin = 3 * sett;
+      const bands = [[0.06, wide], [0.55, wide]];      // the two broad bands of the sett
+      const overs = [[0.36, thin], [0.85, thin]];      // the thin overcheck that crosses them
+      const stripe = (x, w, fill, op, vertical) => vertical
+        ? svgRect(x, -2, w, th + 4, fill, ` opacity="${px(op)}"`)
+        : svgRect(-2, x, tw + 4, w, fill, ` opacity="${px(op)}"`);
+      // Warp (vertical) then weft (horizontal), same sequence both ways — that repetition IS the
+      // sett, and laying them in this order is what mixes the crossings.
+      for (const vertical of [true, false]) {
+        for (const [f, w] of bands) out += stripe(f * tw, w, co.band, 0.5, vertical);
+        for (const [f, w] of overs) out += stripe(f * tw, w, co.over, 0.4, vertical);
+      }
+      return out;
+    },
+  },
 };
 export const TEXTURE_KEYS = Object.keys(TEXTURES);
+// A texture painted onto an ART PIECE (a jacket panel, a sleeve) rather than a level cell. The
+// pattern tile is measured in DESIGN-CANVAS units, not screen pixels, and converted to a
+// percentage of the piece's own box — so the weave scales with the garment and looks identical in
+// the editor's big canvas and at playtest size. A level cell can't do this (its tiles anchor to
+// world position so a brick wall runs unbroken across many cells); a piece of clothing has the
+// opposite requirement, since it moves and rotates with the limb it's drawn on.
+export const pieceTextureStyle = (piece, texLib) => {
+  const t = resolveTexture(texLib, piece && piece.tex);
+  if (!t || !TEXTURES[t.tex]) return null;   // no texture, or one that's since been deleted -> the piece keeps its plain colour
+  const [tw, th] = TEXTURES[t.tex].tile;
+  const w = Math.max(1, (piece && piece.w) || 1), h = Math.max(1, (piece && piece.h) || 1);
+  return {
+    backgroundColor: textureBaseColor(t),
+    backgroundImage: textureDataUri(t),
+    backgroundSize: px(tw / w * 100) + "% " + px(th / h * 100) + "%",
+  };
+};
 // A brand-new instance of a pattern, with every color/param at its default.
 export const newTexture = (texKey) => {
   const key = TEXTURES[texKey] ? texKey : "brick"; // an unknown pattern must not produce a cell that renders as nothing
@@ -3978,6 +4028,10 @@ export default function AssetStudio() {
   const [lTexId, setLTexId] = useState(null);        // texture the paint tool is currently painting with; null = plain color, exactly as before
   const [texPick, setTexPick] = useState(false);     // texture picker modal open
   const [texEdit, setTexEdit] = useState(null);      // texture instance being created/edited in the texture creator; null = closed
+  // Which screen opened the texture picker/editor, and therefore what picking one paints: the
+  // level brush, or the art block selected in the asset creator. One library and one set of
+  // modals serve both — a Flannel made for a jacket is the same texture a wall can use.
+  const [texTarget, setTexTarget] = useState("level");
   // The texture every paint/fill/ramp stroke uses right now. null = plain color (the old behavior,
   // unchanged). Derived rather than stored so deleting a texture can never leave the brush
   // pointing at something that no longer exists.
@@ -7168,6 +7222,14 @@ export default function AssetStudio() {
     // (see cutterMaskCss, applied at every finished-look render site: Dress Bob, Playtest player,
     // Playtest enemies) — so a cutter piece itself should paint no color of its own anywhere.
     if (p.kind !== "emoji" && p.kind !== "text" && !p.isCutter) s.background = p.color;
+    // A patterned piece (Flannel and every other texture) paints the pattern over that flat colour,
+    // inside the same clip-path, so a plaid sleeve keeps its exact silhouette. Applied here rather
+    // than at each render site because this one function is what every one of them draws through —
+    // editor canvas, Dress Bob, the playtest player and enemies all pick it up together.
+    if (p.tex && p.kind !== "emoji" && p.kind !== "text" && !p.isCutter && !p.isHitbox && !p.isMuzzle) {
+      const ts = pieceTextureStyle(p, texLib);
+      if (ts) Object.assign(s, ts);
+    }
     // A hitbox piece is a game-logic box, not art — always shown this way regardless of its
     // own color/kind, so it reads unmistakably differently from every other piece while editing.
     if (p.isHitbox) { s.background = "rgba(255,60,60,.32)"; s.border = "2px dashed #ff3c3c"; s.boxShadow = "none"; }
@@ -7678,11 +7740,15 @@ export default function AssetStudio() {
     flash("Restored " + n + " asset(s) from the backup ✓");
   };
 
-  const start = (type, slot, wtype) => { setAsset(newAsset(type, slot, wtype)); setAngle(type === "weapon" || type === "enemy" ? "side" : "front"); setSelId(null); setWState("rest"); setEState("normal"); setEffEdit(null); setPoseCopySrc(null); setPropFrame(0); setEyedrop(false); resetHistory(); dirtyGuides.current = new Set(); setScreen("editor"); };
+  // loadTextures() here as well as in the level creator: pieces can be painted with a texture now
+  // (Flannel and friends), so the library has to be in hand before the editor draws anything —
+  // otherwise an already-textured jacket opens as flat colour until you happen to visit a level.
+  const start = (type, slot, wtype) => { loadTextures(); setAsset(newAsset(type, slot, wtype)); setAngle(type === "weapon" || type === "enemy" ? "side" : "front"); setSelId(null); setWState("rest"); setEState("normal"); setEffEdit(null); setPoseCopySrc(null); setPropFrame(0); setEyedrop(false); resetHistory(); dirtyGuides.current = new Set(); setScreen("editor"); };
   // Dressed characters are baked composites — the piece editor has no concept of them and
   // used to white-screen (TYPES["character"] is undefined). View them in Dress Bob instead.
   const openAsset = (a) => {
     setConfirmDel(null);
+    loadTextures(); // same reason as start(): a textured piece must have its pattern available on open
     if (a.type === "character") { openDressedLook(a); setAAngle("front"); setScreen("assemble"); flash("Viewing \"" + a.name + "\" — dressed looks open in Dress Bob."); return; }
     setAsset(migrate(JSON.parse(JSON.stringify(a)))); setAngle(a.type === "weapon" || a.type === "enemy" ? "side" : "front"); setSelId(null); setWState("rest"); setEState("normal"); setEffEdit(null); setPoseCopySrc(null); setPropFrame(0); setEyedrop(false); resetHistory(); dirtyGuides.current = new Set(); setScreen("editor");
   };
@@ -7930,14 +7996,24 @@ export default function AssetStudio() {
       setTexLib(full);
     } catch { setTexLib([]); }
   };
-  const saveTexture = async (t) => {
+  // `applyTo` says what a freshly saved texture should start painting. "level" (the default, and
+  // every pre-existing caller) arms the level brush exactly as before; "piece" instead paints the
+  // art block you have selected in the creator, which is what makes a flannel jacket a two-click
+  // job rather than "save it, go to a level, come back". The texture itself is identical either
+  // way — one library, one storage entry, usable from both screens.
+  const saveTexture = async (t, applyTo) => {
     if (!TEXTURES[t.tex]) { flash("Unknown texture pattern."); return null; }
     const clean = { ...t, name: (t.name || "").trim() || TEXTURES[t.tex].label };
     let list = []; const idx = await sget("textureIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     const ok1 = await sset("texture:" + clean.id, JSON.stringify(clean));
     list = list.filter((x) => x.id !== clean.id); list.push({ id: clean.id, name: clean.name });
     const ok2 = await sset("textureIndex", JSON.stringify(list));
-    if (ok1 && ok2) { await loadTextures(); setTexEdit(null); setLTexId(clean.id); setLTool("paint"); flash("Texture \"" + clean.name + "\" saved ✓ — painting with it now."); return clean; }
+    if (ok1 && ok2) {
+      await loadTextures(); setTexEdit(null);
+      if (applyTo === "piece") { updSel({ tex: clean.id }); flash("Texture \"" + clean.name + "\" saved ✓ — on this block now."); }
+      else { setLTexId(clean.id); setLTool("paint"); flash("Texture \"" + clean.name + "\" saved ✓ — painting with it now."); }
+      return clean;
+    }
     flash("Couldn't save the texture here."); return null;
   };
   const useGrassTexture = async () => {
@@ -8272,6 +8348,104 @@ export default function AssetStudio() {
   };
   const runGenerate = () => { const chain = generateChain(allLevels, 8); if (chain.length < 1) { flash("Make/save a couple of levels with matching open connectors first."); return; } setGen(chain); flash("Generated a chain of " + chain.length); };
 
+  // The texture picker and the texture creator, built ONCE and rendered by both the Level Creator
+  // and the asset creator. They used to live inside the level screen's markup, which is why a
+  // pattern was a level-only idea; a jacket needs the same two dialogs, and duplicating them would
+  // guarantee the two copies drift. `texTarget` is the only difference between the two callers:
+  // it decides whether picking a texture arms the level brush or paints the selected art block.
+  const applyTextureToTarget = (t) => {
+    if (texTarget === "piece") { updSel({ tex: t.id }); flash("\"" + t.name + "\" on this block 🧵"); }
+    else { setLTexId(t.id); setLTool("paint"); flash("Painting with \"" + t.name + "\" 🧱"); }
+    setTexPick(false);
+  };
+  const textureModals = (
+    <>
+      {texPick && (
+        <div className="modal" onClick={() => setTexPick(false)}>
+          <div className="dlg wide3" onClick={(e) => e.stopPropagation()}>
+            <div className="dt">🧱 Textures <span className="emcount">{texTarget === "piece" ? "paint a repeating pattern over this block instead of a flat color" : "paint a repeating pattern instead of a flat color"}</span></div>
+            {texTarget !== "piece" && <div className="row2 grassQuick"><button onClick={useGrassTexture}>🌱 Use Grass now</button></div>}
+            {texLib.length === 0 && <p className="mini">No textures yet.</p>}
+            <div className="texgrid">
+              {texLib.map((t) => (
+                <div key={t.id} className="texcardwrap">
+                  <button className={"texcard" + ((texTarget === "piece" ? (sel && sel.tex) : lTexId) === t.id ? " on" : "")} onClick={() => applyTextureToTarget(t)}>
+                    <span className="texprev" style={cellPaintStyle({ c: textureBaseColor(t), tex: t.id }, 0, 0, texLib)} />
+                    <span className="sn">{t.name}</span>
+                    <span className="sty">{TEXTURES[t.tex] ? TEXTURES[t.tex].icon + " " + TEXTURES[t.tex].label : t.tex}</span>
+                  </button>
+                  <button className="sdel" onClick={() => { setTexEdit(JSON.parse(JSON.stringify(t))); setTexPick(false); }}>✎</button>
+                </div>
+              ))}
+            </div>
+            <div className="ct2">New texture</div>
+            <div className="texgrid">
+              {TEXTURE_KEYS.map((k) => (
+                <button key={k} className="texcard" onClick={() => { setTexEdit(newTexture(k)); setTexPick(false); }}>
+                  <span className="texprev" style={cellPaintStyle({ c: "#000", tex: "__preview_" + k }, 0, 0, [{ id: "__preview_" + k, tex: k, colors: Object.fromEntries(TEXTURES[k].colors.map(([ck, , d]) => [ck, d])), params: Object.fromEntries((TEXTURES[k].params || []).map((p) => [p.key, p.def])) }])} />
+                  <span className="sn">＋ {TEXTURES[k].label}</span>
+                  <span className="sty">{TEXTURES[k].icon} pick its colors</span>
+                </button>
+              ))}
+            </div>
+            <div className="row2">
+              {texTarget === "piece"
+                ? (sel && sel.tex && <button onClick={() => { updSel({ tex: null }); setTexPick(false); }}>✕ Plain color</button>)
+                : (activeTexture && <button onClick={() => { setLTexId(null); setTexPick(false); }}>✕ Paint plain colors</button>)}
+              <button onClick={() => setTexPick(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {texEdit && (() => {
+        const def = TEXTURES[texEdit.tex];
+        const previewLib = [texEdit]; // preview straight off the in-progress instance, not the saved library
+        const set = (fn) => setTexEdit((t) => fn({ ...t }));
+        const saved = texLib.some((t) => t.id === texEdit.id);
+        return (
+          <div className="modal" onClick={() => setTexEdit(null)}>
+            <div className="dlg wide3" onClick={(e) => e.stopPropagation()}>
+              <div className="dt">{def.icon} {saved ? "Edit" : "New"} texture</div>
+              <div className="texeditrow">
+                <div className="texbigprev" style={cellPaintStyle({ c: textureBaseColor(texEdit), tex: texEdit.id }, 0, 0, previewLib)} />
+                <div className="texeditcol">
+                  <input className="namefield" value={texEdit.name} onChange={(e) => set((t) => ({ ...t, name: e.target.value }))} placeholder={def.label} />
+                  <div className="ct2">Pattern</div>
+                  <div className="seg texseg">
+                    {TEXTURE_KEYS.map((k) => (
+                      // Switching pattern keeps the id and name, so an edit stays the same texture
+                      // and every cell already painted with it just re-renders in the new pattern.
+                      <button key={k} className={texEdit.tex === k ? "on" : ""} onClick={() => set((t) => ({ ...newTexture(k), id: t.id, name: t.name }))}>{TEXTURES[k].icon} {TEXTURES[k].label}</button>
+                    ))}
+                  </div>
+                  <div className="ct2">Colors</div>
+                  {def.colors.map(([key, label]) => (
+                    <label className="slider" key={key}>{label}
+                      <input type="color" className="gc" value={texEdit.colors[key]} onChange={(e) => set((t) => ({ ...t, colors: { ...t.colors, [key]: e.target.value } }))} onBlur={(e) => addRecent(e.target.value)} />
+                      <span className="hint2">{texEdit.colors[key]}</span>
+                    </label>
+                  ))}
+                  {(def.params || []).length > 0 && <div className="ct2">Wear</div>}
+                  {(def.params || []).map((pm) => (
+                    <label className="slider" key={pm.key}>{pm.label}
+                      <input type="range" min={pm.min} max={pm.max} step={pm.step} value={texEdit.params[pm.key] ?? pm.def} onChange={(e) => set((t) => ({ ...t, params: { ...t.params, [pm.key]: +e.target.value } }))} />
+                      <span className="hint2">{Math.round((texEdit.params[pm.key] ?? pm.def) * 100)}%</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="row2">
+                <button onClick={() => saveTexture(texEdit, texTarget)}>💾 {saved ? "Save changes" : (texTarget === "piece" ? "Save & use it here" : "Save & paint with it")}</button>
+                {saved && <button className="danger" onClick={() => deleteTexture(texEdit.id)}>🗑 Delete</button>}
+                <button onClick={() => setTexEdit(null)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </>
+  );
 
   /* ====================================================================== */
   if (screen === "menu") {
@@ -8285,7 +8459,9 @@ export default function AssetStudio() {
             <button className="tile" onClick={() => setWtypeChoice(true)}><span className="ti">{TYPES.weapon.icon}</span><span className="tl">{TYPES.weapon.label}</span></button>
             <button className="tile" onClick={() => start("enemy")}><span className="ti">{TYPES.enemy.icon}</span><span className="tl">{TYPES.enemy.label}</span></button>
             <button className="tile" onClick={() => setPropItemChoice(true)}><span className="ti">🌿</span><span className="tl">Object / Prop / Item</span></button>
-            <button className="tile dress" onClick={() => setScreen("assemble")}><span className="ti">🧩</span><span className="tl">Dress Bob</span></button>
+            {/* loadTextures for the same reason the creators do it: a patterned garment has to
+                have its pattern in hand here too, or a flannel jacket dresses on as flat colour. */}
+            <button className="tile dress" onClick={() => { loadTextures(); setScreen("assemble"); }}><span className="ti">🧩</span><span className="tl">Dress Bob</span></button>
             <button className="tile lvl" onClick={openLevelCreator}><span className="ti">🗺️</span><span className="tl">Level Creator</span></button>
             <button className="tile lvl" onClick={openRoomCreator}><span className="ti">🚪</span><span className="tl">Room Creator</span></button>
           </div>
@@ -8949,7 +9125,7 @@ export default function AssetStudio() {
           ) : (
             <>
               <div className="lswatches">{LV_COLORS.map((c) => <button key={c} className={lColor === c ? "on" : ""} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}{recent.filter((c) => !LV_COLORS.includes(c)).slice(0, 5).map((c) => <button key={"r" + c} className={"rc" + (lColor === c ? " on" : "")} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}<label className="pick"><input type="color" value={lColor} onChange={(e) => { setLColor(e.target.value); setLTexId(null); setLTool("paint"); }} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
-              <button className={"ltbtn texbtn" + (activeTexture ? " on" : "")} onClick={() => setTexPick(true)}>
+              <button className={"ltbtn texbtn" + (activeTexture ? " on" : "")} onClick={() => { setTexTarget("level"); setTexPick(true); }}>
                 {activeTexture ? <><span className="texchip" style={cellPaintStyle({ c: textureBaseColor(activeTexture), tex: activeTexture.id }, 0, 0, texLib)} /> {activeTexture.name}</> : <>🧱 Texture</>}
               </button>
               {activeTexture && <><button className={"ltbtn" + (lTool === "paint" ? " on" : "")} onClick={() => setLTool("paint")}>🖌 Texture paint</button>{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={"ltbtn" + (lTool === "fill" ? " on" : "")} onClick={() => setLTool("fill")}>🪣 Fill matching color</button>}<button className="ltbtn" onClick={() => setLTexId(null)}>✕ Plain color</button></>}
@@ -9904,85 +10080,7 @@ export default function AssetStudio() {
           </div>
         )}
 
-        {texPick && (
-          <div className="modal" onClick={() => setTexPick(false)}>
-            <div className="dlg wide3" onClick={(e) => e.stopPropagation()}>
-              <div className="dt">🧱 Textures <span className="emcount">paint a repeating pattern instead of a flat color</span></div>
-              <div className="row2 grassQuick"><button onClick={useGrassTexture}>🌱 Use Grass now</button></div>
-              {texLib.length === 0 && <p className="mini">No textures yet.</p>}
-              <div className="texgrid">
-                {texLib.map((t) => (
-                  <div key={t.id} className="texcardwrap">
-                    <button className={"texcard" + (lTexId === t.id ? " on" : "")} onClick={() => { setLTexId(t.id); setLTool("paint"); setTexPick(false); flash("Painting with \"" + t.name + "\" 🧱"); }}>
-                      <span className="texprev" style={cellPaintStyle({ c: textureBaseColor(t), tex: t.id }, 0, 0, texLib)} />
-                      <span className="sn">{t.name}</span>
-                      <span className="sty">{TEXTURES[t.tex] ? TEXTURES[t.tex].icon + " " + TEXTURES[t.tex].label : t.tex}</span>
-                    </button>
-                    <button className="sdel" onClick={() => { setTexEdit(JSON.parse(JSON.stringify(t))); setTexPick(false); }}>✎</button>
-                  </div>
-                ))}
-              </div>
-              <div className="ct2">New texture</div>
-              <div className="texgrid">
-                {TEXTURE_KEYS.map((k) => (
-                  <button key={k} className="texcard" onClick={() => { setTexEdit(newTexture(k)); setTexPick(false); }}>
-                    <span className="texprev" style={cellPaintStyle({ c: "#000", tex: "__preview_" + k }, 0, 0, [{ id: "__preview_" + k, tex: k, colors: Object.fromEntries(TEXTURES[k].colors.map(([ck, , d]) => [ck, d])), params: Object.fromEntries((TEXTURES[k].params || []).map((p) => [p.key, p.def])) }])} />
-                    <span className="sn">＋ {TEXTURES[k].label}</span>
-                    <span className="sty">{TEXTURES[k].icon} pick its colors</span>
-                  </button>
-                ))}
-              </div>
-              <div className="row2">{activeTexture && <button onClick={() => { setLTexId(null); setTexPick(false); }}>✕ Paint plain colors</button>}<button onClick={() => setTexPick(false)}>Close</button></div>
-            </div>
-          </div>
-        )}
-
-        {texEdit && (() => {
-          const def = TEXTURES[texEdit.tex];
-          const previewLib = [texEdit]; // preview straight off the in-progress instance, not the saved library
-          const set = (fn) => setTexEdit((t) => fn({ ...t }));
-          const saved = texLib.some((t) => t.id === texEdit.id);
-          return (
-            <div className="modal" onClick={() => setTexEdit(null)}>
-              <div className="dlg wide3" onClick={(e) => e.stopPropagation()}>
-                <div className="dt">{def.icon} {saved ? "Edit" : "New"} texture</div>
-                <div className="texeditrow">
-                  <div className="texbigprev" style={cellPaintStyle({ c: textureBaseColor(texEdit), tex: texEdit.id }, 0, 0, previewLib)} />
-                  <div className="texeditcol">
-                    <input className="namefield" value={texEdit.name} onChange={(e) => set((t) => ({ ...t, name: e.target.value }))} placeholder={def.label} />
-                    <div className="ct2">Pattern</div>
-                    <div className="seg texseg">
-                      {TEXTURE_KEYS.map((k) => (
-                        // Switching pattern keeps the id and name, so an edit stays the same texture
-                        // and every cell already painted with it just re-renders in the new pattern.
-                        <button key={k} className={texEdit.tex === k ? "on" : ""} onClick={() => set((t) => ({ ...newTexture(k), id: t.id, name: t.name }))}>{TEXTURES[k].icon} {TEXTURES[k].label}</button>
-                      ))}
-                    </div>
-                    <div className="ct2">Colors</div>
-                    {def.colors.map(([key, label]) => (
-                      <label className="slider" key={key}>{label}
-                        <input type="color" className="gc" value={texEdit.colors[key]} onChange={(e) => set((t) => ({ ...t, colors: { ...t.colors, [key]: e.target.value } }))} onBlur={(e) => addRecent(e.target.value)} />
-                        <span className="hint2">{texEdit.colors[key]}</span>
-                      </label>
-                    ))}
-                    {(def.params || []).length > 0 && <div className="ct2">Wear</div>}
-                    {(def.params || []).map((pm) => (
-                      <label className="slider" key={pm.key}>{pm.label}
-                        <input type="range" min={pm.min} max={pm.max} step={pm.step} value={texEdit.params[pm.key] ?? pm.def} onChange={(e) => set((t) => ({ ...t, params: { ...t.params, [pm.key]: +e.target.value } }))} />
-                        <span className="hint2">{Math.round((texEdit.params[pm.key] ?? pm.def) * 100)}%</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="row2">
-                  <button onClick={() => saveTexture(texEdit)}>💾 {saved ? "Save changes" : "Save & paint with it"}</button>
-                  {saved && <button className="danger" onClick={() => deleteTexture(texEdit.id)}>🗑 Delete</button>}
-                  <button onClick={() => setTexEdit(null)}>Cancel</button>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+        {textureModals}
 
         {gen && (
           <div className="modal" onClick={() => setGen(null)}>
@@ -10535,6 +10633,16 @@ export default function AssetStudio() {
               </> : <>
                 <div className="swatches">{COLORS.map((c) => <button key={c} className={sel.color === c ? "on" : ""} style={{ background: c }} onClick={() => applyPieceColor(c)} />)}{recent.filter((c) => !COLORS.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.color === c ? " on" : "")} style={{ background: c }} onClick={() => applyPieceColor(c)} title="recent" />)}<label className="pick"><input type="color" value={sel.color} onChange={(e) => applyPieceColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
                 {!effEdit && <label className="chk"><input type="checkbox" checked={recolorAll} onChange={(e) => setRecolorAll(e.target.checked)} /> 🪣 Change this color everywhere </label>}
+                {/* PATTERN — the same texture library the Level Creator paints walls with, applied
+                    to this block instead. Flannel is the one built for cloth, but any of them work;
+                    the flat colour above stays underneath as the base, so a deleted texture leaves
+                    the block looking exactly as it did before it was patterned. */}
+                <div className="piecetex">
+                  <button className={"ltbtn" + (sel.tex ? " on" : "")} onClick={() => { setTexTarget("piece"); setTexPick(true); }}>
+                    {(() => { const t = resolveTexture(texLib, sel.tex); return t ? <><span className="texchip" style={cellPaintStyle({ c: textureBaseColor(t), tex: t.id }, 0, 0, texLib)} /> {t.name}</> : <>🧵 Pattern</>; })()}
+                  </button>
+                  {sel.tex && <button className="ltbtn" onClick={() => updSel({ tex: null })}>✕ Plain</button>}
+                </div>
               </>}
               <button className="ltbtn" onClick={() => updSel(sel.kind === "emoji" ? { tint: newColor, fx: { ...newFx } } : { color: newColor, fx: { ...newFx } })} >🎨 Apply picked color + fx</button>
               <label className="chk outlinechk"><input type="checkbox" checked={!!sel.outline} onChange={(e) => updSel({ outline: e.target.checked, outlineFx: sel.outlineFx || defaultFx() })} /> 🖍 Outline </label>
@@ -10744,6 +10852,7 @@ export default function AssetStudio() {
           </div>
         </div>
       )}
+      {textureModals}
       {toast && <div className="toast">{toast}</div>}
     </div>
   );
@@ -10906,6 +11015,8 @@ const css = `
 .rotbtn{flex:none;width:30px;height:26px;border:1px solid #2c3245;border-radius:7px;background:#1f2433;cursor:pointer;font-size:15px;line-height:1}
 .rotbtn:hover{border-color:#4f7cf6}
 .rotbtn.on{background:#2c4a8a;border-color:#4f7cf6}
+.piecetex{display:flex;gap:6px;align-items:center;margin:6px 0 2px}
+.piecetex .ltbtn{display:inline-flex;align-items:center;gap:6px}
 .chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:#cdd3df}
 .outlinechk{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:8px 10px;margin-top:12px}
 .outlinefx{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:8px 10px;margin-top:6px}

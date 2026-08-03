@@ -44,6 +44,7 @@ import {
   TEXTURES,
   TEXTURE_KEYS,
   newTexture,
+  pieceTextureStyle,
   textureBaseColor,
   textureDataUri,
   CLUSTER_POP_VY,
@@ -842,6 +843,57 @@ describe("grass texture", () => {
       const recoloured = { ...base, colors: { ...base.colors, [key]: "#ff00ff" } };
       expect(textureDataUri(recoloured)).not.toBe(textureDataUri(base));
     }
+  });
+});
+
+describe("flannel texture", () => {
+  test("is registered, so both the level and the piece pickers offer it", () => {
+    expect(TEXTURE_KEYS).toContain("flannel");
+    expect(TEXTURES.flannel.label).toBe("Flannel");
+    expect(newTexture("flannel").tex).toBe("flannel");
+  });
+
+  test("weaves the same stripe sequence both ways, so the crossings mix instead of overwriting", () => {
+    // A tartan is a sett: the identical warp and weft. Semi-transparent bands are what make a
+    // crossing read as two threads over each other rather than whichever was drawn last.
+    const t = newTexture("flannel");
+    const svg = TEXTURES.flannel.svg(t.colors, TEXTURES.flannel.tile, t.params);
+    // Full-tile spans: 40 wide plus 2 of bleed either side. Both counts include the ground rect,
+    // which is 44x44 — what matters is that they MATCH, i.e. warp and weft are the same sequence.
+    const verticals = (svg.match(/height="44"/g) || []).length;
+    const horizontals = (svg.match(/width="44"/g) || []).length;
+    expect(verticals).toBe(horizontals);
+    expect(verticals).toBe(5);                     // 2 broad bands + 2 overcheck lines + the shared ground
+    expect((svg.match(/opacity="0\.5"/g) || []).length).toBe(4);   // the broad bands, 2 each way, blended not opaque
+    expect((svg.match(/opacity="0\.4"/g) || []).length).toBe(4);   // the overcheck, likewise
+  });
+
+  test("the check size param really changes the weave", () => {
+    const t = newTexture("flannel");
+    const fine = TEXTURES.flannel.svg(t.colors, TEXTURES.flannel.tile, { sett: 0.5 });
+    const bold = TEXTURES.flannel.svg(t.colors, TEXTURES.flannel.tile, { sett: 1.6 });
+    expect(fine).not.toBe(bold);
+  });
+});
+
+describe("a texture painted on an art piece", () => {
+  const lib = [{ id: "fl-1", name: "Red flannel", tex: "flannel", colors: { base: "#7c2b26", band: "#3a1512", over: "#e0c98a" }, params: { sett: 1 } }];
+
+  test("scales the pattern to the piece, so it looks the same in the editor and at playtest size", () => {
+    // Sized as a PERCENTAGE of the piece's own box, not in screen pixels — a jacket panel and the
+    // same panel drawn small in a level must show the same size of check.
+    const big = pieceTextureStyle({ w: 80, h: 100, tex: "fl-1" }, lib);
+    const small = pieceTextureStyle({ w: 40, h: 50, tex: "fl-1" }, lib);
+    expect(big.backgroundSize).toBe("50% 40%");    // a 40x40 tile across an 80x100 piece
+    expect(small.backgroundSize).toBe("100% 80%"); // half the piece, so twice the percentage — same check on screen
+    expect(big.backgroundImage).toContain("data:image/svg+xml");
+    expect(big.backgroundColor).toBe("#7c2b26");
+  });
+
+  test("a piece with no texture, or one whose texture was deleted, keeps its plain colour", () => {
+    expect(pieceTextureStyle({ w: 10, h: 10 }, lib)).toBe(null);
+    expect(pieceTextureStyle({ w: 10, h: 10, tex: "gone" }, lib)).toBe(null);
+    expect(pieceTextureStyle({ w: 10, h: 10, tex: "fl-1" }, [])).toBe(null);
   });
 });
 
