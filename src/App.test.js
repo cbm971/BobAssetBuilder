@@ -94,6 +94,9 @@ import {
   restyleAssetGroup,
   editSnapshot,
   readEditSnapshot,
+  stadiumRadius,
+  SHAPE_POINTS,
+  flipPiecesHorizontally,
   projectileDropAtDistance,
   projectilePositionAtDistance,
   rangeBoostMultiplier,
@@ -490,6 +493,44 @@ describe("creator shape picker", () => {
     expect(SHAPE_LIST.filter(([kind]) => kind === "roundrect")).toEqual([
       ["roundrect", "▣", "Rounded square"],
     ]);
+  });
+
+  test("offers an Oval, next to the Circle it is not", () => {
+    expect(SHAPE_LIST.filter(([kind]) => kind === "stadium")).toEqual([["stadium", "⬭", "Oval"]]);
+    const kinds = SHAPE_LIST.map(([k]) => k);
+    expect(kinds.indexOf("stadium")).toBe(kinds.indexOf("circle") + 1);
+  });
+});
+
+describe("the Oval's ends stay round however far it is stretched", () => {
+  test("a wide block caps on its height — half circles left and right, straight top and bottom", () => {
+    expect(stadiumRadius(120, 40)).toBe(20);
+  });
+
+  test("a tall block caps on its width instead", () => {
+    expect(stadiumRadius(40, 120)).toBe(20);
+  });
+
+  test("a square block is all cap and no middle — a circle, correctly", () => {
+    expect(stadiumRadius(60, 60)).toBe(30);
+  });
+
+  // The reason it can't be a SHAPE_POINTS polygon: those are fractions of the block's own box, so
+  // stretching the block stretches the caps into an ellipse — the exact thing an Oval is not.
+  test("it is deliberately NOT a normalized polygon shape", () => {
+    expect(SHAPE_POINTS.stadium).toBeUndefined();
+  });
+
+  test("a missing or negative size can't produce a broken radius", () => {
+    expect(stadiumRadius(undefined, 40)).toBe(0);
+    expect(stadiumRadius(-10, 40)).toBe(0);
+    expect(stadiumRadius(0, 0)).toBe(0);
+  });
+
+  test("mirroring one leaves it an Oval — it is its own mirror image", () => {
+    const [q] = flipPiecesHorizontally([{ id: "o", kind: "stadium", x: 10, y: 0, w: 60, h: 20 }], 50);
+    expect(q.kind).toBe("stadium");
+    expect(q.points).toBeUndefined();
   });
 });
 

@@ -3530,8 +3530,8 @@ export const hazardDpsAt = (lv, x, y, pw, ph, CW, CH, alive) => {
 // (shapeStyle), the outline (outlineStyle), and the cutter SVG mask (cutterMaskCss) — adding a
 // new polygon shape only ever means adding one entry here instead of keeping three separate
 // implementations (CSS clip-path %, SVG mask pixels, outline clip-path %) in sync by hand.
-// "circle", "roundrect", and "rect" aren't here — they use borderRadius/plain rect instead of
-// clip-path.
+// "circle", "roundrect", "stadium" and "rect" aren't here — they use borderRadius/plain rect
+// instead of clip-path, and the stadium specifically CANNOT live here; see stadiumRadius.
 // A half circle can't be a border-radius (that only rounds corners of the box) — but every
 // "normal circle effect" the piece editor offers (outline ring, glow/brightness, cutter hole,
 // eyedropper, resize, rotate) is already driven off SHAPE_POINTS for polygon shapes, so a
@@ -3549,6 +3549,25 @@ export const SHAPE_POINTS = {
   star: [[0.5, 0], [0.61, 0.35], [0.98, 0.35], [0.68, 0.57], [0.79, 0.91], [0.5, 0.7], [0.21, 0.91], [0.32, 0.57], [0.02, 0.35], [0.39, 0.35]],
   trapezoid: [[0.2, 0], [0.8, 0], [1, 1], [0, 1]],
 };
+// The OVAL ("stadium"): a rectangle capped by a true SEMICIRCLE at each end — round ends with
+// genuinely straight sides between them. Stretching a Circle can't produce this and never will:
+// that gives an ellipse, which curves along its whole outline and has no straight section at all.
+//
+// It also cannot be a SHAPE_POINTS entry, for the same underlying reason. Those points are
+// fractions of the block's own box, so a non-square block stretches them along with it — the caps
+// would come out elliptical again the moment the shape was any longer than it is tall, which is
+// precisely the case it exists for.
+//
+// The cap radius is therefore measured in REAL units, off the SHORT side: half of it, so the two
+// caps are exact half-circles and whatever length is left over in the middle is straight. A block
+// that happens to be square is a circle, correctly — it is all cap and no middle.
+//
+// CSS gets there on its own: `border-radius: 9999px` overflows every side, and the spec then
+// scales all four radii down by one shared factor until they fit, which lands them at exactly
+// min(w,h)/2. The SVG paths (cutter mask, selection outline) have no such rule and are handed the
+// radius directly, which is what this function is for.
+export const stadiumRadius = (w, h) => Math.max(0, Math.min(w || 0, h || 0)) / 2;
+export const STADIUM_CSS_RADIUS = "9999px";
 // Which asset a composed piece came from. Looks saved before _src existed still carry _slot
 // (one asset per slot, so it identifies the garment just as well) and _isWeapon; anything left
 // over is body/skin art.
@@ -3811,7 +3830,7 @@ export const flipPropFramesHorizontally = (frames, liveAngles, currentIndex) => 
   return { frames: flipped, angles: flipped[idx], flipped: true, pivotX };
 };
 export const SHAPE_LIST = [
-  ["rect", "▮", "Square"], ["roundrect", "▣", "Rounded square"], ["circle", "●", "Circle"], ["halfcircle", "◓", "Half circle"], ["tri", "▲", "Triangle"], ["tri2", "◺", "Half triangle"],
+  ["rect", "▮", "Square"], ["roundrect", "▣", "Rounded square"], ["circle", "●", "Circle"], ["stadium", "⬭", "Oval"], ["halfcircle", "◓", "Half circle"], ["tri", "▲", "Triangle"], ["tri2", "◺", "Half triangle"],
   ["diamond", "◆", "Diamond"], ["pentagon", "⬠", "Pentagon"], ["hexagon", "⬡", "Hexagon"], ["star", "★", "Star"], ["trapezoid", "⏢", "Trapezoid"],
 ];
 export const levelShapeLabel = (shape) => ({
@@ -7510,6 +7529,7 @@ export default function AssetStudio() {
     const s = { width: "100%", height: "100%", boxSizing: "border-box" };
     if (p.kind === "circle") s.borderRadius = "50%";
     else if (p.kind === "roundrect") s.borderRadius = "22%";
+    else if (p.kind === "stadium") s.borderRadius = STADIUM_CSS_RADIUS; // see stadiumRadius — CSS clamps this to exact half-circle caps
     else { const cp = shapeClipPath(p); if (cp) s.clipPath = cp; }
     // A cutter punches a transparent hole through whatever renders before it (eye sockets, a
     // buttonhole, a belt buckle gap) instead of adding its own color. This used to be attempted
@@ -7586,7 +7606,7 @@ export default function AssetStudio() {
     const oc = p.outlineColor || "#000";
     const cp = shapeClipPath(p);
     if (cp) { s.clipPath = cp; s.background = oc; }
-    else { if (p.kind === "circle") s.borderRadius = "50%"; else if (p.kind === "roundrect") s.borderRadius = "22%"; s.boxShadow = "0 0 0 2px " + oc; }
+    else { if (p.kind === "circle") s.borderRadius = "50%"; else if (p.kind === "roundrect") s.borderRadius = "22%"; else if (p.kind === "stadium") s.borderRadius = STADIUM_CSS_RADIUS; s.boxShadow = "0 0 0 2px " + oc; }
     return s;
   };
   // Builds a CSS mask-image for a CONTAINER that hosts a finished (non-editable) render of
@@ -7623,6 +7643,8 @@ export default function AssetStudio() {
       const tAttr = ops.length ? ` transform="${ops.join(" ")}"` : "";
       if (p.kind === "circle") return `<ellipse cx="${cx}" cy="${cy}" rx="${p.w / 2}" ry="${p.h / 2}" fill="#000"${tAttr}/>`;
       if (p.kind === "roundrect") return `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="${p.w * 0.22}" ry="${p.h * 0.22}" fill="#000"${tAttr}/>`;
+      // Equal rx AND ry in real units — that, not a percentage, is what keeps the caps circular.
+      if (p.kind === "stadium") { const r = stadiumRadius(p.w, p.h); return `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="${r}" ry="${r}" fill="#000"${tAttr}/>`; }
       const pts = shapePolyPoints(p);
       if (pts) return `<polygon points="${pts.map(([fx, fy]) => (p.x + fx * p.w) + "," + (p.y + fy * p.h)).join(" ")}" fill="#000"${tAttr}/>`;
       return `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" fill="#000"${tAttr}/>`;
@@ -7706,6 +7728,10 @@ export default function AssetStudio() {
     if (pts) shape = <polygon points={pts.map(([x, y]) => `${x * 100},${y * 100}`).join(" ")} {...common} />;
     else if (p.kind === "circle") shape = <ellipse cx="50" cy="50" rx="50" ry="50" {...common} />;
     else if (p.kind === "roundrect") shape = <rect x="0" y="0" width="100" height="100" rx="22" ry="22" {...common} />;
+    // This viewBox is a normalized 100x100 stretched to the block's real box (preserveAspectRatio
+    // none), so a single radius would be stretched with it and the dashed outline would bulge away
+    // from the fill it is tracing. Convert the real cap radius into each axis's own share of 100.
+    else if (p.kind === "stadium") { const r = stadiumRadius(p.w, p.h); shape = <rect x="0" y="0" width="100" height="100" rx={r / Math.max(1, p.w) * 100} ry={r / Math.max(1, p.h) * 100} {...common} />; }
     else shape = <rect x="0" y="0" width="100" height="100" {...common} />;
     return <svg style={s} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">{shape}</svg>;
   };
@@ -10432,8 +10458,8 @@ export default function AssetStudio() {
   const behindPieces = pieces.filter((p) => p.behindBody);
   const lrow = (p) => (
     <div key={p.id} className={"lrow" + (p.id === selId ? " on" : "") + (groupIds.includes(p.id) ? " grp" : "") + (p._recovered ? " recovered" : "")} onClick={() => { if (!multiSelect) { setSelId(p.id); if (!groupIds.includes(p.id) && groupIds.length) setGroupIds([]); return; } if (groupIds.includes(p.id)) { const ng = groupIds.filter((id) => id !== p.id); setGroupIds(ng); if (selId === p.id) setSelId(ng[ng.length - 1] || null); } else { setGroupIds((g) => [...g, p.id]); setSelId(p.id); } }}>
-      <span className="lprev" style={{ background: p.kind === "emoji" ? "transparent" : p.color }}>{p.kind === "emoji" ? p.char : (p.kind === "circle" ? "●" : p.kind === "roundrect" ? "▣" : p.kind === "tri" ? "▲" : "")}</span>
-      <span className="lname">{p._recovered ? "🩹 " : ""}{p.locked ? "🔒 " : ""}{p.isHitbox ? "🎯 hitbox" : p.isMuzzle ? "🔴 muzzle" : (p.kind === "emoji" ? "emoji" : p.kind === "roundrect" ? "rounded square" : p.kind)}{p.mirror ? " ⟷" : ""}{p.limb === "arm" ? " 💪" : p.limb === "leg" ? " 🦵" : ""}</span>
+      <span className="lprev" style={{ background: p.kind === "emoji" ? "transparent" : p.color }}>{p.kind === "emoji" ? p.char : (p.kind === "circle" ? "●" : p.kind === "roundrect" ? "▣" : p.kind === "stadium" ? "⬭" : p.kind === "tri" ? "▲" : "")}</span>
+      <span className="lname">{p._recovered ? "🩹 " : ""}{p.locked ? "🔒 " : ""}{p.isHitbox ? "🎯 hitbox" : p.isMuzzle ? "🔴 muzzle" : (p.kind === "emoji" ? "emoji" : p.kind === "roundrect" ? "rounded square" : p.kind === "stadium" ? "oval" : p.kind)}{p.mirror ? " ⟷" : ""}{p.limb === "arm" ? " 💪" : p.limb === "leg" ? " 🦵" : ""}</span>
       <button onClick={(e) => { e.stopPropagation(); movePiece(p.id, 1); }}>▲</button>
       <button onClick={(e) => { e.stopPropagation(); movePiece(p.id, -1); }}>▼</button>
     </div>
