@@ -92,6 +92,8 @@ import {
   assetColorGroup,
   recolorAssetGroup,
   restyleAssetGroup,
+  editSnapshot,
+  readEditSnapshot,
   projectileDropAtDistance,
   projectilePositionAtDistance,
   rangeBoostMultiplier,
@@ -1616,6 +1618,47 @@ describe("changing a colour everywhere never swallows a block that was a differe
     expect(recolorAssetGroup(a, null, "#fff")).toBe(a);
     expect(assetColorGroup(null, "#2E7D32").ids.size).toBe(0);
     expect(assetColorGroup(asset(), null).ids.size).toBe(0);
+  });
+});
+
+describe("undo carries which state/frame was being edited, not just the art", () => {
+  const bow = () => ({ type: "weapon", states: { rest: { side: [{ id: "r" }] }, fire: { side: [{ id: "f" }] } }, angles: { side: [{ id: "r" }] } });
+  const onRest = { wState: "rest", eState: "normal", propFrame: 0, effEdit: null, angle: "side" };
+
+  test("an undo step restores the weapon state it was taken in", () => {
+    const back = readEditSnapshot(editSnapshot(bow(), { ...onRest, wState: "fire" }));
+    expect(back.wState).toBe("fire");
+    expect(back.asset.states.fire.side[0].id).toBe("f");
+  });
+
+  test("every cursor that decides where asset.angles gets flushed comes back", () => {
+    const back = readEditSnapshot(editSnapshot(bow(), { wState: "fire", eState: "charge", propFrame: 3, effEdit: { effId: "e1", bodyKey: "b", frameIdx: 2 }, angle: "up" }));
+    expect(back).toMatchObject({ wState: "fire", eState: "charge", propFrame: 3, angle: "up" });
+    expect(back.effEdit).toEqual({ effId: "e1", bodyKey: "b", frameIdx: 2 });
+  });
+
+  // The bug this fixes: two steps that differ ONLY in which state was on screen used to be the
+  // same string, so undo would restore one while the toolbar still pointed at the other, and the
+  // next switch flushed the wrong art into the wrong slot.
+  test("Rest and Fire are different undo steps even when the asset is identical", () => {
+    const a = bow();
+    expect(editSnapshot(a, onRest).s).not.toBe(editSnapshot(a, { ...onRest, wState: "fire" }).s);
+  });
+
+  test("but merely looking at another pose is not a new undo step", () => {
+    const a = bow();
+    expect(editSnapshot(a, onRest).s).toBe(editSnapshot(a, { ...onRest, angle: "up" }).s);
+  });
+
+  test("the pose still rides along, so an undo lands you where the edit was", () => {
+    expect(readEditSnapshot(editSnapshot(bow(), { ...onRest, angle: "crouch" })).angle).toBe("crouch");
+  });
+
+  test("a snapshot is a deep copy — later edits can't reach back into history", () => {
+    const a = bow();
+    const entry = editSnapshot(a, onRest);
+    a.states.rest.side.push({ id: "later" });
+    expect(readEditSnapshot(entry).asset.states.rest.side).toHaveLength(1);
   });
 });
 

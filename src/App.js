@@ -497,6 +497,34 @@ export const advanceAutoReloadWeapon = (w, dt, reloadFrames) => {
   const next = advanceWeapon(w, dt);
   return needsReload(next) ? startReload(next, reloadFrames) : next;
 };
+// --- Undo: an entry is the asset AND the cursor saying which slot of it is on screen ---------
+//
+// `asset.angles` is the ONE live editing surface. Which slot it belongs to is held in separate
+// editor state — a weapon's Rest/Fire (wState), an enemy's Normal/onFire/Charge (eState), a prop's
+// frame (propFrame), an effect animation's frame (effEdit) — and those cursors decide where it gets
+// flushed back to: `states[wState] = a.angles` in switchWState/copyWState, and the same move in
+// syncWeapon / syncEnemy / syncProp / syncEffectAnim at save time.
+//
+// Undo used to restore the asset alone, which silently pointed the cursor at the WRONG slot. Draw
+// on Rest, switch to Fire, draw, then undo back past the switch: the Rest art came up on screen
+// while the toolbar still read Fire. Nothing warned you, and the next state switch or save then
+// flushed that Rest art into the Fire slot — the Fire art was overwritten and no amount of undo
+// brought it back, because it had never been wrong in the history, only in the write. Measured on a
+// two-state weapon: one undo, one switch back, and the Fire pose's own art was simply gone.
+//
+// So the cursor travels with the asset. They are one state and they undo together.
+//
+// The POSE rides along too but is deliberately OUT of the dedupe key: flicking between Side and Aim
+// up to look at a weapon must not pile up undo steps, but once a step is genuinely taken, returning
+// to the pose the edit happened on is what makes undo visible rather than silent.
+export const editSnapshot = (asset, cur) => ({
+  s: JSON.stringify({ a: asset, w: (cur && cur.wState) || null, e: (cur && cur.eState) || null, f: (cur && cur.propFrame) ?? null, ef: (cur && cur.effEdit) || null }),
+  g: (cur && cur.angle) || null,
+});
+export const readEditSnapshot = (entry) => {
+  const c = JSON.parse(entry.s);
+  return { asset: c.a, wState: c.w, eState: c.e, propFrame: c.f, effEdit: c.ef, angle: entry.g };
+};
 const bodyRig = (b, ang) => {
   const r = b && b.angles && armRig(armOf(b.angles[ang]));
   return r || { shoulder: (b && b.shoulder && b.shoulder[ang]) || DEFAULT_SHOULDER[ang], hand: (b && b.hand && b.hand[ang]) || DEFAULT_HAND[ang] };
@@ -4448,22 +4476,36 @@ export default function AssetStudio() {
 
   const addRecent = (c) => { if (!c) return; setRecent((r) => [c, ...r.filter((x) => x !== c)].slice(0, 8)); };
   const addRecentEmoji = (m) => { if (!m) return; setRecentEmoji((r) => [m, ...r.filter((x) => x !== m)].slice(0, 16)); };
-  const snapshot = () => { if (!asset) return; const s = JSON.stringify(asset); const h = history.current; if (h[h.length - 1] === s) return; h.push(s); if (h.length > 80) h.shift(); future.current = []; setCanUndo(true); setCanRedo(false); };
+  // See editSnapshot: an undo step is the asset plus the cursor that says which of its slots is
+  // currently loaded into asset.angles. Restoring one without the other is what used to overwrite a
+  // weapon's Fire art with its Rest art.
+  const nowSnapshot = () => editSnapshot(asset, { wState, eState, propFrame, effEdit, angle });
+  const restoreSnapshot = (entry) => {
+    let c; try { c = readEditSnapshot(entry); } catch { return; }
+    setAsset(c.asset);
+    if (c.wState) setWState(c.wState);
+    if (c.eState) setEState(c.eState);
+    if (typeof c.propFrame === "number") setPropFrame(c.propFrame);
+    setEffEdit(c.effEdit || null);
+    if (c.angle) setAngle(c.angle);
+    setSelId(null);
+  };
+  const snapshot = () => { if (!asset) return; const e = nowSnapshot(); const h = history.current; if (h.length && h[h.length - 1].s === e.s) return; h.push(e); if (h.length > 80) h.shift(); future.current = []; setCanUndo(true); setCanRedo(false); };
   const undo = () => {
     if (!asset) return;
-    const h = history.current; const cur = JSON.stringify(asset);
+    const h = history.current; const cur = nowSnapshot();
     while (h.length) {
       const prev = h.pop();
-      if (prev !== cur) { future.current.push(cur); if (future.current.length > 80) future.current.shift(); try { setAsset(JSON.parse(prev)); } catch {} setSelId(null); break; }
+      if (prev.s !== cur.s) { future.current.push(cur); if (future.current.length > 80) future.current.shift(); restoreSnapshot(prev); break; }
     }
     setCanUndo(h.length > 0); setCanRedo(future.current.length > 0);
   };
   const redo = () => {
     if (!asset) return;
     const f = future.current; if (!f.length) return;
-    const next = f.pop(); const cur = JSON.stringify(asset);
-    history.current.push(cur); if (history.current.length > 80) history.current.shift();
-    try { setAsset(JSON.parse(next)); } catch {} setSelId(null);
+    const next = f.pop();
+    history.current.push(nowSnapshot()); if (history.current.length > 80) history.current.shift();
+    restoreSnapshot(next);
     setCanUndo(true); setCanRedo(f.length > 0);
   };
   const resetHistory = () => { history.current = []; future.current = []; setCanUndo(false); setCanRedo(false); };
