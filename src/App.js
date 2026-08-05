@@ -4297,6 +4297,8 @@ export default function AssetStudio() {
   // rather than left in the console, because a console instruction is a thing nobody should have to
   // be told to run about their own work.
   const [storeReport, setStoreReport] = useState(null);
+  const [recoverUrl, setRecoverUrl] = useState("");     // a previous preview address to pull a library out of
+  const [recoverState, setRecoverState] = useState(null); // { busy } | { error } | { found, imported }
   const [angle, setAngle] = useState("front");
   const [selId, setSelId] = useState(null);
   const [multiSelect, setMultiSelect] = useState(false); // group-select mode: clicking blocks toggles them into groupIds instead of the normal single select+drag
@@ -4634,6 +4636,65 @@ export default function AssetStudio() {
 
   const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 1600); };
   // saves to Claude's storage when present, otherwise the browser's localStorage
+  // ---- Pulling a library out of a PREVIOUS preview address ---------------------------------------
+  //
+  // Browser storage is walled off per address, and a page cannot reach into another address's store.
+  // That wall is the browser's, and no amount of code gets through it. But two pages of the SAME app
+  // on two different addresses can still talk, if the one holding the data agrees to answer: an
+  // iframe pointed at the old address loads this same app, and it replies to a postMessage with what
+  // it has. The wall stays up; the app on the other side simply hands its own data over.
+  //
+  // It only works while the old address still serves the app. If that container is gone, nothing
+  // loads in the frame and there is nothing to ask — which the UI says plainly rather than hanging.
+  useEffect(() => {
+    const onMsg = async (e) => {
+      const d = e.data;
+      if (!d || d.__bobRecover !== "request" || !e.source) return;
+      // Only ever hand over drawn work, and only to another copy of this app. Never the whole store.
+      let host = ""; try { host = new URL(e.origin).hostname; } catch { return; }
+      if (!(host === "localhost" || host === "127.0.0.1" || /(^|\.)webcontainer\.io$/.test(host) || /(^|\.)stackblitz\.io$/.test(host))) return;
+      const out = [];
+      for (const id of await scanStoredIds("asset:")) {
+        try { const raw = await sget("asset:" + id); if (raw) out.push(JSON.parse(raw)); } catch { /* skip one bad record */ }
+      }
+      e.source.postMessage({ __bobRecover: "reply", assets: out }, "*");
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }); // no dep array: scanStoredIds/sget close over current state
+  const recoverFromAddress = async (url) => {
+    let target;
+    try { target = new URL(url.trim()); } catch { setRecoverState({ error: "That doesn't look like a web address." }); return; }
+    setRecoverState({ busy: true });
+    const frame = document.createElement("iframe");
+    frame.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px";
+    frame.src = target.origin + "/";
+    const done = new Promise((resolve) => {
+      const onReply = (e) => {
+        if (!e.data || e.data.__bobRecover !== "reply") return;
+        window.removeEventListener("message", onReply);
+        resolve(Array.isArray(e.data.assets) ? e.data.assets : []);
+      };
+      window.addEventListener("message", onReply);
+      // The old app needs a moment to boot before it can answer; ask repeatedly rather than once.
+      let tries = 0;
+      const ask = setInterval(() => {
+        try { frame.contentWindow.postMessage({ __bobRecover: "request" }, "*"); } catch { /* not loaded yet */ }
+        if (++tries > 30) { clearInterval(ask); window.removeEventListener("message", onReply); resolve(null); }
+      }, 500);
+      frame.addEventListener("load", () => { try { frame.contentWindow.postMessage({ __bobRecover: "request" }, "*"); } catch { /* cross-origin, the interval keeps trying */ } });
+    });
+    document.body.appendChild(frame);
+    const assets = await done;
+    try { frame.remove(); } catch { /* ignore */ }
+    if (!assets) { setRecoverState({ error: "No answer from that address — either it isn't serving the studio any more, or it has no saved assets." }); return; }
+    let imported = 0;
+    for (const raw of assets) {
+      try { const a = migrate(raw); if (await sset("asset:" + a.id, JSON.stringify(a))) imported++; } catch { /* skip */ }
+    }
+    if (imported) { await projectLibrary.save(assets.filter((a) => a && a.id), []); await loadLibrary(); }
+    setRecoverState({ found: assets.length, imported });
+  };
   // TWO stores, always both.
   //
   // This is the disappearance. sget used window.storage when the host provided it and localStorage
@@ -8975,7 +9036,22 @@ export default function AssetStudio() {
               </ul>
               {(storeReport.host || storeReport.local)
                 ? <span>Records exist but didn't load — that's a bug in reading them, not lost work. Send me these numbers.</span>
-                : <span>Both stores are empty on <b>this address</b>. Browser storage is tied to the page's address, so a preview URL that changed since you last saved has your work under the old one — nothing here can read across that. An older tab on the previous address, or an <b>⬇ Export all assets</b> file, is the way back.</span>}
+                : <>
+                  <span>Both stores are empty on <b>this address</b>. Browser storage is tied to the page's address, so a preview URL that changed since you last saved has your work sitting under the old one, untouched.</span>
+                  {/* The one way through the wall: ask the app running on the old address for its own
+                      data. Nothing reaches across origins here — the other copy hands it over. */}
+                  <div className="ct2" style={{ marginTop: 12 }}>Pull it back from the previous address</div>
+                  <span className="hint2">Paste the address the studio was on when you last saved — the one in your browser history, ending in <b>.webcontainer.io</b>. This asks the studio running there for its library and copies it here, into the project file this time.</span>
+                  <div className="rescueRow">
+                    <input className="big" style={{ flex: "1 1 320px" }} value={recoverUrl} placeholder="https://bobassetbuilder-…--3000--….local-credentialless.webcontainer.io/" onChange={(e) => setRecoverUrl(e.target.value)} />
+                    <button className="ltbtn" disabled={!recoverUrl.trim() || (recoverState && recoverState.busy)} onClick={() => recoverFromAddress(recoverUrl)}>
+                      {recoverState && recoverState.busy ? "Asking…" : "🛟 Recover from there"}
+                    </button>
+                  </div>
+                  {recoverState && recoverState.error && <span className="hint2" style={{ color: "#f3a6a6" }}>{recoverState.error}</span>}
+                  {recoverState && recoverState.found !== undefined && <span className="hint2" style={{ color: "#a6e3a6" }}>Found {recoverState.found}, imported {recoverState.imported}.</span>}
+                  <span className="hint2">If that address no longer serves anything, an <b>⬇ Export all assets</b> file from any still-open tab is the other way back.</span>
+                </>}
             </div>
           )}
           <h2>Make a body or weapon</h2>
