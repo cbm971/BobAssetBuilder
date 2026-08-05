@@ -69,22 +69,52 @@ usually fails.
 * **Python is not installed.** Use `node -e` for scripted edits.
 * `PowerShell` here is Windows PowerShell 5.1 — no `&&`, no ternary.
 
-## Storage, and why it matters more than it looks
+## Storage — read this before touching anything that saves
 
-Keys: `assetIndex` → `asset:<id>`, `levelIndex` → `level:<id>`, `stampIndex` →
-`stamp:<id>`, `backgroundIndex` → `background:<id>`, `textureIndex` → `texture:<id>`,
-plus `lColor` and `recentColors`. Read/written through `sget`/`sset`, which use
-`window.storage` when the host provides it and fall back to `localStorage`.
+Losing work is the single worst failure this project has, and it has happened more
+than once. The rules below are not style preferences.
 
-**Blake has 50+ assets representing many hours of work, not backed up.** A loader
-that throws blanks the whole library, which is indistinguishable from lost work.
-`loadLibrary` and `loadLevels` are now per-record resilient (a bad record is skipped
-and named via `flash` + `console.warn`); `loadStamps` always was. **Keep it that
-way** — never reintroduce a single try/catch around a whole load loop.
+**Two tiers.** Browser storage is a *cache*. The project file is the *record*.
 
-If assets ever look missing: the data is almost certainly still there. Back up
-first (a read-only dump of every key to a downloaded JSON), then diagnose. Never
-clear storage to "reset".
+* **Browser storage** — `assetIndex` → `asset:<id>`, `levelIndex` → `level:<id>`,
+  `stampIndex` → `stamp:<id>`, `backgroundIndex` → `background:<id>`, `textureIndex` →
+  `texture:<id>`, plus `lColor`/`recentColors`. Via `sget`/`sset`, which read BOTH
+  `window.storage` and `localStorage` and write to whichever the host provides. It is
+  scoped to the page's address, and the preview hostname **changes when the container
+  reboots**. Anything that lives only here is one reboot from being unreachable.
+* **The project file** — `asset-data/library.json`, served by `src/setupProxy.js` at
+  `/__library`, holding `{ assets, levels, stamps }`. It is in the repo, so it survives
+  reboots, new hostnames and the container itself. `writeLibrary` writes to a temp file
+  and renames (atomic — no half-written library), keeps `library.bak.json`, and puts the
+  first write of each day aside in `asset-data/snapshots/` keeping the last 5 (gitignored;
+  the committed `library.json` is the copy that leaves the container).
+
+**Every kind of drawn work goes to both tiers, in both directions.** Assets, levels
+and stored groups each save up (`projectLibrary.save`) and restore down on load. Two
+separate outages came from a kind of work that only ever went one way: levels were
+written to browser storage and nowhere else, and stored groups existed in the project
+file only if you happened to create a NEW one. **Anything new that a person can draw
+and name must be wired into all four halves** — save up, restore down, delete up,
+and included in the export.
+
+**Deleting is the only operation allowed to shrink the file.** Every other write is
+additive and merges by id, because a page that hasn't finished loading must never be
+able to blank the record. That means a delete which does not call
+`projectLibrary.forget(kind, ids)` is not a delete — the next load hands the record
+straight back.
+
+**A loader that throws is indistinguishable from lost work.** That is what "my saves
+are gone" has meant every single time so far; the bytes were always still on disk.
+So: never a single try/catch around a whole load loop (a bad record is skipped and
+named via `flash` + `console.warn`), and **never call an async helper without
+`await`** — `scanStoredIds("level:").filter(...)` threw
+`scanStoredIds(...).filter is not a function` and took the entire level list down with
+it. `App.test.js` now reads `App.js` and fails on any un-awaited async helper; if that
+test fires, you are one line away from blanking a library.
+
+If work ever looks missing: **it is almost certainly still there.** Back up first (a
+read-only dump of every key to a downloaded JSON), then diagnose. Never clear storage
+to "reset".
 
 ## Architecture worth knowing
 

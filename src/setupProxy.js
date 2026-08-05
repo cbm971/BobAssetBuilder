@@ -18,6 +18,8 @@ const path = require("path");
 const DATA_DIR = path.join(__dirname, "..", "asset-data");
 const DATA_FILE = path.join(DATA_DIR, "library.json");
 const BAK_FILE = path.join(DATA_DIR, "library.bak.json");
+const SNAP_DIR = path.join(DATA_DIR, "snapshots");
+const SNAP_KEEP = 5;
 
 const readLibrary = () => {
   for (const f of [DATA_FILE, BAK_FILE]) {
@@ -29,10 +31,35 @@ const readLibrary = () => {
   return { assets: [], levels: [], savedAt: null };
 };
 
+// One rolling backup is one write deep: a bad write followed by any second write loses both
+// copies. So the first write of each day also puts that day's file aside untouched, and the last
+// few days are kept. This is the difference between "there is a backup" and "there is a backup
+// from before whatever went wrong". Snapshots are local safety only and are gitignored — the
+// committed library.json is still the copy that survives the container itself.
+const snapshot = () => {
+  try {
+    if (!fs.existsSync(DATA_FILE)) return;
+    fs.mkdirSync(SNAP_DIR, { recursive: true });
+    const today = new Date().toISOString().slice(0, 10);
+    const target = path.join(SNAP_DIR, "library-" + today + ".json");
+    if (!fs.existsSync(target)) fs.copyFileSync(DATA_FILE, target);
+    const old = fs.readdirSync(SNAP_DIR).filter((f) => /^library-\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort();
+    for (const f of old.slice(0, Math.max(0, old.length - SNAP_KEEP))) {
+      try { fs.unlinkSync(path.join(SNAP_DIR, f)); } catch { /* best effort */ }
+    }
+  } catch { /* a snapshot failing must never stop the real save */ }
+};
+
 const writeLibrary = (next) => {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+  snapshot();
   try { if (fs.existsSync(DATA_FILE)) fs.copyFileSync(DATA_FILE, BAK_FILE); } catch { /* best effort */ }
-  fs.writeFileSync(DATA_FILE, JSON.stringify(next, null, 1));
+  // Write to a temp file and rename. A half-written library.json is the one way this file can be
+  // lost while the disk is working fine — rename is atomic, so a reader sees the old file or the
+  // new one and never a truncated one.
+  const tmp = DATA_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(next, null, 1));
+  fs.renameSync(tmp, DATA_FILE);
 };
 
 // Merge by id, incoming wins for anything it names, nothing already stored is ever dropped.
@@ -40,6 +67,39 @@ const mergeById = (existing, incoming) => {
   const byId = new Map((existing || []).filter((a) => a && a.id).map((a) => [a.id, a]));
   for (const a of (incoming || [])) if (a && a.id) byId.set(a.id, a);
   return [...byId.values()];
+};
+
+// Deleting is the ONE operation allowed to shrink the file. Everything else here is additive on
+// purpose, which meant a delete in the browser was undone by the very next load pulling the record
+// back out of the project. Only ids the app explicitly names are dropped.
+const removeById = (list, ids) => {
+  const gone = new Set((ids || []).filter(Boolean));
+  if (!gone.size) return list || [];
+  return (list || []).filter((x) => x && !gone.has(x.id));
+};
+
+// The whole write rule as one pure function, so it can be tested without a running dev server.
+const applyWrite = (current, body, incoming) => {
+  const rm = (body && body.remove) || {};
+  // An empty assets array is never a reason to empty the file — that is how a library gets erased
+  // by a page that merely hadn't finished loading yet. But it must not throw away the REST of the
+  // same POST either, which is what the old early-return did: a level save or a stored group
+  // legitimately carries no assets at all, so every one of them was silently ignored.
+  const keptAssets = !incoming.length && ((current.assets || []).length > 0);
+  const assets = keptAssets
+    ? (current.assets || [])
+    : (body && body.replace ? incoming : mergeById(current.assets, incoming));
+  return {
+    keptAssets,
+    next: {
+      savedAt: new Date().toISOString(),
+      assets: removeById(assets, rm.assets),
+      levels: removeById(Array.isArray(body && body.levels) ? mergeById(current.levels, body.levels) : (current.levels || []), rm.levels),
+      // Stamps are drawn work too — a stored group is a real copy of its blocks — and until
+      // now they lived ONLY in browser storage and were not even in an export.
+      stamps: removeById(Array.isArray(body && body.stamps) ? mergeById(current.stamps, body.stamps) : (current.stamps || []), rm.stamps),
+    },
+  };
 };
 
 // Read a JSON body without depending on express's parser being available.
@@ -65,21 +125,9 @@ module.exports = function (app) {
           res.setHeader("Content-Type", "application/json");
           if (!incoming) { res.statusCode = 400; return res.end(JSON.stringify({ ok: false, error: "no assets array" })); }
           const current = readLibrary();
-          // An empty POST is never a reason to empty the file — that is how a library gets erased by
-          // a page that merely hadn't finished loading yet.
-          if (!incoming.length && (current.assets || []).length) {
-            return res.end(JSON.stringify({ ok: true, ignored: "refused to overwrite a stored library with nothing", assets: current.assets.length }));
-          }
-          const next = {
-            savedAt: new Date().toISOString(),
-            assets: body.replace ? incoming : mergeById(current.assets, incoming),
-            levels: Array.isArray(body.levels) ? mergeById(current.levels, body.levels) : (current.levels || []),
-            // Stamps are drawn work too — a stored group is a real copy of its blocks — and until
-            // now they lived ONLY in browser storage and were not even in an export.
-            stamps: Array.isArray(body.stamps) ? mergeById(current.stamps, body.stamps) : (current.stamps || []),
-          };
+          const { next, keptAssets } = applyWrite(current, body, incoming);
           writeLibrary(next);
-          return res.end(JSON.stringify({ ok: true, assets: next.assets.length, levels: next.levels.length, stamps: next.stamps.length }));
+          return res.end(JSON.stringify({ ok: true, assets: next.assets.length, levels: next.levels.length, stamps: next.stamps.length, keptAssets }));
         }
         return next();
       } catch (e) {
@@ -91,3 +139,7 @@ module.exports = function (app) {
     console.warn("[Bob] project-file library disabled (" + (e && e.message) + ") — browser storage only");
   }
 };
+
+// Exported for the tests only. The write rules are the part of this file that can lose work, and
+// they are worth testing without standing a dev server up.
+module.exports.__test = { applyWrite, mergeById, removeById };

@@ -200,12 +200,35 @@ const projectLibrary = {
       return data;
     } catch { return null; }
   },
+  // Assets, levels and stored groups are three separate bodies of work, and any ONE of them is
+  // worth a write. This used to bail out unless `assets` was non-empty, so a level save or a
+  // stored group could never reach the file on its own — which is why every asset survived the
+  // last change of address and the levels did not. The server is what decides whether a write is
+  // allowed to shrink anything; all that is refused here is a POST carrying nothing at all.
   save: async (assets, levels, stamps) => {
-    if (!assets || !assets.length) return false; // never let an empty page state reach the file
+    const a = (assets || []).filter((x) => x && x.id);
+    const l = (levels || []).filter((x) => x && x.id);
+    const st = (stamps || []).filter((x) => x && x.id);
+    if (!a.length && !l.length && !st.length) return false;
     try {
       const res = await fetch("/__library", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assets, levels: levels || [], stamps: stamps || [] }),
+        body: JSON.stringify({ assets: a, levels: l, stamps: st }),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+  // Deleting has to reach the file too. Everything above is deliberately additive — the merge on
+  // the server never drops a record — so without this, deleting something in the browser only hid
+  // it until the next load pulled it straight back out of the project. An explicit list of ids is
+  // the one and only thing allowed to make the file smaller.
+  forget: async (kind, ids) => {
+    const list = (ids || []).filter(Boolean);
+    if (!list.length) return false;
+    try {
+      const res = await fetch("/__library", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assets: [], remove: { [kind]: list } }),
       });
       return res.ok;
     } catch { return false; }
@@ -6708,6 +6731,12 @@ export default function AssetStudio() {
         if (await sset("stamp:" + st.id, JSON.stringify(st))) { full.push(st); have.add(st.id); restored++; }
       }
       if (restored) await sset("stampIndex", JSON.stringify(full.map((x) => ({ id: x.id, name: x.name }))));
+      // And push UP, not just pull down. Restoring from the project only helps groups that were
+      // already in it, and until storeGroup started writing them there, none were — so a group
+      // drawn before that landed was still browser-only and still went with the container. Every
+      // load now hands the whole set to the project file, which is what actually closes the hole
+      // for work that already exists.
+      if (full.length) projectLibrary.save([], [], full);
       setStamps(full);
       if (restored) flash("🛟 Restored " + restored + " stored group" + (restored > 1 ? "s" : "") + " from the project file.");
     } catch { setStamps([]); }
@@ -6802,7 +6831,7 @@ export default function AssetStudio() {
     const ok1 = await sset("stamp:" + stamp.id, JSON.stringify(stamp));
     const ok2 = await sset("stampIndex", JSON.stringify(list));
     // Into the project file too, so a stored group survives what the assets now survive.
-    if (ok1 && ok2) { projectLibrary.save(library.length ? library : [stamp], [], [stamp]); setStampName(""); setStampPick(stamp.id); loadStamps(); flash("Stored \"" + name + "\" (" + baked.length + " block" + (baked.length === 1 ? "" : "s") + ") — place it into any pose or body. Mirrored parts were baked into real copies so the group rotates as one."); }
+    if (ok1 && ok2) { projectLibrary.save([], [], [stamp]); setStampName(""); setStampPick(stamp.id); loadStamps(); flash("Stored \"" + name + "\" (" + baked.length + " block" + (baked.length === 1 ? "" : "s") + ") — place it into any pose or body. Mirrored parts were baked into real copies so the group rotates as one."); }
     else flash("Couldn't store here — use Download.");
   };
   const placeStamp = (s) => {
@@ -6819,6 +6848,9 @@ export default function AssetStudio() {
     let list = []; const idx = await sget("stampIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     await sdel("stamp:" + id);
     await sset("stampIndex", JSON.stringify(list.filter((x) => x.id !== id)));
+    // Same as deleteAsset: loadStamps restores from the project, so a delete that never reaches
+    // the project file is not a delete at all.
+    await projectLibrary.forget("stamps", [id]);
     if (stampPick === id) setStampPick("");
     loadStamps();
   };
@@ -8373,6 +8405,8 @@ export default function AssetStudio() {
     let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     await writeAssetIndex(list.filter((x) => x.id !== a.id), { allowShrink: true }); // a real delete is the one time the list is meant to get shorter
     setSessionAssets((s) => s.filter((x) => x.id !== a.id));
+    // The project file has to be told, or loadLibrary below simply restores what was just deleted.
+    await projectLibrary.forget("assets", [a.id]);
     flash("Deleted \"" + a.name + "\"");
     loadLibrary();
   };
@@ -8663,15 +8697,37 @@ export default function AssetStudio() {
     try { const idx = await sget("levelIndex"); list = idx ? JSON.parse(idx) : []; } catch { list = []; }
     if (!Array.isArray(list)) list = [];
     const indexedL = new Set(list.map((it) => it && it.id).filter(Boolean));
-    const orphanL = scanStoredIds("level:").filter((id) => !indexedL.has(id)); // same rescue as loadLibrary
+    // scanStoredIds is ASYNC — it asks the host store as well as localStorage. Calling it without
+    // `await` handed .filter a Promise, which threw "scanStoredIds(...).filter is not a function"
+    // on the way into the level tester. That throw landed before setLevelLib ran, so the crash
+    // also read as every level having disappeared. Nothing was ever deleted; the loader fell over
+    // one line before it could show them.
+    const orphanL = (await scanStoredIds("level:")).filter((id) => !indexedL.has(id)); // same rescue as loadLibrary
     if (orphanL.length) list = list.concat(orphanL.map((id) => ({ id })));
     const full = [], bad = [];
     for (const it of list) {
       try { const r = await sget("level:" + (it && it.id)); if (r) full.push(migrateLevel(JSON.parse(r))); else bad.push((it && it.name) || (it && it.id)); }
       catch { bad.push((it && it.name) || (it && it.id)); }
     }
+    // Levels come home from the project file exactly the way assets do. Until now they could not:
+    // saveLevel wrote to browser storage and nowhere else, so a new preview address kept all 75
+    // assets and lost every level, which is not a state anyone would guess from the outside.
+    let fromProject = 0;
+    const have = new Set(full.map((l) => l && l.id));
+    const proj = await projectLibrary.load();
+    for (const raw of ((proj && proj.levels) || [])) {
+      if (!raw || !raw.id || have.has(raw.id)) continue;
+      try {
+        const lv = migrateLevel(JSON.parse(JSON.stringify(raw)));
+        if (await sset("level:" + lv.id, JSON.stringify(lv))) { full.push(lv); have.add(lv.id); fromProject++; }
+      } catch { /* one bad record must never stop the rest coming home */ }
+    }
     setLevelLib(full);
-    if (orphanL.length && full.length) { await sset("levelIndex", JSON.stringify(full.map((l) => ({ id: l.id, name: l.name })))); console.warn("[Bob] recovered " + orphanL.length + " level(s) missing from the index:", orphanL); }
+    if ((orphanL.length || fromProject) && full.length) await sset("levelIndex", JSON.stringify(full.map((l) => ({ id: l.id, name: l.name }))));
+    if (orphanL.length) console.warn("[Bob] recovered " + orphanL.length + " level(s) missing from the index:", orphanL);
+    if (fromProject) flash("🛟 Restored " + fromProject + " level" + (fromProject > 1 ? "s" : "") + " from the project file.");
+    // Push back up too, so the project file always holds the fullest copy either side has seen.
+    if (full.length) projectLibrary.save([], full, []);
     if (bad.length) { console.warn("[Bob] " + bad.length + " level(s) could not be read and were skipped:", bad); flash("⚠ " + bad.length + " level" + (bad.length > 1 ? "s" : "") + " couldn't be read — the other " + full.length + " loaded. See console."); }
   };
   const openLevelCreator = () => {
@@ -8685,6 +8741,9 @@ export default function AssetStudio() {
     let list = []; const idx = await sget("levelIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     list = list.filter((x) => x.id !== level.id); list.push({ id: level.id, name: level.name });
     const ok2 = await sset("levelIndex", JSON.stringify(list));
+    // Straight into the project file as well. The browser store is a cache in front of it: it is
+    // the copy that is scoped to an address that will not last, and losing it must cost nothing.
+    projectLibrary.save([], [level], []);
     if (ok1 && ok2) { levelBaseline.current = JSON.stringify(level); flash("Level saved ✓"); loadLevels(); } else flash("Couldn't save — use Download.");
   };
   const doNewLevelFresh = () => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); const nl = newLevel(); setLevel(nl); levelBaseline.current = JSON.stringify(nl); setLSel(null); setGen(null); setLFxSel(null); setLFxEditIdx(null); setLLayer("fg"); setLTool("paint"); setLBrush(1); setEyedrop(false); flash("New blank level"); };

@@ -2880,3 +2880,101 @@ describe("mirroring a level left↔right", () => {
     expect(flipped.rows).toBe(4);
   });
 });
+
+
+// =================================================================================================
+// SAVES.
+//
+// Two things have to hold for drawn work to be safe, and each has cost a library:
+//   1. the project file must accept every KIND of work, not just assets, and must never be talked
+//      into blanking itself by a page that had nothing to say yet;
+//   2. the loaders must not throw, because a loader that throws is indistinguishable from the work
+//      being gone — that is what "my saves disappeared" has actually meant every time so far.
+// =================================================================================================
+describe("the project-file library's write rules", () => {
+  const { applyWrite, mergeById, removeById } = require("./setupProxy").__test;
+  const A = (id) => ({ id, name: id });
+  const store = (assets, levels, stamps) => ({ assets: assets || [], levels: levels || [], stamps: stamps || [] });
+  const ids = (l) => l.map((x) => x.id);
+
+  test("an empty assets array never blanks a stored library", () => {
+    const { next, keptAssets } = applyWrite(store([A("a1"), A("a2")]), { assets: [] }, []);
+    expect(keptAssets).toBe(true);
+    expect(ids(next.assets)).toEqual(["a1", "a2"]);
+  });
+
+  test("replace cannot use an empty list to wipe the file either", () => {
+    const { next } = applyWrite(store([A("a1")]), { assets: [], replace: true }, []);
+    expect(ids(next.assets)).toEqual(["a1"]);
+  });
+
+  test("a save carrying ONLY levels still stores them", () => {
+    // The regression that left every level browser-only: the old handler saw an empty assets array
+    // and returned before it looked at anything else in the same POST.
+    const { next } = applyWrite(store([A("a1")]), { assets: [], levels: [A("lv1")] }, []);
+    expect(ids(next.levels)).toEqual(["lv1"]);
+    expect(ids(next.assets)).toEqual(["a1"]);
+  });
+
+  test("a save carrying ONLY a stored group still stores it", () => {
+    const { next } = applyWrite(store([A("a1")]), { assets: [], stamps: [A("st1")] }, []);
+    expect(ids(next.stamps)).toEqual(["st1"]);
+    expect(ids(next.assets)).toEqual(["a1"]);
+  });
+
+  test("merging is additive — a partial save never drops what is already stored", () => {
+    const { next } = applyWrite(store([A("a1"), A("a2")]), { assets: [A("a3")] }, [A("a3")]);
+    expect(ids(next.assets).sort()).toEqual(["a1", "a2", "a3"]);
+    expect(ids(mergeById([A("x")], [A("y")])).sort()).toEqual(["x", "y"]);
+  });
+
+  test("an explicit remove list is the one thing allowed to shrink the file", () => {
+    const { next } = applyWrite(store([A("a1"), A("a2")]), { assets: [], remove: { assets: ["a1"] } }, []);
+    expect(ids(next.assets)).toEqual(["a2"]);
+  });
+
+  test("removing one kind leaves the other kinds untouched", () => {
+    const { next } = applyWrite(store([A("a1")], [A("lv1")], [A("st1")]), { assets: [], remove: { stamps: ["st1"] } }, []);
+    expect(ids(next.assets)).toEqual(["a1"]);
+    expect(ids(next.levels)).toEqual(["lv1"]);
+    expect(next.stamps).toEqual([]);
+    expect(removeById([A("k")], [])).toEqual([A("k")]);
+  });
+});
+
+describe("every async storage helper is awaited", () => {
+  // scanStoredIds became async so it could ask the host store as well as localStorage, and two of
+  // its three call sites were updated. The third handed .filter a Promise, threw
+  // "scanStoredIds(...).filter is not a function" on the way into the level tester, and took the
+  // whole level list down with it — the levels were fine the entire time. A missing await inside a
+  // 12,000-line component is invisible to both the compiler and to tests over pure functions, so
+  // this reads the source and checks the shape directly.
+  test("no async helper's return value is used without await", () => {
+    const path = require("path");
+    const src = require("fs").readFileSync(path.join(__dirname, "App.js"), "utf8");
+    // Blank out comments, so prose describing this bug can never be mistaken for the bug.
+    const code = src
+      .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\r\n]/g, " "))
+      .replace(/(^|[^:])\/\/[^\r\n]*/g, (m, p) => p + " ".repeat(m.length - p.length));
+    const asyncNames = new Set();
+    for (const m of code.matchAll(/(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*=\s*async\s*\(/g)) asyncNames.add(m[1]);
+    for (const m of code.matchAll(/async\s+function\s+([A-Za-z0-9_$]+)/g)) asyncNames.add(m[1]);
+    expect(asyncNames.has("scanStoredIds")).toBe(true); // the scan found something to check
+    const offenders = [];
+    code.split(/\r?\n/).forEach((ln, i) => {
+      for (const n of asyncNames) {
+        const re = new RegExp("(?<![.\\w])" + n + "\\s*\\(", "g");
+        let m;
+        while ((m = re.exec(ln))) {
+          if (/await\s+$/.test(ln.slice(0, m.index))) continue;
+          let depth = 0, j = m.index + m[0].length - 1;
+          for (; j < ln.length; j++) { if (ln[j] === "(") depth++; else if (ln[j] === ")") { depth--; if (!depth) break; } }
+          const after = ln.slice(j + 1);
+          if (/^\s*\.(then|catch|finally)\b/.test(after)) continue; // handled as a promise on purpose
+          if (/^\s*[.[]/.test(after)) offenders.push("App.js:" + (i + 1) + " — " + n + "() used without await");
+        }
+      }
+    });
+    expect(offenders).toEqual([]);
+  });
+});
