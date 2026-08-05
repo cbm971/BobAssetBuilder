@@ -2892,7 +2892,7 @@ describe("mirroring a level left↔right", () => {
 //      being gone — that is what "my saves disappeared" has actually meant every time so far.
 // =================================================================================================
 describe("the project-file library's write rules", () => {
-  const { applyWrite, mergeById, removeById } = require("./setupProxy").__test;
+  const { applyWrite, mergeById, removeById, KINDS } = require("./setupProxy").__test;
   const A = (id) => ({ id, name: id });
   const store = (assets, levels, stamps) => ({ assets: assets || [], levels: levels || [], stamps: stamps || [] });
   const ids = (l) => l.map((x) => x.id);
@@ -2939,6 +2939,43 @@ describe("the project-file library's write rules", () => {
     expect(ids(next.levels)).toEqual(["lv1"]);
     expect(next.stamps).toEqual([]);
     expect(removeById([A("k")], [])).toEqual([A("k")]);
+  });
+
+  // Derives `incoming` exactly the way the request handler does, so a test can post a body and
+  // mean it.
+  const write = (current, body) => applyWrite(current, body, (Array.isArray(body.assets) ? body.assets : []).filter((x) => x && x.id)).next;
+
+  test("every kind of drawn work round-trips, not just the ones anyone remembered", () => {
+    // The whole failure mode in one test: a kind that is handled by hand is a kind that gets
+    // missed, and the missed one is the one that is lost. Each kind saves, merges and deletes.
+    for (const kind of KINDS) {
+      const start = store([A("keep")]);
+      const saved = write(start, { assets: [], [kind]: [A("x1")] });
+      expect(ids(saved[kind])).toContain("x1");
+      const merged = write(saved, { assets: [], [kind]: [A("x2")] });
+      expect(ids(merged[kind]).sort()).toEqual(kind === "assets" ? ["keep", "x1", "x2"] : ["x1", "x2"]);
+      const gone = write(merged, { assets: [], remove: { [kind]: ["x1", "x2"] } });
+      expect(ids(gone[kind])).toEqual(kind === "assets" ? ["keep"] : []);
+    }
+  });
+
+  test("a library file written before a kind existed still reads", () => {
+    // asset-data/library.json on disk predates textures and backgrounds having a home here.
+    const { next } = applyWrite({ assets: [A("a1")] }, { assets: [], textures: [A("t1")] }, []);
+    for (const k of KINDS) expect(Array.isArray(next[k])).toBe(true);
+    expect(ids(next.textures)).toEqual(["t1"]);
+    expect(ids(next.assets)).toEqual(["a1"]);
+  });
+
+  test("the app and the server agree on what the kinds ARE", () => {
+    // Two lists that must not drift: PROJECT_KINDS in App.js, KINDS in setupProxy.js. If one grows
+    // a kind and the other does not, that kind quietly stops being saved — which is the bug.
+    const path = require("path");
+    const src = require("fs").readFileSync(path.join(__dirname, "App.js"), "utf8");
+    const m = src.match(/const PROJECT_KINDS = \[([^\]]*)\]/);
+    expect(m).toBeTruthy();
+    const appKinds = m[1].split(",").map((x) => x.trim().replace(/["']/g, "")).filter(Boolean);
+    expect(appKinds).toEqual(KINDS);
   });
 });
 

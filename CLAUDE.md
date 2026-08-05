@@ -89,13 +89,18 @@ than once. The rules below are not style preferences.
   first write of each day aside in `asset-data/snapshots/` keeping the last 5 (gitignored;
   the committed `library.json` is the copy that leaves the container).
 
-**Every kind of drawn work goes to both tiers, in both directions.** Assets, levels
-and stored groups each save up (`projectLibrary.save`) and restore down on load. Two
-separate outages came from a kind of work that only ever went one way: levels were
-written to browser storage and nowhere else, and stored groups existed in the project
-file only if you happened to create a NEW one. **Anything new that a person can draw
-and name must be wired into all four halves** — save up, restore down, delete up,
-and included in the export.
+**Every kind of drawn work goes to both tiers, in both directions.** The kinds are one
+list — `PROJECT_KINDS` in `App.js`, `KINDS` in `setupProxy.js`, kept identical by a
+test: **assets, levels, stamps, textures, backgrounds**. Each saves up
+(`projectLibrary.save({ levels })`) and restores down on load.
+
+Every outage so far has been a kind of work that only went one way. Levels were written
+to browser storage and nowhere else. Stored groups reached the project file only if you
+made a NEW one. The **⬇ Export everything** button wrote assets and nothing else, so two
+backup files taken by hand — 25 Jul and 4 Aug — contained zero levels; the backups made
+to survive exactly this were no use. So: **anything a person can draw and name must be
+wired into all five places** — save up, restore down, delete up, in the export, and back
+out of `restoreBackup`. Add the word to `KINDS` and most of it follows.
 
 **Deleting is the only operation allowed to shrink the file.** Every other write is
 additive and merges by id, because a page that hasn't finished loading must never be
@@ -115,6 +120,24 @@ test fires, you are one line away from blanking a library.
 If work ever looks missing: **it is almost certainly still there.** Back up first (a
 read-only dump of every key to a downloaded JSON), then diagnose. Never clear storage
 to "reset".
+
+### Getting data out of a preview address that is gone
+
+An origin whose container no longer serves anything cannot be reached by the in-app
+"Recover from a previous address" tool — that needs the old page to load so it can
+answer a postMessage. But the browser still has the storage on disk, and it can be read
+directly. This is how the 4 levels and 9 stored groups lost on 5 Aug were recovered.
+
+Chrome keeps localStorage in a LevelDB at
+`%LOCALAPPDATA%\Google\Chrome\User Data\Default\Local Storage\leveldb`. The `.ldb`
+tables are snappy-compressed, so grepping them finds the key names and returns garbage
+for the values; they have to be parsed properly (SSTable footer -> index block -> data
+blocks -> snappy -> prefix-compressed entries), plus the `.log` write-ahead file for the
+most recent writes. Keys are `_<origin>\x00\x01<key>`, values are prefixed `\x00` for
+UTF-16LE or `\x01` for Latin-1. Read-only, and Chrome does not need to be closed.
+
+The old origin's records were then merged into `asset-data/library.json`, which is all it
+takes: opening the studio on any address pulls the whole library back down.
 
 ## Architecture worth knowing
 

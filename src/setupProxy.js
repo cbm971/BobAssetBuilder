@@ -20,15 +20,30 @@ const DATA_FILE = path.join(DATA_DIR, "library.json");
 const BAK_FILE = path.join(DATA_DIR, "library.bak.json");
 const SNAP_DIR = path.join(DATA_DIR, "snapshots");
 const SNAP_KEEP = 5;
+// Every kind of drawn work the file carries. Adding a new one is adding a word here — the read,
+// the merge, the delete and the response all walk this list. The reason it is a list at all: each
+// time a kind was handled by hand, one of them got missed, and the kind that got missed is the one
+// that was lost. `assets` keeps its special "never blank this" guard below; the rest simply merge.
+const KINDS = ["assets", "levels", "stamps", "textures", "backgrounds"];
+
+const emptyLibrary = () => {
+  const out = { savedAt: null };
+  for (const k of KINDS) out[k] = [];
+  return out;
+};
 
 const readLibrary = () => {
   for (const f of [DATA_FILE, BAK_FILE]) {
     try {
       const parsed = JSON.parse(fs.readFileSync(f, "utf8"));
-      if (parsed && Array.isArray(parsed.assets)) return parsed;
+      if (parsed && Array.isArray(parsed.assets)) {
+        // A file written before a kind existed simply has no key for it.
+        for (const k of KINDS) if (!Array.isArray(parsed[k])) parsed[k] = [];
+        return parsed;
+      }
     } catch { /* try the backup, then give up quietly */ }
   }
-  return { assets: [], levels: [], savedAt: null };
+  return emptyLibrary();
 };
 
 // One rolling backup is one write deep: a bad write followed by any second write loses both
@@ -86,20 +101,14 @@ const applyWrite = (current, body, incoming) => {
   // same POST either, which is what the old early-return did: a level save or a stored group
   // legitimately carries no assets at all, so every one of them was silently ignored.
   const keptAssets = !incoming.length && ((current.assets || []).length > 0);
-  const assets = keptAssets
-    ? (current.assets || [])
-    : (body && body.replace ? incoming : mergeById(current.assets, incoming));
-  return {
-    keptAssets,
-    next: {
-      savedAt: new Date().toISOString(),
-      assets: removeById(assets, rm.assets),
-      levels: removeById(Array.isArray(body && body.levels) ? mergeById(current.levels, body.levels) : (current.levels || []), rm.levels),
-      // Stamps are drawn work too — a stored group is a real copy of its blocks — and until
-      // now they lived ONLY in browser storage and were not even in an export.
-      stamps: removeById(Array.isArray(body && body.stamps) ? mergeById(current.stamps, body.stamps) : (current.stamps || []), rm.stamps),
-    },
-  };
+  const next = { savedAt: new Date().toISOString() };
+  for (const k of KINDS) {
+    const merged = k === "assets"
+      ? (keptAssets ? (current.assets || []) : (body && body.replace ? incoming : mergeById(current.assets, incoming)))
+      : (Array.isArray(body && body[k]) ? mergeById(current[k], body[k]) : (current[k] || []));
+    next[k] = removeById(merged, rm[k]);
+  }
+  return { keptAssets, next };
 };
 
 // Read a JSON body without depending on express's parser being available.
@@ -117,7 +126,9 @@ module.exports = function (app) {
         if (req.method === "GET") {
           const lib = readLibrary();
           res.setHeader("Content-Type", "application/json");
-          return res.end(JSON.stringify({ ok: true, assets: lib.assets, levels: lib.levels || [], stamps: lib.stamps || [], savedAt: lib.savedAt }));
+          const out = { ok: true, savedAt: lib.savedAt };
+          for (const k of KINDS) out[k] = lib[k] || [];
+          return res.end(JSON.stringify(out));
         }
         if (req.method === "POST") {
           const body = (req.body && typeof req.body === "object") ? req.body : await readJsonBody(req);
@@ -127,7 +138,9 @@ module.exports = function (app) {
           const current = readLibrary();
           const { next, keptAssets } = applyWrite(current, body, incoming);
           writeLibrary(next);
-          return res.end(JSON.stringify({ ok: true, assets: next.assets.length, levels: next.levels.length, stamps: next.stamps.length, keptAssets }));
+          const counts = { ok: true, keptAssets };
+          for (const k of KINDS) counts[k] = next[k].length;
+          return res.end(JSON.stringify(counts));
         }
         return next();
       } catch (e) {
@@ -142,4 +155,4 @@ module.exports = function (app) {
 
 // Exported for the tests only. The write rules are the part of this file that can lose work, and
 // they are worth testing without standing a dev server up.
-module.exports.__test = { applyWrite, mergeById, removeById };
+module.exports.__test = { applyWrite, mergeById, removeById, KINDS };

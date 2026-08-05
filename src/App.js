@@ -188,6 +188,10 @@ const ASSET_INDEX_BAK = "assetIndex.bak";
 // deleted. The project directory does not move, so the dev server keeps the real copy there and the
 // browser store becomes a cache in front of it. Every save goes to both; a fresh address pulls the
 // library straight back out of the project.
+// Mirrors KINDS in setupProxy.js. Anything a person can draw and name belongs in this list, in
+// the export, and in both directions of the load — the kinds that were only half-wired are exactly
+// the kinds that have been lost.
+const PROJECT_KINDS = ["assets", "levels", "stamps", "textures", "backgrounds"];
 const projectLibrary = {
   available: false, // set on the first successful read; a plain static build simply won't have it
   load: async () => {
@@ -200,20 +204,24 @@ const projectLibrary = {
       return data;
     } catch { return null; }
   },
-  // Assets, levels and stored groups are three separate bodies of work, and any ONE of them is
-  // worth a write. This used to bail out unless `assets` was non-empty, so a level save or a
-  // stored group could never reach the file on its own — which is why every asset survived the
-  // last change of address and the levels did not. The server is what decides whether a write is
-  // allowed to shrink anything; all that is refused here is a POST carrying nothing at all.
-  save: async (assets, levels, stamps) => {
-    const a = (assets || []).filter((x) => x && x.id);
-    const l = (levels || []).filter((x) => x && x.id);
-    const st = (stamps || []).filter((x) => x && x.id);
-    if (!a.length && !l.length && !st.length) return false;
+  // Assets, levels, stored groups, textures and backgrounds are five separate bodies of work, and
+  // any ONE of them is worth a write. This took three positional arrays and bailed out unless the
+  // first was non-empty, so a level save could never reach the file on its own — which is why
+  // every asset survived the last change of address and the levels did not. Named, so adding a
+  // kind cannot silently pass it in the wrong slot, and so `save({ levels })` is a whole thought.
+  save: async (payload) => {
+    const body = { assets: [] };
+    let any = false;
+    for (const k of PROJECT_KINDS) {
+      const list = ((payload && payload[k]) || []).filter((x) => x && x.id);
+      body[k] = list;
+      if (list.length) any = true;
+    }
+    if (!any) return false;
     try {
       const res = await fetch("/__library", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assets: a, levels: l, stamps: st }),
+        body: JSON.stringify(body),
       });
       return res.ok;
     } catch { return false; }
@@ -4715,7 +4723,7 @@ export default function AssetStudio() {
     for (const raw of assets) {
       try { const a = migrate(raw); if (await sset("asset:" + a.id, JSON.stringify(a))) imported++; } catch { /* skip */ }
     }
-    if (imported) { await projectLibrary.save(assets.filter((a) => a && a.id), []); await loadLibrary(); }
+    if (imported) { await projectLibrary.save({ assets: assets.filter((a) => a && a.id) }); await loadLibrary(); }
     setRecoverState({ found: assets.length, imported });
   };
   // TWO stores, always both.
@@ -6695,7 +6703,7 @@ export default function AssetStudio() {
     if (fromProject && full.length) flash("🛟 Restored " + fromProject + " asset" + (fromProject > 1 ? "s" : "") + " from the project file — " + full.length + " loaded.");
     // Push whatever this browser has back INTO the project file, so the copy that survives an
     // address change is always the fullest one either side has seen.
-    if (full.length) projectLibrary.save(full, []);
+    if (full.length) projectLibrary.save({ assets: full });
     if (recovered && full.length) {
       const healed = full.map((x) => ({ id: x.id, name: x.name, type: x.type }));
       await writeAssetIndex(healed);
@@ -6736,7 +6744,7 @@ export default function AssetStudio() {
       // drawn before that landed was still browser-only and still went with the container. Every
       // load now hands the whole set to the project file, which is what actually closes the hole
       // for work that already exists.
-      if (full.length) projectLibrary.save([], [], full);
+      if (full.length) projectLibrary.save({ stamps: full });
       setStamps(full);
       if (restored) flash("🛟 Restored " + restored + " stored group" + (restored > 1 ? "s" : "") + " from the project file.");
     } catch { setStamps([]); }
@@ -6831,7 +6839,7 @@ export default function AssetStudio() {
     const ok1 = await sset("stamp:" + stamp.id, JSON.stringify(stamp));
     const ok2 = await sset("stampIndex", JSON.stringify(list));
     // Into the project file too, so a stored group survives what the assets now survive.
-    if (ok1 && ok2) { projectLibrary.save([], [], [stamp]); setStampName(""); setStampPick(stamp.id); loadStamps(); flash("Stored \"" + name + "\" (" + baked.length + " block" + (baked.length === 1 ? "" : "s") + ") — place it into any pose or body. Mirrored parts were baked into real copies so the group rotates as one."); }
+    if (ok1 && ok2) { projectLibrary.save({ stamps: [stamp] }); setStampName(""); setStampPick(stamp.id); loadStamps(); flash("Stored \"" + name + "\" (" + baked.length + " block" + (baked.length === 1 ? "" : "s") + ") — place it into any pose or body. Mirrored parts were baked into real copies so the group rotates as one."); }
     else flash("Couldn't store here — use Download.");
   };
   const placeStamp = (s) => {
@@ -8190,7 +8198,7 @@ export default function AssetStudio() {
     list = list.filter((x) => x.id !== payload.id); list.push({ id: payload.id, name: payload.name, type: payload.type });
     const ok2 = await writeAssetIndex(list);
     // ...and into the project file, which is the copy a change of preview address cannot take away.
-    projectLibrary.save([payload], []);
+    projectLibrary.save({ assets: [payload] });
     // Push this edit into every saved Dressed Look already wearing it, re-baking that look's art
     // from its own embedded components. Without this a shirt edit only reached Playtest after
     // manually re-equipping the shirt in Dress Bob and re-saving the look over the top of itself.
@@ -8335,12 +8343,19 @@ export default function AssetStudio() {
     try {
       if (!library.length) { flash("Nothing saved yet — nothing to export."); return; }
       const stamp = new Date().toISOString().slice(0, 10);
-      // Stamps ride along now. An export that quietly omitted stored groups is exactly how they
-      // were lost while every asset came back from the same file.
-      const payload = JSON.stringify({ assetBuilderBackup: 1, exportedAt: Date.now(), assets: library, stamps }, null, 1);
+      // EVERYTHING rides along. Two backup files were taken by hand — 25 Jul and 4 Aug — and
+      // neither contained a single level, because this button only ever wrote assets. When the
+      // levels went, the backups made to prevent exactly that were no help at all. Levels are
+      // where most of the hours go; they are the first thing this has to carry, not an extra.
+      const bundle = { assetBuilderBackup: 2, exportedAt: Date.now(), assets: library, levels: levelLib, stamps, textures: texLib, backgrounds: bgLib.filter((b) => b && b.bg) };
+      const payload = JSON.stringify(bundle, null, 1);
       const b = new Blob([payload], { type: "application/json" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "assetbuilder-backup-" + stamp + ".json"; a.click();
-      flash("Exported " + library.length + " assets" + (stamps.length ? " and " + stamps.length + " stored group" + (stamps.length > 1 ? "s" : "") : "") + " ✓ — keep that file somewhere safe.");
+      const bits = [library.length + " asset" + (library.length === 1 ? "" : "s")];
+      for (const [n, label] of [[bundle.levels.length, "level"], [bundle.stamps.length, "stored group"], [bundle.textures.length, "texture"], [bundle.backgrounds.length, "background"]]) {
+        if (n) bits.push(n + " " + label + (n === 1 ? "" : "s"));
+      }
+      flash("Exported " + bits.join(", ") + " ✓ — keep that file somewhere safe.");
     } catch { flash("Download blocked — try again."); }
   };
   const restoreBackup = async (bk) => {
@@ -8354,18 +8369,40 @@ export default function AssetStudio() {
       } catch { /* skip a corrupt entry, restore the rest */ }
     }
     await writeAssetIndex(list);
-    // A backup written after this change carries stored groups too; older ones simply have none.
-    let sn = 0;
-    if (Array.isArray(bk.stamps) && bk.stamps.length) {
-      let sl = []; const sidx = await sget("stampIndex"); if (sidx) try { sl = JSON.parse(sidx); } catch { sl = []; }
-      for (const st of bk.stamps) {
-        if (!st || !st.id) continue;
-        if (await sset("stamp:" + st.id, JSON.stringify(st))) { sl = sl.filter((x) => x.id !== st.id); sl.push({ id: st.id, name: st.name }); sn++; }
+    // Every other kind, the same way. A backup written before version 2 simply has none of these
+    // keys and the loop does nothing — but one written now brings a whole studio back, which is
+    // the only reason to have a backup button at all.
+    const restoreKind = async (list, prefix, indexKey, entry) => {
+      if (!Array.isArray(list) || !list.length) return 0;
+      let idxList = []; const raw = await sget(indexKey); if (raw) try { idxList = JSON.parse(raw); } catch { idxList = []; }
+      if (!Array.isArray(idxList)) idxList = [];
+      let count = 0;
+      for (const item of list) {
+        if (!item || !item.id) continue;
+        try {
+          if (await sset(prefix + item.id, JSON.stringify(item))) {
+            idxList = idxList.filter((x) => x && x.id !== item.id); idxList.push(entry(item)); count++;
+          }
+        } catch { /* one bad record must not stop the rest */ }
       }
-      if (sn) { await sset("stampIndex", JSON.stringify(sl)); loadStamps(); }
-    }
+      if (count) await sset(indexKey, JSON.stringify(idxList));
+      return count;
+    };
+    const named = (x) => ({ id: x.id, name: x.name });
+    const sn = await restoreKind(bk.stamps, "stamp:", "stampIndex", named);
+    const ln = await restoreKind(bk.levels, "level:", "levelIndex", named);
+    const tn = await restoreKind(bk.textures, "texture:", "textureIndex", named);
+    const gn = await restoreKind(bk.backgrounds, "background:", "backgroundIndex", named);
+    if (sn) loadStamps();
+    if (ln) loadLevels();
+    if (tn) loadTextures();
+    if (gn) loadBgLib();
     loadLibrary();
-    flash("Restored " + n + " asset(s)" + (sn ? " and " + sn + " stored group" + (sn > 1 ? "s" : "") : "") + " from the backup ✓");
+    const bits = [n + " asset" + (n === 1 ? "" : "s")];
+    for (const [c, label] of [[ln, "level"], [sn, "stored group"], [tn, "texture"], [gn, "background"]]) {
+      if (c) bits.push(c + " " + label + (c === 1 ? "" : "s"));
+    }
+    flash("Restored " + bits.join(", ") + " from the backup ✓");
   };
 
   // loadTextures() here as well as in the level creator: pieces can be painted with a texture now
@@ -8623,6 +8660,18 @@ export default function AssetStudio() {
       const idx = await sget("textureIndex"); const list = idx ? JSON.parse(idx) : [];
       const full = [];
       for (const e of list) { const raw = await sget("texture:" + e.id); if (raw) try { full.push(JSON.parse(raw)); } catch { /* skip a corrupt texture */ } }
+      // Same two-way trip as assets, levels and groups. A texture is drawn work — a palette painted
+      // by hand and reused across levels — so it cannot be the one kind still living on an address
+      // that expires.
+      const have = new Set(full.map((t) => t && t.id));
+      const proj = await projectLibrary.load();
+      let restored = 0;
+      for (const t of ((proj && proj.textures) || [])) {
+        if (!t || !t.id || have.has(t.id)) continue;
+        if (await sset("texture:" + t.id, JSON.stringify(t))) { full.push(t); have.add(t.id); restored++; }
+      }
+      if (restored) await sset("textureIndex", JSON.stringify(full.map((t) => ({ id: t.id, name: t.name }))));
+      if (full.length) projectLibrary.save({ textures: full });
       setTexLib(full);
     } catch { setTexLib([]); }
   };
@@ -8639,6 +8688,7 @@ export default function AssetStudio() {
     list = list.filter((x) => x.id !== clean.id); list.push({ id: clean.id, name: clean.name });
     const ok2 = await sset("textureIndex", JSON.stringify(list));
     if (ok1 && ok2) {
+      projectLibrary.save({ textures: [clean] });
       await loadTextures(); setTexEdit(null);
       if (applyTo === "piece") { updSel({ tex: clean.id }); flash("Texture \"" + clean.name + "\" saved ✓ — on this block now."); }
       else { setLTexId(clean.id); setLTool("paint"); flash("Texture \"" + clean.name + "\" saved ✓ — painting with it now."); }
@@ -8656,6 +8706,7 @@ export default function AssetStudio() {
     let list = []; const idx = await sget("textureIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     await sdel("texture:" + id);
     await sset("textureIndex", JSON.stringify(list.filter((x) => x.id !== id)));
+    await projectLibrary.forget("textures", [id]); // or loadTextures restores what was just deleted
     if (lTexId === id) setLTexId(null);
     if (texEdit && texEdit.id === id) setTexEdit(null);
     await loadTextures();
@@ -8663,9 +8714,30 @@ export default function AssetStudio() {
     // flat again, so a delete can never blank out part of a level.
     flash("Texture deleted — cells painted with it fall back to their flat color.");
   };
+  // Reads the whole record for each background, not just the index entry. The picker only needs
+  // {id,name} — which every record already carries — but the project file needs the real thing,
+  // and a hand-painted backdrop is no less drawn work than the level it sits behind.
   const loadBgLib = async () => {
-    try { const idx = await sget("backgroundIndex"); const list = idx ? JSON.parse(idx) : []; setBgLib(list); }
-    catch { setBgLib([]); }
+    try {
+      const idx = await sget("backgroundIndex"); const list = idx ? JSON.parse(idx) : [];
+      const full = [];
+      for (const e of list) {
+        if (!e || !e.id) continue;
+        const raw = await sget("background:" + e.id);
+        if (raw) { try { full.push(JSON.parse(raw)); continue; } catch { /* fall through to the index entry */ } }
+        full.push(e); // indexed but unreadable: keep the name in the picker rather than hide it
+      }
+      const have = new Set(full.map((b) => b && b.id));
+      const proj = await projectLibrary.load();
+      let restored = 0;
+      for (const b of ((proj && proj.backgrounds) || [])) {
+        if (!b || !b.id || have.has(b.id)) continue;
+        if (await sset("background:" + b.id, JSON.stringify(b))) { full.push(b); have.add(b.id); restored++; }
+      }
+      if (restored) await sset("backgroundIndex", JSON.stringify(full.map((b) => ({ id: b.id, name: b.name }))));
+      if (full.length) projectLibrary.save({ backgrounds: full.filter((b) => b && b.bg) });
+      setBgLib(full);
+    } catch { setBgLib([]); }
   };
   // Backgrounds are saved SEPARATELY from levels (their own "background:<id>" entries +
   // "backgroundIndex", mirroring how levels/assets already work) so one hand-painted backdrop
@@ -8679,6 +8751,7 @@ export default function AssetStudio() {
     let list = []; const idx = await sget("backgroundIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     list.push({ id, name });
     const ok2 = await sset("backgroundIndex", JSON.stringify(list));
+    projectLibrary.save({ backgrounds: [{ id, name, bg: level.bg }] });
     if (ok1 && ok2) { flash("Background \"" + name + "\" saved ✓"); setBgName(""); loadBgLib(); } else flash("Couldn't save the background.");
   };
   const loadBackground = async (id) => {
@@ -8727,7 +8800,7 @@ export default function AssetStudio() {
     if (orphanL.length) console.warn("[Bob] recovered " + orphanL.length + " level(s) missing from the index:", orphanL);
     if (fromProject) flash("🛟 Restored " + fromProject + " level" + (fromProject > 1 ? "s" : "") + " from the project file.");
     // Push back up too, so the project file always holds the fullest copy either side has seen.
-    if (full.length) projectLibrary.save([], full, []);
+    if (full.length) projectLibrary.save({ levels: full });
     if (bad.length) { console.warn("[Bob] " + bad.length + " level(s) could not be read and were skipped:", bad); flash("⚠ " + bad.length + " level" + (bad.length > 1 ? "s" : "") + " couldn't be read — the other " + full.length + " loaded. See console."); }
   };
   const openLevelCreator = () => {
@@ -8743,7 +8816,7 @@ export default function AssetStudio() {
     const ok2 = await sset("levelIndex", JSON.stringify(list));
     // Straight into the project file as well. The browser store is a cache in front of it: it is
     // the copy that is scoped to an address that will not last, and losing it must cost nothing.
-    projectLibrary.save([], [level], []);
+    projectLibrary.save({ levels: [level] });
     if (ok1 && ok2) { levelBaseline.current = JSON.stringify(level); flash("Level saved ✓"); loadLevels(); } else flash("Couldn't save — use Download.");
   };
   const doNewLevelFresh = () => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); const nl = newLevel(); setLevel(nl); levelBaseline.current = JSON.stringify(nl); setLSel(null); setGen(null); setLFxSel(null); setLFxEditIdx(null); setLLayer("fg"); setLTool("paint"); setLBrush(1); setEyedrop(false); flash("New blank level"); };
@@ -9160,7 +9233,7 @@ export default function AssetStudio() {
           <button className="ltbtn saveRead" disabled={libraryLoading} onClick={() => { setLoadOpen(true); setLoadCategory(null); setLoadSlot(null); }}>{libraryLoading ? "⏳ Loading your saves…" : "📂 Load (" + allAssets.length + " saved)"}</button>
           {libraryLoading && <p className="mini saveLoading">Your saved assets are still being read from this browser. Nothing has been cleared.</p>}
           <label className="openfile">⬆ Open a file<input type="file" accept="application/json" onChange={upload} hidden /></label>
-          <button className="ltbtn saveRead" disabled={libraryLoading} onClick={exportAllAssets} title="Downloads every saved asset as one backup file. Re-open that file here later to restore them all.">⬇ Export all assets{libraryLoading ? " (loading…)" : " (" + library.length + ")"}</button>
+          <button className="ltbtn saveRead" disabled={libraryLoading} onClick={exportAllAssets} title="Downloads everything you have made — assets, levels, stored groups, textures and backgrounds — as one backup file. Re-open that file here later to restore it all.">⬇ Export everything{libraryLoading ? " (loading…)" : " (" + library.length + " assets, " + levelLib.length + " levels)"}</button>
           <h2>Niche controls</h2>
           <button className="ltbtn" onClick={() => setNiche(true)}>🩹 Recover layers from a dressed look</button>
         </div>
