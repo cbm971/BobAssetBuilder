@@ -200,12 +200,12 @@ const projectLibrary = {
       return data;
     } catch { return null; }
   },
-  save: async (assets, levels) => {
+  save: async (assets, levels, stamps) => {
     if (!assets || !assets.length) return false; // never let an empty page state reach the file
     try {
       const res = await fetch("/__library", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assets, levels: levels || [] }),
+        body: JSON.stringify({ assets, levels: levels || [], stamps: stamps || [] }),
       });
       return res.ok;
     } catch { return false; }
@@ -6697,7 +6697,19 @@ export default function AssetStudio() {
       const idx = await sget("stampIndex"); const list = idx ? JSON.parse(idx) : [];
       const full = [];
       for (const e of list) { const raw = await sget("stamp:" + e.id); if (raw) try { full.push(JSON.parse(raw)); } catch { /* skip a corrupt stamp */ } }
+      // A stored group is real drawn work — actual copies of blocks — yet it lived ONLY in browser
+      // storage and wasn't even in an export, so it went with the container while every asset came
+      // back. Stamps belong in the project file next to the assets.
+      const have = new Set(full.map((x) => x && x.id));
+      const proj = await projectLibrary.load();
+      let restored = 0;
+      for (const st of ((proj && proj.stamps) || [])) {
+        if (!st || !st.id || have.has(st.id)) continue;
+        if (await sset("stamp:" + st.id, JSON.stringify(st))) { full.push(st); have.add(st.id); restored++; }
+      }
+      if (restored) await sset("stampIndex", JSON.stringify(full.map((x) => ({ id: x.id, name: x.name }))));
       setStamps(full);
+      if (restored) flash("🛟 Restored " + restored + " stored group" + (restored > 1 ? "s" : "") + " from the project file.");
     } catch { setStamps([]); }
   };
 
@@ -6789,7 +6801,8 @@ export default function AssetStudio() {
     list = list.filter((x) => x.name !== name); list.push({ id: stamp.id, name: stamp.name }); // same name replaces, same as asset saves
     const ok1 = await sset("stamp:" + stamp.id, JSON.stringify(stamp));
     const ok2 = await sset("stampIndex", JSON.stringify(list));
-    if (ok1 && ok2) { setStampName(""); setStampPick(stamp.id); loadStamps(); flash("Stored \"" + name + "\" (" + baked.length + " block" + (baked.length === 1 ? "" : "s") + ") — place it into any pose or body. Mirrored parts were baked into real copies so the group rotates as one."); }
+    // Into the project file too, so a stored group survives what the assets now survive.
+    if (ok1 && ok2) { projectLibrary.save(library.length ? library : [stamp], [], [stamp]); setStampName(""); setStampPick(stamp.id); loadStamps(); flash("Stored \"" + name + "\" (" + baked.length + " block" + (baked.length === 1 ? "" : "s") + ") — place it into any pose or body. Mirrored parts were baked into real copies so the group rotates as one."); }
     else flash("Couldn't store here — use Download.");
   };
   const placeStamp = (s) => {
@@ -8290,10 +8303,12 @@ export default function AssetStudio() {
     try {
       if (!library.length) { flash("Nothing saved yet — nothing to export."); return; }
       const stamp = new Date().toISOString().slice(0, 10);
-      const payload = JSON.stringify({ assetBuilderBackup: 1, exportedAt: Date.now(), assets: library }, null, 1);
+      // Stamps ride along now. An export that quietly omitted stored groups is exactly how they
+      // were lost while every asset came back from the same file.
+      const payload = JSON.stringify({ assetBuilderBackup: 1, exportedAt: Date.now(), assets: library, stamps }, null, 1);
       const b = new Blob([payload], { type: "application/json" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "assetbuilder-backup-" + stamp + ".json"; a.click();
-      flash("Exported all " + library.length + " saved assets ✓ — keep that file somewhere safe.");
+      flash("Exported " + library.length + " assets" + (stamps.length ? " and " + stamps.length + " stored group" + (stamps.length > 1 ? "s" : "") : "") + " ✓ — keep that file somewhere safe.");
     } catch { flash("Download blocked — try again."); }
   };
   const restoreBackup = async (bk) => {
@@ -8307,8 +8322,18 @@ export default function AssetStudio() {
       } catch { /* skip a corrupt entry, restore the rest */ }
     }
     await writeAssetIndex(list);
+    // A backup written after this change carries stored groups too; older ones simply have none.
+    let sn = 0;
+    if (Array.isArray(bk.stamps) && bk.stamps.length) {
+      let sl = []; const sidx = await sget("stampIndex"); if (sidx) try { sl = JSON.parse(sidx); } catch { sl = []; }
+      for (const st of bk.stamps) {
+        if (!st || !st.id) continue;
+        if (await sset("stamp:" + st.id, JSON.stringify(st))) { sl = sl.filter((x) => x.id !== st.id); sl.push({ id: st.id, name: st.name }); sn++; }
+      }
+      if (sn) { await sset("stampIndex", JSON.stringify(sl)); loadStamps(); }
+    }
     loadLibrary();
-    flash("Restored " + n + " asset(s) from the backup ✓");
+    flash("Restored " + n + " asset(s)" + (sn ? " and " + sn + " stored group" + (sn > 1 ? "s" : "") : "") + " from the backup ✓");
   };
 
   // loadTextures() here as well as in the level creator: pieces can be painted with a texture now

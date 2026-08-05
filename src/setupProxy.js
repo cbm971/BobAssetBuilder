@@ -57,7 +57,7 @@ module.exports = function (app) {
         if (req.method === "GET") {
           const lib = readLibrary();
           res.setHeader("Content-Type", "application/json");
-          return res.end(JSON.stringify({ ok: true, assets: lib.assets, levels: lib.levels || [], savedAt: lib.savedAt }));
+          return res.end(JSON.stringify({ ok: true, assets: lib.assets, levels: lib.levels || [], stamps: lib.stamps || [], savedAt: lib.savedAt }));
         }
         if (req.method === "POST") {
           const body = (req.body && typeof req.body === "object") ? req.body : await readJsonBody(req);
@@ -74,9 +74,12 @@ module.exports = function (app) {
             savedAt: new Date().toISOString(),
             assets: body.replace ? incoming : mergeById(current.assets, incoming),
             levels: Array.isArray(body.levels) ? mergeById(current.levels, body.levels) : (current.levels || []),
+            // Stamps are drawn work too — a stored group is a real copy of its blocks — and until
+            // now they lived ONLY in browser storage and were not even in an export.
+            stamps: Array.isArray(body.stamps) ? mergeById(current.stamps, body.stamps) : (current.stamps || []),
           };
           writeLibrary(next);
-          return res.end(JSON.stringify({ ok: true, assets: next.assets.length, levels: next.levels.length }));
+          return res.end(JSON.stringify({ ok: true, assets: next.assets.length, levels: next.levels.length, stamps: next.stamps.length }));
         }
         return next();
       } catch (e) {
