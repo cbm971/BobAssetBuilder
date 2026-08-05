@@ -3,6 +3,8 @@ import {
   capAirborneSpeed,
   cellSig,
   LV_OBJ_SIZES,
+  enumerateHostKeys,
+  mergeIndexWrite,
   objRotStyle,
   normalizeObjRot,
   OBJ_ROT_NUDGE,
@@ -531,6 +533,65 @@ describe("the Oval's ends stay round however far it is stretched", () => {
     const [q] = flipPiecesHorizontally([{ id: "o", kind: "stadium", x: 10, y: 0, w: 60, h: 20 }], 50);
     expect(q.kind).toBe("stadium");
     expect(q.points).toBeUndefined();
+  });
+});
+
+describe("asset index: surviving a bad write", () => {
+  const A = [{ id: "a", name: "A", type: "prop" }, { id: "b", name: "B", type: "prop" }, { id: "c", name: "C", type: "prop" }];
+
+  test("an add/update that came out shorter is merged, never written", () => {
+    // A stale read racing a concurrent save: the caller thinks there is one asset. Writing that
+    // would hide the other two, which is what "my assets disappeared" actually is.
+    const out = mergeIndexWrite(A, [{ id: "a", name: "A2", type: "prop" }], false);
+    expect(out.map((x) => x.id).sort()).toEqual(["a", "b", "c"]);
+    expect(out.find((x) => x.id === "a").name).toBe("A2"); // the caller's version still wins
+  });
+
+  test("a real delete is allowed to shrink it", () => {
+    expect(mergeIndexWrite(A, A.slice(0, 2), true).map((x) => x.id)).toEqual(["a", "b"]);
+  });
+
+  test("growing the list is written as-is", () => {
+    const grown = A.concat([{ id: "d", name: "D", type: "prop" }]);
+    expect(mergeIndexWrite(A, grown, false)).toHaveLength(4);
+  });
+
+  test("an empty write can never blank a full index", () => {
+    expect(mergeIndexWrite(A, [], false)).toHaveLength(3);
+    expect(mergeIndexWrite(A, null, false)).toHaveLength(3);
+  });
+});
+
+describe("finding assets in a host-provided store", () => {
+  const keys = ["assetIndex", "asset:a", "asset:b", "level:x"];
+  const ids = async (ws) => (await enumerateHostKeys(ws)).filter((k) => k.startsWith("asset:")).map((k) => k.slice(6));
+
+  // The whole bug: the old scan returned [] the moment a host store existed, so on the host that
+  // actually matters the rescue never ran. Each of these shapes must be understood.
+  test("list() returning plain keys", async () => {
+    expect(await ids({ list: async () => keys })).toEqual(["a", "b"]);
+  });
+
+  test("keys() instead of list()", async () => {
+    expect(await ids({ keys: async () => keys })).toEqual(["a", "b"]);
+  });
+
+  test("objects rather than strings", async () => {
+    expect(await ids({ list: async () => keys.map((k) => ({ key: k })) })).toEqual(["a", "b"]);
+  });
+
+  test("wrapped in { keys: [...] }", async () => {
+    expect(await ids({ getAll: async () => ({ keys }) })).toEqual(["a", "b"]);
+  });
+
+  test("a method that throws does not abort the search", async () => {
+    const ws = { list: async () => { throw new Error("unsupported"); }, keys: async () => keys };
+    expect(await ids(ws)).toEqual(["a", "b"]);
+  });
+
+  test("a store with no way to enumerate answers empty rather than throwing", async () => {
+    await expect(enumerateHostKeys({ get: async () => null })).resolves.toEqual([]);
+    await expect(enumerateHostKeys(null)).resolves.toEqual([]);
   });
 });
 

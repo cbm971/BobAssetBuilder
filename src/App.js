@@ -142,6 +142,44 @@ const SLOT_ORDER = ["under_bottom", "under_top", "pants", "shirt", "shoes", "jac
 const LOWER_BODY_SLOTS = new Set(["pants", "under_bottom", "shoes"]);
 const UPPER_BODY_SLOTS = new Set(["shirt", "jacket", "under_top"]);
 
+// Ask a host-provided storage object for every key it holds.
+//
+// This exists because the library vanished three times and the recovery that was supposed to catch
+// it never ran: the old scan gave up the instant window.storage existed, which is precisely the
+// store Blake's host uses. There is no agreed shape for a host storage API, so try the plausible
+// listing methods in turn and accept the first that answers. Returns [] when the host offers no way
+// to enumerate — the mirrored index is the fallback for that case.
+export const enumerateHostKeys = async (ws) => {
+  if (!ws) return [];
+  const attempts = [
+    () => ws.list && ws.list(false), () => ws.list && ws.list(),
+    () => ws.keys && ws.keys(false), () => ws.keys && ws.keys(),
+    () => ws.getAll && ws.getAll(false), () => ws.entries && ws.entries(false),
+  ];
+  for (const call of attempts) {
+    let res;
+    try { res = await call(); } catch { continue; } // a host that throws on an unsupported method must not abort the search
+    if (!res) continue;
+    const arr = Array.isArray(res) ? res : (Array.isArray(res.keys) ? res.keys : (Array.isArray(res.items) ? res.items : null));
+    if (!arr || !arr.length) continue;
+    const keys = arr.map((e) => (typeof e === "string" ? e : (e && (e.key || e.name || e.id)))).filter((k) => typeof k === "string");
+    if (keys.length) return keys;
+  }
+  return [];
+};
+// What an index write should actually store. `next` is what the caller wants; `prev` is what's
+// already there. An add/update that comes out SHORTER than what exists means a stale read raced a
+// concurrent save — writing it would silently drop assets, which is exactly what "my assets
+// disappeared" looks like from the inside. Merge instead, keeping the caller's versions. A genuine
+// delete passes allowShrink and is written as-is.
+export const mergeIndexWrite = (prev, next, allowShrink) => {
+  const clean = (l) => (Array.isArray(l) ? l.filter((x) => x && x.id) : []);
+  const p = clean(prev), n = clean(next);
+  if (allowShrink || n.length >= p.length) return n;
+  const byId = new Map(p.map((x) => [x.id, x]));
+  for (const x of n) byId.set(x.id, x);
+  return [...byId.values()];
+};
 const uid = () => Math.random().toString(36).slice(2, 9);
 const rect = (x, y, w, h, color = SKIN) => ({ id: uid(), kind: "rect", x, y, w, h, color, mirror: true });
 const arm = (x, y, w, h, pivot = "top") => ({ ...rect(x, y, w, h), locked: true, role: "weaponArm", limb: "arm", armPivot: pivot });   // the arm the game swings — can't be deleted; pivots at the shoulder end
@@ -6397,16 +6435,41 @@ export default function AssetStudio() {
   // lost or truncated index can be rebuilt from what is really on disk. A host-provided
   // window.storage backend has no key listing, so this returns nothing there and the index stays
   // authoritative — the rescue simply does not apply, it never misfires.
-  const scanStoredIds = (prefix) => {
+  // Every key in storage that starts with `prefix`, whichever store we're actually on.
+  //
+  // This used to `return []` the moment window.storage existed — so on a host that PROVIDES
+  // window.storage (which is the host Blake actually runs on) the orphan rescue below scanned
+  // nothing, found nothing, and quietly fell back to trusting the index alone. The rescue looked
+  // like it was working because on plain localStorage it does. That is why the library vanished
+  // again after being "fixed". The host API has no agreed shape, so probe the plausible listing
+  // methods and take whatever answers; if none do, we still have the mirrored index below.
+  const scanStoredIds = async (prefix) => {
+    const strip = (keys) => keys.filter((k) => typeof k === "string" && k.startsWith(prefix)).map((k) => k.slice(prefix.length));
     try {
-      if (typeof window === "undefined" || window.storage || typeof localStorage === "undefined") return [];
+      if (typeof window === "undefined") return [];
+      if (window.storage) return strip(await enumerateHostKeys(window.storage));
+      if (typeof localStorage === "undefined") return [];
       const out = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith(prefix)) out.push(k.slice(prefix.length));
-      }
-      return out;
+      for (let i = 0; i < localStorage.length; i++) out.push(localStorage.key(i));
+      return strip(out);
     } catch { return []; }
+  };
+  // The index is one key, and one key is one point of failure. Every write mirrors the PREVIOUS
+  // value to a second key first, so a bad or truncated write can never take the only copy with it,
+  // and refuses to shrink the list unless a deletion actually asked for it — silent shrinkage is
+  // what "my assets disappeared" looks like from the inside. Recovery then takes whichever of the
+  // two remembers more.
+  const ASSET_INDEX_BAK = "assetIndex.bak";
+  const readIndexList = async (key) => {
+    try { const raw = await sget(key); const l = raw ? JSON.parse(raw) : []; return Array.isArray(l) ? l.filter((x) => x && x.id) : []; } catch { return []; }
+  };
+  const writeAssetIndex = async (list, opts) => {
+    const next = (Array.isArray(list) ? list : []).filter((x) => x && x.id);
+    const prev = await readIndexList("assetIndex");
+    if (prev.length) await sset(ASSET_INDEX_BAK, JSON.stringify(prev));
+    const merged = mergeIndexWrite(prev, next, opts && opts.allowShrink);
+    if (merged.length > next.length) console.warn("[Bob] blocked an index write that would have dropped " + (prev.length - next.length) + " asset(s); merged instead");
+    return sset("assetIndex", JSON.stringify(merged));
   };
   // The index is only a POINTER; the asset:<id> records are the actual work. Trusting the index
   // alone means one bad write to that single key hides every asset behind it — the library reads as
@@ -6418,12 +6481,16 @@ export default function AssetStudio() {
   const loadLibrary = async () => {
     setLibraryLoading(true);
     try {
-    let list = [];
-    try { const idx = await sget("assetIndex"); list = idx ? JSON.parse(idx) : []; } catch { list = []; }
-    if (!Array.isArray(list)) list = [];
-    const indexed = new Set(list.map((it) => it && it.id).filter(Boolean));
-    const orphanIds = scanStoredIds("asset:").filter((id) => !indexed.has(id));
+    // Three independent sources, unioned: the index, its mirror, and a raw scan of the store. Any
+    // one of them surviving is enough to get the whole library back.
+    let list = await readIndexList("assetIndex");
+    const mirrored = await readIndexList(ASSET_INDEX_BAK);
+    const seen = new Set(list.map((it) => it.id));
+    const fromMirror = mirrored.filter((it) => !seen.has(it.id));
+    if (fromMirror.length) { list = list.concat(fromMirror); for (const it of fromMirror) seen.add(it.id); }
+    const orphanIds = (await scanStoredIds("asset:")).filter((id) => !seen.has(id));
     if (orphanIds.length) list = list.concat(orphanIds.map((id) => ({ id })));
+    const recovered = fromMirror.length + orphanIds.length;
     const full = [], bad = [];
     for (const it of list) {
       const id = it && it.id;
@@ -6435,11 +6502,18 @@ export default function AssetStudio() {
     }
     setLibrary(full);
     // Heal the index so the rescue is permanent rather than repeated every load.
-    if (orphanIds.length && full.length) {
+    if (recovered && full.length) {
       const healed = full.map((x) => ({ id: x.id, name: x.name, type: x.type }));
-      await sset("assetIndex", JSON.stringify(healed));
-      console.warn("[Bob] recovered " + orphanIds.length + " asset(s) that were in storage but missing from the index:", orphanIds);
-      flash("🛟 Recovered " + orphanIds.length + " asset" + (orphanIds.length > 1 ? "s" : "") + " that were in storage but missing from the index — " + full.length + " loaded.");
+      await writeAssetIndex(healed);
+      // Refresh the mirror to the HEALED list too. Otherwise it keeps the broken copy it shadowed
+      // on the way in, and the safety net spends a whole load being wrong.
+      await sset(ASSET_INDEX_BAK, JSON.stringify(healed));
+      console.warn("[Bob] recovered " + recovered + " asset(s) missing from the index:", { fromMirror: fromMirror.map((x) => x.id), orphanIds });
+      flash("🛟 Recovered " + recovered + " asset" + (recovered > 1 ? "s" : "") + " the index had lost — " + full.length + " loaded.");
+    } else if (full.length) {
+      // Keep the mirror current even on a clean load, so the next bad write has something to fall
+      // back to. This is the cheap insurance that makes the whole scheme work.
+      await sset(ASSET_INDEX_BAK, JSON.stringify(full.map((x) => ({ id: x.id, name: x.name, type: x.type }))));
     }
     if (bad.length) {
       console.warn("[Bob] " + bad.length + " asset record(s) could not be read and were skipped:", bad);
@@ -7898,7 +7972,7 @@ export default function AssetStudio() {
     if (target.id !== payload.id) payload = { ...payload, id: target.id };
     const ok1 = await sset("asset:" + payload.id, JSON.stringify(payload));
     list = list.filter((x) => x.id !== payload.id); list.push({ id: payload.id, name: payload.name, type: payload.type });
-    const ok2 = await sset("assetIndex", JSON.stringify(list));
+    const ok2 = await writeAssetIndex(list);
     // Push this edit into every saved Dressed Look already wearing it, re-baking that look's art
     // from its own embedded components. Without this a shirt edit only reached Playtest after
     // manually re-equipping the shirt in Dress Bob and re-saving the look over the top of itself.
@@ -7946,7 +8020,7 @@ export default function AssetStudio() {
     let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     const ok1 = await sset("asset:" + na.id, JSON.stringify(na));
     list = list.filter((x) => x.id !== na.id); list.push({ id: na.id, name: na.name, type: na.type });
-    const ok2 = await sset("assetIndex", JSON.stringify(list));
+    const ok2 = await writeAssetIndex(list);
     if (ok1 && ok2) { setAsset((a) => ({ ...a, projectileId: na.id })); flash("Saved \"" + na.name + "\" as its own Projectile ✓ — assigned to this weapon."); loadLibrary(); } else flash("Couldn't save here — use Download, then Upload it manually.");
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
@@ -8059,7 +8133,7 @@ export default function AssetStudio() {
         if (ok) { list = list.filter((x) => x.id !== a.id); list.push({ id: a.id, name: a.name, type: a.type }); n++; }
       } catch { /* skip a corrupt entry, restore the rest */ }
     }
-    await sset("assetIndex", JSON.stringify(list));
+    await writeAssetIndex(list);
     loadLibrary();
     flash("Restored " + n + " asset(s) from the backup ✓");
   };
@@ -8099,7 +8173,7 @@ export default function AssetStudio() {
   const deleteAsset = async (a) => {
     await sdel("asset:" + a.id);
     let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
-    await sset("assetIndex", JSON.stringify(list.filter((x) => x.id !== a.id)));
+    await writeAssetIndex(list.filter((x) => x.id !== a.id), { allowShrink: true }); // a real delete is the one time the list is meant to get shorter
     setSessionAssets((s) => s.filter((x) => x.id !== a.id));
     flash("Deleted \"" + a.name + "\"");
     loadLibrary();
@@ -8111,7 +8185,7 @@ export default function AssetStudio() {
     const ok1 = await sset("asset:" + c.id, JSON.stringify(c));
     let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     list = list.filter((x) => x.id !== c.id); list.push({ id: c.id, name: c.name, type: c.type });
-    const ok2 = await sset("assetIndex", JSON.stringify(list));
+    const ok2 = await writeAssetIndex(list);
     if (ok1 && ok2) { flash("Recovered \"" + c.name + "\" into your saved assets ✓"); loadLibrary(); } else flash("Couldn't save here.");
   };
   const handForGuideId = (guideId) => { if (guideId && guideId !== "default") { const g = findA(guideId); if (g) { const o = {}; for (const ang of ANGLES) o[ang] = bodyRig(g, ang).hand; return o; } } return DEFAULT_HAND; };
@@ -8302,7 +8376,7 @@ export default function AssetStudio() {
     const l = { ...composeLook(priorId), name, savedAt: Date.now() };
     const ok1 = await sset("asset:" + l.id, JSON.stringify(l));
     list = list.filter((x) => x.id !== l.id); list.push({ id: l.id, name: l.name, type: l.type });
-    const ok2 = await sset("assetIndex", JSON.stringify(list));
+    const ok2 = await writeAssetIndex(list);
     if (ok1 && ok2) { setSavedDressedIds((m) => ({ ...m, [name]: l.id })); flash("Saved \"" + name + "\" ✓ — pick it under Playtest player in the level tester."); loadLibrary(); } else flash("Couldn't save here — try Export instead.");
   };
   const comboDownload = () => { try { const b = new Blob([combo], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "dressed-bob.json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
@@ -11623,3 +11697,4 @@ const css = `
 .equipline{color:#cfe0ff;background:#131a29;border-color:#3a5c8c;font-size:12px}
 @media(max-width:820px){.main{flex-direction:column}.stage{padding:10px;flex:none}.art{height:46vh}.side{width:auto;border-left:0;border-top:1px solid #232838;flex:1}.refpick{margin-left:0}.nm{flex:1;width:auto;min-width:0}.slotrow select{width:130px}.lmain{flex-direction:column}.lside{width:auto;border-left:0;border-top:1px solid #232838}.connlist{grid-template-columns:1fr}}
 `;
+
