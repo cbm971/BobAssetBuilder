@@ -180,6 +180,8 @@ export const mergeIndexWrite = (prev, next, allowShrink) => {
   for (const x of n) byId.set(x.id, x);
   return [...byId.values()];
 };
+// The index mirror key. Module level so the storage helpers can name it with no ordering risk.
+const ASSET_INDEX_BAK = "assetIndex.bak";
 const uid = () => Math.random().toString(36).slice(2, 9);
 const rect = (x, y, w, h, color = SKIN) => ({ id: uid(), kind: "rect", x, y, w, h, color, mirror: true });
 const arm = (x, y, w, h, pivot = "top") => ({ ...rect(x, y, w, h), locked: true, role: "weaponArm", limb: "arm", armPivot: pivot });   // the arm the game swings — can't be deleted; pivots at the shoulder end
@@ -4260,6 +4262,12 @@ export default function AssetStudio() {
   const [asset, setAsset] = useState(null);
   const [library, setLibrary] = useState([]);
   const [libraryLoading, setLibraryLoading] = useState(true); // never present the initial async read as an empty/deleted library
+  // What each store actually contains, measured at load. When the library reads empty this is the
+  // difference between "the records are gone" and "the app is reading the wrong store" — two
+  // situations that look identical from the menu and need opposite responses. Shown on screen
+  // rather than left in the console, because a console instruction is a thing nobody should have to
+  // be told to run about their own work.
+  const [storeReport, setStoreReport] = useState(null);
   const [angle, setAngle] = useState("front");
   const [selId, setSelId] = useState(null);
   const [multiSelect, setMultiSelect] = useState(false); // group-select mode: clicking blocks toggles them into groupIds instead of the normal single select+drag
@@ -4597,9 +4605,47 @@ export default function AssetStudio() {
 
   const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 1600); };
   // saves to Claude's storage when present, otherwise the browser's localStorage
-  const sget = async (k) => { try { if (typeof window !== "undefined" && window.storage) { const r = await window.storage.get(k, false); return r ? r.value : null; } return localStorage.getItem(k); } catch { return null; } };
-  const sset = async (k, v) => { try { if (typeof window !== "undefined" && window.storage) { await window.storage.set(k, v, false); return true; } localStorage.setItem(k, v); return true; } catch { return false; } };
-  const sdel = async (k) => { try { if (typeof window !== "undefined" && window.storage) { await window.storage.delete(k, false); return true; } localStorage.removeItem(k); return true; } catch { return false; } };
+  // TWO stores, always both.
+  //
+  // This is the disappearance. sget used window.storage when the host provided it and localStorage
+  // when it didn't — exclusively, never both. So the day the host starts (or stops) injecting
+  // window.storage, every asset saved under the other store becomes invisible in a single reload.
+  // Nothing is deleted. The app is simply looking in the wrong cupboard, and a library built over
+  // months is "gone" with all of it still sitting on disk. Reading one store was never safe: the
+  // app doesn't get to choose which one it was saved to, because that was decided by whichever host
+  // happened to be serving the page that day.
+  //
+  // So: read the host store first, fall back to localStorage, and take whichever actually has the
+  // key. Writes go to the host store when there is one, and the index is mirrored into BOTH so a
+  // store swap can never hide the library again.
+  const hostStore = () => (typeof window !== "undefined" && window.storage) ? window.storage : null;
+  const lsGet = (k) => { try { return typeof localStorage === "undefined" ? null : localStorage.getItem(k); } catch { return null; } };
+  const lsSet = (k, v) => { try { if (typeof localStorage !== "undefined") localStorage.setItem(k, v); return true; } catch { return false; } };
+  const sget = async (k) => {
+    const ws = hostStore();
+    if (ws) {
+      try { const r = await ws.get(k, false); if (r && r.value != null) return r.value; } catch { /* fall through to the other store */ }
+      return lsGet(k); // saved before the host store existed — still ours, still loadable
+    }
+    return lsGet(k);
+  };
+  const sset = async (k, v) => {
+    const ws = hostStore();
+    if (ws) {
+      try { await ws.set(k, v, false); } catch { return lsSet(k, v); }
+      // Index keys are small and are the thing whose loss hides everything, so keep a copy in
+      // localStorage too. Best-effort: a quota refusal must never fail the actual save.
+      if (k === "assetIndex" || k === ASSET_INDEX_BAK || k === "levelIndex" || k === "stampIndex") lsSet(k, v);
+      return true;
+    }
+    return lsSet(k, v);
+  };
+  const sdel = async (k) => {
+    const ws = hostStore();
+    if (ws) { try { await ws.delete(k, false); } catch { /* still clear the fallback below */ } }
+    try { if (typeof localStorage !== "undefined") localStorage.removeItem(k); } catch { /* ignore */ }
+    return true;
+  };
   useEffect(() => {
     let ok = false;
     try { if (typeof window !== "undefined" && window.storage) ok = true; else { localStorage.setItem("__p", "1"); localStorage.removeItem("__p"); ok = true; } } catch { ok = false; }
@@ -6447,11 +6493,19 @@ export default function AssetStudio() {
     const strip = (keys) => keys.filter((k) => typeof k === "string" && k.startsWith(prefix)).map((k) => k.slice(prefix.length));
     try {
       if (typeof window === "undefined") return [];
-      if (window.storage) return strip(await enumerateHostKeys(window.storage));
-      if (typeof localStorage === "undefined") return [];
-      const out = [];
-      for (let i = 0; i < localStorage.length; i++) out.push(localStorage.key(i));
-      return strip(out);
+      // BOTH stores, unioned. An asset saved under whichever store was active on some earlier day
+      // is still your asset; which cupboard it landed in is not something you chose.
+      const found = new Set();
+      const ws = hostStore();
+      if (ws) for (const id of strip(await enumerateHostKeys(ws))) found.add(id);
+      try {
+        if (typeof localStorage !== "undefined") {
+          const out = [];
+          for (let i = 0; i < localStorage.length; i++) out.push(localStorage.key(i));
+          for (const id of strip(out)) found.add(id);
+        }
+      } catch { /* one store failing must not hide the other */ }
+      return [...found];
     } catch { return []; }
   };
   // The index is one key, and one key is one point of failure. Every write mirrors the PREVIOUS
@@ -6459,7 +6513,7 @@ export default function AssetStudio() {
   // and refuses to shrink the list unless a deletion actually asked for it — silent shrinkage is
   // what "my assets disappeared" looks like from the inside. Recovery then takes whichever of the
   // two remembers more.
-  const ASSET_INDEX_BAK = "assetIndex.bak";
+
   const readIndexList = async (key) => {
     try { const raw = await sget(key); const l = raw ? JSON.parse(raw) : []; return Array.isArray(l) ? l.filter((x) => x && x.id) : []; } catch { return []; }
   };
@@ -6491,6 +6545,14 @@ export default function AssetStudio() {
     const orphanIds = (await scanStoredIds("asset:")).filter((id) => !seen.has(id));
     if (orphanIds.length) list = list.concat(orphanIds.map((id) => ({ id })));
     const recovered = fromMirror.length + orphanIds.length;
+    // Count each store separately so an empty library can say WHY.
+    try {
+      const ws = hostStore();
+      const hostIds = ws ? (await enumerateHostKeys(ws)).filter((k) => k.startsWith("asset:")) : [];
+      let lsIds = [];
+      try { if (typeof localStorage !== "undefined") { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("asset:")) lsIds.push(k); } } } catch { /* ignore */ }
+      setStoreReport({ host: ws ? hostIds.length : null, local: lsIds.length, indexed: list.length });
+    } catch { /* a report failing must never stop the load */ }
     const full = [], bad = [];
     for (const it of list) {
       const id = it && it.id;
@@ -8851,6 +8913,21 @@ export default function AssetStudio() {
       <div className="bb"><style>{css}</style>
         <header className="bar"><div className="logo">🧱 Bob Asset Studio</div></header>
         <div className="menu">
+          {/* Only when the library came back empty. Says which store was looked in and what was in
+              it, so "gone" and "looking in the wrong place" stop being the same screen. */}
+          {!libraryLoading && library.length === 0 && storeReport && (
+            <div className="storeReport">
+              <b>No saved assets loaded.</b> Here is exactly what this page can see:
+              <ul>
+                <li>Host store (window.storage): {storeReport.host === null ? "not provided by this host" : storeReport.host + " asset record(s)"}</li>
+                <li>Browser localStorage: {storeReport.local} asset record(s)</li>
+                <li>Index says: {storeReport.indexed} entr{storeReport.indexed === 1 ? "y" : "ies"}</li>
+              </ul>
+              {(storeReport.host || storeReport.local)
+                ? <span>Records exist but didn't load — that's a bug in reading them, not lost work. Send me these numbers.</span>
+                : <span>Both stores are empty on <b>this address</b>. Browser storage is tied to the page's address, so a preview URL that changed since you last saved has your work under the old one — nothing here can read across that. An older tab on the previous address, or an <b>⬇ Export all assets</b> file, is the way back.</span>}
+            </div>
+          )}
           <h2>Make a body or weapon</h2>
           <div className="tiles">
             <button className="tile" onClick={() => setChooser(true)}><span className="ti">🧍</span><span className="tl">Skin / Body</span></button>
@@ -11438,6 +11515,9 @@ const css = `
 .lrow.on{border-color:#4f7cf6;box-shadow:0 0 0 1px #26304d}
 .lrow.grp{border-color:#ffb84f;box-shadow:0 0 0 1px #3a2f16}
 .lrow.recovered{border-color:#c98f2e;background:#2a2113}
+.storeReport{background:#20263a;border:1px solid #4f7cf6;border-left:4px solid #4f7cf6;border-radius:12px;padding:14px 16px;margin-bottom:18px;font-size:13.5px;line-height:1.55;color:#dfe5f2}
+.storeReport ul{margin:8px 0;padding-left:20px}
+.storeReport li{margin:2px 0}
 .recoverBanner{background:#2a2113;border-bottom:1px solid #c98f2e;color:#f0d9a8;font-size:13px;padding:9px 14px;line-height:1.4}
 .lprev{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;flex:none;border:1px solid #2c3245}
 .lname{flex:1;font-size:12px;color:#cdd3df;text-transform:capitalize}
