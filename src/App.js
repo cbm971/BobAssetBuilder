@@ -182,6 +182,35 @@ export const mergeIndexWrite = (prev, next, allowShrink) => {
 };
 // The index mirror key. Module level so the storage helpers can name it with no ordering risk.
 const ASSET_INDEX_BAK = "assetIndex.bak";
+// ---- The project-file library (see src/setupProxy.js) -------------------------------------------
+// Browser storage is tied to the page's address, and this app is served from a preview hostname that
+// changes when the container reboots. That is how a library disappears without a single byte being
+// deleted. The project directory does not move, so the dev server keeps the real copy there and the
+// browser store becomes a cache in front of it. Every save goes to both; a fresh address pulls the
+// library straight back out of the project.
+const projectLibrary = {
+  available: false, // set on the first successful read; a plain static build simply won't have it
+  load: async () => {
+    try {
+      const res = await fetch("/__library", { cache: "no-store" });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data || !Array.isArray(data.assets)) return null;
+      projectLibrary.available = true;
+      return data;
+    } catch { return null; }
+  },
+  save: async (assets, levels) => {
+    if (!assets || !assets.length) return false; // never let an empty page state reach the file
+    try {
+      const res = await fetch("/__library", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assets, levels: levels || [] }),
+      });
+      return res.ok;
+    } catch { return false; }
+  },
+};
 const uid = () => Math.random().toString(36).slice(2, 9);
 const rect = (x, y, w, h, color = SKIN) => ({ id: uid(), kind: "rect", x, y, w, h, color, mirror: true });
 const arm = (x, y, w, h, pivot = "top") => ({ ...rect(x, y, w, h), locked: true, role: "weaponArm", limb: "arm", armPivot: pivot });   // the arm the game swings — can't be deleted; pivots at the shoulder end
@@ -6545,6 +6574,21 @@ export default function AssetStudio() {
     const orphanIds = (await scanStoredIds("asset:")).filter((id) => !seen.has(id));
     if (orphanIds.length) list = list.concat(orphanIds.map((id) => ({ id })));
     const recovered = fromMirror.length + orphanIds.length;
+    // The project file is the copy that survives a change of address. Anything in it that this
+    // browser store has never seen is written back in, so opening the studio on a brand-new preview
+    // URL rebuilds the library instead of showing an empty screen.
+    let fromProject = 0;
+    const proj = await projectLibrary.load();
+    if (proj && proj.assets.length) {
+      const have = new Set(list.map((it) => it.id));
+      for (const raw of proj.assets) {
+        if (!raw || !raw.id || have.has(raw.id)) continue;
+        try {
+          const a = migrate(raw);
+          if (await sset("asset:" + a.id, JSON.stringify(a))) { list.push({ id: a.id, name: a.name, type: a.type }); have.add(a.id); fromProject++; }
+        } catch { /* one bad record must not stop the rest coming home */ }
+      }
+    }
     // Count each store separately so an empty library can say WHY.
     try {
       const ws = hostStore();
@@ -6564,6 +6608,10 @@ export default function AssetStudio() {
     }
     setLibrary(full);
     // Heal the index so the rescue is permanent rather than repeated every load.
+    if (fromProject && full.length) flash("🛟 Restored " + fromProject + " asset" + (fromProject > 1 ? "s" : "") + " from the project file — " + full.length + " loaded.");
+    // Push whatever this browser has back INTO the project file, so the copy that survives an
+    // address change is always the fullest one either side has seen.
+    if (full.length) projectLibrary.save(full, []);
     if (recovered && full.length) {
       const healed = full.map((x) => ({ id: x.id, name: x.name, type: x.type }));
       await writeAssetIndex(healed);
@@ -8035,6 +8083,8 @@ export default function AssetStudio() {
     const ok1 = await sset("asset:" + payload.id, JSON.stringify(payload));
     list = list.filter((x) => x.id !== payload.id); list.push({ id: payload.id, name: payload.name, type: payload.type });
     const ok2 = await writeAssetIndex(list);
+    // ...and into the project file, which is the copy a change of preview address cannot take away.
+    projectLibrary.save([payload], []);
     // Push this edit into every saved Dressed Look already wearing it, re-baking that look's art
     // from its own embedded components. Without this a shirt edit only reached Playtest after
     // manually re-equipping the shirt in Dress Bob and re-saving the look over the top of itself.
