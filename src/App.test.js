@@ -174,7 +174,43 @@ import {
   flipFgFill,
   flipLevelObject,
   flipConns,
+  maxPlayerHP,
+  applyHeal,
 } from "./App";
+
+describe("the player's HP pool", () => {
+  // The pool used to be 10 at baseline and 20 at a maxed stat, which is two and four hits from a
+  // 5-damage weapon. These numbers are the point of the change, so they're pinned.
+  test("a default character has 25 HP and a maxed HP stat has 50", () => {
+    expect(maxPlayerHP({ stats: { hp: 5 } })).toBe(25);
+    expect(maxPlayerHP({ stats: { hp: 10 } })).toBe(50);
+    expect(maxPlayerHP({ stats: { hp: 1 } })).toBe(5);
+  });
+
+  test("a character with no stats at all still gets the baseline pool", () => {
+    expect(maxPlayerHP({})).toBe(25);
+    expect(maxPlayerHP(null)).toBe(25);
+  });
+
+  // Equipment adds to the stat before it's turned into a pool, so gear still matters at the new
+  // scale — a +5 HP item is worth 25 HP, not 10. Boosting past the slider's own ceiling is fine.
+  test("equipment HP boosts scale with the pool", () => {
+    expect(maxPlayerHP({ stats: { hp: 5 + 2 } })).toBe(35);
+    expect(maxPlayerHP({ stats: { hp: 10 + 5 } })).toBe(75);
+  });
+
+  test("a negative HP stat can't drop the pool below 1", () => {
+    expect(maxPlayerHP({ stats: { hp: 0 } })).toBe(1);
+    expect(maxPlayerHP({ stats: { hp: -3 } })).toBe(1);
+  });
+
+  // Heals clamp to the pool, so the bigger pool is what makes a heal item worth picking up.
+  test("a heal fills toward the new, larger max", () => {
+    const mx = maxPlayerHP({ stats: { hp: 5 } });
+    expect(applyHeal(4, mx, 20)).toBe(24);
+    expect(applyHeal(20, mx, 20)).toBe(25);
+  });
+});
 
 describe("copying blocks and groups", () => {
   test("a block keeps independent copies of all appearance settings", () => {

@@ -1691,9 +1691,13 @@ const LOAD_CATEGORIES = [
 // which this doesn't touch).
 const DEFAULT_STATS = () => ({ hp: 5, speed: 5, agility: 5, intelligence: 5, strength: 5 });
 // The player's actual HP pool in Playtest — same baseline-5 convention as every other stat
-// (5 = 1×, unmodified). PLAYER_BASE_HP mirrors the default 10 a freshly-created enemy asset
-// starts with, so a stat-5 player and a freshly-made enemy are equally tanky by default.
-const PLAYER_BASE_HP = 10;
+// (5 = 1×, unmodified), so a stat-5 character has 25 HP and the 1-10 slider tops out at 50.
+// It used to mirror the default 10 a freshly-created enemy asset
+// starts with, which made the player exactly as flimsy as a fresh enemy: a 5-damage weapon put
+// you back at the spawn point in two hits, and even a maxed HP stat only bought 20. This is a
+// PLAYER-side pool only — an Enemy's own raw `.hp` field is untouched, so enemies stay as tanky
+// as they were and the player is the one who got the headroom.
+const PLAYER_BASE_HP = 25;
 export const maxPlayerHP = (playerAsset) => Math.max(1, Math.round(PLAYER_BASE_HP * ((playerAsset?.stats?.hp ?? 5) / 5)));
 const DEFAULT_ATTACK_RANGE = 60;   // px — used when an enemy asset hasn't set its own attackRange
 const DEFAULT_RANGED_ATTACK_RANGE = 540; // px = 18 cells @ 30px — an enemy holding a bow/gun engages from far further out than a fist
@@ -9747,7 +9751,7 @@ export default function AssetStudio() {
               const pStats = { ...(skin?.stats || DEFAULT_STATS()) };
               let pDefense = 0;
               for (const eq of equipmentList) { if (eq.statBoosts) for (const k of Object.keys(eq.statBoosts)) pStats[k] = (pStats[k] ?? 5) + (eq.statBoosts[k] || 0); pDefense += eq.defense || 0; }
-              return <p className="statline">📊 Speed {pStats.speed ?? 5} · Agility {pStats.agility ?? 5} · Intelligence {pStats.intelligence ?? 5} · Strength {pStats.strength ?? 5} · HP {pStats.hp ?? 5} · 🛡️ Defense {pDefense}</p>;
+              return <p className="statline">📊 Speed {pStats.speed ?? 5} · Agility {pStats.agility ?? 5} · Intelligence {pStats.intelligence ?? 5} · Strength {pStats.strength ?? 5} · HP {pStats.hp ?? 5} ({maxPlayerHP({ stats: pStats })} HP) · 🛡️ Defense {pDefense}</p>;
             })()}
             <div ref={artRef} className="art">
               {!body && !viewDressed && <div className="emptyart">pick a body →</div>}
@@ -11519,7 +11523,10 @@ export default function AssetStudio() {
                 <label className="slider" key={s}>
                   {s === "hp" ? "❤️ HP" : s === "speed" ? "🏃 Speed" : s === "agility" ? "🤸 Agility" : s === "intelligence" ? "🧠 Int" : "💪 Str"}
                   <input type="range" min="1" max="10" value={asset.stats?.[s] ?? 5} onChange={(e) => setAsset((a) => ({ ...a, stats: { ...(a.stats || DEFAULT_STATS()), [s]: +e.target.value } }))} />
-                  <span className="hint2">{asset.stats?.[s] ?? 5}</span>
+                  {/* HP is the one stat that buys a concrete pool (5 → 25 HP, 10 → 50), so show
+                      the pool next to it: "❤️ HP 7" alone tells you nothing about how many
+                      5-damage hits you survive, which is the only question being asked here. */}
+                  <span className="hint2">{asset.stats?.[s] ?? 5}{s === "hp" ? " · " + maxPlayerHP(asset) + " HP" : ""}</span>
                 </label>
               ))}
               </div>
