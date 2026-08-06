@@ -3708,41 +3708,45 @@ export const rampSpanCells = (r0, c0, r1, c1, slope, upsideDown = false) => {
       if (i < first) continue;                                              // still below this row
       if (i > last) { out.push({ r: row, c, kind: "block" }); continue; }    // already climbed past it
       // `step` is stored left-to-right whatever the slope does (see the mirror code), so it's the
-      // distance from the segment's LEFT end, not from its low end.
-      out.push({ r: row, c, kind: "ramp", run: n, step: slope > 0 ? i - first : last - i });
+      // distance from the segment's LEFT end, not from its low end. The slope rides along on every
+      // cell because the caller must paint THIS slope: a drag decides the lean for itself, and a
+      // painter that read it off the ◢/◣ buttons instead would lay the columns out one way and then
+      // stamp the diagonal the other way, which is a broken shape rather than a mirrored one.
+      out.push({ r: row, c, kind: "ramp", run: n, step: slope > 0 ? i - first : last - i, slope });
     }
   }
   return out;
-};
-// Which rows a ramp of `rise` cells occupies when it was drawn from `anchorRow`. The anchor row is
-// always the THIN end of the wedge, because that is the row the pointer was actually in: a
-// right-way-up ramp grows UP out of the floor you started on, and an upside-down one hangs DOWN off
-// the ceiling you started on. Getting this backwards would place the ramp a row or more away from
-// where it was drawn, which reads as the tool ignoring the click.
-export const rampRowSpan = (anchorRow, rise, upsideDown) => {
-  const n = Math.max(1, Math.round(rise) || 1);
-  return upsideDown ? { r0: anchorRow, r1: anchorRow + n - 1 } : { r0: anchorRow - n + 1, r1: anchorRow };
 };
 // ONE place decides what a ramp stroke means. The drag ghost and the release computing it
 // separately — off the same inputs, but each with its own arithmetic — is exactly how a preview
 // starts quietly lying about what it is going to place.
 //
-// A drag that changed row still sets the height itself; that gesture works and the ghost follows it
-// live. But it is no longer the ONLY way to get a tall ramp: a plain click, or a drag along a
-// single row, takes its height from the Height control instead. Needing to land a diagonal drag
-// precisely — while the ramp being dragged is also the thing covering the cells you are aiming at —
-// is what made a two-high ramp feel like a fight.
+// A drag draws the ramp's DIAGONAL: press at one end of the slope, release at the other. The
+// columns give its length, the rows give its height, and — this is the part that was missing — the
+// two corners give which way it leans. The ◢/◣ buttons used to be the only thing that decided that,
+// so half of all diagonal drags came out mirrored: drag up-and-right with ◣ selected and you got a
+// ramp leaning the other way inside the rectangle you had just dragged. The buttons still decide it
+// for a plain click and for a drag along one row, where there is no diagonal to read.
 //
-// A click with no drag falls back to the brush size for length, as it always has, but never to less
-// than the height: a 3-high ramp one column wide has nowhere to put its middle row, and clamping
-// the height down instead would silently ignore the Height that was picked.
-export const rampDragSpan = (anchor, cur, brush, rise, slope, upsideDown) => {
+// Upside down flips the sign, because a stored `slope` draws the OPPOSITE diagonal once the solid
+// hangs from the top: with slope +1 an ordinary ramp's surface runs bottom-left to top-right, while
+// an upside-down one's underside runs top-left to bottom-right. Without the flip, every overhang
+// dragged out came back as the mirror image of the line that was drawn — which is exactly what
+// "dragging an upside-down ramp doesn't work" looks like from the outside.
+export const rampDragSpan = (anchor, cur, brush, buttonSlope, upsideDown) => {
   const dragged = !!cur && (cur.c !== anchor.c || cur.r !== anchor.r);
-  const rows = (dragged && cur.r !== anchor.r) ? { r0: anchor.r, r1: cur.r } : rampRowSpan(anchor.r, rise, upsideDown);
-  let lo, hi;
+  let lo, hi, slope = buttonSlope;
   if (dragged) { lo = Math.min(anchor.c, cur.c); hi = Math.max(anchor.c, cur.c); }
-  else { const len = Math.max(1, brush || 1, rise || 1); lo = anchor.c - Math.floor((len - 1) / 2); hi = lo + len - 1; }
-  return rampSpanCells(rows.r0, lo, rows.r1, hi, slope, upsideDown);
+  else { const len = Math.max(1, brush || 1); lo = anchor.c - Math.floor((len - 1) / 2); hi = lo + len - 1; }
+  if (dragged && cur.r !== anchor.r && cur.c !== anchor.c) {
+    // Column of the end that sits higher up the screen, vs the column of the lower end. Which side
+    // the high end is on IS the lean, and it's the one thing about a dragged diagonal that can't be
+    // in doubt. A straight-up drag has no lean to read, so it keeps the button's.
+    const hiC = anchor.r < cur.r ? anchor.c : cur.c;
+    const loC = anchor.r < cur.r ? cur.c : anchor.c;
+    slope = (hiC > loC ? 1 : -1) * (upsideDown ? -1 : 1);
+  }
+  return rampSpanCells(anchor.r, lo, dragged ? cur.r : anchor.r, hi, slope, upsideDown);
 };
 // A cell painted in Outline mode carries `ol` (its outline colour) alongside its normal fill.
 // withOutline() attaches it losslessly. cellOutlineStyle() KEEPS the cell fill/texture and draws a
@@ -4677,7 +4681,6 @@ export default function AssetStudio() {
   const [lFgHide, setLFgHide] = useState(false);       // collision-only Foreground paint: visible/marked in the editor, omitted from Playtest art while collision remains live
   const [lHoverCell, setLHoverCell] = useState(null); // {r,c} under the pointer — drives the placement ghost preview
   const [rampDragOn, setRampDragOn] = useState(false); // true while dragging out a multi-cell ramp — drives the live ramp-span preview
-  const [lRampRise, setLRampRise] = useState(1);       // how many cells tall a ramp is, so height doesn't depend on landing a diagonal drag
   const [areaDragOn, setAreaDragOn] = useState(false); // true while dragging out an area-copy selection rectangle
   const [hasClipboard, setHasClipboard] = useState(false); // just drives the toolbar label — the actual data lives in clipboard.current
   const [lEmoji, setLEmoji] = useState("🌳");           // selected emoji for the Objects layer
@@ -6763,7 +6766,7 @@ export default function AssetStudio() {
       if (!rampAnchor.current) return;
       const anchor = rampAnchor.current, cur = rampCur.current;
       rampAnchor.current = null; rampCur.current = null; setRampDragOn(false);
-      const span = rampDragSpan(anchor, cur, lBrush, lRampRise, lFgShape === "slopeUp" ? 1 : -1, lFgUpsideDown);
+      const span = rampDragSpan(anchor, cur, lBrush, lFgShape === "slopeUp" ? 1 : -1, lFgUpsideDown);
       setLevel((lv) => {
         if (!lv) return lv;
         const targetLayer = lLayer === "bg" ? "bg" : "fg";
@@ -6774,7 +6777,7 @@ export default function AssetStudio() {
           // A tall ramp is ramp cells plus the solid ones underneath (or, upside down, above) the
           // line — both come out of the same span, and both paint in the colour/texture in hand.
           const shape = cell.kind === "ramp"
-            ? terrainPaintShape(targetLayer, lFgShape, lFgUpsideDown, lFgHide, { run: cell.run, step: cell.step })
+            ? terrainPaintShape(targetLayer, cell.slope > 0 ? "slopeUp" : "slopeDown", lFgUpsideDown, lFgHide, { run: cell.run, step: cell.step })
             : terrainPaintShape(targetLayer, "block", false, lFgHide);
           const value = paintValue(lColor, activeTexture, shape);
           // Foreground stacks ramps over its existing collision fills. Background is decorative
@@ -6786,7 +6789,7 @@ export default function AssetStudio() {
     };
     window.addEventListener("pointerup", up);
     return () => window.removeEventListener("pointerup", up);
-  }, [lLayer, lFgShape, lFgUpsideDown, lFgHide, lColor, lBrush, lRampRise, activeTexture]);
+  }, [lLayer, lFgShape, lFgUpsideDown, lFgHide, lColor, lBrush, activeTexture]);
 
   // Area copy: drag from anchor to a different cell to CAPTURE that rectangle (fg/bg/objects,
   // relative to its own top-left corner) into the clipboard. A plain click with no drag instead
@@ -10036,7 +10039,6 @@ export default function AssetStudio() {
 
         <div className="ltools">
           <div className="lgroup">
-            <span className="lgrouplabel">Layer (what you're painting):</span>
             <div className="seg"><button className={lLayer === "fg" ? "on" : ""} onClick={() => selectLayer("fg")} >⬛ Foreground</button><button className={lLayer === "bg" ? "on" : ""} onClick={() => selectLayer("bg")} >🌫 Background</button><button className={lLayer === "front" ? "on" : ""} onClick={() => selectLayer("front")} >🎭 Front</button><button className={lLayer === "obj" ? "on" : ""} onClick={() => selectLayer("obj")} >🧩 Objects</button><button className={lLayer === "climb" ? "on" : ""} onClick={() => selectLayer("climb")} >🧗 Climb</button><button className={lLayer === "hazard" ? "on" : ""} onClick={() => selectLayer("hazard")} >🔥 Hazard</button><button className={lLayer === "marker" ? "on" : ""} onClick={() => selectLayer("marker")} title="Invisible during play">📍 Markers</button></div>
           </div>
           <div className="lgroup">
@@ -10169,17 +10171,6 @@ export default function AssetStudio() {
                     <button className={lFgShape === "slopeDown" ? "on" : ""} onClick={() => setLFgShape("slopeDown")}>◣ Ramp ↖</button>
                     {lFgShape !== "block" && <button className={lFgUpsideDown ? "on" : ""} onClick={() => setLFgUpsideDown((v) => !v)}>🙃 Upside down</button>}
                   </div>
-                  {/* HOW TALL the ramp is, as a setting rather than a gesture. Dragging diagonally
-                      still works and still wins, but it meant a two-high ramp depended on landing a
-                      precise diagonal drag over cells the ramp itself was covering. Picking the
-                      height first makes the ordinary sideways drag — or a plain click — place it. */}
-                  {lFgShape !== "block" && (
-                    <div className="seg">
-                      {[1, 2, 3, 4].map((n) => (
-                        <button key={n} className={lRampRise === n ? "on" : ""} onClick={() => setLRampRise(n)} title={n === 1 ? "a normal one-cell ramp" : n + " cells tall — climbs " + n + " blocks over however long you make it"}>⬍ {n} high</button>
-                      ))}
-                    </div>
-                  )}
                   {lLayer === "fg" && <label className="chk solidchk"><input type="checkbox" checked={lFgHide} onChange={(e) => setLFgHide(e.target.checked)} /> 🚫 Collision only</label>}
                 </>
               )}
@@ -10312,12 +10303,12 @@ export default function AssetStudio() {
                   // what a stroke means is the one bug a ghost exists to prevent.
                   const anchor = (rampDragOn && rampAnchor.current) ? rampAnchor.current : lHoverCell;
                   const cur = (rampDragOn && rampAnchor.current) ? lHoverCell : null;
-                  const span = rampDragSpan(anchor, cur, lBrush, lRampRise, lFgShape === "slopeUp" ? 1 : -1, lFgUpsideDown);
+                  const span = rampDragSpan(anchor, cur, lBrush, lFgShape === "slopeUp" ? 1 : -1, lFgUpsideDown);
                   // The ghost draws only what this stroke paints. Foreground may keep an older fill
                   // under it; Background replaces its old decorative fill when the ramp is committed.
                   return <>{span.map((cell) => {
                     const shape = cell.kind === "ramp"
-                      ? terrainPaintShape(lLayer, lFgShape, lFgUpsideDown, lFgHide, { run: cell.run, step: cell.step })
+                      ? terrainPaintShape(lLayer, cell.slope > 0 ? "slopeUp" : "slopeDown", lFgUpsideDown, lFgHide, { run: cell.run, step: cell.step })
                       : terrainPaintShape(lLayer, "block", false, lFgHide);
                     const val = paintValue(lColor, activeTexture, shape);
                     return <div key={"rg" + cell.r + "," + cell.c} className={"rampGhost" + (lLayer === "fg" && lFgHide ? " collisionOnly" : "")} style={{ left: cell.c * LV_CELL, top: cell.r * LV_CELL, ...cellPaintStyle(val, cell.r, cell.c, texLib), clipPath: fgClipPath(val) }} />;

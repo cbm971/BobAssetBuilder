@@ -54,7 +54,6 @@ import {
   slopeSurfaceAt,
   slopeSurfaceForPlayer,
   rampSpanCells,
-  rampRowSpan,
   rampDragSpan,
   TEXTURES,
   TEXTURE_KEYS,
@@ -1086,6 +1085,7 @@ describe("gravel texture", () => {
 
 describe("dragging out a ramp taller than one cell", () => {
   // Handy shorthand: "r,c" -> what landed there, so a whole span reads as a picture in the test.
+  // These cases are about LAYOUT, so the lean is left out here and checked where it's decided.
   const map = (span) => Object.fromEntries(span.map((x) => [x.r + "," + x.c, x.kind === "block" ? "block" : x.run + ":" + x.step]));
 
   test("a single-row drag is exactly the ramp it always was", () => {
@@ -1194,75 +1194,96 @@ describe("dragging out a ramp taller than one cell", () => {
   test("a drag one column wide can't make a tall ramp, and doesn't invent cells trying", () => {
     // Nothing sensible to build, but it must not throw or emit a run of 0.
     const span = rampSpanCells(4, 7, 5, 7, 1, false);
-    expect(span).toEqual([{ r: 5, c: 7, kind: "ramp", run: 1, step: 0 }]);
+    expect(span).toEqual([{ r: 5, c: 7, kind: "ramp", run: 1, step: 0, slope: 1 }]);
   });
 });
 
 describe("what a ramp stroke means", () => {
-  const map = (span) => Object.fromEntries(span.map((x) => [x.r + "," + x.c, x.kind === "block" ? "block" : x.run + ":" + x.step]));
+  const map = (span) => Object.fromEntries(span.map((x) => [x.r + "," + x.c, x.kind === "block" ? "block" : x.run + ":" + x.step + (x.slope > 0 ? "↗" : "↖")]));
 
-  test("the anchor row is the thin end of the wedge, whichever way up the ramp is", () => {
-    // Right way up it grows out of the floor you started on; upside down it hangs off the ceiling
-    // you started on. Either way the row you clicked is a row the ramp actually occupies.
-    expect(rampRowSpan(9, 3, false)).toEqual({ r0: 7, r1: 9 });
-    expect(rampRowSpan(9, 3, true)).toEqual({ r0: 9, r1: 11 });
-    expect(rampRowSpan(9, 1, false)).toEqual({ r0: 9, r1: 9 });
+  // Does the drawn line run up to the RIGHT? Asked of the cells themselves rather than of the
+  // stored `slope`, because slope means opposite things right way up and upside down — trusting it
+  // is precisely the mistake that let overhangs come out mirrored. Whichever way up the ramp is,
+  // the diagonal it draws connects the ramp cells in its top row to those in its bottom row, so
+  // "which side is the top row on" is the lean, in the one form that can't be misread.
+  const leansUpRight = (span) => {
+    const ramps = span.filter((x) => x.kind === "ramp");
+    const meanCol = (r) => { const cs = ramps.filter((x) => x.r === r).map((x) => x.c); return cs.reduce((a, b) => a + b, 0) / cs.length; };
+    return meanCol(Math.min(...ramps.map((x) => x.r))) > meanCol(Math.max(...ramps.map((x) => x.r)));
+  };
+
+  test("a drag up-and-right leans up-and-right, whatever the ◢/◣ buttons say", () => {
+    // The bug: the buttons were the ONLY thing that set the lean, so dragging out a diagonal with
+    // the wrong one selected produced a ramp mirrored inside the rectangle you had just dragged.
+    for (const button of [1, -1]) {
+      const span = rampDragSpan({ r: 9, c: 0 }, { r: 7, c: 5 }, 1, button, false);
+      expect(leansUpRight(span)).toBe(true);
+    }
   });
 
-  test("height comes from the Height setting when the drag never left its row", () => {
-    // The whole point: a two-high ramp from an ordinary sideways drag, no diagonal needed.
-    expect(map(rampDragSpan({ r: 9, c: 0 }, { r: 9, c: 3 }, 1, 2, 1, false))).toEqual({
-      "9,0": "2:0", "9,1": "2:1", "9,2": "block", "9,3": "block",
-      "8,2": "2:0", "8,3": "2:1",
-    });
+  test("a drag up-and-left leans up-and-left, whatever the buttons say", () => {
+    for (const button of [1, -1]) {
+      const span = rampDragSpan({ r: 9, c: 5 }, { r: 7, c: 0 }, 1, button, false);
+      expect(leansUpRight(span)).toBe(false);
+    }
   });
 
-  test("a plain click with no drag places the full height too, not a flat 45", () => {
-    // Brush 1 would be a single 45° cell, which has no room for a second row — so the length
-    // opens up to the height rather than the height being quietly clamped back to 1.
-    const span = rampDragSpan({ r: 9, c: 5 }, null, 1, 2, 1, false);
-    expect(new Set(span.map((x) => x.r)).size).toBe(2);
-    expect(span.filter((x) => x.kind === "ramp").length).toBe(2);
+  test("dragging the other way along the same diagonal is the same ramp", () => {
+    // Press at the top and release at the bottom, or the reverse — you drew the same line.
+    const a = rampDragSpan({ r: 9, c: 0 }, { r: 7, c: 5 }, 1, 1, false);
+    const b = rampDragSpan({ r: 7, c: 5 }, { r: 9, c: 0 }, 1, 1, false);
+    expect(map(a)).toEqual(map(b));
   });
 
-  test("a bigger brush still sets the length, and the height rides on top of it", () => {
-    const span = rampDragSpan({ r: 9, c: 8 }, null, 6, 2, 1, false);
-    const cols = span.map((x) => x.c);
-    expect(Math.max(...cols) - Math.min(...cols) + 1).toBe(6);
-    expect(new Set(span.map((x) => x.r)).size).toBe(2);
+  test("an upside-down drag follows the line drawn, instead of coming back mirrored", () => {
+    // A stored slope draws the OPPOSITE diagonal once the solid hangs from the top, so this is the
+    // case that was reversed: the overhang used to lean away from the drag every single time.
+    for (const button of [1, -1]) {
+      const span = rampDragSpan({ r: 9, c: 0 }, { r: 7, c: 5 }, 1, button, true);
+      expect(leansUpRight(span)).toBe(true);
+    }
+    const other = rampDragSpan({ r: 9, c: 5 }, { r: 7, c: 0 }, 1, 1, true);
+    expect(leansUpRight(other)).toBe(false);
   });
 
-  test("a drag that changed row still wins, so the diagonal gesture keeps working", () => {
-    // Height is 1 here and the drag spans 3 rows — the gesture is not overridden by the setting.
-    const span = rampDragSpan({ r: 9, c: 0 }, { r: 7, c: 5 }, 1, 1, 1, false);
-    expect([...new Set(span.map((x) => x.r))].sort()).toEqual([7, 8, 9]);
+  test("the buttons still decide a click and a flat drag, where there is no diagonal to read", () => {
+    expect(rampDragSpan({ r: 9, c: 4 }, null, 3, 1, false).every((x) => x.kind !== "ramp" || x.step >= 0)).toBe(true);
+    const up = rampDragSpan({ r: 9, c: 0 }, { r: 9, c: 3 }, 1, 1, false);
+    const down = rampDragSpan({ r: 9, c: 0 }, { r: 9, c: 3 }, 1, -1, false);
+    expect(map(up)).not.toEqual(map(down));
+  });
+
+  test("a straight-up drag has no lean to read, so it keeps the button's", () => {
+    // One column, so nothing about left or right was expressed. It must not silently flip.
+    const up = rampDragSpan({ r: 9, c: 4 }, { r: 7, c: 4 }, 1, 1, false);
+    const down = rampDragSpan({ r: 9, c: 4 }, { r: 7, c: 4 }, 1, -1, false);
+    expect(map(up)).not.toEqual(map(down));
   });
 
   test("releasing without ever moving is a click, not a zero-length drag", () => {
     // cur === anchor is what a click looks like once the pointer has jittered inside one cell.
-    expect(map(rampDragSpan({ r: 9, c: 4 }, { r: 9, c: 4 }, 3, 1, 1, false)))
-      .toEqual(map(rampDragSpan({ r: 9, c: 4 }, null, 3, 1, 1, false)));
+    expect(map(rampDragSpan({ r: 9, c: 4 }, { r: 9, c: 4 }, 3, 1, false)))
+      .toEqual(map(rampDragSpan({ r: 9, c: 4 }, null, 3, 1, false)));
   });
 
   test("a lost drag can no longer come back as a long flat ramp", () => {
     // This is the failure the ref exists to prevent: when the release read a stale hover cell it
     // saw no drag at all and stamped the brush-size ramp instead — a big shallow one, in place of
     // the tall one being dragged. With the drag cell recorded, the two can't be confused.
-    const dragged = rampDragSpan({ r: 9, c: 2 }, { r: 8, c: 4 }, 8, 1, 1, false);
-    const clicked = rampDragSpan({ r: 9, c: 2 }, null, 8, 1, 1, false);
+    const dragged = rampDragSpan({ r: 9, c: 2 }, { r: 8, c: 4 }, 8, 1, false);
+    const clicked = rampDragSpan({ r: 9, c: 2 }, null, 8, 1, false);
     expect(new Set(dragged.map((x) => x.r)).size).toBe(2);
     expect(new Set(clicked.map((x) => x.r)).size).toBe(1);
     expect(clicked.length).toBe(8);
   });
 
   test("a ramp is never taller than it is wide, so no row is left with a gap in it", () => {
-    for (const rise of [1, 2, 3, 4]) {
-      const span = rampDragSpan({ r: 9, c: 1 }, { r: 9, c: 2 }, 1, rise, 1, false);   // only 2 columns
-      const rows = [...new Set(span.map((x) => x.r))];
-      expect(rows.length).toBeLessThanOrEqual(2);
-      // Every row that exists carries a piece of the surface — none is filler-only.
-      for (const r of rows) expect(span.some((x) => x.r === r && x.kind === "ramp")).toBe(true);
-    }
+    // Drag a tall thin rectangle: 5 rows but only 2 columns. Rows without a column of their own
+    // would be a hole in the middle of the surface, so the ramp stops short instead.
+    const span = rampDragSpan({ r: 9, c: 1 }, { r: 5, c: 2 }, 1, 1, false);
+    const rows = [...new Set(span.map((x) => x.r))];
+    expect(rows.length).toBeLessThanOrEqual(2);
+    for (const r of rows) expect(span.some((x) => x.r === r && x.kind === "ramp")).toBe(true);
   });
 });
 
