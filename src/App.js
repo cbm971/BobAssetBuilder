@@ -3687,7 +3687,12 @@ export const terrainPaintShape = (layer, selectedShape, upsideDown = false, hide
 export const rampSpanCells = (r0, c0, r1, c1, slope, upsideDown = false) => {
   const rTop = Math.min(r0, r1), rBot = Math.max(r0, r1);
   const cLo = Math.min(c0, c1), cHi = Math.max(c0, c1);
-  const rise = rBot - rTop + 1, run = cHi - cLo + 1;
+  const run = cHi - cLo + 1;
+  // Never more rows than columns. Each row needs at least one column of its own to climb through,
+  // so a 3-high ramp 2 columns wide would leave a row with nothing in it — a gap in the middle of
+  // the surface. Rows are handed out starting from the anchor end, so clamping simply stops the
+  // ramp short of the far row instead of leaving a hole in it.
+  const rise = Math.min(rBot - rTop + 1, run);
   const out = [];
   let taken = 0;
   for (let g = 0; g < rise; g++) {
@@ -3708,6 +3713,36 @@ export const rampSpanCells = (r0, c0, r1, c1, slope, upsideDown = false) => {
     }
   }
   return out;
+};
+// Which rows a ramp of `rise` cells occupies when it was drawn from `anchorRow`. The anchor row is
+// always the THIN end of the wedge, because that is the row the pointer was actually in: a
+// right-way-up ramp grows UP out of the floor you started on, and an upside-down one hangs DOWN off
+// the ceiling you started on. Getting this backwards would place the ramp a row or more away from
+// where it was drawn, which reads as the tool ignoring the click.
+export const rampRowSpan = (anchorRow, rise, upsideDown) => {
+  const n = Math.max(1, Math.round(rise) || 1);
+  return upsideDown ? { r0: anchorRow, r1: anchorRow + n - 1 } : { r0: anchorRow - n + 1, r1: anchorRow };
+};
+// ONE place decides what a ramp stroke means. The drag ghost and the release computing it
+// separately — off the same inputs, but each with its own arithmetic — is exactly how a preview
+// starts quietly lying about what it is going to place.
+//
+// A drag that changed row still sets the height itself; that gesture works and the ghost follows it
+// live. But it is no longer the ONLY way to get a tall ramp: a plain click, or a drag along a
+// single row, takes its height from the Height control instead. Needing to land a diagonal drag
+// precisely — while the ramp being dragged is also the thing covering the cells you are aiming at —
+// is what made a two-high ramp feel like a fight.
+//
+// A click with no drag falls back to the brush size for length, as it always has, but never to less
+// than the height: a 3-high ramp one column wide has nowhere to put its middle row, and clamping
+// the height down instead would silently ignore the Height that was picked.
+export const rampDragSpan = (anchor, cur, brush, rise, slope, upsideDown) => {
+  const dragged = !!cur && (cur.c !== anchor.c || cur.r !== anchor.r);
+  const rows = (dragged && cur.r !== anchor.r) ? { r0: anchor.r, r1: cur.r } : rampRowSpan(anchor.r, rise, upsideDown);
+  let lo, hi;
+  if (dragged) { lo = Math.min(anchor.c, cur.c); hi = Math.max(anchor.c, cur.c); }
+  else { const len = Math.max(1, brush || 1, rise || 1); lo = anchor.c - Math.floor((len - 1) / 2); hi = lo + len - 1; }
+  return rampSpanCells(rows.r0, lo, rows.r1, hi, slope, upsideDown);
 };
 // A cell painted in Outline mode carries `ol` (its outline colour) alongside its normal fill.
 // withOutline() attaches it losslessly. cellOutlineStyle() KEEPS the cell fill/texture and draws a
@@ -4642,6 +4677,7 @@ export default function AssetStudio() {
   const [lFgHide, setLFgHide] = useState(false);       // collision-only Foreground paint: visible/marked in the editor, omitted from Playtest art while collision remains live
   const [lHoverCell, setLHoverCell] = useState(null); // {r,c} under the pointer — drives the placement ghost preview
   const [rampDragOn, setRampDragOn] = useState(false); // true while dragging out a multi-cell ramp — drives the live ramp-span preview
+  const [lRampRise, setLRampRise] = useState(1);       // how many cells tall a ramp is, so height doesn't depend on landing a diagonal drag
   const [areaDragOn, setAreaDragOn] = useState(false); // true while dragging out an area-copy selection rectangle
   const [hasClipboard, setHasClipboard] = useState(false); // just drives the toolbar label — the actual data lives in clipboard.current
   const [lEmoji, setLEmoji] = useState("🌳");           // selected emoji for the Objects layer
@@ -4798,6 +4834,14 @@ export default function AssetStudio() {
   const levelFuture = useRef([]);
   const lpaint = useRef(null);                          // level paint drag state
   const rampAnchor = useRef(null);                       // {r, c} anchor cell while dragging out a multi-cell ramp — cleared on commit
+  // The cell the ramp drag is CURRENTLY over, tracked in a ref rather than read off lHoverCell at
+  // release. lHoverCell is state, so it only catches up after React re-renders and re-runs the
+  // effect that owns the pointerup listener — release quickly, or release on the same tick as the
+  // last move, and the handler still saw the ANCHOR cell. It then decided no drag had happened and
+  // fell back to the brush-size ramp, which is why dragging a tall ramp felt unreliable and why the
+  // times it "didn't take" came out as one long ramp instead. A ref updates synchronously in the
+  // move handler, so the release always sees the cell the pointer was really on.
+  const rampCur = useRef(null);
   const areaAnchor = useRef(null);                       // {r, c} anchor cell while dragging out an area-copy rectangle — cleared on commit
   const clipboard = useRef(null);                        // { w, h, fg, bg, fx } captured from the last area-copy selection, keyed relative to its own top-left corner
   const fadedFrontKeys = useRef(new Set()); // Front cell keys currently faded, so leaving a cell restores it and unchanged cells aren't touched at all
@@ -6709,23 +6753,17 @@ export default function AssetStudio() {
   useEffect(() => { const up = () => { lpaint.current = null; }; window.addEventListener("pointerup", up); return () => window.removeEventListener("pointerup", up); }, []);
 
   // Commits a multi-cell ramp on release, as ONE action (one undo step, already snapshotted by
-  // the level editor's onPointerDownCapture at the start of the drag). A plain click (never
-  // dragged, or dragged back to the anchor cell) falls back to using the brush-size control as
-  // the ramp's length, centered on the click — so changing "size" while a ramp shape is active
-  // makes one longer, shallower ramp instead of stamping several separate 45° ones. Re-registers
-  // whenever the values it reads change, so it can never read a stale lColor/lFgShape/lBrush.
+  // the level editor's onPointerDownCapture at the start of the drag). What the stroke MEANS is
+  // rampDragSpan's decision, shared with the ghost. Re-registers whenever the values it reads
+  // change, so it can never read a stale lColor/lFgShape/lBrush — the one input it deliberately
+  // does NOT read from state is the cell being dragged over, which is a ref for the reason
+  // rampCur's declaration explains.
   useEffect(() => {
     const up = () => {
       if (!rampAnchor.current) return;
-      const { r, c: c0 } = rampAnchor.current;
-      rampAnchor.current = null; setRampDragOn(false);
-      // Dragging to ANY other cell defines the ramp now, not just another cell in the anchor row —
-      // the row span is how tall the ramp is (see rampSpanCells). Dragging back onto the anchor
-      // cell still means "no drag" and falls back to the brush-size ramp.
-      let rEnd = r, lo, hi;
-      if (lHoverCell && (lHoverCell.c !== c0 || lHoverCell.r !== r)) { rEnd = lHoverCell.r; lo = Math.min(c0, lHoverCell.c); hi = Math.max(c0, lHoverCell.c); }
-      else { const half = Math.floor((lBrush - 1) / 2); lo = c0 - half; hi = c0 - half + lBrush - 1; }
-      const span = rampSpanCells(r, lo, rEnd, hi, lFgShape === "slopeUp" ? 1 : -1, lFgUpsideDown);
+      const anchor = rampAnchor.current, cur = rampCur.current;
+      rampAnchor.current = null; rampCur.current = null; setRampDragOn(false);
+      const span = rampDragSpan(anchor, cur, lBrush, lRampRise, lFgShape === "slopeUp" ? 1 : -1, lFgUpsideDown);
       setLevel((lv) => {
         if (!lv) return lv;
         const targetLayer = lLayer === "bg" ? "bg" : "fg";
@@ -6748,7 +6786,7 @@ export default function AssetStudio() {
     };
     window.addEventListener("pointerup", up);
     return () => window.removeEventListener("pointerup", up);
-  }, [lHoverCell, lLayer, lFgShape, lFgUpsideDown, lFgHide, lColor, lBrush, activeTexture]);
+  }, [lLayer, lFgShape, lFgUpsideDown, lFgHide, lColor, lBrush, lRampRise, activeTexture]);
 
   // Area copy: drag from anchor to a different cell to CAPTURE that rectangle (fg/bg/objects,
   // relative to its own top-left corner) into the clipboard. A plain click with no drag instead
@@ -9860,7 +9898,7 @@ export default function AssetStudio() {
         // Ramps are placed as one multi-cell unit on release (see the pointerup effect above),
         // not stamped cell-by-cell while dragging — that's what let a bigger "size" turn into
         // several separate 45° ramps instead of one longer, shallower one.
-        rampAnchor.current = { r, c }; setRampDragOn(true);
+        rampAnchor.current = { r, c }; rampCur.current = null; setRampDragOn(true);
         return;
       }
       // Object art handles erase directly. Clicking transparent space must do nothing rather than
@@ -9877,6 +9915,10 @@ export default function AssetStudio() {
       const { r, c } = lvCell(e);
       const within = inb(r, c);
       setLHoverCell(within ? { r, c } : null);
+      // Synchronous record of where a ramp drag has reached. Drag off the edge of the level and it
+      // keeps the last cell that WAS on it, so releasing outside the grid still places the ramp you
+      // dragged rather than throwing the whole stroke away.
+      if (rampAnchor.current && within) rampCur.current = { r, c };
       if (!lpaint.current || !lpaint.current.on || !within) return;
       // A click never sits at exactly one pixel — the pointer drifts a little between down and
       // up even when you didn't mean to drag. Require a few real pixels of movement before this
@@ -10127,6 +10169,17 @@ export default function AssetStudio() {
                     <button className={lFgShape === "slopeDown" ? "on" : ""} onClick={() => setLFgShape("slopeDown")}>◣ Ramp ↖</button>
                     {lFgShape !== "block" && <button className={lFgUpsideDown ? "on" : ""} onClick={() => setLFgUpsideDown((v) => !v)}>🙃 Upside down</button>}
                   </div>
+                  {/* HOW TALL the ramp is, as a setting rather than a gesture. Dragging diagonally
+                      still works and still wins, but it meant a two-high ramp depended on landing a
+                      precise diagonal drag over cells the ramp itself was covering. Picking the
+                      height first makes the ordinary sideways drag — or a plain click — place it. */}
+                  {lFgShape !== "block" && (
+                    <div className="seg">
+                      {[1, 2, 3, 4].map((n) => (
+                        <button key={n} className={lRampRise === n ? "on" : ""} onClick={() => setLRampRise(n)} title={n === 1 ? "a normal one-cell ramp" : n + " cells tall — climbs " + n + " blocks over however long you make it"}>⬍ {n} high</button>
+                      ))}
+                    </div>
+                  )}
                   {lLayer === "fg" && <label className="chk solidchk"><input type="checkbox" checked={lFgHide} onChange={(e) => setLFgHide(e.target.checked)} /> 🚫 Collision only</label>}
                 </>
               )}
@@ -10254,13 +10307,12 @@ export default function AssetStudio() {
                   // pressed) previews what a plain click would place, using the brush-size
                   // control as the default ramp length — so the preview always matches what
                   // release/click will actually commit.
-                  // A drag across rows previews the whole tall ramp, filler blocks included, off the
-                  // exact same rampSpanCells the release commits — the two disagreeing about what a
-                  // drag means is the one bug a ghost exists to prevent.
-                  let r0g, c0g, r1g, c1g;
-                  if (rampDragOn && rampAnchor.current) { r0g = rampAnchor.current.r; c0g = rampAnchor.current.c; r1g = lHoverCell.r; c1g = lHoverCell.c; }
-                  else { r0g = r1g = lHoverCell.r; const half = Math.floor((lBrush - 1) / 2); c0g = lHoverCell.c - half; c1g = c0g + lBrush - 1; }
-                  const span = rampSpanCells(r0g, c0g, r1g, c1g, lFgShape === "slopeUp" ? 1 : -1, lFgUpsideDown);
+                  // Previews the whole ramp, filler blocks included, through the exact same
+                  // rampDragSpan the release commits — the ghost and the result disagreeing about
+                  // what a stroke means is the one bug a ghost exists to prevent.
+                  const anchor = (rampDragOn && rampAnchor.current) ? rampAnchor.current : lHoverCell;
+                  const cur = (rampDragOn && rampAnchor.current) ? lHoverCell : null;
+                  const span = rampDragSpan(anchor, cur, lBrush, lRampRise, lFgShape === "slopeUp" ? 1 : -1, lFgUpsideDown);
                   // The ghost draws only what this stroke paints. Foreground may keep an older fill
                   // under it; Background replaces its old decorative fill when the ramp is committed.
                   return <>{span.map((cell) => {

@@ -54,6 +54,8 @@ import {
   slopeSurfaceAt,
   slopeSurfaceForPlayer,
   rampSpanCells,
+  rampRowSpan,
+  rampDragSpan,
   TEXTURES,
   TEXTURE_KEYS,
   newTexture,
@@ -1193,6 +1195,74 @@ describe("dragging out a ramp taller than one cell", () => {
     // Nothing sensible to build, but it must not throw or emit a run of 0.
     const span = rampSpanCells(4, 7, 5, 7, 1, false);
     expect(span).toEqual([{ r: 5, c: 7, kind: "ramp", run: 1, step: 0 }]);
+  });
+});
+
+describe("what a ramp stroke means", () => {
+  const map = (span) => Object.fromEntries(span.map((x) => [x.r + "," + x.c, x.kind === "block" ? "block" : x.run + ":" + x.step]));
+
+  test("the anchor row is the thin end of the wedge, whichever way up the ramp is", () => {
+    // Right way up it grows out of the floor you started on; upside down it hangs off the ceiling
+    // you started on. Either way the row you clicked is a row the ramp actually occupies.
+    expect(rampRowSpan(9, 3, false)).toEqual({ r0: 7, r1: 9 });
+    expect(rampRowSpan(9, 3, true)).toEqual({ r0: 9, r1: 11 });
+    expect(rampRowSpan(9, 1, false)).toEqual({ r0: 9, r1: 9 });
+  });
+
+  test("height comes from the Height setting when the drag never left its row", () => {
+    // The whole point: a two-high ramp from an ordinary sideways drag, no diagonal needed.
+    expect(map(rampDragSpan({ r: 9, c: 0 }, { r: 9, c: 3 }, 1, 2, 1, false))).toEqual({
+      "9,0": "2:0", "9,1": "2:1", "9,2": "block", "9,3": "block",
+      "8,2": "2:0", "8,3": "2:1",
+    });
+  });
+
+  test("a plain click with no drag places the full height too, not a flat 45", () => {
+    // Brush 1 would be a single 45° cell, which has no room for a second row — so the length
+    // opens up to the height rather than the height being quietly clamped back to 1.
+    const span = rampDragSpan({ r: 9, c: 5 }, null, 1, 2, 1, false);
+    expect(new Set(span.map((x) => x.r)).size).toBe(2);
+    expect(span.filter((x) => x.kind === "ramp").length).toBe(2);
+  });
+
+  test("a bigger brush still sets the length, and the height rides on top of it", () => {
+    const span = rampDragSpan({ r: 9, c: 8 }, null, 6, 2, 1, false);
+    const cols = span.map((x) => x.c);
+    expect(Math.max(...cols) - Math.min(...cols) + 1).toBe(6);
+    expect(new Set(span.map((x) => x.r)).size).toBe(2);
+  });
+
+  test("a drag that changed row still wins, so the diagonal gesture keeps working", () => {
+    // Height is 1 here and the drag spans 3 rows — the gesture is not overridden by the setting.
+    const span = rampDragSpan({ r: 9, c: 0 }, { r: 7, c: 5 }, 1, 1, 1, false);
+    expect([...new Set(span.map((x) => x.r))].sort()).toEqual([7, 8, 9]);
+  });
+
+  test("releasing without ever moving is a click, not a zero-length drag", () => {
+    // cur === anchor is what a click looks like once the pointer has jittered inside one cell.
+    expect(map(rampDragSpan({ r: 9, c: 4 }, { r: 9, c: 4 }, 3, 1, 1, false)))
+      .toEqual(map(rampDragSpan({ r: 9, c: 4 }, null, 3, 1, 1, false)));
+  });
+
+  test("a lost drag can no longer come back as a long flat ramp", () => {
+    // This is the failure the ref exists to prevent: when the release read a stale hover cell it
+    // saw no drag at all and stamped the brush-size ramp instead — a big shallow one, in place of
+    // the tall one being dragged. With the drag cell recorded, the two can't be confused.
+    const dragged = rampDragSpan({ r: 9, c: 2 }, { r: 8, c: 4 }, 8, 1, 1, false);
+    const clicked = rampDragSpan({ r: 9, c: 2 }, null, 8, 1, 1, false);
+    expect(new Set(dragged.map((x) => x.r)).size).toBe(2);
+    expect(new Set(clicked.map((x) => x.r)).size).toBe(1);
+    expect(clicked.length).toBe(8);
+  });
+
+  test("a ramp is never taller than it is wide, so no row is left with a gap in it", () => {
+    for (const rise of [1, 2, 3, 4]) {
+      const span = rampDragSpan({ r: 9, c: 1 }, { r: 9, c: 2 }, 1, rise, 1, false);   // only 2 columns
+      const rows = [...new Set(span.map((x) => x.r))];
+      expect(rows.length).toBeLessThanOrEqual(2);
+      // Every row that exists carries a piece of the surface — none is filler-only.
+      for (const r of rows) expect(span.some((x) => x.r === r && x.kind === "ramp")).toBe(true);
+    }
   });
 });
 
