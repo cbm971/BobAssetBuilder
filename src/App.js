@@ -3658,6 +3658,57 @@ export const terrainPaintShape = (layer, selectedShape, upsideDown = false, hide
   if (layer === "fg" && hideInPlay) out.hideInPlay = true;
   return Object.keys(out).length ? out : null;
 };
+// A ramp has always been exactly ONE cell of rise. `run` stretches it sideways, so a long ramp is a
+// shallow one, but nothing anywhere made a ramp TALLER — dragging across rows just snapped back to
+// the anchor row and gave you a 1-high ramp again. The only way to climb two cells was to hand-build
+// a staircase of separate ramps and blocks, which is exactly the thing the drag is supposed to save
+// you from, and it can't be done at all for an overhang where the steps read as obvious notches.
+//
+// Nothing about the saved cell vocabulary changes here, because it doesn't need to: a rise-R ramp
+// across N columns IS R ordinary 1-rise ramps of run N/R, stacked in adjacent rows and offset
+// sideways, with plain blocks filling the cells the line has already climbed past. So a 2-high ramp
+// is made of the same cells you could have placed by hand — it walks, mirrors, flood-fills, saves
+// and loads exactly like every ramp that came before it, and no collision or render code has to
+// learn a second shape.
+//
+// Columns are split into R groups counted from the ramp's LOW end (the left when it rises
+// left→right, the right when it rises right→left). Group g owns one row, and within that row every
+// column belonging to a LATER group is solid (the line has already risen above this row there) and
+// every column of an earlier group is empty (the line is still below it).
+//
+// Upside down changes one thing only: which row a group lives in. The solid hangs from the top, so
+// group 0 — the low end — is the TOP row rather than the bottom one. The filler rule is untouched,
+// and that is what makes an overhang come out as the true vertical mirror of the ramp rather than a
+// shape that merely leans the same way.
+//
+// A run that doesn't divide evenly hands the remainder out one column at a time starting at the low
+// end, so a 3-wide 2-high ramp is a 2-cell segment then a 1-cell one. That line kinks very slightly
+// at the join; the alternative is refusing the drag, which is what it did before and is worse.
+export const rampSpanCells = (r0, c0, r1, c1, slope, upsideDown = false) => {
+  const rTop = Math.min(r0, r1), rBot = Math.max(r0, r1);
+  const cLo = Math.min(c0, c1), cHi = Math.max(c0, c1);
+  const rise = rBot - rTop + 1, run = cHi - cLo + 1;
+  const out = [];
+  let taken = 0;
+  for (let g = 0; g < rise; g++) {
+    const n = Math.floor(run / rise) + (g < run % rise ? 1 : 0);
+    const first = taken, last = taken + n - 1;   // this group's columns, counted from the low end
+    taken += n;
+    const row = upsideDown ? rTop + g : rBot - g;
+    for (let i = 0; i < run; i++) {
+      // i counts columns from the ramp's low end, which is the right-hand side on a ramp that
+      // rises right→left — every ramp rule below is written in that direction so one pass covers
+      // both, and only the conversion back to a real column knows which way round it is.
+      const c = slope > 0 ? cLo + i : cHi - i;
+      if (i < first) continue;                                              // still below this row
+      if (i > last) { out.push({ r: row, c, kind: "block" }); continue; }    // already climbed past it
+      // `step` is stored left-to-right whatever the slope does (see the mirror code), so it's the
+      // distance from the segment's LEFT end, not from its low end.
+      out.push({ r: row, c, kind: "ramp", run: n, step: slope > 0 ? i - first : last - i });
+    }
+  }
+  return out;
+};
 // A cell painted in Outline mode carries `ol` (its outline colour) alongside its normal fill.
 // withOutline() attaches it losslessly. cellOutlineStyle() KEEPS the cell fill/texture and draws a
 // thin line in `ol` only on the sides that face empty space on the same layer, so a clean border
@@ -6668,18 +6719,25 @@ export default function AssetStudio() {
       if (!rampAnchor.current) return;
       const { r, c: c0 } = rampAnchor.current;
       rampAnchor.current = null; setRampDragOn(false);
-      let lo, hi;
-      if (lHoverCell && lHoverCell.r === r && lHoverCell.c !== c0) { lo = Math.min(c0, lHoverCell.c); hi = Math.max(c0, lHoverCell.c); }
+      // Dragging to ANY other cell defines the ramp now, not just another cell in the anchor row —
+      // the row span is how tall the ramp is (see rampSpanCells). Dragging back onto the anchor
+      // cell still means "no drag" and falls back to the brush-size ramp.
+      let rEnd = r, lo, hi;
+      if (lHoverCell && (lHoverCell.c !== c0 || lHoverCell.r !== r)) { rEnd = lHoverCell.r; lo = Math.min(c0, lHoverCell.c); hi = Math.max(c0, lHoverCell.c); }
       else { const half = Math.floor((lBrush - 1) / 2); lo = c0 - half; hi = c0 - half + lBrush - 1; }
-      const run = hi - lo + 1;
+      const span = rampSpanCells(r, lo, rEnd, hi, lFgShape === "slopeUp" ? 1 : -1, lFgUpsideDown);
       setLevel((lv) => {
         if (!lv) return lv;
         const targetLayer = lLayer === "bg" ? "bg" : "fg";
         const terrain = { ...lv[targetLayer] };
-        for (let c = lo; c <= hi; c++) {
-          if (c < 0 || c >= lv.cols) continue;
-          const key = cellKey(r, c);
-          const shape = terrainPaintShape(targetLayer, lFgShape, lFgUpsideDown, lFgHide, { run, step: c - lo });
+        for (const cell of span) {
+          if (cell.c < 0 || cell.c >= lv.cols || cell.r < 0 || cell.r >= lv.rows) continue;
+          const key = cellKey(cell.r, cell.c);
+          // A tall ramp is ramp cells plus the solid ones underneath (or, upside down, above) the
+          // line — both come out of the same span, and both paint in the colour/texture in hand.
+          const shape = cell.kind === "ramp"
+            ? terrainPaintShape(targetLayer, lFgShape, lFgUpsideDown, lFgHide, { run: cell.run, step: cell.step })
+            : terrainPaintShape(targetLayer, "block", false, lFgHide);
           const value = paintValue(lColor, activeTexture, shape);
           // Foreground stacks ramps over its existing collision fills. Background is decorative
           // and remains one fill per cell, so repainting simply replaces its previous visual.
@@ -10196,17 +10254,21 @@ export default function AssetStudio() {
                   // pressed) previews what a plain click would place, using the brush-size
                   // control as the default ramp length — so the preview always matches what
                   // release/click will actually commit.
-                  let r, lo, hi;
-                  if (rampDragOn && rampAnchor.current && rampAnchor.current.r === lHoverCell.r) { r = rampAnchor.current.r; lo = Math.min(rampAnchor.current.c, lHoverCell.c); hi = Math.max(rampAnchor.current.c, lHoverCell.c); }
-                  else { r = lHoverCell.r; const half = Math.floor((lBrush - 1) / 2); lo = lHoverCell.c - half; hi = lHoverCell.c - half + lBrush - 1; }
-                  const run = hi - lo + 1;
-                  const cells = [];
-                  for (let c = lo; c <= hi; c++) cells.push(c);
-                  // The ghost draws only the ramp itself. Foreground may keep an older fill under
-                  // it; Background replaces its old decorative fill when the ramp is committed.
-                  return <>{cells.map((c) => {
-                    const val = paintValue(lColor, activeTexture, terrainPaintShape(lLayer, lFgShape, lFgUpsideDown, lFgHide, { run, step: c - lo }));
-                    return <div key={"rg" + c} className={"rampGhost" + (lLayer === "fg" && lFgHide ? " collisionOnly" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellPaintStyle(val, r, c, texLib), clipPath: fgClipPath(val) }} />;
+                  // A drag across rows previews the whole tall ramp, filler blocks included, off the
+                  // exact same rampSpanCells the release commits — the two disagreeing about what a
+                  // drag means is the one bug a ghost exists to prevent.
+                  let r0g, c0g, r1g, c1g;
+                  if (rampDragOn && rampAnchor.current) { r0g = rampAnchor.current.r; c0g = rampAnchor.current.c; r1g = lHoverCell.r; c1g = lHoverCell.c; }
+                  else { r0g = r1g = lHoverCell.r; const half = Math.floor((lBrush - 1) / 2); c0g = lHoverCell.c - half; c1g = c0g + lBrush - 1; }
+                  const span = rampSpanCells(r0g, c0g, r1g, c1g, lFgShape === "slopeUp" ? 1 : -1, lFgUpsideDown);
+                  // The ghost draws only what this stroke paints. Foreground may keep an older fill
+                  // under it; Background replaces its old decorative fill when the ramp is committed.
+                  return <>{span.map((cell) => {
+                    const shape = cell.kind === "ramp"
+                      ? terrainPaintShape(lLayer, lFgShape, lFgUpsideDown, lFgHide, { run: cell.run, step: cell.step })
+                      : terrainPaintShape(lLayer, "block", false, lFgHide);
+                    const val = paintValue(lColor, activeTexture, shape);
+                    return <div key={"rg" + cell.r + "," + cell.c} className={"rampGhost" + (lLayer === "fg" && lFgHide ? " collisionOnly" : "")} style={{ left: cell.c * LV_CELL, top: cell.r * LV_CELL, ...cellPaintStyle(val, cell.r, cell.c, texLib), clipPath: fgClipPath(val) }} />;
                   })}</>;
                 })()}
                 {!play && lEnemyId && lTool === "paint" && lHoverCell && (() => {

@@ -53,6 +53,7 @@ import {
   pieceOriginPoint,
   slopeSurfaceAt,
   slopeSurfaceForPlayer,
+  rampSpanCells,
   TEXTURES,
   TEXTURE_KEYS,
   newTexture,
@@ -1078,6 +1079,120 @@ describe("gravel texture", () => {
       // A swatch wired to nothing would render identical bytes — that's the failure this catches.
       expect(textureDataUri(recoloured)).not.toBe(textureDataUri(base));
     }
+  });
+});
+
+describe("dragging out a ramp taller than one cell", () => {
+  // Handy shorthand: "r,c" -> what landed there, so a whole span reads as a picture in the test.
+  const map = (span) => Object.fromEntries(span.map((x) => [x.r + "," + x.c, x.kind === "block" ? "block" : x.run + ":" + x.step]));
+
+  test("a single-row drag is exactly the ramp it always was", () => {
+    // The whole point of decomposing tall ramps is that the 1-high case must come out unchanged.
+    expect(map(rampSpanCells(5, 2, 5, 5, 1, false))).toEqual({ "5,2": "4:0", "5,3": "4:1", "5,4": "4:2", "5,5": "4:3" });
+  });
+
+  test("step stays counted left-to-right on a ramp that rises right→left", () => {
+    // `step` is stored left-to-right whatever the slope does — the mirror code depends on it.
+    expect(map(rampSpanCells(5, 2, 5, 5, -1, false))).toEqual({ "5,2": "4:0", "5,3": "4:1", "5,4": "4:2", "5,5": "4:3" });
+  });
+
+  test("a 2-high ramp is two 1-high ramps in adjacent rows, with the climbed-past cells filled solid", () => {
+    // Rises left→right across 4 columns and 2 rows: the lower half of the line lives in the bottom
+    // row, the upper half in the row above it, and the bottom row's right half is buried solid.
+    expect(map(rampSpanCells(4, 0, 5, 3, 1, false))).toEqual({
+      "5,0": "2:0", "5,1": "2:1", "5,2": "block", "5,3": "block",
+      "4,2": "2:0", "4,3": "2:1",
+    });
+  });
+
+  test("rising right→left puts the low end on the right, and the fill follows it", () => {
+    expect(map(rampSpanCells(4, 0, 5, 3, -1, false))).toEqual({
+      "5,3": "2:1", "5,2": "2:0", "5,1": "block", "5,0": "block",
+      "4,1": "2:1", "4,0": "2:0",
+    });
+  });
+
+  test("upside down is the same ramp mirrored vertically, not one that merely leans the same way", () => {
+    // The solid hangs from the top, so the low end of the line is the TOP row here. Same columns,
+    // same segments as the right-way-up ramp — only the row each segment sits in swaps.
+    expect(map(rampSpanCells(4, 0, 5, 3, 1, true))).toEqual({
+      "4,0": "2:0", "4,1": "2:1", "4,2": "block", "4,3": "block",
+      "5,2": "2:0", "5,3": "2:1",
+    });
+  });
+
+  test("a run that doesn't divide evenly spends the remainder at the low end instead of refusing", () => {
+    // 3 wide, 2 high: a 2-cell segment then a 1-cell one. The line kinks slightly at the join —
+    // that beats the old behaviour, which was to ignore the row span and hand back a 1-high ramp.
+    expect(map(rampSpanCells(4, 0, 5, 2, 1, false))).toEqual({
+      "5,0": "2:0", "5,1": "2:1", "5,2": "block",
+      "4,2": "1:0",
+    });
+  });
+
+  test("the corners can be dragged from any direction and mean the same rectangle", () => {
+    const a = rampSpanCells(4, 0, 5, 3, 1, false);
+    for (const corners of [[5, 3, 4, 0], [4, 3, 5, 0], [5, 0, 4, 3]]) {
+      expect(map(rampSpanCells(...corners, 1, false))).toEqual(map(a));
+    }
+  });
+
+  test("nothing lands outside the dragged rectangle, and no cell is painted twice", () => {
+    for (const ud of [false, true]) for (const slope of [1, -1]) {
+      const span = rampSpanCells(2, 3, 6, 11, slope, ud);
+      for (const cell of span) {
+        expect(cell.r).toBeGreaterThanOrEqual(2); expect(cell.r).toBeLessThanOrEqual(6);
+        expect(cell.c).toBeGreaterThanOrEqual(3); expect(cell.c).toBeLessThanOrEqual(11);
+      }
+      expect(new Set(span.map((x) => x.r + "," + x.c)).size).toBe(span.length);
+    }
+  });
+
+  test("every row of a tall ramp carries a segment, so the line never breaks", () => {
+    // One ramp segment per row is what makes the surface continuous. A row that got only filler
+    // blocks would be a flat shelf in the middle of what should be a straight climb.
+    const span = rampSpanCells(1, 0, 4, 11, 1, false);
+    const rowsWithRamp = new Set(span.filter((x) => x.kind === "ramp").map((x) => x.r));
+    expect([...rowsWithRamp].sort()).toEqual([1, 2, 3, 4]);
+    // And each segment's steps run 0..run-1 with nothing missing.
+    for (const r of rowsWithRamp) {
+      const seg = span.filter((x) => x.kind === "ramp" && x.r === r);
+      expect(seg.map((x) => x.step).sort()).toEqual(seg.map((_, i) => i));
+      for (const cell of seg) expect(cell.run).toBe(seg.length);
+    }
+  });
+
+  test("the surface a tall ramp collides as is one unbroken climb, not a staircase", () => {
+    // This is the test that matters: the span is only worth anything if the EXISTING collision code
+    // reads it as a single continuous slope. Every column must hold exactly one walkable surface,
+    // and the height must rise smoothly across the joins between segments — a break or a repeat
+    // there is a lip the player would catch on, which is the whole failure the drag exists to avoid.
+    const CW = 30, CH = 30;
+    const span = rampSpanCells(7, 2, 9, 9, 1, false);
+    const fg = {};
+    for (const cell of span) fg[cell.r + "," + cell.c] = cell.kind === "ramp" ? { c: "#888", slope: 1, run: cell.run, step: cell.step } : "#888";
+    const lv = { cols: 20, rows: 20, fg };
+    let prev = null;
+    for (let x = 2 * CW; x <= 10 * CW - 1; x += 3) {
+      const hit = slopeSurfaceAt(lv, x, 7, 9, CW, CH);
+      expect(hit).not.toBeNull();               // a column with no surface is a hole in the ramp
+      if (prev !== null) {
+        expect(hit.y).toBeLessThanOrEqual(prev); // never dips back down
+        expect(prev - hit.y).toBeLessThan(CH / 2); // and never jumps a step, which is what a staircase does
+      }
+      prev = hit.y;
+    }
+    // Ends where it should: on the floor of the bottom row, and at the top of the top row.
+    expect(slopeSurfaceAt(lv, 2 * CW, 7, 9, CW, CH).y).toBe(10 * CH);
+    // One pixel short of the far edge is one pixel short of the top — sampling the edge itself
+    // would land in the next column along, which is past the end of the ramp.
+    expect(slopeSurfaceAt(lv, 10 * CW - 1, 7, 9, CW, CH).y).toBeCloseTo(7 * CH + 0.5, 1);
+  });
+
+  test("a drag one column wide can't make a tall ramp, and doesn't invent cells trying", () => {
+    // Nothing sensible to build, but it must not throw or emit a run of 0.
+    const span = rampSpanCells(4, 7, 5, 7, 1, false);
+    expect(span).toEqual([{ r: 5, c: 7, kind: "ramp", run: 1, step: 0 }]);
   });
 });
 
