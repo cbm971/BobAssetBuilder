@@ -177,6 +177,18 @@ that field shows.
 contiguous same-source run (`cutterRuns` / `pieceSrcKey`). Anything that reorders
 pieces must keep a cutter adjacent to what it cuts — see `groupWeaponBlocksByArm`.
 
+**What point a piece turns about is `pieceOriginFrac`, and only that.** A block normally
+rotates about its own centre, but one flagged `limb:"arm"` / `role:"weaponArm"` turns about
+its shoulder — and every block drawn in the weapon editor is arm-flagged, so this is the
+common case, not the exception. `shapeStyle`, `outlineStyle`, `cutterMaskCss` and the edge
+snapper all read that one function. They used to each restate the rule and `cutterMaskCss`
+got it wrong, so a cutter's hole was rotated about the box's middle while the art it was
+cutting rotated about its top edge: the hole missed by `(I - R(rot))·(centre→edge)` and the
+piece rendered solid. In-hand weapons were the ONE place it looked right, because
+`attachWeaponBlocks` strips `limb`/`role` and pre-shifts the box to the centre-pivot
+equivalent — which is why it read as "a pedestal bug" (bows, dropped loot and sleeve cutters
+were all affected). Add a new pivot in `pieceOriginFrac`, never at a call site.
+
 **Snap to edges** (🧲 checkbox, "Add a block"). While dragging, `findEdgeSnap` looks for an edge
 of another block that is near (midpoints within `SNAP_DIST`), pointing roughly the same way
 (`SNAP_ANGLE`) and of similar length (`SNAP_LEN_TOL`); `applyEdgeSnap` then welds the two edges

@@ -257,8 +257,11 @@ export const armShoulderPoint = (p) => {
   if (pv === "bottom") return { x: p.x + p.w / 2, y: p.y + p.h };
   return { x: p.x + p.w / 2, y: p.y };
 };
-// CSS transform-origin string for that shoulder side.
-export const armPivotOrigin = (pv0) => { const pv = pv0 || "top"; return pv === "left" ? "0% 50%" : pv === "right" ? "100% 50%" : pv === "bottom" ? "50% 100%" : "50% 0%"; };
+// That shoulder side as a fraction of the piece's own box, and as a CSS transform-origin string.
+// One table, because three hand-written copies of it is what let cutterMaskCss drift out of step
+// with shapeStyle — see pieceOriginFrac, which is what callers holding a whole PIECE should use.
+export const armPivotFrac = (pv0) => { const pv = pv0 || "top"; return pv === "left" ? [0, 0.5] : pv === "right" ? [1, 0.5] : pv === "bottom" ? [0.5, 1] : [0.5, 0]; };
+export const armPivotOrigin = (pv0) => { const f = armPivotFrac(pv0); return (f[0] * 100) + "% " + (f[1] * 100) + "%"; };
 // Which stored-rotation sign sweeps the HAND forward — same convention the vertical arms always
 // used (-forward for a top pivot), extended to the horizontal ones.
 export const armPivotSign = (pv0) => { const pv = pv0 || "top"; return (pv === "bottom" || pv === "right") ? 1 : -1; };
@@ -497,7 +500,17 @@ export const weaponFireArt = (states, ang) => {
 // the same p.firing channel a shot does, so a ranged weapon was swapping to its Fire art — recoil,
 // muzzle flash, an open breech — for a strike that fires no round at all. The gun stays on Rest
 // through a whip now; the flag is on the swing, so nothing else has to know about it.
-export const weaponPoseFired = (isRangedWeapon, firing) => !!firing && !firing.unarmed && (!!isRangedWeapon || (firing.t / firing.dur) >= MELEE_WINDUP_FRAC);
+// `ammo` is the live { clip, ammo, reloadT } record (optional — every caller that doesn't have one
+// keeps the old behaviour exactly). A SINGLE-ROUND weapon — a bow, an RPG — is drawn with its
+// projectile sitting in it: the arrow is nocked in the Rest art and gone from the Fire art. So for
+// those the Fire art isn't a half-second flash, it's "this weapon is empty", and it has to hold for
+// the whole reload or the arrow pops back into a bow that hasn't been re-drawn yet. Multi-round
+// weapons are untouched: a rifle's rest art looks the same on its last round as on its first, so
+// there's nothing to say and no reason to change how they read.
+export const weaponPoseFired = (isRangedWeapon, firing, ammo) => {
+  if (isRangedWeapon && ammo && ammo.clip === 1 && (ammo.reloadT > 0 || ammo.ammo <= 0)) return true;
+  return !!firing && !firing.unarmed && (!!isRangedWeapon || (firing.t / firing.dur) >= MELEE_WINDUP_FRAC);
+};
 // How long a ranged shot holds its Fire pose. Was 16 frames (~0.27s), which read as a flash rather
 // than a shot you could see — a drawn recoil or a bow at full draw barely registered before
 // snapping back. 30 frames is half a second: long enough to actually read the pose, still short
@@ -988,7 +1001,22 @@ export const stripThrownLanding = (hazardIn, fxIn, hazKeys, propKeys) => {
 // match, not just partway (the old flat 40°-off-horizontal cap read as firing sideways while
 // visibly aiming up). Holding ↓ has no equivalent dedicated pose, just a partial arm dip, so it
 // keeps the shallower partial-angle behavior.
-export const projectileAimRad = (aimDir) => (aimDir === -1 ? -Math.PI / 2 : aimDir * (Math.PI * 40 / 180));
+// Holding an ARROW SIDEWAYS at the same time (↑+→, ↓+←, …) is the 45° diagonal: aimDir carries
+// ±AIM_DIAGONAL for it, which is why aimDir is a number rather than the old three-way flag. It sits
+// between level and the full hold on purpose — one key is the extreme (straight up, or the shallow
+// 40° dip), two keys is the halfway line you actually want to lob something along. The sideways key
+// also turns the player (see the facing block in the loop), so ↑+← aims up-and-LEFT without any
+// separate handling here: the shot is fired along p.face.
+export const AIM_DIAGONAL = 0.5;
+export const isDiagonalAim = (aimDir) => Math.abs(aimDir || 0) === AIM_DIAGONAL;
+// Degrees off level the shot flies, positive = downward (screen coords, matching rot everywhere else).
+export const aimAngleDeg = (aimDir) => (aimDir === -1 ? -90 : isDiagonalAim(aimDir) ? aimDir * 90 : aimDir * 40);
+export const projectileAimRad = (aimDir) => aimAngleDeg(aimDir) * Math.PI / 180;
+// How far the aiming arm swings off level. ±50 is the established single-key hold (deliberately a
+// little past the shot's own 40° so the pose reads); a diagonal lifts to exactly the 45° the shot
+// leaves at, so the arm points along the shot. Full-up doesn't come through here — aimDir -1 with
+// both feet planted switches to the dedicated drawn Aim-up pose instead (playerPoseKey).
+export const aimArmOffsetDeg = (aimDir) => (isDiagonalAim(aimDir) ? aimDir * 90 : aimDir * 50);
 export const DEFAULT_PROJECTILE_RANGE = 14;
 // Idle dangle for a monkey-bars / ledge hang. Speed is radians per 60fps frame (0.05 ≈ one full
 // sway every ~2s — a slow pendulum, not a kick). The amplitude is a sideways SHIFT in design-canvas
@@ -3780,13 +3808,25 @@ export const SNAP_MIN_EDGE = 4;    // ignore hairline edges as candidates — a 
 export const canEdgeSnap = (p) => !!p && !p.isHitbox && !p.isMuzzle;
 
 // Where a block actually turns about. Normally its own centre, but an arm piece rotates about its
-// shoulder end (shapeStyle sets transformOrigin from armPivotOrigin) — so its corners land
-// somewhere else entirely for the same rot, and snapping has to use the same pivot the renderer does.
+// shoulder end (armPivotFrac) — so its corners land somewhere else entirely for the same rot, and
+// snapping has to use the same pivot the renderer does.
+// A leg swung by the walk/climb animation is pinned at its hip the same way (_animPivotTop), so it
+// belongs here too: this is now THE answer to "what point does the renderer turn this piece about",
+// and shapeStyle/outlineStyle/cutterMaskCss all read it rather than each restating the rule. They
+// used to disagree, and that was the bug: cutterMaskCss rotated a hole about the piece's centre
+// while shapeStyle rotated the piece it was cutting about its shoulder, so a cutter drawn on an
+// arm-flagged piece (which is how weapon art is authored — see attachWeaponBlocks) cut a hole in
+// thin air next to the art. Only the IN-HAND weapon looked right, because attachWeaponBlocks strips
+// limb/role and pre-shifts the box to reproduce the same picture around the centre.
 export const pieceOriginFrac = (p) => {
-  if (!p || !(p.role === "weaponArm" || (p.limb === "arm" && !p._isShoe))) return [0.5, 0.5];
-  const pv = p.armPivot || "top";
-  return pv === "left" ? [0, 0.5] : pv === "right" ? [1, 0.5] : pv === "bottom" ? [0.5, 1] : [0.5, 0];
+  if (p && (p.role === "weaponArm" || (p.limb === "arm" && !p._isShoe))) return armPivotFrac(p.armPivot);
+  if (p && p._animPivotTop) return [0.5, 0]; // walk/climb-swung leg: the hip stays put, only the leg sweeps
+  return [0.5, 0.5];
 };
+// The same point as a CSS transform-origin string.
+export const pieceOriginCss = (p) => { const o = pieceOriginFrac(p); return (o[0] * 100) + "% " + (o[1] * 100) + "%"; };
+// ...and as an absolute canvas point, which is what the SVG rotate()/mirror ops in cutterMaskCss take.
+export const pieceOriginPoint = (p) => { const o = pieceOriginFrac(p); return { x: p.x + o[0] * p.w, y: p.y + o[1] * p.h }; };
 export const pieceBox = (p) => ({ x: p.x, y: p.y, w: p.w, h: p.h, rot: p.rot || 0, o: pieceOriginFrac(p) });
 // A point given as a fraction of the block's own box (0,0 = top-left corner, 1,1 = bottom-right),
 // converted to canvas coordinates through the block's rotation. Linear in box.x/box.y, which is
@@ -5270,8 +5310,12 @@ export default function AssetStudio() {
       // for the whole reload, and blocks the dedicated Aim-up pose too.
       // Aim is driven by the ARROW keys only now (up/down), so climbing a ladder with W/S no
       // longer forces the gun to point up or down. Suppressed while climbing or reloading.
+      // ↑ or ↓ ALONE is the full hold; add ← or → to it and you get the 45° diagonal (see
+      // AIM_DIAGONAL). The sideways key has already set p.face just above, so the diagonal needs no
+      // left/right of its own — holding ↑+← turns you and aims up-left in one move.
       p.aiming = armHoldsAimPose(playtestWeapon && isRanged(playtestWeapon.wtype), climbing, K.fire, K.aimUp, K.aimDown, p.firing);
-      p.aimDir = p.aiming ? (K.aimUp ? -1 : K.aimDown ? 1 : 0) : 0;
+      const aimDiag = (K.aimLeft || K.aimRight) ? AIM_DIAGONAL : 1;
+      p.aimDir = p.aiming ? (K.aimUp ? -aimDiag : K.aimDown ? aimDiag : 0) : 0;
 
       // --- Ground: ramps first, flat solids second -------------------------------------------
       // Ramps own the centre column whenever a surface is in reach. Flat block landing must NOT
@@ -5786,7 +5830,7 @@ export default function AssetStudio() {
             // angle plus the aim tilt — except in the dedicated Aim-up pose, which is drawn pointing
             // up. Crouch DOES extend now, so a ducked shot leaves the barrel instead of thin air.
             const aimingNow = p.aiming && angleNow !== "up";
-            const curArmM = { ...armPieceM, rot: aimingNow ? (aimAbsM + aimDir * 50) : baseArmRotM };
+            const curArmM = { ...armPieceM, rot: aimingNow ? (aimAbsM + aimArmOffsetDeg(aimDir)) : baseArmRotM };
             const wfitM = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
             const guideHandM = handForGuideId(wfitM.guideId)[angleNow] || DEFAULT_HAND[angleNow];
             const muzArt = bake({ ...playtestWeapon, angles: wfitM.states.rest || blankAngles() }, angleNow).filter((pc) => pc.isMuzzle);
@@ -7816,8 +7860,7 @@ export default function AssetStudio() {
     if (mirrored) t.push("scaleX(-1)");
     if (rot) t.push(`rotate(${rot}deg)`);
     if (t.length) s.transform = t.join(" ");
-    if (p.role === "weaponArm" || (p.limb === "arm" && !p._isShoe)) s.transformOrigin = armPivotOrigin(p.armPivot);
-    else if (p._animPivotTop) s.transformOrigin = "50% 0%"; // walk/climb-swung legs: hip stays anchored, only the lower leg sweeps
+    s.transformOrigin = pieceOriginCss(p); // arm pieces turn about the shoulder, swung legs about the hip — see pieceOriginFrac
     return s;
   };
   // Inner fill: the piece's actual visible paint (clip-path silhouette + color), sized 100%/100%
@@ -7870,8 +7913,7 @@ export default function AssetStudio() {
     if (mirrored) t.push("scaleX(-1)");
     if (rot) t.push(`rotate(${rot}deg)`);
     if (t.length) s.transform = t.join(" ");
-    if (p.role === "weaponArm" || (p.limb === "arm" && !p._isShoe)) s.transformOrigin = armPivotOrigin(p.armPivot);
-    else if (p._animPivotTop) s.transformOrigin = "50% 0%";
+    s.transformOrigin = pieceOriginCss(p); // must match shapeStyle exactly or the ring drifts off the shape
     const ofx = p.outlineFx || {};
     if (faded) s.opacity = 0.25; // guide-preview reference — stays uniformly translucent, like before
     else if (ofx.opacity !== undefined && ofx.opacity !== 1) s.opacity = ofx.opacity;
@@ -7927,12 +7969,21 @@ export default function AssetStudio() {
     // Cheap signature of just what actually affects the mask's shape — if this hasn't changed
     // since last frame (the common case: a static face/eye cutter on a body that's just
     // walking around), skip rebuilding the SVG string and reuse the exact same style object.
-    const sig = cutters.map((p) => [p.id, Math.round(p.x), Math.round(p.y), Math.round(p.w), Math.round(p.h), Math.round((p.rot || 0) * 10), p.kind, p._m ? 1 : 0, p.mirrorTwist === false ? 1 : 0].join(":")).join("|");
+    const sig = cutters.map((p) => [p.id, Math.round(p.x), Math.round(p.y), Math.round(p.w), Math.round(p.h), Math.round((p.rot || 0) * 10), p.kind, p._m ? 1 : 0, p.mirrorTwist === false ? 1 : 0, pieceOriginFrac(p).join(",")].join(":")).join("|");
     const key = cacheKey || "default";
     const cached = cutterMaskCache.current[key];
     if (cached && cached.sig === sig) return cached.css;
     const shapes = cutters.map((p) => {
-      const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+      // Turn the hole about the point the RENDERER turns the piece about, not the box's middle.
+      // pieceOriginFrac is that answer (shapeStyle's transformOrigin reads the same function), and
+      // for weapon art it is usually the shoulder, not the centre: every block drawn in the weapon
+      // editor is flagged limb:"arm" so it tracks the arm. Rotating the hole about the centre while
+      // the art rotated about its top edge offset the two by (I - R(rot))·(centre→edge) — a bow's
+      // cut-out limb landed clear of the bow, so the pedestal, an enemy's drop and any sleeve cutter
+      // showed the piece solid. In-hand weapons were the one place it looked right, because
+      // attachWeaponBlocks strips limb/role and pre-shifts the box to the centre-pivot equivalent.
+      const org = pieceOriginPoint(p);
+      const cx = org.x, cy = org.y;
       const mirrored = !!p._m;
       const rot = mirrored ? (p.mirrorTwist === false ? -(p.rot || 0) : (p.rot || 0)) : (p.rot || 0);
       const ops = [];
@@ -9700,9 +9751,14 @@ export default function AssetStudio() {
       const hit = groundArtCache.current.get(it.id);
       if (hit) return hit;
       const src = it.type === "weapon" && it.states && it.states.rest ? { ...it, angles: it.states.rest } : it;
+      // Cutters stay IN the list — renderPieceRuns needs them to build the hole and drops them from
+      // the drawn set itself — but they must not size the BOX, for the same reason propVisibleArtBox
+      // excludes them: a cutter draws a hole, not pixels, and one drawn deliberately larger than the
+      // art it slices would shrink the item and shove it off-centre on its plinth.
       const pieces = bake(src, displayPoseKey(src)).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
+      const drawn = pieces.filter((pc) => !pc.isCutter);
       let bb = null;
-      if (pieces.length) { let a = Infinity, b = Infinity, d = -Infinity, e = -Infinity; for (const pc of pieces) { a = Math.min(a, pc.x); b = Math.min(b, pc.y); d = Math.max(d, pc.x + pc.w); e = Math.max(e, pc.y + pc.h); } bb = { x: a, y: b, w: Math.max(1, d - a), h: Math.max(1, e - b) }; }
+      if (drawn.length) { let a = Infinity, b = Infinity, d = -Infinity, e = -Infinity; for (const pc of drawn) { a = Math.min(a, pc.x); b = Math.min(b, pc.y); d = Math.max(d, pc.x + pc.w); e = Math.max(e, pc.y + pc.h); } bb = { x: a, y: b, w: Math.max(1, d - a), h: Math.max(1, e - b) }; }
       const out = { pieces, bb };
       groundArtCache.current.set(it.id, out);
       return out;
@@ -9926,7 +9982,7 @@ export default function AssetStudio() {
                 level. They flow side by side now and only wrap when the stage is genuinely too
                 narrow, so the canvas keeps its vertical space. */}
             <div className="statusrow">
-            {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb · <b>J/F</b> fire · <b>Q</b> {playtestWeapon && !isRanged(playtestWeapon.wtype) ? "tap to block" : "melee"}{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload early" : ""}{playtestThrowId ? " · hold G to aim, release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
+            {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb (two arrows = 45°) · <b>J/F</b> fire · <b>Q</b> {playtestWeapon && !isRanged(playtestWeapon.wtype) ? "tap to block" : "melee"}{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload early" : ""}{playtestThrowId ? " · hold G to aim, release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
             {play && (playtestWeaponId || SLOT_ORDER.some((sl) => equipped.current[sl])) && (() => {
               const bits = [];
               if (playtestWeaponId) { const w = findA(playtestWeaponId); if (w) bits.push("🗡️ " + w.name); }
@@ -10260,7 +10316,7 @@ export default function AssetStudio() {
                     const aimAnchorOf = armAnchorFinder(blocks);
                     blocks = blocks.map((b) => {
                       if (b.role !== "weaponArm" && b.limb !== "arm") return b;
-                      const target = armAimAbs(b.armPivot) + aimDir * 50;
+                      const target = armAimAbs(b.armPivot) + aimArmOffsetDeg(aimDir);
                       if (b.role === "weaponArm") return { ...b, rot: target * armMirrorTwist(b) };
                       // Equipment (e.g. a jacket sleeve) flagged limb:"arm" so it tracks the arm
                       // may have its OWN baked rest rotation for a reason — a design-time twist
@@ -10272,7 +10328,7 @@ export default function AssetStudio() {
                       // delta-based approach the melee swing and weapon attachment already use.
                       const a = aimAnchorOf(b);
                       if (!a) { const armDelta = target - baseArmRot; return { ...b, rot: (b.rot || 0) + armDelta * armMirrorTwist(b) }; }
-                      const aTarget = armAimAbs(a.armPivot) + aimDir * 50;
+                      const aTarget = armAimAbs(a.armPivot) + aimArmOffsetDeg(aimDir);
                       // Same delta idea as before, but applied RIGIDLY about the anchor arm's
                       // shoulder — the rot-only version detached any sleeve whose own pivot
                       // wasn't at the shoulder (the jacket sleeve visibly fell below the arm
@@ -10304,7 +10360,7 @@ export default function AssetStudio() {
                       // switches at the swing's impact. If no Fire pose was drawn for this pose,
                       // weaponFireArt falls back to Rest rather than baking an empty array (which
                       // is what used to make the weapon vanish mid-swing).
-                      const firedNow = weaponPoseFired(isProjectile, p.firing);
+                      const firedNow = weaponPoseFired(isProjectile, p.firing, wpn.current);
                       const wpnAngles = firedNow ? weaponFireArt(wfit.states, angle) : (wfit.states.rest || blankAngles());
                       const wpnPieces = bake({ ...playtestWeapon, angles: wpnAngles }, angle);
                       blocks = mergeWeaponBlocks(blocks, attachWeaponBlocks(wpnPieces, curArm, guideHand, baseArmRot));
@@ -10528,8 +10584,10 @@ export default function AssetStudio() {
                       const ePose = enemyPoseKey(ea, ducking ? "crouch" : "side");
                       const guideHand = handForGuideId(wfit.guideId)[ePose] || DEFAULT_HAND[ePose];
                       // Same rule as the player (weaponPoseFired): Fire replaces Rest — instantly
-                      // for a ranged weapon, at the impact angle for a melee one.
-                      const eFired = ep && ep.swingT > 0 && weaponPoseFired(eRanged, { t: ATTACK_SWING_FRAMES - ep.swingT, dur: ATTACK_SWING_FRAMES });
+                      // for a ranged weapon, at the impact angle for a melee one. Its live magazine
+                      // goes in too, so an enemy's bow sits un-nocked while it reloads exactly the
+                      // way yours does.
+                      const eFired = weaponPoseFired(eRanged, ep && ep.swingT > 0 ? { t: ATTACK_SWING_FRAMES - ep.swingT, dur: ATTACK_SWING_FRAMES } : null, ep && ep.weaponAmmo);
                       const wpnAngles = eFired ? weaponFireArt(wfit.states, ePose) : (wfit.states.rest || blankAngles());
                       eBlocks = mergeWeaponBlocks(eBlocks, attachWeaponBlocks(bake({ ...ew, angles: wpnAngles }, ePose), curArm, guideHand, eBaseRot));
                     }

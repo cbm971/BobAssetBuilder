@@ -41,6 +41,16 @@ import {
   playerSpriteMirrored,
   RANGED_FIRE_POSE_FRAMES,
   weaponPoseFired,
+  AIM_DIAGONAL,
+  aimAngleDeg,
+  aimArmOffsetDeg,
+  isDiagonalAim,
+  projectileAimRad,
+  armPivotFrac,
+  armPivotOrigin,
+  pieceOriginFrac,
+  pieceOriginCss,
+  pieceOriginPoint,
   slopeSurfaceAt,
   slopeSurfaceForPlayer,
   TEXTURES,
@@ -1973,6 +1983,105 @@ describe("holding Fire locks the aim pose", () => {
   test("an unarmed swing can't fire a melee weapon's pose either", () => {
     expect(weaponPoseFired(false, { t: 11, dur: 12, unarmed: true })).toBe(false);
     expect(weaponPoseFired(false, { t: 11, dur: 12 })).toBe(true); // a real swing still swaps at the strike
+  });
+
+  // A bow / RPG is drawn WITH its projectile in it, so Rest means "loaded". The Fire art has to
+  // stay up for the whole reload or the arrow reappears in a bow that is still being drawn.
+  test("a one-round weapon holds its Fire art for the whole reload, not just the fire flash", () => {
+    const bow = startReload(consumeShot(newWeaponAmmo(1), 30), 120);
+    expect(bow.ammo).toBe(0);
+    expect(bow.reloadT).toBe(120);
+    // Long past the fire-pose window, still mid-reload: unloaded, so still on Fire.
+    expect(weaponPoseFired(true, null, bow)).toBe(true);
+    expect(weaponPoseFired(true, { t: RANGED_FIRE_POSE_FRAMES, dur: RANGED_FIRE_POSE_FRAMES }, bow)).toBe(true);
+    // Reload finished — the arrow is back on the string, so back to Rest.
+    expect(weaponPoseFired(true, null, { ...bow, reloadT: 0, ammo: 1 })).toBe(false);
+  });
+
+  test("a multi-round magazine is untouched — a rifle looks the same empty as full", () => {
+    const rifle = startReload({ ...newWeaponAmmo(6), ammo: 0 }, 72);
+    expect(weaponPoseFired(true, null, rifle)).toBe(false);
+    // ...and unlimited ammo (clip 0) never counts as unloaded.
+    expect(weaponPoseFired(true, null, newWeaponAmmo(0))).toBe(false);
+  });
+
+  test("no ammo record at all keeps the old behaviour exactly", () => {
+    expect(weaponPoseFired(true, { t: 0, dur: 30 })).toBe(true);
+    expect(weaponPoseFired(true, null)).toBe(false);
+  });
+});
+
+// Holding an arrow sideways alongside ↑/↓ is the 45° diagonal — the thing a single ↑ (straight up)
+// and a single ↓ (a shallow 40° dip) leave no way to ask for.
+describe("diagonal aim (two arrow keys at once)", () => {
+  test("two keys fire at exactly 45°, up or down", () => {
+    expect(aimAngleDeg(-AIM_DIAGONAL)).toBe(-45);
+    expect(aimAngleDeg(AIM_DIAGONAL)).toBe(45);
+    expect(projectileAimRad(-AIM_DIAGONAL)).toBeCloseTo(-Math.PI / 4, 10);
+    expect(projectileAimRad(AIM_DIAGONAL)).toBeCloseTo(Math.PI / 4, 10);
+  });
+
+  test("the single-key holds are unchanged", () => {
+    expect(aimAngleDeg(-1)).toBe(-90);   // ↑ alone still goes straight up
+    expect(aimAngleDeg(1)).toBe(40);     // ↓ alone still the shallow dip
+    expect(aimAngleDeg(0)).toBe(0);
+    expect(projectileAimRad(-1)).toBeCloseTo(-Math.PI / 2, 10);
+    expect(projectileAimRad(0)).toBe(0);
+  });
+
+  test("the arm points along a diagonal shot, and still holds ±50 for a single key", () => {
+    expect(aimArmOffsetDeg(-AIM_DIAGONAL)).toBe(-45);
+    expect(aimArmOffsetDeg(AIM_DIAGONAL)).toBe(45);
+    expect(aimArmOffsetDeg(1)).toBe(50);
+    expect(aimArmOffsetDeg(-1)).toBe(-50);
+    expect(aimArmOffsetDeg(0)).toBe(0);
+  });
+
+  test("only the diagonal holds read as diagonal", () => {
+    expect(isDiagonalAim(-AIM_DIAGONAL)).toBe(true);
+    expect(isDiagonalAim(0)).toBe(false);
+    expect(isDiagonalAim(1)).toBe(false);
+    expect(isDiagonalAim(-1)).toBe(false);
+  });
+
+  test("a diagonal keeps the Side pose — the drawn Aim-up pose is still ↑ alone", () => {
+    expect(playerPoseKey({ aiming: true, aimDir: -AIM_DIAGONAL })).toBe("side");
+    expect(playerPoseKey({ aiming: true, aimDir: -1 })).toBe("up");
+  });
+});
+
+// The renderer turns an arm-flagged piece about its SHOULDER, not its middle. Anything that has to
+// land on top of that piece — the selection ring, and above all a cutter's hole — has to use the
+// same point, and this is the one function that answers it.
+describe("where a piece turns about", () => {
+  const arm = { x: 40, y: 60, w: 20, h: 80, limb: "arm" };
+
+  test("an ordinary block turns about its own centre", () => {
+    expect(pieceOriginFrac({ x: 0, y: 0, w: 10, h: 10 })).toEqual([0.5, 0.5]);
+    expect(pieceOriginCss({ x: 0, y: 0, w: 10, h: 10 })).toBe("50% 50%");
+    expect(pieceOriginPoint({ x: 40, y: 60, w: 20, h: 80 })).toEqual({ x: 50, y: 100 });
+  });
+
+  test("an arm piece turns about its shoulder end, on all four pivots", () => {
+    expect(pieceOriginFrac(arm)).toEqual([0.5, 0]);                          // default pivot is "top"
+    expect(pieceOriginPoint(arm)).toEqual({ x: 50, y: 60 });                 // NOT the centre (50,100)
+    expect(pieceOriginFrac({ ...arm, armPivot: "bottom" })).toEqual([0.5, 1]);
+    expect(pieceOriginFrac({ ...arm, armPivot: "left" })).toEqual([0, 0.5]);
+    expect(pieceOriginFrac({ ...arm, armPivot: "right" })).toEqual([1, 0.5]);
+    expect(pieceOriginFrac({ ...arm, role: "weaponArm" })).toEqual([0.5, 0]);
+  });
+
+  test("a shoe rides the leg but is not an arm, and a swung leg pivots at the hip", () => {
+    expect(pieceOriginFrac({ ...arm, _isShoe: true })).toEqual([0.5, 0.5]);
+    expect(pieceOriginFrac({ x: 0, y: 0, w: 10, h: 10, _animPivotTop: true })).toEqual([0.5, 0]);
+  });
+
+  test("armPivotOrigin and pieceOriginFrac cannot drift apart — same table", () => {
+    for (const pv of ["top", "bottom", "left", "right", undefined]) {
+      const f = armPivotFrac(pv);
+      expect(armPivotOrigin(pv)).toBe((f[0] * 100) + "% " + (f[1] * 100) + "%");
+      expect(pieceOriginFrac({ ...arm, armPivot: pv })).toEqual(f);
+    }
   });
 });
 
