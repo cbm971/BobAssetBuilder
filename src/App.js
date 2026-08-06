@@ -2941,12 +2941,46 @@ export const fgSolid = (cell) => fgFills(cell).some((f) => !fgIsSlope(f));
 const fgColor = (cell) => (cell && typeof cell === "object") ? cell.c : cell;
 const fgRun = (cell) => (fgHasDiagonalShape(cell) && cell.run > 0) ? cell.run : 1;
 const fgStep = (cell) => (fgHasDiagonalShape(cell) && cell.step >= 0) ? cell.step : 0;
+// RISE is `run`'s missing other half. `run` stretches a ramp sideways, so a longer ramp is a
+// SHALLOWER one — and for a long time that was the only dimension a ramp had, which meant every
+// ramp in the game was 45° or gentler. There was no way to author a slope that climbs faster than
+// one cell per cell: dragging out a taller one only ever produced a BIGGER 45° ramp, because two
+// cells of height across two cells of width is the same angle as one across one.
+//
+// So a ramp now spans `rise` rows as well as `run` columns, and `rstep` is which row of it this
+// cell is (0 = top row, counted downward the way `step` is counted rightward). A rise of 2 over a
+// run of 1 is a slope twice as steep as the old maximum, and the diagonal inside each of those two
+// cells covers only HALF the cell's width — which is precisely the thing the old shape could not
+// draw, since its diagonal always ran corner to corner.
+//
+// Absent on every ramp authored before this and on every old save, where they default to a rise of
+// 1 in row 0 — which reduces every formula below to exactly the arithmetic it used to do.
+const fgRise = (cell) => (fgHasDiagonalShape(cell) && cell.rise > 0) ? cell.rise : 1;
+const fgRstep = (cell) => (fgHasDiagonalShape(cell) && cell.rstep >= 0) ? cell.rstep : 0;
 // How far this x position is from the ramp's LOW end, in cell-widths (0 at the low end, `run`
 // at the high end) — step is always left-to-right, so which end is "low" depends on slope.
 const fgDistFromLow = (cell, localFrac) => {
   const run = fgRun(cell), step = fgStep(cell);
   return cell.slope > 0 ? (step + localFrac) : (run - step - localFrac);
 };
+// How high the ramp's surface stands inside THIS cell at local x fraction `u`, measured in cell
+// heights from the cell's own floor: 0 sits on its bottom edge, 1 on its top edge.
+//
+// Deliberately NOT clamped. Below 0 means the surface passes underneath this cell entirely (there
+// is nothing solid here), and above 1 means it passes over it (the cell is buried). Callers need to
+// tell those two apart from a real surface, and clamping first throws that away — which is how a
+// steep ramp would otherwise report a floor in mid-air one cell above where it really is.
+//
+// With a rise of 1 the trailing term is 0 and this is just the fraction along the ramp, exactly as
+// it always was.
+const fgRampH = (cell, u) => (fgDistFromLow(cell, u) / fgRun(cell)) * fgRise(cell) - (fgRise(cell) - 1 - fgRstep(cell));
+// The same line seen by an upside-down ramp, as a DEPTH from the cell's ceiling — because there the
+// solid hangs from the top and the diagonal is its underside. Not a sign flip of fgRampH: the row
+// offset is measured from the opposite end, which is why an overhang's rows stack downward from the
+// thin end while a ramp's stack upward from it.
+const fgRampD = (cell, u) => (fgDistFromLow(cell, u) / fgRun(cell)) * fgRise(cell) - fgRstep(cell);
+// Where the surface stands in this cell, in the cell's own terms, whichever way up it is.
+const fgRampEdge = (cell, u) => (cell && cell.upsideDown) ? fgRampD(cell, u) : fgRampH(cell, u);
 // The ramp surface's y-pixel under a given x column, sampled across rows r0..r1, or null if
 // none of those cells hold a slope in that column. Returns the direction too, so the caller
 // can tell ascending from descending. When multiple slope rows overlap, the highest (smallest
@@ -2960,8 +2994,14 @@ export const slopeSurfaceAt = (lv, xPixel, r0, r1, CW, CH) => {
     // down-ramp offers two, and the highest wins just as it does across rows.
     for (const cell of fgSlopeFills(lv.fg[cellKey(r, c)])) {
       const localFrac = Math.min(1, Math.max(0, (xPixel - c * CW) / CW));
-      const overallFrac = fgDistFromLow(cell, localFrac) / fgRun(cell); // 0 at the ramp's low end, 1 at its high end
-      const y = (r + 1) * CH - overallFrac * CH;
+      const h = fgRampH(cell, localFrac);
+      // On a ramp steeper than 45° the surface leaves through a cell's SIDE, so a cell can hold
+      // part of the ramp and still have no surface at this particular x — it's either solid rock
+      // under the line or empty air over it there. Reporting its floor anyway would put a walkable
+      // ledge a whole cell above the real slope. With a rise of 1, h is always within range and
+      // nothing is ever skipped, which is why ordinary ramps are untouched by this.
+      if (h < -1e-9 || h > 1 + 1e-9) continue;
+      const y = (r + 1) * CH - h * CH;
       if (best === null || y < best.y) best = { y, dir: cell.slope, run: fgRun(cell) };
     }
   }
@@ -3006,8 +3046,9 @@ export const slopeSurfaceForPlayer = (lv, xPixel, headY, feetBottom, vy, dx, dtM
     if (vy < 0) continue;
     for (const cell of fgSlopeFills(lv.fg[cellKey(r, c)])) {
       const localFrac = Math.min(1, Math.max(0, (xPixel - c * CW) / CW));
-      const overallFrac = fgDistFromLow(cell, localFrac) / fgRun(cell);
-      const surfaceY = (r + 1) * CH - overallFrac * CH;
+      const h = fgRampH(cell, localFrac);
+      if (h < -1e-9 || h > 1 + 1e-9) continue;   // see slopeSurfaceAt — a steep ramp's surface can miss this cell entirely
+      const surfaceY = (r + 1) * CH - h * CH;
       const gap = surfaceY - feetBottom; // >0 surface below feet, <0 surface above feet
       if (r > feetRow && gap < 0) continue; // extra downward probe is for the next floor, never an overhead ramp
       // Above-feet window: the classic 31px catches burial after modest steps; the sweep term
@@ -3027,11 +3068,24 @@ export const slopeSurfaceForPlayer = (lv, xPixel, headY, feetBottom, vy, dx, dtM
 // multi-cell ramp — only the ramp's two end cells are true triangles).
 const fgClipPath = (cell) => {
   if (!fgHasDiagonalShape(cell)) return "none";
-  const run = fgRun(cell);
-  const frac = (localFrac) => (fgDistFromLow(cell, localFrac) / run) * 100; // % from the ramp's low end
-  if (cell.upsideDown) return "polygon(0 0%, 100% 0%, 100% " + frac(1) + "%, 0 " + frac(0) + "%)"; // solid hangs from the top — cliff underside/overhang look
-  const topFrac = (localFrac) => 100 - frac(localFrac);
-  return "polygon(0 " + topFrac(0) + "%, 100% " + topFrac(1) + "%, 100% 100%, 0 100%)";
+  const a = fgRampEdge(cell, 0), b = fgRampEdge(cell, 1);
+  // Vertices along the cut. The two edge samples are not enough on their own once a ramp is steeper
+  // than 45°: there the line enters or leaves through a SIDE of the cell, so the boundary is partly
+  // flat and partly diagonal, and a four-corner polygon would cut straight across the bend and draw
+  // a 45° face instead of the steep one. Adding a vertex wherever the line crosses this cell's
+  // floor or ceiling puts the kink exactly where the geometry has it.
+  const xs = [0, 1];
+  for (const edge of [0, 1]) if ((a - edge) * (b - edge) < 0) xs.push((edge - a) / (b - a));
+  xs.sort((p, q) => p - q);
+  const cl = (v) => Math.max(0, Math.min(1, v));
+  if (cell.upsideDown) {
+    // Solid hangs from the top — cliff underside / overhang look — so the cut is walked back
+    // right-to-left to close the polygon with the ceiling.
+    const pts = xs.map((u) => px(u * 100) + "% " + px(cl(fgRampEdge(cell, u)) * 100) + "%").reverse();
+    return "polygon(0 0%, 100% 0%, " + pts.join(", ") + ")";
+  }
+  const pts = xs.map((u) => px(u * 100) + "% " + px((1 - cl(fgRampEdge(cell, u))) * 100) + "%");
+  return "polygon(" + pts.join(", ") + ", 100% 100%, 0 100%)";
 };
 // A comparable shape signature for a Foreground cell — used by flood-fill/move to tell "same
 // shape" apart (plain block vs. an up-ramp vs. a down-ramp vs. either's upside-down/visual twin).
@@ -3658,61 +3712,37 @@ export const terrainPaintShape = (layer, selectedShape, upsideDown = false, hide
   if (layer === "fg" && hideInPlay) out.hideInPlay = true;
   return Object.keys(out).length ? out : null;
 };
-// A ramp has always been exactly ONE cell of rise. `run` stretches it sideways, so a long ramp is a
-// shallow one, but nothing anywhere made a ramp TALLER — dragging across rows just snapped back to
-// the anchor row and gave you a 1-high ramp again. The only way to climb two cells was to hand-build
-// a staircase of separate ramps and blocks, which is exactly the thing the drag is supposed to save
-// you from, and it can't be done at all for an overhang where the steps read as obvious notches.
+// Every cell a ramp drawn across this rectangle touches, and what each one has to become.
 //
-// Nothing about the saved cell vocabulary changes here, because it doesn't need to: a rise-R ramp
-// across N columns IS R ordinary 1-rise ramps of run N/R, stacked in adjacent rows and offset
-// sideways, with plain blocks filling the cells the line has already climbed past. So a 2-high ramp
-// is made of the same cells you could have placed by hand — it walks, mirrors, flood-fills, saves
-// and loads exactly like every ramp that came before it, and no collision or render code has to
-// learn a second shape.
+// The rectangle IS the ramp: its columns are the run, its rows are the rise, and one straight line
+// runs corner to corner through the whole thing. Steeper than 45° is the case that matters and the
+// one that never used to be expressible — two rows over one column climbs twice as fast as the old
+// maximum. An earlier attempt built tall ramps by stacking ordinary 1-high ones sideways, which
+// produces a bigger 45° ramp and never a steeper one, because two cells up across two cells along
+// is the same angle as one across one.
 //
-// Columns are split into R groups counted from the ramp's LOW end (the left when it rises
-// left→right, the right when it rises right→left). Group g owns one row, and within that row every
-// column belonging to a LATER group is solid (the line has already risen above this row there) and
-// every column of an earlier group is empty (the line is still below it).
-//
-// Upside down changes one thing only: which row a group lives in. The solid hangs from the top, so
-// group 0 — the low end — is the TOP row rather than the bottom one. The filler rule is untouched,
-// and that is what makes an overhang come out as the true vertical mirror of the ramp rather than a
-// shape that merely leans the same way.
-//
-// A run that doesn't divide evenly hands the remainder out one column at a time starting at the low
-// end, so a 3-wide 2-high ramp is a 2-cell segment then a 1-cell one. That line kinks very slightly
-// at the join; the alternative is refusing the drag, which is what it did before and is worse.
+// Three things can happen to a cell in that rectangle, decided by where the line sits relative to
+// its floor and ceiling (fgRampEdge, the same function the renderer and collision use, so they
+// cannot disagree about which cells the line is even in):
+//   • the line crosses it        -> a ramp cell carrying the whole ramp's run/rise and its own place in it
+//   • the line has passed beyond -> a plain solid block: rock under the slope, or the mass an overhang hangs from
+//   • the line never reaches it  -> nothing at all; leave whatever was there
 export const rampSpanCells = (r0, c0, r1, c1, slope, upsideDown = false) => {
   const rTop = Math.min(r0, r1), rBot = Math.max(r0, r1);
   const cLo = Math.min(c0, c1), cHi = Math.max(c0, c1);
-  const run = cHi - cLo + 1;
-  // Never more rows than columns. Each row needs at least one column of its own to climb through,
-  // so a 3-high ramp 2 columns wide would leave a row with nothing in it — a gap in the middle of
-  // the surface. Rows are handed out starting from the anchor end, so clamping simply stops the
-  // ramp short of the far row instead of leaving a hole in it.
-  const rise = Math.min(rBot - rTop + 1, run);
+  const rise = rBot - rTop + 1, run = cHi - cLo + 1;
   const out = [];
-  let taken = 0;
-  for (let g = 0; g < rise; g++) {
-    const n = Math.floor(run / rise) + (g < run % rise ? 1 : 0);
-    const first = taken, last = taken + n - 1;   // this group's columns, counted from the low end
-    taken += n;
-    const row = upsideDown ? rTop + g : rBot - g;
-    for (let i = 0; i < run; i++) {
-      // i counts columns from the ramp's low end, which is the right-hand side on a ramp that
-      // rises right→left — every ramp rule below is written in that direction so one pass covers
-      // both, and only the conversion back to a real column knows which way round it is.
-      const c = slope > 0 ? cLo + i : cHi - i;
-      if (i < first) continue;                                              // still below this row
-      if (i > last) { out.push({ r: row, c, kind: "block" }); continue; }    // already climbed past it
-      // `step` is stored left-to-right whatever the slope does (see the mirror code), so it's the
-      // distance from the segment's LEFT end, not from its low end. The slope rides along on every
-      // cell because the caller must paint THIS slope: a drag decides the lean for itself, and a
-      // painter that read it off the ◢/◣ buttons instead would lay the columns out one way and then
-      // stamp the diagonal the other way, which is a broken shape rather than a mirrored one.
-      out.push({ r: row, c, kind: "ramp", run: n, step: slope > 0 ? i - first : last - i, slope });
+  for (let r = rTop; r <= rBot; r++) {
+    for (let c = cLo; c <= cHi; c++) {
+      // `step` counts left-to-right and `rstep` top-to-bottom, both regardless of which way the
+      // ramp leans — the mirror code relies on step being stored that way.
+      const fill = { slope, run, step: c - cLo, rise, rstep: r - rTop, upsideDown };
+      const a = fgRampEdge(fill, 0), b = fgRampEdge(fill, 1);
+      if (Math.min(a, b) >= 1) { out.push({ r, c, kind: "block" }); continue; }
+      if (Math.max(a, b) <= 0) continue;
+      // rise/rstep are omitted from an ordinary 1-high ramp so it saves as the exact same cell it
+      // always did — old levels and new ones stay byte-identical where the shape is unchanged.
+      out.push({ r, c, kind: "ramp", run, step: c - cLo, slope, ...(rise > 1 ? { rise, rstep: r - rTop } : {}) });
     }
   }
   return out;
@@ -6777,7 +6807,7 @@ export default function AssetStudio() {
           // A tall ramp is ramp cells plus the solid ones underneath (or, upside down, above) the
           // line — both come out of the same span, and both paint in the colour/texture in hand.
           const shape = cell.kind === "ramp"
-            ? terrainPaintShape(targetLayer, cell.slope > 0 ? "slopeUp" : "slopeDown", lFgUpsideDown, lFgHide, { run: cell.run, step: cell.step })
+            ? terrainPaintShape(targetLayer, cell.slope > 0 ? "slopeUp" : "slopeDown", lFgUpsideDown, lFgHide, { run: cell.run, step: cell.step, ...(cell.rise > 1 ? { rise: cell.rise, rstep: cell.rstep } : {}) })
             : terrainPaintShape(targetLayer, "block", false, lFgHide);
           const value = paintValue(lColor, activeTexture, shape);
           // Foreground stacks ramps over its existing collision fills. Background is decorative
@@ -10308,7 +10338,7 @@ export default function AssetStudio() {
                   // under it; Background replaces its old decorative fill when the ramp is committed.
                   return <>{span.map((cell) => {
                     const shape = cell.kind === "ramp"
-                      ? terrainPaintShape(lLayer, cell.slope > 0 ? "slopeUp" : "slopeDown", lFgUpsideDown, lFgHide, { run: cell.run, step: cell.step })
+                      ? terrainPaintShape(lLayer, cell.slope > 0 ? "slopeUp" : "slopeDown", lFgUpsideDown, lFgHide, { run: cell.run, step: cell.step, ...(cell.rise > 1 ? { rise: cell.rise, rstep: cell.rstep } : {}) })
                       : terrainPaintShape(lLayer, "block", false, lFgHide);
                     const val = paintValue(lColor, activeTexture, shape);
                     return <div key={"rg" + cell.r + "," + cell.c} className={"rampGhost" + (lLayer === "fg" && lFgHide ? " collisionOnly" : "")} style={{ left: cell.c * LV_CELL, top: cell.r * LV_CELL, ...cellPaintStyle(val, cell.r, cell.c, texLib), clipPath: fgClipPath(val) }} />;
