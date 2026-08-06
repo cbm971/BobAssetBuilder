@@ -1081,6 +1081,114 @@ describe("gravel texture", () => {
   });
 });
 
+describe("carpet texture", () => {
+  test("is registered, so the picker and pattern switcher both offer it", () => {
+    expect(TEXTURE_KEYS).toContain("carpet");
+    expect(TEXTURES.carpet.label).toBe("Carpet");
+    expect(newTexture("carpet").tex).toBe("carpet");
+  });
+
+  test("a new instance starts at every default, and falls back to its backing colour", () => {
+    const t = newTexture("carpet");
+    expect(t.params.pile).toBe(0.55);
+    expect(Object.keys(t.colors).sort()).toEqual(["base", "dark", "light", "mid"]);
+    expect(textureBaseColor(t)).toBe(t.colors.base);
+  });
+
+  test("renders deterministically — same settings, same bytes, so nothing shimmers", () => {
+    expect(textureDataUri(newTexture("carpet"))).toBe(textureDataUri(newTexture("carpet")));
+  });
+
+  test("pile grows the same tufts rather than reshuffling the floor", () => {
+    const t = newTexture("carpet");
+    const flat = TEXTURES.carpet.svg(t.colors, TEXTURES.carpet.tile, { pile: 0 });
+    const shag = TEXTURES.carpet.svg(t.colors, TEXTURES.carpet.tile, { pile: 1 });
+    expect(flat).not.toBe(shag);
+    // The first fibre is drawn from the same point at both extremes. If the slider reseeded the
+    // field instead of lengthening it, dragging it would make the whole carpet crawl.
+    const start = (svg) => svg.match(/<path d="(M[\d.]+,[\d.]+)/)[1];
+    expect(start(flat)).toBe(start(shag));
+    // Longer pile also means more of it — a short loop pile and a deep shag are not the same field.
+    expect((shag.match(/<path /g) || []).length).toBeGreaterThan((flat.match(/<path /g) || []).length);
+  });
+
+  test("fibres crossing an edge are redrawn on the opposite side, so the repeat has no seam", () => {
+    const t = newTexture("carpet");
+    const svg = TEXTURES.carpet.svg(t.colors, TEXTURES.carpet.tile, t.params);
+    // Wrapped copies are the only way a stroke can start outside the tile. No negative start means
+    // the wrap silently stopped happening and the pile is being clipped into a visible grid.
+    expect(svg).toMatch(/<path d="M-[\d.]+,/);
+    expect((svg.match(/<path /g) || []).length).toBeGreaterThan(Math.round(200 + 0.55 * 120));
+  });
+
+  test("every colour control actually reaches the render", () => {
+    const base = newTexture("carpet");
+    for (const key of ["base", "light", "mid", "dark"]) {
+      const recoloured = { ...base, colors: { ...base.colors, [key]: "#ff00ff" } };
+      expect(textureDataUri(recoloured)).not.toBe(textureDataUri(base));
+    }
+  });
+});
+
+describe("glass texture", () => {
+  test("is registered, so the picker and pattern switcher both offer it", () => {
+    expect(TEXTURE_KEYS).toContain("glass");
+    expect(TEXTURES.glass.label).toBe("Glass");
+    expect(newTexture("glass").tex).toBe("glass");
+  });
+
+  test("a new instance starts at every default, and falls back to its pane colour", () => {
+    const t = newTexture("glass");
+    expect(t.params).toEqual({ panes: 1, sheen: 0.55, frost: 0 });
+    expect(Object.keys(t.colors).sort()).toEqual(["bar", "lit", "pane", "sheen"]);
+    expect(textureBaseColor(t)).toBe(t.colors.pane);
+  });
+
+  test("renders deterministically — same settings, same bytes, so nothing shimmers", () => {
+    expect(textureDataUri(newTexture("glass"))).toBe(textureDataUri(newTexture("glass")));
+  });
+
+  test("the sheen runs at exactly 45°, which is what lets it cross the tile seam", () => {
+    const t = newTexture("glass");
+    const svg = TEXTURES.glass.svg(t.colors, TEXTURES.glass.tile, t.params);
+    const [tw, th] = TEXTURES.glass.tile;
+    for (const pts of svg.match(/<polygon points="([^"]+)"/g) || []) {
+      const [[x0, y0], , , [x3, y3]] = pts.match(/[-\d.]+,[-\d.]+/g).map((p) => p.split(",").map(Number));
+      // Leading edge runs top -> bottom shifting exactly one tile width across one tile height.
+      expect(y0).toBe(0);
+      expect(y3).toBe(th);
+      expect(x3 - x0).toBeCloseTo(tw);
+    }
+  });
+
+  test("bars sit on the tile edges, so four cells meet into one unbroken muntin", () => {
+    const t = newTexture("glass");
+    const svg = TEXTURES.glass.svg(t.colors, TEXTURES.glass.tile, t.params);
+    // A single-pane window is bars at x=0 and x=60 (and the same in y) — each half of a bar the
+    // neighbouring cell completes. Bars drawn inset instead would give every cell its own frame.
+    expect(svg).toContain(`<rect x="-1.1" y="-2" width="2.2" height="64" fill="${t.colors.bar}"/>`);
+    expect(svg).toContain(`<rect x="58.9" y="-2" width="2.2" height="64" fill="${t.colors.bar}"/>`);
+  });
+
+  test("panes divide the tile, and frost and reflection each change the render", () => {
+    const t = newTexture("glass");
+    const one = TEXTURES.glass.svg(t.colors, TEXTURES.glass.tile, { ...t.params, panes: 1 });
+    const three = TEXTURES.glass.svg(t.colors, TEXTURES.glass.tile, { ...t.params, panes: 3 });
+    expect((three.match(/<rect /g) || []).length).toBeGreaterThan((one.match(/<rect /g) || []).length);
+    const base = newTexture("glass");
+    expect(textureDataUri({ ...base, params: { ...base.params, frost: 1 } })).not.toBe(textureDataUri(base));
+    expect(textureDataUri({ ...base, params: { ...base.params, sheen: 0 } })).not.toBe(textureDataUri(base));
+  });
+
+  test("every colour control actually reaches the render", () => {
+    const base = newTexture("glass");
+    for (const key of ["pane", "sheen", "bar", "lit"]) {
+      const recoloured = { ...base, colors: { ...base.colors, [key]: "#ff00ff" } };
+      expect(textureDataUri(recoloured)).not.toBe(textureDataUri(base));
+    }
+  });
+});
+
 describe("throwable cluster burst", () => {
   test("bomblets fan symmetrically from full left to full right", () => {
     const vs = [0, 1, 2, 3, 4].map((i) => clusterBombletVelocity(i, 5));

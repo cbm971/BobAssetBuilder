@@ -3301,6 +3301,123 @@ export const TEXTURES = {
       return out;
     },
   },
+  // CARPET — the floor that goes under all that panelling, and the odd one out in this registry
+  // because carpet has no pattern at all. It is thousands of identical fibres, and what the eye
+  // actually reads is the DEPTH of the pile, not any shape. So it is drawn as a field of short
+  // strokes with no arrangement whatsoever: the moment a stroke field acquires visible structure it
+  // stops looking like carpet and starts looking like grass.
+  //
+  // Two things keep it from tiling visibly. Every fibre that crosses an edge is redrawn entering
+  // the opposite side (the same wrap gravel's stones use), so no strand stops dead at a seam. And
+  // the field is dense enough that the backing only ever shows through in glimpses — a sparse field
+  // lets you find the same gap twice and the repeat grid appears instantly.
+  //
+  // Pile 0 is flat commercial loop pile: short, tight, nearly a solid colour. Pile 1 is full 1970s
+  // shag — long strands, big tonal swings, and real shadow pooling between the tufts.
+  carpet: {
+    label: "Carpet", icon: "🧶", tile: [60, 60], base: "base",
+    colors: [["base", "Backing", "#8a4a1e"], ["light", "Pile (light)", "#c98a3e"], ["mid", "Pile", "#a25f24"], ["dark", "Pile (shadow)", "#5e2f12"]],
+    params: [{ key: "pile", label: "Pile", min: 0, max: 1, step: 0.05, def: 0.55 }],
+    svg: (co, _t, pa) => {
+      const tw = 60, th = 60;
+      const pile = Math.max(0, Math.min(1, pa.pile ?? 0.55));
+      const count = Math.round(200 + pile * 120);
+      // `mid` repeated so it dominates: one shade has to read as THE carpet colour, with the other
+      // two as variation. An even three-way split reads as tweed.
+      const shades = [co.mid, co.light, co.mid, co.dark, co.mid, co.light];
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.base);
+      // Shadow pooling between the tufts, drawn under every fibre. Without it a long shag is just a
+      // busier flat field — the soft dark patches are what give the pile somewhere to be deep.
+      for (let i = 0; i < Math.round(pile * 10); i++) {
+        const cx = trnd(i * 5.9) * tw, cy = trnd(i * 8.1) * th;
+        out += `<circle cx="${px(cx)}" cy="${px(cy)}" r="${px(5 + trnd(i * 3.3) * 7)}" fill="${co.dark}" opacity="${px(0.1 + pile * 0.16)}"/>`;
+      }
+      for (let i = 0; i < count; i++) {
+        const x = trnd(i * 2.3) * tw, y = trnd(i * 4.7) * th;
+        // Fibre length grows with pile, but its position and direction never change with it, so
+        // dragging the slider makes the SAME tufts longer instead of reshuffling the whole floor —
+        // the rule metal's Rust and gravel's Coarse both follow.
+        const len = 2 + pile * (2 + trnd(i * 6.1) * 7);
+        const ang = trnd(i * 9.7) * Math.PI * 2;
+        const dx = px(Math.cos(ang) * len), dy = px(Math.sin(ang) * len);
+        const w = px(0.9 + pile * 0.7 + trnd(i * 12.7) * 0.7);
+        const fill = shades[Math.floor(trnd(i * 15.1) * shades.length) % shades.length];
+        const xs = [0].concat(Math.min(0, dx) + x - w < 0 ? [tw] : [], Math.max(0, dx) + x + w > tw ? [-tw] : []);
+        const ys = [0].concat(Math.min(0, dy) + y - w < 0 ? [th] : [], Math.max(0, dy) + y + w > th ? [-th] : []);
+        for (const ox of xs) for (const oy of ys) {
+          out += `<path d="M${px(x + ox)},${px(y + oy)} L${px(x + ox + dx)},${px(y + oy + dy)}" stroke="${fill}" stroke-width="${w}" stroke-linecap="round"/>`;
+        }
+      }
+      return out;
+    },
+  },
+  // GLASS — a window, and the only thing in this registry that has to imply something BEHIND it.
+  // It has to do that with no transparency available at all: a texture is rendered into an opaque
+  // tile laid over the cell's flat base colour, and there is nothing behind that to show through.
+  //
+  // Reflection is what sells it instead. A pane is legible as glass almost entirely from the hard
+  // diagonal sheen sliding across it plus the bright lip where light catches the pane's edge at the
+  // frame — that thin bright line is what gives the sheet thickness. Tint alone, at any colour,
+  // reads as coloured plastic.
+  //
+  // The sheen bands run at exactly 45°, which is the one angle that survives tiling for free: along
+  // a band x - y is constant, and shifting a point by a whole tile in EITHER axis moves it along
+  // the band's own direction, so a streak leaving the right edge continues out of the left at the
+  // same height. Any other angle needs the band redrawn at a matching offset and still drifts.
+  //
+  // The bars sit ON the pane boundaries including the tile's own edges, so four neighbouring cells
+  // meet into one unbroken muntin — the same trick that makes metal's corner rivets whole.
+  glass: {
+    label: "Glass", icon: "🪟", tile: [60, 60], base: "pane",
+    colors: [["pane", "Pane", "#7fa8b4"], ["sheen", "Reflection", "#e8f6fb"], ["bar", "Frame", "#3c4a4f"], ["lit", "Lit edge", "#cfe9f2"]],
+    params: [
+      { key: "panes", label: "Panes", min: 1, max: 3, step: 1, def: 1 },
+      { key: "sheen", label: "Reflection", min: 0, max: 1, step: 0.05, def: 0.55 },
+      { key: "frost", label: "Frost", min: 0, max: 1, step: 0.05, def: 0 },
+    ],
+    svg: (co, _t, pa) => {
+      const tw = 60, th = 60;
+      const n = Math.max(1, Math.min(3, Math.round(pa.panes ?? 1)));   // panes across the tile
+      const sheen = Math.max(0, Math.min(1, pa.sheen ?? 0.55));
+      const frost = Math.max(0, Math.min(1, pa.frost ?? 0));
+      const s = tw / n, barW = 2.2, lip = 0.9;
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.pane);
+      // The bottom of a pane is always darker than its top: it is reflecting ground where the top is
+      // reflecting sky. That gradient does more for "this is glass" than the tint does — but it has
+      // to run per PANE, not per tile. A flat dark rect over the tile's lower half draws a hard
+      // horizontal line straight across the middle of a pane, which nothing about a window explains.
+      // Per pane the same shading lands its darkest edge exactly where the muntin covers it.
+      out += `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${co.bar}" stop-opacity="0"/><stop offset="1" stop-color="${co.bar}" stop-opacity="0.3"/></linearGradient></defs>`;
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) out += svgRect(c * s, r * s, s, s, "url(#g)");
+      // Only offsets 0 and -1 can land inside the tile — a band starting one tile to the RIGHT has
+      // already run off the bottom-right corner by the time it would enter, so there is nothing to
+      // draw for it.
+      for (const [f, w] of [[0.05, 9], [0.3, 3.5], [0.62, 5.5]]) {
+        const bw = w * (0.4 + sheen);                                  // reflection strength widens the streak as well as brightening it
+        for (const j of [-1, 0]) {
+          const x0 = f * tw + j * tw;
+          out += `<polygon points="${px(x0)},0 ${px(x0 + bw)},0 ${px(x0 + bw + th)},${th} ${px(x0 + th)},${th}" fill="${co.sheen}" opacity="${px(0.07 + sheen * 0.3)}"/>`;
+        }
+      }
+      // Frost is ground glass: a fine speckle that scatters the reflection rather than adding to
+      // it. Kept a pixel inside the tile so no fleck is sliced in half at the seam.
+      const dots = Math.round(frost * 200);
+      for (let i = 0; i < dots; i++) {
+        const x = 1 + trnd(i * 3.7) * (tw - 2), y = 1 + trnd(i * 6.3) * (th - 2);
+        out += `<circle cx="${px(x)}" cy="${px(y)}" r="${px(0.5 + trnd(i * 8.9) * 1.3)}" fill="${co.lit}" opacity="${px(0.12 + frost * 0.28)}"/>`;
+      }
+      for (let i = 0; i <= n; i++) {
+        const p = i * s;
+        out += svgRect(p - barW / 2, -2, barW, th + 4, co.bar);
+        out += svgRect(-2, p - barW / 2, tw + 4, barW, co.bar);
+        // Lit lip on one side of each bar only. The last bar's lip falls outside the tile and is
+        // clipped, which is correct — the neighbouring copy draws that pane's lip from its own i=0.
+        out += svgRect(p + barW / 2, -2, lip, th + 4, co.lit, ' opacity="0.5"');
+        out += svgRect(-2, p + barW / 2, tw + 4, lip, co.lit, ' opacity="0.4"');
+      }
+      return out;
+    },
+  },
   rock: {
     label: "Rock / mine", icon: "⛏️", tile: [60, 60], base: "base",
     colors: [["base", "Rock", "#5b5750"], ["light", "Highlight", "#726d64"], ["dark", "Shadow", "#403c37"], ["speck", "Speckle", "#8a8378"]],
