@@ -176,7 +176,41 @@ import {
   flipConns,
   maxPlayerHP,
   applyHeal,
+  enemyMaxHP,
 } from "./App";
+
+describe("where an enemy's HP comes from", () => {
+  // A Dress Bob look is a player-shaped character, so it runs on the player's own pool. This is
+  // the bug that prompted it: the look used to carry an `hp` typed into a separate box, so raising
+  // the skin's HP stat changed the player and left every enemy built from that skin on 10.
+  test("a Dress Bob enemy reads the look's stats, not the hp baked in when it was saved", () => {
+    const look = { isEnemy: true, hp: 10, stats: { hp: 10 } };
+    expect(enemyMaxHP(look)).toBe(50);
+  });
+
+  test("a Dress Bob enemy with default stats matches a default player", () => {
+    expect(enemyMaxHP({ isEnemy: true, stats: { hp: 5 } })).toBe(25);
+    expect(enemyMaxHP({ isEnemy: true })).toBe(25);
+  });
+
+  // Equipment worn in the look is already folded into its stats by assembleLook, so a +2 HP shirt
+  // makes the enemy wearing it tougher for free.
+  test("equipment worn in the look counts toward its HP", () => {
+    expect(enemyMaxHP({ isEnemy: true, stats: { hp: 5 + 2 } })).toBe(35);
+  });
+
+  // The other half of the rule: an animal built in the Enemy creator has no skin stats to read,
+  // so the number typed in that creator is the whole story and nothing derives over the top of it.
+  test("an Enemy-creator asset keeps its own typed HP", () => {
+    expect(enemyMaxHP({ type: "enemy", hp: 200, stats: { hp: 5 } })).toBe(200);
+    expect(enemyMaxHP({ type: "enemy", hp: 3 })).toBe(3);
+  });
+
+  test("an enemy saved before HP existed still spawns with something", () => {
+    expect(enemyMaxHP({ type: "enemy" })).toBe(10);
+    expect(enemyMaxHP(null)).toBe(10);
+  });
+});
 
 describe("the player's HP pool", () => {
   // The pool used to be 10 at baseline and 20 at a maxed stat, which is two and four hits from a

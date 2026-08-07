@@ -1699,6 +1699,18 @@ const DEFAULT_STATS = () => ({ hp: 5, speed: 5, agility: 5, intelligence: 5, str
 // as they were and the player is the one who got the headroom.
 const PLAYER_BASE_HP = 25;
 export const maxPlayerHP = (playerAsset) => Math.max(1, Math.round(PLAYER_BASE_HP * ((playerAsset?.stats?.hp ?? 5) / 5)));
+// A Dress Bob look saved with the 👹 Enemy flag is a player-shaped character, so its HP is the
+// player's own pool computed from the look's assembled stats — the skin's ❤️ HP stat with any worn
+// equipment boosts already folded in. It used to be a separate number box in the Dress Bob header
+// that defaulted to 10 and knew nothing about the skin, so raising a skin's HP left every enemy
+// built from it untouched. Enemies made in the ENEMY CREATOR (animals and the like) are a different
+// thing and keep their own typed `.hp` — that number IS where their HP is decided.
+export const enemyLookHP = (look) => maxPlayerHP(look);
+// What an enemy SPAWNS with in Playtest. A Dress Bob look is read from its stats every time it
+// spawns rather than from the `.hp` baked in when it was saved — otherwise raising a skin's ❤️ HP
+// would only reach the enemies you remembered to open and re-save afterwards. An Enemy-creator
+// asset has no stats-based HP to read, so its own typed number stands.
+export const enemyMaxHP = (ea) => (ea && ea.isEnemy) ? enemyLookHP(ea) : Math.max(1, (ea && ea.hp) ?? 10);
 const DEFAULT_ATTACK_RANGE = 60;   // px — used when an enemy asset hasn't set its own attackRange
 const DEFAULT_RANGED_ATTACK_RANGE = 540; // px = 18 cells @ 30px — an enemy holding a bow/gun engages from far further out than a fist
 const ATTACK_COOLDOWN_FRAMES = 45; // frames between one enemy's attacks (~0.75s)
@@ -1921,7 +1933,11 @@ export function newAsset(type, slot, wtype) {
   if (type === "body") { a.angles = JSON.parse(JSON.stringify(DEFAULT_BODY)); return withRig(a); }
   if (type === "skin") { a.stats = DEFAULT_STATS(); a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; }
   if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.stun = 0; a.categories = ["", "", ""]; }
-  if (type === "enemy") { a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = 10; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; return withRig(a); }
+  // An Enemy-creator asset (an animal, a turret — anything not built out of Dress Bob) has no skin
+  // stats to read HP from, so it starts at PLAYER_BASE_HP: a brand-new enemy is exactly as tanky as
+  // a default player, and the number is then yours to set in the creator. A Dress Bob enemy ignores
+  // this and derives its HP from the look's own stats — see enemyMaxHP.
+  if (type === "enemy") { a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = PLAYER_BASE_HP; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; return withRig(a); }
   if (type === "equipment") { a.slot = slot; a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; a.statBoosts = DEFAULT_STAT_BOOSTS(); a.defense = 0; a.effects = []; a.categories = ["", "", ""]; }
   if (type === "projectile") { a.size = 1; }
   // A prop/object: single-canvas pixel art (like a projectile), placed into levels at any size.
@@ -4648,7 +4664,6 @@ export default function AssetStudio() {
   const [loadout, setLoadout] = useState({ bodyId: "", skinId: "", slots: {}, weaponId: "" });
   const [dressedBobName, setDressedBobName] = useState(""); // editable — blank falls back to "<body> — dressed"
   const [markAsEnemy, setMarkAsEnemy] = useState(false);    // saves this Dress Bob look as a player-like enemy (isEnemy flag) instead of a plain playable character
-  const [dressedHp, setDressedHp] = useState(10);            // HP for that look, when saved as an enemy — the body's speed/agility/intelligence/strength come along for free via components.body.stats
   const [savedDressedIds, setSavedDressedIds] = useState({}); // name -> id, so re-saving under the SAME name updates it; a different name saves as a new, separate entry
   const [viewDressed, setViewDressed] = useState(null); // a previously-saved dressed character currently being viewed
   const [aAngle, setAAngle] = useState("front");
@@ -5875,7 +5890,7 @@ export default function AssetStudio() {
           // per-enemy fractional pool. Fire is universal: it doesn't care whose side you're on.
           const eDps = hazardDpsAt(lv, ep.x, ep.y, epw, newEph, CW, CH, hazardAlive);
           if (eDps > 0) {
-            if (enemyHP.current[k] === undefined) enemyHP.current[k] = ea.hp ?? 10;
+            if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             ep.burnPool = (ep.burnPool || 0) + eDps * (dtMul / 60);
             if (ep.burnPool >= 1) {
               const loss = Math.floor(ep.burnPool); ep.burnPool -= loss;
@@ -5940,7 +5955,7 @@ export default function AssetStudio() {
               return true;
             }
             if (targetKind === "unit" && targetKey) {
-              const cur = enemyHP.current[targetKey] === undefined ? (targetEa.hp ?? 10) : enemyHP.current[targetKey];
+              const cur = enemyHP.current[targetKey] === undefined ? (enemyMaxHP(targetEa)) : enemyHP.current[targetKey];
               enemyHP.current[targetKey] = Math.max(0, cur - Math.max(1, Math.round(rawDmg)));
               if (enemyHP.current[targetKey] <= 0) flash(friendly ? ("🟣 Your " + ea.name + " defeated " + (targetEa.name || "a foe") + "!") : ("💔 Your " + (targetEa.name || "ally") + " fell."));
               return true;
@@ -6224,7 +6239,7 @@ export default function AssetStudio() {
                     const ep = enemyPos.current[k];
                     const ea = findA(lv.enemies[k].enemyId);
                     if (!ea || !ep) continue;
-                    const hp = enemyHP.current[k] === undefined ? (ea.hp ?? 10) : enemyHP.current[k];
+                    const hp = enemyHP.current[k] === undefined ? (enemyMaxHP(ea)) : enemyHP.current[k];
                     if (!canResurrect(hp, ep)) continue;
                     const eShape = sideBodyShape(ea);
                     const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
@@ -6232,7 +6247,7 @@ export default function AssetStudio() {
                     const hitTop = ep.y + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
                     const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
                     if (b.x < eHitLeft + epw && b.x + b.w > eHitLeft && b.y < hitTop + hitH && b.y + b.h > hitTop) {
-                      enemyHP.current[k] = ea.hp ?? 10;
+                      enemyHP.current[k] = enemyMaxHP(ea);
                       ep.friendly = true; ep.resurrectedOnce = true; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
                       ep.restedDead = false;
                       p.hitRegistered = true;
@@ -6251,7 +6266,7 @@ export default function AssetStudio() {
                   const spawn = lv.enemies[k];
                   const ea = findA(spawn.enemyId);
                   if (!ea) continue;
-                  if (enemyHP.current[k] === undefined) enemyHP.current[k] = ea.hp ?? 10;
+                  if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
                   if (enemyHP.current[k] <= 0) continue; // already defeated
                   if (enemyPos.current[k] && enemyPos.current[k].friendly) continue; // don't clobber your own minion
                   const eShape = sideBodyShape(ea);
@@ -6360,7 +6375,7 @@ export default function AssetStudio() {
             const stunRadPx = throwStunRadiusCells(radius) * CW;
             for (const k of Object.keys(lv.enemies || {})) {
               const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
-              if (enemyHP.current[k] === undefined) enemyHP.current[k] = ea2.hp ?? 10;
+              if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea2);
               if (enemyHP.current[k] <= 0) continue;
               const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly) continue; // your own resurrected allies aren't shocked
               // Same box-not-centre rule the explosion uses (blastHitsBox) — measuring to a big
@@ -6426,7 +6441,7 @@ export default function AssetStudio() {
             let hits = 0;
             for (const k of Object.keys(lv.enemies || {})) {
               const ea = findA(lv.enemies[k].enemyId); if (!ea) continue;
-              if (enemyHP.current[k] === undefined) enemyHP.current[k] = ea.hp ?? 10;
+              if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
               if (enemyHP.current[k] <= 0) continue;
               const ep = enemyPos.current[k]; if (!ep || ep.friendly) continue;
               const bx = enemyBlastBox(ea, ep);
@@ -6512,7 +6527,7 @@ export default function AssetStudio() {
               const ep = enemyPos.current[k];
               const ea = findA(lv.enemies[k].enemyId);
               if (!ea || !ep) continue;
-              const hp = enemyHP.current[k] === undefined ? (ea.hp ?? 10) : enemyHP.current[k];
+              const hp = enemyHP.current[k] === undefined ? (enemyMaxHP(ea)) : enemyHP.current[k];
               if (!canResurrect(hp, ep)) continue; // must be a dead body that's never been raised
               const eShape = sideBodyShape(ea);
               const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
@@ -6520,7 +6535,7 @@ export default function AssetStudio() {
               const hitTop = ep.y + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
               const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
               if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop) {
-                enemyHP.current[k] = ea.hp ?? 10;          // back on its feet, full HP
+                enemyHP.current[k] = enemyMaxHP(ea);          // back on its feet, full HP
                 ep.friendly = true; ep.resurrectedOnce = true; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
                 ep.restedDead = false; // back on its feet — let it fall again if it is ever defeated a second time
                 flash("🔮 Raised " + ea.name + " — now fighting for you!");
@@ -6532,7 +6547,7 @@ export default function AssetStudio() {
             const spawn = lv.enemies[k];
             const ea = findA(spawn.enemyId);
             if (!ea) continue;
-            if (enemyHP.current[k] === undefined) enemyHP.current[k] = ea.hp ?? 10;
+            if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             if (enemyHP.current[k] <= 0) continue; // already defeated
             const epK = enemyPos.current[k];
             if (epK && epK.friendly) continue; // your own resurrected minion — your shots pass through it
@@ -8912,7 +8927,7 @@ export default function AssetStudio() {
     const skin = findA(loadout.skinId);
     const equipment = {}; for (const s of SLOT_ORDER) { const a = findA(loadout.slots[s]); if (a) equipment[s] = a; }
     const base = { id: idOverride || uid(), name: body.name + " — dressed", type: "character", isEnemy: !!markAsEnemy };
-    if (markAsEnemy) { base.hp = Math.max(1, +dressedHp || 1); base.ai = "guard"; /* default only — real behavior is chosen per-placement in the level tester, which overrides this */ }
+    if (markAsEnemy) { base.ai = "guard"; /* default only — real behavior is chosen per-placement in the level tester, which overrides this */ }
     // The look IS its layers — embed full copies of every component so any layer can be
     // recovered, re-edited, or swapped later, even if the source assets get deleted.
     // The baked angles are just the pre-rendered output for playtest.
@@ -8921,7 +8936,11 @@ export default function AssetStudio() {
     if (skin) base.components.skin = JSON.parse(JSON.stringify(skin));
     if (weapon) base.components.weapon = JSON.parse(JSON.stringify(weapon));
     if (Object.keys(equipment).length) { base.components.equipment = {}; for (const s of Object.keys(equipment)) base.components.equipment[s] = JSON.parse(JSON.stringify(equipment[s])); }
-    return assembleLook(body, skin, weapon, equipment, base);
+    // HP is set AFTER assembly on purpose: it reads the stats assembleLook just resolved (skin
+    // stats + equipment boosts), which is the same set of numbers the player runs on.
+    const look = assembleLook(body, skin, weapon, equipment, base);
+    if (markAsEnemy) look.hp = enemyLookHP(look);
+    return look;
   };
   // Re-bake a saved look from its OWN embedded components (already updated by swapLookComponent).
   // Keeps the look's identity — id, name, savedAt, enemy settings — and replaces only the derived
@@ -8931,7 +8950,11 @@ export default function AssetStudio() {
     if (!c.body) return null; // pre-components legacy save: nothing to rebuild from, leave it be
     const equipment = c.equipment || {};
     const base = { ...look, angles: undefined, hand: undefined, shoulder: undefined, stats: undefined, defense: undefined, effects: undefined };
-    return assembleLook(c.body, c.skin || null, c.weapon || null, equipment, base);
+    const rebuilt = assembleLook(c.body, c.skin || null, c.weapon || null, equipment, base);
+    // HP is derived, not stored — an enemy look re-baked after its skin's ❤️ HP stat changed comes
+    // back with the new pool. This is also what upgrades looks saved before HP was derived at all.
+    if (rebuilt.isEnemy) rebuilt.hp = enemyLookHP(rebuilt);
+    return rebuilt;
   };
   const exportLook = () => { const l = composeLook(); if (!l) { flash("Pick a body first."); return; } setCombo(JSON.stringify(l, null, 2)); };
   const saveDressedBob = async () => {
@@ -9732,7 +9755,10 @@ export default function AssetStudio() {
           <label className="chk" style={{ margin: "0 8px" }} >
             <input type="checkbox" checked={markAsEnemy} onChange={(e) => setMarkAsEnemy(e.target.checked)} /> 👹 Enemy
           </label>
-          {markAsEnemy && <label className="chk" style={{ margin: "0 8px" }}>HP<input type="number" min="1" value={dressedHp} onChange={(e) => setDressedHp(Math.max(1, +e.target.value || 1))} style={{ width: 50, marginLeft: 4 }} /></label>}
+          {/* No HP field here anymore, for the same reason there's no ⚔️ range field: a Dress Bob
+              enemy is a player-shaped character, so its HP is the look's OWN stats run through the
+              player's formula (see enemyLookHP). A second number sitting next to the ❤️ HP stat
+              only ever disagreed with it — you'd raise the skin's HP and the enemy stayed on 10. */}
           {/* No ⚔️ range field here anymore: a player-based enemy's reach IS its weapon's own swung hitbox (fists included), exactly like the player — a stored number would be meaningless. */}
           <button className="save" onClick={saveDressedBob}>💾 Save</button>
           <button className="save" onClick={exportLook}>📤 Export look</button>
@@ -10728,7 +10754,7 @@ export default function AssetStudio() {
                   const [r, c] = k.split(",").map(Number);
                   const ea = findA(lv.enemies[k].enemyId);
                   if (!ea) return null;
-                  const maxHp = ea.hp ?? 10;
+                  const maxHp = enemyMaxHP(ea);
                   const curHp = enemyHP.current[k] ?? maxHp;
                   const isDead = curHp <= 0;
                   const eShape = sideBodyShape(ea);
