@@ -177,7 +177,43 @@ import {
   maxPlayerHP,
   applyHeal,
   enemyMaxHP,
+  doorAnimProgress,
 } from "./App";
+
+describe("door transitions", () => {
+  // 1 = full size in the level, 0 = gone into the doorway.
+  test("entering a room shrinks away into the door", () => {
+    expect(doorAnimProgress({ transitioning: { mode: "enter", t: 0 } })).toBe(1);
+    expect(doorAnimProgress({ transitioning: { mode: "enter", t: 15 } })).toBeCloseTo(0.5);
+    expect(doorAnimProgress({ transitioning: { mode: "enter", t: 30 } })).toBe(0);
+  });
+
+  // The point of the change: leaving runs the same numbers the other way, so the exit is the
+  // entrance played backwards rather than a second entrance.
+  test("leaving a room grows back out of it", () => {
+    expect(doorAnimProgress({ arriving: 30 })).toBe(0);
+    expect(doorAnimProgress({ arriving: 15 })).toBeCloseTo(0.5);
+    expect(doorAnimProgress({ arriving: 0 })).toBe(1);
+  });
+
+  // Frame for frame: at the same point into each animation, the exit is exactly as far out of the
+  // door as the entrance is into it. (`transitioning.t` counts frames elapsed, `arriving` counts
+  // frames remaining, which is why one reads forwards and the other backwards.)
+  test("the two are exact mirrors at every step", () => {
+    for (let elapsed = 0; elapsed <= 30; elapsed++) {
+      const enter = doorAnimProgress({ transitioning: { t: elapsed } });
+      const exit = doorAnimProgress({ arriving: 30 - elapsed });
+      expect(exit).toBeCloseTo(1 - enter);
+    }
+  });
+
+  test("standing in a level is full size, and neither animation overshoots", () => {
+    expect(doorAnimProgress({})).toBe(1);
+    expect(doorAnimProgress()).toBe(1);
+    expect(doorAnimProgress({ transitioning: { t: 45 } })).toBe(0); // a slow frame can overshoot the count
+    expect(doorAnimProgress({ arriving: 40 })).toBe(0);
+  });
+});
 
 describe("where an enemy's HP comes from", () => {
   // A Dress Bob look is a player-shaped character, so it runs on the player's own pool. This is

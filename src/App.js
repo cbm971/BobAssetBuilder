@@ -1716,6 +1716,25 @@ const DEFAULT_RANGED_ATTACK_RANGE = 540; // px = 18 cells @ 30px — an enemy ho
 const ATTACK_COOLDOWN_FRAMES = 45; // frames between one enemy's attacks (~0.75s)
 const ATTACK_SWING_FRAMES = 14;    // how long the attack's arm-swing/lunge visual plays
 const PLAYER_INVULN_FRAMES = 40;   // brief invulnerability after the player is hit, so standing in one enemy's range doesn't melt HP every frame
+/* --- Door transitions -----------------------------------------------------------------------
+   Going INTO a room reads as going in: back to the camera, shrinking and fading into the doorway
+   for half a second, and then the room loads. Coming back OUT used to play that exact same
+   animation, so leaving a room looked like entering a second one. It's the same half second
+   reversed now — the swap happens at once and you grow back out of the door into the level you
+   returned to, facing the camera the whole way. Enter animates BEFORE the swap (you're still in
+   the level you're leaving); exit animates AFTER it (you're arriving), which is what makes one
+   the other's mirror rather than a copy. */
+const DOOR_ENTER_FRAMES = 30;
+const DOOR_ARRIVE_FRAMES = 30;
+const DOOR_MIN_SCALE = 0.4;        // how small the sprite gets at the doorway end of either animation
+const DOOR_MIN_OPACITY = 0.2;
+// The whole thing as one number: 1 = standing in the level at full size, 0 = gone into the doorway.
+// Entering counts down, leaving counts back up, and scale/opacity are just lerps off it — so the
+// two animations can't drift apart into "nearly reversed". Pure.
+export const doorAnimProgress = ({ transitioning, arriving } = {}) =>
+  transitioning ? Math.max(0, 1 - (transitioning.t || 0) / DOOR_ENTER_FRAMES)
+    : arriving > 0 ? Math.max(0, 1 - arriving / DOOR_ARRIVE_FRAMES)
+      : 1;
 /* --- Enemy AI: every decision an enemy makes is driven by its Intelligence stat -------------
    5 is the baseline (as for every other stat), so an Intelligence-5 enemy behaves the way the
    old hard-coded numbers did, and moving the stat up or down is what actually changes it. */
@@ -4901,7 +4920,7 @@ export default function AssetStudio() {
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
   const groundArtCache = useRef(new Map());   // item id -> its baked ground art + bounding box; see groundArt() — an item on a pedestal or lying where a body dropped it is otherwise re-baked every playtest frame
-  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
+  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
   const keys = useRef({});
   const lvRef = useRef(null);
 
@@ -5242,7 +5261,9 @@ export default function AssetStudio() {
       // Door transition: controls frozen, character's back to camera, then the level swaps.
       if (p.transitioning) {
         p.transitioning.t += dtMul;
-        if (p.transitioning.t >= 30) {
+        // Only "enter" holds here — an exit swaps on this very frame and does its animating on the
+        // far side, in the level being returned to (p.arriving, below).
+        if (p.transitioning.t >= (p.transitioning.mode === "enter" ? DOOR_ENTER_FRAMES : 0)) {
           const tr = p.transitioning;
           p.transitioning = null; p.climbing = false; p.crouch = false; p.vy = 0;
           // No state is cleared here — each level/room keeps its own PERSISTENT bucket (roomState),
@@ -5253,12 +5274,15 @@ export default function AssetStudio() {
             const room = (levelLib || []).find((l) => l.id === tr.roomId);
             if (room) {
               roomReturn.current = { level: JSON.parse(JSON.stringify(lv)), x: tr.retX, y: tr.retY };
+              p.arriving = 0;                               // a door taken mid-arrival: you're going IN, don't keep growing out
+
               spawnReq.current = { roomDoor: true };        // appear at the room's own door
               setLevel(JSON.parse(JSON.stringify(room)));   // swaps the active level — the loop effect re-runs with the room
               return;                                       // a fresh loop takes over; don't schedule another frame here
             }
           } else if (tr.mode === "exit") {
             const back = roomReturn.current; roomReturn.current = null;
+            p.arriving = DOOR_ARRIVE_FRAMES;                // step back out of the door on the other side
             if (back && back.level) { spawnReq.current = { x: back.x, y: back.y }; setLevel(back.level); return; }
             spawnReq.current = { gate: true };
           }
@@ -5400,6 +5424,9 @@ export default function AssetStudio() {
       if (p.climbJumpKind && p.vy >= 0) p.climbJumpKind = null;
       if (p.dropCooldown > 0) p.dropCooldown -= dtMul;
       if (p.invuln > 0) p.invuln -= dtMul;
+      // Purely visual, and deliberately NOT a freeze like the enter animation: you've already
+      // landed in the level, so you can walk away from the door while you're still growing back in.
+      if (p.arriving > 0) p.arriving = Math.max(0, p.arriving - dtMul);
       p.stepEase = easeStep(p.stepEase, dtMul); // step-assist smoothing: the DRAWN player eases up to the physics position instead of teleporting (see the player style)
       // Weapon timers advance in real time like everything else (dtMul), so fire rate and reload
       // length don't quietly change with the frame rate. R reloads early; a partly-spent clip is
@@ -10070,7 +10097,7 @@ export default function AssetStudio() {
           <span className="badge">{lv.isRoom ? "🚪 Room" : "🗺️ Level"}</span>
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel}>↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel}>↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -10668,9 +10695,9 @@ export default function AssetStudio() {
                       blocks = mergeWeaponBlocks(blocks, attachWeaponBlocks(thrPieces, curArm, guideHand, baseArmRot));
                     }
                   }
-                  const tProg = p.transitioning ? Math.min(1, p.transitioning.t / 30) : 0;
+                  const doorT = doorAnimProgress(p);
                   const flip = playerSpriteMirrored(basePlayerAsset, p.face) ? "scaleX(-1)" : "";
-                  const shrink = p.transitioning ? "scale(" + (1 - tProg * 0.6) + ")" : "";
+                  const shrink = doorT < 1 ? "scale(" + (DOOR_MIN_SCALE + (1 - DOOR_MIN_SCALE) * doorT) + ")" : "";
                   // A small forward tilt while actively climbing a ramp — only when walking
                   // AND moving in the ramp's rising direction (not just standing on one, and
                   // not while walking back down it). Written as a constant tilt "toward the
@@ -10694,7 +10721,7 @@ export default function AssetStudio() {
                   // of the head sitting at the bar. Ladders climb rung-to-rung and stay put. Purely
                   // visual: physics, hitbox, and grip all still run off p.y untouched.
                   const climbLift = (p.climbing && p.climbKind && p.climbKind !== "ladder") ? LV_CELL : 0;
-                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift, width: renderW, height: ph, transform: [flip, shrink, lean].filter(Boolean).join(" ") || "none", opacity: p.transitioning ? (1 - tProg * 0.8) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
+                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift, width: renderW, height: ph, transform: [flip, shrink, lean].filter(Boolean).join(" ") || "none", opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
                   if (p.onFire > 0) style.filter = "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)";
                   const maxHp = maxPlayerHP(playerAsset), curHp = Math.max(0, Math.min(maxHp, playerHP.current));
                   const hpFrac = maxHp > 0 ? curHp / maxHp : 0;
