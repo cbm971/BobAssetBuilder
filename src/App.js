@@ -1049,6 +1049,51 @@ export const projectilePositionAtDistance = (pr, distance) => {
     y: pr.startY + pr.vy * time + projectileDropAtDistance(pr.startY, pr.groundY, d, pr.rangePx),
   };
 };
+// The flight path's own gradient at a distance along it — the derivative of the drop curve above.
+// Flat (zero) through the first half, then growing linearly, and it keeps growing past rangePx for
+// exactly the same reason the drop itself does: a shot fired off a cliff is still falling, and
+// falling harder the longer it has been at it.
+export const projectileDropSlope = (startY, groundY, distance, rangePx) => {
+  const safeRange = Math.max(1, rangePx || 1), half = safeRange / 2;
+  if (distance <= half) return 0;
+  return (groundY - startY) * 2 * (distance - half) / (half * half);
+};
+// Which way the shot POINTS at a given distance, in degrees. Drawn projectile art used to fly the
+// whole way frozen at its launch angle, so an arrow visibly dropping was still pointing dead level
+// — the tell that the sprite and the arc had nothing to do with each other. Now the nose tips down
+// by exactly the amount the path does.
+// x advances at vx/speed per unit of distance and never changes; y advances at vy/speed plus the
+// drop gradient. Scaling both by speed makes this identical to the launch-time Math.atan2(vy, vx)
+// at distance 0, so nothing moves at all through the flat half of the flight — and a leftward shot
+// keeps its negative vx, so it stays on the ~180° side and tips the correct way rather than
+// snapping through the atan2 branch cut.
+export const projectileAngleAtDistance = (pr, distance) => {
+  const speed = Math.max(0.0001, Math.hypot(pr.vx || 0, pr.vy || 0));
+  const slope = projectileDropSlope(pr.startY, pr.groundY, Math.max(0, distance), pr.rangePx);
+  return Math.atan2((pr.vy || 0) + slope * speed, pr.vx || 0) * 180 / Math.PI;
+};
+// A falling shot should pick up a little pace instead of sailing in at exactly the speed it left
+// the barrel at. This scales ONLY how fast `traveled` grows — every position on the path is a pure
+// function of `traveled`, so the arc shape, the range calibration and the landing point are all
+// untouched to the pixel; the shot just covers the tail of the arc sooner.
+// Driven by PROGRESS THROUGH THE FALL, not by the gradient above. Scaling it by the gradient was
+// the obvious move and it's wrong: the gradient is proportional to how far the shot has to fall,
+// which at normal standing height is ~2/3 of a body over the whole range — a 5% pickup nobody can
+// see, while the same code would visibly launch a shot fired off a tower. Progress reaches 1 at max
+// range for every shot, so the feel is the same whatever height you fire from.
+// _ACCEL is the speed-up at max range (where a neutral shot meets the firing-time ground line);
+// past that it keeps building on the same ramp, since the shot is genuinely still falling, up to
+// _ACCEL_CAP so a drop down a tall shaft can't wind itself up into a hitscan.
+export const PROJECTILE_FALL_ACCEL = 0.25;
+export const PROJECTILE_FALL_ACCEL_CAP = 0.5;
+export const projectileFallSpeedMul = (pr, distance) => {
+  const safeRange = Math.max(1, pr.rangePx || 1), half = safeRange / 2;
+  const d = Math.max(0, distance);
+  if (d <= half) return 1;                       // flat first half — no free range on a level shot
+  if (!(pr.groundY > pr.startY)) return 1;       // fired at or below its own ground line: nothing to fall, so nothing to gain
+  const t = (d - half) / half;                   // 0 at the top of the fall, 1 at max range, higher past it
+  return 1 + Math.min(PROJECTILE_FALL_ACCEL_CAP, PROJECTILE_FALL_ACCEL * t);
+};
 // Melee swing timing — shared by both the hit-test geometry (game loop) and the visual arm
 // render, which used to each duplicate their own copy of a single symmetric sine sweep. Now a
 // deliberate 3-phase motion instead: a WINDUP raising the arm well past its eventual impact
@@ -6491,9 +6536,14 @@ export default function AssetStudio() {
           // from the firing snapshot, then add only the second-half quadratic drop.
           pr.rangePx = Math.max(CW, pr.rangePx || DEFAULT_PROJECTILE_RANGE * CW);
           if (pr.startX === undefined) { pr.startX = pr.x; pr.startY = pr.y; pr.groundY = pr.y; }
-          pr.traveled = (pr.traveled || 0) + Math.hypot(pr.vx || 0, pr.vy || 0) * dtMul;
+          pr.traveled = (pr.traveled || 0) + Math.hypot(pr.vx || 0, pr.vy || 0) * projectileFallSpeedMul(pr, pr.traveled) * dtMul;
           const rangedPos = projectilePositionAtDistance(pr, pr.traveled);
           pr.x = rangedPos.x; pr.y = rangedPos.y;
+          // Point the art along the arc it's actually on. Recomputed from the distance every frame
+          // rather than integrated frame-to-frame, so it stays exact at any speed and a shot can
+          // never drift out of sync with its own path. The hitbox offset below reads pr.rot too, so
+          // a tipped bullet's box tips with it.
+          pr.rot = projectileAngleAtDistance(pr, pr.traveled);
           // Past its configured range the shot is still airborne, just falling — "spent" now only
           // means it has passed the range mark, used to decide whether an out-of-bounds exit should
           // still detonate. It is NOT a despawn condition any more.

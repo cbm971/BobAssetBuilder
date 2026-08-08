@@ -113,6 +113,11 @@ import {
   flipPiecesHorizontally,
   projectileDropAtDistance,
   projectilePositionAtDistance,
+  projectileDropSlope,
+  projectileAngleAtDistance,
+  projectileFallSpeedMul,
+  PROJECTILE_FALL_ACCEL,
+  PROJECTILE_FALL_ACCEL_CAP,
   rangeBoostMultiplier,
   resolveSaveTarget,
   splitObjectStackByPlayerLayer,
@@ -2595,6 +2600,113 @@ describe("projectiles fly until they land, so height adds range", () => {
   test("a shot with nowhere to fall still behaves — flat ground, no drop at all", () => {
     const pr = shot(200, 200);
     expect(projectilePositionAtDistance(pr, 5000).y).toBe(200);
+  });
+});
+
+describe("projectile art follows the arc", () => {
+  const shot = (over) => ({ startX: 0, startY: 100, groundY: 220, vx: 10, vy: 0, rangePx: 600, ...over });
+
+  test("the gradient is the drop curve's own derivative", () => {
+    // Finite-difference the drop against the closed-form slope at a few points on the curve.
+    const at = (d) => (projectileDropAtDistance(100, 220, d + 0.5, 600) - projectileDropAtDistance(100, 220, d - 0.5, 600));
+    for (const d of [400, 600, 900]) expect(projectileDropSlope(100, 220, d, 600)).toBeCloseTo(at(d), 4);
+    expect(projectileDropSlope(100, 220, 300, 600)).toBe(0); // flat first half
+  });
+
+  test("a level shot leaves flat and tips nose-down as it falls", () => {
+    const pr = shot();
+    expect(projectileAngleAtDistance(pr, 0)).toBe(0);
+    expect(projectileAngleAtDistance(pr, 300)).toBe(0);       // still in the flat half
+    const mid = projectileAngleAtDistance(pr, 450);
+    const end = projectileAngleAtDistance(pr, 600);
+    const past = projectileAngleAtDistance(pr, 900);
+    expect(mid).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(mid);                          // steeper the further it falls
+    expect(past).toBeGreaterThan(end);                         // and past its range it keeps steepening
+    expect(end).toBeCloseTo(38.7, 1);                          // a clear tip, not a nosedive (this fixture drops
+                                                               // 120px over 600 — steeper than a real shot, where
+                                                               // the drop is ~2/3 of body height over the range)
+  });
+
+  test("distance 0 matches the launch angle the spawn sites set", () => {
+    for (const [vx, vy] of [[10, 0], [-10, 0], [7, -7], [0, -12], [-7, 7]]) {
+      const pr = shot({ vx, vy });
+      expect(projectileAngleAtDistance(pr, 0)).toBeCloseTo(Math.atan2(vy, vx) * 180 / Math.PI, 10);
+    }
+  });
+
+  test("a leftward shot tips down without flipping through the atan2 branch cut", () => {
+    // Facing left is ~180°; falling must walk it DOWN toward 90° (still left, now also down),
+    // never jump to -180°, which would spin the sprite a full half-turn mid-flight.
+    const pr = shot({ vx: -10 });
+    const angles = [0, 400, 600, 900, 1500].map((d) => projectileAngleAtDistance(pr, d));
+    expect(angles[0]).toBe(180);
+    for (let i = 1; i < angles.length; i++) {
+      expect(angles[i]).toBeLessThan(angles[i - 1]);
+      expect(angles[i]).toBeGreaterThan(90);
+    }
+  });
+
+  test("an upward shot points up out of the barrel and levels off at the top of the arc", () => {
+    const pr = shot({ vx: 7, vy: -7 });
+    expect(projectileAngleAtDistance(pr, 0)).toBeCloseTo(-45, 6);
+    // Somewhere past half range the accumulating drop cancels the climb — the apex, where the
+    // art is momentarily level — and after that it is pointing downward.
+    expect(projectileAngleAtDistance(pr, 600)).toBeGreaterThan(0);
+    expect(projectileAngleAtDistance(pr, 600)).toBeGreaterThan(projectileAngleAtDistance(pr, 450));
+  });
+});
+
+describe("projectiles speed up slightly as they fall", () => {
+  const shot = (over) => ({ startX: 0, startY: 100, groundY: 220, vx: 10, vy: 0, rangePx: 600, ...over });
+
+  test("launch speed is untouched for the whole flat half", () => {
+    const pr = shot();
+    expect(projectileFallSpeedMul(pr, 0)).toBe(1);
+    expect(projectileFallSpeedMul(pr, 300)).toBe(1);
+  });
+
+  test("it picks up pace once it starts dropping, and only a little", () => {
+    const pr = shot();
+    const at450 = projectileFallSpeedMul(pr, 450);
+    expect(at450).toBeGreaterThan(1);
+    expect(projectileFallSpeedMul(pr, 600)).toBeGreaterThan(at450);
+    expect(projectileFallSpeedMul(pr, 600)).toBeCloseTo(1 + PROJECTILE_FALL_ACCEL, 6); // exactly _ACCEL at max range
+  });
+
+  test("the pickup is the same whatever height you fired from", () => {
+    // The reason this is progress-driven rather than gradient-driven: a standing shot barely
+    // falls at all next to one fired off a tower, and scaling by the gradient gave the first a
+    // 5% nudge nobody could see while visibly launching the second.
+    const standing = projectileFallSpeedMul(shot({ startY: 180, groundY: 220 }), 600);
+    const tower = projectileFallSpeedMul(shot({ startY: 0, groundY: 900 }), 600);
+    expect(standing).toBeCloseTo(tower, 10);
+    expect(standing).toBeCloseTo(1.25, 6);
+  });
+
+  test("a long fall down a shaft is capped rather than winding up without limit", () => {
+    const pr = shot();
+    expect(projectileFallSpeedMul(pr, 100000)).toBe(1 + PROJECTILE_FALL_ACCEL_CAP);
+    expect(projectileFallSpeedMul(pr, 900)).toBeGreaterThan(projectileFallSpeedMul(pr, 600)); // still building past range
+  });
+
+  test("a shot with nowhere to fall never speeds up", () => {
+    expect(projectileFallSpeedMul(shot({ groundY: 100 }), 5000)).toBe(1);
+    expect(projectileFallSpeedMul(shot({ groundY: 40 }), 5000)).toBe(1); // fired from below its own ground line
+  });
+
+  test("speeding up changes timing only — the path itself is untouched", () => {
+    // The whole point of scaling `traveled` rather than vx/vy: walk the same shot with and
+    // without the boost and every position visited is on the identical curve, so range, drop
+    // and landing point cannot move. Only the frame it arrives on does.
+    const pr = shot();
+    let plain = 0, boosted = 0, frames = 0;
+    while (boosted < 900) { plain += 10; boosted += 10 * projectileFallSpeedMul(pr, boosted); frames++; }
+    expect(boosted).toBeGreaterThan(plain);             // arrives sooner
+    for (const d of [100, 450, 600, 900]) {
+      expect(projectilePositionAtDistance(pr, d)).toEqual({ x: d, y: 100 + projectileDropAtDistance(100, 220, d, 600) });
+    }
+    expect(frames).toBeLessThan(90);
   });
 });
 
