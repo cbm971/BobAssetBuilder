@@ -38,6 +38,9 @@ import {
   terrainPaintShape,
   mergeWeaponBlocks,
   normalizeAssetJson,
+  boxesOverlap,
+  tackleDownFrames,
+  TACKLE_GETUP_GRACE_FRAMES,
   playerSpriteMirrored,
   RANGED_FIRE_POSE_FRAMES,
   weaponPoseFired,
@@ -3685,5 +3688,97 @@ describe("every async storage helper is awaited", () => {
       }
     });
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("Tackle — walking into someone puts them on the floor", () => {
+  // The player box and an enemy body box, in the same px space the physics loop uses.
+  const player = [100, 200, 40, 90];
+  const hit = (b) => boxesOverlap(...player, ...b);
+  // What a horizontal-only test (boxGap) would have concluded about the same pair, kept explicit
+  // so the reason the knockdown uses a full rectangle overlap survives a later tidy-up.
+  const boxGapWouldSayTouching = (bx, bw) => (Math.abs((100 + 40 / 2) - (bx + bw / 2)) - (40 + bw) / 2) <= 0;
+
+  test("standing inside them counts as contact", () => {
+    expect(hit([120, 210, 40, 80])).toBe(true);
+  });
+
+  test("standing next to them does not — a tackle needs real contact", () => {
+    expect(hit([200, 200, 40, 90])).toBe(false);
+  });
+
+  test("edges that merely touch are not an overlap, so you can walk up to someone", () => {
+    expect(hit([140, 200, 40, 90])).toBe(false);
+  });
+
+  test("clearing their head with a jump does NOT floor them", () => {
+    // Directly above and horizontally overlapping: boxGap would call this contact, which is
+    // exactly why the knockdown test is a full rectangle overlap instead.
+    expect(hit([110, 300, 40, 60])).toBe(false);
+    expect(boxGapWouldSayTouching(110, 40)).toBe(true);
+  });
+
+  test("the knockdown lasts the seconds the item is set to", () => {
+    expect(tackleDownFrames(2)).toBe(120);
+    expect(tackleDownFrames(0.5)).toBe(30);
+  });
+
+  test("a zero or missing duration still reads as a knockdown, never as a no-op", () => {
+    expect(tackleDownFrames(0)).toBe(1);
+    expect(tackleDownFrames(undefined)).toBe(120); // the effect's own default
+  });
+
+  test("there is a real pause before a downed unit can be re-floored", () => {
+    expect(TACKLE_GETUP_GRACE_FRAMES).toBeGreaterThan(0);
+  });
+});
+
+describe("asset JSON whose per-body fits arrived double-wrapped", () => {
+  // The shape hand-written / AI-written asset files keep landing in: each variant boxed as
+  // { angles: {...} } instead of being the flat pose map itself. Nothing errors — the art just
+  // never draws, in the editor, in Dress Bob and in Playtest alike.
+  const hat = () => ({
+    type: "equipment", slot: "hat", id: "h1", name: "Helmet", guideId: "body9", lastFit: "body9",
+    angles: { front: [{ id: "p1", kind: "rect", x: 60, y: 8, w: 60, h: 30, color: "#c9302c" }] },
+    variants: {
+      default: { angles: { front: [{ id: "p1", kind: "rect", x: 60, y: 8, w: 60, h: 30, color: "#c9302c" }] } },
+      body9: { angles: { front: [{ id: "p2", kind: "rect", x: 61, y: 9, w: 60, h: 30, color: "#c9302c" }] } },
+    },
+  });
+
+  test("the fit is unwrapped, so the art is where every reader looks for it", () => {
+    const out = normalizeAssetJson(hat());
+    expect(out.variants.default.front).toHaveLength(1);
+    expect(out.variants.body9.front[0].id).toBe("p2");
+  });
+
+  test("every base pose is present on the repaired fit", () => {
+    const out = normalizeAssetJson(hat());
+    for (const a of ["front", "back", "side", "up", "crouch"]) expect(Array.isArray(out.variants.default[a])).toBe(true);
+  });
+
+  test("a correctly shaped fit is left exactly as it was", () => {
+    const src = hat();
+    src.variants = { default: { front: [{ id: "ok", kind: "rect", x: 1, y: 2, w: 3, h: 4, color: "#fff" }], back: [], side: [], up: [], crouch: [] } };
+    expect(normalizeAssetJson(src).variants.default.front[0].id).toBe("ok");
+  });
+
+  test("a wrapped WEAPON fit lands in its Rest state rather than being thrown away", () => {
+    const w = {
+      type: "weapon", id: "w1", name: "Bat", wtype: "melee",
+      angles: { side: [{ id: "b1", kind: "rect", x: 10, y: 10, w: 8, h: 60, color: "#8d6b3f" }] },
+      variants: { default: { angles: { side: [{ id: "b1", kind: "rect", x: 10, y: 10, w: 8, h: 60, color: "#8d6b3f" }] } } },
+    };
+    expect(normalizeAssetJson(w).variants.default.states.rest.side).toHaveLength(1);
+  });
+
+  test("a weapon fit that already has states keeps its grip point", () => {
+    const w = {
+      type: "weapon", id: "w2", name: "Axe", wtype: "melee", angles: { side: [] },
+      variants: { default: { hand: { side: { x: 5, y: 6 } }, states: { rest: { side: [{ id: "a1", kind: "rect", x: 0, y: 0, w: 9, h: 9, color: "#999" }] }, fire: {} } } },
+    };
+    const out = normalizeAssetJson(w);
+    expect(out.variants.default.hand.side).toEqual({ x: 5, y: 6 });
+    expect(out.variants.default.states.rest.side).toHaveLength(1);
   });
 });

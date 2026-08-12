@@ -1933,6 +1933,18 @@ const EFFECT_TYPES = {
       { key: "mult", label: "Range ×", min: 1, max: 4, step: 0.25, def: 1.5 },
     ],
   },
+  // Walk into someone and they go down. No damage at all — the whole effect is the seconds they
+  // spend flat on their back, which is time you get to walk past, line up a shot, or just leave.
+  // Runs off the same frozen-unit channel a stun weapon uses (no AI, no attacks, no walk cycle),
+  // with its own timer so the two read differently on screen: 💫 is dazed, 😵 is on the floor.
+  tackle: {
+    label: "Tackle", icon: "🏈",
+    blurb: "Barge into an enemy and they fall over. It does no damage — they just spend the seconds you set lying on the ground, unable to move, aim or attack, and get up where they fell. Touching them again once they're up knocks them down again. No animation of its own.",
+    noAnim: true,
+    params: [
+      { key: "secs", label: "Down for", min: 0.5, max: 8, step: 0.5, def: 2 },
+    ],
+  },
   magazineSize: {
     label: "Magazine Size", icon: "➕",
     blurb: "Adds rounds to the magazine of any finite-ammo ranged weapon while this is worn. Multiple clothing bonuses stack. Weapons set to unlimited ammo stay unlimited. No animation of its own.",
@@ -2072,6 +2084,31 @@ export const normalizeAssetJson = (raw) => {
   if (type === "weapon") a.states = { rest: normalizeAngles((a.states && a.states.rest) || a.angles), fire: normalizeAngles(a.states && a.states.fire) };
   if (type === "enemy") a.states = { normal: normalizeAngles((a.states && a.states.normal) || a.angles), onFire: normalizeAngles(a.states && a.states.onFire), charge: normalizeAngles(a.states && a.states.charge) };
   if (type === "equipment" && !SLOTS[a.slot]) a.slot = "shirt"; // an unknown slot would drop it out of every picker; shirt is the safe visible default
+  // A per-body fit variant IS the flat pose map itself (a weapon's additionally wraps {states}) —
+  // see blankFitVariant. Asset JSON written by hand or by another AI keeps getting this one wrong
+  // in exactly the same way: it boxes each variant as { angles: { front: [...] } }, mirroring the
+  // asset's own top-level shape. Nothing then reports an error — fitVariantEmpty looks for poses,
+  // finds a lone "angles" key, and calls the variant empty; migrate loads a.angles FROM the chosen
+  // variant, so the perfectly good top-level art is overwritten by the empty box; and fitFor hands
+  // Dress Bob and Playtest that same box. The asset imports "successfully", saves, opens, and draws
+  // nothing at all, in every pose, with no message anywhere. Two hats and a jersey arrived like
+  // that. It costs one unwrap to accept them, which is this function's whole job.
+  if (a.variants && typeof a.variants === "object" && !Array.isArray(a.variants)) {
+    const hasPoses = (o) => !!o && typeof o === "object" && ANGLES.some((ang) => Array.isArray(o[ang]));
+    const out = {};
+    for (const k of Object.keys(a.variants)) {
+      let v = a.variants[k];
+      if (!v || typeof v !== "object") continue;
+      if (!v.states && !hasPoses(v) && v.angles && typeof v.angles === "object") v = v.angles;
+      if (type === "weapon") {
+        // A weapon fit carries its own grip point alongside the states, so keep the rest of the
+        // object; a wrapped one that unwrapped to a bare pose map is its Rest state.
+        const st = v.states || (hasPoses(v) ? { rest: v } : {});
+        out[k] = { ...(v.states ? v : {}), states: { rest: normalizeAngles(st.rest), fire: normalizeAngles(st.fire) } };
+      } else out[k] = normalizeAngles(v);
+    }
+    if (Object.keys(out).length) a.variants = out; else delete a.variants;
+  }
   if (type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
   if (!a.id) a.id = uid();
   if (typeof a.name !== "string" || !a.name.trim()) a.name = (type === "equipment" ? SLOTS[a.slot].label : (TYPES[type] ? TYPES[type].label : type));
@@ -4601,6 +4638,17 @@ export const playerSpriteMirrored = (a, face) => ((face || 1) < 0) === playerArt
 // silently spent (pw + epw) / 2 ≈ 140px of any range budget just crossing the two bodies
 // themselves, so the default 60px melee range meant "stand inside the enemy": the "0 range" bug.
 export const boxGap = (aCx, aW, bCx, bW) => Math.max(0, Math.abs(aCx - bCx) - (aW + bW) / 2);
+/* --- Tackle: walking into someone puts them on the floor ---------------------------------- */
+// Plain rectangle overlap. Deliberately NOT boxGap: a tackle is contact in both axes, so jumping
+// clean over an enemy's head must not floor them the way a horizontal-only test would.
+export const boxesOverlap = (ax, ay, aw, ah, bx, by, bw, bh) =>
+  ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+// How long the knockdown lasts, in frames. Floored at 1 so a 0 slipping through a hand-edited
+// save still reads as "knocked down for an instant" rather than silently doing nothing.
+export const tackleDownFrames = (secs) => Math.max(1, Math.round((secs ?? 2) * 60));
+// Breathing room after standing up, so a player parked on top of a downed enemy re-floors them on
+// a beat you can see instead of every single frame (which looks like a stuck sprite, not a tackle).
+export const TACKLE_GETUP_GRACE_FRAMES = 30;
 // Walking UP a ramp is deliberately slow — half speed. Walking down is normal (plus the slide).
 export const SLOPE_UP_MUL = 0.5;
 // Downhill auto-slide speed (px per 60fps-frame). Gentle on purpose — a ramp is a gentle pull,
@@ -5211,6 +5259,11 @@ export default function AssetStudio() {
     const backGuardReduce = backGuardEffect ? (backGuardEffect.reduce ?? 0.5) : null; // null = no cape, skip the behind check entirely
     const crouchGuardEffect = (playerAsset?.effects || []).find((e) => e.type === "crouchGuard") || null;
     const crouchGuardReduce = crouchGuardEffect ? (crouchGuardEffect.reduce ?? 0.5) : null; // null = not worn, skip the crouch check entirely
+    // Tackle carries one number — how long whoever you barge into stays on the floor. null when
+    // it isn't worn, so the per-enemy contact test below is skipped outright rather than run 60
+    // times a second for every player who owns no football kit.
+    const tackleEffect = (playerAsset?.effects || []).find((e) => e.type === "tackle") || null;
+    const tackleSecs = tackleEffect ? (tackleEffect.secs ?? 2) : null;
     // Ranged weapon ammo: a fresh full clip each Playtest session (this effect re-runs whenever
     // Playtest starts/stops or the equipped weapon changes). Melee weapons get an "unlimited"
     // record (clip 0), so nothing below ever gates a swing on ammo.
@@ -5812,9 +5865,34 @@ export default function AssetStudio() {
             enemyPos.current[k] = { x: spawnLeft, y: (er + 1) * CH - standEph, vy: 0, onGround: false, face: spawn.facing === 1 ? 1 : -1, crouch: false, crouchT: 0, dodgeRolled: false, willDodge: false, attackT: 0, swingT: 0, reactT: 0, aimHold: 0, walkPhase: 0, walking: false, weaponAmmo: null, reloading: false };
           }
           const ep = enemyPos.current[k];
-          const stunned = (ep.stun || 0) > 0; // hit by a stun weapon — frozen: the dodge/face/move/attack gates below all skip it while this lasts
-          if (stunned) ep.stun -= dtMul;
           const oldEph = ep.crouch ? crouchEph : standEph;
+          // TACKLE (clothing ability): walking into this enemy puts it on the floor for a few
+          // seconds and does no damage at all. Resolved at the TOP of the enemy's own update so
+          // the frame you make contact is the frame it stops moving, aiming and swinging — run
+          // after its AI and a knockdown would still let the shove through, which reads as the
+          // enemy hitting you back on the way down. The box is the same trimmed body box the AI
+          // aims at (sideBodyShape strips the transparent margin off the sprite), so a tackle
+          // needs real contact with the BODY, not with an empty corner of its canvas, and it is
+          // a full rectangle overlap rather than boxGap's horizontal one so clearing someone's
+          // head with a jump doesn't floor them. Friendlies are exempt: a resurrected ally
+          // follows you around and would otherwise spend the whole level face-down.
+          if (tackleSecs != null && !ep.friendly) {
+            if ((ep.downCd || 0) > 0) ep.downCd = Math.max(0, ep.downCd - dtMul);
+            const tBoxLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
+            const tBoxTop = ep.y + eShape.topFrac * oldEph, tBoxH = eShape.heightFrac * oldEph;
+            if (!(ep.down > 0) && !(ep.downCd > 0) && boxesOverlap(p.x, p.y, pw, ph, tBoxLeft, tBoxTop, epw, tBoxH)) {
+              ep.down = tackleDownFrames(tackleSecs);
+              ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; ep.walking = false;
+              ep.attackT = Math.max(ep.attackT || 0, ep.down); // no free swing the instant they get back up
+              flash("🏈 Tackled " + (ea.name || "them") + " — down for " + tackleSecs + "s");
+            }
+          }
+          // Flattened and merely dazed share one gate — neither can dodge, turn, walk or attack —
+          // but they stay SEPARATE timers so a stun landing on a downed enemy can't cut the
+          // knockdown short (or the other way round), and so the two can show different badges.
+          if (ep.down > 0) { ep.down -= dtMul; if (ep.down <= 0) { ep.down = 0; ep.downCd = TACKLE_GETUP_GRACE_FRAMES; } }
+          const stunned = (ep.stun || 0) > 0 || (ep.down || 0) > 0; // hit by a stun weapon, or tackled flat — frozen: the dodge/face/move/attack gates below all skip it while this lasts
+          if ((ep.stun || 0) > 0) ep.stun -= dtMul;
           const eIntel = ea.stats?.intelligence ?? 5;
           const ew = findA(enemyWeaponIdOf(ea)) || (ea.components && ea.components.weapon) || null; // the weapon this enemy is actually holding — falls back to the look's own embedded copy if the source asset is gone from the library
           const rangedEnemy = !!(ew && isRanged(ew.wtype));
@@ -10953,6 +11031,18 @@ export default function AssetStudio() {
                   }
                   const hpFrac = Math.max(0, Math.min(1, curHp / maxHp));
                   const flip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1)" : "none";
+                  // A tackled unit LIES DOWN rather than just freezing in place. The sprite pivots
+                  // 90° about its own feet (transform-origin bottom-centre, the one point that
+                  // stays put when someone falls over) and is then lifted by half the wrapper's
+                  // width, because rotating about that point leaves the body straddling the ground
+                  // line — half of it below the floor. The facing flip stays at the head of the
+                  // transform list, so they drop in the direction they were pointing. Purely
+                  // visual: the hitbox is untouched, so a downed enemy is still shot, burned and
+                  // hit exactly where it was standing.
+                  const downed = !!(ep && ep.down > 0);
+                  const wrapTransform = downed
+                    ? (flip === "none" ? "" : flip + " ") + "translateY(-" + (eRenderW / 2) + "px) rotate(90deg)"
+                    : flip;
                   return (
                     <React.Fragment key={"enp" + k}>
                       {/* Status readouts live OUTSIDE the sprite wrapper, in their own layer above
@@ -10973,9 +11063,11 @@ export default function AssetStudio() {
                           const done = Math.max(0, Math.min(1, 1 - ep.weaponAmmo.reloadT / total));
                           return <div className="enemyReloadTrack"><div className="enemyReloadFill" style={{ width: (done * 100) + "%" }} /></div>;
                         })()}
-                        {ep && ep.stun > 0 && <div className="enemyStun">💫</div>}
+                        {/* 💫 is dazed on its feet, 😵 is flat on its back — same bobbing badge,
+                            two different states, so a tackle is readable at a glance. */}
+                        {ep && ep.down > 0 ? <div className="enemyStun">😵</div> : ep && ep.stun > 0 ? <div className="enemyStun">💫</div> : null}
                       </div>
-                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: flip, ...((ep && ep.friendly) ? { filter: "drop-shadow(0 0 2px #b46cf5) drop-shadow(0 0 5px #a855f7)" } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? "🟣 " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you)" : "") + (ducking ? " (ducking)" : "")}>
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...((ep && ep.friendly) ? { filter: "drop-shadow(0 0 2px #b46cf5) drop-shadow(0 0 5px #a855f7)" } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? "🟣 " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you)" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
                       </div>
                     </React.Fragment>

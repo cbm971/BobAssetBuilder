@@ -68,6 +68,13 @@ usually fails.
   assert the match count is exactly 1 before writing.
 * **Python is not installed.** Use `node -e` for scripted edits.
 * `PowerShell` here is Windows PowerShell 5.1 — no `&&`, no ternary.
+* **Writing asset JSON by hand: a fit variant IS the flat pose map.** `a.variants.default`
+  must be `{front:[…],back:[…],…}` (a weapon's is `{states:{rest,fire}}`) — NOT
+  `{angles:{front:[…]}}`. Box it and nothing errors: `fitVariantEmpty` sees no poses and
+  calls the asset empty, `migrate` then loads `a.angles` from that empty box and overwrites
+  the good top-level art, and the asset imports, saves and opens drawing **nothing at all**.
+  Two hats and a jersey were built that way and read as "the upload function is broken".
+  `normalizeAssetJson` now unwraps it, but write it correctly in the first place.
 
 ## Storage — read this before touching anything that saves
 
