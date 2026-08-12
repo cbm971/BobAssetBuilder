@@ -68,6 +68,10 @@ usually fails.
   assert the match count is exactly 1 before writing.
 * **Python is not installed.** Use `node -e` for scripted edits.
 * `PowerShell` here is Windows PowerShell 5.1 — no `&&`, no ternary.
+* **Building an asset by hand? Read `ASSET_AUTHORING.md` first.** It is the spec Blake hands to a
+  chat that has no repo access: the file envelope, both bodies' real head/torso geometry per pose,
+  the shape list, and the flat-colour house style (4–8 pieces, no shading — assisted assets that
+  arrive airbrushed get rejected). Keep it in step with the code.
 * **Writing asset JSON by hand: a fit variant IS the flat pose map.** `a.variants.default`
   must be `{front:[…],back:[…],…}` (a weapon's is `{states:{rest,fire}}`) — NOT
   `{angles:{front:[…]}}`. Box it and nothing errors: `fitVariantEmpty` sees no poses and
