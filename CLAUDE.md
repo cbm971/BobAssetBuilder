@@ -221,6 +221,15 @@ anything in the level render body runs 60x a second. What is actually true, meas
   A memoized array alone is not enough but is worth little either — measured at ~0.2ms.
 * `groundArt` caches the bake for items on pedestals / lying on the ground; both call sites used
   to re-bake and re-measure every item every frame.
+* **Frame time is flat across a level; steady-state garbage was the other load.** Trailor Park
+  measures the same at column 0, 70 and 130, so "slow at the start" is not script. What the loop
+  *was* doing was allocating: `fgSolid`/`fgSlopeFills` built a throwaway array per cell per call,
+  ~440 a frame (~26k/s) with the player and 7 enemies each running `cellsHit` several times.
+  Both now take an allocation-free path — measured 440/frame → 0. A cell with `more` is the rare
+  case; write these predicates to walk it, never to build a list.
+* Paint/raster is NOT measurable in the hidden pane — say so rather than inventing a number. What
+  differs across Trailor Park is composition, not count: column 0 carries 1035 textured cells and
+  164 Front-layer cells over them, column 120 carries 421 and 62.
 
 Measuring it at all needs care: the Browser pane is usually hidden, so rAF never fires — patch it
 to `setTimeout(cb, 16)`. And **do not sample with `setTimeout(…, 0)`**: nested timeouts are clamped

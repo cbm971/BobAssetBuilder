@@ -1,5 +1,5 @@
 {
- "savedAt": 1786578140414,
+ "savedAt": 1786580006040,
  "assets": [
   {
    "id": "slczopv",
@@ -339633,6 +339633,5162 @@
     ""
    ],
    "savedAt": 1786577698503
+  },
+  {
+   "id": "phtz4un",
+   "name": "Football Jersey",
+   "type": "equipment",
+   "guideId": "telfv37",
+   "slot": "shirt",
+   "angles": {
+    "front": [
+     {
+      "id": "nt65f08",
+      "kind": "rect",
+      "x": 70,
+      "y": 97.8,
+      "w": 61.3,
+      "h": 89,
+      "color": "#24488a",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "qphb52w",
+      "kind": "tri",
+      "x": 103.1,
+      "y": 93.4,
+      "w": 47.5,
+      "h": 15.2,
+      "color": "#1e3f7d",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt",
+      "rot": 28
+     },
+     {
+      "id": "z5sg5m6",
+      "kind": "rect",
+      "x": 62.5,
+      "y": 88,
+      "w": 7.5,
+      "h": 93.3,
+      "color": "#1e3f7d",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "3j8isvd",
+      "kind": "rect",
+      "x": 56.3,
+      "y": 114,
+      "w": 15,
+      "h": 67.3,
+      "color": "#1e3f7d",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "sq3mpre",
+      "kind": "rect",
+      "x": 56.3,
+      "y": 114,
+      "w": 15,
+      "h": 67.3,
+      "color": "#24488a",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "nby2aya",
+      "kind": "tri",
+      "x": 90,
+      "y": 98.9,
+      "w": 22.5,
+      "h": 10.9,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "djqjt1n",
+      "kind": "rect",
+      "x": 70,
+      "y": 104.3,
+      "w": 61.3,
+      "h": 5.4,
+      "color": "#e8b32c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "pj55rt6",
+      "kind": "rect",
+      "x": 70,
+      "y": 110.8,
+      "w": 61.3,
+      "h": 3.3,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "1lumyfj",
+      "kind": "rect",
+      "x": 83.7,
+      "y": 124.9,
+      "w": 8.2,
+      "h": 30.3,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "qwvrb7o",
+      "kind": "rect",
+      "x": 79,
+      "y": 124.9,
+      "w": 7,
+      "h": 7,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "18nporr",
+      "kind": "rect",
+      "x": 100,
+      "y": 124.9,
+      "w": 19.8,
+      "h": 7,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "l6as1p5",
+      "kind": "rect",
+      "x": 112.8,
+      "y": 129.6,
+      "w": 7,
+      "h": 11.6,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "gi7xduu",
+      "kind": "rect",
+      "x": 100,
+      "y": 138.9,
+      "w": 19.8,
+      "h": 7,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "rmqbois",
+      "kind": "rect",
+      "x": 100,
+      "y": 143.6,
+      "w": 7,
+      "h": 11.6,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "o3cem8e",
+      "kind": "rect",
+      "x": 100,
+      "y": 148.2,
+      "w": 19.8,
+      "h": 7,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "soohabe",
+      "kind": "halfcircle",
+      "x": 51.3,
+      "y": 156.4,
+      "w": 21.3,
+      "h": 30.4,
+      "color": "#24488a",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "kegcaxf",
+      "kind": "rect",
+      "x": 70,
+      "y": 161.8,
+      "w": 61.3,
+      "h": 5.4,
+      "color": "#e8b32c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     }
+    ],
+    "back": [
+     {
+      "id": "u6jupaf",
+      "kind": "rect",
+      "x": 70,
+      "y": 95.6,
+      "w": 61.3,
+      "h": 89,
+      "color": "#1e3f7d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "f9blc6d",
+      "kind": "tri",
+      "x": 107.5,
+      "y": 93.4,
+      "w": 47.5,
+      "h": 15.2,
+      "color": "#1e3f7d",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt",
+      "rot": 28
+     },
+     {
+      "id": "eiac9d6",
+      "kind": "rect",
+      "x": 48.8,
+      "y": 90.2,
+      "w": 22.5,
+      "h": 94.4,
+      "color": "#1e3f7d",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "g9xr46y",
+      "kind": "rect",
+      "x": 70,
+      "y": 104.3,
+      "w": 61.3,
+      "h": 5.4,
+      "color": "#e8b32c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "ae6pg90",
+      "kind": "rect",
+      "x": 70,
+      "y": 110.8,
+      "w": 61.3,
+      "h": 3.3,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "fcxdqsd",
+      "kind": "rect",
+      "x": 77.5,
+      "y": 117.3,
+      "w": 47.5,
+      "h": 7.6,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "lz8rtpn",
+      "kind": "rect",
+      "x": 80,
+      "y": 119.5,
+      "w": 42.5,
+      "h": 3.3,
+      "color": "#152c58",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "7ok6v1k",
+      "kind": "rect",
+      "x": 82.4,
+      "y": 131.3,
+      "w": 9.3,
+      "h": 34.9,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "7tcf0t7",
+      "kind": "rect",
+      "x": 76.6,
+      "y": 131.3,
+      "w": 7,
+      "h": 8.2,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "95lymfe",
+      "kind": "rect",
+      "x": 99.9,
+      "y": 131.3,
+      "w": 21,
+      "h": 8.2,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "q5tyjxx",
+      "kind": "rect",
+      "x": 113.9,
+      "y": 137.1,
+      "w": 7,
+      "h": 12.8,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "6u2zlfk",
+      "kind": "rect",
+      "x": 99.9,
+      "y": 147.6,
+      "w": 21,
+      "h": 8.2,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "u6sd11u",
+      "kind": "rect",
+      "x": 99.9,
+      "y": 152.3,
+      "w": 7,
+      "h": 14,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "1hd901z",
+      "kind": "rect",
+      "x": 99.9,
+      "y": 158.1,
+      "w": 21,
+      "h": 8.2,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "b8ttra2",
+      "kind": "rect",
+      "x": 70,
+      "y": 174.8,
+      "w": 61.3,
+      "h": 5.4,
+      "color": "#e8b32c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     }
+    ],
+    "side": [
+     {
+      "id": "u6pnj2c",
+      "kind": "rect",
+      "x": 54.5,
+      "y": 98.9,
+      "w": 82.8,
+      "h": 85.7,
+      "color": "#1e3f7d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "uyznqzp",
+      "kind": "tri",
+      "x": 43.4,
+      "y": 146.6,
+      "w": 69,
+      "h": 28.2,
+      "color": "#1e3f7d",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt",
+      "rot": 347
+     },
+     {
+      "id": "afziokm",
+      "kind": "rect",
+      "x": 62.8,
+      "y": 86.9,
+      "w": 8.3,
+      "h": 94.4,
+      "color": "#1e3f7d",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "pxvrn3u",
+      "kind": "rect",
+      "x": 79,
+      "y": 94.7,
+      "w": 36,
+      "h": 25.3,
+      "color": "#1e3f7d",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt",
+      "rot": 0,
+      "limb": "arm",
+      "overArms": true
+     },
+     {
+      "id": "xlaj4ek",
+      "kind": "rect",
+      "x": 79,
+      "y": 94.7,
+      "w": 36,
+      "h": 7.6,
+      "color": "#e8b32c",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt",
+      "rot": 0,
+      "limb": "arm",
+      "overArms": true
+     },
+     {
+      "id": "toxrfpy",
+      "kind": "rect",
+      "x": 115.2,
+      "y": 90.2,
+      "w": 9.7,
+      "h": 41.2,
+      "color": "#1e3f7d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "ns0w7lc",
+      "kind": "circle",
+      "x": 120.7,
+      "y": 98.9,
+      "w": 24.8,
+      "h": 31.5,
+      "color": "#1e3f7d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt",
+      "rot": 14
+     },
+     {
+      "id": "8h88ofj",
+      "kind": "tri2",
+      "x": 132.4,
+      "y": 155.3,
+      "w": 8.3,
+      "h": 28.8,
+      "color": "#1e3f7d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "2wpbuer",
+      "kind": "rect",
+      "x": 54.5,
+      "y": 107.5,
+      "w": 82.8,
+      "h": 5.4,
+      "color": "#e8b32c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "x673g62",
+      "kind": "rect",
+      "x": 54.5,
+      "y": 114,
+      "w": 82.8,
+      "h": 3.3,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "1y8qbk6",
+      "kind": "rect",
+      "x": 54.5,
+      "y": 126,
+      "w": 12.4,
+      "h": 52.1,
+      "color": "#24488a",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "4ydtnp8",
+      "kind": "rect",
+      "x": 54.5,
+      "y": 178.1,
+      "w": 82.8,
+      "h": 5.4,
+      "color": "#e8b32c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     }
+    ],
+    "up": [
+     {
+      "id": "yx7ohnd",
+      "kind": "rect",
+      "x": 70,
+      "y": 97.8,
+      "w": 61.3,
+      "h": 89,
+      "color": "#24488a",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "zdiqyph",
+      "kind": "tri",
+      "x": 103.1,
+      "y": 93.4,
+      "w": 47.5,
+      "h": 15.2,
+      "color": "#1e3f7d",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt",
+      "rot": 28
+     },
+     {
+      "id": "2v58rhr",
+      "kind": "rect",
+      "x": 62.5,
+      "y": 88,
+      "w": 7.5,
+      "h": 93.3,
+      "color": "#1e3f7d",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "z56n0ya",
+      "kind": "rect",
+      "x": 56.3,
+      "y": 114,
+      "w": 15,
+      "h": 67.3,
+      "color": "#1e3f7d",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "va7tnrx",
+      "kind": "rect",
+      "x": 56.3,
+      "y": 114,
+      "w": 15,
+      "h": 67.3,
+      "color": "#24488a",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "b03m3xu",
+      "kind": "tri",
+      "x": 90,
+      "y": 98.9,
+      "w": 22.5,
+      "h": 10.9,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "macnynn",
+      "kind": "rect",
+      "x": 70,
+      "y": 104.3,
+      "w": 61.3,
+      "h": 5.4,
+      "color": "#e8b32c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "q00cg29",
+      "kind": "rect",
+      "x": 70,
+      "y": 110.8,
+      "w": 61.3,
+      "h": 3.3,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "ycunh3e",
+      "kind": "rect",
+      "x": 83.7,
+      "y": 124.9,
+      "w": 8.2,
+      "h": 30.3,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "yj6n0ey",
+      "kind": "rect",
+      "x": 79,
+      "y": 124.9,
+      "w": 7,
+      "h": 7,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "d1py4fl",
+      "kind": "rect",
+      "x": 100,
+      "y": 124.9,
+      "w": 19.8,
+      "h": 7,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "cf1qvkw",
+      "kind": "rect",
+      "x": 112.8,
+      "y": 129.6,
+      "w": 7,
+      "h": 11.6,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "2s4topl",
+      "kind": "rect",
+      "x": 100,
+      "y": 138.9,
+      "w": 19.8,
+      "h": 7,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "xc2ksu8",
+      "kind": "rect",
+      "x": 100,
+      "y": 143.6,
+      "w": 7,
+      "h": 11.6,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "v127zb1",
+      "kind": "rect",
+      "x": 100,
+      "y": 148.2,
+      "w": 19.8,
+      "h": 7,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "jv0fjwy",
+      "kind": "halfcircle",
+      "x": 51.3,
+      "y": 156.4,
+      "w": 21.3,
+      "h": 30.4,
+      "color": "#24488a",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "gspa6ja",
+      "kind": "rect",
+      "x": 70,
+      "y": 161.8,
+      "w": 61.3,
+      "h": 5.4,
+      "color": "#e8b32c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     }
+    ],
+    "crouch": [
+     {
+      "id": "317e9x7",
+      "kind": "rect",
+      "x": 64.3,
+      "y": 131.3,
+      "w": 75.7,
+      "h": 53,
+      "color": "#1e3f7d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "lldg8g3",
+      "kind": "tri",
+      "x": 107.1,
+      "y": 143.6,
+      "w": 54.3,
+      "h": 13.3,
+      "color": "#1e3f7d",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt",
+      "rot": 116
+     },
+     {
+      "id": "su2sdg8",
+      "kind": "rect",
+      "x": 57.1,
+      "y": 115.2,
+      "w": 11.4,
+      "h": 59.6,
+      "color": "#1e3f7d",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "mkf7c3c",
+      "kind": "tri2",
+      "x": 137.1,
+      "y": 159.6,
+      "w": 24.3,
+      "h": 14.2,
+      "color": "#1e3f7d",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "hijfewv",
+      "kind": "rect",
+      "x": 64.3,
+      "y": 136,
+      "w": 75.7,
+      "h": 4.7,
+      "color": "#e8b32c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "sj1x0qr",
+      "kind": "rect",
+      "x": 64.3,
+      "y": 141.7,
+      "w": 75.7,
+      "h": 2.8,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "h2vj3pg",
+      "kind": "rect",
+      "x": 83.9,
+      "y": 148.6,
+      "w": 8.1,
+      "h": 25.6,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "7t069u5",
+      "kind": "rect",
+      "x": 99,
+      "y": 148.6,
+      "w": 18.6,
+      "h": 7,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "k5k969m",
+      "kind": "rect",
+      "x": 110.6,
+      "y": 153.3,
+      "w": 7,
+      "h": 9.3,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "ougob5a",
+      "kind": "rect",
+      "x": 99,
+      "y": 160.3,
+      "w": 18.6,
+      "h": 7,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "63e2iyp",
+      "kind": "rect",
+      "x": 99,
+      "y": 164.9,
+      "w": 7,
+      "h": 9.3,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "p0tp0u6",
+      "kind": "rect",
+      "x": 99,
+      "y": 168.4,
+      "w": 18.6,
+      "h": 7,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     },
+     {
+      "id": "b64qwff",
+      "kind": "rect",
+      "x": 64.3,
+      "y": 178.6,
+      "w": 75.7,
+      "h": 4.7,
+      "color": "#e8b32c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_slot": "shirt"
+     }
+    ]
+   },
+   "groups": {
+    "front": [],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "variants": {
+    "default": {
+     "front": [
+      {
+       "id": "nt65f08",
+       "kind": "rect",
+       "x": 70,
+       "y": 97.8,
+       "w": 61.3,
+       "h": 89,
+       "color": "#24488a",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "qphb52w",
+       "kind": "tri",
+       "x": 103.1,
+       "y": 93.4,
+       "w": 47.5,
+       "h": 15.2,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 28
+      },
+      {
+       "id": "z5sg5m6",
+       "kind": "rect",
+       "x": 62.5,
+       "y": 88,
+       "w": 7.5,
+       "h": 93.3,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "3j8isvd",
+       "kind": "rect",
+       "x": 56.3,
+       "y": 114,
+       "w": 15,
+       "h": 67.3,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "sq3mpre",
+       "kind": "rect",
+       "x": 56.3,
+       "y": 114,
+       "w": 15,
+       "h": 67.3,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "nby2aya",
+       "kind": "tri",
+       "x": 90,
+       "y": 98.9,
+       "w": 22.5,
+       "h": 10.9,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "djqjt1n",
+       "kind": "rect",
+       "x": 70,
+       "y": 104.3,
+       "w": 61.3,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "pj55rt6",
+       "kind": "rect",
+       "x": 70,
+       "y": 110.8,
+       "w": 61.3,
+       "h": 3.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "1lumyfj",
+       "kind": "rect",
+       "x": 83.7,
+       "y": 124.9,
+       "w": 8.2,
+       "h": 30.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "qwvrb7o",
+       "kind": "rect",
+       "x": 79,
+       "y": 124.9,
+       "w": 7,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "18nporr",
+       "kind": "rect",
+       "x": 100,
+       "y": 124.9,
+       "w": 19.8,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "l6as1p5",
+       "kind": "rect",
+       "x": 112.8,
+       "y": 129.6,
+       "w": 7,
+       "h": 11.6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "gi7xduu",
+       "kind": "rect",
+       "x": 100,
+       "y": 138.9,
+       "w": 19.8,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "rmqbois",
+       "kind": "rect",
+       "x": 100,
+       "y": 143.6,
+       "w": 7,
+       "h": 11.6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "o3cem8e",
+       "kind": "rect",
+       "x": 100,
+       "y": 148.2,
+       "w": 19.8,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "soohabe",
+       "kind": "halfcircle",
+       "x": 51.3,
+       "y": 156.4,
+       "w": 21.3,
+       "h": 30.4,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "kegcaxf",
+       "kind": "rect",
+       "x": 70,
+       "y": 161.8,
+       "w": 61.3,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      }
+     ],
+     "back": [
+      {
+       "id": "u6jupaf",
+       "kind": "rect",
+       "x": 70,
+       "y": 95.6,
+       "w": 61.3,
+       "h": 89,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "f9blc6d",
+       "kind": "tri",
+       "x": 107.5,
+       "y": 93.4,
+       "w": 47.5,
+       "h": 15.2,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 28
+      },
+      {
+       "id": "eiac9d6",
+       "kind": "rect",
+       "x": 48.8,
+       "y": 90.2,
+       "w": 22.5,
+       "h": 94.4,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "g9xr46y",
+       "kind": "rect",
+       "x": 70,
+       "y": 104.3,
+       "w": 61.3,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "ae6pg90",
+       "kind": "rect",
+       "x": 70,
+       "y": 110.8,
+       "w": 61.3,
+       "h": 3.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "fcxdqsd",
+       "kind": "rect",
+       "x": 77.5,
+       "y": 117.3,
+       "w": 47.5,
+       "h": 7.6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "lz8rtpn",
+       "kind": "rect",
+       "x": 80,
+       "y": 119.5,
+       "w": 42.5,
+       "h": 3.3,
+       "color": "#152c58",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "7ok6v1k",
+       "kind": "rect",
+       "x": 82.4,
+       "y": 131.3,
+       "w": 9.3,
+       "h": 34.9,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "7tcf0t7",
+       "kind": "rect",
+       "x": 76.6,
+       "y": 131.3,
+       "w": 7,
+       "h": 8.2,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "95lymfe",
+       "kind": "rect",
+       "x": 99.9,
+       "y": 131.3,
+       "w": 21,
+       "h": 8.2,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "q5tyjxx",
+       "kind": "rect",
+       "x": 113.9,
+       "y": 137.1,
+       "w": 7,
+       "h": 12.8,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "6u2zlfk",
+       "kind": "rect",
+       "x": 99.9,
+       "y": 147.6,
+       "w": 21,
+       "h": 8.2,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "u6sd11u",
+       "kind": "rect",
+       "x": 99.9,
+       "y": 152.3,
+       "w": 7,
+       "h": 14,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "1hd901z",
+       "kind": "rect",
+       "x": 99.9,
+       "y": 158.1,
+       "w": 21,
+       "h": 8.2,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "b8ttra2",
+       "kind": "rect",
+       "x": 70,
+       "y": 174.8,
+       "w": 61.3,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      }
+     ],
+     "side": [
+      {
+       "id": "u6pnj2c",
+       "kind": "rect",
+       "x": 54.5,
+       "y": 98.9,
+       "w": 82.8,
+       "h": 85.7,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "uyznqzp",
+       "kind": "tri",
+       "x": 43.4,
+       "y": 146.6,
+       "w": 69,
+       "h": 28.2,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 347
+      },
+      {
+       "id": "afziokm",
+       "kind": "rect",
+       "x": 62.8,
+       "y": 86.9,
+       "w": 8.3,
+       "h": 94.4,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "pxvrn3u",
+       "kind": "rect",
+       "x": 79,
+       "y": 94.7,
+       "w": 36,
+       "h": 25.3,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 0,
+       "limb": "arm",
+       "overArms": true
+      },
+      {
+       "id": "xlaj4ek",
+       "kind": "rect",
+       "x": 79,
+       "y": 94.7,
+       "w": 36,
+       "h": 7.6,
+       "color": "#e8b32c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 0,
+       "limb": "arm",
+       "overArms": true
+      },
+      {
+       "id": "toxrfpy",
+       "kind": "rect",
+       "x": 115.2,
+       "y": 90.2,
+       "w": 9.7,
+       "h": 41.2,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "ns0w7lc",
+       "kind": "circle",
+       "x": 120.7,
+       "y": 98.9,
+       "w": 24.8,
+       "h": 31.5,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 14
+      },
+      {
+       "id": "8h88ofj",
+       "kind": "tri2",
+       "x": 132.4,
+       "y": 155.3,
+       "w": 8.3,
+       "h": 28.8,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "2wpbuer",
+       "kind": "rect",
+       "x": 54.5,
+       "y": 107.5,
+       "w": 82.8,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "x673g62",
+       "kind": "rect",
+       "x": 54.5,
+       "y": 114,
+       "w": 82.8,
+       "h": 3.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "1y8qbk6",
+       "kind": "rect",
+       "x": 54.5,
+       "y": 126,
+       "w": 12.4,
+       "h": 52.1,
+       "color": "#24488a",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "4ydtnp8",
+       "kind": "rect",
+       "x": 54.5,
+       "y": 178.1,
+       "w": 82.8,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      }
+     ],
+     "up": [
+      {
+       "id": "yx7ohnd",
+       "kind": "rect",
+       "x": 70,
+       "y": 97.8,
+       "w": 61.3,
+       "h": 89,
+       "color": "#24488a",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "zdiqyph",
+       "kind": "tri",
+       "x": 103.1,
+       "y": 93.4,
+       "w": 47.5,
+       "h": 15.2,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 28
+      },
+      {
+       "id": "2v58rhr",
+       "kind": "rect",
+       "x": 62.5,
+       "y": 88,
+       "w": 7.5,
+       "h": 93.3,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "z56n0ya",
+       "kind": "rect",
+       "x": 56.3,
+       "y": 114,
+       "w": 15,
+       "h": 67.3,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "va7tnrx",
+       "kind": "rect",
+       "x": 56.3,
+       "y": 114,
+       "w": 15,
+       "h": 67.3,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "b03m3xu",
+       "kind": "tri",
+       "x": 90,
+       "y": 98.9,
+       "w": 22.5,
+       "h": 10.9,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "macnynn",
+       "kind": "rect",
+       "x": 70,
+       "y": 104.3,
+       "w": 61.3,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "q00cg29",
+       "kind": "rect",
+       "x": 70,
+       "y": 110.8,
+       "w": 61.3,
+       "h": 3.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "ycunh3e",
+       "kind": "rect",
+       "x": 83.7,
+       "y": 124.9,
+       "w": 8.2,
+       "h": 30.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "yj6n0ey",
+       "kind": "rect",
+       "x": 79,
+       "y": 124.9,
+       "w": 7,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "d1py4fl",
+       "kind": "rect",
+       "x": 100,
+       "y": 124.9,
+       "w": 19.8,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "cf1qvkw",
+       "kind": "rect",
+       "x": 112.8,
+       "y": 129.6,
+       "w": 7,
+       "h": 11.6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "2s4topl",
+       "kind": "rect",
+       "x": 100,
+       "y": 138.9,
+       "w": 19.8,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "xc2ksu8",
+       "kind": "rect",
+       "x": 100,
+       "y": 143.6,
+       "w": 7,
+       "h": 11.6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "v127zb1",
+       "kind": "rect",
+       "x": 100,
+       "y": 148.2,
+       "w": 19.8,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "jv0fjwy",
+       "kind": "halfcircle",
+       "x": 51.3,
+       "y": 156.4,
+       "w": 21.3,
+       "h": 30.4,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "gspa6ja",
+       "kind": "rect",
+       "x": 70,
+       "y": 161.8,
+       "w": 61.3,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      }
+     ],
+     "crouch": [
+      {
+       "id": "317e9x7",
+       "kind": "rect",
+       "x": 64.3,
+       "y": 131.3,
+       "w": 75.7,
+       "h": 53,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "lldg8g3",
+       "kind": "tri",
+       "x": 107.1,
+       "y": 143.6,
+       "w": 54.3,
+       "h": 13.3,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 116
+      },
+      {
+       "id": "su2sdg8",
+       "kind": "rect",
+       "x": 57.1,
+       "y": 115.2,
+       "w": 11.4,
+       "h": 59.6,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "mkf7c3c",
+       "kind": "tri2",
+       "x": 137.1,
+       "y": 159.6,
+       "w": 24.3,
+       "h": 14.2,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "hijfewv",
+       "kind": "rect",
+       "x": 64.3,
+       "y": 136,
+       "w": 75.7,
+       "h": 4.7,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "sj1x0qr",
+       "kind": "rect",
+       "x": 64.3,
+       "y": 141.7,
+       "w": 75.7,
+       "h": 2.8,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "h2vj3pg",
+       "kind": "rect",
+       "x": 83.9,
+       "y": 148.6,
+       "w": 8.1,
+       "h": 25.6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "7t069u5",
+       "kind": "rect",
+       "x": 99,
+       "y": 148.6,
+       "w": 18.6,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "k5k969m",
+       "kind": "rect",
+       "x": 110.6,
+       "y": 153.3,
+       "w": 7,
+       "h": 9.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "ougob5a",
+       "kind": "rect",
+       "x": 99,
+       "y": 160.3,
+       "w": 18.6,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "63e2iyp",
+       "kind": "rect",
+       "x": 99,
+       "y": 164.9,
+       "w": 7,
+       "h": 9.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "p0tp0u6",
+       "kind": "rect",
+       "x": 99,
+       "y": 168.4,
+       "w": 18.6,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "b64qwff",
+       "kind": "rect",
+       "x": 64.3,
+       "y": 178.6,
+       "w": 75.7,
+       "h": 4.7,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      }
+     ]
+    },
+    "telfv37": {
+     "front": [
+      {
+       "id": "nt65f08",
+       "kind": "rect",
+       "x": 70,
+       "y": 97.8,
+       "w": 61.3,
+       "h": 89,
+       "color": "#24488a",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "qphb52w",
+       "kind": "tri",
+       "x": 103.1,
+       "y": 93.4,
+       "w": 47.5,
+       "h": 15.2,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 28
+      },
+      {
+       "id": "z5sg5m6",
+       "kind": "rect",
+       "x": 62.5,
+       "y": 88,
+       "w": 7.5,
+       "h": 93.3,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "3j8isvd",
+       "kind": "rect",
+       "x": 56.3,
+       "y": 114,
+       "w": 15,
+       "h": 67.3,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "sq3mpre",
+       "kind": "rect",
+       "x": 56.3,
+       "y": 114,
+       "w": 15,
+       "h": 67.3,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "nby2aya",
+       "kind": "tri",
+       "x": 90,
+       "y": 98.9,
+       "w": 22.5,
+       "h": 10.9,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "djqjt1n",
+       "kind": "rect",
+       "x": 70,
+       "y": 104.3,
+       "w": 61.3,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "pj55rt6",
+       "kind": "rect",
+       "x": 70,
+       "y": 110.8,
+       "w": 61.3,
+       "h": 3.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "1lumyfj",
+       "kind": "rect",
+       "x": 83.7,
+       "y": 124.9,
+       "w": 8.2,
+       "h": 30.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "qwvrb7o",
+       "kind": "rect",
+       "x": 79,
+       "y": 124.9,
+       "w": 7,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "18nporr",
+       "kind": "rect",
+       "x": 100,
+       "y": 124.9,
+       "w": 19.8,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "l6as1p5",
+       "kind": "rect",
+       "x": 112.8,
+       "y": 129.6,
+       "w": 7,
+       "h": 11.6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "gi7xduu",
+       "kind": "rect",
+       "x": 100,
+       "y": 138.9,
+       "w": 19.8,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "rmqbois",
+       "kind": "rect",
+       "x": 100,
+       "y": 143.6,
+       "w": 7,
+       "h": 11.6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "o3cem8e",
+       "kind": "rect",
+       "x": 100,
+       "y": 148.2,
+       "w": 19.8,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "soohabe",
+       "kind": "halfcircle",
+       "x": 51.3,
+       "y": 156.4,
+       "w": 21.3,
+       "h": 30.4,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "kegcaxf",
+       "kind": "rect",
+       "x": 70,
+       "y": 161.8,
+       "w": 61.3,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      }
+     ],
+     "back": [
+      {
+       "id": "u6jupaf",
+       "kind": "rect",
+       "x": 70,
+       "y": 95.6,
+       "w": 61.3,
+       "h": 89,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "f9blc6d",
+       "kind": "tri",
+       "x": 107.5,
+       "y": 93.4,
+       "w": 47.5,
+       "h": 15.2,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 28
+      },
+      {
+       "id": "eiac9d6",
+       "kind": "rect",
+       "x": 48.8,
+       "y": 90.2,
+       "w": 22.5,
+       "h": 94.4,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "g9xr46y",
+       "kind": "rect",
+       "x": 70,
+       "y": 104.3,
+       "w": 61.3,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "ae6pg90",
+       "kind": "rect",
+       "x": 70,
+       "y": 110.8,
+       "w": 61.3,
+       "h": 3.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "fcxdqsd",
+       "kind": "rect",
+       "x": 77.5,
+       "y": 117.3,
+       "w": 47.5,
+       "h": 7.6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "lz8rtpn",
+       "kind": "rect",
+       "x": 80,
+       "y": 119.5,
+       "w": 42.5,
+       "h": 3.3,
+       "color": "#152c58",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "7ok6v1k",
+       "kind": "rect",
+       "x": 82.4,
+       "y": 131.3,
+       "w": 9.3,
+       "h": 34.9,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "7tcf0t7",
+       "kind": "rect",
+       "x": 76.6,
+       "y": 131.3,
+       "w": 7,
+       "h": 8.2,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "95lymfe",
+       "kind": "rect",
+       "x": 99.9,
+       "y": 131.3,
+       "w": 21,
+       "h": 8.2,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "q5tyjxx",
+       "kind": "rect",
+       "x": 113.9,
+       "y": 137.1,
+       "w": 7,
+       "h": 12.8,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "6u2zlfk",
+       "kind": "rect",
+       "x": 99.9,
+       "y": 147.6,
+       "w": 21,
+       "h": 8.2,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "u6sd11u",
+       "kind": "rect",
+       "x": 99.9,
+       "y": 152.3,
+       "w": 7,
+       "h": 14,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "1hd901z",
+       "kind": "rect",
+       "x": 99.9,
+       "y": 158.1,
+       "w": 21,
+       "h": 8.2,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "b8ttra2",
+       "kind": "rect",
+       "x": 70,
+       "y": 174.8,
+       "w": 61.3,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      }
+     ],
+     "side": [
+      {
+       "id": "u6pnj2c",
+       "kind": "rect",
+       "x": 54.5,
+       "y": 98.9,
+       "w": 82.8,
+       "h": 85.7,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "uyznqzp",
+       "kind": "tri",
+       "x": 43.4,
+       "y": 146.6,
+       "w": 69,
+       "h": 28.2,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 347
+      },
+      {
+       "id": "afziokm",
+       "kind": "rect",
+       "x": 62.8,
+       "y": 86.9,
+       "w": 8.3,
+       "h": 94.4,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "pxvrn3u",
+       "kind": "rect",
+       "x": 79,
+       "y": 94.7,
+       "w": 36,
+       "h": 25.3,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 0,
+       "limb": "arm",
+       "overArms": true
+      },
+      {
+       "id": "xlaj4ek",
+       "kind": "rect",
+       "x": 79,
+       "y": 94.7,
+       "w": 36,
+       "h": 7.6,
+       "color": "#e8b32c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 0,
+       "limb": "arm",
+       "overArms": true
+      },
+      {
+       "id": "toxrfpy",
+       "kind": "rect",
+       "x": 115.2,
+       "y": 90.2,
+       "w": 9.7,
+       "h": 41.2,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "ns0w7lc",
+       "kind": "circle",
+       "x": 120.7,
+       "y": 98.9,
+       "w": 24.8,
+       "h": 31.5,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 14
+      },
+      {
+       "id": "8h88ofj",
+       "kind": "tri2",
+       "x": 132.4,
+       "y": 155.3,
+       "w": 8.3,
+       "h": 28.8,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "2wpbuer",
+       "kind": "rect",
+       "x": 54.5,
+       "y": 107.5,
+       "w": 82.8,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "x673g62",
+       "kind": "rect",
+       "x": 54.5,
+       "y": 114,
+       "w": 82.8,
+       "h": 3.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "1y8qbk6",
+       "kind": "rect",
+       "x": 54.5,
+       "y": 126,
+       "w": 12.4,
+       "h": 52.1,
+       "color": "#24488a",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "4ydtnp8",
+       "kind": "rect",
+       "x": 54.5,
+       "y": 178.1,
+       "w": 82.8,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      }
+     ],
+     "up": [
+      {
+       "id": "yx7ohnd",
+       "kind": "rect",
+       "x": 70,
+       "y": 97.8,
+       "w": 61.3,
+       "h": 89,
+       "color": "#24488a",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "zdiqyph",
+       "kind": "tri",
+       "x": 103.1,
+       "y": 93.4,
+       "w": 47.5,
+       "h": 15.2,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 28
+      },
+      {
+       "id": "2v58rhr",
+       "kind": "rect",
+       "x": 62.5,
+       "y": 88,
+       "w": 7.5,
+       "h": 93.3,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "z56n0ya",
+       "kind": "rect",
+       "x": 56.3,
+       "y": 114,
+       "w": 15,
+       "h": 67.3,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "va7tnrx",
+       "kind": "rect",
+       "x": 56.3,
+       "y": 114,
+       "w": 15,
+       "h": 67.3,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "b03m3xu",
+       "kind": "tri",
+       "x": 90,
+       "y": 98.9,
+       "w": 22.5,
+       "h": 10.9,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "macnynn",
+       "kind": "rect",
+       "x": 70,
+       "y": 104.3,
+       "w": 61.3,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "q00cg29",
+       "kind": "rect",
+       "x": 70,
+       "y": 110.8,
+       "w": 61.3,
+       "h": 3.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "ycunh3e",
+       "kind": "rect",
+       "x": 83.7,
+       "y": 124.9,
+       "w": 8.2,
+       "h": 30.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "yj6n0ey",
+       "kind": "rect",
+       "x": 79,
+       "y": 124.9,
+       "w": 7,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "d1py4fl",
+       "kind": "rect",
+       "x": 100,
+       "y": 124.9,
+       "w": 19.8,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "cf1qvkw",
+       "kind": "rect",
+       "x": 112.8,
+       "y": 129.6,
+       "w": 7,
+       "h": 11.6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "2s4topl",
+       "kind": "rect",
+       "x": 100,
+       "y": 138.9,
+       "w": 19.8,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "xc2ksu8",
+       "kind": "rect",
+       "x": 100,
+       "y": 143.6,
+       "w": 7,
+       "h": 11.6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "v127zb1",
+       "kind": "rect",
+       "x": 100,
+       "y": 148.2,
+       "w": 19.8,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "jv0fjwy",
+       "kind": "halfcircle",
+       "x": 51.3,
+       "y": 156.4,
+       "w": 21.3,
+       "h": 30.4,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "gspa6ja",
+       "kind": "rect",
+       "x": 70,
+       "y": 161.8,
+       "w": 61.3,
+       "h": 5.4,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      }
+     ],
+     "crouch": [
+      {
+       "id": "317e9x7",
+       "kind": "rect",
+       "x": 64.3,
+       "y": 131.3,
+       "w": 75.7,
+       "h": 53,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "lldg8g3",
+       "kind": "tri",
+       "x": 107.1,
+       "y": 143.6,
+       "w": 54.3,
+       "h": 13.3,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 116
+      },
+      {
+       "id": "su2sdg8",
+       "kind": "rect",
+       "x": 57.1,
+       "y": 115.2,
+       "w": 11.4,
+       "h": 59.6,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "mkf7c3c",
+       "kind": "tri2",
+       "x": 137.1,
+       "y": 159.6,
+       "w": 24.3,
+       "h": 14.2,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "hijfewv",
+       "kind": "rect",
+       "x": 64.3,
+       "y": 136,
+       "w": 75.7,
+       "h": 4.7,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "sj1x0qr",
+       "kind": "rect",
+       "x": 64.3,
+       "y": 141.7,
+       "w": 75.7,
+       "h": 2.8,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "h2vj3pg",
+       "kind": "rect",
+       "x": 83.9,
+       "y": 148.6,
+       "w": 8.1,
+       "h": 25.6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "7t069u5",
+       "kind": "rect",
+       "x": 99,
+       "y": 148.6,
+       "w": 18.6,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "k5k969m",
+       "kind": "rect",
+       "x": 110.6,
+       "y": 153.3,
+       "w": 7,
+       "h": 9.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "ougob5a",
+       "kind": "rect",
+       "x": 99,
+       "y": 160.3,
+       "w": 18.6,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "63e2iyp",
+       "kind": "rect",
+       "x": 99,
+       "y": 164.9,
+       "w": 7,
+       "h": 9.3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "p0tp0u6",
+       "kind": "rect",
+       "x": 99,
+       "y": 168.4,
+       "w": 18.6,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "b64qwff",
+       "kind": "rect",
+       "x": 64.3,
+       "y": 178.6,
+       "w": 75.7,
+       "h": 4.7,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      }
+     ]
+    },
+    "oipvf3l": {
+     "front": [
+      {
+       "id": "nt65f08",
+       "kind": "rect",
+       "x": 76,
+       "y": 94,
+       "w": 49,
+       "h": 82,
+       "color": "#24488a",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "qphb52w",
+       "kind": "tri",
+       "x": 102.5,
+       "y": 90,
+       "w": 38,
+       "h": 14,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 28
+      },
+      {
+       "id": "z5sg5m6",
+       "kind": "rect",
+       "x": 70,
+       "y": 85,
+       "w": 6,
+       "h": 86,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "3j8isvd",
+       "kind": "rect",
+       "x": 65,
+       "y": 109,
+       "w": 12,
+       "h": 62,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "sq3mpre",
+       "kind": "rect",
+       "x": 65,
+       "y": 109,
+       "w": 12,
+       "h": 62,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "nby2aya",
+       "kind": "tri",
+       "x": 92,
+       "y": 95,
+       "w": 18,
+       "h": 10,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "djqjt1n",
+       "kind": "rect",
+       "x": 76,
+       "y": 100,
+       "w": 49,
+       "h": 5,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "pj55rt6",
+       "kind": "rect",
+       "x": 76,
+       "y": 106,
+       "w": 49,
+       "h": 3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "1lumyfj",
+       "kind": "rect",
+       "x": 86,
+       "y": 120,
+       "w": 7,
+       "h": 26,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "qwvrb7o",
+       "kind": "rect",
+       "x": 82,
+       "y": 120,
+       "w": 6,
+       "h": 6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "18nporr",
+       "kind": "rect",
+       "x": 100,
+       "y": 120,
+       "w": 17,
+       "h": 6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "l6as1p5",
+       "kind": "rect",
+       "x": 111,
+       "y": 124,
+       "w": 6,
+       "h": 10,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "gi7xduu",
+       "kind": "rect",
+       "x": 100,
+       "y": 132,
+       "w": 17,
+       "h": 6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "rmqbois",
+       "kind": "rect",
+       "x": 100,
+       "y": 136,
+       "w": 6,
+       "h": 10,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "o3cem8e",
+       "kind": "rect",
+       "x": 100,
+       "y": 140,
+       "w": 17,
+       "h": 6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "soohabe",
+       "kind": "halfcircle",
+       "x": 61,
+       "y": 148,
+       "w": 17,
+       "h": 28,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "kegcaxf",
+       "kind": "rect",
+       "x": 76,
+       "y": 153,
+       "w": 49,
+       "h": 5,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      }
+     ],
+     "back": [
+      {
+       "id": "u6jupaf",
+       "kind": "rect",
+       "x": 76,
+       "y": 92,
+       "w": 49,
+       "h": 82,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "f9blc6d",
+       "kind": "tri",
+       "x": 106,
+       "y": 90,
+       "w": 38,
+       "h": 14,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 28
+      },
+      {
+       "id": "eiac9d6",
+       "kind": "rect",
+       "x": 59,
+       "y": 87,
+       "w": 18,
+       "h": 87,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "g9xr46y",
+       "kind": "rect",
+       "x": 76,
+       "y": 100,
+       "w": 49,
+       "h": 5,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "ae6pg90",
+       "kind": "rect",
+       "x": 76,
+       "y": 106,
+       "w": 49,
+       "h": 3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "fcxdqsd",
+       "kind": "rect",
+       "x": 82,
+       "y": 112,
+       "w": 38,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "lz8rtpn",
+       "kind": "rect",
+       "x": 84,
+       "y": 114,
+       "w": 34,
+       "h": 3,
+       "color": "#152c58",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "7ok6v1k",
+       "kind": "rect",
+       "x": 85,
+       "y": 126,
+       "w": 8,
+       "h": 30,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "7tcf0t7",
+       "kind": "rect",
+       "x": 80,
+       "y": 126,
+       "w": 6,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "95lymfe",
+       "kind": "rect",
+       "x": 100,
+       "y": 126,
+       "w": 18,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "q5tyjxx",
+       "kind": "rect",
+       "x": 112,
+       "y": 131,
+       "w": 6,
+       "h": 11,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "6u2zlfk",
+       "kind": "rect",
+       "x": 100,
+       "y": 140,
+       "w": 18,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "u6sd11u",
+       "kind": "rect",
+       "x": 100,
+       "y": 144,
+       "w": 6,
+       "h": 12,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "1hd901z",
+       "kind": "rect",
+       "x": 100,
+       "y": 149,
+       "w": 18,
+       "h": 7,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "b8ttra2",
+       "kind": "rect",
+       "x": 76,
+       "y": 165,
+       "w": 49,
+       "h": 5,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      }
+     ],
+     "side": [
+      {
+       "id": "u6pnj2c",
+       "kind": "rect",
+       "x": 67,
+       "y": 95,
+       "w": 60,
+       "h": 79,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "uyznqzp",
+       "kind": "tri",
+       "x": 59,
+       "y": 139,
+       "w": 50,
+       "h": 26,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 347
+      },
+      {
+       "id": "afziokm",
+       "kind": "rect",
+       "x": 73,
+       "y": 84,
+       "w": 6,
+       "h": 87,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "pxvrn3u",
+       "kind": "rect",
+       "x": 83,
+       "y": 96,
+       "w": 26,
+       "h": 20,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 0,
+       "limb": "arm",
+       "overArms": true
+      },
+      {
+       "id": "xlaj4ek",
+       "kind": "rect",
+       "x": 83,
+       "y": 96,
+       "w": 26,
+       "h": 6,
+       "color": "#e8b32c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 0,
+       "limb": "arm",
+       "overArms": true
+      },
+      {
+       "id": "toxrfpy",
+       "kind": "rect",
+       "x": 111,
+       "y": 87,
+       "w": 7,
+       "h": 38,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "ns0w7lc",
+       "kind": "circle",
+       "x": 115,
+       "y": 95,
+       "w": 18,
+       "h": 29,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 14
+      },
+      {
+       "id": "8h88ofj",
+       "kind": "tri2",
+       "x": 123.5,
+       "y": 147,
+       "w": 6,
+       "h": 26.5,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "2wpbuer",
+       "kind": "rect",
+       "x": 67,
+       "y": 103,
+       "w": 60,
+       "h": 5,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "x673g62",
+       "kind": "rect",
+       "x": 67,
+       "y": 109,
+       "w": 60,
+       "h": 3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "1y8qbk6",
+       "kind": "rect",
+       "x": 67,
+       "y": 120,
+       "w": 9,
+       "h": 48,
+       "color": "#24488a",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "4ydtnp8",
+       "kind": "rect",
+       "x": 67,
+       "y": 168,
+       "w": 60,
+       "h": 5,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      }
+     ],
+     "up": [
+      {
+       "id": "yx7ohnd",
+       "kind": "rect",
+       "x": 76,
+       "y": 94,
+       "w": 49,
+       "h": 82,
+       "color": "#24488a",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "zdiqyph",
+       "kind": "tri",
+       "x": 102.5,
+       "y": 90,
+       "w": 38,
+       "h": 14,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 28
+      },
+      {
+       "id": "2v58rhr",
+       "kind": "rect",
+       "x": 70,
+       "y": 85,
+       "w": 6,
+       "h": 86,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "z56n0ya",
+       "kind": "rect",
+       "x": 65,
+       "y": 109,
+       "w": 12,
+       "h": 62,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "va7tnrx",
+       "kind": "rect",
+       "x": 65,
+       "y": 109,
+       "w": 12,
+       "h": 62,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "b03m3xu",
+       "kind": "tri",
+       "x": 92,
+       "y": 95,
+       "w": 18,
+       "h": 10,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "macnynn",
+       "kind": "rect",
+       "x": 76,
+       "y": 100,
+       "w": 49,
+       "h": 5,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "q00cg29",
+       "kind": "rect",
+       "x": 76,
+       "y": 106,
+       "w": 49,
+       "h": 3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "ycunh3e",
+       "kind": "rect",
+       "x": 86,
+       "y": 120,
+       "w": 7,
+       "h": 26,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "yj6n0ey",
+       "kind": "rect",
+       "x": 82,
+       "y": 120,
+       "w": 6,
+       "h": 6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "d1py4fl",
+       "kind": "rect",
+       "x": 100,
+       "y": 120,
+       "w": 17,
+       "h": 6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "cf1qvkw",
+       "kind": "rect",
+       "x": 111,
+       "y": 124,
+       "w": 6,
+       "h": 10,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "2s4topl",
+       "kind": "rect",
+       "x": 100,
+       "y": 132,
+       "w": 17,
+       "h": 6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "xc2ksu8",
+       "kind": "rect",
+       "x": 100,
+       "y": 136,
+       "w": 6,
+       "h": 10,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "v127zb1",
+       "kind": "rect",
+       "x": 100,
+       "y": 140,
+       "w": 17,
+       "h": 6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "jv0fjwy",
+       "kind": "halfcircle",
+       "x": 61,
+       "y": 148,
+       "w": 17,
+       "h": 28,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "gspa6ja",
+       "kind": "rect",
+       "x": 76,
+       "y": 153,
+       "w": 49,
+       "h": 5,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      }
+     ],
+     "crouch": [
+      {
+       "id": "317e9x7",
+       "kind": "rect",
+       "x": 75,
+       "y": 117,
+       "w": 53,
+       "h": 56,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "lldg8g3",
+       "kind": "tri",
+       "x": 105,
+       "y": 130,
+       "w": 38,
+       "h": 14,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt",
+       "rot": 116
+      },
+      {
+       "id": "su2sdg8",
+       "kind": "rect",
+       "x": 70,
+       "y": 100,
+       "w": 8,
+       "h": 63,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "mkf7c3c",
+       "kind": "tri2",
+       "x": 126,
+       "y": 147,
+       "w": 17,
+       "h": 15,
+       "color": "#1e3f7d",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "hijfewv",
+       "kind": "rect",
+       "x": 75,
+       "y": 122,
+       "w": 53,
+       "h": 5,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "sj1x0qr",
+       "kind": "rect",
+       "x": 75,
+       "y": 128,
+       "w": 53,
+       "h": 3,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "h2vj3pg",
+       "kind": "rect",
+       "x": 86,
+       "y": 138,
+       "w": 7,
+       "h": 22,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "7t069u5",
+       "kind": "rect",
+       "x": 99,
+       "y": 138,
+       "w": 16,
+       "h": 6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "k5k969m",
+       "kind": "rect",
+       "x": 109,
+       "y": 142,
+       "w": 6,
+       "h": 8,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "ougob5a",
+       "kind": "rect",
+       "x": 99,
+       "y": 148,
+       "w": 16,
+       "h": 6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "63e2iyp",
+       "kind": "rect",
+       "x": 99,
+       "y": 152,
+       "w": 6,
+       "h": 8,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "p0tp0u6",
+       "kind": "rect",
+       "x": 99,
+       "y": 155,
+       "w": 16,
+       "h": 6,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      },
+      {
+       "id": "b64qwff",
+       "kind": "rect",
+       "x": 75,
+       "y": 167,
+       "w": 53,
+       "h": 5,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_slot": "shirt"
+      }
+     ]
+    }
+   },
+   "lastFit": "telfv37",
+   "confirmedFits": [
+    "telfv37",
+    "oipvf3l"
+   ],
+   "statBoosts": {
+    "hp": 2,
+    "speed": 0,
+    "agility": -1,
+    "intelligence": 0,
+    "strength": 1
+   },
+   "defense": 3,
+   "effects": [],
+   "categories": [
+    "T1",
+    "Shirt",
+    "Common"
+   ],
+   "savedAt": 1786579635909
   }
  ],
  "levels": [

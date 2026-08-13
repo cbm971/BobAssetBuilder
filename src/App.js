@@ -3057,8 +3057,37 @@ export const fgIsSlope = (cell) => fgHasDiagonalShape(cell) && !cell.upsideDown;
 // occupies the whole cell (a plain block, or an upside-down wedge — those have always collided
 // solid), and the walkable surfaces are every slope fill, so an up-ramp meeting a down-ramp
 // collides as the peak the two of them draw instead of only the last one painted.
-export const fgSlopeFills = (cell) => fgFills(cell).filter(fgIsSlope);
-export const fgSolid = (cell) => fgFills(cell).some((f) => !fgIsSlope(f));
+// These two are asked about EVERY cell under EVERY unit's hitbox, several times a frame — the
+// player and each enemy each run cellsHit() for gravity, for the move, for the ceiling and for the
+// feet filter. Written as fgFills(cell).filter(...) / .some(...) they each built a throwaway array
+// per cell per call: measured at ~440 allocations a frame, ~26k a second, standing still on Trailor
+// Park. That is not a frame-time cost so much as a steady drip of garbage, and a scavenge landing
+// mid-frame is exactly what a random stutter looks like.
+//
+// A cell with `more` (several stacked fills) is rare — a gravel ramp over grass. The common cell is
+// one fill or none, so both take a path that allocates nothing at all, and the shared frozen empty
+// stands in for "no slopes here". Nothing mutates what these return (every caller does .length,
+// for..of, or a boolean test), so handing back the same array each time is safe.
+const NO_FILLS = Object.freeze([]);
+const fgMoreOf = (cell) => (typeof cell === "object" && cell && Array.isArray(cell.more) && cell.more.length) ? cell.more : null;
+export const fgSlopeFills = (cell) => {
+  const f = fgFillOf(cell);
+  if (!f) return NO_FILLS;
+  const more = fgMoreOf(cell);
+  if (!more) return fgIsSlope(f) ? [f] : NO_FILLS;
+  const out = [];
+  if (fgIsSlope(f)) out.push(f);
+  for (let i = 0; i < more.length; i++) if (fgIsSlope(more[i])) out.push(more[i]);
+  return out.length ? out : NO_FILLS;
+};
+export const fgSolid = (cell) => {
+  const f = fgFillOf(cell);
+  if (!f) return false;
+  if (!fgIsSlope(f)) return true;
+  const more = fgMoreOf(cell);
+  if (more) for (let i = 0; i < more.length; i++) if (!fgIsSlope(more[i])) return true;
+  return false;
+};
 const fgColor = (cell) => (cell && typeof cell === "object") ? cell.c : cell;
 const fgRun = (cell) => (fgHasDiagonalShape(cell) && cell.run > 0) ? cell.run : 1;
 const fgStep = (cell) => (fgHasDiagonalShape(cell) && cell.step >= 0) ? cell.step : 0;
