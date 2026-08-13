@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from "react";
+import { flushSync } from "react-dom";
 
 /* ============================================================================
    BOB ASSET STUDIO  — HTML canvas (reliable emoji + easy dragging on mobile)
@@ -5358,6 +5359,26 @@ export default function AssetStudio() {
     // frame's increments by how much real time actually passed (1.0 at a true 60fps frame),
     // clamped so a huge hitch (tab switch, GC pause) can't teleport the player through walls.
     let lastT = null;
+    // WHY THIS IS flushSync AND NOT A PLAIN setState.
+    //
+    // The loop computes the frame inside requestAnimationFrame, which is aligned to the display's
+    // refresh — but under createRoot a plain setPframe only SCHEDULES the render. Measured on
+    // Trailor Park: on 140 frames out of 140 the DOM still held the previous position when the rAF
+    // callback returned, and the new one landed about 6ms later in a separate scheduler task.
+    //
+    // So the browser painted the OLD position on the vsync the frame was computed for, and the new
+    // position arrived to be picked up by whichever vsync came next. The physics never missed a
+    // beat — dtMul kept it honest — but the picture did: when the late commit fell just before a
+    // refresh you saw that step, when it fell just after you saw the sprite hold still and then
+    // jump two steps. That drifting beat is why play read as "stuttery" while the frame rate was
+    // fine, and it was worst on a ramp, where the small per-frame vertical step makes a doubled or
+    // dropped one obvious.
+    //
+    // flushSync renders and commits before the callback returns, so the frame that was computed
+    // for this refresh is the frame that gets painted on it. The work itself is unchanged and was
+    // measured cheap (~0.1ms of physics, and the render was already happening 6ms later anyway) —
+    // this only moves it back inside the frame it belongs to.
+    const commitFrame = () => flushSync(() => setPframe((f) => (f + 1) % 1000000));
     const myGen = ++__ptLoopGen; // this run is now the authoritative loop
     const loop = () => {
       if (myGen !== __ptLoopGen) return; // a newer loop exists — stop; don't touch player or reschedule
@@ -5414,7 +5435,7 @@ export default function AssetStudio() {
             spawnReq.current = { gate: true };
           }
         }
-        setPframe((f) => (f + 1) % 1000000);
+        commitFrame();
         raf = requestAnimationFrame(loop);
         return;
       }
@@ -6952,7 +6973,7 @@ export default function AssetStudio() {
         }
       }
 
-      setPframe((f) => (f + 1) % 1000000);
+      commitFrame();
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);

@@ -227,6 +227,18 @@ anything in the level render body runs 60x a second. What is actually true, meas
   ~440 a frame (~26k/s) with the player and 7 enemies each running `cellsHit` several times.
   Both now take an allocation-free path — measured 440/frame → 0. A cell with `more` is the rare
   case; write these predicates to walk it, never to build a list.
+* **"Stuttery" and "low FPS" are different bugs — ask which one.** The stutter was frame pacing,
+  not load. Under `createRoot` a plain `setPframe` inside rAF only SCHEDULES the render: measured
+  140 frames out of 140 where the DOM still held the previous position when the callback returned,
+  the new one landing ~6ms later in a separate scheduler task. The browser painted the old position
+  on the vsync the frame was computed for, so the visible step drifted in and out of phase — worst
+  on ramps, where the small vertical step makes a doubled or dropped one obvious. `commitFrame()`
+  wraps it in `flushSync`, which puts the commit back inside the frame (verified 104/104 in-frame,
+  step SD 0.33px). Anything new that must be on screen for the frame it was computed for goes
+  through `commitFrame`, not a bare setState.
+* **There is no camera.** Nothing in `src/` calls `scrollLeft`/`scrollTop`/`scrollIntoView`, so
+  `.lscroll` never follows the player — walking to x=1364 in an 878px viewport leaves scrollLeft at
+  0. Verify before assuming a view-follow bug is a regression; it has never existed.
 * Paint/raster is NOT measurable in the hidden pane — say so rather than inventing a number. What
   differs across Trailor Park is composition, not count: column 0 carries 1035 textured cells and
   164 Front-layer cells over them, column 120 carries 421 and 62.
