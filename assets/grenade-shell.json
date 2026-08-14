@@ -1,0 +1,237 @@
+{
+ "id": "gr3nsh1",
+ "name": "Grenade Shell",
+ "type": "projectile",
+ "guideId": "default",
+ "angles": {
+  "front": [
+   {
+    "id": "63osx4n",
+    "kind": "rect",
+    "x": 113,
+    "y": 98,
+    "w": 9,
+    "h": 33,
+    "color": "#8a929c",
+    "mirror": false,
+    "fx": {
+     "opacity": 1,
+     "glow": 0,
+     "glowColor": "#ffd76b",
+     "bright": 1
+    },
+    "rot": 27
+   },
+   {
+    "id": "7acv0g1",
+    "kind": "circle",
+    "x": 124,
+    "y": 92,
+    "w": 17,
+    "h": 17,
+    "color": "#c8a23c",
+    "mirror": false,
+    "fx": {
+     "opacity": 1,
+     "glow": 0,
+     "glowColor": "#ffd76b",
+     "bright": 1
+    },
+    "rot": 18
+   },
+   {
+    "id": "k6sy60m",
+    "kind": "circle",
+    "x": 128,
+    "y": 97,
+    "w": 8,
+    "h": 8,
+    "color": "#2b2b2b",
+    "mirror": false,
+    "fx": {
+     "opacity": 1,
+     "glow": 0,
+     "glowColor": "#ffd76b",
+     "bright": 1
+    },
+    "rot": 18
+   },
+   {
+    "id": "cuihv3b",
+    "kind": "rect",
+    "x": 97,
+    "y": 95,
+    "w": 25,
+    "h": 16,
+    "color": "#8a929c",
+    "mirror": false,
+    "fx": {
+     "opacity": 1,
+     "glow": 0,
+     "glowColor": "#ffd76b",
+     "bright": 1
+    },
+    "rot": 18
+   },
+   {
+    "id": "sehrmzj",
+    "kind": "rect",
+    "x": 103,
+    "y": 91,
+    "w": 19,
+    "h": 8,
+    "color": "#4f4f4f",
+    "mirror": false,
+    "fx": {
+     "opacity": 1,
+     "glow": 0,
+     "glowColor": "#ffd76b",
+     "bright": 1
+    },
+    "rot": 18
+   },
+   {
+    "id": "glsq3t8",
+    "kind": "circle",
+    "x": 77,
+    "y": 106,
+    "w": 46,
+    "h": 53,
+    "color": "#3d4a28",
+    "mirror": false,
+    "fx": {
+     "opacity": 1,
+     "glow": 0,
+     "glowColor": "#ffd76b",
+     "bright": 1
+    },
+    "rot": 18
+   },
+   {
+    "id": "xdxesle",
+    "kind": "rect",
+    "x": 81,
+    "y": 109,
+    "w": 40,
+    "h": 40,
+    "color": "#3d4a28",
+    "mirror": false,
+    "fx": {
+     "opacity": 1,
+     "glow": 0,
+     "glowColor": "#ffd76b",
+     "bright": 1
+    },
+    "rot": 18
+   },
+   {
+    "id": "g9hxx7r",
+    "kind": "circle",
+    "x": 76,
+    "y": 133,
+    "w": 40,
+    "h": 25,
+    "color": "#2b2b2b",
+    "mirror": false,
+    "fx": {
+     "opacity": 0.22,
+     "glow": 0,
+     "glowColor": "#ffd76b",
+     "bright": 1
+    },
+    "rot": 18
+   },
+   {
+    "id": "d1c650z",
+    "kind": "rect",
+    "x": 82,
+    "y": 123,
+    "w": 40,
+    "h": 5,
+    "color": "#2b2b2b",
+    "mirror": false,
+    "fx": {
+     "opacity": 1,
+     "glow": 0,
+     "glowColor": "#ffd76b",
+     "bright": 1
+    },
+    "rot": 18
+   },
+   {
+    "id": "fr74eta",
+    "kind": "rect",
+    "x": 78,
+    "y": 136,
+    "w": 40,
+    "h": 5,
+    "color": "#2b2b2b",
+    "mirror": false,
+    "fx": {
+     "opacity": 1,
+     "glow": 0,
+     "glowColor": "#ffd76b",
+     "bright": 1
+    },
+    "rot": 18
+   },
+   {
+    "id": "6wfl6ic",
+    "kind": "rect",
+    "x": 88,
+    "y": 110,
+    "w": 5,
+    "h": 37,
+    "color": "#2b2b2b",
+    "mirror": false,
+    "fx": {
+     "opacity": 1,
+     "glow": 0,
+     "glowColor": "#ffd76b",
+     "bright": 1
+    },
+    "rot": 18
+   },
+   {
+    "id": "4848khr",
+    "kind": "rect",
+    "x": 106,
+    "y": 116,
+    "w": 5,
+    "h": 37,
+    "color": "#2b2b2b",
+    "mirror": false,
+    "fx": {
+     "opacity": 1,
+     "glow": 0,
+     "glowColor": "#ffd76b",
+     "bright": 1
+    },
+    "rot": 18
+   },
+   {
+    "id": "u71bae4",
+    "kind": "rect",
+    "x": 85,
+    "y": 109,
+    "w": 6,
+    "h": 31,
+    "color": "#45552a",
+    "mirror": false,
+    "fx": {
+     "opacity": 0.9,
+     "glow": 0,
+     "glowColor": "#ffd76b",
+     "bright": 1
+    },
+    "rot": 18
+   }
+  ],
+  "back": [],
+  "side": [],
+  "up": [],
+  "crouch": []
+ },
+ "size": 0.9,
+ "savedAt": 1786000000000
+}
