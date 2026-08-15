@@ -7,7 +7,7 @@ two-tone style as the Fire prop and the army gear (`#3d4a28` olive, `#2b2b2b`,
 | Asset | Type | What it is |
 | --- | --- | --- |
 | **Explosion** | 🌿 Object / Prop | 5-frame boom: white-hot flash → fireball with spikes → ragged peak + flying debris → collapse into smoke → drifting smoke and embers. |
-| **Crumbled Rock** | 🌿 Object / Prop | A pile of broken chunks with a little dust. **One frame on purpose** (see below). What the Rock leaves where it lands. |
+| **Crumbled Rock** | 🌿 Object / Prop | A pile of broken chunks with a little dust. One frame — nothing to animate. What the Rock leaves where it lands. |
 | **Grenade Shell** | 🔮 Projectile | The grenade the launcher fires. Tumbling pineapple grenade, `size 0.9`. |
 | **Grenade Launcher** | ⚔️ Weapon (Ranged) | Stubby break-action launcher — wood stock, olive tube, flared muzzle. Rest + Fire art (Fire has recoil and a muzzle flash) for Side / Aim-up / Crouch / Back. |
 | **Grenade** | ⚔️ Weapon (Throwable) | The same grenade in Bob's hand, thrown with **G**. |
@@ -17,10 +17,11 @@ two-tone style as the Fire prop and the army gear (`#3d4a28` olive, `#2b2b2b`,
 
 ```
 Grenade Launcher ──fires──▶ Grenade Shell (projectile)
-        └──explodes into──▶ Explosion          (plays once, 2.5-cell blast)
+        └──bursts into──▶ Explosion            (2.5-cell blast, boom art plays once)
 
-Grenade (thrown with G) ──lands as──▶ Fire     (your existing Fire prop)
-Rock    (thrown with G) ──lands as──▶ Crumbled Rock
+Grenade (thrown with G) ──bursts into──▶ Explosion   (2-cell blast, 💥 Explode)
+                        └──leaves──────▶ Fire        (your existing Fire prop, 2.5s burn)
+Rock    (thrown with G) ──leaves──────▶ Crumbled Rock
 ```
 
 The links are stored as asset ids (`gr3nsh1`, `expl0d3`, `r0ckrub`), so importing the whole
@@ -42,33 +43,33 @@ updated pack overwrites just these six and leaves everything else alone.
 **One at a time** — open any of the single files (`explosion.json`, `grenade.json`, …)
 with the same **⬆ Open a file** button; it loads straight into the editor, then hit Save.
 
-## The looping-explosion trap
+## How an explosion gets drawn (this changed in the app itself)
 
-Two different code paths draw an explosion, and only one of them plays the animation once:
+Throwables can now explode. **💥 Explode** used to be a Ranged-only setting; it's on the
+Throwable panel too, so a grenade bursts where it lands — the same one-shot boom a shot makes
+(frames played through once, then gone), plus splash damage in the blast radius.
 
-- A **ranged** weapon's 💥 Explode (`explodePropId`) is transient. The engine steps the prop's
-  frames once across the boom time, fades it out, and drops it — it never touches the level.
-  **That is what the Explosion prop was drawn for**, and why its last frames fade to smoke.
-- A **throwable**'s **Fire look** (`landPropId`) is not. That prop gets *stamped into the level*
-  on the cells the grenade lands on, and a placed prop loops its frames at its own `animFps`
-  until you press Stop. Put an explosion there and it re-detonates forever.
+That matters because the *other* way to get an explosion out of a throwable — pointing its
+**Fire look** at an explosion Object — is ground art, and ground art used to loop forever.
+Two fixes went in with this pack:
 
-So the Explosion is on the launcher, and the throwables land as things that are *supposed* to
-sit there: the Grenade leaves your existing 🌿 **Fire** burning for 2.5s, and the Rock leaves
-🌿 **Crumbled Rock** — one frame, so there is nothing to loop.
+- A grenade's landing art now plays its frames through **once** across the burn and clears when
+  the burn ends. Before, it looped at the Object's own `animFps` until you pressed Stop, so an
+  explosion picked as the "Fire look" kept re-detonating on the ground.
+- A shot that hits **nothing** now detonates when its fuse runs out instead of silently
+  vanishing, so firing the launcher across open ground actually shows the boom.
 
-The Grenade already carries `explode / explodePropId → Explosion / explodeSize 4 /
-explodeLife 0.7` in its data, ready for the day the throw code learns to detonate. Today the
-engine ignores those fields on a throwable (the editor doesn't even show the 💥 card for one),
-so they change nothing.
+So in this pack: the Explosion is the **boom art** on both the launcher and the grenade
+(`explodePropId`), and the **Fire look** is the stuff that's meant to sit on the ground
+afterwards — your existing 🌿 Fire for the Grenade, 🌿 Crumbled Rock for the Rock.
 
 ## Numbers they were given (all tweakable in the editor)
 
 - **Grenade Launcher** — 16 damage, 2.5-cell blast, fire rate 1/sec, clip 4, 2.2s reload,
   projectile speed 11, 0.5s stun, boom size 4 cells for 0.8s. Categories: `T2 / Launcher / Rare`.
   The 🔴 muzzle marker sits at the mouth of the barrel in every pose, so shots leave the tube.
-- **Grenade** — weight 3 (≈7 blocks at Strength 5), 14 HP/sec for 2.5s, 3×3 splash.
-  Categories: `T1 / Grenade / Common`.
+- **Grenade** — weight 3 (≈7 blocks at Strength 5), 💥 2-cell blast for 12 damage, then burns
+  14 HP/sec for 2.5s over a 3×3 splash. Categories: `T1 / Grenade / Common`.
 - **Rock** — weight 6 (≈5 blocks, drops short), 2 HP/sec for 1s, single cell, no explosion.
   Categories: `T1 / Rock / Common`.
 

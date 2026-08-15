@@ -6,6 +6,48 @@ import React, { useRef, useEffect, useState, useMemo } from "react";
 
 const W = 200, H = 260;
 const SKIN = "#e2b48c";
+
+/* ---- IndexedDB key/value store ------------------------------------------
+   Everything the studio saves (assets, levels, stamps, textures, prefs) is a
+   string under a string key, which localStorage was fine for right up until the
+   library outgrew its ~5MB cap — then every Save silently failed. Same tiny
+   get/set/delete shape, backed by IndexedDB instead, so the cap is gone.
+   Every call resolves to { ok } (plus { value } for a get) and NEVER rejects:
+   a browser with IndexedDB switched off just reports ok:false and the callers
+   fall back to localStorage exactly like before. */
+const IDB_NAME = "bobAssetStudio", IDB_STORE = "kv";
+let idbConn = null;
+const idbOpen = () => {
+  if (idbConn) return idbConn;
+  idbConn = new Promise((resolve) => {
+    try {
+      if (typeof indexedDB === "undefined") return resolve(null);
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => { const db = req.result; if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+      req.onblocked = () => resolve(null);
+    } catch { resolve(null); }
+  });
+  return idbConn;
+};
+const idbRun = async (mode, run) => {
+  const db = await idbOpen();
+  if (!db) return { ok: false };
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, mode);
+      const req = run(tx.objectStore(IDB_STORE));
+      tx.onabort = () => resolve({ ok: false });
+      tx.onerror = () => resolve({ ok: false });
+      req.onerror = () => resolve({ ok: false });
+      req.onsuccess = () => resolve({ ok: true, value: req.result });
+    } catch { resolve({ ok: false }); }
+  });
+};
+const idbGet = (k) => idbRun("readonly", (s) => s.get(k));
+const idbSet = (k, v) => idbRun("readwrite", (s) => s.put(v, k));
+const idbDel = (k) => idbRun("readwrite", (s) => s.delete(k));
 const ANGLES = ["front", "back", "side", "up", "crouch"];
 const ALABEL = { front: "Front", back: "Back", side: "Side", up: "Aim up", crouch: "Crouch", attack: "⚔️ Attack", death: "💀 Death" };
 const COLORS = ["#e2b48c", "#c98f63", "#5d6b39", "#3d4a28", "#2a2017", "#8a929c",
@@ -580,7 +622,12 @@ export const applyLandingEffect = (hazardIn, fxIn, keys, dps, life, landPropId, 
     hazard[key] = { kind: "fire", dps, life, ...(landPropId ? { hideInPlay: true } : {}) };
     if (landPropId) {
       const stack = fx[key] ? fx[key].slice() : [];
-      stack.push({ kind: "prop", propId: landPropId, solid: false, size: propSize || 1, inFront: true, _thrown: true });
+      // _born/_life turn this into a TIMED piece of art rather than a permanent object: it plays
+      // its frames once over the burn and then stops drawing (see renderObj). A hand-placed prop
+      // is scenery and still loops forever, which is right for it — but a grenade's landing art
+      // looping forever meant an explosion picked as the "Fire look" re-detonated on the ground
+      // for the rest of the playtest, long after its burn timer had run out.
+      stack.push({ kind: "prop", propId: landPropId, solid: false, size: propSize || 1, inFront: true, _thrown: true, _born: Date.now(), _life: life });
       fx[key] = stack;
       newPropKeys.push(key);
     }
@@ -2670,13 +2717,49 @@ export default function AssetStudio() {
   const guardLevelSwitch = (label, run) => { if (levelIsDirty()) setPendingLevelAction({ label, run }); else run(); };
 
   const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 1600); };
-  // saves to Claude's storage when present, otherwise the browser's localStorage
-  const sget = async (k) => { try { if (typeof window !== "undefined" && window.storage) { const r = await window.storage.get(k, false); return r ? r.value : null; } return localStorage.getItem(k); } catch { return null; } };
-  const sset = async (k, v) => { try { if (typeof window !== "undefined" && window.storage) { await window.storage.set(k, v, false); return true; } localStorage.setItem(k, v); return true; } catch { return false; } };
-  const sdel = async (k) => { try { if (typeof window !== "undefined" && window.storage) { await window.storage.delete(k, false); return true; } localStorage.removeItem(k); return true; } catch { return false; } };
+  // Saves go to Claude's storage when present, otherwise IndexedDB, otherwise localStorage.
+  // localStorage is still READ on every miss (see idbGet's fallback in sget) so nothing saved
+  // before this app used IndexedDB goes missing — and it's never written to again, which is the
+  // whole point: browsers cap it at ~5MB per site, and a library of a few dozen assets plus a
+  // couple of Dressed Looks (each one embeds a full copy of every layer it wears) walks straight
+  // into that cap. Past it, EVERY save failed with "Couldn't save here — try Export instead",
+  // which is exactly the reported bug. IndexedDB has no comparable cap.
+  const sget = async (k) => {
+    try {
+      if (typeof window !== "undefined" && window.storage) { const r = await window.storage.get(k, false); return r ? r.value : null; }
+      const hit = await idbGet(k);
+      if (hit.ok && typeof hit.value === "string") return hit.value;
+      const legacy = localStorage.getItem(k);
+      // Pre-IndexedDB save: hand it back now and copy it across so the next read is served from
+      // IndexedDB. The localStorage copy is deliberately LEFT in place as a backstop.
+      if (legacy !== null && hit.ok) idbSet(k, legacy);
+      return legacy;
+    } catch { return null; }
+  };
+  const sset = async (k, v) => {
+    try {
+      if (typeof window !== "undefined" && window.storage) { await window.storage.set(k, v, false); return true; }
+      if ((await idbSet(k, v)).ok) return true;
+      localStorage.setItem(k, v); return true;   // no IndexedDB at all (private mode, ancient browser)
+    } catch { return false; }
+  };
+  const sdel = async (k) => {
+    try {
+      if (typeof window !== "undefined" && window.storage) { await window.storage.delete(k, false); return true; }
+      await idbDel(k);
+      try { localStorage.removeItem(k); } catch { /* nothing legacy under this key */ }
+      return true;
+    } catch { return false; }
+  };
   useEffect(() => {
     let ok = false;
-    try { if (typeof window !== "undefined" && window.storage) ok = true; else { localStorage.setItem("__p", "1"); localStorage.removeItem("__p"); ok = true; } } catch { ok = false; }
+    try {
+      if (typeof window !== "undefined" && window.storage) ok = true;
+      else { localStorage.setItem("__p", "1"); localStorage.removeItem("__p"); ok = true; }
+    } catch { ok = false; }
+    // localStorage being full (or blocked) no longer means "no storage" — IndexedDB is the real
+    // store now, so the Save buttons stay available as long as one of the two works.
+    if (!ok) idbSet("__p", "1").then((r) => { if (r.ok) { idbDel("__p"); setHasStore(true); } });
     setHasStore(ok); loadLibrary(); loadStamps();
   }, []); // eslint-disable-line
   useEffect(() => { setEmojis(buildEmojiList()); }, []);
@@ -2755,7 +2838,13 @@ export default function AssetStudio() {
     const carriedThrow = playtestThrowId ? findA(playtestThrowId) : null;
     if (carriedThrow && isThrowable(carriedThrow.wtype)) { throwCarry.current = throwPickup.current != null ? throwPickup.current : Math.max(0, playtestThrowCount || 0); } else { throwCarry.current = 0; }
     throwPickup.current = null;
-    thrown.current = []; throwCd.current = 0; booms.current = [];
+    // Same trap the hazLife seeding below documents: this effect re-runs mid-play every time
+    // `level` changes, and a landing grenade changes it (setLevel paints its fire). Wiping the
+    // in-flight/exploding lists on those incidental re-runs erased the boom a thrown grenade had
+    // just pushed — one frame of explosion and then nothing, which read as "throwables don't
+    // explode at all". Only a genuinely NEW session (playRunId) clears them.
+    const freshSession = playRunId.current !== lastSeededRun.current;
+    if (freshSession) { thrown.current = []; throwCd.current = 0; booms.current = []; }
     // PERSISTENT per-level state (this play session). Point the live refs at THIS level's bucket, so
     // everything you did here — pedestals taken, enemies defeated, fires burned down — is still here
     // when you leave through a door and come back. Each level/room gets its own bucket by id; only a
@@ -3612,7 +3701,7 @@ export default function AssetStudio() {
             vx, vy,
             char: playtestWeapon.projectile?.char || "🔥", tint: playtestWeapon.projectile?.tint || null,
             pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
-            size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
+            size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset?.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
             explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
           });
           wpn.current = consumeShot(wpn.current, fireCdFrames); // spends a round (unless clip 0 = unlimited) and starts the fire-rate cooldown
@@ -3689,7 +3778,7 @@ export default function AssetStudio() {
                     // Armed damage scales the weapon's own damage by strength (5 = neutral).
                     // Bare-handed there's no weapon damage to scale — it's just the strength
                     // stat directly, per request.
-                    const base = (!unarmedSwing && playtestWeapon) ? Math.max(1, Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories) * (strength / 5))) : Math.max(1, Math.round(strength));
+                    const base = (!unarmedSwing && playtestWeapon) ? Math.max(1, Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset?.effects, playtestWeapon.categories) * (strength / 5))) : Math.max(1, Math.round(strength));
                     const isCrit = Math.random() < Math.min(0.6, intelligence * 0.02);
                     const dmg = isCrit ? base * 2 : base;
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
@@ -3711,6 +3800,49 @@ export default function AssetStudio() {
       // (see the `sz` math in the render section below — kept identical here so the hitbox always
       // matches what's on screen) and the same strength/intelligence damage formula the melee
       // hit-test uses, so both weapon types scale with player stats identically.
+      const strength = pstats.strength, intelligence = pstats.intelligence;
+      const detonate = (pr, ix, iy) => {
+        if (!pr.explode) return;
+        const radPx = Math.max(0.5, pr.explodeRadius ?? 2) * CW;
+        booms.current.push({ x: ix, y: iy, propId: pr.explodePropId || null, size: pr.explodeSize ?? 3, life: 0, maxLife: Math.max(8, Math.round((pr.explodeLife ?? 0.5) * 60)) });
+        const baseDmg = pr.damage ?? 5;
+        if (pr.foe) {
+          if (p.invuln <= 0) {
+            const pcx = p.x + pw / 2, pcy = p.y + ph / 2;
+            if (Math.hypot(pcx - ix, pcy - iy) <= radPx) {
+              const dmg = incomingPlayerDamage(baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce);
+              playerHP.current = Math.max(0, playerHP.current - dmg);
+              p.invuln = PLAYER_INVULN_FRAMES;
+              if (playerHP.current <= 0) { flash("💀 Caught in the blast — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; playerHP.current = maxPlayerHP(playerAsset); }
+              else flash("💥 Blast hit for " + dmg + " (" + playerHP.current + " HP left)");
+            }
+          }
+          for (const k of Object.keys(lv.enemies || {})) {
+            const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0)) continue;
+            const ea = findA(lv.enemies[k].enemyId); if (!ea) continue;
+            const ecx = ep.x + enemyRenderW(ea, CW) / 2, ecy = ep.y + enemyStandH(ea, CW) / 2;
+            if (Math.hypot(ecx - ix, ecy - iy) <= radPx) enemyHP.current[k] = Math.max(0, enemyHP.current[k] - Math.max(1, baseDmg));
+          }
+        } else {
+          let hits = 0;
+          for (const k of Object.keys(lv.enemies || {})) {
+            const ea = findA(lv.enemies[k].enemyId); if (!ea) continue;
+            if (enemyHP.current[k] === undefined) enemyHP.current[k] = ea.hp ?? 10;
+            if (enemyHP.current[k] <= 0) continue;
+            const ep = enemyPos.current[k]; if (!ep || ep.friendly) continue;
+            const ecx = ep.x + enemyRenderW(ea, CW) / 2, ecy = ep.y + enemyStandH(ea, CW) / 2;
+            if (Math.hypot(ecx - ix, ecy - iy) <= radPx) {
+              const base = Math.max(1, Math.round(baseDmg * (strength / 5)));
+              const dmg = (Math.random() < Math.min(0.6, intelligence * 0.02)) ? base * 2 : base;
+              enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+              if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
+              hits++;
+            }
+          }
+          flash("💥 Explosion" + (hits ? " — hit " + hits + (hits === 1 ? " enemy" : " enemies") : ""));
+        }
+      };
+
       // Thrown grenades: gravity arc until they hit a solid cell, the floor, or a wall, then they
       // "land" — painting their fire (or future effect) into the hazard layer at the impact, in a
       // splash of the configured radius, and seeding each new cell's burn life so it goes out on
@@ -3743,63 +3875,33 @@ export default function AssetStudio() {
           // Seed these fires' playtest lifetimes immediately so they start counting down now (the
           // level-state update above is async; the loop reads hazLife, so seed it directly too).
           if (life > 0) for (const key of keys) hazLife.current[key] = life;
+          // A throwable flagged 💥 Explode goes off the moment it lands: the exact same one-shot
+          // boom + splash a ranged Explode shot produces (frames played once, then gone), on top
+          // of whatever burn it paints. This is what a grenade was always meant to do — before it,
+          // the ONLY way to get an explosion out of a thrown weapon was to point its "Fire look" at
+          // an explosion Object, which is ground art and loops.
+          if (a.explode) {
+            detonate({
+              explode: true, explodeRadius: a.explodeRadius ?? 2, explodePropId: a.explodePropId || null,
+              explodeSize: a.explodeSize ?? 3, explodeLife: a.explodeLife ?? 0.5,
+              damage: a.damage ?? 5, stun: a.stun ?? 0, foe: false,
+            }, g.x, g.y);
+          }
           flash("💥 " + (a.name || "Grenade") + " landed" + (landProp ? " — " + landProp.name : " — 🔥"));
         }
         thrown.current = stillFlying;
       }
 
       if (projectiles.current.length) {
-        const strength = pstats.strength, intelligence = pstats.intelligence;
         // An "explode" shot doesn't just hit one target — on impact it bursts: a wide splash of
         // damage over a radius, plus a transient explosion drawn in the FRONT layer from whatever
         // Object/Prop the weapon points at (Blake draws the boom in the prop maker). The boom is a
         // play-only visual (booms ref) — it never writes into the saved level, and auto-clears when
         // its short life runs out. Player/friendly shots splash hostiles; a foe's shot splashes the
         // player + your friendly NPCs. Called at the moment the shot is consumed, at the impact point.
-        const detonate = (pr, ix, iy) => {
-          if (!pr.explode) return;
-          const radPx = Math.max(0.5, pr.explodeRadius ?? 2) * CW;
-          booms.current.push({ x: ix, y: iy, propId: pr.explodePropId || null, size: pr.explodeSize ?? 3, life: 0, maxLife: Math.max(8, Math.round((pr.explodeLife ?? 0.5) * 60)) });
-          const baseDmg = pr.damage ?? 5;
-          if (pr.foe) {
-            if (p.invuln <= 0) {
-              const pcx = p.x + pw / 2, pcy = p.y + ph / 2;
-              if (Math.hypot(pcx - ix, pcy - iy) <= radPx) {
-                const dmg = incomingPlayerDamage(baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce);
-                playerHP.current = Math.max(0, playerHP.current - dmg);
-                p.invuln = PLAYER_INVULN_FRAMES;
-                if (playerHP.current <= 0) { flash("💀 Caught in the blast — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; playerHP.current = maxPlayerHP(playerAsset); }
-                else flash("💥 Blast hit for " + dmg + " (" + playerHP.current + " HP left)");
-              }
-            }
-            for (const k of Object.keys(lv.enemies || {})) {
-              const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0)) continue;
-              const ea = findA(lv.enemies[k].enemyId); if (!ea) continue;
-              const ecx = ep.x + enemyRenderW(ea, CW) / 2, ecy = ep.y + enemyStandH(ea, CW) / 2;
-              if (Math.hypot(ecx - ix, ecy - iy) <= radPx) enemyHP.current[k] = Math.max(0, enemyHP.current[k] - Math.max(1, baseDmg));
-            }
-          } else {
-            let hits = 0;
-            for (const k of Object.keys(lv.enemies || {})) {
-              const ea = findA(lv.enemies[k].enemyId); if (!ea) continue;
-              if (enemyHP.current[k] === undefined) enemyHP.current[k] = ea.hp ?? 10;
-              if (enemyHP.current[k] <= 0) continue;
-              const ep = enemyPos.current[k]; if (!ep || ep.friendly) continue;
-              const ecx = ep.x + enemyRenderW(ea, CW) / 2, ecy = ep.y + enemyStandH(ea, CW) / 2;
-              if (Math.hypot(ecx - ix, ecy - iy) <= radPx) {
-                const base = Math.max(1, Math.round(baseDmg * (strength / 5)));
-                const dmg = (Math.random() < Math.min(0.6, intelligence * 0.02)) ? base * 2 : base;
-                enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
-                if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
-                hits++;
-              }
-            }
-            flash("💥 Explosion" + (hits ? " — hit " + hits + (hits === 1 ? " enemy" : " enemies") : ""));
-          }
-        };
         projectiles.current = projectiles.current.filter((pr) => {
           pr.x += pr.vx * dtMul; pr.y += pr.vy * dtMul; pr.life += dtMul;
-          if (pr.life > 90) return false;
+          if (pr.life > 90) { if (pr.explode) detonate(pr, pr.x, pr.y); return false; } // fuse ran out mid-air: an explosive shell still bursts rather than blinking out
           if (pr.x < 0 || pr.x > lv.cols * CW || pr.y < 0 || pr.y > lv.rows * CH) return false;
           const sz = LV_CELL * (pr.size || 1);
           let boxW = sz, boxH = sz, boxCx = pr.x, boxCy = pr.y;
@@ -4870,6 +4972,28 @@ export default function AssetStudio() {
     setEffEdit((s) => ({ ...s, frameIdx: j }));
   };
 
+  // The 💥 Explode settings — shared by Ranged (bursts where the shot lands) and Throwable
+  // (bursts where the grenade lands). Same fields, same one-shot boom, so it's built once.
+  // A function, not a value: it reads `allAssets`, which is declared further down the component,
+  // so building it eagerly here would blow up with a temporal-dead-zone error. Called from JSX,
+  // by which point everything it touches exists. (`asset` is null on the home screen.)
+  const explodeCard = () => asset && (
+    <div className="explodecard">
+      <label className="chk"><input type="checkbox" checked={!!asset.explode} onChange={(e) => setAsset((a) => ({ ...a, explode: e.target.checked }))} /> 💥 Explode <span className="hint2">(bursts on impact — a wide splash of damage, plus an explosion drawn in front from an Object you pick)</span></label>
+      {asset.explode && (<>
+        <label className="slider">Blast radius<input type="range" min="1" max="5" step="0.5" value={asset.explodeRadius ?? 2} onChange={(e) => setAsset((a) => ({ ...a, explodeRadius: +e.target.value }))} /><span className="hint2">{(asset.explodeRadius ?? 2)} cells — every enemy within that circle of the hit takes this weapon's damage</span></label>
+        <span className="wslab">Boom art (Object/Prop):</span>
+        <select className="projSel" value={asset.explodePropId || ""} onChange={(e) => setAsset((a) => ({ ...a, explodePropId: e.target.value || null }))}>
+          <option value="">— 💥 emoji (no Object) —</option>
+          {allAssets.filter((a) => a.type === "prop").map((a) => <option key={a.id} value={a.id}>🌿 {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
+        </select>
+        <label className="slider">Boom size<input type="range" min="1" max="8" step="0.5" value={asset.explodeSize ?? 3} onChange={(e) => setAsset((a) => ({ ...a, explodeSize: +e.target.value }))} /><span className="hint2">{(asset.explodeSize ?? 3)} cells across</span></label>
+        <label className="slider">Boom time<input type="range" min="0.2" max="2" step="0.1" value={asset.explodeLife ?? 0.5} onChange={(e) => setAsset((a) => ({ ...a, explodeLife: +e.target.value }))} /><span className="hint2">on screen {(asset.explodeLife ?? 0.5)}s{(() => { const pa = asset.explodePropId ? allAssets.find((x) => x.id === asset.explodePropId) : null; return pa && pa.frames && pa.frames.length > 1 ? " — its " + pa.frames.length + " frames play once over that time" : ""; })()}</span></label>
+        <span className="hint2">Draw the explosion in the Object/Prop maker (animate it if you like), pick it above, and the impact paints it. The boom is visual only — it never sticks into the level.</span>
+      </>)}
+    </div>
+  );
+
   /* ---- render helpers (HTML) -------------------------------------------- */
   const reflect = (p) => ({ ...p, id: p.id + "_m", x: W - (p.x + p.w), _m: true });
   // Dressed characters are ALREADY fully baked — their mirror twins are stored as real pieces
@@ -5191,6 +5315,16 @@ export default function AssetStudio() {
       if (!pa) return <span style={{ fontSize: sz * 0.5 + "px", opacity: 0.5 }}>❓</span>;
       const frames = (pa.frames && pa.frames.length) ? pa.frames.length : 1;
       const fps = pa.animFps || 6;
+      // A grenade's landing art (_thrown) is a timed event, not scenery: its frames play through
+      // ONCE across the burn it was stamped with, hold on the last frame, and stop drawing when
+      // the burn ends. Anything else — every hand-placed object — keeps looping exactly as before.
+      if (play && o._thrown && o._born) {
+        const elapsed = (Date.now() - o._born) / 1000;
+        const life = o._life > 0 ? o._life : 0;
+        if (life > 0 && elapsed >= life) return null;
+        const idx = frames > 1 && life > 0 ? Math.min(frames - 1, Math.floor((elapsed / life) * frames)) : 0;
+        return propArtInner(pa, sz, idx, keyBase);
+      }
       const frameIdx = (play && frames > 1) ? Math.floor(((animT || 0) / 60) * fps) % frames : 0;
       return propArtInner(pa, sz, frameIdx, keyBase);
     }
@@ -7614,11 +7748,12 @@ export default function AssetStudio() {
               </select>
             ) : <span className="hint2">🔥 emoji — make an 🌿 Object / Prop to skin the fire with your own art.</span>;
           })()}
-          <span className="hint2">{asset.landPropId ? "Lands as your chosen Object, drawn in front of the player on the grounded cells — it still burns for the damage/time below (the emoji is hidden). Different throwables can use different Objects." : "Lands as the 🔥 emoji hazard. Pick an Object above to skin it with your own fire art."} Fire only paints cells with ground beneath them, so it never floats.</span>
+          <span className="hint2">{asset.landPropId ? "Lands as your chosen Object, drawn in front of the player on the grounded cells — it still burns for the damage/time below (the emoji is hidden), and the art clears when that burn ends. An animated Object plays through ONCE over the burn, so this is ground art (flames, rubble), not a boom — for a boom use 💥 Explode below." : "Lands as the 🔥 emoji hazard. Pick an Object above to skin it with your own fire art."} Fire only paints cells with ground beneath them, so it never floats.</span>
           <label className="slider">Damage<input type="range" min="1" max="30" step="1" value={asset.landEffectDps ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectDps: +e.target.value }))} /><span className="hint2">{asset.landEffectDps ?? 6} HP/sec</span></label>
           <label className="slider">Burns for<input type="range" min="1" max="20" step="1" value={asset.landEffectLife ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectLife: +e.target.value }))} /><span className="hint2">{asset.landEffectLife ?? 6}s</span></label>
           <label className="slider">Splash<input type="range" min="0" max="3" step="1" value={asset.landRadius ?? DEFAULT_LAND_RADIUS} onChange={(e) => setAsset((a) => ({ ...a, landRadius: +e.target.value }))} /><span className="hint2">{(asset.landRadius ?? DEFAULT_LAND_RADIUS) === 0 ? "1 cell" : (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + "×" + (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + " cells"}</span></label>
-          <span className="hint2">Thrown in Playtest by <b>holding G to aim</b> (a dotted arc previews the exact flight path) and <b>releasing G to throw</b>, in the way you're facing — the arm swings the throw. It arcs, lands, and paints its fire where it hits (explosion + other effects can come later). It's a <b>single-use pickup</b> — the player carries just what they find, like a bomb in Binding of Isaac. Draw the grenade in the <b>Side</b> pose tab specifically, under the Rest state — that's the only pose that flies; Front/Back/Up/Crouch are never shown for a thrown item, even though the tabs are still there.</span>
+          {explodeCard()}
+          <span className="hint2">Thrown in Playtest by <b>holding G to aim</b> (a dotted arc previews the exact flight path) and <b>releasing G to throw</b>, in the way you're facing — the arm swings the throw. It arcs, lands, bursts if 💥 Explode is on, and paints its fire where it hits. It's a <b>single-use pickup</b> — the player carries just what they find, like a bomb in Binding of Isaac. Draw the grenade in the <b>Side</b> pose tab specifically, under the Rest state — that's the only pose that flies; Front/Back/Up/Crouch are never shown for a thrown item, even though the tabs are still there.</span>
         </div>
       )}
       {asset.type === "weapon" && isThrowable(asset.wtype) && !(wState === "rest" ? (asset.angles?.side || []) : (asset.states?.rest?.side || [])).some((p) => !p.isHitbox && !p.isMuzzle) && (
@@ -7638,22 +7773,7 @@ export default function AssetStudio() {
             <label className="slider">Clip size<input type="number" min="0" value={asset.clipSize ?? DEFAULT_CLIP_SIZE} onChange={(e) => setAsset((a) => ({ ...a, clipSize: Math.max(0, +e.target.value || 0) }))} style={{ width: 60 }} /><span className="hint2">0 = unlimited, never reloads</span></label>
             <label className="slider">Reload<input type="range" min="0.2" max="5" step="0.1" value={asset.reloadTime ?? DEFAULT_RELOAD_TIME} onChange={(e) => setAsset((a) => ({ ...a, reloadTime: +e.target.value }))} /><span className="hint2">{asset.reloadTime ?? DEFAULT_RELOAD_TIME}s</span></label>
             <label className="chk"><input type="checkbox" checked={!!asset.resurrect} onChange={(e) => setAsset((a) => ({ ...a, resurrect: e.target.checked }))} /> 🔮 Resurrect staff <span className="hint2">(its shot deals no damage — instead it raises a defeated body into a friendly NPC that fights for you. One body can only be raised once.)</span></label>
-            {!asset.resurrect && (
-              <div className="explodecard">
-                <label className="chk"><input type="checkbox" checked={!!asset.explode} onChange={(e) => setAsset((a) => ({ ...a, explode: e.target.checked }))} /> 💥 Explode <span className="hint2">(the shot bursts on impact — a wide splash of damage, plus an explosion drawn in front from an Object you pick)</span></label>
-                {asset.explode && (<>
-                  <label className="slider">Blast radius<input type="range" min="1" max="5" step="0.5" value={asset.explodeRadius ?? 2} onChange={(e) => setAsset((a) => ({ ...a, explodeRadius: +e.target.value }))} /><span className="hint2">{(asset.explodeRadius ?? 2)} cells — every enemy within that circle of the hit takes the shot's damage</span></label>
-                  <span className="wslab">Boom art (Object/Prop):</span>
-                  <select className="projSel" value={asset.explodePropId || ""} onChange={(e) => setAsset((a) => ({ ...a, explodePropId: e.target.value || null }))}>
-                    <option value="">— 💥 emoji (no Object) —</option>
-                    {allAssets.filter((a) => a.type === "prop").map((a) => <option key={a.id} value={a.id}>🌿 {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
-                  </select>
-                  <label className="slider">Boom size<input type="range" min="1" max="8" step="0.5" value={asset.explodeSize ?? 3} onChange={(e) => setAsset((a) => ({ ...a, explodeSize: +e.target.value }))} /><span className="hint2">{(asset.explodeSize ?? 3)} cells across</span></label>
-                  <label className="slider">Boom time<input type="range" min="0.2" max="2" step="0.1" value={asset.explodeLife ?? 0.5} onChange={(e) => setAsset((a) => ({ ...a, explodeLife: +e.target.value }))} /><span className="hint2">on screen {(asset.explodeLife ?? 0.5)}s{(() => { const pa = asset.explodePropId ? allAssets.find((x) => x.id === asset.explodePropId) : null; return pa && pa.frames && pa.frames.length > 1 ? " — its " + pa.frames.length + " frames play once over that time" : ""; })()}</span></label>
-                  <span className="hint2">Draw the explosion in the Object/Prop maker (animate it if you like), pick it above, and the shot paints it at the impact. The boom is visual only — it never sticks into the level.</span>
-                </>)}
-              </div>
-            )}
+            {!asset.resurrect && explodeCard()}
             <button className="ltbtn" onClick={addMuzzle}><b>🔴</b> Add muzzle (shot spawn point)</button>
             {!ANGLES.some((ang) => ((wState === "rest" ? asset.angles?.[ang] : asset.states?.rest?.[ang]) || []).some((p) => p.isMuzzle)) && (
               <p className="tip warn">⚠ No 🔴 muzzle placed on the Rest pose yet — shots will spawn from the middle of the character instead of the barrel. Add one and drag it to the barrel tip.</p>
