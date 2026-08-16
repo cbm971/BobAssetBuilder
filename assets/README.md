@@ -75,3 +75,45 @@ afterwards — your existing 🌿 Fire for the Grenade, 🌿 Crumbled Rock for t
 
 Both throwables and the launcher ship with pre-built fits for **BoB** and **Bobbett**
 (plus the default guide body), so they sit in the right hand on either body without refitting.
+
+---
+
+# Trailer park pack (1960s)
+
+Six more props, same flat two-tone style, sized against Bob — he renders 7 cells tall,
+so one level cell is roughly 10 inches and everything here is built to that ruler.
+
+| Asset | Size | What it is |
+| --- | --- | --- |
+| **Dinette Chair** | 4 | Chrome tube frame, harvest-gold vinyl pad with piping and tuft buttons. Side-on. Stands ~34in — hip height on Bob, which is what a chair does. |
+| **Kitchen Cabinet** | 9 | Wall cabinet, speckled formica counter with a chrome edge, tiled backsplash, base cabinet with drawers. Floor-to-ceiling, ~7ft. |
+| **Trailer Hitch End** | 12 | Rounded front cap, A-frame tongue, propane bottle, TV aerial, rust weeping down the seams. |
+| **Trailer Mid Section** | 12 | Two jalousie windows and a roof vent. |
+| **Trailer Mid — AC Wall** | 12 | No windows: a window-shaker air conditioner, the electric meter and a patched seam. Alternate it with the windowed mid so a long trailer doesn't read like a train carriage. |
+| **Trailer Door End** | 12 | Rounded rear cap, screen door under a striped awning, porch light, block steps. |
+
+## Why the trailer is a kit and not one prop
+
+A prop is drawn in an N-cell square with the whole 200×260 canvas fitted inside it, so
+its widest is `(200/260) × 12 = 9.2 cells` — and a mobile home stood about 8ft (8 cells,
+taller than Bob) and ran 40–60ft long. Correct height and correct length can't both fit
+in one square. So it's a kit instead:
+
+```
+[Hitch End] [Mid] [AC Wall] [Mid] … [Door End]
+```
+
+**Place every piece at size 12, anchored on the same row, 9 cells apart.** The body,
+belt line, siding seams and skirting are drawn to identical heights and run to both
+canvas edges, so the sections butt together with no seam — the ~7px overlap that 9-cell
+spacing leaves is what hides it. Add as many mids as you want; two ends and two mids
+gives a 36-cell single-wide.
+
+The pieces are drawn with the skirting bottom at the very bottom of the canvas, so
+anchor them **11 cells above your ground row**. Same idea for the furniture: the chair
+anchors 4 cells above the floor, the cabinet 8.
+
+## Import
+
+`trailer-park-pack.json`, same as before: home screen → **Load** → **⬆ Open a file**.
+Six assets, merged by id, nothing else touched.
