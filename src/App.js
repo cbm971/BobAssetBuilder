@@ -10186,34 +10186,49 @@ export default function AssetStudio() {
     // (including "nothing" — the common case of filling empty space) spreads to every 4-directionally
     // connected cell sharing that same value, replaced with the current paint color/shape. Capped
     // at a generous cell count so a mis-click on a huge open level can't hang the tab.
+    // FILL WORKS ON THE PAINT YOU CLICKED, not on whichever layer tab happens to be lit.
+    // A room's carpet usually lives on the Background while the Foreground is empty air above
+    // it. Filling the ACTIVE layer meant clicking the carpet with Foreground selected flood-
+    // filled the empty air instead — spreading over the wall, the appliances and everything
+    // else in the open space, while the carpet you clicked never changed. That is the bug that
+    // has been reported over and over. So: if the active layer has nothing at the clicked cell,
+    // fill the topmost layer that DOES have paint there. Clicking red carpet fills red carpet.
+    const layerWithPaintAt = (lv, r, c) => {
+      const k = cellKey(r, c);
+      const has = (L) => lv[L] && lv[L][k] !== undefined && lv[L][k] !== null;
+      if (has(lLayer)) return lLayer;
+      return ["front", "fg", "bg"].find((L) => L !== lLayer && has(L)) || lLayer;
+    };
+    const LAYER_LABEL = { fg: "Foreground", bg: "Background", front: "Front" };
     const floodFill = (r0, c0) => {
       const lv = level;
       if (!lv || (lLayer !== "fg" && lLayer !== "bg" && lLayer !== "front")) return;
-      const { cells: cellsToFill, startVal, hitCap } = computeFillRegion(lv, lLayer, r0, c0);
-      const ol = lOutline ? lOutlineColor : null; // guarded to fg/bg/front above; Outline rides along so the filled region gets an outer-edge border
-      const shape = terrainPaintShape(lLayer, lFgShape, lFgUpsideDown, lFgHide);
+      const target = layerWithPaintAt(lv, r0, c0);
+      const { cells: cellsToFill, startVal, hitCap } = computeFillRegion(lv, target, r0, c0);
+      const ol = lOutline ? lOutlineColor : null; // Outline rides along so the filled region gets an outer-edge border
+      const shape = terrainPaintShape(target, lFgShape, lFgUpsideDown, lFgHide);
       const newVal = withOutline(paintValue(lColor, activeTexture, shape), ol);
       if (JSON.stringify(newVal) === JSON.stringify(startVal)) return; // already this value everywhere reachable — nothing to do
       const CONFIRM_THRESHOLD = 300;
       if (cellsToFill.length > CONFIRM_THRESHOLD) {
-        const layerName = lLayer === "fg" ? "Foreground" : lLayer === "bg" ? "Background" : "Front";
-        const ok = window.confirm("This would repaint " + cellsToFill.length + " cells on the " + layerName + " layer. If that's way more than you expected, Cancel and check you're on the right layer tab. Fill anyway?");
+        const ok = window.confirm("This would repaint " + cellsToFill.length + " cells on the " + LAYER_LABEL[target] + " layer. If that's way more than you expected, Cancel and check you clicked the right thing. Fill anyway?");
         if (!ok) return;
       }
       setLevel((lv2) => {
-        const layer2 = { ...lv2[lLayer] };
-        // The paint that was clicked — only fills matching IT are re-coloured, so a corner cell
-        // holding a ramp of another material over this one keeps that ramp and just changes the
-        // part that was actually the colour being filled.
+        const layer2 = { ...lv2[target] };
+        // The paint that was clicked — only fills matching IT are re-coloured, so a cell holding
+        // a ramp of another material over this one keeps that ramp and just changes the part
+        // that was actually the colour being filled.
         const refPaint = startVal === null ? null : fgFillOf(startVal);
         for (const k of cellsToFill) {
-          const prev = lv2[lLayer][k];
+          const prev = lv2[target][k];
           // An EMPTY cell has nothing to keep and takes the shape selected in the toolbar.
           layer2[k] = (prev === undefined || prev === null) ? newVal : recolorMatching(prev, refPaint, newVal);
         }
-        return { ...lv2, [lLayer]: layer2 };
+        return { ...lv2, [target]: layer2 };
       });
       if (hitCap) flash("Filled the first 8000 cells — that region was huge, so it stopped there rather than hang.");
+      else if (target !== lLayer) flash("Filled " + cellsToFill.length + " cells on the " + LAYER_LABEL[target] + " — that's the layer the paint you clicked is on.");
     };
     // Move to layer — same connectivity/matching rules as Fill (see above) but instead of
     // repainting in place, this picks the matched region UP so it can be dropped on a different
@@ -10394,7 +10409,7 @@ export default function AssetStudio() {
     // divs on every mouse-move would be its own performance problem); a huge region still shows
     // its cell count as text so the mismatch is obvious either way.
     const fillPreview = (!play && lTool === "fill" && lHoverCell && lv && (lLayer === "fg" || lLayer === "bg" || lLayer === "front"))
-      ? computeFillRegion(lv, lLayer, lHoverCell.r, lHoverCell.c) : null;
+      ? computeFillRegion(lv, layerWithPaintAt(lv, lHoverCell.r, lHoverCell.c), lHoverCell.r, lHoverCell.c) : null;
     const miniLevel = (l, w = 132) => {
       const cw = w / l.cols, ch = cw, h = ch * l.rows;
       return (
