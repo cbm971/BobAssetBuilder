@@ -3046,17 +3046,13 @@ export const lastStoreFailure = () => storeFailReason;
 const computeFillRegion = (lv, layerName, r0, c0) => {
   const layer = lv[layerName];
   const startVal = layer[cellKey(r0, c0)] ?? null;
+  // The paint being matched is the clicked cell's own top fill; every other cell is asked
+  // whether it holds that paint anywhere in its stack.
+  const startPaint = startVal === null ? null : fgFillOf(startVal);
   const sameAsStart = (v) => {
     if (startVal === null) return v === undefined || v === null;
     if (v === undefined || v === null) return false;
-    // Matched on the cell's PAINT — its base colour and its texture — and deliberately NOT on its
-    // ramp shape. Including the shape (the old cellSig compare) meant a ramp never matched the
-    // block beside it in the same paint, so filling a floor skipped every ramp in it. Dropping
-    // the TEXTURE from the compare as well was a disaster: textures share base colours, so one
-    // click bled across a whole room of different materials — wall, floor and carpet repainted
-    // in one go. Texture is identity; shape is not. The geometry each cell already carries is
-    // preserved when the fill is written (see floodFill), so a re-coloured ramp is still a ramp.
-    return fgColor(v) === fgColor(startVal) && cellTexId(v) === cellTexId(startVal);
+    return cellHasPaint(v, startPaint);
   };
   const visited = new Set();
   const stack = [[r0, c0]];
@@ -4004,27 +4000,35 @@ export const rampDragSpan = (anchor, cur, brush, buttonSlope, upsideDown) => {
 // direction, its run/step across a multi-cell ramp, the upside-down and hide-in-play flags, its
 // outline, and any stacked fills sitting on top of it. Used by Fill so re-colouring a floor can
 // never silently flatten the ramps in it.
-export const recolorCell = (prev, next) => {
-  const geomOf = (fill) => {
+// Two fills are "the same paint" when their base colour and texture agree. Ramp SHAPE is
+// deliberately not part of it: a corner ramp cut out of the carpet is still carpet, and treating
+// it as different paint is what made Fill skip every corner of a room. Texture, on the other
+// hand, IS identity — dropping it once made a single click repaint a whole room's walls, floor
+// and carpet because they shared a base colour.
+export const samePaint = (a, b) => fgColor(a) === fgColor(b) && cellTexId(a) === cellTexId(b);
+// A cell counts as "this paint" if ANY of its fills is. A cell can hold several: a ramp of one
+// material sitting over a block of another (fgFills). The carpet under a corner ramp is carpet,
+// and clicking the carpet has to reach it.
+export const cellHasPaint = (cell, ref) => fgFills(cell).some((f) => samePaint(f, ref));
+// Re-colour only the fills that ARE that paint, each keeping its own geometry, and leave every
+// other fill in the cell exactly as it was. So filling the carpet under a gravel ramp recolours
+// the carpet and leaves the gravel gravel.
+export const recolorMatching = (cell, ref, next) => {
+  if (cell === null || cell === undefined) return cell;
+  const nextFill = fgFillOf(next) || { c: next };
+  const painted = fgFills(cell).map((f) => {
+    if (!samePaint(f, ref)) return f;
     const g = {};
-    if (fill && typeof fill === "object") {
-      for (const f of ["slope", "run", "step", "upsideDown", "hideInPlay", "ol"]) if (fill[f] !== undefined) g[f] = fill[f];
-    }
-    return g;
-  };
-  const paint = (fill) => {
-    const g = geomOf(fill);
-    if (!Object.keys(g).length) return next;
-    return (next && typeof next === "object") ? { ...next, ...g } : { c: next, ...g };
-  };
-  if (prev === null || prev === undefined) return next;
-  const fills = fgFills(prev);
-  if (fills.length <= 1) return paint(fills[0] !== undefined ? fills[0] : prev);
-  // Stacked cell (a ramp sitting over an earlier fill): every layer takes the new colour and
-  // keeps its own geometry, so the cell reads as ONE colour afterwards instead of showing the
-  // old paint through the ramp's empty half.
-  const [top, ...under] = fills.map(paint);
-  return (top && typeof top === "object") ? { ...top, more: under } : { c: top, more: under };
+    if (f && typeof f === "object") for (const key of ["slope", "run", "step", "upsideDown", "hideInPlay", "ol"]) if (f[key] !== undefined) g[key] = f[key];
+    const merged = { ...nextFill, ...g };
+    // keep it a plain colour string when there is nothing else to carry — that is the shape the
+    // rest of the level data uses for an ordinary block
+    return (Object.keys(merged).length === 1 && merged.c !== undefined) ? merged.c : merged;
+  });
+  const [top, ...under] = painted;
+  if (!under.length) return top;
+  const topObj = (top && typeof top === "object") ? { ...top } : { c: top };
+  return { ...topObj, more: under };
 };
 export const withOutline = (val, ol) => ol ? (typeof val === "object" ? { ...val, ol } : { c: val, ol }) : val;
 const outlineBoxShadow = (map, r, c, ol) => {
@@ -5307,10 +5311,12 @@ export default function AssetStudio() {
         // fall through to the browser stores rather than ending the save here
       }
     }
-    // localStorage first so nothing changes for a small library, then IndexedDB the moment
-    // localStorage refuses — which is what a 60-save library does to a 5MB cap.
-    if (lsSet(k, v)) { storeFailReason = ""; return true; }
-    if ((await idbSet(k, v)).ok) { storeFailReason = ""; return true; }
+    if ((await idbSet(k, v)).ok) {
+      lsSet(k, v);   // mirror, best effort: it may be full, and that must not fail the save
+      storeFailReason = "";
+      return true;
+    }
+    if (lsSet(k, v)) { storeFailReason = ""; return true; }   // no IndexedDB here at all
     storeFailReason = "this browser's storage is full and IndexedDB isn't available here";
     return false;
   };
@@ -10196,13 +10202,14 @@ export default function AssetStudio() {
       }
       setLevel((lv2) => {
         const layer2 = { ...lv2[lLayer] };
+        // The paint that was clicked — only fills matching IT are re-coloured, so a corner cell
+        // holding a ramp of another material over this one keeps that ramp and just changes the
+        // part that was actually the colour being filled.
+        const refPaint = startVal === null ? null : fgFillOf(startVal);
         for (const k of cellsToFill) {
-          // Re-colour in place. A cell that already carries geometry — a ramp, its run/step across
-          // a multi-cell ramp, the upside-down flag, stacked fills — keeps all of it and only
-          // changes colour/texture, so filling a floor no longer flattens its ramps into blocks.
-          // An EMPTY cell has nothing to keep and takes the shape selected in the toolbar.
           const prev = lv2[lLayer][k];
-          layer2[k] = (prev === undefined || prev === null) ? newVal : recolorCell(prev, newVal);
+          // An EMPTY cell has nothing to keep and takes the shape selected in the toolbar.
+          layer2[k] = (prev === undefined || prev === null) ? newVal : recolorMatching(prev, refPaint, newVal);
         }
         return { ...lv2, [lLayer]: layer2 };
       });
