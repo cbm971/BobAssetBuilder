@@ -3036,6 +3036,9 @@ const idbRun = async (mode, run) => {
 const idbGet = (k) => idbRun("readonly", (st) => st.get(k));
 const idbSet = (k, v) => idbRun("readwrite", (st) => st.put(v, k));
 const idbDel = (k) => idbRun("readwrite", (st) => st.delete(k));
+// Every key IndexedDB holds — the orphan sweep needs it, the same as it enumerates the host
+// store and localStorage. Returns [] when IndexedDB isn't available, so callers need no guard.
+const idbKeysAll = async () => { const r = await idbRun("readonly", (st) => st.getAllKeys()); return (r.ok && Array.isArray(r.value)) ? r.value.map(String) : []; };
 // Why the last write failed, so a save that cannot happen says something useful.
 let storeFailReason = "";
 export const lastStoreFailure = () => storeFailReason;
@@ -3311,8 +3314,20 @@ export const mergeFgFill = (cell, val) => {
   const fill = fgFillOf(val);
   if (!fgHasDiagonalShape(fill)) return val;                     // a solid block hides everything under it
   const sig = fgShapeSig(fill);
-  const under = fgFills(cell).filter((f) => fgShapeSig(f) !== sig);
-  return under.length ? { ...fill, more: under } : val;          // `val` unchanged keeps a plain colour string plain
+  const kept = fgFills(cell).filter((f) => fgShapeSig(f) !== sig);
+  if (!kept.length) return val;                                  // `val` unchanged keeps a plain colour string plain
+  // The under-fill is kept for its SHAPE (so a ramp still has something behind it), but it takes
+  // the colour being painted. Keeping its old colour meant repainting a ramp cell left the
+  // previous paint showing through the diagonal — the cell ended up two colours and the ramp
+  // looked like it had never been painted at all.
+  const newColor = fgColor(fill), newTex = cellTexId(fill);
+  const under = kept.map((f) => {
+    if (!f || typeof f !== "object") return newColor;
+    const g = { ...f, c: newColor };
+    if (newTex) g.tex = newTex; else delete g.tex;
+    return g;
+  });
+  return { ...fill, more: under };
 };
 
 /* ============================== TEXTURES ==================================
@@ -3988,14 +4003,26 @@ export const rampDragSpan = (anchor, cur, brush, buttonSlope, upsideDown) => {
 // outline, and any stacked fills sitting on top of it. Used by Fill so re-colouring a floor can
 // never silently flatten the ramps in it.
 export const recolorCell = (prev, next) => {
-  const keep = {};
-  if (prev && typeof prev === "object") {
-    for (const f of ["slope", "run", "step", "upsideDown", "hideInPlay", "ol", "more"]) {
-      if (prev[f] !== undefined) keep[f] = prev[f];
+  const geomOf = (fill) => {
+    const g = {};
+    if (fill && typeof fill === "object") {
+      for (const f of ["slope", "run", "step", "upsideDown", "hideInPlay", "ol"]) if (fill[f] !== undefined) g[f] = fill[f];
     }
-  }
-  if (!Object.keys(keep).length) return next;
-  return (next && typeof next === "object") ? { ...next, ...keep } : { c: next, ...keep };
+    return g;
+  };
+  const paint = (fill) => {
+    const g = geomOf(fill);
+    if (!Object.keys(g).length) return next;
+    return (next && typeof next === "object") ? { ...next, ...g } : { c: next, ...g };
+  };
+  if (prev === null || prev === undefined) return next;
+  const fills = fgFills(prev);
+  if (fills.length <= 1) return paint(fills[0] !== undefined ? fills[0] : prev);
+  // Stacked cell (a ramp sitting over an earlier fill): every layer takes the new colour and
+  // keeps its own geometry, so the cell reads as ONE colour afterwards instead of showing the
+  // old paint through the ramp's empty half.
+  const [top, ...under] = fills.map(paint);
+  return (top && typeof top === "object") ? { ...top, more: under } : { c: top, more: under };
 };
 export const withOutline = (val, ol) => ol ? (typeof val === "object" ? { ...val, ol } : { c: val, ol }) : val;
 const outlineBoxShadow = (map, r, c, ol) => {
@@ -7212,6 +7239,8 @@ export default function AssetStudio() {
       const found = new Set();
       const ws = hostStore();
       if (ws) for (const id of strip(await enumerateHostKeys(ws))) found.add(id);
+      const idbKeys = await idbKeysAll();
+      for (const id of strip(idbKeys)) found.add(id);
       try {
         if (typeof localStorage !== "undefined") {
           const out = [];
@@ -7280,16 +7309,17 @@ export default function AssetStudio() {
       const hostIds = ws ? (await enumerateHostKeys(ws)).filter((k) => k.startsWith("asset:")) : [];
       let lsIds = [];
       try { if (typeof localStorage !== "undefined") { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("asset:")) lsIds.push(k); } } } catch { /* ignore */ }
-      setStoreReport({ host: ws ? hostIds.length : null, local: lsIds.length, indexed: list.length });
+      const idbAssetKeys = (await idbKeysAll()).filter((k) => k.startsWith("asset:"));
+      setStoreReport({ host: ws ? hostIds.length : null, local: lsIds.length, idb: idbAssetKeys.length, indexed: list.length });
     } catch { /* a report failing must never stop the load */ }
     const full = [], bad = [];
     for (const it of list) {
       const id = it && it.id;
       try {
         const raw = await sget("asset:" + id);
-        if (raw === null || raw === undefined) { bad.push((it && it.name) || id); continue; } // indexed but the record is gone
+        if (raw === null || raw === undefined) { bad.push({ id, name: (it && it.name) || id }); continue; } // indexed but the record is gone
         full.push(migrate(JSON.parse(raw)));
-      } catch { bad.push((it && it.name) || id); }
+      } catch { bad.push({ id, name: (it && it.name) || id }); }
     }
     setLibrary(full);
     // Heal the index so the rescue is permanent rather than repeated every load.
@@ -7311,8 +7341,19 @@ export default function AssetStudio() {
       await sset(ASSET_INDEX_BAK, JSON.stringify(full.map((x) => ({ id: x.id, name: x.name, type: x.type }))));
     }
     if (bad.length) {
-      console.warn("[Bob] " + bad.length + " asset record(s) could not be read and were skipped:", bad);
-      flash("⚠ " + bad.length + " asset" + (bad.length > 1 ? "s" : "") + " couldn't be read and " + (bad.length > 1 ? "were" : "was") + " skipped — the other " + full.length + " loaded fine. Check the console for which.");
+      // These ids were looked for in the host store, IndexedDB, localStorage AND the project
+      // file and are in none of them — they are index entries whose record was never written
+      // (a save that failed back when a full localStorage could refuse one silently). Prune
+      // them so the warning is shown once, with names, and then goes away for good.
+      const deadIds = new Set(bad.map((b) => b.id).filter(Boolean));
+      const names = bad.map((b) => b.name || b.id).join(", ");
+      if (deadIds.size) {
+        const pruned = list.filter((it) => !deadIds.has(it && it.id)).map((x) => ({ id: x.id, name: x.name, type: x.type }));
+        await writeAssetIndex(pruned);
+        await sset(ASSET_INDEX_BAK, JSON.stringify(full.map((x) => ({ id: x.id, name: x.name, type: x.type }))));
+      }
+      console.warn("[Bob] " + bad.length + " asset record(s) could not be read anywhere and were dropped from the index:", bad);
+      flash("Cleaned up " + bad.length + " empty entr" + (bad.length > 1 ? "ies" : "y") + " the index still pointed at (" + names + ") — no art was lost, those records were already gone. " + full.length + " assets loaded.");
     }
     } finally { setLibraryLoading(false); }
   };
@@ -9797,9 +9838,10 @@ export default function AssetStudio() {
               <ul>
                 <li>Host store (window.storage): {storeReport.host === null ? "not provided by this host" : storeReport.host + " asset record(s)"}</li>
                 <li>Browser localStorage: {storeReport.local} asset record(s)</li>
+                <li>Browser IndexedDB: {storeReport.idb || 0} asset record(s)</li>
                 <li>Index says: {storeReport.indexed} entr{storeReport.indexed === 1 ? "y" : "ies"}</li>
               </ul>
-              {(storeReport.host || storeReport.local)
+              {(storeReport.host || storeReport.local || storeReport.idb)
                 ? <span>Records exist but didn't load — that's a bug in reading them, not lost work. Send me these numbers.</span>
                 : <>
                   <span>Both stores are empty on <b>this address</b>. Browser storage is tied to the page's address, so a preview URL that changed since you last saved has your work sitting under the old one, untouched.</span>
