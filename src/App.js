@@ -2994,16 +2994,64 @@ let __ptLoopGen = 0;
 // common case of filling empty space) spreads to every 4-directionally connected cell sharing
 // that same value. Capped at a generous cell count so a mis-click on a huge open level can't
 // hang the tab.
+/* ---- IndexedDB key/value store ------------------------------------------
+   localStorage caps at ~5MB per site. A library of 60+ saves — where every
+   Dressed Look embeds a full copy of each layer it wears — walks straight into
+   that cap, and past it EVERY save failed with "Couldn't save here — try Export
+   instead" while the app looked, correctly, like it was working. IndexedDB has
+   no comparable cap, so it sits behind localStorage as the real store.
+   Every call resolves to { ok } (plus { value } for a get) and NEVER rejects:
+   a browser with IndexedDB switched off just reports ok:false and everything
+   falls back to localStorage exactly as before. */
+const IDB_NAME = "bobAssetStudio", IDB_STORE = "kv";
+let idbConn = null;
+const idbOpen = () => {
+  if (idbConn) return idbConn;
+  idbConn = new Promise((resolve) => {
+    try {
+      if (typeof indexedDB === "undefined") return resolve(null);
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => { const db = req.result; if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+      req.onblocked = () => resolve(null);
+    } catch { resolve(null); }
+  });
+  return idbConn;
+};
+const idbRun = async (mode, run) => {
+  const db = await idbOpen();
+  if (!db) return { ok: false };
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, mode);
+      const req = run(tx.objectStore(IDB_STORE));
+      tx.onabort = () => resolve({ ok: false });
+      tx.onerror = () => resolve({ ok: false });
+      req.onerror = () => resolve({ ok: false });
+      req.onsuccess = () => resolve({ ok: true, value: req.result });
+    } catch { resolve({ ok: false }); }
+  });
+};
+const idbGet = (k) => idbRun("readonly", (st) => st.get(k));
+const idbSet = (k, v) => idbRun("readwrite", (st) => st.put(v, k));
+const idbDel = (k) => idbRun("readwrite", (st) => st.delete(k));
+// Why the last write failed, so a save that cannot happen says something useful.
+let storeFailReason = "";
+export const lastStoreFailure = () => storeFailReason;
+
 const computeFillRegion = (lv, layerName, r0, c0) => {
   const layer = lv[layerName];
   const startVal = layer[cellKey(r0, c0)] ?? null;
   const sameAsStart = (v) => {
     if (startVal === null) return v === undefined || v === null;
     if (v === undefined || v === null) return false;
-    // One rule for every layer now (see cellSig): base color + ramp shape + texture. Previously
-    // Background/Front compared with `===`, which can't see that two cells share a color but
-    // carry different textures.
-    return cellSig(v) === cellSig(startVal);
+    // Matched on COLOUR alone. It used to compare cellSig — colour + ramp shape + texture — so a
+    // ramp never matched the block beside it even in the identical colour, and filling a floor
+    // skipped every ramp in it. A bucket means "this colour, connected"; the geometry each cell
+    // already carries is preserved when the fill is written (see floodFill), so a recoloured ramp
+    // is still a ramp.
+    return fgColor(v) === fgColor(startVal);
   };
   const visited = new Set();
   const stack = [[r0, c0]];
@@ -3935,6 +3983,20 @@ export const rampDragSpan = (anchor, cur, brush, buttonSlope, upsideDown) => {
 // traces the OUTER EDGE of whatever you paint — at any brush size — without hiding the fill (a
 // 1-cell-thick platform still shows its fill colour, just with an outline around it). Inset
 // box-shadows are used so nothing shifts layout and it still composes with a ramp clip-path.
+// Swap a cell's colour/texture while keeping every bit of geometry it already had: the ramp
+// direction, its run/step across a multi-cell ramp, the upside-down and hide-in-play flags, its
+// outline, and any stacked fills sitting on top of it. Used by Fill so re-colouring a floor can
+// never silently flatten the ramps in it.
+export const recolorCell = (prev, next) => {
+  const keep = {};
+  if (prev && typeof prev === "object") {
+    for (const f of ["slope", "run", "step", "upsideDown", "hideInPlay", "ol", "more"]) {
+      if (prev[f] !== undefined) keep[f] = prev[f];
+    }
+  }
+  if (!Object.keys(keep).length) return next;
+  return (next && typeof next === "object") ? { ...next, ...keep } : { c: next, ...keep };
+};
 export const withOutline = (val, ol) => ol ? (typeof val === "object" ? { ...val, ol } : { c: val, ol }) : val;
 const outlineBoxShadow = (map, r, c, ol) => {
   const s = [];
@@ -5191,25 +5253,42 @@ export default function AssetStudio() {
   const sget = async (k) => {
     const ws = hostStore();
     if (ws) {
-      try { const r = await ws.get(k, false); if (r && r.value != null) return r.value; } catch { /* fall through to the other store */ }
-      return lsGet(k); // saved before the host store existed — still ours, still loadable
+      try { const r = await ws.get(k, false); if (r && r.value != null) return r.value; } catch { /* fall through to the other stores */ }
     }
-    return lsGet(k);
+    // IndexedDB is where writes land once localStorage is full (see sset), so it has to be read
+    // before localStorage — otherwise a stale pre-IndexedDB copy would shadow the current one.
+    const hit = await idbGet(k);
+    if (hit.ok && typeof hit.value === "string") return hit.value;
+    const legacy = lsGet(k); // saved before this app used IndexedDB — still ours, still loadable
+    if (legacy !== null && hit.ok) idbSet(k, legacy); // migrate it across; the localStorage copy stays as a backstop
+    return legacy;
   };
   const sset = async (k, v) => {
     const ws = hostStore();
     if (ws) {
-      try { await ws.set(k, v, false); } catch { return lsSet(k, v); }
-      // Index keys are small and are the thing whose loss hides everything, so keep a copy in
-      // localStorage too. Best-effort: a quota refusal must never fail the actual save.
-      if (k === "assetIndex" || k === ASSET_INDEX_BAK || k === "levelIndex" || k === "stampIndex") lsSet(k, v);
-      return true;
+      try {
+        await ws.set(k, v, false);
+        // Index keys are small and are the thing whose loss hides everything, so keep a copy in
+        // localStorage too. Best-effort: a quota refusal must never fail the actual save.
+        if (k === "assetIndex" || k === ASSET_INDEX_BAK || k === "levelIndex" || k === "stampIndex") lsSet(k, v);
+        storeFailReason = "";
+        return true;
+      } catch (e) {
+        storeFailReason = "the host store refused it (" + ((e && e.name) || "error") + ")";
+        // fall through to the browser stores rather than ending the save here
+      }
     }
-    return lsSet(k, v);
+    // localStorage first so nothing changes for a small library, then IndexedDB the moment
+    // localStorage refuses — which is what a 60-save library does to a 5MB cap.
+    if (lsSet(k, v)) { storeFailReason = ""; return true; }
+    if ((await idbSet(k, v)).ok) { storeFailReason = ""; return true; }
+    storeFailReason = "this browser's storage is full and IndexedDB isn't available here";
+    return false;
   };
   const sdel = async (k) => {
     const ws = hostStore();
-    if (ws) { try { await ws.delete(k, false); } catch { /* still clear the fallback below */ } }
+    if (ws) { try { await ws.delete(k, false); } catch { /* still clear the fallbacks below */ } }
+    await idbDel(k);
     try { if (typeof localStorage !== "undefined") localStorage.removeItem(k); } catch { /* ignore */ }
     return true;
   };
@@ -8742,7 +8821,7 @@ export default function AssetStudio() {
       flash(target.mode === "rename" ? "Saved as a new \"" + payload.name + "\" ✓ — the original was kept"
         : "Saved to this device ✓" + worn);
       loadLibrary();
-    } else flash("Couldn't save here — use Download.");
+    } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ". Use Download.");
   };
   const convertLegacyProjectile = async () => {
     const legacyDrawn = asset.states?.projectile;
@@ -8768,7 +8847,7 @@ export default function AssetStudio() {
     const ok1 = await sset("asset:" + na.id, JSON.stringify(na));
     list = list.filter((x) => x.id !== na.id); list.push({ id: na.id, name: na.name, type: na.type });
     const ok2 = await writeAssetIndex(list);
-    if (ok1 && ok2) { setAsset((a) => ({ ...a, projectileId: na.id })); flash("Saved \"" + na.name + "\" as its own Projectile ✓ — assigned to this weapon."); loadLibrary(); } else flash("Couldn't save here — use Download, then Upload it manually.");
+    if (ok1 && ok2) { setAsset((a) => ({ ...a, projectileId: na.id })); flash("Saved \"" + na.name + "\" as its own Projectile ✓ — assigned to this weapon."); loadLibrary(); } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ". Use Download, then Upload it manually.");
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
@@ -8976,7 +9055,7 @@ export default function AssetStudio() {
     let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     list = list.filter((x) => x.id !== c.id); list.push({ id: c.id, name: c.name, type: c.type });
     const ok2 = await writeAssetIndex(list);
-    if (ok1 && ok2) { flash("Recovered \"" + c.name + "\" into your saved assets ✓"); loadLibrary(); } else flash("Couldn't save here.");
+    if (ok1 && ok2) { flash("Recovered \"" + c.name + "\" into your saved assets ✓"); loadLibrary(); } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ".");
   };
   const handForGuideId = (guideId) => { if (guideId && guideId !== "default") { const g = findA(guideId); if (g) { const o = {}; for (const ang of ANGLES) o[ang] = bodyRig(g, ang).hand; return o; } } return DEFAULT_HAND; };
   const handForGuide = (a) => handForGuideId(a && a.guideId); // the weapon EDITOR's own canvas preview only — keyed by whatever body is selected in "Design for body", unrelated to playtest attach below
@@ -9175,7 +9254,7 @@ export default function AssetStudio() {
     const ok1 = await sset("asset:" + l.id, JSON.stringify(l));
     list = list.filter((x) => x.id !== l.id); list.push({ id: l.id, name: l.name, type: l.type });
     const ok2 = await writeAssetIndex(list);
-    if (ok1 && ok2) { setSavedDressedIds((m) => ({ ...m, [name]: l.id })); flash("Saved \"" + name + "\" ✓ — pick it under Playtest player in the level tester."); loadLibrary(); } else flash("Couldn't save here — try Export instead.");
+    if (ok1 && ok2) { setSavedDressedIds((m) => ({ ...m, [name]: l.id })); flash("Saved \"" + name + "\" ✓ — pick it under Playtest player in the level tester."); loadLibrary(); } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ". Use Export instead.");
   };
   const comboDownload = () => { try { const b = new Blob([combo], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "dressed-bob.json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const comboCopy = () => { try { navigator.clipboard?.writeText(combo); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
@@ -9223,7 +9302,7 @@ export default function AssetStudio() {
       else { setLTexId(clean.id); setLTool("paint"); flash("Texture \"" + clean.name + "\" saved ✓ — painting with it now."); }
       return clean;
     }
-    flash("Couldn't save the texture here."); return null;
+    flash("Couldn't save the texture — " + (lastStoreFailure() || "storage unavailable") + "."); return null;
   };
   const useGrassTexture = async () => {
     const saved = texLib.find((t) => t.tex === "grass");
@@ -9281,7 +9360,7 @@ export default function AssetStudio() {
     list.push({ id, name });
     const ok2 = await sset("backgroundIndex", JSON.stringify(list));
     projectLibrary.save({ backgrounds: [{ id, name, bg: level.bg }] });
-    if (ok1 && ok2) { flash("Background \"" + name + "\" saved ✓"); setBgName(""); loadBgLib(); } else flash("Couldn't save the background.");
+    if (ok1 && ok2) { flash("Background \"" + name + "\" saved ✓"); setBgName(""); loadBgLib(); } else flash("Couldn't save the background — " + (lastStoreFailure() || "storage unavailable") + ".");
   };
   const loadBackground = async (id) => {
     if (!id) return;
@@ -9346,7 +9425,7 @@ export default function AssetStudio() {
     // Straight into the project file as well. The browser store is a cache in front of it: it is
     // the copy that is scoped to an address that will not last, and losing it must cost nothing.
     projectLibrary.save({ levels: [level] });
-    if (ok1 && ok2) { levelBaseline.current = JSON.stringify(level); flash("Level saved ✓"); loadLevels(); } else flash("Couldn't save — use Download.");
+    if (ok1 && ok2) { levelBaseline.current = JSON.stringify(level); flash("Level saved ✓"); loadLevels(); } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ". Use Download.");
   };
   const doNewLevelFresh = () => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); const nl = newLevel(); setLevel(nl); levelBaseline.current = JSON.stringify(nl); setLSel(null); setGen(null); setLFxSel(null); setLFxEditIdx(null); setLLayer("fg"); setLTool("paint"); setLBrush(1); setEyedrop(false); flash("New blank level"); };
   const doNewRoomFresh = () => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); const nl = newRoom(); setLevel(nl); levelBaseline.current = JSON.stringify(nl); setLSel(null); setGen(null); setLFxSel(null); setLFxEditIdx(null); setLLayer("fg"); setLTool("paint"); setLBrush(1); setEyedrop(false); flash("New blank room"); };
@@ -9761,7 +9840,7 @@ export default function AssetStudio() {
           <h2>Load</h2>
           <button className="ltbtn saveRead" disabled={libraryLoading} onClick={() => { setLoadOpen(true); setLoadCategory(null); setLoadSlot(null); }}>{libraryLoading ? "⏳ Loading your saves…" : "📂 Load (" + allAssets.length + " saved)"}</button>
           {libraryLoading && <p className="mini saveLoading">Your saved assets are still being read from this browser. Nothing has been cleared.</p>}
-          <label className="openfile">⬆ Open a file<input type="file" accept="application/json" onChange={upload} hidden /></label>
+          <label className="openfile">⬆ Open a file<input type="file" accept=".json,application/json,text/plain" onChange={upload} hidden /></label>
           <button className="ltbtn saveRead" disabled={libraryLoading} onClick={exportAllAssets} title="Downloads everything you have made — assets, levels, stored groups, textures and backgrounds — as one backup file. Re-open that file here later to restore it all.">⬇ Export everything{libraryLoading ? " (loading…)" : " (" + library.length + " assets, " + levelLib.length + " levels)"}</button>
           <h2>Niche controls</h2>
           <button className="ltbtn" onClick={() => setNiche(true)}>🩹 Recover layers from a dressed look</button>
@@ -9973,7 +10052,7 @@ export default function AssetStudio() {
             <option value="">📂 Open saved look…</option>
             {dressedList.map((a) => <option key={a.id} value={a.id}>{(a.isEnemy ? "👹 " : "") + a.name}</option>)}
           </select>}
-          <label className="up" style={{ marginLeft: dressedList.length ? 0 : "auto" }}>⬆ Add asset file<input type="file" accept="application/json" onChange={sessionUpload} hidden /></label>
+          <label className="up" style={{ marginLeft: dressedList.length ? 0 : "auto" }}>⬆ Add asset file<input type="file" accept=".json,application/json,text/plain" onChange={sessionUpload} hidden /></label>
         </div>
         <div className="main">
           <div className="stage">
@@ -10072,7 +10151,14 @@ export default function AssetStudio() {
       }
       setLevel((lv2) => {
         const layer2 = { ...lv2[lLayer] };
-        for (const k of cellsToFill) layer2[k] = newVal;
+        for (const k of cellsToFill) {
+          // Re-colour in place. A cell that already carries geometry — a ramp, its run/step across
+          // a multi-cell ramp, the upside-down flag, stacked fills — keeps all of it and only
+          // changes colour/texture, so filling a floor no longer flattens its ramps into blocks.
+          // An EMPTY cell has nothing to keep and takes the shape selected in the toolbar.
+          const prev = lv2[lLayer][k];
+          layer2[k] = (prev === undefined || prev === null) ? newVal : recolorCell(prev, newVal);
+        }
         return { ...lv2, [lLayer]: layer2 };
       });
       if (hitCap) flash("Filled the first 8000 cells — that region was huge, so it stopped there rather than hang.");
@@ -10448,7 +10534,7 @@ export default function AssetStudio() {
           <button className="ltbtn" onClick={newLevelFresh}>＋ New Level</button>
           <button className="ltbtn" onClick={newRoomFresh}>＋ New Room</button>
           <button className="ltbtn" onClick={() => setLevelLoadOpen(true)}>📂 Load a level</button>
-          <label className="ltbtn up">⬆ Open a file<input type="file" accept="application/json" onChange={uploadLevel} hidden /></label>
+          <label className="ltbtn up">⬆ Open a file<input type="file" accept=".json,application/json,text/plain" onChange={uploadLevel} hidden /></label>
           <button className="ltbtn" onClick={downloadLevel}>⬇ Download</button>
           <input className="bgNameInput" value={bgName} onChange={(e) => setBgName(e.target.value)} placeholder="Background name…" />
           <button className="ltbtn" onClick={saveBackground} >💾 Save BG</button>
@@ -11349,7 +11435,7 @@ export default function AssetStudio() {
                 <option value="">▢ Plain box</option>
                 {allAssets.filter((a) => a.type === "body" || a.type === "character" || a.type === "enemy").map((a) => <option key={a.id} value={a.id}>{(a.type === "enemy" || a.isEnemy ? "👹 " : "") + a.name}</option>)}
               </select>
-              <label className="ltbtn up wide3b">⬆ Upload a character file<input type="file" accept="application/json" onChange={sessionUpload} hidden /></label>
+              <label className="ltbtn up wide3b">⬆ Upload a character file<input type="file" accept=".json,application/json,text/plain" onChange={sessionUpload} hidden /></label>
               <div className="ct" style={{ marginTop: 12 }}>Playtest weapon</div>
               <select className="big" value={playtestWeaponId} onChange={(e) => setPlaytestWeaponId(e.target.value)}>
                 <option value="">✋ Unarmed</option>
@@ -12162,7 +12248,7 @@ export default function AssetStudio() {
               <input className="namefield" value={asset.name} onChange={(e) => setAsset({ ...asset, name: e.target.value })} placeholder={asset.type === "equipment" ? "e.g. Wizard Hat, Iron Boots…" : "e.g. Wizard Bob, Bronze Sword…"} />
             </div>
             <div className="grp"><span className="gl">Keep your work</span>
-              <div className="row2">{hasStore && <button onClick={saveAsset}>💾 Save</button>}<button onClick={download}>⬇ Download file</button><label className="up">⬆ Upload file<input type="file" accept="application/json" onChange={upload} hidden /></label></div>
+              <div className="row2">{hasStore && <button onClick={saveAsset}>💾 Save</button>}<button onClick={download}>⬇ Download file</button><label className="up">⬆ Upload file<input type="file" accept=".json,application/json,text/plain" onChange={upload} hidden /></label></div>
             </div>
             <div className="grp"><span className="gl">Open a saved {asset.type === "equipment" ? (SLOTS[asset.slot]?.label || "item") : (TYPES[asset.type]?.label || asset.type)}</span>
               {(() => {
