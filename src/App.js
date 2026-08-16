@@ -3049,12 +3049,14 @@ const computeFillRegion = (lv, layerName, r0, c0) => {
   const sameAsStart = (v) => {
     if (startVal === null) return v === undefined || v === null;
     if (v === undefined || v === null) return false;
-    // Matched on COLOUR alone. It used to compare cellSig — colour + ramp shape + texture — so a
-    // ramp never matched the block beside it even in the identical colour, and filling a floor
-    // skipped every ramp in it. A bucket means "this colour, connected"; the geometry each cell
-    // already carries is preserved when the fill is written (see floodFill), so a recoloured ramp
-    // is still a ramp.
-    return fgColor(v) === fgColor(startVal);
+    // Matched on the cell's PAINT — its base colour and its texture — and deliberately NOT on its
+    // ramp shape. Including the shape (the old cellSig compare) meant a ramp never matched the
+    // block beside it in the same paint, so filling a floor skipped every ramp in it. Dropping
+    // the TEXTURE from the compare as well was a disaster: textures share base colours, so one
+    // click bled across a whole room of different materials — wall, floor and carpet repainted
+    // in one go. Texture is identity; shape is not. The geometry each cell already carries is
+    // preserved when the fill is written (see floodFill), so a re-coloured ramp is still a ramp.
+    return fgColor(v) === fgColor(startVal) && cellTexId(v) === cellTexId(startVal);
   };
   const visited = new Set();
   const stack = [[r0, c0]];
@@ -7352,8 +7354,9 @@ export default function AssetStudio() {
         await writeAssetIndex(pruned);
         await sset(ASSET_INDEX_BAK, JSON.stringify(full.map((x) => ({ id: x.id, name: x.name, type: x.type }))));
       }
-      console.warn("[Bob] " + bad.length + " asset record(s) could not be read anywhere and were dropped from the index:", bad);
-      flash("Cleaned up " + bad.length + " empty entr" + (bad.length > 1 ? "ies" : "y") + " the index still pointed at (" + names + ") — no art was lost, those records were already gone. " + full.length + " assets loaded.");
+      // Console only. This is housekeeping on pointers whose records are already gone from every
+      // store — there is nothing for anyone to do about it, so it must not interrupt the app.
+      console.warn("[Bob] " + bad.length + " asset record(s) could not be read anywhere and were dropped from the index:", names, bad);
     }
     } finally { setLibraryLoading(false); }
   };
