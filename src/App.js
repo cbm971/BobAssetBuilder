@@ -1720,10 +1720,12 @@ const computeFillRegion = (lv, layerName, r0, c0) => {
   const sameAsStart = (v) => {
     if (startVal === null) return v === undefined || v === null;
     if (v === undefined || v === null) return false;
-    // One rule for every layer now (see cellSig): base color + ramp shape + texture. Previously
-    // Background/Front compared with `===`, which can't see that two cells share a color but
-    // carry different textures.
-    return cellSig(v) === cellSig(startVal);
+    // Matched on COLOUR alone. It used to compare colour + ramp shape + texture (cellSig), which
+    // meant a ramp and the block beside it never matched even when they were plainly the same
+    // paint — so filling a floor skipped every ramp in it and left them the old colour. What a
+    // bucket means here is "this colour, connected", and the shape each cell already has is
+    // preserved when the fill is written (see floodFill), so a recoloured ramp stays a ramp.
+    return fgColor(v) === fgColor(startVal);
   };
   const visited = new Set();
   const stack = [[r0, c0]];
@@ -2042,6 +2044,16 @@ export const paintValue = (color, texture, shape) => {
 // traces the OUTER EDGE of whatever you paint — at any brush size — without hiding the fill (a
 // 1-cell-thick platform still shows its fill colour, just with an outline around it). Inset
 // box-shadows are used so nothing shifts layout and it still composes with a ramp clip-path.
+// Swap a cell's colour/texture while keeping every bit of geometry it already had — the ramp
+// direction, its run/step across a multi-cell ramp, the upside-down flag, and its outline.
+export const recolorCell = (prev, next) => {
+  const keep = {};
+  if (prev && typeof prev === "object") {
+    for (const f of ["slope", "run", "step", "upsideDown", "ol"]) if (prev[f] !== undefined) keep[f] = prev[f];
+  }
+  if (!Object.keys(keep).length) return next;
+  return (next && typeof next === "object") ? { ...next, ...keep } : { c: next, ...keep };
+};
 export const withOutline = (val, ol) => ol ? (typeof val === "object" ? { ...val, ol } : { c: val, ol }) : val;
 const outlineBoxShadow = (map, r, c, ol) => {
   const s = [];
@@ -2731,7 +2743,13 @@ export default function AssetStudio() {
   // which is exactly the reported bug. IndexedDB has no comparable cap.
   const sget = async (k) => {
     try {
-      if (typeof window !== "undefined" && window.storage) { const r = await window.storage.get(k, false); return r ? r.value : null; }
+      // The Claude-host store, when the app runs inside one. It is TRIED, not trusted: if it
+      // throws, rejects, or simply has nothing, the read falls through to IndexedDB and then
+      // localStorage. Returning early on it meant a host store that failed took the whole
+      // library down with it, with no way back to the copies sitting in the browser.
+      if (typeof window !== "undefined" && window.storage) {
+        try { const r = await window.storage.get(k, false); if (r && r.value != null) return r.value; } catch { /* fall through to the browser stores */ }
+      }
       const hit = await idbGet(k);
       if (hit.ok && typeof hit.value === "string") return hit.value;
       const legacy = localStorage.getItem(k);
@@ -2743,7 +2761,14 @@ export default function AssetStudio() {
   };
   const sset = async (k, v) => {
     try {
-      if (typeof window !== "undefined" && window.storage) { await window.storage.set(k, v, false); return true; }
+      // Same deal writing: try the host store, but a failure there (it has its own quota, and a
+      // dressed look embeds a full copy of every layer it wears) must NOT end the save — that
+      // was the "Couldn't save here — try Export instead" on Dress Bob. Fall through to
+      // IndexedDB, then localStorage, and only report failure if all of them refuse.
+      if (typeof window !== "undefined" && window.storage) {
+        try { await window.storage.set(k, v, false); storeFailReason = ""; return true; }
+        catch (e) { storeFailReason = "the host store refused it (" + ((e && e.name) || "error") + ")"; }
+      }
       if ((await idbSet(k, v)).ok) { storeFailReason = ""; return true; }
       localStorage.setItem(k, v); storeFailReason = ""; return true;   // no IndexedDB at all (private mode, ancient browser)
     } catch (e) {
@@ -2755,7 +2780,9 @@ export default function AssetStudio() {
   };
   const sdel = async (k) => {
     try {
-      if (typeof window !== "undefined" && window.storage) { await window.storage.delete(k, false); return true; }
+      if (typeof window !== "undefined" && window.storage) {
+        try { await window.storage.delete(k, false); } catch { /* fall through and clear the browser copies too */ }
+      }
       await idbDel(k);
       try { localStorage.removeItem(k); } catch { /* nothing legacy under this key */ }
       return true;
@@ -2764,7 +2791,7 @@ export default function AssetStudio() {
   useEffect(() => {
     let ok = false;
     try {
-      if (typeof window !== "undefined" && window.storage) ok = true;
+      if (typeof window !== "undefined" && window.storage) ok = true;   // host store present; the browser stores still back it up on failure
       else { localStorage.setItem("__p", "1"); localStorage.removeItem("__p"); ok = true; }
     } catch { ok = false; }
     // localStorage being full (or blocked) no longer means "no storage" — IndexedDB is the real
@@ -6120,7 +6147,7 @@ export default function AssetStudio() {
           </div>
           <h2>Load</h2>
           <button className="ltbtn" onClick={() => { setLoadOpen(true); setLoadCategory(null); setLoadSlot(null); }}>📂 Load{allAssets.length ? " (" + allAssets.length + " saved)" : ""}</button>
-          <label className="openfile">⬆ Open a file<input type="file" accept="application/json" onChange={upload} hidden /></label>
+          <label className="openfile">⬆ Open a file<input type="file" accept=".json,application/json,text/plain" onChange={upload} hidden /></label>
           <button className="ltbtn" onClick={exportAllAssets} title="Downloads every saved asset as one backup file. Re-open that file here later to restore them all.">⬇ Export all assets{library.length ? " (" + library.length + ")" : ""}</button>
           <h2>Niche controls</h2>
           <button className="ltbtn" onClick={() => setNiche(true)}>🩹 Recover layers from a dressed look</button>
@@ -6330,7 +6357,7 @@ export default function AssetStudio() {
             <option value="">📂 Open saved look…</option>
             {dressedList.map((a) => <option key={a.id} value={a.id}>{(a.isEnemy ? "👹 " : "") + a.name}</option>)}
           </select>}
-          <label className="up" style={{ marginLeft: dressedList.length ? 0 : "auto" }}>⬆ Add asset file<input type="file" accept="application/json" onChange={sessionUpload} hidden /></label>
+          <label className="up" style={{ marginLeft: dressedList.length ? 0 : "auto" }}>⬆ Add asset file<input type="file" accept=".json,application/json,text/plain" onChange={sessionUpload} hidden /></label>
         </div>
         <div className="main">
           <div className="stage">
@@ -6428,7 +6455,14 @@ export default function AssetStudio() {
       }
       setLevel((lv2) => {
         const layer2 = { ...lv2[lLayer] };
-        for (const k of cellsToFill) layer2[k] = newVal;
+        for (const k of cellsToFill) {
+          // Re-colour in place: a cell that already carries a ramp (or an upside-down ramp, or a
+          // multi-cell run) keeps that geometry and only changes colour/texture, so filling a
+          // floor no longer flattens its ramps into solid blocks. An EMPTY cell has no geometry
+          // to keep, so it takes the shape currently selected in the toolbar, exactly as before.
+          const prev = lv2[lLayer][k];
+          layer2[k] = (prev === undefined || prev === null) ? newVal : recolorCell(prev, newVal);
+        }
         return { ...lv2, [lLayer]: layer2 };
       });
       if (hitCap) flash("Filled the first 8000 cells — that region was huge, so it stopped there rather than hang.");
@@ -6730,7 +6764,7 @@ export default function AssetStudio() {
           <button className="ltbtn" onClick={newLevelFresh}>＋ New Level</button>
           <button className="ltbtn" onClick={newRoomFresh}>＋ New Room</button>
           <button className="ltbtn" onClick={() => setLevelLoadOpen(true)}>📂 Load a level</button>
-          <label className="ltbtn up">⬆ Open a file<input type="file" accept="application/json" onChange={uploadLevel} hidden /></label>
+          <label className="ltbtn up">⬆ Open a file<input type="file" accept=".json,application/json,text/plain" onChange={uploadLevel} hidden /></label>
           <button className="ltbtn" onClick={downloadLevel}>⬇ Download</button>
           <input className="bgNameInput" value={bgName} onChange={(e) => setBgName(e.target.value)} placeholder="Background name…" />
           <button className="ltbtn" onClick={saveBackground} >💾 Save BG</button>
@@ -7458,7 +7492,7 @@ export default function AssetStudio() {
                 <option value="">▢ Plain box</option>
                 {allAssets.filter((a) => a.type === "body" || a.type === "character" || a.type === "enemy").map((a) => <option key={a.id} value={a.id}>{(a.type === "enemy" || a.isEnemy ? "👹 " : "") + a.name}</option>)}
               </select>
-              <label className="ltbtn up wide3b">⬆ Upload a character file<input type="file" accept="application/json" onChange={sessionUpload} hidden /></label>
+              <label className="ltbtn up wide3b">⬆ Upload a character file<input type="file" accept=".json,application/json,text/plain" onChange={sessionUpload} hidden /></label>
               <div className="ct" style={{ marginTop: 12 }}>Playtest weapon</div>
               <select className="big" value={playtestWeaponId} onChange={(e) => setPlaytestWeaponId(e.target.value)}>
                 <option value="">✋ Unarmed</option>
@@ -8309,7 +8343,7 @@ export default function AssetStudio() {
               <p className="mini">Give it a unique name so your library isn't full of identical “{asset.type === "equipment" ? SLOTS[asset.slot].label : (TYPES[asset.type]?.label || asset.type)}” entries.</p>
             </div>
             <div className="grp"><span className="gl">Keep your work</span>
-              <div className="row2">{hasStore && <button onClick={saveAsset}>💾 Save</button>}<button onClick={download}>⬇ Download file</button><label className="up">⬆ Upload file<input type="file" accept="application/json" onChange={upload} hidden /></label></div>
+              <div className="row2">{hasStore && <button onClick={saveAsset}>💾 Save</button>}<button onClick={download}>⬇ Download file</button><label className="up">⬆ Upload file<input type="file" accept=".json,application/json,text/plain" onChange={upload} hidden /></label></div>
             </div>
             <div className="grp"><span className="gl">Open a saved {asset.type === "equipment" ? (SLOTS[asset.slot]?.label || "item") : (TYPES[asset.type]?.label || asset.type)}</span>
               {(() => {
