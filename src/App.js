@@ -45,6 +45,11 @@ const idbRun = async (mode, run) => {
     } catch { resolve({ ok: false }); }
   });
 };
+// Why the last write failed, so a save that can't happen says something useful instead of
+// the bare "Couldn't save here" that made a full-storage bug indistinguishable from a
+// blocked-storage one.
+let storeFailReason = "";
+export const lastStoreFailure = () => storeFailReason;
 const idbGet = (k) => idbRun("readonly", (s) => s.get(k));
 const idbSet = (k, v) => idbRun("readwrite", (s) => s.put(v, k));
 const idbDel = (k) => idbRun("readwrite", (s) => s.delete(k));
@@ -2739,9 +2744,14 @@ export default function AssetStudio() {
   const sset = async (k, v) => {
     try {
       if (typeof window !== "undefined" && window.storage) { await window.storage.set(k, v, false); return true; }
-      if ((await idbSet(k, v)).ok) return true;
-      localStorage.setItem(k, v); return true;   // no IndexedDB at all (private mode, ancient browser)
-    } catch { return false; }
+      if ((await idbSet(k, v)).ok) { storeFailReason = ""; return true; }
+      localStorage.setItem(k, v); storeFailReason = ""; return true;   // no IndexedDB at all (private mode, ancient browser)
+    } catch (e) {
+      storeFailReason = (e && e.name === "QuotaExceededError")
+        ? "this browser's storage is full and IndexedDB isn't available here"
+        : (e && e.name ? "storage error: " + e.name : "storage is blocked in this browser");
+      return false;
+    }
   };
   const sdel = async (k) => {
     try {
@@ -5455,7 +5465,7 @@ export default function AssetStudio() {
         : target.mode === "rename" ? "Saved as a new \"" + payload.name + "\" ✓"
         : "Saved to this device ✓" + worn);
       loadLibrary();
-    } else flash("Couldn't save here — use Download.");
+    } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ". Use Download.");
   };
   const convertLegacyProjectile = async () => {
     const legacyDrawn = asset.states?.projectile;
@@ -5481,7 +5491,7 @@ export default function AssetStudio() {
     const ok1 = await sset("asset:" + na.id, JSON.stringify(na));
     list = list.filter((x) => x.id !== na.id); list.push({ id: na.id, name: na.name, type: na.type });
     const ok2 = await sset("assetIndex", JSON.stringify(list));
-    if (ok1 && ok2) { setAsset((a) => ({ ...a, projectileId: na.id })); flash("Saved \"" + na.name + "\" as its own Projectile ✓ — assigned to this weapon."); loadLibrary(); } else flash("Couldn't save here — use Download, then Upload it manually.");
+    if (ok1 && ok2) { setAsset((a) => ({ ...a, projectileId: na.id })); flash("Saved \"" + na.name + "\" as its own Projectile ✓ — assigned to this weapon."); loadLibrary(); } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ". Use Download, then Upload it manually.");
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
@@ -5634,7 +5644,7 @@ export default function AssetStudio() {
     let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     list = list.filter((x) => x.id !== c.id); list.push({ id: c.id, name: c.name, type: c.type });
     const ok2 = await sset("assetIndex", JSON.stringify(list));
-    if (ok1 && ok2) { flash("Recovered \"" + c.name + "\" into your saved assets ✓"); loadLibrary(); } else flash("Couldn't save here.");
+    if (ok1 && ok2) { flash("Recovered \"" + c.name + "\" into your saved assets ✓"); loadLibrary(); } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ".");
   };
   const handForGuideId = (guideId) => { if (guideId && guideId !== "default") { const g = findA(guideId); if (g) { const o = {}; for (const ang of ANGLES) o[ang] = bodyRig(g, ang).hand; return o; } } return DEFAULT_HAND; };
   const handForGuide = (a) => handForGuideId(a && a.guideId); // the weapon EDITOR's own canvas preview only — keyed by whatever body is selected in "Design for body", unrelated to playtest attach below
@@ -5825,7 +5835,7 @@ export default function AssetStudio() {
     const ok1 = await sset("asset:" + l.id, JSON.stringify(l));
     list = list.filter((x) => x.id !== l.id); list.push({ id: l.id, name: l.name, type: l.type });
     const ok2 = await sset("assetIndex", JSON.stringify(list));
-    if (ok1 && ok2) { setSavedDressedIds((m) => ({ ...m, [name]: l.id })); flash("Saved \"" + name + "\" ✓ — pick it under Playtest player in the level tester."); loadLibrary(); } else flash("Couldn't save here — try Export instead.");
+    if (ok1 && ok2) { setSavedDressedIds((m) => ({ ...m, [name]: l.id })); flash("Saved \"" + name + "\" ✓ — pick it under Playtest player in the level tester."); loadLibrary(); } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ". Use Export instead.");
   };
   const comboDownload = () => { try { const b = new Blob([combo], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "dressed-bob.json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const comboCopy = () => { try { navigator.clipboard?.writeText(combo); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
