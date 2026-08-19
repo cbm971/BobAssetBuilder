@@ -4942,6 +4942,12 @@ export default function AssetStudio() {
   const [canRedo, setCanRedo] = useState(false);
   const [level, setLevel] = useState(null);            // current level being edited
   const [levelLib, setLevelLib] = useState([]);
+  // How many levels the STORED INDEX knows about, read on mount from one small key. levelLib is
+  // only filled once the Level Creator has been opened, so the Export button used to advertise
+  // "0 levels" on a fresh load — which reads as "there is nothing here to lose" at the exact
+  // moment someone is deciding whether their backup is good. The index is cheap; the levels
+  // themselves (megabytes) are still left to load lazily.
+  const [levelCount, setLevelCount] = useState(0);
   const [pendingLevelAction, setPendingLevelAction] = useState(null); // { label, run } — shown as a confirm modal when about to discard unsaved level changes
   const [levelLoadOpen, setLevelLoadOpen] = useState(false);          // true while the "Load a level" picker modal is open
   const [bgLib, setBgLib] = useState([]);               // saved reusable backgrounds — {id, name} index; full data fetched on load
@@ -5330,7 +5336,7 @@ export default function AssetStudio() {
   useEffect(() => {
     let ok = false;
     try { if (typeof window !== "undefined" && window.storage) ok = true; else { localStorage.setItem("__p", "1"); localStorage.removeItem("__p"); ok = true; } } catch { ok = false; }
-    setHasStore(ok); loadLibrary(); loadStamps();
+    setHasStore(ok); loadLibrary(); loadStamps(); readLevelIndexCount().then(setLevelCount);
   }, []); // eslint-disable-line
   useEffect(() => { setEmojis(buildEmojiList()); }, []);
   // Persist the active paint color + recent-colors history so they survive a reload — previously
@@ -7364,6 +7370,7 @@ export default function AssetStudio() {
       // store — there is nothing for anyone to do about it, so it must not interrupt the app.
       console.warn("[Bob] " + bad.length + " asset record(s) could not be read anywhere and were dropped from the index:", names, bad);
     }
+    return full; // the caller may need the list NOW — React state is not readable until re-render
     } finally { setLibraryLoading(false); }
   };
   const loadStamps = async () => {
@@ -7388,7 +7395,7 @@ export default function AssetStudio() {
       // load now hands the whole set to the project file, which is what actually closes the hole
       // for work that already exists.
       if (full.length) projectLibrary.save({ stamps: full });
-      setStamps(full);
+      setStamps(full); return full;
       if (restored) flash("🛟 Restored " + restored + " stored group" + (restored > 1 ? "s" : "") + " from the project file.");
     } catch { setStamps([]); }
   };
@@ -8989,23 +8996,46 @@ export default function AssetStudio() {
   // One-file backup of EVERY saved asset — everything lives in the browser's storage, so this is
   // the only way to get it out to a safe place. Re-opening the same file via ⬆ Open a file
   // restores every asset back into the save store (same id = updated in place, never duplicated).
-  const exportAllAssets = () => {
+  // How many levels the stored index claims exist. Used only to cross-check an export against
+  // what it should have contained — a count mismatch is the signature of the failure this whole
+  // path is guarding against, so it is worth one extra read to be able to report it.
+  const readLevelIndexCount = async () => {
+    try { const raw = await sget("levelIndex"); const l = raw ? JSON.parse(raw) : []; return Array.isArray(l) ? l.length : 0; } catch { return 0; }
+  };
+  const exportAllAssets = async () => {
     try {
-      if (!library.length) { flash("Nothing saved yet — nothing to export."); return; }
+      // READ EVERY STORE FRESH rather than bundling whatever happens to be in React state.
+      // levelLib/texLib/bgLib are populated LAZILY — loadLevels/loadTextures/loadBgLib only run
+      // when the Level Creator is opened — so pressing Export from the front screen wrote a
+      // backup containing ZERO levels, and said so in a toast nobody reads. Five of the eight
+      // backups taken in the week this was found had no levels in them at all; the one level
+      // that later needed recovering survived on the luck of a sixth file. A backup that is
+      // silently missing the work it exists to protect is worse than no backup, so the button
+      // now loads everything itself and the counts below are of what was actually written.
+      const [assets, levels, stampsAll, textures, backgrounds] = await Promise.all([
+        loadLibrary(), loadLevels(), loadStamps(), loadTextures(), loadBgLib(),
+      ]);
+      const all = { assets: assets || [], levels: levels || [], stamps: stampsAll || [], textures: textures || [], backgrounds: backgrounds || [] };
+      if (!all.assets.length && !all.levels.length) { flash("Nothing saved yet — nothing to export."); return; }
       const stamp = new Date().toISOString().slice(0, 10);
       // EVERYTHING rides along. Two backup files were taken by hand — 25 Jul and 4 Aug — and
       // neither contained a single level, because this button only ever wrote assets. When the
       // levels went, the backups made to prevent exactly that were no help at all. Levels are
       // where most of the hours go; they are the first thing this has to carry, not an extra.
-      const bundle = { assetBuilderBackup: 2, exportedAt: Date.now(), assets: library, levels: levelLib, stamps, textures: texLib, backgrounds: bgLib.filter((b) => b && b.bg) };
+      const bundle = { assetBuilderBackup: 2, exportedAt: Date.now(), assets: all.assets, levels: all.levels, stamps: all.stamps, textures: all.textures, backgrounds: all.backgrounds.filter((b) => b && b.bg) };
       const payload = JSON.stringify(bundle, null, 1);
       const b = new Blob([payload], { type: "application/json" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "assetbuilder-backup-" + stamp + ".json"; a.click();
-      const bits = [library.length + " asset" + (library.length === 1 ? "" : "s")];
+      const bits = [all.assets.length + " asset" + (all.assets.length === 1 ? "" : "s")];
       for (const [n, label] of [[bundle.levels.length, "level"], [bundle.stamps.length, "stored group"], [bundle.textures.length, "texture"], [bundle.backgrounds.length, "background"]]) {
         if (n) bits.push(n + " " + label + (n === 1 ? "" : "s"));
       }
-      flash("Exported " + bits.join(", ") + " ✓ — keep that file somewhere safe.");
+      // Last line of defence: if the index still names levels this export could not load, SAY SO
+      // loudly rather than reporting a cheerful success over a file that is missing them.
+      const missing = Math.max(0, (await readLevelIndexCount()) - all.levels.length);
+      flash(missing
+        ? "⚠ Exported " + bits.join(", ") + " — but " + missing + " level" + (missing > 1 ? "s" : "") + " could NOT be read and are NOT in this file. Do not delete your older backups."
+        : "Exported " + bits.join(", ") + " ✓ — keep that file somewhere safe.");
     } catch { flash("Download blocked — try again."); }
   };
   const restoreBackup = async (bk) => {
@@ -9330,7 +9360,7 @@ export default function AssetStudio() {
       }
       if (restored) await sset("textureIndex", JSON.stringify(full.map((t) => ({ id: t.id, name: t.name }))));
       if (full.length) projectLibrary.save({ textures: full });
-      setTexLib(full);
+      setTexLib(full); return full;
     } catch { setTexLib([]); }
   };
   // `applyTo` says what a freshly saved texture should start painting. "level" (the default, and
@@ -9394,7 +9424,7 @@ export default function AssetStudio() {
       }
       if (restored) await sset("backgroundIndex", JSON.stringify(full.map((b) => ({ id: b.id, name: b.name }))));
       if (full.length) projectLibrary.save({ backgrounds: full.filter((b) => b && b.bg) });
-      setBgLib(full);
+      setBgLib(full); return full;
     } catch { setBgLib([]); }
   };
   // Backgrounds are saved SEPARATELY from levels (their own "background:<id>" entries +
@@ -9453,13 +9483,14 @@ export default function AssetStudio() {
         if (await sset("level:" + lv.id, JSON.stringify(lv))) { full.push(lv); have.add(lv.id); fromProject++; }
       } catch { /* one bad record must never stop the rest coming home */ }
     }
-    setLevelLib(full);
+    setLevelLib(full); setLevelCount(full.length); // keep the Export label honest after a delete too
     if ((orphanL.length || fromProject) && full.length) await sset("levelIndex", JSON.stringify(full.map((l) => ({ id: l.id, name: l.name }))));
     if (orphanL.length) console.warn("[Bob] recovered " + orphanL.length + " level(s) missing from the index:", orphanL);
     if (fromProject) flash("🛟 Restored " + fromProject + " level" + (fromProject > 1 ? "s" : "") + " from the project file.");
     // Push back up too, so the project file always holds the fullest copy either side has seen.
     if (full.length) projectLibrary.save({ levels: full });
     if (bad.length) { console.warn("[Bob] " + bad.length + " level(s) could not be read and were skipped:", bad); flash("⚠ " + bad.length + " level" + (bad.length > 1 ? "s" : "") + " couldn't be read — the other " + full.length + " loaded. See console."); }
+    return full; // exportAllAssets needs the levels NOW, not after the next render
   };
   const openLevelCreator = () => {
     loadLevels(); loadBgLib(); loadTextures();
@@ -9468,14 +9499,34 @@ export default function AssetStudio() {
   };
   const saveLevel = async () => {
     if (!level) return;
-    const ok1 = await sset("level:" + level.id, JSON.stringify(level));
     let list = []; const idx = await sget("levelIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
-    list = list.filter((x) => x.id !== level.id); list.push({ id: level.id, name: level.name });
+    // RENAMING A LOADED LEVEL IS "SAVE AS" — it forks a fresh id, exactly as it already did for
+    // assets (resolveSaveTarget, shared by both so the two screens can never drift apart again).
+    // Without this, Save wrote straight back to level:<the id you opened>: opening "Trailor Park
+    // M2", renaming it "Trailor Park M3" and saving REPLACED M2 — the level was not copied, it
+    // was renamed on top of itself, and M2 simply ceased to exist with no warning and no undo.
+    // The "Flip to a copy" button a few lines below already knew about this hazard and forked an
+    // id to dodge it; ordinary Save was the path that never learned. Note this reads the index
+    // BEFORE writing (the old code wrote the record first), because the fork has to be decided
+    // against the stored name, not against the one already being overwritten.
+    const target = resolveSaveTarget(list, level);
+    const payload = target.id !== level.id ? { ...level, id: target.id } : level;
+    const ok1 = await sset("level:" + payload.id, JSON.stringify(payload));
+    list = list.filter((x) => x.id !== payload.id); list.push({ id: payload.id, name: payload.name });
     const ok2 = await sset("levelIndex", JSON.stringify(list));
     // Straight into the project file as well. The browser store is a cache in front of it: it is
     // the copy that is scoped to an address that will not last, and losing it must cost nothing.
-    projectLibrary.save({ levels: [level] });
-    if (ok1 && ok2) { levelBaseline.current = JSON.stringify(level); flash("Level saved ✓"); loadLevels(); } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ". Use Download.");
+    projectLibrary.save({ levels: [payload] });
+    if (ok1 && ok2) {
+      // Carry on editing the FORK, not the level it came from. Leaving the editor pointed at the
+      // old id would fork again on the next save, quietly stamping out M3 after M3 after M3.
+      if (payload !== level) setLevel(payload);
+      levelBaseline.current = JSON.stringify(payload);
+      flash(target.mode === "rename"
+        ? "Saved \"" + payload.name + "\" as a NEW level ✓ — the one you renamed it from is still there"
+        : "Level saved ✓");
+      loadLevels();
+    } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ". Use Download.");
   };
   const doNewLevelFresh = () => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); const nl = newLevel(); setLevel(nl); levelBaseline.current = JSON.stringify(nl); setLSel(null); setGen(null); setLFxSel(null); setLFxEditIdx(null); setLLayer("fg"); setLTool("paint"); setLBrush(1); setEyedrop(false); flash("New blank level"); };
   const doNewRoomFresh = () => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); const nl = newRoom(); setLevel(nl); levelBaseline.current = JSON.stringify(nl); setLSel(null); setGen(null); setLFxSel(null); setLFxEditIdx(null); setLLayer("fg"); setLTool("paint"); setLBrush(1); setEyedrop(false); flash("New blank room"); };
@@ -9892,7 +9943,7 @@ export default function AssetStudio() {
           <button className="ltbtn saveRead" disabled={libraryLoading} onClick={() => { setLoadOpen(true); setLoadCategory(null); setLoadSlot(null); }}>{libraryLoading ? "⏳ Loading your saves…" : "📂 Load (" + allAssets.length + " saved)"}</button>
           {libraryLoading && <p className="mini saveLoading">Your saved assets are still being read from this browser. Nothing has been cleared.</p>}
           <label className="openfile">⬆ Open a file<input type="file" accept=".json,application/json,text/plain" onChange={upload} hidden /></label>
-          <button className="ltbtn saveRead" disabled={libraryLoading} onClick={exportAllAssets} title="Downloads everything you have made — assets, levels, stored groups, textures and backgrounds — as one backup file. Re-open that file here later to restore it all.">⬇ Export everything{libraryLoading ? " (loading…)" : " (" + library.length + " assets, " + levelLib.length + " levels)"}</button>
+          <button className="ltbtn saveRead" disabled={libraryLoading} onClick={exportAllAssets} title="Downloads everything you have made — assets, levels, stored groups, textures and backgrounds — as one backup file. Re-open that file here later to restore it all.">⬇ Export everything{libraryLoading ? " (loading…)" : " (" + library.length + " assets, " + Math.max(levelLib.length, levelCount) + " levels)"}</button>
           <h2>Niche controls</h2>
           <button className="ltbtn" onClick={() => setNiche(true)}>🩹 Recover layers from a dressed look</button>
         </div>

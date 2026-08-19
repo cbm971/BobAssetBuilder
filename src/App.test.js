@@ -1960,6 +1960,51 @@ describe("asset identity", () => {
   });
 });
 
+// A LEVEL is saved under a name the same way an asset is, and used not to be: saveLevel wrote
+// straight back to level:<the id you opened> no matter what the name said. Opening "Trailor Park
+// M2", renaming it to "Trailor Park M3" and pressing Save therefore destroyed M2 — one level went
+// in, one level came out, and the original was gone with no warning. saveLevel now runs the same
+// resolveSaveTarget both screens share; these lock in that it keeps doing so.
+describe("level identity", () => {
+  const M2 = { id: "le2ieau", name: "Trailor Park M2" };
+
+  test("saving a level under the same name updates it in place", () => {
+    expect(resolveSaveTarget([M2], { ...M2 }, "fresh"))
+      .toEqual({ id: "le2ieau", mode: "update" });
+  });
+
+  test("renaming a loaded level forks a new id and leaves the original alone", () => {
+    const t = resolveSaveTarget([M2], { ...M2, name: "Trailor Park M3" }, "fresh");
+    expect(t).toEqual({ id: "fresh", mode: "rename", sourceId: "le2ieau" });
+    // the point of the whole fix: the id that gets written is NOT the one M2 lives under
+    expect(t.id).not.toBe(M2.id);
+  });
+
+  test("the index keeps both levels after a rename-save", () => {
+    let list = [M2];
+    const renamed = { ...M2, name: "Trailor Park M3" };
+    const t = resolveSaveTarget(list, renamed, "fresh");
+    const payload = t.id !== renamed.id ? { ...renamed, id: t.id } : renamed;
+    list = list.filter((x) => x.id !== payload.id);
+    list.push({ id: payload.id, name: payload.name });
+    expect(list).toEqual([
+      { id: "le2ieau", name: "Trailor Park M2" },
+      { id: "fresh", name: "Trailor Park M3" },
+    ]);
+  });
+
+  test("saving the fork again updates the fork, not the level it came from", () => {
+    const list = [M2, { id: "fresh", name: "Trailor Park M3" }];
+    expect(resolveSaveTarget(list, { id: "fresh", name: "Trailor Park M3" }, "another"))
+      .toEqual({ id: "fresh", mode: "update" });
+  });
+
+  test("a brand new level is created, not matched onto an existing name", () => {
+    expect(resolveSaveTarget([M2], { id: "brand-new", name: "Trailor Park M2" }))
+      .toEqual({ id: "brand-new", mode: "create" });
+  });
+});
+
 describe("objects place centred on the clicked cell", () => {
   test("a 1x object still lands exactly where it was clicked", () => {
     expect(objAnchor(10, 20, 1)).toEqual({ r: 10, c: 20 });
