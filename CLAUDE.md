@@ -56,10 +56,22 @@ const byText = (re) => [...document.querySelectorAll('button')]
   .find(b => re.test((b.textContent || '').trim()));
 ```
 
-Seeding fake assets into `localStorage` (`asset:<id>` records plus an `assetIndex`
-array of `{id,name,type}`) and reloading is the fastest way to get real data on
-screen. Clicking through the drawing tools blind is not — it burns context and
-usually fails.
+Seeding fake assets into storage (`asset:<id>` records plus an `assetIndex` array of
+`{id,name,type}`, and `level:<id>` plus `levelIndex`) and reloading is the fastest way
+to get real data on screen. `asset-data/library.json` in this repo is 81 real assets
+and 4 real levels — clone from those rather than hand-writing art, and serve the file
+out of `public/` so the seed script isn't a giant inline string. Clicking through the
+drawing tools blind is not — it burns context and usually fails.
+
+**Seed `localStorage` on the FIRST load only.** After that the app has copied
+everything into IndexedDB (`bobAssetStudio`, store `kv`, same `asset:<id>` keys) and
+reads from there, so a later `localStorage.setItem` is silently shadowed by the stale
+IDB copy: the edit lands, reads back correctly, and the game keeps using the old
+value. Writing to IDB instead is what actually takes. This looked exactly like a
+broken weapon flag for two round-trips.
+
+Running the dev server **writes the browser's library back into `asset-data/`**, so
+`git checkout -- asset-data/` before committing or your synthetic test assets ship.
 
 ## Gotchas that have cost real time
 
