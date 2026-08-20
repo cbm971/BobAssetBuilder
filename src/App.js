@@ -872,7 +872,7 @@ export const WEAPON_ABILITIES = {
   },
   stun: {
     icon: "💫", label: "Stun",
-    blurb: "A connecting hit freezes the target for a moment — it can't move or attack. Re-hitting refreshes the timer.",
+    blurb: "A connecting hit freezes the target for a moment — it can't move or attack. Re-hitting refreshes the timer. Works in both directions: in a 👹 Enemy's hands it freezes YOU, controls and all, for the same number of seconds.",
     melee: true,
     on: { stun: DEFAULT_STUN_SECS }, off: { stun: 0 },
   },
@@ -1940,7 +1940,7 @@ const EFFECT_TYPES = {
   // with its own timer so the two read differently on screen: 💫 is dazed, 😵 is on the floor.
   tackle: {
     label: "Tackle", icon: "🏈",
-    blurb: "Barge into an enemy and they fall over. It does no damage — they just spend the seconds you set lying on the ground, unable to move, aim or attack, and get up where they fell. Touching them again once they're up knocks them down again. No animation of its own.",
+    blurb: "Barge into an enemy and they fall over. It does no damage — they just spend the seconds you set lying on the ground, unable to move, aim or attack, and get up where they fell. Touching them again once they're up knocks them down again. Worn by a 👹 Enemy it works on YOU, and that enemy will occasionally break off whatever it was doing to charge you down. No animation of its own.",
     noAnim: true,
     params: [
       { key: "secs", label: "Down for", min: 0.5, max: 8, step: 0.5, def: 2 },
@@ -4774,6 +4774,60 @@ export const tackleDownFrames = (secs) => Math.max(1, Math.round((secs ?? 2) * 6
 // Breathing room after standing up, so a player parked on top of a downed enemy re-floors them on
 // a beat you can see instead of every single frame (which looks like a stuck sprite, not a tackle).
 export const TACKLE_GETUP_GRACE_FRAMES = 30;
+/* --- Status effects landing on the PLAYER --------------------------------------------------- */
+// Every freeze an enemy can put you in shares this one seconds -> frames conversion. Floored at 1
+// so a hand-edited fraction of a second still reads as a real (if brief) freeze rather than
+// silently doing nothing; 0/undefined means "this weapon has no stun at all" and is filtered out
+// by the caller before it ever reaches here.
+export const statusFreezeFrames = (secs) => Math.max(1, Math.round((secs ?? 0) * 60));
+// Is the player frozen out of their own controls this frame? 💫 dazed by a stun weapon and 😵 put
+// on the floor by a tackle are deliberately SEPARATE timers — exactly as on the enemy side, so a
+// stun landing on a downed player can't cut the knockdown short (or the other way round) — but
+// they gate the same thing: no walking, jumping, firing, blocking, climbing, aiming or E.
+export const playerFrozen = (p) => !!p && (((p.stun || 0) > 0) || ((p.down || 0) > 0));
+// Put the player in the 💫 dazed state, and 😵 flat on their back for the tackle version. Both
+// take the LONGER of the running timer and the new one rather than overwriting, so a glancing
+// 0.25s hit can never cut a 3s freeze short. Both also drop the state that must not survive being
+// hit: a raised guard, a wound-up throw, and any burst still queued to fire itself — that salvo is
+// COMMITTED state rather than a held key, so blanking the input intent alone wouldn't stop it and
+// you'd keep shooting through your own stun.
+export const stunPlayer = (p, secs) => {
+  if (!p || !(secs > 0)) return;
+  p.stun = Math.max(p.stun || 0, statusFreezeFrames(secs));
+  p.blocking = null; p.throwAiming = false; p.burstLeft = 0;
+};
+export const knockDownPlayer = (p, secs) => {
+  if (!p || !(secs > 0)) return;
+  p.down = Math.max(p.down || 0, tackleDownFrames(secs));
+  p.blocking = null; p.throwAiming = false; p.burstLeft = 0;
+};
+// The Tackle ability a unit is wearing, in seconds, or null when it isn't wearing one. Reads
+// `effects` exactly the way the player's own lookup does — mergeEquip and assembleLook both pack a
+// worn item's effects onto the asset — so a dressed 👹 Enemy in a football kit answers the same way
+// Bob does in the same kit, and ONE function serves both sides of the ability.
+export const tackleSecsOf = (a) => {
+  const e = ((a && a.effects) || []).find((x) => x && x.type === "tackle");
+  return e ? (e.secs ?? 2) : null;
+};
+/* --- Enemy tackle AI: a tackler comes and finds you ----------------------------------------- */
+// Wearing Tackle changed nothing about how an enemy MOVED, so the ability sat inert on that side:
+// a Guard holds its spawn point forever, an Avoid backpedals, and even Seek stops at
+// ENEMY_STANDOFF_FAR — which is precisely the distance at which a tackle cannot land. So a tackler
+// gets its own occasional committed RUN at you, laid over whatever AI it was given.
+export const TACKLE_CHARGE_RANGE = PLAYER_BODY_LEN_PX * 2; // px — how close you must be before it starts a run. Short on purpose: a charge telegraphed from across the level is a countdown, not a threat.
+export const TACKLE_CHARGE_FRAMES = 45;                    // ~0.75s of committed running before it gives up and drops back into its normal AI
+export const TACKLE_CHARGE_COOLDOWN_FRAMES = 90;           // ~1.5s of breathing room after a run ENDS — connected or not — before it may consider another
+export const TACKLE_RECOVER_FRAMES = 90;                   // ...and this on top of the knockdown itself once one actually CONNECTS, so you always get ~1.5s back on your feet before the next one. Without it a tackler simply stands over you and re-floors you every get-up grace window, which is a soft-lock rather than a fight.
+export const TACKLE_CHARGE_SPEED_MUL = 1.7;                // a charge is a sprint, not a walk
+// Chance per SECOND that a tackler with you in range commits to a run. Rides Intelligence like
+// every other enemy decision (0.35/s at the baseline 5), capped short of certain so even a genius
+// tackler leaves gaps you can move through.
+export const enemyTackleChargeChance = (intelligence) => Math.min(0.9, 0.35 * ((intelligence ?? 5) / 5));
+// A per-SECOND probability, rolled once per frame. Compounding is the whole point: rolling a raw
+// 0.35 sixty times a second fires on the first frame in range, every single time. This converts the
+// stated per-second figure into the frame odds that actually add up to it over a second.
+export const perFrameChance = (perSecond, dtMul) =>
+  1 - Math.pow(1 - Math.max(0, Math.min(1, perSecond || 0)), Math.max(0, dtMul || 0) / 60);
 // Walking UP a ramp is deliberately slow — half speed. Walking down is normal (plus the slide).
 export const SLOPE_UP_MUL = 0.5;
 // Downhill auto-slide speed (px per 60fps-frame). Gentle on purpose — a ramp is a gentle pull,
@@ -5144,7 +5198,7 @@ export default function AssetStudio() {
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
   const groundArtCache = useRef(new Map());   // item id -> its baked ground art + bounding box; see groundArt() — an item on a pedestal or lying where a body dropped it is otherwise re-baked every playtest frame
-  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 });
+  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 });
   const keys = useRef({});
   const lvRef = useRef(null);
 
@@ -5412,8 +5466,7 @@ export default function AssetStudio() {
     // Tackle carries one number — how long whoever you barge into stays on the floor. null when
     // it isn't worn, so the per-enemy contact test below is skipped outright rather than run 60
     // times a second for every player who owns no football kit.
-    const tackleEffect = (playerAsset?.effects || []).find((e) => e.type === "tackle") || null;
-    const tackleSecs = tackleEffect ? (tackleEffect.secs ?? 2) : null;
+    const tackleSecs = tackleSecsOf(playerAsset);
     // Ranged weapon ammo: a fresh full clip each Playtest session (this effect re-runs whenever
     // Playtest starts/stops or the equipped weapon changes). Melee weapons get an "unlimited"
     // record (clip 0), so nothing below ever gates a swing on ammo.
@@ -5503,13 +5556,27 @@ export default function AssetStudio() {
     const loop = () => {
       if (myGen !== __ptLoopGen) return; // a newer loop exists — stop; don't touch player or reschedule
       const p = player.current, RK = keys.current;
-      // RK is the raw key state (move keys and aim keys tracked separately). K is the merged
-      // "intent" the rest of the loop reads, via mergeInputIntent — so none of the movement/
-      // climb/fire code below had to change when WASD/arrows were split apart.
-      const K = mergeInputIntent(RK);
       const nowT = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
       const dtMul = lastT == null ? 1 : Math.min(3, Math.max(0.25, (nowT - lastT) / (1000 / 60)));
       lastT = nowT;
+      // STATUS FREEZES ON THE PLAYER — 💫 stunned by an enemy's Stun weapon, 😵 flattened by an
+      // enemy's Tackle. Ticked here, before anything reads the keys, because a frozen player has no
+      // input INTENT at all: mergeInputIntent({}) hands the rest of the loop the same all-false
+      // object it already knows how to handle, so movement, jumping, firing, melee, blocking,
+      // climbing, aiming, throwing and E-to-interact all stop without adding a single new gate to
+      // any of them. What deliberately keeps running is everything that happens TO you — gravity,
+      // fire damage, enemy hits — because being frozen is supposed to be dangerous, not a shield.
+      //
+      // downCd is the get-up grace, the same idea as the enemy's: a beat after you stand up during
+      // which the tackler that floored you can't instantly floor you again.
+      if (p.stun > 0) p.stun = Math.max(0, p.stun - dtMul);
+      if (p.down > 0) { p.down = Math.max(0, p.down - dtMul); if (p.down <= 0) p.downCd = TACKLE_GETUP_GRACE_FRAMES; }
+      if (p.downCd > 0) p.downCd = Math.max(0, p.downCd - dtMul);
+      const frozen = playerFrozen(p);
+      // RK is the raw key state (move keys and aim keys tracked separately). K is the merged
+      // "intent" the rest of the loop reads, via mergeInputIntent — so none of the movement/
+      // climb/fire code below had to change when WASD/arrows were split apart.
+      const K = mergeInputIntent(frozen ? {} : RK);
       // Temporary stat boosts from consumed items: expire by wall-clock, then layer what's still
       // active onto the player's base stats. Every stat read below (speed/agility/strength/int)
       // goes through pstats, so a boost fades on its own the moment its timer runs out — no re-key.
@@ -5956,7 +6023,7 @@ export default function AssetStudio() {
       if (p.y > lv.rows * CH - ph) { p.y = lv.rows * CH - ph; p.vy = 0; p.onGround = true; }
       if (p.onGround) { p.extraJumped = false; p.effectAnim = null; p.djGravMul = 1; p.jumpHoldT = 0; p.gliding = false; }
       if (climbing) p.gliding = false;
-      if (p.y < -200) { p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; }
+      if (p.y < -200) { p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0; }
 
       // Fire hazard: continuous damage-over-time while the player's box overlaps a fire cell.
       // dps is per SECOND, scaled by real elapsed time (dtMul/60), so it's frame-rate independent
@@ -5971,7 +6038,7 @@ export default function AssetStudio() {
           const loss = Math.floor(p.burnPool); p.burnPool -= loss;
           playerHP.current = Math.max(0, playerHP.current - loss);
           p.onFire = 12; // frames of the "burning" red flicker on the player sprite
-          if (playerHP.current <= 0) { flash("🔥 Burned to a crisp — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; playerHP.current = maxPlayerHP(playerAsset); p.burnPool = 0; }
+          if (playerHP.current <= 0) { flash("🔥 Burned to a crisp — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0; playerHP.current = maxPlayerHP(playerAsset); p.burnPool = 0; }
         }
       } else { p.burnPool = 0; }
       if (p.onFire > 0) p.onFire -= dtMul;
@@ -6046,7 +6113,7 @@ export default function AssetStudio() {
           // a full rectangle overlap rather than boxGap's horizontal one so clearing someone's
           // head with a jump doesn't floor them. Friendlies are exempt: a resurrected ally
           // follows you around and would otherwise spend the whole level face-down.
-          if (tackleSecs != null && !ep.friendly) {
+          if (tackleSecs != null && !ep.friendly && !playerFrozen(p)) {
             if ((ep.downCd || 0) > 0) ep.downCd = Math.max(0, ep.downCd - dtMul);
             const tBoxLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
             const tBoxTop = ep.y + eShape.topFrac * oldEph, tBoxH = eShape.heightFrac * oldEph;
@@ -6064,6 +6131,10 @@ export default function AssetStudio() {
           const stunned = (ep.stun || 0) > 0 || (ep.down || 0) > 0; // hit by a stun weapon, or tackled flat — frozen: the dodge/face/move/attack gates below all skip it while this lasts
           if ((ep.stun || 0) > 0) ep.stun -= dtMul;
           const eIntel = ea.stats?.intelligence ?? 5;
+          // The Tackle ability THIS unit is wearing (null for almost everything). Read through the
+          // same tackleSecsOf the player's own lookup uses, so a dressed 👹 Enemy in a football kit
+          // gets the ability on exactly the terms Bob does.
+          const eTackleSecs = tackleSecsOf(ea);
           const ew = findA(enemyWeaponIdOf(ea)) || (ea.components && ea.components.weapon) || null; // the weapon this enemy is actually holding — falls back to the look's own embedded copy if the source asset is gone from the library
           const rangedEnemy = !!(ew && isRanged(ew.wtype));
           // Enemies use the same clip and reload-time settings as the gun itself (including any
@@ -6168,7 +6239,26 @@ export default function AssetStudio() {
           // brawls always "see" their target (you can't stealth past a melee your minion started).
           const detected = (hostile && targetKind === "player") ? enemyDetects(distToTarget, ep.face) : acts;
           const gapSigned = (Math.sign(distToTarget) || 1) * boxGap(targetCX, targetW, eCenterXNow, epw);
-          const dxMove = (stunned || !acts) ? 0 : enemyMoveIntent(ai, gapSigned, engageRange, aiSpeed, detected);
+          // TACKLE CHARGE. A tackler that obeys its ordinary move intent can never use the ability
+          // it is wearing: Guard never leaves its spawn, Avoid runs the wrong way, and Seek stops at
+          // ENEMY_STANDOFF_FAR, which is exactly far enough that contact is impossible. So once in a
+          // while — see enemyTackleChargeChance, rolled per second, not per frame — it abandons the
+          // stand-off entirely and RUNS at you, and the run replaces its normal intent for as long
+          // as it lasts. Hostiles only (a friendly flattening you would be a betrayal), and only
+          // against the PLAYER: unit-vs-unit brawls stay a plain fight. A frozen tackler drops any
+          // run in progress, so a charge can be interrupted by stunning or flooring it mid-stride.
+          if ((ep.chargeCd || 0) > 0) ep.chargeCd = Math.max(0, ep.chargeCd - dtMul);
+          if ((ep.tackleCd || 0) > 0) ep.tackleCd = Math.max(0, ep.tackleCd - dtMul);
+          if (stunned || eTackleSecs == null || !hostile || targetKind !== "player") ep.charge = 0;
+          else if ((ep.charge || 0) > 0) { ep.charge = Math.max(0, ep.charge - dtMul); if (ep.charge <= 0) ep.chargeCd = TACKLE_CHARGE_COOLDOWN_FRAMES; }
+          else if ((ep.chargeCd || 0) <= 0 && (ep.tackleCd || 0) <= 0 && detected && Math.abs(gapSigned) <= TACKLE_CHARGE_RANGE
+                   && Math.random() < perFrameChance(enemyTackleChargeChance(eIntel), dtMul)) {
+            ep.charge = TACKLE_CHARGE_FRAMES;
+          }
+          const charging = (ep.charge || 0) > 0;
+          const dxMove = (stunned || !acts) ? 0
+            : charging ? (Math.sign(distToTarget) || ep.face || 1) * aiSpeed * TACKLE_CHARGE_SPEED_MUL
+            : enemyMoveIntent(ai, gapSigned, engageRange, aiSpeed, detected);
           ep.face = enemyFaceThisFrame(ep.face, dxMove, enemyAttackCommitted(ep));
           // Walls actually stop enemies now — they used to have NO horizontal collision at all:
           // a Seek enemy walked INTO a wall and the vertical snap then popped it on top, so a
@@ -6205,6 +6295,30 @@ export default function AssetStudio() {
           const eStep = Math.abs(ep.x - exBefore);
           ep.walking = ep.onGround && eStep > 0.05;
           if (ep.walking) ep.walkPhase = (ep.walkPhase || 0) + eStep * 0.03;
+
+          // TACKLE CONTACT — the enemy's half of the ability, and the exact mirror of the player's
+          // own test at the top of this block: a full rectangle overlap (so clearing their head with
+          // a jump doesn't floor you, and so contact means BOTH axes) against the trimmed body box
+          // rather than the sprite's empty canvas corners, no damage whatsoever, and the seconds on
+          // the floor are the ones set on the item. Contact is contact — walking into a tackler
+          // floors you just as walking into you floors them — the run above only decides how often
+          // one comes looking.
+          //
+          // The one thing that is NOT mirrored is the cooldown. On the enemy side a re-tackle every
+          // get-up grace window is a feature you can walk away from; on YOURS it is a soft-lock,
+          // because a floored player cannot walk anywhere. So a landed tackle also puts the tackler
+          // on tackleCd for the knockdown plus TACKLE_RECOVER_FRAMES, which guarantees you a second
+          // and a half back on your feet before the next one, and blocks the next charge too.
+          if (eTackleSecs != null && hostile && !stunned && !(p.down > 0) && !(p.downCd > 0) && (ep.tackleCd || 0) <= 0 && !p.transitioning) {
+            const tBoxLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
+            const tBoxTop = ep.y + eShape.topFrac * newEph, tBoxH = eShape.heightFrac * newEph;
+            if (boxesOverlap(p.x, p.y, pw, ph, tBoxLeft, tBoxTop, epw, tBoxH)) {
+              knockDownPlayer(p, eTackleSecs);
+              ep.charge = 0; ep.chargeCd = TACKLE_CHARGE_COOLDOWN_FRAMES;
+              ep.tackleCd = (p.down || 0) + TACKLE_RECOVER_FRAMES;
+              flash("🏈 " + (ea.name || "They") + " flattened you — down for " + eTackleSecs + "s");
+            }
+          }
 
           // Enemies burn in fire the same way the player does — same per-second drain into a
           // per-enemy fractional pool. Fire is universal: it doesn't care whose side you're on.
@@ -6270,8 +6384,18 @@ export default function AssetStudio() {
               const dmg = incomingPlayerDamage(rawDmg, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(ew && ew.ignoreArmor));
               playerHP.current = Math.max(0, playerHP.current - dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
-              if (playerHP.current <= 0) { flash("💀 " + ea.name + " defeated you — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; playerHP.current = maxPlayerHP(playerAsset); }
-              else flash("👹 " + ea.name + " hit you for " + dmg + " (" + playerHP.current + " HP left)");
+              if (playerHP.current <= 0) { flash("💀 " + ea.name + " defeated you — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0; playerHP.current = maxPlayerHP(playerAsset); }
+              else {
+                // The WEAPON'S OWN STATUS EFFECT, felt from this side too. Of the abilities a
+                // weapon can carry, Stun is the only one that lands on the person rather than on
+                // the damage number — Ignore Armor and Explode are already resolved by the maths
+                // just above — and it worked in one direction only: your shock baton froze THEM,
+                // theirs was an ordinary stick. Same 💫 channel, same seconds off the same slider.
+                // Deliberately inside the else and behind the i-frame and block gates above: a hit
+                // that killed you, that never landed, or that you turned aside cannot daze you.
+                if ((ew?.stun ?? 0) > 0) { stunPlayer(p, ew.stun); flash("👹 " + ea.name + " hit you for " + dmg + " — 💫 stunned for " + ew.stun + "s (" + playerHP.current + " HP left)"); }
+                else flash("👹 " + ea.name + " hit you for " + dmg + " (" + playerHP.current + " HP left)");
+              }
               return true;
             }
             if (targetKind === "unit" && targetKey) {
@@ -6356,7 +6480,7 @@ export default function AssetStudio() {
                     pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece,
                     rot: shotAng * 180 / Math.PI, size: sizeUnits,
                     damage: enemyAttackDamage(ea, ew), life: 0, foe: hostile,
-                    ignoreArmor: !!ew.ignoreArmor,
+                    ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0,
                     explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
                   });
                   ep.weaponAmmo = consumeShot(ep.weaponAmmo, weaponFireCooldownFrames(ew.fireRate));
@@ -6747,7 +6871,8 @@ export default function AssetStudio() {
                 const dmg = incomingPlayerDamage(baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch);
                 playerHP.current = Math.max(0, playerHP.current - dmg);
                 p.invuln = PLAYER_INVULN_FRAMES;
-                if (playerHP.current <= 0) { flash("💀 Caught in the blast — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; playerHP.current = maxPlayerHP(playerAsset); }
+                if (playerHP.current <= 0) { flash("💀 Caught in the blast — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0; playerHP.current = maxPlayerHP(playerAsset); }
+                else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash("💥 Blast hit for " + dmg + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
                 else flash("💥 Blast hit for " + dmg + " (" + playerHP.current + " HP left)");
               }
             }
@@ -6822,7 +6947,8 @@ export default function AssetStudio() {
                 const dmg = incomingPlayerDamage(pr.damage ?? 5, playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, pr.ignoreArmor);
                 playerHP.current = Math.max(0, playerHP.current - dmg);
                 p.invuln = PLAYER_INVULN_FRAMES;
-                if (playerHP.current <= 0) { flash("💀 Shot down — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; playerHP.current = maxPlayerHP(playerAsset); }
+                if (playerHP.current <= 0) { flash("💀 Shot down — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0; playerHP.current = maxPlayerHP(playerAsset); }
+                else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash("🏹 Hit for " + dmg + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
                 else flash("🏹 Hit for " + dmg + " (" + playerHP.current + " HP left)");
                 return false; // consumed on impact
               }
@@ -10479,7 +10605,7 @@ export default function AssetStudio() {
           <span className="badge">{lv.isRoom ? "🚪 Room" : "🗺️ Level"}</span>
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel}>↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel}>↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -11103,7 +11229,15 @@ export default function AssetStudio() {
                   // of the head sitting at the bar. Ladders climb rung-to-rung and stay put. Purely
                   // visual: physics, hitbox, and grip all still run off p.y untouched.
                   const climbLift = (p.climbing && p.climbKind && p.climbKind !== "ladder") ? LV_CELL : 0;
-                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift, width: renderW, height: ph, transform: [flip, shrink, lean].filter(Boolean).join(" ") || "none", opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
+                  const downed = (p.down || 0) > 0;
+                  // A floored player LIES DOWN rather than just standing there unable to move — the
+                  // same 90° pivot about the feet a tackled enemy gets, lifted by half the wrapper's
+                  // width because rotating about that point would otherwise leave half the body under
+                  // the floor line. The lean is dropped while down (you are not leaning into a jump,
+                  // you are on your back) but the facing flip stays at the head of the list, so you
+                  // drop in the direction you were pointing. Purely visual: the hitbox never moves,
+                  // so a downed player is still shot, burned and hit exactly where they stood.
+                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift, width: renderW, height: ph, transform: (downed ? [flip, shrink, "translateY(-" + (renderW / 2) + "px)", "rotate(90deg)"] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...(downed ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
                   if (p.onFire > 0) style.filter = "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)";
                   const maxHp = maxPlayerHP(playerAsset), curHp = Math.max(0, Math.min(maxHp, playerHP.current));
                   const hpFrac = maxHp > 0 ? curHp / maxHp : 0;
@@ -11122,6 +11256,13 @@ export default function AssetStudio() {
                         const done = Math.max(0, Math.min(1, 1 - w.reloadT / total));
                         return <div className="playerReloadTrack" style={{ left: p.x, top: p.y - 17 + (p.stepEase || 0) - climbLift, width: pw }}><div className="playerReloadFill" style={{ width: (done * 100) + "%" }} /></div>;
                       })()}
+                      {/* 💫 dazed on your feet, 😵 flat on your back — the same two badges, in the
+                          same two states, that an enemy shows when you do this to them. Without one
+                          a stun reads as the controls having died rather than as something that was
+                          done to you, which is the difference between a mechanic and a bug. */}
+                      {((p.down || 0) > 0 || (p.stun || 0) > 0) && (
+                        <div className="playerStun" style={{ left: p.x, top: p.y - 34 + (p.stepEase || 0) - climbLift, width: pw }}>{(p.down || 0) > 0 ? "😵" : "💫"}</div>
+                      )}
                       <div className={blocks ? "playerWrap" : "player"} style={style}>
                         {blocks ? (() => {
                           const art = renderPieceRuns({ pieces: blocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "player", keyPrefix: "pl", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k), maskCss: cutterMaskCss });
@@ -12756,6 +12897,7 @@ const css = `
 .enemyReloadFill{height:100%;background:linear-gradient(90deg,#4a86c8,#7ab6f0)}
 /* The player's own bars are already siblings of the sprite rather than children of it, so they
    only needed lifting onto the same status layer the enemies use. */
+.playerStun{position:absolute;text-align:center;font-size:16px;line-height:1;pointer-events:none;z-index:8;animation:stunbob .6s ease-in-out infinite}
 .playerHpTrack{position:absolute;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:8;pointer-events:none}
 .playerReloadTrack{position:absolute;height:4px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:8;pointer-events:none}
 .playerReloadFill{height:100%;background:linear-gradient(90deg,#4a86c8,#7ab6f0)}

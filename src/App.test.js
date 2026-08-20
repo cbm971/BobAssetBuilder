@@ -41,6 +41,19 @@ import {
   boxesOverlap,
   tackleDownFrames,
   TACKLE_GETUP_GRACE_FRAMES,
+  statusFreezeFrames,
+  playerFrozen,
+  stunPlayer,
+  knockDownPlayer,
+  tackleSecsOf,
+  enemyTackleChargeChance,
+  perFrameChance,
+  TACKLE_CHARGE_RANGE,
+  TACKLE_CHARGE_FRAMES,
+  TACKLE_CHARGE_COOLDOWN_FRAMES,
+  TACKLE_RECOVER_FRAMES,
+  TACKLE_CHARGE_SPEED_MUL,
+  mergeInputIntent,
   playerSpriteMirrored,
   RANGED_FIRE_POSE_FRAMES,
   weaponPoseFired,
@@ -3775,6 +3788,121 @@ describe("Tackle — walking into someone puts them on the floor", () => {
 
   test("there is a real pause before a downed unit can be re-floored", () => {
     expect(TACKLE_GETUP_GRACE_FRAMES).toBeGreaterThan(0);
+  });
+});
+
+describe("Status effects the PLAYER feels — an enemy's Stun weapon and Tackle kit", () => {
+  const fresh = () => ({ stun: 0, down: 0, downCd: 0, blocking: { t: 4 }, throwAiming: true, burstLeft: 2 });
+
+  test("seconds convert to frames the same way every other timer in the loop does", () => {
+    expect(statusFreezeFrames(1)).toBe(60);
+    expect(statusFreezeFrames(2.5)).toBe(150);
+  });
+
+  test("a fraction of a second is still a real freeze, never a silent no-op", () => {
+    expect(statusFreezeFrames(0.001)).toBe(1);
+  });
+
+  test("nothing running means nothing frozen", () => {
+    expect(playerFrozen(fresh())).toBe(false);
+    expect(playerFrozen(null)).toBe(false);
+  });
+
+  test("both channels freeze, and they are separate timers", () => {
+    const dazed = fresh(); stunPlayer(dazed, 1);
+    const floored = fresh(); knockDownPlayer(floored, 2);
+    expect(playerFrozen(dazed)).toBe(true);
+    expect(dazed.down).toBe(0);          // a stun never puts you on the floor
+    expect(playerFrozen(floored)).toBe(true);
+    expect(floored.stun).toBe(0);        // ...and a knockdown never reads as a daze
+    expect(floored.down).toBe(120);
+  });
+
+  test("a glancing second hit cannot cut a long freeze short", () => {
+    const p = fresh();
+    stunPlayer(p, 3);
+    stunPlayer(p, 0.25);
+    expect(p.stun).toBe(180);
+    knockDownPlayer(p, 4);
+    knockDownPlayer(p, 0.5);
+    expect(p.down).toBe(240);
+  });
+
+  test("being hit drops a raised guard, a wound-up throw and any committed burst", () => {
+    // The burst matters most: a salvo already in flight is COMMITTED state rather than a held
+    // key, so blanking the input intent alone would leave you shooting through your own stun.
+    const p = fresh();
+    stunPlayer(p, 1);
+    expect(p.blocking).toBe(null);
+    expect(p.throwAiming).toBe(false);
+    expect(p.burstLeft).toBe(0);
+  });
+
+  test("a weapon with no Stun set freezes nobody", () => {
+    const p = fresh();
+    stunPlayer(p, 0);
+    stunPlayer(p, undefined);
+    expect(playerFrozen(p)).toBe(false);
+  });
+
+  test("a frozen player has no input intent at all — that is the whole gate", () => {
+    const held = { left: true, right: true, up: true, down: true, jump: true, fire: true, melee: true, crouch: true, reload: true, throw: true, interact: true, aimUp: true, aimDown: true, aimLeft: true, aimRight: true };
+    const live = mergeInputIntent(held);
+    const frozen = mergeInputIntent({});
+    expect(Object.values(live).some(Boolean)).toBe(true);
+    expect(Object.values(frozen).every((v) => v === false)).toBe(true);
+    expect(Object.keys(frozen).sort()).toEqual(Object.keys(live).sort()); // same shape, so nothing downstream sees a missing key
+  });
+});
+
+describe("Enemy tackle AI — a tackler comes and finds you", () => {
+  test("the ability is read off the wearer's effects, whoever the wearer is", () => {
+    expect(tackleSecsOf({ effects: [{ type: "tackle", secs: 3 }] })).toBe(3);
+    expect(tackleSecsOf({ effects: [{ type: "tackle" }] })).toBe(2);      // the catalog default
+  });
+
+  test("a unit wearing anything else, or nothing, never charges", () => {
+    expect(tackleSecsOf({ effects: [{ type: "glide", fall: 0.4 }] })).toBe(null);
+    expect(tackleSecsOf({ effects: [] })).toBe(null);
+    expect(tackleSecsOf({})).toBe(null);
+    expect(tackleSecsOf(null)).toBe(null);
+  });
+
+  test("how often it charges rides Intelligence, like every other enemy decision", () => {
+    expect(enemyTackleChargeChance(5)).toBeCloseTo(0.35, 5);
+    expect(enemyTackleChargeChance(1)).toBeLessThan(enemyTackleChargeChance(10));
+    expect(enemyTackleChargeChance(undefined)).toBe(enemyTackleChargeChance(5));
+  });
+
+  test("even a genius tackler leaves gaps you can move through", () => {
+    expect(enemyTackleChargeChance(1000)).toBeLessThan(1);
+  });
+
+  test("a per-second chance rolled per frame compounds back to that chance over a second", () => {
+    // Rolling the raw 0.35 sixty times a second would fire on the first frame in range, every
+    // time — this is the conversion that stops the charge being constant.
+    const perFrame = perFrameChance(0.35, 1);
+    expect(perFrame).toBeLessThan(0.35 / 10);
+    const missAllSecond = Math.pow(1 - perFrame, 60);
+    expect(1 - missAllSecond).toBeCloseTo(0.35, 6);
+  });
+
+  test("a long frame is worth proportionally more of the second it covers", () => {
+    expect(perFrameChance(0.35, 3)).toBeGreaterThan(perFrameChance(0.35, 1));
+    expect(perFrameChance(0, 1)).toBe(0);
+  });
+
+  test("a charge is a sprint over a short, readable distance", () => {
+    expect(TACKLE_CHARGE_SPEED_MUL).toBeGreaterThan(1);
+    expect(TACKLE_CHARGE_FRAMES).toBeGreaterThan(0);
+    expect(TACKLE_CHARGE_RANGE).toBeGreaterThan(0);
+  });
+
+  test("a landed tackle always hands back more time on your feet than the knockdown took", () => {
+    // The soft-lock guard: without it a tackler stands over you and re-floors you every get-up
+    // grace window, which a floored player cannot walk away from the way an enemy can.
+    expect(TACKLE_RECOVER_FRAMES).toBeGreaterThan(TACKLE_GETUP_GRACE_FRAMES);
+    expect(TACKLE_CHARGE_COOLDOWN_FRAMES).toBeGreaterThan(TACKLE_CHARGE_FRAMES);
   });
 });
 
