@@ -3064,6 +3064,23 @@ export const relocateLevelObject = (lv, key, index, exactLeft, exactTop) => {
   return { ...lv, fx };
 };
 export const relocatedObjectKey = (exactLeft, exactTop) => cellKey(Math.max(0, Math.round(exactTop)), Math.max(0, Math.round(exactLeft)));
+// WHICH object a click is asking to adjust: key AND stack index, which objKeyAt alone can't give.
+// This is the gap that made every control above unreachable. The inspector only ever opened on an
+// object you had just PLACED (or picked up and put down), so a prop already sitting in a level had
+// no way to be selected at all — you had to stamp another one on top of it to get at the panel that
+// would have let you move the first one. Adjust-tool clicks come through here instead.
+// objKeyAt's smallest-footprint-wins rule is kept, so a small prop resting on a big backdrop is the
+// one you get; within that cell the click takes the object drawn on TOP, which is the one you can
+// actually see under the pointer.
+export const objTopAt = (lv, r, c, findAsset) => {
+  const key = objKeyAt(lv, r, c, findAsset);
+  if (!key) return null;
+  const stack = (lv.fx && lv.fx[key]) || [];
+  if (!stack.length) return null;
+  let index = 0, best = -Infinity;
+  for (let i = 0; i < stack.length; i++) { const z = objectZ(stack[i], i); if (z >= best) { best = z; index = i; } }
+  return { key, index };
+};
 /* ---- Mirroring a whole level left↔right -------------------------------------------------
 A level you have already built is most of the work of its mirror image, so a downhill run can
 become the uphill one instead of being drawn again from scratch.
@@ -5389,6 +5406,7 @@ export default function AssetStudio() {
   const levelHistory = useRef([]);
   const levelFuture = useRef([]);
   const lpaint = useRef(null);                          // level paint drag state
+  const objDrag = useRef(null);                         // Adjust-tool drag: { key, index, x0, y0, left0, top0, moved } — see the Adjust branch in lvDown
   const rampAnchor = useRef(null);                       // {r, c} anchor cell while dragging out a multi-cell ramp — cleared on commit
   // The cell the ramp drag is CURRENTLY over, tracked in a ref rather than read off lHoverCell at
   // release. lHoverCell is state, so it only catches up after React re-renders and re-runs the
@@ -7461,6 +7479,47 @@ export default function AssetStudio() {
   }, [play]);
 
   useEffect(() => { const up = () => { lpaint.current = null; }; window.addEventListener("pointerup", up); return () => window.removeEventListener("pointerup", up); }, []);
+
+  // End of an Adjust drag. While the pointer is down the object only ever grows its ox/oy offset,
+  // because re-keying mid-drag would move the thing out from under the ref that is tracking it.
+  // On release the whole-cell part of that offset is folded back into the object's cell key, so a
+  // long drag can't run into the nudge cap and the offset stays a small fraction — which is what
+  // it's for. The inspector follows it to its new key or the panel would blank out on release.
+  useEffect(() => {
+    const up = () => {
+      const d = objDrag.current;
+      objDrag.current = null;
+      if (!d || !d.moved) return;
+      setLevel((lv) => relocateLevelObject(lv, d.key, d.index, d.exactLeft, d.exactTop));
+      setLFxSel(relocatedObjectKey(d.exactLeft, d.exactTop));
+      setLFxEditIdx(null);
+    };
+    window.addEventListener("pointerup", up);
+    return () => window.removeEventListener("pointerup", up);
+  }, []);
+
+  // Arrow keys move the selected object by the chosen Nudge step; hold Shift for ten steps at a
+  // time. Reaching for the keyboard is what people actually do when something is a few pixels out,
+  // and hunting for a 30px-wide ← button in a side panel for every single pixel is not a way to
+  // align anything. Ignored while typing in a field, and while playtesting (arrows are movement).
+  useEffect(() => {
+    if (play || lLayer !== "obj" || !lFxSel) return;
+    const onKey = (e) => {
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (!dir) return;
+      const stack = level && level.fx && level.fx[lFxSel];
+      if (!stack || !stack.length) return;
+      const i = lFxEditIdx == null ? stack.length - 1 : lFxEditIdx;
+      if (i < 0 || !stack[i]) return;
+      e.preventDefault();
+      const step = lNudgeStep * (e.shiftKey ? 10 : 1);
+      nudgeFxPos(lFxSel, i, dir[0] * step, dir[1] * step);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [play, lLayer, lFxSel, lFxEditIdx, lNudgeStep, level]);
 
   // Commits a multi-cell ramp on release, as ONE action (one undo step, already snapshotted by
   // the level editor's onPointerDownCapture at the start of the drag). What the stroke MEANS is
@@ -10138,6 +10197,10 @@ export default function AssetStudio() {
     if (moving.current && l !== "obj" && l !== "marker") cancelMoving();
     if (lEnemyId) setLEnemyId("");            // a layer tab means "work on this layer" — leave enemy-placement so clicks stop dropping enemies
     if ((lTool === "select" || lTool === "copy") && l !== "obj" && l !== "marker") setLTool("paint");
+    // Adjust exists only on Objects, and its button is only rendered there. Leaving it selected on
+    // another layer would mean no tool button lit up and clicks falling through to Paint — you'd be
+    // painting terrain while believing you were still nudging a prop.
+    if (lTool === "adjust" && l !== "obj") setLTool("paint");
     if (lTool === "fill" && l !== "fg" && l !== "bg" && l !== "front") setLTool("paint");
     if (lTool === "move" && l !== "fg" && l !== "bg" && l !== "front") setLTool("paint");
     if (layerMove) {
@@ -10157,7 +10220,9 @@ export default function AssetStudio() {
   const selectTool = (t) => {
     if (moving.current && t !== "select" && t !== "copy") cancelMoving();
     if (layerMove && t !== "move") setLayerMove(null);
-    if (lTool === t && t !== "select" && t !== "copy" && lLayer !== "fg" && lLayer !== "climb") { setLLayer("fg"); flash("Back to Foreground"); }
+    // Adjust is exempt from the "click the active tool to go back to Foreground" shortcut: it only
+    // exists on the Objects layer, so bouncing it to Foreground would turn itself off.
+    if (lTool === t && t !== "select" && t !== "copy" && t !== "adjust" && lLayer !== "fg" && lLayer !== "climb") { setLLayer("fg"); flash("Back to Foreground"); }
     setLTool(t);
   };
   const runGenerate = () => { const chain = generateChain(allLevels, 8); if (chain.length < 1) { flash("Make/save a couple of levels with matching open connectors first."); return; } setGen(chain); flash("Generated a chain of " + chain.length); };
@@ -10732,6 +10797,22 @@ export default function AssetStudio() {
         setEyedrop(false);
         return;
       }
+      // ADJUST. Click an object that is ALREADY in the level to work on it — no placing, no picking
+      // up, nothing moves until you drag. Everything in the Move & align panel hangs off this: the
+      // panel used to open only for an object you had just placed, so a prop already sitting in a
+      // level was unreachable and every alignment control with it.
+      if (lTool === "adjust" && lLayer === "obj") {
+        const hit = objTopAt(level, r, c, findA);
+        if (!hit) { setLFxSel(null); setLFxEditIdx(null); flash("No object here — click one to pick it up for adjusting."); return; }
+        setLFxSel(hit.key); setLFxEditIdx(hit.index);
+        const [hr, hc] = hit.key.split(",").map(Number);
+        const o = level.fx[hit.key][hit.index];
+        // Drag moves the ART by an exact pixel delta — no cell rounding while the pointer is down,
+        // which is the whole point ("placement doesn't seem any finer"). Whole cells are folded back
+        // into the object's key on release (see the pointerup handler) so the offset stays small.
+        objDrag.current = { key: hit.key, index: hit.index, x0: e.clientX, y0: e.clientY, left0: hc + (o.ox || 0), top0: hr + (o.oy || 0), moved: false };
+        return;
+      }
       if ((lTool === "select" || lTool === "copy") && (lLayer === "obj" || lLayer === "marker")) { pickUpOrDrop(r, c); return; }
       // Enemy-placement mode (an enemy is picked in the menu). It OWNS both paint and erase so it's
       // self-contained: Paint drops one here, Erase removes the one here — no falling through to
@@ -10764,6 +10845,23 @@ export default function AssetStudio() {
       const { r, c } = lvCell(e);
       const within = inb(r, c);
       setLHoverCell(within ? { r, c } : null);
+      // An Adjust drag in progress. Same few-pixels-of-slop rule as painting, so a click that means
+      // "select this" can't shove the object a pixel sideways on the way to letting go.
+      if (objDrag.current) {
+        const d = objDrag.current;
+        const dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+        if (!d.moved) { if (dx * dx + dy * dy < 16) return; d.moved = true; snapshotLevel(); }
+        const [kr, kc] = d.key.split(",").map(Number);
+        const ox = clampObjNudge(d.left0 + dx / LV_CELL - kc), oy = clampObjNudge(d.top0 + dy / LV_CELL - kr);
+        // Where the drag has REACHED, kept on the ref. The release handler used to re-read this off
+        // `level`, which is a render behind: move and release arriving in the same tick (a quick
+        // flick) left it reading ox/oy of 0 and folding the object straight back to where it
+        // started, so the drag silently did nothing. A ref updates synchronously, so release always
+        // commits the position the pointer actually ended at.
+        d.exactLeft = kc + ox; d.exactTop = kr + oy;
+        updateFxAt(d.key, d.index, { ox, oy });
+        return;
+      }
       // Synchronous record of where a ramp drag has reached. Drag off the edge of the level and it
       // keeps the last cell that WAS on it, so releasing outside the grid still places the ramp you
       // dragged rather than throwing the whole stroke away.
@@ -10889,7 +10987,7 @@ export default function AssetStudio() {
           </div>
           <div className="lgroup">
             <span className="lgrouplabel">Action:</span>
-            <div className="seg"><button className={lTool === "paint" ? "on" : ""} onClick={() => selectTool("paint")}>🖌 Paint</button><button className={lTool === "erase" ? "on" : ""} onClick={() => selectTool("erase")}>🧽 Erase</button>{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={lTool === "fill" ? "on" : ""} onClick={() => selectTool("fill")} >🪣 Fill</button>}{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={lTool === "move" ? "on" : ""} onClick={() => selectTool("move")} >🔀 Move</button>}{(lLayer === "obj" || lLayer === "marker") && <button className={lTool === "select" ? "on" : ""} onClick={() => selectTool("select")} >👆 Select</button>}{(lLayer === "obj" || lLayer === "marker") && <button className={lTool === "copy" ? "on" : ""} onClick={() => selectTool("copy")} >📋 Copy</button>}<button className={lTool === "areaCopy" ? "on" : ""} onClick={() => selectTool("areaCopy")} >▭ Area Copy{hasClipboard ? " (" + clipboard.current.w + "×" + clipboard.current.h + " ready)" : ""}</button></div>
+            <div className="seg"><button className={lTool === "paint" ? "on" : ""} onClick={() => selectTool("paint")}>🖌 Paint</button><button className={lTool === "erase" ? "on" : ""} onClick={() => selectTool("erase")}>🧽 Erase</button>{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={lTool === "fill" ? "on" : ""} onClick={() => selectTool("fill")} >🪣 Fill</button>}{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={lTool === "move" ? "on" : ""} onClick={() => selectTool("move")} >🔀 Move</button>}{lLayer === "obj" && <button className={lTool === "adjust" ? "on" : ""} onClick={() => selectTool("adjust")} title="Click an object already in the level to line it up: drag it pixel by pixel, arrow-key it, snap its edges to the ground or to the object next to it, or push it in front of / behind the others.">✥ Adjust</button>}{(lLayer === "obj" || lLayer === "marker") && <button className={lTool === "select" ? "on" : ""} onClick={() => selectTool("select")} >👆 Select</button>}{(lLayer === "obj" || lLayer === "marker") && <button className={lTool === "copy" ? "on" : ""} onClick={() => selectTool("copy")} >📋 Copy</button>}<button className={lTool === "areaCopy" ? "on" : ""} onClick={() => selectTool("areaCopy")} >▭ Area Copy{hasClipboard ? " (" + clipboard.current.w + "×" + clipboard.current.h + " ready)" : ""}</button></div>
           </div>
           {enemyChoices.length > 0 && (
             <div className="lgroup">
@@ -11087,7 +11185,11 @@ export default function AssetStudio() {
             })()}
             {!play && lTool === "areaCopy" && <p className="statusline">👉 Drag a rectangle to copy that area ({hasClipboard ? "already have a " + clipboard.current.w + "×" + clipboard.current.h + " copy loaded" : "nothing copied yet"}) — or click anywhere to stamp {hasClipboard ? "it" : "the last copy (once you've made one)"}.</p>}
             {!play && lTool === "fill" && fillPreview && <p className="statusline">🪣 Clicking here fills <b>{fillPreview.cells.length}{fillPreview.hitCap ? "+" : ""} cell{fillPreview.cells.length === 1 ? "" : "s"}</b> on <b>{lLayer === "fg" ? "Foreground" : lLayer === "bg" ? "Background" : "Front"}</b>{fillPreview.cells.length > 300 ? " — that's a lot; wrong layer tab?" : ""}</p>}
-            {!play && lTool !== "areaCopy" && !(layerMove && layerMove.levelId === lv.id) && (lEnemyId && lTool === "paint"
+            {/* Adjust gets its own line because the panel it drives lives off to the right, and
+                "there is no option to make things line up" was the whole complaint — the tool has
+                to say what it does at the moment you turn it on. */}
+            {!play && lTool === "adjust" && <p className="statusline">✥ Click any object to grab it — then <b>drag it</b> (pixel by pixel, no cell snapping) or <b>arrow-key it</b>, and use <b>Snap</b> / <b>Order</b> in the panel on the right to butt it against its neighbour, sit it on the ground, or push it in front. Hold <b>Shift</b> for ten steps at once.</p>}
+            {!play && lTool !== "areaCopy" && lTool !== "adjust" && !(layerMove && layerMove.levelId === lv.id) && (lEnemyId && lTool === "paint"
               ? <p className="statusline">👉 Clicking places <b>👹 {(findA(lEnemyId) || {}).name || "enemy"}</b>. Pick <b>— none —</b> to paint normally.</p>
               : <p className="statusline">👉 Clicking the canvas right now will <b>{lTool === "erase" ? "erase from" : lTool === "select" ? "select on" : lTool === "move" ? "pick up on" : "paint"}</b> the <b>{lLayer === "fg" ? "Foreground" : lLayer === "bg" ? "Background" : lLayer === "front" ? "Front" : lLayer === "obj" ? "Objects" : lLayer === "climb" ? "Climb" : lLayer === "hazard" ? "Fire" : "Markers"}</b> layer.</p>)}
             </div>
@@ -11873,6 +11975,56 @@ export default function AssetStudio() {
           </div>
 
           <aside className="lside">
+            {/* MOVE & ALIGN, in its own card at the top of the panel rather than folded away inside
+                a stack row. Alignment is the job people are doing when two big props are involved,
+                and it was previously reachable only by expanding a row that opens by default and so
+                looks like part of the row's colour/size settings. Acts on whichever layer is open
+                below, which is the one you just clicked with Adjust. */}
+            {lLayer === "obj" && fxOpen && fxOpenIdx >= 0 && (() => {
+              const label = fxOpen.kind === "prop" ? ((findA(fxOpen.propId) || {}).name || "prop") : fxOpen.kind === "shape" ? levelShapeLabel(fxOpen.shape) : (fxOpen.char || "object");
+              const [sr, sc] = lFxSel.split(",").map(Number);
+              const rect = levelObjectRect(fxOpen, sr, sc, fxOpen.kind === "prop" ? findA(fxOpen.propId) : null);
+              const px = (n) => Math.round(n * LV_CELL);
+              return (
+                <div className="card alignCard">
+                  <div className="ct">📐 Move &amp; align — {label}</div>
+                  {/* The four edges in level pixels. Two props that have to meet are a numbers
+                      problem in the end, and being able to read "right edge 810" off one and "left
+                      edge 803" off the other turns "as close as I can get it" into a known 7px. */}
+                  <div className="hint2 edgeread">left {px(rect.left)} · right {px(rect.right)} · top {px(rect.top)} · bottom {px(rect.bottom)} px</div>
+                  <span className="objnudge">
+                    <b>Nudge</b>
+                    <button className="rotbtn" onClick={() => nudgeFxPos(lFxSel, fxOpenIdx, -lNudgeStep, 0)}>←</button>
+                    <button className="rotbtn" onClick={() => nudgeFxPos(lFxSel, fxOpenIdx, lNudgeStep, 0)}>→</button>
+                    <button className="rotbtn" onClick={() => nudgeFxPos(lFxSel, fxOpenIdx, 0, -lNudgeStep)}>↑</button>
+                    <button className="rotbtn" onClick={() => nudgeFxPos(lFxSel, fxOpenIdx, 0, lNudgeStep)}>↓</button>
+                    <span className="hint2">{Math.round((fxOpen.ox || 0) * LV_CELL) + ", " + Math.round((fxOpen.oy || 0) * LV_CELL) + "px"}</span>
+                    <button className="rotbtn" disabled={!(fxOpen.ox || fxOpen.oy)} onClick={() => updateFxAt(lFxSel, fxOpenIdx, { ox: 0, oy: 0 })}>0</button>
+                  </span>
+                  <div className="hint2">Arrow keys move it too — hold Shift for ten steps.</div>
+                  <div className="seg stepseg">{OBJ_NUDGE_STEPS.map((s, si2) => <button key={s} className={lNudgeStep === s ? "on" : ""} onClick={() => setLNudgeStep(s)} title={"Move " + Math.round(s * LV_CELL) + "px per tap"}>{OBJ_NUDGE_STEP_LABELS[si2]}</button>)}</div>
+                  {/* SNAP. The arrows get you close; these land it exactly, and they work off the
+                      drawn art's real edges rather than the cell it's filed under, so "sits on the
+                      ground" means the art touches the ground. A snap can move an object further
+                      than the nudge cap allows, so it re-files it under a new cell and the panel
+                      follows it there (snapFxTo). */}
+                  <div className="objsnap">
+                    <b>Snap</b>
+                    {OBJ_SNAP_BUTTONS.map((b) => <button key={b.mode} className="rotbtn" title={b.title} onClick={() => snapFxTo(lFxSel, fxOpenIdx, b.mode)}>{b.glyph} {b.label}</button>)}
+                  </div>
+                  {/* Front/Back move the object through the WHOLE level's draw order. The ▲/▼ on the
+                      stack rows below only shuffle objects sharing one cell, which never covers the
+                      case you actually hit: two big props anchored cells apart, overlapping, in the
+                      wrong order. A level built before `z` existed keeps the order it already had,
+                      so these are also how you repair one that was already stacked wrong. */}
+                  <div className="objsnap">
+                    <b>Order</b>
+                    <button className="rotbtn" title="Draw this on top of every other object in the level" onClick={() => sendFxToEnd(lFxSel, fxOpenIdx, true)}>⤒ Front</button>
+                    <button className="rotbtn" title="Draw this behind every other object in the level" onClick={() => sendFxToEnd(lFxSel, fxOpenIdx, false)}>⤓ Back</button>
+                  </div>
+                </div>
+              );
+            })()}
             {lLayer === "obj" && (
               lFxSel && lv.fx[lFxSel] && lv.fx[lFxSel].length > 0 ? (
                 <div className="card">
@@ -11918,36 +12070,11 @@ export default function AssetStudio() {
                               angles are shallow; the piece editor's 90° steps would be useless here. */}
                           <label className="slider">Twist ⟳<input type="range" min="0" max="359" step="1" value={o.rot || 0} onChange={(e) => updateFxAt(lFxSel, i, { rot: normalizeObjRot(+e.target.value || 0) })} /><span className="hint2">{(o.rot || 0)}°</span><button className="rotbtn" onClick={() => nudgeFxRot(lFxSel, i, -OBJ_ROT_NUDGE)}>↺</button><button className="rotbtn" onClick={() => nudgeFxRot(lFxSel, i, OBJ_ROT_NUDGE)}>↻</button><button className="rotbtn" disabled={!(o.rot || 0)} onClick={() => updateFxAt(lFxSel, i, { rot: 0 })}>0°</button></label>
                           <label className="chk"><input type="checkbox" checked={!!o.flip} onChange={(e) => updateFxAt(lFxSel, i, { flip: e.target.checked })} /> ⇄ Mirrored</label>
-                          <span className="objnudge">
-                            <b>Nudge</b>
-                            <button className="rotbtn" onClick={() => nudgeFxPos(lFxSel, i, -lNudgeStep, 0)}>←</button>
-                            <button className="rotbtn" onClick={() => nudgeFxPos(lFxSel, i, lNudgeStep, 0)}>→</button>
-                            <button className="rotbtn" onClick={() => nudgeFxPos(lFxSel, i, 0, -lNudgeStep)}>↑</button>
-                            <button className="rotbtn" onClick={() => nudgeFxPos(lFxSel, i, 0, lNudgeStep)}>↓</button>
-                            {/* In pixels as well as cells, because a seam is a pixel measurement and
-                                "0.033, -0.1" tells you nothing about how far off you still are. */}
-                            <span className="hint2">{Math.round((o.ox || 0) * LV_CELL) + ", " + Math.round((o.oy || 0) * LV_CELL) + "px"}</span>
-                            <button className="rotbtn" disabled={!(o.ox || o.oy)} onClick={() => updateFxAt(lFxSel, i, { ox: 0, oy: 0 })}>0</button>
-                          </span>
-                          <div className="seg stepseg">{OBJ_NUDGE_STEPS.map((s, si2) => <button key={s} className={lNudgeStep === s ? "on" : ""} onClick={() => setLNudgeStep(s)} title={"Move " + Math.round(s * LV_CELL) + "px per tap"}>{OBJ_NUDGE_STEP_LABELS[si2]}</button>)}</div>
-                          {/* SNAP. The arrows get you close; these land it exactly, and they work
-                              off the drawn art's real edges rather than the cell it's filed under,
-                              so "sits on the ground" means the art touches the ground. A snap can
-                              move an object further than the nudge cap allows, so it re-files it
-                              under a new cell and the panel follows it there (snapFxTo). */}
-                          <div className="objsnap">
-                            <b>Snap</b>
-                            {OBJ_SNAP_BUTTONS.map((b) => <button key={b.mode} className="rotbtn" title={b.title} onClick={() => snapFxTo(lFxSel, i, b.mode)}>{b.glyph} {b.label}</button>)}
-                          </div>
-                          {/* Front/Back move the object through the WHOLE level's draw order. The
-                              ▲/▼ on the row above only shuffle objects sharing this one cell, which
-                              never covers the case you actually hit: two big props anchored cells
-                              apart, overlapping, in the wrong order. */}
-                          <div className="objsnap">
-                            <b>Order</b>
-                            <button className="rotbtn" title="Draw this on top of every other object in the level" onClick={() => sendFxToEnd(lFxSel, i, true)}>⤒ Front</button>
-                            <button className="rotbtn" title="Draw this behind every other object in the level" onClick={() => sendFxToEnd(lFxSel, i, false)}>⤓ Back</button>
-                          </div>
+                          {/* Nudge / Snap / Order used to sit here. They moved up into the
+                              "📐 Move & align" card at the top of this panel, because folded inside
+                              a stack row they read as more of this row's colour-and-size settings
+                              and were missed entirely. They act on whichever row is open, so this
+                              row being open is still what points them at this object. */}
                           <label className="chk"><input type="checkbox" checked={!!o.solid} onChange={(e) => updateFxAt(lFxSel, i, { solid: e.target.checked })} /> Solid</label>
                           <label className="chk"><input type="checkbox" checked={!!o.inFront} onChange={(e) => updateFxAt(lFxSel, i, { inFront: e.target.checked })} /> In front of player</label>
                         </div>
@@ -13076,6 +13203,10 @@ const css = `
 .objsnap>b{font-size:12px;color:#9aa4bd;min-width:42px}
 .objsnap .rotbtn{width:auto;padding:0 9px;font-size:12px;white-space:nowrap}
 .fpread{opacity:.8}
+/* The alignment card is tinted and edged so it reads as the thing to reach for when two objects
+   have to meet, rather than as one more settings box in a column of settings boxes. */
+.alignCard{border-color:#3a4a76;background:#161c2b}
+.edgeread{font-variant-numeric:tabular-nums;opacity:.85}
 .objtwist{display:flex;align-items:center;gap:7px;padding:5px 10px;background:#1b2233;border:1px solid #3a4258;border-radius:9px;font-size:13px}
 .objtwist input[type=range]{width:120px;accent-color:#4f7cf6}
 .catbar{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#161922;border-bottom:1px solid #232838;flex-wrap:wrap}

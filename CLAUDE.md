@@ -195,7 +195,17 @@ implicit order onto every object that has no `z` (`withObjectDrawOrder`), so exi
 levels open unchanged; placement, drop and paste all take `nextObjectZ(fx)`. Anything
 new that renders `lv.fx` and sorts by key order re-introduces the bug.
 
-**Two props line up with each other through three things**, all in the object inspector:
+**The `✥ Adjust` tool is how you get at an object that is already placed.** Everything
+below hangs off it, and shipping the controls without it was worthless: the side panel
+used to open only on an object you had just PLACED (or picked up and put down with
+`👆 Select`), so a prop already sitting in a saved level could not be selected at all
+and none of its alignment controls could be reached. Adjust clicks go through
+`objTopAt` (key + stack index, topmost by z, smallest footprint wins), select without
+moving anything, drag by exact pixels, and take arrow keys. **If you add another
+per-object control, put it in the `📐 Move & align` card, not inside a stack row** —
+folded into a row it reads as that row's colour-and-size settings and gets missed.
+
+**Two props line up with each other through three things**, all in that card:
 `snapTargetFor` + `relocateLevelObject` (butt edges / align tops / sit on ground — a
 snap re-files the object under a new cell, because it routinely needs to travel further
 than `OBJ_NUDGE_LIMIT`), the `OBJ_NUDGE_STEPS` ladder down to one screen pixel, and

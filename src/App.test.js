@@ -106,6 +106,7 @@ import {
   relocateLevelObject,
   relocatedObjectKey,
   migrateLevel,
+  objTopAt,
   objNudgedLeft,
   objNudgedTop,
   OBJ_NUDGE_STEP,
@@ -2175,6 +2176,35 @@ describe("which object draws on top of which", () => {
   test("equal z falls back to the old order rather than to nothing", () => {
     const fx = { "1,1": [{ kind: "emoji", char: "a", z: 3 }], "2,2": [{ kind: "emoji", char: "b", z: 3 }] };
     expect(levelObjectsInDrawOrder(fx).map((e) => e.o.char)).toEqual(["a", "b"]);
+  });
+});
+
+// The Adjust tool's click. Without this, every control above was unreachable for an object already
+// sitting in a level: the inspector only ever opened on one you had just placed, so the only way to
+// get at the panel that moves a prop was to stamp a second prop on top of it.
+describe("clicking an object that is already in the level", () => {
+  const strip = { frames: [{ front: [{ id: "art", x: 0, y: 150, w: 200, h: 60 }] }] };
+  const findAsset = () => strip;
+  const prop = (extra) => ({ kind: "prop", propId: "p", size: 20, fitArt: true, ...extra });
+
+  test("a click anywhere inside a big prop finds it, not the cell it was clicked on", () => {
+    const lv = { cols: 80, rows: 30, fx: { "10,10": [prop()] } };
+    expect(objTopAt(lv, 12, 25, findAsset)).toEqual({ key: "10,10", index: 0 });
+  });
+
+  test("a click on empty space selects nothing rather than the nearest thing", () => {
+    const lv = { cols: 80, rows: 30, fx: { "10,10": [prop()] } };
+    expect(objTopAt(lv, 2, 2, findAsset)).toBeNull();
+  });
+
+  test("stacked objects hand you the one drawn on top — the one under the pointer", () => {
+    const lv = { cols: 80, rows: 30, fx: { "10,10": [prop({ z: 9 }), prop({ z: 2 })] } };
+    expect(objTopAt(lv, 11, 12, findAsset).index).toBe(0);   // z 9 wins, not the last in the array
+  });
+
+  test("a small prop resting on a big backdrop is the one a click grabs", () => {
+    const lv = { cols: 80, rows: 30, fx: { "0,0": [prop({ size: 60 })], "10,10": [prop({ size: 4 })] } };
+    expect(objTopAt(lv, 10, 11, findAsset).key).toBe("10,10");
   });
 });
 
