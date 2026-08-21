@@ -96,6 +96,16 @@ import {
   PIECE_STEP,
   MIN_PIECE_SIZE,
   clampObjNudge,
+  OBJ_NUDGE_STEPS,
+  OBJ_NUDGE_STEP_LABELS,
+  levelObjectsInDrawOrder,
+  withObjectDrawOrder,
+  nextObjectZ,
+  bottomObjectZ,
+  snapTargetFor,
+  relocateLevelObject,
+  relocatedObjectKey,
+  migrateLevel,
   objNudgedLeft,
   objNudgedTop,
   OBJ_NUDGE_STEP,
@@ -1758,8 +1768,8 @@ describe("whole-object flip", () => {
 });
 
 describe("object size options", () => {
-  test("reaches five times the old 12-cell ceiling", () => {
-    expect(Math.max(...LV_OBJ_SIZES)).toBe(60);
+  test("reaches backdrop scale, well past the old 12-cell ceiling", () => {
+    expect(Math.max(...LV_OBJ_SIZES)).toBe(100);
   });
 
   test("every size that already existed is still offered, so saved levels keep their exact sizes", () => {
@@ -1934,14 +1944,28 @@ describe("how fine the editors are", () => {
     expect(Math.max(MIN_PIECE_SIZE, snapPiece(4.4))).toBe(4.5);
   });
 
-  test("the object nudge moves half a cell at a time and is clamped", () => {
+  test("the object nudge is clamped, and keeps offsets no tap ladder would land on", () => {
     expect(OBJ_NUDGE_STEP).toBe(0.5);
     expect(clampObjNudge(0.5)).toBe(0.5);
     expect(clampObjNudge(-0.5)).toBe(-0.5);
-    expect(clampObjNudge(0.3)).toBe(0.5);
     expect(clampObjNudge(999)).toBe(OBJ_NUDGE_LIMIT);
     expect(clampObjNudge(-999)).toBe(-OBJ_NUDGE_LIMIT);
     expect(clampObjNudge(undefined)).toBe(0);
+    // It must NOT round to the current tap size any more: a snapped or mirrored offset is an
+    // exact fraction, and quantising it would undo the alignment on the next arrow press.
+    expect(clampObjNudge(0.3)).toBe(0.3);
+    expect(clampObjNudge(1 / 30)).toBeCloseTo(0.033, 3);
+  });
+
+  test("the nudge ladder reaches one screen pixel, which is what closes a seam", () => {
+    expect(OBJ_NUDGE_STEPS[0]).toBe(1);
+    expect(OBJ_NUDGE_STEPS[OBJ_NUDGE_STEPS.length - 1] * 30).toBeCloseTo(1, 6);
+    expect(OBJ_NUDGE_STEPS).toContain(OBJ_NUDGE_STEP);   // the old half-cell tap is still on it
+    expect(OBJ_NUDGE_STEP_LABELS).toHaveLength(OBJ_NUDGE_STEPS.length);
+    // Repeated 1px taps have to actually accumulate rather than rounding back to nothing.
+    let v = 0;
+    for (let i = 0; i < 6; i++) v = clampObjNudge(v + 1 / 30);
+    expect(v * 30).toBeCloseTo(6, 1);
   });
 
   test("an object with no nudge draws exactly where it always did", () => {
@@ -2060,6 +2084,173 @@ describe("objects place centred on the clicked cell", () => {
   test("legacy Prop placements keep their square bounds until explicitly converted", () => {
     const prop = { angles: { front: [{ id: "wide", x: 0, y: 200, w: 200, h: 40 }] } };
     expect(levelObjectFootprint({ kind: "prop", size: 40 }, prop)).toEqual({ cols: 40, rows: 40, box: null });
+  });
+
+  test("one prop can now be the whole backdrop instead of two halves that must match", () => {
+    expect(Math.max(...LV_OBJ_SIZES)).toBeGreaterThanOrEqual(100);
+    for (const n of [1, 4, 12, 60]) expect(LV_OBJ_SIZES).toContain(n);   // nothing already placed changes size
+  });
+
+  // The reported "I CAN'T EVEN LINE IT UP". Two halves of one football pitch, drawn on the same
+  // canvas with the same 6px sideline at the same height — but one half also has a corner flag
+  // poking 4 units higher, so its art crop is taller. Art-crop scale divides by each prop's OWN
+  // crop, so identical drawing comes out at two different scales and no amount of moving them
+  // closes the seam. Canvas scale divides by the shared design canvas, so they match.
+  const pitchHalf = (extraTop) => ({
+    frames: [{
+      front: [
+        { id: "turf", x: 0, y: 150, w: 200, h: 60 },
+        ...(extraTop ? [{ id: "flag", x: 4, y: 146, w: 3, h: 4 }] : []),
+      ],
+    }],
+  });
+
+  test("art-crop scale renders two matching halves at DIFFERENT scales", () => {
+    const a = levelObjectFootprint({ kind: "prop", size: 60, fitArt: true }, pitchHalf(false));
+    const b = levelObjectFootprint({ kind: "prop", size: 60, fitArt: true }, pitchHalf(true));
+    expect(a.cols).toBe(60);
+    expect(b.cols).toBe(60);
+    expect(a.rows).not.toBeCloseTo(b.rows, 3);          // same drawn turf, two different heights
+  });
+
+  test("canvas scale makes the same turf come out the same height on both halves", () => {
+    const a = levelObjectFootprint({ kind: "prop", size: 60, fitArt: true, canvasScale: true }, pitchHalf(false));
+    const b = levelObjectFootprint({ kind: "prop", size: 60, fitArt: true, canvasScale: true }, pitchHalf(true));
+    // 260 canvas units tall -> 60 cells, so one unit is 60/260 of a cell for BOTH props.
+    expect(a.cols).toBeCloseTo(200 * 60 / 260, 6);
+    expect(b.cols).toBeCloseTo(200 * 60 / 260, 6);
+    expect(a.rows).toBeCloseTo(60 * 60 / 260, 6);       // the 60-unit turf strip
+    expect(b.rows - a.rows).toBeCloseTo(4 * 60 / 260, 6); // b is taller by exactly the flag, not by a rescale
+  });
+
+  test("canvas scale leaves untouched placements exactly as they were", () => {
+    const plain = { kind: "prop", size: 60, fitArt: true };
+    expect(levelObjectFootprint(plain, pitchHalf(false))).toEqual(levelObjectFootprint({ ...plain, canvasScale: false }, pitchHalf(false)));
+  });
+});
+
+describe("which object draws on top of which", () => {
+  // The reported bug: place one prop, place a second, and the second goes BEHIND. Draw order was
+  // Object.keys(fx) order, so it was decided by when each CELL KEY first entered the map — drop
+  // an object onto a cell that already held something and it inherits that key's old, early
+  // position and renders under everything placed since.
+  const twoProps = () => ({
+    "5,5": [{ kind: "shape", shape: "topOutline" }],   // an outline block placed long ago
+    "9,9": [{ kind: "prop", propId: "b" }],            // second prop placed, on a fresh key
+  });
+
+  test("draw order is the object's own z, not the order its cell key appeared", () => {
+    const fx = twoProps();
+    fx["5,5"].push({ kind: "prop", propId: "a" });      // first prop, dropped onto the OLD key
+    const implied = levelObjectsInDrawOrder(fx).map((e) => e.o.propId);
+    expect(implied).toEqual([undefined, "a", "b"]);     // no z yet: the old, key-order behaviour
+    const withZ = withObjectDrawOrder(fx);
+    withZ["5,5"][1].z = nextObjectZ(withZ);             // prop "a" placed last therefore drawn last
+    expect(levelObjectsInDrawOrder(withZ).map((e) => e.o.propId)).toEqual([undefined, "b", "a"]);
+  });
+
+  test("stamping z onto an existing level does not move anything", () => {
+    const fx = twoProps();
+    const before = levelObjectsInDrawOrder(fx).map((e) => e.k + "#" + e.si);
+    const after = levelObjectsInDrawOrder(withObjectDrawOrder(fx)).map((e) => e.k + "#" + e.si);
+    expect(after).toEqual(before);
+  });
+
+  test("migrating a level stamps every object with an order and nothing else", () => {
+    const lv = migrateLevel({ cols: 10, rows: 10, fx: { "1,1": [{ kind: "emoji", char: "🌳" }], "2,2": [{ kind: "emoji", char: "🍄" }] } });
+    expect(lv.fx["1,1"][0].z).toBe(0);
+    expect(lv.fx["2,2"][0].z).toBe(1);
+    expect(lv.fx["1,1"][0].char).toBe("🌳");
+    expect(nextObjectZ(lv.fx)).toBe(2);
+  });
+
+  test("Front and Back reach across cells, which is the case ▲/▼ could never cover", () => {
+    const fx = withObjectDrawOrder({ "1,1": [{ kind: "prop", propId: "a" }], "40,90": [{ kind: "prop", propId: "b" }] });
+    fx["1,1"][0].z = nextObjectZ(fx);
+    expect(levelObjectsInDrawOrder(fx).map((e) => e.o.propId)).toEqual(["b", "a"]);
+    fx["1,1"][0].z = bottomObjectZ(fx);
+    expect(levelObjectsInDrawOrder(fx).map((e) => e.o.propId)).toEqual(["a", "b"]);
+  });
+
+  test("equal z falls back to the old order rather than to nothing", () => {
+    const fx = { "1,1": [{ kind: "emoji", char: "a", z: 3 }], "2,2": [{ kind: "emoji", char: "b", z: 3 }] };
+    expect(levelObjectsInDrawOrder(fx).map((e) => e.o.char)).toEqual(["a", "b"]);
+  });
+});
+
+describe("snapping one object against another", () => {
+  // A 200x60 strip of art low on the canvas, so a placement's footprint is wide and short — the
+  // shape every backdrop half actually is.
+  const strip = { frames: [{ front: [{ id: "turf", x: 0, y: 150, w: 200, h: 60 }] }] };
+  const findAsset = () => strip;
+  const placed = (extra) => ({ kind: "prop", propId: "p", size: 20, fitArt: true, ...extra });
+  // 20 cells on the long side => 20 wide, 6 tall.
+  const base = () => ({
+    cols: 80, rows: 30, fg: {},
+    fx: { "10,10": [placed()], "10,40": [placed()] },
+  });
+
+  test("butting left moves the object until its edge touches the one on its left", () => {
+    const lv = base();
+    const t = snapTargetFor(lv, "10,40", 0, "left", findAsset);
+    expect(t.left).toBeCloseTo(30, 6);     // 10 + 20 wide
+    expect(t.top).toBeCloseTo(10, 6);      // the other axis is untouched
+  });
+
+  test("a snap that has to travel further than the nudge cap re-files the object's cell", () => {
+    const lv = base();
+    const t = snapTargetFor(lv, "10,40", 0, "left", findAsset);
+    expect(Math.abs(t.left - 40)).toBeGreaterThan(OBJ_NUDGE_LIMIT);  // 10 cells: a nudge alone could not do this
+    const next = relocateLevelObject(lv, "10,40", 0, t.left, t.top);
+    expect(next.fx["10,40"]).toBeUndefined();
+    expect(next.fx["10,30"]).toHaveLength(1);
+    expect(relocatedObjectKey(t.left, t.top)).toBe("10,30");
+    expect(next.fx["10,30"][0].ox).toBeCloseTo(0, 6);
+  });
+
+  test("the leftover fraction of a snap lands in the nudge, so the edges really meet", () => {
+    const lv = base();
+    lv.fx["10,10"][0].ox = 0.4;                          // the neighbour sits 12px right of its cell
+    const t = snapTargetFor(lv, "10,40", 0, "left", findAsset);
+    expect(t.left).toBeCloseTo(30.4, 6);
+    const moved = relocateLevelObject(lv, "10,40", 0, t.left, t.top);
+    expect(moved.fx["10,30"][0].ox).toBeCloseTo(0.4, 6); // NOT rounded away to a whole cell
+  });
+
+  test("aligning tops works on objects that are side by side and so never overlap", () => {
+    const lv = base();
+    lv.fx["10,40"][0].oy = 0.7;
+    const t = snapTargetFor(lv, "10,40", 0, "top", findAsset);
+    expect(t.top).toBeCloseTo(10, 6);
+    expect(t.left).toBeCloseTo(40, 6);
+  });
+
+  test("aligning bottoms lines the ground lines up, whatever the two heights are", () => {
+    const lv = base();
+    lv.fx["10,40"] = [placed({ size: 10 })];             // half-scale neighbour: 10 wide, 3 tall
+    const t = snapTargetFor(lv, "10,40", 0, "bottom", findAsset);
+    expect(t.top + 3).toBeCloseTo(16, 6);                // 10 + 6, the tall one's bottom
+  });
+
+  test("sitting on the ground uses the drawn art's bottom edge, not the cell it is filed under", () => {
+    const lv = base();
+    lv.fg["20,45"] = "#3a5"; lv.fg["20,50"] = "#3a5";
+    const t = snapTargetFor(lv, "10,40", 0, "ground", findAsset);
+    expect(t.top + 6).toBeCloseTo(20, 6);                // bottom edge exactly on the ground row
+  });
+
+  test("a snap with nothing to snap to says so instead of moving the object somewhere odd", () => {
+    const lone = { cols: 40, rows: 20, fg: {}, fx: { "5,5": [placed()] } };
+    expect(snapTargetFor(lone, "5,5", 0, "left", findAsset)).toBeNull();
+    expect(snapTargetFor(lone, "5,5", 0, "ground", findAsset)).toBeNull();
+  });
+
+  test("relocating an object onto its own cell does not duplicate or lose its neighbours", () => {
+    const lv = { cols: 40, rows: 20, fg: {}, fx: { "5,5": [placed({ propId: "keep" }), placed({ propId: "move" })] } };
+    const out = relocateLevelObject(lv, "5,5", 1, 5.25, 5);
+    expect(out.fx["5,5"]).toHaveLength(2);
+    expect(out.fx["5,5"].map((o) => o.propId)).toEqual(["keep", "move"]);
+    expect(out.fx["5,5"][1].ox).toBeCloseTo(0.25, 6);
   });
 });
 

@@ -2237,7 +2237,12 @@ const CONN_LABEL = {
 // object up against terrain actually happens. Above 8 cells a half-cell change isn't worth a
 // button, so the large end keeps its original coarse ladder. Every original value is still here,
 // so no saved placement changes size.
-export const LV_OBJ_SIZES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 10, 12, 16, 20, 24, 30, 40, 50, 60];
+// The top of the ladder goes past 60 because a backdrop-sized prop — a whole football field, a
+// stadium stand — could not be placed as ONE object at 60: it ran out of size and had to be built
+// as two halves that then had to be lined up against each other by hand, which is exactly the job
+// this editor was worst at. 100 cells is 3000px, wider than most levels, so a scenery piece can
+// now simply BE the scenery instead of being assembled out of matching parts.
+export const LV_OBJ_SIZES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 10, 12, 16, 20, 24, 30, 40, 50, 60, 80, 100];
 // A placed object can be TWISTED: `rot` degrees, turned about its own middle. This is what lets a
 // big prop sit ON something rather than beside it — a trailer parked along a hillside, a fallen
 // sign, a leaning post — instead of every object in the level standing bolt upright.
@@ -2265,9 +2270,24 @@ export const objRotStyle = (o) => {
 // square it always did, because the collision grid is axis-aligned cells. Same trade, same reason
 // — and for decoration, which is what you're usually lining up, there's no difference at all.
 // Absent (every object saved before this) means 0, so nothing that exists moves.
-export const OBJ_NUDGE_STEP = 0.5;                       // cells per tap — half a cell, i.e. twice as fine as placement
-export const OBJ_NUDGE_LIMIT = 4;                        // cells of offset allowed either way, so an object can't be nudged off into a different part of the level
-export const clampObjNudge = (v) => Math.max(-OBJ_NUDGE_LIMIT, Math.min(OBJ_NUDGE_LIMIT, Math.round((v || 0) / OBJ_NUDGE_STEP) * OBJ_NUDGE_STEP));
+// The tap size is CHOSEN, not fixed. Half a cell (15px) is the right move when you're roughing a
+// prop into place and hopeless when you're closing a seam between two pieces of scenery: the gap
+// you're trying to kill is often a few pixels, so a 15px tap can only ever overshoot it in one
+// direction or the other. That was the whole of "THIS IS AS CLOSE AS IT LET'S ME GET" — the tool
+// had no move small enough to land on. 1/30 of a cell is exactly one screen pixel at LV_CELL.
+export const OBJ_NUDGE_STEPS = [1, 0.5, 0.1, 1 / 30];
+export const OBJ_NUDGE_STEP_LABELS = ["1 cell", "½", "⅒", "1px"];
+export const OBJ_NUDGE_STEP = 0.5;                       // the default tap, kept as the old constant so nothing that imported it changes meaning
+export const OBJ_NUDGE_LIMIT = 8;                        // cells of offset allowed either way, so an object can't be nudged off into a different part of the level. 8 rather than 4 because a 60–100 cell backdrop needs room to slide a meaningful fraction of itself
+// Clamp only, plus a 1/1000-cell round to keep repeated taps from accumulating float dust.
+// It deliberately does NOT snap to the current tap size: a mirrored prop's offset (flipLevelObject)
+// and a snap-to-edge result are both exact fractions that no tap ladder would land on, and quantising
+// them to the active step would throw away the alignment the moment you touched an arrow key.
+// The 1e6 round is float dust only — coarse enough to stop 0.30000000000000004 accumulating,
+// fine enough that thirty 1px taps still add up to thirty pixels rather than drifting a third of
+// one. Quantising any harder than the offsets themselves are meaningful is how a fine nudge stops
+// being fine.
+export const clampObjNudge = (v) => Math.max(-OBJ_NUDGE_LIMIT, Math.min(OBJ_NUDGE_LIMIT, Math.round((v || 0) * 1e6) / 1e6));
 export const objNudgedLeft = (o, c, cellPx) => c * cellPx + ((o && o.ox) || 0) * cellPx;
 export const objNudgedTop = (o, r, cellPx) => r * cellPx + ((o && o.oy) || 0) * cellPx;
 export const OBJ_ROT_NUDGE = 5;   // degrees per ↺/↻ tap — hillside angles are shallow, so 90° steps are useless here
@@ -2768,7 +2788,7 @@ function newRoom() {
 // Section label so nothing's silently lost, Floor starts blank for you to fill in), per-connector
 // type->accepts, missing fx/climb/markers layers, and old single-object-per-cell fx entries get
 // wrapped into the new stacked-array format.
-function migrateLevel(lv) {
+export function migrateLevel(lv) {
   if (!lv) return lv;
   const out = { ...lv };
   if (out.floor === undefined) { out.floor = ""; out.section = out.category || out.field || ""; }
@@ -2777,7 +2797,9 @@ function migrateLevel(lv) {
   if (!out.front) out.front = {};
   if (!out.fx) out.fx = {};
   const fx2 = {}; for (const k of Object.keys(out.fx)) { const v = out.fx[k]; const arr = Array.isArray(v) ? v : [v]; fx2[k] = arr.map((o) => o.kind ? o : { ...o, kind: "emoji" }); }
-  out.fx = fx2;
+  // Freeze the draw order objects have always had implicitly into an explicit `z` (see
+  // withObjectDrawOrder). Must run on the already-wrapped stacks above, not the raw fx.
+  out.fx = withObjectDrawOrder(fx2);
   if (!out.climb) out.climb = {};
   const climb2 = {}; for (const k of Object.keys(out.climb)) climb2[k] = { kind: climbKindOf(out.climb[k]) || "ladder" };
   out.climb = climb2;
@@ -2814,11 +2836,22 @@ export const propVisibleArtBox = (propAsset) => {
 // Existing saved placements intentionally keep their old square layout unless `fitArt` is set:
 // silently opting every old level into tight bounds would move already-positioned scenery. New
 // Prop placements set fitArt=true, and the object inspector offers the same conversion explicitly.
+//
+// WHAT `size` MEASURES, and why there are two answers. By default it's the longer side of the
+// prop's own VISIBLE ART — good for one-off scenery ("make this trailer 12 cells long"), and
+// actively wrong for two props meant to sit against each other. Two halves of one football field,
+// both placed at size 60, come out at DIFFERENT scales the moment their art crops differ by even
+// a pixel: `size / max(box.w, box.h)` divides by each prop's own crop, so a stripe drawn the same
+// width on both canvases renders wider on one than the other and the seam can never be closed by
+// moving them. `canvasScale` divides by the 200x260 design canvas instead, which every asset
+// shares — so any two props placed at the same size render at exactly the same px-per-design-unit,
+// and art drawn to line up in the creator lines up in the level. The footprint stays tight to the
+// art either way; only the meaning of the number changes.
 export const levelObjectFootprint = (object, propAsset) => {
   const size = Math.max(1, (object && object.size) || 1);
   if (!object || object.kind !== "prop" || !object.fitArt || !propAsset) return { cols: size, rows: size, box: null };
   const box = propVisibleArtBox(propAsset);
-  const scale = size / Math.max(box.w, box.h);
+  const scale = object.canvasScale ? size / Math.max(W, H) : size / Math.max(box.w, box.h);
   return { cols: Math.max(1, box.w * scale), rows: Math.max(1, box.h * scale), box };
 };
 export const objFootprintAnchor = (r, c, footprint) => {
@@ -2871,6 +2904,166 @@ export const removeLevelObject = (lv, key, stackIndex) => {
   else delete fx[key];
   return { ...lv, fx };
 };
+/* ---- Placing one object against another -------------------------------------------------
+Building a football pitch out of two prop halves turned out to be impossible with what was here,
+for three separate reasons. Each gets its own fix below.
+
+1. DRAW ORDER WAS IMPLICIT. Objects render in `Object.keys(lv.fx)` order, so which of two props
+   drew on top came down to when each one's CELL KEY first appeared in the map — NOT when the
+   prop was placed. Drop a prop onto a cell that already held something (an outline block, or a
+   prop that was there earlier) and it renders in that key's old position: underneath everything
+   placed since. From the outside that is exactly "I place the first prop, then the second, and
+   the second goes behind it." Mirroring a level and picking an object up and setting it down
+   again both rebuild the map and reshuffle the same implicit order.
+2. POSITIONS WERE WHOLE CELLS PLUS A HALF-CELL NUDGE. 15px was the smallest move available, and
+   a seam between two pieces of scenery is usually a few pixels out. There was no move small
+   enough to land on it — see OBJ_NUDGE_STEPS.
+3. NOTHING COULD BE SNAPPED TO ANYTHING. Everything was done by eye, against a dashed box that
+   sits on the art's bounding rectangle rather than on the edge you're trying to meet.
+*/
+// --- 1. Explicit draw order -----------------------------------------------------------------
+// `z` is level-wide, not per-cell: the existing ▲/▼ buttons only ever reordered objects sharing
+// one cell, which is no help at all when the two things overlapping are two big props anchored
+// several cells apart. migrateLevel stamps every object that has never had a z with its current
+// implicit position, so every level that exists opens looking exactly as it did.
+export const objectZ = (o, fallback) => (o && typeof o.z === "number" && isFinite(o.z)) ? o.z : fallback;
+// Every placed object, flattened, in the map's own (implicit) order. `seq` is that order, and is
+// what an object without a z falls back to — so a level mid-upgrade still draws sensibly.
+export const levelObjectEntries = (fx) => {
+  const out = [];
+  let seq = 0;
+  for (const k of Object.keys(fx || {})) {
+    const stack = fx[k] || [];
+    const [r, c] = k.split(",").map(Number);
+    for (let si = 0; si < stack.length; si++) out.push({ k, r, c, si, o: stack[si], seq: seq++ });
+  }
+  return out;
+};
+// Back to front. Equal z (a pasted copy carries its source's) falls back to the old implicit
+// order rather than to nothing, so ties draw stably instead of flickering between renders.
+export const levelObjectsInDrawOrder = (fx) => levelObjectEntries(fx).sort((a, b) => (objectZ(a.o, a.seq) - objectZ(b.o, b.seq)) || (a.seq - b.seq));
+export const levelObjectZRange = (fx) => {
+  let lo = null, hi = null;
+  for (const e of levelObjectEntries(fx)) { const z = objectZ(e.o, e.seq); if (lo === null || z < lo) lo = z; if (hi === null || z > hi) hi = z; }
+  return { lo: lo === null ? 0 : lo, hi: hi === null ? 0 : hi };
+};
+export const nextObjectZ = (fx) => levelObjectZRange(fx).hi + 1;
+export const bottomObjectZ = (fx) => levelObjectZRange(fx).lo - 1;
+// Stamp the implicit order onto anything that has never carried one. `seq` IS the order those
+// objects already draw in, so this is a no-op visually and a one-way door into being reorderable.
+export const withObjectDrawOrder = (fx) => {
+  const out = {};
+  for (const e of levelObjectEntries(fx)) {
+    (out[e.k] = out[e.k] || []).push(typeof e.o.z === "number" && isFinite(e.o.z) ? e.o : { ...e.o, z: e.seq });
+  }
+  return out;
+};
+// --- 2/3. Exact position, and snapping to something ------------------------------------------
+// Where an object's ART actually is, in fractional cells: anchor cell + nudge, sized by the tight
+// footprint. Every snap is expressed against this rectangle and not against the stored cell,
+// because the stored cell is a whole number and the edge you're lining up almost never is.
+export const levelObjectRect = (o, r, c, propAsset) => {
+  const fp = levelObjectFootprint(o, propAsset);
+  const left = c + ((o && o.ox) || 0), top = r + ((o && o.oy) || 0);
+  return { left, top, right: left + fp.cols, bottom: top + fp.rows, cols: fp.cols, rows: fp.rows };
+};
+// The ground beneath an object: the first solid foreground row at or below the object's own top,
+// taken across the columns the art really covers, and the HIGHEST such row wins so a prop spanning
+// uneven terrain rests on the ground rather than sinking into the tallest part of it. Returns the
+// row index the object's bottom edge should sit on, or null when there's nothing solid below.
+export const groundRowUnder = (lv, rect) => {
+  if (!lv || !lv.fg) return null;
+  const c0 = Math.max(0, Math.round(rect.left));
+  const c1 = Math.min((lv.cols || 1) - 1, Math.ceil(rect.right) - 1);
+  const from = Math.max(0, Math.floor(rect.top));
+  let best = null;
+  for (let c = c0; c <= c1; c++) {
+    for (let r = from; r < (lv.rows || 0); r++) {
+      if (fgSolid(lv.fg[cellKey(r, c)])) { if (best === null || r < best) best = r; break; }
+    }
+  }
+  return best;
+};
+export const OBJ_SNAP_MODES = ["ground", "left", "right", "top", "bottom"];
+// One row of the Snap control, in the order it reads on screen. Kept beside the modes themselves
+// so adding a snap is one entry, not three edits in three files.
+export const OBJ_SNAP_BUTTONS = [
+  { mode: "ground", glyph: "⤓", label: "Ground", title: "Sit the bottom edge on the ground below it" },
+  { mode: "left", glyph: "⇤", label: "Left", title: "Butt the left edge against the object on its left" },
+  { mode: "right", glyph: "⇥", label: "Right", title: "Butt the right edge against the object on its right" },
+  { mode: "top", glyph: "⤒", label: "Tops", title: "Line the top edge up with the nearest object's top" },
+  { mode: "bottom", glyph: "⤓", label: "Bottoms", title: "Line the bottom edge up with the nearest object's bottom" },
+];
+export const SNAP_FLASH = {
+  ground: "Sat it on the ground ✓",
+  left: "Butted up to the object on the left ✓",
+  right: "Butted up to the object on the right ✓",
+  top: "Tops lined up ✓",
+  bottom: "Bottoms lined up ✓",
+};
+// Where a snap would put the object, as an exact {left, top} in cells — or null when there is
+// nothing to snap to, so the caller can say so instead of silently doing nothing. The axis a mode
+// doesn't touch comes back unchanged, so the result is always a complete position.
+//
+// left/right butt this object's edge against the FACING edge of the nearest object on that side
+// that shares any rows with it — "the next piece of the same wall". top/bottom line an edge up
+// with the nearest object measured by horizontal gap, because the two halves of one backdrop sit
+// side by side and therefore never overlap horizontally at all.
+export const snapTargetFor = (lv, key, index, mode, findAsset) => {
+  if (!lv || !lv.fx || !Array.isArray(lv.fx[key])) return null;
+  const o = lv.fx[key][index]; if (!o) return null;
+  const assetFor = (obj) => (obj && obj.kind === "prop" && findAsset) ? findAsset(obj.propId) : null;
+  const [r, c] = key.split(",").map(Number);
+  const me = levelObjectRect(o, r, c, assetFor(o));
+  if (mode === "ground") {
+    const row = groundRowUnder(lv, me);
+    return row === null ? null : { left: me.left, top: me.top + (row - me.bottom) };
+  }
+  const others = levelObjectEntries(lv.fx)
+    .filter((e) => !(e.k === key && e.si === index))
+    .map((e) => ({ ...e, rect: levelObjectRect(e.o, e.r, e.c, assetFor(e.o)) }));
+  if (!others.length) return null;
+  const rowOverlap = (a, b) => Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+  const colGap = (a, b) => Math.max(0, Math.max(a.left, b.left) - Math.min(a.right, b.right));
+  if (mode === "left" || mode === "right") {
+    const side = others.filter((e) => rowOverlap(me, e.rect) > 0 && (mode === "left" ? e.rect.right <= me.right + 1e-6 : e.rect.left >= me.left - 1e-6));
+    if (!side.length) return null;
+    const pick = side.reduce((best, e) => (mode === "left" ? (e.rect.right > best.rect.right ? e : best) : (e.rect.left < best.rect.left ? e : best)));
+    const shift = mode === "left" ? pick.rect.right - me.left : pick.rect.left - me.right;
+    return { left: me.left + shift, top: me.top };
+  }
+  if (mode === "top" || mode === "bottom") {
+    const pick = others.reduce((best, e) => {
+      const d = colGap(me, e.rect), bd = colGap(me, best.rect);
+      if (d !== bd) return d < bd ? e : best;
+      const edge = (x) => mode === "top" ? Math.abs(x.top - me.top) : Math.abs(x.bottom - me.bottom);
+      return edge(e.rect) < edge(best.rect) ? e : best;
+    });
+    const shift = mode === "top" ? pick.rect.top - me.top : pick.rect.bottom - me.bottom;
+    return { left: me.left, top: me.top + shift };
+  }
+  return null;
+};
+// Move one object to an exact fractional position, splitting it into the whole cell lv.fx is
+// keyed by and the leftover nudge that makes the edges actually meet — the same split
+// flipLevelObject does. Re-keying (rather than just widening the nudge) is what lets a snap cross
+// any distance at all: the nudge is deliberately capped so an object can't be flung across the
+// level by a stuck arrow key, and a snap regularly needs to move further than that cap.
+export const relocateLevelObject = (lv, key, index, exactLeft, exactTop) => {
+  const stack = lv && lv.fx && lv.fx[key];
+  if (!Array.isArray(stack) || !stack[index]) return lv;
+  const nc = Math.max(0, Math.round(exactLeft)), nr = Math.max(0, Math.round(exactTop));
+  const moved = { ...stack[index], ox: clampObjNudge(exactLeft - nc), oy: clampObjNudge(exactTop - nr) };
+  const fx = { ...lv.fx };
+  const remaining = stack.filter((_, i) => i !== index);
+  if (remaining.length) fx[key] = remaining; else delete fx[key];
+  // Read fx (not lv.fx) for the destination: when the object isn't changing cells at all, its own
+  // removal above has to be respected or it comes back twice.
+  const nk = cellKey(nr, nc);
+  fx[nk] = (fx[nk] ? fx[nk].slice() : []).concat([moved]);
+  return { ...lv, fx };
+};
+export const relocatedObjectKey = (exactLeft, exactTop) => cellKey(Math.max(0, Math.round(exactTop)), Math.max(0, Math.round(exactLeft)));
 /* ---- Mirroring a whole level left↔right -------------------------------------------------
 A level you have already built is most of the work of its mirror image, so a downhill run can
 become the uphill one instead of being drawn again from scratch.
@@ -5046,6 +5239,14 @@ export default function AssetStudio() {
   // the other way, a sign facing back up the path) and because flipping a whole level sets it on
   // every object — without a control here you could mirror a level and then not un-mirror one prop.
   const [lObjFlip, setLObjFlip] = useState(false);
+  // How far one Nudge arrow moves the selected object. It's a setting rather than a constant
+  // because roughing a prop into place and closing a 4px seam are the same control at two wildly
+  // different scales — see OBJ_NUDGE_STEPS. Half a cell stays the default, which is what it always
+  // was; ⅒ and 1px are the two that make lining two props up actually finishable.
+  const [lNudgeStep, setLNudgeStep] = useState(OBJ_NUDGE_STEP);
+  // Off by default: art-crop scale is the right answer for a one-off piece of scenery ("make this
+  // trailer 12 cells long") and only becomes wrong when two props have to match each other.
+  const [lCanvasScale, setLCanvasScale] = useState(false);
   const [lBrush, setLBrush] = useState(1);              // paint brush size in cells, for fg/bg/climb
   const [lOutline, setLOutline] = useState(false);      // brush option: outline the perimeter of the brush footprint
   const [lOutlineColor, setLOutlineColor] = useState("#1a1a1a"); // color that brush outline paints with
@@ -5145,18 +5346,24 @@ export default function AssetStudio() {
   // The Front layer keeps its ref here (the loop fades covered cells imperatively) — the wrapper it
   // always had simply moved INSIDE the memo, so the element itself is stable across frames too.
   const lvFrontLayer = useMemo(() => level ? <div ref={frontCellsRef} style={CELL_LAYER_STYLE}>{Object.keys(level.front || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.front, level.front[k], r, c, texLib) }} />; })}</div> : null, [level, texLib]);
-  const lvFxLayer = useMemo(() => level && level.fx ? <div style={CELL_LAYER_STYLE}>{Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = splitObjectStackByPlayerLayer(level.fx[k]).behind.filter(({ o }) => o.kind !== "prop"); return stack.map(({ o, stackIndex: si }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; }); })}</div> : null, [level, play, lFxSel, lTool]);
+  // ALL THREE object render passes below walk levelObjectsInDrawOrder, not Object.keys(level.fx).
+  // Same objects, but ordered by their own `z` instead of by when their cell key happened to enter
+  // the map — that accident of key order was why a prop placed second could end up drawn behind
+  // one placed first (see the note on objectZ). Within one layer rung the browser paints in DOM
+  // order, so emitting them back-to-front here IS the stacking.
+  const lvDrawOrder = useMemo(() => level && level.fx ? levelObjectsInDrawOrder(level.fx) : [], [level]);
+  const lvFxLayer = useMemo(() => level && level.fx ? <div style={CELL_LAYER_STYLE}>{lvDrawOrder.filter(({ o }) => !o.inFront && o.kind !== "prop").map(({ k, r, c, si, o }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; })}</div> : null, [level, lvDrawOrder, play, lFxSel, lTool]);
   // Prop objects (pixel-art assets) are pulled OUT of the memoized fx layer above and rendered in
   // a separate LIVE pass (see the level render body) — the memo runs before the component-scoped
   // prop renderer exists, and animated props need to redraw every frame in play anyway. This
   // carries just position/stack metadata; the scaled art itself is drawn with renderObj.
-  const lvPropMeta = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); return splitObjectStackByPlayerLayer(level.fx[k]).behind.filter(({ o }) => o.kind === "prop").map(({ o, stackIndex: si }) => ({ o, si, r, c, k })); }) : [], [level]);
+  const lvPropMeta = useMemo(() => lvDrawOrder.filter(({ o }) => !o.inFront && o.kind === "prop"), [lvDrawOrder]);
   // Position/content only — NOT the rendered JSX itself, since a solid front object's opacity
   // now depends on the player's live position (see the "in front of player" render below), which
   // changes every playtest frame. Keeping that part of the work memoized on just `level` still
   // avoids rebuilding this list on every one of those frames; only the small per-frame map over
   // it (done at the actual render site) needs to run live.
-  const lvFxInFrontMeta = useMemo(() => level && level.fx ? Object.keys(level.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); return splitObjectStackByPlayerLayer(level.fx[k]).front.map(({ o, stackIndex: si }) => ({ key: "xf" + k + "_" + si, r, c, k, si, o, sz: (o.size || 1) * LV_CELL })); }) : [], [level]);
+  const lvFxInFrontMeta = useMemo(() => lvDrawOrder.filter(({ o }) => o.inFront).map(({ k, r, c, si, o }) => ({ key: "xf" + k + "_" + si, r, c, k, si, o, sz: (o.size || 1) * LV_CELL })), [lvDrawOrder]);
   // Climb glyphs are directly erasable: Erase tool + click the glyph = gone, no matter which
   // layer tab is active. Erasing a visible thing by clicking it should just work — requiring
   // the Climb layer tab to be selected first made climb cells feel impossible to delete.
@@ -7323,11 +7530,15 @@ export default function AssetStudio() {
           if (!lv) return lv;
           const fg = { ...lv.fg }, bg = { ...lv.bg }, front = { ...lv.front }, fx = { ...lv.fx };
           const dest = { fg, bg, front, fx };
+          // Stamped objects are new objects, so they take fresh z values off the top of the level
+          // rather than the ones they were copied with — otherwise a stamp lands tied with (and
+          // therefore possibly behind) the very thing it was copied from.
+          let z = nextObjectZ(lv.fx);
           for (const ln of ["fg", "bg", "front", "fx"]) {
             for (const key of Object.keys(clip[ln])) {
               const [dr, dc] = key.split(",").map(Number);
               const rr = target.r + dr, cc = target.c + dc;
-              if (rr >= 0 && cc >= 0 && rr < lv.rows && cc < lv.cols) dest[ln][cellKey(rr, cc)] = clip[ln][key];
+              if (rr >= 0 && cc >= 0 && rr < lv.rows && cc < lv.cols) dest[ln][cellKey(rr, cc)] = ln === "fx" ? (clip[ln][key] || []).map((o) => ({ ...o, z: z++ })) : clip[ln][key];
             }
           }
           return { ...lv, fg, bg, front, fx };
@@ -9713,7 +9924,7 @@ export default function AssetStudio() {
   // One record for the NEXT object. Props opt into art-tight bounds; old saved placements without
   // this flag retain their legacy square geometry until the user converts them in the inspector.
   const nextLevelObject = lObjKind === "prop"
-    ? { kind: "prop", propId: lPropId, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot, flip: lObjFlip, fitArt: true }
+    ? { kind: "prop", propId: lPropId, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot, flip: lObjFlip, fitArt: true, canvasScale: lCanvasScale }
     : lObjKind === "shape"
       ? { kind: "shape", shape: lObjShape, tint: lTint || "#7aa2d6", solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot, flip: lObjFlip }
       : { kind: "emoji", char: lEmoji, tint: lTint, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot, flip: lObjFlip };
@@ -9744,7 +9955,12 @@ export default function AssetStudio() {
       if (erase || lTool === "erase") return lv;
       const fx = { ...lv.fx };
       if (lObjKind === "prop" && !lPropId) { return lv; /* prop kind chosen but no prop picked yet — nothing to place */ }
-      else { const stack = fx[objKey] ? fx[objKey].slice() : []; stack.push({ ...nextLevelObject }); fx[objKey] = stack; }
+      // A newly placed object goes on TOP of everything already in the level, which is the only
+      // thing "I just put this here" can reasonably mean. Before `z` that was left to the order
+      // its cell key happened to occupy in fx, so placing onto a cell that already held anything
+      // buried the new object underneath whatever had been placed since — the reported "the second
+      // prop goes behind the first one".
+      else { const stack = fx[objKey] ? fx[objKey].slice() : []; stack.push({ ...nextLevelObject, z: nextObjectZ(lv.fx) }); fx[objKey] = stack; }
       return { ...lv, fx };
     }
     if (lLayer === "climb") { const climb = { ...lv.climb }; if (erase || lTool === "erase") delete climb[k]; else climb[k] = { kind: lClimbKind }; return { ...lv, climb }; }
@@ -9793,7 +10009,9 @@ export default function AssetStudio() {
       setLevel((lv) => {
         // Dropping re-centres on the click too, so a picked-up object lands the same way a
         // freshly placed one does instead of jumping down-right by half its own size.
-        if (from === "fx") { const ok = anchorKeyForLevelObject(r, c, item); const stack = lv.fx[ok] ? lv.fx[ok].slice() : []; stack.push(item); return { ...lv, fx: { ...lv.fx, [ok]: stack } }; }
+        // Setting an object down re-stamps its z for the same reason placing one does — and a
+        // COPY must get its own, or it inherits the original's z and the two tie forever.
+        if (from === "fx") { const ok = anchorKeyForLevelObject(r, c, item); const stack = lv.fx[ok] ? lv.fx[ok].slice() : []; stack.push({ ...item, z: nextObjectZ(lv.fx) }); return { ...lv, fx: { ...lv.fx, [ok]: stack } }; }
         if (from === "enemies") return { ...lv, enemies: { ...(lv.enemies || {}), [k]: item } };
         return { ...lv, markers: { ...lv.markers, [k]: item } };
       });
@@ -9836,9 +10054,13 @@ export default function AssetStudio() {
   };
   const cycleConn = (k) => setLevel((lv) => { const c = { ...lv.conns }; c[k] = { ...c[k], open: !c[k].open }; return { ...lv, conns: c }; });
   // Reorder a single object within a cell's stack (dir +1 = bring forward/toward top, -1 = send back).
+  // Drawing is by `z` now, so the two neighbours have to swap z as WELL as list position — swapping
+  // only the list would reorder the side panel while the level itself sat there unchanged.
   const moveFxStack = (k, i, dir) => setLevel((lv) => {
     const stack = (lv.fx[k] || []).slice(); const j = i + dir; if (j < 0 || j >= stack.length) return lv;
-    [stack[i], stack[j]] = [stack[j], stack[i]];
+    const zi = objectZ(stack[i], i), zj = objectZ(stack[j], j);
+    const a = { ...stack[i], z: zj }, b = { ...stack[j], z: zi };
+    stack[i] = b; stack[j] = a;
     return { ...lv, fx: { ...lv.fx, [k]: stack } };
   });
   const removeFxAt = (k, i) => setLevel((lv) => {
@@ -9860,6 +10082,35 @@ export default function AssetStudio() {
     stack[i] = { ...stack[i], rot: normalizeObjRot((stack[i].rot || 0) + delta) };
     return { ...lv, fx: { ...lv.fx, [k]: stack } };
   });
+  // Same stale-closure rule as nudgeFxRot: read the live offset inside the updater, or a fast run
+  // of taps all start from the same value and only the last one counts.
+  const nudgeFxPos = (k, i, dx, dy) => setLevel((lv) => {
+    const stack = (lv.fx[k] || []).slice(); if (!stack[i]) return lv;
+    stack[i] = { ...stack[i], ox: clampObjNudge((stack[i].ox || 0) + dx), oy: clampObjNudge((stack[i].oy || 0) + dy) };
+    return { ...lv, fx: { ...lv.fx, [k]: stack } };
+  });
+  // Move an object across the WHOLE level's stack, not just its own cell's — see objectZ. Front
+  // and Back are the two that actually get used when two big props overlap, because the objects
+  // involved are anchored to different cells and so never share a stack to be reordered within.
+  const sendFxToEnd = (k, i, toFront) => setLevel((lv) => {
+    const stack = (lv.fx[k] || []).slice(); if (!stack[i]) return lv;
+    stack[i] = { ...stack[i], z: toFront ? nextObjectZ(lv.fx) : bottomObjectZ(lv.fx) };
+    return { ...lv, fx: { ...lv.fx, [k]: stack } };
+  });
+  // SNAP. Works out the exact position first (snapTargetFor) so it can say "there's nothing to
+  // snap to" instead of quietly doing nothing, then relocates — which may change the object's
+  // anchor cell, so the inspector has to follow it to its new key or the panel goes blank on you
+  // mid-alignment. Dropping the open-layer index puts the focus back on the top of the new stack,
+  // which is where the moved object now is.
+  const snapFxTo = (k, i, mode) => {
+    const target = snapTargetFor(level, k, i, mode, findA);
+    if (!target) { flash(mode === "ground" ? "Nothing solid underneath to sit on." : "No other object nearby to line up with."); return; }
+    snapshotLevel();
+    setLevel((lv) => relocateLevelObject(lv, k, i, target.left, target.top));
+    setLFxSel(relocatedObjectKey(target.left, target.top));
+    setLFxEditIdx(null);
+    flash(SNAP_FLASH[mode] || "Snapped ✓");
+  };
   const setConnAccepts = (k, t) => setLevel((lv) => ({ ...lv, conns: { ...lv.conns, [k]: { ...lv.conns[k], accepts: t } } }));
   const addCatSuggest = (k, tag) => setLevel((lv) => { const cur = lv.conns[k].accepts || ""; const has = cur.split(/[,\n]/).map((s) => s.trim().toLowerCase()).includes(tag); if (has) return lv; const next = cur ? cur + ", " + tag : tag; return { ...lv, conns: { ...lv.conns, [k]: { ...lv.conns[k], accepts: next } } }; });
   const allLevels = level ? [level, ...levelLib.filter((l) => l.id !== level.id)] : levelLib;
@@ -10675,12 +10926,18 @@ export default function AssetStudio() {
               {lObjKind === "prop" ? (
                 (() => {
                   const props = allAssets.filter((a) => a.type === "prop");
-                  return props.length ? (
+                  return props.length ? (<>
                     <select className="big" value={lPropId} onChange={(e) => { const id = e.target.value; setLPropId(id); setLFxSel(null); setLFxEditIdx(null); const pa = findA(id); if (pa && pa.size) setLObjSize(pa.size); }}>
                       <option value="">— pick an Object —</option>
                       {props.map((a) => <option key={a.id} value={a.id}>🌿 {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
                     </select>
-                  ) : <span className="hint2">No Objects made yet.</span>;
+                    {/* Set BEFORE placing, because it changes how big the prop comes out and both
+                        halves of a matched pair want placing the same way rather than converting
+                        after the fact. See levelObjectFootprint for what the two scales mean. */}
+                    <label className="chk" title="Size then means the shared 200x260 design canvas, not this prop's own art crop — so two props placed at the same size come out at exactly the same scale and art drawn to line up in the creator lines up in the level.">
+                      <input type="checkbox" checked={lCanvasScale} onChange={(e) => setLCanvasScale(e.target.checked)} /> Match scale across props
+                    </label>
+                  </>) : <span className="hint2">No Objects made yet.</span>;
                 })()
               ) : lObjKind === "emoji" ? (
                 <button className="objpick" onClick={() => setPicker({ mode: "level" })}><b>{lEmoji}</b> Choose emoji</button>
@@ -11623,8 +11880,11 @@ export default function AssetStudio() {
                   <div className="fxstack">{lv.fx[lFxSel].map((o, i) => (
                     <div key={i} className="fxitem">
                       <div className="fxrow" onClick={() => setLFxEditIdx(fxOpenIdx === i ? -1 : i)}>
-                        {o.kind === "shape" ? <span className="fxprev" style={{ display: "inline-block", width: 14, height: 14, background: o.tint || "#7aa2d6", borderRadius: o.shape === "circle" ? "50%" : 2, flexShrink: 0 }} /> : <span className="fxprev">{o.char}</span>}
-                        <span className="fxname">{(o.kind === "shape" ? levelShapeLabel(o.shape) + " · " : "") + (o.solid ? "solid" : "decor") + (o.inFront ? " · in front" : "") + " · " + (o.size || 1) + "x" + ((o.rot || 0) ? " · " + o.rot + "°" : "")}</span>
+                        {o.kind === "shape" ? <span className="fxprev" style={{ display: "inline-block", width: 14, height: 14, background: o.tint || "#7aa2d6", borderRadius: o.shape === "circle" ? "50%" : 2, flexShrink: 0 }} /> : <span className="fxprev">{o.kind === "prop" ? "🌿" : o.char}</span>}
+                        {/* A prop row used to read "decor · 60x" and nothing else, which is no help
+                            at all when the two things you're trying to line up are both props. Its
+                            NAME is the one thing that tells them apart. */}
+                        <span className="fxname">{(o.kind === "shape" ? levelShapeLabel(o.shape) + " · " : o.kind === "prop" ? ((findA(o.propId) || {}).name || "missing prop") + " · " : "") + (o.solid ? "solid" : "decor") + (o.inFront ? " · in front" : "") + " · " + (o.size || 1) + "x" + ((o.rot || 0) ? " · " + o.rot + "°" : "")}</span>
                         <button onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, 1); }}>▲</button>
                         <button onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, -1); }}>▼</button>
                         <button onClick={(e) => { e.stopPropagation(); removeFxAt(lFxSel, i); if (lFxEditIdx === i) setLFxEditIdx(null); }}>✕</button>
@@ -11641,6 +11901,18 @@ export default function AssetStudio() {
                           </div>
                           <div className="seg sizeseg">{LV_OBJ_SIZES.map((n) => <button key={n} className={(o.size || 1) === n ? "on" : ""} onClick={() => updateFxAt(lFxSel, i, { size: n })}>{n}×</button>)}</div>
                           {o.kind === "prop" && <label className="chk"><input type="checkbox" checked={!!o.fitArt} onChange={(e) => updateFxAt(lFxSel, i, { fitArt: e.target.checked })} /> Tight bounds around visible art</label>}
+                          {/* The measured box, spelled out. A prop whose dashed outline looks far
+                              bigger than the thing it's drawn around is nearly always one stray
+                              block left somewhere out on the authoring canvas (propVisibleArtBox
+                              unions EVERY frame's art) — and with no number on screen there was no
+                              way to tell that from "props just have big borders". */}
+                          {o.kind === "prop" && (() => { const fp = levelObjectFootprint(o, findA(o.propId)); return <div className="hint2 fpread">Box {fp.cols.toFixed(1)} × {fp.rows.toFixed(1)} cells{o.fitArt ? "" : " (square — tight bounds off)"}</div>; })()}
+                          {/* Scale by the shared design canvas instead of by this prop's own art
+                              crop. The whole point is two props that have to MATCH: at the same
+                              size they then render at identical px-per-design-unit, so a line drawn
+                              at the same height on both canvases lands at the same height in the
+                              level. See levelObjectFootprint. */}
+                          {o.kind === "prop" && o.fitArt && <label className="chk"><input type="checkbox" checked={!!o.canvasScale} onChange={(e) => updateFxAt(lFxSel, i, { canvasScale: e.target.checked })} /> Scale by design canvas (two props at one size then match exactly)</label>}
                           {/* Twist — the point of it is props that lie ALONG something (a trailer on a
                               hillside) rather than standing upright. Nudges are 5° because slope
                               angles are shallow; the piece editor's 90° steps would be useless here. */}
@@ -11648,13 +11920,34 @@ export default function AssetStudio() {
                           <label className="chk"><input type="checkbox" checked={!!o.flip} onChange={(e) => updateFxAt(lFxSel, i, { flip: e.target.checked })} /> ⇄ Mirrored</label>
                           <span className="objnudge">
                             <b>Nudge</b>
-                            <button className="rotbtn" onClick={() => updateFxAt(lFxSel, i, { ox: clampObjNudge((o.ox || 0) - OBJ_NUDGE_STEP) })}>←</button>
-                            <button className="rotbtn" onClick={() => updateFxAt(lFxSel, i, { ox: clampObjNudge((o.ox || 0) + OBJ_NUDGE_STEP) })}>→</button>
-                            <button className="rotbtn" onClick={() => updateFxAt(lFxSel, i, { oy: clampObjNudge((o.oy || 0) - OBJ_NUDGE_STEP) })}>↑</button>
-                            <button className="rotbtn" onClick={() => updateFxAt(lFxSel, i, { oy: clampObjNudge((o.oy || 0) + OBJ_NUDGE_STEP) })}>↓</button>
-                            <span className="hint2">{(o.ox || 0) + ", " + (o.oy || 0)}</span>
+                            <button className="rotbtn" onClick={() => nudgeFxPos(lFxSel, i, -lNudgeStep, 0)}>←</button>
+                            <button className="rotbtn" onClick={() => nudgeFxPos(lFxSel, i, lNudgeStep, 0)}>→</button>
+                            <button className="rotbtn" onClick={() => nudgeFxPos(lFxSel, i, 0, -lNudgeStep)}>↑</button>
+                            <button className="rotbtn" onClick={() => nudgeFxPos(lFxSel, i, 0, lNudgeStep)}>↓</button>
+                            {/* In pixels as well as cells, because a seam is a pixel measurement and
+                                "0.033, -0.1" tells you nothing about how far off you still are. */}
+                            <span className="hint2">{Math.round((o.ox || 0) * LV_CELL) + ", " + Math.round((o.oy || 0) * LV_CELL) + "px"}</span>
                             <button className="rotbtn" disabled={!(o.ox || o.oy)} onClick={() => updateFxAt(lFxSel, i, { ox: 0, oy: 0 })}>0</button>
                           </span>
+                          <div className="seg stepseg">{OBJ_NUDGE_STEPS.map((s, si2) => <button key={s} className={lNudgeStep === s ? "on" : ""} onClick={() => setLNudgeStep(s)} title={"Move " + Math.round(s * LV_CELL) + "px per tap"}>{OBJ_NUDGE_STEP_LABELS[si2]}</button>)}</div>
+                          {/* SNAP. The arrows get you close; these land it exactly, and they work
+                              off the drawn art's real edges rather than the cell it's filed under,
+                              so "sits on the ground" means the art touches the ground. A snap can
+                              move an object further than the nudge cap allows, so it re-files it
+                              under a new cell and the panel follows it there (snapFxTo). */}
+                          <div className="objsnap">
+                            <b>Snap</b>
+                            {OBJ_SNAP_BUTTONS.map((b) => <button key={b.mode} className="rotbtn" title={b.title} onClick={() => snapFxTo(lFxSel, i, b.mode)}>{b.glyph} {b.label}</button>)}
+                          </div>
+                          {/* Front/Back move the object through the WHOLE level's draw order. The
+                              ▲/▼ on the row above only shuffle objects sharing this one cell, which
+                              never covers the case you actually hit: two big props anchored cells
+                              apart, overlapping, in the wrong order. */}
+                          <div className="objsnap">
+                            <b>Order</b>
+                            <button className="rotbtn" title="Draw this on top of every other object in the level" onClick={() => sendFxToEnd(lFxSel, i, true)}>⤒ Front</button>
+                            <button className="rotbtn" title="Draw this behind every other object in the level" onClick={() => sendFxToEnd(lFxSel, i, false)}>⤓ Back</button>
+                          </div>
                           <label className="chk"><input type="checkbox" checked={!!o.solid} onChange={(e) => updateFxAt(lFxSel, i, { solid: e.target.checked })} /> Solid</label>
                           <label className="chk"><input type="checkbox" checked={!!o.inFront} onChange={(e) => updateFxAt(lFxSel, i, { inFront: e.target.checked })} /> In front of player</label>
                         </div>
@@ -12775,6 +13068,14 @@ const css = `
 /* Twist, sitting on the object toolbar. Boxed and tinted so it reads as "this acts on the
    object you have", not as another placement setting like size or colour. */
 .objnudge{display:inline-flex;align-items:center;gap:4px;margin-left:8px}
+/* Nudge step + Snap + Order, in the object inspector. Snap/Order buttons carry words as well as a
+   glyph, so they can't use .rotbtn's fixed 30px width — the width has to follow the label or
+   "⇥ Right" clips down to an arrow and the control becomes a guessing game. */
+.stepseg{flex-wrap:wrap;overflow:visible}.stepseg button{padding:6px 10px;font-size:12px}
+.objsnap{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.objsnap>b{font-size:12px;color:#9aa4bd;min-width:42px}
+.objsnap .rotbtn{width:auto;padding:0 9px;font-size:12px;white-space:nowrap}
+.fpread{opacity:.8}
 .objtwist{display:flex;align-items:center;gap:7px;padding:5px 10px;background:#1b2233;border:1px solid #3a4258;border-radius:9px;font-size:13px}
 .objtwist input[type=range]{width:120px;accent-color:#4f7cf6}
 .catbar{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#161922;border-bottom:1px solid #232838;flex-wrap:wrap}

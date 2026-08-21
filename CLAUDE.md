@@ -180,11 +180,30 @@ gravel ramp can sit over grass blocks and two opposing ramps can share a cell. R
 cells through `fgFills` / `fgSolid` / `fgSlopeFills` — never test `!fgIsSlope(cell)`
 for solidity, that only sees the primary fill. Paint through `mergeFgFill`.
 
-**Objects** live in `lv.fx` → arrays of `{ kind, solid, inFront, size }`, keyed by the
+**Objects** live in `lv.fx` → arrays of `{ kind, solid, inFront, size, z }`, keyed by the
 object's **top-left** cell. Placement centres on the click (`objAnchor`), so the
 clicked cell is usually *not* the key — find an object under a click with `objKeyAt`.
 `rot` twists the art, `flip` mirrors it, `ox`/`oy` nudge it — all three move the ART
 and never the footprint, which stays the axis-aligned square/rect `size` describes.
+
+**Object draw order is `z`, and every render pass must go through
+`levelObjectsInDrawOrder(fx)`.** It used to be `Object.keys(lv.fx)` order, which means
+the order each *cell key* first entered the map — so dropping a prop onto a cell that
+already held anything rendered it under everything placed since, and Blake hit this as
+"I place the second prop and it goes behind the first". `migrateLevel` stamps the old
+implicit order onto every object that has no `z` (`withObjectDrawOrder`), so existing
+levels open unchanged; placement, drop and paste all take `nextObjectZ(fx)`. Anything
+new that renders `lv.fx` and sorts by key order re-introduces the bug.
+
+**Two props line up with each other through three things**, all in the object inspector:
+`snapTargetFor` + `relocateLevelObject` (butt edges / align tops / sit on ground — a
+snap re-files the object under a new cell, because it routinely needs to travel further
+than `OBJ_NUDGE_LIMIT`), the `OBJ_NUDGE_STEPS` ladder down to one screen pixel, and
+`canvasScale`. That last one is the subtle one: by default `size` means the longer side
+of a prop's **own visible art**, so `levelObjectFootprint` divides by each prop's own
+crop and two halves of one backdrop come out at different scales however carefully they
+were drawn to match. `canvasScale` divides by the shared 200x260 canvas instead, so any
+two props at the same size render at identical px-per-design-unit.
 
 **Mirroring a level** (`flipLevelHorizontally`, the ⇄ Flip buttons) is c -> cols-1-c on
 every layer plus a reversal of everything that carries a direction: ramp `slope` and
