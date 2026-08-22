@@ -173,6 +173,8 @@ import {
   alignPoseFootBaseline,
   poseFootGapFrac,
   poseArtRightFrac,
+  layFlatBodyBlocks,
+  LAY_FLAT_IGNORES,
   pieceDrawnRight,
   layFlatLiftPx,
   horizVel,
@@ -509,13 +511,14 @@ describe("laying a tackled body flat on the ground", () => {
   // What the browser actually does with `transform-origin: 50% 100%;
   // transform: translateY(-lift) rotate(90deg)`: rotate about the wrapper's bottom-centre, which
   // maps a point's local x onto its screen y, then shift up by the lift. Returns the lowest pixel
-  // the laid-out body reaches, in the same absolute space as `wrapperTop`.
-  const fallenBottom = (blocks, wrapperTop) => {
+  // the laid-out BODY reaches (a weapon or hat brim is allowed to hang below it, and does), in the
+  // same absolute space as `wrapperTop`.
+  const fallenBodyBottom = (blocks, wrapperTop) => {
     const lift = layFlatLiftPx(blocks, BOX_W, BOX_H);
-    const artRightPx = poseArtRightFrac(blocks) * BOX_W;
-    return wrapperTop + BOX_H + (artRightPx - BOX_W / 2) - lift;
+    const bodyRightPx = poseArtRightFrac(layFlatBodyBlocks(blocks)) * BOX_W;
+    return wrapperTop + BOX_H + (bodyRightPx - BOX_W / 2) - lift;
   };
-  // Where the same body's lowest pixel sits while it is still on its feet.
+  // Where the same sprite's lowest pixel sits while it is still on its feet — the ground line.
   const standingBottom = (blocks, wrapperTop) => wrapperTop + BOX_H - poseFootGapFrac(blocks) * BOX_H;
 
   // A 40x10 bar turned on its end covers 10 units of width, not 40 — the stored x + w is 140 and
@@ -567,8 +570,40 @@ describe("laying a tackled body flat on the ground", () => {
     const hatted = [...bobLike, { id: "brim", _slot: "hat", x: 40, y: 24, w: 150, h: 14 }];
     const stumpy = [{ id: "blob", x: 70, y: 120, w: 50, h: 60 }]; // stops well short of the canvas floor
     for (const blocks of [bobLike, hatted, stumpy]) {
-      expect(fallenBottom(blocks, 400)).toBeCloseTo(standingBottom(blocks, 400), 6);
+      expect(fallenBodyBottom(blocks, 400)).toBeCloseTo(standingBottom(blocks, 400), 6);
     }
+  });
+
+  // A rifle held out front, a hat brim and a cape all reach further than the body does, and resting
+  // the lift on them left the unit balanced on its gear with the body still in the air. The body is
+  // what lands; the gear is allowed to clip through the floor.
+  test("the body lands on the ground, not on the gun it is holding", () => {
+    const bobLike = [{ id: "torso", x: 58, y: 30, w: 60, h: 150 }, { id: "leg", x: 66, y: 180, w: 20, h: 80 }];
+    const bare = layFlatLiftPx(bobLike, BOX_W, BOX_H);
+    const armed = [...bobLike, { id: "barrel", _isWeapon: true, x: 118, y: 100, w: 80, h: 10 }];
+    const brimmed = [...bobLike, { id: "brim", _slot: "hat", x: 40, y: 24, w: 158, h: 14 }];
+    const caped = [...bobLike, { id: "cape", behindBody: true, x: 30, y: 40, w: 170, h: 120 }];
+    for (const blocks of [armed, brimmed, caped]) {
+      expect(layFlatLiftPx(blocks, BOX_W, BOX_H)).toBeCloseTo(bare, 6);
+      expect(fallenBodyBottom(blocks, 400)).toBeCloseTo(standingBottom(blocks, 400), 6);
+    }
+    // And the gear really does hang below the floor line rather than being quietly clipped — that
+    // is the trade being made, so it should be visible in the numbers.
+    const gunTipBottom = 400 + BOX_H + (poseArtRightFrac(armed) * BOX_W - BOX_W / 2) - layFlatLiftPx(armed, BOX_W, BOX_H);
+    expect(gunTipBottom).toBeGreaterThan(standingBottom(armed, 400));
+  });
+
+  // Weapon pieces reach the render two ways — baked into a dressed look's own art on load, or
+  // attached live off the enemy's weapon slot — and both carry _isWeapon, so one rule covers the
+  // gun an enemy spawns holding and the gun you hand it.
+  test("a sprite that is nothing but gear still lands somewhere", () => {
+    const allGear = [{ id: "barrel", _isWeapon: true, x: 118, y: 100, w: 80, h: 10 }];
+    expect(layFlatBodyBlocks(allGear)).toEqual(allGear);
+    expect(layFlatBodyBlocks([])).toEqual([]);
+    expect(LAY_FLAT_IGNORES({ _isWeapon: true })).toBe(true);
+    expect(LAY_FLAT_IGNORES({ _slot: "hat" })).toBe(true);
+    expect(LAY_FLAT_IGNORES({ behindBody: true })).toBe(true);
+    expect(LAY_FLAT_IGNORES({ _slot: "shoes" })).toBe(false); // shoes are on the feet — they land
   });
 
   // The reported bug, in numbers: a character with the right third of its canvas empty hovered by
@@ -585,7 +620,7 @@ describe("laying a tackled body flat on the ground", () => {
   test("a wide monster with a big foot gap needs more lift than the old constant, not less", () => {
     const elephantLike = [{ id: "body", x: 10, y: 40, w: 198, h: 120 }];
     expect(layFlatLiftPx(elephantLike, BOX_W, BOX_H)).toBeGreaterThan(BOX_W / 2);
-    expect(fallenBottom(elephantLike, 400)).toBeCloseTo(standingBottom(elephantLike, 400), 6);
+    expect(fallenBodyBottom(elephantLike, 400)).toBeCloseTo(standingBottom(elephantLike, 400), 6);
   });
 });
 

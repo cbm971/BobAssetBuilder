@@ -2758,17 +2758,34 @@ export const poseArtRightFrac = (blocks) => {
 //   * a wide monster (the 2× elephant, the pit bulls) overhangs the canvas AND leaves a big gap
 //     under its feet, so the same formula sank it through the floor by up to 2 cells.
 //
-// Measured off the blocks ACTUALLY being drawn — hat, cape, live weapon and walk swing included —
-// for the same reason poseFootGapFrac is: the thing that touches the floor is whatever is really
-// on screen, not whatever the standing Side pose happened to measure.
+// Measured off the blocks ACTUALLY being drawn — the live pose, walk swing and all — for the same
+// reason poseFootGapFrac is: the thing that touches the floor is whatever is really on screen, not
+// whatever the standing Side pose happened to measure.
 //
 // The two terms are deliberately NOT measured the same way. The horizontal one goes through
 // pieceDrawnRight, because it decides where the body ends up and has to be true to the pixels. The
 // vertical one stays on poseFootGapFrac's plain stored boxes, because all it does is cancel the
 // wrapper's own foot anchor — which is computed the same plain way (sideBodyShape) — and the two
 // have to agree with each other far more than either has to be exact.
+//
+// ...and the horizontal one is measured off the BODY, not the whole sprite. What sticks furthest
+// forward on a character is usually the gun in its hands or the brim of its hat, and resting the
+// lift on those laid a tackled unit out balanced on its rifle with the body still a cell in the
+// air — the reported "it's like they fall and now they're balancing on the weapon", and just as
+// bad with a wide 60s hat. A weapon or a brim clipping into the floor for a second and a half
+// reads as fine; a body hovering over it does not. Same line sideBodyShape already draws for the
+// collision box (costume is not silhouette), extended with the weapon, which sideBodyShape never
+// had to think about because it measures a body component that has no weapon on it.
+export const LAY_FLAT_IGNORES = (p) => !!(p && (p._isWeapon || p._slot === "hat" || p.behindBody));
+// The body pieces of a pose, or all of it if that leaves nothing — an asset that is nothing but a
+// hat is pathological, but a pathological asset should still land somewhere rather than nowhere.
+export const layFlatBodyBlocks = (blocks) => {
+  const art = (blocks || []).filter((p) => p && !p.isHitbox && !p.isMuzzle);
+  const body = art.filter((p) => !LAY_FLAT_IGNORES(p));
+  return body.length ? body : art;
+};
 export const layFlatLiftPx = (blocks, boxW, boxH) =>
-  poseArtRightFrac(blocks) * boxW - boxW / 2 + poseFootGapFrac(blocks) * boxH;
+  poseArtRightFrac(layFlatBodyBlocks(blocks)) * boxW - boxW / 2 + poseFootGapFrac(blocks) * boxH;
 // Arms swing during a plain walk, opposite phase to the legs. applyLimbSwing deliberately never
 // rotates arms (every other arm motion — melee, aim-hold, the climb reach — is an absolute pose
 // SET by the render code), so the walk cycle had no arm motion at all: the weapon arm hung dead
