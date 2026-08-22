@@ -3,6 +3,7 @@ import {
   capAirborneSpeed,
   cellSig,
   LV_OBJ_SIZES,
+  exportLevelCount,
   enumerateHostKeys,
   mergeIndexWrite,
   objRotStyle,
@@ -4299,5 +4300,28 @@ describe("asset JSON whose per-body fits arrived double-wrapped", () => {
     const out = normalizeAssetJson(w);
     expect(out.variants.default.hand.side).toEqual({ x: 5, y: 6 });
     expect(out.variants.default.states.rest.side).toHaveLength(1);
+  });
+});
+
+// The "⬇ Export everything" label. It read only the browser's levelIndex, which is empty on a
+// brand-new preview address even when the project file holds levels — loadLevels() is what brings
+// those down and it doesn't run until the Level Creator is opened. The button therefore said
+// "0 levels" over a library with four, and "0 levels" is the reading that makes a backup missing
+// every level look like there was nothing to lose. The bundle itself was always correct.
+describe("the Export everything label counts levels honestly", () => {
+  test("the project file's levels count even when the browser index is empty", () => {
+    expect(exportLevelCount([], [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }])).toBe(4);
+  });
+  test("the browser's levels count when the project file has none", () => {
+    expect(exportLevelCount([{ id: "a" }, { id: "b" }], [])).toBe(2);
+  });
+  test("whichever store knows about more is the answer — never their sum", () => {
+    expect(exportLevelCount([{ id: "a" }, { id: "b" }], [{ id: "a" }, { id: "b" }])).toBe(2);
+    expect(exportLevelCount([{ id: "a" }], [{ id: "a" }, { id: "b" }, { id: "c" }])).toBe(3);
+  });
+  test("a missing or unreadable store is zero, not a crash", () => {
+    expect(exportLevelCount(null, undefined)).toBe(0);
+    expect(exportLevelCount("not an array", { levels: 4 })).toBe(0);
+    expect(exportLevelCount(undefined, [{ id: "a" }])).toBe(1);
   });
 });

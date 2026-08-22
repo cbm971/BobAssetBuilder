@@ -192,6 +192,18 @@ const ASSET_INDEX_BAK = "assetIndex.bak";
 // Mirrors KINDS in setupProxy.js. Anything a person can draw and name belongs in this list, in
 // the export, and in both directions of the load — the kinds that were only half-wired are exactly
 // the kinds that have been lost.
+// The number the "⬇ Export everything" label should show. Split out and exported because the bug
+// it fixes is a pure counting mistake and is worth a test of its own. The browser's levelIndex is
+// EMPTY on a brand-new address even when the project file holds levels: loadLevels() is what pulls
+// those down, and it does not run until the Level Creator is opened. So the front screen advertised
+// "(83 assets, 0 levels)" over a library with four levels in it — which is exactly the "nothing
+// here to lose" reading that once made a backup containing no levels at all look fine. The export
+// itself already reads every store fresh (see exportAllAssets); only this count lied. Whichever
+// store knows about more levels is the honest answer.
+export const exportLevelCount = (browserIndex, projectLevels) => Math.max(
+  Array.isArray(browserIndex) ? browserIndex.length : 0,
+  Array.isArray(projectLevels) ? projectLevels.length : 0,
+);
 const PROJECT_KINDS = ["assets", "levels", "stamps", "textures", "backgrounds"];
 const projectLibrary = {
   available: false, // set on the first successful read; a plain static build simply won't have it
@@ -9468,7 +9480,11 @@ export default function AssetStudio() {
   // what it should have contained — a count mismatch is the signature of the failure this whole
   // path is guarding against, so it is worth one extra read to be able to report it.
   const readLevelIndexCount = async () => {
-    try { const raw = await sget("levelIndex"); const l = raw ? JSON.parse(raw) : []; return Array.isArray(l) ? l.length : 0; } catch { return 0; }
+    let stored = [];
+    try { const raw = await sget("levelIndex"); stored = raw ? JSON.parse(raw) : []; } catch { stored = []; }
+    let proj = null;
+    try { proj = await projectLibrary.load(); } catch { proj = null; } // no dev server -> browser count stands
+    return exportLevelCount(stored, proj && proj.levels);
   };
   const exportAllAssets = async () => {
     try {
