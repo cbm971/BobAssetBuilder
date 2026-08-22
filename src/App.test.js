@@ -4,6 +4,7 @@ import {
   cellSig,
   LV_OBJ_SIZES,
   exportLevelCount,
+  paintIntoCell,
   enumerateHostKeys,
   mergeIndexWrite,
   objRotStyle,
@@ -4323,5 +4324,50 @@ describe("the Export everything label counts levels honestly", () => {
     expect(exportLevelCount(null, undefined)).toBe(0);
     expect(exportLevelCount("not an array", { levels: 4 })).toBe(0);
     expect(exportLevelCount(undefined, [{ id: "a" }])).toBe(1);
+  });
+});
+
+// ⧉ Replace. Painting a ramp onto a cell that already holds a block stacks by design — that is
+// what lets a gravel ramp cross grass and two opposing ramps make a peak. But a cell that picked
+// up a stack you never wanted could not be painted back out of it: repainting the ramp swaps the
+// top fill and leaves the block underneath, so the cell reads as two colours forever. That got
+// "fixed" once by recolouring every under-fill with the new paint, which made the cell one colour
+// and made stacking meaningless in the same stroke (8 tests red for six days). The stack stays; the
+// escape hatch is its own toggle, and it is a decision about WHETHER to merge, not about what
+// merging does.
+describe("stack or replace is a decision made before the merge", () => {
+  const GRAVEL = { c: "#8d8578", tex: "tex-gravel" };
+  const rampUp = { slope: 1, run: 3, step: 1 };
+
+  test("Foreground with Replace off stacks, exactly as mergeFgFill says", () => {
+    const out = paintIntoCell("fg", "#2e7d32", { ...GRAVEL, ...rampUp }, false);
+    expect(out.c).toBe("#8d8578");
+    expect(out.more).toEqual([{ c: "#2e7d32" }]);
+  });
+
+  test("Foreground with Replace on is the paint and nothing else", () => {
+    const val = { ...GRAVEL, ...rampUp };
+    expect(paintIntoCell("fg", "#2e7d32", val, true)).toBe(val);
+  });
+
+  test("Replace clears a stack the cell had already picked up", () => {
+    const stacked = mergeFgFill("#2e7d32", { ...GRAVEL, ...rampUp });
+    expect(stacked.more).toHaveLength(1);
+    const out = paintIntoCell("fg", stacked, { c: "#c62828", ...rampUp }, true);
+    expect(out.more).toBeUndefined();
+    expect(fgFills(out).map((f) => f.c)).toEqual(["#c62828"]);
+  });
+
+  test("Background and Front never stacked and still don't, either way", () => {
+    const val = { c: "#c62828", ...rampUp };
+    for (const layer of ["bg", "front"]) {
+      expect(paintIntoCell(layer, "#2e7d32", val, false)).toBe(val);
+      expect(paintIntoCell(layer, "#2e7d32", val, true)).toBe(val);
+    }
+  });
+
+  test("a plain block is still a clean reset on the Foreground with Replace off", () => {
+    const stacked = mergeFgFill("#2e7d32", { ...GRAVEL, ...rampUp });
+    expect(paintIntoCell("fg", stacked, "#111111", false)).toBe("#111111");
   });
 });

@@ -3601,26 +3601,34 @@ const fgShapeSig = (cell) => !fgHasDiagonalShape(cell) ? "block" : (cell.slope >
 // rather than a merge, which is the escape hatch for "clear all of this out". Between them the
 // stack is bounded by the five distinct shapes a cell has (block, up, down, and each ramp's
 // upside-down twin), with no arbitrary cap needed.
+//
+// THE ONE TIME THIS WAS "FIXED" THE OTHER WAY, and why it is written like this instead. Painting a
+// ramp onto a cell that already holds a block leaves two colours in that cell. That is the feature,
+// but it reads as "it doesn't paint the ramps, and it paints a different colour background as well
+// as the carpet" — and the answer taken (b8cae6e) was to recolour every under-fill with whatever
+// paint was going on top. That does make the cell one colour. It also makes a gravel ramp across
+// grass turn the grass gravel-coloured, and two opposing ramps meet in a peak of one material,
+// which is the whole of what stacking is for; the eight tests describing it went red and stayed red.
+// The under-fill keeps its own colour and its own texture.
+//
+// The request underneath that complaint is real, though: "no, just make this cell a plain ramp in
+// the colour I picked." That is the ⧉ Replace toggle on the Foreground strip, which skips this
+// merge at the CALL SITE rather than hollowing it out — one clean material, instead of one colour
+// smeared across two shapes. Keep the two answers separate; folding either into the other is what
+// went wrong the first time.
 export const mergeFgFill = (cell, val) => {
   if (cell === null || cell === undefined) return val;           // empty cell — nothing to merge with
   const fill = fgFillOf(val);
   if (!fgHasDiagonalShape(fill)) return val;                     // a solid block hides everything under it
   const sig = fgShapeSig(fill);
-  const kept = fgFills(cell).filter((f) => fgShapeSig(f) !== sig);
-  if (!kept.length) return val;                                  // `val` unchanged keeps a plain colour string plain
-  // The under-fill is kept for its SHAPE (so a ramp still has something behind it), but it takes
-  // the colour being painted. Keeping its old colour meant repainting a ramp cell left the
-  // previous paint showing through the diagonal — the cell ended up two colours and the ramp
-  // looked like it had never been painted at all.
-  const newColor = fgColor(fill), newTex = cellTexId(fill);
-  const under = kept.map((f) => {
-    if (!f || typeof f !== "object") return newColor;
-    const g = { ...f, c: newColor };
-    if (newTex) g.tex = newTex; else delete g.tex;
-    return g;
-  });
-  return { ...fill, more: under };
+  const under = fgFills(cell).filter((f) => fgShapeSig(f) !== sig);
+  return under.length ? { ...fill, more: under } : val;          // `val` unchanged keeps a plain colour string plain
 };
+// What one painted cell becomes — the whole of the stack-or-replace decision, in one place so it
+// can be tested without a level editor. Only the Foreground stacks at all: Background ramps have
+// always replaced the fill under them (nothing walks on them, so there is nothing to preserve) and
+// Front is block-only. `replace` is the ⧉ Replace toggle.
+export const paintIntoCell = (layer, prev, val, replace) => (layer === "fg" && !replace) ? mergeFgFill(prev, val) : val;
 
 /* ============================== TEXTURES ==================================
    A painted cell has always been either a plain color string, or an object carrying a ramp
@@ -5317,6 +5325,11 @@ export default function AssetStudio() {
   // pointing at something that no longer exists.
   const activeTexture = useMemo(() => resolveTexture(texLib, lTexId), [texLib, lTexId]);
   const [lFgShape, setLFgShape] = useState("block"); // "block" | "slopeUp" | "slopeDown" — visual shape painted onto Foreground or Background cells
+  // OFF = paint a Foreground ramp onto what is already in the cell and keep it underneath
+  // (mergeFgFill, and the reason that function exists). ON = the paint IS the cell, so a ramp
+  // comes out as one clean material. Off by default: stacking is the older behaviour and the one
+  // every existing level was built with.
+  const [lFgReplace, setLFgReplace] = useState(false);
   const [lFgUpsideDown, setLFgUpsideDown] = useState(false); // flips either layer's ramp diagonal to hang from the top; only Foreground participates in collision
   const [lFgHide, setLFgHide] = useState(false);       // collision-only Foreground paint: visible/marked in the editor, omitted from Playtest art while collision remains live
   const [lHoverCell, setLHoverCell] = useState(null); // {r,c} under the pointer — drives the placement ghost preview
@@ -7630,16 +7643,20 @@ export default function AssetStudio() {
             ? terrainPaintShape(targetLayer, cell.slope > 0 ? "slopeUp" : "slopeDown", lFgUpsideDown, lFgHide, { run: cell.run, step: cell.step, ...(cell.rise > 1 ? { rise: cell.rise, rstep: cell.rstep } : {}) })
             : terrainPaintShape(targetLayer, "block", false, lFgHide);
           const value = paintValue(lColor, activeTexture, shape);
-          // Foreground stacks ramps over its existing collision fills. Background is decorative
-          // and remains one fill per cell, so repainting simply replaces its previous visual.
-          terrain[key] = targetLayer === "fg" ? mergeFgFill(terrain[key], value) : value;
+          // Foreground stacks ramps over its existing collision fills, unless ⧉ Replace is on.
+          // Background is decorative and remains one fill per cell, so repainting simply replaces
+          // its previous visual. THIS is where a ramp is actually written: a ramp is a DRAG, so it
+          // commits here on pointerup and never goes through paintCell — a paint setting wired
+          // only into paintCell therefore does nothing to the one shape it exists for, which is
+          // exactly how ⧉ Replace read as ignored until it was wired in here too.
+          terrain[key] = paintIntoCell(targetLayer, terrain[key], value, lFgReplace);
         }
         return { ...lv, [targetLayer]: terrain };
       });
     };
     window.addEventListener("pointerup", up);
     return () => window.removeEventListener("pointerup", up);
-  }, [lLayer, lFgShape, lFgUpsideDown, lFgHide, lColor, lBrush, activeTexture]);
+  }, [lLayer, lFgShape, lFgUpsideDown, lFgHide, lColor, lBrush, activeTexture, lFgReplace]);
 
   // Area copy: drag from anchor to a different cell to CAPTURE that rectangle (fg/bg/objects,
   // relative to its own top-left corner) into the clipboard. A plain click with no drag instead
@@ -10125,9 +10142,10 @@ export default function AssetStudio() {
       const ol = (lOutline && (lLayer === "fg" || lLayer === "bg" || lLayer === "front")) ? lOutlineColor : null;
       const shape = terrainPaintShape(lLayer, lFgShape, lFgUpsideDown, lFgHide);
       const base = paintValue(lColor, activeTexture, shape);
-      // Foreground ramps stack on what's already in the cell (mergeFgFill). Background ramps
-      // replace the previous decorative fill, and Front remains block-only.
-      layer[k] = lLayer === "fg" ? mergeFgFill(layer[k], withOutline(base, ol)) : withOutline(base, ol);
+      // Foreground ramps stack on what's already in the cell (mergeFgFill) unless ⧉ Replace is on,
+      // which paints the cell outright. Background ramps replace the previous decorative fill, and
+      // Front remains block-only.
+      layer[k] = paintIntoCell(lLayer, layer[k], withOutline(base, ol), lFgReplace);
     }
     return { ...lv, [lLayer]: layer };
     });
@@ -11105,6 +11123,15 @@ export default function AssetStudio() {
           {(lLayer === "fg" || lLayer === "bg" || lLayer === "front" || lLayer === "obj") && (
             <button className={"ltbtn" + (eyedrop ? " on" : "")} onClick={() => setEyedrop((v) => !v)} >🎨 {eyedrop ? "Click a block…" : "Eyedropper"}</button>
           )}
+          {/* The Front SECTION paints CELLS. A prop drawn in front of the player is not a Front cell
+              at all — it is an Objects placement with "In front of player" ticked, on the same
+              z-rung as this layer. There is no way to guess that from a section called Front: you
+              come here to put a prop in front, find a colour picker and a brush, and conclude the
+              editor won't let you. It is the one thing this strip was missing, so it says so, and
+              the button lands you on Objects with the flag already set. */}
+          {lLayer === "front" && (
+            <button className="ltbtn" title="The Front layer paints cells. To draw a PROP in front of the player, place it on Objects with 'In front of player' ticked — same layer, different kind of thing. This takes you there with that box already ticked." onClick={() => { selectLayer("obj"); setLObjKind("prop"); setLInFront(true); setLTool("paint"); flash("Objects — 'In front of player' is ticked, so the next prop you place draws in front."); }}>🌿 Put an Object in front…</button>
+          )}
           {movingActive && <span className="movingtag">{moving.current && moving.current.copy ? "📋 Holding a copy" : "✋ Holding an item"} — click a cell to place it <button className="ltbtn" onClick={cancelMoving}>✕ Cancel</button></span>}
           {lLayer === "obj" ? (
             <>
@@ -11139,7 +11166,7 @@ export default function AssetStudio() {
               </div>}
               <div className="seg sizeseg">{LV_OBJ_SIZES.map((n) => <button key={n} className={lObjSize === n ? "on" : ""} onClick={() => setLObjSize(n)} title={n + "x" + n + " cells"}>{n}×</button>)}</div>
               <label className="chk solidchk"><input type="checkbox" checked={lSolid} onChange={(e) => setLSolid(e.target.checked)} /> Solid</label>
-              <label className="chk solidchk"><input type="checkbox" checked={lInFront} onChange={(e) => setLInFront(e.target.checked)} /> In front of player</label>
+              <label className="chk solidchk" title="Draws this object on the Front layer — the same rung the 🎭 Front section paints on — so it covers the player instead of sitting behind them."><input type="checkbox" checked={lInFront} onChange={(e) => setLInFront(e.target.checked)} /> In front of player (Front layer)</label>
               {/* TWIST — always on the strip, right next to Size, because it is a PLACEMENT setting
                   like size and colour: you dial the angle in while holding the object, then put it
                   down already tilted. Hiding it until something was selected is what made it
@@ -11210,6 +11237,7 @@ export default function AssetStudio() {
                     {lFgShape !== "block" && <button className={lFgUpsideDown ? "on" : ""} onClick={() => setLFgUpsideDown((v) => !v)}>🙃 Upside down</button>}
                   </div>
                   {lLayer === "fg" && <label className="chk solidchk"><input type="checkbox" checked={lFgHide} onChange={(e) => setLFgHide(e.target.checked)} /> 🚫 Collision only</label>}
+                  {lLayer === "fg" && <label className="chk solidchk" title="Off: a ramp painted over a block keeps the block underneath, so a gravel ramp can cross grass and two opposing ramps make a two-material peak. On: the paint replaces whatever was in the cell, so you get one clean material — which is what you want when a cell has picked up a stack you didn't ask for."><input type="checkbox" checked={lFgReplace} onChange={(e) => setLFgReplace(e.target.checked)} /> ⧉ Replace, don't stack</label>}
                 </>
               )}
             </>
