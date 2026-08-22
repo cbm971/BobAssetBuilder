@@ -172,6 +172,9 @@ import {
   crouchArtPlane,
   alignPoseFootBaseline,
   poseFootGapFrac,
+  poseArtRightFrac,
+  pieceDrawnRight,
+  layFlatLiftPx,
   horizVel,
   resolvePlayerCrouch,
   playerPoseKey,
@@ -496,6 +499,93 @@ describe("multi-leg enemy walk", () => {
     expect(poseFootGapFrac(blocks)).toBeCloseTo(130 / 260, 8);
     expect(poseFootGapFrac([])).toBe(0);
     expect(poseFootGapFrac(null)).toBe(0);
+  });
+});
+
+describe("laying a tackled body flat on the ground", () => {
+  // The render sizes every sprite the same way: a box PLAYER_RENDER_W_CELLS wide by
+  // PLAYER_H_CELLS tall at LV_CELL = 30, i.e. 161.54 x 210 for a scale-1 character.
+  const BOX_W = 30 * 7 * (200 / 260), BOX_H = 30 * 7;
+  // What the browser actually does with `transform-origin: 50% 100%;
+  // transform: translateY(-lift) rotate(90deg)`: rotate about the wrapper's bottom-centre, which
+  // maps a point's local x onto its screen y, then shift up by the lift. Returns the lowest pixel
+  // the laid-out body reaches, in the same absolute space as `wrapperTop`.
+  const fallenBottom = (blocks, wrapperTop) => {
+    const lift = layFlatLiftPx(blocks, BOX_W, BOX_H);
+    const artRightPx = poseArtRightFrac(blocks) * BOX_W;
+    return wrapperTop + BOX_H + (artRightPx - BOX_W / 2) - lift;
+  };
+  // Where the same body's lowest pixel sits while it is still on its feet.
+  const standingBottom = (blocks, wrapperTop) => wrapperTop + BOX_H - poseFootGapFrac(blocks) * BOX_H;
+
+  // A 40x10 bar turned on its end covers 10 units of width, not 40 — the stored x + w is 140 and
+  // the pixels stop at 125. This is the whole reason a wide rotated monster used to miss the floor.
+  test("a rotated piece reports the box it paints, not the box it is stored as", () => {
+    const bar = { id: "bar", x: 100, y: 100, w: 40, h: 10 };
+    expect(pieceDrawnRight(bar)).toBe(140);
+    expect(pieceDrawnRight({ ...bar, rot: 90 })).toBeCloseTo(125, 8);
+    expect(pieceDrawnRight({ ...bar, rot: -90 })).toBeCloseTo(125, 8);
+    expect(pieceDrawnRight({ ...bar, rot: 180 })).toBeCloseTo(140, 8); // straight back over itself
+  });
+
+  // An arm turns about its shoulder, not its middle, and a mirrored twin is reflected about that
+  // same point — so both have to come off pieceOriginFrac or the answer is right-shaped and wrong.
+  test("an arm swings about its shoulder, and a mirrored twin reflects about the same point", () => {
+    const arm = { id: "arm", x: 100, y: 100, w: 20, h: 60, limb: "arm", armPivot: "top" };
+    expect(pieceDrawnRight(arm)).toBe(120);
+    // Shoulder at (110, 100); swung flat, the 60-long arm reaches 60 past it.
+    expect(pieceDrawnRight({ ...arm, rot: -90 })).toBeCloseTo(170, 8);
+    // The mirrored twin reaches the other way, so its far end goes left and nothing is left on the
+    // right but the shoulder the whole thing hangs off.
+    expect(pieceDrawnRight({ ...arm, rot: -90, _m: true })).toBeCloseTo(110, 8);
+  });
+
+  test("reads the right-hand edge of the drawn art, ignoring hitbox and muzzle markers", () => {
+    expect(poseArtRightFrac([{ id: "torso", x: 60, y: 40, w: 40, h: 200 }])).toBeCloseTo(100 / 200, 8);
+    expect(poseArtRightFrac([{ id: "torso", x: 60, y: 40, w: 40, h: 200 }, { id: "hb", isHitbox: true, x: 0, y: 0, w: 200, h: 260 }])).toBeCloseTo(100 / 200, 8);
+    expect(poseArtRightFrac([{ id: "torso", x: 60, y: 40, w: 40, h: 200 }, { id: "mz", isMuzzle: true, x: 190, y: 90, w: 8, h: 8 }])).toBeCloseTo(100 / 200, 8);
+  });
+
+  // Not clamped: a scaled-up monster's art genuinely runs past the edge of the design canvas, and
+  // pretending it stops there is what used to bury it in the floor.
+  test("art that overhangs the canvas reports more than the full width", () => {
+    expect(poseArtRightFrac([{ id: "trunk", x: 20, y: 60, w: 188, h: 120 }])).toBeCloseTo(208 / 200, 8);
+  });
+
+  // No art means the block-less fallback sprite — a plain div that fills its wrapper — so "the art
+  // reaches the right edge" is the correct reading, and reproduces the old flat half-width lift.
+  test("an empty pose falls back to a full-width box", () => {
+    expect(poseArtRightFrac([])).toBe(1);
+    expect(poseArtRightFrac(null)).toBe(1);
+    expect(layFlatLiftPx(null, BOX_W, BOX_H)).toBeCloseTo(BOX_W / 2, 8);
+  });
+
+  // THE invariant: falling over must not change what your feet are touching. Whatever pixel was
+  // lowest while standing is the pixel that ends up on the ground lying down.
+  test("a floored body's lowest pixel lands exactly where it stood", () => {
+    const bobLike = [{ id: "torso", x: 58, y: 30, w: 60, h: 150 }, { id: "leg", x: 66, y: 180, w: 20, h: 80 }];
+    const hatted = [...bobLike, { id: "brim", _slot: "hat", x: 40, y: 24, w: 150, h: 14 }];
+    const stumpy = [{ id: "blob", x: 70, y: 120, w: 50, h: 60 }]; // stops well short of the canvas floor
+    for (const blocks of [bobLike, hatted, stumpy]) {
+      expect(fallenBottom(blocks, 400)).toBeCloseTo(standingBottom(blocks, 400), 6);
+    }
+  });
+
+  // The reported bug, in numbers: a character with the right third of its canvas empty hovered by
+  // that margin. 161.54 * (1 - 0.71) ≈ 47px, a bit over 1.5 cells at LV_CELL = 30.
+  test("the old half-the-wrapper lift floated a normal character about 1.5 cells", () => {
+    const bobLike = [{ id: "torso", x: 58, y: 30, w: 60, h: 150 }, { id: "leg", x: 66, y: 180, w: 76, h: 80 }];
+    const floatPx = BOX_W / 2 - layFlatLiftPx(bobLike, BOX_W, BOX_H);
+    expect(floatPx / 30).toBeGreaterThan(1.3);
+    expect(floatPx / 30).toBeLessThan(1.8);
+  });
+
+  // ...and the same formula's other failure mode, which the fix has to clear too: a wide monster
+  // with a lot of empty canvas under it sank BELOW the floor rather than floating over it.
+  test("a wide monster with a big foot gap needs more lift than the old constant, not less", () => {
+    const elephantLike = [{ id: "body", x: 10, y: 40, w: 198, h: 120 }];
+    expect(layFlatLiftPx(elephantLike, BOX_W, BOX_H)).toBeGreaterThan(BOX_W / 2);
+    expect(fallenBottom(elephantLike, 400)).toBeCloseTo(standingBottom(elephantLike, 400), 6);
   });
 });
 

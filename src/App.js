@@ -2714,6 +2714,61 @@ export const poseFootGapFrac = (blocks) => {
   const maxY = Math.max(...art.map((p) => p.y + p.h));
   return Math.max(0, Math.min(1, (H - maxY) / H));
 };
+// Where a single piece's box actually reaches on the right once the renderer has had its way with
+// it. shapeStyle mirrors the piece first and then rotates it about pieceOriginFrac — the shoulder
+// for an arm, the hip for a swung leg, the middle of the box for everything else — so for anything
+// with a rotation on it the stored x + w is not where the pixels are. Measured, not assumed: the
+// elephant's rotated flank claims to overhang its canvas by 4% while the painted box stops 7%
+// short of the edge, and taking the stored number left the poor thing lying flat a good cell above
+// the floor.
+export const pieceDrawnRight = (p) => {
+  const mirrored = !!p._m;
+  const rot = mirrored && p.mirrorTwist === false ? -(p.rot || 0) : (p.rot || 0);
+  if (!rot && !mirrored) return p.x + p.w;
+  const box = { x: p.x, y: p.y, w: p.w, h: p.h, rot, o: pieceOriginFrac(p) };
+  const ox = box.x + box.o[0] * box.w; // mirroring reflects about the SAME origin the rotation turns about
+  let right = -Infinity;
+  for (const [fx, fy] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
+    const x = boxPoint(box, fx, fy).x;
+    right = Math.max(right, mirrored ? 2 * ox - x : x);
+  }
+  return right;
+};
+// The SIDEWAYS twin of poseFootGapFrac: how far right the drawn art reaches, as a fraction of the
+// canvas width. Deliberately NOT clamped to 1 — a big enemy's art can legitimately overhang its
+// design canvas, and clamping would silently bury it (see layFlatLiftPx). No art at all reports 1
+// ("fills the box"), which is the right answer for the block-less fallback sprite, a plain div
+// that really does fill its wrapper edge to edge.
+export const poseArtRightFrac = (blocks) => {
+  const art = (blocks || []).filter((p) => p && !p.isHitbox && !p.isMuzzle);
+  if (!art.length) return 1;
+  return Math.max(0, Math.max(...art.map(pieceDrawnRight)) / W);
+};
+// How far to LIFT a sprite that is being laid flat (tackled, floored) so the body ends up on the
+// ground instead of hovering over it or sunk through it.
+//
+// Laying a sprite down is a 90° rotation about the bottom of its wrapper, and that quarter turn
+// swaps the art's axes: the rightmost pixel standing becomes the LOWEST pixel lying down. So the
+// lift has to be measured ACROSS the art, not down it. Both halves of the old constant — half the
+// wrapper width, and nothing at all for the empty canvas under the feet — assumed art that runs
+// edge to edge across the 200×260 design canvas, and nobody draws that:
+//
+//   * every Bob-shaped character has ~30% of the canvas empty to the right of its art, and floated
+//     by exactly that margin — ~47px, a little over 1.5 cells, which is the reported bug;
+//   * a wide monster (the 2× elephant, the pit bulls) overhangs the canvas AND leaves a big gap
+//     under its feet, so the same formula sank it through the floor by up to 2 cells.
+//
+// Measured off the blocks ACTUALLY being drawn — hat, cape, live weapon and walk swing included —
+// for the same reason poseFootGapFrac is: the thing that touches the floor is whatever is really
+// on screen, not whatever the standing Side pose happened to measure.
+//
+// The two terms are deliberately NOT measured the same way. The horizontal one goes through
+// pieceDrawnRight, because it decides where the body ends up and has to be true to the pixels. The
+// vertical one stays on poseFootGapFrac's plain stored boxes, because all it does is cancel the
+// wrapper's own foot anchor — which is computed the same plain way (sideBodyShape) — and the two
+// have to agree with each other far more than either has to be exact.
+export const layFlatLiftPx = (blocks, boxW, boxH) =>
+  poseArtRightFrac(blocks) * boxW - boxW / 2 + poseFootGapFrac(blocks) * boxH;
 // Arms swing during a plain walk, opposite phase to the legs. applyLimbSwing deliberately never
 // rotates arms (every other arm motion — melee, aim-hold, the climb reach — is an absolute pose
 // SET by the render code), so the walk cycle had no arm motion at all: the weapon arm hung dead
@@ -11590,13 +11645,19 @@ export default function AssetStudio() {
                   const climbLift = (p.climbing && p.climbKind && p.climbKind !== "ladder") ? LV_CELL : 0;
                   const downed = (p.down || 0) > 0;
                   // A floored player LIES DOWN rather than just standing there unable to move — the
-                  // same 90° pivot about the feet a tackled enemy gets, lifted by half the wrapper's
-                  // width because rotating about that point would otherwise leave half the body under
-                  // the floor line. The lean is dropped while down (you are not leaning into a jump,
+                  // same 90° pivot about the feet a tackled enemy gets, then lifted back onto the
+                  // floor line, which rotating about that point would otherwise leave the body
+                  // straddling. The lean is dropped while down (you are not leaning into a jump,
                   // you are on your back) but the facing flip stays at the head of the list, so you
                   // drop in the direction you were pointing. Purely visual: the hitbox never moves,
                   // so a downed player is still shot, burned and hit exactly where they stood.
-                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift, width: renderW, height: ph, transform: (downed ? [flip, shrink, "translateY(-" + (renderW / 2) + "px)", "rotate(90deg)"] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...(downed ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
+                  //
+                  // Same measured lift the enemy side uses, and it fixes the same bug on this side
+                  // of the ability: half the wrapper's width — the old constant — is only the right
+                  // answer for art that runs edge to edge across the design canvas, so being
+                  // flattened by an enemy tackler left you hovering ~1.5 cells over the ground.
+                  const downLift = downed ? layFlatLiftPx(blocks, renderW, ph) : 0; // every-frame path: don't walk the pieces unless someone is actually on the floor
+                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift, width: renderW, height: ph, transform: (downed ? [flip, shrink, "translateY(" + (-downLift).toFixed(2) + "px)", "rotate(90deg)"] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...(downed ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
                   if (p.onFire > 0) style.filter = "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)";
                   const maxHp = maxPlayerHP(playerAsset), curHp = Math.max(0, Math.min(maxHp, playerHP.current));
                   const hpFrac = maxHp > 0 ? curHp / maxHp : 0;
@@ -11787,15 +11848,21 @@ export default function AssetStudio() {
                   const flip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1)" : "none";
                   // A tackled unit LIES DOWN rather than just freezing in place. The sprite pivots
                   // 90° about its own feet (transform-origin bottom-centre, the one point that
-                  // stays put when someone falls over) and is then lifted by half the wrapper's
-                  // width, because rotating about that point leaves the body straddling the ground
-                  // line — half of it below the floor. The facing flip stays at the head of the
-                  // transform list, so they drop in the direction they were pointing. Purely
-                  // visual: the hitbox is untouched, so a downed enemy is still shot, burned and
-                  // hit exactly where it was standing.
+                  // stays put when someone falls over) and is then lifted back onto the ground,
+                  // because rotating about that point leaves the body straddling the floor line.
+                  // The facing flip stays at the head of the transform list, so they drop in the
+                  // direction they were pointing. Purely visual: the hitbox is untouched, so a
+                  // downed enemy is still shot, burned and hit exactly where it was standing.
+                  //
+                  // The lift is MEASURED off the art (layFlatLiftPx), not the flat half-wrapper-
+                  // width it used to be. That constant only lands art that fills the design canvas
+                  // side to side; a normal character leaves the right third of the canvas empty and
+                  // so hovered a good 1.5 cells above the floor, which is the "tackled enemies fall
+                  // to a floating position" bug. Read off eBlocks — after the weapon is attached
+                  // and the walk swing applied — so what lands on the ground is what's on screen.
                   const downed = !!(ep && ep.down > 0);
                   const wrapTransform = downed
-                    ? (flip === "none" ? "" : flip + " ") + "translateY(-" + (eRenderW / 2) + "px) rotate(90deg)"
+                    ? (flip === "none" ? "" : flip + " ") + "translateY(" + (-layFlatLiftPx(eBlocks, eRenderW, eph)).toFixed(2) + "px) rotate(90deg)"
                     : flip;
                   return (
                     <React.Fragment key={"enp" + k}>
