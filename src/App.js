@@ -914,15 +914,43 @@ export const editablePoses = (type, wtype) =>
   : ANGLES;
 export const DEFAULT_THROW_WEIGHT = 3;      // 1 (light, flies far) .. 10 (heavy, drops short)
 export const DEFAULT_LAND_RADIUS = 1;       // cells of landing effect painted around the impact point (1 = a 3x3 splash)
-// Throw distance in BLOCKS. Base 5, +1 every 2 points of Strength (Str 5 baseline -> ~7). Heavier
-// throwables fly shorter: each weight point above the light end trims the throw, floored so even a
-// boulder still leaves your hand. Weight 3 is treated as the neutral reference so a default
-// grenade at Strength 5 throws about the stated 5-block base + strength bonus.
+// How much of the base throw a given Weight actually gets. This is a MULTIPLIER, and it is the
+// whole reason Weight is worth setting.
+//
+// The old version was `max(0, weight - 3) * 0.6` blocks subtracted, which had one fatal property:
+// everything at weight 3 or BELOW threw exactly the same distance. Dragging Weight down to 1 to
+// make something a long-range throwable did literally nothing — weight 1, 2 and 3 were one value
+// wearing three hats. That's why the Rock (weight 1) was unusable: it was built to be the light,
+// far-flying option and it flew exactly as far as a grenade.
+//
+// So: weight is now symmetric around the DEFAULT_THROW_WEIGHT reference and it swings hard. A
+// featherweight gets over half again its reach; a boulder loses half. The spread from lightest to
+// heaviest is better than 3x, so picking a weight is a real design decision about the item.
+//   1 -> 1.60x (flies far)   2 -> 1.30x   3 -> 1.00x (reference)   6 -> 0.79x   10 -> 0.50x
+//
+// The heavy end bottoms out at 0.50 and not lower for a reason worth keeping: because this is a
+// multiplier and the old penalty was a flat subtraction, too steep a floor makes a heavy throwable
+// travel SHORTER than it used to at high Strength (a strong character multiplies a bigger base by
+// the same small number). 0.50 keeps every weight, at every Strength, at or above what it threw
+// before — this is a buff with no quiet regressions hiding in the corners of the range.
+export const throwWeightMultiplier = (weight) => {
+  const w = Math.max(1, Math.min(10, weight ?? DEFAULT_THROW_WEIGHT));
+  return w <= DEFAULT_THROW_WEIGHT
+    ? 1 + (DEFAULT_THROW_WEIGHT - w) * 0.3          // lighter than the reference: real, visible extra reach
+    : 1 - (w - DEFAULT_THROW_WEIGHT) * (0.5 / (10 - DEFAULT_THROW_WEIGHT)); // heaviest lands at 0.5x
+};
+// Throw distance in BLOCKS. Base 7, +1 every 2 points of Strength (Str 5 baseline -> 9), then
+// scaled by the weight multiplier above.
+//
+// The base went 5 -> 7 because throwables were simply out-ranged by everything else in the game:
+// at the old Str-5 baseline a grenade travelled 7 blocks, which is barely past melee reach and
+// well inside the distance an enemy shoots you from. A throw you have to walk into danger to use
+// isn't a ranged option. Combined with the multiplier, a light throwable at average Strength now
+// covers ~14 blocks and a heavy one ~4½ — the arc, not just the icon, says what you're holding.
 export const throwRangeBlocks = (strength, weight) => {
-  const str = strength ?? 5, w = weight ?? DEFAULT_THROW_WEIGHT;
-  const base = 5 + Math.floor(str / 2);            // Str 1->5, Str 5->7, Str 10->10
-  const weightPenalty = Math.max(0, (w - DEFAULT_THROW_WEIGHT)) * 0.6; // heavier than the reference drops it short
-  return Math.max(2, base - weightPenalty);         // never less than a 2-block lob
+  const str = strength ?? 5;
+  const base = 7 + Math.floor(str / 2);            // Str 1->7, Str 5->9, Str 10->12
+  return Math.max(2, base * throwWeightMultiplier(weight)); // never less than a 2-block lob
 };
 // Launch velocity for a thrown grenade. Given the desired range in PIXELS, gravity g, and a fixed
 // launch angle (45°-ish gives a natural arc), solve the projectile-range equation R = v²·sin(2θ)/g
@@ -3025,7 +3053,13 @@ export const levelObjectEntries = (fx) => {
 };
 // Back to front. Equal z (a pasted copy carries its source's) falls back to the old implicit
 // order rather than to nothing, so ties draw stably instead of flickering between renders.
-export const levelObjectsInDrawOrder = (fx) => levelObjectEntries(fx).sort((a, b) => (objectZ(a.o, a.seq) - objectZ(b.o, b.seq)) || (a.seq - b.seq));
+// `ord` is each object's final back-to-front position once the sort has run, and it is what the
+// renderer turns into a real CSS z-index (levelObjectZIndex). Handing it out from here means all
+// three render passes read ONE ordering rather than each relying on its own container's DOM order.
+export const levelObjectsInDrawOrder = (fx) =>
+  levelObjectEntries(fx)
+    .sort((a, b) => (objectZ(a.o, a.seq) - objectZ(b.o, b.seq)) || (a.seq - b.seq))
+    .map((e, i) => ({ ...e, ord: i }));
 export const levelObjectZRange = (fx) => {
   let lo = null, hi = null;
   for (const e of levelObjectEntries(fx)) { const z = objectZ(e.o, e.seq); if (lo === null || z < lo) lo = z; if (hi === null || z > hi) hi = z; }
@@ -3033,6 +3067,29 @@ export const levelObjectZRange = (fx) => {
 };
 export const nextObjectZ = (fx) => levelObjectZRange(fx).hi + 1;
 export const bottomObjectZ = (fx) => levelObjectZRange(fx).lo - 1;
+export const LAYER_RUNG = { bg: 0, fg: 1, front: 2 };
+// Which LAYER ⤒ Front / ⤓ Back should land this object on, on top of the z it already changes.
+//
+// The buttons say "draw this on top of every other object in the level", and until now they only
+// moved `z` — which orders objects within one rung and cannot lift one past a rung boundary. So
+// pressing ⤒ Front on a decorative pitch with a solid grandstand over it did nothing observable,
+// which is indistinguishable from a broken button.
+//
+// It moves toward the extreme its peers already occupy and never past it, so Front on a level
+// where everything is Background is a no-op rather than a surprise promotion. Objects flagged
+// "in front of player" are skipped in both directions: that rung means "covers the player", which
+// is a gameplay decision and not something an ordering button gets to make for you.
+export const orderEndLay = (fx, key, index, toFront) => {
+  const self = fx && fx[key] && fx[key][index];
+  if (!self || self.inFront) return objectLay(self);
+  let want = objectLay(self);
+  for (const e of levelObjectEntries(fx)) {
+    if ((e.k === key && e.si === index) || e.o.inFront) continue;
+    const l = objectLay(e.o);
+    if (toFront ? LAYER_RUNG[l] > LAYER_RUNG[want] : LAYER_RUNG[l] < LAYER_RUNG[want]) want = l;
+  }
+  return want;
+};
 // Stamp the implicit order onto anything that has never carried one. `seq` IS the order those
 // objects already draw in, so this is a no-op visually and a one-way door into being reorderable.
 export const withObjectDrawOrder = (fx) => {
@@ -4424,6 +4481,20 @@ export const hazardDps = (cell) => { const k = hazardKindOf(cell); return (cell 
 // save) means it never burns out — a permanent hazard, the way it behaved before lifetimes
 // existed. Only ticked during Playtest; the painted level itself is never mutated.
 export const hazardLife = (cell) => (cell && typeof cell === "object" && typeof cell.life === "number") ? cell.life : 0;
+// Is the fire at this cell still going? THE one answer, shared by all three things that have to
+// agree about it: the damage sampler, the hazard tile's visibility, and — this is the one that was
+// missing — the Object/Prop that DRAWS the fire when a throwable has a landPropId.
+//
+// A cell that never entered the countdown map is permanent (life 0) and always burns. Otherwise it
+// burns until its countdown reaches zero.
+//
+// Why this is a named export rather than three inline copies: the prop half had no copy at all. A
+// grenade with a landPropId paints a hazard flagged hideInPlay (invisible, still damaging) and
+// pushes its Explosion/Fire prop into lv.fx to be the visible flame. The hazard expired on schedule
+// and stopped hurting, but nothing ever took the PROP down, so the explosion sat on the ground
+// glowing until you left Playtest entirely. Blake's Grenade is set to 2.5 seconds and burned
+// forever — the timer was working the whole time, on the one layer you couldn't see.
+export const hazardStillBurning = (lifeMap, key) => !lifeMap || !(key in lifeMap) || lifeMap[key] > 0;
 // Total damage-per-second a box (player or enemy) is standing in, summed over every hazard cell
 // it overlaps — so straddling two fire cells hurts more than clipping one corner of one. Returns
 // 0 when clear. The caller multiplies by real elapsed seconds to get the actual HP lost.
@@ -5037,7 +5108,35 @@ export const enemyFaceThisFrame = (face, dxMove, committed) => (dxMove && !commi
 //   neither  -> Background. Scenery the player walks in front of, which is what Background is.
 // The z values these map to are in the CSS beside the matching .lcell rules, so the two ladders
 // can be read together and can't drift apart.
-export const objectLayerClass = (o) => (o && o.inFront) ? "lay-front" : (o && o.solid) ? "lay-fg" : "lay-bg";
+//
+// ...EXCEPT that "solid" is a COLLISION answer, and it was being used as a DRAWING answer, which
+// is the "I place the stands, then the grass, and the stands are still in front" bug. Solid props
+// (stands you can't walk through) landed on rung 2 and decorative ones (a painted pitch you walk
+// over) on rung 1, and a CSS z-index beats DOM order every time — so no amount of placing the
+// grass second, and no amount of pressing ⤒ Front, could ever raise it above the stands. The
+// explicit `z` order added earlier was working perfectly and was simply being overruled one rung
+// up. That is why this looked unfixed twice.
+//
+// So an object now carries its own drawing layer in `lay`, independent of Solid. Nothing in any
+// existing level has one, and the fallback below is the exact old rule, so every level opens
+// looking exactly as it did — but the Layer buttons in the Adjust panel can now move a prop up or
+// down the ladder without touching whether it blocks you.
+export const OBJECT_LAYERS = ["bg", "fg", "front"];
+export const objectLay = (o) => (o && OBJECT_LAYERS.includes(o.lay)) ? o.lay : (o && o.inFront) ? "front" : (o && o.solid) ? "fg" : "bg";
+export const OBJECT_LAY_LABEL = { bg: "back layer", fg: "middle layer", front: "front layer" };
+export const objectLayerClass = (o) => "lay-" + objectLay(o);
+// Base z of each object band, matching the .lcell rules in the CSS. Each band leaves room ABOVE
+// its own cell layer for the objects that live on it, so an object can be ordered against every
+// other object on its rung by a plain number instead of by DOM order.
+//
+// DOM order was the old tie-break, and it silently could not work: emoji/shape objects and prop
+// objects are emitted from two DIFFERENT containers (props re-render every frame and so can't live
+// in the memoized layer), so every prop drew over every emoji object on the same rung no matter
+// what order they were placed in. An explicit number is order that holds across both passes.
+export const LAYER_BASE_Z = { bg: 1000, fg: 2000, front: 6000 };
+export const LAYER_BAND = 999; // objects per rung before the band would run into the next one
+export const levelObjectZIndex = (o, ord) =>
+  (LAYER_BASE_Z[objectLay(o)] ?? LAYER_BASE_Z.bg) + 1 + Math.max(0, Math.min(LAYER_BAND - 1, Math.round(ord) || 0));
 export const splitObjectStackByPlayerLayer = (stack) => {
   const behind = [], front = [];
   for (const [stackIndex, o] of (stack || []).entries()) {
@@ -5466,7 +5565,7 @@ export default function AssetStudio() {
   // one placed first (see the note on objectZ). Within one layer rung the browser paints in DOM
   // order, so emitting them back-to-front here IS the stacking.
   const lvDrawOrder = useMemo(() => level && level.fx ? levelObjectsInDrawOrder(level.fx) : [], [level]);
-  const lvFxLayer = useMemo(() => level && level.fx ? <div style={CELL_LAYER_STYLE}>{lvDrawOrder.filter(({ o }) => !o.inFront && o.kind !== "prop").map(({ k, r, c, si, o }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; })}</div> : null, [level, lvDrawOrder, play, lFxSel, lTool]);
+  const lvFxLayer = useMemo(() => level && level.fx ? <div style={CELL_LAYER_STYLE}>{lvDrawOrder.filter(({ o }) => !o.inFront && o.kind !== "prop").map(({ k, r, c, si, o, ord }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; })}</div> : null, [level, lvDrawOrder, play, lFxSel, lTool]);
   // Prop objects (pixel-art assets) are pulled OUT of the memoized fx layer above and rendered in
   // a separate LIVE pass (see the level render body) — the memo runs before the component-scoped
   // prop renderer exists, and animated props need to redraw every frame in play anyway. This
@@ -5477,7 +5576,7 @@ export default function AssetStudio() {
   // changes every playtest frame. Keeping that part of the work memoized on just `level` still
   // avoids rebuilding this list on every one of those frames; only the small per-frame map over
   // it (done at the actual render site) needs to run live.
-  const lvFxInFrontMeta = useMemo(() => lvDrawOrder.filter(({ o }) => o.inFront).map(({ k, r, c, si, o }) => ({ key: "xf" + k + "_" + si, r, c, k, si, o, sz: (o.size || 1) * LV_CELL })), [lvDrawOrder]);
+  const lvFxInFrontMeta = useMemo(() => lvDrawOrder.filter(({ o }) => o.inFront).map(({ k, r, c, si, o, ord }) => ({ key: "xf" + k + "_" + si, r, c, k, si, o, ord, sz: (o.size || 1) * LV_CELL })), [lvDrawOrder]);
   // Climb glyphs are directly erasable: Erase tool + click the glyph = gone, no matter which
   // layer tab is active. Erasing a visible thing by clicking it should just work — requiring
   // the Climb layer tab to be selected first made climb cells feel impossible to delete.
@@ -5834,7 +5933,7 @@ export default function AssetStudio() {
     if (lv.markers) for (const _mk in lv.markers) { const _pm = lv.markers[_mk]; if (_pm && _pm.kind === "pedestal" && pedestalRolls.current[_mk] === undefined && !pedestalDepleted.current.has(_mk)) pedestalRolls.current[_mk] = rollPedestalItem(allAssets, _pm.cats, _pm.logic); }
     // A hazard cell is still burning if it's permanent (never entered the ref) or its countdown
     // hasn't hit zero. Shared by the damage sampler and the visual, so they can't disagree.
-    const hazardAlive = (key) => !(key in hazLife.current) || hazLife.current[key] > 0;
+    const hazardAlive = (key) => hazardStillBurning(hazLife.current, key);
     const SPAWN = { x: 60, y: 40 };
     // Precompute solid object footprints (a sized emoji can cover more than its anchor cell).
     // "In front of player" objects are a purely visual overlay (that's the whole point of the
@@ -10257,9 +10356,11 @@ export default function AssetStudio() {
   // Move an object across the WHOLE level's stack, not just its own cell's — see objectZ. Front
   // and Back are the two that actually get used when two big props overlap, because the objects
   // involved are anchored to different cells and so never share a stack to be reordered within.
+  // ...and it moves the object's LAYER as well as its z (orderEndLay), because z alone can only
+  // reorder within a rung. "Front" that leaves the thing behind a solid prop isn't Front.
   const sendFxToEnd = (k, i, toFront) => setLevel((lv) => {
     const stack = (lv.fx[k] || []).slice(); if (!stack[i]) return lv;
-    stack[i] = { ...stack[i], z: toFront ? nextObjectZ(lv.fx) : bottomObjectZ(lv.fx) };
+    stack[i] = { ...stack[i], lay: orderEndLay(lv.fx, k, i, toFront), z: toFront ? nextObjectZ(lv.fx) : bottomObjectZ(lv.fx) };
     return { ...lv, fx: { ...lv.fx, [k]: stack } };
   });
   // SNAP. Works out the exact position first (snapTargetFor) so it can say "there's nothing to
@@ -11316,7 +11417,7 @@ export default function AssetStudio() {
                 {lvFrontLayer}
                 {layerMove && layerMove.levelId === lv.id && Object.keys(layerMove.cells).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"mv" + k} className="lcell moveSel" style={{ left: c * LV_CELL, top: r * LV_CELL }} />; })}
                 {lvFxLayer}
-                {lvPropMeta.map(({ o, si, r, c, k }) => { const layout = levelObjectPixelLayout(o); const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
+                {lvPropMeta.map(({ o, si, r, c, k, ord }) => { const layout = levelObjectPixelLayout(o); const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
                 {!play && lvClimbLayer}
                 {lvHazardLayer}
                 {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : "💎"}</div>; })}
@@ -11332,7 +11433,7 @@ export default function AssetStudio() {
                   const ga = objAnchorForObject(lHoverCell.r, lHoverCell.c, ghostO, assetForLevelObject(ghostO));
                   // ...including the angle: the preview tilts with Twist, so you line a trailer up
                   // against the hill before you commit rather than placing it and then fixing it.
-                  return <div className="lobjGhost" style={{ left: objNudgedLeft(ghostO, ga.c, LV_CELL), top: objNudgedTop(ghostO, ga.r, LV_CELL), width: layout.width, height: layout.height, zIndex: lInFront ? 6 : 4, ...objRotStyle({ rot: lObjRot, flip: lObjFlip }) }}>{renderObj(ghostO, layout.width, "ghost", 0, layout.height, layout.box)}</div>;
+                  return <div className="lobjGhost" style={{ left: objNudgedLeft(ghostO, ga.c, LV_CELL), top: objNudgedTop(ghostO, ga.r, LV_CELL), width: layout.width, height: layout.height, zIndex: lInFront ? 6000 : 4000, ...objRotStyle({ rot: lObjRot, flip: lObjFlip }) }}>{renderObj(ghostO, layout.width, "ghost", 0, layout.height, layout.box)}</div>;
                 })()}
                 {!play && (lLayer === "front" || ((lLayer === "fg" || lLayer === "bg") && lFgShape === "block")) && lTool === "paint" && lHoverCell && (() => {
                   // Matches paintBrush's own iteration exactly (full r×c square, not just a
@@ -11350,7 +11451,7 @@ export default function AssetStudio() {
                   return <>{cells.map(([r, c, bs]) => <div key={"blk" + r + "_" + c} className={"blockGhost" + (lLayer === "fg" && lFgHide ? " collisionOnly" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...cellPaintStyle(ghostVal, r, c, texLib), ...(outlinePrev && bs ? { boxShadow: bs } : {}) }} />)}</>;
                 })()}
                 {!play && lTool === "fill" && fillPreview && fillPreview.cells.length <= 500 && (
-                  <>{fillPreview.cells.map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fp" + k} style={{ position: "absolute", left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, background: "rgba(255,255,255,.3)", outline: "1px solid rgba(255,255,255,.7)", pointerEvents: "none", zIndex: 5 }} />; })}</>
+                  <>{fillPreview.cells.map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fp" + k} style={{ position: "absolute", left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, background: "rgba(255,255,255,.3)", outline: "1px solid rgba(255,255,255,.7)", pointerEvents: "none", zIndex: 5000 }} />; })}</>
                 )}
                 {!play && lLayer === "climb" && lTool === "paint" && lHoverCell && (
                   // Climb tiles always paint single-cell regardless of brush size (see paintBrush).
@@ -11762,7 +11863,16 @@ export default function AssetStudio() {
                   const bodyShape = sideBodyShape(playerAsset);
                   const pw = LV_CELL * PLAYER_RENDER_W_CELLS * bodyShape.fraction; // matches the physics hitbox exactly
                   const ph = p.crouch ? LV_CELL * PLAYER_CROUCH_H_CELLS : LV_CELL * PLAYER_H_CELLS;
-                  return lvFxInFrontMeta.map(({ key, r, c, k, si, o }) => {
+                  return lvFxInFrontMeta.map(({ key, r, c, k, si, o, ord }) => {
+                    // A grenade's flame goes out ON ITS OWN CLOCK. `_thrown` props are the visible
+                    // half of a landing effect whose damage half is a hazard cell at the same key,
+                    // and the two must die together: the hazard stops hurting when its countdown
+                    // hits zero, so the prop drawing it has to stop being on screen at the same
+                    // moment. Without this the damage expired invisibly and the Explosion art
+                    // stayed lit until Playtest stopped — "the grenade fire goes off endlessly",
+                    // on a grenade whose Burns-for was correctly set to 2.5 seconds.
+                    // Only _thrown props are affected; a hand-placed prop is never on a timer.
+                    if (play && o._thrown && !hazardStillBurning(hazLife.current, k)) return null;
                     const left = objNudgedLeft(o, c, LV_CELL), top = objNudgedTop(o, r, LV_CELL);
                     const layout = levelObjectPixelLayout(o);
                     // Fades whenever the player's own hitbox overlaps a front-layer object —
@@ -11774,7 +11884,7 @@ export default function AssetStudio() {
                     const eraseNow = !play && lTool === "erase";
                     const eraseObject = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined;
                     const prop = o.kind === "prop";
-                    return <div key={key} data-object-key={k} data-object-index={si} className={"lobj infront " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "") + (behind ? " behindFade" : "")} style={{ left, top, width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: eraseNow && !prop ? "auto" : "none", cursor: eraseNow && !prop ? "pointer" : undefined, opacity: behind ? 0.55 : 1 }} onPointerDown={eraseNow && !prop ? eraseObject : undefined}>{renderObj(o, layout.width, key, pframe, layout.height, layout.box, prop ? eraseObject : undefined)}</div>;
+                    return <div key={key} data-object-key={k} data-object-index={si} className={"lobj infront " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "") + (behind ? " behindFade" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left, top, width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: eraseNow && !prop ? "auto" : "none", cursor: eraseNow && !prop ? "pointer" : undefined, opacity: behind ? 0.55 : 1 }} onPointerDown={eraseNow && !prop ? eraseObject : undefined}>{renderObj(o, layout.width, key, pframe, layout.height, layout.box, prop ? eraseObject : undefined)}</div>;
                   });
                 })()}
                 {/* Enemy spawns: AI-driven (Guard/Seek/Avoid, per-enemy in the Enemy Creator), fall via
@@ -11832,7 +11942,7 @@ export default function AssetStudio() {
                     const deadFootAnchor = poseFootGapFrac(deadPose) * eph;
                     const deadFlip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1) " : "";
                     return (
-                      <div key={"enp" + k} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop + deadFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", zIndex: 6, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (eph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
+                      <div key={"enp" + k} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop + deadFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", zIndex: 6000, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (eph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
                         {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + k + "_s" + stripped.length, keyPrefix: "dead" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
                       </div>
                     );
@@ -12049,7 +12159,7 @@ export default function AssetStudio() {
                   const cwPx = g.cwPx ?? LV_CELL, chPx = g.chPx ?? cwPx;
                   const emojiSz = Math.max(10, Math.min(g.wPx ?? LV_CELL, g.hPx ?? LV_CELL));
                   return (
-                    <div key={"thr" + i} className="lobj" style={{ left: g.x - cwPx / 2, top: g.y - chPx / 2, width: cwPx, height: chPx, transform: `rotate(${g.rot}deg)`, zIndex: 8 }}>
+                    <div key={"thr" + i} className="lobj" style={{ left: g.x - cwPx / 2, top: g.y - chPx / 2, width: cwPx, height: chPx, transform: `rotate(${g.rot}deg)`, zIndex: 8000 }}>
                       {g.pieces
                         ? renderPieceRuns({ pieces: g.pieces, cacheKey: "thr_" + i, keyPrefix: "thr" + i + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })
                         : <span style={{ fontSize: emojiSz * 0.85 + "px", lineHeight: 1 }}>💣</span>}
@@ -12068,7 +12178,7 @@ export default function AssetStudio() {
                   const frameIdx = Math.min(frames - 1, Math.floor(prog * frames));
                   const fade = prog > 0.66 ? Math.max(0, 1 - (prog - 0.66) / 0.34) : 1;
                   return (
-                    <div key={"boom" + i} className="lobj infront" style={{ left: b.x - sz / 2, top: b.y - sz / 2, width: sz, height: sz, zIndex: 9, opacity: fade }}>
+                    <div key={"boom" + i} className="lobj infront" style={{ left: b.x - sz / 2, top: b.y - sz / 2, width: sz, height: sz, zIndex: 9000, opacity: fade }}>
                       {pa ? propArtInner(pa, sz, frameIdx, "boom" + i) : <span style={{ fontSize: sz * 0.7 + "px", lineHeight: 1 }}>💥</span>}
                     </div>
                   );
@@ -12095,7 +12205,7 @@ export default function AssetStudio() {
                   };
                   const pts = throwTrajectoryPoints(p.x + pw / 2, p.y + ph * 0.4, vx, vy, 0.175, isSolid);
                   return pts.map((pt, i) => (
-                    <div key={"traj" + i} style={{ position: "absolute", left: pt.x - 3, top: pt.y - 3, width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,.85)", boxShadow: "0 0 4px rgba(0,0,0,.6)", zIndex: 9, pointerEvents: "none", opacity: Math.max(0.35, 1 - i / pts.length) }} />
+                    <div key={"traj" + i} style={{ position: "absolute", left: pt.x - 3, top: pt.y - 3, width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,.85)", boxShadow: "0 0 4px rgba(0,0,0,.6)", zIndex: 9000, pointerEvents: "none", opacity: Math.max(0.35, 1 - i / pts.length) }} />
                   ));
                 })()}
               </div>
@@ -12150,6 +12260,19 @@ export default function AssetStudio() {
                     <button className="rotbtn" title="Draw this on top of every other object in the level" onClick={() => sendFxToEnd(lFxSel, fxOpenIdx, true)}>⤒ Front</button>
                     <button className="rotbtn" title="Draw this behind every other object in the level" onClick={() => sendFxToEnd(lFxSel, fxOpenIdx, false)}>⤓ Back</button>
                   </div>
+                  {/* LAYER. The rung this object draws on, which used to be decided for you by the
+                      Solid checkbox — so a solid grandstand was permanently in front of a
+                      walk-through pitch and no amount of placing or reordering could swap them.
+                      Solid is now purely about whether it blocks you; this is purely about what
+                      draws over what. Within one layer the newest object wins, and ⤒ Front above
+                      makes any object the newest. */}
+                  <div className="objsnap">
+                    <b>Layer</b>
+                    <button className={"rotbtn" + (objectLay(fxOpen) === "bg" ? " on" : "")} title="Behind the walls and floor you paint — distant scenery" onClick={() => updateFxAt(lFxSel, fxOpenIdx, { lay: "bg", inFront: false })}>▁ Back</button>
+                    <button className={"rotbtn" + (objectLay(fxOpen) === "fg" ? " on" : "")} title="Level with the blocks you walk on — most props belong here" onClick={() => updateFxAt(lFxSel, fxOpenIdx, { lay: "fg", inFront: false })}>▄ Middle</button>
+                    <button className={"rotbtn" + (objectLay(fxOpen) === "front" ? " on" : "")} title="Over everything, including the player — it fades when you walk behind it" onClick={() => updateFxAt(lFxSel, fxOpenIdx, { lay: "front", inFront: true })}>▀ Front</button>
+                  </div>
+                  <div className="hint2">Same layer? The one placed last draws on top — use ⤒ Front to make this one the last.</div>
                 </div>
               );
             })()}
@@ -12164,7 +12287,11 @@ export default function AssetStudio() {
                         {/* A prop row used to read "decor · 60x" and nothing else, which is no help
                             at all when the two things you're trying to line up are both props. Its
                             NAME is the one thing that tells them apart. */}
-                        <span className="fxname">{(o.kind === "shape" ? levelShapeLabel(o.shape) + " · " : o.kind === "prop" ? ((findA(o.propId) || {}).name || "missing prop") + " · " : "") + (o.solid ? "solid" : "decor") + (o.inFront ? " · in front" : "") + " · " + (o.size || 1) + "x" + ((o.rot || 0) ? " · " + o.rot + "°" : "")}</span>
+                        {/* Says which LAYER it's on, not just solid/decor. When two props overlap
+                            wrongly the first thing you need to know is whether they're even on the
+                            same rung — that's the difference between "reorder these" and "one of
+                            them has to move layer first". */}
+                        <span className="fxname">{(o.kind === "shape" ? levelShapeLabel(o.shape) + " · " : o.kind === "prop" ? ((findA(o.propId) || {}).name || "missing prop") + " · " : "") + (o.solid ? "solid" : "decor") + " · " + OBJECT_LAY_LABEL[objectLay(o)] + " · " + (o.size || 1) + "x" + ((o.rot || 0) ? " · " + o.rot + "°" : "")}</span>
                         <button onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, 1); }}>▲</button>
                         <button onClick={(e) => { e.stopPropagation(); moveFxStack(lFxSel, i, -1); }}>▼</button>
                         <button onClick={(e) => { e.stopPropagation(); removeFxAt(lFxSel, i); if (lFxEditIdx === i) setLFxEditIdx(null); }}>✕</button>
@@ -12204,7 +12331,11 @@ export default function AssetStudio() {
                               and were missed entirely. They act on whichever row is open, so this
                               row being open is still what points them at this object. */}
                           <label className="chk"><input type="checkbox" checked={!!o.solid} onChange={(e) => updateFxAt(lFxSel, i, { solid: e.target.checked })} /> Solid</label>
-                          <label className="chk"><input type="checkbox" checked={!!o.inFront} onChange={(e) => updateFxAt(lFxSel, i, { inFront: e.target.checked })} /> In front of player</label>
+                          {/* Clears any explicit `lay` on the way past, so this checkbox and the
+                              Layer buttons in the Adjust panel can never end up disagreeing about
+                              which rung the object is on. Unchecking hands it back to the old
+                              solid-decides-the-rung default rather than stranding it on "front". */}
+                          <label className="chk"><input type="checkbox" checked={!!o.inFront} onChange={(e) => updateFxAt(lFxSel, i, { inFront: e.target.checked, lay: e.target.checked ? "front" : (o.solid ? "fg" : "bg") })} /> In front of player</label>
                         </div>
                       )}
                     </div>
@@ -12445,7 +12576,12 @@ export default function AssetStudio() {
       {asset.type === "weapon" && isThrowable(asset.wtype) && (
         <div className="wstates projectilecard">
           <span className="wslab">💣 Throwable:</span>
-          <label className="slider">Weight<input type="range" min="1" max="10" step="1" value={asset.weight ?? DEFAULT_THROW_WEIGHT} onChange={(e) => setAsset((a) => ({ ...a, weight: +e.target.value }))} /><span className="hint2">{asset.weight ?? DEFAULT_THROW_WEIGHT}/10 · {(asset.weight ?? DEFAULT_THROW_WEIGHT) <= 3 ? "light, flies far" : (asset.weight ?? DEFAULT_THROW_WEIGHT) >= 7 ? "heavy, drops short" : "medium"}</span></label>
+          {/* The slider now reports the distance it BUYS you, in blocks, at average Strength. Weight
+              was previously a number with a vague adjective next to it ("light, flies far") that
+              happened to be a lie below 3 — every value from 1 to 3 threw the same distance. Showing
+              the actual block count is how you can tell at a glance that dragging it left did
+              something, and it makes two throwables comparable without playtesting both. */}
+          <label className="slider">Weight<input type="range" min="1" max="10" step="1" value={asset.weight ?? DEFAULT_THROW_WEIGHT} onChange={(e) => setAsset((a) => ({ ...a, weight: +e.target.value }))} /><span className="hint2">{asset.weight ?? DEFAULT_THROW_WEIGHT}/10 · {(asset.weight ?? DEFAULT_THROW_WEIGHT) <= 2 ? "light, flies far" : (asset.weight ?? DEFAULT_THROW_WEIGHT) >= 7 ? "heavy, drops short" : "medium"} · ~{Math.round(throwRangeBlocks(5, asset.weight ?? DEFAULT_THROW_WEIGHT))} blocks at Strength 5</span></label>
           <span className="wslab">Fire look:</span>
           {(() => {
             const props = allAssets.filter((pa) => pa.type === "prop");
@@ -12457,7 +12593,9 @@ export default function AssetStudio() {
             ) : <span className="hint2">🔥 emoji</span>;
           })()}
           <label className="slider">Damage<input type="range" min="1" max="30" step="1" value={asset.landEffectDps ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectDps: +e.target.value }))} /><span className="hint2">{asset.landEffectDps ?? 6} HP/sec</span></label>
-          <label className="slider">Burns for<input type="range" min="1" max="20" step="1" value={asset.landEffectLife ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectLife: +e.target.value }))} /><span className="hint2">{asset.landEffectLife ?? 6}s</span></label>
+          {/* Half-second steps: the Grenade in the library is set to 2.5s, which this slider could
+              not express at step=1 — so much as touching it rounded a deliberate 2.5 to 2 or 3. */}
+          <label className="slider">Burns for<input type="range" min="0.5" max="20" step="0.5" value={asset.landEffectLife ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectLife: +e.target.value }))} /><span className="hint2">{asset.landEffectLife ?? 6}s</span></label>
           <label className="slider">Splash<input type="range" min="0" max="3" step="1" value={asset.landRadius ?? DEFAULT_LAND_RADIUS} onChange={(e) => setAsset((a) => ({ ...a, landRadius: +e.target.value }))} /><span className="hint2">{(asset.landRadius ?? DEFAULT_LAND_RADIUS) === 0 ? "1 cell" : (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + "×" + (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + " cells"}</span></label>
           <span className="wslab">💥 Cluster:</span>
           <label className="slider">Bomblets<input type="range" min="0" max="8" step="1" value={asset.clusterCount ?? 0} onChange={(e) => setAsset((a) => ({ ...a, clusterCount: +e.target.value }))} /><span className="hint2">{(asset.clusterCount ?? 0) === 0 ? "off" : (asset.clusterCount ?? 0) + " copies"}</span></label>
@@ -13413,39 +13551,51 @@ const css = `
 .lscroll.layer-obj{border-color:#8a5cf6}
 .lscroll.layer-climb{border-color:#7aa2d6}
 .lscroll.layer-hazard{border-color:#ff6a1f}
-.lhazard{position:absolute;pointer-events:none;z-index:5;display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1;background:radial-gradient(circle at 50% 70%,rgba(255,120,30,.42),rgba(255,60,0,.14) 70%,transparent);box-sizing:border-box}
+.lhazard{position:absolute;pointer-events:none;z-index:5000;display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1;background:radial-gradient(circle at 50% 70%,rgba(255,120,30,.42),rgba(255,60,0,.14) 70%,transparent);box-sizing:border-box}
 .lhazard .hzflame{animation:hzflick .5s steps(2,end) infinite;filter:drop-shadow(0 0 4px rgba(255,120,30,.8))}
 .lhazard.hazHidden{background:repeating-linear-gradient(45deg,rgba(255,120,30,.18) 0 5px,transparent 5px 10px);outline:1px dashed rgba(255,120,30,.55);outline-offset:-2px}
 .lhazard.hazHidden .hzflame{animation:none;filter:none;opacity:.6}
 @keyframes hzflick{0%{opacity:1;transform:translateY(0) scale(1)}50%{opacity:.72;transform:translateY(-1px) scale(1.08)}100%{opacity:1;transform:translateY(0) scale(1)}}
 .lscroll.layer-marker{border-color:#c8a23c}
-.lgrid{position:relative;flex:none;margin:auto;background-color:#0e1018;background-image:linear-gradient(#1a1f2e 1px,transparent 1px),linear-gradient(90deg,#1a1f2e 1px,transparent 1px);touch-action:none}
+/* isolation:isolate keeps the ladder below LOCAL. Those numbers run to 9500 so each rung has room
+   for the objects standing on it, and without a stacking context of their own they would sit in
+   the page's root context and outrank the modals (30) and toasts (40) — a level that draws over
+   its own "Load a level" dialog. Contained here, the grid competes with page chrome only as a
+   single z-auto box, which is exactly how it behaved when these were 1-9. */
+.lgrid{position:relative;isolation:isolate;flex:none;margin:auto;background-color:#0e1018;background-image:linear-gradient(#1a1f2e 1px,transparent 1px),linear-gradient(90deg,#1a1f2e 1px,transparent 1px);touch-action:none}
 /* The level's layer ladder. Painted cells and placed objects share it, so an object always sits
    level with the blocks that behave the way it does (see objectLayerClass):
-     1 Background cells + background objects   2 Foreground cells + solid objects
-     4 climb / pedestals                       5 the player and hazards
-     6 Front cells + "in front" objects
-   Within one z, DOM order decides — objects render after their cell layer, so a bush on a
-   background wall still shows over the wall. */
-.lcell{position:absolute;width:${LV_CELL}px;height:${LV_CELL}px;z-index:2}
-.lcell.bg{opacity:.42;z-index:1}
-.lcell.front{z-index:6;transition:opacity .12s ease}
-.lcell.moveSel{z-index:9;background:rgba(79,124,246,0.28);outline:2px dashed #4f7cf6;outline-offset:-2px;pointer-events:none}
+     1000 Background cells    1001+ objects on the Back layer
+     2000 Foreground cells    2001+ objects on the Middle layer
+     3000 loose in-play things (a grenade mid-air)
+     4000 climb / ghosts / pedestals
+     5000 the player and hazards
+     6000 Front cells         6001+ objects on the Front layer
+     7000 markers / drops     8000 HP + status bars      9000 selection, 9500 door prompt
+   The rungs are thousands apart so each one has room ABOVE its own cell layer for the objects
+   standing on it: an object's real z is its rung + its place in the level-wide draw order
+   (levelObjectZIndex), which is what makes "the one placed second draws on top" true across
+   the three separate render passes. DOM order is not the tie-break any more — it couldn't be,
+   since props and emoji objects come out of different containers. */
+.lcell{position:absolute;width:${LV_CELL}px;height:${LV_CELL}px;z-index:2000}
+.lcell.bg{opacity:.42;z-index:1000}
+.lcell.front{z-index:6000;transition:opacity .12s ease}
+.lcell.moveSel{z-index:9000;background:rgba(79,124,246,0.28);outline:2px dashed #4f7cf6;outline-offset:-2px;pointer-events:none}
 /* The bare .lobj z is for transient in-play things that aren't placed level objects — projectiles
    and thrown grenades, which should read over the terrain they fly past. Placed objects always
    carry a lay-* class and land on the ladder above instead. */
-.lobj{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:3}
-.lobj.lay-bg{z-index:1}
-.lobj.lay-fg{z-index:2}
-.lobj.lay-front{z-index:6}
-.lobj.infront{z-index:6;transition:opacity .12s ease}
-.lobjGhost{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:4;opacity:.5;outline:2px dashed rgba(255,255,255,.4);outline-offset:-2px;border-radius:4px}
-.enemyGhost{position:absolute;pointer-events:none;z-index:4;opacity:.6;outline:2px dashed #c0504f;outline-offset:-2px;border-radius:6px;box-sizing:border-box}
+.lobj{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:3000}
+.lobj.lay-bg{z-index:1001}
+.lobj.lay-fg{z-index:2001}
+.lobj.lay-front{z-index:6001}
+.lobj.infront{z-index:6001;transition:opacity .12s ease}
+.lobjGhost{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:4000;opacity:.5;outline:2px dashed rgba(255,255,255,.4);outline-offset:-2px;border-radius:4px}
+.enemyGhost{position:absolute;pointer-events:none;z-index:4000;opacity:.6;outline:2px dashed #c0504f;outline-offset:-2px;border-radius:6px;box-sizing:border-box}
 /* THE STATUS LAYER. Sits above the Front tiles (z 6) on purpose: a unit's HP, reload and 💫 are
    information you need even when the unit itself is behind a tree. It is a plain positioned box
    with no transform of its own, so the bars inside are free of the sprite wrapper's facing flip
    and simply fill left-to-right. Spans the VISIBLE body, and the bars hang off its top edge. */
-.unitStatus{position:absolute;height:0;pointer-events:none;z-index:8}
+.unitStatus{position:absolute;height:0;pointer-events:none;z-index:8000}
 .enemyHpTrack{position:absolute;left:0;right:0;top:-10px;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden}
 .enemyStun{position:absolute;left:0;right:0;top:-30px;text-align:center;font-size:16px;line-height:1;pointer-events:none;animation:stunbob .6s ease-in-out infinite}
 @keyframes stunbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
@@ -13457,26 +13607,26 @@ const css = `
 .enemyReloadFill{height:100%;background:linear-gradient(90deg,#4a86c8,#7ab6f0)}
 /* The player's own bars are already siblings of the sprite rather than children of it, so they
    only needed lifting onto the same status layer the enemies use. */
-.playerStun{position:absolute;text-align:center;font-size:16px;line-height:1;pointer-events:none;z-index:8;animation:stunbob .6s ease-in-out infinite}
-.playerHpTrack{position:absolute;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:8;pointer-events:none}
-.playerReloadTrack{position:absolute;height:4px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:8;pointer-events:none}
+.playerStun{position:absolute;text-align:center;font-size:16px;line-height:1;pointer-events:none;z-index:8000;animation:stunbob .6s ease-in-out infinite}
+.playerHpTrack{position:absolute;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:8000;pointer-events:none}
+.playerReloadTrack{position:absolute;height:4px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden;z-index:8000;pointer-events:none}
 .playerReloadFill{height:100%;background:linear-gradient(90deg,#4a86c8,#7ab6f0)}
 .playerHpFill{height:100%;transition:width .15s ease}
-.rampGhost{position:absolute;width:${LV_CELL}px;height:${LV_CELL}px;pointer-events:none;z-index:4;opacity:.5}
-.blockGhost{position:absolute;pointer-events:none;z-index:4;opacity:.5;outline:2px dashed rgba(255,255,255,.55);outline-offset:-2px;box-sizing:border-box}
-.areaGhost{position:absolute;pointer-events:none;z-index:5;background:rgba(122,162,214,.22);border:2px dashed #7aa2d6;box-sizing:border-box}
+.rampGhost{position:absolute;width:${LV_CELL}px;height:${LV_CELL}px;pointer-events:none;z-index:4000;opacity:.5}
+.blockGhost{position:absolute;pointer-events:none;z-index:4000;opacity:.5;outline:2px dashed rgba(255,255,255,.55);outline-offset:-2px;box-sizing:border-box}
+.areaGhost{position:absolute;pointer-events:none;z-index:5000;background:rgba(122,162,214,.22);border:2px dashed #7aa2d6;box-sizing:border-box}
 .lobj.insp{outline:2px dashed #4f7cf6;outline-offset:1px}
-.lclimb{position:absolute;pointer-events:none;z-index:4;background:repeating-linear-gradient(135deg,rgba(122,162,214,.28) 0 4px,transparent 4px 9px);border:1px dashed rgba(122,162,214,.55);box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1}
+.lclimb{position:absolute;pointer-events:none;z-index:4000;background:repeating-linear-gradient(135deg,rgba(122,162,214,.28) 0 4px,transparent 4px 9px);border:1px dashed rgba(122,162,214,.55);box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1}
 .lclimb.kind-bars{background:repeating-linear-gradient(135deg,rgba(214,162,90,.28) 0 4px,transparent 4px 9px);border-color:rgba(214,162,90,.6)}
 .lclimb.kind-cliff{background:repeating-linear-gradient(135deg,rgba(150,122,214,.28) 0 4px,transparent 4px 9px);border-color:rgba(150,122,214,.6)}
-.lmarker{position:absolute;display:flex;align-items:center;justify-content:center;font-size:15px;z-index:7;background:rgba(0,0,0,.3);border:1px dashed #c8a23c;border-radius:4px;box-sizing:border-box;cursor:default}
+.lmarker{position:absolute;display:flex;align-items:center;justify-content:center;font-size:15px;z-index:7000;background:rgba(0,0,0,.3);border:1px dashed #c8a23c;border-radius:4px;box-sizing:border-box;cursor:default}
 .catinline{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:7px 10px;color:#e7e9ee;font-size:13px;width:170px}
 .lobj.solid::after{content:"";position:absolute;inset:1px;border:1px dashed rgba(255,90,90,.6);border-radius:3px}
-.conn{position:absolute;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;cursor:pointer;background:rgba(0,0,0,.35);border:2px solid #6bd06b;color:#6bd06b;z-index:6}
+.conn{position:absolute;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;cursor:pointer;background:rgba(0,0,0,.35);border:2px solid #6bd06b;color:#6bd06b;z-index:6000}
 .conn.blocked{border-color:#c0504f;color:#c0504f;opacity:.85}
-.conn.sel{box-shadow:0 0 0 3px #4f7cf6;z-index:7}
-.player{position:absolute;background:#7aa2d6;border-radius:5px;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.5);overflow:visible}
-.playerWrap{position:absolute;z-index:5;overflow:visible;isolation:isolate}
+.conn.sel{box-shadow:0 0 0 3px #4f7cf6;z-index:7000}
+.player{position:absolute;background:#7aa2d6;border-radius:5px;z-index:5000;box-shadow:0 2px 6px rgba(0,0,0,.5);overflow:visible}
+.playerWrap{position:absolute;z-index:5000;overflow:visible;isolation:isolate}
 .lcell.collisionOnly,.blockGhost.collisionOnly,.rampGhost.collisionOnly{opacity:.48;outline:2px dashed #62d9ff;outline-offset:-2px;filter:saturate(.55)}
 .player .pbody{position:absolute;inset:0;background:#7aa2d6;border-radius:5px}
 .player .peye{position:absolute;right:3px;top:5px;width:4px;height:4px;border-radius:50%;background:#0a0c12;z-index:2}
@@ -13508,14 +13658,14 @@ const css = `
    the Front layer (6) so a wall genuinely hides it — the x-ray works by fading that wall (see the
    playtest loop), not by lifting the pedestal over it. The washed-out look while it shows through
    is applied inline per pedestal, since it eases off with distance. */
-.pedestalPlay{position:absolute;z-index:4;pointer-events:none}
+.pedestalPlay{position:absolute;z-index:4000;pointer-events:none}
 .pedestalPlay.xray .pedestalCap{border-color:#7ad2ff;color:#d6f1ff;background:rgba(6,20,30,.72)}
 .pedestalArt{position:absolute;inset:0;overflow:hidden;display:flex;align-items:center;justify-content:center;transition:opacity .15s ease,filter .15s ease}
 .pedestalEmpty{font-size:10px;color:#ff9b9b;background:rgba(0,0,0,.6);border:1px solid #5a2e36;border-radius:5px;padding:1px 5px}
 .pedestalGem{position:absolute;left:50%;bottom:0;transform:translateX(-50%);font-size:${LV_CELL*0.75}px;line-height:1}
 .pedestalCap{position:absolute;left:50%;top:-4px;transform:translate(-50%,-100%);white-space:nowrap;background:rgba(0,0,0,.72);border:1px solid #c8a23c;border-radius:6px;padding:0 5px;font-size:10px;color:#f3d98a}
 .pedcallout{position:absolute;left:50%;top:-24px;transform:translate(-50%,-100%);white-space:nowrap;background:#241b0d;border:1px solid #c8a23c;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:600;color:#f3d98a;box-shadow:0 1px 4px rgba(0,0,0,.55)}
-.enemyDropPlay{position:absolute;z-index:7;pointer-events:none;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 0 5px rgba(243,217,138,.7));animation:lootBob .9s ease-in-out infinite alternate}
+.enemyDropPlay{position:absolute;z-index:7000;pointer-events:none;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 0 5px rgba(243,217,138,.7));animation:lootBob .9s ease-in-out infinite alternate}
 .enemyDropOrb{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%,#fff5bf,#c8a23c 55%,#6a4b12);border:1px solid #f3d98a;font-size:15px}
 /* A drop that has real drawn art shows the art itself, not the gold emoji bead — so the gradient,
    the border and the round clip all come off, and the box becomes the positioning context for the
@@ -13524,7 +13674,7 @@ const css = `
 .enemyDropCap{margin-top:2px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.78);border:1px solid #c8a23c;border-radius:6px;padding:0 5px;font-size:10px;color:#f3d98a}
 .enemyDropPlay .pedcallout{top:-8px}
 @keyframes lootBob{from{margin-top:0}to{margin-top:-3px}}
-.doorPromptFloat{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;background:#241b0d;border:1px solid #c8a23c;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;color:#f3d98a;box-shadow:0 1px 4px rgba(0,0,0,.55);pointer-events:none;z-index:50}
+.doorPromptFloat{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;background:#241b0d;border:1px solid #c8a23c;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;color:#f3d98a;box-shadow:0 1px 4px rgba(0,0,0,.55);pointer-events:none;z-index:9500}
 .equipline{color:#cfe0ff;background:#131a29;border-color:#3a5c8c;font-size:12px}
 @media(max-width:820px){.main{flex-direction:column}.stage{padding:10px;flex:none}.art{height:46vh}.side{width:auto;border-left:0;border-top:1px solid #232838;flex:1}.refpick{margin-left:0}.nm{flex:1;width:auto;min-width:0}.slotrow select{width:130px}.lmain{flex-direction:column}.lside{width:auto;border-left:0;border-top:1px solid #232838}.connlist{grid-template-columns:1fr}}
 `;

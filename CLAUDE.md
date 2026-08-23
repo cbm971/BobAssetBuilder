@@ -112,6 +112,14 @@ than once. The rules below are not style preferences.
   first write of each day aside in `asset-data/snapshots/` keeping the last 5 (gitignored;
   the committed `library.json` is the copy that leaves the container).
 
+**A dated full backup lives at the repo root** — `assetbuilder-backup-<date>.json`,
+`{assetBuilderBackup:2, assets, levels, stamps, textures, backgrounds}`. Keep exactly
+ONE, the newest, and check it is a superset before deleting the one it replaces (the
+2026-07-25 file was version 1 and held **zero levels** — the old export bug). Merge each
+new backup into `library.json` too, additively by id: that file is what restores into
+Blake's studio on a cold browser, and it had drifted 9 days and 29 assets stale while
+looking perfectly healthy.
+
 **Every kind of drawn work goes to both tiers, in both directions.** The kinds are one
 list — `PROJECT_KINDS` in `App.js`, `KINDS` in `setupProxy.js`, kept identical by a
 test: **assets, levels, stamps, textures, backgrounds**. Each saves up
@@ -195,6 +203,28 @@ implicit order onto every object that has no `z` (`withObjectDrawOrder`), so exi
 levels open unchanged; placement, drop and paste all take `nextObjectZ(fx)`. Anything
 new that renders `lv.fx` and sorts by key order re-introduces the bug.
 
+**...and `z` only orders objects WITHIN a layer, which is the second half of that same
+bug and took a second attempt to find.** The rung an object drew on used to come from
+its **Solid checkbox** (`solid ? rung 2 : rung 1`), and a CSS z-index beats DOM order
+absolutely — so a solid grandstand was permanently in front of a decorative pitch and
+neither placement order nor `⤒ Front` could ever swap them. The `z` work above was
+correct and was simply being overruled one rung up; from outside it read as "you didn't
+fix it".
+
+An object now carries its own drawing layer in **`lay`** (`"bg"`/`"fg"`/`"front"`,
+read via `objectLay`), independent of Solid — Solid means collision and nothing else.
+`objectLay` falls back to the old solid/inFront rule when `lay` is absent, so every
+existing level opens identical. The **Layer** buttons in the Adjust panel set it, and
+`⤒ Front`/`⤓ Back` move `lay` as well as `z` (`orderEndLay`) so "Front" means front.
+
+The CSS ladder is in **thousands** (1000 bg cells, 2000 fg cells, 6000 front cells) to
+leave each rung room for its objects, and each object gets an explicit inline z-index of
+rung + its place in the draw order (`levelObjectZIndex`). That explicitness matters:
+props and emoji/shape objects render from **two different containers**, so DOM order
+could never order them against each other whatever `z` said. `.lgrid` carries
+`isolation:isolate` so those four-digit numbers stay local and can't outrank the modals
+(z 30) and toasts (z 40).
+
 **The `✥ Adjust` tool is how you get at an object that is already placed.** Everything
 below hangs off it, and shipping the controls without it was worthless: the side panel
 used to open only on an object you had just PLACED (or picked up and put down with
@@ -214,6 +244,17 @@ of a prop's **own visible art**, so `levelObjectFootprint` divides by each prop'
 crop and two halves of one backdrop come out at different scales however carefully they
 were drawn to match. `canvasScale` divides by the shared 200x260 canvas instead, so any
 two props at the same size render at identical px-per-design-unit.
+
+**A thrown grenade's fire has TWO halves and they must expire together.** The damage is
+a `lv.hazard` cell with a `life` countdown in `hazLife.current`; the thing you actually
+SEE, when the throwable has a `landPropId`, is a separate `_thrown` prop pushed into
+`lv.fx` at the same key (the hazard is flagged `hideInPlay` so the prop can draw over
+it). Both must ask `hazardStillBurning(hazLife.current, key)` — the render pass had no
+such check, so a Grenade set to 2.5 seconds stopped hurting on time and then sat there
+visibly burning until Playtest stopped. Neither half is ever deleted mid-play: the
+strip is a dedicated effect keyed on `play` alone, because this effect re-runs every
+time a landing grenade calls `setLevel` and stripping here deleted each grenade's own
+flames a frame after they landed.
 
 **Mirroring a level** (`flipLevelHorizontally`, the ⇄ Flip buttons) is c -> cols-1-c on
 every layer plus a reversal of everything that carries a direction: ramp `slope` and

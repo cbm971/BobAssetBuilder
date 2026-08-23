@@ -11,6 +11,15 @@ import {
   normalizeObjRot,
   OBJ_ROT_NUDGE,
   objectLayerClass,
+  objectLay,
+  levelObjectZIndex,
+  LAYER_BASE_Z,
+  orderEndLay,
+  hazardStillBurning,
+  applyLandingEffect,
+  throwWeightMultiplier,
+  throwRangeBlocks,
+  DEFAULT_THROW_WEIGHT,
   fgFills,
   fgHiddenInPlay,
   fgSlopeFills,
@@ -4369,5 +4378,150 @@ describe("stack or replace is a decision made before the merge", () => {
   test("a plain block is still a clean reset on the Foreground with Replace off", () => {
     const stacked = mergeFgFill("#2e7d32", { ...GRAVEL, ...rampUp });
     expect(paintIntoCell("fg", stacked, "#111111", false)).toBe("#111111");
+  });
+});
+
+describe("the Solid checkbox no longer decides what draws on top", () => {
+  // The football-pitch bug, as a test. A grandstand you cannot walk through and a pitch you can
+  // are two different collision answers, and that was being used as a drawing answer: solid went
+  // on rung 2, decor on rung 1, and a CSS z-index beats DOM order — so the pitch could never be
+  // brought over the stands however it was placed or reordered.
+  test("a decorative prop can be drawn over a solid one", () => {
+    const stands = { kind: "prop", propId: "stands", solid: true, z: 1 };
+    const pitch = { kind: "prop", propId: "pitch", solid: false, z: 2 }; // placed second
+    // Before: different rungs, and the rung wins no matter what z says.
+    expect(objectLayerClass(stands)).not.toBe(objectLayerClass(pitch));
+    expect(levelObjectZIndex(pitch, 1)).toBeLessThan(levelObjectZIndex(stands, 0));
+    // After: put the pitch on the same layer and being placed second is enough.
+    const lifted = { ...pitch, lay: "fg" };
+    expect(objectLayerClass(lifted)).toBe(objectLayerClass(stands));
+    expect(levelObjectZIndex(lifted, 1)).toBeGreaterThan(levelObjectZIndex(stands, 0));
+    expect(lifted.solid).toBe(false); // and it still does not block you
+  });
+
+  test("an explicit layer beats what solid/inFront would have implied", () => {
+    expect(objectLay({ solid: true })).toBe("fg");
+    expect(objectLay({ solid: true, lay: "bg" })).toBe("bg");
+    expect(objectLay({ inFront: true, lay: "fg" })).toBe("fg");
+    expect(objectLay({ solid: false, lay: "front" })).toBe("front");
+  });
+
+  test("an object with no layer of its own behaves exactly as it always did", () => {
+    // Every level in the library predates `lay`. None of them may move a pixel.
+    expect(objectLay({ solid: true })).toBe("fg");
+    expect(objectLay({ inFront: true })).toBe("front");
+    expect(objectLay({ inFront: true, solid: true })).toBe("front");
+    expect(objectLay({})).toBe("bg");
+    expect(objectLay(undefined)).toBe("bg");
+    expect(objectLay({ lay: "nonsense" })).toBe("bg"); // junk falls back, never throws
+  });
+
+  test("each layer's objects sit above their own cell rung and below the next one", () => {
+    expect(levelObjectZIndex({ lay: "bg" }, 0)).toBeGreaterThan(LAYER_BASE_Z.bg);
+    expect(levelObjectZIndex({ lay: "bg" }, 998)).toBeLessThan(LAYER_BASE_Z.fg);
+    expect(levelObjectZIndex({ lay: "fg" }, 0)).toBeGreaterThan(LAYER_BASE_Z.fg);
+    expect(levelObjectZIndex({ lay: "fg" }, 998)).toBeLessThan(LAYER_BASE_Z.front);
+    expect(levelObjectZIndex({ lay: "front" }, 0)).toBeGreaterThan(LAYER_BASE_Z.front);
+  });
+
+  test("later in the draw order is always higher, and a runaway count cannot leak into the next rung", () => {
+    expect(levelObjectZIndex({ lay: "fg" }, 5)).toBeGreaterThan(levelObjectZIndex({ lay: "fg" }, 4));
+    expect(levelObjectZIndex({ lay: "bg" }, 99999)).toBeLessThan(LAYER_BASE_Z.fg);
+  });
+
+  test("draw order hands out a back-to-front position for the renderer to use", () => {
+    const fx = { "1,1": [{ char: "a", z: 5 }], "2,2": [{ char: "b", z: 1 }] };
+    expect(levelObjectsInDrawOrder(fx).map((e) => [e.o.char, e.ord])).toEqual([["b", 0], ["a", 1]]);
+  });
+});
+
+describe("Front / Back move the layer too, not just the order", () => {
+  const fx = () => ({ "1,1": [{ char: "pitch", solid: false }], "5,5": [{ char: "stands", solid: true }] });
+  test("Front lifts a background object onto the top rung its neighbours use", () => {
+    expect(orderEndLay(fx(), "1,1", 0, true)).toBe("fg");
+  });
+  test("Back drops a foreground object to the bottom rung its neighbours use", () => {
+    expect(orderEndLay(fx(), "5,5", 0, false)).toBe("bg");
+  });
+  test("it never moves past its peers — Front with nothing above it is a no-op", () => {
+    const flat = { "1,1": [{ char: "a", solid: false }], "2,2": [{ char: "b", solid: false }] };
+    expect(orderEndLay(flat, "1,1", 0, true)).toBe("bg");
+    expect(orderEndLay(flat, "1,1", 0, false)).toBe("bg");
+  });
+  test("it never promotes anything onto the over-the-player rung", () => {
+    // "In front of player" is a gameplay decision, so an ordering button must not make it.
+    const withFront = { "1,1": [{ char: "a", solid: false }], "9,9": [{ char: "cover", inFront: true }] };
+    expect(orderEndLay(withFront, "1,1", 0, true)).toBe("bg");
+    // ...and an object already on it is left alone in both directions.
+    expect(orderEndLay(withFront, "9,9", 0, false)).toBe("front");
+  });
+  test("a missing object does not throw", () => {
+    expect(orderEndLay({}, "0,0", 0, true)).toBe("bg");
+  });
+});
+
+describe("a grenade's flame goes out on its own clock", () => {
+  // Blake's Grenade: landEffectLife 2.5, landPropId -> his "Explosion" prop. The hazard is painted
+  // hideInPlay (invisible, still damaging) and the prop is what you actually see. The countdown
+  // ended the DAMAGE on time and nothing ever took the prop down, so the explosion sat there lit
+  // until Playtest stopped — a 2.5-second fire that burned forever.
+  test("the same answer governs the damage and the art that draws it", () => {
+    const life = { "3,4": 2.5 };
+    expect(hazardStillBurning(life, "3,4")).toBe(true);
+    life["3,4"] = 0;
+    expect(hazardStillBurning(life, "3,4")).toBe(false); // damage stops, and so does the prop
+  });
+
+  test("a cell that never entered the countdown is permanent and always burns", () => {
+    // life 0 on the cell means "never goes out" — those keys deliberately stay out of the map.
+    expect(hazardStillBurning({}, "1,1")).toBe(true);
+    expect(hazardStillBurning({ "9,9": 0 }, "1,1")).toBe(true);
+    expect(hazardStillBurning(null, "1,1")).toBe(true);
+  });
+
+  test("a landing seeds a countdown the prop and the hazard both read", () => {
+    const { hazard, newHazKeys, newPropKeys } = applyLandingEffect({}, {}, ["3,4"], 10, 2.5, "expl0d3", 3);
+    expect(hazard["3,4"].life).toBe(2.5);
+    expect(hazard["3,4"].hideInPlay).toBe(true); // the prop is the visible half
+    expect(newHazKeys).toEqual(["3,4"]);
+    expect(newPropKeys).toEqual(["3,4"]); // same key, so one countdown covers both
+  });
+});
+
+describe("throwables carry, and weight is what decides how far", () => {
+  test("making a throwable lighter actually makes it go further", () => {
+    // The old formula was max(0, weight - 3) — so 1, 2 and 3 were one value in three costumes.
+    // Blake's Rock is weight 1 and threw exactly as far as a weight-3 grenade.
+    expect(throwRangeBlocks(5, 1)).toBeGreaterThan(throwRangeBlocks(5, 2));
+    expect(throwRangeBlocks(5, 2)).toBeGreaterThan(throwRangeBlocks(5, DEFAULT_THROW_WEIGHT));
+  });
+
+  test("weight matters across the whole slider, in both directions", () => {
+    for (let w = 1; w < 10; w++) expect(throwRangeBlocks(5, w)).toBeGreaterThan(throwRangeBlocks(5, w + 1));
+    // ...and it matters a LOT: lightest covers 4x the ground of heaviest.
+    expect(throwRangeBlocks(5, 1) / throwRangeBlocks(5, 10)).toBeGreaterThan(3);
+  });
+
+  test("throwables got a real range buff at every strength", () => {
+    const oldFormula = (str, w) => Math.max(2, (5 + Math.floor(str / 2)) - Math.max(0, w - 3) * 0.6);
+    for (const str of [1, 3, 5, 8, 10]) for (const w of [1, 2, 3, 5, 8, 10]) {
+      expect(throwRangeBlocks(str, w)).toBeGreaterThan(oldFormula(str, w));
+    }
+  });
+
+  test("a light rock at average strength clears a useful distance", () => {
+    expect(throwRangeBlocks(5, 1)).toBeGreaterThan(13); // was 7 — inside enemy shooting range
+  });
+
+  test("strength still helps, and the floor still holds", () => {
+    expect(throwRangeBlocks(10, 3)).toBeGreaterThan(throwRangeBlocks(1, 3));
+    expect(throwRangeBlocks(1, 10)).toBeGreaterThanOrEqual(2);
+  });
+
+  test("the multiplier is centred on the default weight and clamps outside the slider", () => {
+    expect(throwWeightMultiplier(DEFAULT_THROW_WEIGHT)).toBeCloseTo(1, 5);
+    expect(throwWeightMultiplier(0)).toBe(throwWeightMultiplier(1));   // below the slider
+    expect(throwWeightMultiplier(50)).toBe(throwWeightMultiplier(10)); // above it
+    expect(throwWeightMultiplier(undefined)).toBeCloseTo(1, 5);
   });
 });
