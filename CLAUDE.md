@@ -139,6 +139,43 @@ able to blank the record. That means a delete which does not call
 `projectLibrary.forget(kind, ids)` is not a delete — the next load hands the record
 straight back.
 
+**...AND A DELETE HAS TO OUTLIVE EVERY BROWSER THAT STILL HAS THE RECORD.** This is the one Blake
+actually hit, reported as "I cannot delete the testing weapons or testing creatures, they just come
+back". `deleteAsset` was not broken: it clears all three browser stores, shrinks the index, calls
+`forget`, and a single delete was verified sticking across a reload. Two things outside it undid it.
+
+1. `asset-data/library.json` is **git-tracked**, and StackBlitz rebuilds the container from the
+   repo, so his delete only ever reached the container's working copy — the next fresh container
+   served the committed copy back.
+2. Worse, and the reason removing the records from the committed file is not enough on its own:
+   `loadLibrary` **pushes everything this browser holds back into the project file**. That push is
+   what rebuilds a library on a new preview address, so it can't go away — but it means any browser
+   that never heard about the delete (a second tab, another machine, or the same one after a
+   rebuild handed the record back) re-uploads it within seconds of the app opening. Delete, reload,
+   restored, forever.
+
+So the file now REMEMBERS deletions, in `removed: { assets: [...], levels: [...], … }`
+(`rememberRemoved` in `setupProxy.js`). An ordinary additive merge can never re-add a remembered
+id, the GET hands the list to the studio, and `loadLibrary` **purges its own stale copies** of
+anything on it — which is what stops the loop at the source. The safety valve is `revive`: any
+DELIBERATE save (one asset, one level, one stored group, an import — `projectLibrary.save(payload,
+{ revive: true })`) takes its id back off the list, so re-creating or re-importing something always
+wins. **The bulk syncs must never pass `revive`**; defaulting to no-revive is the safe direction,
+because missing a deliberate call site only means a re-created id doesn't stick, while missing a
+bulk one is the original bug.
+
+Two traps that follow from all this, both of which quietly undo the user's work:
+
+* **`git checkout -- asset-data/` is the standing advice above, and it restores anything he
+  deleted this session.** Before running it, check whether the diff is your own test seeding or his
+  real deletions — `git diff --stat asset-data/` and look at the asset count. Revert the seeding by
+  hand if both are in there.
+* **`asset-data/library.bak.json` is tracked too**, and `readLibrary` falls back to it whenever
+  `library.json` fails to parse. It is written one write behind, so the committed copy is however
+  stale the last commit left it — as of 2026-08-23 it held **76 assets against library.json's 113**.
+  A single bad parse would therefore serve a library missing 37 assets, and the app would then save
+  that back as truth. If you touch one copy, check the other.
+
 **A loader that throws is indistinguishable from lost work.** That is what "my saves
 are gone" has meant every single time so far; the bytes were always still on disk.
 So: never a single try/catch around a whole load loop (a bad record is skipped and
@@ -434,13 +471,42 @@ they are in completely different places, which is the usual shape here (see the 
   wrapper's `scaleX(-1)` always ends with the nose on the facing side however the art was
   drawn, so the facing IS the answer and cannot fall out of step with the sprite.
 * **Its bite damage could not be set anywhere.** A creature holds no weapon, so
-  `enemyAttackDamage` gave it `UNARMED_DAMAGE` — Bob's bare knuckles — and the Enemy editor
-  had HP, Speed, Strength and ⚔️ range but no damage field at all. The Squirrel bit for
-  exactly 1 HP forever. `attackDamage` (🦷 **Attack damage**, under ⚔️ Attack range) is that
-  field, read through `creatureBiteDamage`. It defaults to `UNARMED_DAMAGE`, so **no existing
-  enemy is rebalanced** until Blake edits one, and the player's own punch is untouched (a body
-  and a dressed look have no such field). One number serves both sides: the same field the AI
-  bites you with is what you bite for when you're playing as it.
+  `enemyAttackDamage` gave it `UNARMED_DAMAGE` scaled by Strength — Bob's bare knuckles — and the
+  Enemy editor had HP, Speed, Strength and ⚔️ range but no damage field at all. Every animal in
+  the game therefore sat between 1 and 4 damage however it was authored.
+
+**A CREATURE'S MELEE IS 2x ITS STRENGTH** (`creatureMeleeDamage`, `CREATURE_MELEE_PER_STRENGTH`).
+A separate `attackDamage` field was tried first and Blake rejected it as clutter, correctly:
+Strength already means "how hard does this hit", and on a creature it fed *nothing else at all*,
+so a second number was a dial that had to be kept in step with a dial that did nothing. Strength
+is now the whole rule — 2 to 20 across the slider — and the 💪 Str hint in the editor reads
+"· bites for N" so the rule is visible. **Do not re-add a damage field.**
+
+The line is `isCreatureUnit` (asset type `enemy`), and it matters:
+
+* **armed** anything → the weapon's own damage × Str/5, exactly as before. Untouched.
+* **a creature** with no weapon → 2 × Strength.
+* **a PERSON** with no weapon — a body, a dressed look, a 👹 Enemy in a hat — → `UNARMED_DAMAGE` ×
+  Str/5, exactly as before. This half is load-bearing: the documented rule is that an enemy's
+  fists are worth precisely what yours are, and putting thug knuckles on 2 × Str would restore
+  the "Strength-10 thug punches for 20 while you punch the same thug for 4" bug. There is a test
+  on it. Playing AS a creature bites for the same 2 × Str the AI bites you with.
+
+**BALANCE, measured in play — this was a 5x increase at every Strength** (the old rule divided by
+5, this one multiplies by 2), and Blake asked for it knowing that. Against the 15–30 HP pool a
+body actually has:
+
+| creature | Str | was | now | hits to drop a 25 HP body |
+|---|---|---|---|---|
+| Squirrel | 3 | 1 | 6 | 5 (was 25) |
+| Jumping / Chasing Pit Bull | 8 | 3 | **16** | **2** |
+| Elaphant | 10 | 4 | **20** | **2** |
+
+Verified in Playtest: "👹 Elaphant hit you for 20", "👹 Jumping Pit Bull hit you for 16", Bobbett's
+own fists still 2. So the Pit Bulls and the Elaphant two-shot an unarmoured player, and **Trailor
+Park M1 has five Pit Bulls in it**. Defense still applies on top (10 Defense halves it), and this
+is the intended shape of the change — but if a level suddenly reads as unfair, this is why, and the
+dial to turn is that creature's 💪 Strength, not the constant.
 
 **Animals are drawn side-on facing LEFT** (Jumping Pit Bull, Elaphant, Squirrel). No front or
 back art at all; `side` / `up` / `crouch` are the same drawing with their own piece ids, plus

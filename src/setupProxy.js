@@ -29,6 +29,7 @@ const KINDS = ["assets", "levels", "stamps", "textures", "backgrounds"];
 const emptyLibrary = () => {
   const out = { savedAt: null };
   for (const k of KINDS) out[k] = [];
+  out.removed = {};
   return out;
 };
 
@@ -39,6 +40,7 @@ const readLibrary = () => {
       if (parsed && Array.isArray(parsed.assets)) {
         // A file written before a kind existed simply has no key for it.
         for (const k of KINDS) if (!Array.isArray(parsed[k])) parsed[k] = [];
+        if (!parsed.removed || typeof parsed.removed !== "object") parsed.removed = {};
         return parsed;
       }
     } catch { /* try the backup, then give up quietly */ }
@@ -93,21 +95,53 @@ const removeById = (list, ids) => {
   return (list || []).filter((x) => x && !gone.has(x.id));
 };
 
-// The whole write rule as one pure function, so it can be tested without a running dev server.
+// A DELETE HAS TO OUTLIVE THE BROWSER THAT STILL HAS THE RECORD, which is the other half of the
+// same problem removeById solves. Dropping the row here is not enough on its own: the studio's own
+// load pushes everything ITS storage holds back into the file (that push is what rebuilds a library
+// on a new preview address, so it can't go away), and a browser that hasn't been told about the
+// delete — a second tab, another machine, or the same one after a container rebuild handed the
+// record back — puts it straight back. Blake hit exactly that: "I cannot delete the testing weapons
+// or testing creatures, they just come back."
+//
+// So a deleted id is REMEMBERED, in the file, and an ordinary additive merge can never re-add it.
+// Deliberately narrow: only ids the app explicitly asked to forget ever land here.
+const rememberRemoved = (prev, rm) => {
+  const out = {};
+  for (const k of KINDS) {
+    const seen = new Set([...(Array.isArray(prev && prev[k]) ? prev[k] : []), ...((rm && rm[k]) || [])].filter(Boolean));
+    out[k] = [...seen];
+  }
+  return out;
+};
+// ...but a tombstone must never be able to eat WORK. Anything saved deliberately — one record at a
+// time, which is what saving an asset, a level or a stored group does, and what an import does —
+// says `revive: true` and takes its id back off the list. Only the bulk library sync, which is the
+// one that carries records it merely happens to still have lying around, is blocked. Defaulting to
+// "do not revive" is the safe direction: miss a deliberate call site and re-creating something with
+// a dead id doesn't stick, which is rare and obvious; miss a bulk one and deletes come back, which
+// is the bug itself.
 const applyWrite = (current, body, incoming) => {
   const rm = (body && body.remove) || {};
+  const revive = !!(body && body.revive);
   // An empty assets array is never a reason to empty the file — that is how a library gets erased
   // by a page that merely hadn't finished loading yet. But it must not throw away the REST of the
   // same POST either, which is what the old early-return did: a level save or a stored group
   // legitimately carries no assets at all, so every one of them was silently ignored.
   const keptAssets = !incoming.length && ((current.assets || []).length > 0);
   const next = { savedAt: new Date().toISOString() };
+  const tomb = rememberRemoved(current.removed, rm);
   for (const k of KINDS) {
+    const sent = k === "assets" ? incoming : (Array.isArray(body && body[k]) ? body[k].filter((x) => x && x.id) : null);
+    if (revive && sent && sent.length) {
+      const back = new Set(sent.map((x) => x.id));
+      tomb[k] = tomb[k].filter((id) => !back.has(id));
+    }
     const merged = k === "assets"
       ? (keptAssets ? (current.assets || []) : (body && body.replace ? incoming : mergeById(current.assets, incoming)))
       : (Array.isArray(body && body[k]) ? mergeById(current[k], body[k]) : (current[k] || []));
-    next[k] = removeById(merged, rm[k]);
+    next[k] = removeById(merged, tomb[k]);
   }
+  next.removed = tomb;
   return { keptAssets, next };
 };
 
@@ -128,6 +162,7 @@ module.exports = function (app) {
           res.setHeader("Content-Type", "application/json");
           const out = { ok: true, savedAt: lib.savedAt };
           for (const k of KINDS) out[k] = lib[k] || [];
+          out.removed = lib.removed || {}; // so a browser still holding a deleted record can drop it
           return res.end(JSON.stringify(out));
         }
         if (req.method === "POST") {
@@ -155,4 +190,4 @@ module.exports = function (app) {
 
 // Exported for the tests only. The write rules are the part of this file that can lose work, and
 // they are worth testing without standing a dev server up.
-module.exports.__test = { applyWrite, mergeById, removeById, KINDS };
+module.exports.__test = { applyWrite, mergeById, removeById, rememberRemoved, KINDS };

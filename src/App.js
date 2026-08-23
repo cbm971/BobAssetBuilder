@@ -222,8 +222,13 @@ const projectLibrary = {
   // first was non-empty, so a level save could never reach the file on its own — which is why
   // every asset survived the last change of address and the levels did not. Named, so adding a
   // kind cannot silently pass it in the wrong slot, and so `save({ levels })` is a whole thought.
-  save: async (payload) => {
-    const body = { assets: [] };
+  // `opts.revive` marks a DELIBERATE save — saving one asset, one level, one stored group, or an
+  // import — as opposed to the bulk library sync. Only a deliberate save may bring an id back from
+  // the deleted list the project file keeps (see rememberRemoved in setupProxy). The bulk sync must
+  // not, because it carries whatever this browser still happens to hold, which is exactly how a
+  // deleted asset walked back into the file.
+  save: async (payload, opts) => {
+    const body = { assets: [], revive: !!(opts && opts.revive) };
     let any = false;
     for (const k of PROJECT_KINDS) {
       const list = ((payload && payload[k]) || []).filter((x) => x && x.id);
@@ -2037,25 +2042,28 @@ export const enemyWeaponIdOf = (ea) => (ea && (ea.weaponId || (ea.recipe && ea.r
 // worth exactly what yours are. This side has to move with the player's or the rule stops being
 // one rule: fists were the raw Strength stat here too, and leaving that behind would have meant a
 // Strength-10 thug punching for 10 while you punched the same thug for 4.
+// A CREATURE'S MELEE IS 2x ITS STRENGTH, and that is the whole rule — see creatureMeleeDamage.
 export const enemyAttackDamage = (ea, weapon) => {
   const str = ea?.stats?.strength ?? 5;
-  return Math.max(1, (weapon ? (weapon.damage ?? 5) : creatureBiteDamage(ea)) * (str / 5));
+  if (weapon) return Math.max(1, (weapon.damage ?? 5) * (str / 5)); // armed: the weapon's own number, as always
+  if (isCreatureUnit(ea)) return creatureMeleeDamage(str);          // jaws/claws: Strength IS the damage
+  return Math.max(1, UNARMED_DAMAGE * (str / 5));                   // a PERSON's fists — unchanged, and still yours
 };
-// WHAT AN UNARMED UNIT HITS FOR, as a weapon-style base damage that Strength then scales.
+// WHAT A CREATURE HITS FOR: twice its Strength, and nothing else feeds in.
 // A drawn creature — anything built in the Enemy creator, so every animal — cannot hold a weapon,
-// which meant its bite was permanently UNARMED_DAMAGE: Bob's bare knuckles, standing in for a set
-// of jaws because nothing else was available. There was no field for it anywhere in the Enemy
-// editor either (HP, Speed, Str, ⚔️ range — no damage), so a Squirrel bit for exactly 1 HP a time
-// and no amount of editing could change that. That is the "the squirrel does 0 damage" half you
-// FEEL rather than see: 1 damage out of a 100-HP Bob reads as nothing happening.
-// `attackDamage` is that missing field. Absent, it is UNARMED_DAMAGE — so every enemy that exists
-// today, and every player-based look (which has no such field and swings real fists), keeps the
-// exact number it has now and nothing is silently rebalanced.
-export const DEFAULT_CREATURE_DAMAGE = UNARMED_DAMAGE;
-export const creatureBiteDamage = (ea) => {
-  const d = ea && ea.attackDamage;
-  return Number.isFinite(d) ? Math.max(0, d) : DEFAULT_CREATURE_DAMAGE;
-};
+// so its bite used to fall through to UNARMED_DAMAGE scaled by Strength: Bob's bare knuckles
+// standing in for a set of jaws. That put every animal in the game between 1 and 4 damage however
+// it was authored (a Squirrel bit for 1, an Elaphant for 4) and it read as the animal doing
+// nothing at all. A separate damage field was tried and rejected as clutter, and rightly:
+// Strength already exists, it already means "how hard does this thing hit", and on a creature it
+// fed nothing else whatsoever. So Strength IS the damage now, at 2x — one dial, 2 to 20 across
+// the slider, no second number to keep in step with it.
+//
+// The 2x is deliberate and it is a big move: it is exactly 5x the old damage at every Strength,
+// because the old rule divided by 5 and this one multiplies by 2. See the balance notes in
+// CLAUDE.md before softening it — the Pit Bulls and the Elaphant are the ones that bite hardest.
+export const CREATURE_MELEE_PER_STRENGTH = 2;
+export const creatureMeleeDamage = (strength) => Math.max(1, Math.round(CREATURE_MELEE_PER_STRENGTH * (strength ?? 5)));
 // Where a creature's bite lands, in world px, given its own body box and which way it faces.
 // Keyed off `face` and NOT off the art's mirror on purpose: whichever convention the art was drawn
 // to, the wrapper's scaleX(-1) always ends with the nose on the facing side (see
@@ -2251,7 +2259,7 @@ export function newAsset(type, slot, wtype) {
   // stats to read HP from, so it starts at PLAYER_BASE_HP: a brand-new enemy is exactly as tanky as
   // a default player, and the number is then yours to set in the creator. A Dress Bob enemy ignores
   // this and derives its HP from the look's own stats — see enemyMaxHP.
-  if (type === "enemy") { a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = PLAYER_BASE_HP; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; a.attackDamage = DEFAULT_CREATURE_DAMAGE; return withRig(a); }
+  if (type === "enemy") { a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = PLAYER_BASE_HP; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; return withRig(a); }
   if (type === "equipment") { a.slot = slot; a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; a.statBoosts = DEFAULT_STAT_BOOSTS(); a.defense = 0; a.effects = []; a.categories = ["", "", ""]; }
   if (type === "projectile") { a.size = 1; }
   // A prop/object: single-canvas pixel art (like a projectile), placed into levels at any size.
@@ -6076,7 +6084,8 @@ export default function AssetStudio() {
     for (const raw of assets) {
       try { const a = migrate(raw); if (await sset("asset:" + a.id, JSON.stringify(a))) imported++; } catch { /* skip */ }
     }
-    if (imported) { await projectLibrary.save({ assets: assets.filter((a) => a && a.id) }); await loadLibrary(); }
+    // An import is deliberate, so it un-deletes any id it actually names (see save's `revive`).
+    if (imported) { await projectLibrary.save({ assets: assets.filter((a) => a && a.id) }, { revive: true }); await loadLibrary(); }
     setRecoverState({ found: assets.length, imported });
   };
   // TWO stores, always both.
@@ -7529,14 +7538,16 @@ export default function AssetStudio() {
                     // own (times any Tag Damage gear that matches its categories); bare-handed it's
                     // UNARMED_DAMAGE. Fists carry no categories, so no gear multiplier applies to
                     // them — a Tag Damage hat boosts the weapon it's tagged for, not your knuckles.
-                    // creatureBiteDamage, not UNARMED_DAMAGE, for the bare-handed base: on a body or
-                    // a dressed look it IS UNARMED_DAMAGE (no attackDamage field exists on either,
-                    // so Bob's punch is untouched), but an animal you are playing as bites for the
-                    // number set on its own ⚔️ Attack damage — the same one it bites you with when
-                    // the AI is driving it. One rule for the creature whichever side is holding it.
+                    // Bare-handed splits by what you ARE. A body or a dressed look punches for
+                    // UNARMED_DAMAGE x Strength/5, exactly as it always has — Bob's fists are
+                    // untouched by any of this. An animal you are playing as BITES, at the same
+                    // 2x Strength the AI bites you with, because a creature's jaws should not be
+                    // worth a different number depending on who is holding the controls.
                     const base = (!unarmedSwing && playtestWeapon)
                       ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories), strength)
-                      : playerMeleeDamage(creatureBiteDamage(basePlayerAsset), strength);
+                      : isCreatureUnit(basePlayerAsset)
+                      ? creatureMeleeDamage(strength)
+                      : playerMeleeDamage(UNARMED_DAMAGE, strength);
                     const isCrit = Math.random() < critChance(intelligence);
                     const dmg = isCrit ? base * 2 : base;
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
@@ -8378,6 +8389,19 @@ export default function AssetStudio() {
     // URL rebuilds the library instead of showing an empty screen.
     let fromProject = 0;
     const proj = await projectLibrary.load();
+    // ...and anything the project records as DELETED goes out of this browser too, before the
+    // rescue below and before the sync at the bottom. Without this the rescue and the sync are a
+    // loop: the file drops the record, this browser still has it, the sync puts it straight back,
+    // and the next load "restores" it. That loop is what "I delete the testing weapons and they
+    // just come back" actually was. Only ids that went through a real delete are ever in this list,
+    // and re-saving or re-importing one takes it back off (see save's `revive`), so this can only
+    // remove work that was already deleted on purpose.
+    const tombed = new Set((((proj && proj.removed) || {}).assets || []).filter(Boolean));
+    if (tombed.size) {
+      let purged = 0;
+      for (const it of list) if (tombed.has(it.id)) { await sdel("asset:" + it.id); purged++; }
+      if (purged) { list = list.filter((it) => !tombed.has(it.id)); console.warn("[Bob] dropped " + purged + " asset(s) this browser still held after they were deleted"); }
+    }
     if (proj && proj.assets.length) {
       const have = new Set(list.map((it) => it.id));
       for (const raw of proj.assets) {
@@ -8560,7 +8584,7 @@ export default function AssetStudio() {
     const ok1 = await sset("stamp:" + stamp.id, JSON.stringify(stamp));
     const ok2 = await sset("stampIndex", JSON.stringify(list));
     // Into the project file too, so a stored group survives what the assets now survive.
-    if (ok1 && ok2) { projectLibrary.save({ stamps: [stamp] }); setStampName(""); setStampPick(stamp.id); loadStamps(); flash("Stored \"" + name + "\" (" + baked.length + " block" + (baked.length === 1 ? "" : "s") + ") — place it into any pose or body. Mirrored parts were baked into real copies so the group rotates as one."); }
+    if (ok1 && ok2) { projectLibrary.save({ stamps: [stamp] }, { revive: true }); setStampName(""); setStampPick(stamp.id); loadStamps(); flash("Stored \"" + name + "\" (" + baked.length + " block" + (baked.length === 1 ? "" : "s") + ") — place it into any pose or body. Mirrored parts were baked into real copies so the group rotates as one."); }
     else flash("Couldn't store here — use Download.");
   };
   const placeStamp = (s) => {
@@ -9958,7 +9982,7 @@ export default function AssetStudio() {
     list = list.filter((x) => x.id !== payload.id); list.push({ id: payload.id, name: payload.name, type: payload.type });
     const ok2 = await writeAssetIndex(list);
     // ...and into the project file, which is the copy a change of preview address cannot take away.
-    projectLibrary.save({ assets: [payload] });
+    projectLibrary.save({ assets: [payload] }, { revive: true });
     // Push this edit into every saved Dressed Look already wearing it, re-baking that look's art
     // from its own embedded components. Without this a shirt edit only reached Playtest after
     // manually re-equipping the shirt in Dress Bob and re-saving the look over the top of itself.
@@ -10011,7 +10035,7 @@ export default function AssetStudio() {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; } if (a.type === "enemy" && a.attackDamage === undefined) a.attackDamage = DEFAULT_CREATURE_DAMAGE; if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
@@ -10483,7 +10507,7 @@ export default function AssetStudio() {
     list = list.filter((x) => x.id !== clean.id); list.push({ id: clean.id, name: clean.name });
     const ok2 = await sset("textureIndex", JSON.stringify(list));
     if (ok1 && ok2) {
-      projectLibrary.save({ textures: [clean] });
+      projectLibrary.save({ textures: [clean] }, { revive: true });
       await loadTextures(); setTexEdit(null);
       if (applyTo === "piece") { updSel({ tex: clean.id }); flash("Texture \"" + clean.name + "\" saved ✓ — on this block now."); }
       else { setLTexId(clean.id); setLTool("paint"); flash("Texture \"" + clean.name + "\" saved ✓ — painting with it now."); }
@@ -10546,7 +10570,7 @@ export default function AssetStudio() {
     let list = []; const idx = await sget("backgroundIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     list.push({ id, name });
     const ok2 = await sset("backgroundIndex", JSON.stringify(list));
-    projectLibrary.save({ backgrounds: [{ id, name, bg: level.bg }] });
+    projectLibrary.save({ backgrounds: [{ id, name, bg: level.bg }] }, { revive: true });
     if (ok1 && ok2) { flash("Background \"" + name + "\" saved ✓"); setBgName(""); loadBgLib(); } else flash("Couldn't save the background — " + (lastStoreFailure() || "storage unavailable") + ".");
   };
   const loadBackground = async (id) => {
@@ -10623,7 +10647,7 @@ export default function AssetStudio() {
     const ok2 = await sset("levelIndex", JSON.stringify(list));
     // Straight into the project file as well. The browser store is a cache in front of it: it is
     // the copy that is scoped to an address that will not last, and losing it must cost nothing.
-    projectLibrary.save({ levels: [payload] });
+    projectLibrary.save({ levels: [payload] }, { revive: true });
     if (ok1 && ok2) {
       // Carry on editing the FORK, not the level it came from. Leaving the editor pointed at the
       // old id would fork again on the next save, quietly stamping out M3 after M3 after M3.
@@ -13302,16 +13326,6 @@ export default function AssetStudio() {
               )}
               {asset.type === "enemy" && <label className="chk"><input type="checkbox" checked={asset.hostile === false} onChange={(e) => setAsset((a) => ({ ...a, hostile: !e.target.checked }))} /> 🕊️ Not hostile</label>}
               {asset.type === "enemy" && <label className="slider">⚔️ Attack range<input type="number" min="1" value={Math.round((asset.attackRange ?? DEFAULT_ATTACK_RANGE) / LV_CELL)} onChange={(e) => setAsset((a) => ({ ...a, attackRange: Math.max(1, +e.target.value || 1) * LV_CELL }))} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>cells</span></label>}
-              {/* HOW HARD IT BITES. This existed nowhere — an enemy could set its HP, its Speed, its
-                  Strength and how far it could reach, but a creature that holds no weapon had its
-                  damage nailed to UNARMED_DAMAGE, i.e. Bob's bare knuckles. A Squirrel bit for 1 HP
-                  and no edit anywhere could change it, which reads as the animal doing nothing at
-                  all. Sits directly under ⚔️ Attack range because the two are one question — how far
-                  can it reach and what happens when it does — and the hint spells out the number
-                  Strength turns it into, since that scaling is what makes the raw figure misleading
-                  on its own. An enemy holding a WEAPON ignores this and uses the weapon's damage,
-                  same as it always has, so the hint says so rather than lying by omission. */}
-              {asset.type === "enemy" && <label className="slider">🦷 Attack damage<input type="number" min="1" value={creatureBiteDamage(asset)} onChange={(e) => setAsset((a) => ({ ...a, attackDamage: Math.max(1, +e.target.value || 1) }))} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>{enemyWeaponIdOf(asset) ? "unused — it uses its weapon's damage" : "hits for " + Math.round(enemyAttackDamage(asset, null)) + " at 💪 " + (asset.stats?.strength ?? 5)}</span></label>}
               {/* Two per row: five stacked full-width sliders pushed everything below them off
                   the panel, and each one only needs half the width it was taking. */}
               <div className="statgrid">
@@ -13322,7 +13336,12 @@ export default function AssetStudio() {
                   {/* HP is the one stat that buys a concrete pool (5 → 25 HP, 10 → 50), so show
                       the pool next to it: "❤️ HP 7" alone tells you nothing about how many
                       5-damage hits you survive, which is the only question being asked here. */}
-                  <span className="hint2">{asset.stats?.[s] ?? 5}{s === "hp" ? " · " + maxPlayerHP(asset) + " HP" : ""}</span>
+                  {/* ...and on a CREATURE, Strength is the damage dial — it is 2x Strength a bite and
+                      it feeds nothing else, which is exactly why the separate damage number was
+                      removed as clutter. Show the bite here or the rule is invisible and the slider
+                      is back to being a mystery. Not shown once it holds a weapon: the weapon's own
+                      damage takes over then, and claiming a bite number would be a lie. */}
+                  <span className="hint2">{asset.stats?.[s] ?? 5}{s === "hp" ? " · " + maxPlayerHP(asset) + " HP" : (s === "strength" && asset.type === "enemy" && !enemyWeaponIdOf(asset)) ? " · bites for " + creatureMeleeDamage(asset.stats?.strength ?? 5) : ""}</span>
                 </label>
               ))}
               </div>

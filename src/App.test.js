@@ -9,9 +9,9 @@ import {
   ALLY_FOLLOW_RANGE_CELLS,
   ENEMY_STANDOFF_FAR,
   ENEMY_STANDOFF_NEAR,
-  creatureBiteDamage,
+  creatureMeleeDamage,
+  CREATURE_MELEE_PER_STRENGTH,
   creatureBiteBox,
-  DEFAULT_CREATURE_DAMAGE,
   CREATURE_BITE_REACH_CELLS,
   capAirborneSpeed,
   cellSig,
@@ -5333,28 +5333,56 @@ describe("aiming a throw, and a creature that can actually bite", () => {
     expect(throwAimElevationDeg(null)).toBe(45);
   });
 
-  // ---- A creature's bite: damage that could not be set, and a swing that never happened ----
-  test("an enemy with no attackDamage hits for exactly what it always did", () => {
-    // The whole point of defaulting to UNARMED_DAMAGE: no existing enemy is silently rebalanced.
-    expect(DEFAULT_CREATURE_DAMAGE).toBe(UNARMED_DAMAGE);
-    expect(creatureBiteDamage({ type: "enemy" })).toBe(UNARMED_DAMAGE);
-    expect(creatureBiteDamage(null)).toBe(UNARMED_DAMAGE);
-    expect(enemyAttackDamage({ stats: { strength: 5 } }, null)).toBe(2);
-    expect(enemyAttackDamage({ stats: { strength: 10 } }, null)).toBe(4);
+  // ---- A creature's bite: 2x Strength, and a swing that never happened -----------------------
+  test("a creature's melee is exactly twice its Strength", () => {
+    // One dial. Strength fed nothing else on a creature, so a second damage number was clutter.
+    expect(CREATURE_MELEE_PER_STRENGTH).toBe(2);
+    for (let str = 1; str <= 10; str++) {
+      expect(creatureMeleeDamage(str)).toBe(2 * str);
+      expect(enemyAttackDamage({ type: "enemy", stats: { strength: str } }, null)).toBe(2 * str);
+    }
+    expect(creatureMeleeDamage(undefined)).toBe(10); // no stats block reads as the neutral 5
   });
 
-  test("Blake's Squirrel: 1 damage a bite until the new field is set", () => {
-    const squirrel = { type: "enemy", stats: { strength: 3 } };
-    expect(Math.round(enemyAttackDamage(squirrel, null))).toBe(1); // what he was seeing as "0"
-    const bitier = { ...squirrel, attackDamage: 10 };
-    expect(Math.round(enemyAttackDamage(bitier, null))).toBe(6);   // 10 x 3/5
+  test("Blake's animals, before and after", () => {
+    // The old rule was UNARMED_DAMAGE x str/5, i.e. Bob's knuckles: 1 for a Squirrel, 4 for an
+    // Elaphant. The new one is 5x that at EVERY Strength — 2*str against 2*str/5.
+    const old = (str) => Math.max(1, UNARMED_DAMAGE * (str / 5));
+    for (const [name, str] of [["Squirrel", 3], ["Pit Bull", 8], ["Elaphant", 10]]) {
+      expect(creatureMeleeDamage(str)).toBe(2 * str);
+      expect(creatureMeleeDamage(str) / old(str)).toBeCloseTo(5, 6); // the headline: five times harder
+      expect(name.length).toBeGreaterThan(0);
+    }
+    expect(creatureMeleeDamage(3)).toBe(6);    // Squirrel: was 1
+    expect(creatureMeleeDamage(8)).toBe(16);   // Pit Bull: was 3
+    expect(creatureMeleeDamage(10)).toBe(20);  // Elaphant: was 4, and now two-shots a 25 HP body
   });
 
-  test("a weapon still beats the bite field, and a hit never rounds to nothing", () => {
-    const armed = { type: "enemy", stats: { strength: 5 }, attackDamage: 30 };
-    expect(enemyAttackDamage(armed, { damage: 7 })).toBe(7); // holding a gun: the gun's number wins
-    expect(enemyAttackDamage({ stats: { strength: 1 }, attackDamage: 1 }, null)).toBe(1);
-    expect(creatureBiteDamage({ attackDamage: -5 })).toBe(0); // a hand-edited save can't go negative
+  test("a PERSON's fists are untouched, on both sides", () => {
+    // The split that keeps the documented rule intact: jaws are 2x Strength, knuckles are not.
+    // A dressed-look enemy is Bob in a hat and punches for exactly what you punch for — undoing
+    // that would put a Strength-10 thug on 20 while you hit the same thug for 4.
+    for (const str of [1, 5, 10]) {
+      const person = { type: "character", isEnemy: true, stats: { strength: str } };
+      expect(enemyAttackDamage(person, null)).toBeCloseTo(playerMeleeDamage(UNARMED_DAMAGE, str), 0);
+      expect(enemyAttackDamage({ stats: { strength: str } }, null)).toBeCloseTo(playerMeleeDamage(UNARMED_DAMAGE, str), 0);
+    }
+    expect(enemyAttackDamage({ type: "character", stats: { strength: 10 } }, null)).toBe(4);
+    expect(isCreatureUnit({ type: "character" })).toBe(false); // the line the rule is drawn on
+    expect(isCreatureUnit({ type: "enemy" })).toBe(true);
+  });
+
+  test("a weapon still wins, so an armed enemy is completely unaffected", () => {
+    const armed = { type: "enemy", stats: { strength: 5 } };
+    expect(enemyAttackDamage(armed, { damage: 7 })).toBe(7);   // the gun's own number, as always
+    expect(enemyAttackDamage({ type: "enemy", stats: { strength: 10 } }, { damage: 7 })).toBe(14);
+    expect(enemyAttackDamage({ type: "enemy", stats: { strength: 1 } }, null)).toBe(2); // and never 0
+  });
+
+  test("a creature bites for the same whoever is driving it", () => {
+    // Playing AS an animal must not be a different number from being bitten by it.
+    const str = 8;
+    expect(creatureMeleeDamage(str)).toBe(enemyAttackDamage({ type: "enemy", stats: { strength: str } }, null));
   });
 
   test("a bite lands in FRONT of the animal, whichever way it faces", () => {
@@ -5451,5 +5479,88 @@ describe("aiming a throw, and a creature that can actually bite", () => {
     expect(enemyMoveIntent("seek", 300, range, speed, true)).toBe(0);      // comfortably in range
     expect(enemyMoveIntent("seek", 100, range, speed, true)).toBe(-speed); // crowded: still backs off
     expect(enemyMoveIntent("seek", 500, range, speed, true)).toBe(speed);  // too far: still closes
+  });
+});
+
+describe("a delete that outlives a browser still holding the record", () => {
+  const { applyWrite, rememberRemoved, KINDS } = require("./setupProxy").__test;
+  const A = (id) => ({ id, name: id });
+  const store = (assets = [], levels = [], stamps = []) => ({ assets, levels, stamps, textures: [], backgrounds: [], removed: {} });
+  const write = (current, body) => applyWrite(current, body, (Array.isArray(body.assets) ? body.assets : []).filter((x) => x && x.id)).next;
+
+  test("a forgotten id is written down, not just dropped", () => {
+    const next = write(store([A("a1"), A("a2")]), { assets: [], remove: { assets: ["a1"] } });
+    expect(next.assets.map((a) => a.id)).toEqual(["a2"]);
+    expect(next.removed.assets).toEqual(["a1"]);
+    for (const k of KINDS) expect(Array.isArray(next.removed[k])).toBe(true); // every kind gets a list
+  });
+
+  test("THE BUG: a bulk sync from a browser that still has it cannot put it back", () => {
+    // deleteAsset clears this browser, but a second tab, another machine, or the same one after a
+    // container rebuild still holds the record — and loadLibrary pushes everything it holds back
+    // into the file. That push is what "I delete them and they just come back" actually was.
+    let lib = write(store([A("a1"), A("a2")]), { assets: [], remove: { assets: ["a1"] } });
+    lib = write(lib, { assets: [A("a1"), A("a2")] });          // the stale browser's bulk sync
+    expect(lib.assets.map((a) => a.id)).toEqual(["a2"]);        // ...refused
+    expect(lib.removed.assets).toEqual(["a1"]);                 // ...and still remembered
+    lib = write(lib, { assets: [A("a1"), A("a2")] });           // it keeps refusing, every load
+    expect(lib.assets.map((a) => a.id)).toEqual(["a2"]);
+  });
+
+  test("...but a DELIBERATE save brings it back, so nothing can be trapped", () => {
+    // The safety valve: re-creating, re-saving or importing a record names its id explicitly.
+    let lib = write(store([A("a1"), A("a2")]), { assets: [], remove: { assets: ["a1"] } });
+    lib = write(lib, { assets: [A("a1")], revive: true });
+    expect(lib.assets.map((a) => a.id).sort()).toEqual(["a1", "a2"]);
+    expect(lib.removed.assets).toEqual([]);                    // the stone is gone, not just ignored
+    lib = write(lib, { assets: [A("a1"), A("a2")] });          // and a later bulk sync keeps it
+    expect(lib.assets.map((a) => a.id).sort()).toEqual(["a1", "a2"]);
+  });
+
+  test("a revive only frees the ids it actually names", () => {
+    let lib = write(store([A("a1"), A("a2"), A("a3")]), { assets: [], remove: { assets: ["a1", "a3"] } });
+    lib = write(lib, { assets: [A("a1")], revive: true });
+    expect(lib.removed.assets).toEqual(["a3"]);
+    expect(lib.assets.map((a) => a.id).sort()).toEqual(["a1", "a2"]);
+  });
+
+  test("every kind remembers its own deletes, and they do not leak across", () => {
+    let lib = write(store([A("a1")], [A("lv1")], [A("st1")]), { assets: [], remove: { stamps: ["st1"] } });
+    expect(lib.stamps).toEqual([]);
+    expect(lib.removed.stamps).toEqual(["st1"]);
+    expect(lib.removed.assets).toEqual([]);
+    expect(lib.assets.map((a) => a.id)).toEqual(["a1"]);        // the asset is untouched
+    expect(lib.levels.map((a) => a.id)).toEqual(["lv1"]);
+    lib = write(lib, { assets: [], stamps: [A("st1")] });       // a stale stamp sync
+    expect(lib.stamps).toEqual([]);
+  });
+
+  test("the list survives every write, including ones that carry nothing", () => {
+    let lib = write(store([A("a1"), A("a2")]), { assets: [], remove: { assets: ["a1"] } });
+    lib = write(lib, { assets: [A("a2")] });
+    lib = write(lib, { assets: [], levels: [A("lv9")] });
+    expect(lib.removed.assets).toEqual(["a1"]);
+  });
+
+  test("an id is remembered once however many times it is deleted", () => {
+    const r1 = rememberRemoved({ assets: ["a1"] }, { assets: ["a1", "a2"] });
+    expect(r1.assets.sort()).toEqual(["a1", "a2"]);
+    expect(rememberRemoved({}, {}).assets).toEqual([]);
+    expect(rememberRemoved(null, null).assets).toEqual([]);     // a file written before this existed
+  });
+
+  test("an old library file with no removed key still writes cleanly", () => {
+    const legacy = { assets: [A("a1"), A("a2")], levels: [], stamps: [], textures: [], backgrounds: [] };
+    const next = write(legacy, { assets: [], remove: { assets: ["a2"] } });
+    expect(next.assets.map((a) => a.id)).toEqual(["a1"]);
+    expect(next.removed.assets).toEqual(["a2"]);
+  });
+
+  test("the never-blank-the-library guard still wins over all of it", () => {
+    // A page that hasn't finished loading posts an empty assets array; that must never empty the
+    // file, and adding tombstones must not have opened a new way for it to.
+    const { next, keptAssets } = applyWrite(store([A("a1"), A("a2")]), { assets: [] }, []);
+    expect(keptAssets).toBe(true);
+    expect(next.assets.map((a) => a.id)).toEqual(["a1", "a2"]);
   });
 });
