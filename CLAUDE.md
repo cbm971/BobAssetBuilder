@@ -371,6 +371,26 @@ defaults, a `migrate` default so older saves get it, and the editor control.
 Comments explain **why**, and usually name the bug that motivated the code. Match that
 density.
 
+**Stat sliders are 1-10 — except an enemy's Speed, which goes to 20** (`statSliderMax`).
+That one number feeds `aiSpeed` (`2.2 * stat/5` px a frame) with nothing clamping it, so 10
+was a UI ceiling rather than a game one — and both Pit Bulls were already sitting on it, so
+there was no way to author an enemy faster than a dog until the Squirrel needed to be one.
+Do NOT "tidy" it back to 10. The opposite half is deliberate too: every other stat, and every
+stat on a skin, still stops at 10, because the player's own speed and agility go through
+`Math.min(10, …)` and a slider that sets a number the game then ignores is worse than one
+that stops.
+
+**Animals are drawn side-on facing LEFT** (Jumping Pit Bull, Elaphant, Squirrel). No front or
+back art at all; `side` / `up` / `crouch` are the same drawing with their own piece ids, plus
+a hand-drawn `attack` and `death`. Feet land on a y=150 baseline — author the action poses on
+that same line so `alignPoseFootBaseline` is a no-op rather than a drop, and keep the death
+pose's lowest pixel there too or the corpse hangs in the air (`poseFootGapFrac`). Leg pieces
+carry `limb:"leg"` and must fall into **two or more x-separated columns** (`multiLegPivot`
+groups them with a 6px gap tolerance); one column falls through to the biped path and the
+whole animal shuffles as one rigid block. On-screen height is `(artHeight / 260) * 7 * scale`
+cells — canvas size and `scale` trade off exactly, so judge how big something is from that
+number and never from how it looks in the editor.
+
 ## NEVER remove a feature to fix a bug
 
 This is the rule that has been broken most often, and it makes Blake angrier than the
