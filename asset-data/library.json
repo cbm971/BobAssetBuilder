@@ -585589,6 +585589,998 @@
    "animFps": 6,
    "solidDefault": false,
    "savedAt": 1787484545016
+  },
+  {
+   "id": "drnkmch1",
+   "name": "Drink Machine",
+   "type": "prop",
+   "guideId": "default",
+   "size": 6,
+   "angles": {
+    "front": [
+     {
+      "id": "cc00000",
+      "kind": "rect",
+      "x": 55,
+      "y": 222,
+      "w": 90,
+      "h": 8,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc00001",
+      "kind": "rect",
+      "x": 57,
+      "y": 42,
+      "w": 86,
+      "h": 180,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc00002",
+      "kind": "rect",
+      "x": 57,
+      "y": 42,
+      "w": 3,
+      "h": 180,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc00003",
+      "kind": "rect",
+      "x": 55,
+      "y": 40,
+      "w": 90,
+      "h": 8,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc00004",
+      "kind": "rect",
+      "x": 65,
+      "y": 50,
+      "w": 70,
+      "h": 30,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc00005",
+      "kind": "rect",
+      "x": 67,
+      "y": 52,
+      "w": 66,
+      "h": 26,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc00006",
+      "kind": "text",
+      "x": 68,
+      "y": 56,
+      "w": 64,
+      "h": 18,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "text": "DRINKS",
+      "font": "Impact, 'Arial Narrow', sans-serif"
+     },
+     {
+      "id": "cc00007",
+      "kind": "rect",
+      "x": 65,
+      "y": 82,
+      "w": 44,
+      "h": 92,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc00008",
+      "kind": "rect",
+      "x": 67,
+      "y": 84,
+      "w": 40,
+      "h": 88,
+      "color": "#1e3f7d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc00009",
+      "kind": "roundrect",
+      "x": 69,
+      "y": 96,
+      "w": 11,
+      "h": 30,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000a",
+      "kind": "roundrect",
+      "x": 81.5,
+      "y": 96,
+      "w": 11,
+      "h": 30,
+      "color": "#e8b32c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000b",
+      "kind": "roundrect",
+      "x": 94,
+      "y": 96,
+      "w": 11,
+      "h": 30,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000c",
+      "kind": "rect",
+      "x": 67,
+      "y": 128,
+      "w": 40,
+      "h": 2.5,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000d",
+      "kind": "roundrect",
+      "x": 69,
+      "y": 134,
+      "w": 11,
+      "h": 30,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000e",
+      "kind": "roundrect",
+      "x": 81.5,
+      "y": 134,
+      "w": 11,
+      "h": 30,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000f",
+      "kind": "roundrect",
+      "x": 94,
+      "y": 134,
+      "w": 11,
+      "h": 30,
+      "color": "#e8b32c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000g",
+      "kind": "rect",
+      "x": 67,
+      "y": 166,
+      "w": 40,
+      "h": 2.5,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000h",
+      "kind": "rect",
+      "x": 114,
+      "y": 82,
+      "w": 21,
+      "h": 92,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000i",
+      "kind": "rect",
+      "x": 116,
+      "y": 84,
+      "w": 17,
+      "h": 88,
+      "color": "#8a929c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000j",
+      "kind": "rect",
+      "x": 118,
+      "y": 90,
+      "w": 13,
+      "h": 11,
+      "color": "#b0504f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000k",
+      "kind": "rect",
+      "x": 118,
+      "y": 105,
+      "w": 13,
+      "h": 11,
+      "color": "#e8b32c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000l",
+      "kind": "rect",
+      "x": 118,
+      "y": 120,
+      "w": 13,
+      "h": 11,
+      "color": "#f2f0e8",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000m",
+      "kind": "rect",
+      "x": 118,
+      "y": 135,
+      "w": 13,
+      "h": 11,
+      "color": "#24488a",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000n",
+      "kind": "rect",
+      "x": 118,
+      "y": 152,
+      "w": 13,
+      "h": 18,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000o",
+      "kind": "rect",
+      "x": 120,
+      "y": 156,
+      "w": 9,
+      "h": 3,
+      "color": "#8a929c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000p",
+      "kind": "rect",
+      "x": 119.5,
+      "y": 163,
+      "w": 10,
+      "h": 5,
+      "color": "#8a929c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000q",
+      "kind": "rect",
+      "x": 65,
+      "y": 180,
+      "w": 70,
+      "h": 28,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000r",
+      "kind": "rect",
+      "x": 69,
+      "y": 184,
+      "w": 62,
+      "h": 18,
+      "color": "#8a929c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000s",
+      "kind": "rect",
+      "x": 69,
+      "y": 200,
+      "w": 62,
+      "h": 2,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "cc0000t",
+      "kind": "rect",
+      "x": 65,
+      "y": 210,
+      "w": 70,
+      "h": 10,
+      "color": "#8a929c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "frames": [
+    {
+     "front": [
+      {
+       "id": "cc00000",
+       "kind": "rect",
+       "x": 55,
+       "y": 222,
+       "w": 90,
+       "h": 8,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc00001",
+       "kind": "rect",
+       "x": 57,
+       "y": 42,
+       "w": 86,
+       "h": 180,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc00002",
+       "kind": "rect",
+       "x": 57,
+       "y": 42,
+       "w": 3,
+       "h": 180,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc00003",
+       "kind": "rect",
+       "x": 55,
+       "y": 40,
+       "w": 90,
+       "h": 8,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc00004",
+       "kind": "rect",
+       "x": 65,
+       "y": 50,
+       "w": 70,
+       "h": 30,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc00005",
+       "kind": "rect",
+       "x": 67,
+       "y": 52,
+       "w": 66,
+       "h": 26,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc00006",
+       "kind": "text",
+       "x": 68,
+       "y": 56,
+       "w": 64,
+       "h": 18,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "text": "DRINKS",
+       "font": "Impact, 'Arial Narrow', sans-serif"
+      },
+      {
+       "id": "cc00007",
+       "kind": "rect",
+       "x": 65,
+       "y": 82,
+       "w": 44,
+       "h": 92,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc00008",
+       "kind": "rect",
+       "x": 67,
+       "y": 84,
+       "w": 40,
+       "h": 88,
+       "color": "#1e3f7d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc00009",
+       "kind": "roundrect",
+       "x": 69,
+       "y": 96,
+       "w": 11,
+       "h": 30,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000a",
+       "kind": "roundrect",
+       "x": 81.5,
+       "y": 96,
+       "w": 11,
+       "h": 30,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000b",
+       "kind": "roundrect",
+       "x": 94,
+       "y": 96,
+       "w": 11,
+       "h": 30,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000c",
+       "kind": "rect",
+       "x": 67,
+       "y": 128,
+       "w": 40,
+       "h": 2.5,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000d",
+       "kind": "roundrect",
+       "x": 69,
+       "y": 134,
+       "w": 11,
+       "h": 30,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000e",
+       "kind": "roundrect",
+       "x": 81.5,
+       "y": 134,
+       "w": 11,
+       "h": 30,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000f",
+       "kind": "roundrect",
+       "x": 94,
+       "y": 134,
+       "w": 11,
+       "h": 30,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000g",
+       "kind": "rect",
+       "x": 67,
+       "y": 166,
+       "w": 40,
+       "h": 2.5,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000h",
+       "kind": "rect",
+       "x": 114,
+       "y": 82,
+       "w": 21,
+       "h": 92,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000i",
+       "kind": "rect",
+       "x": 116,
+       "y": 84,
+       "w": 17,
+       "h": 88,
+       "color": "#8a929c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000j",
+       "kind": "rect",
+       "x": 118,
+       "y": 90,
+       "w": 13,
+       "h": 11,
+       "color": "#b0504f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000k",
+       "kind": "rect",
+       "x": 118,
+       "y": 105,
+       "w": 13,
+       "h": 11,
+       "color": "#e8b32c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000l",
+       "kind": "rect",
+       "x": 118,
+       "y": 120,
+       "w": 13,
+       "h": 11,
+       "color": "#f2f0e8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000m",
+       "kind": "rect",
+       "x": 118,
+       "y": 135,
+       "w": 13,
+       "h": 11,
+       "color": "#24488a",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000n",
+       "kind": "rect",
+       "x": 118,
+       "y": 152,
+       "w": 13,
+       "h": 18,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000o",
+       "kind": "rect",
+       "x": 120,
+       "y": 156,
+       "w": 9,
+       "h": 3,
+       "color": "#8a929c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000p",
+       "kind": "rect",
+       "x": 119.5,
+       "y": 163,
+       "w": 10,
+       "h": 5,
+       "color": "#8a929c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000q",
+       "kind": "rect",
+       "x": 65,
+       "y": 180,
+       "w": 70,
+       "h": 28,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000r",
+       "kind": "rect",
+       "x": 69,
+       "y": 184,
+       "w": 62,
+       "h": 18,
+       "color": "#8a929c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000s",
+       "kind": "rect",
+       "x": 69,
+       "y": 200,
+       "w": 62,
+       "h": 2,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "cc0000t",
+       "kind": "rect",
+       "x": 65,
+       "y": 210,
+       "w": 70,
+       "h": 10,
+       "color": "#8a929c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    }
+   ],
+   "animFps": 6,
+   "solidDefault": false,
+   "savedAt": 1787485688907
   }
  ],
  "levels": [

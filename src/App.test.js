@@ -4656,7 +4656,7 @@ describe("the props shipped inside asset-data/library.json", () => {
     return a;
   };
 
-  test.each(["cncstd1", "mdetsd1"])("%s survives normalizeAssetJson with its art intact", (id) => {
+  test.each(["cncstd1", "mdetsd1", "drnkmch1"])("%s survives normalizeAssetJson with its art intact", (id) => {
     const raw = byId(id);
     const out = normalizeAssetJson(raw);
     // migrate() does `a.angles = a.frames[0]`, so frames[0].front is what actually survives import.
@@ -4671,15 +4671,28 @@ describe("the props shipped inside asset-data/library.json", () => {
     }
   });
 
-  test.each(["cncstd1", "mdetsd1"])("%s has a size the level editor can actually offer", (id) => {
+  test.each(["cncstd1", "mdetsd1", "drnkmch1"])("%s has a size the level editor can actually offer", (id) => {
     expect(LV_OBJ_SIZES).toContain(byId(id).size);   // 14 is not a size; 12 and 16 are
   });
 
-  test("no stray block inflates either prop's footprint", () => {
+  test("no stray block inflates any of the props' footprints", () => {
     // A forgotten 6px dot at y=210 in Trailer 1 doubles its box to 12x8.4 cells while drawing
     // nothing anyone can see. Empty canvas is free; one stray piece is not.
     expect(propVisibleArtBox(byId("cncstd1"))).toEqual({ minX: 6, minY: 60, w: 188, h: 170 });
     expect(propVisibleArtBox(byId("mdetsd1"))).toEqual({ minX: 68, minY: 36, w: 132, h: 194 });
+    expect(propVisibleArtBox(byId("drnkmch1"))).toEqual({ minX: 55, minY: 40, w: 90, h: 190 });
+  });
+
+  test("the drink machine stands about as tall as Bob does", () => {
+    // Blake's world scale, and the reason `size` is 6 rather than a guess: a player renders
+    // PLAYER_H_CELLS cells tall over the whole 260-unit canvas and BoB's art fills 226 of it, so
+    // Bob is 6.08 cells. A vending machine is a shade under head height, not a wardrobe.
+    const dm = byId("drnkmch1");
+    const fp = levelObjectFootprint({ kind: "prop", size: dm.size, fitArt: true }, dm);
+    expect(fp.rows).toBeCloseTo(6, 6);
+    expect(fp.rows).toBeGreaterThan(5);
+    expect(fp.rows).toBeLessThan(7);
+    expect(fp.cols).toBeLessThan(fp.rows);              // taller than it is wide, like a cabinet
   });
 
   test("the metal detector's beam reaches the crop edge, so a flipped pair butts into one arch", () => {
@@ -4700,10 +4713,10 @@ describe("the props shipped inside asset-data/library.json", () => {
     expect(fp.cols).toBeCloseTo(det.size * box.w / box.h, 6);
   });
 
-  test("both props stay inside the design canvas", () => {
+  test("all three props stay inside the design canvas", () => {
     // worldArtBox measures each piece's UNROTATED box, so a piece hanging off the canvas widens
     // the footprint even though nothing is drawn out there.
-    for (const id of ["cncstd1", "mdetsd1"]) {
+    for (const id of ["cncstd1", "mdetsd1", "drnkmch1"]) {
       for (const p of byId(id).frames[0].front) {
         expect(p.x).toBeGreaterThanOrEqual(0);
         expect(p.y).toBeGreaterThanOrEqual(0);
@@ -4718,7 +4731,7 @@ describe("the props shipped inside asset-data/library.json", () => {
     // A text piece is nowrap with overflow:hidden — a tight box silently CLIPS the first and last
     // letter instead of shrinking, and it reads as a typo rather than as a layout bug. Impact
     // averages well under 0.6em per uppercase glyph, so this bound is deliberately pessimistic.
-    for (const id of ["cncstd1", "mdetsd1"]) {
+    for (const id of ["cncstd1", "mdetsd1", "drnkmch1"]) {
       for (const p of byId(id).frames[0].front.filter((x) => x.kind === "text")) {
         const widest = String(p.text).length * 0.6 * (0.8 * p.h);
         expect(p.w).toBeGreaterThan(widest);
