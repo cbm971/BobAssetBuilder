@@ -241,6 +241,11 @@ import {
   ENEMY_SPEED_STAT_MAX,
   enemyScale,
   toggleGroupMember,
+  isCreatureUnit,
+  canCapture,
+  captureCount,
+  canResurrect,
+  unitSide,
 } from "./App";
 
 describe("door transitions", () => {
@@ -5018,5 +5023,69 @@ describe("taking blocks back out of a held group", () => {
     let g = ["a", "b", "c"];
     for (const id of ["a", "b", "c"]) g = toggleGroupMember(g, id);
     expect(g).toEqual([]);
+  });
+});
+
+describe("catching a defeated creature with a throwable", () => {
+  const dog = { id: "5ey3l1q", name: "Jumping Pit Bull", type: "enemy", hp: 75 };
+  const person = { id: "lr5lwjb", name: "Army Bob E", type: "character", isEnemy: true };
+
+  test("a creature is anything drawn in the Enemy creator; a dressed look is a person", () => {
+    // The only line the data draws between an animal and a man in a hat, and the same one
+    // enemyMaxHP reads to decide whose HP comes from a stat.
+    expect(isCreatureUnit(dog)).toBe(true);
+    expect(isCreatureUnit({ type: "enemy" })).toBe(true);
+    expect(isCreatureUnit(person)).toBe(false);
+    expect(isCreatureUnit({ type: "character" })).toBe(false);
+    expect(isCreatureUnit(null)).toBe(false);
+  });
+
+  test("only a DEFEATED creature can be caught", () => {
+    // Blake's rule: you catch a body, not a fight in progress.
+    expect(canCapture(dog, 0, {})).toBe(true);
+    expect(canCapture(dog, 1, {})).toBe(false);
+    expect(canCapture(dog, 75, {})).toBe(false);
+  });
+
+  test("a person can never be caught, alive or dead", () => {
+    expect(canCapture(person, 0, {})).toBe(false);
+    expect(canCapture(person, 25, {})).toBe(false);
+  });
+
+  test("a body only comes back once, and the staff spends the same life", () => {
+    // resurrectedOnce is shared with the Resurrect staff on purpose — otherwise a staff and a
+    // ball between them raise one corpse twice.
+    expect(canCapture(dog, 0, { resurrectedOnce: true })).toBe(false);
+    expect(canResurrect(0, { resurrectedOnce: true })).toBe(false);
+    // ...and a creature already fighting for you is, by definition, alive and already spent.
+    expect(canCapture(dog, 75, { friendly: true, resurrectedOnce: true })).toBe(false);
+  });
+
+  test("0 catches means the payload is off", () => {
+    // Same convention Bomblets and Freeze use, so there is no separate boolean to disagree with.
+    expect(captureCount({})).toBe(0);
+    expect(captureCount({ captureMax: 0 })).toBe(0);
+    expect(captureCount(null)).toBe(0);
+    expect(captureCount({ captureMax: 2 })).toBe(2);
+    expect(captureCount({ captureMax: -3 })).toBe(0);
+  });
+
+  test("a caught creature reaches the world as a friendly, and friendlies chase and follow", () => {
+    // The whole ally behaviour is machinery that already existed for the Resurrect staff — this
+    // pins the two ends the capture relies on rather than re-testing that machinery.
+    expect(unitSide(dog, { friendly: true })).toBe("friendly");
+    expect(unitSide(dog, {})).toBe("hostile");
+    // A friendly is forced to "seek" whatever it is pointed at, whatever its asset's own AI says.
+    const speed = 4;
+    expect(enemyMoveIntent("seek", 300, 30, speed, true)).toBe(speed);   // charges a foe that is off to its right
+    expect(enemyMoveIntent("seek", -300, 30, speed, true)).toBe(-speed); // ...and follows you back the other way
+    expect(enemyMoveIntent("guard", 300, 30, speed, true)).toBe(0);      // which is NOT what its Guard setting would have done
+  });
+
+  test("the catch reaches as far as the stun payload does, off the same splash", () => {
+    // One rule for how far a landed throwable's payload reaches, so two payloads on one grenade
+    // cover the same ground instead of the ball catching a shorter arc than the shock.
+    expect(throwStunRadiusCells(0)).toBe(1);
+    expect(throwStunRadiusCells(2)).toBe(3);
   });
 });

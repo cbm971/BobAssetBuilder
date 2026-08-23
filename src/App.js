@@ -1401,6 +1401,25 @@ export const nearestUnitCX = (fromCX, candidates) => {
 };
 // A body can be raised only if it's dead and has never been raised before — resurrection is one-and-done.
 export const canResurrect = (hp, ep) => hp <= 0 && !(ep && ep.resurrectedOnce);
+// Whether a unit is a CREATURE rather than a person, which is what decides if it can be caught.
+// The line the data already draws is the asset TYPE: anything built in the Enemy creator (the
+// Squirrel, the Pit Bulls, the Elaphant) is an animal, while a 👹 Enemy is a Dress Bob look — Bob
+// in a different hat. It is the same split enemyMaxHP reads to decide whose HP comes from a stat
+// and whose is typed in, so there is no second definition of "human" to drift out of step. A
+// person-shaped thing drawn in the Enemy creator would be catchable; that is the cost of using
+// the only line the data actually has, and it is the one Blake draws when he builds them.
+export const isCreatureUnit = (ea) => !!ea && ea.type === "enemy";
+// Whether a capture payload may claim this body. Three separate questions, deliberately not
+// collapsed into one expression at the call site: it has to be a creature (you cannot pocket a
+// person), it has to be DEAD — you catch a body, not a fight in progress — and it must never have
+// been brought back before. That last gate is the Resurrect staff's own `resurrectedOnce`, shared
+// on purpose: "one body, one second life" should hold however you spend it, or a staff and a ball
+// between them raise the same corpse twice.
+export const canCapture = (ea, hp, ep) => isCreatureUnit(ea) && canResurrect(hp, ep);
+// How many bodies one throw may claim. 0 is off — the same convention every other throwable
+// payload uses for off (Bomblets, Freeze), so the ability needs no separate boolean flag that
+// could get out of step with its own number.
+export const captureCount = (a) => Math.max(0, Math.round((a && a.captureMax) ?? 0));
 // Which currently-worn slot comes off when you equip `item`: its own slot if that's occupied,
 // otherwise the first worn slot holding something that shares one of the item's category tags —
 // so you can't end up wearing two items of the same category. Exactly one item is ever displaced
@@ -2074,7 +2093,7 @@ export function newAsset(type, slot, wtype) {
   const a = { id: uid(), name: slot ? SLOTS[slot].label : (TYPES[type] ? TYPES[type].label : type), type, angles: blankAngles(), guideId: "default" };
   if (type === "body") { a.angles = JSON.parse(JSON.stringify(DEFAULT_BODY)); return withRig(a); }
   if (type === "skin") { a.stats = DEFAULT_STATS(); a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; }
-  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.stun = 0; a.categories = ["", "", ""]; }
+  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.stun = 0; a.captureMax = 0; a.categories = ["", "", ""]; }
   // An Enemy-creator asset (an animal, a turret — anything not built out of Dress Bob) has no skin
   // stats to read HP from, so it starts at PLAYER_BASE_HP: a brand-new enemy is exactly as tanky as
   // a default player, and the number is then yours to set in the creator. A Dress Bob enemy ignores
@@ -7411,9 +7430,52 @@ export default function AssetStudio() {
               }
             }
           }
+          // CAPTURE payload — the pokéball. Claims defeated CREATURES caught in the blast and puts
+          // them back on their feet fighting for you. Everything downstream of that already exists:
+          // ep.friendly is the same flag the Resurrect staff sets, and unitSide/enemyMoveIntent then
+          // give it the whole ally behaviour for free — it seeks the nearest hostile and brawls with
+          // it, follows you when there are none left, is skipped by your own shots, fire, stun and
+          // blasts, and draws with the purple glow. So this block does nothing but decide WHO.
+          //
+          // Nearest-first, because a ball that lands between two bodies should take the one it
+          // landed on. Deliberately measured to each body's BOX and not its centre (blastHitsBox),
+          // for the reason the stun payload records: measuring to the centre makes a throwable that
+          // lands at a big creature's feet miss it entirely.
+          const wantCaptures = captureCount(a);
+          const caught = [];
+          if (wantCaptures > 0) {
+            const capRadPx = throwStunRadiusCells(radius) * CW; // one shared "how far a landed payload reaches" rule
+            const inRange = [];
+            for (const k of Object.keys(lv.enemies || {})) {
+              const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
+              const ep2 = enemyPos.current[k]; if (!ep2) continue;
+              const hp2 = enemyHP.current[k] === undefined ? enemyMaxHP(ea2) : enemyHP.current[k];
+              if (!canCapture(ea2, hp2, ep2)) continue;
+              const cShape = sideBodyShape(ea2);
+              const cRenderW = enemyRenderW(ea2, CW), cpw = cRenderW * cShape.fraction;
+              const cph = ep2.crouch ? enemyCrouchH(ea2, CW) : enemyStandH(ea2, CW);
+              const bx = ep2.x + (cShape.centerFrac * cRenderW - cpw / 2), by = ep2.y + cShape.topFrac * cph;
+              if (!blastHitsBox(g.x, g.y, bx, by, cpw, cShape.heightFrac * cph, capRadPx)) continue;
+              inRange.push({ k, ea: ea2, ep: ep2, d: Math.hypot(bx + cpw / 2 - g.x, by - g.y) });
+            }
+            inRange.sort((x, y) => x.d - y.d);
+            for (const c of inRange.slice(0, wantCaptures)) {
+              // Exactly what the staff does to a raised body, and it has to stay exactly that:
+              // full HP so it is not an ally that dies to a breeze, the one-and-done flag, every
+              // in-flight attack/stun timer wiped so it does not wake up mid-swing at its old
+              // target, and restedDead cleared so it can fall over again if it is beaten a
+              // second time.
+              enemyHP.current[c.k] = enemyMaxHP(c.ea);
+              c.ep.friendly = true; c.ep.resurrectedOnce = true;
+              c.ep.stun = 0; c.ep.attackT = 0; c.ep.swingT = 0; c.ep.reactT = 0;
+              c.ep.restedDead = false;
+              caught.push(c.ea.name || "a creature");
+            }
+          }
           flash("💥 " + (a.name || "Grenade") + " landed" + (landProp ? " — " + landProp.name : " — 🔥")
             + impactNote
-            + (stunnedCount ? " · 💫 stunned " + stunnedCount + " for " + stunSecs + "s" : ""));
+            + (stunnedCount ? " · 💫 stunned " + stunnedCount + " for " + stunSecs + "s" : "")
+            + (caught.length ? " · 🔴 caught " + caught.join(", ") + " — now fighting for you!" : ""));
         }
         thrown.current = stillFlying;
       }
@@ -9662,7 +9724,7 @@ export default function AssetStudio() {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; } if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; } if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
@@ -12776,6 +12838,22 @@ export default function AssetStudio() {
           <span className="wslab">💫 Stun:</span>
           <label className="slider">Freeze<input type="range" min="0" max="5" step="0.25" value={asset.stun ?? 0} onChange={(e) => setAsset((a) => ({ ...a, stun: +e.target.value }))} /><span className="hint2">{(asset.stun ?? 0) === 0 ? "off" : (asset.stun ?? 0) + "s 💫"}</span></label>
           {/* Kept short: the splash+1 reach and the ally exemption are rules you cannot see. */}
+          {/* CAPTURE. A count rather than a checkbox for the same reason Bomblets and Freeze are
+              counts: 0 already means off, so there is no second on/off flag to disagree with it. */}
+          <span className="wslab">🔴 Capture:</span>
+          <label className="slider">Catch<input type="range" min="0" max="4" step="1" value={asset.captureMax ?? 0} onChange={(e) => setAsset((a) => ({ ...a, captureMax: Math.max(0, +e.target.value || 0) }))} /><span className="hint2">{(asset.captureMax ?? 0) === 0 ? "off" : "up to " + (asset.captureMax ?? 0) + " defeated creature" + ((asset.captureMax ?? 0) > 1 ? "s" : "")}</span></label>
+          {/* A catch gets up ALIVE, which means it gets up inside whatever this throwable left
+              burning. Measured on the Elaphant: caught at 275 HP, on its feet at 242, down to 201
+              before it walked clear. An Elaphant shrugs that off; a Squirrel has 25 HP against a
+              10 dps burn and dies on the spot, which reads as the catch simply not working. The
+              rule itself is right — fire hurts whatever is alive — so say so rather than carving
+              out an exemption, and offer the one tap that fixes it. */}
+          {(asset.captureMax ?? 0) > 0 && (asset.landEffectDps ?? 6) > 0 && (
+            <p className="tip warn">⚠ This also burns for {asset.landEffectDps ?? 6} HP/sec for {asset.landEffectLife ?? 6}s, and your catch stands up <b>in the fire</b> — a small creature can die the instant you take it. <button className="ltbtn" onClick={() => setAsset((a) => ({ ...a, landEffectDps: 0 }))}>Set Burn to 0</button></p>
+          )}
+          {(asset.captureMax ?? 0) > 0 && (
+            <p className="mini">Lands on a <b>defeated</b> creature and it gets up fighting for you — it charges the nearest enemy, follows you when there are none left, and your own shots, fire and blasts pass through it. Only things drawn in the <b>👹 Enemy creator</b> (animals, monsters): a person — any Dress Bob look — can't be pocketed. Same {throwStunRadiusCells(asset.landRadius ?? DEFAULT_LAND_RADIUS)}-cell reach the splash gives Stun, nearest body first, and a body can only ever be brought back once (a Resurrect staff spends the same one life).</p>
+          )}
         </div>
       )}
       {asset.type === "weapon" && isThrowable(asset.wtype) && !(wState === "rest" ? (asset.angles?.side || []) : (asset.states?.rest?.side || [])).some((p) => !p.isHitbox && !p.isMuzzle) && (
