@@ -4642,3 +4642,88 @@ describe("the Front layer takes ramps, like every other terrain layer", () => {
     expect(fgClipPath("#6b7b3a")).toBe("none"); // a plain block is still a full square
   });
 });
+
+describe("the props shipped inside asset-data/library.json", () => {
+  // Committing an asset into the project file IS how it reaches Blake — loadLibrary writes back
+  // anything this browser store has never seen. So the file itself is the deliverable, and these
+  // run the shipped records through the app's OWN code rather than trusting the script that wrote
+  // them. Every check below is a mistake that has actually been made on a prop before.
+  const library = () => JSON.parse(require("fs").readFileSync(
+    require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
+  const byId = (id) => {
+    const a = library().assets.find((x) => x.id === id);
+    expect(a).toBeTruthy();
+    return a;
+  };
+
+  test.each(["cncstd1", "mdetsd1"])("%s survives normalizeAssetJson with its art intact", (id) => {
+    const raw = byId(id);
+    const out = normalizeAssetJson(raw);
+    // migrate() does `a.angles = a.frames[0]`, so frames[0].front is what actually survives import.
+    // A fit variant boxed as {angles:{…}} imports clean and then draws nothing at all.
+    expect(out.frames[0].front.length).toBe(raw.frames[0].front.length);
+    expect(out.angles.front.length).toBe(raw.frames[0].front.length);
+    expect(out.type).toBe("prop");
+    for (const p of out.frames[0].front) {
+      for (const k of ["x", "y", "w", "h"]) expect(Number.isFinite(p[k])).toBe(true);
+      expect(p.w).toBeGreaterThan(0);
+      expect(p.h).toBeGreaterThan(0);
+    }
+  });
+
+  test.each(["cncstd1", "mdetsd1"])("%s has a size the level editor can actually offer", (id) => {
+    expect(LV_OBJ_SIZES).toContain(byId(id).size);   // 14 is not a size; 12 and 16 are
+  });
+
+  test("no stray block inflates either prop's footprint", () => {
+    // A forgotten 6px dot at y=210 in Trailer 1 doubles its box to 12x8.4 cells while drawing
+    // nothing anyone can see. Empty canvas is free; one stray piece is not.
+    expect(propVisibleArtBox(byId("cncstd1"))).toEqual({ minX: 6, minY: 60, w: 188, h: 170 });
+    expect(propVisibleArtBox(byId("mdetsd1"))).toEqual({ minX: 68, minY: 36, w: 132, h: 194 });
+  });
+
+  test("the metal detector's beam reaches the crop edge, so a flipped pair butts into one arch", () => {
+    // The whole point of shipping a SIDE rather than a whole gate: place two, flip the second,
+    // and the two half-beams meet. That only works while the beam runs out to the very edge of
+    // the visible art box — pull it in by a unit and the assembled arch gets a gap in the middle
+    // that no amount of nudging closes, because both halves scale off their own crop.
+    const det = byId("mdetsd1");
+    const box = propVisibleArtBox(det);
+    const right = box.minX + box.w;
+    const atEdge = det.frames[0].front.filter((p) => Math.abs(p.x + p.w - right) < 0.001);
+    expect(atEdge.length).toBeGreaterThan(0);
+    // ...and the beam must be a drawn piece, not a hitbox/cutter that propVisibleArtBox ignores.
+    expect(atEdge.some((p) => !p.isHitbox && !p.isMuzzle && !p.isCutter && p.h > 5)).toBe(true);
+    // Two copies of ONE prop at one size always share a scale, so the seam is closable by design.
+    const fp = levelObjectFootprint({ kind: "prop", size: det.size, fitArt: true }, det);
+    expect(fp.rows).toBeCloseTo(det.size, 6);
+    expect(fp.cols).toBeCloseTo(det.size * box.w / box.h, 6);
+  });
+
+  test("both props stay inside the design canvas", () => {
+    // worldArtBox measures each piece's UNROTATED box, so a piece hanging off the canvas widens
+    // the footprint even though nothing is drawn out there.
+    for (const id of ["cncstd1", "mdetsd1"]) {
+      for (const p of byId(id).frames[0].front) {
+        expect(p.x).toBeGreaterThanOrEqual(0);
+        expect(p.y).toBeGreaterThanOrEqual(0);
+        expect(p.x + p.w).toBeLessThanOrEqual(200);
+        expect(p.y + p.h).toBeLessThanOrEqual(260);
+        if (p.mirror) expect(200 - (p.x + p.w)).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  test("no text piece is boxed too narrow for its own words", () => {
+    // A text piece is nowrap with overflow:hidden — a tight box silently CLIPS the first and last
+    // letter instead of shrinking, and it reads as a typo rather than as a layout bug. Impact
+    // averages well under 0.6em per uppercase glyph, so this bound is deliberately pessimistic.
+    for (const id of ["cncstd1", "mdetsd1"]) {
+      for (const p of byId(id).frames[0].front.filter((x) => x.kind === "text")) {
+        const widest = String(p.text).length * 0.6 * (0.8 * p.h);
+        expect(p.w).toBeGreaterThan(widest);
+        expect(p.mirror).toBeFalsy();   // a mirrored text twin renders back-to-front
+      }
+    }
+  });
+});
