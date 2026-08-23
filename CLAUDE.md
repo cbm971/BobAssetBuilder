@@ -245,6 +245,17 @@ crop and two halves of one backdrop come out at different scales however careful
 were drawn to match. `canvasScale` divides by the shared 200x260 canvas instead, so any
 two props at the same size render at identical px-per-design-unit.
 
+**All three terrain layers STACK** (`paintIntoCell` → `mergeFgFill`), and all three offer
+⧉ Replace to opt out. Only Foreground used to, on the reasoning that nothing walks on the
+others so there was nothing to preserve — which confuses collision with paint. What a
+merge preserves is the wall you already painted: a ramp drawn across a background brick
+wall deleted the bricks under its diagonal and left a hole through to the empty level
+behind. A ramp is not an eraser on any layer.
+Rendering a stacked cell: nest the extra fills INSIDE the one `.lcell` rather than
+emitting siblings. That div carries Background's 42% fade (and Front's `data-fk`, which
+the play loop queries to fade covered cells), so siblings would each fade separately and
+a merged cell would come out more solid than its neighbours.
+
 **Foreground, Background AND Front all take ramps** — `terrainPaintShape` / `layerTakesRamps`
 is the single gate, and every path (toolbar, click, drag, fill, ghost, eyedropper) must
 ask it rather than testing layers itself. Front was excluded, so the ⬛/◢/◣ buttons

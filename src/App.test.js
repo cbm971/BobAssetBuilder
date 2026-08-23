@@ -4371,12 +4371,31 @@ describe("stack or replace is a decision made before the merge", () => {
     expect(fgFills(out).map((f) => f.c)).toEqual(["#c62828"]);
   });
 
-  test("Background and Front never stacked and still don't, either way", () => {
+  test("a ramp is never an eraser — every terrain layer keeps what was under it", () => {
+    // Painting a ramp across a background brick wall used to DELETE the bricks beneath the
+    // diagonal, leaving a hole through to the empty level behind. Foreground merged; the other
+    // two replaced, on the reasoning that nothing walks on them — which confused collision with
+    // paint. What a merge preserves is the wall you already painted.
     const val = { c: "#c62828", ...rampUp };
-    for (const layer of ["bg", "front"]) {
-      expect(paintIntoCell(layer, "#2e7d32", val, false)).toBe(val);
-      expect(paintIntoCell(layer, "#2e7d32", val, true)).toBe(val);
+    for (const layer of ["fg", "bg", "front"]) {
+      const merged = paintIntoCell(layer, "#2e7d32", val, false);
+      expect(fgFills(merged).map((f) => f.c)).toEqual(["#c62828", "#2e7d32"]); // ramp over the wall
+      expect(paintIntoCell(layer, "#2e7d32", val, true)).toBe(val);            // ⧉ Replace still replaces
     }
+  });
+
+  test("layers with no terrain vocabulary are untouched by the stacking rule", () => {
+    const val = { c: "#c62828", ...rampUp };
+    for (const layer of ["obj", "marker", "climb", "hazard"]) {
+      expect(paintIntoCell(layer, "#2e7d32", val, false)).toBe(val);
+    }
+  });
+
+  test("a plain block still covers the stack on Background, as it does on Foreground", () => {
+    // mergeFgFill only stacks when the NEW paint is a diagonal; a solid block hides what's under
+    // it, so painting a plain colour over a merged cell is still a clean one-material reset.
+    const stacked = mergeFgFill("#2e7d32", { c: "#c62828", ...rampUp });
+    expect(paintIntoCell("bg", stacked, "#111111", false)).toBe("#111111");
   });
 
   test("a plain block is still a clean reset on the Foreground with Replace off", () => {
@@ -4607,10 +4626,14 @@ describe("the Front layer takes ramps, like every other terrain layer", () => {
     expect(slopeSurfaceAt(lv, 45, 1, 1, 30, 30)).toBeNull();
   });
 
-  test("painting a Front ramp replaces the cell rather than stacking collision under it", () => {
-    const ramp = paintValue("#6b7b3a", null, terrainPaintShape("front", "slopeUp"));
-    expect(paintIntoCell("front", "#111111", ramp, false)).toBe(ramp);
-    expect(paintIntoCell("front", "#111111", ramp, true)).toBe(ramp);
+  test("a Front ramp stacks over what was there, and the stack is still collision-free", () => {
+    const ramp = paintValue("#6b7b3a", null, terrainPaintShape("front", "slopeUp", false, false, { run: 1, step: 0 }));
+    const merged = paintIntoCell("front", "#111111", ramp, false);
+    expect(fgFills(merged).map((f) => f.c)).toEqual(["#6b7b3a", "#111111"]);
+    // Whatever it stacked, none of it may ever become something the player stands on.
+    const lv = { rows: 3, cols: 3, fg: {}, bg: {}, front: { "1,1": merged } };
+    expect(fgSolid(lv.fg["1,1"])).toBe(false);
+    expect(slopeSurfaceAt(lv, 45, 1, 1, 30, 30)).toBeNull();
   });
 
   test("a Front ramp actually gets a diagonal drawn — the render half of the bug", () => {

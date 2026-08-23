@@ -3696,10 +3696,14 @@ export const mergeFgFill = (cell, val) => {
   return under.length ? { ...fill, more: under } : val;          // `val` unchanged keeps a plain colour string plain
 };
 // What one painted cell becomes — the whole of the stack-or-replace decision, in one place so it
-// can be tested without a level editor. Only the Foreground stacks at all: Background ramps have
-// always replaced the fill under them (nothing walks on them, so there is nothing to preserve) and
-// Front is block-only. `replace` is the ⧉ Replace toggle.
-export const paintIntoCell = (layer, prev, val, replace) => (layer === "fg" && !replace) ? mergeFgFill(prev, val) : val;
+// can be tested without a level editor. `replace` is the ⧉ Replace toggle.
+//
+// EVERY terrain layer stacks. Only Foreground used to, on the reasoning that nothing walks on the
+// others so there was nothing to preserve — but that confuses collision with paint. The thing a
+// merge preserves is the WALL YOU ALREADY PAINTED: drawing a ramp across a background brick wall
+// deleted the bricks under the diagonal and left a hole straight through to the empty level
+// behind it. Nobody wants a ramp to be an eraser, on any layer.
+export const paintIntoCell = (layer, prev, val, replace) => (layerTakesRamps(layer) && !replace) ? mergeFgFill(prev, val) : val;
 
 /* ============================== TEXTURES ==================================
    A painted cell has always been either a plain color string, or an object carrying a ramp
@@ -5557,7 +5561,23 @@ export default function AssetStudio() {
   // diff-and-discard them all was the single biggest per-frame cost on any real-sized level.
   // Memoizing each layer keyed on the state it actually reads is half the answer; each one also
   // has to be wrapped in its OWN element (see CELL_LAYER_STYLE) or React still walks every cell.
-  const lvBgLayer = useMemo(() => level ? <div style={CELL_LAYER_STYLE}>{cellRuns(level.bg || {}).map(({ key, r, c, span, cell }) => <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.bg, cell, r, c, texLib), clipPath: fgClipPath(cell), width: span * LV_CELL }} />)}</div> : null, [level, texLib]);
+  // A Background cell can hold a stack now (see paintIntoCell) — a ramp painted across a brick
+  // wall keeps the bricks under the diagonal instead of punching a hole in them.
+  //
+  // The extra fills are nested INSIDE the single .lcell.bg rather than emitted as siblings,
+  // because that div is what carries Background's 42% fade. As siblings each fill would fade
+  // separately and then stack, so a merged cell would come out visibly more solid than the plain
+  // cells beside it — a rendering artefact that reads as a worse bug than the one being fixed.
+  // Nested, the browser composites the stack first and fades the result once.
+  const lvBgLayer = useMemo(() => level ? <div style={CELL_LAYER_STYLE}>{cellRuns(level.bg || {}).map(({ key, r, c, span, cell }) => {
+    const fills = fgFills(cell);
+    // One fill — byte-identical to how Background has always drawn, runs included.
+    if (fills.length <= 1) return <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.bg, cell, r, c, texLib), clipPath: fgClipPath(cell), width: span * LV_CELL }} />;
+    // fgFills is newest-first, so reverse to put the oldest paint at the bottom of the stack.
+    return <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, width: span * LV_CELL }}>
+      {fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(level.bg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}
+    </div>;
+  })}</div> : null, [level, texLib]);
   // One div per FILL, not per cell: a cell holding a gravel ramp over grass blocks draws both,
   // the grass first and the ramp over it. fgFills is newest-first, so it's walked backwards to
   // put the most recent paint on top. Single-material cells (every cell in an older save) come
@@ -5579,7 +5599,17 @@ export default function AssetStudio() {
   })}</div> : null, [level, texLib, play]);
   // The Front layer keeps its ref here (the loop fades covered cells imperatively) — the wrapper it
   // always had simply moved INSIDE the memo, so the element itself is stable across frames too.
-  const lvFrontLayer = useMemo(() => level ? <div ref={frontCellsRef} style={CELL_LAYER_STYLE}>{Object.keys(level.front || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.front, level.front[k], r, c, texLib), clipPath: fgClipPath(level.front[k]) }} />; })}</div> : null, [level, texLib]);
+  // Front stacks for the same reason Background does. Its extra fills are nested inside the one
+  // element for a second reason too: the play loop fades covered Front cells by querying
+  // [data-fk] and setting style.opacity, so the cell has to stay ONE element to fade as a unit.
+  const lvFrontLayer = useMemo(() => level ? <div ref={frontCellsRef} style={CELL_LAYER_STYLE}>{Object.keys(level.front || {}).map((k) => {
+    const [r, c] = k.split(",").map(Number);
+    const cell = level.front[k], fills = fgFills(cell);
+    if (fills.length <= 1) return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.front, cell, r, c, texLib), clipPath: fgClipPath(cell) }} />;
+    return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL }}>
+      {fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(level.front, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}
+    </div>;
+  })}</div> : null, [level, texLib]);
   // ALL THREE object render passes below walk levelObjectsInDrawOrder, not Object.keys(level.fx).
   // Same objects, but ordered by their own `z` instead of by when their cell key happened to enter
   // the map — that accident of key order was why a prop placed second could end up drawn behind
@@ -11394,7 +11424,9 @@ export default function AssetStudio() {
                     {lFgShape !== "block" && <button className={lFgUpsideDown ? "on" : ""} onClick={() => setLFgUpsideDown((v) => !v)}>🙃 Upside down</button>}
                   </div>
                   {lLayer === "fg" && <label className="chk solidchk"><input type="checkbox" checked={lFgHide} onChange={(e) => setLFgHide(e.target.checked)} /> 🚫 Collision only</label>}
-                  {lLayer === "fg" && <label className="chk solidchk" title="Off: a ramp painted over a block keeps the block underneath, so a gravel ramp can cross grass and two opposing ramps make a two-material peak. On: the paint replaces whatever was in the cell, so you get one clean material — which is what you want when a cell has picked up a stack you didn't ask for."><input type="checkbox" checked={lFgReplace} onChange={(e) => setLFgReplace(e.target.checked)} /> ⧉ Replace, don't stack</label>}
+                  {/* On every terrain layer, not just Foreground — stacking is what all three do
+                      now, so all three need the way to say "no, one clean material here". */}
+                  <label className="chk solidchk" title="Off: a ramp painted over a block keeps the block underneath, so a gravel ramp can cross grass and two opposing ramps make a two-material peak. On: the paint replaces whatever was in the cell, so you get one clean material — which is what you want when a cell has picked up a stack you didn't ask for."><input type="checkbox" checked={lFgReplace} onChange={(e) => setLFgReplace(e.target.checked)} /> ⧉ Replace, don't stack</label>
                 </>
               )}
             </>
