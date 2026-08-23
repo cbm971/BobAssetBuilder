@@ -273,6 +273,21 @@ only ever collided with solid terrain. Blake's Rock (no burn, no splash, damage 
 literally nothing. Note the two damages are different things and the UI used to call both
 "Damage" — Impact is the hit, Burn (`landEffectDps`) is the fire left behind.
 
+**A throw is AIMED, on its own channel** (`p.throwAim`, `throwAimRad`). ↑/↓ and the diagonals
+tip the arc the way they tip a gun's aim: neutral is the 45° lob it has always been, ↑ is a
+high short lob over a wall, ↓ is a genuinely downward throw off a ledge. Two things were in
+the way and both had to go. `p.aimDir` is gated on `p.aiming`, which `armHoldsAimPose` only
+ever grants to a RANGED weapon, so every arrow read 0 with a grenade in hand — hence a fixed
+45° whatever you held. And `throwLaunchVel` solved `R = v²·sin(2θ)/g` **per angle**, so any
+throw at or below level collapsed to `v = 1` (sin(2θ) is 0 at horizontal, negative below, and
+the `Math.max(1, …)` floor caught it): a grenade dropped on your own feet. Speed is now solved
+once at 45° — bit-identical for a neutral throw — and simply fired along the aimed angle,
+because how hard you throw is a property of the arm, not of the angle.
+
+`p.throwAim` is deliberately NOT `p.aimDir`. That number also angles a gun's shot, so letting
+a held throwable widen its gate would tilt the rifle you are carrying without its arm leaving
+the level aim pose — a shot going somewhere the pose is not pointing.
+
 **A thrown grenade's fire has TWO halves and they must expire together.** The damage is
 a `lv.hazard` cell with a `life` countdown in `hazLife.current`; the thing you actually
 SEE, when the throwable has a `landPropId`, is a separate `_thrown` prop pushed into
@@ -364,6 +379,31 @@ faces RIGHT. `enemyNeedsFlip` and `playerSpriteMirrored` are the two answers, an
 anything deriving piece-local x from the mirror (muzzle spawn, melee hitbox) must read
 the same one as the wrapper's `scaleX(-1)`.
 
+**A unit's facing has exactly ONE writer per frame, and it is gated.** Two rules decide it —
+`enemyFaceToward` (turn to your target) and then `enemyFaceThisFrame` (your feet override it
+unless you're committed to an attack) — and they used to write to `ep.face` directly, one
+after the other. A unit whose two rules disagree therefore mirrored its entire sprite every
+frame. Measured on a resurrected Squirrel following the player: a run of 92 frames facing
+left, ONE frame facing right, 44 more facing left. A 180° flip held for 16ms does not read as
+a turn, it reads as **the sprite being in both orientations at once** — which is exactly how
+Blake reported it ("its tail is both in front and behind at the same time"). Both rules now
+feed a `wantFace` local and the single commit goes through `holdFacing`, which requires the
+new direction to be wanted for `FACE_HOLD_FRAMES` (5, under a tenth of a second) before the
+sprite takes it. **Do not add a third direct write to `ep.face` in the AI loop** — the one in
+the attack-commit branch is deliberate and one-shot; anything else re-introduces the strobe.
+
+Watch out for the trap on the way: dwelling only the SECOND rule makes it worse, not better.
+The two then ping-pong on the dwell's own period and the ally strobes at a steady 5-on/1-off
+instead of twitching occasionally — 30 flips in 288 frames, measured, against 3 before.
+
+**Following you is not engaging you** (`ALLY_FOLLOW_RANGE_CELLS`). A friendly with no hostile
+left to fight falls through to following the player, and it used to hold station on its own
+*engage* range — the reach it attacks from. For an animal that is tiny: the Squirrel's is 30px,
+so the stand-off band was 13.5–25.5px while the thing moves 6.2px a frame at Speed 14. It could
+not sit still in a band two frames wide, so it corrected constantly, and every backward
+correction turned it round. The follow band is ~1.2–2.2 cells instead. Combat stand-off is
+untouched — an archer still holds you at ITS range and still backs off when crowded.
+
 **Weapon flags** live flat on the asset (`explode`, `ignoreArmor`, `burst`,
 `burstDelay`, `resurrect`, `stun`, …). Adding one means three places: the `newAsset`
 defaults, a `migrate` default so older saves get it, and the editor control.
@@ -379,6 +419,28 @@ Do NOT "tidy" it back to 10. The opposite half is deliberate too: every other st
 stat on a skin, still stops at 10, because the player's own speed and agility go through
 `Math.min(10, …)` and a slider that sets a number the game then ignores is worse than one
 that stops.
+
+**AN ANIMAL HAS NO ARM, AND TWO SYSTEMS ASSUMED EVERYTHING DOES.** Both halves read to Blake
+as one bug — "the squirrel does 0 damage whether it's controlled by me or attacking me" — and
+they are in completely different places, which is the usual shape here (see the throwable
+`damage` note above).
+
+* **Playing AS one could not attack at all.** The player's whole melee block hung off
+  `armOf(...)`, which finds only a `role:"weaponArm"` piece; an animal has none, so the
+  hit-test, the parry and resurrect-on-a-swing were all skipped and every swing was a silent
+  no-op. Verified: 12 swings at an adjacent enemy, 25/25 HP untouched, not one flash. It now
+  falls back to `creatureBiteBox` — one box in front of its own body, no arm, no guide hand,
+  no weapon fit. That box is placed off `face`, **not** off the art's mirror, because the
+  wrapper's `scaleX(-1)` always ends with the nose on the facing side however the art was
+  drawn, so the facing IS the answer and cannot fall out of step with the sprite.
+* **Its bite damage could not be set anywhere.** A creature holds no weapon, so
+  `enemyAttackDamage` gave it `UNARMED_DAMAGE` — Bob's bare knuckles — and the Enemy editor
+  had HP, Speed, Strength and ⚔️ range but no damage field at all. The Squirrel bit for
+  exactly 1 HP forever. `attackDamage` (🦷 **Attack damage**, under ⚔️ Attack range) is that
+  field, read through `creatureBiteDamage`. It defaults to `UNARMED_DAMAGE`, so **no existing
+  enemy is rebalanced** until Blake edits one, and the player's own punch is untouched (a body
+  and a dressed look have no such field). One number serves both sides: the same field the AI
+  bites you with is what you bite for when you're playing as it.
 
 **Animals are drawn side-on facing LEFT** (Jumping Pit Bull, Elaphant, Squirrel). No front or
 back art at all; `side` / `up` / `crouch` are the same drawing with their own piece ids, plus

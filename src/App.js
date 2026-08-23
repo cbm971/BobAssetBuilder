@@ -1002,11 +1002,38 @@ export const throwRangeBlocks = (strength, weight) => {
 // for v, then split into vx/vy by the facing. So a stronger throw (longer range) simply leaves the
 // hand faster; the arc shape stays consistent. Heavier throwables get a slightly flatter, shorter
 // arc via the reduced range already baked into throwRangeBlocks.
+export const THROW_NEUTRAL_RAD = Math.PI / 4; // the natural 45° lob, and what a throw with no arrow held still does
 export const throwLaunchVel = (rangePx, g, face, angleRad) => {
-  const ang = angleRad ?? (Math.PI / 4);
-  const v = Math.sqrt(Math.max(1, rangePx * g / Math.sin(2 * ang)));
+  const ang = angleRad ?? THROW_NEUTRAL_RAD;
+  // HOW HARD you throw is a property of the arm, not of the angle you throw at, so the speed is
+  // solved ONCE at the natural 45° lob (where sin(2θ) is 1, so this is bit-for-bit the number this
+  // function has always returned for a neutral throw) and then sent along whatever angle is aimed.
+  // Solving the range equation per-angle instead — which is what it used to do — makes any throw at
+  // or below level collapse: sin(2θ) is 0 at horizontal and NEGATIVE below it, so the Math.max(1, …)
+  // floor turned a downward throw into v = 1, i.e. a grenade dropped on your own feet rather than
+  // thrown. That is why the launch angle could only ever be the fixed 45° it was called with.
+  const v = Math.sqrt(Math.max(1, rangePx * g));
   return { vx: (face || 1) * v * Math.cos(ang), vy: -v * Math.sin(ang) };
 };
+// AIMING A THROW. Guns have had ↑/↓ (and the ↑+→ diagonals) since aimDir became a number; throwables
+// were left on a hard-coded 45°, so "I can't aim my grenades down and at angles like my guns" was
+// literally true — every throw, at every angle held, left the hand along the same arc. These are
+// ELEVATIONS above horizontal (positive = upward), not the screen-space degrees aimAngleDeg returns,
+// because that is the form throwLaunchVel's cos/sin split wants.
+//
+// Neutral stays exactly 45° so nothing about an un-aimed throw changes. ↑ is a high lob that drops
+// short and steep — over a wall, into a trench — and ↓ is the one that was impossible: a genuinely
+// downward throw for dropping a grenade off a ledge onto whatever is underneath you. The diagonals
+// sit between, same "one key is the extreme, two keys is the halfway line" rule the gun aim uses.
+export const throwAimElevationDeg = (aimDir) => {
+  const d = aimDir || 0;
+  if (d <= -1) return 75;   // ↑ alone: high, short, steep
+  if (d < 0) return 60;     // ↑ + sideways
+  if (d >= 1) return -25;   // ↓ alone: thrown downward, off a ledge
+  if (d > 0) return 20;     // ↓ + sideways: a flat, fast throw
+  return 45;                // nothing held: the natural lob, unchanged
+};
+export const throwAimRad = (aimDir) => throwAimElevationDeg(aimDir) * Math.PI / 180;
 // ── Throwable payloads: Cluster and Stun ────────────────────
 // CLUSTER: on impact the throwable BECOMES several smaller copies of itself, which arc away, land,
 // and each pay out the landing effect on their own — so it bursts instead of paying out once where
@@ -2012,7 +2039,40 @@ export const enemyWeaponIdOf = (ea) => (ea && (ea.weaponId || (ea.recipe && ea.r
 // Strength-10 thug punching for 10 while you punched the same thug for 4.
 export const enemyAttackDamage = (ea, weapon) => {
   const str = ea?.stats?.strength ?? 5;
-  return Math.max(1, (weapon ? (weapon.damage ?? 5) : UNARMED_DAMAGE) * (str / 5));
+  return Math.max(1, (weapon ? (weapon.damage ?? 5) : creatureBiteDamage(ea)) * (str / 5));
+};
+// WHAT AN UNARMED UNIT HITS FOR, as a weapon-style base damage that Strength then scales.
+// A drawn creature — anything built in the Enemy creator, so every animal — cannot hold a weapon,
+// which meant its bite was permanently UNARMED_DAMAGE: Bob's bare knuckles, standing in for a set
+// of jaws because nothing else was available. There was no field for it anywhere in the Enemy
+// editor either (HP, Speed, Str, ⚔️ range — no damage), so a Squirrel bit for exactly 1 HP a time
+// and no amount of editing could change that. That is the "the squirrel does 0 damage" half you
+// FEEL rather than see: 1 damage out of a 100-HP Bob reads as nothing happening.
+// `attackDamage` is that missing field. Absent, it is UNARMED_DAMAGE — so every enemy that exists
+// today, and every player-based look (which has no such field and swings real fists), keeps the
+// exact number it has now and nothing is silently rebalanced.
+export const DEFAULT_CREATURE_DAMAGE = UNARMED_DAMAGE;
+export const creatureBiteDamage = (ea) => {
+  const d = ea && ea.attackDamage;
+  return Number.isFinite(d) ? Math.max(0, d) : DEFAULT_CREATURE_DAMAGE;
+};
+// Where a creature's bite lands, in world px, given its own body box and which way it faces.
+// Keyed off `face` and NOT off the art's mirror on purpose: whichever convention the art was drawn
+// to, the wrapper's scaleX(-1) always ends with the nose on the facing side (see
+// playerSpriteMirrored), so the facing IS the answer here and cannot fall out of step with it.
+// Sized off the body so a squirrel bites a squirrel-sized bite and an elephant an elephant-sized
+// one, with a floor so a very small animal still has some reach.
+export const CREATURE_BITE_REACH_CELLS = 0.35;
+export const creatureBiteBox = (x, y, w, h, face, cellPx) => {
+  const reach = Math.max((cellPx || 28) * CREATURE_BITE_REACH_CELLS, w * 0.45);
+  return {
+    // Straddles the muzzle — mostly out in front of it, slightly overlapping the body — so contact
+    // at the range the AI actually closes to still registers.
+    x: (face || 1) < 0 ? x - reach * 0.7 : x + w - reach * 0.3,
+    y: y + h * 0.1,
+    w: reach,
+    h: h * 0.6,
+  };
 };
 // Equipment-only: additive on top of the wearer's own stat (5 + a +2 item reads as 7). 0 = no change.
 const DEFAULT_STAT_BOOSTS = () => ({ hp: 0, speed: 0, agility: 0, intelligence: 0, strength: 0 });
@@ -2191,7 +2251,7 @@ export function newAsset(type, slot, wtype) {
   // stats to read HP from, so it starts at PLAYER_BASE_HP: a brand-new enemy is exactly as tanky as
   // a default player, and the number is then yours to set in the creator. A Dress Bob enemy ignores
   // this and derives its HP from the look's own stats — see enemyMaxHP.
-  if (type === "enemy") { a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = PLAYER_BASE_HP; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; return withRig(a); }
+  if (type === "enemy") { a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = PLAYER_BASE_HP; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; a.attackDamage = DEFAULT_CREATURE_DAMAGE; return withRig(a); }
   if (type === "equipment") { a.slot = slot; a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; a.statBoosts = DEFAULT_STAT_BOOSTS(); a.defense = 0; a.effects = []; a.categories = ["", "", ""]; }
   if (type === "projectile") { a.size = 1; }
   // A prop/object: single-canvas pixel art (like a projectile), placed into levels at any size.
@@ -5290,6 +5350,42 @@ export const enemyAttackCommitted = (ep) => !!ep && ((ep.reactT > 0) || (ep.swin
 // that through the whole wind-up; it just keeps backpedalling while it does, so fleeing still
 // flees. Reloading drops aimHold, so it turns its back and runs properly between volleys.
 export const enemyFaceThisFrame = (face, dxMove, committed) => (dxMove && !committed) ? Math.sign(dxMove) : (face || 1);
+// ...AND A FACING MUST NOT BE ABLE TO CHANGE ON ONE FRAME'S WORTH OF MOVEMENT.
+// The rule above takes the facing straight from the sign of this frame's dxMove, with no memory at
+// all, so a single frame in which a unit stepped the other way mirrored the entire sprite for
+// 16ms and back. Measured on a resurrected Squirrel following the player: a clean run of 92 frames
+// facing left, ONE frame facing right, then 44 more facing left. A 180° mirror held for one frame
+// does not read as a turn, it reads as the sprite being in both orientations at once — the tail
+// snaps to the far side of the body and back inside a single refresh. That is exactly how Blake
+// described it, and the near half of the stand-off band (enemyMoveIntent's "backs off if crowded")
+// is what produced those isolated frames: one step of correction, one frame pointing away.
+//
+// So a flip has to be WANTED for FACE_HOLD_FRAMES in a row before it is taken. A deliberate turn
+// costs 5 frames it never used to, which is under a tenth of a second and invisible; a one-frame
+// twitch costs the sprite nothing because it never happens. Kept as a separate function from
+// enemyFaceThisFrame rather than folded into it because that one is pure over its arguments and
+// this one needs a counter to live on the unit between frames.
+export const FACE_HOLD_FRAMES = 5;
+export const holdFacing = (face, want, pendT, dtMul) => {
+  const cur = face || 1, w = want || cur;
+  if (w === cur) return { face: cur, pendT: 0 };
+  const t = (pendT || 0) + (dtMul || 1);
+  return t >= FACE_HOLD_FRAMES ? { face: w, pendT: 0 } : { face: cur, pendT: t };
+};
+// HOW CLOSE A FRIENDLY WITH NOTHING LEFT TO FIGHT TAGS ALONG, in cells.
+// A resurrected ally with no hostile in the level falls through to following you, and it used to do
+// that on its own ENGAGE range — the reach it attacks from. For an animal that is tiny: the
+// Squirrel's is 30px, so the stand-off band it tried to hold was 13.5–25.5px wide, half a cell,
+// while the thing moves 6.2px a frame at Speed 14. It could not sit still inside a band two frames
+// wide, so it spent the whole time correcting: a step in, a step back, and every step back turned
+// it round to face away from the player it was following. Following is not engaging and should
+// never have borrowed that number.
+//
+// This band is ~1.2–2.2 cells — a full cell of slack, several frames of movement wide — so a pet
+// walks with you and stops, instead of jittering on the spot. Combat is untouched: an archer still
+// holds you at ITS range and still backs off when crowded, which is the behaviour that number is
+// actually for.
+export const ALLY_FOLLOW_RANGE_CELLS = 2.6;
 // Storage order controls stacking only within the same player-relative layer. Front/back is a
 // stronger rule: a front object must render over every back object regardless of placement order.
 // Keep the original stack index so editor actions still update/delete the correct saved object.
@@ -5404,12 +5500,12 @@ export const playerFrozen = (p) => !!p && (((p.stun || 0) > 0) || ((p.down || 0)
 export const stunPlayer = (p, secs) => {
   if (!p || !(secs > 0)) return;
   p.stun = Math.max(p.stun || 0, statusFreezeFrames(secs));
-  p.blocking = null; p.throwAiming = false; p.burstLeft = 0;
+  p.blocking = null; p.throwAiming = false; p.throwAim = 0; p.burstLeft = 0;
 };
 export const knockDownPlayer = (p, secs) => {
   if (!p || !(secs > 0)) return;
   p.down = Math.max(p.down || 0, tackleDownFrames(secs));
-  p.blocking = null; p.throwAiming = false; p.burstLeft = 0;
+  p.blocking = null; p.throwAiming = false; p.throwAim = 0; p.burstLeft = 0;
 };
 // The Tackle ability a unit is wearing, in seconds, or null when it isn't wearing one. Reads
 // `effects` exactly the way the player's own lookup does — mergeEquip and assembleLook both pack a
@@ -5854,7 +5950,7 @@ export default function AssetStudio() {
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
   const groundArtCache = useRef(new Map());   // item id -> its baked ground art + bounding box; see groundArt() — an item on a pedestal or lying where a body dropped it is otherwise re-baked every playtest frame
-  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 });
+  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 });
   const keys = useRef({});
   const lvRef = useRef(null);
 
@@ -6449,7 +6545,9 @@ export default function AssetStudio() {
       if (!K.throw && p.wasThrow && canThrowNow) {
         const strength = pstats.strength;
         const rangeBlocks = throwRangeBlocks(strength, carriedThrow.weight);
-        const { vx, vy } = throwLaunchVel(rangeBlocks * CW, 0.175, p.face, Math.PI / 4);
+        // The angle held at the moment of RELEASE, not at the moment you grabbed it — so you can
+        // line the arc up with ↑/↓ while G is down and watch the dotted preview move to match.
+        const { vx, vy } = throwLaunchVel(rangeBlocks * CW, 0.175, p.face, throwAimRad(p.throwAim));
         const artPieces = bake({ ...carriedThrow, angles: (carriedThrow.states?.rest || carriedThrow.angles || blankAngles()) }, "side");
         // prepFlyingArt: pieces re-centered in the design canvas + the container sized as the
         // FULL canvas at world scale — see its comment; this is the actual fix for the grenade
@@ -6601,6 +6699,17 @@ export default function AssetStudio() {
       p.aiming = armHoldsAimPose(playtestWeapon && isRanged(playtestWeapon.wtype), climbing, K.fire, K.aimUp, K.aimDown, p.firing);
       const aimDiag = (K.aimLeft || K.aimRight) ? AIM_DIAGONAL : 1;
       p.aimDir = p.aiming ? (K.aimUp ? -aimDiag : K.aimDown ? aimDiag : 0) : 0;
+      // A THROW READS THE SAME ARROWS, on its own channel. p.aimDir is gated on p.aiming, which
+      // armHoldsAimPose only ever grants to a RANGED weapon — so while you held G with a grenade in
+      // hand every arrow resolved to 0 and the throw left at its fixed 45° whatever you pressed.
+      // That is the whole of "I can't aim my grenades down and at angles like my guns".
+      //
+      // Deliberately a SEPARATE field rather than letting a throwable open the p.aimDir gate: that
+      // number is also what angles a gun's shot (projectileAimRad, down in the Fire block), and a
+      // held throwable widening it would have made holding G+↓ tilt the rifle you are carrying
+      // without its arm ever leaving the level aim pose — a shot flying somewhere the pose is not
+      // pointing, which is the exact bug enemyFaceThisFrame exists to have fixed on the other side.
+      p.throwAim = p.throwAiming ? (K.aimUp ? -aimDiag : K.aimDown ? aimDiag : 0) : 0;
 
       // --- Ground: ramps first, flat solids second -------------------------------------------
       // Ramps own the centre column whenever a surface is in reach. Flat block landing must NOT
@@ -6758,7 +6867,7 @@ export default function AssetStudio() {
 
           if (!enemyPos.current[k]) {
             const spawnLeft = ec * CW + CW / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2);
-            enemyPos.current[k] = { x: spawnLeft, y: (er + 1) * CH - standEph, vy: 0, onGround: false, face: spawn.facing === 1 ? 1 : -1, crouch: false, crouchT: 0, dodgeRolled: false, willDodge: false, attackT: 0, swingT: 0, reactT: 0, aimHold: 0, walkPhase: 0, walking: false, weaponAmmo: null, reloading: false };
+            enemyPos.current[k] = { x: spawnLeft, y: (er + 1) * CH - standEph, vy: 0, onGround: false, face: spawn.facing === 1 ? 1 : -1, crouch: false, crouchT: 0, dodgeRolled: false, willDodge: false, attackT: 0, swingT: 0, reactT: 0, aimHold: 0, faceFlipT: 0, walkPhase: 0, walking: false, weaponAmmo: null, reloading: false };
           }
           const ep = enemyPos.current[k];
           const oldEph = ep.crouch ? crouchEph : standEph;
@@ -6893,10 +7002,18 @@ export default function AssetStudio() {
           const distToTarget = targetCX - eCenterXNow;
           const aiSpeed = 2.2 * ((ea.stats?.speed ?? 5) / 5) * dtMul;
           const ai = friendly ? "seek" : (spawn.ai || ea.ai || "guard"); // friendlies always chase their foe; hostiles keep their set behavior
-          if (!stunned && acts) ep.face = enemyFaceToward(distToTarget, ep.face);
+          // THE FACING THIS UNIT *WANTS*, not the facing it gets. Both rules below used to write
+          // straight to ep.face — turn-toward-your-target here, then feet-override-it further down —
+          // and a unit whose two rules disagree therefore mirrored its whole sprite every single
+          // frame. They are collected into one local instead and committed ONCE, through holdFacing,
+          // at the bottom. Order is unchanged, so what a unit wants to be looking at is identical.
+          let wantFace = ep.face;
+          if (!stunned && acts) wantFace = enemyFaceToward(distToTarget, ep.face);
           // Detection/stealth only matters for a hostile hunting the PLAYER; allies and unit-vs-unit
           // brawls always "see" their target (you can't stealth past a melee your minion started).
-          const detected = (hostile && targetKind === "player") ? enemyDetects(distToTarget, ep.face) : acts;
+          // Reads wantFace, which is exactly the value ep.face held here before the two writes were
+          // merged — a unit senses you down the line it is turning to look along, dwell or no dwell.
+          const detected = (hostile && targetKind === "player") ? enemyDetects(distToTarget, wantFace) : acts;
           const gapSigned = (Math.sign(distToTarget) || 1) * boxGap(targetCX, targetW, eCenterXNow, epw);
           // TACKLE CHARGE. A tackler that obeys its ordinary move intent can never use the ability
           // it is wearing: Guard never leaves its spawn, Avoid runs the wrong way, and Seek stops at
@@ -6915,10 +7032,18 @@ export default function AssetStudio() {
             ep.charge = TACKLE_CHARGE_FRAMES;
           }
           const charging = (ep.charge || 0) > 0;
+          // Following you is not engaging you, so it does not use the engage range — see
+          // ALLY_FOLLOW_RANGE_CELLS. Every other target (a foe in a brawl, the player being hunted)
+          // keeps engageRange exactly as before, so no hostile's behaviour moves.
+          const moveRange = targetKind === "followPlayer" ? ALLY_FOLLOW_RANGE_CELLS * CW : engageRange;
           const dxMove = (stunned || !acts) ? 0
             : charging ? (Math.sign(distToTarget) || ep.face || 1) * aiSpeed * TACKLE_CHARGE_SPEED_MUL
-            : enemyMoveIntent(ai, gapSigned, engageRange, aiSpeed, detected);
-          ep.face = enemyFaceThisFrame(ep.face, dxMove, enemyAttackCommitted(ep));
+            : enemyMoveIntent(ai, gapSigned, moveRange, aiSpeed, detected);
+          // The feet's say, on top of the turn-toward above — then the one and only write, gated by
+          // holdFacing so a facing the unit wanted for a single frame never reaches the sprite.
+          wantFace = enemyFaceThisFrame(wantFace, dxMove, enemyAttackCommitted(ep));
+          const faceHold = holdFacing(ep.face, wantFace, ep.faceFlipT, dtMul);
+          ep.face = faceHold.face; ep.faceFlipT = faceHold.pendT;
           // Walls actually stop enemies now — they used to have NO horizontal collision at all:
           // a Seek enemy walked INTO a wall and the vertical snap then popped it on top, so a
           // chase across any real terrain read as completely broken. A one-cell lip gets the
@@ -7289,26 +7414,38 @@ export default function AssetStudio() {
         if (unarmedSwing || !playtestWeapon || !isRanged(playtestWeapon.wtype)) {
           const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, crouch: p.crouch, walking: p.walking });
           const armPiece = playerAsset ? armOf(playerAsset.angles[angleNow] || []) : null;
-          if (armPiece) {
-            const baseArmRot = armPiece.rot || 0;
+          // A DRAWN CREATURE HAS NO ARM TO SWING, AND THIS WHOLE BLOCK USED TO HANG OFF ONE.
+          // armOf finds only a piece flagged role:"weaponArm", and an animal built in the Enemy
+          // creator (the Squirrel, both Pit Bulls, the Elaphant) has none — nothing on it is an arm.
+          // So playing AS one skipped the hit-test, the parry and the resurrect-on-a-swing entirely:
+          // every swing was a silent no-op and the animal could not hurt anything at all, ever.
+          // That is the "0 damage when it's controlled by me" half, and it is total rather than a
+          // small number. It BITES instead — one box out in front of its own body — which needs no
+          // arm, no guide hand and no weapon fit, none of which an animal has.
+          const biteBox = (!armPiece && playerAsset) ? creatureBiteBox(p.x, p.y, pw, ph, p.face, CW) : null;
+          if (armPiece || biteBox) {
+            const baseArmRot = armPiece ? (armPiece.rot || 0) : 0;
             const swingAngle = meleeSwingAngle(p.firing.t, p.firing.dur);
-            const curArm = { ...armPiece, rot: baseArmRot + armPivotSign(armPiece.armPivot) * swingAngle };
-            const wfit = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
-            const guideHand = handForGuideId(wfit.guideId)[angleNow] || DEFAULT_HAND[angleNow];
+            const curArm = armPiece ? { ...armPiece, rot: baseArmRot + armPivotSign(armPiece.armPivot) * swingAngle } : null;
+            const wfit = armPiece ? weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset)) : null;
+            const guideHand = armPiece ? (handForGuideId(wfit.guideId)[angleNow] || DEFAULT_HAND[angleNow]) : null;
             const useFist = unarmedSwing || !playtestWeapon; // bare-handed reach/damage; a real melee weapon (not forced-unarmed) uses its own hitbox
-            const hbPieces = !useFist
+            const hbPieces = !armPiece ? []
+              : !useFist
               ? attachWeaponBlocks(weaponHitboxPieces(bake({ ...playtestWeapon, angles: weaponFireArt(wfit.states, angleNow) }, angleNow)), curArm, guideHand, baseArmRot)
               : attachWeaponBlocks([{ id: "fist", kind: "rect", x: guideHand.x - 20, y: guideHand.y - 20, w: 40, h: 40, isHitbox: true }], curArm, guideHand, baseArmRot);
-            if (hbPieces.length) {
+            if (hbPieces.length || biteBox) {
               const wrapLeft = p.x - (bodyShape.centerFrac * (CW * PLAYER_RENDER_W_CELLS) - pw / 2);
               const strength = pstats.strength, intelligence = pstats.intelligence;
               // Every hitbox piece, resolved to world space ONCE. Mirror when facing LEFT, exactly
               // like the muzzle-spawn math — the wrapper renders the whole character through
               // scaleX(-1) about the render box, so a right-facing-space hitbox lands on the WRONG
               // side without this: facing left, your swing was still hitting enemies on your RIGHT.
+              // A bite skips that step because creatureBiteBox is already world-space and already
+              // reads the facing directly — there is no design-canvas x to un-mirror.
               const renderWNow0 = CW * PLAYER_RENDER_W_CELLS;
               const swingMirrored = playerSpriteMirrored(basePlayerAsset, p.face);
-              const swingBoxes = hbPieces.map((hb) => {
+              const swingBoxes = biteBox ? [biteBox] : hbPieces.map((hb) => {
                 const lxP = (hb.x / W) * renderWNow0, bw = (hb.w / W) * renderWNow0;
                 return { x: wrapLeft + (swingMirrored ? renderWNow0 - (lxP + bw) : lxP), y: p.y + (hb.y / H) * ph, w: bw, h: (hb.h / H) * ph };
               });
@@ -7392,9 +7529,14 @@ export default function AssetStudio() {
                     // own (times any Tag Damage gear that matches its categories); bare-handed it's
                     // UNARMED_DAMAGE. Fists carry no categories, so no gear multiplier applies to
                     // them — a Tag Damage hat boosts the weapon it's tagged for, not your knuckles.
+                    // creatureBiteDamage, not UNARMED_DAMAGE, for the bare-handed base: on a body or
+                    // a dressed look it IS UNARMED_DAMAGE (no attackDamage field exists on either,
+                    // so Bob's punch is untouched), but an animal you are playing as bites for the
+                    // number set on its own ⚔️ Attack damage — the same one it bites you with when
+                    // the AI is driving it. One rule for the creature whichever side is holding it.
                     const base = (!unarmedSwing && playtestWeapon)
                       ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories), strength)
-                      : playerMeleeDamage(UNARMED_DAMAGE, strength);
+                      : playerMeleeDamage(creatureBiteDamage(basePlayerAsset), strength);
                     const isCrit = Math.random() < critChance(intelligence);
                     const dmg = isCrit ? base * 2 : base;
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
@@ -9869,7 +10011,7 @@ export default function AssetStudio() {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; } if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; } if (a.type === "enemy" && a.attackDamage === undefined) a.attackDamage = DEFAULT_CREATURE_DAMAGE; if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
@@ -11527,7 +11669,7 @@ export default function AssetStudio() {
           <span className="badge">{lv.isRoom ? "🚪 Room" : "🗺️ Level"}</span>
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel}>↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel}>↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -11736,7 +11878,7 @@ export default function AssetStudio() {
                 level. They flow side by side now and only wrap when the stage is genuinely too
                 narrow, so the canvas keeps its vertical space. */}
             <div className="statusrow">
-            {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb (two arrows = 45°) · <b>J/F</b> fire · <b>Q</b> {playtestWeapon && !isRanged(playtestWeapon.wtype) ? "tap to block" : "melee"}{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload early" : ""}{playtestThrowId ? " · hold G to aim, release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
+            {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb (two arrows = 45°) · <b>J/F</b> fire · <b>Q</b> {playtestWeapon && !isRanged(playtestWeapon.wtype) ? "tap to block" : "melee"}{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload early" : ""}{playtestThrowId ? " · hold G to aim (↑/↓ angles the arc), release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
             {play && (playtestWeaponId || SLOT_ORDER.some((sl) => equipped.current[sl])) && (() => {
               const bits = [];
               if (playtestWeaponId) { const w = findA(playtestWeaponId); if (w) bits.push("🗡️ " + w.name); }
@@ -11745,7 +11887,7 @@ export default function AssetStudio() {
             })()}
             {play && playtestThrowId && (() => {
               const n = throwCarry.current;
-              return <p className={"statusline ammoline" + (n <= 0 ? " empty" : "")}>💣 {n > 0 ? n + " left — hold G to aim, release to throw" : "out of throwables"}</p>;
+              return <p className={"statusline ammoline" + (n <= 0 ? " empty" : "")}>💣 {n > 0 ? n + " left — hold G to aim, ↑/↓ to angle the arc, release to throw" : "out of throwables"}</p>;
             })()}
             {play && playtestWeapon && isRanged(playtestWeapon.wtype) && (() => {
               // Reads the live ref straight off; the playtest loop re-renders every frame anyway
@@ -12570,7 +12712,9 @@ export default function AssetStudio() {
                   const ph = p.crouch ? LV_CELL * PLAYER_CROUCH_H_CELLS : LV_CELL * PLAYER_H_CELLS;
                   const strength = playerAsset?.stats?.strength ?? 5;
                   const rangeBlocks = throwRangeBlocks(strength, ct.weight);
-                  const { vx, vy } = throwLaunchVel(rangeBlocks * LV_CELL, 0.175, p.face, Math.PI / 4);
+                  // Same angle the release will actually use (p.throwAim), or the preview would go
+                  // on drawing the old 45° lob while ↑/↓ silently changed where the thing landed.
+                  const { vx, vy } = throwLaunchVel(rangeBlocks * LV_CELL, 0.175, p.face, throwAimRad(p.throwAim));
                   const isSolid = (x, y) => {
                     const c = Math.floor(x / LV_CELL), r = Math.floor(y / LV_CELL);
                     if (r < 0 || c < 0 || r >= lv.rows || c >= lv.cols) return y > lv.rows * LV_CELL;
@@ -13158,6 +13302,16 @@ export default function AssetStudio() {
               )}
               {asset.type === "enemy" && <label className="chk"><input type="checkbox" checked={asset.hostile === false} onChange={(e) => setAsset((a) => ({ ...a, hostile: !e.target.checked }))} /> 🕊️ Not hostile</label>}
               {asset.type === "enemy" && <label className="slider">⚔️ Attack range<input type="number" min="1" value={Math.round((asset.attackRange ?? DEFAULT_ATTACK_RANGE) / LV_CELL)} onChange={(e) => setAsset((a) => ({ ...a, attackRange: Math.max(1, +e.target.value || 1) * LV_CELL }))} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>cells</span></label>}
+              {/* HOW HARD IT BITES. This existed nowhere — an enemy could set its HP, its Speed, its
+                  Strength and how far it could reach, but a creature that holds no weapon had its
+                  damage nailed to UNARMED_DAMAGE, i.e. Bob's bare knuckles. A Squirrel bit for 1 HP
+                  and no edit anywhere could change it, which reads as the animal doing nothing at
+                  all. Sits directly under ⚔️ Attack range because the two are one question — how far
+                  can it reach and what happens when it does — and the hint spells out the number
+                  Strength turns it into, since that scaling is what makes the raw figure misleading
+                  on its own. An enemy holding a WEAPON ignores this and uses the weapon's damage,
+                  same as it always has, so the hint says so rather than lying by omission. */}
+              {asset.type === "enemy" && <label className="slider">🦷 Attack damage<input type="number" min="1" value={creatureBiteDamage(asset)} onChange={(e) => setAsset((a) => ({ ...a, attackDamage: Math.max(1, +e.target.value || 1) }))} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>{enemyWeaponIdOf(asset) ? "unused — it uses its weapon's damage" : "hits for " + Math.round(enemyAttackDamage(asset, null)) + " at 💪 " + (asset.stats?.strength ?? 5)}</span></label>}
               {/* Two per row: five stacked full-width sliders pushed everything below them off
                   the panel, and each one only needs half the width it was taking. */}
               <div className="statgrid">

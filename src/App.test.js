@@ -1,5 +1,18 @@
 import {
   DEFAULT_PROJECTILE_RANGE,
+  throwLaunchVel,
+  throwAimElevationDeg,
+  throwAimRad,
+  THROW_NEUTRAL_RAD,
+  holdFacing,
+  FACE_HOLD_FRAMES,
+  ALLY_FOLLOW_RANGE_CELLS,
+  ENEMY_STANDOFF_FAR,
+  ENEMY_STANDOFF_NEAR,
+  creatureBiteDamage,
+  creatureBiteBox,
+  DEFAULT_CREATURE_DAMAGE,
+  CREATURE_BITE_REACH_CELLS,
   capAirborneSpeed,
   cellSig,
   LV_OBJ_SIZES,
@@ -5260,5 +5273,183 @@ describe("clothing that raises your allies' maximum HP", () => {
     const dog = { type: "enemy", hp: 75 };
     expect(unitMaxHP(dog, { friendly: true }, allyMaxHPBonus([]))).toBe(enemyMaxHP(dog));
     expect(applyAllyHPBonus(40, 75, 0, 0)).toEqual({ hp: 40, granted: 0, max: 75 });
+  });
+});
+
+describe("aiming a throw, and a creature that can actually bite", () => {
+  // ---- Grenades: the launch angle was a hard-coded 45 degrees whatever you held -------------
+  test("a neutral throw is bit-for-bit the throw it has always been", () => {
+    // The speed solve moved from per-angle to once-at-45. At 45 sin(2t) is exactly 1, so the
+    // number this returns for an un-aimed throw must not have moved by a single float.
+    const v = throwLaunchVel(400, 0.175, 1, Math.PI / 4);
+    const old = Math.sqrt(Math.max(1, 400 * 0.175 / Math.sin(2 * (Math.PI / 4))));
+    expect(v.vx).toBeCloseTo(old * Math.cos(Math.PI / 4), 10);
+    expect(v.vy).toBeCloseTo(-old * Math.sin(Math.PI / 4), 10);
+    expect(throwAimElevationDeg(0)).toBe(45);
+    expect(throwAimRad(0)).toBeCloseTo(THROW_NEUTRAL_RAD);
+  });
+
+  test("a downward throw is thrown, not dropped", () => {
+    // THE BUG: solving R = v^2 sin(2t)/g per angle means sin(2t) <= 0 at or below level, so the
+    // Math.max(1, ...) floor collapsed v to 1 — a grenade let go of at your feet rather than
+    // thrown off a ledge. Speed must not depend on the angle at all.
+    const flat = throwLaunchVel(400, 0.175, 1, 0);
+    const down = throwLaunchVel(400, 0.175, 1, throwAimRad(1));
+    const neutral = throwLaunchVel(400, 0.175, 1, throwAimRad(0));
+    const speed = (v) => Math.hypot(v.vx, v.vy);
+    expect(speed(flat)).toBeCloseTo(speed(neutral), 6);
+    expect(speed(down)).toBeCloseTo(speed(neutral), 6);
+    expect(down.vy).toBeGreaterThan(0);   // screen coords: +y is downward, so it really goes down
+    expect(flat.vy).toBeCloseTo(0, 6);
+    expect(speed(down)).toBeGreaterThan(5);
+  });
+
+  test("every aim direction gives a different arc, and up is steeper than down", () => {
+    const el = throwAimElevationDeg;
+    expect(el(-1)).toBeGreaterThan(el(-0.5));   // up alone is the steepest
+    expect(el(-0.5)).toBeGreaterThan(el(0));    // up + sideways sits between it and neutral
+    expect(el(0)).toBeGreaterThan(el(0.5));     // down + sideways flattens it
+    expect(el(0.5)).toBeGreaterThan(el(1));     // down alone is the only one below level
+    expect(el(1)).toBeLessThan(0);
+    expect(new Set([-1, -0.5, 0, 0.5, 1].map(el)).size).toBe(5); // no two directions collide
+  });
+
+  test("a steep throw lands shorter than a flat one — that is the point of aiming", () => {
+    // Integrated the same way the trajectory preview and the real grenade both integrate it.
+    const rangeOf = (aimDir) => {
+      const { vx, vy } = throwLaunchVel(400, 0.175, 1, throwAimRad(aimDir));
+      let x = 0, y = 0, dy = vy;
+      for (let i = 0; i < 4000 && y <= 0; i++) { x += vx; dy += 0.175; y += dy; }
+      return x;
+    };
+    expect(rangeOf(-1)).toBeLessThan(rangeOf(0));      // up drops it short and steep, over a wall
+    expect(rangeOf(0.5)).toBeGreaterThan(rangeOf(-1)); // a flat throw carries further than a lob
+  });
+
+  test("the throw is aimed off its own channel, never the gun's", () => {
+    // p.throwAim exists precisely so a held throwable cannot tilt a rifle's shot without the
+    // rifle's arm moving. Nothing here should read the gun's aimDir mapping.
+    expect(throwAimElevationDeg(undefined)).toBe(45);
+    expect(throwAimElevationDeg(null)).toBe(45);
+  });
+
+  // ---- A creature's bite: damage that could not be set, and a swing that never happened ----
+  test("an enemy with no attackDamage hits for exactly what it always did", () => {
+    // The whole point of defaulting to UNARMED_DAMAGE: no existing enemy is silently rebalanced.
+    expect(DEFAULT_CREATURE_DAMAGE).toBe(UNARMED_DAMAGE);
+    expect(creatureBiteDamage({ type: "enemy" })).toBe(UNARMED_DAMAGE);
+    expect(creatureBiteDamage(null)).toBe(UNARMED_DAMAGE);
+    expect(enemyAttackDamage({ stats: { strength: 5 } }, null)).toBe(2);
+    expect(enemyAttackDamage({ stats: { strength: 10 } }, null)).toBe(4);
+  });
+
+  test("Blake's Squirrel: 1 damage a bite until the new field is set", () => {
+    const squirrel = { type: "enemy", stats: { strength: 3 } };
+    expect(Math.round(enemyAttackDamage(squirrel, null))).toBe(1); // what he was seeing as "0"
+    const bitier = { ...squirrel, attackDamage: 10 };
+    expect(Math.round(enemyAttackDamage(bitier, null))).toBe(6);   // 10 x 3/5
+  });
+
+  test("a weapon still beats the bite field, and a hit never rounds to nothing", () => {
+    const armed = { type: "enemy", stats: { strength: 5 }, attackDamage: 30 };
+    expect(enemyAttackDamage(armed, { damage: 7 })).toBe(7); // holding a gun: the gun's number wins
+    expect(enemyAttackDamage({ stats: { strength: 1 }, attackDamage: 1 }, null)).toBe(1);
+    expect(creatureBiteDamage({ attackDamage: -5 })).toBe(0); // a hand-edited save can't go negative
+  });
+
+  test("a bite lands in FRONT of the animal, whichever way it faces", () => {
+    // The box is placed off `face`, not off the art's mirror, because the wrapper's scaleX(-1)
+    // always puts the nose on the facing side however the art was drawn.
+    const body = { x: 500, y: 300, w: 40, h: 48 };
+    const right = creatureBiteBox(body.x, body.y, body.w, body.h, 1, 28);
+    const left = creatureBiteBox(body.x, body.y, body.w, body.h, -1, 28);
+    expect(right.x + right.w).toBeGreaterThan(body.x + body.w); // reaches past its own nose
+    expect(left.x).toBeLessThan(body.x);
+    expect(right.x).toBeGreaterThan(body.x);                    // ...and is not behind it
+    expect(left.x + left.w).toBeLessThan(body.x + body.w);
+    // Vertically it sits on the body, not above or below it.
+    expect(right.y).toBeGreaterThanOrEqual(body.y);
+    expect(right.y + right.h).toBeLessThanOrEqual(body.y + body.h);
+  });
+
+  test("a bite scales with the animal but never shrinks to nothing", () => {
+    const squirrel = creatureBiteBox(0, 0, 20, 24, 1, 28);
+    const elephant = creatureBiteBox(0, 0, 300, 300, 1, 28);
+    expect(elephant.w).toBeGreaterThan(squirrel.w);
+    expect(squirrel.w).toBeGreaterThanOrEqual(28 * CREATURE_BITE_REACH_CELLS); // floor for tiny animals
+    expect(creatureBiteBox(0, 0, 1, 1, 1, 28).w).toBeGreaterThan(0);
+  });
+
+  // ---- The resurrected ally that faced both ways at once ------------------------------------
+  test("a one-frame direction change never mirrors the sprite", () => {
+    // The measured bug: 92 frames facing left, ONE frame facing right, 44 more facing left.
+    let face = -1, pend = 0;
+    const step = (want) => { const r = holdFacing(face, want, pend, 1); face = r.face; pend = r.pendT; };
+    for (let i = 0; i < 20; i++) step(-1);
+    step(1);                       // the single stray frame of stand-off correction
+    expect(face).toBe(-1);         // ...which must not turn the animal round
+    for (let i = 0; i < 20; i++) step(-1);
+    expect(face).toBe(-1);
+  });
+
+  test("a turn the unit actually means still happens, and fast", () => {
+    let face = -1, pend = 0;
+    const step = (want) => { const r = holdFacing(face, want, pend, 1); face = r.face; pend = r.pendT; };
+    for (let i = 0; i < FACE_HOLD_FRAMES; i++) step(1);
+    expect(face).toBe(1);                             // held for the dwell: taken
+    expect(FACE_HOLD_FRAMES / 60).toBeLessThan(0.12); // and the dwell is under a tenth of a second
+  });
+
+  test("holdFacing is a no-op whenever the wanted facing is the current one", () => {
+    expect(holdFacing(1, 1, 4, 1)).toEqual({ face: 1, pendT: 0 });   // ...and it forgets a part-flip
+    expect(holdFacing(-1, 0, 0, 1)).toEqual({ face: -1, pendT: 0 }); // no intent = keep facing
+    expect(holdFacing(0, 0, 0, 1).face).toBe(1);                     // a missing face reads as right
+  });
+
+  test("a flip half-way through is abandoned if the unit changes its mind", () => {
+    let face = 1, pend = 0;
+    const step = (want) => { const r = holdFacing(face, want, pend, 1); face = r.face; pend = r.pendT; };
+    step(-1); step(-1);      // two frames of wanting to turn
+    step(1);                 // ...then it wants its own facing again
+    expect(pend).toBe(0);    // the part-flip is dropped, not banked
+    step(-1);
+    expect(face).toBe(1);    // so one more frame the other way still can't flip it
+  });
+
+  test("frame-rate independence: the dwell is a duration, not a frame count", () => {
+    const r1 = holdFacing(1, -1, 0, 3);            // one long frame worth 3
+    const r2 = holdFacing(r1.face, -1, r1.pendT, 3);
+    expect(r2.face).toBe(-1);                      // 6 >= FACE_HOLD_FRAMES, so it turns
+  });
+
+  test("a pet follows at a distance it can actually hold still at", () => {
+    // The Squirrel: engage range 30px, Speed 14 => 6.16px a frame. On its own engage range the
+    // dead zone was 13.5..25.5px — under two frames wide — so it could never stop correcting, and
+    // every correction that stepped backwards turned it round. Following gets its own band.
+    const CW = 28, aiSpeed = 2.2 * (14 / 5);
+    const engage = 30, follow = ALLY_FOLLOW_RANGE_CELLS * CW;
+    const bandOf = (r) => r * ENEMY_STANDOFF_FAR - r * ENEMY_STANDOFF_NEAR;
+    expect(bandOf(engage)).toBeLessThan(aiSpeed * 2);      // the old band: it cannot sit in it
+    expect(bandOf(follow)).toBeGreaterThan(aiSpeed * 4);   // the new one: several frames of slack
+    // And it holds station a sane distance away rather than standing inside you.
+    expect(follow * ENEMY_STANDOFF_NEAR).toBeGreaterThan(CW);
+    expect(follow * ENEMY_STANDOFF_FAR).toBeLessThan(CW * 3);
+  });
+
+  test("inside the follow band a pet is told to stand still", () => {
+    const CW = 28, speed = 6.16, follow = ALLY_FOLLOW_RANGE_CELLS * CW;
+    const mid = follow * (ENEMY_STANDOFF_NEAR + ENEMY_STANDOFF_FAR) / 2;
+    expect(enemyMoveIntent("seek", mid, follow, speed, true)).toBe(0);
+    expect(enemyMoveIntent("seek", mid - speed, follow, speed, true)).toBe(0); // ...and a step either way
+    expect(enemyMoveIntent("seek", mid + speed, follow, speed, true)).toBe(0); // is still inside it
+  });
+
+  test("combat stand-off is untouched — an archer still holds you at ITS range", () => {
+    // The follow band applies ONLY when a friendly has nothing to fight. Nothing about a hostile,
+    // or about a brawl between two units, reads it.
+    const speed = 4, range = 400;
+    expect(enemyMoveIntent("seek", 300, range, speed, true)).toBe(0);      // comfortably in range
+    expect(enemyMoveIntent("seek", 100, range, speed, true)).toBe(-speed); // crowded: still backs off
+    expect(enemyMoveIntent("seek", 500, range, speed, true)).toBe(speed);  // too far: still closes
   });
 });
