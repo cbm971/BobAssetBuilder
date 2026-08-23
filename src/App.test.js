@@ -191,6 +191,11 @@ import {
   layFlatBodyBlocks,
   LAY_FLAT_IGNORES,
   pieceDrawnRight,
+  pieceDrawnLeft,
+  pieceDrawnSpan,
+  poseArtLeftFrac,
+  LAY_FLAT_ROT_DEG,
+  LAY_FLAT_ROT_CSS,
   layFlatLiftPx,
   horizVel,
   resolvePlayerCrouch,
@@ -524,14 +529,16 @@ describe("laying a tackled body flat on the ground", () => {
   // PLAYER_H_CELLS tall at LV_CELL = 30, i.e. 161.54 x 210 for a scale-1 character.
   const BOX_W = 30 * 7 * (200 / 260), BOX_H = 30 * 7;
   // What the browser actually does with `transform-origin: 50% 100%;
-  // transform: translateY(-lift) rotate(90deg)`: rotate about the wrapper's bottom-centre, which
-  // maps a point's local x onto its screen y, then shift up by the lift. Returns the lowest pixel
-  // the laid-out BODY reaches (a weapon or hat brim is allowed to hang below it, and does), in the
-  // same absolute space as `wrapperTop`.
+  // transform: translateY(-lift) rotate(-90deg)`: rotate about the wrapper's bottom-centre, then
+  // shift up by the lift. A COUNTER-clockwise quarter turn maps a point at local x to a screen y
+  // of (BOX_W/2 - x) below that origin — so the art's LEFT edge is the one that ends up lowest,
+  // which is why the lift comes off poseArtLeftFrac. Returns the lowest pixel the laid-out BODY
+  // reaches (a cape or hat brim is allowed to hang below it, and does), in the same absolute
+  // space as `wrapperTop`.
   const fallenBodyBottom = (blocks, wrapperTop) => {
     const lift = layFlatLiftPx(blocks, BOX_W, BOX_H);
-    const bodyRightPx = poseArtRightFrac(layFlatBodyBlocks(blocks)) * BOX_W;
-    return wrapperTop + BOX_H + (bodyRightPx - BOX_W / 2) - lift;
+    const bodyLeftPx = poseArtLeftFrac(layFlatBodyBlocks(blocks)) * BOX_W;
+    return wrapperTop + BOX_H + (BOX_W / 2 - bodyLeftPx) - lift;
   };
   // Where the same sprite's lowest pixel sits while it is still on its feet — the ground line.
   const standingBottom = (blocks, wrapperTop) => wrapperTop + BOX_H - poseFootGapFrac(blocks) * BOX_H;
@@ -556,6 +563,61 @@ describe("laying a tackled body flat on the ground", () => {
     // The mirrored twin reaches the other way, so its far end goes left and nothing is left on the
     // right but the shoulder the whole thing hangs off.
     expect(pieceDrawnRight({ ...arm, rot: -90, _m: true })).toBeCloseTo(110, 8);
+  });
+
+  // The reported bug: "tackled enemies should fall on their back not their front". A quarter turn
+  // about the feet lands a character face-DOWN when it goes clockwise and face-UP when it goes
+  // counter-clockwise, because the belly of right-facing art points along +x and the turn is what
+  // decides whether +x ends up pointing at the floor or the sky.
+  test("a tackled body goes over backwards, so it lands on its back", () => {
+    expect(LAY_FLAT_ROT_DEG).toBe(-90);
+    expect(LAY_FLAT_ROT_CSS).toBe("rotate(-90deg)");
+  });
+
+  // The half of that change which is easy to forget, and which silently un-fixes the floating-body
+  // bug if it is missed: which edge of the standing art the turn sends floorwards depends on the
+  // SIGN of the rotation. The art here is deliberately off-centre (20 units of margin on the left,
+  // 120 on the right), so measuring the wrong edge is a visibly different number rather than an
+  // accidental match.
+  test("the lift is measured off the edge the fall actually sends floorwards", () => {
+    const offCentre = [{ id: "torso", x: 20, y: 40, w: 60, h: 200 }];
+    const lift = layFlatLiftPx(offCentre, BOX_W, BOX_H);
+    expect(lift).toBeCloseTo(BOX_W / 2 - poseArtLeftFrac(offCentre) * BOX_W + poseFootGapFrac(offCentre) * BOX_H, 8);
+    // ...and it is emphatically NOT the clockwise answer, which is what the code used to compute.
+    const clockwiseLift = poseArtRightFrac(offCentre) * BOX_W - BOX_W / 2 + poseFootGapFrac(offCentre) * BOX_H;
+    expect(Math.abs(lift - clockwiseLift)).toBeGreaterThan(BOX_W / 4);
+    // The invariant still holds under the new direction: the feet touch what they touched.
+    expect(fallenBodyBottom(offCentre, 400)).toBeCloseTo(standingBottom(offCentre, 400), 6);
+  });
+
+  test("reads the left-hand edge of the drawn art, ignoring hitbox and muzzle markers", () => {
+    expect(poseArtLeftFrac([{ id: "torso", x: 60, y: 40, w: 40, h: 200 }])).toBeCloseTo(60 / 200, 8);
+    expect(poseArtLeftFrac([{ id: "torso", x: 60, y: 40, w: 40, h: 200 }, { id: "hb", isHitbox: true, x: 0, y: 0, w: 200, h: 260 }])).toBeCloseTo(60 / 200, 8);
+    expect(poseArtLeftFrac([{ id: "torso", x: 60, y: 40, w: 40, h: 200 }, { id: "mz", isMuzzle: true, x: 2, y: 90, w: 8, h: 8 }])).toBeCloseTo(60 / 200, 8);
+    // Not clamped at 0, for the same reason its twin is not clamped at 1 — art may hang off the
+    // left of the canvas, and pretending it starts at the edge floats the body.
+    expect(poseArtLeftFrac([{ id: "trunk", x: -8, y: 60, w: 188, h: 120 }])).toBeCloseTo(-8 / 200, 8);
+    // No art is the block-less fallback sprite, a div that really does fill its wrapper.
+    expect(poseArtLeftFrac([])).toBe(0);
+    expect(poseArtLeftFrac(null)).toBe(0);
+  });
+
+  // Both edges come out of one corner walk, so a rotated or mirrored piece can never report a
+  // left that disagrees with its right.
+  test("one corner walk answers for both edges of a rotated piece", () => {
+    const bar = { id: "bar", x: 100, y: 100, w: 40, h: 10 };
+    expect(pieceDrawnSpan(bar)).toEqual({ left: 100, right: 140 });
+    expect(pieceDrawnLeft({ ...bar, rot: 90 })).toBeCloseTo(115, 8);   // 40x10 on its end covers 10
+    expect(pieceDrawnRight({ ...bar, rot: 90 })).toBeCloseTo(125, 8);
+    const arm = { id: "arm", x: 100, y: 100, w: 20, h: 60, limb: "arm", armPivot: "top" };
+    // Shoulder at (110,100); swung flat the arm reaches 60 past it, and its mirrored twin reaches
+    // 60 the other way — measured about that same shoulder, not the middle of the box.
+    expect(pieceDrawnLeft({ ...arm, rot: -90 })).toBeCloseTo(110, 8);
+    expect(pieceDrawnLeft({ ...arm, rot: -90, _m: true })).toBeCloseTo(50, 8);
+    for (const p of [bar, { ...bar, rot: 33 }, { ...arm, rot: -90, _m: true }]) {
+      const s = pieceDrawnSpan(p);
+      expect(s.left).toBeLessThanOrEqual(s.right);
+    }
   });
 
   test("reads the right-hand edge of the drawn art, ignoring hitbox and muzzle markers", () => {
@@ -592,7 +654,7 @@ describe("laying a tackled body flat on the ground", () => {
   // A rifle held out front, a hat brim and a cape all reach further than the body does, and resting
   // the lift on them left the unit balanced on its gear with the body still in the air. The body is
   // what lands; the gear is allowed to clip through the floor.
-  test("the body lands on the ground, not on the gun it is holding", () => {
+  test("the body lands on the ground, not on the gear it is wearing", () => {
     const bobLike = [{ id: "torso", x: 58, y: 30, w: 60, h: 150 }, { id: "leg", x: 66, y: 180, w: 20, h: 80 }];
     const bare = layFlatLiftPx(bobLike, BOX_W, BOX_H);
     const armed = [...bobLike, { id: "barrel", _isWeapon: true, x: 118, y: 100, w: 80, h: 10 }];
@@ -603,9 +665,11 @@ describe("laying a tackled body flat on the ground", () => {
       expect(fallenBodyBottom(blocks, 400)).toBeCloseTo(standingBottom(blocks, 400), 6);
     }
     // And the gear really does hang below the floor line rather than being quietly clipped — that
-    // is the trade being made, so it should be visible in the numbers.
-    const gunTipBottom = 400 + BOX_H + (poseArtRightFrac(armed) * BOX_W - BOX_W / 2) - layFlatLiftPx(armed, BOX_W, BOX_H);
-    expect(gunTipBottom).toBeGreaterThan(standingBottom(armed, 400));
+    // is the trade being made, so it should be visible in the numbers. Falling BACKWARDS changes
+    // which piece pays it: the cape behind the character is now the thing nearest the floor, while
+    // the rifle held out front swings up at the sky instead of through the ground.
+    const capeBottom = 400 + BOX_H + (BOX_W / 2 - poseArtLeftFrac(caped) * BOX_W) - layFlatLiftPx(caped, BOX_W, BOX_H);
+    expect(capeBottom).toBeGreaterThan(standingBottom(caped, 400));
   });
 
   // Weapon pieces reach the render two ways — baked into a dressed look's own art on load, or
