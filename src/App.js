@@ -1358,6 +1358,42 @@ export const itemEffectSummary = (e) => {
 };
 // Heal is clamped to [0, max] and never lowers HP (a negative amount is treated as 0). Pure.
 export const applyHeal = (curHP, maxHP, amount) => Math.max(0, Math.min(maxHP, curHP + Math.max(0, amount || 0)));
+// How much extra maximum HP the worn kit gives everything fighting for you. Several items stack,
+// the same way Magazine Size does — one number summed off the effects list, so a look assembled in
+// Dress Bob and a jacket picked up off a pedestal mid-run reach it by the same route.
+export const allyMaxHPBonus = (effects) => {
+  let bonus = 0;
+  for (const e of (effects || [])) if (e && e.type === "allyHP") bonus += Math.max(0, Math.round(e.hp ?? 10));
+  return bonus;
+};
+// One ally's HP and grant record after the worn ally-HP bonus becomes `bonus`. THE WHOLE
+// ANTI-FARMING RULE IS HERE, and it is two rules applied in this order:
+//
+//   * TOP UP ONCE. An ally is paid the difference between the bonus worn now and the largest one
+//     it has EVER been paid (`granted`, which only ever rises). So the first jacket hands over its
+//     full value, a bigger one hands over only the extra, and putting the same one back on hands
+//     over nothing at all.
+//   * CLAMP DOWN. Whatever it ends up holding cannot exceed the new maximum.
+//
+// Together those make a wear → remove → wear cycle strictly non-positive: the clamp can cost an
+// ally HP, nothing can win any back. That is the property asked for in as many words — you can't
+// de-equip and re-equip to recover HP some odd way. It is also exactly the rule the player's own
+// HP already plays by at the pedestal (playerHP is Math.min'd against the new max and never
+// raised); this is that rule plus the one-time payment, because an ally has no other way to heal.
+//
+// A DEFEATED ally is skipped for the top-up on purpose: paying HP into a body would stand it back
+// up, and getting up is the Resurrect staff's job and is one-and-done for a reason.
+export const applyAllyHPBonus = (curHP, baseMax, bonus, granted) => {
+  const b = Math.max(0, Math.round(bonus || 0)), g = Math.max(0, Math.round(granted || 0));
+  const max = Math.max(1, Math.round(baseMax || 1) + b);
+  const topUp = curHP > 0 ? Math.max(0, b - g) : 0;
+  return { hp: Math.max(0, Math.min(max, curHP + topUp)), granted: Math.max(g, b), max };
+};
+// A unit's REAL maximum right now: its own, plus the ally bonus if it is fighting for you. Every
+// place that asks "how much HP can this thing hold" has to come through here rather than calling
+// enemyMaxHP directly, or the HP bar and the damage maths end up disagreeing about the ceiling.
+export const unitMaxHP = (ea, ep, allyBonus) =>
+  Math.max(1, enemyMaxHP(ea) + ((ep && ep.friendly) ? Math.max(0, Math.round(allyBonus || 0)) : 0));
 // Still-active temporary buffs summed per stat at time nowMs, as { stat: totalAmount }. Expired
 // entries (until <= nowMs) contribute nothing; two buffs on the same stat stack. Pure.
 export const activeBuffSum = (buffs, nowMs) => {
@@ -2028,6 +2064,19 @@ const EFFECT_TYPES = {
     noAnim: true,
     params: [
       { key: "secs", label: "Down for", min: 0.5, max: 8, step: 0.5, def: 2 },
+    ],
+  },
+  // Raises the ceiling on everything fighting FOR you — anything captured with a 🔴 Capture
+  // throwable or raised with a 🔮 Resurrect staff. The interesting half is not the ceiling, it is
+  // the rule about when HP is actually handed over; see applyAllyHPBonus. Player-side only: an
+  // enemy wearing this does not buff the other enemies, the way Tackle deliberately does work in
+  // both directions. Say so if you want that too — it is a different feature, not a bug here.
+  allyHP: {
+    label: "Ally Health", icon: "🟣",
+    blurb: "Raises the maximum HP of every ally fighting for you — anything you have captured or raised. Each ally is paid the bonus ONCE, the first time it is worn around them; an ally caught while you are wearing it simply arrives at the bigger maximum. Taking it off drops the ceiling again and trims anyone over it, and putting it back on pays nothing, so a wear/remove cycle can never top an ally up. Bonuses from several worn items stack. No animation of its own.",
+    noAnim: true,
+    params: [
+      { key: "hp", label: "Extra HP", min: 1, max: 50, step: 1, def: 10 },
     ],
   },
   magazineSize: {
@@ -6030,6 +6079,9 @@ export default function AssetStudio() {
     // it isn't worn, so the per-enemy contact test below is skipped outright rather than run 60
     // times a second for every player who owns no football kit.
     const tackleSecs = tackleSecsOf(playerAsset);
+    // The ally ceiling, read the same way every other worn effect is. 0 when nothing grants it,
+    // which makes unitMaxHP collapse back to plain enemyMaxHP for every unit in the level.
+    const allyHpBonus = allyMaxHPBonus(playerAsset?.effects);
     // Ranged weapon ammo: a fresh full clip each Playtest session (this effect re-runs whenever
     // Playtest starts/stops or the equipped weapon changes). Melee weapons get an "unlimited"
     // record (clip 0), so nothing below ever gates a swing on ammo.
@@ -6962,7 +7014,7 @@ export default function AssetStudio() {
               return true;
             }
             if (targetKind === "unit" && targetKey) {
-              const cur = enemyHP.current[targetKey] === undefined ? (enemyMaxHP(targetEa)) : enemyHP.current[targetKey];
+              const cur = enemyHP.current[targetKey] === undefined ? unitMaxHP(targetEa, targetEp, allyHpBonus) : enemyHP.current[targetKey];
               enemyHP.current[targetKey] = Math.max(0, cur - Math.max(1, Math.round(rawDmg)));
               if (enemyHP.current[targetKey] <= 0) flash(friendly ? ("🟣 Your " + ea.name + " defeated " + (targetEa.name || "a foe") + "!") : ("💔 Your " + (targetEa.name || "ally") + " fell."));
               return true;
@@ -7254,7 +7306,8 @@ export default function AssetStudio() {
                     const hitTop = ep.y + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
                     const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
                     if (b.x < eHitLeft + epw && b.x + b.w > eHitLeft && b.y < hitTop + hitH && b.y + b.h > hitTop) {
-                      enemyHP.current[k] = enemyMaxHP(ea);
+                      enemyHP.current[k] = enemyMaxHP(ea) + allyHpBonus; // raised at the ALLY ceiling
+                      ep.allyHpGranted = allyHpBonus;                      // ...and that counts as paid
                       ep.friendly = true; ep.resurrectedOnce = true; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
                       ep.restedDead = false;
                       p.hitRegistered = true;
@@ -7465,7 +7518,10 @@ export default function AssetStudio() {
               // in-flight attack/stun timer wiped so it does not wake up mid-swing at its old
               // target, and restedDead cleared so it can fall over again if it is beaten a
               // second time.
-              enemyHP.current[c.k] = enemyMaxHP(c.ea);
+              // Full HP at the ALLY ceiling, and the bonus is stamped as already paid — it came
+              // baked into the number it just got up with, so a later re-equip must not pay again.
+              enemyHP.current[c.k] = enemyMaxHP(c.ea) + allyHpBonus;
+              c.ep.allyHpGranted = allyHpBonus;
               c.ep.friendly = true; c.ep.resurrectedOnce = true;
               c.ep.stun = 0; c.ep.attackT = 0; c.ep.swingT = 0; c.ep.reactT = 0;
               c.ep.restedDead = false;
@@ -7627,7 +7683,8 @@ export default function AssetStudio() {
               const hitTop = ep.y + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
               const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
               if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop) {
-                enemyHP.current[k] = enemyMaxHP(ea);          // back on its feet, full HP
+                enemyHP.current[k] = enemyMaxHP(ea) + allyHpBonus; // back on its feet, full HP at the ALLY ceiling
+                ep.allyHpGranted = allyHpBonus;                    // ...which counts as the one-time payment
                 ep.friendly = true; ep.resurrectedOnce = true; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
                 ep.restedDead = false; // back on its feet — let it fall again if it is ever defeated a second time
                 flash("🔮 Raised " + ea.name + " — now fighting for you!");
@@ -7802,6 +7859,18 @@ export default function AssetStudio() {
             const parts = equipEffectSummary(before, after);
             flash("🧥 Equipped " + item.name + (parts.length ? " · " + parts.join(" · ") : " · no stat change") + (prev ? " (put " + prev.name + " back)" : ""));
             playerHP.current = Math.min(playerHP.current, maxPlayerHP(after));
+            // The ALLY side of that same line. Swapping kit at a pedestal is the only way the worn
+            // ally bonus can change mid-run, so it is the only place the allies already on the
+            // field need settling up — pay anyone owed a top-up, trim anyone now over the ceiling.
+            // Both halves are applyAllyHPBonus's, so the no-farming property is stated once.
+            const allyBonusAfter = allyMaxHPBonus(after && after.effects);
+            for (const ak of Object.keys(lv.enemies || {})) {
+              const aep = enemyPos.current[ak]; if (!aep || !aep.friendly) continue;
+              const aea = findA(lv.enemies[ak].enemyId); if (!aea) continue;
+              const curA = enemyHP.current[ak] === undefined ? enemyMaxHP(aea) : enemyHP.current[ak];
+              const res = applyAllyHPBonus(curA, enemyMaxHP(aea), allyBonusAfter, aep.allyHpGranted);
+              enemyHP.current[ak] = res.hp; aep.allyHpGranted = res.granted;
+            }
             setEquipGen((g) => g + 1);
           }
         }
@@ -11311,6 +11380,7 @@ export default function AssetStudio() {
     const basePlayerAsset = findA(playerId);
     const playerAsset = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
     const playtestWeapon = playtestWeaponId ? findA(playtestWeaponId) : null; // used by the render below; the physics loop above has its own copy in its own closure
+    const playAllyHpBonus = allyMaxHPBonus(playerAsset?.effects); // ...and its own copy of the ally ceiling, for the HP bars
     // What pressing E on an item will actually DO, in one line: "use · +20 HP", "swap · Dmg 5→7",
     // "equip · Speed 5→7 · 🛡️ +2". Computed exactly the way the E handler resolves the take, so the
     // number shown is the number you get.
@@ -12119,7 +12189,9 @@ export default function AssetStudio() {
                   const [r, c] = k.split(",").map(Number);
                   const ea = findA(lv.enemies[k].enemyId);
                   if (!ea) return null;
-                  const maxHp = enemyMaxHP(ea);
+                  // The bar has to read the ALLY ceiling or a buffed minion shows as permanently
+                  // over-full — 20 HP drawn against a 10 HP track.
+                  const maxHp = unitMaxHP(ea, enemyPos.current[k], playAllyHpBonus);
                   const curHp = enemyHP.current[k] ?? maxHp;
                   const isDead = curHp <= 0;
                   const eShape = sideBodyShape(ea);

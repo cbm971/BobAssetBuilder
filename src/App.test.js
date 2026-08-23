@@ -246,6 +246,9 @@ import {
   captureCount,
   canResurrect,
   unitSide,
+  allyMaxHPBonus,
+  applyAllyHPBonus,
+  unitMaxHP,
 } from "./App";
 
 describe("door transitions", () => {
@@ -5087,5 +5090,102 @@ describe("catching a defeated creature with a throwable", () => {
     // cover the same ground instead of the ball catching a shorter arc than the shock.
     expect(throwStunRadiusCells(0)).toBe(1);
     expect(throwStunRadiusCells(2)).toBe(3);
+  });
+});
+
+describe("clothing that raises your allies' maximum HP", () => {
+  const jacket = (hp) => [{ type: "allyHP", hp }];
+
+  test("the bonus is read off the worn effects, and several items stack", () => {
+    expect(allyMaxHPBonus(jacket(10))).toBe(10);
+    expect(allyMaxHPBonus([{ type: "allyHP", hp: 10 }, { type: "allyHP", hp: 5 }])).toBe(15);
+    expect(allyMaxHPBonus([{ type: "backGuard", reduce: 0.5 }])).toBe(0);
+    expect(allyMaxHPBonus([])).toBe(0);
+    expect(allyMaxHPBonus(null)).toBe(0);
+    expect(allyMaxHPBonus([{ type: "allyHP" }])).toBe(10); // the slider's own default
+  });
+
+  test("the ceiling only lifts for units actually fighting for you", () => {
+    const dog = { type: "enemy", hp: 75 };
+    expect(unitMaxHP(dog, { friendly: true }, 10)).toBe(85);
+    expect(unitMaxHP(dog, {}, 10)).toBe(75);          // a hostile is untouched by your jacket
+    expect(unitMaxHP(dog, null, 10)).toBe(75);
+    expect(unitMaxHP(dog, { friendly: true }, 0)).toBe(75);
+  });
+
+  test("Blake's case: an ally at 8 of a 10 cap, with a +10 jacket", () => {
+    // Paid the bonus once, so it holds 18 against a ceiling of 20.
+    const r = applyAllyHPBonus(8, 10, 10, 0);
+    expect(r).toEqual({ hp: 18, granted: 10, max: 20 });
+  });
+
+  test("...and taking it off and putting it back on recovers nothing", () => {
+    // This is the whole ask. Wear, remove, wear — and count the HP at every step.
+    const on = applyAllyHPBonus(8, 10, 10, 0);
+    expect(on.hp).toBe(18);
+    const off = applyAllyHPBonus(on.hp, 10, 0, on.granted);
+    expect(off).toEqual({ hp: 10, granted: 10, max: 10 });   // trimmed to the smaller ceiling
+    const again = applyAllyHPBonus(off.hp, 10, 10, off.granted);
+    expect(again).toEqual({ hp: 10, granted: 10, max: 20 }); // ceiling back, NOT the HP
+    expect(again.hp).toBeLessThan(on.hp);                    // the cycle cost HP; it never paid any
+  });
+
+  test("cycling it a dozen times can never climb", () => {
+    let hp = 8, granted = 0;
+    let best = hp;
+    for (let i = 0; i < 12; i++) {
+      ({ hp, granted } = applyAllyHPBonus(hp, 10, 10, granted));
+      best = Math.max(best, hp);
+      ({ hp, granted } = applyAllyHPBonus(hp, 10, 0, granted));
+      best = Math.max(best, hp);
+    }
+    expect(best).toBe(18);      // the one legitimate top-up, on the very first wear
+    expect(hp).toBe(10);        // and it settles at the un-jacketed cap, never above it
+  });
+
+  test("a hurt ally never gains from a re-wear, at any HP", () => {
+    // The dangerous shape is an ally BELOW the bonus: a naive "subtract on remove" would take it
+    // negative, and a naive "clamp only" would hand the whole bonus back on the next wear.
+    for (const start of [1, 2, 5, 9, 17, 18]) {
+      const off = applyAllyHPBonus(start, 10, 0, 10);
+      const on = applyAllyHPBonus(off.hp, 10, 10, off.granted);
+      expect(on.hp).toBeLessThanOrEqual(start);
+      expect(on.hp).toBeGreaterThan(0);
+    }
+  });
+
+  test("a bigger jacket pays only the difference", () => {
+    const small = applyAllyHPBonus(8, 10, 10, 0);
+    expect(small.hp).toBe(18);
+    const big = applyAllyHPBonus(small.hp, 10, 25, small.granted);
+    expect(big).toEqual({ hp: 33, granted: 25, max: 35 });   // +15, not +25
+    // ...and dropping back to the small one never re-opens the gap.
+    const back = applyAllyHPBonus(big.hp, 10, 10, big.granted);
+    expect(back.granted).toBe(25);
+    expect(applyAllyHPBonus(back.hp, 10, 25, back.granted).hp).toBe(back.hp);
+  });
+
+  test("a defeated ally is not stood back up by putting a jacket on", () => {
+    // Paying HP into a body would be a free resurrection, and getting up is one-and-done.
+    const r = applyAllyHPBonus(0, 10, 10, 0);
+    expect(r.hp).toBe(0);
+    expect(r.max).toBe(20);
+    expect(canResurrect(r.hp, {})).toBe(true); // still a body, still raisable exactly once
+  });
+
+  test("an ally caught while wearing it arrives at the bigger maximum", () => {
+    // The capture and resurrect paths set HP to enemyMaxHP + bonus and stamp the grant as paid,
+    // so the arrival IS the one-time payment and a later re-equip must not pay a second time.
+    const squirrel = { type: "enemy", hp: 25 };
+    const arrived = enemyMaxHP(squirrel) + 10;
+    expect(arrived).toBe(35);
+    expect(unitMaxHP(squirrel, { friendly: true }, 10)).toBe(35); // full, not over-full
+    expect(applyAllyHPBonus(arrived, enemyMaxHP(squirrel), 10, 10).hp).toBe(35);
+  });
+
+  test("with nothing worn every unit is exactly as tanky as it always was", () => {
+    const dog = { type: "enemy", hp: 75 };
+    expect(unitMaxHP(dog, { friendly: true }, allyMaxHPBonus([]))).toBe(enemyMaxHP(dog));
+    expect(applyAllyHPBonus(40, 75, 0, 0)).toEqual({ hp: 40, granted: 0, max: 75 });
   });
 });
