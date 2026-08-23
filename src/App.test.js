@@ -240,6 +240,7 @@ import {
   statSliderMax,
   ENEMY_SPEED_STAT_MAX,
   enemyScale,
+  toggleGroupMember,
 } from "./App";
 
 describe("door transitions", () => {
@@ -4971,5 +4972,51 @@ describe("the Squirrel shipped inside asset-data/library.json", () => {
     };
     expect(cells(squirrel())).toBeLessThan(cells(pitBull()) / 1.5);
     expect(cells(squirrel())).toBeGreaterThan(1);   // still big enough to see and to hit
+  });
+});
+
+describe("taking blocks back out of a held group", () => {
+  // ▣ Select all used to be a one-way door: it held every block and there was no way to drop one,
+  // so "everything except the shadow" meant ✕ Clear and picking the other fifteen by hand.
+  test("a held block comes back out", () => {
+    expect(toggleGroupMember(["a", "b", "c"], "b")).toEqual(["a", "c"]);
+  });
+
+  test("...and tapping it again puts it back in", () => {
+    const dropped = toggleGroupMember(["a", "b", "c"], "b");
+    expect(toggleGroupMember(dropped, "b")).toEqual(["a", "c", "b"]);
+  });
+
+  test("a block that was never held is added", () => {
+    expect(toggleGroupMember(["a"], "z")).toEqual(["a", "z"]);
+    expect(toggleGroupMember([], "z")).toEqual(["z"]);
+  });
+
+  test("it never holds the same block twice", () => {
+    // The canvas add path was a bare [...g, id]. It was unreachable with a duplicate then, but
+    // one reordered guard away from a group that moves a block at double speed.
+    let g = ["a", "b"];
+    for (let i = 0; i < 5; i++) g = toggleGroupMember(g, "a");
+    expect(g.filter((x) => x === "a").length).toBeLessThanOrEqual(1);
+    expect(new Set(toggleGroupMember(["a", "b"], "b")).size).toBe(1);
+  });
+
+  test("it does not mutate the group it was given", () => {
+    // groupIds goes into setState — handing back the same array would drop the re-render.
+    const before = ["a", "b"];
+    const after = toggleGroupMember(before, "b");
+    expect(before).toEqual(["a", "b"]);
+    expect(after).not.toBe(before);
+  });
+
+  test("a missing group is treated as an empty one", () => {
+    expect(toggleGroupMember(null, "a")).toEqual(["a"]);
+    expect(toggleGroupMember(undefined, "a")).toEqual(["a"]);
+  });
+
+  test("dropping every block one at a time ends at nothing held", () => {
+    let g = ["a", "b", "c"];
+    for (const id of ["a", "b", "c"]) g = toggleGroupMember(g, id);
+    expect(g).toEqual([]);
   });
 });
