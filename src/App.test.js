@@ -16,6 +16,8 @@ import {
   LAYER_BASE_Z,
   orderEndLay,
   hazardStillBurning,
+  throwImpactDamage,
+  THROW_IMPACT_RADIUS_CELLS,
   applyLandingEffect,
   throwWeightMultiplier,
   throwRangeBlocks,
@@ -47,6 +49,8 @@ import {
   mergeFgFill,
   paintValue,
   terrainPaintShape,
+  layerTakesRamps,
+  fgClipPath,
   mergeWeaponBlocks,
   normalizeAssetJson,
   boxesOverlap,
@@ -1198,9 +1202,9 @@ describe("Background ramp paint", () => {
     });
   });
 
-  test("blocks stay plain and Front remains block-only", () => {
+  test("blocks stay plain", () => {
     expect(terrainPaintShape("bg", "block")).toBeNull();
-    expect(terrainPaintShape("front", "slopeUp")).toBeNull();
+    expect(terrainPaintShape("front", "block")).toBeNull();
   });
 
   test("a Background ramp never enters Foreground collision", () => {
@@ -4523,5 +4527,95 @@ describe("throwables carry, and weight is what decides how far", () => {
     expect(throwWeightMultiplier(0)).toBe(throwWeightMultiplier(1));   // below the slider
     expect(throwWeightMultiplier(50)).toBe(throwWeightMultiplier(10)); // above it
     expect(throwWeightMultiplier(undefined)).toBeCloseTo(1, 5);
+  });
+});
+
+describe("a throwable does impact damage with the number you typed in", () => {
+  // The Rock: landEffect none, 0 burn, 0 splash, damage 10. Its impact was the only damage it had
+  // and nothing read it, so a thrown rock passed through people and did nothing at all.
+  test("impact damage is the weapon's own Damage field", () => {
+    expect(throwImpactDamage({ damage: 10 })).toBe(10); // Blake's Rock
+    expect(throwImpactDamage({ damage: 12 })).toBe(12); // Grenade
+    expect(throwImpactDamage({ damage: 8 })).toBe(8);   // Molotov
+  });
+
+  test("it does not depend on splash, burn or anything else the throwable leaves behind", () => {
+    const rock = { damage: 10, landEffect: "none", landEffectDps: 0, landRadius: 0 };
+    const nade = { damage: 10, landEffect: "fire", landEffectDps: 30, landRadius: 3 };
+    expect(throwImpactDamage(rock)).toBe(throwImpactDamage(nade));
+  });
+
+  test("zero really means zero, so a purely-incendiary throwable can still exist", () => {
+    // Distinct from "missing", which takes the usual weapon default.
+    expect(throwImpactDamage({ damage: 0 })).toBe(0);
+    expect(throwImpactDamage({})).toBe(5);
+    expect(throwImpactDamage(null)).toBe(5);
+    expect(throwImpactDamage(undefined)).toBe(5);
+  });
+
+  test("a nonsense value can never heal an enemy or land a fraction", () => {
+    expect(throwImpactDamage({ damage: -20 })).toBe(0);
+    expect(throwImpactDamage({ damage: 7.6 })).toBe(8);
+  });
+
+  test("the impact reach is contact, not a blast", () => {
+    expect(THROW_IMPACT_RADIUS_CELLS).toBeLessThan(1);
+    // ...and tighter than the stun reach of even a zero-splash throwable, which is a full block.
+    expect(THROW_IMPACT_RADIUS_CELLS).toBeLessThan(throwStunRadiusCells(0));
+  });
+
+  test("an enemy standing at the impact point is inside the impact radius", () => {
+    const CW = 30, radPx = THROW_IMPACT_RADIUS_CELLS * CW;
+    // A body-sized box with the throwable landing on its feet.
+    const box = { x: 100, y: 100, w: 20, h: 60 };
+    expect(blastHitsBox(110, 158, box.x, box.y, box.w, box.h, radPx)).toBe(true);  // at its feet
+    expect(blastHitsBox(110, 105, box.x, box.y, box.w, box.h, radPx)).toBe(true);  // to the head
+    expect(blastHitsBox(300, 100, box.x, box.y, box.w, box.h, radPx)).toBe(false); // sailing past
+  });
+});
+
+describe("the Front layer takes ramps, like every other terrain layer", () => {
+  // The Block / Ramp buttons disappeared the instant you selected Front. They were gated to
+  // fg and bg in five separate places plus terrainPaintShape, and the Front render had no
+  // clip-path at all, so even a stored slope would have drawn as a full square.
+  test("Front is a ramp-taking layer", () => {
+    expect(layerTakesRamps("front")).toBe(true);
+    expect(layerTakesRamps("fg")).toBe(true);
+    expect(layerTakesRamps("bg")).toBe(true);
+  });
+
+  test("layers that have no terrain vocabulary still refuse a shape", () => {
+    for (const l of ["obj", "marker", "climb", "hazard", "enemy", undefined, null, ""]) {
+      expect(layerTakesRamps(l)).toBe(false);
+      expect(terrainPaintShape(l, "slopeUp")).toBeNull();
+    }
+  });
+
+  test("a Front ramp is the same diagonal a Background ramp is", () => {
+    const extra = { run: 4, step: 2 };
+    expect(terrainPaintShape("front", "slopeUp", false, false, extra))
+      .toEqual(terrainPaintShape("bg", "slopeUp", false, false, extra));
+    expect(terrainPaintShape("front", "slopeDown", true)).toEqual({ slope: -1, upsideDown: true });
+  });
+
+  test("a Front ramp never picks up collision, however it was painted", () => {
+    // hideInPlay is a Foreground-only idea; Front must not sprout one, and must never be solid.
+    expect(terrainPaintShape("front", "slopeUp", false, true)).toEqual({ slope: 1 });
+    const ramp = paintValue("#6b7b3a", null, terrainPaintShape("front", "slopeUp", false, false, { run: 1, step: 0 }));
+    const lv = { rows: 3, cols: 3, fg: {}, bg: {}, front: { "1,1": ramp } };
+    expect(fgSolid(lv.fg["1,1"])).toBe(false);
+    expect(slopeSurfaceAt(lv, 45, 1, 1, 30, 30)).toBeNull();
+  });
+
+  test("painting a Front ramp replaces the cell rather than stacking collision under it", () => {
+    const ramp = paintValue("#6b7b3a", null, terrainPaintShape("front", "slopeUp"));
+    expect(paintIntoCell("front", "#111111", ramp, false)).toBe(ramp);
+    expect(paintIntoCell("front", "#111111", ramp, true)).toBe(ramp);
+  });
+
+  test("a Front ramp actually gets a diagonal drawn — the render half of the bug", () => {
+    const ramp = paintValue("#6b7b3a", null, terrainPaintShape("front", "slopeUp", false, false, { run: 1, step: 0 }));
+    expect(fgClipPath(ramp)).not.toBe("none");
+    expect(fgClipPath("#6b7b3a")).toBe("none"); // a plain block is still a full square
   });
 });

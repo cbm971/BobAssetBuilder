@@ -245,6 +245,23 @@ crop and two halves of one backdrop come out at different scales however careful
 were drawn to match. `canvasScale` divides by the shared 200x260 canvas instead, so any
 two props at the same size render at identical px-per-design-unit.
 
+**Foreground, Background AND Front all take ramps** — `terrainPaintShape` / `layerTakesRamps`
+is the single gate, and every path (toolbar, click, drag, fill, ghost, eyedropper) must
+ask it rather than testing layers itself. Front was excluded, so the ⬛/◢/◣ buttons
+vanished the moment you picked the Front layer. Two halves again: the shape had nowhere
+to be stored AND `lvFrontLayer` had no `clipPath`, so even a stored slope drew as a full
+square. Watch `targetLayer` in the ramp-drag commit — it read
+`lLayer === "bg" ? "bg" : "fg"`, which would have silently filed every Front ramp under
+Foreground and given decoration collision. Front and Background never touch physics.
+
+**A throwable's `damage` is its IMPACT damage** (`throwImpactDamage`), applied to whatever
+it physically strikes — tested every frame of flight, so it catches both a hit in mid-air
+and one that lands at someone's feet. It was read for melee and for shots and **for
+throwables it was read nowhere**, so a thrown item passed straight through people: it
+only ever collided with solid terrain. Blake's Rock (no burn, no splash, damage 10) did
+literally nothing. Note the two damages are different things and the UI used to call both
+"Damage" — Impact is the hit, Burn (`landEffectDps`) is the fire left behind.
+
 **A thrown grenade's fire has TWO halves and they must expire together.** The damage is
 a `lv.hazard` cell with a `life` countdown in `hazLife.current`; the thing you actually
 SEE, when the throwable has a `landPropId`, is a separate `_thrown` prop pushed into

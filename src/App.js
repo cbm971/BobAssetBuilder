@@ -982,6 +982,20 @@ export const clusterBombletVelocity = (i, count, spread, pop) => {
 // unchanged). Reach is the landing splash plus one block, so even a 0-splash "point" grenade still
 // catches whatever is standing on top of it — a shock grenade that stunned nothing would be a dud.
 export const throwStunRadiusCells = (landRadius) => Math.max(0, landRadius || 0) + 1;
+// IMPACT: the damage a throwable does by physically hitting something, as opposed to the fire it
+// leaves behind. This is the throwable's own `damage` — the same "Damage:" field every weapon has.
+//
+// It was read for melee swings and for shots, and for throwables it was read NOWHERE. Blake had
+// set the Rock to 10, the Grenade to 12 and the Molotov to 8, and all three numbers did nothing:
+// a thrown item's only damage was the hazard it painted, and the Rock paints none (landEffect
+// "none", 0 dps, 0 splash). So the Rock — a rock — bounced off people. The control was on screen,
+// it had a sensible number in it, and it was wired to nothing.
+//
+// Deliberately NOT scaled by the splash radius. Splash is the area effect; impact is what the
+// object hits. A Rock with splash 0 should still hurt the thing it lands on.
+export const throwImpactDamage = (a) => Math.max(0, Math.round((a && a.damage) ?? 5));
+// How close counts as "hit by it" — a bit under a cell, so it reads as contact rather than blast.
+export const THROW_IMPACT_RADIUS_CELLS = 0.75;
 // The set of cells a grenade's landing effect covers: a square of the given radius around the
 // impact cell (radius 0 = just that one cell, 1 = 3x3, etc.), clamped to the level bounds.
 export const landingCells = (r0, c0, radius, rows, cols) => {
@@ -3617,7 +3631,7 @@ export const slopeSurfaceForPlayer = (lv, xPixel, headY, feetBottom, vy, dx, dtM
 // CSS clip-path for a Foreground cell: "none" for a solid block, or a triangle/trapezoid
 // slice of the ramp's diagonal for a slope cell (a trapezoid for any interior cell of a
 // multi-cell ramp — only the ramp's two end cells are true triangles).
-const fgClipPath = (cell) => {
+export const fgClipPath = (cell) => {
   if (!fgHasDiagonalShape(cell)) return "none";
   const a = fgRampEdge(cell, 0), b = fgRampEdge(cell, 1);
   // Vertices along the cut. The two edge samples are not enough on their own once a ramp is steeper
@@ -4270,12 +4284,19 @@ export const paintValue = (color, texture, shape) => {
   if (!texture) return s ? { c: color, ...s } : color;
   return { c: textureBaseColor(texture), tex: texture.id, ...(s || {}) };
 };
-// Foreground and Background share the same visual block/ramp vocabulary. Foreground adds
-// collision (and may be collision-only); Background uses the exact same authored diagonal but
-// never participates in physics. Keeping the shape construction in one place prevents the
+// Foreground, Background and Front share the same visual block/ramp vocabulary. Foreground adds
+// collision (and may be collision-only); Background and Front use the exact same authored diagonal
+// but never participate in physics. Keeping the shape construction in one place prevents the
 // click, drag, fill, and ghost paths from quietly disagreeing about which layers support ramps.
+//
+// Front was left out of that list, so the ⬛/◢/◣ buttons vanished the moment you selected the
+// Front layer — the slope had nowhere to be stored and nothing to draw it. There is no reason for
+// it: Front is decoration painted over the player, exactly like Background is decoration painted
+// behind them, and a sloped roof edge or a diagonal foreground rock is the obvious thing to want.
+export const TERRAIN_SHAPE_LAYERS = ["fg", "bg", "front"];
+export const layerTakesRamps = (layer) => TERRAIN_SHAPE_LAYERS.includes(layer);
 export const terrainPaintShape = (layer, selectedShape, upsideDown = false, hideInPlay = false, extra = null) => {
-  if (layer !== "fg" && layer !== "bg") return null;
+  if (!layerTakesRamps(layer)) return null;
   const ramp = selectedShape === "slopeUp" || selectedShape === "slopeDown";
   const out = ramp
     ? { slope: selectedShape === "slopeUp" ? 1 : -1, ...(extra || {}), ...(upsideDown ? { upsideDown: true } : {}) }
@@ -5558,7 +5579,7 @@ export default function AssetStudio() {
   })}</div> : null, [level, texLib, play]);
   // The Front layer keeps its ref here (the loop fades covered cells imperatively) — the wrapper it
   // always had simply moved INSIDE the memo, so the element itself is stable across frames too.
-  const lvFrontLayer = useMemo(() => level ? <div ref={frontCellsRef} style={CELL_LAYER_STYLE}>{Object.keys(level.front || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.front, level.front[k], r, c, texLib) }} />; })}</div> : null, [level, texLib]);
+  const lvFrontLayer = useMemo(() => level ? <div ref={frontCellsRef} style={CELL_LAYER_STYLE}>{Object.keys(level.front || {}).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.front, level.front[k], r, c, texLib), clipPath: fgClipPath(level.front[k]) }} />; })}</div> : null, [level, texLib]);
   // ALL THREE object render passes below walk levelObjectsInDrawOrder, not Object.keys(level.fx).
   // Same objects, but ordered by their own `z` instead of by when their cell key happened to enter
   // the map — that accident of key order was why a prop placed second could end up drawn behind
@@ -7185,13 +7206,47 @@ export default function AssetStudio() {
       // schedule exactly like painted fire. The grenade art spins while airborne.
       if (thrown.current.length) {
         const stillFlying = [];
+        // The VISIBLE body of an enemy, same rule the explosion and the stun use — not the wider
+        // render box, or a big enemy would be hit by a rock sailing past its shoulder.
+        const enemyThrowBox = (ea2, ep2) => {
+          const eShape = sideBodyShape(ea2);
+          const eRenderW = enemyRenderW(ea2, CW), epw2 = eRenderW * eShape.fraction;
+          const eph2 = ep2 && ep2.crouch ? enemyCrouchH(ea2, CW) : enemyStandH(ea2, CW);
+          return { x: ep2.x + (eShape.centerFrac * eRenderW - epw2 / 2), y: ep2.y + eShape.topFrac * eph2, w: epw2, h: eShape.heightFrac * eph2 };
+        };
         for (const g of thrown.current) {
           g.vy = Math.min(40, g.vy + 0.175 * dtMul);
           g.x += g.vx * dtMul; g.y += g.vy * dtMul; g.rot += (g.spin || 6) * dtMul;
           const offLevel = g.x < 0 || g.x > lv.cols * CW || g.y > lv.rows * CH;
           const hitSolid = !offLevel && cellsHit(g.x - 4, g.y - 4, 8, 8).length > 0;
-          const landed = offLevel || hitSolid || g.y >= lv.rows * CH - 1;
+          // IMPACT. Tested every frame, so it catches both the rock that hits someone in mid-air
+          // and the one that lands at their feet — a thrown object used to pass clean THROUGH an
+          // enemy, because the only thing it collided with was solid terrain. Striking someone
+          // also stops it: that IS where it landed, so its fire (if any) paints right there.
+          const impactDmg = throwImpactDamage(g.asset);
+          const struck = [];
+          if (!offLevel && impactDmg > 0) {
+            const impactRadPx = THROW_IMPACT_RADIUS_CELLS * CW;
+            for (const k of Object.keys(lv.enemies || {})) {
+              const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
+              if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea2);
+              if (enemyHP.current[k] <= 0) continue;
+              const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly) continue; // your own allies aren't pelted
+              const bx = enemyThrowBox(ea2, ep2);
+              if (blastHitsBox(g.x, g.y, bx.x, bx.y, bx.w, bx.h, impactRadPx)) struck.push({ k, ea: ea2, ep: ep2 });
+            }
+          }
+          const landed = offLevel || hitSolid || struck.length > 0 || g.y >= lv.rows * CH - 1;
           if (!landed) { stillFlying.push(g); continue; }
+          // Folded into the single landing message below rather than flashed here: the landing
+          // flash fires a few lines later and simply overwrote this one, so the hit was invisible
+          // — which for a Rock, whose only damage IS the impact, reads as "it did nothing" again.
+          let impactNote = "";
+          for (const s of struck) {
+            enemyHP.current[s.k] = Math.max(0, enemyHP.current[s.k] - impactDmg);
+            impactNote += " · 🪨 hit " + s.ea.name + " for " + impactDmg
+              + (enemyHP.current[s.k] <= 0 ? " — defeated!" : " (" + enemyHP.current[s.k] + " HP left)");
+          }
           // Impact cell: clamp inside the level. Paint the landing effect there + its splash.
           const r0 = Math.max(0, Math.min(lv.rows - 1, Math.floor(g.y / CH)));
           const c0 = Math.max(0, Math.min(lv.cols - 1, Math.floor(g.x / CW)));
@@ -7255,6 +7310,7 @@ export default function AssetStudio() {
             }
           }
           flash("💥 " + (a.name || "Grenade") + " landed" + (landProp ? " — " + landProp.name : " — 🔥")
+            + impactNote
             + (stunnedCount ? " · 💫 stunned " + stunnedCount + " for " + stunSecs + "s" : ""));
         }
         thrown.current = stillFlying;
@@ -7731,7 +7787,7 @@ export default function AssetStudio() {
       const span = rampDragSpan(anchor, cur, lBrush, lFgShape === "slopeUp" ? 1 : -1, lFgUpsideDown);
       setLevel((lv) => {
         if (!lv) return lv;
-        const targetLayer = lLayer === "bg" ? "bg" : "fg";
+        const targetLayer = (lLayer === "bg" || lLayer === "front") ? lLayer : "fg";
         const terrain = { ...lv[targetLayer] };
         for (const cell of span) {
           if (cell.c < 0 || cell.c >= lv.cols || cell.r < 0 || cell.r >= lv.rows) continue;
@@ -10242,8 +10298,8 @@ export default function AssetStudio() {
       const shape = terrainPaintShape(lLayer, lFgShape, lFgUpsideDown, lFgHide);
       const base = paintValue(lColor, activeTexture, shape);
       // Foreground ramps stack on what's already in the cell (mergeFgFill) unless ⧉ Replace is on,
-      // which paints the cell outright. Background ramps replace the previous decorative fill, and
-      // Front remains block-only.
+      // which paints the cell outright. Background and Front ramps replace the previous decorative
+      // fill — neither layer carries collision, so there is no stack of solidity to preserve.
       layer[k] = paintIntoCell(lLayer, layer[k], withOutline(base, ol), lFgReplace);
     }
     return { ...lv, [lLayer]: layer };
@@ -10995,8 +11051,8 @@ export default function AssetStudio() {
             setLColor(fgColor(cell)); addRecent(fgColor(cell));
             const tid = cellTexId(cell);
             setLTexId(resolveTexture(texLib, tid) ? tid : null); // a texture that's since been deleted picks up as its plain fallback color
-            if (lLayer === "fg" || lLayer === "bg") { setLFgShape(fgHasDiagonalShape(cell) ? (cell.slope > 0 ? "slopeUp" : "slopeDown") : "block"); setLFgUpsideDown(fgHasDiagonalShape(cell) && !!cell.upsideDown); if (lLayer === "fg") setLFgHide(fgHiddenInPlay(cell)); if (fgHasDiagonalShape(cell)) setLBrush(Math.min(8, fgRun(cell))); }
-            flash("Picked up " + (tid ? "texture 🧱" : "color 🎨") + ((lLayer === "fg" || lLayer === "bg") && fgHasDiagonalShape(cell) ? " + ramp shape/size" : "") + (lLayer === "fg" && fgHiddenInPlay(cell) ? " + collision only" : ""));
+            if (layerTakesRamps(lLayer)) { setLFgShape(fgHasDiagonalShape(cell) ? (cell.slope > 0 ? "slopeUp" : "slopeDown") : "block"); setLFgUpsideDown(fgHasDiagonalShape(cell) && !!cell.upsideDown); if (lLayer === "fg") setLFgHide(fgHiddenInPlay(cell)); if (fgHasDiagonalShape(cell)) setLBrush(Math.min(8, fgRun(cell))); }
+            flash("Picked up " + (tid ? "texture 🧱" : "color 🎨") + (layerTakesRamps(lLayer) && fgHasDiagonalShape(cell) ? " + ramp shape/size" : "") + (lLayer === "fg" && fgHiddenInPlay(cell) ? " + collision only" : ""));
           } else flash("Nothing here to pick up.");
         } else {
           flash("Eyedropper only works on Foreground, Background, or Objects.");
@@ -11031,7 +11087,7 @@ export default function AssetStudio() {
       if (lTool === "areaCopy") { areaAnchor.current = { r, c }; setAreaDragOn(true); return; }
       if (lTool === "fill") { floodFill(r, c); return; }
       if (lTool === "move") { pickMoveRegion(r, c); return; }
-      if ((lLayer === "fg" || lLayer === "bg") && lFgShape !== "block" && lTool === "paint") {
+      if (layerTakesRamps(lLayer) && lFgShape !== "block" && lTool === "paint") {
         // Ramps are placed as one multi-cell unit on release (see the pointerup effect above),
         // not stamped cell-by-cell while dragging — that's what let a bigger "size" turn into
         // several separate 45° ramps instead of one longer, shallower one.
@@ -11329,7 +11385,7 @@ export default function AssetStudio() {
                 {activeTexture ? <><span className="texchip" style={cellPaintStyle({ c: textureBaseColor(activeTexture), tex: activeTexture.id }, 0, 0, texLib)} /> {activeTexture.name}</> : <>🧱 Texture</>}
               </button>
               {activeTexture && <><button className={"ltbtn" + (lTool === "paint" ? " on" : "")} onClick={() => setLTool("paint")}>🖌 Texture paint</button>{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={"ltbtn" + (lTool === "fill" ? " on" : "")} onClick={() => setLTool("fill")}>🪣 Fill matching color</button>}<button className="ltbtn" onClick={() => setLTexId(null)}>✕ Plain color</button></>}
-              {(lLayer === "fg" || lLayer === "bg") && (
+              {layerTakesRamps(lLayer) && (
                 <>
                   <div className="seg" >
                     <button className={lFgShape === "block" ? "on" : ""} onClick={() => setLFgShape("block")}>⬛ Block</button>
@@ -11435,7 +11491,7 @@ export default function AssetStudio() {
                   // against the hill before you commit rather than placing it and then fixing it.
                   return <div className="lobjGhost" style={{ left: objNudgedLeft(ghostO, ga.c, LV_CELL), top: objNudgedTop(ghostO, ga.r, LV_CELL), width: layout.width, height: layout.height, zIndex: lInFront ? 6000 : 4000, ...objRotStyle({ rot: lObjRot, flip: lObjFlip }) }}>{renderObj(ghostO, layout.width, "ghost", 0, layout.height, layout.box)}</div>;
                 })()}
-                {!play && (lLayer === "front" || ((lLayer === "fg" || lLayer === "bg") && lFgShape === "block")) && lTool === "paint" && lHoverCell && (() => {
+                {!play && layerTakesRamps(lLayer) && lFgShape === "block" && lTool === "paint" && lHoverCell && (() => {
                   // Matches paintBrush's own iteration exactly (full r×c square, not just a
                   // horizontal span like the ramp ghost) so the preview never lies about what a
                   // click will actually stamp.
@@ -11464,7 +11520,7 @@ export default function AssetStudio() {
                   for (let dr = -half; dr < lBrush - half; dr++) for (let dc = -half; dc < lBrush - half; dc++) cells.push([lHoverCell.r + dr, lHoverCell.c + dc]);
                   return <>{cells.map(([r, c]) => <div key={"hzg" + r + "_" + c} className="blockGhost" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, background: "rgba(255,106,31,.4)" }} />)}</>;
                 })()}
-                {!play && (lLayer === "fg" || lLayer === "bg") && lFgShape !== "block" && lTool === "paint" && lHoverCell && (() => {
+                {!play && layerTakesRamps(lLayer) && lFgShape !== "block" && lTool === "paint" && lHoverCell && (() => {
                   // Dragging previews the exact span being dragged out; just hovering (not yet
                   // pressed) previews what a plain click would place, using the brush-size
                   // control as the default ramp length — so the preview always matches what
@@ -12592,7 +12648,14 @@ export default function AssetStudio() {
               </select>
             ) : <span className="hint2">🔥 emoji</span>;
           })()}
-          <label className="slider">Damage<input type="range" min="1" max="30" step="1" value={asset.landEffectDps ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectDps: +e.target.value }))} /><span className="hint2">{asset.landEffectDps ?? 6} HP/sec</span></label>
+          {/* IMPACT vs BURN. These are the two different damages a throwable does and they used to
+              be impossible to tell apart: the burn rate was labelled "Damage" here, while the real
+              impact number sat in the generic "Damage:" box further up the page — where, for a
+              throwable, it was read by nothing at all. A Rock is the case that exposes it: no fire,
+              no splash, so impact is the only damage it has, and it did none. Both are on this card
+              now, both say what they mean, and Impact edits the same asset.damage as the box above. */}
+          <label className="slider">Impact<input type="range" min="0" max="50" step="1" value={asset.damage ?? 5} onChange={(e) => setAsset((a) => ({ ...a, damage: Math.max(0, +e.target.value || 0) }))} /><span className="hint2">{(asset.damage ?? 5) === 0 ? "no impact damage" : (asset.damage ?? 5) + " HP to whatever it hits"}</span></label>
+          <label className="slider">Burn<input type="range" min="0" max="30" step="1" value={asset.landEffectDps ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectDps: +e.target.value }))} /><span className="hint2">{(asset.landEffectDps ?? 6) === 0 ? "leaves nothing burning" : (asset.landEffectDps ?? 6) + " HP/sec to anything standing in it"}</span></label>
           {/* Half-second steps: the Grenade in the library is set to 2.5s, which this slider could
               not express at step=1 — so much as touching it rounded a deliberate 2.5 to 2 or 3. */}
           <label className="slider">Burns for<input type="range" min="0.5" max="20" step="0.5" value={asset.landEffectLife ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectLife: +e.target.value }))} /><span className="hint2">{asset.landEffectLife ?? 6}s</span></label>
