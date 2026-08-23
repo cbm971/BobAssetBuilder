@@ -237,6 +237,9 @@ import {
   applyHeal,
   enemyMaxHP,
   doorAnimProgress,
+  statSliderMax,
+  ENEMY_SPEED_STAT_MAX,
+  enemyScale,
 } from "./App";
 
 describe("door transitions", () => {
@@ -4863,5 +4866,110 @@ describe("the props shipped inside asset-data/library.json", () => {
         expect(p.mirror).toBeFalsy();   // a mirrored text twin renders back-to-front
       }
     }
+  });
+});
+
+describe("how far a stat slider goes", () => {
+  // The one stat whose slider ceiling was a UI limit rather than a game one.
+  test("an enemy's Speed runs past 10; every other stat stops there", () => {
+    expect(statSliderMax("enemy", "speed")).toBe(ENEMY_SPEED_STAT_MAX);
+    expect(ENEMY_SPEED_STAT_MAX).toBeGreaterThan(10);
+    for (const s of ["agility", "intelligence", "strength", "hp"]) expect(statSliderMax("enemy", s)).toBe(10);
+  });
+
+  test("a skin's Speed still stops at 10, because the player's own formula clamps there anyway", () => {
+    // pstats.speed goes through Math.min(10, …) in the physics loop — a slider that let you set
+    // 14 and then silently ignored it would be a worse control than one that stops at 10.
+    expect(statSliderMax("skin", "speed")).toBe(10);
+    expect(statSliderMax("body", "speed")).toBe(10);
+  });
+});
+
+describe("the Squirrel shipped inside asset-data/library.json", () => {
+  // Same deal as the props above: the committed record IS the delivery, so check it with the app's
+  // own code rather than trusting the script that generated it.
+  const library = () => JSON.parse(require("fs").readFileSync(
+    require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
+  const byId = (id) => { const a = library().assets.find((x) => x.id === id); expect(a).toBeTruthy(); return a; };
+  const squirrel = () => byId("sqrl1x9");
+  const pitBull = () => byId("5ey3l1q");
+
+  test("it survives normalizeAssetJson with every pose intact", () => {
+    // An enemy's art can arrive under .angles or under .states.normal, and the two have to agree —
+    // migrate() does `a.angles = a.states.normal`, so a mismatch means the poses you can see in the
+    // editor are not the ones that got saved.
+    const raw = squirrel();
+    const out = normalizeAssetJson(raw);
+    expect(out.type).toBe("enemy");
+    for (const pose of ["side", "up", "crouch", "attack", "death"]) {
+      expect(out.angles[pose].length).toBe(raw.angles[pose].length);
+      expect(out.angles[pose].length).toBeGreaterThan(0);
+      expect(out.states.normal[pose].length).toBe(raw.angles[pose].length);
+    }
+    for (const p of out.angles.side) {
+      for (const k of ["x", "y", "w", "h"]) expect(Number.isFinite(p[k])).toBe(true);
+      expect(p.w).toBeGreaterThan(0);
+      expect(p.h).toBeGreaterThan(0);
+    }
+  });
+
+  test("its art stays inside the design canvas", () => {
+    for (const pose of ["side", "up", "crouch", "attack", "death"]) {
+      for (const p of squirrel().angles[pose]) {
+        expect(p.x).toBeGreaterThanOrEqual(0);
+        expect(p.y).toBeGreaterThanOrEqual(0);
+        expect(p.x + p.w).toBeLessThanOrEqual(200);
+        expect(p.y + p.h).toBeLessThanOrEqual(260);
+      }
+    }
+  });
+
+  test("its legs form two columns, so multiLegPivot gives it a four-legged walk", () => {
+    // One column falls through to the biped path and the whole animal shuffles as one block.
+    const side = squirrel().angles.side;
+    const legIds = new Set(side.filter((p) => p.limb === "leg").map((p) => p.id));
+    expect(legIds.size).toBeGreaterThan(2);
+    expect(multiLegPivot(side, legIds, 24)).not.toBeNull();
+  });
+
+  test("the attack pose lands on the same foot line the walk does", () => {
+    // alignPoseFootBaseline translates the action pose onto Side's foot line. Authoring the rear-up
+    // with its planted paw already on that line means the translation is a no-op rather than a drop.
+    const a = squirrel();
+    const aligned = alignPoseFootBaseline(a.angles.side, a.angles.attack);
+    for (let i = 0; i < aligned.length; i++) expect(aligned[i].y).toBeCloseTo(a.angles.attack[i].y, 6);
+  });
+
+  test("the corpse lies on the floor rather than hanging over it", () => {
+    // poseFootGapFrac is the empty canvas UNDER the drawn art; a death pose authored floating in
+    // the middle of the canvas is what left defeated enemies in mid-air.
+    const a = squirrel();
+    expect(poseFootGapFrac(a.angles.death)).toBeCloseTo(poseFootGapFrac(a.angles.side), 6);
+  });
+
+  test("it is faster than the Pit Bull, and the slider can actually reach that", () => {
+    // The whole point of the asset. aiSpeed is 2.2 * (speed / 5) with no clamp, so this comparison
+    // is the real in-game one — and the dog is already pinned at the old ceiling of 10.
+    const sq = squirrel().stats.speed, dog = pitBull().stats.speed;
+    expect(sq).toBeGreaterThan(dog);
+    expect(dog).toBe(10);
+    expect(sq).toBeLessThanOrEqual(statSliderMax("enemy", "speed"));
+  });
+
+  test("...and weaker: fewer hit points and a softer bite", () => {
+    const sq = squirrel(), dog = pitBull();
+    expect(enemyMaxHP(sq)).toBeLessThan(enemyMaxHP(dog));
+    expect(enemyAttackDamage(sq, null)).toBeLessThan(enemyAttackDamage(dog, null));
+  });
+
+  test("it renders smaller than the dog", () => {
+    // Size is scale x the art's own canvas footprint, and the two trade off — a bigger drawing at a
+    // smaller scale comes out identical, so the check has to be on the rendered height.
+    const cells = (a) => {
+      const l = a.angles.side;
+      return (Math.max(...l.map((p) => p.y + p.h)) - Math.min(...l.map((p) => p.y))) / 260 * 7 * enemyScale(a);
+    };
+    expect(cells(squirrel())).toBeLessThan(cells(pitBull()) / 1.5);
+    expect(cells(squirrel())).toBeGreaterThan(1);   // still big enough to see and to hit
   });
 });

@@ -586581,6 +586581,3291 @@
    "animFps": 6,
    "solidDefault": false,
    "savedAt": 1787485688907
+  },
+  {
+   "id": "sqrl1x9",
+   "name": "Squirrel",
+   "type": "enemy",
+   "angles": {
+    "front": [],
+    "back": [],
+    "side": [
+     {
+      "id": "z01n6hb",
+      "kind": "circle",
+      "x": 96,
+      "y": 34,
+      "w": 58,
+      "h": 84,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 10
+     },
+     {
+      "id": "ort12pc",
+      "kind": "circle",
+      "x": 100,
+      "y": 40,
+      "w": 50,
+      "h": 76,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 10
+     },
+     {
+      "id": "dilfzxd",
+      "kind": "stadium",
+      "x": 102,
+      "y": 92,
+      "w": 18,
+      "h": 44,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -16
+     },
+     {
+      "id": "28ctv5e",
+      "kind": "circle",
+      "x": 92,
+      "y": 98,
+      "w": 34,
+      "h": 36,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "rz46rdg",
+      "kind": "roundrect",
+      "x": 100,
+      "y": 124,
+      "w": 12,
+      "h": 20,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "gqwkolh",
+      "kind": "stadium",
+      "x": 92,
+      "y": 140,
+      "w": 24,
+      "h": 10,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "5goykti",
+      "kind": "circle",
+      "x": 52,
+      "y": 86,
+      "w": 72,
+      "h": 46,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -10
+     },
+     {
+      "id": "u7fch1j",
+      "kind": "stadium",
+      "x": 62,
+      "y": 114,
+      "w": 42,
+      "h": 13,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -6
+     },
+     {
+      "id": "jy7pd9k",
+      "kind": "roundrect",
+      "x": 58,
+      "y": 110,
+      "w": 13,
+      "h": 30,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 3,
+      "limb": "leg"
+     },
+     {
+      "id": "8oz39gm",
+      "kind": "stadium",
+      "x": 50,
+      "y": 140,
+      "w": 22,
+      "h": 10,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "xfrh6on",
+      "kind": "circle",
+      "x": 32,
+      "y": 72,
+      "w": 42,
+      "h": 40,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "m6iv2wo",
+      "kind": "stadium",
+      "x": 24,
+      "y": 88,
+      "w": 22,
+      "h": 14,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "bxa9y4p",
+      "kind": "stadium",
+      "x": 55,
+      "y": 62,
+      "w": 14,
+      "h": 17,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -10
+     },
+     {
+      "id": "0n2mvcr",
+      "kind": "stadium",
+      "x": 58,
+      "y": 66,
+      "w": 7,
+      "h": 10,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -10
+     },
+     {
+      "id": "peu0rks",
+      "kind": "circle",
+      "x": 42,
+      "y": 82,
+      "w": 10,
+      "h": 10,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "e5leost",
+      "kind": "circle",
+      "x": 44,
+      "y": 84,
+      "w": 6,
+      "h": 6,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "3vdsk0u",
+      "kind": "circle",
+      "x": 22,
+      "y": 92,
+      "w": 7,
+      "h": 6,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "up": [
+     {
+      "id": "sm55g8v",
+      "kind": "circle",
+      "x": 96,
+      "y": 34,
+      "w": 58,
+      "h": 84,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 10
+     },
+     {
+      "id": "hdxjdgx",
+      "kind": "circle",
+      "x": 100,
+      "y": 40,
+      "w": 50,
+      "h": 76,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 10
+     },
+     {
+      "id": "63ox9ny",
+      "kind": "stadium",
+      "x": 102,
+      "y": 92,
+      "w": 18,
+      "h": 44,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -16
+     },
+     {
+      "id": "vugb6vz",
+      "kind": "circle",
+      "x": 92,
+      "y": 98,
+      "w": 34,
+      "h": 36,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "kl8o230",
+      "kind": "roundrect",
+      "x": 100,
+      "y": 124,
+      "w": 12,
+      "h": 20,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "9b02yb2",
+      "kind": "stadium",
+      "x": 92,
+      "y": 140,
+      "w": 24,
+      "h": 10,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "y2rgvj3",
+      "kind": "circle",
+      "x": 52,
+      "y": 86,
+      "w": 72,
+      "h": 46,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -10
+     },
+     {
+      "id": "ntjurr4",
+      "kind": "stadium",
+      "x": 62,
+      "y": 114,
+      "w": 42,
+      "h": 13,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -6
+     },
+     {
+      "id": "ckb8nz5",
+      "kind": "roundrect",
+      "x": 58,
+      "y": 110,
+      "w": 13,
+      "h": 30,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 3,
+      "limb": "leg"
+     },
+     {
+      "id": "1a3lk76",
+      "kind": "stadium",
+      "x": 50,
+      "y": 140,
+      "w": 22,
+      "h": 10,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "q1uzgf8",
+      "kind": "circle",
+      "x": 32,
+      "y": 72,
+      "w": 42,
+      "h": 40,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "fsmddn9",
+      "kind": "stadium",
+      "x": 24,
+      "y": 88,
+      "w": 22,
+      "h": 14,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "4ier9ua",
+      "kind": "stadium",
+      "x": 55,
+      "y": 62,
+      "w": 14,
+      "h": 17,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -10
+     },
+     {
+      "id": "t95452b",
+      "kind": "stadium",
+      "x": 58,
+      "y": 66,
+      "w": 7,
+      "h": 10,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -10
+     },
+     {
+      "id": "i0xi2ad",
+      "kind": "circle",
+      "x": 42,
+      "y": 82,
+      "w": 10,
+      "h": 10,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "7qpwyie",
+      "kind": "circle",
+      "x": 44,
+      "y": 84,
+      "w": 6,
+      "h": 6,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "whhavqf",
+      "kind": "circle",
+      "x": 22,
+      "y": 92,
+      "w": 7,
+      "h": 6,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "crouch": [
+     {
+      "id": "l88nryg",
+      "kind": "circle",
+      "x": 96,
+      "y": 34,
+      "w": 58,
+      "h": 84,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 10
+     },
+     {
+      "id": "az01n6h",
+      "kind": "circle",
+      "x": 100,
+      "y": 40,
+      "w": 50,
+      "h": 76,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 10
+     },
+     {
+      "id": "zpsfkej",
+      "kind": "stadium",
+      "x": 102,
+      "y": 92,
+      "w": 18,
+      "h": 44,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -16
+     },
+     {
+      "id": "ogktgmk",
+      "kind": "circle",
+      "x": 92,
+      "y": 98,
+      "w": 34,
+      "h": 36,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "d7b7cul",
+      "kind": "roundrect",
+      "x": 100,
+      "y": 124,
+      "w": 12,
+      "h": 20,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "2x3k91m",
+      "kind": "stadium",
+      "x": 92,
+      "y": 140,
+      "w": 24,
+      "h": 10,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "rovy59n",
+      "kind": "circle",
+      "x": 52,
+      "y": 86,
+      "w": 72,
+      "h": 46,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -10
+     },
+     {
+      "id": "gfnc2hp",
+      "kind": "stadium",
+      "x": 62,
+      "y": 114,
+      "w": 42,
+      "h": 13,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -6
+     },
+     {
+      "id": "55eqypq",
+      "kind": "roundrect",
+      "x": 58,
+      "y": 110,
+      "w": 13,
+      "h": 30,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 3,
+      "limb": "leg"
+     },
+     {
+      "id": "uw63uxr",
+      "kind": "stadium",
+      "x": 50,
+      "y": 140,
+      "w": 22,
+      "h": 10,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "jnyhr5s",
+      "kind": "circle",
+      "x": 32,
+      "y": 72,
+      "w": 42,
+      "h": 40,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "8dqvndu",
+      "kind": "stadium",
+      "x": 24,
+      "y": 88,
+      "w": 22,
+      "h": 14,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "x4h9jlv",
+      "kind": "stadium",
+      "x": 55,
+      "y": 62,
+      "w": 14,
+      "h": 17,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -10
+     },
+     {
+      "id": "mv9mgtw",
+      "kind": "stadium",
+      "x": 58,
+      "y": 66,
+      "w": 7,
+      "h": 10,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -10
+     },
+     {
+      "id": "bm10c1x",
+      "kind": "circle",
+      "x": 42,
+      "y": 82,
+      "w": 10,
+      "h": 10,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "0cte98y",
+      "kind": "circle",
+      "x": 44,
+      "y": 84,
+      "w": 6,
+      "h": 6,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "p3ks5g0",
+      "kind": "circle",
+      "x": 22,
+      "y": 92,
+      "w": 7,
+      "h": 6,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "death": [
+     {
+      "id": "euc61o1",
+      "kind": "circle",
+      "x": 98,
+      "y": 92,
+      "w": 88,
+      "h": 56,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -8
+     },
+     {
+      "id": "3k4jyw2",
+      "kind": "circle",
+      "x": 100,
+      "y": 98,
+      "w": 84,
+      "h": 48,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -8
+     },
+     {
+      "id": "sbwxu43",
+      "kind": "stadium",
+      "x": 94,
+      "y": 116,
+      "w": 30,
+      "h": 16,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 4
+     },
+     {
+      "id": "h2nbrc5",
+      "kind": "circle",
+      "x": 94,
+      "y": 112,
+      "w": 32,
+      "h": 28,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "6sfpnk6",
+      "kind": "roundrect",
+      "x": 112,
+      "y": 130,
+      "w": 20,
+      "h": 11,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 8,
+      "limb": "leg"
+     },
+     {
+      "id": "vj72js7",
+      "kind": "stadium",
+      "x": 128,
+      "y": 140,
+      "w": 22,
+      "h": 10,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 8,
+      "limb": "leg"
+     },
+     {
+      "id": "kazgg08",
+      "kind": "circle",
+      "x": 52,
+      "y": 112,
+      "w": 72,
+      "h": 38,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 3
+     },
+     {
+      "id": "90quc89",
+      "kind": "stadium",
+      "x": 62,
+      "y": 136,
+      "w": 30,
+      "h": 13,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "yri88fb",
+      "kind": "roundrect",
+      "x": 46,
+      "y": 130,
+      "w": 22,
+      "h": 11,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -6,
+      "limb": "leg"
+     },
+     {
+      "id": "niam5nc",
+      "kind": "stadium",
+      "x": 32,
+      "y": 140,
+      "w": 22,
+      "h": 10,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -6,
+      "limb": "leg"
+     },
+     {
+      "id": "c91z1vd",
+      "kind": "circle",
+      "x": 30,
+      "y": 106,
+      "w": 42,
+      "h": 40,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "1ztdy3e",
+      "kind": "stadium",
+      "x": 20,
+      "y": 124,
+      "w": 22,
+      "h": 13,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 8
+     },
+     {
+      "id": "qqlrubg",
+      "kind": "stadium",
+      "x": 55,
+      "y": 96,
+      "w": 14,
+      "h": 17,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -34
+     },
+     {
+      "id": "fhd5qjh",
+      "kind": "stadium",
+      "x": 58,
+      "y": 100,
+      "w": 7,
+      "h": 10,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -34
+     },
+     {
+      "id": "474inri",
+      "kind": "circle",
+      "x": 42,
+      "y": 116,
+      "w": 10,
+      "h": 10,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "tywwjzj",
+      "kind": "circle",
+      "x": 44,
+      "y": 118,
+      "w": 6,
+      "h": 6,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "ipoag7k",
+      "kind": "circle",
+      "x": 18,
+      "y": 128,
+      "w": 7,
+      "h": 6,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "attack": [
+     {
+      "id": "7fgocfm",
+      "kind": "circle",
+      "x": 98,
+      "y": 22,
+      "w": 60,
+      "h": 90,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 16
+     },
+     {
+      "id": "w6718mn",
+      "kind": "circle",
+      "x": 102,
+      "y": 28,
+      "w": 52,
+      "h": 80,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 16
+     },
+     {
+      "id": "lxzf5uo",
+      "kind": "stadium",
+      "x": 102,
+      "y": 84,
+      "w": 18,
+      "h": 46,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -12
+     },
+     {
+      "id": "aort12p",
+      "kind": "circle",
+      "x": 90,
+      "y": 96,
+      "w": 34,
+      "h": 38,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "zej7xar",
+      "kind": "roundrect",
+      "x": 96,
+      "y": 124,
+      "w": 12,
+      "h": 20,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "o5aluis",
+      "kind": "stadium",
+      "x": 88,
+      "y": 140,
+      "w": 24,
+      "h": 10,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "limb": "leg"
+     },
+     {
+      "id": "dw2yqqt",
+      "kind": "circle",
+      "x": 58,
+      "y": 56,
+      "w": 54,
+      "h": 74,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 12
+     },
+     {
+      "id": "2mucnyu",
+      "kind": "stadium",
+      "x": 56,
+      "y": 86,
+      "w": 22,
+      "h": 32,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 10
+     },
+     {
+      "id": "rdmqj6v",
+      "kind": "roundrect",
+      "x": 36,
+      "y": 82,
+      "w": 26,
+      "h": 11,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -18
+     },
+     {
+      "id": "g4d4fex",
+      "kind": "stadium",
+      "x": 22,
+      "y": 76,
+      "w": 20,
+      "h": 10,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -18
+     },
+     {
+      "id": "5u5hcmy",
+      "kind": "roundrect",
+      "x": 40,
+      "y": 98,
+      "w": 24,
+      "h": 11,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -8
+     },
+     {
+      "id": "ulxv8tz",
+      "kind": "stadium",
+      "x": 26,
+      "y": 96,
+      "w": 20,
+      "h": 10,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -8
+     },
+     {
+      "id": "jcp9410",
+      "kind": "circle",
+      "x": 34,
+      "y": 30,
+      "w": 42,
+      "h": 40,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "82gn191",
+      "kind": "stadium",
+      "x": 22,
+      "y": 44,
+      "w": 24,
+      "h": 14,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -8
+     },
+     {
+      "id": "xt80xh3",
+      "kind": "rect",
+      "x": 27,
+      "y": 55,
+      "w": 5,
+      "h": 9,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -6
+     },
+     {
+      "id": "mk0eup4",
+      "kind": "rect",
+      "x": 34,
+      "y": 57,
+      "w": 5,
+      "h": 9,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -6
+     },
+     {
+      "id": "bbssqx5",
+      "kind": "stadium",
+      "x": 57,
+      "y": 18,
+      "w": 14,
+      "h": 17,
+      "color": "#b38761",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -10
+     },
+     {
+      "id": "01j6m56",
+      "kind": "stadium",
+      "x": 60,
+      "y": 22,
+      "w": 7,
+      "h": 10,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -10
+     },
+     {
+      "id": "psbkjd8",
+      "kind": "circle",
+      "x": 44,
+      "y": 40,
+      "w": 10,
+      "h": 10,
+      "color": "#f4f4f4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "ej3xfl9",
+      "kind": "circle",
+      "x": 46,
+      "y": 42,
+      "w": 6,
+      "h": 6,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "39ubcta",
+      "kind": "circle",
+      "x": 20,
+      "y": 48,
+      "w": 7,
+      "h": 6,
+      "color": "#504134",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ]
+   },
+   "guideId": "default",
+   "states": {
+    "normal": {
+     "front": [],
+     "back": [],
+     "side": [
+      {
+       "id": "z01n6hb",
+       "kind": "circle",
+       "x": 96,
+       "y": 34,
+       "w": 58,
+       "h": 84,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 10
+      },
+      {
+       "id": "ort12pc",
+       "kind": "circle",
+       "x": 100,
+       "y": 40,
+       "w": 50,
+       "h": 76,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 10
+      },
+      {
+       "id": "dilfzxd",
+       "kind": "stadium",
+       "x": 102,
+       "y": 92,
+       "w": 18,
+       "h": 44,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -16
+      },
+      {
+       "id": "28ctv5e",
+       "kind": "circle",
+       "x": 92,
+       "y": 98,
+       "w": 34,
+       "h": 36,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "rz46rdg",
+       "kind": "roundrect",
+       "x": 100,
+       "y": 124,
+       "w": 12,
+       "h": 20,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "gqwkolh",
+       "kind": "stadium",
+       "x": 92,
+       "y": 140,
+       "w": 24,
+       "h": 10,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "5goykti",
+       "kind": "circle",
+       "x": 52,
+       "y": 86,
+       "w": 72,
+       "h": 46,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -10
+      },
+      {
+       "id": "u7fch1j",
+       "kind": "stadium",
+       "x": 62,
+       "y": 114,
+       "w": 42,
+       "h": 13,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -6
+      },
+      {
+       "id": "jy7pd9k",
+       "kind": "roundrect",
+       "x": 58,
+       "y": 110,
+       "w": 13,
+       "h": 30,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 3,
+       "limb": "leg"
+      },
+      {
+       "id": "8oz39gm",
+       "kind": "stadium",
+       "x": 50,
+       "y": 140,
+       "w": 22,
+       "h": 10,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "xfrh6on",
+       "kind": "circle",
+       "x": 32,
+       "y": 72,
+       "w": 42,
+       "h": 40,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "m6iv2wo",
+       "kind": "stadium",
+       "x": 24,
+       "y": 88,
+       "w": 22,
+       "h": 14,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "bxa9y4p",
+       "kind": "stadium",
+       "x": 55,
+       "y": 62,
+       "w": 14,
+       "h": 17,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -10
+      },
+      {
+       "id": "0n2mvcr",
+       "kind": "stadium",
+       "x": 58,
+       "y": 66,
+       "w": 7,
+       "h": 10,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -10
+      },
+      {
+       "id": "peu0rks",
+       "kind": "circle",
+       "x": 42,
+       "y": 82,
+       "w": 10,
+       "h": 10,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "e5leost",
+       "kind": "circle",
+       "x": 44,
+       "y": 84,
+       "w": 6,
+       "h": 6,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "3vdsk0u",
+       "kind": "circle",
+       "x": 22,
+       "y": 92,
+       "w": 7,
+       "h": 6,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "up": [
+      {
+       "id": "sm55g8v",
+       "kind": "circle",
+       "x": 96,
+       "y": 34,
+       "w": 58,
+       "h": 84,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 10
+      },
+      {
+       "id": "hdxjdgx",
+       "kind": "circle",
+       "x": 100,
+       "y": 40,
+       "w": 50,
+       "h": 76,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 10
+      },
+      {
+       "id": "63ox9ny",
+       "kind": "stadium",
+       "x": 102,
+       "y": 92,
+       "w": 18,
+       "h": 44,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -16
+      },
+      {
+       "id": "vugb6vz",
+       "kind": "circle",
+       "x": 92,
+       "y": 98,
+       "w": 34,
+       "h": 36,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "kl8o230",
+       "kind": "roundrect",
+       "x": 100,
+       "y": 124,
+       "w": 12,
+       "h": 20,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "9b02yb2",
+       "kind": "stadium",
+       "x": 92,
+       "y": 140,
+       "w": 24,
+       "h": 10,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "y2rgvj3",
+       "kind": "circle",
+       "x": 52,
+       "y": 86,
+       "w": 72,
+       "h": 46,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -10
+      },
+      {
+       "id": "ntjurr4",
+       "kind": "stadium",
+       "x": 62,
+       "y": 114,
+       "w": 42,
+       "h": 13,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -6
+      },
+      {
+       "id": "ckb8nz5",
+       "kind": "roundrect",
+       "x": 58,
+       "y": 110,
+       "w": 13,
+       "h": 30,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 3,
+       "limb": "leg"
+      },
+      {
+       "id": "1a3lk76",
+       "kind": "stadium",
+       "x": 50,
+       "y": 140,
+       "w": 22,
+       "h": 10,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "q1uzgf8",
+       "kind": "circle",
+       "x": 32,
+       "y": 72,
+       "w": 42,
+       "h": 40,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "fsmddn9",
+       "kind": "stadium",
+       "x": 24,
+       "y": 88,
+       "w": 22,
+       "h": 14,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "4ier9ua",
+       "kind": "stadium",
+       "x": 55,
+       "y": 62,
+       "w": 14,
+       "h": 17,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -10
+      },
+      {
+       "id": "t95452b",
+       "kind": "stadium",
+       "x": 58,
+       "y": 66,
+       "w": 7,
+       "h": 10,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -10
+      },
+      {
+       "id": "i0xi2ad",
+       "kind": "circle",
+       "x": 42,
+       "y": 82,
+       "w": 10,
+       "h": 10,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "7qpwyie",
+       "kind": "circle",
+       "x": 44,
+       "y": 84,
+       "w": 6,
+       "h": 6,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "whhavqf",
+       "kind": "circle",
+       "x": 22,
+       "y": 92,
+       "w": 7,
+       "h": 6,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "crouch": [
+      {
+       "id": "l88nryg",
+       "kind": "circle",
+       "x": 96,
+       "y": 34,
+       "w": 58,
+       "h": 84,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 10
+      },
+      {
+       "id": "az01n6h",
+       "kind": "circle",
+       "x": 100,
+       "y": 40,
+       "w": 50,
+       "h": 76,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 10
+      },
+      {
+       "id": "zpsfkej",
+       "kind": "stadium",
+       "x": 102,
+       "y": 92,
+       "w": 18,
+       "h": 44,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -16
+      },
+      {
+       "id": "ogktgmk",
+       "kind": "circle",
+       "x": 92,
+       "y": 98,
+       "w": 34,
+       "h": 36,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "d7b7cul",
+       "kind": "roundrect",
+       "x": 100,
+       "y": 124,
+       "w": 12,
+       "h": 20,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "2x3k91m",
+       "kind": "stadium",
+       "x": 92,
+       "y": 140,
+       "w": 24,
+       "h": 10,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "rovy59n",
+       "kind": "circle",
+       "x": 52,
+       "y": 86,
+       "w": 72,
+       "h": 46,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -10
+      },
+      {
+       "id": "gfnc2hp",
+       "kind": "stadium",
+       "x": 62,
+       "y": 114,
+       "w": 42,
+       "h": 13,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -6
+      },
+      {
+       "id": "55eqypq",
+       "kind": "roundrect",
+       "x": 58,
+       "y": 110,
+       "w": 13,
+       "h": 30,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 3,
+       "limb": "leg"
+      },
+      {
+       "id": "uw63uxr",
+       "kind": "stadium",
+       "x": 50,
+       "y": 140,
+       "w": 22,
+       "h": 10,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "jnyhr5s",
+       "kind": "circle",
+       "x": 32,
+       "y": 72,
+       "w": 42,
+       "h": 40,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "8dqvndu",
+       "kind": "stadium",
+       "x": 24,
+       "y": 88,
+       "w": 22,
+       "h": 14,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "x4h9jlv",
+       "kind": "stadium",
+       "x": 55,
+       "y": 62,
+       "w": 14,
+       "h": 17,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -10
+      },
+      {
+       "id": "mv9mgtw",
+       "kind": "stadium",
+       "x": 58,
+       "y": 66,
+       "w": 7,
+       "h": 10,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -10
+      },
+      {
+       "id": "bm10c1x",
+       "kind": "circle",
+       "x": 42,
+       "y": 82,
+       "w": 10,
+       "h": 10,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "0cte98y",
+       "kind": "circle",
+       "x": 44,
+       "y": 84,
+       "w": 6,
+       "h": 6,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "p3ks5g0",
+       "kind": "circle",
+       "x": 22,
+       "y": 92,
+       "w": 7,
+       "h": 6,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "death": [
+      {
+       "id": "euc61o1",
+       "kind": "circle",
+       "x": 98,
+       "y": 92,
+       "w": 88,
+       "h": 56,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -8
+      },
+      {
+       "id": "3k4jyw2",
+       "kind": "circle",
+       "x": 100,
+       "y": 98,
+       "w": 84,
+       "h": 48,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -8
+      },
+      {
+       "id": "sbwxu43",
+       "kind": "stadium",
+       "x": 94,
+       "y": 116,
+       "w": 30,
+       "h": 16,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 4
+      },
+      {
+       "id": "h2nbrc5",
+       "kind": "circle",
+       "x": 94,
+       "y": 112,
+       "w": 32,
+       "h": 28,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "6sfpnk6",
+       "kind": "roundrect",
+       "x": 112,
+       "y": 130,
+       "w": 20,
+       "h": 11,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 8,
+       "limb": "leg"
+      },
+      {
+       "id": "vj72js7",
+       "kind": "stadium",
+       "x": 128,
+       "y": 140,
+       "w": 22,
+       "h": 10,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 8,
+       "limb": "leg"
+      },
+      {
+       "id": "kazgg08",
+       "kind": "circle",
+       "x": 52,
+       "y": 112,
+       "w": 72,
+       "h": 38,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 3
+      },
+      {
+       "id": "90quc89",
+       "kind": "stadium",
+       "x": 62,
+       "y": 136,
+       "w": 30,
+       "h": 13,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "yri88fb",
+       "kind": "roundrect",
+       "x": 46,
+       "y": 130,
+       "w": 22,
+       "h": 11,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -6,
+       "limb": "leg"
+      },
+      {
+       "id": "niam5nc",
+       "kind": "stadium",
+       "x": 32,
+       "y": 140,
+       "w": 22,
+       "h": 10,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -6,
+       "limb": "leg"
+      },
+      {
+       "id": "c91z1vd",
+       "kind": "circle",
+       "x": 30,
+       "y": 106,
+       "w": 42,
+       "h": 40,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "1ztdy3e",
+       "kind": "stadium",
+       "x": 20,
+       "y": 124,
+       "w": 22,
+       "h": 13,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 8
+      },
+      {
+       "id": "qqlrubg",
+       "kind": "stadium",
+       "x": 55,
+       "y": 96,
+       "w": 14,
+       "h": 17,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -34
+      },
+      {
+       "id": "fhd5qjh",
+       "kind": "stadium",
+       "x": 58,
+       "y": 100,
+       "w": 7,
+       "h": 10,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -34
+      },
+      {
+       "id": "474inri",
+       "kind": "circle",
+       "x": 42,
+       "y": 116,
+       "w": 10,
+       "h": 10,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tywwjzj",
+       "kind": "circle",
+       "x": 44,
+       "y": 118,
+       "w": 6,
+       "h": 6,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "ipoag7k",
+       "kind": "circle",
+       "x": 18,
+       "y": 128,
+       "w": 7,
+       "h": 6,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "attack": [
+      {
+       "id": "7fgocfm",
+       "kind": "circle",
+       "x": 98,
+       "y": 22,
+       "w": 60,
+       "h": 90,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 16
+      },
+      {
+       "id": "w6718mn",
+       "kind": "circle",
+       "x": 102,
+       "y": 28,
+       "w": 52,
+       "h": 80,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 16
+      },
+      {
+       "id": "lxzf5uo",
+       "kind": "stadium",
+       "x": 102,
+       "y": 84,
+       "w": 18,
+       "h": 46,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -12
+      },
+      {
+       "id": "aort12p",
+       "kind": "circle",
+       "x": 90,
+       "y": 96,
+       "w": 34,
+       "h": 38,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "zej7xar",
+       "kind": "roundrect",
+       "x": 96,
+       "y": 124,
+       "w": 12,
+       "h": 20,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "o5aluis",
+       "kind": "stadium",
+       "x": 88,
+       "y": 140,
+       "w": 24,
+       "h": 10,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "limb": "leg"
+      },
+      {
+       "id": "dw2yqqt",
+       "kind": "circle",
+       "x": 58,
+       "y": 56,
+       "w": 54,
+       "h": 74,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 12
+      },
+      {
+       "id": "2mucnyu",
+       "kind": "stadium",
+       "x": 56,
+       "y": 86,
+       "w": 22,
+       "h": 32,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 10
+      },
+      {
+       "id": "rdmqj6v",
+       "kind": "roundrect",
+       "x": 36,
+       "y": 82,
+       "w": 26,
+       "h": 11,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -18
+      },
+      {
+       "id": "g4d4fex",
+       "kind": "stadium",
+       "x": 22,
+       "y": 76,
+       "w": 20,
+       "h": 10,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -18
+      },
+      {
+       "id": "5u5hcmy",
+       "kind": "roundrect",
+       "x": 40,
+       "y": 98,
+       "w": 24,
+       "h": 11,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -8
+      },
+      {
+       "id": "ulxv8tz",
+       "kind": "stadium",
+       "x": 26,
+       "y": 96,
+       "w": 20,
+       "h": 10,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -8
+      },
+      {
+       "id": "jcp9410",
+       "kind": "circle",
+       "x": 34,
+       "y": 30,
+       "w": 42,
+       "h": 40,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "82gn191",
+       "kind": "stadium",
+       "x": 22,
+       "y": 44,
+       "w": 24,
+       "h": 14,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -8
+      },
+      {
+       "id": "xt80xh3",
+       "kind": "rect",
+       "x": 27,
+       "y": 55,
+       "w": 5,
+       "h": 9,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -6
+      },
+      {
+       "id": "mk0eup4",
+       "kind": "rect",
+       "x": 34,
+       "y": 57,
+       "w": 5,
+       "h": 9,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -6
+      },
+      {
+       "id": "bbssqx5",
+       "kind": "stadium",
+       "x": 57,
+       "y": 18,
+       "w": 14,
+       "h": 17,
+       "color": "#b38761",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -10
+      },
+      {
+       "id": "01j6m56",
+       "kind": "stadium",
+       "x": 60,
+       "y": 22,
+       "w": 7,
+       "h": 10,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -10
+      },
+      {
+       "id": "psbkjd8",
+       "kind": "circle",
+       "x": 44,
+       "y": 40,
+       "w": 10,
+       "h": 10,
+       "color": "#f4f4f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "ej3xfl9",
+       "kind": "circle",
+       "x": 46,
+       "y": 42,
+       "w": 6,
+       "h": 6,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "39ubcta",
+       "kind": "circle",
+       "x": 20,
+       "y": 48,
+       "w": 7,
+       "h": 6,
+       "color": "#504134",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ]
+    },
+    "onFire": {
+     "front": [],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    },
+    "charge": {
+     "front": [],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    }
+   },
+   "hasArms": false,
+   "weaponId": null,
+   "stats": {
+    "hp": 5,
+    "speed": 14,
+    "agility": 9,
+    "intelligence": 5,
+    "strength": 3
+   },
+   "hp": 25,
+   "ai": "seek",
+   "attackRange": 30,
+   "hand": {
+    "front": {
+     "x": 150,
+     "y": 176
+    },
+    "back": {
+     "x": 150,
+     "y": 176
+    },
+    "side": {
+     "x": 104,
+     "y": 176
+    },
+    "up": {
+     "x": 143,
+     "y": 44
+    },
+    "crouch": {
+     "x": 149,
+     "y": 182
+    }
+   },
+   "shoulder": {
+    "front": {
+     "x": 150,
+     "y": 94
+    },
+    "back": {
+     "x": 150,
+     "y": 94
+    },
+    "side": {
+     "x": 98,
+     "y": 96
+    },
+    "up": {
+     "x": 143,
+     "y": 106
+    },
+    "crouch": {
+     "x": 149,
+     "y": 124
+    }
+   },
+   "savedAt": 1787000000000,
+   "groups": {
+    "side": [
+     {
+      "id": "s0mp80b",
+      "name": "Tail",
+      "ids": [
+       "z01n6hb",
+       "ort12pc",
+       "dilfzxd"
+      ]
+     },
+     {
+      "id": "hre348c",
+      "name": "Head",
+      "ids": [
+       "xfrh6on",
+       "m6iv2wo",
+       "bxa9y4p",
+       "0n2mvcr",
+       "peu0rks",
+       "e5leost",
+       "3vdsk0u"
+      ]
+     },
+     {
+      "id": "6h6g1ge",
+      "name": "Back leg",
+      "ids": [
+       "28ctv5e",
+       "rz46rdg",
+       "gqwkolh"
+      ]
+     },
+     {
+      "id": "v8xuxof",
+      "name": "Front leg",
+      "ids": [
+       "jy7pd9k",
+       "8oz39gm"
+      ]
+     }
+    ],
+    "up": [
+     {
+      "id": "kzp8twg",
+      "name": "Tail",
+      "ids": [
+       "sm55g8v",
+       "hdxjdgx",
+       "63ox9ny"
+      ]
+     },
+     {
+      "id": "9phmq4h",
+      "name": "Head",
+      "ids": [
+       "q1uzgf8",
+       "fsmddn9",
+       "4ier9ua",
+       "t95452b",
+       "i0xi2ad",
+       "7qpwyie",
+       "whhavqf"
+      ]
+     },
+     {
+      "id": "yg9zmcj",
+      "name": "Back leg",
+      "ids": [
+       "vugb6vz",
+       "kl8o230",
+       "9b02yb2"
+      ]
+     },
+     {
+      "id": "n70djkk",
+      "name": "Front leg",
+      "ids": [
+       "ckb8nz5",
+       "1a3lk76"
+      ]
+     }
+    ],
+    "crouch": [
+     {
+      "id": "cysrfsl",
+      "name": "Tail",
+      "ids": [
+       "l88nryg",
+       "az01n6h",
+       "zpsfkej"
+      ]
+     },
+     {
+      "id": "1ok5b0m",
+      "name": "Head",
+      "ids": [
+       "jnyhr5s",
+       "8dqvndu",
+       "x4h9jlv",
+       "mv9mgtw",
+       "bm10c1x",
+       "0cte98y",
+       "p3ks5g0"
+      ]
+     },
+     {
+      "id": "qfcj87n",
+      "name": "Back leg",
+      "ids": [
+       "ogktgmk",
+       "d7b7cul",
+       "2x3k91m"
+      ]
+     },
+     {
+      "id": "f63w4fp",
+      "name": "Front leg",
+      "ids": [
+       "55eqypq",
+       "uw63uxr"
+      ]
+     }
+    ],
+    "death": [
+     {
+      "id": "4wva1nq",
+      "name": "Tail",
+      "ids": [
+       "euc61o1",
+       "3k4jyw2",
+       "sbwxu43"
+      ]
+     },
+     {
+      "id": "tnnoxvr",
+      "name": "Head",
+      "ids": [
+       "c91z1vd",
+       "1ztdy3e",
+       "qqlrubg",
+       "fhd5qjh",
+       "474inri",
+       "tywwjzj",
+       "ipoag7k"
+      ]
+     }
+    ],
+    "attack": [
+     {
+      "id": "ief2t3s",
+      "name": "Tail",
+      "ids": [
+       "7fgocfm",
+       "w6718mn",
+       "lxzf5uo"
+      ]
+     },
+     {
+      "id": "746fqbu",
+      "name": "Head",
+      "ids": [
+       "jcp9410",
+       "82gn191",
+       "xt80xh3",
+       "mk0eup4",
+       "bbssqx5",
+       "01j6m56",
+       "psbkjd8",
+       "ej3xfl9",
+       "39ubcta"
+      ]
+     },
+     {
+      "id": "wvytmjv",
+      "name": "Front paws",
+      "ids": [
+       "rdmqj6v",
+       "g4d4fex",
+       "5u5hcmy",
+       "ulxv8tz"
+      ]
+     }
+    ]
+   },
+   "scale": 0.55
   }
  ],
  "levels": [

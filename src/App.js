@@ -1790,6 +1790,17 @@ const LOAD_CATEGORIES = [
 // with an Enemy's separate `.hp` field (a raw, uncapped number — how tanky that one enemy is —
 // which this doesn't touch).
 const DEFAULT_STATS = () => ({ hp: 5, speed: 5, agility: 5, intelligence: 5, strength: 5 });
+// How far a stat slider goes in the creator. Every stat is a 1-10 scale and stays one — except an
+// ENEMY's Speed, which is the one stat whose number feeds a runtime formula that never clamps it:
+// aiSpeed is 2.2 * (speed / 5), straight into px per frame. 10 was therefore a UI ceiling rather
+// than a game one, and it had already been hit — both Pit Bulls sit at 10, so there was no way to
+// author anything FASTER than a dog, which is exactly what the Squirrel needed to be. Enemy Speed
+// runs to 20; a stat-20 enemy moves 8.8px a frame, a shade quicker than the player's own walk, so
+// the headroom is real without being nonsense. Every other stat keeps 1-10 because those numbers
+// DO feed clamped formulas (the player's own speed and agility are Math.min(10, …)), and a slider
+// that let you set a value the game then ignores is worse than no slider.
+export const ENEMY_SPEED_STAT_MAX = 20;
+export const statSliderMax = (type, stat) => (type === "enemy" && stat === "speed" ? ENEMY_SPEED_STAT_MAX : 10);
 // The player's actual HP pool in Playtest — same baseline-5 convention as every other stat
 // (5 = 1×, unmodified), so a stat-5 character has 25 HP and the 1-10 slider tops out at 50.
 // It used to mirror the default 10 a freshly-created enemy asset
@@ -12949,7 +12960,7 @@ export default function AssetStudio() {
               {(asset.type === "skin" ? ["hp", "speed", "agility", "intelligence", "strength"] : ["speed", "agility", "intelligence", "strength"]).map((s) => (
                 <label className="slider" key={s}>
                   {s === "hp" ? "❤️ HP" : s === "speed" ? "🏃 Speed" : s === "agility" ? "🤸 Agility" : s === "intelligence" ? "🧠 Int" : "💪 Str"}
-                  <input type="range" min="1" max="10" value={asset.stats?.[s] ?? 5} onChange={(e) => setAsset((a) => ({ ...a, stats: { ...(a.stats || DEFAULT_STATS()), [s]: +e.target.value } }))} />
+                  <input type="range" min="1" max={statSliderMax(asset.type, s)} value={asset.stats?.[s] ?? 5} onChange={(e) => setAsset((a) => ({ ...a, stats: { ...(a.stats || DEFAULT_STATS()), [s]: +e.target.value } }))} />
                   {/* HP is the one stat that buys a concrete pool (5 → 25 HP, 10 → 50), so show
                       the pool next to it: "❤️ HP 7" alone tells you nothing about how many
                       5-damage hits you survive, which is the only question being asked here. */}
