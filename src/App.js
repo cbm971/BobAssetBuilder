@@ -557,6 +557,7 @@ export const weaponFireCooldownFrames = (fireRate) => Math.max(1, Math.round(60 
 // is allowed, so a 3-round burst weapon at 3/sec fires three quick rounds and then waits, rather
 // than tripling its damage output. Capped at 10 so a stray value can’t empty a magazine in a frame.
 export const DEFAULT_STUN_SECS = 1; // seconds a freshly added Stun ability freezes for
+export const DEFAULT_CLUSTER_SCALE = 0.5; // how big a cluster bomblet is next to its parent — see CLUSTER_SPREAD_VX
 export const DEFAULT_BURST = 1;
 export const DEFAULT_BURST_DELAY = 0.06;
 export const burstShotCount = (burst) => Math.max(1, Math.min(10, Math.round(burst ?? DEFAULT_BURST)));
@@ -862,47 +863,91 @@ export const isThrowable = (wtype) => wtype === "throw";
 // deals no damage at all, so it and Explode can never both be live.
 export const WEAPON_ABILITIES = {
   burstFire: {
-    icon: "🔫", label: "Burst fire",
+    icon: "🔫", label: "Burst fire", types: ["ranged"],
     blurb: "One press commits a quick salvo. The normal Fire rate controls when another burst may begin; Burst spacing controls the rounds inside it. Mutually exclusive with Full Auto.",
     on: { burstFire: true, fullAuto: false, burst: 3, burstDelay: DEFAULT_BURST_DELAY }, off: { burstFire: false },
   },
   fullAuto: {
-    icon: "🔥", label: "Full auto",
+    icon: "🔥", label: "Full auto", types: ["ranged"],
     blurb: "Hold Fire to keep shooting at the weapon's Fire rate until the trigger is released, the magazine empties, or a reload begins. Mutually exclusive with Burst Fire.",
     on: { fullAuto: true, burstFire: false }, off: { fullAuto: false },
   },
   explode: {
-    icon: "💥", label: "Explode",
+    icon: "💥", label: "Explode", types: ["ranged"],
     blurb: "The shot bursts on impact: everything within the blast radius of where it lands takes the weapon's damage, plus an explosion drawn in front from an Object you pick.",
     on: { explode: true, resurrect: false }, off: { explode: false },
   },
   ignoreArmor: {
-    icon: "🗡️", label: "Ignore armor",
+    icon: "🗡️", label: "Ignore armor", types: ["ranged", "melee"],
     blurb: "Its shots bypass the target's Defense entirely — full damage no matter what armour is worn. Back Guard and Crouch Guard still apply.",
     melee: true,
     on: { ignoreArmor: true }, off: { ignoreArmor: false },
   },
   stun: {
-    icon: "💫", label: "Stun",
+    icon: "💫", label: "Stun", types: ["ranged", "melee", "throw"],
     blurb: "A connecting hit freezes the target for a moment — it can't move or attack. Re-hitting refreshes the timer. Works in both directions: in a 👹 Enemy's hands it freezes YOU, controls and all, for the same number of seconds.",
     melee: true,
     on: { stun: DEFAULT_STUN_SECS }, off: { stun: 0 },
   },
   resurrect: {
-    icon: "🔮", label: "Resurrect staff",
+    icon: "🔮", label: "Resurrect staff", types: ["ranged", "melee"],
     blurb: "Its shot deals no damage — instead it raises a defeated body into a friendly NPC that fights for you. One body can only be raised once.",
     melee: true,
     on: { resurrect: true, explode: false }, off: { resurrect: false },
   },
+  /* --- Throwable payloads -------------------------------------------------------------------
+     Everything a thrown object does happens WHERE IT LANDS, and all three read landRadius for
+     their reach — which is exactly why Splash stays on the throwable card itself rather than
+     living inside any one of them. Each carries an `isOn` because its switch is a NUMBER whose
+     name is not the ability's own key (a cluster is clusterCount, a catch is captureMax): 0 is
+     off, which is the convention these controls already used, so no separate boolean flag exists
+     to fall out of step with the number beside it.
+
+     Each isOn ALSO checks the weapon is actually a throwable, and that half is not belt-and-braces.
+     newAsset and migrate give EVERY weapon a landEffectDps of 6 whether or not it can ever be
+     thrown, so reading that number alone lit Burn up as an active ability on the M16 and on Bobs
+     Machete — a payload neither of them has any way to deliver, offered as if it were switched on.
+     A field shared by every weapon cannot answer "is this ability on" by itself. */
+  burn: {
+    icon: "🔥", label: "Burn", types: ["throw"],
+    blurb: "Leaves fire on the ground where it lands, across the splash. Anything alive standing in it loses HP every second until it burns out — you included. Pick an Object to draw the flames, or leave it on the 🔥 emoji.",
+    isOn: (a) => !!a && isThrowable(a.wtype) && (a.landEffectDps ?? 0) > 0,
+    on: { landEffectDps: 6, landEffectLife: 6 }, off: { landEffectDps: 0 },
+  },
+  cluster: {
+    icon: "💥", label: "Cluster", types: ["throw"],
+    blurb: "It bursts on impact into smaller copies of itself that scatter and each pay out where THEY land, instead of paying out once where it hit. One generation only — bomblets never cluster again.",
+    isOn: (a) => !!a && isThrowable(a.wtype) && (a.clusterCount ?? 0) > 0,
+    on: { clusterCount: 3, clusterScale: DEFAULT_CLUSTER_SCALE }, off: { clusterCount: 0 },
+  },
+  capture: {
+    icon: "🔴", label: "Capture", types: ["throw"],
+    blurb: "Lands on a DEFEATED creature and it gets up fighting for you — it charges the nearest enemy, follows you when there are none left, and your own shots, fire and blasts pass through it. Creatures only: anything drawn in the 👹 Enemy creator, never a person. Nearest body first, and a body can only ever be brought back once.",
+    isOn: (a) => !!a && isThrowable(a.wtype) && (a.captureMax ?? 0) > 0,
+    on: { captureMax: 1 }, off: { captureMax: 0 },
+  },
 };
-// Which abilities the picker offers for a given weapon type. Burst/Full auto/Explode are things a
-// PROJECTILE does, so they stay ranged-only; `melee: true` marks the ones that are really about the
-// hit itself and therefore work just as well on a swing. A melee weapon that somehow already
-// carries a ranged-only flag (type switched after the fact) still lists it, so it can be removed
-// rather than being stuck on invisibly.
+// Is this ability actually switched on for this weapon? Most are a plain flag named after the
+// ability, but a payload whose switch is a number under a different name says so with `isOn`.
+export const weaponAbilityOn = (a, k) => {
+  const ab = WEAPON_ABILITIES[k];
+  if (!ab || !a) return false;
+  return ab.isOn ? !!ab.isOn(a) : !!a[k];
+};
+// Which abilities the picker offers for a given weapon type. Each ability names its own types now.
+// It used to be inferred from two booleans — ranged got everything, `melee: true` marked the ones
+// really about the hit itself — and a THROWABLE fell through to the melee list, so the picker
+// offered a thrown rock Ignore Armor and a Resurrect staff. Neither has any code path on a throw;
+// they were controls wired to nothing. An explicit list per ability is one field each and cannot
+// drift. A weapon that already carries a flag outside its own list still lists it, so a stale one
+// (from a type switched after the fact) can be removed rather than being stuck on invisibly.
 export const weaponAbilitiesFor = (wtype, asset) =>
-  Object.keys(WEAPON_ABILITIES).filter((k) => isRanged(wtype) || WEAPON_ABILITIES[k].melee || !!(asset && asset[k]));
-export const weaponAbilityKeys = (a) => Object.keys(WEAPON_ABILITIES).filter((k) => !!(a && a[k]));
+  Object.keys(WEAPON_ABILITIES).filter((k) => {
+    if (weaponAbilityOn(asset, k)) return true;
+    const t = WEAPON_ABILITIES[k].types || [];
+    return t.includes(isRanged(wtype) ? "ranged" : isThrowable(wtype) ? "throw" : "melee");
+  });
+export const weaponAbilityKeys = (a) => Object.keys(WEAPON_ABILITIES).filter((k) => weaponAbilityOn(a, k));
 // The poses an asset type actually offers in the editor (and that gameplay can render). Creatures
 // (enemies) only ever draw Side, Aim-up, Crouch and their 💀 Death pose — Front/Back would be pure
 // wasted work since the game never shows an enemy facing the camera. One source of truth so the
@@ -970,7 +1015,6 @@ export const throwLaunchVel = (rangePx, g, face, angleRad) => {
 // The fan is deterministic and symmetric — bomblet i takes an even share of the spread from full
 // left to full right, all with the same upward pop — so a burst reads as a spray rather than a
 // random scatter, and looks the same every throw.
-export const DEFAULT_CLUSTER_SCALE = 0.5;
 export const CLUSTER_SPREAD_VX = 3.2, CLUSTER_POP_VY = 4;
 export const clusterBombletVelocity = (i, count, spread, pop) => {
   const n = Math.max(1, count || 1);
@@ -8882,6 +8926,38 @@ export default function AssetStudio() {
             {k === "stun" && (
               <label className="slider">Freeze for<input type="range" min="0.25" max="5" step="0.25" value={asset.stun || DEFAULT_STUN_SECS} onChange={(e) => setAsset((a) => ({ ...a, stun: +e.target.value }))} /><span className="hint2">{(asset.stun || DEFAULT_STUN_SECS)}s</span></label>
             )}
+            {k === "burn" && (<>
+              <label className="slider">Burn<input type="range" min="1" max="30" step="1" value={asset.landEffectDps || 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectDps: +e.target.value }))} /><span className="hint2">{(asset.landEffectDps || 6)} HP/sec to anything standing in it</span></label>
+              {/* Half-second steps: the Grenade in the library is set to 2.5s, which a step of 1
+                  could not express — so much as touching it rounded a deliberate 2.5 to 2 or 3. */}
+              <label className="slider">Burns for<input type="range" min="0.5" max="20" step="0.5" value={asset.landEffectLife ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectLife: +e.target.value }))} /><span className="hint2">{asset.landEffectLife ?? 6}s</span></label>
+              <span className="wslab">Fire look:</span>
+              {(() => {
+                const props = allAssets.filter((pa) => pa.type === "prop");
+                return props.length ? (
+                  <select className="projSel" value={asset.landPropId || ""} onChange={(e) => setAsset((a) => ({ ...a, landPropId: e.target.value || null }))}>
+                    <option value="">🔥 Fire emoji (default)</option>
+                    {props.map((pa) => <option key={pa.id} value={pa.id}>🌿 {pa.name}{(pa.frames && pa.frames.length > 1) ? " (animated)" : ""}</option>)}
+                  </select>
+                ) : <span className="hint2">🔥 emoji</span>;
+              })()}
+            </>)}
+            {k === "cluster" && (<>
+              <label className="slider">Bomblets<input type="range" min="1" max="8" step="1" value={asset.clusterCount || 3} onChange={(e) => setAsset((a) => ({ ...a, clusterCount: +e.target.value }))} /><span className="hint2">{(asset.clusterCount || 3)} copies</span></label>
+              <label className="slider">Bomblet size<input type="range" min="0.2" max="0.8" step="0.05" value={asset.clusterScale ?? DEFAULT_CLUSTER_SCALE} onChange={(e) => setAsset((a) => ({ ...a, clusterScale: +e.target.value }))} /><span className="hint2">{Math.round((asset.clusterScale ?? DEFAULT_CLUSTER_SCALE) * 100)}% of full size</span></label>
+            </>)}
+            {k === "capture" && (<>
+              <label className="slider">Catch<input type="range" min="1" max="4" step="1" value={asset.captureMax || 1} onChange={(e) => setAsset((a) => ({ ...a, captureMax: Math.max(1, +e.target.value || 1) }))} /><span className="hint2">up to {(asset.captureMax || 1)} defeated creature{(asset.captureMax || 1) > 1 ? "s" : ""} · reaches {throwStunRadiusCells(asset.landRadius ?? DEFAULT_LAND_RADIUS)} cells off the splash</span></label>
+              {/* A catch gets up ALIVE, which means it gets up inside whatever this throwable left
+                  burning. Measured on the Elaphant: caught at 275 HP, on its feet at 242, down to
+                  201 before it walked clear. An Elaphant shrugs that off; a Squirrel has 25 HP
+                  against a 10 dps burn and dies on the spot, which reads as the catch simply not
+                  working. The rule is right — fire hurts whatever is alive — so say so rather than
+                  carving out an exemption, and offer the one tap that fixes it. */}
+              {(asset.landEffectDps ?? 0) > 0 && (
+                <p className="tip warn">⚠ 🔥 Burn is also on ({asset.landEffectDps} HP/sec for {asset.landEffectLife ?? 6}s) and your catch stands up <b>in the fire</b> — a small creature can die the instant you take it. <button className="ltbtn" onClick={() => setAsset((a) => ({ ...a, landEffectDps: 0 }))}>Turn Burn off</button></p>
+              )}
+            </>)}
             {k === "burstFire" && (<>
               <label className="slider">Rounds per burst<input type="range" min="2" max="10" step="1" value={Math.max(2, burstShotCount(asset.burst))} onChange={(e) => setAsset((a) => ({ ...a, burst: +e.target.value }))} /><span className="hint2">{Math.max(2, burstShotCount(asset.burst))} rounds per press</span></label>
               <label className="slider">Burst spacing<input type="range" min="0.02" max="0.3" step="0.01" value={asset.burstDelay ?? DEFAULT_BURST_DELAY} onChange={(e) => setAsset((a) => ({ ...a, burstDelay: +e.target.value }))} /><span className="hint2">{(asset.burstDelay ?? DEFAULT_BURST_DELAY).toFixed(2)}s apart · salvo {(((Math.max(2, burstShotCount(asset.burst)) - 1) * (asset.burstDelay ?? DEFAULT_BURST_DELAY))).toFixed(2)}s</span></label>
@@ -12880,16 +12956,12 @@ export default function AssetStudio() {
               the actual block count is how you can tell at a glance that dragging it left did
               something, and it makes two throwables comparable without playtesting both. */}
           <label className="slider">Weight<input type="range" min="1" max="10" step="1" value={asset.weight ?? DEFAULT_THROW_WEIGHT} onChange={(e) => setAsset((a) => ({ ...a, weight: +e.target.value }))} /><span className="hint2">{asset.weight ?? DEFAULT_THROW_WEIGHT}/10 · {(asset.weight ?? DEFAULT_THROW_WEIGHT) <= 2 ? "light, flies far" : (asset.weight ?? DEFAULT_THROW_WEIGHT) >= 7 ? "heavy, drops short" : "medium"} · ~{Math.round(throwRangeBlocks(5, asset.weight ?? DEFAULT_THROW_WEIGHT))} blocks at Strength 5</span></label>
-          <span className="wslab">Fire look:</span>
-          {(() => {
-            const props = allAssets.filter((pa) => pa.type === "prop");
-            return props.length ? (
-              <select className="projSel" value={asset.landPropId || ""} onChange={(e) => setAsset((a) => ({ ...a, landPropId: e.target.value || null }))}>
-                <option value="">🔥 Fire emoji (default)</option>
-                {props.map((pa) => <option key={pa.id} value={pa.id}>🌿 {pa.name}{(pa.frames && pa.frames.length > 1) ? " (animated)" : ""}</option>)}
-              </select>
-            ) : <span className="hint2">🔥 emoji</span>;
-          })()}
+          {/* Weight, Impact and Splash are what EVERY thrown object has; anything else it might
+              do on landing is an ability picked below, the same way a gun picks Burst Fire or a
+              blade picks Stun. This card used to carry all of them as sliders at once, so a Rock —
+              which burns nothing and catches nothing — still sat there asking about bomblet size.
+              Splash stays here rather than inside any one payload because all three measure their
+              reach off it. */}
           {/* IMPACT vs BURN. These are the two different damages a throwable does and they used to
               be impossible to tell apart: the burn rate was labelled "Damage" here, while the real
               impact number sat in the generic "Damage:" box further up the page — where, for a
@@ -12897,35 +12969,8 @@ export default function AssetStudio() {
               no splash, so impact is the only damage it has, and it did none. Both are on this card
               now, both say what they mean, and Impact edits the same asset.damage as the box above. */}
           <label className="slider">Impact<input type="range" min="0" max="50" step="1" value={asset.damage ?? 5} onChange={(e) => setAsset((a) => ({ ...a, damage: Math.max(0, +e.target.value || 0) }))} /><span className="hint2">{(asset.damage ?? 5) === 0 ? "no impact damage" : (asset.damage ?? 5) + " HP to whatever it hits"}</span></label>
-          <label className="slider">Burn<input type="range" min="0" max="30" step="1" value={asset.landEffectDps ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectDps: +e.target.value }))} /><span className="hint2">{(asset.landEffectDps ?? 6) === 0 ? "leaves nothing burning" : (asset.landEffectDps ?? 6) + " HP/sec to anything standing in it"}</span></label>
-          {/* Half-second steps: the Grenade in the library is set to 2.5s, which this slider could
-              not express at step=1 — so much as touching it rounded a deliberate 2.5 to 2 or 3. */}
-          <label className="slider">Burns for<input type="range" min="0.5" max="20" step="0.5" value={asset.landEffectLife ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectLife: +e.target.value }))} /><span className="hint2">{asset.landEffectLife ?? 6}s</span></label>
           <label className="slider">Splash<input type="range" min="0" max="3" step="1" value={asset.landRadius ?? DEFAULT_LAND_RADIUS} onChange={(e) => setAsset((a) => ({ ...a, landRadius: +e.target.value }))} /><span className="hint2">{(asset.landRadius ?? DEFAULT_LAND_RADIUS) === 0 ? "1 cell" : (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + "×" + (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + " cells"}</span></label>
-          <span className="wslab">💥 Cluster:</span>
-          <label className="slider">Bomblets<input type="range" min="0" max="8" step="1" value={asset.clusterCount ?? 0} onChange={(e) => setAsset((a) => ({ ...a, clusterCount: +e.target.value }))} /><span className="hint2">{(asset.clusterCount ?? 0) === 0 ? "off" : (asset.clusterCount ?? 0) + " copies"}</span></label>
-          {(asset.clusterCount ?? 0) > 0 && (<>
-            <label className="slider">Bomblet size<input type="range" min="0.2" max="0.8" step="0.05" value={asset.clusterScale ?? DEFAULT_CLUSTER_SCALE} onChange={(e) => setAsset((a) => ({ ...a, clusterScale: +e.target.value }))} /><span className="hint2">{Math.round((asset.clusterScale ?? DEFAULT_CLUSTER_SCALE) * 100)}% of full size</span></label>
-          </>)}
-          <span className="wslab">💫 Stun:</span>
-          <label className="slider">Freeze<input type="range" min="0" max="5" step="0.25" value={asset.stun ?? 0} onChange={(e) => setAsset((a) => ({ ...a, stun: +e.target.value }))} /><span className="hint2">{(asset.stun ?? 0) === 0 ? "off" : (asset.stun ?? 0) + "s 💫"}</span></label>
-          {/* Kept short: the splash+1 reach and the ally exemption are rules you cannot see. */}
-          {/* CAPTURE. A count rather than a checkbox for the same reason Bomblets and Freeze are
-              counts: 0 already means off, so there is no second on/off flag to disagree with it. */}
-          <span className="wslab">🔴 Capture:</span>
-          <label className="slider">Catch<input type="range" min="0" max="4" step="1" value={asset.captureMax ?? 0} onChange={(e) => setAsset((a) => ({ ...a, captureMax: Math.max(0, +e.target.value || 0) }))} /><span className="hint2">{(asset.captureMax ?? 0) === 0 ? "off" : "up to " + (asset.captureMax ?? 0) + " defeated creature" + ((asset.captureMax ?? 0) > 1 ? "s" : "")}</span></label>
-          {/* A catch gets up ALIVE, which means it gets up inside whatever this throwable left
-              burning. Measured on the Elaphant: caught at 275 HP, on its feet at 242, down to 201
-              before it walked clear. An Elaphant shrugs that off; a Squirrel has 25 HP against a
-              10 dps burn and dies on the spot, which reads as the catch simply not working. The
-              rule itself is right — fire hurts whatever is alive — so say so rather than carving
-              out an exemption, and offer the one tap that fixes it. */}
-          {(asset.captureMax ?? 0) > 0 && (asset.landEffectDps ?? 6) > 0 && (
-            <p className="tip warn">⚠ This also burns for {asset.landEffectDps ?? 6} HP/sec for {asset.landEffectLife ?? 6}s, and your catch stands up <b>in the fire</b> — a small creature can die the instant you take it. <button className="ltbtn" onClick={() => setAsset((a) => ({ ...a, landEffectDps: 0 }))}>Set Burn to 0</button></p>
-          )}
-          {(asset.captureMax ?? 0) > 0 && (
-            <p className="mini">Lands on a <b>defeated</b> creature and it gets up fighting for you — it charges the nearest enemy, follows you when there are none left, and your own shots, fire and blasts pass through it. Only things drawn in the <b>👹 Enemy creator</b> (animals, monsters): a person — any Dress Bob look — can't be pocketed. Same {throwStunRadiusCells(asset.landRadius ?? DEFAULT_LAND_RADIUS)}-cell reach the splash gives Stun, nearest body first, and a body can only ever be brought back once (a Resurrect staff spends the same one life).</p>
-          )}
+          {abilityCard()}
         </div>
       )}
       {asset.type === "weapon" && isThrowable(asset.wtype) && !(wState === "rest" ? (asset.angles?.side || []) : (asset.states?.rest?.side || [])).some((p) => !p.isHitbox && !p.isMuzzle) && (

@@ -171,6 +171,7 @@ import {
   pointBoxDistance,
   WEAPON_ABILITIES,
   weaponAbilityKeys,
+  weaponAbilityOn,
   BLOCK_STAGGER_SECS,
   BLOCK_RECOVER_FRAMES,
   advanceBlock,
@@ -2133,9 +2134,81 @@ describe("which abilities a weapon may carry", () => {
     expect(weaponAbilitiesFor(undefined).sort()).toEqual(["ignoreArmor", "resurrect", "stun"]); // older saves have no wtype
   });
 
-  test("a ranged weapon still gets the full list", () => {
-    expect(weaponAbilitiesFor("ranged").sort()).toEqual(Object.keys(WEAPON_ABILITIES).sort());
-    expect(weaponAbilitiesFor("projectile").sort()).toEqual(Object.keys(WEAPON_ABILITIES).sort());
+  test("a ranged weapon gets everything that isn't a thrown object's payload", () => {
+    const notThrowOnly = Object.keys(WEAPON_ABILITIES)
+      .filter((k) => (WEAPON_ABILITIES[k].types || []).some((t) => t !== "throw")).sort();
+    expect(weaponAbilitiesFor("ranged").sort()).toEqual(notThrowOnly);
+    expect(weaponAbilitiesFor("projectile").sort()).toEqual(notThrowOnly);
+    expect(notThrowOnly).toContain("burstFire");
+    expect(notThrowOnly).not.toContain("cluster");
+  });
+
+  test("a throwable is offered its own payloads, and nothing a thrown object cannot do", () => {
+    // It used to fall through to the MELEE list, so the picker offered a thrown rock Ignore Armor
+    // and a Resurrect staff. A throw has no code path for either — they were controls wired to
+    // nothing, which is the same trap the Rock's own Impact damage was in.
+    expect(weaponAbilitiesFor("throw").sort()).toEqual(["burn", "capture", "cluster", "stun"]);
+  });
+
+  test("every ability names the types it belongs to", () => {
+    // The list is the whole gate now, so a new ability with no types would silently be offered
+    // nowhere and read as "I added it and it never appears".
+    for (const k of Object.keys(WEAPON_ABILITIES)) {
+      const t = WEAPON_ABILITIES[k].types;
+      expect(Array.isArray(t)).toBe(true);
+      expect(t.length).toBeGreaterThan(0);
+      for (const one of t) expect(["melee", "ranged", "throw"]).toContain(one);
+    }
+  });
+
+  test("a payload counts as ON from its own number, not from a flag beside it", () => {
+    // Cluster, Capture and Burn each switch on a NUMBER whose name isn't the ability's key, so 0
+    // means off and there is no second boolean to fall out of step with the slider.
+    const t = (o) => ({ wtype: "throw", ...o });
+    expect(weaponAbilityOn(t({ clusterCount: 3 }), "cluster")).toBe(true);
+    expect(weaponAbilityOn(t({ clusterCount: 0 }), "cluster")).toBe(false);
+    expect(weaponAbilityOn(t({ captureMax: 1 }), "capture")).toBe(true);
+    expect(weaponAbilityOn(t({ captureMax: 0 }), "capture")).toBe(false);
+    expect(weaponAbilityOn(t({ landEffectDps: 6 }), "burn")).toBe(true);
+    expect(weaponAbilityOn(t({ landEffectDps: 0 }), "burn")).toBe(false);
+    expect(weaponAbilityOn(t({}), "burn")).toBe(false);
+    expect(weaponAbilityOn(null, "burn")).toBe(false);
+    // ...and the plain flags still work the way they always did.
+    expect(weaponAbilityOn({ explode: true }, "explode")).toBe(true);
+    expect(weaponAbilityOn({ stun: 0 }, "stun")).toBe(false);
+  });
+
+  test("existing throwables light up the right cards with no migration", () => {
+    // Blake's Grenade burns and his Rock does not; both must read correctly straight off the data
+    // they already carry, or a saved throwable opens looking like its fire was deleted.
+    const grenade = { wtype: "throw", landEffectDps: 10, landEffectLife: 2.5, clusterCount: 0, captureMax: 0, stun: 0 };
+    const rock = { wtype: "throw", landEffectDps: 0, landEffectLife: 6, clusterCount: 0, captureMax: 0, stun: 0 };
+    expect(weaponAbilityKeys(grenade)).toEqual(["burn"]);
+    expect(weaponAbilityKeys(rock)).toEqual([]);
+  });
+
+  test("a gun's unused landing-effect default does not read as an active payload", () => {
+    // newAsset and migrate hand EVERY weapon a landEffectDps of 6, thrown or not. Reading that
+    // number on its own lit Burn up as an ability on the M16 and on Bobs Machete — a payload
+    // neither can deliver — which is exactly the "a control wired to nothing" shape this whole
+    // change is removing, reintroduced from the other end.
+    const rifle = { wtype: "ranged", landEffectDps: 6, landEffectLife: 6, landRadius: 1 };
+    const blade = { wtype: "melee", landEffectDps: 6, landEffectLife: 6, landRadius: 1 };
+    expect(weaponAbilityOn(rifle, "burn")).toBe(false);
+    expect(weaponAbilityOn(blade, "burn")).toBe(false);
+    expect(weaponAbilityKeys(rifle)).toEqual([]);
+    expect(weaponAbilityKeys(blade)).toEqual([]);
+    expect(weaponAbilitiesFor("ranged", rifle)).not.toContain("burn");
+    expect(weaponAbilitiesFor("melee", blade)).not.toContain("burn");
+  });
+
+  test("adding then removing a payload leaves it off", () => {
+    for (const k of ["burn", "cluster", "capture", "stun"]) {
+      const added = { wtype: "throw", ...WEAPON_ABILITIES[k].on };  // wtype matters: a payload is only on for something throwable
+      expect(weaponAbilityOn(added, k)).toBe(true);
+      const removed = { ...added, ...WEAPON_ABILITIES[k].off };
+      expect(weaponAbilityOn(removed, k)).toBe(false);
+    }
   });
 
   // Switching a ranged weapon to melee must not strand a flag it already has where nothing can
