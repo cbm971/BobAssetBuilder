@@ -5195,8 +5195,23 @@ export const objectLayerClass = (o) => "lay-" + objectLay(o);
 // objects are emitted from two DIFFERENT containers (props re-render every frame and so can't live
 // in the memoized layer), so every prop drew over every emoji object on the same rung no matter
 // what order they were placed in. An explicit number is order that holds across both passes.
-export const LAYER_BASE_Z = { bg: 1000, fg: 2000, front: 6000 };
-export const LAYER_BAND = 999; // objects per rung before the band would run into the next one
+//
+// FRONT IS THE ONE RUNG WHERE THE OBJECTS SIT *UNDER* THEIR CELLS, and that is deliberate.
+// Painted Front terrain is the closest thing to the camera in the whole level — it is what you
+// walk behind — so a prop on the Front layer belongs between the player and that paint, not over
+// it. With the band above the cells (6001+, as it was) an indoor prop drew on top of the very wall
+// it was supposed to be standing inside, which made a walk-through metal detector impossible to
+// place indoors: the arch covered the room's own foreground instead of sitting in the doorway.
+// The band 5101-5999 is the empty gap between the player rung and the Front cells, so a Front prop
+// still draws over Bob (that is what makes him pass THROUGH the arch) while the paint still draws
+// over the prop.
+export const LAYER_BASE_Z = { bg: 1000, fg: 2000, front: 5100 };
+export const LAYER_BAND = 899; // objects per rung before the band would run into the next one
+// A defeated body draws above living units so it is never hidden behind one, but below Front
+// objects and Front paint — exactly where it sat relative to a Front prop before that band moved
+// down. Pinned to a constant rather than the bare 6000 it used to carry, because that number was
+// only ever "one rung above the player" and silently became "above every Front prop" otherwise.
+export const CORPSE_Z = 5050;
 export const levelObjectZIndex = (o, ord) =>
   (LAYER_BASE_Z[objectLay(o)] ?? LAYER_BASE_Z.bg) + 1 + Math.max(0, Math.min(LAYER_BAND - 1, Math.round(ord) || 0));
 export const splitObjectStackByPlayerLayer = (stack) => {
@@ -11558,7 +11573,7 @@ export default function AssetStudio() {
                   const ga = objAnchorForObject(lHoverCell.r, lHoverCell.c, ghostO, assetForLevelObject(ghostO));
                   // ...including the angle: the preview tilts with Twist, so you line a trailer up
                   // against the hill before you commit rather than placing it and then fixing it.
-                  return <div className="lobjGhost" style={{ left: objNudgedLeft(ghostO, ga.c, LV_CELL), top: objNudgedTop(ghostO, ga.r, LV_CELL), width: layout.width, height: layout.height, zIndex: lInFront ? 6000 : 4000, ...objRotStyle({ rot: lObjRot, flip: lObjFlip }) }}>{renderObj(ghostO, layout.width, "ghost", 0, layout.height, layout.box)}</div>;
+                  return <div className="lobjGhost" style={{ left: objNudgedLeft(ghostO, ga.c, LV_CELL), top: objNudgedTop(ghostO, ga.r, LV_CELL), width: layout.width, height: layout.height, zIndex: lInFront ? LAYER_BASE_Z.front + 1 : 4000, ...objRotStyle({ rot: lObjRot, flip: lObjFlip }) }}>{renderObj(ghostO, layout.width, "ghost", 0, layout.height, layout.box)}</div>;
                 })()}
                 {!play && layerTakesRamps(lLayer) && lFgShape === "block" && lTool === "paint" && lHoverCell && (() => {
                   // Matches paintBrush's own iteration exactly (full r×c square, not just a
@@ -12069,7 +12084,7 @@ export default function AssetStudio() {
                     const deadFootAnchor = poseFootGapFrac(deadPose) * eph;
                     const deadFlip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1) " : "";
                     return (
-                      <div key={"enp" + k} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop + deadFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", zIndex: 6000, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (eph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
+                      <div key={"enp" + k} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop + deadFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", zIndex: CORPSE_Z, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (eph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
                         {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + k + "_s" + stripped.length, keyPrefix: "dead" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
                       </div>
                     );
@@ -13705,8 +13720,10 @@ const css = `
      2000 Foreground cells    2001+ objects on the Middle layer
      3000 loose in-play things (a grenade mid-air)
      4000 climb / ghosts / pedestals
-     5000 the player and hazards
-     6000 Front cells         6001+ objects on the Front layer
+     5000 the player, enemies and hazards
+     5050 defeated bodies (CORPSE_Z — over living units, under Front props and paint)
+     5101+ objects on the Front layer
+     6000 Front cells         — the ONE rung whose cells sit ABOVE their objects; see LAYER_BASE_Z
      7000 markers / drops     8000 HP + status bars      9000 selection, 9500 door prompt
    The rungs are thousands apart so each one has room ABOVE its own cell layer for the objects
    standing on it: an object's real z is its rung + its place in the level-wide draw order
@@ -13723,8 +13740,8 @@ const css = `
 .lobj{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:3000}
 .lobj.lay-bg{z-index:1001}
 .lobj.lay-fg{z-index:2001}
-.lobj.lay-front{z-index:6001}
-.lobj.infront{z-index:6001;transition:opacity .12s ease}
+.lobj.lay-front{z-index:5101}
+.lobj.infront{z-index:5101;transition:opacity .12s ease}
 .lobjGhost{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:4000;opacity:.5;outline:2px dashed rgba(255,255,255,.4);outline-offset:-2px;border-radius:4px}
 .enemyGhost{position:absolute;pointer-events:none;z-index:4000;opacity:.6;outline:2px dashed #c0504f;outline-offset:-2px;border-radius:6px;box-sizing:border-box}
 /* THE STATUS LAYER. Sits above the Front tiles (z 6) on purpose: a unit's HP, reload and 💫 are

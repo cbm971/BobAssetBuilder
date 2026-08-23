@@ -14,6 +14,8 @@ import {
   objectLay,
   levelObjectZIndex,
   LAYER_BASE_Z,
+  LAYER_BAND,
+  CORPSE_Z,
   orderEndLay,
   hazardStillBurning,
   throwImpactDamage,
@@ -4469,6 +4471,12 @@ describe("stack or replace is a decision made before the merge", () => {
 });
 
 describe("the Solid checkbox no longer decides what draws on top", () => {
+  // The two rungs that are only ever written in the CSS string, restated here so the assertions
+  // below read as the ladder rather than as magic numbers. "the CSS ladder still matches the
+  // constants" reads them back out of App.js and fails if either side drifts.
+  const PLAYER_Z = 5000;      // .player / .playerWrap — living units and hazards
+  const FRONT_CELL_Z = 6000;  // .lcell.front — painted Front terrain, the nearest thing to the camera
+
   // The football-pitch bug, as a test. A grandstand you cannot walk through and a pitch you can
   // are two different collision answers, and that was being used as a drawing answer: solid went
   // on rung 2, decor on rung 1, and a CSS z-index beats DOM order — so the pitch could never be
@@ -4509,6 +4517,59 @@ describe("the Solid checkbox no longer decides what draws on top", () => {
     expect(levelObjectZIndex({ lay: "fg" }, 0)).toBeGreaterThan(LAYER_BASE_Z.fg);
     expect(levelObjectZIndex({ lay: "fg" }, 998)).toBeLessThan(LAYER_BASE_Z.front);
     expect(levelObjectZIndex({ lay: "front" }, 0)).toBeGreaterThan(LAYER_BASE_Z.front);
+  });
+
+  // The indoor metal detector. Painted Front terrain is the nearest thing to the camera, so a prop
+  // on the Front layer has to slot BETWEEN the player and that paint: over Bob, so he walks through
+  // the arch, and under the wall, so the arch sits inside the room instead of on top of it. Front
+  // is the one rung where the objects go below their own cells, and these numbers are the whole
+  // feature — get them wrong and the prop is either behind Bob or plastered over the room.
+  test("a Front-layer prop draws over the player but UNDER painted Front terrain", () => {
+    const prop = { kind: "prop", lay: "front" };
+    for (const ord of [0, 1, 50, 898, 99999]) {
+      expect(levelObjectZIndex(prop, ord)).toBeGreaterThan(PLAYER_Z);   // Bob passes behind it
+      expect(levelObjectZIndex(prop, ord)).toBeLessThan(FRONT_CELL_Z);  // the room draws over it
+    }
+  });
+
+  // Reducing the per-rung band is what made room for that, so every rung still has to be checked
+  // for leaking into the one above it — a runaway object count on Back must not surface as Middle.
+  test("no rung's object band can spill into the rung above it", () => {
+    const ceiling = { bg: LAYER_BASE_Z.fg, fg: LAYER_BASE_Z.front, front: FRONT_CELL_Z };
+    for (const lay of ["bg", "fg", "front"]) {
+      expect(levelObjectZIndex({ lay }, 0)).toBeGreaterThan(LAYER_BASE_Z[lay]);
+      expect(levelObjectZIndex({ lay }, LAYER_BAND * 10)).toBeLessThan(ceiling[lay]);
+    }
+  });
+
+  // A body has to stay visible over whoever is standing on it, but it is still scenery as far as
+  // the Front layer is concerned. It used to carry a bare 6000, which meant "one rung above the
+  // player" when it was written and would silently have become "above every Front prop" once that
+  // band moved down — a corpse in the doorway drawn over the metal detector.
+  test("a defeated body sits over living units but under Front props and Front paint", () => {
+    expect(CORPSE_Z).toBeGreaterThan(PLAYER_Z);
+    expect(CORPSE_Z).toBeLessThan(levelObjectZIndex({ lay: "front" }, 0));
+    expect(CORPSE_Z).toBeLessThan(FRONT_CELL_Z);
+  });
+
+  // The ladder lives in two places — these constants and the .lcell/.lobj rules in the CSS string —
+  // and they have drifted before. Read the stylesheet back and check the numbers still agree.
+  test("the CSS ladder still matches the constants it is supposed to mirror", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    const zOf = (sel) => {
+      const m = src.match(new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\{[^}]*z-index:(\\d+)"));
+      return m ? Number(m[1]) : null;
+    };
+    expect(zOf(".lcell.front")).toBe(FRONT_CELL_Z);
+    expect(zOf(".player")).toBe(PLAYER_Z);
+    expect(zOf(".playerWrap")).toBe(PLAYER_Z);
+    // The class fallbacks for Front objects must land inside the band levelObjectZIndex hands out,
+    // or an object whose inline z never applied would jump the paint.
+    for (const sel of [".lobj.lay-front", ".lobj.infront"]) {
+      expect(zOf(sel)).toBe(LAYER_BASE_Z.front + 1);
+      expect(zOf(sel)).toBeLessThan(FRONT_CELL_Z);
+      expect(zOf(sel)).toBeGreaterThan(PLAYER_Z);
+    }
   });
 
   test("later in the draw order is always higher, and a runaway count cannot leak into the next rung", () => {
