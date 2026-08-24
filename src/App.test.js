@@ -7,6 +7,10 @@ import {
   holdFacing,
   FACE_HOLD_FRAMES,
   ALLY_FOLLOW_RANGE_CELLS,
+  ALLY_FOLLOW_STOP,
+  allyFollowIntent,
+  DEFAULT_BOOM_CHAR,
+  DEFAULT_LAND_CHAR,
   ENEMY_STANDOFF_FAR,
   ENEMY_STANDOFF_NEAR,
   creatureMeleeDamage,
@@ -5562,5 +5566,90 @@ describe("a delete that outlives a browser still holding the record", () => {
     const { next, keptAssets } = applyWrite(store([A("a1"), A("a2")]), { assets: [] }, []);
     expect(keptAssets).toBe(true);
     expect(next.assets.map((a) => a.id)).toEqual(["a1", "a2"]);
+  });
+});
+
+describe("a follower walks with you, and a throwable's look is its own", () => {
+  // ---- The pet that moonwalked ---------------------------------------------------------------
+  test("a follower closes the distance or stands — never backwards, at any range", () => {
+    const speed = 6.16, range = ALLY_FOLLOW_RANGE_CELLS * 28;
+    for (const gap of [-500, -100, -30, -10, -1, 0, 1, 10, 30, 100, 500]) {
+      for (const wasFollowing of [false, true]) {
+        const dx = allyFollowIntent(gap, range, speed, wasFollowing);
+        if (dx === 0) continue;
+        expect(Math.sign(dx)).toBe(Math.sign(gap) || 1); // always TOWARD, never away
+        expect(Math.abs(dx)).toBe(speed);
+      }
+    }
+  });
+
+  test("standing right on top of it never shoves it into reverse", () => {
+    // enemyMoveIntent's near half is what did this: crowd a `seek` unit and it reverses, and a
+    // step backwards turns it round. Walking up to your own pet made it moonwalk away from you.
+    const speed = 6, range = 72;
+    expect(enemyMoveIntent("seek", 5, range, speed, true)).toBe(-speed);   // the old behaviour...
+    expect(allyFollowIntent(5, range, speed, false)).toBe(0);              // ...and the new one
+    expect(allyFollowIntent(5, range, speed, true)).toBe(0);
+    expect(allyFollowIntent(-5, range, speed, true)).toBe(0);
+  });
+
+  test("it sets off when you get away and keeps coming until it is close", () => {
+    const speed = 6, range = 72;
+    expect(allyFollowIntent(80, range, speed, false)).toBe(speed);   // out of range: sets off
+    expect(allyFollowIntent(60, range, speed, false)).toBe(0);       // ...wouldn't have started here
+    expect(allyFollowIntent(60, range, speed, true)).toBe(speed);    // ...but having started, keeps on
+    expect(allyFollowIntent(30, range, speed, true)).toBe(0);        // until comfortably close
+    expect(ALLY_FOLLOW_STOP).toBeLessThan(1);                        // the hysteresis is a stop, not a stand-off
+  });
+
+  test("the stride is long enough to read as walking, not stuttering", () => {
+    // One threshold with no hysteresis makes it step/stop/step every other frame, which reads as a
+    // broken walk cycle. The gap it covers in one go must be several frames of movement.
+    const speed = 6.16, range = ALLY_FOLLOW_RANGE_CELLS * 28;
+    expect(range - range * ALLY_FOLLOW_STOP).toBeGreaterThan(speed * 4);
+  });
+
+  test("a fighter's stand-off is untouched — this is the follow path only", () => {
+    const speed = 4, range = 400;
+    expect(enemyMoveIntent("seek", 100, range, speed, true)).toBe(-speed); // an archer still backs off
+    expect(enemyMoveIntent("seek", 500, range, speed, true)).toBe(speed);
+    expect(enemyMoveIntent("avoid", 100, range, speed, true)).toBe(-speed);
+  });
+
+  // ---- "I can't figure out how to change the explosion emoji" --------------------------------
+  test("the two emoji that were hard-coded are now the defaults, unchanged", () => {
+    expect(DEFAULT_BOOM_CHAR).toBe("💥");
+    expect(DEFAULT_LAND_CHAR).toBe("🔥");
+  });
+
+  test("a landing carries its own emoji onto the cell", () => {
+    const { hazard } = applyLandingEffect({}, {}, ["3,4"], 0, 2, null, 1, "🔴");
+    expect(hazard["3,4"].char).toBe("🔴");
+    expect(hazard["3,4"].kind).toBe("fire");
+    expect(hazard["3,4"].hideInPlay).toBeUndefined(); // no Object, so the emoji is what draws
+  });
+
+  test("no emoji given and the cell is exactly what it always was", () => {
+    // Every fire already painted in a level must render identically after this change.
+    const { hazard } = applyLandingEffect({}, {}, ["1,1"], 6, 6, null, 1);
+    expect(hazard["1,1"]).toEqual({ kind: "fire", dps: 6, life: 6 });
+    expect("char" in hazard["1,1"]).toBe(false);
+  });
+
+  test("an Object still overrides the emoji, and still hides the hazard", () => {
+    const { hazard, fx, newPropKeys } = applyLandingEffect({}, {}, ["2,2"], 10, 2.5, "expl0d3", 3, "🔴");
+    expect(hazard["2,2"].hideInPlay).toBe(true);   // the prop draws over it, as before
+    expect(hazard["2,2"].char).toBe("🔴");         // ...and the emoji is still remembered underneath
+    expect(newPropKeys).toEqual(["2,2"]);
+    expect(fx["2,2"][0].propId).toBe("expl0d3");
+  });
+
+  test("a capture throwable can be given a look without switching Burn on", () => {
+    // THE BUG: the look control lived inside the Burn ability, so a Pokeball could only reach it by
+    // turning on the fire that would kill the creature it was trying to catch. Landing art and
+    // landing DAMAGE are separate things — a 0 dps landing still leaves its emoji.
+    const { hazard } = applyLandingEffect({}, {}, ["5,5"], 0, 3, null, 1, "🔴");
+    expect(hazard["5,5"].dps).toBe(0);      // does no damage at all
+    expect(hazard["5,5"].char).toBe("🔴");  // ...and still shows the thing you picked
   });
 });

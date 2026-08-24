@@ -561,6 +561,14 @@ export const weaponFireCooldownFrames = (fireRate) => Math.max(1, Math.round(60 
 // much tighter clock than the weapon’s fire RATE — the rate still governs how soon the next PULL
 // is allowed, so a 3-round burst weapon at 3/sec fires three quick rounds and then waits, rather
 // than tripling its damage output. Capped at 10 so a stray value can’t empty a magazine in a frame.
+// WHAT AN EXPLOSION AND A LANDING ACTUALLY LOOK LIKE, when no Object/Prop is drawn for them.
+// Both used to be hard-coded at the point of render — 💥 inside the boom layer, 🔥 inside the
+// hazard table — so "how do I change the explosion emoji" had no answer at all: the only way to
+// change either was to go and draw a whole Prop. They are per-weapon now (`explodeChar`,
+// `landChar`), defaulting to exactly the two characters that were nailed in before, so nothing
+// already built looks any different until it is deliberately changed.
+export const DEFAULT_BOOM_CHAR = "💥";
+export const DEFAULT_LAND_CHAR = "🔥";
 export const DEFAULT_STUN_SECS = 1; // seconds a freshly added Stun ability freezes for
 export const DEFAULT_CLUSTER_SCALE = 0.5; // how big a cluster bomblet is next to its parent — see CLUSTER_SPREAD_VX
 export const DEFAULT_BURST = 1;
@@ -1102,13 +1110,16 @@ export const groundedLandingCells = (r0, c0, radius, rows, cols, cellState) => {
 // that Object/Prop (in front of the player) and the hazard is hidden-in-play but still burns; with
 // no prop it stays the plain 🔥 emoji hazard exactly as before. Existing fx at a cell is kept, and
 // only newly-created keys are reported back so Stop can strip just the grenade's own fires/props.
-export const applyLandingEffect = (hazardIn, fxIn, keys, dps, life, landPropId, propSize) => {
+export const applyLandingEffect = (hazardIn, fxIn, keys, dps, life, landPropId, propSize, landChar) => {
   const hazard = { ...(hazardIn || {}) };
   const fx = { ...(fxIn || {}) };
   const newHazKeys = [], newPropKeys = [];
   for (const key of keys) {
     if (!hazard[key]) newHazKeys.push(key);
-    hazard[key] = { kind: "fire", dps, life, ...(landPropId ? { hideInPlay: true } : {}) };
+    // `char` rides on the cell so a throwable can leave something that isn't a fire — a 🔴 for a
+    // Pokeball, a 💥 for a grenade — without drawing a whole Object for it. Absent, the hazard
+    // renders the 🔥 it always did (HAZARDS.fire.glyph), so nothing already painted changes.
+    hazard[key] = { kind: "fire", dps, life, ...(landChar ? { char: landChar } : {}), ...(landPropId ? { hideInPlay: true } : {}) };
     if (landPropId) {
       const stack = fx[key] ? fx[key].slice() : [];
       stack.push({ kind: "prop", propId: landPropId, solid: false, size: propSize || 1, inFront: true, _thrown: true });
@@ -2254,7 +2265,7 @@ export function newAsset(type, slot, wtype) {
   const a = { id: uid(), name: slot ? SLOTS[slot].label : (TYPES[type] ? TYPES[type].label : type), type, angles: blankAngles(), guideId: "default" };
   if (type === "body") { a.angles = JSON.parse(JSON.stringify(DEFAULT_BODY)); return withRig(a); }
   if (type === "skin") { a.stats = DEFAULT_STATS(); a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; }
-  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.stun = 0; a.captureMax = 0; a.categories = ["", "", ""]; }
+  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.explodeChar = DEFAULT_BOOM_CHAR; a.landChar = DEFAULT_LAND_CHAR; a.stun = 0; a.captureMax = 0; a.categories = ["", "", ""]; }
   // An Enemy-creator asset (an animal, a turret — anything not built out of Dress Bob) has no skin
   // stats to read HP from, so it starts at PLAYER_BASE_HP: a brand-new enemy is exactly as tanky as
   // a default player, and the number is then yours to set in the creator. A Dress Bob enemy ignores
@@ -5394,6 +5405,22 @@ export const holdFacing = (face, want, pendT, dtMul) => {
 // holds you at ITS range and still backs off when crowded, which is the behaviour that number is
 // actually for.
 export const ALLY_FOLLOW_RANGE_CELLS = 2.6;
+// A FOLLOWER NEVER WALKS BACKWARDS. Widening the band was not enough on its own: `seek` still has a
+// near half that REVERSES when the target crowds it, and a step backwards turns the unit round, so
+// walking up to your own pet made it moonwalk away from you facing the wrong way. That behaviour is
+// right for a fighter holding its range off an enemy and wrong for something following you, so
+// following gets its own intent: close the distance, or stand still. Never away, at any distance —
+// if you walk into it you simply walk through it, which is what every game does with a pet.
+//
+// The two thresholds are hysteresis, not a stand-off: it sets off once you are ALLY_FOLLOW_RANGE
+// away and keeps coming until it is comfortably close, so it walks in proper strides instead of
+// stuttering on and off one step at a time (which reads as a broken walk cycle, not as following).
+export const ALLY_FOLLOW_STOP = 0.45; // of the follow range — how close it gets before it settles
+export const allyFollowIntent = (gapSigned, range, speed, wasFollowing) => {
+  const ad = Math.abs(gapSigned), s = Math.sign(gapSigned) || 1;
+  const go = wasFollowing ? ad > range * ALLY_FOLLOW_STOP : ad > range;
+  return go ? s * speed : 0;
+};
 // Storage order controls stacking only within the same player-relative layer. Front/back is a
 // stronger rule: a front object must render over every back object regardless of placement order.
 // Keep the original stack index so editor actions still update/delete the correct saved object.
@@ -5924,7 +5951,7 @@ export default function AssetStudio() {
   // not an invisible marker). Erasable by clicking with the Erase tool on any layer, same as
   // climb. The flicker is CSS-only, so re-rendering this list every playtest frame isn't needed —
   // it's memoized on the level + tool, exactly like the climb layer.
-  const lvHazardLayer = useMemo(() => level && level.hazard ? <div ref={hazardCellsRef} style={CELL_LAYER_STYLE}>{Object.keys(level.hazard).map((k) => { const [r, c] = k.split(",").map(Number); const cell = level.hazard[k]; const kind = hazardKindOf(cell); const info = HAZARDS[kind] || HAZARDS.fire; const eraseNow = !play && lTool === "erase"; const life = hazardLife(cell); const hidden = !!(cell && typeof cell === "object" && cell.hideInPlay); if (play && hidden) return null; /* invisible-in-play fire: still hurts (damage runs off level.hazard), just draws nothing during play so a prop fire can sit on top */ return <div key={"hz" + k} data-hk={k} className={"lhazard kind-" + kind + (hidden ? " hazHidden" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} title={info.label + " — " + hazardDps(cell) + " HP/sec" + (life > 0 ? " · burns " + life + "s" : " · permanent") + (hidden ? " · invisible during play" : "")} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv) => { const hazard = { ...lv.hazard }; delete hazard[k]; return { ...lv, hazard }; }); } : undefined}><span className="hzflame">{hidden ? "🚫" : info.glyph}</span></div>; })}</div> : null, [level, lTool, play]);
+  const lvHazardLayer = useMemo(() => level && level.hazard ? <div ref={hazardCellsRef} style={CELL_LAYER_STYLE}>{Object.keys(level.hazard).map((k) => { const [r, c] = k.split(",").map(Number); const cell = level.hazard[k]; const kind = hazardKindOf(cell); const info = HAZARDS[kind] || HAZARDS.fire; const eraseNow = !play && lTool === "erase"; const life = hazardLife(cell); const hidden = !!(cell && typeof cell === "object" && cell.hideInPlay); if (play && hidden) return null; /* invisible-in-play fire: still hurts (damage runs off level.hazard), just draws nothing during play so a prop fire can sit on top */ return <div key={"hz" + k} data-hk={k} className={"lhazard kind-" + kind + (hidden ? " hazHidden" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} title={info.label + " — " + hazardDps(cell) + " HP/sec" + (life > 0 ? " · burns " + life + "s" : " · permanent") + (hidden ? " · invisible during play" : "")} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv) => { const hazard = { ...lv.hazard }; delete hazard[k]; return { ...lv, hazard }; }); } : undefined}><span className="hzflame">{hidden ? "🚫" : ((cell && typeof cell === "object" && cell.char) || info.glyph)}</span></div>; })}</div> : null, [level, lTool, play]);
   const [canUndoLevel, setCanUndoLevel] = useState(false);
   const [canRedoLevel, setCanRedoLevel] = useState(false);
   const artRef = useRef(null);
@@ -6876,7 +6903,7 @@ export default function AssetStudio() {
 
           if (!enemyPos.current[k]) {
             const spawnLeft = ec * CW + CW / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2);
-            enemyPos.current[k] = { x: spawnLeft, y: (er + 1) * CH - standEph, vy: 0, onGround: false, face: spawn.facing === 1 ? 1 : -1, crouch: false, crouchT: 0, dodgeRolled: false, willDodge: false, attackT: 0, swingT: 0, reactT: 0, aimHold: 0, faceFlipT: 0, walkPhase: 0, walking: false, weaponAmmo: null, reloading: false };
+            enemyPos.current[k] = { x: spawnLeft, y: (er + 1) * CH - standEph, vy: 0, onGround: false, face: spawn.facing === 1 ? 1 : -1, crouch: false, crouchT: 0, dodgeRolled: false, willDodge: false, attackT: 0, swingT: 0, reactT: 0, aimHold: 0, faceFlipT: 0, following: false, walkPhase: 0, walking: false, weaponAmmo: null, reloading: false };
           }
           const ep = enemyPos.current[k];
           const oldEph = ep.crouch ? crouchEph : standEph;
@@ -7044,13 +7071,21 @@ export default function AssetStudio() {
           // Following you is not engaging you, so it does not use the engage range — see
           // ALLY_FOLLOW_RANGE_CELLS. Every other target (a foe in a brawl, the player being hunted)
           // keeps engageRange exactly as before, so no hostile's behaviour moves.
-          const moveRange = targetKind === "followPlayer" ? ALLY_FOLLOW_RANGE_CELLS * CW : engageRange;
+          // Following you is not engaging you: it closes or it stands, and it never reverses.
+          const following = targetKind === "followPlayer";
           const dxMove = (stunned || !acts) ? 0
             : charging ? (Math.sign(distToTarget) || ep.face || 1) * aiSpeed * TACKLE_CHARGE_SPEED_MUL
-            : enemyMoveIntent(ai, gapSigned, moveRange, aiSpeed, detected);
+            : following ? allyFollowIntent(gapSigned, ALLY_FOLLOW_RANGE_CELLS * CW, aiSpeed, ep.following)
+            : enemyMoveIntent(ai, gapSigned, engageRange, aiSpeed, detected);
+          if (following) ep.following = dxMove !== 0; else ep.following = false;
           // The feet's say, on top of the turn-toward above — then the one and only write, gated by
           // holdFacing so a facing the unit wanted for a single frame never reaches the sprite.
           wantFace = enemyFaceThisFrame(wantFace, dxMove, enemyAttackCommitted(ep));
+          // ...and a follower standing still LOOKS THE WAY YOU LOOK, rather than turning to stare at
+          // you. Without this it spins to face you every time you walk past it, so walking along
+          // with your own pet had it permanently side-on, snapping round as you crossed it. Facing
+          // the same way you do is what makes it read as walking WITH you.
+          if (following && !dxMove && !stunned) wantFace = p.face || wantFace;
           const faceHold = holdFacing(ep.face, wantFace, ep.faceFlipT, dtMul);
           ep.face = faceHold.face; ep.faceFlipT = faceHold.pendT;
           // Walls actually stop enemies now — they used to have NO horizontal collision at all:
@@ -7274,7 +7309,7 @@ export default function AssetStudio() {
                     rot: shotAng * 180 / Math.PI, size: sizeUnits,
                     damage: enemyAttackDamage(ea, ew), life: 0, foe: hostile,
                     ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0,
-                    explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
+                    explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeChar: ew.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
                   });
                   ep.weaponAmmo = consumeShot(ep.weaponAmmo, weaponFireCooldownFrames(ew.fireRate));
                 } else if (meleeGeom) {
@@ -7373,7 +7408,7 @@ export default function AssetStudio() {
             pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
             size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
             ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor,
-            explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
+            explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeChar: playtestWeapon.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
           });
           wpn.current = consumeShot(wpn.current, fireCdFrames); // spends a round (unless clip 0 = unlimited) and starts the fire-rate cooldown
           // A fresh pull ARMS the rest of the burst; a burst shot spends one of them. Either way the
@@ -7650,7 +7685,7 @@ export default function AssetStudio() {
           let keys = groundedLandingCells(r0, c0, radius, lv.rows, lv.cols, cellState);
           if (!keys.length) keys = [r0 + "," + c0]; // never a total dud: if nothing is grounded (rare), fall back to the impact cell
           setLevel((lv2) => {
-            const { hazard, fx, newHazKeys, newPropKeys } = applyLandingEffect(lv2.hazard, lv2.fx, keys, dps, life, landProp ? a.landPropId : null, propSize);
+            const { hazard, fx, newHazKeys, newPropKeys } = applyLandingEffect(lv2.hazard, lv2.fx, keys, dps, life, landProp ? a.landPropId : null, propSize, a.landChar || DEFAULT_LAND_CHAR);
             for (const key of newHazKeys) thrownFireKeys.current.add(key);
             for (const key of newPropKeys) thrownPropKeys.current.add(key);
             return { ...lv2, hazard, fx };
@@ -7747,7 +7782,7 @@ export default function AssetStudio() {
         const detonate = (pr, ix, iy) => {
           if (!pr.explode) return;
           const radPx = Math.max(0.5, pr.explodeRadius ?? 2) * CW;
-          booms.current.push({ x: ix, y: iy, propId: pr.explodePropId || null, size: pr.explodeSize ?? 3, life: 0, maxLife: Math.max(8, Math.round((pr.explodeLife ?? 0.5) * 60)) });
+          booms.current.push({ x: ix, y: iy, propId: pr.explodePropId || null, char: pr.explodeChar || DEFAULT_BOOM_CHAR, size: pr.explodeSize ?? 3, life: 0, maxLife: Math.max(8, Math.round((pr.explodeLife ?? 0.5) * 60)) });
           const baseDmg = pr.damage ?? 5;
           // Every target's blast box, resolved the same way the direct-hit tests do: the VISIBLE
           // body, not the wider render box. Shared by all three branches below so the player, your
@@ -9097,16 +9132,13 @@ export default function AssetStudio() {
               {/* Half-second steps: the Grenade in the library is set to 2.5s, which a step of 1
                   could not express — so much as touching it rounded a deliberate 2.5 to 2 or 3. */}
               <label className="slider">Burns for<input type="range" min="0.5" max="20" step="0.5" value={asset.landEffectLife ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectLife: +e.target.value }))} /><span className="hint2">{asset.landEffectLife ?? 6}s</span></label>
-              <span className="wslab">Fire look:</span>
-              {(() => {
-                const props = allAssets.filter((pa) => pa.type === "prop");
-                return props.length ? (
-                  <select className="projSel" value={asset.landPropId || ""} onChange={(e) => setAsset((a) => ({ ...a, landPropId: e.target.value || null }))}>
-                    <option value="">🔥 Fire emoji (default)</option>
-                    {props.map((pa) => <option key={pa.id} value={pa.id}>🌿 {pa.name}{(pa.frames && pa.frames.length > 1) ? " (animated)" : ""}</option>)}
-                  </select>
-                ) : <span className="hint2">🔥 emoji</span>;
-              })()}
+              {/* The look of what it leaves used to live HERE, and that was the bug: it is the
+                  throwable's landing art, not a property of Burn, so switching a throwable's payload
+                  to Capture took the only control over its own appearance away with it. A Pokeball
+                  was then stuck drawing fire, and turning Burn on to reach the picker set light to
+                  the creature it was trying to catch. It sits on the throwable's own card now
+                  (⬇ Landing look), where every payload can reach it. */}
+              <p className="mini">Its look is <b>⬇ Landing look</b>, up on the throwable's own settings — it applies whichever payload you pick.</p>
             </>)}
             {k === "cluster" && (<>
               <label className="slider">Bomblets<input type="range" min="1" max="8" step="1" value={asset.clusterCount || 3} onChange={(e) => setAsset((a) => ({ ...a, clusterCount: +e.target.value }))} /><span className="hint2">{(asset.clusterCount || 3)} copies</span></label>
@@ -9130,11 +9162,22 @@ export default function AssetStudio() {
             </>)}
             {k === "explode" && (<>
               <label className="slider">Blast radius<input type="range" min="1" max="5" step="0.5" value={asset.explodeRadius ?? 2} onChange={(e) => setAsset((a) => ({ ...a, explodeRadius: +e.target.value }))} /><span className="hint2">{(asset.explodeRadius ?? 2)} cells</span></label>
-              <span className="wslab">Boom art (Object/Prop):</span>
-              <select className="projSel" value={asset.explodePropId || ""} onChange={(e) => setAsset((a) => ({ ...a, explodePropId: e.target.value || null }))}>
-                <option value="">— 💥 emoji (no Object) —</option>
-                {allAssets.filter((a) => a.type === "prop").map((a) => <option key={a.id} value={a.id}>🌿 {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
-              </select>
+              <span className="wslab">Boom look:</span>
+              <div className="row2">
+                {/* The emoji was hard-coded at 💥 with no control anywhere, so the only way to change
+                    what an explosion looked like was to draw a whole Object for it. */}
+                <button className="objpick" onClick={() => setPicker({ mode: "boom" })} title="Pick the emoji the blast draws">
+                  <b>{asset.explodeChar || DEFAULT_BOOM_CHAR}</b> Choose emoji
+                </button>
+                <select className="projSel" value={asset.explodePropId || ""} onChange={(e) => setAsset((a) => ({ ...a, explodePropId: e.target.value || null }))}>
+                  <option value="">{(asset.explodeChar || DEFAULT_BOOM_CHAR) + " emoji (no Object)"}</option>
+                  {allAssets.filter((a) => a.type === "prop").map((a) => <option key={a.id} value={a.id}>🌿 {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
+                </select>
+              </div>
+              {/* Explode is resolved where a SHOT lands (see detonate). A thrown object's landing is
+                  a different code path entirely and reads none of these, so say so on the card
+                  rather than letting four controls sit there looking live. */}
+              {isThrowable(asset.wtype) && <p className="tip warn">⚠ These apply to a weapon that SHOOTS. A thrown object pays out where it lands instead — use <b>⬇ Landing look</b> and 🔥 Burn above.</p>}
               {/* Boom size is the ART; blast radius is the DAMAGE. They're separate numbers,
                   and the default 3-cell art under a 2-cell radius draws a fireball much
                   smaller than the area that actually hurts — "the fire was smaller than I
@@ -9186,7 +9229,16 @@ export default function AssetStudio() {
   // and it was firing here too whenever Paint was already selected — silently kicking the
   // layer back to Foreground right after this call set it to Objects, so choosing an emoji
   // left you painting Foreground blocks instead of placing the object you just picked.
-  const pickEmoji = (m) => { setEmoji(m); addRecentEmoji(m); if (picker?.mode === "change" && sel) updSel({ char: m }); else if (picker?.mode === "level") { setLEmoji(m); setLLayer("obj"); setLTool("paint"); } else addBlock("emoji", m); setPicker(null); setEmojiQuery(""); };
+  // "land" and "boom" write onto the WEAPON rather than adding a block — the same picker, aimed at
+  // a field. Neither touches `emoji` (the add-a-block default) for the same reason: choosing what an
+  // explosion looks like should not change what the next block you draw is.
+  const pickEmoji = (m) => {
+    if (picker?.mode === "land" || picker?.mode === "boom") {
+      const field = picker.mode === "land" ? "landChar" : "explodeChar";
+      addRecentEmoji(m); setAsset((a) => ({ ...a, [field]: m })); setPicker(null); setEmojiQuery(""); return;
+    }
+    setEmoji(m); addRecentEmoji(m); if (picker?.mode === "change" && sel) updSel({ char: m }); else if (picker?.mode === "level") { setLEmoji(m); setLLayer("obj"); setLTool("paint"); } else addBlock("emoji", m); setPicker(null); setEmojiQuery("");
+  };
   const closePicker = () => { setPicker(null); setEmojiQuery(""); };
   const switchWState = (st) => { if (st === wState) return; setAsset((a) => { const states = { rest: blankAngles(), fire: blankAngles(), ...(a.states || {}) }; states[wState] = a.angles; let nxt = states[st]; if (st === "fire" && anglesEmpty(nxt)) nxt = JSON.parse(JSON.stringify(states.rest)); states[st] = nxt; return { ...a, states, angles: nxt }; }); setSelId(null); setWState(st); };
   const copyWState = () => { const other = wState === "rest" ? "fire" : "rest"; setAsset((a) => { if (!effEdit) dirtyGuides.current.add(a.guideId || "default"); const states = { rest: blankAngles(), fire: blankAngles(), ...(a.states || {}) }; states[wState] = a.angles; states[other] = JSON.parse(JSON.stringify(a.angles)); return { ...a, states }; }); flash("Copied " + wState + " → " + other); };
@@ -10035,7 +10087,7 @@ export default function AssetStudio() {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
@@ -12719,7 +12771,7 @@ export default function AssetStudio() {
                   const fade = prog > 0.66 ? Math.max(0, 1 - (prog - 0.66) / 0.34) : 1;
                   return (
                     <div key={"boom" + i} className="lobj infront" style={{ left: b.x - sz / 2, top: b.y - sz / 2, width: sz, height: sz, zIndex: 9000, opacity: fade }}>
-                      {pa ? propArtInner(pa, sz, frameIdx, "boom" + i) : <span style={{ fontSize: sz * 0.7 + "px", lineHeight: 1 }}>💥</span>}
+                      {pa ? propArtInner(pa, sz, frameIdx, "boom" + i) : <span style={{ fontSize: sz * 0.7 + "px", lineHeight: 1 }}>{b.char || DEFAULT_BOOM_CHAR}</span>}
                     </div>
                   );
                 })}
@@ -12987,7 +13039,7 @@ export default function AssetStudio() {
           return (
             <div className="modal" onClick={closePicker}>
               <div className="dlg" onClick={(e) => e.stopPropagation()}>
-                <div className="dt">Pick an emoji for this object <span className="emcount">{filtered.length}{q ? " match" + (filtered.length === 1 ? "" : "es") : ""}</span></div>
+                <div className="dt">{picker.mode === "land" ? "Pick what it leaves where it lands" : picker.mode === "boom" ? "Pick the explosion emoji" : "Pick an emoji for this object"} <span className="emcount">{filtered.length}{q ? " match" + (filtered.length === 1 ? "" : "es") : ""}</span></div>
                 <input className="emsearch" value={emojiQuery} onChange={(e) => setEmojiQuery(e.target.value)} placeholder="Search — e.g. explosion, fire, sword, tree…" autoFocus />
                 {!q && recentEmoji.length > 0 && <><div className="emsublabel">Recent</div><div className="emgrid emgrid-recent">{recentEmoji.map((m, i) => <button key={"r" + i} onClick={() => pickEmoji(m)}>{m}</button>)}</div></>}
                 {q && !filtered.length && <p className="mini">No matches for "{emojiQuery}".</p>}
@@ -13138,6 +13190,27 @@ export default function AssetStudio() {
               now, both say what they mean, and Impact edits the same asset.damage as the box above. */}
           <label className="slider">Impact<input type="range" min="0" max="50" step="1" value={asset.damage ?? 5} onChange={(e) => setAsset((a) => ({ ...a, damage: Math.max(0, +e.target.value || 0) }))} /><span className="hint2">{(asset.damage ?? 5) === 0 ? "no impact damage" : (asset.damage ?? 5) + " HP to whatever it hits"}</span></label>
           <label className="slider">Splash<input type="range" min="0" max="3" step="1" value={asset.landRadius ?? DEFAULT_LAND_RADIUS} onChange={(e) => setAsset((a) => ({ ...a, landRadius: +e.target.value }))} /><span className="hint2">{(asset.landRadius ?? DEFAULT_LAND_RADIUS) === 0 ? "1 cell" : (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + "×" + (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + " cells"}</span></label>
+          {/* LANDING LOOK — what this throwable leaves on the ground, whatever payload it carries.
+              It lived inside the Burn ability, which meant a Pokeball (Capture) had no way to change
+              its own appearance at all, and the only route to the control was to switch Burn on and
+              set light to the creature you were trying to catch. It is the throwable's art, so it
+              belongs to the throwable. An emoji needs nothing drawn; an Object/Prop overrides it. */}
+          <span className="wslab">⬇ Landing look:</span>
+          <div className="row2">
+            <button className="objpick" onClick={() => setPicker({ mode: "land" })} title="Pick the emoji it leaves where it lands">
+              <b>{asset.landChar || DEFAULT_LAND_CHAR}</b> Choose emoji
+            </button>
+            {(() => {
+              const props = allAssets.filter((pa) => pa.type === "prop");
+              return props.length ? (
+                <select className="projSel" value={asset.landPropId || ""} onChange={(e) => setAsset((a) => ({ ...a, landPropId: e.target.value || null }))}>
+                  <option value="">{(asset.landChar || DEFAULT_LAND_CHAR) + " emoji (no Object)"}</option>
+                  {props.map((pa) => <option key={pa.id} value={pa.id}>🌿 {pa.name}{(pa.frames && pa.frames.length > 1) ? " (animated)" : ""}</option>)}
+                </select>
+              ) : null;
+            })()}
+          </div>
+          <span className="hint2">{asset.landPropId ? "the Object draws it — the emoji is what shows with no Object picked" : "no Object picked, so it leaves " + (asset.landChar || DEFAULT_LAND_CHAR)}{(asset.landEffectDps ?? 0) > 0 ? " · it also burns (🔥 Burn is on)" : " · it does no damage on its own"}</span>
           {abilityCard()}
         </div>
       )}
@@ -13728,7 +13801,7 @@ export default function AssetStudio() {
         return (
           <div className="modal" onClick={closePicker}>
             <div className="dlg" onClick={(e) => e.stopPropagation()}>
-              <div className="dt">{picker.mode === "change" ? "Pick a new emoji" : "Pick an emoji to add"} <span className="emcount">{filtered.length}{q ? " match" + (filtered.length === 1 ? "" : "es") : ""}</span></div>
+              <div className="dt">{picker.mode === "land" ? "Pick what it leaves where it lands" : picker.mode === "boom" ? "Pick the explosion emoji" : picker.mode === "change" ? "Pick a new emoji" : "Pick an emoji to add"} <span className="emcount">{filtered.length}{q ? " match" + (filtered.length === 1 ? "" : "es") : ""}</span></div>
               <input className="emsearch" value={emojiQuery} onChange={(e) => setEmojiQuery(e.target.value)} placeholder="Search — e.g. explosion, fire, sword, tree…" autoFocus />
               {!q && recentEmoji.length > 0 && <><div className="emsublabel">Recent</div><div className="emgrid emgrid-recent">{recentEmoji.map((m, i) => <button key={"r" + i} onClick={() => pickEmoji(m)}>{m}</button>)}</div></>}
               {q && !filtered.length && <p className="mini">No matches for "{emojiQuery}".</p>}

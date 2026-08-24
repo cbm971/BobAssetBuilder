@@ -302,6 +302,32 @@ square. Watch `targetLayer` in the ramp-drag commit — it read
 `lLayer === "bg" ? "bg" : "fg"`, which would have silently filed every Front ramp under
 Foreground and given decoration collision. Front and Background never touch physics.
 
+**A THROWABLE'S LOOK BELONGS TO THE THROWABLE, NOT TO ITS PAYLOAD.** `landPropId` — what a thrown
+object leaves on the ground — used to live inside the 🔥 Burn ability card, and that is a bug of the
+same shape as the Front-layer ramp buttons: pick a different payload and the control vanished with
+it. A **Capture** throwable (Blake's Pokeball) therefore had no way to change its own appearance at
+all, and the only route to the picker was to switch Burn on — setting light to the very creature it
+was trying to catch. It is on the throwable's own card now (**⬇ Landing look**), beside Splash,
+reachable whichever payload is selected. Landing ART and landing DAMAGE are separate: a 0 dps
+landing still leaves its mark.
+
+**And the two "default" emoji are per-weapon** (`landChar`, `explodeChar`, defaulting to
+`DEFAULT_LAND_CHAR` 🔥 and `DEFAULT_BOOM_CHAR` 💥). Both used to be hard-coded at the point of
+render — 💥 inside the boom layer, 🔥 inside the `HAZARDS` table — so "how do I change the explosion
+emoji" had no answer: drawing a whole Prop was the only way to change either. The landing emoji
+rides on the hazard cell as `char`; a cell written without one renders exactly as before. Both
+pickers reuse the existing emoji modal via `setPicker({ mode: "land" | "boom" })` — note the app
+renders **two copies** of that dialog (one in the Level Creator, one in the asset editor), so a new
+mode has to be taught to both or it silently gets the other one's title.
+
+**Explode is a SHOT's ability and is read nowhere on a throw.** `detonate` only ever runs from the
+projectile pipeline; the thrown-landing path reads `landEffect*`, `landRadius`, `clusterCount`,
+`captureMax` and `stun` and never looks at `explode`. Blake's Grenade carries `explode: true` and a
+Boom art from before the picker was typed, so the card shows (`weaponAbilitiesFor` lists an ability
+that is already on, so a stale flag can be removed) and does nothing — the explosion he sees is its
+`landPropId`. The card now says so rather than sitting there looking live. **If you make throwables
+really explode, that is a damage change to every grenade already built** — ask first.
+
 **A throwable's `damage` is its IMPACT damage** (`throwImpactDamage`), applied to whatever
 it physically strikes — tested every frame of flight, so it catches both a hit in mid-air
 and one that lands at someone's feet. It was read for melee and for shots and **for
@@ -438,8 +464,23 @@ left to fight falls through to following the player, and it used to hold station
 *engage* range — the reach it attacks from. For an animal that is tiny: the Squirrel's is 30px,
 so the stand-off band was 13.5–25.5px while the thing moves 6.2px a frame at Speed 14. It could
 not sit still in a band two frames wide, so it corrected constantly, and every backward
-correction turned it round. The follow band is ~1.2–2.2 cells instead. Combat stand-off is
-untouched — an archer still holds you at ITS range and still backs off when crowded.
+correction turned it round. The follow band is ~1.2–2.2 cells instead.
+
+Widening the band was not enough on its own, and this is the half that finished it: **`seek` has a
+near side that REVERSES** when the target crowds it, so walking up to your own pet made it moonwalk
+away from you facing the wrong way. Right for a fighter holding its range off an enemy, wrong for
+something following you. Following has its own intent now (`allyFollowIntent`): close the distance,
+or stand still, **never away, at any distance**. Walk into a follower and you simply walk through
+it. The two thresholds (`ALLY_FOLLOW_RANGE_CELLS`, `ALLY_FOLLOW_STOP`) are hysteresis so it moves in
+proper strides rather than stuttering one step at a time — a stride shorter than a few frames of its
+own speed reads as a broken walk cycle, not as following.
+
+**And a follower standing still faces the way YOU face**, rather than turning to look at you —
+otherwise it spins to stare every time you walk past, and walking along together leaves it
+permanently side-on. Measured after: 0 backward steps across 425 frames × 7 followers, facing runs
+of 98–117 frames, and an idle follower matches the player's facing within the 5-frame `holdFacing`
+dwell (80ms) and never longer. Combat stand-off is untouched — an archer still holds you at ITS
+range and still backs off when crowded.
 
 **Weapon flags** live flat on the asset (`explode`, `ignoreArmor`, `burst`,
 `burstDelay`, `resurrect`, `stun`, …). Adding one means three places: the `newAsset`
