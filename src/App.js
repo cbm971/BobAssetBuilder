@@ -5974,6 +5974,18 @@ export default function AssetStudio() {
       {PALETTE_KEYS.map((k) => <option key={k} value={k}>{PALETTES[k].icon + " " + PALETTES[k].label}</option>)}
     </select>
   );
+  // A PALETTE IS A CONSTANT — it has to look the same every time you open it. The recent/custom
+  // colours used to run on inline after the palette's own swatches, sharing its flex-wrap row, so
+  // every custom colour picked shoved the palette's colours along and re-wrapped them. Eight
+  // recents into a twelve-colour palette and the row you'd learned the shape of no longer looked
+  // like itself — the palettes read as slowly distorted, and the ＋ picker had wandered too.
+  //
+  // This is a full-width zero-height spacer that forces a wrap — the same trick .palsel uses to
+  // claim its own line above the swatches. It goes between the palette's colours and the recents,
+  // which puts the recents and ＋ on a LAYER OF THEIR OWN underneath. The palette above the line
+  // now renders exactly as authored no matter what you've been picking, and ＋ is always in the
+  // same place. Nothing is hidden: everything that was reachable before still is, one row down.
+  const swBreak = <div className="swbreak" />;
   const palGroup = useRef({}); // skin-palette: original swatch colour -> the frozen piece group its remap is repainting
   // The piece group the block-colour controls are repainting, held across the steps of one edit —
   // see assetColorGroup for why re-resolving it every step swallows blocks it shouldn't.
@@ -12575,6 +12587,7 @@ export default function AssetStudio() {
                 {lObjKind === "emoji" && <button className={!lTint ? "orig on" : "orig"} onClick={() => setLTint(null)} title="emoji's own colors">🌈</button>}
                 {palettePicker(lPalKey, setLPalKey)}
                 {lPal.map((c) => <button key={c} className={lTint === c ? "on" : ""} style={{ background: c }} onClick={() => setLTint(c)} />)}
+                {swBreak}
                 {recent.filter((c) => !lPal.includes(c)).slice(0, 5).map((c) => <button key={"r" + c} className={"rc" + (lTint === c ? " on" : "")} style={{ background: c }} onClick={() => setLTint(c)} />)}
                 <label className="pick"><input type="color" value={lTint || "#ffffff"} onChange={(e) => setLTint(e.target.value)} onBlur={(e) => addRecent(e.target.value)} />＋</label>
               </div>}
@@ -12654,7 +12667,7 @@ export default function AssetStudio() {
             </>
           ) : (
             <>
-              <div className="lswatches">{palettePicker(lPalKey, setLPalKey)}{lPal.map((c) => <button key={c} className={lColor === c ? "on" : ""} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}{recent.filter((c) => !lPal.includes(c)).slice(0, 5).map((c) => <button key={"r" + c} className={"rc" + (lColor === c ? " on" : "")} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}<label className="pick"><input type="color" value={lColor} onChange={(e) => { setLColor(e.target.value); setLTexId(null); setLTool("paint"); }} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
+              <div className="lswatches">{palettePicker(lPalKey, setLPalKey)}{lPal.map((c) => <button key={c} className={lColor === c ? "on" : ""} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}{swBreak}{recent.filter((c) => !lPal.includes(c)).slice(0, 5).map((c) => <button key={"r" + c} className={"rc" + (lColor === c ? " on" : "")} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}<label className="pick"><input type="color" value={lColor} onChange={(e) => { setLColor(e.target.value); setLTexId(null); setLTool("paint"); }} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
               <button className={"ltbtn texbtn" + (activeTexture ? " on" : "")} onClick={() => { setTexTarget("level"); setTexPick(true); }}>
                 {activeTexture ? <><span className="texchip" style={cellPaintStyle({ c: textureBaseColor(activeTexture), tex: activeTexture.id }, 0, 0, texLib)} /> {activeTexture.name}</> : <>🧱 Texture</>}
               </button>
@@ -14387,13 +14400,14 @@ export default function AssetStudio() {
                   <button className={!sel.tint ? "orig on" : "orig"} onClick={() => updSel({ tint: null })} title="keep the emoji's own colors">🌈</button>
                   {palettePicker(palKey, setPalKey)}
                   {pal.map((c) => <button key={c} className={sel.tint === c ? "on" : ""} style={{ background: c }} onClick={() => updSel({ tint: c })} />)}
+                  {swBreak}
                   {recent.filter((c) => !pal.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.tint === c ? " on" : "")} style={{ background: c }} onClick={() => updSel({ tint: c })} title="recent" />)}
                   <label className="pick"><input type="color" value={sel.tint || "#ffffff"} onChange={(e) => updSel({ tint: e.target.value })} onBlur={(e) => addRecent(e.target.value)} />＋</label>
                 </div>
                 
                 <button className="wide" onClick={() => setPicker({ mode: "change" })}>Change emoji ({sel.char})</button>
               </> : <>
-                <div className="swatches">{palettePicker(palKey, setPalKey)}{pal.map((c) => <button key={c} className={sel.color === c ? "on" : ""} style={{ background: c }} onClick={() => applyPieceColor(c)} />)}{recent.filter((c) => !pal.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.color === c ? " on" : "")} style={{ background: c }} onClick={() => applyPieceColor(c)} title="recent" />)}<label className="pick"><input type="color" value={sel.color} onChange={(e) => applyPieceColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
+                <div className="swatches">{palettePicker(palKey, setPalKey)}{pal.map((c) => <button key={c} className={sel.color === c ? "on" : ""} style={{ background: c }} onClick={() => applyPieceColor(c)} />)}{swBreak}{recent.filter((c) => !pal.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.color === c ? " on" : "")} style={{ background: c }} onClick={() => applyPieceColor(c)} title="recent" />)}<label className="pick"><input type="color" value={sel.color} onChange={(e) => applyPieceColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
                 {!effEdit && <label className="chk"><input type="checkbox" checked={recolorAll} onChange={(e) => setRecolorAll(e.target.checked)} /> 🪣 Change this color everywhere </label>}
                 {/* PATTERN — the same texture library the Level Creator paints walls with, applied
                     to this block instead. Flannel is the one built for cloth, but any of them work;
@@ -14495,11 +14509,15 @@ export default function AssetStudio() {
             </div>
             {drawMode === "line" && <p className="tip">📏 Line: {linePt1 ? "click the END point." : "click the START point."} <button className="ltbtn" onClick={cancelDraw}>✕ Cancel</button></p>}
             {drawMode === "fill" && <p className="tip">🪣 Fill: click points to outline the shape ({fillPts.length} so far). <button className="ltbtn" onClick={finishFill} disabled={fillPts.length < 3}>✓ Finish</button> <button className="ltbtn" onClick={cancelDraw}>✕ Cancel</button></p>}
-            <div className="newcolor"><span>New block color</span><div className="ncright">{recent.filter((c) => !pal.includes(c)).slice(0, 5).map((c) => <button key={"n" + c} className={"rc" + (newColor === c ? " on" : "")} style={{ background: c }} onClick={() => setNewColor(c)} title="recent" />)}<input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} /></div></div>
             {/* The palette on the ADD side too, not just on a selected block. Building a scene is
                 dozens of blocks in a handful of period colours, and setting the colour BEFORE the
-                shape lands means each one is right on arrival instead of needing a second click. */}
-            <div className="swatches newswatches">{palettePicker(palKey, setPalKey)}{pal.map((c) => <button key={"n" + c} className={newColor === c ? "on" : ""} style={{ background: c }} onClick={() => setNewColor(c)} />)}</div>
+                shape lands means each one is right on arrival instead of needing a second click.
+                This row is the ADD side's own swatch row, and it layers like all the others — the
+                palette's constants, then swBreak, then the recents and the ＋ picker under them.
+                It used to be the one row that had them the other way up, with the recents and the
+                colour input in the label line ABOVE the palette. */}
+            <div className="newcolor"><span>New block color</span></div>
+            <div className="swatches newswatches">{palettePicker(palKey, setPalKey)}{pal.map((c) => <button key={"n" + c} className={newColor === c ? "on" : ""} style={{ background: c }} onClick={() => setNewColor(c)} />)}{swBreak}{recent.filter((c) => !pal.includes(c)).slice(0, 5).map((c) => <button key={"nr" + c} className={"rc" + (newColor === c ? " on" : "")} style={{ background: c }} onClick={() => setNewColor(c)} title="recent" />)}<label className="pick"><input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
             <button className={"ltbtn" + (eyedrop ? " on" : "")} onClick={() => setEyedrop((v) => !v)} >🎨 {eyedrop ? "Click a block…" : "Eyedropper"}</button>
             {/* Turning add-mode ON keeps any group that's already held, so a stamp you just placed
                 can be extended. Turning it OFF now KEEPS it too — the mode and the selection are
@@ -14769,8 +14787,10 @@ const css = `
 .addrow button{display:flex;flex-direction:column;align-items:center;gap:3px;background:#1f2433;border:1px solid #2c3245;border-radius:11px;padding:11px 6px;cursor:pointer;font-size:12px}
 .addrow button:hover{border-color:#4f7cf6;background:#222840}.addrow button b{font-size:19px;line-height:1}
 .wide{width:100%;background:#1f2433;border:1px solid #2c3245;border-radius:10px;padding:10px;cursor:pointer;margin-top:8px}.wide:hover{border-color:#4f7cf6}
+/* Just the caption line now. The recents and the colour input that used to sit on its right moved
+   down into .newswatches, under the palette, when every swatch row was made to layer the same way
+   (swBreak) — hence no .newcolor input[type=color] / .ncright rules here any more. */
 .newcolor{display:flex;align-items:center;justify-content:space-between;margin-top:11px;color:#aab2c6;font-size:13px}
-.newcolor input[type=color]{width:46px;height:30px;border:1px solid #2c3245;border-radius:8px;background:#1f2433;padding:2px;cursor:pointer}
 .swatches{display:flex;flex-wrap:wrap;gap:7px}
 .swatches button{width:30px;height:30px;border-radius:8px;border:2px solid transparent;cursor:pointer}
 .swatches button.on{border-color:#fff;box-shadow:0 0 0 2px #4f7cf6}
@@ -14778,8 +14798,15 @@ const css = `
    the colour buttons out from under a finger mid-tap. */
 .palsel{flex:1 0 100%;background:#1f2433;border:1px solid #2c3245;border-radius:8px;color:#e7ecf5;font-size:12px;padding:5px 7px;cursor:pointer}
 .palsel:hover{border-color:#4f7cf6}
+/* The layer line — see swBreak. flex:0 0 100% at zero height forces the wrap without costing a row
+   of its own, so everything after it lands UNDER the palette instead of wrapping into it. The
+   hairline is what makes the boundary read: above it is the palette, exactly as authored; below it
+   is your own recent and custom colours. Dashed to match the ＋ picker's border and the dotted ring
+   on a recent swatch — the file's existing shorthand for "custom, not from the palette". */
+.swbreak{flex:0 0 100%;height:0;border-top:1px dashed #2c3245;margin:2px 0 0}
 .newswatches{margin-top:9px;gap:6px}
 .newswatches button{width:26px;height:26px;border-radius:7px}
+.newswatches .pick{box-sizing:border-box;width:26px;height:26px;border-radius:7px;font-size:14px}
 .palette{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
 .palchip{position:relative;display:flex;align-items:center;gap:8px;background:#1f2433;border:1px solid #2c3245;border-radius:10px;padding:6px 10px 6px 6px;cursor:pointer}
 .palchip .palsw{width:26px;height:26px;border-radius:7px;border:2px solid #3a4258;flex:0 0 auto}
@@ -14878,7 +14905,6 @@ const css = `
 .abilx{padding:4px 9px;font-size:12px;border-color:#5a3a4a;color:#e6b8c4}
 .abilx:hover{border-color:#c76a86;background:#33202a}
 .rc{position:relative}.rc::after{content:"";position:absolute;inset:-3px;border:1px dotted #6a7290;border-radius:7px;pointer-events:none}
-.ncright{display:flex;align-items:center;gap:5px}.ncright .rc{width:22px;height:22px;border-radius:6px;border:1px solid #2c3245;cursor:pointer}
 /* level creator */
 .wide2{width:150px}
 /* Twist, sitting on the object toolbar. Boxed and tinted so it reads as "this acts on the
