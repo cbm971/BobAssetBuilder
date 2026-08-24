@@ -403,6 +403,26 @@ which lives in the per-level `roomState` bucket, so an NPC you talked round is s
 after you leave through a door and come back. Recruiting reuses `ep.friendly` — the Resurrect
 staff's own flag and its whole ally pipeline — rather than adding a second kind of ally.
 
+**THERE IS ONE ALLY PIPELINE AND THREE WAYS INTO IT, and they are different colours.** `ep.friendly`
+is still the only flag that means "fights for you" — same HP ceiling, targeting, follow behaviour,
+immunity to your own shots. `ep.allyKind` records only where the ally CAME FROM, and `ALLY_KINDS`
+is the registry that turns that into a glow, a hover badge and a verb, so the three can't drift:
+`raised` 🟣 (the staff), `captured` 🔴 (a Capture throwable), `talked` 🟢 (a dialogue). An `ep`
+with no `allyKind` falls back to purple, which is what every ally was before — so nothing already
+standing in a level loses its glow. The glow is deliberately ONE soft shadow at ~70%: two stacked
+solid ones read as a status effect painted over the art rather than as "this one is yours".
+
+**THE TWO REVIVE BUDGETS ARE SEPARATE AND NEITHER SPENDS THE OTHER'S.** `canCapture` used to call
+`canResurrect`, so a ball and a staff shared one "second life" per corpse. That ceiling is correct
+for the STAFF — you carry it the whole level, so without it one weapon farms an endless army out of
+one dog. A throwable is already its own ceiling, because every catch costs a grenade; charging it
+against a per-body counter as well meant a stack of grenades you physically could not use. So the
+staff still gets one raise per body ever (`resurrectedOnce`, which nothing else writes), and a
+Capture throwable has no per-body limit at all — three of them raise the same creature three times.
+A corpse the staff already spent can still be caught; a corpse a grenade raised has still not spent
+the staff's raise. `ep.reviveCount` is the throwable's own tally and **gates nothing** — it exists
+so the flash can say which life the thing is on.
+
 Three things that are easy to get wrong here:
 
 * **A conversation pauses the WORLD**, with one early return at the top of the rAF loop, not by
@@ -419,6 +439,19 @@ Three things that are easy to get wrong here:
 **Piece rendering.** Cutters (`isCutter`) only punch through pieces in the same
 contiguous same-source run (`cutterRuns` / `pieceSrcKey`). Anything that reorders
 pieces must keep a cutter adjacent to what it cuts — see `groupWeaponBlocksByArm`.
+
+**...and "the same run" is the whole trap when you are drawing a COSTUME.** `pieceSrcKey` is
+`p._src || p._slot || "__body"`, so every piece of one enemy pose shares one source. A stored group
+stamped onto an animal joins that run — which means a cutter drawn to punch a hole in the costume
+punches straight through the ANIMAL, and you see the level through its leg. (Blake's own Pit Bulls
+each carry a deliberate belly cutter, so this is a live idiom, not a hypothetical.) Draw holes as
+shape instead — the Vaporeon set's leg holes are a sleeve with an open hem and bare leg below it.
+
+**A STORED GROUP KEEPS ITS ABSOLUTE x/y** (`placeStamp` only re-ids the pieces). So a costume meant
+for a particular creature must be authored ON that creature's own landmarks, or it lands somewhere
+else and has to be dragged back by hand in every pose. Both shipped Pit Bulls have geometrically
+identical side poses — head circle x34..68 y51..81, chest x50..86 y70..109, back line y79, rump
+x116..144 y79..113, feet y150 — so those numbers are the fit for anything cloned from one.
 
 **What point a piece turns about is `pieceOriginFrac`, and only that.** A block normally
 rotates about its own centre, but one flagged `limb:"arm"` / `role:"weaponArm"` turns about
