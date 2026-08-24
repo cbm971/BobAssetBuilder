@@ -210,7 +210,17 @@ takes: opening the studio on any address pulls the whole library back down.
 ## Architecture worth knowing
 
 **Registries drive the UI generically** — one entry gets you the controls free:
-`EFFECT_TYPES` (clothing abilities), `TEXTURES` (level textures), `LV_OBJ_SIZES`.
+`EFFECT_TYPES` (clothing abilities), `TEXTURES` (level textures), `LV_OBJ_SIZES`,
+`PALETTES` (swatch-row colour themes — a new one appears in both pickers for free).
+
+**A swatch row has two layers, in this order,** and any new one must keep it:
+`palettePicker(...)`, the palette's own colours, `{swBreak}`, the recents, the `＋`
+picker. `swBreak` is a full-width zero-height `div` that forces a flex wrap, so the
+palette above it renders exactly as authored no matter how many recents exist. Put
+the recents on the same line and they wrap *into* the palette — every custom colour
+picked then shifts the palette's colours around, which is how the three palettes
+came to look slowly "distorted" and got fixed. The `PALETTES` constants themselves
+have never changed; if a palette looks wrong, suspect the row, not the hexes.
 
 **Poses.** `ANGLES` is the five base poses (front/back/side/up/crouch), but
 `editablePoses(type, wtype)` is the real list per asset type — enemies also get
