@@ -267,6 +267,26 @@ import {
   allyMaxHPBonus,
   applyAllyHPBonus,
   unitMaxHP,
+  DIALOGUE_ACTS,
+  DIALOGUE_TONES,
+  DIALOGUE_MAX_KEYED,
+  newDialogue,
+  newDialogueNode,
+  newDialogueChoice,
+  migrateDialogue,
+  dialogueNodeIds,
+  dialogueNodeLabel,
+  dialogueOptions,
+  dialogueChoiceForKey,
+  dialogueAdvance,
+  dialogueReachable,
+  inlineSignDialogue,
+  signSummary,
+  talkDialogueId,
+  spawnStartsPeaceful,
+  nearestTalkable,
+  TALK_RANGE_CELLS,
+  TALK_RANGE_ROWS,
 } from "./App";
 
 describe("door transitions", () => {
@@ -5651,5 +5671,333 @@ describe("a follower walks with you, and a throwable's look is its own", () => {
     const { hazard } = applyLandingEffect({}, {}, ["5,5"], 0, 3, null, 1, "🔴");
     expect(hazard["5,5"].dps).toBe(0);      // does no damage at all
     expect(hazard["5,5"].char).toBe("🔴");  // ...and still shows the thing you picked
+  });
+});
+
+// ── DIALOGUE TREES ─────────────────────────────────────────────────────────────────────────────
+// Talking is the first system here where the CONSEQUENCE is the feature: the point of a tree is
+// that one option turns a peaceful NPC hostile. So these lean on the branching and on the rules
+// that decide a unit's side, not on how the panel looks.
+
+// A small tree used by most of the tests below: a guard who can be talked past, talked into
+// helping, or talked into a fight.
+const guardTree = () => {
+  const start = { id: "nStart", speaker: "", text: "You shouldn't be here.", choices: [
+    { id: "c1", text: "Sorry, I'll go.", to: "", act: "", tone: "good" },
+    { id: "c2", text: "Come with me.", to: "nJoin", act: "friendly", tone: "" },
+    { id: "c3", text: "Make me.", to: "nFight", act: "hostile", tone: "bad" },
+  ] };
+  const join = { id: "nJoin", speaker: "", text: "…fine. Lead on.", choices: [] };
+  const fight = { id: "nFight", speaker: "", text: "Have it your way.", choices: [] };
+  const orphan = { id: "nCut", speaker: "", text: "A line nobody reaches.", choices: [] };
+  return { id: "d1", name: "Guard", start: "nStart", nodes: { nStart: start, nJoin: join, nFight: fight, nCut: orphan } };
+};
+
+describe("dialogue trees: the shape of a tree", () => {
+  test("a fresh tree opens on a line that exists", () => {
+    const d = newDialogue("Test");
+    expect(d.nodes[d.start]).toBeTruthy();
+    expect(dialogueNodeIds(d)).toEqual([d.start]);
+  });
+
+  test("node and choice ids are prefixed, so an all-digit uid can't reorder the editor", () => {
+    // `nodes` is an object, and JS puts integer-like keys FIRST however they were inserted. uid()
+    // is base36 and does occasionally come out all digits, which would silently jump that node to
+    // the top of the list. The "n"/"c" prefix is what makes insertion order hold.
+    for (let i = 0; i < 200; i++) {
+      expect(newDialogueNode("").id).toMatch(/^n/);
+      expect(newDialogueChoice("").id).toMatch(/^c/);
+    }
+  });
+
+  test("the START line is always listed first, wherever it sits in the map", () => {
+    const d = guardTree();
+    expect(dialogueNodeIds(d)[0]).toBe("nStart");
+    const moved = { ...d, start: "nFight" };
+    expect(dialogueNodeIds(moved)[0]).toBe("nFight");
+    expect(dialogueNodeIds(moved)).toHaveLength(4); // ...and nothing is dropped or duplicated
+  });
+
+  test("a node label names its number and quotes its line, so a picker is readable", () => {
+    const d = guardTree();
+    expect(dialogueNodeLabel(d, "nStart")).toBe("#1 You shouldn't be here.");
+    expect(dialogueNodeLabel(d, "nope")).toBe("(missing node)");
+    const blank = { id: "x", name: "x", start: "n1", nodes: { n1: { id: "n1", text: "", choices: [] } } };
+    expect(dialogueNodeLabel(blank, "n1")).toContain("(no text yet)");
+  });
+
+  test("unreachable lines are found — a line nobody points at is invisible on screen", () => {
+    const reach = dialogueReachable(guardTree());
+    expect(reach.has("nStart")).toBe(true);
+    expect(reach.has("nJoin")).toBe(true);
+    expect(reach.has("nFight")).toBe(true);
+    expect(reach.has("nCut")).toBe(false); // the whole reason the editor warns
+  });
+
+  test("a tree that loops back on itself does not hang the reachability walk", () => {
+    const d = { id: "d", name: "loop", start: "a", nodes: {
+      a: { id: "a", text: "A", choices: [{ id: "c", text: "->b", to: "b", act: "" }] },
+      b: { id: "b", text: "B", choices: [{ id: "c2", text: "->a", to: "a", act: "" }] },
+    } };
+    expect([...dialogueReachable(d)].sort()).toEqual(["a", "b"]);
+  });
+});
+
+describe("dialogue trees: picking an option by its number", () => {
+  test("1-9 pick options and NOTHING else does", () => {
+    const opts = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    expect(dialogueChoiceForKey("1", opts)).toBe(0);
+    expect(dialogueChoiceForKey("3", opts)).toBe(2);
+    // A stray keypress must never commit the choice that turns the level's one ally hostile.
+    for (const k of ["0", "4", "e", "E", " ", "Enter", "F1", "ArrowUp", "", null, undefined]) {
+      expect(dialogueChoiceForKey(k, opts)).toBe(-1);
+    }
+  });
+
+  test("nine is the ceiling — a tenth option exists but has no key", () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ id: "o" + i }));
+    expect(dialogueChoiceForKey("9", many)).toBe(DIALOGUE_MAX_KEYED - 1);
+    expect(dialogueChoiceForKey("1", many)).toBe(0);
+    // There is no two-digit key: "10" is two keystrokes and cannot be told apart from a 1.
+    expect(dialogueOptions({ choices: many })).toHaveLength(12); // ...they are still all clickable
+  });
+
+  test("a line with no options still offers a way out", () => {
+    // Otherwise a plain text box would be a conversation you cannot leave.
+    const opts = dialogueOptions({ id: "n", text: "A sign.", choices: [] });
+    expect(opts).toHaveLength(1);
+    expect(dialogueChoiceForKey("1", opts)).toBe(0);
+    const step = dialogueAdvance(inlineSignDialogue("Danger"), "n0", 0);
+    expect(step.ok).toBe(true);
+    expect(step.nextId).toBe(null); // pressing 1 closes it
+  });
+});
+
+describe("dialogue trees: what a choice does", () => {
+  test("an option can carry a consequence AND still lead somewhere", () => {
+    // The two halves are independent on purpose: "make me" turns him hostile and he still gets a
+    // last line out before the swords come out.
+    const step = dialogueAdvance(guardTree(), "nStart", 2);
+    expect(step).toEqual({ ok: true, act: "hostile", nextId: "nFight" });
+  });
+
+  test("an option with no target ends the talk", () => {
+    expect(dialogueAdvance(guardTree(), "nStart", 0)).toEqual({ ok: true, act: "", nextId: null });
+  });
+
+  test("an option pointing at a deleted line ends the talk rather than dead-ending", () => {
+    // An option that visibly does nothing when pressed reads as the whole system being broken.
+    const d = migrateDialogue({ id: "d", name: "n", start: "a", nodes: {
+      a: { id: "a", text: "hi", choices: [{ id: "c", text: "go", to: "GONE", act: "" }] },
+    } });
+    expect(d.nodes.a.choices[0].to).toBe("");
+    expect(dialogueAdvance(d, "a", 0).nextId).toBe(null);
+  });
+
+  test("an option index that isn't there does nothing at all", () => {
+    expect(dialogueAdvance(guardTree(), "nStart", 9).ok).toBe(false);
+    expect(dialogueAdvance(guardTree(), "nowhere", 0).ok).toBe(false);
+    expect(dialogueAdvance(null, "a", 0).ok).toBe(false);
+  });
+
+  test("every consequence in the registry carries a label, a blurb and a message", () => {
+    // The registry is what gets you the editor picker and the play-side toast free; an entry
+    // missing one of the three renders as a blank option or a toast reading "undefined".
+    for (const k of Object.keys(DIALOGUE_ACTS)) {
+      expect(DIALOGUE_ACTS[k].label).toBeTruthy();
+      expect(DIALOGUE_ACTS[k].blurb).toBeTruthy();
+      expect(DIALOGUE_ACTS[k].flash).toContain("{name}"); // ...and names who it happened to
+    }
+    expect(Object.keys(DIALOGUE_ACTS)).toContain("hostile"); // the one the feature exists for
+  });
+
+  test("a made-up consequence or colour is dropped on load, not carried into play", () => {
+    const d = migrateDialogue({ id: "d", name: "n", start: "a", nodes: {
+      a: { id: "a", text: "hi", choices: [{ id: "c", text: "x", to: "", act: "explode", tone: "purple" }] },
+    } });
+    expect(d.nodes.a.choices[0].act).toBe("");
+    expect(d.nodes.a.choices[0].tone).toBe("");
+    expect(dialogueAdvance(d, "a", 0).act).toBe("");
+  });
+
+  test("right/wrong colours survive a save and reload", () => {
+    const d = migrateDialogue(JSON.parse(JSON.stringify(guardTree())));
+    expect(d.nodes.nStart.choices[0].tone).toBe("good");
+    expect(d.nodes.nStart.choices[2].tone).toBe("bad");
+    expect(d.nodes.nStart.choices[1].tone).toBe("");
+    for (const t of Object.keys(DIALOGUE_TONES)) {
+      expect(DIALOGUE_TONES[t].label).toBeTruthy();
+      expect(DIALOGUE_TONES[t].color).toMatch(/^#/);
+    }
+  });
+});
+
+describe("dialogue trees: a loader that throws is indistinguishable from lost work", () => {
+  test("a tree with no nodes at all opens as an empty tree, not as nothing", () => {
+    const d = migrateDialogue({ id: "d", name: "Broken" });
+    expect(Object.keys(d.nodes)).toHaveLength(1);
+    expect(d.nodes[d.start]).toBeTruthy();
+    expect(d.name).toBe("Broken");
+  });
+
+  test("garbage in every field is repaired rather than trusted", () => {
+    const d = migrateDialogue({ nodes: { a: { text: 42, speaker: [], choices: "nope" } } });
+    expect(d.id).toBeTruthy();
+    expect(d.name).toBe("Dialogue");
+    expect(d.nodes.a.text).toBe("");
+    expect(d.nodes.a.speaker).toBe("");
+    expect(d.nodes.a.choices).toEqual([]);
+    expect(d.start).toBe("a");
+    expect(migrateDialogue(null).nodes).toBeTruthy();
+    expect(migrateDialogue("not an object").nodes).toBeTruthy();
+  });
+
+  test("a start pointing at a line that isn't there falls back to one that is", () => {
+    const d = migrateDialogue({ id: "d", name: "n", start: "GONE", nodes: { a: { id: "a", text: "hi", choices: [] } } });
+    expect(d.start).toBe("a");
+    expect(dialogueOptions(d.nodes[d.start])).toHaveLength(1); // ...and it is still leaveable
+  });
+
+  test("a null choice in the list doesn't take the rest of the line down with it", () => {
+    const d = migrateDialogue({ id: "d", name: "n", start: "a", nodes: {
+      a: { id: "a", text: "hi", choices: [null, { id: "c", text: "ok", to: "", act: "" }] },
+    } });
+    expect(d.nodes.a.choices).toHaveLength(1);
+    expect(d.nodes.a.choices[0].text).toBe("ok");
+  });
+});
+
+describe("a peaceful NPC, and what a conversation does to its side", () => {
+  const hostileAsset = { id: "e1", name: "Guard", type: "enemy" };
+  const notHostileAsset = { id: "e2", name: "Villager", type: "enemy", hostile: false };
+
+  test("attaching a dialogue to a spawn is what makes it peaceful", () => {
+    expect(spawnStartsPeaceful({ enemyId: "e1" })).toBe(false);
+    expect(spawnStartsPeaceful({ enemyId: "e1", dialogueId: "d1" })).toBe(true);
+    expect(spawnStartsPeaceful({ enemyId: "e1", dialogueId: "" })).toBe(false); // blank is not a tree
+    expect(talkDialogueId({ dialogueId: "d1" })).toBe("d1");
+    expect(talkDialogueId({})).toBe(null);
+    expect(talkDialogueId(null)).toBe(null);
+  });
+
+  test("THE FEATURE: a talkable guard is neutral until a choice turns him hostile", () => {
+    const ep = { peaceful: true, turned: null };
+    expect(unitSide(hostileAsset, ep)).toBe("neutral");  // walks up to you, does not attack
+    ep.turned = "hostile";                                // ...you said the wrong thing
+    expect(unitSide(hostileAsset, ep)).toBe("hostile");
+  });
+
+  test("a conversation can also talk a hostile DOWN, and recruit one", () => {
+    expect(unitSide(hostileAsset, { turned: "neutral" })).toBe("neutral");
+    expect(unitSide(hostileAsset, { friendly: true })).toBe("friendly");
+    // Recruiting reuses the resurrect flag and its whole ally pipeline rather than adding a
+    // second kind of ally, so `friendly` outranks everything, including a later turn.
+    expect(unitSide(hostileAsset, { friendly: true, turned: "hostile" })).toBe("friendly");
+  });
+
+  test("nothing about an ordinary spawn changed — every old level opens the same", () => {
+    expect(unitSide(hostileAsset, null)).toBe("hostile");
+    expect(unitSide(hostileAsset, {})).toBe("hostile");
+    expect(unitSide(notHostileAsset, {})).toBe("neutral");
+    expect(unitSide(notHostileAsset, null)).toBe("neutral");
+    expect(unitSide(undefined, {})).toBe("hostile");
+  });
+});
+
+describe("who you can talk to", () => {
+  const CW = 26, CH = 26;
+  const at = (x, y, extra) => ({ key: x + "," + y, dialogueId: "d1", name: "Bob", cx: x, cy: y, ...extra });
+
+  test("the nearest one inside the box, and nobody outside it", () => {
+    const cands = [at(100, 100), at(140, 100), at(400, 100)];
+    expect(nearestTalkable(cands, 145, 100, TALK_RANGE_CELLS * CW, TALK_RANGE_ROWS * CH).cx).toBe(140);
+    expect(nearestTalkable(cands, 105, 100, TALK_RANGE_CELLS * CW, TALK_RANGE_ROWS * CH).cx).toBe(100);
+    expect(nearestTalkable(cands, 1000, 100, TALK_RANGE_CELLS * CW, TALK_RANGE_ROWS * CH)).toBe(null);
+  });
+
+  test("the NPC on the balcony above your head is not in the conversation", () => {
+    // Vertical reach is tight on purpose — the horizontal one is generous so you can talk to
+    // someone standing beside you, and without the tight Y that reaches through a floor.
+    expect(nearestTalkable([at(100, 100 - 5 * CH)], 100, 100, TALK_RANGE_CELLS * CW, TALK_RANGE_ROWS * CH)).toBe(null);
+    expect(nearestTalkable([at(100, 100 - CH)], 100, 100, TALK_RANGE_CELLS * CW, TALK_RANGE_ROWS * CH)).toBeTruthy();
+  });
+
+  test("someone with nothing to say is never a candidate", () => {
+    expect(nearestTalkable([{ key: "a", cx: 100, cy: 100, dialogueId: "" }], 100, 100, 999, 999)).toBe(null);
+    expect(nearestTalkable([null, undefined], 100, 100, 999, 999)).toBe(null);
+    expect(nearestTalkable(null, 100, 100, 999, 999)).toBe(null);
+  });
+});
+
+describe("a sign says what it is going to say", () => {
+  const lib = [{ id: "d1", name: "Warning", nodes: {} }];
+
+  test("it names the tree, quotes the line, or admits it is empty", () => {
+    expect(signSummary({ kind: "sign", dialogueId: "d1" }, lib)).toBe('runs "Warning"');
+    expect(signSummary({ kind: "sign", text: "Keep out" }, lib)).toBe('"Keep out"');
+    expect(signSummary({ kind: "sign" }, lib)).toContain("empty");
+    expect(signSummary({ kind: "sign", text: "   " }, lib)).toContain("empty"); // whitespace is not a line
+  });
+
+  test("a tree that has since been deleted says so instead of failing silently", () => {
+    expect(signSummary({ kind: "sign", dialogueId: "gone" }, lib)).toContain("deleted");
+  });
+
+  test("a typed line becomes a one-node tree, so play has ONE thing to drive", () => {
+    const d = inlineSignDialogue("Danger — mine shaft");
+    expect(d.nodes[d.start].text).toBe("Danger — mine shaft");
+    expect(dialogueOptions(d.nodes[d.start])).toHaveLength(1);
+  });
+});
+
+describe("dialogue survives a mirrored level", () => {
+  test("flipping a level carries a spawn's tree and a sign across with it", () => {
+    // Anything with a left/right sense has to be added to flipLevelHorizontally or a mirrored
+    // level breaks in a way only that field shows. A dialogue id has no handedness — this proves
+    // it rides along rather than being dropped by the rebuild.
+    const lv = {
+      id: "L", name: "L", cols: 10, rows: 4, fg: {}, bg: {}, front: {}, fx: {}, climb: {}, hazard: {},
+      markers: { "2,1": { kind: "sign", dialogueId: "d1", text: "hi" } },
+      enemies: { "2,2": { enemyId: "e1", facing: -1, dialogueId: "d1" } },
+      conns: {},
+    };
+    const f = flipLevelHorizontally(lv, () => null);
+    expect(f.markers["2,8"]).toEqual({ kind: "sign", dialogueId: "d1", text: "hi" });
+    expect(f.enemies["2,7"].dialogueId).toBe("d1");
+    expect(f.enemies["2,7"].facing).toBe(1); // ...and facing still mirrors, as it always did
+    // An exact involution, still.
+    const back = flipLevelHorizontally(f, () => null);
+    expect(back.markers["2,1"].dialogueId).toBe("d1");
+    expect(back.enemies["2,2"]).toEqual(lv.enemies["2,2"]);
+  });
+});
+
+describe("dialogues are wired into the project file like every other kind", () => {
+  const { applyWrite, KINDS } = require("./setupProxy").__test;
+
+  test("dialogues is one of the kinds both sides agree on", () => {
+    // The parity test elsewhere compares the two lists; this states the reason a sixth kind had
+    // to be added to them at all, rather than dialogue being stored inside each level.
+    expect(KINDS).toContain("dialogues");
+  });
+
+  test("a tree saves up, merges by id, and never blanks what is already there", () => {
+    const cur = { assets: [{ id: "a1" }], levels: [], stamps: [], textures: [], backgrounds: [], dialogues: [{ id: "d1", name: "old" }], removed: {} };
+    const { next } = applyWrite(cur, { assets: [], dialogues: [{ id: "d2", name: "new" }] }, []);
+    expect(next.dialogues.map((d) => d.id).sort()).toEqual(["d1", "d2"]);
+    expect(next.assets).toHaveLength(1); // a dialogue save carries no assets and must not empty them
+  });
+
+  test("a deleted tree is remembered, so a stale browser cannot re-upload it", () => {
+    const cur = { assets: [{ id: "a1" }], levels: [], stamps: [], textures: [], backgrounds: [], dialogues: [{ id: "d1" }], removed: {} };
+    const gone = applyWrite(cur, { assets: [], remove: { dialogues: ["d1"] } }, []).next;
+    expect(gone.dialogues).toHaveLength(0);
+    expect(gone.removed.dialogues).toEqual(["d1"]);
+    // A bulk sync from a browser that still holds it cannot bring it back...
+    const resync = applyWrite(gone, { assets: [], dialogues: [{ id: "d1" }] }, []).next;
+    expect(resync.dialogues).toHaveLength(0);
+    // ...but deliberately saving it again does, or you could never re-create a deleted name.
+    const revived = applyWrite(gone, { assets: [], dialogues: [{ id: "d1" }], revive: true }, []).next;
+    expect(revived.dialogues).toHaveLength(1);
   });
 });

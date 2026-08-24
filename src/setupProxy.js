@@ -24,7 +24,7 @@ const SNAP_KEEP = 5;
 // the merge, the delete and the response all walk this list. The reason it is a list at all: each
 // time a kind was handled by hand, one of them got missed, and the kind that got missed is the one
 // that was lost. `assets` keeps its special "never blank this" guard below; the rest simply merge.
-const KINDS = ["assets", "levels", "stamps", "textures", "backgrounds"];
+const KINDS = ["assets", "levels", "stamps", "textures", "backgrounds", "dialogues"];
 
 const emptyLibrary = () => {
   const out = { savedAt: null };

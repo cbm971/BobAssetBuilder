@@ -113,7 +113,7 @@ than once. The rules below are not style preferences.
   the committed `library.json` is the copy that leaves the container).
 
 **A dated full backup lives at the repo root** — `assetbuilder-backup-<date>.json`,
-`{assetBuilderBackup:2, assets, levels, stamps, textures, backgrounds}`. Keep exactly
+`{assetBuilderBackup:2, assets, levels, stamps, textures, backgrounds, dialogues}`. Keep exactly
 ONE, the newest, and check it is a superset before deleting the one it replaces (the
 2026-07-25 file was version 1 and held **zero levels** — the old export bug). Merge each
 new backup into `library.json` too, additively by id: that file is what restores into
@@ -122,7 +122,7 @@ looking perfectly healthy.
 
 **Every kind of drawn work goes to both tiers, in both directions.** The kinds are one
 list — `PROJECT_KINDS` in `App.js`, `KINDS` in `setupProxy.js`, kept identical by a
-test: **assets, levels, stamps, textures, backgrounds**. Each saves up
+test: **assets, levels, stamps, textures, backgrounds, dialogues**. Each saves up
 (`projectLibrary.save({ levels })`) and restores down on load.
 
 Every outage so far has been a kind of work that only went one way. Levels were written
@@ -371,6 +371,50 @@ with a left/right sense must be added there**, or a flipped level breaks in a wa
 that field shows.
 
 **Layer z-ladder:** 1 bg · 2 fg · 4 climb/pedestals · 5 player/hazards · 6 front.
+
+**DIALOGUE TREES are the sixth saved kind, and that is the whole design.** A tree is authored on
+its own screen (`screen === "dialogue"`, the 💬 tile on the menu) and levels only ever refer to it
+by id. Written inside the level editor it would have belonged to the one sign you were standing on,
+and hanging the same conversation on a second NPC would mean writing it twice.
+
+    { id, name, start, nodes: { [nodeId]: { id, speaker, text, choices: [ { id, text, to, act, tone } ] } } }
+
+* `to` is the next line (blank = the talk ends) and `act` is what taking it DOES. **They are
+  independent** — "make me" turns a guard hostile AND still lets him get a last line out.
+* `DIALOGUE_ACTS` is the registry: `hostile` / `friendly` / `calm` / `heal`. One entry gets you the
+  editor picker and the play-side toast free. `DIALOGUE_TONES` is the same shape for the ✅/❌
+  right-wrong flash, which shows **only once an option is picked** — colouring the list up front
+  would hand the player the answer.
+* Node/choice ids are prefixed `n`/`c` deliberately. `nodes` is an object, and JS floats
+  integer-like keys to the front however they were inserted; `uid()` is base36 and does come out
+  all-digits sometimes, which would silently reorder the editor.
+* **Numbers 1-9 pick options and nothing else does** (`dialogueChoiceForKey`). A line with no
+  options is given a synthesized "(Leave)", generated in ONE place (`dialogueOptions`) so what the
+  screen offers and what a keypress does cannot drift.
+
+Attachment is per PLACEMENT, not per asset: a `sign` marker (`{kind:"sign", dialogueId, text}` —
+the `text` is the five-second version, a one-off line with no tree) and a spawn's `dialogueId`.
+
+**ATTACHING A TREE TO A SPAWN IS WHAT MAKES IT PEACEFUL** (`spawnStartsPeaceful`). There is no
+second "peaceful?" tickbox — a talkable enemy that opens fire before you can speak is not a thing
+anyone would place. `unitSide` grew two gates in front of the old rule: `ep.turned`
+("hostile"/"neutral", written ONLY by a choice being taken) and `ep.peaceful`. Both ride on `ep`,
+which lives in the per-level `roomState` bucket, so an NPC you talked round is still on your side
+after you leave through a door and come back. Recruiting reuses `ep.friendly` — the Resurrect
+staff's own flag and its whole ally pipeline — rather than adding a second kind of ally.
+
+Three things that are easy to get wrong here:
+
+* **A conversation pauses the WORLD**, with one early return at the top of the rAF loop, not by
+  zeroing the player's input the way a stun does. Freezing only the player leaves the pit bull
+  chewing on you while you read, and every timer running down behind the text.
+* **A peaceful NPC fights back when hit**, and that is checked ONCE per frame off its HP falling —
+  not at the eight places that can damage a unit. One reader cannot fall out of step with itself.
+  Deliberately narrow: only a spawn made peaceful by a dialogue. An asset with 🕊️ "Not hostile"
+  ticked still stands there and never fights, exactly as levels already rely on.
+* **An NPC with something still to say turns to watch you** (`TALK_NOTICE_CELLS`, until
+  `ep.talked`). It feeds `wantFace`, **never `ep.face`** — a third direct writer in that loop is
+  the sprite-strobe bug `holdFacing` exists to prevent.
 
 **Piece rendering.** Cutters (`isCutter`) only punch through pieces in the same
 contiguous same-source run (`cutterRuns` / `pieceSrcKey`). Anything that reorders

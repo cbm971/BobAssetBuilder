@@ -204,7 +204,7 @@ export const exportLevelCount = (browserIndex, projectLevels) => Math.max(
   Array.isArray(browserIndex) ? browserIndex.length : 0,
   Array.isArray(projectLevels) ? projectLevels.length : 0,
 );
-const PROJECT_KINDS = ["assets", "levels", "stamps", "textures", "backgrounds"];
+const PROJECT_KINDS = ["assets", "levels", "stamps", "textures", "backgrounds", "dialogues"];
 const projectLibrary = {
   available: false, // set on the first successful read; a plain static build simply won't have it
   load: async () => {
@@ -1511,12 +1511,205 @@ export const pickRoom = (levels, tag, seedStr) => {
 export const GATE_SPAWN_ORDER = ["N1", "W1", "N2", "W2", "S1", "S2", "E1", "E2"];
 export const preferredOpenGate = (conns) => { for (const k of GATE_SPAWN_ORDER) { if (conns && conns[k] && conns[k].open) return k; } return null; };
 export const firstDoorKey = (markers) => { for (const k in (markers || {})) { const m = markers[k]; if (m && m.kind === "door") return k; } return null; };
+// ── DIALOGUE TREES ───────────────────────────────────────────────────────────────────────────
+// A dialogue is a named, saved body of work in its own right — the SIXTH kind, next to assets,
+// levels, stored groups, textures and backgrounds — and it is authored in its own editor rather
+// than inside the level. That split is the whole point: a tree written in the level editor would
+// belong to the one sign you were standing on when you wrote it, and the same conversation could
+// never be hung on a second NPC. Written here, one tree is attached to as many signs and spawns
+// as you like, at placement time, by id.
+//
+//   { id, name, start, nodes: { [nodeId]: { id, speaker, text, choices: [ { id, text, to, act } ] } } }
+//
+// `to` is the node an option leads to (blank = the talk ends) and `act` is what taking it DOES in
+// the world. The two are deliberately independent: "I'll fight you, then" can turn an NPC hostile
+// AND still let him say one last line before the swords come out.
+
+// Every consequence an option can carry. A registry, for the same reason EFFECT_TYPES is one —
+// adding an entry gets you the editor's picker and the play-side wording for free, and there is
+// exactly one place to look for "what can a choice actually do".
+export const DIALOGUE_ACTS = {
+  hostile: { label: "😡 Turn them hostile", blurb: "They start fighting you — this is the one that makes a tree matter.", flash: "😡 {name} turns on you!" },
+  friendly: { label: "🟣 They join you", blurb: "They fight FOR you from now on, exactly like a body raised with the Resurrect staff.", flash: "🟣 {name} is fighting for you!" },
+  calm: { label: "🕊️ Calm them down", blurb: "They stop fighting and go back to standing there — talking a hostile down.", flash: "🕊️ {name} stands down." },
+  heal: { label: "❤️ Heal you fully", blurb: "Tops your HP back up to full. A healer NPC in three clicks.", flash: "❤️ {name} patched you up." },
+};
+// Node and choice ids are PREFIXED, and that is not decoration. `nodes` is an object, and a
+// JavaScript object puts integer-like string keys first however they were inserted — uid() is
+// base36 and does sometimes come out all digits, so an unprefixed id would silently jump to the
+// top of the node list every few hundred trees and reorder the editor for no visible reason.
+export const newDialogueNode = (text) => ({ id: "n" + uid(), speaker: "", text: text || "", choices: [] });
+export const newDialogueChoice = (text) => ({ id: "c" + uid(), text: text || "", to: "", act: "", tone: "" });
+// ✅/❌ RIGHT-OR-WRONG. An option can be tagged so that PICKING it lights up green or red for a
+// beat before the talk moves on — the author saying "that was the right answer" without having to
+// write a line of dialogue that says so. Only shown once it is chosen: colouring the list up front
+// would give the answer away, which is the opposite of the point.
+export const DIALOGUE_TONES = {
+  good: { label: "✅ Flash green (right)", color: "#4f9d54", edge: "#8ee59a" },
+  bad: { label: "❌ Flash red (wrong)", color: "#a8403f", edge: "#ffa3a1" },
+};
+export const TALK_PICK_FLASH_MS = 420; // long enough to read the colour, short enough not to feel like a load screen
+export const newDialogue = (name) => {
+  const first = newDialogueNode("");
+  return { id: uid(), name: name || "New dialogue", start: first.id, nodes: { [first.id]: first } };
+};
+// Anything read back off disk, out of the project file, or out of an imported backup comes through
+// here. Same reasoning as migrate/migrateLevel: a loader that throws is indistinguishable from
+// lost work, so every field is repaired rather than trusted, and a tree missing its nodes comes
+// back as an empty-but-openable tree instead of taking the whole library down with it.
+export const migrateDialogue = (raw) => {
+  const src = (raw && typeof raw === "object") ? raw : {};
+  const nodes = {};
+  for (const k of Object.keys(src.nodes || {})) {
+    const n = src.nodes[k] || {};
+    const id = n.id || k;
+    nodes[id] = {
+      id,
+      speaker: typeof n.speaker === "string" ? n.speaker : "",
+      text: typeof n.text === "string" ? n.text : "",
+      choices: (Array.isArray(n.choices) ? n.choices : []).filter(Boolean).map((c) => ({
+        id: c.id || ("c" + uid()),
+        text: typeof c.text === "string" ? c.text : "",
+        to: typeof c.to === "string" ? c.to : "",
+        act: DIALOGUE_ACTS[c.act] ? c.act : "",
+        tone: DIALOGUE_TONES[c.tone] ? c.tone : "",
+      })),
+    };
+  }
+  // A `to` aimed at a node that no longer exists (deleted in the editor, or lost in a bad save)
+  // ENDS the talk rather than dead-ending it. The alternative is an option that visibly does
+  // nothing at all when pressed, which reads as the whole dialogue system being broken.
+  for (const id of Object.keys(nodes)) for (const c of nodes[id].choices) if (c.to && !nodes[c.to]) c.to = "";
+  const ids = Object.keys(nodes);
+  if (!ids.length) { const f = newDialogueNode(""); nodes[f.id] = f; ids.push(f.id); }
+  return {
+    id: src.id || uid(),
+    name: (typeof src.name === "string" && src.name.trim()) ? src.name : "Dialogue",
+    start: nodes[src.start] ? src.start : ids[0],
+    nodes,
+  };
+};
+// Display order: the START node first, always, then the rest in insertion order. Which node the
+// talk opens on is the one thing you look for when you open somebody else's tree, so it is not
+// left to wherever it happens to sit in the map.
+export const dialogueNodeIds = (d) => {
+  const ids = Object.keys((d && d.nodes) || {});
+  return (d && d.start && ids.includes(d.start)) ? [d.start, ...ids.filter((i) => i !== d.start)] : ids;
+};
+// How a node reads in a "goes to…" picker. Numbered by its place in the list above, with the first
+// words of what it says, because a raw id tells you nothing about which line you are wiring to.
+export const dialogueNodeLabel = (d, id) => {
+  const n = d && d.nodes && d.nodes[id];
+  if (!n) return "(missing node)";
+  const i = dialogueNodeIds(d).indexOf(id);
+  const t = (n.text || "").replace(/\s+/g, " ").trim();
+  return "#" + (i + 1) + " " + (t ? (t.length > 40 ? t.slice(0, 39) + "…" : t) : "(no text yet)");
+};
+// What the player can actually press on this node. A node with no options written still needs a
+// way OUT, so it is given one — and it is synthesized HERE, once, rather than at the keypress and
+// again at the render. Two separate copies of "what does pressing 1 do" is exactly how a number
+// key ends up committing something the screen never offered.
+export const DIALOGUE_END_OPTION = { id: "__end", text: "(Leave)", to: "", act: "" };
+export const dialogueOptions = (node) => {
+  const list = ((node && node.choices) || []).filter(Boolean);
+  return list.length ? list : [DIALOGUE_END_OPTION];
+};
+// YOU PICK AN OPTION BY ITS NUMBER, and 1-9 are the only keys that do it. Anything else returns
+// -1 and is ignored: a stray keypress must never be able to commit the choice that turns the
+// level's one friendly NPC hostile. Nine is the ceiling because "10" is two keystrokes and there
+// is no sane way to tell a 1-then-0 apart from a 1; the editor warns past nine.
+export const DIALOGUE_MAX_KEYED = 9;
+export const dialogueChoiceForKey = (key, options) => {
+  if (!/^[1-9]$/.test(String(key))) return -1;
+  const i = Number(key) - 1;
+  return i < ((options || []).length) ? i : -1;
+};
+// Taking option `i` on `nodeId`: what the world should do, and where the talk goes next (null =
+// it's over). Pure, so every branch of a tree can be walked in a test without a running game.
+export const dialogueAdvance = (d, nodeId, i) => {
+  const node = d && d.nodes && d.nodes[nodeId];
+  const opt = dialogueOptions(node)[i];
+  if (!node || !opt) return { ok: false, act: "", nextId: null };
+  return { ok: true, act: DIALOGUE_ACTS[opt.act] ? opt.act : "", nextId: (opt.to && d.nodes[opt.to]) ? opt.to : null };
+};
+// Every node the talk can actually get to from the start. The editor flags the rest — an
+// orphaned node is a line you wrote that no player will ever see, and it looks identical to a
+// wired one on screen.
+export const dialogueReachable = (d) => {
+  const seen = new Set();
+  const stack = [d && d.start];
+  while (stack.length) {
+    const id = stack.pop();
+    if (!id || seen.has(id) || !((d.nodes || {})[id])) continue;
+    seen.add(id);
+    for (const c of (d.nodes[id].choices || [])) if (c.to) stack.push(c.to);
+  }
+  return seen;
+};
+// A sign with no tree attached, just a line typed straight into the level editor. Wrapped as a
+// one-node dialogue so the play-side has ONE thing to render and one thing to drive with numbers —
+// a second "plain text box" code path would be a second place for the E key to behave differently.
+export const inlineSignDialogue = (text) => ({ id: "__inline", name: "Sign", start: "n0", nodes: { n0: { id: "n0", speaker: "", text: text || "", choices: [] } } });
+// The tree a placed sign or spawn carries, if any. One field, read through one function, because
+// four separate places ask "does this thing have something to say" — the prompt, the E press, the
+// peaceful rule and the editor's badge — and they must never be able to disagree.
+export const talkDialogueId = (rec) => ((rec && rec.dialogueId) || "") || null;
+// One line saying what a placed sign will actually say, for the editor tooltip and status line.
+// Names the tree, or quotes the inline line, or says plainly that it is empty — a sign that does
+// nothing looks identical on the grid to one that works, and this is the only place that shows it.
+export const signSummary = (m, dialogues) => {
+  const id = talkDialogueId(m);
+  if (id) { const d = (dialogues || []).find((x) => x && x.id === id); return d ? ("runs \"" + d.name + "\"") : "⚠ its dialogue has been deleted"; }
+  const t = ((m && m.text) || "").trim();
+  return t ? ("\"" + (t.length > 60 ? t.slice(0, 59) + "…" : t) + "\"") : "⚠ empty — nothing to say";
+};
+// ATTACHING A DIALOGUE TO A SPAWN MAKES IT PEACEFUL, and that IS the feature: you walk up to
+// someone who is not already trying to kill you, and what you say decides whether they are. There
+// is deliberately no second "peaceful?" tickbox beside the picker — a talkable enemy that opens
+// fire before you can get a word out is not a thing anyone would place on purpose, and a control
+// whose only sensible value is its default is clutter (the same call as the creature damage field).
+export const spawnStartsPeaceful = (spawn) => !!talkDialogueId(spawn);
+// How close you stand to strike up a conversation. Horizontal reach is generous (you talk to
+// someone standing beside you), vertical is tight, or you would be chatting with the NPC on the
+// balcony above your head through the floor.
+export const TALK_RANGE_CELLS = 2.2;
+export const TALK_RANGE_ROWS = 1.6;
+// ...and the wider band at which an NPC who still has something to say NOTICES you and turns to
+// look. Deliberately bigger than the talk range: turning to watch you walk up is the signal that
+// there is a conversation here at all, so it has to happen before you are already standing in it.
+export const TALK_NOTICE_CELLS = 6;
+export const TALK_NOTICE_ROWS = 2.5;
+// Who you would talk to if you pressed E right now: the nearest candidate inside that box.
+// Candidates are prepared by the caller (it needs findA and the live positions), so the choosing
+// itself stays pure. A hostile is never in the list — once someone is shooting at you the
+// conversation is over, and that is also what stops a talk prompt flickering over a running fight.
+export const nearestTalkable = (candidates, px, py, rangeX, rangeY) => {
+  let best = null, bd = Infinity;
+  for (const c of (candidates || [])) {
+    if (!c || !c.dialogueId) continue;
+    const dx = Math.abs(c.cx - px), dy = Math.abs(c.cy - py);
+    if (dx <= rangeX && dy <= rangeY && dx < bd) { bd = dx; best = c; }
+  }
+  return best;
+};
 // An enemy is hostile (attacks the player) unless its "Not hostile" box is ticked — then it's a
 // neutral NPC that just stands there and never attacks, though the player can still fight it.
 export const enemyIsHostile = (ea) => !ea || ea.hostile !== false;
 // A unit's side. A resurrected unit is "friendly" (fights for you) regardless of its asset; else
 // "hostile" if its asset is hostile, else a "neutral" NPC. Only friendly/hostile units act.
-export const unitSide = (ea, ep) => (ep && ep.friendly) ? "friendly" : (enemyIsHostile(ea) ? "hostile" : "neutral");
+//
+// WHAT A CONVERSATION DECIDED OUTRANKS WHAT THE ASSET SAYS. `ep.turned` is written by exactly one
+// thing — an option being taken — so a side can change mid-level and STAYS changed, because
+// enemyPos lives in the per-level roomState bucket and therefore survives walking out through a
+// door and coming back. `ep.peaceful` is the softer half: it is set at spawn for anyone carrying a
+// dialogue, and it only holds until something (a choice, or your first punch) says otherwise.
+export const unitSide = (ea, ep) => {
+  if (ep && ep.friendly) return "friendly";
+  if (ep && ep.turned === "hostile") return "hostile";
+  if (ep && ep.turned === "neutral") return "neutral";
+  if (ep && ep.peaceful) return "neutral";
+  return enemyIsHostile(ea) ? "hostile" : "neutral";
+};
 export const nearestUnitCX = (fromCX, candidates) => {
   let best = null, bd = Infinity;
   for (const c of (candidates || [])) { if (!c) continue; const d = Math.abs(c.cx - fromCX); if (d < bd) { bd = d; best = c; } }
@@ -5283,6 +5476,18 @@ const doorOverlapping = (lv, x, y, w, h, CW, CH) => {
   }
   return null;
 };
+// ...and the same body-overlap test for a 💬 SIGN. Same shape as the two above rather than one
+// parameterised helper on purpose: each of these is one line long, and the three call sites read
+// as three different questions ("am I at a door", "am I on a pedestal", "am I at a sign").
+const signOverlapping = (lv, x, y, w, h, CW, CH) => {
+  if (!lv.markers) return null;
+  const c0 = Math.floor(x / CW), c1 = Math.floor((x + w - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + h - 0.001) / CH);
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    const m = lv.markers[cellKey(r, c)];
+    if (m && m.kind === "sign") return { key: cellKey(r, c), marker: m };
+  }
+  return null;
+};
 // A door's tag (which room pool it opens); blank = an exit back to where you came from. Reads
 // the new `tag` field, falling back to older doors that stored it as `accepts`.
 export const doorTagOf = (m) => ((m && (m.tag !== undefined ? m.tag : m.accepts)) || "").trim();
@@ -5744,6 +5949,14 @@ export default function AssetStudio() {
   // themselves (megabytes) are still left to load lazily.
   const [levelCount, setLevelCount] = useState(0);
   const [pendingLevelAction, setPendingLevelAction] = useState(null); // { label, run } — shown as a confirm modal when about to discard unsaved level changes
+  // Dialogue trees: the sixth saved kind. dlgLib is every saved tree, dlgDoc is the one open in
+  // the 💬 Dialogue editor. Loaded lazily like levels are — the level editor pulls them in too,
+  // because its sign and enemy pickers list them by name.
+  const [dlgLib, setDlgLib] = useState([]);
+  const [dlgDoc, setDlgDoc] = useState(null);
+  const [dlgLoadOpen, setDlgLoadOpen] = useState(false);
+  const [dlgConfirmDel, setDlgConfirmDel] = useState(null);
+  const dlgBaseline = useRef("");                        // JSON of the tree as last saved/opened, so the editor can say when there is unsaved work
   const [levelLoadOpen, setLevelLoadOpen] = useState(false);          // true while the "Load a level" picker modal is open
   const [bgLib, setBgLib] = useState([]);               // saved reusable backgrounds — {id, name} index; full data fetched on load
   const [bgName, setBgName] = useState("");             // name field for saving the current level's background
@@ -5807,8 +6020,10 @@ export default function AssetStudio() {
   const moving = useRef(null);                          // { key, item, from: "fx" | "markers" } — the actual picked-up data
   const [lFxSel, setLFxSel] = useState(null);           // cell key currently showing its object stack in the side panel
   const [lFxEditIdx, setLFxEditIdx] = useState(null);   // index within that cell's stack currently expanded for tweaking
-  const [lMarkerKind, setLMarkerKind] = useState("door"); // door | pedestal
+  const [lMarkerKind, setLMarkerKind] = useState("door"); // door | pedestal | sign
   const [lMarkerCat, setLMarkerCat] = useState("");      // door's accepted destination category (free text)
+  const [lSignDlg, setLSignDlg] = useState("");         // dialogue tree a newly-placed 💬 Sign runs (blank = use the one-off line below instead)
+  const [lSignText, setLSignText] = useState("");       // a 💬 Sign's one-off line, for a text box that doesn't need a whole tree written for it
   const [lPedCat1, setLPedCat1] = useState("");        // pedestal search: first category filter (blank = any)
   const [lPedCat2, setLPedCat2] = useState("");        // pedestal search: second category filter (blank = any)
   const [lPedLogic, setLPedLogic] = useState("or");     // pedestal search logic: "or" (either tag) | "and" (both tags)
@@ -5819,6 +6034,7 @@ export default function AssetStudio() {
   const [lEnemyId, setLEnemyId] = useState("");          // which enemy/isEnemy-character asset the Enemies layer paints with
   const [lEnemyFace, setLEnemyFace] = useState(-1);       // which way newly-placed enemies face: -1 left (default — enemies confront a left-to-right player), 1 right
   const [lEnemyAi, setLEnemyAi] = useState("guard");      // AI behavior stamped onto newly-placed enemies (set HERE in the level tester, not the enemy creator) — "asset" = use the enemy's own saved default
+  const [lEnemyDlg, setLEnemyDlg] = useState("");         // dialogue tree stamped onto newly-placed enemies — attaching one ALSO makes that spawn peaceful until a choice says otherwise (spawnStartsPeaceful)
   const [lSel, setLSel] = useState(null);              // selected connector key
   const [gen, setGen] = useState(null);                // generated chain preview
   const [play, setPlay] = useState(false);             // playtest mode
@@ -5856,6 +6072,13 @@ export default function AssetStudio() {
   const [equipGen, setEquipGen] = useState(0);            // bumped when pedestal equipment changes, so the playtest loop re-keys and the merged stats/effects take effect live
   const [pedPrompt, setPedPrompt] = useState(null);       // { key, name, type, slot } | { key, empty, summary } | null — pedestal the player is standing on, for the "Press E" HUD                       // cellKey -> the item this pedestal rolled this Playtest session (stable; pre-rolled at Playtest start, Binding-of-Isaac style)
   const [doorPrompt, setDoorPrompt] = useState(null);     // { enter: bool, tag, n } | null — door the player is standing on, for the "Press E to enter/exit" HUD
+  // 💬 TALKING. talkPrompt is the "Press E to talk" callout; talk is the conversation actually on
+  // screen. talkRef shadows it for the physics loop, which runs inside a rAF closure and cannot
+  // see React state changes — the loop reads the ref to know it must hold everything still.
+  const [talkPrompt, setTalkPrompt] = useState(null);     // { kind: "sign" | "npc", key, name, r, c } | null
+  const [talk, setTalk] = useState(null);                 // { dlg, nodeId, kind, key, name } | null — the open conversation
+  const talkRef = useRef(null);
+  useEffect(() => { talkRef.current = talk; }, [talk]);
   const [pframe, setPframe] = useState(0);             // playtest re-render tick
   const frontCellsRef = useRef(null);      // wrapper around the memoized Front tile layer — lets the playtest loop fade covered cells imperatively, without re-rendering the whole (memoized) layer every frame
   const hazardCellsRef = useRef(null);     // same idea for fire: the layer is memoized (not rebuilt every frame), so a burnt-out cell is hidden imperatively by toggling its own element's opacity
@@ -6151,7 +6374,7 @@ export default function AssetStudio() {
         await ws.set(k, v, false);
         // Index keys are small and are the thing whose loss hides everything, so keep a copy in
         // localStorage too. Best-effort: a quota refusal must never fail the actual save.
-        if (k === "assetIndex" || k === ASSET_INDEX_BAK || k === "levelIndex" || k === "stampIndex") lsSet(k, v);
+        if (k === "assetIndex" || k === ASSET_INDEX_BAK || k === "levelIndex" || k === "stampIndex" || k === "dialogueIndex") lsSet(k, v);
         storeFailReason = "";
         return true;
       } catch (e) {
@@ -6202,6 +6425,118 @@ export default function AssetStudio() {
   const snapPrefLoaded = useRef(false);
   useEffect(() => { (async () => { const v = await sget("snapEdges"); if (v === "1") setSnapOn(true); snapPrefLoaded.current = true; })(); }, []); // eslint-disable-line
   useEffect(() => { if (snapPrefLoaded.current) sset("snapEdges", snapOn ? "1" : "0"); }, [snapOn]);
+
+  /* ---- 💬 talking, in play ------------------------------------------------ */
+  // The library, in a ref. The physics loop is a closure built once per Playtest session and it
+  // calls openTalk from inside that closure — reading dlgLib through React state there would pin
+  // whatever the list happened to be when the loop was built, so a tree saved mid-session would
+  // open as "missing". One ref, kept in step by the effect below, and staleness can't happen.
+  const dlgLibRef = useRef([]);
+  useEffect(() => { dlgLibRef.current = dlgLib; }, [dlgLib]);
+  const talkTimer = useRef(null);      // the right/wrong highlight's hold, so closing mid-flash can't advance a talk that's over
+  const clearTalkTimer = () => { if (talkTimer.current) { clearTimeout(talkTimer.current); talkTimer.current = null; } };
+  useEffect(() => () => clearTalkTimer(), []); // unmount mid-conversation must not leave a timer pointing at dead state
+  // Which tree a sign or spawn actually runs. A saved tree by id; failing that, for a sign only,
+  // the one-off line typed straight into the level editor (inlineSignDialogue wraps it as a
+  // one-node tree so the play side has ONE thing to render and one thing numbers drive).
+  const resolveTalkTree = (t) => {
+    const id = t && t.kind === "sign" ? talkDialogueId(t.marker) : (t && t.kind === "npc" ? talkDialogueId((level && level.enemies && level.enemies[t.key]) || null) : null);
+    if (id) { const d = (dlgLibRef.current || []).find((x) => x && x.id === id); if (d) return migrateDialogue(d); }
+    if (t && t.kind === "sign") { const txt = ((t.marker && t.marker.text) || "").trim(); if (txt) return inlineSignDialogue(txt); }
+    return null;
+  };
+  const openTalk = (t) => {
+    const dlg = resolveTalkTree(t);
+    if (!dlg) { flash(t.kind === "sign" ? "💬 This sign has nothing written on it." : "💬 They have nothing to say — their dialogue was deleted."); return; }
+    const who = t.name || (t.kind === "sign" ? "Sign" : "");
+    const next = { dlg, nodeId: dlg.start, kind: t.kind, key: t.key, name: who, picked: null };
+    // The ref is set HERE, synchronously, as well as by the effect that mirrors `talk`. The loop
+    // is mid-frame when this runs and checks the ref at the top of the NEXT one; waiting for React
+    // to commit would let one more frame of physics through underneath the text.
+    talkRef.current = next;
+    setTalk(next);
+    setTalkPrompt(null);
+    // TALKED TO ONCE IS "USED" — it stops the NPC turning to face you every time you walk past
+    // afterwards (see the wantFace rule in the enemy loop). Marked on the way IN rather than out,
+    // because walking away mid-sentence is still having heard them.
+    if (t.kind === "npc") { const ep = enemyPos.current[t.key]; if (ep) ep.talked = true; }
+  };
+  const closeTalk = () => { clearTalkTimer(); talkRef.current = null; setTalk(null); };
+  // What an option DOES to the world. One switch, off DIALOGUE_ACTS, so "what can a choice do" has
+  // exactly one answer and adding an entry to the registry is the only edit a new consequence needs.
+  const applyTalkAct = (act, t) => {
+    if (!act || !DIALOGUE_ACTS[act]) return;
+    const ep = t.kind === "npc" ? enemyPos.current[t.key] : null;
+    const name = t.name || "They";
+    if (act === "heal") {
+      const base = findA(playerId);
+      const merged = mergeEquip(base, equipped.current, equippedBodyIdFor(base));
+      playerHP.current = maxPlayerHP(merged);
+    } else if (ep) {
+      // A sign cannot turn anybody hostile — there is nobody there. Said out loud rather than
+      // silently ignored, because a choice that visibly does nothing reads as a broken feature.
+      if (act === "hostile") { ep.turned = "hostile"; ep.peaceful = false; ep.friendly = false; }
+      else if (act === "calm") { ep.turned = "neutral"; ep.friendly = false; }
+      else if (act === "friendly") {
+        // Reuses the Resurrect staff's own flag and its whole ally pipeline — HP ceiling, purple
+        // glow, target selection, the follow behaviour. A recruit is not a second kind of ally.
+        const base = findA(playerId);
+        const merged = mergeEquip(base, equipped.current, equippedBodyIdFor(base));
+        const bonus = allyMaxHPBonus(merged && merged.effects);
+        const ea = findA(((level && level.enemies && level.enemies[t.key]) || {}).enemyId);
+        const cur = enemyHP.current[t.key] === undefined ? enemyMaxHP(ea) : enemyHP.current[t.key];
+        const res = applyAllyHPBonus(cur, enemyMaxHP(ea), bonus, ep.allyHpGranted);
+        enemyHP.current[t.key] = res.hp; ep.allyHpGranted = res.granted;
+        ep.friendly = true; ep.turned = null; ep.peaceful = false; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
+      }
+    } else if (act !== "heal") {
+      flash("💬 \"" + DIALOGUE_ACTS[act].label + "\" needs a person — a sign has nobody to turn.");
+      return;
+    }
+    flash(DIALOGUE_ACTS[act].flash.replace("{name}", name));
+  };
+  // Taking option i. The whole branch is decided by dialogueAdvance (pure), so what happens here
+  // is only the two side effects: the consequence, and moving the panel on.
+  const chooseTalkOption = (i) => {
+    const t = talkRef.current;
+    if (!t || talkTimer.current) return; // mid-highlight: ignore a second press rather than double-advancing
+    const step = dialogueAdvance(t.dlg, t.nodeId, i);
+    if (!step.ok) return;
+    const opt = dialogueOptions(t.dlg.nodes[t.nodeId])[i];
+    const commit = () => {
+      clearTalkTimer();
+      applyTalkAct(step.act, t);
+      if (step.nextId) { const next = { ...t, nodeId: step.nextId, picked: null }; talkRef.current = next; setTalk(next); }
+      else closeTalk();
+    };
+    // ✅/❌ RIGHT-OR-WRONG FEEDBACK. Only an option the author actually tagged holds for a beat —
+    // an untagged tree must not feel slower than it did before the colours existed, so it commits
+    // on the same tick exactly as it used to.
+    if (opt && (opt.tone === "good" || opt.tone === "bad")) {
+      const flashed = { ...t, picked: { i, tone: opt.tone } };
+      talkRef.current = flashed; setTalk(flashed);
+      talkTimer.current = setTimeout(commit, TALK_PICK_FLASH_MS);
+    } else commit();
+  };
+  // Number keys pick an option; Esc walks away. Bound in its own effect, NOT in the physics loop's
+  // key map: the loop's map turns a key into a held movement intent read every frame, and picking
+  // an option is a one-shot event that must fire exactly once per press. Only mounted while a
+  // conversation is open, so digits mean nothing to the rest of the game.
+  useEffect(() => {
+    if (!talk) return;
+    const onKey = (e) => {
+      const el = e.target;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      if (e.key === "Escape") { e.preventDefault(); closeTalk(); return; }
+      const i = dialogueChoiceForKey(e.key, dialogueOptions(talk.dlg.nodes[talk.nodeId]));
+      if (i >= 0) { e.preventDefault(); chooseTalkOption(i); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [talk]);
+  // Stopping Playtest (or swapping level) with a conversation open must close it, or the panel
+  // sits over the editor with no way to dismiss it and the loop stays paused for the next session.
+  useEffect(() => { if (!play) closeTalk(); }, [play]);
 
   // Playtest: keyboard + a simple gravity/collision loop against the foreground layer.
   useEffect(() => {
@@ -6315,6 +6650,7 @@ export default function AssetStudio() {
     const cellsHit = (x, y, pw, ph) => { const hits = []; const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH); for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { if (c < 0 || c >= lv.cols || r < 0 || r >= lv.rows) continue; const cell = lv.fg[cellKey(r, c)]; if (fgSolid(cell) || fxBlocks(r, c)) hits.push({ r, c }); } return hits; };
     let lastPedestalKey = null;
     let lastDoorKey = null;
+    let lastTalkSig = "";   // "npc:12,40" / "sign:8,3" / "" — so the 💬 prompt only hits React state when it CHANGES
     let raf;
     // Frame-rate independence: every increment below was originally a fixed amount PER RENDERED
     // FRAME, tuned assuming 60fps — so whenever the browser throttled requestAnimationFrame
@@ -6350,6 +6686,14 @@ export default function AssetStudio() {
       const nowT = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
       const dtMul = lastT == null ? 1 : Math.min(3, Math.max(0.25, (nowT - lastT) / (1000 / 60)));
       lastT = nowT;
+      // A CONVERSATION PAUSES THE WORLD, and it pauses it HERE — one return, above everything —
+      // rather than by zeroing the player's input the way a stun does. Freezing only the player
+      // would leave the pit bull on the next screen chewing through your HP while you read, and
+      // every timer (fire life, reload, buff expiry) running down behind the text. lastT was
+      // already advanced above, so the frame that resumes is an ordinary one; and dtMul is clamped
+      // at 3 anyway, so even a long read cannot teleport anyone through a wall on the way back.
+      // The ref, not the state: this closure was built once and never sees a re-render.
+      if (talkRef.current) { raf = requestAnimationFrame(loop); return; }
       // STATUS FREEZES ON THE PLAYER — 💫 stunned by an enemy's Stun weapon, 😵 flattened by an
       // enemy's Tackle. Ticked here, before anything reads the keys, because a frozen player has no
       // input INTENT at all: mergeInputIntent({}) hands the rest of the loop the same all-false
@@ -6903,9 +7247,31 @@ export default function AssetStudio() {
 
           if (!enemyPos.current[k]) {
             const spawnLeft = ec * CW + CW / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2);
-            enemyPos.current[k] = { x: spawnLeft, y: (er + 1) * CH - standEph, vy: 0, onGround: false, face: spawn.facing === 1 ? 1 : -1, crouch: false, crouchT: 0, dodgeRolled: false, willDodge: false, attackT: 0, swingT: 0, reactT: 0, aimHold: 0, faceFlipT: 0, following: false, walkPhase: 0, walking: false, weaponAmmo: null, reloading: false };
+            // `peaceful` is stamped at spawn from the placement's dialogue (spawnStartsPeaceful),
+            // and `turned` starts unset — nothing has been said yet. Both live on ep, which lives
+            // in the per-level roomState bucket, so an NPC you talked into fighting for you is
+            // still your ally when you come back through the door.
+            enemyPos.current[k] = { x: spawnLeft, y: (er + 1) * CH - standEph, vy: 0, onGround: false, face: spawn.facing === 1 ? 1 : -1, crouch: false, crouchT: 0, dodgeRolled: false, willDodge: false, attackT: 0, swingT: 0, reactT: 0, aimHold: 0, faceFlipT: 0, following: false, walkPhase: 0, walking: false, weaponAmmo: null, reloading: false, peaceful: spawnStartsPeaceful(spawn), turned: null, lastHp: null };
           }
           const ep = enemyPos.current[k];
+          // HIT A PEACEFUL NPC AND IT FIGHTS BACK. Checked once here, off its HP falling, rather
+          // than at each of the eight places that can hurt a unit (melee, shot, splash, fire,
+          // thrown impact, landing burn, a brawl, a friendly's bullet) — one reader cannot fall
+          // out of step with itself the way eight writers would, and a talkable NPC standing
+          // placidly still while you beat it to death is the first thing anyone would try.
+          //
+          // Deliberately NARROW: only a spawn made peaceful by a DIALOGUE retaliates. An asset
+          // with "🕊️ Not hostile" ticked keeps behaving exactly as it always has (it stands there
+          // and never fights, and levels already rely on that) — this is a new rule for a new
+          // kind of placement, not a change to an old one.
+          {
+            const hpNow = enemyHP.current[k] === undefined ? unitMaxHP(ea, ep, allyHpBonus) : enemyHP.current[k];
+            if (ep.peaceful && !ep.turned && !ep.friendly && ep.lastHp != null && hpNow < ep.lastHp) {
+              ep.turned = "hostile";
+              flash("😡 " + ea.name + " didn't take that well.");
+            }
+            ep.lastHp = hpNow;
+          }
           const oldEph = ep.crouch ? crouchEph : standEph;
           // TACKLE (clothing ability): walking into this enemy puts it on the floor for a few
           // seconds and does no damage at all. Resolved at the TOP of the enemy's own update so
@@ -7045,6 +7411,21 @@ export default function AssetStudio() {
           // at the bottom. Order is unchanged, so what a unit wants to be looking at is identical.
           let wantFace = ep.face;
           if (!stunned && acts) wantFace = enemyFaceToward(distToTarget, ep.face);
+          // SOMEONE WITH SOMETHING TO SAY LOOKS AT YOU. A neutral NPC never enters the branch
+          // above (it has no target and `acts` is false), so it stood staring at the wall it was
+          // placed facing — and the only tell that this particular guard is the one you can talk
+          // to was walking into him. Turning to watch you approach IS the tell.
+          //
+          // Only until you have talked to them (ep.talked, set in openTalk): afterwards they go
+          // back to their placed facing, so a corridor of NPCs you have already heard stops
+          // swivelling every time you walk past. Feeds wantFace like every other facing rule —
+          // NEVER ep.face directly, or this becomes the third writer in the loop and the sprite
+          // strobes between both orientations at 60fps, which is the exact bug holdFacing exists
+          // to prevent.
+          if (!stunned && !acts && talkDialogueId(spawn) && !ep.talked) {
+            const dxTalk = (p.x + pw / 2) - eCenterXNow, dyTalk = Math.abs((p.y + ph / 2) - (ep.y + standEph / 2));
+            if (Math.abs(dxTalk) <= TALK_NOTICE_CELLS * CW && dyTalk <= TALK_NOTICE_ROWS * CH) wantFace = enemyFaceToward(dxTalk, ep.face);
+          }
           // Detection/stealth only matters for a hostile hunting the PLAYER; allies and unit-vs-unit
           // brawls always "see" their target (you can't stealth past a melee your minion started).
           // Reads wantFace, which is exactly the value ep.face held here before the two writes were
@@ -8011,6 +8392,52 @@ export default function AssetStudio() {
           if (promptKey !== lastPedestalKey) { setPedPrompt({ key: promptKey, name: item.name, type: item.type, slot: item.slot, dropped: true }); lastPedestalKey = promptKey; }
         } else { curPedKey = null; curDropKey = null; if (lastPedestalKey !== null) { setPedPrompt(null); lastPedestalKey = null; } }
       }
+
+      // 💬 WHO YOU COULD TALK TO RIGHT NOW.
+      //
+      // Deliberately LAST in the E chain, after door / pedestal / dropped loot. Those three were
+      // here first and each is a thing at your feet; a sign painted across a cell where a body
+      // happens to drop its rifle must not stop you picking the rifle up. Nothing above changes.
+      //
+      // A sign beats an NPC because you are standing ON a sign and merely NEXT TO a person.
+      let curTalk = null;
+      if (!curDoorKey && !curPedKey && !curDropKey && !p.transitioning) {
+        const signHit = signOverlapping(lv, p.x, p.y, pw, ph, CW, CH);
+        if (signHit) {
+          curTalk = { kind: "sign", key: signHit.key, name: "", marker: signHit.marker };
+        } else {
+          // Candidates are built here, where findA and the live positions are, so nearestTalkable
+          // itself stays pure and testable. A hostile is never a candidate — once someone is
+          // shooting at you the conversation is over, and it is also what stops a talk prompt
+          // strobing over a running fight.
+          const cands = [];
+          for (const k2 of Object.keys(lv.enemies || {})) {
+            const sp2 = lv.enemies[k2]; const dId = talkDialogueId(sp2); if (!dId) continue;
+            const ep2 = enemyPos.current[k2]; if (!ep2) continue;
+            if (enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) continue; // no chatting with a corpse
+            const ea2 = findA(sp2.enemyId); if (!ea2) continue;
+            if (unitSide(ea2, ep2) === "hostile") continue;
+            const sh2 = sideBodyShape(ea2), rw2 = enemyRenderW(ea2, CW);
+            cands.push({ key: k2, dialogueId: dId, name: ea2.name, cx: ep2.x + sh2.centerFrac * rw2, cy: ep2.y + enemyStandH(ea2, CW) / 2 });
+          }
+          const near = nearestTalkable(cands, p.x + pw / 2, p.y + ph / 2, TALK_RANGE_CELLS * CW, TALK_RANGE_ROWS * CH);
+          if (near) curTalk = { kind: "npc", key: near.key, name: near.name, marker: null };
+        }
+      }
+      // Same "only touch React state when it actually changed" rule the pedestal prompt follows —
+      // this runs 60 times a second and a setState per frame would re-render the whole level.
+      const talkSig = curTalk ? (curTalk.kind + ":" + curTalk.key) : "";
+      if (talkSig !== lastTalkSig) {
+        lastTalkSig = talkSig;
+        if (!curTalk) setTalkPrompt(null);
+        else {
+          const [tr, tc] = curTalk.key.split(",").map(Number);
+          setTalkPrompt({ kind: curTalk.kind, key: curTalk.key, name: curTalk.name, r: tr, c: tc });
+        }
+      }
+      // Press E to start talking. openTalk resolves which tree (a saved one by id, or the sign's
+      // own typed line) and is shared with nothing else, so there is exactly one way in.
+      if (K.interact && !p.wasInteract && curTalk && !talkRef.current) openTalk(curTalk);
       // Press E on a door to enter (a matching room) or leave (back to the level you came from).
       if (K.interact && !p.wasInteract && curDoorKey && !p.transitioning) {
         if (roomReturn.current) { p.transitioning = { mode: "exit", t: 0 }; }
@@ -8107,7 +8534,10 @@ export default function AssetStudio() {
           }
         }
       }
-      p.wasInteract = !!K.interact;
+      // Talking swallows the E that opened the conversation, the same trick the door transition
+      // uses two hundred lines up. Without it, closing a one-line sign with E still held would
+      // re-open it on the very next frame and the sign would be impossible to walk away from.
+      p.wasInteract = talkRef.current ? true : !!K.interact;
 
       // Which connected Front sheet (if any) the player is currently tucked behind — asked of the
       // UNPADDED hitbox, because "am I inside this building" is a question about overlap, not about
@@ -10195,22 +10625,22 @@ export default function AssetStudio() {
       // that later needed recovering survived on the luck of a sixth file. A backup that is
       // silently missing the work it exists to protect is worse than no backup, so the button
       // now loads everything itself and the counts below are of what was actually written.
-      const [assets, levels, stampsAll, textures, backgrounds] = await Promise.all([
-        loadLibrary(), loadLevels(), loadStamps(), loadTextures(), loadBgLib(),
+      const [assets, levels, stampsAll, textures, backgrounds, dialogues] = await Promise.all([
+        loadLibrary(), loadLevels(), loadStamps(), loadTextures(), loadBgLib(), loadDialogues(),
       ]);
-      const all = { assets: assets || [], levels: levels || [], stamps: stampsAll || [], textures: textures || [], backgrounds: backgrounds || [] };
+      const all = { assets: assets || [], levels: levels || [], stamps: stampsAll || [], textures: textures || [], backgrounds: backgrounds || [], dialogues: dialogues || [] };
       if (!all.assets.length && !all.levels.length) { flash("Nothing saved yet — nothing to export."); return; }
       const stamp = new Date().toISOString().slice(0, 10);
       // EVERYTHING rides along. Two backup files were taken by hand — 25 Jul and 4 Aug — and
       // neither contained a single level, because this button only ever wrote assets. When the
       // levels went, the backups made to prevent exactly that were no help at all. Levels are
       // where most of the hours go; they are the first thing this has to carry, not an extra.
-      const bundle = { assetBuilderBackup: 2, exportedAt: Date.now(), assets: all.assets, levels: all.levels, stamps: all.stamps, textures: all.textures, backgrounds: all.backgrounds.filter((b) => b && b.bg) };
+      const bundle = { assetBuilderBackup: 2, exportedAt: Date.now(), assets: all.assets, levels: all.levels, stamps: all.stamps, textures: all.textures, backgrounds: all.backgrounds.filter((b) => b && b.bg), dialogues: all.dialogues };
       const payload = JSON.stringify(bundle, null, 1);
       const b = new Blob([payload], { type: "application/json" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "assetbuilder-backup-" + stamp + ".json"; a.click();
       const bits = [all.assets.length + " asset" + (all.assets.length === 1 ? "" : "s")];
-      for (const [n, label] of [[bundle.levels.length, "level"], [bundle.stamps.length, "stored group"], [bundle.textures.length, "texture"], [bundle.backgrounds.length, "background"]]) {
+      for (const [n, label] of [[bundle.levels.length, "level"], [bundle.stamps.length, "stored group"], [bundle.textures.length, "texture"], [bundle.backgrounds.length, "background"], [bundle.dialogues.length, "dialogue"]]) {
         if (n) bits.push(n + " " + label + (n === 1 ? "" : "s"));
       }
       // Last line of defence: if the index still names levels this export could not load, SAY SO
@@ -10256,13 +10686,18 @@ export default function AssetStudio() {
     const ln = await restoreKind(bk.levels, "level:", "levelIndex", named);
     const tn = await restoreKind(bk.textures, "texture:", "textureIndex", named);
     const gn = await restoreKind(bk.backgrounds, "background:", "backgroundIndex", named);
+    // Dialogue trees go through migrateDialogue on the way in, the way assets go through
+    // normalizeAssetJson — a tree hand-written outside the app (or written by an older version of
+    // it) gets repaired here rather than becoming a record that opens to nothing.
+    const dn = await restoreKind((bk.dialogues || []).map((d) => { try { return migrateDialogue(d); } catch { return d; } }), "dialogue:", "dialogueIndex", named);
     if (sn) loadStamps();
     if (ln) loadLevels();
     if (tn) loadTextures();
     if (gn) loadBgLib();
+    if (dn) loadDialogues();
     loadLibrary();
     const bits = [n + " asset" + (n === 1 ? "" : "s")];
-    for (const [c, label] of [[ln, "level"], [sn, "stored group"], [tn, "texture"], [gn, "background"]]) {
+    for (const [c, label] of [[ln, "level"], [sn, "stored group"], [tn, "texture"], [gn, "background"], [dn, "dialogue"]]) {
       if (c) bits.push(c + " " + label + (c === 1 ? "" : "s"));
     }
     flash("Restored " + bits.join(", ") + " from the backup ✓");
@@ -10676,7 +11111,7 @@ export default function AssetStudio() {
     return full; // exportAllAssets needs the levels NOW, not after the next render
   };
   const openLevelCreator = () => {
-    loadLevels(); loadBgLib(); loadTextures();
+    loadLevels(); loadBgLib(); loadTextures(); loadDialogues(); // dialogues too: the Sign and Enemy pickers list them by name
     if (!level) { moving.current = null; setMovingActive(false); setLayerMove(null); const nl = newLevel(); setLevel(nl); levelBaseline.current = JSON.stringify(nl); setLSel(null); setGen(null); setPlay(false); setLFxSel(null); setLFxEditIdx(null); setLLayer("fg"); setLTool("paint"); setLBrush(1); setEyedrop(false); }
     setScreen("level");
   };
@@ -10713,11 +11148,89 @@ export default function AssetStudio() {
   };
   const doNewLevelFresh = () => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); const nl = newLevel(); setLevel(nl); levelBaseline.current = JSON.stringify(nl); setLSel(null); setGen(null); setLFxSel(null); setLFxEditIdx(null); setLLayer("fg"); setLTool("paint"); setLBrush(1); setEyedrop(false); flash("New blank level"); };
   const doNewRoomFresh = () => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); const nl = newRoom(); setLevel(nl); levelBaseline.current = JSON.stringify(nl); setLSel(null); setGen(null); setLFxSel(null); setLFxEditIdx(null); setLLayer("fg"); setLTool("paint"); setLBrush(1); setEyedrop(false); flash("New blank room"); };
-  const openRoomCreator = () => { loadLevels(); loadBgLib(); loadTextures(); guardLevelSwitch("start a new room", doNewRoomFresh); setScreen("level"); };
+  const openRoomCreator = () => { loadLevels(); loadBgLib(); loadTextures(); loadDialogues(); guardLevelSwitch("start a new room", doNewRoomFresh); setScreen("level"); };
   const newRoomFresh = () => guardLevelSwitch("start a new blank room", doNewRoomFresh);
   const newLevelFresh = () => guardLevelSwitch("start a new blank level", doNewLevelFresh);
   const doOpenLevel = (lv) => { moving.current = null; setMovingActive(false); setLayerMove(null); snapshotLevel(); const nl = migrateLevel(JSON.parse(JSON.stringify(lv))); setLevel(nl); levelBaseline.current = JSON.stringify(nl); setLSel(null); setGen(null); setPlay(false); setLFxSel(null); setLFxEditIdx(null); setLLayer("fg"); setLTool("paint"); setLBrush(1); setEyedrop(false); setLevelLoadOpen(false); flash("Opened \"" + lv.name + "\" ✓"); };
   const openLevel = (lv) => guardLevelSwitch("open \"" + lv.name + "\"", () => doOpenLevel(lv));
+
+  /* ---- dialogue trees: the sixth saved kind ------------------------------- */
+  // Deliberately a copy of the LEVEL functions above rather than anything cleverer. The house rule
+  // is that every kind of drawn work goes up to the project file and comes back down, and every
+  // outage so far has been a kind that only went one way — so a new kind gets the same five wires
+  // as the old ones (save up, restore down, delete up, in the export, back out of restoreBackup),
+  // in the same shape, where the next person can see they are all there.
+  const loadDialogues = async () => {
+    let list = [];
+    try { const idx = await sget("dialogueIndex"); list = idx ? JSON.parse(idx) : []; } catch { list = []; }
+    if (!Array.isArray(list)) list = [];
+    const indexed = new Set(list.map((it) => it && it.id).filter(Boolean));
+    // await, always — an un-awaited async helper here hands .filter a Promise and takes the whole
+    // library down with it. That exact line once read as "every level I made is gone".
+    const orphans = (await scanStoredIds("dialogue:")).filter((id) => !indexed.has(id));
+    if (orphans.length) list = list.concat(orphans.map((id) => ({ id })));
+    const full = [], bad = [];
+    for (const it of list) {
+      try { const r = await sget("dialogue:" + (it && it.id)); if (r) full.push(migrateDialogue(JSON.parse(r))); else bad.push((it && it.name) || (it && it.id)); }
+      catch { bad.push((it && it.name) || (it && it.id)); }
+    }
+    let fromProject = 0;
+    const have = new Set(full.map((d) => d && d.id));
+    const proj = await projectLibrary.load();
+    for (const raw of ((proj && proj.dialogues) || [])) {
+      if (!raw || !raw.id || have.has(raw.id)) continue;
+      try {
+        const d = migrateDialogue(JSON.parse(JSON.stringify(raw)));
+        if (await sset("dialogue:" + d.id, JSON.stringify(d))) { full.push(d); have.add(d.id); fromProject++; }
+      } catch { /* one bad tree must never stop the rest coming home */ }
+    }
+    setDlgLib(full);
+    if ((orphans.length || fromProject) && full.length) await sset("dialogueIndex", JSON.stringify(full.map((d) => ({ id: d.id, name: d.name }))));
+    if (orphans.length) console.warn("[Bob] recovered " + orphans.length + " dialogue(s) missing from the index:", orphans);
+    if (fromProject) flash("🛟 Restored " + fromProject + " dialogue" + (fromProject > 1 ? "s" : "") + " from the project file.");
+    if (full.length) projectLibrary.save({ dialogues: full });
+    if (bad.length) { console.warn("[Bob] " + bad.length + " dialogue(s) could not be read and were skipped:", bad); flash("⚠ " + bad.length + " dialogue" + (bad.length > 1 ? "s" : "") + " couldn't be read — the other " + full.length + " loaded. See console."); }
+    return full; // exportAllAssets needs them NOW, not after the next render
+  };
+  const saveDialogue = async () => {
+    if (!dlgDoc) return;
+    let list = []; const idx = await sget("dialogueIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    if (!Array.isArray(list)) list = [];
+    // RENAMING A LOADED TREE IS "SAVE AS", the same rule assets and levels already follow through
+    // resolveSaveTarget. Without it, opening "Guard" and renaming it "Guard (angry)" would write
+    // straight over the original and the tree you started from would simply cease to exist.
+    const target = resolveSaveTarget(list, dlgDoc);
+    const payload = target.id !== dlgDoc.id ? { ...dlgDoc, id: target.id } : dlgDoc;
+    const ok1 = await sset("dialogue:" + payload.id, JSON.stringify(payload));
+    list = list.filter((x) => x && x.id !== payload.id); list.push({ id: payload.id, name: payload.name });
+    const ok2 = await sset("dialogueIndex", JSON.stringify(list));
+    projectLibrary.save({ dialogues: [payload] }, { revive: true });
+    if (ok1 && ok2) {
+      if (payload !== dlgDoc) setDlgDoc(payload); // carry on editing the FORK, or the next save forks again
+      dlgBaseline.current = JSON.stringify(payload);
+      flash(target.mode === "rename"
+        ? "Saved \"" + payload.name + "\" as a NEW dialogue ✓ — the one you renamed it from is still there"
+        : "Dialogue saved ✓ — pick it on a 💬 Sign or an enemy in the Level Creator");
+      loadDialogues();
+    } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ".");
+  };
+  const deleteDialogue = async (id) => {
+    let list = []; const idx = await sget("dialogueIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    if (!Array.isArray(list)) list = [];
+    await sdel("dialogue:" + id);
+    await sset("dialogueIndex", JSON.stringify(list.filter((x) => x && x.id !== id)));
+    // A delete that never reaches the project file is not a delete — the next load hands it back.
+    await projectLibrary.forget("dialogues", [id]);
+    setDlgConfirmDel(null);
+    if (dlgDoc && dlgDoc.id === id) { const fresh = newDialogue(); setDlgDoc(fresh); dlgBaseline.current = JSON.stringify(fresh); }
+    loadDialogues();
+    flash("Deleted ✓ — any sign or enemy still pointing at it just won't talk.");
+  };
+  const openDialogueEditor = () => {
+    loadDialogues();
+    if (!dlgDoc) { const fresh = newDialogue(); setDlgDoc(fresh); dlgBaseline.current = JSON.stringify(fresh); }
+    setScreen("dialogue");
+  };
   // MIRROR THE LEVEL left↔right. Two doors on the same operation because they answer two different
   // questions, and picking the wrong one silently costs you the original:
   //
@@ -10811,7 +11324,7 @@ export default function AssetStudio() {
     }
     if (lLayer === "climb") { const climb = { ...lv.climb }; if (erase || lTool === "erase") delete climb[k]; else climb[k] = { kind: lClimbKind }; return { ...lv, climb }; }
     if (lLayer === "hazard") { const hazard = { ...(lv.hazard || {}) }; if (erase || lTool === "erase") delete hazard[k]; else hazard[k] = { kind: "fire", dps: lHazDps, life: lHazLife, ...(lHazHide ? { hideInPlay: true } : {}) }; return { ...lv, hazard }; }
-    if (lLayer === "marker") { const markers = { ...lv.markers }; if (erase || lTool === "erase") delete markers[k]; else markers[k] = lMarkerKind === "door" ? { kind: "door", tag: lMarkerCat } : { kind: "pedestal", cats: [lPedCat1, lPedCat2], logic: lPedLogic }; return { ...lv, markers }; }
+    if (lLayer === "marker") { const markers = { ...lv.markers }; if (erase || lTool === "erase") delete markers[k]; else markers[k] = lMarkerKind === "door" ? { kind: "door", tag: lMarkerCat } : lMarkerKind === "sign" ? { kind: "sign", dialogueId: lSignDlg, text: lSignText } : { kind: "pedestal", cats: [lPedCat1, lPedCat2], logic: lPedLogic }; return { ...lv, markers }; }
     const layer = { ...lv[lLayer] };
     if (erase || lTool === "erase") delete layer[k];
     // Foreground and Background cells are normally a plain color string (a full visual block).
@@ -11164,6 +11677,9 @@ export default function AssetStudio() {
             <button className="tile dress" onClick={() => { loadTextures(); setScreen("assemble"); }}><span className="ti">🧩</span><span className="tl">Dress Bob</span></button>
             <button className="tile lvl" onClick={openLevelCreator}><span className="ti">🗺️</span><span className="tl">Level Creator</span></button>
             <button className="tile lvl" onClick={openRoomCreator}><span className="ti">🚪</span><span className="tl">Room Creator</span></button>
+            {/* Its own tile, next to the level makers, because a tree is written ONCE and then hung
+                on as many signs and NPCs as you like — it is not a property of any one level. */}
+            <button className="tile lvl" onClick={openDialogueEditor}><span className="ti">💬</span><span className="tl">Dialogue Trees</span></button>
           </div>
           <h2>Make a piece of equipment</h2>
           <div className="slots">
@@ -11332,6 +11848,147 @@ export default function AssetStudio() {
                 <button className="tile" onClick={() => { setPropItemChoice(false); start("prop"); }}><span className="ti">{TYPES.prop.icon}</span><span className="tl">{TYPES.prop.label}</span></button>
                 <button className="tile" onClick={() => { setPropItemChoice(false); start("item"); }}><span className="ti">{TYPES.item.icon}</span><span className="tl">{TYPES.item.label}</span></button>
               </div>
+            </div>
+          </div>
+        )}
+        {toast && <div className="toast">{toast}</div>}
+      </div>
+    );
+  }
+
+  /* ---- 💬 the dialogue tree editor ---------------------------------------- */
+  // A screen of its own, not a panel in the Level Creator, and that is the whole design: a tree
+  // written inside a level would belong to the one sign you were standing on, and hanging the same
+  // conversation on a second NPC would mean writing it twice. Here it is a named saved thing, and
+  // the level editor only ever refers to it by id.
+  if (screen === "dialogue") {
+    const d = dlgDoc || newDialogue();
+    const ids = dialogueNodeIds(d);
+    const reachable = dialogueReachable(d);
+    const dirty = JSON.stringify(d) !== dlgBaseline.current;
+    const put = (next) => setDlgDoc(next);
+    const patchNode = (nid, patch) => put({ ...d, nodes: { ...d.nodes, [nid]: { ...d.nodes[nid], ...patch } } });
+    const patchChoice = (nid, ci, patch) => patchNode(nid, { choices: d.nodes[nid].choices.map((c, i) => (i === ci ? { ...c, ...patch } : c)) });
+    const addChoice = (nid) => patchNode(nid, { choices: [...d.nodes[nid].choices, newDialogueChoice("")] });
+    const delChoice = (nid, ci) => patchNode(nid, { choices: d.nodes[nid].choices.filter((_, i) => i !== ci) });
+    // REORDERING MATTERS, because the order IS the numbers the player presses. Without this the
+    // only way to put a new option second was to retype every option below it.
+    const moveChoice = (nid, ci, dir) => {
+      const list = d.nodes[nid].choices.slice(); const j = ci + dir;
+      if (j < 0 || j >= list.length) return;
+      [list[ci], list[j]] = [list[j], list[ci]];
+      patchNode(nid, { choices: list });
+    };
+    const addNode = () => { const n = newDialogueNode(""); put({ ...d, nodes: { ...d.nodes, [n.id]: n } }); return n.id; };
+    // "+ New line" straight out of a "goes to" picker: make the node AND wire this option to it in
+    // one write. Writing a branch top to bottom is otherwise add-node, scroll back, re-pick.
+    const linkToNewNode = (nid, ci) => {
+      const n = newDialogueNode("");
+      put({ ...d, nodes: { ...d.nodes, [n.id]: n, [nid]: { ...d.nodes[nid], choices: d.nodes[nid].choices.map((c, i) => (i === ci ? { ...c, to: n.id } : c)) } } });
+    };
+    const delNode = (nid) => {
+      if (ids.length <= 1) { flash("A dialogue needs at least one line."); return; }
+      const nodes = {};
+      for (const id of ids) {
+        if (id === nid) continue;
+        // Every option that pointed at the deleted line now ENDS the talk instead. Leaving the
+        // dangling id behind would give the player an option that visibly does nothing.
+        nodes[id] = { ...d.nodes[id], choices: d.nodes[id].choices.map((c) => (c.to === nid ? { ...c, to: "" } : c)) };
+      }
+      const rest = Object.keys(nodes);
+      put({ ...d, nodes, start: nodes[d.start] ? d.start : rest[0] });
+    };
+    return (
+      <div className="bb"><style>{css}</style>
+        <header className="bar">
+          <button className="back" onClick={() => setScreen("menu")}>‹ Menu</button>
+          <input className="nm wide2" value={d.name} onChange={(e) => put({ ...d, name: e.target.value })} placeholder="Dialogue name" />
+          <span className="badge">💬 Dialogue{dirty ? " ·  unsaved" : ""}</span>
+          <button className="ltbtn" onClick={() => { const fresh = newDialogue(); setDlgDoc(fresh); dlgBaseline.current = JSON.stringify(fresh); flash("New blank dialogue"); }}>✚ New</button>
+          <button className="ltbtn saveRead" onClick={() => { loadDialogues(); setDlgLoadOpen(true); }}>📂 Load ({dlgLib.length})</button>
+          <button className="save" onClick={saveDialogue}>💾 Save</button>
+        </header>
+        <div className="dlgEdit">
+          <p className="statusline">Write what an NPC or a sign says. <b>Every line can offer options, and the player presses its number to pick one.</b> An option can lead to another line, end the talk, and/or <b>do something</b> — the point of the whole thing being that "I'm not moving" can turn a peaceful guard hostile. Attach the finished tree to a 💬 Sign or to an enemy <b>as you place it</b> in the Level Creator.</p>
+          {ids.map((nid, ni) => {
+            const n = d.nodes[nid];
+            const isStart = nid === d.start;
+            const orphan = !reachable.has(nid);
+            return (
+              <div key={nid} className={"card dlgNode" + (isStart ? " start" : "") + (orphan ? " orphan" : "")}>
+                <div className="ct">
+                  <span>#{ni + 1}{isStart ? " ▶ the talk starts here" : ""}</span>
+                  <span className="dlgNodeBtns">
+                    {!isStart && <button className="ltbtn" onClick={() => put({ ...d, start: nid })} title="Open the conversation on this line instead">▶ Make it the start</button>}
+                    {ids.length > 1 && <button className="ltbtn" onClick={() => delNode(nid)} title="Delete this line — anything pointing at it will just end the talk instead">🗑 Delete line</button>}
+                  </span>
+                </div>
+                {/* An orphan is a line you wrote that no player can ever reach. It looks identical
+                    to a wired one on screen, which is exactly why it needs saying out loud. */}
+                {orphan && <p className="mini dlgWarn">⚠ Nothing leads here — no option in this tree points at line #{ni + 1}, so it will never be seen.</p>}
+                <label className="catfield">Speaker <input value={n.speaker || ""} onChange={(e) => patchNode(nid, { speaker: e.target.value })} placeholder="blank = the NPC's own name" /></label>
+                <textarea className="dlgText" rows={2} value={n.text} onChange={(e) => patchNode(nid, { text: e.target.value })} placeholder="What they say on this line…" />
+                <div className="ct2">Options{n.choices.length ? " — the player presses these numbers" : ""}</div>
+                {!n.choices.length && <p className="mini">No options: this line just shows, and pressing <b>1</b> (or Esc) closes it. That is all a plain text box needs.</p>}
+                {n.choices.length > DIALOGUE_MAX_KEYED && <p className="mini dlgWarn">⚠ Only the first {DIALOGUE_MAX_KEYED} can be picked with a number key — the rest have to be clicked.</p>}
+                {n.choices.map((c, ci) => (
+                  <div key={c.id} className="dlgChoice">
+                    <span className="talkNum">{ci < DIALOGUE_MAX_KEYED ? ci + 1 : "•"}</span>
+                    <input className="dlgChoiceText" value={c.text} onChange={(e) => patchChoice(nid, ci, { text: e.target.value })} placeholder="What the player says…" />
+                    <select value={c.to} onChange={(e) => { if (e.target.value === "__new") linkToNewNode(nid, ci); else patchChoice(nid, ci, { to: e.target.value }); }} title="Where this option leads">
+                      <option value="">↩ ends the talk</option>
+                      {ids.map((oid) => <option key={oid} value={oid}>→ {dialogueNodeLabel(d, oid)}</option>)}
+                      <option value="__new">✚ a new line…</option>
+                    </select>
+                    <select value={c.act} onChange={(e) => patchChoice(nid, ci, { act: e.target.value })} title={c.act ? DIALOGUE_ACTS[c.act].blurb : "What picking this DOES in the game"}>
+                      <option value="">— does nothing —</option>
+                      {Object.keys(DIALOGUE_ACTS).map((a) => <option key={a} value={a}>{DIALOGUE_ACTS[a].label}</option>)}
+                    </select>
+                    <select value={c.tone || ""} onChange={(e) => patchChoice(nid, ci, { tone: e.target.value })} title="Flash this option green or red the moment it is picked, to mark it right or wrong">
+                      <option value="">⚪ no colour</option>
+                      {Object.keys(DIALOGUE_TONES).map((t) => <option key={t} value={t}>{DIALOGUE_TONES[t].label}</option>)}
+                    </select>
+                    <button className="ltbtn" disabled={ci === 0} onClick={() => moveChoice(nid, ci, -1)} title="Move up — this is the number the player presses">⌃</button>
+                    <button className="ltbtn" disabled={ci === n.choices.length - 1} onClick={() => moveChoice(nid, ci, 1)} title="Move down">⌄</button>
+                    <button className="ltbtn" onClick={() => delChoice(nid, ci)} title="Delete this option">🗑</button>
+                  </div>
+                ))}
+                {/* Spell out what the consequences on THIS line actually do. The picker shows a
+                    short label; the blurb is where "they join you" turns into "fights for you,
+                    exactly like a raised body", which is the difference between picking the right
+                    one and finding out in Playtest. */}
+                {n.choices.some((c) => c.act) && (
+                  <div className="dlgActs">{[...new Set(n.choices.map((c) => c.act).filter(Boolean))].map((a) => (
+                    <span key={a} className="hint2">{DIALOGUE_ACTS[a].label} — {DIALOGUE_ACTS[a].blurb}</span>
+                  ))}</div>
+                )}
+                <button className="ltbtn" onClick={() => addChoice(nid)}>✚ Add an option</button>
+              </div>
+            );
+          })}
+          <button className="ltbtn saveRead" onClick={addNode}>✚ Add another line</button>
+          {dlgLib.length > 0 && (
+            <>
+              <div className="ct2" style={{ marginTop: 18 }}>Saved dialogues</div>
+              <div className="loadlist">{dlgLib.map((x) => (
+                <button key={x.id} onClick={() => { const open = migrateDialogue(JSON.parse(JSON.stringify(x))); setDlgDoc(open); dlgBaseline.current = JSON.stringify(open); flash("Opened \"" + x.name + "\" ✓"); }}>💬 {x.name}{x.id === d.id ? " (open)" : ""}</button>
+              ))}</div>
+            </>
+          )}
+        </div>
+        {dlgLoadOpen && (
+          <div className="modal" onClick={() => setDlgLoadOpen(false)}>
+            <div className="dlg" onClick={(e) => e.stopPropagation()}>
+              <div className="dt">Load a dialogue</div>
+              {!dlgLib.length && <p className="mini">Nothing saved yet — write one and press Save.</p>}
+              <div className="loadlist">{dlgLib.map((x) => (
+                <div key={x.id} className="dlgLoadRow">
+                  <button onClick={() => { const open = migrateDialogue(JSON.parse(JSON.stringify(x))); setDlgDoc(open); dlgBaseline.current = JSON.stringify(open); setDlgLoadOpen(false); flash("Opened \"" + x.name + "\" ✓"); }}>💬 {x.name} <span className="hint2">· {Object.keys(x.nodes || {}).length} line{Object.keys(x.nodes || {}).length === 1 ? "" : "s"}</span></button>
+                  {dlgConfirmDel === x.id
+                    ? <button className="ltbtn danger" onClick={() => deleteDialogue(x.id)}>Really delete?</button>
+                    : <button className="ltbtn" onClick={() => setDlgConfirmDel(x.id)}>🗑</button>}
+                </div>
+              ))}</div>
             </div>
           </div>
         )}
@@ -11609,7 +12266,7 @@ export default function AssetStudio() {
       // erase the layer underneath. Pick "— none —" (or click a layer tab) to leave enemy mode.
       if (lEnemyId) {
         if (lTool === "erase") { setLevel((lv2) => { if (!lv2.enemies || !lv2.enemies[k]) return lv2; const enemies = { ...lv2.enemies }; delete enemies[k]; return { ...lv2, enemies }; }); return; }
-        if (lTool === "paint") { setLevel((lv2) => ({ ...lv2, enemies: { ...(lv2.enemies || {}), [k]: { enemyId: lEnemyId, facing: lEnemyFace, ...(lEnemyAi !== "asset" ? { ai: lEnemyAi } : {}) } } })); return; }
+        if (lTool === "paint") { setLevel((lv2) => ({ ...lv2, enemies: { ...(lv2.enemies || {}), [k]: { enemyId: lEnemyId, facing: lEnemyFace, ...(lEnemyAi !== "asset" ? { ai: lEnemyAi } : {}), ...(lEnemyDlg ? { dialogueId: lEnemyDlg } : {}) } } })); return; }
       }
       if (lTool === "areaCopy") { areaAnchor.current = { r, c }; setAreaDragOn(true); return; }
       if (lTool === "fill") { floodFill(r, c); return; }
@@ -11794,6 +12451,16 @@ export default function AssetStudio() {
                 <option value="avoid">🏹 Avoid (keeps distance)</option>
                 <option value="asset">⚙️ Use enemy's own setting</option>
               </select> : null}
+              {/* ATTACHING A TREE HERE IS ALSO WHAT MAKES THIS ONE PEACEFUL (spawnStartsPeaceful).
+                  Stamped per placement, exactly like Facing and the AI behaviour beside it, so the
+                  same drawn enemy can be the quiet one by the gate and the pack of hostiles behind
+                  it without being two separate assets. */}
+              {lEnemyId ? <select className="ltbtn" value={lEnemyDlg} onChange={(e) => setLEnemyDlg(e.target.value)} title="Give this NPC something to say. An NPC with a dialogue starts PEACEFUL — what you pick in the conversation decides whether that lasts.">
+                <option value="">🚫 No dialogue (fights on sight)</option>
+                {dlgLib.map((d) => <option key={d.id} value={d.id}>💬 {d.name}</option>)}
+              </select> : null}
+              {lEnemyId && lEnemyDlg ? <span className="hint2">Starts peaceful · press E to talk · a choice can turn them hostile</span> : null}
+              {lEnemyId && !dlgLib.length ? <button className="ltbtn" onClick={openDialogueEditor} title="No dialogue trees saved yet — write one">✎ Write a dialogue</button> : null}
             </div>
           )}
           {(lLayer === "fg" || lLayer === "bg" || lLayer === "front" || lLayer === "hazard") && (
@@ -11876,11 +12543,28 @@ export default function AssetStudio() {
             </>
           ) : lLayer === "marker" ? (
             <>
-              <div className="seg"><button className={lMarkerKind === "door" ? "on" : ""} onClick={() => setLMarkerKind("door")}>🚪 Door</button><button className={lMarkerKind === "pedestal" ? "on" : ""} onClick={() => setLMarkerKind("pedestal")}>💎 Pedestal</button></div>
+              <div className="seg"><button className={lMarkerKind === "door" ? "on" : ""} onClick={() => setLMarkerKind("door")}>🚪 Door</button><button className={lMarkerKind === "pedestal" ? "on" : ""} onClick={() => setLMarkerKind("pedestal")}>💎 Pedestal</button><button className={lMarkerKind === "sign" ? "on" : ""} onClick={() => setLMarkerKind("sign")} title="A text box: walk onto this cell in play and press E to read it. Give it a whole dialogue tree, or just type one line.">💬 Sign</button></div>
               {lMarkerKind === "door" ? (
                 <>
                   <input className="catinline" value={lMarkerCat} onChange={(e) => setLMarkerCat(e.target.value)} placeholder="opens room tagged… (blank = a way back out)" />
                   {(() => { const t = (lMarkerCat || "").trim(); const n = roomPool(levelLib, t).length; return <span className="hint2">{t ? n + " room" + (n === 1 ? "" : "s") + " tagged \"" + t + "\"" + (n === 0 ? " ⚠" : "") : "exit door"}</span>; })()}
+                </>
+              ) : lMarkerKind === "sign" ? (
+                /* TWO WAYS TO FILL A SIGN, and they are labelled apart on purpose. A whole tree is
+                   the point of the feature; a single line typed right here is the five-second
+                   version, for the "DANGER — mine shaft" boards that don't deserve a trip to
+                   another screen. The tree wins when both are set, and the hint says so — the one
+                   thing this must never be is two controls that look like they do the same job. */
+                <>
+                  <select className="big" value={lSignDlg} onChange={(e) => setLSignDlg(e.target.value)} title="Which saved dialogue tree this sign runs">
+                    <option value="">— just the line below —</option>
+                    {dlgLib.map((d) => <option key={d.id} value={d.id}>💬 {d.name}</option>)}
+                  </select>
+                  <input className="catinline" style={{ flex: "1 1 260px" }} value={lSignText} onChange={(e) => setLSignText(e.target.value)} placeholder="…or type a one-off line here" disabled={!!lSignDlg} />
+                  <button className="ltbtn" onClick={openDialogueEditor} title="Write or edit dialogue trees">✎ Dialogue editor</button>
+                  <span className="hint2">{lSignDlg
+                    ? "Runs the tree \"" + ((dlgLib.find((d) => d.id === lSignDlg) || {}).name || "?") + "\" — the line box is ignored while a tree is picked."
+                    : (lSignText.trim() ? "Shows that line, then closes." : "⚠ Empty — pick a tree or type a line, or this sign says nothing.")}</span>
                 </>
               ) : (
                 <>
@@ -12006,8 +12690,11 @@ export default function AssetStudio() {
                 {lvPropMeta.map(({ o, si, r, c, k, ord }) => { const layout = levelObjectPixelLayout(o); const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
                 {!play && lvClimbLayer}
                 {lvHazardLayer}
-                {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : "💎"}</div>; })}
-                {!play && lv.enemies && Object.keys(lv.enemies).map((k) => { const [r, c] = k.split(",").map(Number); const ea = findA(lv.enemies[k].enemyId); return <div key={"en" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { cursor: "pointer" } : {}) }} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv2) => { const enemies = { ...(lv2.enemies || {}) }; delete enemies[k]; return { ...lv2, enemies }; }); } : undefined}>{ea ? "👹" : "❓"}</div>; })}
+                {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : m.kind === "sign" ? "💬 Sign · " + signSummary(m, dlgLib) + " · invisible in play until you stand on it · Erase tool: click to delete" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : m.kind === "sign" ? "💬" : "💎"}</div>; })}
+                {/* A spawn carrying a tree shows 💬 rather than 👹 — which of the six identical
+                    guards along this wall is the one you can talk to is otherwise invisible until
+                    Playtest, and the answer is the whole reason it was placed there. */}
+                {!play && lv.enemies && Object.keys(lv.enemies).map((k) => { const [r, c] = k.split(",").map(Number); const sp = lv.enemies[k]; const ea = findA(sp.enemyId); const dId = talkDialogueId(sp); const dName = dId ? ((dlgLib.find((d) => d.id === dId) || {}).name || "a deleted dialogue ⚠") : ""; return <div key={"en" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { cursor: "pointer" } : {}) }} title={(ea ? ea.name : "missing enemy asset") + (dId ? " · 💬 talks: \"" + dName + "\" · starts PEACEFUL" : "")} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv2) => { const enemies = { ...(lv2.enemies || {}) }; delete enemies[k]; return { ...lv2, enemies }; }); } : undefined}>{ea ? (dId ? "💬" : "👹") : "❓"}</div>; })}
                 {!play && !lv.isRoom && CONN_KEYS.map((k) => { const pos = CONN_POS[k], cc = lv.conns[k]; return (
                   <button key={k} className={"conn " + (cc.open ? "open" : "blocked") + (lSel === k ? " sel" : "")} style={{ left: pos.x + "%", top: pos.y + "%" }} onClick={(e) => { e.stopPropagation(); setLSel(k); }} title={CONN_LABEL[k] + (cc.open ? " · accepts: " + (cc.accepts || lv.floor) : " · blocked")}>✕</button>
                 ); })}
@@ -12666,6 +13353,16 @@ export default function AssetStudio() {
                     : "🚪 Press E to leave";
                   return <div key="doorprompt" className="doorPromptFloat" style={{ left: c * LV_CELL + LV_CELL / 2, top: r * LV_CELL - 6 }}>{txt}</div>;
                 })()}
+                {/* 💬 "Press E to talk". Signs are invisible in play (paint your own board over
+                    the cell) so this callout is the only thing that says one is there; for an NPC
+                    it hangs over the spawn cell rather than the live body, which is close enough
+                    at talking range and costs nothing per frame. Hidden while the panel is open —
+                    the conversation IS the prompt at that point. */}
+                {play && talkPrompt && !talk && (
+                  <div key="talkprompt" className="doorPromptFloat talkPromptFloat" style={{ left: talkPrompt.c * LV_CELL + LV_CELL / 2, top: talkPrompt.r * LV_CELL - 6 }}>
+                    {talkPrompt.kind === "npc" ? "💬 Press E to talk to " + (talkPrompt.name || "them") : "💬 Press E to read"}
+                  </div>
+                )}
                 {play && Object.entries(enemyDrops.current).map(([k, drop]) => {
                   if (!drop || !drop.item) return null;
                   const item = drop.item;
@@ -12985,6 +13682,43 @@ export default function AssetStudio() {
 
           </aside>
         </div>
+
+        {/* 💬 THE CONVERSATION. Rendered out here, a sibling of the whole editor, and fixed to the
+            bottom of the window — NOT inside .lgrid. That grid carries isolation:isolate so its
+            four-digit cell/object z-indexes can't outrank the modals, which means nothing put
+            inside it can be lifted above the level either; and there is no camera in this game, so
+            a panel positioned near the player would routinely be off-screen. Fixed to the viewport
+            is the only place it is reliably readable. */}
+        {play && talk && (() => {
+          const node = talk.dlg.nodes[talk.nodeId] || { text: "", choices: [] };
+          const opts = dialogueOptions(node);
+          const who = (node.speaker || "").trim() || talk.name || (talk.kind === "sign" ? "Sign" : "");
+          const overNine = opts.length > DIALOGUE_MAX_KEYED;
+          return (
+            <div className="talkPanel" onPointerDown={(e) => e.stopPropagation()}>
+              <div className="talkBox">
+                {who && <div className="talkWho">💬 {who}</div>}
+                <div className="talkText">{node.text || <span className="hint2">(this line is blank)</span>}</div>
+                <div className="talkOpts">
+                  {opts.map((o, i) => {
+                    // The highlight is on the option that was PICKED, and only after it was picked.
+                    // Colouring the list up front would hand the player the answer, which is the
+                    // opposite of what a right/wrong tag is for.
+                    const lit = talk.picked && talk.picked.i === i ? DIALOGUE_TONES[talk.picked.tone] : null;
+                    return (
+                      <button key={o.id || i} className={"talkOpt" + (lit ? " lit" : "")} style={lit ? { background: lit.color, borderColor: lit.edge, color: "#fff" } : undefined}
+                        onClick={() => chooseTalkOption(i)}>
+                        <span className="talkNum">{i < DIALOGUE_MAX_KEYED ? i + 1 : "•"}</span>
+                        <span>{o.text || "(no text)"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="talkHint">Press {opts.length === 1 ? "1" : "1–" + Math.min(opts.length, DIALOGUE_MAX_KEYED)}{overNine ? " (click the rest)" : ""} · Esc to walk away · everything else is paused</div>
+              </div>
+            </div>
+          );
+        })()}
 
         {levelLoadOpen && (
           <div className="modal" onClick={() => setLevelLoadOpen(false)}>
@@ -14304,6 +15038,42 @@ const css = `
 .enemyDropPlay .pedcallout{top:-8px}
 @keyframes lootBob{from{margin-top:0}to{margin-top:-3px}}
 .doorPromptFloat{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;background:#241b0d;border:1px solid #c8a23c;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;color:#f3d98a;box-shadow:0 1px 4px rgba(0,0,0,.55);pointer-events:none;z-index:9500}
+/* 💬 The talk prompt is the door prompt in a different colour, deliberately — the two mean the
+   same thing ("press E here") and looking alike is the point. */
+.talkPromptFloat{background:#131f2e;border-color:#5b9bd5;color:#bfe0ff}
+/* THE CONVERSATION PANEL. position:fixed, not absolute: there is no camera in this game, so the
+   player is frequently nowhere near the visible part of a 160-column level, and a panel anchored
+   to them would open off-screen. z 60 clears the modals (30) and the toasts (40) — while a
+   conversation is up it IS the interface. */
+.talkPanel{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:0 16px 18px;z-index:60;pointer-events:none}
+.talkBox{pointer-events:auto;width:min(760px,100%);background:#11141d;border:2px solid #5b9bd5;border-radius:12px;padding:14px 16px;box-shadow:0 10px 34px rgba(0,0,0,.7)}
+.talkWho{font-size:13px;font-weight:700;color:#bfe0ff;margin-bottom:6px}
+.talkText{font-size:16px;line-height:1.45;color:#e8ecf5;white-space:pre-wrap;margin-bottom:12px}
+.talkOpts{display:flex;flex-direction:column;gap:6px}
+.talkOpt{display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;background:#1b2130;border:1px solid #333c52;border-radius:8px;padding:8px 10px;color:#dfe5f0;font-size:14px;cursor:pointer;transition:background .1s,border-color .1s}
+.talkOpt:hover{background:#243046;border-color:#4a5a7a}
+/* The right/wrong flash. No transition on the way IN — the colour has to land the instant the key
+   goes down or it reads as lag rather than as an answer. */
+.talkOpt.lit{transition:none;font-weight:700}
+.talkNum{flex:0 0 auto;min-width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;background:#0d1119;border:1px solid #46506b;border-radius:5px;font-size:12px;font-weight:700;color:#9fb4d8}
+.talkOpt.lit .talkNum{background:rgba(0,0,0,.3);border-color:rgba(255,255,255,.45);color:#fff}
+.talkHint{margin-top:10px;font-size:11px;color:#7d879b}
+/* The dialogue tree editor. One column of line-cards; the start line and any unreachable line are
+   edged in colour, because "which line does this open on" and "did I forget to wire this up" are
+   the only two structural questions a short tree ever raises. */
+.dlgEdit{padding:16px;display:flex;flex-direction:column;gap:12px;overflow:auto;flex:1}
+.dlgNode .ct{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.dlgNodeBtns{display:flex;gap:6px}
+.dlgNode.start{border-color:#5b9bd5}
+.dlgNode.orphan{border-color:#8a6a2a}
+.dlgWarn{color:#e0b64c}
+.dlgText{width:100%;box-sizing:border-box;background:#0d1119;border:1px solid #333c52;border-radius:8px;color:#e8ecf5;padding:8px 10px;font:inherit;font-size:14px;resize:vertical;margin:6px 0}
+.dlgChoice{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0}
+.dlgChoiceText{flex:1 1 220px;min-width:160px;background:#0d1119;border:1px solid #333c52;border-radius:6px;color:#e8ecf5;padding:6px 8px;font:inherit;font-size:13px}
+.dlgChoice select{background:#0d1119;border:1px solid #333c52;border-radius:6px;color:#cfd8e8;padding:6px;font-size:12px;max-width:220px}
+.dlgActs{display:flex;flex-direction:column;gap:2px;margin:6px 0 2px}
+.dlgLoadRow{display:flex;gap:6px;align-items:stretch}
+.dlgLoadRow>button:first-child{flex:1;text-align:left}
 .equipline{color:#cfe0ff;background:#131a29;border-color:#3a5c8c;font-size:12px}
 @media(max-width:820px){.main{flex-direction:column}.stage{padding:10px;flex:none}.art{height:46vh}.side{width:auto;border-left:0;border-top:1px solid #232838;flex:1}.refpick{margin-left:0}.nm{flex:1;width:auto;min-width:0}.slotrow select{width:130px}.lmain{flex-direction:column}.lside{width:auto;border-left:0;border-top:1px solid #232838}.connlist{grid-template-columns:1fr}}
 `;
