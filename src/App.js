@@ -904,7 +904,7 @@ export const WEAPON_ABILITIES = {
   },
   resurrect: {
     icon: "🔮", label: "Resurrect staff", types: ["ranged", "melee"],
-    blurb: "Its shot deals no damage — instead it raises a defeated body into a friendly NPC that fights for you. One body can only be raised once.",
+    blurb: "Its shot deals no damage — instead it raises a defeated body into a friendly NPC that fights for you, glowing 🟣 purple. The staff gets ONE raise per body ever: you carry it all level, so without a ceiling one dog is an endless army. A 🔴 Capture throwable is limited by how many you brought instead, and can raise the same body again and again.",
     melee: true,
     on: { resurrect: true, explode: false }, off: { resurrect: false },
   },
@@ -935,7 +935,7 @@ export const WEAPON_ABILITIES = {
   },
   capture: {
     icon: "🔴", label: "Capture", types: ["throw"],
-    blurb: "Lands on a DEFEATED creature and it gets up fighting for you — it charges the nearest enemy, follows you when there are none left, and your own shots, fire and blasts pass through it. Creatures only: anything drawn in the 👹 Enemy creator, never a person. Nearest body first, and a body can only ever be brought back once.",
+    blurb: "Lands on a DEFEATED creature and it gets up fighting for you, glowing 🔴 red — it charges the nearest enemy, follows you when there are none left, and your own shots, fire and blasts pass through it. Creatures only: anything drawn in the 👹 Enemy creator, never a person. Nearest body first. UNLIKE the 🔮 staff there is no per-body limit: every catch costs one of these, so three of them will bring the same creature back three times.",
     isOn: (a) => !!a && isThrowable(a.wtype) && (a.captureMax ?? 0) > 0,
     on: { captureMax: 1 }, off: { captureMax: 0 },
   },
@@ -1469,7 +1469,8 @@ export const allyMaxHPBonus = (effects) => {
 // raised); this is that rule plus the one-time payment, because an ally has no other way to heal.
 //
 // A DEFEATED ally is skipped for the top-up on purpose: paying HP into a body would stand it back
-// up, and getting up is the Resurrect staff's job and is one-and-done for a reason.
+// up, and getting up costs something every time — the 🔮 staff's one raise per body, or one of the
+// 🔴 Capture grenades in your pocket. A jacket must not be a free third way to do it.
 export const applyAllyHPBonus = (curHP, baseMax, bonus, granted) => {
   const b = Math.max(0, Math.round(bonus || 0)), g = Math.max(0, Math.round(granted || 0));
   const max = Math.max(1, Math.round(baseMax || 1) + b);
@@ -1530,7 +1531,7 @@ export const firstDoorKey = (markers) => { for (const k in (markers || {})) { co
 // exactly one place to look for "what can a choice actually do".
 export const DIALOGUE_ACTS = {
   hostile: { label: "😡 Turn them hostile", blurb: "They start fighting you — this is the one that makes a tree matter.", flash: "😡 {name} turns on you!" },
-  friendly: { label: "🟣 They join you", blurb: "They fight FOR you from now on, exactly like a body raised with the Resurrect staff.", flash: "🟣 {name} is fighting for you!" },
+  friendly: { label: "🟢 They join you", blurb: "They fight FOR you from now on, exactly like a body raised with the Resurrect staff — but they glow GREEN rather than purple, because nobody had to die for this one.", flash: "🟢 {name} is fighting for you!" },
   calm: { label: "🕊️ Calm them down", blurb: "They stop fighting and go back to standing there — talking a hostile down.", flash: "🕊️ {name} stands down." },
   heal: { label: "❤️ Heal you fully", blurb: "Tops your HP back up to full. A healer NPC in three clicks.", flash: "❤️ {name} patched you up." },
 };
@@ -1715,7 +1716,9 @@ export const nearestUnitCX = (fromCX, candidates) => {
   for (const c of (candidates || [])) { if (!c) continue; const d = Math.abs(c.cx - fromCX); if (d < bd) { bd = d; best = c; } }
   return best;
 };
-// A body can be raised only if it's dead and has never been raised before — resurrection is one-and-done.
+// A body can be raised by the 🔮 STAFF only if it's dead and the staff has never raised it before —
+// the staff's resurrection is one-and-done. `resurrectedOnce` is the staff's OWN budget and nothing
+// else spends it; see canCapture for why a 🔴 Capture throwable is deliberately not held to it.
 export const canResurrect = (hp, ep) => hp <= 0 && !(ep && ep.resurrectedOnce);
 // Whether a unit is a CREATURE rather than a person, which is what decides if it can be caught.
 // The line the data already draws is the asset TYPE: anything built in the Enemy creator (the
@@ -1725,17 +1728,67 @@ export const canResurrect = (hp, ep) => hp <= 0 && !(ep && ep.resurrectedOnce);
 // person-shaped thing drawn in the Enemy creator would be catchable; that is the cost of using
 // the only line the data actually has, and it is the one Blake draws when he builds them.
 export const isCreatureUnit = (ea) => !!ea && ea.type === "enemy";
-// Whether a capture payload may claim this body. Three separate questions, deliberately not
-// collapsed into one expression at the call site: it has to be a creature (you cannot pocket a
-// person), it has to be DEAD — you catch a body, not a fight in progress — and it must never have
-// been brought back before. That last gate is the Resurrect staff's own `resurrectedOnce`, shared
-// on purpose: "one body, one second life" should hold however you spend it, or a staff and a ball
-// between them raise the same corpse twice.
-export const canCapture = (ea, hp, ep) => isCreatureUnit(ea) && canResurrect(hp, ep);
+// Whether a capture payload may claim this body. Two questions, deliberately not collapsed into
+// one expression at the call site: it has to be a creature (you cannot pocket a person), and it
+// has to be DEAD — you catch a body, not a fight in progress.
+//
+// THE ONE-AND-DONE GATE IS DELIBERATELY NOT HERE, and that is the whole difference between the two
+// ways of raising a body. It used to be: canCapture called canResurrect, so a ball and a staff
+// shared one "second life" per corpse. That is the right rule for the STAFF — you carry it the
+// whole level, so without a ceiling one weapon farms an infinite army out of one dog.
+//
+// A throwable is its own ceiling. Every catch COSTS A GRENADE, and Blake's are deliberately scarce,
+// so the limit is already in your pocket: three capture grenades buy three resurrections and the
+// third one is your last whether you spent them on three corpses or on the same one three times.
+// Charging that a second time against a per-body counter meant a stack of grenades you physically
+// could not use, which is the opposite of what a limited consumable should feel like.
+//
+// So the two budgets are separate and neither can spend the other's: the staff gets one raise per
+// body ever, the throwable gets as many as you have grenades for. A corpse the staff has already
+// spent can still be caught (the ball is not out of charges — you are just out of staff), and a
+// corpse a ball raised can still take the staff's one free raise later, because the capture path
+// never writes `resurrectedOnce`.
+export const canCapture = (ea, hp, ep) => isCreatureUnit(ea) && hp <= 0;
 // How many bodies one throw may claim. 0 is off — the same convention every other throwable
 // payload uses for off (Bomblets, Freeze), so the ability needs no separate boolean flag that
 // could get out of step with its own number.
 export const captureCount = (a) => Math.max(0, Math.round((a && a.captureMax) ?? 0));
+// ── HOW an ally was won, and what colour that makes it ──────────────────────────────────────
+// A registry for the same reason DIALOGUE_ACTS and EFFECT_TYPES are ones: the glow, the badge on
+// the hover title and the wording of every "your ally did X" message all come off one entry, so a
+// new way of making a friend is one edit and the three can never disagree about what colour it is.
+//
+// There is exactly ONE ally pipeline — ep.friendly — and that stays true: an ally is an ally
+// however it was won, with the same HP ceiling, targeting, follow behaviour and immunity to your
+// own shots. `ep.allyKind` records only where it CAME FROM, because on screen three different
+// stories were all telling you the same purple thing and you could not tell a dog you raised from
+// one you talked round.
+//
+// THE GLOW IS DELIBERATELY QUIETER THAN IT WAS. It used to be two stacked drop-shadows at full
+// opacity (2px + 5px of solid #a855f7), which read less as "this one is yours" and more as a
+// status effect painted over the art — and it drowned the asset's own colours, which is the thing
+// Blake actually drew. One soft shadow still marks a unit at a glance without competing with it.
+export const ALLY_KINDS = {
+  // The 🔮 Resurrect staff, shot or swung. Purple is the colour this has always been; only the
+  // strength changed, so an existing save with no allyKind (see allyKindOf) is unchanged in kind.
+  raised: { badge: "🟣", color: "#a855f7", verb: "raised" },
+  // A 🔴 Capture throwable — Blake's grenade. Red matches the ability's own 🔴 icon and the flash
+  // the catch already printed, and it is the one you most need to tell apart, because this is the
+  // ally you can go and make again out of the same body.
+  captured: { badge: "🔴", color: "#e2554b", verb: "revived" },
+  // Talked round in a 💬 dialogue. Green because nothing was killed to get it.
+  talked: { badge: "🟢", color: "#4ac860", verb: "recruited" },
+};
+export const DEFAULT_ALLY_KIND = "raised";
+// Which entry a unit's `ep` names. Anything unrecognised — including an ep from before allyKind
+// existed, which is every ally mid-play when this shipped — falls back to the staff's purple, so
+// the change can never leave an ally with no glow at all.
+export const allyKindOf = (ep) => (ep && ALLY_KINDS[ep.allyKind]) ? ep.allyKind : DEFAULT_ALLY_KIND;
+// The CSS filter that marks a friendly. One shadow, ~70% opacity — see the note above.
+export const allyGlowCss = (ep) => "drop-shadow(0 0 3px " + ALLY_KINDS[allyKindOf(ep)].color + "b3)";
+// The emoji that stands in front of an ally's name anywhere it is written (hover title, kill
+// messages). Same source as the glow, so the badge and the colour cannot drift apart.
+export const allyBadge = (ep) => ALLY_KINDS[allyKindOf(ep)].badge;
 // Which currently-worn slot comes off when you equip `item`: its own slot if that's occupied,
 // otherwise the first worn slot holding something that shares one of the item's category tags —
 // so you can't end up wearing two items of the same category. Exactly one item is ever displaced
@@ -6478,8 +6531,9 @@ export default function AssetStudio() {
       if (act === "hostile") { ep.turned = "hostile"; ep.peaceful = false; ep.friendly = false; }
       else if (act === "calm") { ep.turned = "neutral"; ep.friendly = false; }
       else if (act === "friendly") {
-        // Reuses the Resurrect staff's own flag and its whole ally pipeline — HP ceiling, purple
-        // glow, target selection, the follow behaviour. A recruit is not a second kind of ally.
+        // Reuses the Resurrect staff's own flag and its whole ally pipeline — HP ceiling, glow,
+        // target selection, the follow behaviour. A recruit is not a second kind of ally; the only
+        // thing allyKind changes is what COLOUR it glows (🟢 green — nothing died to win it).
         const base = findA(playerId);
         const merged = mergeEquip(base, equipped.current, equippedBodyIdFor(base));
         const bonus = allyMaxHPBonus(merged && merged.effects);
@@ -6487,7 +6541,7 @@ export default function AssetStudio() {
         const cur = enemyHP.current[t.key] === undefined ? enemyMaxHP(ea) : enemyHP.current[t.key];
         const res = applyAllyHPBonus(cur, enemyMaxHP(ea), bonus, ep.allyHpGranted);
         enemyHP.current[t.key] = res.hp; ep.allyHpGranted = res.granted;
-        ep.friendly = true; ep.turned = null; ep.peaceful = false; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
+        ep.friendly = true; ep.allyKind = "talked"; ep.turned = null; ep.peaceful = false; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
       }
     } else if (act !== "heal") {
       flash("💬 \"" + DIALOGUE_ACTS[act].label + "\" needs a person — a sign has nobody to turn.");
@@ -7610,7 +7664,7 @@ export default function AssetStudio() {
             if (targetKind === "unit" && targetKey) {
               const cur = enemyHP.current[targetKey] === undefined ? unitMaxHP(targetEa, targetEp, allyHpBonus) : enemyHP.current[targetKey];
               enemyHP.current[targetKey] = Math.max(0, cur - Math.max(1, Math.round(rawDmg)));
-              if (enemyHP.current[targetKey] <= 0) flash(friendly ? ("🟣 Your " + ea.name + " defeated " + (targetEa.name || "a foe") + "!") : ("💔 Your " + (targetEa.name || "ally") + " fell."));
+              if (enemyHP.current[targetKey] <= 0) flash(friendly ? (allyBadge(ep) + " Your " + ea.name + " defeated " + (targetEa.name || "a foe") + "!") : ("💔 Your " + (targetEa.name || "ally") + " fell."));
               return true;
             }
             return false;
@@ -7914,8 +7968,9 @@ export default function AssetStudio() {
                     if (b.x < eHitLeft + epw && b.x + b.w > eHitLeft && b.y < hitTop + hitH && b.y + b.h > hitTop) {
                       enemyHP.current[k] = enemyMaxHP(ea) + allyHpBonus; // raised at the ALLY ceiling
                       ep.allyHpGranted = allyHpBonus;                      // ...and that counts as paid
-                      ep.friendly = true; ep.resurrectedOnce = true; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
+                      ep.friendly = true; ep.allyKind = "raised"; ep.resurrectedOnce = true; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
                       ep.restedDead = false;
+                      ep.down = 0; // a body tackled flat before it died has no live loop to tick `down` back to 0, so it would get up still lying on its back
                       p.hitRegistered = true;
                       flash("🔮 Raised " + ea.name + " — now fighting for you!");
                       break raiseLoop;
@@ -8126,19 +8181,25 @@ export default function AssetStudio() {
             }
             inRange.sort((x, y) => x.d - y.d);
             for (const c of inRange.slice(0, wantCaptures)) {
-              // Exactly what the staff does to a raised body, and it has to stay exactly that:
-              // full HP so it is not an ally that dies to a breeze, the one-and-done flag, every
-              // in-flight attack/stun timer wiped so it does not wake up mid-swing at its old
-              // target, and restedDead cleared so it can fall over again if it is beaten a
-              // second time.
+              // What the staff does to a raised body, MINUS the one-and-done flag: full HP so it is
+              // not an ally that dies to a breeze, every in-flight attack/stun timer wiped so it
+              // does not wake up mid-swing at its old target, and restedDead cleared so it can fall
+              // over again if it is beaten a second time.
               // Full HP at the ALLY ceiling, and the bonus is stamped as already paid — it came
               // baked into the number it just got up with, so a later re-equip must not pay again.
               enemyHP.current[c.k] = enemyMaxHP(c.ea) + allyHpBonus;
               c.ep.allyHpGranted = allyHpBonus;
-              c.ep.friendly = true; c.ep.resurrectedOnce = true;
+              // DELIBERATELY NOT `resurrectedOnce` — see canCapture. That flag is the staff's own
+              // budget; writing it here is what used to make one grenade the last one that could
+              // ever work on this animal, and it also stole the staff's free raise on the way past.
+              // reviveCount is this path's own tally, kept only so the flash can say which life the
+              // thing is on — nothing gates on it, because the grenade in your hand is the gate.
+              c.ep.friendly = true; c.ep.allyKind = "captured";
+              c.ep.reviveCount = (c.ep.reviveCount || 0) + 1;
               c.ep.stun = 0; c.ep.attackT = 0; c.ep.swingT = 0; c.ep.reactT = 0;
               c.ep.restedDead = false;
-              caught.push(c.ea.name || "a creature");
+              c.ep.down = 0; // a body tackled flat before it died would otherwise get up still lying down
+              caught.push((c.ea.name || "a creature") + (c.ep.reviveCount > 1 ? " (×" + c.ep.reviveCount + ")" : ""));
             }
           }
           flash("💥 " + (a.name || "Grenade") + " landed" + (landProp ? " — " + landProp.name : " — 🔥")
@@ -8298,8 +8359,9 @@ export default function AssetStudio() {
               if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop) {
                 enemyHP.current[k] = enemyMaxHP(ea) + allyHpBonus; // back on its feet, full HP at the ALLY ceiling
                 ep.allyHpGranted = allyHpBonus;                    // ...which counts as the one-time payment
-                ep.friendly = true; ep.resurrectedOnce = true; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
+                ep.friendly = true; ep.allyKind = "raised"; ep.resurrectedOnce = true; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
                 ep.restedDead = false; // back on its feet — let it fall again if it is ever defeated a second time
+                ep.down = 0; // ...and back on its feet UPRIGHT: a corpse's `down` never ticks down, so a tackled one would rise still lying flat
                 flash("🔮 Raised " + ea.name + " — now fighting for you!");
                 return false;
               }
@@ -13338,7 +13400,7 @@ export default function AssetStudio() {
                             two different states, so a tackle is readable at a glance. */}
                         {ep && ep.down > 0 ? <div className="enemyStun">😵</div> : ep && ep.stun > 0 ? <div className="enemyStun">💫</div> : null}
                       </div>
-                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...((ep && ep.friendly) ? { filter: "drop-shadow(0 0 2px #b46cf5) drop-shadow(0 0 5px #a855f7)" } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? "🟣 " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you)" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...((ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
                       </div>
                     </React.Fragment>

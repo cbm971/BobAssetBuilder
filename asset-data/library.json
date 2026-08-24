@@ -572524,6 +572524,976 @@
     ]
    },
    "scale": 0.55
+  },
+  {
+   "id": "vapear1",
+   "name": "Vaporeon Ear Band",
+   "type": "prop",
+   "angles": {
+    "front": [
+     {
+      "id": "vap01",
+      "kind": "tri",
+      "x": 63,
+      "y": 25,
+      "w": 12,
+      "h": 32,
+      "color": "#6fbcd6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 50
+     },
+     {
+      "id": "vap02",
+      "kind": "tri",
+      "x": 47,
+      "y": 17,
+      "w": 16,
+      "h": 38,
+      "color": "#6fbcd6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 30
+     },
+     {
+      "id": "vap03",
+      "kind": "tri",
+      "x": 51,
+      "y": 24,
+      "w": 8,
+      "h": 24,
+      "color": "#f2ead2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 30
+     },
+     {
+      "id": "vap04",
+      "kind": "tri",
+      "x": 29,
+      "y": 28,
+      "w": 14,
+      "h": 26,
+      "color": "#f2ead2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -22
+     },
+     {
+      "id": "vap05",
+      "kind": "rect",
+      "x": 32,
+      "y": 47,
+      "w": 37,
+      "h": 7,
+      "color": "#2f5f86",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -6
+     },
+     {
+      "id": "vap06",
+      "kind": "rect",
+      "x": 41,
+      "y": 45,
+      "w": 7,
+      "h": 11,
+      "color": "#f2ead2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -6
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "guideId": "default",
+   "size": 1.5,
+   "frames": [
+    {
+     "front": [
+      {
+       "id": "vap01",
+       "kind": "tri",
+       "x": 63,
+       "y": 25,
+       "w": 12,
+       "h": 32,
+       "color": "#6fbcd6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 50
+      },
+      {
+       "id": "vap02",
+       "kind": "tri",
+       "x": 47,
+       "y": 17,
+       "w": 16,
+       "h": 38,
+       "color": "#6fbcd6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 30
+      },
+      {
+       "id": "vap03",
+       "kind": "tri",
+       "x": 51,
+       "y": 24,
+       "w": 8,
+       "h": 24,
+       "color": "#f2ead2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 30
+      },
+      {
+       "id": "vap04",
+       "kind": "tri",
+       "x": 29,
+       "y": 28,
+       "w": 14,
+       "h": 26,
+       "color": "#f2ead2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -22
+      },
+      {
+       "id": "vap05",
+       "kind": "rect",
+       "x": 32,
+       "y": 47,
+       "w": 37,
+       "h": 7,
+       "color": "#2f5f86",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -6
+      },
+      {
+       "id": "vap06",
+       "kind": "rect",
+       "x": 41,
+       "y": 45,
+       "w": 7,
+       "h": 11,
+       "color": "#f2ead2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -6
+      }
+     ],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    }
+   ],
+   "animFps": 6,
+   "solidDefault": false,
+   "savedAt": 1787614533286
+  },
+  {
+   "id": "vapruf1",
+   "name": "Vaporeon Neck Ruff",
+   "type": "prop",
+   "angles": {
+    "front": [
+     {
+      "id": "vap07",
+      "kind": "circle",
+      "x": 50,
+      "y": 62,
+      "w": 35,
+      "h": 39,
+      "color": "#2f5f86",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vap08",
+      "kind": "circle",
+      "x": 54,
+      "y": 67,
+      "w": 26,
+      "h": 30,
+      "color": "#f2ead2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vap09",
+      "kind": "circle",
+      "x": 50,
+      "y": 77,
+      "w": 11,
+      "h": 11,
+      "color": "#f2ead2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vap0a",
+      "kind": "circle",
+      "x": 54,
+      "y": 65,
+      "w": 11,
+      "h": 11,
+      "color": "#f2ead2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vap0b",
+      "kind": "circle",
+      "x": 65,
+      "y": 63,
+      "w": 11,
+      "h": 11,
+      "color": "#f2ead2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vap0c",
+      "kind": "circle",
+      "x": 73,
+      "y": 72,
+      "w": 11,
+      "h": 11,
+      "color": "#f2ead2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vap0d",
+      "kind": "circle",
+      "x": 71,
+      "y": 85,
+      "w": 11,
+      "h": 11,
+      "color": "#f2ead2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vap0e",
+      "kind": "circle",
+      "x": 60,
+      "y": 90,
+      "w": 11,
+      "h": 11,
+      "color": "#f2ead2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vap0f",
+      "kind": "circle",
+      "x": 52,
+      "y": 84,
+      "w": 11,
+      "h": 11,
+      "color": "#f2ead2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "guideId": "default",
+   "size": 1.5,
+   "frames": [
+    {
+     "front": [
+      {
+       "id": "vap07",
+       "kind": "circle",
+       "x": 50,
+       "y": 62,
+       "w": 35,
+       "h": 39,
+       "color": "#2f5f86",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vap08",
+       "kind": "circle",
+       "x": 54,
+       "y": 67,
+       "w": 26,
+       "h": 30,
+       "color": "#f2ead2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vap09",
+       "kind": "circle",
+       "x": 50,
+       "y": 77,
+       "w": 11,
+       "h": 11,
+       "color": "#f2ead2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vap0a",
+       "kind": "circle",
+       "x": 54,
+       "y": 65,
+       "w": 11,
+       "h": 11,
+       "color": "#f2ead2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vap0b",
+       "kind": "circle",
+       "x": 65,
+       "y": 63,
+       "w": 11,
+       "h": 11,
+       "color": "#f2ead2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vap0c",
+       "kind": "circle",
+       "x": 73,
+       "y": 72,
+       "w": 11,
+       "h": 11,
+       "color": "#f2ead2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vap0d",
+       "kind": "circle",
+       "x": 71,
+       "y": 85,
+       "w": 11,
+       "h": 11,
+       "color": "#f2ead2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vap0e",
+       "kind": "circle",
+       "x": 60,
+       "y": 90,
+       "w": 11,
+       "h": 11,
+       "color": "#f2ead2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vap0f",
+       "kind": "circle",
+       "x": 52,
+       "y": 84,
+       "w": 11,
+       "h": 11,
+       "color": "#f2ead2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    }
+   ],
+   "animFps": 6,
+   "solidDefault": false,
+   "savedAt": 1787614533286
+  },
+  {
+   "id": "vapbdy1",
+   "name": "Vaporeon Body + Tail",
+   "type": "prop",
+   "angles": {
+    "front": [
+     {
+      "id": "vap0g",
+      "kind": "tri",
+      "x": 148,
+      "y": 8,
+      "w": 30,
+      "h": 32,
+      "color": "#2f5f86",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 24
+     },
+     {
+      "id": "vap0h",
+      "kind": "tri",
+      "x": 160,
+      "y": 26,
+      "w": 26,
+      "h": 28,
+      "color": "#2f5f86",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 66
+     },
+     {
+      "id": "vap0i",
+      "kind": "stadium",
+      "x": 143,
+      "y": 36,
+      "w": 20,
+      "h": 34,
+      "color": "#6fbcd6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 44
+     },
+     {
+      "id": "vap0j",
+      "kind": "stadium",
+      "x": 132,
+      "y": 58,
+      "w": 23,
+      "h": 42,
+      "color": "#6fbcd6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 26
+     },
+     {
+      "id": "vap0k",
+      "kind": "circle",
+      "x": 107,
+      "y": 74,
+      "w": 40,
+      "h": 40,
+      "color": "#6fbcd6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vap0l",
+      "kind": "roundrect",
+      "x": 60,
+      "y": 76,
+      "w": 70,
+      "h": 26,
+      "color": "#6fbcd6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vap0m",
+      "kind": "rect",
+      "x": 61,
+      "y": 74,
+      "w": 69,
+      "h": 4,
+      "color": "#2f5f86",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vap0n",
+      "kind": "stadium",
+      "x": 78,
+      "y": 88,
+      "w": 46,
+      "h": 12,
+      "color": "#f2ead2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": -2
+     },
+     {
+      "id": "vap0o",
+      "kind": "roundrect",
+      "x": 56,
+      "y": 98,
+      "w": 24,
+      "h": 17,
+      "color": "#6fbcd6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vap0p",
+      "kind": "rect",
+      "x": 56,
+      "y": 111,
+      "w": 24,
+      "h": 4,
+      "color": "#2f5f86",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vap0q",
+      "kind": "roundrect",
+      "x": 121,
+      "y": 99,
+      "w": 24,
+      "h": 17,
+      "color": "#6fbcd6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vap0r",
+      "kind": "rect",
+      "x": 121,
+      "y": 112,
+      "w": 24,
+      "h": 4,
+      "color": "#2f5f86",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "guideId": "default",
+   "size": 4,
+   "frames": [
+    {
+     "front": [
+      {
+       "id": "vap0g",
+       "kind": "tri",
+       "x": 148,
+       "y": 8,
+       "w": 30,
+       "h": 32,
+       "color": "#2f5f86",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 24
+      },
+      {
+       "id": "vap0h",
+       "kind": "tri",
+       "x": 160,
+       "y": 26,
+       "w": 26,
+       "h": 28,
+       "color": "#2f5f86",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 66
+      },
+      {
+       "id": "vap0i",
+       "kind": "stadium",
+       "x": 143,
+       "y": 36,
+       "w": 20,
+       "h": 34,
+       "color": "#6fbcd6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 44
+      },
+      {
+       "id": "vap0j",
+       "kind": "stadium",
+       "x": 132,
+       "y": 58,
+       "w": 23,
+       "h": 42,
+       "color": "#6fbcd6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 26
+      },
+      {
+       "id": "vap0k",
+       "kind": "circle",
+       "x": 107,
+       "y": 74,
+       "w": 40,
+       "h": 40,
+       "color": "#6fbcd6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vap0l",
+       "kind": "roundrect",
+       "x": 60,
+       "y": 76,
+       "w": 70,
+       "h": 26,
+       "color": "#6fbcd6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vap0m",
+       "kind": "rect",
+       "x": 61,
+       "y": 74,
+       "w": 69,
+       "h": 4,
+       "color": "#2f5f86",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vap0n",
+       "kind": "stadium",
+       "x": 78,
+       "y": 88,
+       "w": 46,
+       "h": 12,
+       "color": "#f2ead2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": -2
+      },
+      {
+       "id": "vap0o",
+       "kind": "roundrect",
+       "x": 56,
+       "y": 98,
+       "w": 24,
+       "h": 17,
+       "color": "#6fbcd6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vap0p",
+       "kind": "rect",
+       "x": 56,
+       "y": 111,
+       "w": 24,
+       "h": 4,
+       "color": "#2f5f86",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vap0q",
+       "kind": "roundrect",
+       "x": 121,
+       "y": 99,
+       "w": 24,
+       "h": 17,
+       "color": "#6fbcd6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vap0r",
+       "kind": "rect",
+       "x": 121,
+       "y": 112,
+       "w": 24,
+       "h": 4,
+       "color": "#2f5f86",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    }
+   ],
+   "animFps": 6,
+   "solidDefault": false,
+   "savedAt": 1787614533286
   }
  ],
  "levels": [

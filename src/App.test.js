@@ -264,6 +264,11 @@ import {
   captureCount,
   canResurrect,
   unitSide,
+  ALLY_KINDS,
+  DEFAULT_ALLY_KIND,
+  allyKindOf,
+  allyGlowCss,
+  allyBadge,
   allyMaxHPBonus,
   applyAllyHPBonus,
   unitMaxHP,
@@ -4988,6 +4993,118 @@ describe("the props shipped inside asset-data/library.json", () => {
   });
 });
 
+describe("the Vaporeon costume props shipped inside asset-data/library.json", () => {
+  // Three props built to be turned straight into stored groups and stamped onto the Running Pit
+  // Bull — the same two-step Blake used for the Squirrel's Pikachu set. That end use is what these
+  // check: a stamp keeps its ABSOLUTE x/y (placeStamp), so art authored anywhere other than on the
+  // dog's own landmarks lands in the wrong place and has to be dragged back by hand every pose.
+  const library = () => JSON.parse(require("fs").readFileSync(
+    require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
+  const byId = (id) => {
+    const a = library().assets.find((x) => x.id === id);
+    expect(a).toBeTruthy();
+    return a;
+  };
+  const IDS = ["vapear1", "vapruf1", "vapbdy1"];
+  const art = (id) => byId(id).frames[0].front;
+
+  test.each(IDS)("%s survives normalizeAssetJson with its art intact", (id) => {
+    const raw = byId(id);
+    const out = normalizeAssetJson(raw);
+    expect(out.type).toBe("prop");
+    expect(out.frames[0].front.length).toBe(raw.frames[0].front.length);
+    expect(out.angles.front.length).toBe(raw.frames[0].front.length);
+    for (const p of out.frames[0].front) {
+      for (const k of ["x", "y", "w", "h"]) expect(Number.isFinite(p[k])).toBe(true);
+      expect(p.w).toBeGreaterThan(0);
+      expect(p.h).toBeGreaterThan(0);
+    }
+  });
+
+  test.each(IDS)("%s has a size the level editor can actually offer", (id) => {
+    expect(LV_OBJ_SIZES).toContain(byId(id).size);
+  });
+
+  test.each(IDS)("%s stays inside the design canvas", (id) => {
+    for (const p of art(id)) {
+      expect(p.x).toBeGreaterThanOrEqual(0);
+      expect(p.y).toBeGreaterThanOrEqual(0);
+      expect(p.x + p.w).toBeLessThanOrEqual(200);
+      expect(p.y + p.h).toBeLessThanOrEqual(260);
+    }
+  });
+
+  test("NOT ONE of them carries a cutter", () => {
+    // The trap that decided how these were drawn. A cutter clears pieces earlier in the same
+    // contiguous same-source run (cutterRuns / pieceSrcKey) — and every piece of one enemy pose
+    // shares the source "__body". So a cutter stamped onto the dog to make a leg hole in the
+    // costume would punch a hole straight through the DOG, showing the level behind its leg. The
+    // leg holes are drawn as shape (a sleeve with an open hem) for exactly this reason.
+    for (const id of IDS) for (const p of art(id)) expect(p.isCutter).toBeFalsy();
+  });
+
+  test("the set is FLAT and shares one three-colour palette", () => {
+    // ASSET_AUTHORING.md's house rule: no shading tiers, no gradients, two or three colours. Three
+    // props that each invented their own blue would not read as one costume.
+    const colors = new Set();
+    for (const id of IDS) for (const p of art(id)) {
+      colors.add(p.color);
+      expect(p.fx.bright).toBe(1);          // a brightness tier IS shading
+      expect(p.fx.opacity).toBe(1);
+      expect(p.fx.glow).toBe(0);
+    }
+    expect([...colors].sort()).toEqual(["#2f5f86", "#6fbcd6", "#f2ead2"]);
+  });
+
+  test("each piece is authored ON the Pit Bull's own landmarks, so a stamp lands dressed", () => {
+    // Read off Chasing/Jumping Pit Bull, whose side poses are geometrically identical: head circle
+    // x34..68 y51..81, chest x50..86 y70..109, back line y79, rump x116..144 y79..113.
+    // A stamp keeps absolute x/y, so these boxes ARE the fit.
+    const box = (id) => {
+      const ps = art(id);
+      return {
+        x0: Math.min(...ps.map((p) => p.x)), y0: Math.min(...ps.map((p) => p.y)),
+        x1: Math.max(...ps.map((p) => p.x + p.w)), y1: Math.max(...ps.map((p) => p.y + p.h)),
+      };
+    };
+    const ear = box("vapear1");
+    expect(ear.y1).toBeLessThan(60);        // sits on the skull, entirely above the eye (y55..62)
+    expect(ear.x0).toBeLessThan(50);        // ...and reaches forward over the brow
+    const ruff = box("vapruf1");
+    expect(ruff.x0).toBeGreaterThanOrEqual(50);  // clear of the muzzle (x24..57) — the face stays OPEN
+    expect(ruff.x1).toBeLessThan(90);            // wrapped round the neck, not sprawled down the back
+    expect(ruff.y0).toBeGreaterThan(55);
+    const body = box("vapbdy1");
+    expect(body.x0).toBeGreaterThan(50);         // starts behind the collar
+    expect(body.y0).toBeLessThan(20);            // the tail carries well above the back line
+  });
+
+  test("the tail sits behind the dog and the saddle over its back", () => {
+    // Facing LEFT is the whole convention for an animal (CLAUDE.md), so a tail drawn at low x
+    // would come out of its face. The rump is x116..144: anything past that is tail.
+    const tail = art("vapbdy1").filter((p) => p.x > 130);
+    expect(tail.length).toBeGreaterThan(2);
+    expect(Math.max(...tail.map((p) => p.y + p.h))).toBeLessThan(110); // it rises, never trails on the floor
+    const saddle = art("vapbdy1").find((p) => p.kind === "roundrect" && p.w > 60);
+    expect(saddle).toBeTruthy();
+    expect(saddle.y).toBeLessThan(79);                 // laps over the back line rather than floating above it
+    expect(saddle.y + saddle.h).toBeLessThan(103);     // ...and stops at the belly, so it is not a bodysuit
+  });
+
+  test("the leg sleeves stop short, leaving bare leg below them", () => {
+    // "Leg holes and stuff": the outfit ends in an open hem and the leg carries on. The dog's legs
+    // run to y150, so a sleeve reaching anywhere near that is trousers, not a hole.
+    const sleeves = art("vapbdy1").filter((p) => p.kind === "roundrect" && p.w < 30);
+    expect(sleeves).toHaveLength(2);
+    for (const s of sleeves) {
+      expect(s.y).toBeGreaterThan(95);                 // starts at the top of the leg
+      expect(s.y + s.h).toBeLessThan(120);             // and is well clear of the foot at y150
+    }
+    expect(Math.abs(sleeves[0].x - 56)).toBeLessThan(6);    // front leg is x55..77
+    expect(Math.abs(sleeves[1].x - 125)).toBeLessThan(6);   // rear leg is x120..142
+  });
+});
+
 describe("how far a stat slider goes", () => {
   // The one stat whose slider ceiling was a UI limit rather than a game one.
   test("an enemy's Speed runs past 10; every other stat stops there", () => {
@@ -5165,13 +5282,62 @@ describe("catching a defeated creature with a throwable", () => {
     expect(canCapture(person, 25, {})).toBe(false);
   });
 
-  test("a body only comes back once, and the staff spends the same life", () => {
-    // resurrectedOnce is shared with the Resurrect staff on purpose — otherwise a staff and a
-    // ball between them raise one corpse twice.
-    expect(canCapture(dog, 0, { resurrectedOnce: true })).toBe(false);
+  test("the STAFF raises one body once and never again", () => {
+    // The staff is carried all level, so without a per-body ceiling one dog is an endless army.
+    expect(canResurrect(0, {})).toBe(true);
     expect(canResurrect(0, { resurrectedOnce: true })).toBe(false);
-    // ...and a creature already fighting for you is, by definition, alive and already spent.
-    expect(canCapture(dog, 75, { friendly: true, resurrectedOnce: true })).toBe(false);
+  });
+
+  test("a CAPTURE throwable has no per-body limit — the grenade in your hand is the limit", () => {
+    // The rule Blake asked for: three capture grenades buy three resurrections, spent however you
+    // like, including three times on the same animal. The old code shared the staff's
+    // resurrectedOnce here, so the second grenade was a dud you could not use on anything.
+    expect(canCapture(dog, 0, { resurrectedOnce: true })).toBe(true);
+    expect(canCapture(dog, 0, { reviveCount: 7 })).toBe(true);
+    // Still a body, though — the two questions that DO gate it are untouched.
+    expect(canCapture(dog, 1, { reviveCount: 7 })).toBe(false);
+    expect(canCapture(person, 0, { reviveCount: 0 })).toBe(false);
+    // ...and a creature already fighting for you is, by definition, alive, so it cannot be caught.
+    expect(canCapture(dog, 75, { friendly: true })).toBe(false);
+  });
+
+  test("an ally's colour says where it came from, and an unmarked one is still purple", () => {
+    // Three ways to win a friend, three colours. The fallback is the load-bearing half: every ally
+    // already standing in a level when this shipped has no allyKind on its ep, and must not lose
+    // its glow — it reads as the staff's purple, which is exactly what it was.
+    expect(allyKindOf({ allyKind: "captured" })).toBe("captured");
+    expect(allyKindOf({ allyKind: "talked" })).toBe("talked");
+    expect(allyKindOf({})).toBe(DEFAULT_ALLY_KIND);
+    expect(allyKindOf(null)).toBe(DEFAULT_ALLY_KIND);
+    expect(allyKindOf({ allyKind: "nonsense" })).toBe(DEFAULT_ALLY_KIND);
+    expect(DEFAULT_ALLY_KIND).toBe("raised");
+  });
+
+  test("the badge and the glow come off the SAME registry entry, so they cannot drift", () => {
+    expect(allyBadge({ allyKind: "raised" })).toBe("🟣");
+    expect(allyBadge({ allyKind: "captured" })).toBe("🔴");
+    expect(allyBadge({ allyKind: "talked" })).toBe("🟢");
+    for (const k of Object.keys(ALLY_KINDS)) {
+      expect(allyGlowCss({ allyKind: k })).toContain(ALLY_KINDS[k].color);
+      expect(allyBadge({ allyKind: k })).toBe(ALLY_KINDS[k].badge);
+    }
+  });
+
+  test("the ally glow is ONE soft shadow, not the two solid ones it used to be", () => {
+    // Blake asked for it to be less obvious but still there. Two stacked full-opacity shadows
+    // drowned the art underneath; a single ~70% one still marks a unit at a glance.
+    const glow = allyGlowCss({ allyKind: "raised" });
+    expect(glow.match(/drop-shadow/g)).toHaveLength(1);
+    expect(glow).not.toContain("2px #b46cf5");   // the old inner shadow is gone
+    expect(glow).toMatch(/b3\)?$/);              // ...and what is left is translucent
+  });
+
+  test("the two budgets cannot spend each other", () => {
+    // A corpse the staff has already used can still be caught (canCapture ignores the flag)...
+    expect(canCapture(dog, 0, { resurrectedOnce: true })).toBe(true);
+    // ...and a corpse a grenade raised has still not spent the staff's one raise, because the
+    // capture path never writes resurrectedOnce. This is that path's own tally instead.
+    expect(canResurrect(0, { reviveCount: 3 })).toBe(true);
   });
 
   test("0 catches means the payload is off", () => {
