@@ -117,3 +117,49 @@ anchors 4 cells above the floor, the cabinet 8.
 
 `trailer-park-pack.json`, same as before: home screen → **Load** → **⬆ Open a file**.
 Six assets, merged by id, nothing else touched.
+
+---
+
+# Living room pack (1960s)
+
+Four more props for the inside of the trailer, same flat two-tone style and the same ruler
+as the trailer park pack — Bob renders 7 cells tall, so one level cell is about 10 inches.
+
+![The living room pack in a level, with Bob for scale](preview-living-room.png)
+
+| Asset | Size | What it is |
+| --- | --- | --- |
+| **Bear Skin Rug** | 4 | The hide seen from above — head at the far end, jaws open, four legs splayed, claws out, on a dusty-red felt backing. Floor art, drawn the way the 1960s Carpet is. |
+| **Bookshelf** | 6 | Five-bay walnut case, ~5ft tall. Loaded with book spines, one shelf with a flat stack, one book leaning into a gap. |
+| **1960s Couch** | 9 | The big one. Three-seater, ~5'9" long, back 36in — as long as Bob is tall, and about half his height. Burnt-orange upholstery on a walnut plinth with splayed tapered legs. |
+| **1960s Armchair** | 4 | The one-person kind — *armchair*. Same fabric, same plinth, same legs as the couch, so they read as a set. ~31in wide, 33in to the top of the back. |
+
+## Colours
+
+Nothing new was invented. The upholstery is `#c1440e`, the same burnt orange as the 1960s
+Carpet; the wood is `#504134`; the rug's felt backing is `#b0504f` with `#2b2b2b` for the
+nose and eyes and `#ffe8a8` for the teeth and claws. Only the book spines reach any wider,
+and they borrow `#3d4a28`, `#c8a23c` and `#8a929c` from the army gear.
+
+Every piece is fully opaque. Where something needed to look lit or shadowed it's a hard-edged
+strip of the *same* colour at a different `bright` — the way the Fire prop and the Bush are
+built — not a translucent overlay. The couch is two hex colours in total, the armchair two,
+the rug four.
+
+## Placing them
+
+The three pieces of furniture are drawn with the bottom of the art on the bottom of the
+canvas, so **anchor each one its own size in cells above your ground row** — the bookshelf 6,
+the couch 9, the armchair 4. Then they stand on the floor with nothing to nudge.
+
+The rug is the odd one out: like the 1960s Carpet, it's floor art seen from above rather than
+a thing with a height, so the 10-inch ruler doesn't really apply to it. Size 4 puts it at
+about the width of the armchair; take it up to 6 if you want it to fill the floor in front of
+the couch. It defaults to **not solid** — the other three default to solid, so Bob can stand
+on the couch.
+
+## Import
+
+`living-room-pack.json`, same as the other packs: home screen → **Load** → **⬆ Open a file**.
+Four assets, merged by id, nothing else touched. Or open `bear-skin-rug.json`, `bookshelf.json`,
+`couch.json` or `armchair.json` one at a time with the same button.
