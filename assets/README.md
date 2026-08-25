@@ -158,6 +158,36 @@ about the width of the armchair; take it up to 6 if you want it to fill the floo
 the couch. It defaults to **not solid** — the other three default to solid, so Bob can stand
 on the couch.
 
+## Sub-categories
+
+Objects now carry a **sub-category** — one free-text group you type in the Object editor, under
+Object settings. It's only a filing label: nothing in the game reads it, and an Object without
+one files under **Unknown** rather than disappearing from any list.
+
+Where it shows up:
+
+- **Level Creator / Room Creator** → Objects layer → 🌿 Object. You get a sub-category dropdown
+  first, then the Object list narrowed to it. The dropdown only appears once there's more than
+  one group, so a small library doesn't grow a step it doesn't need.
+- **📂 Load → Objects / Props** drills down the same way, the way Clothes & Armor drills down
+  by slot.
+
+Spelling is matched trimmed and case-insensitively, so `interior`, `Interior` and `Interior `
+are one group; the label shown is whichever spelling that group's first Object used. Named
+groups sort A→Z and **Unknown** is always last, so untagged Objects never push the tidy ones
+down the list.
+
+Everything in `assets/` ships tagged:
+
+| Sub-category | Objects |
+| --- | --- |
+| **Interior** | Bear Skin Rug, Bookshelf, 1960s Couch, 1960s Armchair, Dinette Chair, Kitchen Cabinet |
+| **Trailer Park** | Trailer Hitch End, Trailer Mid Section, Trailer Mid — AC Wall, Trailer Door End |
+| **Effects** | Explosion, Crumbled Rock |
+
+Re-importing any of the packs is what applies these to Objects already in your library — they're
+merged by id, so it overwrites just those and leaves everything else alone.
+
 ## Import
 
 `living-room-pack.json`, same as the other packs: home screen → **Load** → **⬆ Open a file**.

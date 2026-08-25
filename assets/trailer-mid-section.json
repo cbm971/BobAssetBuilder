@@ -2,6 +2,7 @@
  "id": "trlmid6",
  "name": "Trailer Mid Section",
  "type": "prop",
+ "category": "Trailer Park",
  "guideId": "default",
  "angles": {
   "front": [

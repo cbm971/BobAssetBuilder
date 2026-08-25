@@ -2,6 +2,7 @@
  "id": "expl0d3",
  "name": "Explosion",
  "type": "prop",
+ "category": "Effects",
  "guideId": "default",
  "angles": {
   "front": [

@@ -2,6 +2,7 @@
  "id": "trlhtch",
  "name": "Trailer Hitch End",
  "type": "prop",
+ "category": "Trailer Park",
  "guideId": "default",
  "angles": {
   "front": [

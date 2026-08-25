@@ -2,6 +2,7 @@
  "id": "r0ckrub",
  "name": "Crumbled Rock",
  "type": "prop",
+ "category": "Effects",
  "guideId": "default",
  "angles": {
   "front": [

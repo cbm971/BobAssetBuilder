@@ -6,6 +6,7 @@
    "id": "ch4ir60",
    "name": "Dinette Chair",
    "type": "prop",
+   "category": "Interior",
    "guideId": "default",
    "angles": {
     "front": [
@@ -764,6 +765,7 @@
    "id": "c4bnt60",
    "name": "Kitchen Cabinet",
    "type": "prop",
+   "category": "Interior",
    "guideId": "default",
    "angles": {
     "front": [
@@ -1944,6 +1946,7 @@
    "id": "trlhtch",
    "name": "Trailer Hitch End",
    "type": "prop",
+   "category": "Trailer Park",
    "guideId": "default",
    "angles": {
     "front": [
@@ -3990,6 +3993,7 @@
    "id": "trlmid6",
    "name": "Trailer Mid Section",
    "type": "prop",
+   "category": "Trailer Park",
    "guideId": "default",
    "angles": {
     "front": [
@@ -5490,6 +5494,7 @@
    "id": "trlmidb",
    "name": "Trailer Mid \u2014 AC Wall",
    "type": "prop",
+   "category": "Trailer Park",
    "guideId": "default",
    "angles": {
     "front": [
@@ -6894,6 +6899,7 @@
    "id": "trldoor",
    "name": "Trailer Door End",
    "type": "prop",
+   "category": "Trailer Park",
    "guideId": "default",
    "angles": {
     "front": [

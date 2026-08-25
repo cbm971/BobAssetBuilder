@@ -6,6 +6,7 @@
    "id": "expl0d3",
    "name": "Explosion",
    "type": "prop",
+   "category": "Effects",
    "guideId": "default",
    "angles": {
     "front": [
@@ -862,6 +863,7 @@
    "id": "r0ckrub",
    "name": "Crumbled Rock",
    "type": "prop",
+   "category": "Effects",
    "guideId": "default",
    "angles": {
     "front": [

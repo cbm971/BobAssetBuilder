@@ -6,6 +6,7 @@
    "id": "b34rrug",
    "name": "Bear Skin Rug",
    "type": "prop",
+   "category": "Interior",
    "guideId": "default",
    "angles": {
     "front": [
@@ -2136,6 +2137,7 @@
    "id": "bkshlf6",
    "name": "Bookshelf",
    "type": "prop",
+   "category": "Interior",
    "guideId": "default",
    "angles": {
     "front": [
@@ -4598,6 +4600,7 @@
    "id": "c0uch60",
    "name": "1960s Couch",
    "type": "prop",
+   "category": "Interior",
    "guideId": "default",
    "angles": {
     "front": [
@@ -5944,6 +5947,7 @@
    "id": "4rmch60",
    "name": "1960s Armchair",
    "type": "prop",
+   "category": "Interior",
    "guideId": "default",
    "angles": {
     "front": [

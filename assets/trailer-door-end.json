@@ -2,6 +2,7 @@
  "id": "trldoor",
  "name": "Trailer Door End",
  "type": "prop",
+ "category": "Trailer Park",
  "guideId": "default",
  "angles": {
   "front": [
