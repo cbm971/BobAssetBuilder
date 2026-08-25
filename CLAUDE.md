@@ -442,9 +442,43 @@ Three things that are easy to get wrong here:
   not at the eight places that can damage a unit. One reader cannot fall out of step with itself.
   Deliberately narrow: only a spawn made peaceful by a dialogue. An asset with 🕊️ "Not hostile"
   ticked still stands there and never fights, exactly as levels already rely on.
-* **An NPC with something still to say turns to watch you** (`TALK_NOTICE_CELLS`, until
-  `ep.talked`). It feeds `wantFace`, **never `ep.face`** — a third direct writer in that loop is
-  the sprite-strobe bug `holdFacing` exists to prevent.
+* **An NPC with something still to say STANDS IN ITS FRONT POSE** until `ep.talked`, and is not
+  mirrored while it does (a flip on front-facing art just swaps the character's left and right).
+  Art with no Front drawn — every animal — falls back through `enemyPoseKey` to Side and uses the
+  turn-to-look rule instead (`TALK_NOTICE_CELLS`), which is the only reason that rule still exists.
+  It feeds `wantFace`, **never `ep.face`** — a third direct writer in that loop is the sprite-strobe
+  bug `holdFacing` exists to prevent. Both the Front and Attack poses go through
+  `alignPoseFootBaseline` against Side, or the body floats by whatever empty canvas its own drawing
+  leaves under it.
+
+### What the conversation looks like, and why it is where it is
+
+**The bubble hangs over the speaker, INSIDE `.lgrid`, in level pixels** (`talkBubbleBox`, z 9600 —
+above the door prompt's 9500). It shipped once as a bar fixed to the bottom of the window and that
+was wrong twice over: you read the words in one place and watch the face in another, and with
+several NPCs in a room it never said which of them was talking. `.lgrid`'s `isolation:isolate`
+keeps those four-digit z-indexes local, so nothing in here can be relied on to sit above a modal.
+
+`talkBubbleBox` does three things and each is a bug it prevents: it flips **below** the speaker
+when the bubble would not fit above (a first line clipped off the top of the level), it **clamps**
+to the level's width (a bubble hanging off into nothing at column 2), and it then puts the **tail**
+back over the speaker's real head wherever the clamp moved the box to. It needs a measured height,
+so the bubble renders once, measures itself into `talkH`, and settles — height 0 means "not laid
+out yet" and must never be read as "it doesn't fit".
+
+`scrollIntoView({block:"nearest"})` on open is the one concession to there being **no camera**. It
+is scoped to opening a conversation only. Do not let it grow into a camera.
+
+**Every pick acknowledges itself.** A tagged option flashes its ✅/❌ colour for
+`TALK_PICK_FLASH_MS`; an untagged one flashes the panel's own blue for `TALK_PICK_FLASH_PLAIN_MS`,
+about a third as long. The first pass committed untagged options on the same tick with nothing
+changing on screen, and a keypress that worked was indistinguishable from one that was ignored.
+`dialogueToneStyle` always returns a style, so the panel never has to ask whether a tone exists.
+
+**Talk reach is `TALK_RANGE_CELLS` = 6, set by Blake from playing it.** 2.2 meant walking a
+body-width past somebody made the prompt vanish. Do not tidy it back. The prompt is anchored to
+the live body (`talkAnchorFor`), not the spawn cell — at six cells the difference is a third of a
+room. `TALK_NOTICE_CELLS` must stay wider than the talk range.
 
 **Piece rendering.** Cutters (`isCutter`) only punch through pieces in the same
 contiguous same-source run (`cutterRuns` / `pieceSrcKey`). Anything that reorders

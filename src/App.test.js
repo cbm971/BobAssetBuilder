@@ -292,6 +292,14 @@ import {
   nearestTalkable,
   TALK_RANGE_CELLS,
   TALK_RANGE_ROWS,
+  TALK_NOTICE_CELLS,
+  talkBubbleBox,
+  TALK_BUBBLE_GAP,
+  dialogueToneStyle,
+  TALK_TONE_NEUTRAL,
+  talkFlashMs,
+  TALK_PICK_FLASH_MS,
+  TALK_PICK_FLASH_PLAIN_MS,
 } from "./App";
 
 describe("door transitions", () => {
@@ -6165,5 +6173,108 @@ describe("dialogues are wired into the project file like every other kind", () =
     // ...but deliberately saving it again does, or you could never re-create a deleted name.
     const revived = applyWrite(gone, { assets: [], dialogues: [{ id: "d1" }], revive: true }, []).next;
     expect(revived.dialogues).toHaveLength(1);
+  });
+});
+
+describe("the speech bubble hangs over whoever is talking", () => {
+  const LEVELW = 160 * 30; // a full-width level
+  const speaker = (ax, ay, ah = 60) => ({ ax, ay, ah });
+
+  test("by default it sits above their head, centred on them", () => {
+    const b = talkBubbleBox(speaker(1000, 400), 200, LEVELW);
+    expect(b.below).toBe(false);
+    expect(b.left + b.width / 2).toBe(1000);          // centred on the speaker
+    expect(b.top).toBe(400 - TALK_BUBBLE_GAP);        // ...just above the head
+    expect(b.tailX).toBe(b.width / 2);                // tail dead centre
+  });
+
+  test("a speaker near the top of the level gets the bubble UNDER them instead", () => {
+    // Otherwise the first line of what they say is clipped off the top of the level and the
+    // conversation is unreadable — which is the whole reason this is measured rather than guessed.
+    const tall = talkBubbleBox(speaker(1000, 80), 200, LEVELW);
+    expect(tall.below).toBe(true);
+    expect(tall.top).toBe(80 + 60 + TALK_BUBBLE_GAP); // under their feet, not over their head
+    // ...and the same speaker with a SHORT bubble still fits above.
+    expect(talkBubbleBox(speaker(1000, 80), 40, LEVELW).below).toBe(false);
+  });
+
+  test("it never flips below before it has been measured", () => {
+    // Height 0 means "not laid out yet". Treating that as "it doesn't fit" made the bubble render
+    // below the speaker for one frame and then jump above them.
+    expect(talkBubbleBox(speaker(1000, 10), 0, LEVELW).below).toBe(false);
+  });
+
+  test("a speaker at either edge keeps the whole bubble on the level", () => {
+    const left = talkBubbleBox(speaker(20, 400), 200, LEVELW);
+    expect(left.left).toBeGreaterThanOrEqual(8);
+    const right = talkBubbleBox(speaker(LEVELW - 20, 400), 200, LEVELW);
+    expect(right.left + right.width).toBeLessThanOrEqual(LEVELW - 8);
+  });
+
+  test("...and the tail stays over the speaker's head when the clamp moves the box", () => {
+    // This is the point of the tail. With three NPCs in a room, a clamped bubble with a centred
+    // tail would point at whoever happens to be in the middle of the screen.
+    // ax=120 on a 420-wide bubble: the LEFT clamp bites (it wanted to start at -90), the tail's
+    // own inset does not, so the tail should land exactly on the speaker.
+    const b = talkBubbleBox(speaker(120, 400), 200, LEVELW);
+    expect(b.left).toBe(8);
+    expect(b.left + b.tailX).toBe(120);
+    const r = talkBubbleBox(speaker(LEVELW - 120, 400), 200, LEVELW);
+    expect(r.left + r.tailX).toBe(LEVELW - 120);
+    // Right at the edge the tail's 14px inset takes over instead — it stays attached to the box
+    // rather than pointing perfectly, which is the correct trade: a detached tail looks broken.
+    const hard = talkBubbleBox(speaker(0, 400), 200, LEVELW);
+    expect(hard.tailX).toBe(14);
+    expect(hard.tailX).toBeLessThanOrEqual(hard.width - 14);
+  });
+
+  test("a level narrower than the bubble gets a narrower bubble, still on screen", () => {
+    const tiny = talkBubbleBox(speaker(100, 400), 200, 300);
+    expect(tiny.width).toBeLessThanOrEqual(300 - 16);
+    expect(tiny.left).toBeGreaterThanOrEqual(0);
+    expect(tiny.left + tiny.width).toBeLessThanOrEqual(300);
+  });
+});
+
+describe("pressing an option always says so", () => {
+  test("every option has a highlight, tagged or not", () => {
+    // THE BUG: an untagged option committed on the same tick with nothing on screen changing, so
+    // a keypress that worked was indistinguishable from one that was ignored.
+    expect(dialogueToneStyle("good").color).toBe(DIALOGUE_TONES.good.color);
+    expect(dialogueToneStyle("bad").color).toBe(DIALOGUE_TONES.bad.color);
+    for (const t of ["", null, undefined, "purple"]) {
+      expect(dialogueToneStyle(t)).toBe(TALK_TONE_NEUTRAL);
+      expect(dialogueToneStyle(t).color).toMatch(/^#/);
+    }
+  });
+
+  test("a tagged flash holds longer than a plain one — the colour has to be READ", () => {
+    expect(talkFlashMs("good")).toBe(TALK_PICK_FLASH_MS);
+    expect(talkFlashMs("bad")).toBe(TALK_PICK_FLASH_MS);
+    expect(talkFlashMs("")).toBe(TALK_PICK_FLASH_PLAIN_MS);
+    expect(talkFlashMs("nonsense")).toBe(TALK_PICK_FLASH_PLAIN_MS);
+    // ...but a plain one is never zero, or there is no acknowledgement at all.
+    expect(TALK_PICK_FLASH_PLAIN_MS).toBeGreaterThan(0);
+    expect(TALK_PICK_FLASH_PLAIN_MS).toBeLessThan(TALK_PICK_FLASH_MS);
+  });
+});
+
+describe("the reach Blake set in play", () => {
+  test("six cells, and it is not a typo to be tidied back", () => {
+    // Set from playing it: 2.2 cells meant walking a body-width past somebody made the prompt
+    // vanish. The notice band (turning to look) has to stay wider than the talk band.
+    expect(TALK_RANGE_CELLS).toBe(6);
+    expect(TALK_NOTICE_CELLS).toBeGreaterThan(TALK_RANGE_CELLS);
+    // Vertical stays tight either way — you do not talk through a floor.
+    expect(TALK_RANGE_ROWS).toBeLessThan(TALK_RANGE_CELLS);
+  });
+
+  test("six cells of reach really does reach six cells", () => {
+    const CW = 30, CH = 30;
+    const npc = { key: "1,1", dialogueId: "d", name: "n", cx: 1000, cy: 300 };
+    const inRange = (dx) => !!nearestTalkable([npc], 1000 + dx, 300, TALK_RANGE_CELLS * CW, TALK_RANGE_ROWS * CH);
+    expect(inRange(5.5 * CW)).toBe(true);
+    expect(inRange(-5.5 * CW)).toBe(true);   // ...from either side
+    expect(inRange(6.5 * CW)).toBe(false);
   });
 });

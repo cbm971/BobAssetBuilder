@@ -1549,7 +1549,21 @@ export const DIALOGUE_TONES = {
   good: { label: "✅ Flash green (right)", color: "#4f9d54", edge: "#8ee59a" },
   bad: { label: "❌ Flash red (wrong)", color: "#a8403f", edge: "#ffa3a1" },
 };
-export const TALK_PICK_FLASH_MS = 420; // long enough to read the colour, short enough not to feel like a load screen
+// EVERY PICK ACKNOWLEDGES ITSELF, tagged or not. An untagged option used to commit on the same
+// tick with no feedback at all, so pressing 2 on a line whose next line also began "You…" read as
+// the key not having registered — you cannot tell "it ignored me" from "it moved on" when nothing
+// on screen blinked. Untagged options light up in the panel's own blue: it says *pressed*, it does
+// not say right or wrong, which is a thing only the author gets to say.
+export const TALK_TONE_NEUTRAL = { color: "#2f4a6d", edge: "#7fb2e6" };
+// The look of a picked option, tagged or not. One function so the panel never has to ask whether
+// a tone exists — it asks what the highlight looks like and always gets an answer.
+export const dialogueToneStyle = (tone) => DIALOGUE_TONES[tone] || TALK_TONE_NEUTRAL;
+// How long the flash holds. A tagged option holds longer because its colour carries MEANING and
+// has to be read; the neutral one only has to be seen, and dragging every ordinary line out by
+// four tenths of a second would make a long conversation feel like it was buffering.
+export const TALK_PICK_FLASH_MS = 420;        // ✅/❌ — long enough to read, short of a load screen
+export const TALK_PICK_FLASH_PLAIN_MS = 160;  // untagged — a blink that says "registered"
+export const talkFlashMs = (tone) => (DIALOGUE_TONES[tone] ? TALK_PICK_FLASH_MS : TALK_PICK_FLASH_PLAIN_MS);
 export const newDialogue = (name) => {
   const first = newDialogueNode("");
   return { id: uid(), name: name || "New dialogue", start: first.id, nodes: { [first.id]: first } };
@@ -1670,20 +1684,48 @@ export const signSummary = (m, dialogues) => {
 // fire before you can get a word out is not a thing anyone would place on purpose, and a control
 // whose only sensible value is its default is clutter (the same call as the creature damage field).
 export const spawnStartsPeaceful = (spawn) => !!talkDialogueId(spawn);
-// How close you stand to strike up a conversation. Horizontal reach is generous (you talk to
-// someone standing beside you), vertical is tight, or you would be chatting with the NPC on the
-// balcony above your head through the floor.
-export const TALK_RANGE_CELLS = 2.2;
+// How close you stand to strike up a conversation. SIX CELLS, set by Blake in play — the first
+// pass used 2.2, which is "already standing on top of them" and meant walking a body-width past
+// somebody made the prompt vanish. Vertical stays tight, or you would be chatting with the NPC on
+// the balcony above your head, through the floor.
+export const TALK_RANGE_CELLS = 6;
 export const TALK_RANGE_ROWS = 1.6;
-// ...and the wider band at which an NPC who still has something to say NOTICES you and turns to
-// look. Deliberately bigger than the talk range: turning to watch you walk up is the signal that
-// there is a conversation here at all, so it has to happen before you are already standing in it.
-export const TALK_NOTICE_CELLS = 6;
+// ...and the band at which an NPC with no front pose to stand in turns to LOOK at you instead (see
+// the wantFace rule in the enemy loop). Wider than the talk range on purpose: turning to watch you
+// walk up is the signal that there is a conversation here, so it has to start before you are in it.
+export const TALK_NOTICE_CELLS = 10;
 export const TALK_NOTICE_ROWS = 2.5;
 // Who you would talk to if you pressed E right now: the nearest candidate inside that box.
 // Candidates are prepared by the caller (it needs findA and the live positions), so the choosing
 // itself stays pure. A hostile is never in the list — once someone is shooting at you the
 // conversation is over, and that is also what stops a talk prompt flickering over a running fight.
+// WHERE THE SPEECH BUBBLE GOES, in level pixels. Pure, because "does it fit above them" is fiddly
+// enough to be worth testing and it is the difference between a readable conversation and one
+// whose first line is clipped off the top of the level.
+//
+// Three jobs. It sits ABOVE the speaker's head, unless the speaker is near the top of the level
+// and it would not fit, in which case it drops below them (`below`). It is CLAMPED to the level's
+// own width so a bubble on an NPC standing at column 2 does not hang off into nothing. And the
+// tail — the little pointer — is then put back over the speaker's actual head, wherever the clamp
+// moved the box to, so it still says which of the three people in the room is talking.
+export const TALK_BUBBLE_W = 420;   // px; a comfortable two or three lines of text per row
+export const TALK_BUBBLE_GAP = 12;  // px of air between the bubble and the head/feet it hangs off
+export const talkBubbleBox = (t, boxH, levelW) => {
+  const width = Math.min(TALK_BUBBLE_W, Math.max(200, levelW - 16));
+  const half = width / 2;
+  const wantLeft = (t.ax || 0) - half;
+  // Clamped, but only when the level is actually wider than the bubble — otherwise the two clamps
+  // fight and the box jumps to one edge.
+  const left = levelW <= width + 16 ? Math.max(8, (levelW - width) / 2) : Math.min(Math.max(8, wantLeft), levelW - width - 8);
+  const headY = t.ay || 0;
+  // Only drop below once we have actually MEASURED the box (boxH > 0). On the first render the
+  // height is unknown, and guessing "it doesn't fit" there makes the bubble visibly jump.
+  const below = boxH > 0 && headY - boxH - TALK_BUBBLE_GAP < 0;
+  const top = below ? headY + (t.ah || 0) + TALK_BUBBLE_GAP : headY - TALK_BUBBLE_GAP;
+  // The tail's x is relative to the box, and clamped inside it so it can never detach off an end.
+  const tailX = Math.min(Math.max(14, (t.ax || 0) - left), width - 14);
+  return { left, top, width, below, tailX };
+};
 export const nearestTalkable = (candidates, px, py, rangeX, rangeY) => {
   let best = null, bd = Infinity;
   for (const c of (candidates || [])) {
@@ -6499,6 +6541,14 @@ export default function AssetStudio() {
   const dlgLibRef = useRef([]);
   useEffect(() => { dlgLibRef.current = dlgLib; }, [dlgLib]);
   const talkTimer = useRef(null);      // the right/wrong highlight's hold, so closing mid-flash can't advance a talk that's over
+  // The bubble's measured height, and the node it was measured from. talkBubbleBox needs a real
+  // height to decide whether the thing fits above the speaker's head; there is no way to know that
+  // before it has been laid out, so it renders once at its preferred spot, measures, and settles.
+  // Measured per NODE, not once per conversation — a one-line answer and a four-option question
+  // are very different heights, and keeping a stale one flips the bubble below for no reason.
+  const [talkH, setTalkH] = useState(0);
+  const talkBubbleEl = useRef(null);
+  const talkBubbleRef = (el) => { talkBubbleEl.current = el; if (el) { const h = el.getBoundingClientRect().height; setTalkH((prev) => (Math.abs(prev - h) > 1 ? h : prev)); } };
   const clearTalkTimer = () => { if (talkTimer.current) { clearTimeout(talkTimer.current); talkTimer.current = null; } };
   useEffect(() => () => clearTalkTimer(), []); // unmount mid-conversation must not leave a timer pointing at dead state
   // Which tree a sign or spawn actually runs. A saved tree by id; failing that, for a sign only,
@@ -6510,11 +6560,29 @@ export default function AssetStudio() {
     if (t && t.kind === "sign") { const txt = ((t.marker && t.marker.text) || "").trim(); if (txt) return inlineSignDialogue(txt); }
     return null;
   };
+  // WHERE THE BUBBLE HANGS. Worked out once, when the conversation opens, and carried on `talk` —
+  // the world is paused for the whole conversation, so nobody moves and there is nothing to track.
+  // Level pixels, not screen pixels: the bubble is rendered inside `.lgrid` alongside the sprites.
+  const talkAnchorFor = (t) => {
+    const [r, c] = t.key.split(",").map(Number);
+    if (t.kind === "npc") {
+      const ep = enemyPos.current[t.key];
+      const ea = findA(((level && level.enemies && level.enemies[t.key]) || {}).enemyId);
+      if (ep && ea) {
+        const shape = sideBodyShape(ea), renderW = enemyRenderW(ea, LV_CELL);
+        const h = ep.crouch ? enemyCrouchH(ea, LV_CELL) : enemyStandH(ea, LV_CELL);
+        // The head, not the render box: art routinely leaves empty canvas above the drawn top, and
+        // a bubble hung off the box floats a visible gap over a short animal like the Squirrel.
+        return { ax: ep.x + shape.centerFrac * renderW, ay: ep.y + shape.topFrac * h, ah: h * shape.heightFrac };
+      }
+    }
+    return { ax: c * LV_CELL + LV_CELL / 2, ay: r * LV_CELL, ah: LV_CELL };
+  };
   const openTalk = (t) => {
     const dlg = resolveTalkTree(t);
     if (!dlg) { flash(t.kind === "sign" ? "💬 This sign has nothing written on it." : "💬 They have nothing to say — their dialogue was deleted."); return; }
     const who = t.name || (t.kind === "sign" ? "Sign" : "");
-    const next = { dlg, nodeId: dlg.start, kind: t.kind, key: t.key, name: who, picked: null };
+    const next = { dlg, nodeId: dlg.start, kind: t.kind, key: t.key, name: who, picked: null, ...talkAnchorFor(t) };
     // The ref is set HERE, synchronously, as well as by the effect that mirrors `talk`. The loop
     // is mid-frame when this runs and checks the ref at the top of the NEXT one; waiting for React
     // to commit would let one more frame of physics through underneath the text.
@@ -6526,7 +6594,19 @@ export default function AssetStudio() {
     // because walking away mid-sentence is still having heard them.
     if (t.kind === "npc") { const ep = enemyPos.current[t.key]; if (ep) ep.talked = true; }
   };
-  const closeTalk = () => { clearTalkTimer(); talkRef.current = null; setTalk(null); };
+  // talkH goes back to 0 so the next conversation measures itself rather than inheriting the last
+  // one's height and deciding, on its very first frame, that it doesn't fit above somebody's head.
+  const closeTalk = () => { clearTalkTimer(); talkRef.current = null; setTalk(null); setTalkH(0); };
+  // BRING THE BUBBLE INTO VIEW when a conversation opens. This game has no camera — nothing follows
+  // the player — so on a 160-column level the person you just walked up to is very often outside
+  // the scrolled viewport, and so is what they are saying. Scoped as tightly as it can be: only on
+  // opening, only if it is not already fully visible, and `block/inline: nearest` so a bubble that
+  // IS visible does not get nudged. This is not a camera and must not grow into one.
+  useEffect(() => {
+    if (!talk) return;
+    const el = talkBubbleEl.current;
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [talk && talk.key, talk && talk.nodeId]);
   // What an option DOES to the world. One switch, off DIALOGUE_ACTS, so "what can a choice do" has
   // exactly one answer and adding an entry to the registry is the only edit a new consequence needs.
   const applyTalkAct = (act, t) => {
@@ -6575,14 +6655,16 @@ export default function AssetStudio() {
       if (step.nextId) { const next = { ...t, nodeId: step.nextId, picked: null }; talkRef.current = next; setTalk(next); }
       else closeTalk();
     };
-    // ✅/❌ RIGHT-OR-WRONG FEEDBACK. Only an option the author actually tagged holds for a beat —
-    // an untagged tree must not feel slower than it did before the colours existed, so it commits
-    // on the same tick exactly as it used to.
-    if (opt && (opt.tone === "good" || opt.tone === "bad")) {
-      const flashed = { ...t, picked: { i, tone: opt.tone } };
-      talkRef.current = flashed; setTalk(flashed);
-      talkTimer.current = setTimeout(commit, TALK_PICK_FLASH_MS);
-    } else commit();
+    // EVERY PICK FLASHES. A tagged option lights green or red and holds long enough to read it;
+    // an untagged one blinks the panel's own blue for a fraction of that. The first pass committed
+    // an untagged option on the same tick with nothing on screen changing, and Blake could not
+    // tell a keypress that registered from one that was ignored — especially where the next line
+    // opens on similar words. Which colour is the author's business; THAT it acknowledges you is
+    // not optional, so this branch decides only the timing now, never whether to show anything.
+    const tone = (opt && DIALOGUE_TONES[opt.tone]) ? opt.tone : "";
+    const flashed = { ...t, picked: { i, tone } };
+    talkRef.current = flashed; setTalk(flashed);
+    talkTimer.current = setTimeout(commit, talkFlashMs(tone));
   };
   // Number keys pick an option; Esc walks away. Bound in its own effect, NOT in the physics loop's
   // key map: the loop's map turns a key into a held movement intent read every frame, and picking
@@ -8505,8 +8587,10 @@ export default function AssetStudio() {
         lastTalkSig = talkSig;
         if (!curTalk) setTalkPrompt(null);
         else {
-          const [tr, tc] = curTalk.key.split(",").map(Number);
-          setTalkPrompt({ kind: curTalk.kind, key: curTalk.key, name: curTalk.name, r: tr, c: tc });
+          // Over the LIVE body, not the spawn cell. It used to use the cell, which was close
+          // enough while the reach was two cells and is plainly wrong now it is six — the callout
+          // would sit a third of the way across the room from the person it names.
+          setTalkPrompt({ kind: curTalk.kind, key: curTalk.key, name: curTalk.name, ...talkAnchorFor(curTalk) });
         }
       }
       // Press E to start talking. openTalk resolves which tree (a saved one by id, or the sign's
@@ -13305,9 +13389,22 @@ export default function AssetStudio() {
                   // swing, show that pose — it OVERRIDES the arm-swing animation. If it's blank, fall
                   // through to swinging the arm (below), exactly as before.
                   const eUseAtkPose = !!(ep && ep.swingT > 0) && !eRanged && ea.type === "enemy" && !!(ea.angles && (ea.angles.attack || []).length);
-                  const ePoseKey = eUseAtkPose ? "attack" : enemyPoseKey(ea, ducking ? "crouch" : "side");
+                  // SOMEONE WITH SOMETHING TO SAY STANDS FACING YOU, in their FRONT pose, until the
+                  // conversation has been had. Turning side-on to look at you was the first attempt
+                  // and it is too quiet — front-on is unmistakably "this one is waiting for you",
+                  // and it is how an NPC reads in every game that has them.
+                  //
+                  // enemyPoseKey falls back to Side for art with no Front drawn at all, which is
+                  // every animal (the Squirrel, the Pit Bulls) — those keep the turn-to-look rule
+                  // in the AI loop instead, which is the whole reason that rule stays.
+                  const eTalkWaiting = !!(ep && !ep.talked && talkDialogueId(lv.enemies[k]) && !eUseAtkPose && !ducking && unitSide(ea, ep) !== "hostile");
+                  const eFrontPose = eTalkWaiting && enemyPoseKey(ea, "front") === "front";
+                  const ePoseKey = eUseAtkPose ? "attack" : eFrontPose ? "front" : enemyPoseKey(ea, ducking ? "crouch" : "side");
                   let eBlocks = bake(ea, ePoseKey);
-                  if (eUseAtkPose) eBlocks = alignPoseFootBaseline(bake(ea, enemyPoseKey(ea, "side")), eBlocks);
+                  // Both of these are poses drawn on their own canvas, so both need pinning to the
+                  // baseline the SIDE pose stands on, or the body floats or sinks by whatever empty
+                  // canvas its own drawing happens to leave underneath it.
+                  if (eUseAtkPose || eFrontPose) eBlocks = alignPoseFootBaseline(bake(ea, enemyPoseKey(ea, "side")), eBlocks);
                   // Walk cycle: swing the legs (and add a mirrored back leg) exactly like the player,
                   // driven by the enemy's own walkPhase. Legs only — applyLimbSwing never touches arms,
                   // so the aim/attack/weapon pipeline below is completely unaffected. Without this the
@@ -13368,7 +13465,11 @@ export default function AssetStudio() {
                     }
                   }
                   const hpFrac = Math.max(0, Math.min(1, curHp / maxHp));
-                  const flip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1)" : "none";
+                  // A FRONT POSE IS NEVER MIRRORED. The flip exists to point a side-on drawing the
+                  // way the unit is walking; applied to art already facing the camera it just
+                  // swaps the poor character's left and right for no reason, and any lettering or
+                  // asymmetric detail on the front of them comes out backwards.
+                  const flip = (!eFrontPose && enemyNeedsFlip(ea, ep && ep.face)) ? "scaleX(-1)" : "none";
                   // A tackled unit LIES DOWN rather than just freezing in place. The sprite pivots
                   // a quarter turn about its own feet (transform-origin bottom-centre, the one
                   // point that stays put when someone falls over) and is then lifted back onto the
@@ -13412,6 +13513,14 @@ export default function AssetStudio() {
                         {/* 💫 is dazed on its feet, 😵 is flat on its back — same bobbing badge,
                             two different states, so a tackle is readable at a glance. */}
                         {ep && ep.down > 0 ? <div className="enemyStun">😵</div> : ep && ep.stun > 0 ? <div className="enemyStun">💫</div> : null}
+                        {/* 💬 SOMEBODY HERE WILL TALK TO YOU — shown over every waiting NPC in the
+                            level, not only the one you are standing next to, because "who is worth
+                            walking over to" is a question you ask from across the room. It bobs so
+                            it reads as an invitation rather than as another status icon, and it
+                            goes the moment the conversation has been had. In the status layer with
+                            the HP bar (z 8000) on purpose: that layer is above the Front tiles, so
+                            an NPC standing behind a tree still advertises itself. */}
+                        {eTalkWaiting && !downed ? <div className="talkBadge">💬</div> : null}
                       </div>
                       <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...((ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
@@ -13428,16 +13537,61 @@ export default function AssetStudio() {
                     : "🚪 Press E to leave";
                   return <div key="doorprompt" className="doorPromptFloat" style={{ left: c * LV_CELL + LV_CELL / 2, top: r * LV_CELL - 6 }}>{txt}</div>;
                 })()}
-                {/* 💬 "Press E to talk". Signs are invisible in play (paint your own board over
-                    the cell) so this callout is the only thing that says one is there; for an NPC
-                    it hangs over the spawn cell rather than the live body, which is close enough
-                    at talking range and costs nothing per frame. Hidden while the panel is open —
-                    the conversation IS the prompt at that point. */}
+                {/* 💬 "PRESS E TO TALK", and it is deliberately loud. Signs are invisible in play
+                    (you paint your own board over the cell) so this is the only thing that says
+                    one is there at all, and the first pass drew it at the door prompt's 12px in a
+                    dim brown that Blake walked straight past. It is bigger, brighter, keyed to a
+                    boxed E, and it pulses. Hidden while the panel is open — the conversation IS
+                    the prompt at that point. Anchored over the live body (talkAnchorFor). */}
                 {play && talkPrompt && !talk && (
-                  <div key="talkprompt" className="doorPromptFloat talkPromptFloat" style={{ left: talkPrompt.c * LV_CELL + LV_CELL / 2, top: talkPrompt.r * LV_CELL - 6 }}>
-                    {talkPrompt.kind === "npc" ? "💬 Press E to talk to " + (talkPrompt.name || "them") : "💬 Press E to read"}
+                  <div key="talkprompt" className="talkCallout" style={{ left: talkPrompt.ax, top: talkPrompt.ay - 10 }}>
+                    <kbd className="talkKey">E</kbd>
+                    <span>{talkPrompt.kind === "npc" ? "Talk to " + (talkPrompt.name || "them") : "Read this"}</span>
                   </div>
                 )}
+                {/* 💬 THE CONVERSATION, as a speech bubble over whoever is speaking.
+                    IN the level, alongside the sprites, rather than pinned to the bottom of the
+                    window as it first shipped — a bar down there makes you read the words in one
+                    place and watch the face in another, and with several NPCs in a room it never
+                    said WHICH of them was talking. `.lgrid` carries isolation:isolate so these
+                    four-digit z-indexes stay local and can't outrank the modals; inside it, 9600
+                    is above the door prompt (9500) and everything below it.
+                    Anchor and flip are worked out in talkBubbleBox — see the note there. */}
+                {play && talk && (() => {
+                  const node = talk.dlg.nodes[talk.nodeId] || { text: "", choices: [] };
+                  const opts = dialogueOptions(node);
+                  const who = (node.speaker || "").trim() || talk.name || (talk.kind === "sign" ? "Sign" : "");
+                  const overNine = opts.length > DIALOGUE_MAX_KEYED;
+                  const box = talkBubbleBox(talk, talkH, lv.cols * LV_CELL);
+                  return (
+                    <div key="talkbubble" ref={talkBubbleRef} className={"talkBubble" + (box.below ? " below" : "")}
+                      style={{ left: box.left, top: box.top, width: box.width }}
+                      onPointerDown={(e) => e.stopPropagation()}>
+                      <div className="talkBox">
+                        {who && <div className="talkWho">💬 {who}</div>}
+                        <div className="talkText">{node.text || <span className="hint2">(this line is blank)</span>}</div>
+                        <div className="talkOpts">
+                          {opts.map((o, i) => {
+                            // The highlight is on the option that was PICKED, and only after it was
+                            // picked. Colouring the list up front would hand the player the answer,
+                            // which is the opposite of what a right/wrong tag is for. Untagged
+                            // options light up too, in blue — see dialogueToneStyle.
+                            const lit = talk.picked && talk.picked.i === i ? dialogueToneStyle(talk.picked.tone) : null;
+                            return (
+                              <button key={o.id || i} className={"talkOpt" + (lit ? " lit" : "")} style={lit ? { background: lit.color, borderColor: lit.edge, color: "#fff" } : undefined}
+                                onClick={() => chooseTalkOption(i)}>
+                                <span className="talkNum">{i < DIALOGUE_MAX_KEYED ? i + 1 : "•"}</span>
+                                <span>{o.text || "(no text)"}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="talkHint">Press {opts.length === 1 ? "1" : "1–" + Math.min(opts.length, DIALOGUE_MAX_KEYED)}{overNine ? " (click the rest)" : ""} · Esc to walk away · everything else is paused</div>
+                      </div>
+                      <span className="talkTail" style={{ left: box.tailX }} />
+                    </div>
+                  );
+                })()}
                 {play && Object.entries(enemyDrops.current).map(([k, drop]) => {
                   if (!drop || !drop.item) return null;
                   const item = drop.item;
@@ -13758,42 +13912,6 @@ export default function AssetStudio() {
           </aside>
         </div>
 
-        {/* 💬 THE CONVERSATION. Rendered out here, a sibling of the whole editor, and fixed to the
-            bottom of the window — NOT inside .lgrid. That grid carries isolation:isolate so its
-            four-digit cell/object z-indexes can't outrank the modals, which means nothing put
-            inside it can be lifted above the level either; and there is no camera in this game, so
-            a panel positioned near the player would routinely be off-screen. Fixed to the viewport
-            is the only place it is reliably readable. */}
-        {play && talk && (() => {
-          const node = talk.dlg.nodes[talk.nodeId] || { text: "", choices: [] };
-          const opts = dialogueOptions(node);
-          const who = (node.speaker || "").trim() || talk.name || (talk.kind === "sign" ? "Sign" : "");
-          const overNine = opts.length > DIALOGUE_MAX_KEYED;
-          return (
-            <div className="talkPanel" onPointerDown={(e) => e.stopPropagation()}>
-              <div className="talkBox">
-                {who && <div className="talkWho">💬 {who}</div>}
-                <div className="talkText">{node.text || <span className="hint2">(this line is blank)</span>}</div>
-                <div className="talkOpts">
-                  {opts.map((o, i) => {
-                    // The highlight is on the option that was PICKED, and only after it was picked.
-                    // Colouring the list up front would hand the player the answer, which is the
-                    // opposite of what a right/wrong tag is for.
-                    const lit = talk.picked && talk.picked.i === i ? DIALOGUE_TONES[talk.picked.tone] : null;
-                    return (
-                      <button key={o.id || i} className={"talkOpt" + (lit ? " lit" : "")} style={lit ? { background: lit.color, borderColor: lit.edge, color: "#fff" } : undefined}
-                        onClick={() => chooseTalkOption(i)}>
-                        <span className="talkNum">{i < DIALOGUE_MAX_KEYED ? i + 1 : "•"}</span>
-                        <span>{o.text || "(no text)"}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="talkHint">Press {opts.length === 1 ? "1" : "1–" + Math.min(opts.length, DIALOGUE_MAX_KEYED)}{overNine ? " (click the rest)" : ""} · Esc to walk away · everything else is paused</div>
-              </div>
-            </div>
-          );
-        })()}
 
         {levelLoadOpen && (
           <div className="modal" onClick={() => setLevelLoadOpen(false)}>
@@ -15129,12 +15247,28 @@ const css = `
 /* 💬 The talk prompt is the door prompt in a different colour, deliberately — the two mean the
    same thing ("press E here") and looking alike is the point. */
 .talkPromptFloat{background:#131f2e;border-color:#5b9bd5;color:#bfe0ff}
-/* THE CONVERSATION PANEL. position:fixed, not absolute: there is no camera in this game, so the
-   player is frequently nowhere near the visible part of a 160-column level, and a panel anchored
-   to them would open off-screen. z 60 clears the modals (30) and the toasts (40) — while a
-   conversation is up it IS the interface. */
-.talkPanel{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:0 16px 18px;z-index:60;pointer-events:none}
-.talkBox{pointer-events:auto;width:min(760px,100%);background:#11141d;border:2px solid #5b9bd5;border-radius:12px;padding:14px 16px;box-shadow:0 10px 34px rgba(0,0,0,.7)}
+/* 💬 "PRESS E TO TALK" — the loud version. The door prompt's dim 12px pill was walked straight
+   past, so this is bigger, brighter, has the key drawn as a key, and breathes. Same
+   translate(-50%,-100%) anchoring as the door prompt so it sits on a head. */
+.talkCallout{position:absolute;transform:translate(-50%,-100%);display:flex;align-items:center;gap:7px;white-space:nowrap;background:linear-gradient(180deg,#22405f,#16283d);border:2px solid #7fc0ff;border-radius:9px;padding:5px 11px 5px 7px;font-size:14px;font-weight:700;color:#eaf4ff;box-shadow:0 2px 10px rgba(0,0,0,.6),0 0 14px rgba(90,160,255,.35);pointer-events:none;z-index:9600;animation:talkpulse 1.25s ease-in-out infinite}
+@keyframes talkpulse{0%,100%{transform:translate(-50%,-100%) scale(1)}50%{transform:translate(-50%,-100%) scale(1.06)}}
+.talkKey{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;background:#eaf4ff;color:#16283d;border-radius:4px;border-bottom:2px solid #9ab8d6;font-size:12px;font-weight:800;font-family:inherit;padding:0 4px}
+/* 💬 over a waiting NPC's head, everywhere in the level. Sits in the status layer (z 8000) with
+   the HP bar, which is above the Front tiles, so somebody behind a tree still advertises. Bobs so
+   it reads as an invitation and not as one more status icon. */
+.talkBadge{position:absolute;left:0;right:0;top:-32px;text-align:center;font-size:17px;line-height:1;pointer-events:none;filter:drop-shadow(0 1px 3px rgba(0,0,0,.8));animation:talkbob 1.6s ease-in-out infinite}
+@keyframes talkbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+/* THE SPEECH BUBBLE. Positioned in LEVEL pixels, inside .lgrid, over whoever is talking — see
+   talkBubbleBox for the anchor, the clamp and the flip-below. z 9600 puts it over the door prompt
+   (9500) and every sprite; .lgrid's isolation:isolate keeps that local to the level, which is why
+   this cannot and must not be relied on to sit above a modal. */
+.talkBubble{position:absolute;transform:translateY(-100%);z-index:9600;pointer-events:none}
+.talkBubble.below{transform:none}
+/* The tail. Rotated square rather than a border triangle so the bubble's own 2px edge carries
+   through two of its sides and it reads as part of the outline. */
+.talkTail{position:absolute;bottom:-7px;width:12px;height:12px;margin-left:-6px;background:#11141d;border-right:2px solid #5b9bd5;border-bottom:2px solid #5b9bd5;transform:rotate(45deg)}
+.talkBubble.below .talkTail{bottom:auto;top:-7px;border-right:none;border-bottom:none;border-left:2px solid #5b9bd5;border-top:2px solid #5b9bd5}
+.talkBox{pointer-events:auto;width:100%;box-sizing:border-box;background:#11141d;border:2px solid #5b9bd5;border-radius:12px;padding:12px 14px;box-shadow:0 8px 28px rgba(0,0,0,.75)}
 .talkWho{font-size:13px;font-weight:700;color:#bfe0ff;margin-bottom:6px}
 .talkText{font-size:16px;line-height:1.45;color:#e8ecf5;white-space:pre-wrap;margin-bottom:12px}
 .talkOpts{display:flex;flex-direction:column;gap:6px}
