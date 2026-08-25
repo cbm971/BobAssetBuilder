@@ -2201,6 +2201,34 @@ export const rigidArmFollow = (b, arm, armNewRot) => {
 // below 40% — much smaller and there's barely a design area left to see at all.
 export const ARTZOOM_MIN = 0.4, ARTZOOM_MAX = 1;
 export const clampArtZoom = (z, delta) => Math.max(ARTZOOM_MIN, Math.min(ARTZOOM_MAX, +(z + delta).toFixed(2)));
+// ── Object / Prop sub-categories ────────────────────────────
+// Objects are the one asset type with no natural sub-division — a body has no sub-kinds and
+// clothing already splits by slot — and the list only grows. So a prop carries one free-text
+// sub-category Blake types in himself: "Interior", "Trailer Park". It is purely a filing label:
+// nothing in the game reads it, and a prop that was never given one groups under "Unknown"
+// rather than dropping out of a list. Matching is trimmed and case-insensitive, so "interior",
+// "Interior" and "Interior " are one group; the label shown is the first spelling saved.
+export const PROP_UNCAT = "Unknown";
+export const propCat = (a) => ((a && typeof a.category === "string" ? a.category.trim() : "") || PROP_UNCAT);
+export const propCatKey = (c) => (c || "").trim().toLowerCase();
+// Every prop in `assets`, bucketed: [{ key, label, props }]. Named groups sort A→Z and "Unknown"
+// always lands last, so untagged props never push the tidy ones down. Props inside a group sort
+// by name — past a couple of dozen, library order stops being findable.
+export const groupProps = (assets) => {
+  const map = new Map();
+  for (const a of assets || []) {
+    if (!a || a.type !== "prop") continue;
+    const label = propCat(a), key = propCatKey(label);
+    if (!map.has(key)) map.set(key, { key, label, props: [] });
+    map.get(key).props.push(a);
+  }
+  const cmp = (x, y) => x.localeCompare(y, undefined, { numeric: true, sensitivity: "base" });
+  const unk = propCatKey(PROP_UNCAT);
+  const groups = [...map.values()];
+  for (const g of groups) g.props.sort((x, y) => cmp(x.name || "", y.name || ""));
+  return groups.sort((x, y) => (x.key === unk) - (y.key === unk) || cmp(x.label, y.label));
+};
+
 // Categories for the "Load" browser. `fitTracked` marks types that carry per-body variants
 // (skin/equipment) — those get the body-fit checklist in the item list; weapons and bodies
 // themselves don't need one (a weapon's hand-attachment point already adapts to any body
@@ -2569,7 +2597,7 @@ export function newAsset(type, slot, wtype) {
   // Optionally animated — `frames` is an ordered list of front-pose piece lists; frame 0 is the
   // live `angles` (what the piece editor edits when frameIdx 0 is selected). animFps drives the
   // cycle speed in Playtest. Only the Front pose is ever used (props don't rotate/face).
-  if (type === "prop") { a.size = 2; a.frames = [blankAngles()]; a.angles = a.frames[0]; a.animFps = 6; a.solidDefault = false; }
+  if (type === "prop") { a.size = 2; a.frames = [blankAngles()]; a.angles = a.frames[0]; a.animFps = 6; a.solidDefault = false; a.category = ""; }
   // A single-use item: one Front canvas (drawn like a projectile), an effect, and category tags so
   // a pedestal can roll it. No poses/frames/rig — it only ever shows on a pedestal and in menus.
   if (type === "item") { a.effect = DEFAULT_ITEM_EFFECT(); a.categories = ["", "", ""]; }
@@ -2659,6 +2687,7 @@ export const normalizeAssetJson = (raw) => {
     if (Object.keys(out).length) a.variants = out; else delete a.variants;
   }
   if (type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
+  if (type === "prop" && typeof a.category !== "string") a.category = ""; // no sub-category = files under "Unknown", never missing
   if (!a.id) a.id = uid();
   if (typeof a.name !== "string" || !a.name.trim()) a.name = (type === "equipment" ? SLOTS[a.slot].label : (TYPES[type] ? TYPES[type].label : type));
   if (!a.guideId) a.guideId = "default";
@@ -6002,7 +6031,7 @@ export default function AssetStudio() {
   const [niche, setNiche] = useState(false); // "Niche controls" modal (layer recovery from dressed looks)
   const [loadOpen, setLoadOpen] = useState(false); // Load browser modal open/closed
   const [loadCategory, setLoadCategory] = useState(null); // null = category list; a type key = that category's item list
-  const [loadSlot, setLoadSlot] = useState(null);         // Clothes & Armor only: null = slot list; a slot key = that slot's item list
+  const [loadSub, setLoadSub] = useState(null);           // the sub-group inside a Load category: a slot key for Clothes & Armor, a sub-category key for Objects; null = show the sub-group list
   const [wtypeChoice, setWtypeChoice] = useState(false); // true while the melee/projectile chooser is open (new weapon)
   const [propItemChoice, setPropItemChoice] = useState(false); // true while the Object-vs-Item chooser is open
   const [emoji, setEmoji] = useState("⚔️");
@@ -6118,6 +6147,7 @@ export default function AssetStudio() {
   const [lObjKind, setLObjKind] = useState("emoji");    // "emoji" (a character), "shape" (a plain colored block), or "prop" (a saved Object/Prop asset's pixel art)
   const [lObjShape, setLObjShape] = useState("rect");   // shape used when lObjKind === "shape": rect/circle/tri/tri2, same vocabulary as the piece editor
   const [lPropId, setLPropId] = useState("");           // which saved prop asset the Objects layer paints when lObjKind === "prop"
+  const [lPropCat, setLPropCat] = useState("");         // which prop sub-category the Object picker is narrowed to ("" = all of them)
   const [lTint, setLTint] = useState(null);             // tint for placed emoji objects (null = natural colors) — doubles as the fill color when lObjKind === "shape"
   const [lSolid, setLSolid] = useState(true);           // do placed objects block the player? (on by default — decoration is the exception, not the rule)
   const [lInFront, setLInFront] = useState(false);      // render placed objects in front of the player instead of behind (off by default — matches how it always worked before)
@@ -10651,7 +10681,7 @@ export default function AssetStudio() {
   // Prop: flush the frame currently being edited (a.angles) back into a.frames[propFrame], and
   // point a.angles at frame 0 as the canonical "base look". Same idea as syncWeapon/syncEnemy
   // flushing their live state before save.
-  const syncProp = (a) => { if (!a || a.type !== "prop") return a; const frames = [...(a.frames || [blankAngles()])]; frames[propFrame] = a.angles; return { ...a, frames, angles: frames[0] }; };
+  const syncProp = (a) => { if (!a || a.type !== "prop") return a; const frames = [...(a.frames || [blankAngles()])]; frames[propFrame] = a.angles; return { ...a, frames, angles: frames[0], category: (a.category || "").trim() }; };
   const data = () => JSON.stringify(syncProp(syncFit(syncEnemy(syncWeapon(syncEffectAnim(asset))))), null, 2);
   const openSheet = () => { setText(data()); setSheet(true); };
   const saveAsset = async () => {
@@ -10734,7 +10764,7 @@ export default function AssetStudio() {
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
   const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
-    if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; }
+    if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; if (typeof a.category !== "string") a.category = ""; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
     if (a.type === "enemy") { if (!a.states) a.states = { normal: a.angles || blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.angles = a.states.normal || a.angles; if (a.hasArms === undefined) a.hasArms = !!(a.angles && ANGLES.some((ang) => (a.angles[ang] || []).some((p) => p.role === "weaponArm"))); for (const k of Object.keys(a.angles || {})) (a.angles[k] || []).forEach((p) => { if (p.locked) delete p.locked; }); if (!a.stats) a.stats = DEFAULT_STATS(); if (a.hp === undefined) a.hp = 10; if (!a.ai) a.ai = "guard"; if (a.weaponId === undefined) a.weaponId = null; }
     if (a.type === "skin" && !a.stats) a.stats = DEFAULT_STATS();
@@ -11692,6 +11722,8 @@ export default function AssetStudio() {
   const addCatSuggest = (k, tag) => setLevel((lv) => { const cur = lv.conns[k].accepts || ""; const has = cur.split(/[,\n]/).map((s) => s.trim().toLowerCase()).includes(tag); if (has) return lv; const next = cur ? cur + ", " + tag : tag; return { ...lv, conns: { ...lv.conns, [k]: { ...lv.conns[k], accepts: next } } }; });
   const allLevels = level ? [level, ...levelLib.filter((l) => l.id !== level.id)] : levelLib;
   const floorSuggest = [...new Set(levelLib.map((l) => (l.floor || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const propGroupsAll = groupProps(allAssets);
+  const propCatSuggest = propGroupsAll.filter((g) => g.key !== propCatKey(PROP_UNCAT)).map((g) => g.label);
   const catSuggest = [...new Set(allAssets.filter(HAS_CATEGORIES).flatMap((a) => (a.categories || []).map((c) => (c || "").trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   // Hoisted to component scope (not inside the level-screen block) because BOTH commit paths
   // need it: the status-strip destination buttons AND selectLayer below — clicking a layer tab
@@ -11903,7 +11935,7 @@ export default function AssetStudio() {
             ))}
           </div>
           <h2>Load</h2>
-          <button className="ltbtn saveRead" disabled={libraryLoading} onClick={() => { setLoadOpen(true); setLoadCategory(null); setLoadSlot(null); }}>{libraryLoading ? "⏳ Loading your saves…" : "📂 Load (" + allAssets.length + " saved)"}</button>
+          <button className="ltbtn saveRead" disabled={libraryLoading} onClick={() => { setLoadOpen(true); setLoadCategory(null); setLoadSub(null); }}>{libraryLoading ? "⏳ Loading your saves…" : "📂 Load (" + allAssets.length + " saved)"}</button>
           {libraryLoading && <p className="mini saveLoading">Your saved assets are still being read from this browser. Nothing has been cleared.</p>}
           <label className="openfile">⬆ Open a file<input type="file" accept=".json,application/json,text/plain" onChange={upload} hidden /></label>
           <button className="ltbtn saveRead" disabled={libraryLoading} onClick={exportAllAssets} title="Downloads everything you have made — assets, levels, stored groups, textures and backgrounds — as one backup file. Re-open that file here later to restore it all.">⬇ Export everything{libraryLoading ? " (loading…)" : " (" + library.length + " assets, " + Math.max(levelLib.length, levelCount) + " levels)"}</button>
@@ -11952,7 +11984,7 @@ export default function AssetStudio() {
                       {LOAD_CATEGORIES.map((cat) => {
                         const count = allAssets.filter(cat.match).length;
                         return (
-                          <button key={cat.key} className="scard" disabled={!count} onClick={() => { setLoadCategory(cat.key); setLoadSlot(null); }}>
+                          <button key={cat.key} className="scard" disabled={!count} onClick={() => { setLoadCategory(cat.key); setLoadSub(null); }}>
                             <span className="si">{cat.icon}</span>
                             <span className="sn">{cat.label}</span>
                             <span className="sty">{count} saved</span>
@@ -11968,7 +12000,13 @@ export default function AssetStudio() {
                 const bySlot = cat.key === "equipment";
                 const inSlot = (a, sl) => (sl === "__other" ? !SLOT_ORDER.includes(a.slot) : a.slot === sl);
                 const bodies = allAssets.filter((a) => a.type === "body");
-                if (bySlot && !loadSlot) {
+                // Objects drill down by sub-category the same way Clothes & Armor drills down by
+                // slot. Only worth a step when there is more than one group — with everything
+                // under "Unknown" it would just be a page you always click through.
+                const propGroups = cat.key === "prop" ? propGroupsAll : [];
+                const byCat = propGroups.length > 1;
+                const subSel = byCat ? propGroups.find((g) => g.key === loadSub) : null;
+                if (bySlot && !loadSub) {
                   const slotKeys = SLOT_ORDER.slice().reverse();
                   const equip = allAssets.filter(cat.match);
                   const otherCount = equip.filter((a) => !SLOT_ORDER.includes(a.slot)).length;
@@ -11979,7 +12017,7 @@ export default function AssetStudio() {
                         {slotKeys.map((sl) => {
                           const n = equip.filter((a) => a.slot === sl).length;
                           return (
-                            <button key={sl} className="scard" disabled={!n} onClick={() => setLoadSlot(sl)}>
+                            <button key={sl} className="scard" disabled={!n} onClick={() => setLoadSub(sl)}>
                               <span className="si">{SLOTS[sl].icon}</span>
                               <span className="sn">{SLOTS[sl].label}</span>
                               <span className="sty">{n} saved</span>
@@ -11987,7 +12025,7 @@ export default function AssetStudio() {
                           );
                         })}
                         {otherCount > 0 && (
-                          <button className="scard" onClick={() => setLoadSlot("__other")}>
+                          <button className="scard" onClick={() => setLoadSub("__other")}>
                             <span className="si">📦</span>
                             <span className="sn">Other</span>
                             <span className="sty">{otherCount} saved</span>
@@ -11998,12 +12036,31 @@ export default function AssetStudio() {
                     </>
                   );
                 }
-                const items = allAssets.filter(cat.match).filter((a) => !bySlot || inSlot(a, loadSlot));
-                const slotLabel = bySlot ? (loadSlot === "__other" ? "Other" : SLOTS[loadSlot].label) : "";
+                if (byCat && !subSel) {
+                  return (
+                    <>
+                      <div className="dt"><button className="back" onClick={() => setLoadCategory(null)}>‹ Categories</button> {cat.icon} {cat.label}</div>
+                      <div className="loadcats">
+                        {propGroups.map((g) => (
+                          <button key={g.key} className="scard" onClick={() => setLoadSub(g.key)}>
+                            <span className="si">{g.key === propCatKey(PROP_UNCAT) ? "📦" : "📂"}</span>
+                            <span className="sn">{g.label}</span>
+                            <span className="sty">{g.props.length} saved</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="row2"><button onClick={() => setLoadOpen(false)}>Close</button></div>
+                    </>
+                  );
+                }
+                const items = allAssets.filter(cat.match).filter((a) => !bySlot || inSlot(a, loadSub)).filter((a) => !subSel || propCatKey(propCat(a)) === subSel.key);
+                const slotLabel = bySlot ? (loadSub === "__other" ? "Other" : SLOTS[loadSub].label) : "";
                 return (
                   <>
                     <div className="dt">{bySlot
-                      ? <><button className="back" onClick={() => setLoadSlot(null)}>‹ {cat.label}</button> {loadSlot === "__other" ? "📦" : SLOTS[loadSlot].icon} {slotLabel}</>
+                      ? <><button className="back" onClick={() => setLoadSub(null)}>‹ {cat.label}</button> {loadSub === "__other" ? "📦" : SLOTS[loadSub].icon} {slotLabel}</>
+                      : subSel
+                      ? <><button className="back" onClick={() => setLoadSub(null)}>‹ {cat.label}</button> {subSel.key === propCatKey(PROP_UNCAT) ? "📦" : "📂"} {subSel.label}</>
                       : <><button className="back" onClick={() => setLoadCategory(null)}>‹ Categories</button> {cat.icon} {cat.label}</>}</div>
                     {items.length ? (
                       <div className="saved loaditems">
@@ -12705,11 +12762,31 @@ export default function AssetStudio() {
               <div className="seg"><button className={lObjKind === "emoji" ? "on" : ""} onClick={() => { setLObjKind("emoji"); setLFxSel(null); setLFxEditIdx(null); }}>😀 Emoji</button><button className={lObjKind === "shape" ? "on" : ""} onClick={() => { setLObjKind("shape"); setLFxSel(null); setLFxEditIdx(null); }} >▮ Shape</button><button className={lObjKind === "prop" ? "on" : ""} onClick={() => { setLObjKind("prop"); setLFxSel(null); setLFxEditIdx(null); }}>🌿 Object</button></div>
               {lObjKind === "prop" ? (
                 (() => {
-                  const props = allAssets.filter((a) => a.type === "prop");
-                  return props.length ? (<>
+                  // Sub-category first, then the Object. A group that no longer exists (renamed,
+                  // or its last prop deleted) falls back to showing everything rather than an
+                  // empty picker, so narrowing can never strand Blake with no Objects at all.
+                  const groups = propGroupsAll;
+                  const catSel = groups.find((g) => g.key === lPropCat) || null;
+                  const shownGroups = catSel ? [catSel] : groups;
+                  return groups.length ? (<>
+                    {groups.length > 1 && (
+                      <select className="big" value={catSel ? catSel.key : ""} onChange={(e) => {
+                        const key = e.target.value;
+                        setLPropCat(key);
+                        const g = groups.find((x) => x.key === key);
+                        if (g && lPropId && !g.props.some((x) => x.id === lPropId)) { setLPropId(""); setLFxSel(null); setLFxEditIdx(null); }
+                      }}>
+                        <option value="">📂 All sub-categories ({groups.reduce((n, g) => n + g.props.length, 0)})</option>
+                        {groups.map((g) => <option key={g.key} value={g.key}>📂 {g.label} ({g.props.length})</option>)}
+                      </select>
+                    )}
                     <select className="big" value={lPropId} onChange={(e) => { const id = e.target.value; setLPropId(id); setLFxSel(null); setLFxEditIdx(null); const pa = findA(id); if (pa && pa.size) setLObjSize(pa.size); }}>
                       <option value="">— pick an Object —</option>
-                      {props.map((a) => <option key={a.id} value={a.id}>🌿 {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
+                      {shownGroups.map((g) => (
+                        <optgroup key={g.key} label={g.label}>
+                          {g.props.map((a) => <option key={a.id} value={a.id}>🌿 {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
+                        </optgroup>
+                      ))}
                     </select>
                     {/* Set BEFORE placing, because it changes how big the prop comes out and both
                         halves of a matched pair want placing the same way rather than converting
@@ -14762,6 +14839,10 @@ export default function AssetStudio() {
                 <label className="slider">Anim speed<input type="range" min="1" max="20" step="1" value={asset.animFps ?? 6} onChange={(e) => setAsset((a) => ({ ...a, animFps: +e.target.value }))} /><span className="hint2" style={{ marginLeft: 6 }}>{asset.animFps ?? 6} fps</span></label>
               )}
               <label className="chk"><input type="checkbox" checked={!!asset.solidDefault} onChange={(e) => setAsset((a) => ({ ...a, solidDefault: e.target.checked }))} /> Solid by default</label>
+              <div className="ct2">📂 Sub-category</div>
+              <input className="catItemInput" value={asset.category || ""} onChange={(e) => setAsset((a) => ({ ...a, category: e.target.value }))} placeholder={"e.g. Interior, Trailer Park — blank files under \"" + PROP_UNCAT + "\""} maxLength={28} />
+              {propCatSuggest.length > 0 && <div className="catchips">{propCatSuggest.map((c) => <button key={c} onClick={() => setAsset((a) => ({ ...a, category: c }))}>{c}</button>)}</div>}
+              <p className="mini">One free-text group, so the Object picker in a level stays findable as this list grows. Blank files it under <b>{PROP_UNCAT}</b> — it never goes missing either way.</p>
             </div>
           )}
 
