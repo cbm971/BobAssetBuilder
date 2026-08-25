@@ -19,6 +19,8 @@ import {
   CREATURE_BITE_REACH_CELLS,
   capAirborneSpeed,
   cellSig,
+  recolorMatching,
+  captureStopsOnBody,
   LV_OBJ_SIZES,
   exportLevelCount,
   paintIntoCell,
@@ -6278,3 +6280,70 @@ describe("the reach Blake set in play", () => {
     expect(inRange(6.5 * CW)).toBe(false);
   });
 });
+
+describe("Fill over a STEEP ramp keeps the ramp", () => {
+  // Trailor Int1 is one material end to end — every wall, the floor and all 24 of its
+  // ramps are the same wood panelling — so recolouring the panelling walks straight
+  // through the ramps. 21 of those ramps rise 2 or 3 rows.
+  const panel = { c: "#8b5a2b", tex: "4cugsd5" };
+  const steep = { c: "#8b5a2b", tex: "4cugsd5", slope: -1, run: 1, step: 0, rise: 3, rstep: 1, upsideDown: true };
+
+  test("rise and rstep survive a recolour, exactly like slope and run do", () => {
+    const out = recolorMatching(steep, panel, { c: "#333333" });
+    expect(out.c).toBe("#333333");
+    expect(out.slope).toBe(-1);
+    expect(out.run).toBe(1);
+    expect(out.rise).toBe(3);     // dropped once — every steep ramp flattened to 45 degrees
+    expect(out.rstep).toBe(1);    // ...and every row of it claimed to be the top row
+    expect(out.upsideDown).toBe(true);
+  });
+
+  test("a stacked cell keeps the geometry of every fill under the top one", () => {
+    const stacked = { ...steep, more: [{ c: "#8b5a2b", tex: "4cugsd5", slope: 1, run: 2, step: 1, rise: 2, rstep: 0 }] };
+    const out = recolorMatching(stacked, panel, { c: "#333333" });
+    const [top, under] = fgFills(out);
+    expect(top.rise).toBe(3);
+    expect(top.rstep).toBe(1);
+    expect(under.rise).toBe(2);
+    expect(under.run).toBe(2);
+    expect(under.step).toBe(1);
+  });
+});
+
+describe("A capture throwable collides with the body it is for", () => {
+  // The ball flew straight through the only thing it was ever aimed at. Measured against a corpse
+  // from every distance: 1 to 5 cells away it missed EVERY time, landing 4 to 7 cells past, and it
+  // worked only from 6 to 8 where the 45 degree arc came down on the body by luck. See the note at
+  // the impact test in the play loop.
+  const ball = { wtype: "throw", captureMax: 1, damage: 0 };   // a pokeball: catches, hurts nothing
+  const grenade = { wtype: "throw", captureMax: 0, damage: 12 };
+  const critter = { type: "enemy", name: "Pit Bull" };          // drawn in the Enemy creator: an animal
+  const person = { type: "character", name: "Billy" };          // a Dress Bob look: never catchable
+  const ep = {};
+
+  test("it stops on a defeated creature — the whole point of the thing", () => {
+    expect(captureStopsOnBody(ball, critter, 0, ep)).toBe(true);
+  });
+
+  test("...and on nothing else it passes: alive, or a person, or not a capture ball at all", () => {
+    expect(captureStopsOnBody(ball, critter, 12, ep)).toBe(false);   // still fighting: you catch a body
+    expect(captureStopsOnBody(ball, person, 0, ep)).toBe(false);     // you cannot pocket a person
+    expect(captureStopsOnBody(grenade, critter, 0, ep)).toBe(false); // a plain grenade sails over corpses as before
+  });
+
+  test("it is the SAME gate as the payout, so a ball can only be stopped by a body it would claim", () => {
+    // If these two ever disagree the ball stops on something it then refuses to catch, which reads
+    // as a grenade that fizzles on the corpse.
+    for (const [ea, hp] of [[critter, 0], [critter, 1], [person, 0], [person, 5]]) {
+      expect(captureStopsOnBody(ball, ea, hp, ep)).toBe(canCapture(ea, hp, ep));
+    }
+  });
+
+  test("Damage 0 does not disable it — that is what broke it in the first place", () => {
+    // The impact scan it sits beside never runs at all on a 0-damage throwable, and a ball that
+    // hurts nothing is exactly what Blake built.
+    expect(throwImpactDamage(ball)).toBe(0);
+    expect(captureStopsOnBody(ball, critter, 0, ep)).toBe(true);
+  });
+});
+

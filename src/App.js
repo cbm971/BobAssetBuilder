@@ -1795,6 +1795,10 @@ export const canCapture = (ea, hp, ep) => isCreatureUnit(ea) && hp <= 0;
 // payload uses for off (Bomblets, Freeze), so the ability needs no separate boolean flag that
 // could get out of step with its own number.
 export const captureCount = (a) => Math.max(0, Math.round((a && a.captureMax) ?? 0));
+// Whether a thrown object in mid-air should STOP on this body rather than sail over it. A
+// pokeball's whole purpose is a corpse, so the corpse has to be something it can collide with —
+// see the note at the impact test in the play loop for what went wrong when it wasn't.
+export const captureStopsOnBody = (asset, ea, hp, ep) => captureCount(asset) > 0 && canCapture(ea, hp, ep);
 // ── HOW an ally was won, and what colour that makes it ──────────────────────────────────────
 // A registry for the same reason DIALOGUE_ACTS and EFFECT_TYPES are ones: the glow, the badge on
 // the hover title and the wording of every "your ally did X" message all come off one entry, so a
@@ -4917,15 +4921,18 @@ export const rampDragSpan = (anchor, cur, brush, buttonSlope, upsideDown) => {
 // 1-cell-thick platform still shows its fill colour, just with an outline around it). Inset
 // box-shadows are used so nothing shifts layout and it still composes with a ramp clip-path.
 // Swap a cell's colour/texture while keeping every bit of geometry it already had: the ramp
-// direction, its run/step across a multi-cell ramp, the upside-down and hide-in-play flags, its
-// outline, and any stacked fills sitting on top of it. Used by Fill so re-colouring a floor can
-// never silently flatten the ramps in it.
+// direction, where this cell sits in a multi-cell ramp's run AND rise, the upside-down and
+// hide-in-play flags, its outline, and any stacked fills sitting under it. Used by Fill so
+// re-colouring a floor can never silently flatten the ramps in it.
 // Two fills are "the same paint" when their base colour and texture agree. Ramp SHAPE is
 // deliberately not part of it: a corner ramp cut out of the carpet is still carpet, and treating
 // it as different paint is what made Fill skip every corner of a room. Texture, on the other
 // hand, IS identity — dropping it once made a single click repaint a whole room's walls, floor
 // and carpet because they shared a base colour.
 export const samePaint = (a, b) => fgColor(a) === fgColor(b) && cellTexId(a) === cellTexId(b);
+// The two fields samePaint just compared, and therefore the only two a recolour may overwrite:
+// they ARE the paint. Everything else on a fill is the shape the level was drawn in.
+const PAINT_IDENTITY_KEYS = new Set(["c", "tex"]);
 // A cell counts as "this paint" if ANY of its fills is. A cell can hold several: a ramp of one
 // material sitting over a block of another (fgFills). The carpet under a corner ramp is carpet,
 // and clicking the carpet has to reach it.
@@ -4933,13 +4940,25 @@ export const cellHasPaint = (cell, ref) => fgFills(cell).some((f) => samePaint(f
 // Re-colour only the fills that ARE that paint, each keeping its own geometry, and leave every
 // other fill in the cell exactly as it was. So filling the carpet under a gravel ramp recolours
 // the carpet and leaves the gravel gravel.
+//
+// WHICH KEYS SURVIVE IS STATED AS "EVERYTHING EXCEPT THE PAINT", not as a list of the geometry.
+// It was the list, and the list went stale the moment ramps grew a second dimension: `rise` and
+// `rstep` were added for steeper-than-45-degree slopes and nobody came back here, so a recolour
+// silently dropped them and fgRise/fgRstep defaulted every steep ramp back to one row of 45
+// degrees, every cell of it claiming to be the top row. Trailor Int1 is one material end to end
+// — the walls, the floor and all 24 of its ramps are the same wood panelling — so a single click
+// of Fill on the panelling walked through 21 steep overhangs and flattened the lot. Reported over
+// and over as "the fill tool distorts the ramps", and the earlier fixes were all real: they were
+// fixes to the flood-fill's REACH (skipping corners, bleeding across textures), which is a
+// different half of the same tool. An allowlist here cannot be kept in step by anyone who does
+// not already know it exists; a denylist of the two fields a recolour is FOR can.
 export const recolorMatching = (cell, ref, next) => {
   if (cell === null || cell === undefined) return cell;
   const nextFill = fgFillOf(next) || { c: next };
   const painted = fgFills(cell).map((f) => {
     if (!samePaint(f, ref)) return f;
     const g = {};
-    if (f && typeof f === "object") for (const key of ["slope", "run", "step", "upsideDown", "hideInPlay", "ol"]) if (f[key] !== undefined) g[key] = f[key];
+    if (f && typeof f === "object") for (const key of Object.keys(f)) if (!PAINT_IDENTITY_KEYS.has(key) && f[key] !== undefined) g[key] = f[key];
     const merged = { ...nextFill, ...g };
     // keep it a plain colour string when there is nothing else to carry — that is the shape the
     // rest of the level data uses for an ordinary block
@@ -8172,7 +8191,45 @@ export default function AssetStudio() {
               if (blastHitsBox(g.x, g.y, bx.x, bx.y, bx.w, bx.h, impactRadPx)) struck.push({ k, ea: ea2, ep: ep2 });
             }
           }
-          const landed = offLevel || hitSolid || struck.length > 0 || g.y >= lv.rows * CH - 1;
+          // ...AND A CAPTURE THROWABLE STOPS ON THE BODY IT IS FOR. The scan just above is a scan
+          // for things to HURT: it skips anything already at 0 HP, and on a throwable whose Damage
+          // is 0 it never runs at all. Both of those are right for Burn, Shock and Cluster, whose
+          // payloads only mean anything to something alive — and both are exactly backwards for a
+          // pokeball, whose only target in the world is a corpse. So the one thing it was thrown at
+          // was the one thing it could not collide with: it went clean through the dog and
+          // detonated wherever the floor happened to be, several cells further on.
+          //
+          // Measured against a body from every distance before this existed: from 1 to 5 cells away
+          // — that is, standing over the animal you have just killed — the catch failed EVERY time,
+          // the ball landing 4 to 7 cells past it. It worked only from 6, 7 and 8 cells, where the
+          // natural 45 degree arc happens to come back down on the body by accident. That window is
+          // a function of throw distance, so it slides whenever Strength, Weight or the weight curve
+          // moves, and a ball that used to land at your feet quietly stopped working the day throws
+          // got longer. A payload has to collide with its own target instead of hoping the
+          // ballistics land on it.
+          //
+          // This decides WHERE THE BALL STOPS and nothing else. No damage is dealt by the contact
+          // and none is implied — impact damage stays gated on the throwable's own Damage above, so
+          // a 0-damage ball still does nothing to anything. `captureStopsOnBody` is built from the
+          // same `canCapture` the payout uses, so a ball can only be stopped by a body it would
+          // actually claim: it still flies over people, over living animals, and over your own
+          // allies exactly as it did.
+          let onCatchableBody = false;
+          if (!offLevel && captureCount(g.asset) > 0) {
+            const contactRadPx = THROW_IMPACT_RADIUS_CELLS * CW;   // the same "that is contact" reach the impact test uses
+            for (const k of Object.keys(lv.enemies || {})) {
+              const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
+              const ep2 = enemyPos.current[k]; if (!ep2) continue;
+              // Read HP without seeding it: an untouched enemy is at full health and therefore not
+              // catchable anyway, and writing enemyHP here would stamp a body count onto every
+              // creature a ball merely flew past.
+              const hp2 = enemyHP.current[k] === undefined ? enemyMaxHP(ea2) : enemyHP.current[k];
+              if (!captureStopsOnBody(g.asset, ea2, hp2, ep2)) continue;
+              const cbx = enemyThrowBox(ea2, ep2);
+              if (blastHitsBox(g.x, g.y, cbx.x, cbx.y, cbx.w, cbx.h, contactRadPx)) { onCatchableBody = true; break; }
+            }
+          }
+          const landed = offLevel || hitSolid || struck.length > 0 || onCatchableBody || g.y >= lv.rows * CH - 1;
           if (!landed) { stillFlying.push(g); continue; }
           // Folded into the single landing message below rather than flashed here: the landing
           // flash fires a few lines later and simply overwrote this one, so the hit was invisible

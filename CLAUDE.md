@@ -298,6 +298,17 @@ others so there was nothing to preserve — which confuses collision with paint.
 merge preserves is the wall you already painted: a ramp drawn across a background brick
 wall deleted the bricks under its diagonal and left a hole through to the empty level
 behind. A ramp is not an eraser on any layer.
+
+**🪣 Fill has TWO halves and they fail separately.** Its REACH is `computeFillRegion` +
+`cellHasPaint`/`samePaint` — which cells the flood reaches (this is what "Fill skips the corners of
+a room" and "Fill bleeds across textures" were). What it WRITES is `recolorMatching` — and that is
+where "Fill distorts the ramps" lived, unfixed through three commits that all correctly fixed the
+reach. It kept an ALLOWLIST of geometry keys to carry over, the list never learned about `rise` and
+`rstep` when ramps grew a second dimension, and every steep ramp it touched came back as flat 45°
+with every row claiming to be row 0. Trailor Int1 is one material end to end — walls, floor and all
+24 of its ramps are the same wood panelling — so one click flattened 21 overhangs. It is a DENYLIST
+now (`PAINT_IDENTITY_KEYS` = `c`, `tex`: the only two fields a recolour is for), so a future ramp
+field is carried by default. **Never reintroduce a key allowlist over cell geometry.**
 Rendering a stacked cell: nest the extra fills INSIDE the one `.lcell` rather than
 emitting siblings. That div carries Background's 42% fade (and Front's `data-fk`, which
 the play loop queries to fade covered cells), so siblings would each fade separately and
@@ -345,6 +356,19 @@ throwables it was read nowhere**, so a thrown item passed straight through peopl
 only ever collided with solid terrain. Blake's Rock (no burn, no splash, damage 10) did
 literally nothing. Note the two damages are different things and the UI used to call both
 "Damage" — Impact is the hit, Burn (`landEffectDps`) is the fire left behind.
+
+**...and that impact scan is a scan for things to HURT, so a CAPTURE ball needs its own.** It skips
+anything already at 0 HP and never runs at all on a 0-damage throwable — both right for Burn, Shock
+and Cluster, both exactly backwards for a pokeball, whose only target in the world is a corpse. So
+the one thing it was thrown at was the one thing it could not collide with: it went clean through the
+dog and detonated wherever the floor happened to be. Measured against a body from every distance:
+**from 1 to 5 cells away the catch failed every single time**, and it worked only from 6 to 8, where
+the 45° arc comes down on the body by accident. That window is a function of throw distance, so it
+slides whenever Strength, Weight or the weight curve moves — which is how it "used to work". Fixed
+by `captureStopsOnBody` in the `landed` test: the ball STOPS on a body it could claim, built off the
+same `canCapture` the payout uses so it can never stop on something it then refuses to catch. It
+deals no damage doing it. **The general rule: a payload has to collide with its own target rather
+than hoping the ballistics agree with it.**
 
 **A throw is AIMED, on its own channel** (`p.throwAim`, `throwAimRad`). ↑/↓ and the diagonals
 tip the arc the way they tip a gun's aim: neutral is the 45° lob it has always been, ↑ is a
