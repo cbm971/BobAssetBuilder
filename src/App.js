@@ -143,6 +143,61 @@ const SLOT_ORDER = ["under_bottom", "under_top", "pants", "shirt", "shoes", "jac
 const LOWER_BODY_SLOTS = new Set(["pants", "under_bottom", "shoes"]);
 const UPPER_BODY_SLOTS = new Set(["shirt", "jacket", "under_top"]);
 
+// Ask a host-provided storage object to ERASE one key, and then CHECK THAT IT DID.
+//
+// enumerateHostKeys just below explains why this cannot be one method call: there is no agreed
+// shape for a host storage API, so listing tries six spellings in turn. Deleting was written as
+// though there were only one — `ws.delete(k, false)` — inside a try/catch that swallowed the
+// failure, and the caller then returned true regardless. A host whose remove method is called
+// anything else therefore reported a successful delete and kept the record.
+//
+// That is the whole "I delete stuff and it comes back" bug, and it is worse than a no-op: the
+// library loader treats the RECORDS as the truth and the index as a hint (deliberately — it is
+// what rescues a library from one bad index write), so a record still sitting in the store is
+// found by the orphan scan on the very next load, put back in the index, and saved up into the
+// project file. Delete, reload, and it is not merely back, it has been re-filed as real.
+//
+// So: try every plausible spelling, and after each one READ THE KEY BACK. Only a key that is
+// actually gone counts as deleted. Returns false when nothing worked, which the caller must say
+// out loud rather than flashing a ✓ over a record that is still there.
+export const hostDeleteAttempts = (ws, k) => [
+  () => ws.delete && ws.delete(k, false), () => ws.delete && ws.delete(k),
+  () => ws.remove && ws.remove(k, false), () => ws.remove && ws.remove(k),
+  () => ws.del && ws.del(k, false), () => ws.del && ws.del(k),
+  () => ws.removeItem && ws.removeItem(k), () => ws.unset && ws.unset(k),
+  () => ws.clear && ws.clear(k),
+];
+export const hostDelete = async (ws, k) => {
+  if (!ws) return true;
+  const stillThere = async () => {
+    // A store that cannot be read cannot be holding the record against us — treat an unreadable
+    // key as gone rather than looping through every spelling for nothing.
+    try { const r = await ws.get(k, false); return !!(r && r.value != null); } catch { return false; }
+  };
+  if (!(await stillThere())) return true;
+  for (const call of hostDeleteAttempts(ws, k)) {
+    try { await call(); } catch { continue; } // an unsupported method must not abort the search
+    if (!(await stillThere())) return true;
+  }
+  return false;
+};
+// A DELETE THIS BROWSER REMEMBERS ON ITS OWN. The project file's `removed` list is the durable
+// tombstone and stays the one that outlives the container — but it needs the dev server to exist,
+// and it cannot help at all when the store simply will not erase the record. Both of those end the
+// same way, because every loader rescues whatever it finds lying in storage and that rescue cannot
+// go away: it is what brings a library back from a bad index.
+//
+// So the same tombstone is kept here too, in one key, and the purge on load reads BOTH lists. Two
+// writers and no others, mirroring the server exactly: `forget` adds an id, a DELIBERATE save
+// (`revive`) takes it back off, so re-creating or re-importing something always wins.
+const LOCAL_REMOVED_KEY = "removedIndex";
+export const localRemoved = {
+  read: () => { try { const raw = localStorage.getItem(LOCAL_REMOVED_KEY); const o = raw ? JSON.parse(raw) : null; return (o && typeof o === "object") ? o : {}; } catch { return {}; } },
+  write: (o) => { try { localStorage.setItem(LOCAL_REMOVED_KEY, JSON.stringify(o)); return true; } catch { return false; } },
+  ids: (kind) => new Set((localRemoved.read()[kind] || []).filter(Boolean)),
+  add: (kind, ids) => { const o = localRemoved.read(); o[kind] = [...new Set([...(Array.isArray(o[kind]) ? o[kind] : []), ...(ids || [])].filter(Boolean))]; return localRemoved.write(o); },
+  revive: (kind, ids) => { const o = localRemoved.read(); if (!Array.isArray(o[kind]) || !o[kind].length) return false; const back = new Set((ids || []).filter(Boolean)); o[kind] = o[kind].filter((id) => !back.has(id)); return localRemoved.write(o); },
+};
 // Ask a host-provided storage object for every key it holds.
 //
 // This exists because the library vanished three times and the recovery that was supposed to catch
@@ -234,6 +289,9 @@ const projectLibrary = {
       const list = ((payload && payload[k]) || []).filter((x) => x && x.id);
       body[k] = list;
       if (list.length) any = true;
+      // The local list's half of `revive`, and the only thing that takes an id back off it. Same
+      // rule as the server's: a DELIBERATE save wins over a tombstone, a bulk sync never does.
+      if (body.revive && list.length) localRemoved.revive(k, list.map((x) => x.id));
     }
     if (!any) return false;
     try {
@@ -251,6 +309,11 @@ const projectLibrary = {
   forget: async (kind, ids) => {
     const list = (ids || []).filter(Boolean);
     if (!list.length) return false;
+    // Remembered HERE first, and independently of whether the server answers. A delete on a build
+    // with no dev server reached nothing at all before this, and a delete whose record the store
+    // refuses to erase reached nothing that mattered — both ended with the loader finding the
+    // record and filing it back as real. The local list is what holds it out either way.
+    localRemoved.add(kind, list);
     try {
       const res = await fetch("/__library", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -1763,6 +1826,27 @@ export const unitSide = (ea, ep) => {
   if (ep && ep.peaceful) return "neutral";
   return enemyIsHostile(ea) ? "hostile" : "neutral";
 };
+// SOMEBODY WITH SOMETHING TO SAY CANNOT BE TOUCHED UNTIL YOU ARE ACTUALLY FIGHTING THEM. While
+// this is true nothing you do lands on them at all: shots, swings, splash, fire, thrown rocks and
+// tackles pass straight THROUGH, the way they already pass through your own allies. It is not a
+// damage reduction and not a stat — the hit never registers, so there is no flinch, no stun, no
+// number and no bullet consumed on them.
+//
+// Deliberately the SAME three conditions unitSide reads to call them neutral, in the same order:
+// only a spawn made peaceful by carrying a DIALOGUE (spawnStartsPeaceful), only until a choice
+// has turned them, and never once they are fighting for you. An asset with "🕊️ Not hostile"
+// ticked is untouched — it stands there and can still be attacked exactly as it always could.
+//
+// So the ONE door into a fight with a talkable NPC is the conversation: an option carrying the
+// 😡 act. Walking up and punching used to be the other one, and this replaces it — the point of
+// putting a tree on someone is that what you SAY decides whether they are your enemy, and a
+// stray shot from a fight happening across the room was answering that question for you.
+//
+// Note what turns it OFF and stays off: `turned` is written only by an option being taken, and
+// nothing ever writes it back to null. Talk someone into a fight and then talk them down again
+// (🕊️ calm sets turned to "neutral") and they are still hittable — you have already been in a
+// fight with this person, and the shield is for people you have not.
+export const unitTalkImmune = (ep) => !!(ep && ep.peaceful && !ep.turned && !ep.friendly);
 export const nearestUnitCX = (fromCX, candidates) => {
   let best = null, bd = Infinity;
   for (const c of (candidates || [])) { if (!c) continue; const d = Math.abs(c.cx - fromCX); if (d < bd) { bd = d; best = c; } }
@@ -6590,12 +6674,24 @@ export default function AssetStudio() {
     storeFailReason = "this browser's storage is full and IndexedDB isn't available here";
     return false;
   };
+  // VERIFIED, not assumed. This used to fire one guessed host method into a try/catch and return
+  // true whatever happened — see hostDelete for why that made every delete come back. All three
+  // stores are cleared and then all three are READ BACK; the return value is whether the record is
+  // genuinely gone, and callers say so when it isn't instead of flashing a ✓ over it.
   const sdel = async (k) => {
     const ws = hostStore();
-    if (ws) { try { await ws.delete(k, false); } catch { /* still clear the fallbacks below */ } }
+    if (ws) await hostDelete(ws, k);
     await idbDel(k);
     try { if (typeof localStorage !== "undefined") localStorage.removeItem(k); } catch { /* ignore */ }
-    return true;
+    let left = false;
+    if (ws) { try { const r = await ws.get(k, false); if (r && r.value != null) left = true; } catch { /* unreadable is not holding it */ } }
+    const hit = await idbGet(k); if (hit.ok && typeof hit.value === "string") left = true;
+    if (lsGet(k) !== null) left = true;
+    // Not fatal on its own — the tombstone below keeps an unerasable record out of the library
+    // for good — but it is the difference between "deleted" and "hidden", and it belongs in the
+    // console rather than being swallowed for a third time.
+    if (left) console.warn("[Bob] could not erase " + k + " from this browser's storage — it will be held out by the tombstone list instead");
+    return !left;
   };
   // DROP WHAT THIS BROWSER STILL HOLDS AFTER IT WAS DELETED. One rule, every kind, called by every
   // loader between reading the project file and restoring from it.
@@ -6612,7 +6708,9 @@ export default function AssetStudio() {
   // Re-saving or re-importing a record takes its id back off the list (`revive`), so this can only
   // ever remove something that was deleted on purpose and never re-created.
   const purgeRemoved = async (proj, kind, prefix, rows) => {
-    const tombed = removedIds(proj, kind);
+    // BOTH lists. The project file's is the one that outlives the container; this browser's own is
+    // the one that works with no dev server and when the store will not erase the record.
+    const tombed = new Set([...removedIds(proj, kind), ...localRemoved.ids(kind)]);
     if (!tombed.size) return rows;
     let purged = 0;
     for (const it of rows) { const id = it && it.id; if (id && tombed.has(id)) { await sdel(prefix + id); purged++; } }
@@ -6673,6 +6771,16 @@ export default function AssetStudio() {
   const [talkH, setTalkH] = useState(0);
   const talkBubbleEl = useRef(null);
   const talkBubbleRef = (el) => { talkBubbleEl.current = el; if (el) { const h = el.getBoundingClientRect().height; setTalkH((prev) => (Math.abs(prev - h) > 1 ? h : prev)); } };
+  // SAY WHY NOTHING HAPPENED, once per person. A shot that visibly passes through somebody with no
+  // number, no flinch and no bullet spent is indistinguishable from the weapon being broken — it is
+  // the same "it did nothing" the thrown-rock impact test was added to fix. Once each, keyed on the
+  // unit's own ep (which lives in the per-level roomState bucket), because the alternative is a line
+  // of text per bullet at 60fps.
+  const talkPhaseNote = (ea, ep) => {
+    if (!ep || ep.phaseNoted) return;
+    ep.phaseNoted = true;
+    flash("💬 " + ((ea && ea.name) || "They") + " isn't fighting you — your hits pass straight through. Press E to talk.");
+  };
   const clearTalkTimer = () => { if (talkTimer.current) { clearTimeout(talkTimer.current); talkTimer.current = null; } };
   useEffect(() => () => clearTalkTimer(), []); // unmount mid-conversation must not leave a timer pointing at dead state
   // Which tree a sign or spawn actually runs. A saved tree by id; failing that, for a sign only,
@@ -7538,11 +7646,8 @@ export default function AssetStudio() {
           // kind of placement, not a change to an old one.
           {
             const hpNow = enemyHP.current[k] === undefined ? unitMaxHP(ea, ep, allyHpBonus) : enemyHP.current[k];
-            if (ep.peaceful && !ep.turned && !ep.friendly && ep.lastHp != null && hpNow < ep.lastHp) {
-              ep.turned = "hostile";
-              flash("😡 " + ea.name + " didn't take that well.");
-            }
-            ep.lastHp = hpNow;
+            if (unitTalkImmune(ep) && ep.lastHp != null && hpNow < ep.lastHp) enemyHP.current[k] = ep.lastHp;
+            else ep.lastHp = hpNow;
           }
           const oldEph = ep.crouch ? crouchEph : standEph;
           // TACKLE (clothing ability): walking into this enemy puts it on the floor for a few
@@ -7555,7 +7660,9 @@ export default function AssetStudio() {
           // a full rectangle overlap rather than boxGap's horizontal one so clearing someone's
           // head with a jump doesn't floor them. Friendlies are exempt: a resurrected ally
           // follows you around and would otherwise spend the whole level face-down.
-          if (tackleSecs != null && !ep.friendly && !playerFrozen(p)) {
+          // A tackle deals no damage, but it is still something you DO to somebody, and putting a
+          // man you have not spoken to on his back for four seconds is not "the hit passed through".
+          if (tackleSecs != null && !ep.friendly && !unitTalkImmune(ep) && !playerFrozen(p)) {
             if ((ep.downCd || 0) > 0) ep.downCd = Math.max(0, ep.downCd - dtMul);
             const tBoxLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
             const tBoxTop = ep.y + eShape.topFrac * oldEph, tBoxH = eShape.heightFrac * oldEph;
@@ -7804,7 +7911,11 @@ export default function AssetStudio() {
           // Enemies burn in fire the same way the player does — same per-second drain into a
           // per-enemy fractional pool. Fire is universal: it doesn't care whose side you're on.
           const eDps = hazardDpsAt(lv, ep.x, ep.y, epw, newEph, CW, CH, hazardAlive);
-          if (eDps > 0) {
+          // Fire is universal and does not care whose side you are on — with ONE exception, and it
+          // is not a special case so much as closing the door the rest of the rule leaves open: a
+          // Burn throwable paints hazard cells, so without this a molotov at their feet is simply
+          // the way you kill the NPC your bullets cannot touch, and the immunity means nothing.
+          if (eDps > 0 && !unitTalkImmune(ep)) {
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             ep.burnPool = (ep.burnPool || 0) + eDps * (dtMul / 60);
             if (ep.burnPool >= 1) {
@@ -8223,6 +8334,11 @@ export default function AssetStudio() {
                   const eHitLeft = eLeft + (eShape.centerFrac * eRenderW - epw / 2);
                   const overlap = hbX < eHitLeft + epw && hbX + hbW > eHitLeft && hbY < hitTop + hitH && hbY + hbH > hitTop;
                   if (overlap) {
+                    // Tested AFTER the overlap rather than skipped before it, purely so the swing
+                    // that would have connected is the one that gets to explain itself. `continue`,
+                    // not a break: the arc carries on looking for somebody it can actually hit, and
+                    // hitRegistered is untouched, so swinging through an NPC does not eat your swing.
+                    if (unitTalkImmune(ep)) { talkPhaseNote(ea, ep); continue; }
                     // One formula for both: damage x Strength/5. Armed, the damage is the weapon's
                     // own (times any Tag Damage gear that matches its categories); bare-handed it's
                     // UNARMED_DAMAGE. Fists carry no categories, so no gear multiplier applies to
@@ -8291,7 +8407,7 @@ export default function AssetStudio() {
               const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
               if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea2);
               if (enemyHP.current[k] <= 0) continue;
-              const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly) continue; // your own allies aren't pelted
+              const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly || unitTalkImmune(ep2)) continue; // your own allies aren't pelted, and neither is anyone you haven't picked a fight with
               const bx = enemyThrowBox(ea2, ep2);
               if (blastHitsBox(g.x, g.y, bx.x, bx.y, bx.w, bx.h, impactRadPx)) struck.push({ k, ea: ea2, ep: ep2 });
             }
@@ -8395,7 +8511,7 @@ export default function AssetStudio() {
               const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
               if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea2);
               if (enemyHP.current[k] <= 0) continue;
-              const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly) continue; // your own resurrected allies aren't shocked
+              const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly || unitTalkImmune(ep2)) continue; // your own resurrected allies aren't shocked, nor is a talkable NPC — a stun IS something landing on them
               // Same box-not-centre rule the explosion uses (blastHitsBox) — measuring to a big
               // enemy's centre made a grenade that landed at its feet miss it entirely.
               const sShape = sideBodyShape(ea2);
@@ -8515,7 +8631,7 @@ export default function AssetStudio() {
               const ea = findA(lv.enemies[k].enemyId); if (!ea) continue;
               if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
               if (enemyHP.current[k] <= 0) continue;
-              const ep = enemyPos.current[k]; if (!ep || ep.friendly) continue;
+              const ep = enemyPos.current[k]; if (!ep || ep.friendly || unitTalkImmune(ep)) continue; // an explosion sweeps a room, and a bystander in it is exactly who this must not catch
               const bx = enemyBlastBox(ea, ep);
               if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
                 // Splash is still a SHOT — flat weapon damage plus the same crit roll as a direct
@@ -8642,6 +8758,10 @@ export default function AssetStudio() {
             const eHitLeft = eLeft + (eShape.centerFrac * eRenderW - epw / 2);
             const overlap = prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop;
             if (overlap) {
+              // Straight through, and the shot is NOT consumed — `continue` leaves it flying, so a
+              // round fired past a bystander still reaches the thing behind them. Checked before
+              // the explode branch: a rocket must not detonate on a body it cannot hurt.
+              if (unitTalkImmune(ep)) { talkPhaseNote(ea, ep); continue; }
               if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
               // The weapon's Damage number, flat, whoever pulled the trigger — then the one
               // permitted character difference: an Intelligence crit roll for double.
@@ -9190,12 +9310,10 @@ export default function AssetStudio() {
     // just come back" actually was. Only ids that went through a real delete are ever in this list,
     // and re-saving or re-importing one takes it back off (see save's `revive`), so this can only
     // remove work that was already deleted on purpose.
-    const tombed = removedIds(proj, "assets");
-    if (tombed.size) {
-      let purged = 0;
-      for (const it of list) if (tombed.has(it.id)) { await sdel("asset:" + it.id); purged++; }
-      if (purged) { list = list.filter((it) => !tombed.has(it.id)); console.warn("[Bob] dropped " + purged + " asset(s) this browser still held after they were deleted"); }
-    }
+    // The same one rule every other kind now uses, rather than assets' own private copy of it.
+    // Runs AFTER the mirror and the orphan scan on purpose: those two are what put a deleted
+    // record back into the list in the first place, so purging before them would purge nothing.
+    list = await purgeRemoved(proj, "assets", "asset:", list);
     if (proj && proj.assets.length) {
       const have = new Set(list.map((it) => it.id));
       for (const raw of proj.assets) {
@@ -9401,9 +9519,10 @@ export default function AssetStudio() {
     await sset("stampIndex", JSON.stringify(list.filter((x) => x.id !== id)));
     // Same as deleteAsset: loadStamps restores from the project, so a delete that never reaches
     // the project file is not a delete at all.
-    await projectLibrary.forget("stamps", [id]);
+    const forgot = await projectLibrary.forget("stamps", [id]);
     if (stampPick === id) setStampPick("");
-    loadStamps();
+    await loadStamps();
+    flash(deleteNote("🗑 Stored group deleted", forgot));
   };
   const updSel = (patch) => setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig({ ...a, angles: { ...a.angles, [angle]: (a.angles[angle] || []).map((p) => (p.id === selId ? { ...p, ...patch } : p)) } }); });
   // Which pieces a whole-selection edit touches: every member of a live group, else just the
@@ -11074,8 +11193,8 @@ export default function AssetStudio() {
     await writeAssetIndex(list.filter((x) => x.id !== a.id), { allowShrink: true }); // a real delete is the one time the list is meant to get shorter
     setSessionAssets((s) => s.filter((x) => x.id !== a.id));
     // The project file has to be told, or loadLibrary below simply restores what was just deleted.
-    await projectLibrary.forget("assets", [a.id]);
-    flash("Deleted \"" + a.name + "\"");
+    const forgot = await projectLibrary.forget("assets", [a.id]);
+    flash(deleteNote("🗑 Deleted \"" + a.name + "\"", forgot));
     loadLibrary();
   };
   // Write a recovered/embedded layer back into the saved library. Keeps the asset's original
@@ -11351,13 +11470,13 @@ export default function AssetStudio() {
     let list = []; const idx = await sget("textureIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     await sdel("texture:" + id);
     await sset("textureIndex", JSON.stringify(list.filter((x) => x.id !== id)));
-    await projectLibrary.forget("textures", [id]); // or loadTextures restores what was just deleted
+    const forgot = await projectLibrary.forget("textures", [id]); // or loadTextures restores what was just deleted
     if (lTexId === id) setLTexId(null);
     if (texEdit && texEdit.id === id) setTexEdit(null);
     await loadTextures();
     // Cells painted with it aren't touched — they still carry their base color and simply render
     // flat again, so a delete can never blank out part of a level.
-    flash("Texture deleted — cells painted with it fall back to their flat color.");
+    flash(deleteNote("🗑 Texture deleted — cells painted with it fall back to their flat color", forgot));
   };
   // Reads the whole record for each background, not just the index entry. The picker only needs
   // {id,name} — which every record already carries — but the project file needs the real thing,
@@ -11608,11 +11727,11 @@ export default function AssetStudio() {
     await sdel("dialogue:" + id);
     await sset("dialogueIndex", JSON.stringify(list.filter((x) => x && x.id !== id)));
     // A delete that never reaches the project file is not a delete — the next load hands it back.
-    await projectLibrary.forget("dialogues", [id]);
+    const forgot = await projectLibrary.forget("dialogues", [id]);
     setDlgConfirmDel(null);
     if (dlgDoc && dlgDoc.id === id) { const fresh = newDialogue(); setDlgDoc(fresh); dlgBaseline.current = JSON.stringify(fresh); }
     loadDialogues();
-    flash("Deleted ✓ — any sign or enemy still pointing at it just won't talk.");
+    flash(deleteNote("🗑 Deleted — any sign or enemy still pointing at it just won't talk", forgot));
   };
   const openDialogueEditor = () => {
     loadDialogues();
@@ -13790,7 +13909,11 @@ export default function AssetStudio() {
                           the one time you most want to read them. Out here there's also no mirror
                           to undo, so the reload bar just fills left-to-right on its own. */}
                       <div className="unitStatus" style={{ left: eLeft + hitboxOffset, top: eTop + eFootAnchor, width: epw }}>
-                        <div className="enemyHpTrack"><div className="enemyHpFill" style={{ width: (hpFrac * 100) + "%", background: hpFrac > 0.5 ? "#6bd06b" : hpFrac > 0.2 ? "#c8a23c" : "#b0504f" }} /></div>
+                        {/* NO HP BAR ON SOMEBODY YOU CANNOT HURT. A full green bar over a person
+                            your shots pass through is the game promising a fight it will not give
+                            you, and it is the only on-screen difference between "immune" and "my
+                            gun is broken". It appears the moment a conversation turns them. */}
+                        {!unitTalkImmune(ep) && <div className="enemyHpTrack"><div className="enemyHpFill" style={{ width: (hpFrac * 100) + "%", background: hpFrac > 0.5 ? "#6bd06b" : hpFrac > 0.2 ? "#c8a23c" : "#b0504f" }} /></div>}
                         {/* Reload timer, directly above the HP bar: a ranged enemy caught mid-reload
                             is the window you push in, and the only other tell is that it stopped
                             shooting — which doesn't say how long you have. Fills left-to-right as
@@ -13812,7 +13935,7 @@ export default function AssetStudio() {
                             an NPC standing behind a tree still advertises itself. */}
                         {eTalkWaiting && !downed ? <div className="talkBadge">💬</div> : null}
                       </div>
-                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...((ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...((ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? " (💬 not fighting you — press E to talk)" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
                       </div>
                     </React.Fragment>
@@ -13857,10 +13980,17 @@ export default function AssetStudio() {
                     <div key="talkbubble" ref={talkBubbleRef} className={"talkBubble" + (box.below ? " below" : "")}
                       style={{ left: box.left, top: box.top, width: box.width }}
                       onPointerDown={(e) => e.stopPropagation()}>
+                      {/* THE BUBBLE IS ONLY THE WORDS. What they say is a speech bubble — white,
+                          black outline, tail on the speaker — and what YOU say is a list of buttons
+                          under it, outside the bubble. The two were one dark panel before, which
+                          read as a menu that happened to have a sentence at the top of it rather
+                          than as somebody talking. The tail hangs in the gap between the two. */}
                       <div className="talkBox">
-                        {who && <div className="talkWho">💬 {who}</div>}
-                        <div className="talkText">{node.text || <span className="hint2">(this line is blank)</span>}</div>
-                        <div className="talkOpts">
+                        {who && <div className="talkWho">{who}</div>}
+                        <div className="talkText">{node.text || <span className="talkBlank">(this line is blank)</span>}</div>
+                        <span className="talkTail" style={{ left: box.tailX }} />
+                      </div>
+                      <div className="talkOpts">
                           {opts.map((o, i) => {
                             // The highlight is on the option that was PICKED, and only after it was
                             // picked. Colouring the list up front would hand the player the answer,
@@ -13875,10 +14005,8 @@ export default function AssetStudio() {
                               </button>
                             );
                           })}
-                        </div>
                         <div className="talkHint">Press {opts.length === 1 ? "1" : "1–" + Math.min(opts.length, DIALOGUE_MAX_KEYED)}{overNine ? " (click the rest)" : ""} · Esc to walk away · everything else is paused</div>
                       </div>
-                      <span className="talkTail" style={{ left: box.tailX }} />
                     </div>
                   );
                 })()}
@@ -15575,22 +15703,48 @@ const css = `
    this cannot and must not be relied on to sit above a modal. */
 .talkBubble{position:absolute;transform:translateY(-100%);z-index:9600;pointer-events:none}
 .talkBubble.below{transform:none}
-/* The tail. Rotated square rather than a border triangle so the bubble's own 2px edge carries
-   through two of its sides and it reads as part of the outline. */
-.talkTail{position:absolute;bottom:-7px;width:12px;height:12px;margin-left:-6px;background:#11141d;border-right:2px solid #5b9bd5;border-bottom:2px solid #5b9bd5;transform:rotate(45deg)}
-.talkBubble.below .talkTail{bottom:auto;top:-7px;border-right:none;border-bottom:none;border-left:2px solid #5b9bd5;border-top:2px solid #5b9bd5}
-.talkBox{pointer-events:auto;width:100%;box-sizing:border-box;background:#11141d;border:2px solid #5b9bd5;border-radius:12px;padding:12px 14px;box-shadow:0 8px 28px rgba(0,0,0,.75)}
-.talkWho{font-size:13px;font-weight:700;color:#bfe0ff;margin-bottom:6px}
-.talkText{font-size:16px;line-height:1.45;color:#e8ecf5;white-space:pre-wrap;margin-bottom:12px}
-.talkOpts{display:flex;flex-direction:column;gap:6px}
-.talkOpt{display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;background:#1b2130;border:1px solid #333c52;border-radius:8px;padding:8px 10px;color:#dfe5f0;font-size:14px;cursor:pointer;transition:background .1s,border-color .1s}
-.talkOpt:hover{background:#243046;border-color:#4a5a7a}
+/* A PLAIN WHITE SPEECH BUBBLE. Semi-transparent so the room behind it still reads (this thing
+   hangs in the middle of the level, over the scenery, not in a HUD bar), but at .93 — far enough
+   up that the text underneath it never has to compete with a bright texture. Black outline, big
+   soft radius, black text: the shape a comic uses, which is the shape that says "someone is
+   speaking" without needing any colour to mean anything. */
+.talkBox{position:relative;pointer-events:auto;width:100%;box-sizing:border-box;background:rgba(255,255,255,.93);border:2px solid #12141a;border-radius:18px;padding:13px 16px;box-shadow:0 6px 22px rgba(0,0,0,.45)}
+/* The tail. Rotated square rather than a border triangle so the bubble's own edge carries through
+   two of its sides and it reads as part of the outline. It hangs off the BUBBLE, not off the
+   panel as a whole — the options sit below it and the tail points down past them at the speaker,
+   which is what makes the white box read as speech and the buttons as your answer to it. */
+.talkTail{position:absolute;bottom:-8px;width:14px;height:14px;margin-left:-7px;background:rgba(255,255,255,.93);border-right:2px solid #12141a;border-bottom:2px solid #12141a;transform:rotate(45deg)}
+.talkBubble.below .talkTail{bottom:auto;top:-8px;border-right:none;border-bottom:none;border-left:2px solid #12141a;border-top:2px solid #12141a}
+/* Who is speaking, in small caps above the line. Grey rather than black so the eye lands on the
+   words first — a name is a label, the sentence is the content. */
+.talkWho{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#5b6272;margin-bottom:5px}
+.talkText{font-size:16px;line-height:1.45;color:#12141a;white-space:pre-wrap}
+.talkBlank{font-size:15px;color:#8a8f9c;font-style:italic}
+/* YOUR OPTIONS, under the bubble and outside it. The gap is what separates the two halves; it is
+   also where the tail lives, so it can't shrink below the tail's own overhang. */
+.talkOpts{pointer-events:auto;display:flex;flex-direction:column;gap:5px;margin-top:14px}
+/* Same white-and-black skin as the bubble, one step quieter — these are buttons, not the thing
+   being said. The border is a hair lighter than the bubble's so the bubble stays the loudest
+   outline on screen, and the hover goes the other way (darker edge, whiter fill) so a moused
+   option lifts toward the bubble rather than away from it. */
+/* Selected through .talkOpts on purpose. The app-wide "[.bb] button, input, textarea, select" rule
+   sets color:inherit at specificity (0,1,1) and a lone
+   .talkOpt is only (0,1,0) — so that rule won the colour and served near-white text on a white
+   button. Invisible, and invisible in a way the markup looks completely correct in.
+   (And no backticks in here: this whole sheet is one JS template literal.) */
+.talkOpts .talkOpt{display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;background:rgba(255,255,255,.86);border:2px solid #3a3f4b;border-radius:11px;padding:8px 11px;color:#12141a;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.3);transition:background .1s,border-color .1s}
+.talkOpts .talkOpt:hover{background:rgba(255,255,255,.99);border-color:#12141a}
 /* The right/wrong flash. No transition on the way IN — the colour has to land the instant the key
    goes down or it reads as lag rather than as an answer. */
 .talkOpt.lit{transition:none;font-weight:700}
-.talkNum{flex:0 0 auto;min-width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;background:#0d1119;border:1px solid #46506b;border-radius:5px;font-size:12px;font-weight:700;color:#9fb4d8}
-.talkOpt.lit .talkNum{background:rgba(0,0,0,.3);border-color:rgba(255,255,255,.45);color:#fff}
-.talkHint{margin-top:10px;font-size:11px;color:#7d879b}
+/* The number key, drawn as a key: dark chip on the pale button, which is the one place a bit of
+   black is doing work rather than decoration — it is what you press. */
+.talkOpts .talkNum{flex:0 0 auto;min-width:21px;height:21px;display:inline-flex;align-items:center;justify-content:center;background:#12141a;border:1px solid #12141a;border-radius:6px;font-size:12px;font-weight:800;color:#fff}
+.talkNum{flex:0 0 auto;min-width:21px;height:21px;display:inline-flex;align-items:center;justify-content:center;background:#12141a;border:1px solid #12141a;border-radius:6px;font-size:12px;font-weight:800;color:#fff}
+.talkOpt.lit .talkNum{background:rgba(0,0,0,.35);border-color:rgba(255,255,255,.5);color:#fff}
+/* Outside both boxes, on the level itself, so it needs its own shadow to stay readable over
+   whatever is painted back there. */
+.talkHint{margin-top:8px;font-size:11px;color:#e8ecf5;text-shadow:0 1px 3px rgba(0,0,0,.95),0 0 6px rgba(0,0,0,.8)}
 /* The dialogue tree editor. One column of line-cards; the start line and any unreachable line are
    edged in colour, because "which line does this open on" and "did I forget to wire this up" are
    the only two structural questions a short tree ever raises. */

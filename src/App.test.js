@@ -303,6 +303,8 @@ import {
   TALK_PICK_FLASH_MS,
   TALK_PICK_FLASH_PLAIN_MS,
   removedIds,
+  hostDelete,
+  localRemoved,
   wornEquipMap,
   slotWasEmptied,
   equipDisplacedSlot,
@@ -6408,5 +6410,74 @@ describe("the project file tombstone list is readable for every kind", () => {
     expect(removedIds(proj, "dialogues").size).toBe(0);
     expect(removedIds({}, "levels").size).toBe(0);
     expect(removedIds(null, "levels").size).toBe(0);
+  });
+});
+
+// THE DELETE THAT NEVER DELETED. sdel fired ONE guessed host-store method into a try/catch and
+// returned true whatever happened, so a host that spells removal any other way reported success and
+// kept the record — which the loader's orphan rescue then found and re-filed as a real asset.
+describe("a host-store delete is tried every way and then verified", () => {
+  const makeStore = (removeName) => {
+    const data = new Map([["asset:a1", "{}"]]);
+    const ws = { get: async (k) => ({ value: data.has(k) ? data.get(k) : null }) };
+    if (removeName) ws[removeName] = async (k) => { data.delete(k); };
+    ws.__data = data;
+    return ws;
+  };
+  test("the spelling it always assumed still works", async () => {
+    const ws = makeStore("delete");
+    expect(await hostDelete(ws, "asset:a1")).toBe(true);
+    expect(ws.__data.has("asset:a1")).toBe(false);
+  });
+  test("...and so do the ones it did not: remove, del, removeItem, unset", async () => {
+    for (const name of ["remove", "del", "removeItem", "unset"]) {
+      const ws = makeStore(name);
+      expect(await hostDelete(ws, "asset:a1")).toBe(true);
+      expect(ws.__data.has("asset:a1")).toBe(false);
+    }
+  });
+  test("THE BUG: a store with no removal method at all reports FALSE, not success", async () => {
+    const ws = makeStore(null);
+    expect(await hostDelete(ws, "asset:a1")).toBe(false);
+    expect(ws.__data.has("asset:a1")).toBe(true);
+  });
+  test("a method that throws is skipped rather than aborting the search", async () => {
+    const ws = makeStore("remove");
+    ws.delete = async () => { throw new Error("not supported"); };
+    expect(await hostDelete(ws, "asset:a1")).toBe(true);
+  });
+  test("a method that runs but does not actually erase does not count", async () => {
+    const ws = makeStore(null);
+    ws.delete = async () => {}; // no-op: the exact shape that faked a delete for months
+    expect(await hostDelete(ws, "asset:a1")).toBe(false);
+  });
+  test("a key that was never there is already deleted", async () => {
+    const ws = makeStore(null);
+    expect(await hostDelete(ws, "asset:nope")).toBe(true);
+  });
+});
+
+// ...and the tombstone this browser keeps for itself, so a delete sticks with no dev server AND
+// when the store flatly refuses to erase the record.
+describe("the browser's own tombstone list", () => {
+  beforeEach(() => { try { localStorage.clear(); } catch { /* jsdom always has it */ } });
+  test("an id added is held out; a kind never touched is empty", () => {
+    localRemoved.add("levels", ["l1", "l2"]);
+    expect([...localRemoved.ids("levels")].sort()).toEqual(["l1", "l2"]);
+    expect(localRemoved.ids("assets").size).toBe(0);
+  });
+  test("adding twice does not duplicate, and blanks never become tombstones", () => {
+    localRemoved.add("assets", ["a1", "", null]);
+    localRemoved.add("assets", ["a1", "a2"]);
+    expect([...localRemoved.ids("assets")].sort()).toEqual(["a1", "a2"]);
+  });
+  test("a deliberate re-save revives the id — re-creating something always wins", () => {
+    localRemoved.add("assets", ["a1", "a2"]);
+    localRemoved.revive("assets", ["a1"]);
+    expect([...localRemoved.ids("assets")]).toEqual(["a2"]);
+  });
+  test("unreadable storage reads as no tombstones rather than throwing", () => {
+    localStorage.setItem("removedIndex", "{not json");
+    expect(localRemoved.ids("assets").size).toBe(0);
   });
 });

@@ -154,6 +154,31 @@ back". `deleteAsset` was not broken: it clears all three browser stores, shrinks
    rebuild handed the record back) re-uploads it within seconds of the app opening. Delete, reload,
    restored, forever.
 
+**...AND THE HALF THAT WAS STILL MISSING, WHICH IS WHY HE KEPT SAYING IT WAS NOT FIXED.** Read the
+paragraph below as the design and the four points after it as what was actually wired up, because
+for a long time they were not the same thing and this document said they were.
+
+1. **`sdel` never checked that anything was deleted.** It fired ONE guessed host-store method —
+   `ws.delete(k, false)` — into a try/catch that swallowed the failure, then returned `true`
+   unconditionally. `enumerateHostKeys` two lines away tries SIX spellings because there is no
+   agreed host storage API; deleting assumed there was exactly one. On a host that spells removal
+   any other way every delete reported success and kept the record — and because the loader treats
+   the RECORDS as truth and the index as a hint, the orphan scan found it on the next load and
+   re-filed it as real. That is "there is a delete button, but nothing deletes". `hostDelete` now
+   tries every spelling and READS THE KEY BACK; only a key that is gone counts.
+2. **Only `loadLibrary` purged.** Levels, stored groups, textures, backgrounds and dialogues each
+   had the entire loop intact. One `purgeRemoved`, called by all six loaders.
+3. **The tombstone needed a dev server to exist at all.** `localRemoved` (one `removedIndex` key)
+   keeps the same list in the browser, so a delete sticks with no `/__library` AND when the store
+   physically will not erase the record. Same two writers as the server: `forget` adds, a
+   deliberate `revive` save takes back off.
+4. **Levels, rooms and backgrounds had no delete AT ALL** — not a missing button, no code path.
+   Every experiment and every copy a rename forked (`resolveSaveTarget`, deliberate) was permanent.
+   The committed library carried one called "Combat Test delete", which is what you do when the
+   only way to mark a level as junk is its name. Both are deletable now, two taps.
+
+A delete the project file did not accept now says so in the flash instead of showing a ✓.
+
 So the file now REMEMBERS deletions, in `removed: { assets: [...], levels: [...], … }`
 (`rememberRemoved` in `setupProxy.js`). An ordinary additive merge can never re-add a remembered
 id, the GET hands the list to the studio, and `loadLibrary` **purges its own stale copies** of
@@ -175,6 +200,28 @@ Two traps that follow from all this, both of which quietly undo the user's work:
   stale the last commit left it — as of 2026-08-23 it held **76 assets against library.json's 113**.
   A single bad parse would therefore serve a library missing 37 assets, and the app would then save
   that back as truth. If you touch one copy, check the other.
+
+**WHAT THE PLAYER IS WEARING IS TWO LAYERS, AND ONLY ONE OF THEM WAS EVER ASKED.** `equipped`
+holds pedestal pickups for this run; a composed character's own clothing is in
+`components.equipment`. The pedestal swap consulted `equipped` alone, so the first jacket you took
+off a plinth displaced "nothing" — nothing went back on the plinth, it marked itself spent, and
+`livePlayerBlocks` (which layers a pickup OVER the look's own garment) took the old jacket off Bob
+anyway. Off his body, not on the pedestal, gone for the run. Ask `wornEquipMap(base, equipped)`,
+never `equipped`, for any "what am I wearing / what comes off" question. A slot emptied on purpose
+records **null** rather than being deleted — absent means "wear the look's own", which is how a
+displaced garment came back on you the same frame its twin landed on the pedestal.
+
+**A TALKABLE NPC CANNOT BE TOUCHED UNTIL A CHOICE STARTS THE FIGHT** (`unitTalkImmune`). Shots,
+swings, splash, fire, thrown rocks and tackles pass straight through, exactly the way they already
+pass through your allies — no flinch, no stun, no bullet spent, no HP bar drawn. The only door
+into a fight is a dialogue option carrying the 😡 act; punching used to be the other one and is
+not any more. Fire is included deliberately: a Burn throwable paints hazard cells, so leaving it
+out makes a molotov the way to kill anyone your bullets cannot touch.
+
+**The dialogue sheet is inside a JS template literal.** A backtick in a CSS comment there ends the
+string and takes the whole app down with a parse error that points at the JSX far below it.
+Also: `.bb button, …{color:inherit}` is specificity (0,1,1), so a lone `.talkOpt` (0,1,0) loses the
+colour — pale text on the new white bubble, invisible, with markup that looks perfectly correct.
 
 **A loader that throws is indistinguishable from lost work.** That is what "my saves
 are gone" has meant every single time so far; the bytes were always still on disk.
