@@ -1,5 +1,5 @@
 {
- "savedAt": 1786580006040,
+ "savedAt": "2026-08-26T11:17:39.667Z",
  "assets": [
   {
    "id": "slczopv",
@@ -164816,7 +164816,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1785074210884
+   "savedAt": 1785074210884,
+   "category": ""
   },
   {
    "id": "ucx2s3n",
@@ -186503,7 +186504,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1785235204789
+   "savedAt": 1785235204789,
+   "category": ""
   },
   {
    "id": "17r21tq",
@@ -187591,7 +187593,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1785235220158
+   "savedAt": 1785235220158,
+   "category": ""
   },
   {
    "id": "ufuxwzg",
@@ -188275,7 +188278,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1785290031165
+   "savedAt": 1785290031165,
+   "category": ""
   },
   {
    "id": "p3k2c8q",
@@ -192359,7 +192363,10 @@
    "burst": 1,
    "burstDelay": 0.06,
    "burstFire": false,
-   "fullAuto": false
+   "fullAuto": false,
+   "captureMax": 0,
+   "explodeChar": "💥",
+   "landChar": "🔥"
   },
   {
    "id": "wcwrkni",
@@ -197366,7 +197373,10 @@
    "burst": 1,
    "burstDelay": 0.06,
    "burstFire": false,
-   "fullAuto": false
+   "fullAuto": false,
+   "captureMax": 0,
+   "explodeChar": "💥",
+   "landChar": "🔥"
   },
   {
    "id": "yykzkdg",
@@ -211529,7 +211539,10 @@
     ]
    },
    "burstFire": false,
-   "fullAuto": true
+   "fullAuto": true,
+   "captureMax": 0,
+   "explodeChar": "💥",
+   "landChar": "🔥"
   },
   {
    "id": "ma7adq1",
@@ -222276,7 +222289,10 @@
    },
    "savedAt": 1786059223906,
    "burstFire": false,
-   "fullAuto": false
+   "fullAuto": false,
+   "captureMax": 0,
+   "explodeChar": "💥",
+   "landChar": "🔥"
   },
   {
    "id": "4egefz1",
@@ -229881,7 +229897,10 @@
    "burst": 1,
    "burstDelay": 0.06,
    "burstFire": false,
-   "fullAuto": false
+   "fullAuto": false,
+   "captureMax": 0,
+   "explodeChar": "💥",
+   "landChar": "🔥"
   },
   {
    "id": "ulfhepb",
@@ -231851,7 +231870,10 @@
     "back": [],
     "crouch": []
    },
-   "savedAt": 1787436712030
+   "savedAt": 1787436712030,
+   "captureMax": 0,
+   "explodeChar": "💥",
+   "landChar": "🔥"
   },
   {
    "id": "o2w8t4i",
@@ -318793,7 +318815,10 @@
    "burst": 1,
    "burstDelay": 0.06,
    "burstFire": false,
-   "fullAuto": false
+   "fullAuto": false,
+   "captureMax": 0,
+   "explodeChar": "💥",
+   "landChar": "🔥"
   },
   {
    "id": "7w5tsod",
@@ -319417,7 +319442,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1785805231050
+   "savedAt": 1785805231050,
+   "category": ""
   },
   {
    "id": "w63wxrn",
@@ -319863,7 +319889,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1785841419420
+   "savedAt": 1785841419420,
+   "category": ""
   },
   {
    "id": "5co6cac",
@@ -320762,7 +320789,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1785968396741
+   "savedAt": 1785968396741,
+   "category": ""
   },
   {
    "id": "inumieg",
@@ -321437,7 +321465,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1785968483772
+   "savedAt": 1785968483772,
+   "category": ""
   },
   {
    "id": "oe2txag",
@@ -322560,7 +322589,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1785000000000
+   "savedAt": 1785000000000,
+   "category": ""
   },
   {
    "id": "hoodplain1",
@@ -330205,7 +330235,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1787436797861
+   "savedAt": 1787436797861,
+   "category": ""
   },
   {
    "id": "ftbstd1",
@@ -333433,7 +333464,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1787434407409
+   "savedAt": 1787434407409,
+   "category": ""
   },
   {
    "id": "tbghwt5",
@@ -333631,7 +333663,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1785981316009
+   "savedAt": 1785981316009,
+   "category": ""
   },
   {
    "id": "94z45sf",
@@ -360879,7 +360912,10 @@
    "burst": 3,
    "burstDelay": 0.06,
    "burstFire": true,
-   "fullAuto": false
+   "fullAuto": false,
+   "captureMax": 0,
+   "explodeChar": "💥",
+   "landChar": "🔥"
   },
   {
    "id": "0m40q5n",
@@ -361746,7 +361782,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1786059693926
+   "savedAt": 1786059693926,
+   "category": ""
   },
   {
    "id": "qbg6bks",
@@ -362549,7 +362586,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1786059715778
+   "savedAt": 1786059715778,
+   "category": ""
   },
   {
    "id": "b8fpbfi",
@@ -382447,7 +382485,10 @@
    "groups": {
     "back": [],
     "crouch": []
-   }
+   },
+   "captureMax": 0,
+   "explodeChar": "💥",
+   "landChar": "🔥"
   },
   {
    "id": "8jgv811",
@@ -386064,7 +386105,8 @@
     "explosion",
     ""
    ],
-   "savedAt": 1786719107389
+   "savedAt": 1786719107389,
+   "category": ""
   },
   {
    "id": "grenpr7e",
@@ -387354,7 +387396,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1786000000000
+   "savedAt": 1786000000000,
+   "category": ""
   },
   {
    "id": "r0ckrub",
@@ -387950,7 +387993,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1786000000000
+   "savedAt": 1786000000000,
+   "category": ""
   },
   {
    "id": "gr3nsh1",
@@ -399030,7 +399074,10 @@
    "burst": 1,
    "burstDelay": 0.06,
    "burstFire": false,
-   "fullAuto": false
+   "fullAuto": false,
+   "captureMax": 0,
+   "explodeChar": "💥",
+   "landChar": "🔥"
   },
   {
    "id": "gr3nad3",
@@ -404912,7 +404959,10 @@
    "burst": 1,
    "burstDelay": 0.06,
    "burstFire": false,
-   "fullAuto": false
+   "fullAuto": false,
+   "captureMax": 0,
+   "explodeChar": "💥",
+   "landChar": "🔥"
   },
   {
    "id": "rockth7g",
@@ -408100,7 +408150,10 @@
    "explodePropId": null,
    "explodeSize": 3,
    "explodeLife": 0.5,
-   "stun": 0.25
+   "stun": 0.25,
+   "captureMax": 0,
+   "explodeChar": "💥",
+   "landChar": "🔥"
   },
   {
    "id": "si3s2lc",
@@ -482869,7 +482922,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1786100000000
+   "savedAt": 1786100000000,
+   "category": ""
   },
   {
    "id": "ch4ir60",
@@ -483627,7 +483681,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1786100000000
+   "savedAt": 1786100000000,
+   "category": ""
   },
   {
    "id": "shcd2kh",
@@ -508756,7 +508811,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1786100000000
+   "savedAt": 1786100000000,
+   "category": ""
   },
   {
    "id": "v2gn2ew",
@@ -562693,7 +562749,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1787182182505
+   "savedAt": 1787182182505,
+   "category": ""
   },
   {
    "id": "1jqfzdy",
@@ -563801,7 +563858,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1787182308679
+   "savedAt": 1787182308679,
+   "category": ""
   },
   {
    "id": "fsr3mmy",
@@ -564027,7 +564085,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1787307827163
+   "savedAt": 1787307827163,
+   "category": ""
   },
   {
    "id": "fbpant1",
@@ -567546,7 +567605,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1787484545016
+   "savedAt": 1787484545016,
+   "category": ""
   },
   {
    "id": "mdetsd1",
@@ -568246,7 +568306,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1787484545016
+   "savedAt": 1787484545016,
+   "category": ""
   },
   {
    "id": "drnkmch1",
@@ -569238,7 +569299,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1787485688907
+   "savedAt": 1787485688907,
+   "category": ""
   },
   {
    "id": "sqrl1x9",
@@ -572755,7 +572817,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1787614533286
+   "savedAt": 1787614533286,
+   "category": ""
   },
   {
    "id": "vapruf1",
@@ -573071,7 +573134,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1787614533286
+   "savedAt": 1787614533286,
+   "category": ""
   },
   {
    "id": "vapbdy1",
@@ -573493,7 +573557,8 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1787614533286
+   "savedAt": 1787614533286,
+   "category": ""
   },
   {
    "id": "b34rrug",
@@ -664611,6 +664676,7 @@
    }
   }
  ],
+ "dialogues": [],
  "removed": {
   "assets": [
    "p7fgwn5",

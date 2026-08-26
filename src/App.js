@@ -4110,6 +4110,9 @@ let __ptLoopGen = 0;
    a browser with IndexedDB switched off just reports ok:false and everything
    falls back to localStorage exactly as before. */
 const IDB_NAME = "bobAssetStudio", IDB_STORE = "kv";
+// How long to wait for IndexedDB to open before giving up on it for this session. Generous — a
+// cold open on a big store is not instant — but finite, which is the whole point.
+const IDB_OPEN_TIMEOUT_MS = 8000;
 let idbConn = null;
 const idbOpen = () => {
   if (idbConn) return idbConn;
@@ -4121,6 +4124,16 @@ const idbOpen = () => {
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => resolve(null);
       req.onblocked = () => resolve(null);
+      // AN OPEN REQUEST CAN SIMPLY NEVER ANSWER. A deleteDatabase held up by a connection in
+      // another tab queues every later open behind it, and the open fires no event at all while
+      // it waits — not success, not error, and not blocked, which is only raised on the delete.
+      // Every sget/sset then awaits a promise that never settles, and the studio sits on
+      // "Loading your saves…" for ever with a full library on disk. That is the same failure as a
+      // loader that throws, and it reads the same way from the outside: my work is gone.
+      //
+      // Resolving null just means "no IndexedDB here", which sget/sset already handle by falling
+      // through to the host store and localStorage. Slow is fine; never answering is not.
+      setTimeout(() => resolve(null), IDB_OPEN_TIMEOUT_MS);
     } catch { resolve(null); }
   });
   return idbConn;
@@ -6766,21 +6779,39 @@ export default function AssetStudio() {
   //
   // Re-saving or re-importing a record takes its id back off the list (`revive`), so this can only
   // ever remove something that was deleted on purpose and never re-created.
-  const purgeRemoved = async (proj, kind, prefix, rows) => {
+  // EVERY ID THIS BROWSER MUST TREAT AS DELETED, for one kind. Split out from the purge because
+  // the restore-from-project loop needs the SAME set — see the note on purgeRemoved for the trap
+  // that caused.
+  const tombstoneSet = async (proj, kind) => {
     // THREE lists, unioned. The project file's outlives the container; the browser's own works with
     // no dev server at all; and hydrate pulls in the copy kept in the host store, which is the one
     // that survives the preview address changing underneath everything else.
     const near = await localRemoved.hydrate();
     const mine = new Set(((near && near[kind]) || []).filter(Boolean));
     const tombed = new Set([...removedIds(proj, kind), ...mine]);
-    if (!tombed.size) return rows;
-    let purged = 0;
-    for (const it of rows) { const id = it && it.id; if (id && tombed.has(id)) { await sdel(prefix + id); purged++; } }
     // The project file knows about deletes this browser has never heard of (another tab, another
     // machine, a rebuilt container). Write those into the local list so they stick here too, and so
     // they keep sticking if the dev server is ever gone.
     const fromProj = [...tombed].filter((id) => !mine.has(id));
     if (fromProj.length) localRemoved.add(kind, fromProj);
+    return tombed;
+  };
+  // THE PURGE AND THE RESTORE ARE TWO HALVES OF ONE RULE, AND THIS IS THE HALF THAT LOOKS DONE.
+  //
+  // Purging drops a deleted record from the list — and every loader then restores from the project
+  // file by asking "which ids does this browser NOT have?" So the purge creates, exactly, the
+  // condition the restore fires on: the id is missing, therefore this browser has never seen it,
+  // therefore write it back in. The delete removed it and the very next loop put it back, in the
+  // same pass, every load. That is why a tombstone list on its own never fixed anything, and why
+  // the same six assets came back for a month with the whole scheme apparently in place.
+  //
+  // So every restore loop takes the SAME tombstone set and skips it. If you add a seventh kind,
+  // that skip is not optional.
+  const purgeRemoved = async (proj, kind, prefix, rows, known) => {
+    const tombed = known || await tombstoneSet(proj, kind);
+    if (!tombed.size) return rows;
+    let purged = 0;
+    for (const it of rows) { const id = it && it.id; if (id && tombed.has(id)) { await sdel(prefix + id); purged++; } }
     if (!purged) return rows;
     console.warn("[Bob] dropped " + purged + " " + kind + " this browser still held after they were deleted");
     return rows.filter((it) => !(it && tombed.has(it.id)));
@@ -9384,11 +9415,14 @@ export default function AssetStudio() {
     // The same one rule every other kind now uses, rather than assets' own private copy of it.
     // Runs AFTER the mirror and the orphan scan on purpose: those two are what put a deleted
     // record back into the list in the first place, so purging before them would purge nothing.
-    list = await purgeRemoved(proj, "assets", "asset:", list);
+    const tombedA = await tombstoneSet(proj, "assets");
+    list = await purgeRemoved(proj, "assets", "asset:", list, tombedA);
     if (proj && proj.assets.length) {
       const have = new Set(list.map((it) => it.id));
       for (const raw of proj.assets) {
-        if (!raw || !raw.id || have.has(raw.id)) continue;
+        // ...and never one that was deleted. `have` cannot carry this: the purge above is what
+        // makes a deleted id missing, which is the exact thing this loop reads as "new to us".
+        if (!raw || !raw.id || have.has(raw.id) || tombedA.has(raw.id)) continue;
         try {
           const a = migrate(raw);
           if (await sset("asset:" + a.id, JSON.stringify(a))) { list.push({ id: a.id, name: a.name, type: a.type }); have.add(a.id); fromProject++; }
@@ -9469,12 +9503,13 @@ export default function AssetStudio() {
       // storage and wasn't even in an export, so it went with the container while every asset came
       // back. Stamps belong in the project file next to the assets.
       const proj = await projectLibrary.load();
-      const kept = await purgeRemoved(proj, "stamps", "stamp:", full);
+      const tombedS = await tombstoneSet(proj, "stamps");
+      const kept = await purgeRemoved(proj, "stamps", "stamp:", full, tombedS);
       if (kept.length !== full.length) { full.length = 0; full.push(...kept); await sset("stampIndex", JSON.stringify(full.map((x) => ({ id: x.id, name: x.name })))); }
       const have = new Set(full.map((x) => x && x.id));
       let restored = 0;
       for (const st of ((proj && proj.stamps) || [])) {
-        if (!st || !st.id || have.has(st.id)) continue;
+        if (!st || !st.id || have.has(st.id) || tombedS.has(st.id)) continue;
         if (await sset("stamp:" + st.id, JSON.stringify(st))) { full.push(st); have.add(st.id); restored++; }
       }
       if (restored) await sset("stampIndex", JSON.stringify(full.map((x) => ({ id: x.id, name: x.name }))));
@@ -11269,9 +11304,18 @@ export default function AssetStudio() {
   // session copy. Guarded by a confirm in the UI — this is not undoable.
   const deleteAsset = async (a) => {
     await sdel("asset:" + a.id);
-    let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
-    const shrunk = list.filter((x) => x.id !== a.id);
-    await writeAssetIndex(shrunk, { allowShrink: true }); // a real delete is the one time the list is meant to get shorter
+    // THE INDEX AND ITS MIRROR, UNIONED — exactly the way loadLibrary reads them. Reading
+    // assetIndex on its own is not safe here: it can legitimately be empty while the mirror holds
+    // the whole library, which is the entire case the mirror exists for. Shrinking an empty list
+    // writes an empty index, and then an empty mirror on top of it, and one delete takes out both
+    // copies of the list of everything.
+    const idxList = await readIndexList("assetIndex");
+    const mirList = await readIndexList(ASSET_INDEX_BAK);
+    const byId = new Map(); for (const x of [...mirList, ...idxList]) if (x && x.id) byId.set(x.id, x);
+    const shrunk = [...byId.values()].filter((x) => x.id !== a.id);
+    // Never write an empty list. A delete makes the library one shorter; it can never make it
+    // nothing, and if that is what we computed then we read the list wrong and must not write it.
+    if (shrunk.length) await writeAssetIndex(shrunk, { allowShrink: true }); // a real delete is the one time the list is meant to get shorter
     // ...AND THE MIRROR, which is a place the delete never reached. writeAssetIndex copies the
     // PREVIOUS index into assetIndex.bak before every write — correct for an ordinary save, and
     // exactly wrong for a delete, because the previous index is the one that still names what you
@@ -11279,7 +11323,7 @@ export default function AssetStudio() {
     // rescues a library from one bad index write, so it cannot go away), and the record came back
     // with it. Rewrite the mirror to the shrunk list: the safety net still holds every asset that
     // survives, and no longer holds the one that did not.
-    await sset(ASSET_INDEX_BAK, JSON.stringify(shrunk));
+    if (shrunk.length) await sset(ASSET_INDEX_BAK, JSON.stringify(shrunk));
     setSessionAssets((s) => s.filter((x) => x.id !== a.id));
     // The project file has to be told, or loadLibrary below simply restores what was just deleted.
     const forgot = await projectLibrary.forget("assets", [a.id]);
@@ -11515,12 +11559,13 @@ export default function AssetStudio() {
       // by hand and reused across levels — so it cannot be the one kind still living on an address
       // that expires.
       const proj = await projectLibrary.load();
-      const kept = await purgeRemoved(proj, "textures", "texture:", full);
+      const tombedT = await tombstoneSet(proj, "textures");
+      const kept = await purgeRemoved(proj, "textures", "texture:", full, tombedT);
       if (kept.length !== full.length) { full.length = 0; full.push(...kept); await sset("textureIndex", JSON.stringify(full.map((t) => ({ id: t.id, name: t.name })))); }
       const have = new Set(full.map((t) => t && t.id));
       let restored = 0;
       for (const t of ((proj && proj.textures) || [])) {
-        if (!t || !t.id || have.has(t.id)) continue;
+        if (!t || !t.id || have.has(t.id) || tombedT.has(t.id)) continue;
         if (await sset("texture:" + t.id, JSON.stringify(t))) { full.push(t); have.add(t.id); restored++; }
       }
       if (restored) await sset("textureIndex", JSON.stringify(full.map((t) => ({ id: t.id, name: t.name }))));
@@ -11582,12 +11627,13 @@ export default function AssetStudio() {
         full.push(e); // indexed but unreadable: keep the name in the picker rather than hide it
       }
       const proj = await projectLibrary.load();
-      const kept = await purgeRemoved(proj, "backgrounds", "background:", full);
+      const tombedB = await tombstoneSet(proj, "backgrounds");
+      const kept = await purgeRemoved(proj, "backgrounds", "background:", full, tombedB);
       if (kept.length !== full.length) { full.length = 0; full.push(...kept); await sset("backgroundIndex", JSON.stringify(full.map((b) => ({ id: b.id, name: b.name })))); }
       const have = new Set(full.map((b) => b && b.id));
       let restored = 0;
       for (const b of ((proj && proj.backgrounds) || [])) {
-        if (!b || !b.id || have.has(b.id)) continue;
+        if (!b || !b.id || have.has(b.id) || tombedB.has(b.id)) continue;
         if (await sset("background:" + b.id, JSON.stringify(b))) { full.push(b); have.add(b.id); restored++; }
       }
       if (restored) await sset("backgroundIndex", JSON.stringify(full.map((b) => ({ id: b.id, name: b.name }))));
@@ -11643,12 +11689,13 @@ export default function AssetStudio() {
     // assets and lost every level, which is not a state anyone would guess from the outside.
     let fromProject = 0;
     const proj = await projectLibrary.load();
-    const keptL = await purgeRemoved(proj, "levels", "level:", full);
+    const tombedL = await tombstoneSet(proj, "levels");
+    const keptL = await purgeRemoved(proj, "levels", "level:", full, tombedL);
     const purgedAny = keptL.length !== full.length;
     if (purgedAny) { full.length = 0; full.push(...keptL); }
     const have = new Set(full.map((l) => l && l.id));
     for (const raw of ((proj && proj.levels) || [])) {
-      if (!raw || !raw.id || have.has(raw.id)) continue;
+      if (!raw || !raw.id || have.has(raw.id) || tombedL.has(raw.id)) continue;
       try {
         const lv = migrateLevel(JSON.parse(JSON.stringify(raw)));
         if (await sset("level:" + lv.id, JSON.stringify(lv))) { full.push(lv); have.add(lv.id); fromProject++; }
@@ -11770,12 +11817,13 @@ export default function AssetStudio() {
     }
     let fromProject = 0;
     const proj = await projectLibrary.load();
-    const keptD = await purgeRemoved(proj, "dialogues", "dialogue:", full);
+    const tombedD = await tombstoneSet(proj, "dialogues");
+    const keptD = await purgeRemoved(proj, "dialogues", "dialogue:", full, tombedD);
     const purgedAnyD = keptD.length !== full.length;
     if (purgedAnyD) { full.length = 0; full.push(...keptD); }
     const have = new Set(full.map((d) => d && d.id));
     for (const raw of ((proj && proj.dialogues) || [])) {
-      if (!raw || !raw.id || have.has(raw.id)) continue;
+      if (!raw || !raw.id || have.has(raw.id) || tombedD.has(raw.id)) continue;
       try {
         const d = migrateDialogue(JSON.parse(JSON.stringify(raw)));
         if (await sset("dialogue:" + d.id, JSON.stringify(d))) { full.push(d); have.add(d.id); fromProject++; }

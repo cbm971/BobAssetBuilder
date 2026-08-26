@@ -209,6 +209,30 @@ the next session served the committed one back. The browser-side gravestone is w
 out — but if you want a delete to be permanent for everyone, **commit `asset-data/library.json`
 after he deletes**, so both the missing record and its tombstone ship.
 
+7. **THE ONE THAT WAS ACTUALLY DOING IT: the purge and the restore fought each other.** Every
+   loader purges deleted ids from its list, and then restores from the project file by asking
+   "which ids does this browser NOT have?" The purge creates, precisely, the condition the
+   restore fires on — the id is missing, therefore this browser has never seen it, therefore
+   write it back in. The delete removed the record and the very next loop in the same pass put it
+   back, on every single load. **That is why a tombstone list on its own never fixed anything**,
+   in six loaders, for a month, with the whole scheme apparently in place and a passing test for
+   every piece of it. `tombstoneSet` is now computed once per loader and BOTH halves read it: the
+   purge and the restore-from-project skip. **If you add a seventh kind, that skip is not
+   optional — it is the half that looks done and is not.**
+
+8. A blocked `indexedDB.open` never fires success, error OR blocked (blocked is raised on the
+   DELETE request, not the open), so every sget/sset awaited a promise that never settled and the
+   studio sat on "Loading your saves…" for ever with a full library on disk. `idbOpen` now times
+   out and resolves null, which sget/sset already treat as "no IndexedDB here".
+
+**The reproduction that finally caught it** (worth keeping — every earlier test passed while the
+bug was live): stand up the fake `window.storage` rig, let the project file restore into it, add a
+few assets that exist ONLY in the browser, delete one browser-only asset AND one that IS in the
+project file, then `git checkout -- asset-data/` and reload. The browser-only one stays deleted;
+the one from the project file came back, with its full record rewritten over the gravestone. A
+test that only ever deletes browser-only records cannot see this, which is exactly why it survived
+three rounds of "verified in the running app".
+
 A delete the project file did not accept now says so in the flash instead of showing a ✓.
 
 So the file now REMEMBERS deletions, in `removed: { assets: [...], levels: [...], … }`
