@@ -190,13 +190,61 @@ export const hostDelete = async (ws, k) => {
 // So the same tombstone is kept here too, in one key, and the purge on load reads BOTH lists. Two
 // writers and no others, mirroring the server exactly: `forget` adds an id, a DELIBERATE save
 // (`revive`) takes it back off, so re-creating or re-importing something always wins.
+// A GRAVESTONE, WRITTEN INTO THE RECORD'S OWN SLOT WHEN THE STORE WILL NOT ERASE IT.
+//
+// This is the belt to the tombstone list's braces, and it is the part that cannot fail. Deleting
+// is optional in a host storage API — there is no agreed shape, and the one Blake's host uses did
+// not answer to the single method sdel guessed. But SAVING is not optional: every store that can
+// hold an asset can necessarily overwrite one, because that is how the asset got there. So when a
+// key refuses to disappear, its VALUE is replaced with this, and every loader treats a record that
+// reads as a gravestone as deleted — not as an asset, and not as a corrupt record to warn about
+// either, because it is neither.
+//
+// Why this matters more than the index lists: an index can be lost (that is the whole reason for
+// the mirror, the orphan scan and the project file), and every one of those recovery paths ends by
+// reading the record itself. A gravestone is the one form of "deleted" that survives losing every
+// index there is, because it lives in the same slot as the thing it is about.
+export const TOMBSTONE_VALUE = "{\"__deleted\":1}";
+export const isTombstoneRecord = (raw) => {
+  if (raw === null || raw === undefined) return false;
+  if (typeof raw !== "string") return false;
+  const t = raw.trim();
+  if (t === "") return true; // a store that blanks rather than removes has said the same thing
+  if (t.indexOf("__deleted") < 0) return false; // cheap reject before parsing a whole asset
+  try { const o = JSON.parse(t); return !!(o && typeof o === "object" && o.__deleted); } catch { return false; }
+};
 const LOCAL_REMOVED_KEY = "removedIndex";
+// The tombstone list has to live in the SAME TIERS the records live in, or it dies before they do.
+// localStorage alone is not enough: it is scoped to the page's address, and the address is exactly
+// what changes when the container reboots — so the browser forgot the delete on the very reload
+// that handed the record back. `attach` lets the app plug in sget/sset (host store first, then
+// IndexedDB, then localStorage), so the list travels with whichever store outlives the address.
+// The synchronous localStorage copy stays as the fast path every reader can use without awaiting.
+let removedPersist = null;
 export const localRemoved = {
+  attach: (io) => { removedPersist = io; },
+  // Pull the durable copy in and merge it over the synchronous one. Called by the loaders before
+  // they purge, so a browser whose localStorage was wiped still knows what was deleted.
+  hydrate: async () => {
+    if (!removedPersist) return localRemoved.read();
+    let far = {};
+    try { const raw = await removedPersist.get(LOCAL_REMOVED_KEY); const o = raw ? JSON.parse(raw) : null; if (o && typeof o === "object") far = o; } catch { /* unreadable is just empty */ }
+    const near = localRemoved.read();
+    const merged = {};
+    for (const k of new Set([...Object.keys(near), ...Object.keys(far)])) {
+      merged[k] = [...new Set([...(Array.isArray(near[k]) ? near[k] : []), ...(Array.isArray(far[k]) ? far[k] : [])].filter(Boolean))];
+    }
+    localRemoved.write(merged);
+    return merged;
+  },
+  // Both copies, always. The async one is fire-and-forget: a delete must not wait on it, and a
+  // store that refuses it still leaves the synchronous copy and the project file's own list.
+  push: (o) => { if (removedPersist) { try { Promise.resolve(removedPersist.set(LOCAL_REMOVED_KEY, JSON.stringify(o))).catch(() => {}); } catch { /* best effort */ } } },
   read: () => { try { const raw = localStorage.getItem(LOCAL_REMOVED_KEY); const o = raw ? JSON.parse(raw) : null; return (o && typeof o === "object") ? o : {}; } catch { return {}; } },
   write: (o) => { try { localStorage.setItem(LOCAL_REMOVED_KEY, JSON.stringify(o)); return true; } catch { return false; } },
   ids: (kind) => new Set((localRemoved.read()[kind] || []).filter(Boolean)),
-  add: (kind, ids) => { const o = localRemoved.read(); o[kind] = [...new Set([...(Array.isArray(o[kind]) ? o[kind] : []), ...(ids || [])].filter(Boolean))]; return localRemoved.write(o); },
-  revive: (kind, ids) => { const o = localRemoved.read(); if (!Array.isArray(o[kind]) || !o[kind].length) return false; const back = new Set((ids || []).filter(Boolean)); o[kind] = o[kind].filter((id) => !back.has(id)); return localRemoved.write(o); },
+  add: (kind, ids) => { const o = localRemoved.read(); o[kind] = [...new Set([...(Array.isArray(o[kind]) ? o[kind] : []), ...(ids || [])].filter(Boolean))]; localRemoved.push(o); return localRemoved.write(o); },
+  revive: (kind, ids) => { const o = localRemoved.read(); if (!Array.isArray(o[kind]) || !o[kind].length) return false; const back = new Set((ids || []).filter(Boolean)); o[kind] = o[kind].filter((id) => !back.has(id)); localRemoved.push(o); return localRemoved.write(o); },
 };
 // Ask a host-provided storage object for every key it holds.
 //
@@ -6683,15 +6731,26 @@ export default function AssetStudio() {
     if (ws) await hostDelete(ws, k);
     await idbDel(k);
     try { if (typeof localStorage !== "undefined") localStorage.removeItem(k); } catch { /* ignore */ }
-    let left = false;
-    if (ws) { try { const r = await ws.get(k, false); if (r && r.value != null) left = true; } catch { /* unreadable is not holding it */ } }
-    const hit = await idbGet(k); if (hit.ok && typeof hit.value === "string") left = true;
-    if (lsGet(k) !== null) left = true;
-    // Not fatal on its own — the tombstone below keeps an unerasable record out of the library
-    // for good — but it is the difference between "deleted" and "hidden", and it belongs in the
-    // console rather than being swallowed for a third time.
-    if (left) console.warn("[Bob] could not erase " + k + " from this browser's storage — it will be held out by the tombstone list instead");
-    return !left;
+    // Which stores are STILL holding it, read back one at a time — a gravestone counts as gone.
+    const survivors = async () => {
+      const out = [];
+      if (ws) { try { const r = await ws.get(k, false); if (r && r.value != null && !isTombstoneRecord(r.value)) out.push("host"); } catch { /* unreadable is not holding it */ } }
+      const hit = await idbGet(k); if (hit.ok && typeof hit.value === "string" && !isTombstoneRecord(hit.value)) out.push("idb");
+      const ls = lsGet(k); if (ls !== null && !isTombstoneRecord(ls)) out.push("local");
+      return out;
+    };
+    let left = await survivors();
+    // IF IT WILL NOT GO, BURY IT WHERE IT LIES. Deleting is optional in a host storage API and the
+    // one here did not answer to any spelling of it; SAVING is not optional, because that is how
+    // the record got there. So overwrite the value with a gravestone, which every loader reads as
+    // deleted. This is what makes a delete independent of whether erasing works at all — and it is
+    // why the same six things stopped coming back.
+    if (left.length) {
+      await sset(k, TOMBSTONE_VALUE);
+      left = await survivors();
+    }
+    if (left.length) console.warn("[Bob] " + k + " could be neither erased nor overwritten in: " + left.join(", ") + " — the tombstone list is the only thing holding it out now");
+    return !left.length;
   };
   // DROP WHAT THIS BROWSER STILL HOLDS AFTER IT WAS DELETED. One rule, every kind, called by every
   // loader between reading the project file and restoring from it.
@@ -6708,12 +6767,20 @@ export default function AssetStudio() {
   // Re-saving or re-importing a record takes its id back off the list (`revive`), so this can only
   // ever remove something that was deleted on purpose and never re-created.
   const purgeRemoved = async (proj, kind, prefix, rows) => {
-    // BOTH lists. The project file's is the one that outlives the container; this browser's own is
-    // the one that works with no dev server and when the store will not erase the record.
-    const tombed = new Set([...removedIds(proj, kind), ...localRemoved.ids(kind)]);
+    // THREE lists, unioned. The project file's outlives the container; the browser's own works with
+    // no dev server at all; and hydrate pulls in the copy kept in the host store, which is the one
+    // that survives the preview address changing underneath everything else.
+    const near = await localRemoved.hydrate();
+    const mine = new Set(((near && near[kind]) || []).filter(Boolean));
+    const tombed = new Set([...removedIds(proj, kind), ...mine]);
     if (!tombed.size) return rows;
     let purged = 0;
     for (const it of rows) { const id = it && it.id; if (id && tombed.has(id)) { await sdel(prefix + id); purged++; } }
+    // The project file knows about deletes this browser has never heard of (another tab, another
+    // machine, a rebuilt container). Write those into the local list so they stick here too, and so
+    // they keep sticking if the dev server is ever gone.
+    const fromProj = [...tombed].filter((id) => !mine.has(id));
+    if (fromProj.length) localRemoved.add(kind, fromProj);
     if (!purged) return rows;
     console.warn("[Bob] dropped " + purged + " " + kind + " this browser still held after they were deleted");
     return rows.filter((it) => !(it && tombed.has(it.id)));
@@ -6730,6 +6797,10 @@ export default function AssetStudio() {
   useEffect(() => {
     let ok = false;
     try { if (typeof window !== "undefined" && window.storage) ok = true; else { localStorage.setItem("__p", "1"); localStorage.removeItem("__p"); ok = true; } } catch { ok = false; }
+    // Give the deleted-ids list the same storage ladder the records use, BEFORE anything loads —
+    // otherwise the first purge of the session runs against localStorage alone, which is the copy
+    // that does not survive the address change that hands the records back.
+    localRemoved.attach({ get: sget, set: sset });
     setHasStore(ok); loadLibrary(); loadStamps(); readLevelIndexCount().then(setLevelCount);
   }, []); // eslint-disable-line
   useEffect(() => { setEmojis(buildEmojiList()); }, []);
@@ -9333,22 +9404,31 @@ export default function AssetStudio() {
       const idbAssetKeys = (await idbKeysAll()).filter((k) => k.startsWith("asset:"));
       setStoreReport({ host: ws ? hostIds.length : null, local: lsIds.length, idb: idbAssetKeys.length, indexed: list.length });
     } catch { /* a report failing must never stop the load */ }
-    const full = [], bad = [];
+    const full = [], bad = [], buried = [];
     for (const it of list) {
       const id = it && it.id;
       try {
         const raw = await sget("asset:" + id);
+        // A gravestone is a record that says "I was deleted" — see TOMBSTONE_VALUE. It is checked
+        // BEFORE the parse, both because migrate would happily turn it into a nameless asset and
+        // because it must not land in `bad` either: a deliberate delete is not a corrupt record,
+        // and warning about it would be the delete reporting itself as damage every single load.
+        if (isTombstoneRecord(raw)) { buried.push(id); continue; }
         if (raw === null || raw === undefined) { bad.push({ id, name: (it && it.name) || id }); continue; } // indexed but the record is gone
         full.push(migrate(JSON.parse(raw)));
       } catch { bad.push({ id, name: (it && it.name) || id }); }
     }
     setLibrary(full);
+    // A buried record found in the index means some path put it back — the mirror's pre-delete
+    // snapshot, or a store that would not erase. Re-file the tombstone so the lists agree with the
+    // gravestone, and let the heal below rewrite both indexes without it.
+    if (buried.length) { localRemoved.add("assets", buried); projectLibrary.forget("assets", buried); list = list.filter((it) => !buried.includes(it && it.id)); console.warn("[Bob] " + buried.length + " deleted asset(s) were still indexed and have been re-filed as deleted:", buried); }
     // Heal the index so the rescue is permanent rather than repeated every load.
     if (fromProject && full.length) flash("🛟 Restored " + fromProject + " asset" + (fromProject > 1 ? "s" : "") + " from the project file — " + full.length + " loaded.");
     // Push whatever this browser has back INTO the project file, so the copy that survives an
     // address change is always the fullest one either side has seen.
     if (full.length) projectLibrary.save({ assets: full });
-    if (recovered && full.length) {
+    if ((recovered || buried.length) && full.length) {
       const healed = full.map((x) => ({ id: x.id, name: x.name, type: x.type }));
       await writeAssetIndex(healed);
       // Refresh the mirror to the HEALED list too. Otherwise it keeps the broken copy it shadowed
@@ -9384,7 +9464,7 @@ export default function AssetStudio() {
     try {
       const idx = await sget("stampIndex"); const list = idx ? JSON.parse(idx) : [];
       const full = [];
-      for (const e of list) { const raw = await sget("stamp:" + e.id); if (raw) try { full.push(JSON.parse(raw)); } catch { /* skip a corrupt stamp */ } }
+      for (const e of list) { const raw = await sget("stamp:" + e.id); if (isTombstoneRecord(raw)) continue; if (raw) try { full.push(JSON.parse(raw)); } catch { /* skip a corrupt stamp */ } }
       // A stored group is real drawn work — actual copies of blocks — yet it lived ONLY in browser
       // storage and wasn't even in an export, so it went with the container while every asset came
       // back. Stamps belong in the project file next to the assets.
@@ -11190,7 +11270,16 @@ export default function AssetStudio() {
   const deleteAsset = async (a) => {
     await sdel("asset:" + a.id);
     let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
-    await writeAssetIndex(list.filter((x) => x.id !== a.id), { allowShrink: true }); // a real delete is the one time the list is meant to get shorter
+    const shrunk = list.filter((x) => x.id !== a.id);
+    await writeAssetIndex(shrunk, { allowShrink: true }); // a real delete is the one time the list is meant to get shorter
+    // ...AND THE MIRROR, which is a place the delete never reached. writeAssetIndex copies the
+    // PREVIOUS index into assetIndex.bak before every write — correct for an ordinary save, and
+    // exactly wrong for a delete, because the previous index is the one that still names what you
+    // just deleted. loadLibrary unions the mirror back in on the next load (that union is what
+    // rescues a library from one bad index write, so it cannot go away), and the record came back
+    // with it. Rewrite the mirror to the shrunk list: the safety net still holds every asset that
+    // survives, and no longer holds the one that did not.
+    await sset(ASSET_INDEX_BAK, JSON.stringify(shrunk));
     setSessionAssets((s) => s.filter((x) => x.id !== a.id));
     // The project file has to be told, or loadLibrary below simply restores what was just deleted.
     const forgot = await projectLibrary.forget("assets", [a.id]);
@@ -11421,7 +11510,7 @@ export default function AssetStudio() {
     try {
       const idx = await sget("textureIndex"); const list = idx ? JSON.parse(idx) : [];
       const full = [];
-      for (const e of list) { const raw = await sget("texture:" + e.id); if (raw) try { full.push(JSON.parse(raw)); } catch { /* skip a corrupt texture */ } }
+      for (const e of list) { const raw = await sget("texture:" + e.id); if (isTombstoneRecord(raw)) continue; if (raw) try { full.push(JSON.parse(raw)); } catch { /* skip a corrupt texture */ } }
       // Same two-way trip as assets, levels and groups. A texture is drawn work — a palette painted
       // by hand and reused across levels — so it cannot be the one kind still living on an address
       // that expires.
@@ -11488,6 +11577,7 @@ export default function AssetStudio() {
       for (const e of list) {
         if (!e || !e.id) continue;
         const raw = await sget("background:" + e.id);
+        if (isTombstoneRecord(raw)) continue;
         if (raw) { try { full.push(JSON.parse(raw)); continue; } catch { /* fall through to the index entry */ } }
         full.push(e); // indexed but unreadable: keep the name in the picker rather than hide it
       }
@@ -11545,7 +11635,7 @@ export default function AssetStudio() {
     if (orphanL.length) list = list.concat(orphanL.map((id) => ({ id })));
     const full = [], bad = [];
     for (const it of list) {
-      try { const r = await sget("level:" + (it && it.id)); if (r) full.push(migrateLevel(JSON.parse(r))); else bad.push((it && it.name) || (it && it.id)); }
+      try { const r = await sget("level:" + (it && it.id)); if (isTombstoneRecord(r)) continue; else if (r) full.push(migrateLevel(JSON.parse(r))); else bad.push((it && it.name) || (it && it.id)); }
       catch { bad.push((it && it.name) || (it && it.id)); }
     }
     // Levels come home from the project file exactly the way assets do. Until now they could not:
@@ -11675,7 +11765,7 @@ export default function AssetStudio() {
     if (orphans.length) list = list.concat(orphans.map((id) => ({ id })));
     const full = [], bad = [];
     for (const it of list) {
-      try { const r = await sget("dialogue:" + (it && it.id)); if (r) full.push(migrateDialogue(JSON.parse(r))); else bad.push((it && it.name) || (it && it.id)); }
+      try { const r = await sget("dialogue:" + (it && it.id)); if (isTombstoneRecord(r)) continue; else if (r) full.push(migrateDialogue(JSON.parse(r))); else bad.push((it && it.name) || (it && it.id)); }
       catch { bad.push((it && it.name) || (it && it.id)); }
     }
     let fromProject = 0;

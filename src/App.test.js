@@ -304,6 +304,8 @@ import {
   TALK_PICK_FLASH_PLAIN_MS,
   removedIds,
   hostDelete,
+  isTombstoneRecord,
+  TOMBSTONE_VALUE,
   localRemoved,
   wornEquipMap,
   slotWasEmptied,
@@ -6479,5 +6481,34 @@ describe("the browser's own tombstone list", () => {
   test("unreadable storage reads as no tombstones rather than throwing", () => {
     localStorage.setItem("removedIndex", "{not json");
     expect(localRemoved.ids("assets").size).toBe(0);
+  });
+});
+
+// THE GRAVESTONE. Deleting is optional in a host storage API — the one in use answers to no
+// spelling of it — but SAVING is not, because that is how the record got there. So a record that
+// cannot be erased has its value overwritten instead, and every loader reads that as deleted.
+// This is the only form of "deleted" that survives losing every index there is, because it lives
+// in the same slot as the thing it is about.
+describe("a record can say it is deleted, in its own slot", () => {
+  test("the gravestone value reads as deleted", () => {
+    expect(isTombstoneRecord(TOMBSTONE_VALUE)).toBe(true);
+    expect(isTombstoneRecord("  " + TOMBSTONE_VALUE + "  ")).toBe(true);
+  });
+  test("a store that blanks rather than removes has said the same thing", () => {
+    expect(isTombstoneRecord("")).toBe(true);
+    expect(isTombstoneRecord("   ")).toBe(true);
+  });
+  test("a real asset is never mistaken for one — including one that mentions the word", () => {
+    expect(isTombstoneRecord(JSON.stringify({ id: "a1", name: "Hat", type: "equipment" }))).toBe(false);
+    expect(isTombstoneRecord(JSON.stringify({ id: "a1", name: "__deleted trophy" }))).toBe(false);
+    expect(isTombstoneRecord(JSON.stringify({ id: "a1", __deleted: 0 }))).toBe(false);
+  });
+  test("a missing record is NOT a gravestone — that is an index pointing at nothing, and it warns", () => {
+    expect(isTombstoneRecord(null)).toBe(false);
+    expect(isTombstoneRecord(undefined)).toBe(false);
+  });
+  test("a corrupt record is not a gravestone either", () => {
+    expect(isTombstoneRecord("{not json")).toBe(false);
+    expect(isTombstoneRecord("__deleted")).toBe(false);
   });
 });

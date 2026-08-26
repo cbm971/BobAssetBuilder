@@ -177,6 +177,38 @@ for a long time they were not the same thing and this document said they were.
    The committed library carried one called "Combat Test delete", which is what you do when the
    only way to mark a level as junk is its name. Both are deletable now, two taps.
 
+5. **The index MIRROR was a place the delete never reached.** `writeAssetIndex` copies the
+   PREVIOUS index into `assetIndex.bak` before every write — right for an ordinary save, exactly
+   wrong for a delete, because the previous index is the one that still names what you just
+   deleted. `loadLibrary` unions the mirror back in on the next load, and that union cannot go
+   away (it is what rescues a library from one bad index write). `deleteAsset` now rewrites the
+   mirror to the shrunk list.
+6. **AND THE ONE THAT ACTUALLY MATTERED: erasing is optional, saving is not.** Even with every
+   spelling tried, a host store that exposes no removal method at all keeps the record — and the
+   orphan scan then re-files it as real on the very next load. So when a key refuses to
+   disappear, its VALUE is overwritten with `TOMBSTONE_VALUE` (a **gravestone**), and all six
+   loaders read `isTombstoneRecord` as deleted — not as an asset, and not as a corrupt record to
+   warn about either. This is the only form of "deleted" that survives losing every index there
+   is, because it lives in the same slot as the thing it is about. **Do not remove it in favour
+   of a tidier index-based scheme; the indexes are all recoverable-from-records by design, which
+   means every recovery path ends by reading the record.**
+
+**Verified against a fake `window.storage` with get/set/list and NO delete of any name** — the
+shape the real one appears to have. A probe written straight into the host store is rescued by the
+orphan scan (120 → 121), deleted through the shelf, and then stays deleted across all three ways
+it used to come back: a plain reload, a container rebuilt from the repo (which wipes the project
+file's `removed` list), and a brand-new preview address (localStorage and IndexedDB gone, host
+store surviving). Re-run that rig before touching any of this; a test browser with no
+`window.storage` exercises none of it and will pass while the real thing is broken.
+
+**THE PROJECT FILE'S TOMBSTONE LIST DOES NOT SURVIVE A CONTAINER REBUILD.** StackBlitz rebuilds
+from the repo, so `removed` reverts to whatever was last COMMITTED. A delete he makes only ever
+reaches the container's working copy. That is why the same six assets came back for a month: the
+record is in the committed `library.json`, his delete removed it from the container's copy, and
+the next session served the committed one back. The browser-side gravestone is what now holds it
+out — but if you want a delete to be permanent for everyone, **commit `asset-data/library.json`
+after he deletes**, so both the missing record and its tombstone ship.
+
 A delete the project file did not accept now says so in the flash instead of showing a ✓.
 
 So the file now REMEMBERS deletions, in `removed: { assets: [...], levels: [...], … }`
