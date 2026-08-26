@@ -260,6 +260,16 @@ const projectLibrary = {
     } catch { return false; }
   },
 };
+// WHICH IDS THE PROJECT FILE REMEMBERS AS DELETED, for one kind. `removed` is the tombstone list
+// setupProxy keeps (rememberRemoved), and reading it on the way IN is the only thing that stops a
+// delete coming back — the server refuses to re-add a remembered id, but that says nothing about
+// the copy this browser is still holding in its own store, and every loader hands that copy
+// straight back and then pushes it up again. Delete, reload, restored, forever.
+//
+// This existed for ASSETS ONLY and was written up in CLAUDE.md as though it covered everything.
+// It did not: levels, stored groups, textures, backgrounds and dialogues each had the loop intact,
+// which is why "I delete stuff and it comes back" kept being true after the asset fix.
+export const removedIds = (proj, kind) => new Set(((((proj && proj.removed) || {})[kind]) || []).filter(Boolean));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const rect = (x, y, w, h, color = SKIN) => ({ id: uid(), kind: "rect", x, y, w, h, color, mirror: true });
 const arm = (x, y, w, h, pivot = "top") => ({ ...rect(x, y, w, h), locked: true, role: "weaponArm", limb: "arm", armPivot: pivot });   // the arm the game swings — can't be deleted; pivots at the shoulder end
@@ -1839,9 +1849,39 @@ export const allyBadge = (ep) => ALLY_KINDS[allyKindOf(ep)].badge;
 // otherwise the first worn slot holding something that shares one of the item's category tags —
 // so you can't end up wearing two items of the same category. Exactly one item is ever displaced
 // (it goes back onto the pedestal). null = a clean equip into an empty slot with nothing to swap.
+// WHAT THE PLAYER IS ACTUALLY WEARING, slot -> item. TWO LAYERS: the clothing the look was
+// dressed in (a composed character's own components.equipment) with anything picked up off a
+// pedestal this run laid over the top.
+//
+// THIS IS THE MAP EVERY "what comes off" QUESTION MUST ASK, and asking the pickup layer alone is
+// what made a pedestal EAT the thing you were wearing. `equipped` only ever held pedestal loot, so
+// the jacket Bob was dressed in was invisible to it: taking a jacket off a plinth displaced
+// nothing as far as the swap could tell, so nothing went back on the plinth — while the render
+// (livePlayerBlocks, which layers the pickup OVER the look's own garment) took the old jacket off
+// his body anyway. Off his body, not on the pedestal, not in the map: gone for the rest of the run.
+//
+// A key present but NULL means that slot was deliberately EMPTIED — something came off it and
+// nothing went back. That is the one state a plain merge cannot express, and without it the look's
+// own garment silently reappeared the instant its slot was vacated (take a shirt-tagged jacket,
+// and the shirt it displaced is back on you the same frame it lands on the pedestal — one garment
+// in two places). So: absent = never touched, use the look's own; null = taken off; item = worn.
+export const wornEquipMap = (baseAsset, pickedUp) => {
+  const out = {};
+  const own = (baseAsset && baseAsset.components && baseAsset.components.equipment) || {};
+  for (const sl of Object.keys(own)) if (own[sl]) out[sl] = own[sl];
+  for (const sl of Object.keys(pickedUp || {})) { if (pickedUp[sl]) out[sl] = pickedUp[sl]; else delete out[sl]; }
+  return out;
+};
+// Has this slot been explicitly emptied (as opposed to never touched)? One reader, so the render,
+// the art cache key and the swap can never disagree about what a null in the map means.
+export const slotWasEmptied = (pickedUp, sl) => !!pickedUp && Object.prototype.hasOwnProperty.call(pickedUp, sl) && !pickedUp[sl];
 export const equipDisplacedSlot = (item, equippedMap) => {
   if (!item) return null;
-  if (equippedMap && equippedMap[item.slot]) return item.slot;
+  // Returned as a slot NAME and tested for truthiness by every caller, so a falsy slot id would
+  // read as "nothing came off" while the write below still overwrote it. Guarded rather than
+  // trusted: every equipment asset in the library has a real slot today, and one that didn't
+  // would lose the garment it replaced in exactly the way this whole function now exists to stop.
+  if (item.slot && equippedMap && equippedMap[item.slot]) return item.slot;
   const xCats = normCats(item.categories);
   if (!xCats.length) return null;
   return SLOT_ORDER.find((sl) => { const it = equippedMap && equippedMap[sl]; return it && normCats(it.categories).some((c) => xCats.includes(c)); }) || null;
@@ -6113,6 +6153,9 @@ export default function AssetStudio() {
   const [dlgConfirmDel, setDlgConfirmDel] = useState(null);
   const dlgBaseline = useRef("");                        // JSON of the tree as last saved/opened, so the editor can say when there is unsaved work
   const [levelLoadOpen, setLevelLoadOpen] = useState(false);          // true while the "Load a level" picker modal is open
+  const [confirmLvlDel, setConfirmLvlDel] = useState(null);           // level id armed for deletion — the same tap-again-to-confirm the asset shelf uses
+  const [confirmBgDel, setConfirmBgDel] = useState(null);             // background id armed for deletion
+  const [bgPick, setBgPick] = useState("");                            // background chosen in the Load BG picker (so it can be loaded OR deleted)
   const [bgLib, setBgLib] = useState([]);               // saved reusable backgrounds — {id, name} index; full data fetched on load
   const [bgName, setBgName] = useState("");             // name field for saving the current level's background
   const [lLayer, setLLayer] = useState("fg");          // fg (collision) | bg | obj
@@ -6554,6 +6597,38 @@ export default function AssetStudio() {
     try { if (typeof localStorage !== "undefined") localStorage.removeItem(k); } catch { /* ignore */ }
     return true;
   };
+  // DROP WHAT THIS BROWSER STILL HOLDS AFTER IT WAS DELETED. One rule, every kind, called by every
+  // loader between reading the project file and restoring from it.
+  //
+  // Deleting is additive-merge-proof on the SERVER (removeById + rememberRemoved), and that was
+  // mistaken for the whole fix. It is only half. The other half is that each loader reads this
+  // browser's own store first and then pushes what it found back UP — so a record that is still
+  // sitting in IndexedDB here (a second tab, another machine, or this one after the container
+  // handed the library back from the committed file) is re-uploaded within seconds of the app
+  // opening, and the row the server just dropped is a row it is about to be told about again.
+  // Only assets ever purged. Levels, stored groups, textures, backgrounds and dialogues each kept
+  // the loop running, which is why deletes still came back after the asset one was called fixed.
+  //
+  // Re-saving or re-importing a record takes its id back off the list (`revive`), so this can only
+  // ever remove something that was deleted on purpose and never re-created.
+  const purgeRemoved = async (proj, kind, prefix, rows) => {
+    const tombed = removedIds(proj, kind);
+    if (!tombed.size) return rows;
+    let purged = 0;
+    for (const it of rows) { const id = it && it.id; if (id && tombed.has(id)) { await sdel(prefix + id); purged++; } }
+    if (!purged) return rows;
+    console.warn("[Bob] dropped " + purged + " " + kind + " this browser still held after they were deleted");
+    return rows.filter((it) => !(it && tombed.has(it.id)));
+  };
+  // A DELETE THAT NEVER REACHED THE PROJECT FILE IS NOT A DELETE — the next load hands the record
+  // straight back. Said out loud instead of flashing a clean ✓, because "I delete it and it comes
+  // back" is the exact bug the whole tombstone scheme exists to stop, and a delete that silently
+  // only half-happened is how you get it. Only complains when the project file is actually there
+  // to have taken it: on a plain static build there is nothing to reach and browser storage IS the
+  // record, so the delete is complete as it stands.
+  const deleteNote = (msg, forgot) => msg + ((projectLibrary.available && !forgot)
+    ? " — ⚠ the project file did NOT accept it, so it may come back on the next load. Say so and it can be removed at the source."
+    : " ✓");
   useEffect(() => {
     let ok = false;
     try { if (typeof window !== "undefined" && window.storage) ok = true; else { localStorage.setItem("__p", "1"); localStorage.removeItem("__p"); ok = true; } } catch { ok = false; }
@@ -8754,9 +8829,18 @@ export default function AssetStudio() {
             // that shares a category with it (equipDisplacedSlot), so two same-category items never
             // stack. The one that comes off goes back onto the pedestal; if nothing comes off, the
             // pedestal is now empty and gets marked depleted so it disappears (see the play render).
-            const slot = item.slot, offSlot = equipDisplacedSlot(item, equipped.current), prev = offSlot ? equipped.current[offSlot] : null;
+            // Asked of what the player is WEARING (wornEquipMap), not of the pedestal loot alone.
+            // The look's own clothing counts: taking a jacket off a plinth while dressed in one
+            // used to displace "nothing", so nothing went back on the plinth — and the render
+            // stopped drawing the old jacket regardless. That is the item that disappeared.
+            const worn = wornEquipMap(basePlayerAsset, equipped.current);
+            const slot = item.slot, offSlot = equipDisplacedSlot(item, worn), prev = offSlot ? worn[offSlot] : null;
             const before = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
-            const nextMap = { ...equipped.current }; if (offSlot) delete nextMap[offSlot]; nextMap[slot] = item;
+            // NULL, not delete. Deleting only says "no pickup here", which the render reads as
+            // "wear the look's own one" — so a displaced garment came straight back on while its
+            // twin sat on the pedestal. Null says the slot is empty on purpose. Set before the new
+            // item, so displacing a slot into itself still ends up wearing the new thing.
+            const nextMap = { ...equipped.current }; if (offSlot) nextMap[offSlot] = null; nextMap[slot] = item;
             const after = mergeEquip(basePlayerAsset, nextMap, equippedBodyIdFor(basePlayerAsset));
             equipped.current = nextMap;
             putBack(prev);
@@ -9106,7 +9190,7 @@ export default function AssetStudio() {
     // just come back" actually was. Only ids that went through a real delete are ever in this list,
     // and re-saving or re-importing one takes it back off (see save's `revive`), so this can only
     // remove work that was already deleted on purpose.
-    const tombed = new Set((((proj && proj.removed) || {}).assets || []).filter(Boolean));
+    const tombed = removedIds(proj, "assets");
     if (tombed.size) {
       let purged = 0;
       for (const it of list) if (tombed.has(it.id)) { await sdel("asset:" + it.id); purged++; }
@@ -9186,8 +9270,10 @@ export default function AssetStudio() {
       // A stored group is real drawn work — actual copies of blocks — yet it lived ONLY in browser
       // storage and wasn't even in an export, so it went with the container while every asset came
       // back. Stamps belong in the project file next to the assets.
-      const have = new Set(full.map((x) => x && x.id));
       const proj = await projectLibrary.load();
+      const kept = await purgeRemoved(proj, "stamps", "stamp:", full);
+      if (kept.length !== full.length) { full.length = 0; full.push(...kept); await sset("stampIndex", JSON.stringify(full.map((x) => ({ id: x.id, name: x.name })))); }
+      const have = new Set(full.map((x) => x && x.id));
       let restored = 0;
       for (const st of ((proj && proj.stamps) || [])) {
         if (!st || !st.id || have.has(st.id)) continue;
@@ -9200,8 +9286,10 @@ export default function AssetStudio() {
       // load now hands the whole set to the project file, which is what actually closes the hole
       // for work that already exists.
       if (full.length) projectLibrary.save({ stamps: full });
-      setStamps(full); return full;
+      // Flashed BEFORE the return, not after it. This line sat under `return full` and so had never
+      // once run: a rescue that says nothing is indistinguishable from a rescue that didn't happen.
       if (restored) flash("🛟 Restored " + restored + " stored group" + (restored > 1 ? "s" : "") + " from the project file.");
+      setStamps(full); return full;
     } catch { setStamps([]); }
   };
 
@@ -11137,13 +11225,17 @@ export default function AssetStudio() {
     // frozen into its saved angles when it was first dressed. Result is memoised per equipped set.
     const composed = bp.type === "character" && bp.components;
     if (!composed && !SLOT_ORDER.some((sl) => equipped.current[sl])) return bake(mergeEquip(bp, equipped.current, equippedBodyIdFor(bp)), ang);
-    const eqSig = SLOT_ORDER.map((sl) => (equipped.current[sl] && equipped.current[sl].id) || "").join(",");
+    // "-" is a slot that was deliberately EMPTIED, and it has to be its own signature: emptied and
+    // never-touched both look like no pickup, so without it taking your only jacket off served the
+    // cached art of you still wearing it until something else happened to change the key.
+    const eqSig = SLOT_ORDER.map((sl) => (equipped.current[sl] && equipped.current[sl].id) || (slotWasEmptied(equipped.current, sl) ? "-" : "")).join(",");
     const key = playRunId.current + "|" + bp.id + "|" + eqSig;
     if (playerLookCache.current.key === key && playerLookCache.current.look) return playerLookCache.current.look.angles[ang] || [];
     const comp = bp.type === "character" ? (bp.components || {}) : {};
     const body = comp.body || bp, skin = comp.skin || null, weapon = comp.weapon || null;
     const eq = {};
-    for (const sl of SLOT_ORDER) { const it = equipped.current[sl] || (comp.equipment && comp.equipment[sl]); if (it) eq[sl] = it; }
+    // Pickup wins over the look's own garment, and an EMPTIED slot beats both — see wornEquipMap.
+    for (const sl of SLOT_ORDER) { const it = slotWasEmptied(equipped.current, sl) ? null : (equipped.current[sl] || (comp.equipment && comp.equipment[sl])); if (it) eq[sl] = it; }
     const look = assembleLook(body, skin, weapon, eq, { id: bp.id, name: bp.name, type: "character" });
     playerLookCache.current = { key, look };
     return look.angles[ang] || [];
@@ -11214,8 +11306,10 @@ export default function AssetStudio() {
       // Same two-way trip as assets, levels and groups. A texture is drawn work — a palette painted
       // by hand and reused across levels — so it cannot be the one kind still living on an address
       // that expires.
-      const have = new Set(full.map((t) => t && t.id));
       const proj = await projectLibrary.load();
+      const kept = await purgeRemoved(proj, "textures", "texture:", full);
+      if (kept.length !== full.length) { full.length = 0; full.push(...kept); await sset("textureIndex", JSON.stringify(full.map((t) => ({ id: t.id, name: t.name })))); }
+      const have = new Set(full.map((t) => t && t.id));
       let restored = 0;
       for (const t of ((proj && proj.textures) || [])) {
         if (!t || !t.id || have.has(t.id)) continue;
@@ -11278,8 +11372,10 @@ export default function AssetStudio() {
         if (raw) { try { full.push(JSON.parse(raw)); continue; } catch { /* fall through to the index entry */ } }
         full.push(e); // indexed but unreadable: keep the name in the picker rather than hide it
       }
-      const have = new Set(full.map((b) => b && b.id));
       const proj = await projectLibrary.load();
+      const kept = await purgeRemoved(proj, "backgrounds", "background:", full);
+      if (kept.length !== full.length) { full.length = 0; full.push(...kept); await sset("backgroundIndex", JSON.stringify(full.map((b) => ({ id: b.id, name: b.name })))); }
+      const have = new Set(full.map((b) => b && b.id));
       let restored = 0;
       for (const b of ((proj && proj.backgrounds) || [])) {
         if (!b || !b.id || have.has(b.id)) continue;
@@ -11337,8 +11433,11 @@ export default function AssetStudio() {
     // saveLevel wrote to browser storage and nowhere else, so a new preview address kept all 75
     // assets and lost every level, which is not a state anyone would guess from the outside.
     let fromProject = 0;
-    const have = new Set(full.map((l) => l && l.id));
     const proj = await projectLibrary.load();
+    const keptL = await purgeRemoved(proj, "levels", "level:", full);
+    const purgedAny = keptL.length !== full.length;
+    if (purgedAny) { full.length = 0; full.push(...keptL); }
+    const have = new Set(full.map((l) => l && l.id));
     for (const raw of ((proj && proj.levels) || [])) {
       if (!raw || !raw.id || have.has(raw.id)) continue;
       try {
@@ -11347,13 +11446,54 @@ export default function AssetStudio() {
       } catch { /* one bad record must never stop the rest coming home */ }
     }
     setLevelLib(full); setLevelCount(full.length); // keep the Export label honest after a delete too
-    if ((orphanL.length || fromProject) && full.length) await sset("levelIndex", JSON.stringify(full.map((l) => ({ id: l.id, name: l.name }))));
+    if (orphanL.length || fromProject || purgedAny) await sset("levelIndex", JSON.stringify(full.map((l) => ({ id: l.id, name: l.name }))));
     if (orphanL.length) console.warn("[Bob] recovered " + orphanL.length + " level(s) missing from the index:", orphanL);
     if (fromProject) flash("🛟 Restored " + fromProject + " level" + (fromProject > 1 ? "s" : "") + " from the project file.");
     // Push back up too, so the project file always holds the fullest copy either side has seen.
     if (full.length) projectLibrary.save({ levels: full });
     if (bad.length) { console.warn("[Bob] " + bad.length + " level(s) could not be read and were skipped:", bad); flash("⚠ " + bad.length + " level" + (bad.length > 1 ? "s" : "") + " couldn't be read — the other " + full.length + " loaded. See console."); }
     return full; // exportAllAssets needs the levels NOW, not after the next render
+  };
+  // DELETE A SAVED LEVEL OR ROOM. There was no way to do this AT ALL — not a missing button, no
+  // code path anywhere — so every experiment, every 🎲 Generate roll and every level a rename
+  // forked a copy of (resolveSaveTarget, deliberately, to stop Save-as eating the original) stayed
+  // in the picker forever. The committed library still carries one called "Combat Test delete",
+  // which is what someone does when the only way to mark a level as junk is its name.
+  //
+  // All four steps or none: the record, the index row, the project file's copy, and the tombstone
+  // that stops every OTHER browser (and the committed file a fresh container is rebuilt from)
+  // handing it back. `forget` is the one that turns this from hiding into deleting.
+  const deleteLevel = async (l) => {
+    const id = l && l.id; if (!id) return;
+    let list = []; const idx = await sget("levelIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    if (!Array.isArray(list)) list = [];
+    await sdel("level:" + id);
+    await sset("levelIndex", JSON.stringify(list.filter((x) => x && x.id !== id)));
+    const forgot = await projectLibrary.forget("levels", [id]);
+    setConfirmLvlDel(null);
+    await loadLevels();
+    // Deleting the level you have OPEN leaves the editor holding an unsaved copy on purpose —
+    // nothing is taken off the screen mid-edit. Saving it again re-creates it (a deliberate save
+    // revives the id), so this has to say so or that reads as the delete not having worked.
+    const openNow = level && level.id === id;
+    flash(deleteNote("🗑 Deleted " + (l.isRoom ? "room" : "level") + " \"" + (l.name || id) + "\"", forgot)
+      + (openNow ? " — it is still open here; saving it puts it back." : ""));
+  };
+  // Same four steps for a saved background. Backgrounds had no delete either, for the same reason:
+  // the kind was wired for save-up and restore-down and the third direction was never added.
+  const deleteBackground = async (b) => {
+    const id = b && b.id; if (!id) return;
+    let list = []; const idx = await sget("backgroundIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    if (!Array.isArray(list)) list = [];
+    await sdel("background:" + id);
+    await sset("backgroundIndex", JSON.stringify(list.filter((x) => x && x.id !== id)));
+    const forgot = await projectLibrary.forget("backgrounds", [id]);
+    setConfirmBgDel(null);
+    if (bgPick === id) setBgPick("");
+    await loadBgLib();
+    // Levels that were painted with it keep their own copy of the pixels — a level stores its bg
+    // layer, not a reference — so a delete can never blank out a level's backdrop.
+    flash(deleteNote("🗑 Deleted background \"" + (b.name || id) + "\" — levels painted with it keep theirs", forgot));
   };
   const openLevelCreator = () => {
     loadLevels(); loadBgLib(); loadTextures(); loadDialogues(); // dialogues too: the Sign and Enemy pickers list them by name
@@ -11420,8 +11560,11 @@ export default function AssetStudio() {
       catch { bad.push((it && it.name) || (it && it.id)); }
     }
     let fromProject = 0;
-    const have = new Set(full.map((d) => d && d.id));
     const proj = await projectLibrary.load();
+    const keptD = await purgeRemoved(proj, "dialogues", "dialogue:", full);
+    const purgedAnyD = keptD.length !== full.length;
+    if (purgedAnyD) { full.length = 0; full.push(...keptD); }
+    const have = new Set(full.map((d) => d && d.id));
     for (const raw of ((proj && proj.dialogues) || [])) {
       if (!raw || !raw.id || have.has(raw.id)) continue;
       try {
@@ -11430,7 +11573,7 @@ export default function AssetStudio() {
       } catch { /* one bad tree must never stop the rest coming home */ }
     }
     setDlgLib(full);
-    if ((orphans.length || fromProject) && full.length) await sset("dialogueIndex", JSON.stringify(full.map((d) => ({ id: d.id, name: d.name }))));
+    if (orphans.length || fromProject || purgedAnyD) await sset("dialogueIndex", JSON.stringify(full.map((d) => ({ id: d.id, name: d.name }))));
     if (orphans.length) console.warn("[Bob] recovered " + orphans.length + " dialogue(s) missing from the index:", orphans);
     if (fromProject) flash("🛟 Restored " + fromProject + " dialogue" + (fromProject > 1 ? "s" : "") + " from the project file.");
     if (full.length) projectLibrary.save({ dialogues: full });
@@ -12619,11 +12762,14 @@ export default function AssetStudio() {
         const delta = held ? (ad !== (held.damage ?? 5) ? ["Dmg " + (held.damage ?? 5) + "→" + ad] : []) : ["Dmg " + ad];
         return "Press E to " + (held ? "swap" : "equip") + (delta.length ? " · " + delta.join(" · ") : " · no stat change");
       }
-      const offSlot = equipDisplacedSlot(it, equipped.current);
+      // Same worn map the take itself uses, or the callout promises an "equip" and delivers a swap.
+      const wornNow = wornEquipMap(basePlayerAsset, equipped.current);
+      const offSlot = equipDisplacedSlot(it, wornNow);
       const before = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
-      const nextMap = { ...equipped.current }; if (offSlot) delete nextMap[offSlot]; nextMap[it.slot] = it;
+      const nextMap = { ...equipped.current }; if (offSlot) nextMap[offSlot] = null; nextMap[it.slot] = it;
       const delta = equipEffectSummary(before, mergeEquip(basePlayerAsset, nextMap, equippedBodyIdFor(basePlayerAsset)));
-      return "Press E to " + (offSlot ? "swap" : "equip") + (delta.length ? " · " + delta.join(" · ") : " · no stat change");
+      const off = offSlot ? wornNow[offSlot] : null;
+      return "Press E to " + (off ? "swap out " + off.name : "equip") + (delta.length ? " · " + delta.join(" · ") : " · no stat change");
     };
     // An item lying on the ground — on a pedestal or dropped by a body — never changes its art, but
     // the whole level screen re-renders every playtest frame, so both call sites were re-baking
@@ -12917,10 +13063,20 @@ export default function AssetStudio() {
           <button className="ltbtn" onClick={downloadLevel}>⬇ Download</button>
           <input className="bgNameInput" value={bgName} onChange={(e) => setBgName(e.target.value)} placeholder="Background name…" />
           <button className="ltbtn" onClick={saveBackground} >💾 Save BG</button>
-          {bgLib.length > 0 && <select className="ltbtn bgLoadSelect" value="" onChange={(e) => loadBackground(e.target.value)} title="Replaces current Background">
-            <option value="">📂 Load BG…</option>
-            {bgLib.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>}
+          {/* Pick, THEN act — the same shape the 📦 Stored group shelf uses. Loading on the select's
+              own onChange meant there was no moment at which a background was "the chosen one", so
+              there was nowhere to hang a delete; it also made an accidental scroll over the picker
+              replace the whole Background layer with no confirmation at all. */}
+          {bgLib.length > 0 && <>
+            <select className="ltbtn bgLoadSelect" value={bgPick} onChange={(e) => { setBgPick(e.target.value); setConfirmBgDel(null); }} title="Choose a saved background">
+              <option value="">📂 Background…</option>
+              {bgLib.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+            <button className="ltbtn" disabled={!bgPick} onClick={() => bgPick && loadBackground(bgPick)} title="Replaces this level's Background layer">Load BG</button>
+            <button className={"ltbtn" + (bgPick && confirmBgDel === bgPick ? " on" : "")} disabled={!bgPick}
+              title={bgPick && confirmBgDel === bgPick ? "Tap again to permanently delete" : "Delete the chosen background"}
+              onClick={() => { const b = bgLib.find((x) => x && x.id === bgPick); if (!b) return; if (confirmBgDel === bgPick) deleteBackground(b); else { setConfirmBgDel(bgPick); flash("Tap ✕ again to permanently delete background \"" + b.name + "\""); } }}>{bgPick && confirmBgDel === bgPick ? "Sure?" : "✕"}</button>
+          </>}
         </div>
 
         <div className="lmain">
@@ -14057,7 +14213,17 @@ export default function AssetStudio() {
                 .map(([floor, items]) => (
                 <div key={floor} className="loadgroup">
                   <div className="loadgrouplabel">{floor === "🚪 Rooms" ? "🚪 Rooms" : floor === "—" ? "No floor set" : "🏢 Floor " + floor}</div>
-                  <div className="loadlist">{items.map((l) => <button key={l.id} onClick={() => openLevel(l)}>{l.isRoom ? "🚪" : "🗺️"} {l.name}{l.isRoom && (l.roomTag || "").trim() ? <span className="hint2"> · tag: {l.roomTag}</span> : l.section ? <span className="hint2"> · {l.section}</span> : null}</button>)}</div>
+                  {/* Open on the left, 🗑 on the right. Two taps to delete, exactly like the asset
+                      shelf's — the first arms it and says which one, so a mis-tap on a picker you
+                      opened to LOAD something cannot cost you a level. */}
+                  <div className="loadlist">{items.map((l) => (
+                    <div key={l.id} className="loadrow">
+                      <button className="loadopen" onClick={() => openLevel(l)}>{l.isRoom ? "🚪" : "🗺️"} {l.name}{l.isRoom && (l.roomTag || "").trim() ? <span className="hint2"> · tag: {l.roomTag}</span> : l.section ? <span className="hint2"> · {l.section}</span> : null}</button>
+                      <button className={"loaddel" + (confirmLvlDel === l.id ? " arm" : "")}
+                        title={confirmLvlDel === l.id ? "Tap again to permanently delete" : "Delete this " + (l.isRoom ? "room" : "level")}
+                        onClick={(e) => { e.stopPropagation(); if (confirmLvlDel === l.id) deleteLevel(l); else { setConfirmLvlDel(l.id); flash("Tap 🗑 again to permanently delete \"" + l.name + "\""); } }}>{confirmLvlDel === l.id ? "Sure?" : "🗑"}</button>
+                    </div>
+                  ))}</div>
                 </div>
               ))}
             </div>
@@ -15107,6 +15273,13 @@ const css = `
 .lrow button:hover{border-color:#4f7cf6;color:#e7e9ee}
 .loadlist{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:200px;overflow:auto}
 .loadlist button{text-align:left;background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:9px 12px;cursor:pointer}
+/* One row = open it + bin it. The open button takes all the leftover width so the 🗑 lands in the
+   same column down the whole list and can't be hit by aiming at a long level name. */
+.loadrow{display:flex;gap:6px;align-items:stretch}
+.loadrow .loadopen{flex:1;min-width:0}
+.loadlist .loaddel{flex:0 0 auto;text-align:center;color:#9aa3b8;padding:9px 10px}
+.loadlist .loaddel:hover{border-color:#e05b5b;color:#e05b5b}
+.loadlist .loaddel.arm{background:#3a2020;border-color:#e05b5b;color:#ffb3b3;font-weight:600}
 .loadlist button:hover{border-color:#4f7cf6}
 .loadgroup{margin-bottom:14px}
 .loadgrouplabel{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#9aa3b8;margin-bottom:4px}

@@ -302,6 +302,10 @@ import {
   talkFlashMs,
   TALK_PICK_FLASH_MS,
   TALK_PICK_FLASH_PLAIN_MS,
+  removedIds,
+  wornEquipMap,
+  slotWasEmptied,
+  equipDisplacedSlot,
 } from "./App";
 
 describe("door transitions", () => {
@@ -6347,3 +6351,62 @@ describe("A capture throwable collides with the body it is for", () => {
   });
 });
 
+
+// A PEDESTAL MUST NEVER EAT WHAT YOU WERE WEARING. The swap used to ask only the pedestal-loot map,
+// which knows nothing about the clothes the look was dressed in — so the first jacket you picked up
+// displaced "nothing", nothing went back on the plinth, and the render took the old one off anyway.
+describe("pedestal swap sees the clothes you are already wearing", () => {
+  const jacketA = { id: "a", name: "Old Jacket", type: "equipment", slot: "jacket", categories: ["Coat"] };
+  const jacketB = { id: "b", name: "New Jacket", type: "equipment", slot: "jacket", categories: ["Coat"] };
+  const shirtC = { id: "c", name: "Shirt", type: "equipment", slot: "shirt", categories: ["Coat"] };
+  const dressed = { id: "bob", type: "character", components: { equipment: { jacket: jacketA } } };
+
+  test("the look own clothing counts as worn", () => {
+    expect(wornEquipMap(dressed, {})).toEqual({ jacket: jacketA });
+  });
+  test("a pickup lies over the look own garment in the same slot", () => {
+    expect(wornEquipMap(dressed, { jacket: jacketB })).toEqual({ jacket: jacketB });
+  });
+  test("a null pickup entry EMPTIES the slot rather than falling back to the look", () => {
+    expect(wornEquipMap(dressed, { jacket: null })).toEqual({});
+    expect(slotWasEmptied({ jacket: null }, "jacket")).toBe(true);
+    expect(slotWasEmptied({}, "jacket")).toBe(false);
+  });
+  test("THE BUG: taking a jacket while dressed in one displaces the dressed one", () => {
+    const worn = wornEquipMap(dressed, {});
+    const off = equipDisplacedSlot(jacketB, worn);
+    expect(off).toBe("jacket");
+    expect(worn[off]).toBe(jacketA);   // ...so THIS is what goes back on the pedestal
+  });
+  test("the old behaviour — asking the pickup map alone — found nothing to put back", () => {
+    expect(equipDisplacedSlot(jacketB, {})).toBe(null);
+  });
+  test("a category match displaces the look own garment in a DIFFERENT slot", () => {
+    const worn = wornEquipMap(dressed, {});
+    expect(equipDisplacedSlot(shirtC, worn)).toBe("jacket");
+  });
+  test("an item with no slot can never read as a clean equip over an occupied one", () => {
+    const noSlot = { id: "z", name: "Odd", type: "equipment", categories: ["Coat"] };
+    const off = equipDisplacedSlot(noSlot, { jacket: jacketA });
+    expect(off).toBe("jacket");        // falsy slot must not short-circuit to a falsy answer
+  });
+});
+
+// A DELETE HAS TO OUTLIVE THE BROWSER THAT STILL HAS THE RECORD. The project file remembers the
+// ids, and every loader has to READ that list — this used to be true of assets alone, which is why
+// deleting a level, a texture, a stored group or a dialogue never stuck.
+describe("the project file tombstone list is readable for every kind", () => {
+  const proj = { removed: { assets: ["a1"], levels: ["l1", "", null, "l2"], textures: [] } };
+  test("reads one kind", () => {
+    expect([...removedIds(proj, "assets")]).toEqual(["a1"]);
+  });
+  test("blank and null ids never become tombstones — they would match every record with no id", () => {
+    expect([...removedIds(proj, "levels")]).toEqual(["l1", "l2"]);
+  });
+  test("a kind with no list, an absent removed block and no project at all are all just empty", () => {
+    expect(removedIds(proj, "textures").size).toBe(0);
+    expect(removedIds(proj, "dialogues").size).toBe(0);
+    expect(removedIds({}, "levels").size).toBe(0);
+    expect(removedIds(null, "levels").size).toBe(0);
+  });
+});
