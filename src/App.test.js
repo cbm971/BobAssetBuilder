@@ -310,6 +310,17 @@ import {
   wornEquipMap,
   slotWasEmptied,
   equipDisplacedSlot,
+  SPAWN_WEAPON_NONE,
+  spawnWeaponIdOf,
+  spawnOverridesWeapon,
+  spawnThrowIdOf,
+  enemyThrowCarry,
+  ENEMY_THROW_CARRY_DEFAULT,
+  ENEMY_THROW_CARRY_MAX,
+  ENEMY_THROW_MIN_CELLS,
+  enemyThrowRangePx,
+  enemyWantsToThrow,
+  enemyThrowVelocity,
 } from "./App";
 
 describe("door transitions", () => {
@@ -352,19 +363,29 @@ describe("where an enemy's HP comes from", () => {
   // the bug that prompted it: the look used to carry an `hp` typed into a separate box, so raising
   // the skin's HP stat changed the player and left every enemy built from that skin on 10.
   test("a Dress Bob enemy reads the look's stats, not the hp baked in when it was saved", () => {
-    const look = { isEnemy: true, hp: 10, stats: { hp: 10 } };
+    const look = { type: "character", hp: 10, stats: { hp: 10 } };
     expect(enemyMaxHP(look)).toBe(50);
   });
 
   test("a Dress Bob enemy with default stats matches a default player", () => {
-    expect(enemyMaxHP({ isEnemy: true, stats: { hp: 5 } })).toBe(25);
-    expect(enemyMaxHP({ isEnemy: true })).toBe(25);
+    expect(enemyMaxHP({ type: "character", stats: { hp: 5 } })).toBe(25);
+    expect(enemyMaxHP({ type: "character" })).toBe(25);
   });
 
   // Equipment worn in the look is already folded into its stats by assembleLook, so a +2 HP shirt
   // makes the enemy wearing it tougher for free.
   test("equipment worn in the look counts toward its HP", () => {
-    expect(enemyMaxHP({ isEnemy: true, stats: { hp: 5 + 2 } })).toBe(35);
+    expect(enemyMaxHP({ type: "character", stats: { hp: 5 + 2 } })).toBe(35);
+  });
+
+  // THE 👹 ENEMY FLAG IS GONE and every character is placeable as an enemy, so the stats rule
+  // cannot be conditional on one. A look saved back when the flag existed still carries it and must
+  // read exactly the same as one saved without it — the flag is inert, not a second code path.
+  test("every character reads its stats, flag or no flag", () => {
+    expect(enemyMaxHP({ type: "character", isEnemy: true, stats: { hp: 8 } })).toBe(40);
+    expect(enemyMaxHP({ type: "character", stats: { hp: 8 } })).toBe(40);
+    // ...and a stale `hp` left on an old look never wins over the stats.
+    expect(enemyMaxHP({ type: "character", isEnemy: true, hp: 10, stats: { hp: 8 } })).toBe(40);
   });
 
   // The other half of the rule: an animal built in the Enemy creator has no skin stats to read,
@@ -509,6 +530,37 @@ describe("enemy item drops", () => {
     expect(enemyEquippedGear(null, find)).toEqual([]);
   });
 
+  // WHAT DROPS IS WHAT IT WAS FIGHTING WITH. The placement decides the weapon now, so the loot has
+  // to read the placement — otherwise a spawn handed a bat drops the rifle its look was drawn with,
+  // which is a gun you were never shot at with appearing on the floor.
+  test("loot follows the placement's weapon, not the look's", () => {
+    const rifle = { id: "rifle", type: "weapon" }, bat = { id: "bat", type: "weapon" };
+    const nade = { id: "nade", type: "weapon", wtype: "throw" };
+    const lib = { rifle, bat, nade };
+    const find = (id) => lib[id] || null;
+    const look = { id: "thug", type: "character", recipe: { weaponId: "rifle", slots: {} }, components: {} };
+    // No override: unchanged — the look's own weapon.
+    expect(enemyEquippedGear(look, find, {}).map((a) => a.id)).toEqual(["rifle"]);
+    expect(enemyEquippedGear(look, find, undefined).map((a) => a.id)).toEqual(["rifle"]);
+    // Handed a different weapon: that is the one on the body.
+    expect(enemyEquippedGear(look, find, { weaponId: "bat" }).map((a) => a.id)).toEqual(["bat"]);
+    // Bare hands drops nothing at all, which is the point of setting it.
+    expect(enemyEquippedGear(look, find, { weaponId: SPAWN_WEAPON_NONE })).toEqual([]);
+    // Grenades ride in their own slot, so a rifleman with a satchel can drop either.
+    expect(enemyEquippedGear(look, find, { throwId: "nade" }).map((a) => a.id).sort()).toEqual(["nade", "rifle"]);
+    expect(enemyEquippedGear(look, find, { weaponId: SPAWN_WEAPON_NONE, throwId: "nade" }).map((a) => a.id)).toEqual(["nade"]);
+  });
+
+  // The embedded fallback exists for a weapon deleted from the library. It must stand in ONLY for
+  // the look's OWN weapon — a placement pointed at some third weapon that has since been deleted
+  // must drop nothing, not quietly hand you the look's rifle under the deleted one's name.
+  test("the embedded weapon copy only ever stands in for the look's own", () => {
+    const find = () => null;
+    const look = { id: "thug", type: "character", recipe: { weaponId: "rifle", slots: {} }, components: { weapon: { id: "rifle", type: "weapon" } } };
+    expect(enemyEquippedGear(look, find, {}).map((a) => a.id)).toEqual(["rifle"]);
+    expect(enemyEquippedGear(look, find, { weaponId: "deleted" })).toEqual([]);
+  });
+
   test("looted gear is matched back to the corpse pieces that drew it", () => {
     const jacket = { id: "jacket", type: "equipment", slot: "jacket" };
     const rifle = { id: "rifle", type: "weapon" };
@@ -520,6 +572,12 @@ describe("enemy item drops", () => {
     expect(pieceBelongsToAsset({ _slot: "hat" }, jacket)).toBe(false);
     expect(pieceBelongsToAsset({ _isWeapon: true }, rifle)).toBe(true);
     expect(pieceBelongsToAsset({}, rifle)).toBe(false);
+    // A THROWABLE IS NEVER DRAWN ON THE BODY — it rides in its own carry slot. Without this it
+    // answers the "_isWeapon" question too, so looting a grenade off a corpse would strip the rifle
+    // still lying in its hands. A grenade that IS tagged _src is still its own pieces, as always.
+    const nade = { id: "nade", type: "weapon", wtype: "throw" };
+    expect(pieceBelongsToAsset({ _isWeapon: true }, nade)).toBe(false);
+    expect(pieceBelongsToAsset({ _src: "nade" }, nade)).toBe(true);
     // Bare body art is never stripped by anything.
     expect(pieceBelongsToAsset({}, jacket)).toBe(false);
     expect(pieceBelongsToAsset(null, jacket)).toBe(false);
@@ -6510,5 +6568,106 @@ describe("a record can say it is deleted, in its own slot", () => {
   test("a corrupt record is not a gravestone either", () => {
     expect(isTombstoneRecord("{not json")).toBe(false);
     expect(isTombstoneRecord("__deleted")).toBe(false);
+  });
+});
+
+/* ── What a PLACEMENT carries ────────────────────────────────────────────────────────────────
+   The 👹 Enemy flag on a dressed look is gone, and this is what replaced it: the weapon and the
+   grenades belong to the spawn, beside the facing, the AI behaviour and the dialogue that already
+   did. The whole point is that ONE saved outfit can be four different enemies, so the rules below
+   are really one rule — a level already saved must open completely unchanged, and everything new
+   must be opt-in from an absent field. */
+describe("a spawn's own loadout", () => {
+  const look = { id: "thug", type: "character", recipe: { weaponId: "rifle", slots: {} } };
+
+  test("no weaponId means the look's own weapon, which is what keeps old levels identical", () => {
+    expect(spawnWeaponIdOf(undefined, look)).toBe("rifle");
+    expect(spawnWeaponIdOf({}, look)).toBe("rifle");
+    expect(spawnWeaponIdOf({ weaponId: "" }, look)).toBe("rifle");
+    expect(spawnOverridesWeapon(undefined)).toBe(false);
+    expect(spawnOverridesWeapon({})).toBe(false);
+    expect(spawnOverridesWeapon({ weaponId: "" })).toBe(false);
+  });
+
+  test("a weapon chosen on the placement wins over the one the look was dressed in", () => {
+    expect(spawnWeaponIdOf({ weaponId: "bat" }, look)).toBe("bat");
+    expect(spawnOverridesWeapon({ weaponId: "bat" })).toBe(true);
+  });
+
+  // BARE HANDS NEEDS ITS OWN SENTINEL. "" cannot mean it: "" has to keep meaning "don't override"
+  // for every spawn already saved, so an empty string is indistinguishable from an absent field.
+  // And spawnOverridesWeapon must still say TRUE for it, because the render reads that to strip
+  // the look's baked-in rifle — miss it and the unit punches you while drawn holding a gun.
+  test("bare hands is a real choice and is not the same as leaving it blank", () => {
+    expect(spawnWeaponIdOf({ weaponId: SPAWN_WEAPON_NONE }, look)).toBeNull();
+    expect(spawnOverridesWeapon({ weaponId: SPAWN_WEAPON_NONE })).toBe(true);
+    // A look with no weapon of its own, placed with no override, is bare-handed as it always was.
+    expect(spawnWeaponIdOf({}, { id: "x", type: "character", recipe: { slots: {} } })).toBeNull();
+    expect(spawnWeaponIdOf({}, null)).toBeNull();
+  });
+
+  test("grenades ride in a slot of their own, so a rifleman can carry both", () => {
+    expect(spawnThrowIdOf({ weaponId: "rifle" })).toBeNull();
+    expect(spawnThrowIdOf({ weaponId: "rifle", throwId: "nade" })).toBe("nade");
+    expect(spawnThrowIdOf(undefined)).toBeNull();
+  });
+
+  // The count gates a spawner, so it is clamped rather than trusted: a hand-edited level asking for
+  // 500 grenades is a level that never stops exploding.
+  test("the grenade count is clamped, and is zero when it carries none", () => {
+    expect(enemyThrowCarry({})).toBe(0);
+    expect(enemyThrowCarry(undefined)).toBe(0);
+    expect(enemyThrowCarry({ throwId: "nade" })).toBe(ENEMY_THROW_CARRY_DEFAULT);
+    expect(enemyThrowCarry({ throwId: "nade", throwCount: 5 })).toBe(5);
+    expect(enemyThrowCarry({ throwId: "nade", throwCount: 500 })).toBe(ENEMY_THROW_CARRY_MAX);
+    expect(enemyThrowCarry({ throwId: "nade", throwCount: 0 })).toBe(1);
+    expect(enemyThrowCarry({ throwId: "nade", throwCount: -3 })).toBe(1);
+  });
+});
+
+describe("an enemy throwing a grenade", () => {
+  const CW = 30;
+  const thrower = { stats: { strength: 5 } };
+  const nade = { weight: 3 };
+
+  // Its reach is the throwable's REAL reach, run through the same throwRangeBlocks the player's own
+  // throw uses — so a heavy demolition charge is a short-range tool for an enemy exactly as it is
+  // for you, and nothing has to be kept in step with a second range constant.
+  test("its reach is the same arm maths the player throws with", () => {
+    expect(enemyThrowRangePx(thrower, nade, CW)).toBe(throwRangeBlocks(5, 3) * CW);
+    const heavy = enemyThrowRangePx(thrower, { weight: 10 }, CW);
+    const light = enemyThrowRangePx(thrower, { weight: 1 }, CW);
+    expect(heavy).toBeLessThan(light);
+    // A stronger thrower reaches further with the same item.
+    expect(enemyThrowRangePx({ stats: { strength: 10 } }, nade, CW)).toBeGreaterThan(enemyThrowRangePx(thrower, nade, CW));
+  });
+
+  // Gated at BOTH ends. The near edge is what stops a unit dropping one on its own feet — walk
+  // inside it and it stops throwing and closes on you with whatever is in its hands instead.
+  test("it only throws from the middle distance", () => {
+    const max = enemyThrowRangePx(thrower, nade, CW);
+    expect(enemyWantsToThrow(0, max, CW)).toBe(false);
+    expect(enemyWantsToThrow(ENEMY_THROW_MIN_CELLS * CW - 1, max, CW)).toBe(false);
+    expect(enemyWantsToThrow(ENEMY_THROW_MIN_CELLS * CW, max, CW)).toBe(true);
+    expect(enemyWantsToThrow(max, max, CW)).toBe(true);
+    expect(enemyWantsToThrow(max + 1, max, CW)).toBe(false);
+  });
+
+  // IT LOBS AT THE TARGET, not always at maximum reach. Throwing full strength at somebody eight
+  // cells away sails the grenade over their head and lands it at fourteen, which is exactly the
+  // failure the player's Capture ball had: a payload that hopes the ballistics agree with it.
+  test("it throws exactly as hard as it needs to", () => {
+    const max = enemyThrowRangePx(thrower, nade, CW);
+    const near = enemyThrowVelocity(4 * CW, max, 0.175, 1);
+    const far = enemyThrowVelocity(8 * CW, max, 0.175, 1);
+    expect(Math.hypot(near.vx, near.vy)).toBeLessThan(Math.hypot(far.vx, far.vy));
+    // Past its reach it simply throws as far as it can — never harder than its arm allows.
+    expect(enemyThrowVelocity(999 * CW, max, 0.175, 1)).toEqual(enemyThrowVelocity(max, max, 0.175, 1));
+    // Facing decides the direction and nothing else about the throw.
+    const left = enemyThrowVelocity(8 * CW, max, 0.175, -1);
+    expect(left.vx).toBeCloseTo(-far.vx);
+    expect(left.vy).toBeCloseTo(far.vy);
+    // Neutral 45 degrees, same as an un-aimed player throw: it rises as fast as it travels.
+    expect(Math.abs(far.vy)).toBeCloseTo(Math.abs(far.vx));
   });
 });

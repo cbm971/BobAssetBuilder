@@ -80,6 +80,8 @@ Running the dev server **writes the browser's library back into `asset-data/`**,
   assert the match count is exactly 1 before writing.
 * **Python is not installed.** Use `node -e` for scripted edits.
 * `PowerShell` here is Windows PowerShell 5.1 — no `&&`, no ternary.
+* **A spawn's loadout is per PLACEMENT.** Anything that reads "what weapon is this enemy holding"
+  must take the spawn, not just the asset — see the 👹-flag section under *Weapon flags*.
 * **Building an asset by hand? Read `ASSET_AUTHORING.md` first.** It is the spec Blake hands to a
   chat that has no repo access: the file envelope, both bodies' real head/torso geometry per pose,
   the shape list, and the flat-colour house style (4–8 pieces, no shading — assisted assets that
@@ -733,6 +735,75 @@ range and still backs off when crowded.
 **Weapon flags** live flat on the asset (`explode`, `ignoreArmor`, `burst`,
 `burstDelay`, `resurrect`, `stun`, …). Adding one means three places: the `newAsset`
 defaults, a `migrate` default so older saves get it, and the editor control.
+
+**THERE IS NO 👹 ENEMY FLAG ON A DRESSED LOOK ANY MORE, AND IT WAS REMOVED BECAUSE IT MADE
+DUPLICATES.** `isEnemy` used to decide which Dress Bob looks the Level Creator would offer as
+enemies, so wanting the same outfit as a fightable enemy meant saving it twice — and wanting that
+enemy with a different gun meant saving it a third and a fourth time. The library shows exactly
+what that cost: `Billy` / `Billy Enemy` (a bat) / `COUNTRY BILLY` (a gun) are one drawing, and so
+are `Army Bob` / `Army Bob E` / `Army Bob EV` / `Army Bob EVG`, and `Footbob` / two separate
+`Footbob E` / `FootBall Bob E`. Twenty character assets for perhaps eight looks, each one needing
+every future edit made in all of its copies.
+
+So **every `character` is placeable as an enemy**, and what a placement CARRIES is stamped on the
+spawn beside the facing, the AI and the dialogue that were already stamped there:
+
+    lv.enemies["r,c"] = { enemyId, facing, ai?, dialogueId?, weaponId?, throwId?, throwCount? }
+
+* `weaponId` absent or `""` = the look's own weapon, so **every level already saved opens
+  unchanged** — that is the whole reason "" cannot double as "bare hands". `SPAWN_WEAPON_NONE`
+  ("none") is bare hands; anything else is a weapon id. Read it through `spawnWeaponIdOf`, and ask
+  `spawnOverridesWeapon` when you need to know whether the placement decided.
+* **One resolver, `spawnWeaponFor`, and four readers** — the AI loop, the living sprite, the corpse
+  and the loot roll. Four copies of "spawn override, else the look's own, else the embedded
+  fallback" would be four chances to disagree, and they disagree *visibly*: the unit shoots one gun
+  and is drawn holding another.
+* **A dressed look bakes a frozen copy of its own weapon into its art**, so an override has to
+  STRIP it (`_isWeapon`) before the real one is attached — and `if (ew)` is not the test, because
+  "bare hands" leaves `ew` null and the old rifle painted on a unit that is punching you. Both the
+  living sprite and the corpse ask `spawnOverridesWeapon`. The corpse only takes the strip-and-
+  reattach path when the placement actually overrides, so untouched corpses render exactly as
+  before (the baked-in position and the attached one are not guaranteed to agree to the pixel).
+* `isEnemy` on looks already saved is **inert** — nothing reads it, so nothing needs migrating.
+  `enemyMaxHP` splits on `type === "character"` now, which is the same line `isCreatureUnit` draws
+  and always claimed to be.
+
+**ENEMIES THROW GRENADES, and a thrown payload has a side exactly the way a bullet does.**
+`throwId` + `throwCount` on the spawn is its own slot, not the weapon field — a rifleman who also
+lobs one is the point, and one field would force a choice. The AI throw sits in the attack pipeline
+and is gated at BOTH ends (`enemyWantsToThrow`): inside `ENEMY_THROW_MIN_CELLS` it stops throwing
+and closes on you instead, which is also what stops it dropping one on its own feet, and the far
+edge is the throwable's REAL reach — `throwRangeBlocks` on the thrower's Strength and the item's
+Weight, the identical call your own throw makes. It lobs AT the target (`enemyThrowVelocity`)
+rather than always at maximum reach, for the reason the Capture ball records: a payload has to
+collide with its own target instead of hoping the ballistics agree with it.
+
+Three things about it that are easy to get wrong:
+
+* **It is deliberately NOT gated on `inSight`.** That test is a straight line through solid
+  Foreground, and the entire reason to lob something is that it goes over the wall you are standing
+  behind. It still has to have noticed you (`detected`) and be roughly on your floor.
+* **`g.foe` is the same flag `pr.foe` is on a shot**, and every payload branches on it: impact
+  damage, the Shock stun and the cluster bomblets. A hostile's grenade hits you and your allies,
+  yours hits the hostiles, and neither ever hits the side that threw it. The landing FIRE is
+  deliberately neutral — it burns whoever stands in it, thrower included, exactly as it always did.
+  **Capture is the one payload that does nothing on a foe throw**: it is a player mechanic and the
+  AI has no use for a corpse.
+* **The throw animation is `ep.throwT`, never `ep.swingT`.** swingT drives the melee hit test, so
+  borrowing it would mean a toss that also lands a punch — and on a unit holding a gun the aim pose
+  outranks the swing, so a throw would not read as one. While throwT runs, the held weapon is
+  suppressed and the grenade is drawn in the hand instead (you cannot swing a rifle to throw
+  something), the same way the player's throwable-in-hand render works.
+
+**And what drops is what it was FIGHTING with.** `enemyEquippedGear(ea, findAsset, spawn)` takes
+the placement, so a spawn handed a bat drops the bat and not the rifle its look was drawn with, a
+bare-handed spawn drops no weapon at all, and the grenades it has been lobbing are lootable (a
+picked-up throwable arrives at ×3 like any other). The embedded `components.weapon` copy still
+covers a weapon deleted from the library, but ONLY when the id is the look's own — otherwise a
+placement pointed at some third deleted weapon would quietly hand you the look's rifle instead.
+One consequence in `pieceBelongsToAsset`: a **throwable is never drawn on the body**, so it must
+not answer the `_isWeapon` question, or looting a grenade off a corpse strips the rifle still lying
+in its hands.
 
 Comments explain **why**, and usually name the bug that motivated the code. Match that
 density.

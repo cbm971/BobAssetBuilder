@@ -1489,12 +1489,22 @@ export const enemyGearDropPool = (assets) => (assets || []).filter((a) => a && (
 // and `components` holds a deep copy of each garment as it was when the look was saved. The IDs win
 // (so a later edit to that shirt is what drops), and the embedded copy is the fallback for gear
 // that has since been deleted from the library. A plain undressed enemy has only `weaponId`.
-export const enemyEquippedGear = (ea, findAsset) => {
+//
+// AND IT IS LOOTED OFF THE PLACEMENT, not off the asset. The gun a spawn was handed in the level
+// editor is the gun it shot you with, so it is the gun that drops; the one baked into the look it
+// was drawn from is not in its hands and must not fall out of them. Same for the grenades it has
+// been lobbing at you — those live only on the spawn, so there is no embedded copy to fall back
+// on. A spawn set to bare hands drops no weapon at all, which is the point of setting it.
+export const enemyEquippedGear = (ea, findAsset, spawn) => {
   if (!ea) return [];
   const out = [], seen = new Set();
   const add = (a) => { if (a && a.id && !seen.has(a.id)) { seen.add(a.id); out.push(a); } };
   const resolve = (id, embedded) => (id && findAsset && findAsset(id)) || embedded || null;
-  add(resolve(enemyWeaponIdOf(ea), ea.components && ea.components.weapon));
+  const ownWeaponId = enemyWeaponIdOf(ea), heldId = spawnWeaponIdOf(spawn, ea);
+  // The embedded copy is the fallback for a weapon since deleted from the library — but only when
+  // the id IS the look's own, or a spawn handed a different (and deleted) gun would drop the look's.
+  add(resolve(heldId, heldId && heldId === ownWeaponId ? (ea.components && ea.components.weapon) : null));
+  add(resolve(spawnThrowIdOf(spawn), null));
   const slots = (ea.recipe && ea.recipe.slots) || {};
   const worn = (ea.components && ea.components.equipment) || {};
   for (const s of new Set([...Object.keys(slots), ...Object.keys(worn)])) add(resolve(slots[s], worn[s]));
@@ -1507,7 +1517,12 @@ export const enemyEquippedGear = (ea, findAsset) => {
 export const pieceBelongsToAsset = (p, asset) => {
   if (!p || !asset) return false;
   if (p._src) return p._src === asset.id;
-  if (asset.type === "weapon") return !!p._isWeapon;
+  // The `_isWeapon` fallback identifies "the one weapon this look is holding", for looks saved
+  // before _src existed. A THROWABLE is never held in the art at all — it rides in its own carry
+  // slot — so it must not answer that question, or looting a grenade off a body would strip the
+  // rifle still lying in its hands. There is exactly one weapon drawn on a body and the grenade
+  // is not it.
+  if (asset.type === "weapon") return !isThrowable(asset.wtype) && !!p._isWeapon;
   return !!asset.slot && p._slot === asset.slot;
 };
 const pickFromPool = (pool, rnd) => {
@@ -1906,7 +1921,7 @@ export const nearestUnitCX = (fromCX, candidates) => {
 export const canResurrect = (hp, ep) => hp <= 0 && !(ep && ep.resurrectedOnce);
 // Whether a unit is a CREATURE rather than a person, which is what decides if it can be caught.
 // The line the data already draws is the asset TYPE: anything built in the Enemy creator (the
-// Squirrel, the Pit Bulls, the Elaphant) is an animal, while a 👹 Enemy is a Dress Bob look — Bob
+// Squirrel, the Pit Bulls, the Elaphant) is an animal, while a placed `character` is a look — Bob
 // in a different hat. It is the same split enemyMaxHP reads to decide whose HP comes from a stat
 // and whose is typed in, so there is no second definition of "human" to drift out of step. A
 // person-shaped thing drawn in the Enemy creator would be catchable; that is the cost of using
@@ -2444,7 +2459,7 @@ export const statSliderMax = (type, stat) => (type === "enemy" && stat === "spee
 // as they were and the player is the one who got the headroom.
 const PLAYER_BASE_HP = 25;
 export const maxPlayerHP = (playerAsset) => Math.max(1, Math.round(PLAYER_BASE_HP * ((playerAsset?.stats?.hp ?? 5) / 5)));
-// A Dress Bob look saved with the 👹 Enemy flag is a player-shaped character, so its HP is the
+// A Dress Bob look placed as an enemy is a player-shaped character, so its HP is the
 // player's own pool computed from the look's assembled stats — the skin's ❤️ HP stat with any worn
 // equipment boosts already folded in. It used to be a separate number box in the Dress Bob header
 // that defaulted to 10 and knew nothing about the skin, so raising a skin's HP left every enemy
@@ -2455,7 +2470,13 @@ export const enemyLookHP = (look) => maxPlayerHP(look);
 // spawns rather than from the `.hp` baked in when it was saved — otherwise raising a skin's ❤️ HP
 // would only reach the enemies you remembered to open and re-save afterwards. An Enemy-creator
 // asset has no stats-based HP to read, so its own typed number stands.
-export const enemyMaxHP = (ea) => (ea && ea.isEnemy) ? enemyLookHP(ea) : Math.max(1, (ea && ea.hp) ?? 10);
+// The line here is the asset TYPE, not a flag. It used to read a 👹 Enemy tickbox on the Dress Bob
+// look, which meant the same outfit had to be SAVED TWICE — once playable, once as an enemy — and
+// duplicating a whole look just to hand it a different gun is exactly what that flag was retired
+// for. Every `character` is placeable as an enemy now, so every character reads its HP off its own
+// assembled stats; an Enemy-creator asset (an animal) still uses the number typed into its editor.
+// That is the same split isCreatureUnit draws, which is what its own comment always claimed.
+export const enemyMaxHP = (ea) => (ea && ea.type === "character") ? enemyLookHP(ea) : Math.max(1, (ea && ea.hp) ?? 10);
 const DEFAULT_ATTACK_RANGE = 60;   // px — used when an enemy asset hasn't set its own attackRange
 const DEFAULT_RANGED_ATTACK_RANGE = 540; // px = 18 cells @ 30px — an enemy holding a bow/gun engages from far further out than a fist
 const ATTACK_COOLDOWN_FRAMES = 45; // frames between one enemy's attacks (~0.75s)
@@ -2536,9 +2557,63 @@ export const enemyMoveIntent = (ai, dist, range, speed, detected) => {
 // Same block-height jump math the player uses (h = v^2/2g, inverted), so an enemy's hop clears
 // the same obstacles a player of that Agility could.
 export const enemyJumpVelocity = (agility, cellH) => Math.sqrt(2 * 0.175 * (0.5 * Math.min(10, Math.max(1, agility ?? 5)) + 0.5) * cellH);
-// Which weapon an enemy is holding. A plain Enemy asset carries `weaponId`; a Dress Bob look
-// flagged 👹 Enemy already records its weapon in the recipe it was composed from.
+// The weapon an enemy ASSET was built holding. A plain Enemy asset carries `weaponId`; a Dress Bob
+// look records its weapon in the recipe it was composed from. This is the DEFAULT only — what a
+// particular placement actually carries is spawnWeaponIdOf, just below.
 export const enemyWeaponIdOf = (ea) => (ea && (ea.weaponId || (ea.recipe && ea.recipe.weaponId) || (ea.components && ea.components.weapon && ea.components.weapon.id))) || null;
+/* ── WHAT AN ENEMY IS CARRYING BELONGS TO THE PLACEMENT, NOT TO THE LOOK ──────────────────────
+   Facing, AI behaviour and the dialogue tree have always been stamped per placement, for the
+   stated reason that one drawn enemy should be able to be the quiet one by the gate AND the pack
+   of hostiles behind it without being two separate assets. The weapon was the one part of a spawn
+   that wasn't — so arming the same outfit with a rifle and with a bat meant saving the whole look
+   twice, and every later edit to the shirt then had to be made in both copies. Same drawing, same
+   stats, two assets, quietly diverging. (That duplication is also why the 👹 Enemy flag existed at
+   all, and it is why it no longer does — see enemyMaxHP.)
+
+   `weaponId` on a spawn: absent/"" = whatever the look itself was composed holding, so every level
+   already saved opens completely unchanged; SPAWN_WEAPON_NONE = deliberately bare-handed; any
+   other value = that weapon asset's id. Bare hands needs its own sentinel precisely because "" has
+   to keep meaning "don't override" for the sake of those existing levels. */
+export const SPAWN_WEAPON_NONE = "none";
+// Whether this placement decides the weapon itself. Read by the RENDER as well as by the AI: a
+// dressed look has a frozen copy of its own weapon baked into its art, and that copy has to be
+// stripped whenever the placement disagrees with it — INCLUDING when the placement says "no weapon
+// at all", which is the case an `if (ew)` test silently gets wrong (it leaves the old gun painted
+// on the sprite while the unit fights bare-handed).
+export const spawnOverridesWeapon = (spawn) => !!(spawn && spawn.weaponId);
+export const spawnWeaponIdOf = (spawn, ea) => {
+  const w = spawn && spawn.weaponId;
+  if (w === SPAWN_WEAPON_NONE) return null;
+  return w || enemyWeaponIdOf(ea);
+};
+// The GRENADE a placement carries. Deliberately its own slot rather than the weapon field, exactly
+// the way the player's throwable is separate from the gun in their hands (see the pickup path): a
+// rifleman who also lobs a grenade is the entire point, and one field would force a choice.
+export const spawnThrowIdOf = (spawn) => (spawn && spawn.throwId) || null;
+export const ENEMY_THROW_CARRY_DEFAULT = 2;   // "at times", not "constantly"
+export const ENEMY_THROW_CARRY_MAX = 8;
+// How many it starts the level with. Clamped rather than trusted, because this number gates a
+// spawner: a hand-edited level asking for 500 grenades is a level that never stops exploding.
+export const enemyThrowCarry = (spawn) =>
+  spawnThrowIdOf(spawn) ? Math.max(1, Math.min(ENEMY_THROW_CARRY_MAX, Math.round(spawn.throwCount ?? ENEMY_THROW_CARRY_DEFAULT))) : 0;
+// ── When a unit lets one fly ─────────────────────────────────────────────────────────────────
+// A grenade is a mid-range answer, so it is gated at both ends. Too close and it goes off in the
+// thrower's own face (a unit lobbing one at its own feet just reads as broken); past its own arc it
+// cannot reach at all. The far edge is the throwable's REAL reach — throwRangeBlocks run on the
+// thrower's own Strength and the item's Weight, the identical call the player's throw makes — so a
+// heavy demolition charge is a short-range tool for an enemy exactly as it is for you.
+export const ENEMY_THROW_MIN_CELLS = 3;
+export const ENEMY_THROW_COOLDOWN_FRAMES = 150;  // 2.5s floor between one unit's throws
+export const enemyThrowRangePx = (ea, throwable, cellW) =>
+  throwRangeBlocks(ea?.stats?.strength ?? 5, throwable && throwable.weight) * (cellW || 30);
+export const enemyWantsToThrow = (gapPx, maxRangePx, cellW) =>
+  gapPx >= ENEMY_THROW_MIN_CELLS * (cellW || 30) && gapPx <= maxRangePx;
+// Lob it AT the target instead of always at maximum reach. Same launch solver the player's throw
+// uses, handed the distance to the target rather than the arm's full range — so a grenade lands on
+// somebody eight cells away instead of sailing over them and coming down at fourteen. Clamped to
+// the arm's real reach, so a target further off than it can throw still gets thrown at.
+export const enemyThrowVelocity = (gapPx, maxRangePx, g, face) =>
+  throwLaunchVel(Math.max(1, Math.min(maxRangePx, gapPx)), g, face, THROW_NEUTRAL_RAD);
 // Damage one swing/shot from this enemy deals, before the player's Defense is applied. A weapon
 // supplies the base damage, scaled by the enemy's Strength (5 = 1x, same as the player's own
 // formula); bare-handed it's UNARMED_DAMAGE through that same scaling, so an enemy's fists are
@@ -6228,7 +6303,6 @@ export default function AssetStudio() {
   const [sessionAssets, setSessionAssets] = useState([]);
   const [loadout, setLoadout] = useState({ bodyId: "", skinId: "", slots: {}, weaponId: "" });
   const [dressedBobName, setDressedBobName] = useState(""); // editable — blank falls back to "<body> — dressed"
-  const [markAsEnemy, setMarkAsEnemy] = useState(false);    // saves this Dress Bob look as a player-like enemy (isEnemy flag) instead of a plain playable character
   const [savedDressedIds, setSavedDressedIds] = useState({}); // name -> id, so re-saving under the SAME name updates it; a different name saves as a new, separate entry
   const [viewDressed, setViewDressed] = useState(null); // a previously-saved dressed character currently being viewed
   const [aAngle, setAAngle] = useState("front");
@@ -6375,10 +6449,13 @@ export default function AssetStudio() {
   const [lHazDps, setLHazDps] = useState(DEFAULT_HAZARD_DPS.fire); // fire hazard damage-per-second the Hazard tool paints with
   const [lHazLife, setLHazLife] = useState(DEFAULT_HAZARD_LIFE);   // seconds a painted fire burns before going out (0 = permanent)
   const [lHazHide, setLHazHide] = useState(false);                // paint fire that's INVISIBLE during play (still deals damage) — so you can lay your own pixel-art fire Object on top of it via the Front layer
-  const [lEnemyId, setLEnemyId] = useState("");          // which enemy/isEnemy-character asset the Enemies layer paints with
+  const [lEnemyId, setLEnemyId] = useState("");          // which Enemy asset or dressed character the Enemies layer paints with
   const [lEnemyFace, setLEnemyFace] = useState(-1);       // which way newly-placed enemies face: -1 left (default — enemies confront a left-to-right player), 1 right
   const [lEnemyAi, setLEnemyAi] = useState("guard");      // AI behavior stamped onto newly-placed enemies (set HERE in the level tester, not the enemy creator) — "asset" = use the enemy's own saved default
   const [lEnemyDlg, setLEnemyDlg] = useState("");         // dialogue tree stamped onto newly-placed enemies — attaching one ALSO makes that spawn peaceful until a choice says otherwise (spawnStartsPeaceful)
+  const [lEnemyWeapon, setLEnemyWeapon] = useState("");   // weapon stamped onto newly-placed enemies: "" = the look's own, SPAWN_WEAPON_NONE = bare hands, else a weapon id (spawnWeaponIdOf)
+  const [lEnemyThrow, setLEnemyThrow] = useState("");     // throwable stamped onto newly-placed enemies — its own slot, so a rifleman can also lob grenades
+  const [lEnemyThrowN, setLEnemyThrowN] = useState(ENEMY_THROW_CARRY_DEFAULT); // how many of it that placement starts the level with
   const [lSel, setLSel] = useState(null);              // selected connector key
   const [gen, setGen] = useState(null);                // generated chain preview
   const [play, setPlay] = useState(false);             // playtest mode
@@ -7786,7 +7863,7 @@ export default function AssetStudio() {
           // same tackleSecsOf the player's own lookup uses, so a dressed 👹 Enemy in a football kit
           // gets the ability on exactly the terms Bob does.
           const eTackleSecs = tackleSecsOf(ea);
-          const ew = findA(enemyWeaponIdOf(ea)) || (ea.components && ea.components.weapon) || null; // the weapon this enemy is actually holding — falls back to the look's own embedded copy if the source asset is gone from the library
+          const ew = spawnWeaponFor(spawn, ea); // the weapon THIS PLACEMENT is holding — the level's choice wins over the look's own, and "bare hands" is a choice (spawnWeaponIdOf)
           const rangedEnemy = !!(ew && isRanged(ew.wtype));
           // Enemies use the same clip and reload-time settings as the gun itself (including any
           // Magazine Size clothing on a dressed enemy). Keep the ammo record on this spawn's live
@@ -8135,6 +8212,51 @@ export default function AssetStudio() {
               if (cellsHit(sx, chestY, 1, 1).length) { blocked = true; break; }
             }
             inSight = !blocked;
+          }
+          /* ── GRENADES ──────────────────────────────────────────────────────────────────────────
+             A placement can carry a throwable in its own slot (spawnThrowIdOf) and this is where it
+             uses one. Deliberately NOT gated on `inSight`: that test is a straight line to the
+             target through solid Foreground, and the entire reason to lob something is that it goes
+             OVER the wall you are standing behind. It still has to have noticed you (`detected`),
+             be roughly on your floor, and be inside the band where a throw makes sense — walk
+             inside ENEMY_THROW_MIN_CELLS and it stops throwing and closes on you instead, which is
+             also what stops it dropping one on its own feet.
+
+             The stock lives on `ep`, which lives in the per-level roomState bucket, so a grenadier
+             you left with one grenade still has exactly one when you come back through the door.
+             Nothing here is creature-specific: a Pit Bull with a satchel charge is a level design
+             decision, not a bug, and `spawnThrowableFor` is the only gate on who may carry one. */
+          if ((ep.throwCd || 0) > 0) ep.throwCd -= dtMul;
+          if ((ep.throwT || 0) > 0) ep.throwT -= dtMul;
+          const eThrowable = spawnThrowableFor(spawn);
+          if (eThrowable) {
+            if (ep.throwLeft == null) ep.throwLeft = enemyThrowCarry(spawn);
+            const throwMaxPx = enemyThrowRangePx(ea, eThrowable, CW);
+            if (!stunned && acts && attacking && detected && sameLevel && ep.throwLeft > 0 && (ep.throwCd || 0) <= 0
+                && !unitTalkImmune(ep) && enemyWantsToThrow(gapNow, throwMaxPx, CW)) {
+              const throwFace = Math.sign(tgtAimCX - eCenterXFinal) || ep.face;
+              const { vx, vy } = enemyThrowVelocity(gapNow, throwMaxPx, 0.175, throwFace);
+              const thrArt = bake({ ...eThrowable, angles: (eThrowable.states?.rest || eThrowable.angles || blankAngles()) }, "side");
+              // Same prepFlyingArt the player's throw uses — an art-bbox-sized container shrinks
+              // canvas-percentage pieces a second time and the grenade renders about one pixel wide.
+              const fly = prepFlyingArt(thrArt, CW, 1);
+              thrown.current.push({
+                x: eCenterXFinal, y: ep.y + newEph * 0.4, vx, vy, rot: 0,
+                spin: throwFace * 8, asset: eThrowable, pieces: fly.pieces.length ? fly.pieces : null,
+                cwPx: fly.canvasWPx, chPx: fly.canvasHPx, wPx: fly.wPx, hPx: fly.hPx,
+                // A hostile's grenade is aimed at YOU; a recruited one's is aimed at whatever it is
+                // fighting. The very same `foe` channel a shot already carries, so ONE flag decides
+                // who every payload of it lands on and the two sides cannot drift apart.
+                foe: hostile,
+              });
+              ep.throwLeft -= 1;
+              // Randomised on top of the floor so a line of grenadiers doesn't volley in lockstep.
+              ep.throwCd = ENEMY_THROW_COOLDOWN_FRAMES + Math.round(Math.random() * 60);
+              ep.throwT = ATTACK_SWING_FRAMES;   // the throwing-arm swing; the sprite reads THIS, never swingT
+              ep.face = throwFace;
+              ep.attackT = Math.max(ep.attackT || 0, ATTACK_COOLDOWN_FRAMES); // it threw — no free swing or shot on the same frame
+              flash("💣 " + (ea.name || "An enemy") + " threw " + (eThrowable.name || "a grenade") + (ep.throwLeft ? "" : " — its last one"));
+            }
           }
           // Ranged units visibly TRACK their target: aimHold keeps the arm raised in the aim pose
           // the whole time the target is in their sights, not just the shot frame.
@@ -8501,17 +8623,39 @@ export default function AssetStudio() {
           // and the one that lands at their feet — a thrown object used to pass clean THROUGH an
           // enemy, because the only thing it collided with was solid terrain. Striking someone
           // also stops it: that IS where it landed, so its fire (if any) paints right there.
+          // A GRENADE HAS A SIDE, exactly the way a bullet does. `g.foe` is set by the AI loop when
+          // an enemy throws one and is the same flag `pr.foe` is on a shot, so a thrown payload can
+          // never drift out of step with a fired one about who it is allowed to land on. Everything
+          // below branches on it once, here, and the landing payloads branch on it again — a
+          // hostile's grenade hits you and your allies, yours hits the hostiles, and neither ever
+          // hits the side that threw it.
           const impactDmg = throwImpactDamage(g.asset);
           const struck = [];
           if (!offLevel && impactDmg > 0) {
             const impactRadPx = THROW_IMPACT_RADIUS_CELLS * CW;
-            for (const k of Object.keys(lv.enemies || {})) {
-              const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
-              if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea2);
-              if (enemyHP.current[k] <= 0) continue;
-              const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly || unitTalkImmune(ep2)) continue; // your own allies aren't pelted, and neither is anyone you haven't picked a fight with
-              const bx = enemyThrowBox(ea2, ep2);
-              if (blastHitsBox(g.x, g.y, bx.x, bx.y, bx.w, bx.h, impactRadPx)) struck.push({ k, ea: ea2, ep: ep2 });
+            if (g.foe) {
+              // The player has no "already at 0 HP" state to skip, only i-frames — and those are
+              // checked where the damage is APPLIED, not here, because a rock still has to stop on
+              // you during them. Skipping the collision instead would send it sailing through and
+              // landing somewhere behind you, which is the bug the impact test exists to fix.
+              if (blastHitsBox(g.x, g.y, p.x, p.y, pw, ph, impactRadPx)) struck.push({ kind: "player" });
+              for (const k of Object.keys(lv.enemies || {})) {
+                const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
+                const ep2 = enemyPos.current[k]; if (!ep2 || !ep2.friendly) continue; // a foe's grenade catches YOUR side, and the throwers are immune to their own
+                if (enemyHP.current[k] === undefined) enemyHP.current[k] = unitMaxHP(ea2, ep2, allyHpBonus);
+                if (enemyHP.current[k] <= 0) continue;
+                const bx = enemyThrowBox(ea2, ep2);
+                if (blastHitsBox(g.x, g.y, bx.x, bx.y, bx.w, bx.h, impactRadPx)) struck.push({ kind: "unit", k, ea: ea2, ep: ep2 });
+              }
+            } else {
+              for (const k of Object.keys(lv.enemies || {})) {
+                const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
+                if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea2);
+                if (enemyHP.current[k] <= 0) continue;
+                const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly || unitTalkImmune(ep2)) continue; // your own allies aren't pelted, and neither is anyone you haven't picked a fight with
+                const bx = enemyThrowBox(ea2, ep2);
+                if (blastHitsBox(g.x, g.y, bx.x, bx.y, bx.w, bx.h, impactRadPx)) struck.push({ kind: "unit", k, ea: ea2, ep: ep2 });
+              }
             }
           }
           // ...AND A CAPTURE THROWABLE STOPS ON THE BODY IT IS FOR. The scan just above is a scan
@@ -8537,8 +8681,12 @@ export default function AssetStudio() {
           // same `canCapture` the payout uses, so a ball can only be stopped by a body it would
           // actually claim: it still flies over people, over living animals, and over your own
           // allies exactly as it did.
+          //
+          // Never on a grenade an ENEMY threw: a capture payload is a player mechanic (it hands the
+          // body to whoever threw the ball), and the AI has no use for a corpse. Its Capture number
+          // simply does nothing on that side — the fire, blast and stun it also carries all still do.
           let onCatchableBody = false;
-          if (!offLevel && captureCount(g.asset) > 0) {
+          if (!offLevel && !g.foe && captureCount(g.asset) > 0) {
             const contactRadPx = THROW_IMPACT_RADIUS_CELLS * CW;   // the same "that is contact" reach the impact test uses
             for (const k of Object.keys(lv.enemies || {})) {
               const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
@@ -8559,6 +8707,18 @@ export default function AssetStudio() {
           // — which for a Rock, whose only damage IS the impact, reads as "it did nothing" again.
           let impactNote = "";
           for (const s of struck) {
+            if (s.kind === "player") {
+              // The full incoming-damage treatment a foe's shot gets: Defense, the cape's back
+              // guard, the crouch guard and the i-frames. A grenade to the face is not a special
+              // case of being hit, so it must not have its own arithmetic.
+              if (p.invuln > 0) continue;
+              const dmg = incomingPlayerDamage(impactDmg, playerAsset?.defense ?? 0, p.face, g.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(g.asset && g.asset.ignoreArmor));
+              playerHP.current = Math.max(0, playerHP.current - dmg);
+              p.invuln = PLAYER_INVULN_FRAMES;
+              if (playerHP.current <= 0) { flash("💀 Blown off your feet — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0; playerHP.current = maxPlayerHP(playerAsset); }
+              else impactNote += " · 🪨 hit you for " + dmg + " (" + playerHP.current + " HP left)";
+              continue;
+            }
             enemyHP.current[s.k] = Math.max(0, enemyHP.current[s.k] - impactDmg);
             impactNote += " · 🪨 hit " + s.ea.name + " for " + impactDmg
               + (enemyHP.current[s.k] <= 0 ? " — defeated!" : " (" + enemyHP.current[s.k] + " HP left)");
@@ -8584,6 +8744,7 @@ export default function AssetStudio() {
                 spin: (cv.vx >= 0 ? 1 : -1) * 10, asset: a, pieces: bombFly.pieces.length ? bombFly.pieces : null,
                 cwPx: bombFly.canvasWPx, chPx: bombFly.canvasHPx, wPx: bombFly.wPx, hPx: bombFly.hPx,
                 noCluster: true,
+                foe: g.foe,   // a bomblet belongs to whoever threw the parent; without this an enemy's cluster bomb bursts into grenades that hunt its own side
               });
             }
             flash("💥 " + (a.name || "Grenade") + " burst into " + clusterCount);
@@ -8609,19 +8770,42 @@ export default function AssetStudio() {
           let stunnedCount = 0;
           if (stunSecs > 0) {
             const stunRadPx = throwStunRadiusCells(radius) * CW;
-            for (const k of Object.keys(lv.enemies || {})) {
-              const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
-              if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea2);
-              if (enemyHP.current[k] <= 0) continue;
-              const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly || unitTalkImmune(ep2)) continue; // your own resurrected allies aren't shocked, nor is a talkable NPC — a stun IS something landing on them
-              // Same box-not-centre rule the explosion uses (blastHitsBox) — measuring to a big
-              // enemy's centre made a grenade that landed at its feet miss it entirely.
+            // Same box-not-centre rule the explosion uses (blastHitsBox) — measuring to a big
+            // enemy's centre made a grenade that landed at its feet miss it entirely. One helper so
+            // both sides of the throw ask the identical question about who is standing in it.
+            const stunBoxOf = (ea2, ep2) => {
               const sShape = sideBodyShape(ea2);
               const sRenderW = enemyRenderW(ea2, CW), spw = sRenderW * sShape.fraction;
               const sph = ep2.crouch ? enemyCrouchH(ea2, CW) : enemyStandH(ea2, CW);
-              if (blastHitsBox(g.x, g.y, ep2.x + (sShape.centerFrac * sRenderW - spw / 2), ep2.y + sShape.topFrac * sph, spw, sShape.heightFrac * sph, stunRadPx)) {
-                ep2.stun = Math.round(stunSecs * 60); ep2.reactT = 0; ep2.swingT = 0; ep2.aimHold = 0;
-                stunnedCount++;
+              return { x: ep2.x + (sShape.centerFrac * sRenderW - spw / 2), y: ep2.y + sShape.topFrac * sph, w: spw, h: sShape.heightFrac * sph };
+            };
+            if (g.foe) {
+              // A shock grenade thrown at YOU freezes you through the same stunPlayer channel a stun
+              // weapon's hit uses, so the 💫 marker and every can't-move/can't-aim/can't-attack gate
+              // applies unchanged — and a raised guard or a queued burst is dropped exactly as it is
+              // by any other stun. Your allies are caught in it too; the thrower's side is not.
+              if (blastHitsBox(g.x, g.y, p.x, p.y, pw, ph, stunRadPx)) { stunPlayer(p, stunSecs); stunnedCount++; }
+              for (const k of Object.keys(lv.enemies || {})) {
+                const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
+                const ep2 = enemyPos.current[k]; if (!ep2 || !ep2.friendly) continue;
+                if (!(enemyHP.current[k] > 0)) continue;
+                const b = stunBoxOf(ea2, ep2);
+                if (blastHitsBox(g.x, g.y, b.x, b.y, b.w, b.h, stunRadPx)) {
+                  ep2.stun = Math.round(stunSecs * 60); ep2.reactT = 0; ep2.swingT = 0; ep2.aimHold = 0;
+                  stunnedCount++;
+                }
+              }
+            } else {
+              for (const k of Object.keys(lv.enemies || {})) {
+                const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
+                if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea2);
+                if (enemyHP.current[k] <= 0) continue;
+                const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly || unitTalkImmune(ep2)) continue; // your own resurrected allies aren't shocked, nor is a talkable NPC — a stun IS something landing on them
+                const b = stunBoxOf(ea2, ep2);
+                if (blastHitsBox(g.x, g.y, b.x, b.y, b.w, b.h, stunRadPx)) {
+                  ep2.stun = Math.round(stunSecs * 60); ep2.reactT = 0; ep2.swingT = 0; ep2.aimHold = 0;
+                  stunnedCount++;
+                }
               }
             }
           }
@@ -8638,7 +8822,7 @@ export default function AssetStudio() {
           // lands at a big creature's feet miss it entirely.
           const wantCaptures = captureCount(a);
           const caught = [];
-          if (wantCaptures > 0) {
+          if (wantCaptures > 0 && !g.foe) {  // see the capture-stop test above: a thrown ball only ever works for the player
             const capRadPx = throwStunRadiusCells(radius) * CW; // one shared "how far a landed payload reaches" rule
             const inRange = [];
             for (const k of Object.keys(lv.enemies || {})) {
@@ -8676,7 +8860,7 @@ export default function AssetStudio() {
               caught.push((c.ea.name || "a creature") + (c.ep.reviveCount > 1 ? " (×" + c.ep.reviveCount + ")" : ""));
             }
           }
-          flash("💥 " + (a.name || "Grenade") + " landed" + (landProp ? " — " + landProp.name : " — 🔥")
+          flash((g.foe ? "💣 " : "💥 ") + (a.name || "Grenade") + (g.foe ? " landed near you" : " landed") + (landProp ? " — " + landProp.name : " — 🔥")
             + impactNote
             + (stunnedCount ? " · 💫 stunned " + stunnedCount + " for " + stunSecs + "s" : "")
             + (caught.length ? " · 🔴 caught " + caught.join(", ") + " — now fighting for you!" : ""));
@@ -8893,7 +9077,7 @@ export default function AssetStudio() {
         const [er, ec] = k.split(",").map(Number), ea = findA(lv.enemies[k].enemyId), ep = enemyPos.current[k];
         // Gear is looted off THIS body — only what it actually had equipped. Consumables still
         // come from the whole item pool (a potion isn't something it was wearing).
-        const item = rollEnemyItemDrop(allAssets, enemyEquippedGear(ea, findA));
+        const item = rollEnemyItemDrop(allAssets, enemyEquippedGear(ea, findA, lv.enemies[k]));
         if (!item) { enemyDrops.current[k] = null; continue; }
         const shape = ea ? sideBodyShape(ea) : { fraction: 1 }, renderW = ea ? enemyRenderW(ea, CW) : CW;
         const hitW = renderW * shape.fraction, standH = ea ? enemyStandH(ea, CH) : CH;
@@ -11363,14 +11547,32 @@ export default function AssetStudio() {
   // lookup — playerAsset may be a raw body (its own id is the answer) or a saved Dress Bob
   // look composed FROM a body (its recipe records which one).
   const equippedBodyIdFor = (pa) => !pa ? null : (pa.type === "body" ? pa.id : (pa.recipe && pa.recipe.bodyId) || null);
+  // What a PLACEMENT is holding, resolved to a real asset. ONE reader, used by the AI loop, the
+  // living sprite, the corpse and the loot roll — four copies of "spawn override, else the look's
+  // own, else the embedded fallback" would be four chances to disagree, and they disagree
+  // visibly: the unit shoots one gun and is drawn holding another.
+  const spawnWeaponFor = (spawn, ea) => {
+    const id = spawnWeaponIdOf(spawn, ea);
+    if (!id) return null;
+    // The embedded copy stands in ONLY for the look's own weapon. A placement pointed at a weapon
+    // that has since been deleted falls through to bare hands rather than to somebody else's gun.
+    return findA(id) || (id === enemyWeaponIdOf(ea) ? (ea && ea.components && ea.components.weapon) : null) || null;
+  };
+  // Its grenades. Type-checked rather than trusted: a hand-edited level (or a throwId left behind
+  // after the asset was rebuilt as a rifle) must not put a machine gun into the throwing arm.
+  const spawnThrowableFor = (spawn) => { const id = spawnThrowIdOf(spawn); const a = id ? findA(id) : null; return a && isThrowable(a.wtype) ? a : null; };
   // ---- PLAYER-BASED enemy melee: weapon-hitbox driven, exactly like the player --------------
-  // A Dress Bob look saved as an enemy fights the way the player fights: its melee reach IS its
+  // A Dress Bob look placed as an enemy fights the way the player fights: its melee reach IS its
   // weapon's own (drawn or auto) hitbox swung through the same windup/strike arc, and a hit only
   // lands on the frame that swung box physically overlaps the player. No stored range number is
   // consulted for these — the ⚔️ field only remains for drawn enemy-type monsters, which have no
   // weapon geometry to measure. Bare-handed looks swing the same fist box the player does.
+  //
+  // `ew` is the weapon THIS PLACEMENT carries, never the look's own (spawnWeaponFor). It is passed
+  // in rather than looked up here for exactly that reason: the same look handed a bat and handed a
+  // rifle has two different reaches, and one of them is not a melee reach at all.
   const enemyMeleeGeom = (ea, ew) => {
-    if (!ea || ea.type !== "character" || !ea.isEnemy) return null;
+    if (!ea || ea.type !== "character") return null;
     if (ew && (isRanged(ew.wtype) || isThrowable(ew.wtype))) return null;
     const side = (ea.angles && ea.angles.side) || [];
     const armPiece = armOf(side) || enemyAimArm(side);
@@ -11497,8 +11699,12 @@ export default function AssetStudio() {
     const weapon = findA(loadout.weaponId);
     const skin = findA(loadout.skinId);
     const equipment = {}; for (const s of SLOT_ORDER) { const a = findA(loadout.slots[s]); if (a) equipment[s] = a; }
-    const base = { id: idOverride || uid(), name: body.name + " — dressed", type: "character", isEnemy: !!markAsEnemy };
-    if (markAsEnemy) { base.ai = "guard"; /* default only — real behavior is chosen per-placement in the level tester, which overrides this */ }
+    // NO 👹 ENEMY FLAG. Every dressed look is both a playable character and a placeable enemy, so
+    // there is nothing to tick and nothing to duplicate. What made the flag worth having — "this
+    // one is a bad guy holding a rifle" — is decided per placement in the Level Creator now, where
+    // facing, AI and dialogue have always been decided (see spawnWeaponIdOf). Looks already saved
+    // carrying `isEnemy: true` are unaffected: nothing reads it any more, so it is simply inert.
+    const base = { id: idOverride || uid(), name: body.name + " — dressed", type: "character" };
     // The look IS its layers — embed full copies of every component so any layer can be
     // recovered, re-edited, or swapped later, even if the source assets get deleted.
     // The baked angles are just the pre-rendered output for playtest.
@@ -11509,9 +11715,10 @@ export default function AssetStudio() {
     if (Object.keys(equipment).length) { base.components.equipment = {}; for (const s of Object.keys(equipment)) base.components.equipment[s] = JSON.parse(JSON.stringify(equipment[s])); }
     // HP is set AFTER assembly on purpose: it reads the stats assembleLook just resolved (skin
     // stats + equipment boosts), which is the same set of numbers the player runs on.
-    const look = assembleLook(body, skin, weapon, equipment, base);
-    if (markAsEnemy) look.hp = enemyLookHP(look);
-    return look;
+    // HP is not stored on the look at all. enemyMaxHP derives it from these stats every time the
+    // look spawns, so a skin's ❤️ HP edit reaches every enemy built from it without re-saving any
+    // of them — which is the reason the number was taken off this screen in the first place.
+    return assembleLook(body, skin, weapon, equipment, base);
   };
   // Re-bake a saved look from its OWN embedded components (already updated by swapLookComponent).
   // Keeps the look's identity — id, name, savedAt, enemy settings — and replaces only the derived
@@ -11521,11 +11728,9 @@ export default function AssetStudio() {
     if (!c.body) return null; // pre-components legacy save: nothing to rebuild from, leave it be
     const equipment = c.equipment || {};
     const base = { ...look, angles: undefined, hand: undefined, shoulder: undefined, stats: undefined, defense: undefined, effects: undefined };
-    const rebuilt = assembleLook(c.body, c.skin || null, c.weapon || null, equipment, base);
-    // HP is derived, not stored — an enemy look re-baked after its skin's ❤️ HP stat changed comes
-    // back with the new pool. This is also what upgrades looks saved before HP was derived at all.
-    if (rebuilt.isEnemy) rebuilt.hp = enemyLookHP(rebuilt);
-    return rebuilt;
+    // HP is derived and never stored — enemyMaxHP reads these stats at spawn time — so a look
+    // re-baked after its skin's ❤️ HP stat changed comes back with the new pool for free.
+    return assembleLook(c.body, c.skin || null, c.weapon || null, equipment, base);
   };
   const exportLook = () => { const l = composeLook(); if (!l) { flash("Pick a body first."); return; } setCombo(JSON.stringify(l, null, 2)); };
   const saveDressedBob = async () => {
@@ -12699,10 +12904,12 @@ export default function AssetStudio() {
           <button className="back" onClick={() => setScreen("menu")}>‹ Menu</button>
           <div className="logo">🧩 Dress Bob</div>
           <input className="dressName" value={dressedBobName} onChange={(e) => setDressedBobName(e.target.value)} placeholder={(body ? body.name + " — dressed" : "name this outfit") + "…"} />
-          <label className="chk" style={{ margin: "0 8px" }} >
-            <input type="checkbox" checked={markAsEnemy} onChange={(e) => setMarkAsEnemy(e.target.checked)} /> 👹 Enemy
-          </label>
-          {/* No HP field here anymore, for the same reason there's no ⚔️ range field: a Dress Bob
+          {/* No 👹 Enemy tickbox here anymore. Every look is placeable as an enemy, so ticking a box
+              only ever bought you a SECOND copy of the same outfit — one to play as and one to
+              fight — plus a third and a fourth once you wanted that same thug holding a different
+              gun. The weapon (and a grenade) are chosen per placement in the Level Creator now,
+              beside facing and AI. See spawnWeaponIdOf. */}
+          {/* No HP field here either, for the same reason there's no ⚔️ range field: a dressed
               enemy is a player-shaped character, so its HP is the look's OWN stats run through the
               player's formula (see enemyLookHP). A second number sitting next to the ❤️ HP stat
               only ever disagreed with it — you'd raise the skin's HP and the enemy stayed on 10. */}
@@ -12713,7 +12920,7 @@ export default function AssetStudio() {
         <div className="angles">{ANGLES.map((a) => <button key={a} className={aAngle === a ? "on" : ""} onClick={() => setAAngle(a)}>{ALABEL[a]}</button>)}
           {dressedList.length > 0 && <select className="openDressed" value="" onChange={(e) => { const a = findA(e.target.value); if (a) { openDressedLook(a); flash("Viewing \"" + a.name + "\" — pick parts on the left to start a new one instead."); } }} >
             <option value="">📂 Open saved look…</option>
-            {dressedList.map((a) => <option key={a.id} value={a.id}>{(a.isEnemy ? "👹 " : "") + a.name}</option>)}
+            {dressedList.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>}
           <label className="up" style={{ marginLeft: dressedList.length ? 0 : "auto" }}>⬆ Add asset file<input type="file" accept=".json,application/json,text/plain" onChange={sessionUpload} hidden /></label>
         </div>
@@ -12789,8 +12996,18 @@ export default function AssetStudio() {
   if (screen === "level") {
     const lv = level;
     const lvW = lv.cols * LV_CELL, lvH = lv.rows * LV_CELL;
-    // Anything usable as an enemy: standalone Enemy-type assets, or a Dress Bob look flagged 👹.
-    const enemyChoices = allAssets.filter((a) => a.type === "enemy" || (a.type === "character" && a.isEnemy));
+    // Anything usable as an enemy: standalone Enemy-type assets (the animals), or ANY Dress Bob
+    // look. This used to demand a 👹 flag on the look, which is what forced a duplicate of every
+    // outfit you wanted to fight as well as wear — the flag is gone and the list is the whole
+    // wardrobe. What a given placement CARRIES is picked below, not baked into the asset.
+    const enemyChoices = allAssets.filter((a) => a.type === "enemy" || a.type === "character");
+    // Held weapons and grenades are two separate lists for the same reason they are two separate
+    // spawn fields: a unit can carry one of each, and one picker would force a choice between the
+    // rifle and the grenade it throws.
+    const enemyWeaponChoices = allAssets.filter((a) => a.type === "weapon" && !isThrowable(a.wtype));
+    const enemyThrowChoices = allAssets.filter((a) => a.type === "weapon" && isThrowable(a.wtype));
+    const lEnemyAsset = lEnemyId ? findA(lEnemyId) : null;
+    const lEnemyOwnWeapon = lEnemyAsset ? findA(enemyWeaponIdOf(lEnemyAsset)) : null;
     const lvCell = (e) => { const r = lvRef.current.getBoundingClientRect(); return { c: Math.floor((e.clientX - r.left) / LV_CELL), r: Math.floor((e.clientY - r.top) / LV_CELL) }; };
     const inb = (r, c) => r >= 0 && c >= 0 && r < lv.rows && c < lv.cols;
     // Flood fill (paint bucket) — Foreground/Background only, where "quickly fill a gap" actually
@@ -12938,7 +13155,10 @@ export default function AssetStudio() {
       // erase the layer underneath. Pick "— none —" (or click a layer tab) to leave enemy mode.
       if (lEnemyId) {
         if (lTool === "erase") { setLevel((lv2) => { if (!lv2.enemies || !lv2.enemies[k]) return lv2; const enemies = { ...lv2.enemies }; delete enemies[k]; return { ...lv2, enemies }; }); return; }
-        if (lTool === "paint") { setLevel((lv2) => ({ ...lv2, enemies: { ...(lv2.enemies || {}), [k]: { enemyId: lEnemyId, facing: lEnemyFace, ...(lEnemyAi !== "asset" ? { ai: lEnemyAi } : {}), ...(lEnemyDlg ? { dialogueId: lEnemyDlg } : {}) } } })); return; }
+        // Every optional field is spread in only when it is SET, so a spawn placed with the
+        // defaults is byte-identical to one placed before any of them existed — which is what lets
+        // spawnWeaponIdOf treat "no weaponId" as "the look's own" without a migration.
+        if (lTool === "paint") { setLevel((lv2) => ({ ...lv2, enemies: { ...(lv2.enemies || {}), [k]: { enemyId: lEnemyId, facing: lEnemyFace, ...(lEnemyAi !== "asset" ? { ai: lEnemyAi } : {}), ...(lEnemyDlg ? { dialogueId: lEnemyDlg } : {}), ...(lEnemyWeapon ? { weaponId: lEnemyWeapon } : {}), ...(lEnemyThrow ? { throwId: lEnemyThrow, throwCount: lEnemyThrowN } : {}) } } })); return; }
       }
       if (lTool === "areaCopy") { areaAnchor.current = { r, c }; setAreaDragOn(true); return; }
       if (lTool === "fill") { floodFill(r, c); return; }
@@ -13125,6 +13345,28 @@ export default function AssetStudio() {
                 <option value="seek">🏃 Seek (chases you)</option>
                 <option value="avoid">🏹 Avoid (keeps distance)</option>
                 <option value="asset">⚙️ Use enemy's own setting</option>
+              </select> : null}
+              {/* WHAT IT IS CARRYING IS PART OF THE PLACEMENT, exactly like Facing and the AI
+                  behaviour beside it. This is what replaced the 👹 Enemy flag on a dressed look:
+                  one outfit, placed four times, can be a rifleman, a thug with a bat, a bare-handed
+                  runner and a grenadier — instead of four saved copies of the same drawing that all
+                  have to be re-edited together every time the shirt changes. Blank keeps whatever
+                  the look itself was composed holding, so every level already saved is untouched. */}
+              {lEnemyId ? <select className="ltbtn" value={lEnemyWeapon} onChange={(e) => setLEnemyWeapon(e.target.value)} title="Which weapon this placement fights with. Its own = whatever the look was dressed in.">
+                <option value="">🗡️ Its own weapon{lEnemyOwnWeapon ? " (" + lEnemyOwnWeapon.name + ")" : ""}</option>
+                <option value={SPAWN_WEAPON_NONE}>✊ Bare hands</option>
+                {enemyWeaponChoices.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select> : null}
+              {/* Grenades ride in their own slot, the same way yours do — a rifleman who also lobs
+                  one is the point. It throws at mid range only (ENEMY_THROW_MIN_CELLS out to its
+                  own arc), on a cooldown, until it runs out — and what it has left is lootable off
+                  the body like any other gear. */}
+              {lEnemyId && enemyThrowChoices.length > 0 ? <select className="ltbtn" value={lEnemyThrow} onChange={(e) => setLEnemyThrow(e.target.value)} title="Give this placement grenades. It throws them at mid range, on a cooldown, until they run out.">
+                <option value="">🚫 No grenades</option>
+                {enemyThrowChoices.map((a) => <option key={a.id} value={a.id}>💣 {a.name}</option>)}
+              </select> : null}
+              {lEnemyId && lEnemyThrow ? <select className="ltbtn" value={lEnemyThrowN} onChange={(e) => setLEnemyThrowN(Number(e.target.value))} title="How many it starts the level with. It stops throwing when they run out.">
+                {[1, 2, 3, 4, 5, 6, 8].map((n) => <option key={n} value={n}>×{n}</option>)}
               </select> : null}
               {/* ATTACHING A TREE HERE IS ALSO WHAT MAKES THIS ONE PEACEFUL (spawnStartsPeaceful).
                   Stamped per placement, exactly like Facing and the AI behaviour beside it, so the
@@ -13400,7 +13642,10 @@ export default function AssetStudio() {
                 {/* A spawn carrying a tree shows 💬 rather than 👹 — which of the six identical
                     guards along this wall is the one you can talk to is otherwise invisible until
                     Playtest, and the answer is the whole reason it was placed there. */}
-                {!play && lv.enemies && Object.keys(lv.enemies).map((k) => { const [r, c] = k.split(",").map(Number); const sp = lv.enemies[k]; const ea = findA(sp.enemyId); const dId = talkDialogueId(sp); const dName = dId ? ((dlgLib.find((d) => d.id === dId) || {}).name || "a deleted dialogue ⚠") : ""; return <div key={"en" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { cursor: "pointer" } : {}) }} title={(ea ? ea.name : "missing enemy asset") + (dId ? " · 💬 talks: \"" + dName + "\" · starts PEACEFUL" : "")} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv2) => { const enemies = { ...(lv2.enemies || {}) }; delete enemies[k]; return { ...lv2, enemies }; }); } : undefined}>{ea ? (dId ? "💬" : "👹") : "❓"}</div>; })}
+                {/* The hover text names what this placement is CARRYING, not what the asset was
+                    drawn holding. With one outfit standing in for a whole squad, "which of these is
+                    the one with the rifle" is otherwise unanswerable without starting a playtest. */}
+                {!play && lv.enemies && Object.keys(lv.enemies).map((k) => { const [r, c] = k.split(",").map(Number); const sp = lv.enemies[k]; const ea = findA(sp.enemyId); const dId = talkDialogueId(sp); const dName = dId ? ((dlgLib.find((d) => d.id === dId) || {}).name || "a deleted dialogue ⚠") : ""; const spwId = spawnWeaponIdOf(sp, ea); const spw = spwId ? findA(spwId) : null; const spThrow = spawnThrowIdOf(sp) ? findA(spawnThrowIdOf(sp)) : null; return <div key={"en" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { cursor: "pointer" } : {}) }} title={(ea ? ea.name : "missing enemy asset") + " · " + (spw ? "🗡️ " + spw.name : spwId ? "🗡️ a deleted weapon ⚠" : "✊ bare hands") + (spThrow ? " · 💣 " + spThrow.name + " ×" + enemyThrowCarry(sp) : "") + (dId ? " · 💬 talks: \"" + dName + "\" · starts PEACEFUL" : "")} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv2) => { const enemies = { ...(lv2.enemies || {}) }; delete enemies[k]; return { ...lv2, enemies }; }); } : undefined}>{ea ? (dId ? "💬" : "👹") : "❓"}</div>; })}
                 {!play && !lv.isRoom && CONN_KEYS.map((k) => { const pos = CONN_POS[k], cc = lv.conns[k]; return (
                   <button key={k} className={"conn " + (cc.open ? "open" : "blocked") + (lSel === k ? " sel" : "")} style={{ left: pos.x + "%", top: pos.y + "%" }} onClick={(e) => { e.stopPropagation(); setLSel(k); }} title={CONN_LABEL[k] + (cc.open ? " · accepts: " + (cc.accepts || lv.floor) : " · blocked")}>✕</button>
                 ); })}
@@ -13874,7 +14119,8 @@ export default function AssetStudio() {
                     sight, and show a live HP bar. */}
                 {play && lv.enemies && Object.keys(lv.enemies).map((k) => {
                   const [r, c] = k.split(",").map(Number);
-                  const ea = findA(lv.enemies[k].enemyId);
+                  const eSpawn = lv.enemies[k];
+                  const ea = findA(eSpawn.enemyId);
                   if (!ea) return null;
                   // The bar has to read the ALLY ceiling or a buffed minion shows as permanently
                   // over-full — 20 HP drawn against a 10 HP track.
@@ -13907,7 +14153,38 @@ export default function AssetStudio() {
                     // count rides the render cache key, or the run cache would keep serving the
                     // still-armed art after you picked the weapon up.
                     const stripped = corpseStripped.current[k] || [];
-                    const deadPose = bake(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"));
+                    /* A CORPSE HOLDS WHAT THE PLACEMENT GAVE IT, not what the look was drawn with.
+                       A dressed look bakes a frozen copy of its own weapon into every pose. Leave it
+                       there on a spawn whose weapon was overridden and the body lies in the dirt
+                       clutching a rifle it never carried — and looting the gun it DID carry then
+                       strips nothing off the art, because the pieces on screen belong to a different
+                       asset entirely (pieceBelongsToAsset matches on _src). So when the placement
+                       decides the weapon, the baked copy comes off and the real one is attached to
+                       the same arm, at rest, the way the living sprite attaches it.
+
+                       Gated on spawnOverridesWeapon rather than done unconditionally: a placement
+                       that keeps the look's own weapon must render byte-identically to before, and
+                       the two routes to the same gun (baked-in with weaponOffset vs. attached to the
+                       arm) are not guaranteed to agree to the pixel. Every corpse in every level
+                       already built goes down the untouched path. */
+                    const deadEw = spawnWeaponFor(eSpawn, ea);
+                    let deadPose = bake(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"));
+                    if (spawnOverridesWeapon(eSpawn)) {
+                      deadPose = deadPose.filter((pc) => !pc._isWeapon);
+                      const dArm = deadEw ? flaggedArmOf(deadPose) : null;
+                      if (dArm) {
+                        const dbid = ea.type === "enemy" ? ea.id : equippedBodyIdFor(ea);
+                        const dfit = weaponFitFor(deadEw, dbid);
+                        const dPose = enemyPoseKey(ea, "side");
+                        const dHand = handForGuideId(dfit.guideId)[dPose] || DEFAULT_HAND[dPose];
+                        // Tagged _isWeapon AND _src exactly the way the baked copy is, so looting the
+                        // gun off the body strips it from the art on the very next frame.
+                        const dPieces = attachWeaponBlocks(bake({ ...deadEw, angles: (dfit.states.rest || blankAngles()) }, dPose), dArm, dHand, dArm.rot || 0)
+                          .filter((pc) => !pc.isHitbox && !pc.isMuzzle)
+                          .map((pc) => ({ ...pc, _isWeapon: true, _src: deadEw.id }));
+                        deadPose = mergeWeaponBlocks(deadPose, dPieces);
+                      }
+                    }
                     const deadBlocks = deadPose.filter((pc) => !stripped.some((it) => pieceBelongsToAsset(pc, it)));
                     const layDown = !hasDeathPose;
                     // FLOATING CORPSES, the second half of the same bug. Gravity (above) drops the
@@ -13930,7 +14207,7 @@ export default function AssetStudio() {
                       </div>
                     );
                   }
-                  const ew = findA(enemyWeaponIdOf(ea)) || (ea.components && ea.components.weapon) || null;
+                  const ew = spawnWeaponFor(eSpawn, ea);   // the weapon THIS PLACEMENT carries — same one reader the AI loop uses, so it fights with what it is drawn holding
                   const eRanged = !!(ew && isRanged(ew.wtype));
                   // A drawn enemy can have an optional hand-drawn Attack pose. While it's mid melee
                   // swing, show that pose — it OVERRIDES the arm-swing animation. If it's blank, fall
@@ -13966,7 +14243,10 @@ export default function AssetStudio() {
                   // A dressed-look enemy already has a frozen copy of its weapon baked into its
                   // art. Strip it and re-attach the live one, exactly as the player does, so the
                   // weapon tracks the swing instead of a second copy hanging in mid-air.
-                  if (ew) eBlocks = eBlocks.filter((b) => !b._isWeapon);
+                  // ...and the strip has to happen when the placement says BARE HANDS too. `if (ew)`
+                  // alone leaves the look's frozen rifle painted on a unit that is punching you,
+                  // which reads as the weapon picker doing nothing at all.
+                  if (ew || spawnOverridesWeapon(eSpawn)) eBlocks = eBlocks.filter((b) => !b._isWeapon);
                   // Swing/aim arm: the explicit weapon arm if one exists, else the piece(s) the
                   // enemy has flagged 💪 Arm. Only if NEITHER exists and it holds a weapon does a
                   // synthesized invisible stand-in (enemyAimArm) get spliced in, so a weapon can
@@ -13982,10 +14262,17 @@ export default function AssetStudio() {
                   // RANGED: the enemy LIFTS the arm to the level aim pose — the exact -90/90
                   // hold the player's own gun arm uses — the whole time it has you in its
                   // sights (ep.aimHold, set in the physics loop) and through the shot itself.
-                  const eAiming = eRanged && ep && !ep.reloading && ((ep.aimHold || 0) > 0 || ep.swingT > 0);
-                  if (ep && eArm0 && !eUseAtkPose && (eAiming || (ep.swingT > 0 && !eRanged))) {
-                    const eSwingA = meleeSwingAngle(ATTACK_SWING_FRAMES - ep.swingT, ATTACK_SWING_FRAMES);
-                    const rot = eRanged
+                  // THROWING IS ITS OWN TIMER (ep.throwT), never swingT. swingT drives the melee
+                  // hit test, so borrowing it for the throw animation would mean a grenade toss that
+                  // also lands a punch — and on a unit holding a gun it reads as an aim pose rather
+                  // than a throw, because eAiming outranks the swing. So the throw overrides both:
+                  // while it runs, the arm swings through the same windup/strike arc a melee swing
+                  // uses, gun or no gun.
+                  const eThrowingNow = !!(ep && (ep.throwT || 0) > 0);
+                  const eAiming = eRanged && ep && !ep.reloading && !eThrowingNow && ((ep.aimHold || 0) > 0 || ep.swingT > 0);
+                  if (ep && eArm0 && !eUseAtkPose && (eAiming || eThrowingNow || (ep.swingT > 0 && !eRanged))) {
+                    const eSwingA = meleeSwingAngle(ATTACK_SWING_FRAMES - (eThrowingNow ? ep.throwT : ep.swingT), ATTACK_SWING_FRAMES);
+                    const rot = (eRanged && !eThrowingNow)
                       ? armAimAbs(eArm0.armPivot)
                       : eBaseRot + armPivotSign(eArm0.armPivot) * eSwingA;
                     const primary = eArm0;
@@ -13995,7 +14282,7 @@ export default function AssetStudio() {
                       return rigidArmFollow(b, primary, rot);
                     });
                   }
-                  if (ew && !eUseAtkPose) {
+                  if (ew && !eUseAtkPose && !eThrowingNow) {
                     const curArm = flaggedArmOf(eBlocks);
                     if (curArm) {
                       const ebid = ea.type === "enemy" ? ea.id : equippedBodyIdFor(ea);
@@ -14009,6 +14296,23 @@ export default function AssetStudio() {
                       const eFired = weaponPoseFired(eRanged, ep && ep.swingT > 0 ? { t: ATTACK_SWING_FRAMES - ep.swingT, dur: ATTACK_SWING_FRAMES } : null, ep && ep.weaponAmmo);
                       const wpnAngles = eFired ? weaponFireArt(wfit.states, ePose) : (wfit.states.rest || blankAngles());
                       eBlocks = mergeWeaponBlocks(eBlocks, attachWeaponBlocks(bake({ ...ew, angles: wpnAngles }, ePose), curArm, guideHand, eBaseRot));
+                    }
+                  }
+                  // The grenade in its hand while it winds up and lets go — the same idea as the
+                  // player's throwable-in-hand render, and the reason the held weapon is suppressed
+                  // for those frames just above: you cannot swing a rifle to throw something. It
+                  // leaves the hand when ep.throwT runs out, a few frames after the live grenade
+                  // was already spawned into its arc.
+                  if (eThrowingNow && !eUseAtkPose) {
+                    const eThrownItem = spawnThrowableFor(eSpawn);
+                    const curArm = flaggedArmOf(eBlocks);
+                    if (eThrownItem && curArm) {
+                      const tbid = ea.type === "enemy" ? ea.id : equippedBodyIdFor(ea);
+                      const tfit = weaponFitFor(eThrownItem, tbid);
+                      const tPose = enemyPoseKey(ea, ducking ? "crouch" : "side");
+                      const tHand = handForGuideId(tfit.guideId)[tPose] || DEFAULT_HAND[tPose];
+                      const tPieces = bake({ ...eThrownItem, angles: (tfit.states.rest || blankAngles()) }, tPose).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
+                      eBlocks = mergeWeaponBlocks(eBlocks, attachWeaponBlocks(tPieces, curArm, tHand, eBaseRot));
                     }
                   }
                   const hpFrac = Math.max(0, Math.min(1, curHp / maxHp));
@@ -14447,7 +14751,7 @@ export default function AssetStudio() {
               <div className="ct">Playtest player</div>
               <select className="big" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
                 <option value="">▢ Plain box</option>
-                {allAssets.filter((a) => a.type === "body" || a.type === "character" || a.type === "enemy").map((a) => <option key={a.id} value={a.id}>{(a.type === "enemy" || a.isEnemy ? "👹 " : "") + a.name}</option>)}
+                {allAssets.filter((a) => a.type === "body" || a.type === "character" || a.type === "enemy").map((a) => <option key={a.id} value={a.id}>{(a.type === "enemy" ? "👹 " : "") + a.name}</option>)}
               </select>
               <label className="ltbtn up wide3b">⬆ Upload a character file<input type="file" accept=".json,application/json,text/plain" onChange={sessionUpload} hidden /></label>
               <div className="ct" style={{ marginTop: 12 }}>Playtest weapon</div>
