@@ -2837,7 +2837,7 @@ export function newAsset(type, slot, wtype) {
   // stats to read HP from, so it starts at PLAYER_BASE_HP: a brand-new enemy is exactly as tanky as
   // a default player, and the number is then yours to set in the creator. A Dress Bob enemy ignores
   // this and derives its HP from the look's own stats — see enemyMaxHP.
-  if (type === "enemy") { a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = PLAYER_BASE_HP; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; return withRig(a); }
+  if (type === "enemy") { a.groundLine = {}; a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = PLAYER_BASE_HP; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; return withRig(a); }
   if (type === "equipment") { a.slot = slot; a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; a.statBoosts = DEFAULT_STAT_BOOSTS(); a.defense = 0; a.effects = []; a.categories = ["", "", ""]; }
   if (type === "projectile") { a.size = 1; }
   // A prop/object: single-canvas pixel art (like a projectile), placed into levels at any size.
@@ -2907,6 +2907,7 @@ export const normalizeAssetJson = (raw) => {
   a.angles = normalizeAngles(a.angles && Object.keys(a.angles).length ? a.angles : (a.states && (a.states.rest || a.states.normal)));
   if (type === "weapon") a.states = { rest: normalizeAngles((a.states && a.states.rest) || a.angles), fire: normalizeAngles(a.states && a.states.fire) };
   if (type === "enemy") a.states = { normal: normalizeAngles((a.states && a.states.normal) || a.angles), onFire: normalizeAngles(a.states && a.states.onFire), charge: normalizeAngles(a.states && a.states.charge) };
+  if (type === "enemy") a.groundLine = cleanGround(a.groundLine);
   if (type === "equipment" && !SLOTS[a.slot]) a.slot = "shirt"; // an unknown slot would drop it out of every picker; shirt is the safe visible default
   // A per-body fit variant IS the flat pose map itself (a weapon's additionally wraps {states}) —
   // see blankFitVariant. Asset JSON written by hand or by another AI keeps getting this one wrong
@@ -3521,13 +3522,17 @@ export const multiLegPivot = (blocks, legIds, swing) => {
 // Align a hand-drawn action pose to the ordinary Side-pose foot line. The Jumping Pit Bull's
 // Attack art intentionally reaches much higher, but its back foot is also authored 22px lower;
 // without this translation the renderer buries that foot instead of showing the extra height.
-export const alignPoseFootBaseline = (baseBlocks, actionBlocks) => {
+// baseGround/actionGround are explicit ground lines (see enemyGroundLine). Either one that is set
+// replaces the measured foot line for its own pose, so an Attack pose drawn to its own ground mark
+// lines up with a Side pose drawn to its own — without both needing their feet on the same y.
+export const alignPoseFootBaseline = (baseBlocks, actionBlocks, baseGround = null, actionGround = null) => {
   const baseline = (list) => {
     const legs = (list || []).filter((p) => p.limb === "leg" && !p._slot);
     const source = legs.length ? legs : (list || []).filter((p) => !p.isHitbox && !p.isMuzzle);
     return source.length ? Math.max(...source.map((p) => p.y + p.h)) : null;
   };
-  const baseY = baseline(baseBlocks), actionY = baseline(actionBlocks);
+  const baseY = baseGround !== null ? baseGround : baseline(baseBlocks);
+  const actionY = actionGround !== null ? actionGround : baseline(actionBlocks);
   if (baseY === null || actionY === null) return actionBlocks;
   const dy = baseY - actionY;
   return Math.abs(dy) < 0.001 ? actionBlocks : (actionBlocks || []).map((p) => ({ ...p, y: p.y + dy }));
@@ -3547,6 +3552,36 @@ export const poseFootGapFrac = (blocks) => {
   const maxY = Math.max(...art.map((p) => p.y + p.h));
   return Math.max(0, Math.min(1, (H - maxY) / H));
 };
+// A GROUND LINE the artist draws, per pose, on an enemy. poseFootGapFrac above answers "where does
+// the art stop", and for a standing creature that is the same question as "where is the floor" —
+// its feet are the lowest thing on the canvas. For a body lying down it is not: a corpse drawn with
+// its flank on the floor and a tail curling below it has its lowest pixel at the tail, so pinning
+// the tail to the terrain lifts the whole body off it. That is the documented "author the death
+// pose's lowest pixel on the y=150 line or the corpse hangs in the air" rule, which is a rule about
+// working around the measurement rather than about how the art should look.
+//
+// So an enemy can carry groundLine[pose] = a canvas y, and THAT is what lands on the terrain.
+// Anything drawn below it sits below the floor line, which is what makes a body read as resting on
+// the ground rather than balanced on it. Absent (the default, and every enemy drawn so far) falls
+// straight back to the lowest-pixel rule, so nothing already built moves by a pixel.
+// Anything that is not a finite number is dropped rather than kept as a broken line — a
+// half-written groundLine must read as "no line" (auto), never as a NaN that sinks the body.
+export const cleanGround = (g) => { const out = {}; if (g && typeof g === "object" && !Array.isArray(g)) for (const k of Object.keys(g)) { const v = g[k]; if (typeof v === "number" && isFinite(v)) out[k] = Math.max(0, Math.min(H, v)); } return out; };
+export const enemyGroundLine = (asset, poseKey) => {
+  const v = asset && asset.groundLine && typeof asset.groundLine === "object" ? asset.groundLine[poseKey] : null;
+  return (typeof v === "number" && isFinite(v)) ? Math.max(0, Math.min(H, v)) : null;
+};
+export const poseGroundY = (asset, poseKey, blocks) => {
+  const set = enemyGroundLine(asset, poseKey);
+  if (set !== null) return set;
+  const art = (blocks || []).filter((p) => p && !p.isHitbox && !p.isMuzzle);
+  return art.length ? Math.max(...art.map((p) => p.y + p.h)) : H;
+};
+// How far the sprite gets pushed down so its ground line lands on the terrain, as a fraction of
+// canvas height. Same number poseFootGapFrac returns when no line is set — deliberately, so the
+// renderer has ONE call site and an untagged enemy takes the identical path it always did.
+export const poseGroundFrac = (asset, poseKey, blocks) =>
+  Math.max(0, Math.min(1, (H - poseGroundY(asset, poseKey, blocks)) / H));
 // Where a single piece's box actually reaches, LEFT and RIGHT, once the renderer has had its way
 // with it. shapeStyle mirrors the piece first and then rotates it about pieceOriginFrac — the
 // shoulder for an arm, the hip for a swung leg, the middle of the box for everything else — so for
@@ -11272,7 +11307,7 @@ export default function AssetStudio() {
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; if (typeof a.category !== "string") a.category = ""; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
-    if (a.type === "enemy") { if (!a.states) a.states = { normal: a.angles || blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.angles = a.states.normal || a.angles; if (a.hasArms === undefined) a.hasArms = !!(a.angles && ANGLES.some((ang) => (a.angles[ang] || []).some((p) => p.role === "weaponArm"))); for (const k of Object.keys(a.angles || {})) (a.angles[k] || []).forEach((p) => { if (p.locked) delete p.locked; }); if (!a.stats) a.stats = DEFAULT_STATS(); if (a.hp === undefined) a.hp = 10; if (!a.ai) a.ai = "guard"; if (a.weaponId === undefined) a.weaponId = null; }
+    if (a.type === "enemy") { if (!a.states) a.states = { normal: a.angles || blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.angles = a.states.normal || a.angles; if (a.hasArms === undefined) a.hasArms = !!(a.angles && ANGLES.some((ang) => (a.angles[ang] || []).some((p) => p.role === "weaponArm"))); for (const k of Object.keys(a.angles || {})) (a.angles[k] || []).forEach((p) => { if (p.locked) delete p.locked; }); if (!a.stats) a.stats = DEFAULT_STATS(); if (a.hp === undefined) a.hp = 10; if (!a.ai) a.ai = "guard"; if (a.weaponId === undefined) a.weaponId = null; a.groundLine = cleanGround(a.groundLine); }
     if (a.type === "skin" && !a.stats) a.stats = DEFAULT_STATS();
     if (HAS_FIT_VARIANTS(a) && !a.variants) {
       if (a.type === "weapon") { a.variants = { default: { states: a.states || { rest: a.angles || blankAngles(), fire: blankAngles() } } }; }
@@ -14199,7 +14234,11 @@ export default function AssetStudio() {
                     // Measured off the pose actually being drawn (Death's gap is nothing like
                     // Side's) and off the UNSTRIPPED art, so looting a low-hanging weapon off the
                     // body can't change the measurement and make the corpse hop.
-                    const deadFootAnchor = poseFootGapFrac(deadPose) * eph;
+                    // The ground line the Death pose was drawn to, when it has one — otherwise
+                    // the lowest drawn pixel, exactly as before. A body lying down is the case the
+                    // line exists for: its lowest pixel is usually a tail or a flung-out paw, not
+                    // the part that should be touching the floor.
+                    const deadFootAnchor = poseGroundFrac(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"), deadPose) * eph;
                     const deadFlip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1) " : "";
                     return (
                       <div key={"enp" + k} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop + deadFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", zIndex: CORPSE_Z, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (eph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
@@ -14224,11 +14263,19 @@ export default function AssetStudio() {
                   const eTalkWaiting = !!(ep && !ep.talked && talkDialogueId(lv.enemies[k]) && !eUseAtkPose && !ducking && unitSide(ea, ep) !== "hostile");
                   const eFrontPose = eTalkWaiting && enemyPoseKey(ea, "front") === "front";
                   const ePoseKey = eUseAtkPose ? "attack" : eFrontPose ? "front" : enemyPoseKey(ea, ducking ? "crouch" : "side");
+                  // A ground line on the pose being drawn wins; failing that the Side line, because
+                  // every other pose is pinned to Side's baseline anyway; failing that eFootAnchor,
+                  // the measured empty canvas under the feet, which is what every enemy uses today.
+                  const eGroundY = enemyGroundLine(ea, ePoseKey) ?? enemyGroundLine(ea, enemyPoseKey(ea, "side"));
+                  const eAnchor = eGroundY !== null ? ((H - eGroundY) / H) * eph : eFootAnchor;
                   let eBlocks = bake(ea, ePoseKey);
                   // Both of these are poses drawn on their own canvas, so both need pinning to the
                   // baseline the SIDE pose stands on, or the body floats or sinks by whatever empty
                   // canvas its own drawing happens to leave underneath it.
-                  if (eUseAtkPose || eFrontPose) eBlocks = alignPoseFootBaseline(bake(ea, enemyPoseKey(ea, "side")), eBlocks);
+                  if (eUseAtkPose || eFrontPose) {
+                    const eSideKey = enemyPoseKey(ea, "side");
+                    eBlocks = alignPoseFootBaseline(bake(ea, eSideKey), eBlocks, enemyGroundLine(ea, eSideKey), enemyGroundLine(ea, ePoseKey));
+                  }
                   // Walk cycle: swing the legs (and add a mirrored back leg) exactly like the player,
                   // driven by the enemy's own walkPhase. Legs only — applyLimbSwing never touches arms,
                   // so the aim/attack/weapon pipeline below is completely unaffected. Without this the
@@ -14350,7 +14397,7 @@ export default function AssetStudio() {
                           behind a tree had its HP, reload and 💫 swallowed by the leaves, which is
                           the one time you most want to read them. Out here there's also no mirror
                           to undo, so the reload bar just fills left-to-right on its own. */}
-                      <div className="unitStatus" style={{ left: eLeft + hitboxOffset, top: eTop + eFootAnchor, width: epw }}>
+                      <div className="unitStatus" style={{ left: eLeft + hitboxOffset, top: eTop + eAnchor, width: epw }}>
                         {/* NO HP BAR ON SOMEBODY YOU CANNOT HURT. A full green bar over a person
                             your shots pass through is the game promising a fight it will not give
                             you, and it is the only on-screen difference between "immune" and "my
@@ -14377,7 +14424,7 @@ export default function AssetStudio() {
                             an NPC standing behind a tree still advertises itself. */}
                         {eTalkWaiting && !downed ? <div className="talkBadge">💬</div> : null}
                       </div>
-                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...((ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? " (💬 not fighting you — press E to talk)" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...((ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? " (💬 not fighting you — press E to talk)" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
                       </div>
                     </React.Fragment>
@@ -15098,6 +15145,13 @@ export default function AssetStudio() {
           <div className={"art" + (asset.type === "weapon" ? " artWpn" : asset.type === "projectile" ? " artProj" : "") + (drawMode ? " drawing" : "")} onPointerDown={handleArtClick}>
           <div ref={artRef} className="artDesign" style={(() => { const d = artZoom * 100; const o = (100 - d) / 2; return { left: o + "%", top: o + "%", width: d + "%", height: d + "%" }; })()}>
             <div className="mline" />
+            {asset.type === "enemy" && (() => {
+              // Solid where a line is set, faint where it is only being inferred — so "what the
+              // renderer will treat as the floor" is visible either way while drawing.
+              const line = enemyGroundLine(asset, angle);
+              const y = line !== null ? line : poseGroundY(asset, angle, pieces);
+              return <div className={"gline" + (line === null ? " auto" : "")} style={{ top: (y / H * 100) + "%" }} title={line !== null ? "Ground line — y " + Math.round(y) : "Floor is the lowest drawn pixel (y " + Math.round(y) + ")"} />;
+            })()}
             {(() => {
               const isLowerSlot = asset.type === "equipment" && LOWER_BODY_SLOTS.has(asset.slot);
               const isUpperSlot = asset.type === "equipment" && UPPER_BODY_SLOTS.has(asset.slot);
@@ -15196,6 +15250,29 @@ export default function AssetStudio() {
               )}
               {asset.type === "enemy" && <label className="chk"><input type="checkbox" checked={asset.hostile === false} onChange={(e) => setAsset((a) => ({ ...a, hostile: !e.target.checked }))} /> 🕊️ Not hostile</label>}
               {asset.type === "enemy" && <label className="slider">⚔️ Attack range<input type="number" min="1" value={Math.round((asset.attackRange ?? DEFAULT_ATTACK_RANGE) / LV_CELL)} onChange={(e) => setAsset((a) => ({ ...a, attackRange: Math.max(1, +e.target.value || 1) * LV_CELL }))} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>cells</span></label>}
+              {/* GROUND LINE, per pose. Without one the lowest drawn pixel is treated as the floor,
+                  which is right for a standing creature and wrong for one lying down — see
+                  enemyGroundLine. Set it on the pose you are looking at; the dashed line on the
+                  canvas is where the terrain will be. */}
+              {asset.type === "enemy" && (() => {
+                const line = enemyGroundLine(asset, angle);
+                const auto = Math.round(poseGroundY(asset, angle, pieces));
+                return (
+                  <>
+                    <label className="chk"><input type="checkbox" checked={line !== null} onChange={(e) => setAsset((a) => {
+                      const g = { ...cleanGround(a.groundLine) };
+                      if (e.target.checked) g[angle] = auto; else delete g[angle];
+                      return { ...a, groundLine: g };
+                    })} /> 📏 Ground line on {ALABEL[angle] || angle}</label>
+                    {line !== null && (
+                      <label className="slider">Floor at<input type="range" min="0" max={H} step="1" value={line} onChange={(e) => setAsset((a) => ({ ...a, groundLine: { ...cleanGround(a.groundLine), [angle]: +e.target.value } }))} /><span className="hint2" style={{ marginLeft: 6 }}>y {line}</span></label>
+                    )}
+                    <p className="mini">{line !== null
+                      ? "This line lands on the terrain, so anything drawn below it sits below the floor — that is what makes a body read as lying ON the ground instead of balanced on it."
+                      : "Off: the lowest drawn pixel (y " + auto + ") is treated as the floor, which is how every enemy has always worked. Turn it on for a 💀 Death pose whose lowest pixel is a tail rather than the part touching the ground."}</p>
+                  </>
+                );
+              })()}
               {/* Two per row: five stacked full-width sliders pushed everything below them off
                   the panel, and each one only needs half the width it was taking. */}
               <div className="statgrid">
@@ -15758,6 +15835,10 @@ const css = `
 .zoomctl button{width:26px;height:26px;line-height:1;border-radius:7px;border:1px solid #2c3245;background:#232a3d;color:#e7e9ee;cursor:pointer;font-size:16px}
 .zoomctl button:disabled{opacity:.35;cursor:default}
 .mline{position:absolute;left:50%;top:0;bottom:0;border-left:1px dashed #33405e}
+.gline{position:absolute;left:0;right:0;border-top:2px solid rgba(122,214,150,.85);pointer-events:none}
+.gline::after{content:"ground";position:absolute;right:2px;top:2px;font-size:9px;color:rgba(122,214,150,.85);letter-spacing:.04em}
+.gline.auto{border-top:1px dashed rgba(122,214,150,.35)}
+.gline.auto::after{content:"floor (auto)";color:rgba(122,214,150,.4)}
 .emptyart{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5b667e;font-size:13px}
 .handmk{position:absolute;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:rgba(79,124,246,.18);border:1.5px solid #4f7cf6;display:flex;align-items:center;justify-content:center;font-size:13px}
 .handmk.guide{background:none;border:1px dashed #4f7cf6;opacity:.7;pointer-events:none}

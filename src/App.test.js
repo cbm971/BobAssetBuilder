@@ -209,6 +209,10 @@ import {
   crouchArtPlane,
   alignPoseFootBaseline,
   poseFootGapFrac,
+  enemyGroundLine,
+  poseGroundY,
+  poseGroundFrac,
+  cleanGround,
   poseArtRightFrac,
   layFlatBodyBlocks,
   LAY_FLAT_IGNORES,
@@ -6669,5 +6673,74 @@ describe("an enemy throwing a grenade", () => {
     expect(left.vy).toBeCloseTo(far.vy);
     // Neutral 45 degrees, same as an un-aimed player throw: it rises as fast as it travels.
     expect(Math.abs(far.vy)).toBeCloseTo(Math.abs(far.vx));
+  });
+});
+
+// An enemy can mark where the floor is, per pose, instead of the renderer assuming the lowest
+// drawn pixel is standing on it. The whole point is the 💀 Death pose: a body lying on its flank
+// with a tail below it has its lowest pixel at the tail, so pinning the tail to the terrain lifts
+// the body clear of it. Every assertion about the DEFAULT here is really an assertion that nothing
+// already drawn moves — the fallback has to stay bit-identical to poseFootGapFrac.
+describe("a ground line the artist draws", () => {
+  const H = 260;
+  const standing = [{ id: "leg", limb: "leg", x: 60, y: 40, w: 20, h: 110 }];          // feet at y=150
+  // lying down: flank on the floor at y=196, tail flicked out below it to y=232
+  const lying = [{ id: "flank", x: 30, y: 150, w: 130, h: 46 }, { id: "tail", x: 150, y: 196, w: 40, h: 36 }];
+
+  test("with no line set it is exactly the old lowest-pixel rule", () => {
+    const a = { type: "enemy" };
+    expect(poseGroundY(a, "death", lying)).toBe(232);
+    expect(poseGroundFrac(a, "death", lying)).toBeCloseTo(poseFootGapFrac(lying), 12);
+    expect(poseGroundFrac(a, "side", standing)).toBeCloseTo(poseFootGapFrac(standing), 12);
+    expect(enemyGroundLine(a, "death")).toBeNull();
+  });
+
+  test("a line set on one pose is used for that pose and no other", () => {
+    const a = { type: "enemy", groundLine: { death: 196 } };
+    expect(poseGroundY(a, "death", lying)).toBe(196);
+    expect(enemyGroundLine(a, "side")).toBeNull();
+    expect(poseGroundY(a, "side", standing)).toBe(150);   // still measured
+  });
+
+  // The bug this exists for: the tail is 36px lower than the part that should touch the floor, so
+  // the auto rule holds the whole body 36px in the air.
+  test("it puts the flank on the floor instead of hanging the body off its tail", () => {
+    const auto = poseGroundFrac({ type: "enemy" }, "death", lying) * H;
+    const withLine = poseGroundFrac({ type: "enemy", groundLine: { death: 196 } }, "death", lying) * H;
+    expect(withLine - auto).toBeCloseTo(36, 8);
+  });
+
+  test("a line above the art sinks what is drawn below it, which is how a body rests ON the ground", () => {
+    const a = { type: "enemy", groundLine: { death: 170 } };
+    expect(poseGroundY(a, "death", lying)).toBe(170);
+    expect(poseGroundFrac(a, "death", lying)).toBeCloseTo(90 / H, 8);
+  });
+
+  test("a broken or out-of-range line can never sink a body", () => {
+    for (const bad of [NaN, Infinity, -Infinity, "150", null, undefined, {}]) {
+      expect(enemyGroundLine({ type: "enemy", groundLine: { death: bad } }, "death")).toBeNull();
+    }
+    expect(enemyGroundLine({ type: "enemy", groundLine: { death: -40 } }, "death")).toBe(0);
+    expect(enemyGroundLine({ type: "enemy", groundLine: { death: 9999 } }, "death")).toBe(H);
+    expect(enemyGroundLine({ type: "enemy", groundLine: [] }, "death")).toBeNull();
+    expect(enemyGroundLine(null, "death")).toBeNull();
+    expect(poseGroundFrac({ type: "enemy", groundLine: { death: NaN } }, "death", lying)).toBeCloseTo(poseFootGapFrac(lying), 12);
+  });
+
+  test("cleanGround keeps the real numbers and drops everything else", () => {
+    expect(cleanGround({ death: 196, side: "x", attack: NaN, crouch: 0 })).toEqual({ death: 196, crouch: 0 });
+    expect(cleanGround(undefined)).toEqual({});
+    expect(cleanGround([1, 2])).toEqual({});
+    expect(cleanGround({ death: 400 })).toEqual({ death: H });
+  });
+
+  // An Attack pose drawn to its own ground mark should line up with a Side pose drawn to its own,
+  // without the two needing their feet on the same y.
+  test("aligning two poses uses their lines when they have them", () => {
+    const attack = [{ id: "backLeg", limb: "leg", x: 68, y: 127, w: 17, h: 45 }];
+    expect(alignPoseFootBaseline(standing, attack)[0].y).toBe(105);            // measured: 150 - 172 + 127
+    expect(alignPoseFootBaseline(standing, attack, 150, 172)[0].y).toBe(105);  // same answer stated explicitly
+    expect(alignPoseFootBaseline(standing, attack, 150, 150)[0].y).toBe(127);  // both marked at 150 = no shift
+    expect(alignPoseFootBaseline(standing, attack, 120, 172)[0].y).toBe(75);   // base line higher pulls it up
   });
 });
