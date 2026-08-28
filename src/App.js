@@ -4988,6 +4988,187 @@ export const TEXTURES = {
       return out;
     },
   },
+  // SIDEWALK — poured concrete, and the flattest thing in this registry. Concrete has no pattern of
+  // its own: what makes a pavement legible is the GRID OF JOINTS, plus the fact that no two slabs
+  // cure to quite the same grey. Draw it as one even tone and it reads as an unpainted cell.
+  //
+  // The joints sit ON the tile boundary rather than inside it — the tile is filled with the joint
+  // colour and each slab is inset by half a joint over the top — so four neighbouring cells meet
+  // into one continuous score line instead of every cell fencing itself in. That is brick's mortar
+  // and glass's muntins, for the same reason.
+  sidewalk: {
+    label: "Sidewalk", icon: "🛣️", tile: [120, 120], base: "slab",
+    colors: [["slab", "Concrete", "#b5b1a7"], ["alt", "Concrete (alt)", "#c4c0b6"], ["joint", "Joint", "#7c7972"], ["grit", "Aggregate", "#8b8880"]],
+    // Wear 0 = a slab poured last week: clean, barely flecked, no cracks at all. 1 = a pavement
+    // that has had twenty winters. Every crack's slab, start point and direction come from its own
+    // index, so raising Wear lengthens the SAME cracks and adds new ones behind them rather than
+    // re-breaking the whole path on each keystroke — metal's Rust rule.
+    params: [
+      { key: "size", label: "Slab size", min: 1, max: 3, step: 1, def: 2 },
+      { key: "wear", label: "Wear", min: 0, max: 1, step: 0.05, def: 0.35 },
+    ],
+    svg: (co, _t, pa) => {
+      const tw = 120, th = 120;
+      // 1 -> one 120px slab (4x4 cells, which at Bob's ~3.2 cells/metre is a real 1.2m paving
+      // slab), 2 -> 60px, 3 -> 30px pavers. Every size divides the 30px cell grid exactly, so a
+      // joint always lands on a cell boundary — a path painted one cell deep gets clean ends
+      // instead of a score line running along the middle of it.
+      const n = Math.pow(2, Math.max(1, Math.min(3, Math.round(pa.size ?? 2))) - 1);
+      const s = tw / n, jw = 2.4;
+      const wear = Math.max(0, Math.min(1, pa.wear ?? 0.35));
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.joint);
+      // One alternate shade, chosen per slab, is all the variation this needs: an even checker of
+      // two greys reads as tile rather than concrete, and a single grey reads as paint.
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+        out += svgRect(c * s + jw / 2, r * s + jw / 2, s - jw, s - jw, trnd(r * 7.3 + c * 3.1) > 0.55 ? co.alt : co.slab);
+      }
+      // Broom finish: the fine parallel drag a wet slab is given so it isn't slippery when it
+      // rains. It has to be DENSE — a handful of lines per slab reads as scratches, where a line
+      // every few pixels at a tenth opacity reads as the tooth of the surface, which is the main
+      // thing stopping concrete looking like a flat rectangle of paint. Inset by a whole joint so
+      // no drag mark touches a score line.
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+        for (let i = 0; i * 5 < s - jw * 2; i++) {
+          const y = r * s + jw + i * 5 + trnd(r * 5.1 + c * 2.3 + i * 1.7) * 1.6;
+          out += svgRect(c * s + jw, y, s - jw * 2, 0.7, co.grit, ` opacity="${px(0.07 + wear * 0.09)}"`);
+        }
+      }
+      // Aggregate: the stones in the mix showing through a surface that has been walked smooth.
+      // Small — a cell is only 30px, so a 2px stone is a boulder. Kept clear of the joints, so no
+      // fleck is sliced in half by a score line — checker tile's rule, for the same reason.
+      const dots = Math.round(90 + wear * 150);
+      for (let i = 0; i < dots; i++) {
+        const x = trnd(i * 3.1) * tw, y = trnd(i * 6.7) * th;
+        if (x % s < jw || x % s > s - jw || y % s < jw || y % s > s - jw) continue;
+        out += `<circle cx="${px(x)}" cy="${px(y)}" r="${px(0.3 + trnd(i * 9.7) * 0.5)}" fill="${co.grit}" opacity="${px(0.2 + wear * 0.3)}"/>`;
+      }
+      // A crack starts AT a joint and runs inward, because the edge of a slab is where one actually
+      // fails — a crack floating in the middle of a slab looks drawn on.
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+        if (!(trnd(r * 11.3 + c * 17.9) < wear * 0.8)) continue;
+        const side = Math.floor(trnd(r * 4.7 + c * 8.9) * 4);        // 0 top, 1 right, 2 bottom, 3 left
+        const t0 = 0.2 + trnd(r * 6.1 + c * 12.7) * 0.6;             // how far along that edge it starts
+        let x = c * s + (side === 0 || side === 2 ? s * t0 : side === 1 ? s : 0);
+        let y = r * s + (side === 1 || side === 3 ? s * t0 : side === 2 ? s : 0);
+        let ang = [Math.PI / 2, Math.PI, -Math.PI / 2, 0][side];     // straight in, then wandering
+        let d = "M" + px(x) + "," + px(y);
+        const len = s * (0.18 + wear * 0.4);
+        for (let k = 0; k < 4; k++) {
+          ang += (trnd(r * 3.7 + c * 5.3 + k * 2.9) - 0.5) * 1.1;
+          x += Math.cos(ang) * len / 4;
+          y += Math.sin(ang) * len / 4;
+          // Held inside its own slab. A crack that wandered over a joint would be cut by the tile
+          // edge and reappear on the neighbour as a stray mark with nothing feeding it.
+          x = Math.max(c * s + jw, Math.min((c + 1) * s - jw, x));
+          y = Math.max(r * s + jw, Math.min((r + 1) * s - jw, y));
+          d += "L" + px(x) + "," + px(y);
+        }
+        out += `<path d="${d}" stroke="${co.joint}" stroke-width="${px(0.6 + wear * 0.4)}" fill="none" opacity="${px(0.45 + wear * 0.35)}"/>`;
+      }
+      return out;
+    },
+  },
+  // WATER — the one texture that has to look like it is MOVING while being completely still. It is
+  // rendered once into a tile and never animates, so the motion has to come out of the shapes: each
+  // ripple is a bright crest with its own dark line hugging it underneath, which is what a wave lit
+  // from above actually shows. Crest lines on their own read as a knitted jumper.
+  //
+  // Every curve is a sine whose wavelength is a whole fraction of the tile width and which is
+  // sampled from beyond both edges, so a crest leaving the right side arrives at the left at the
+  // same height and phase. And the curve at y = 60 is the SAME wave as the one at y = 0 (its row
+  // index is taken modulo the row count), so the tile joins to the copy above it as well — a lake
+  // can be any size in either direction with no seam anywhere in it.
+  water: {
+    label: "Water", icon: "🌊", tile: [60, 60], base: "deep",
+    // `light` is the terrain palette's own blue, so water painted next to sky or an existing pond
+    // swatch reads as the same set rather than as a new one that arrived from somewhere else.
+    colors: [["deep", "Water", "#2c6d99"], ["light", "Ripple", "#7aa2d6"], ["dark", "Depth", "#1b4a6b"], ["foam", "Foam", "#e8f2f7"]],
+    // Chop 0 = a dead-flat pool, every ripple flattened to a faint horizontal line. 1 = open water.
+    // Foam 0 = no whitecaps at all. Each row's wavelength, phase and weight come from its own index
+    // and never change, so both sliders work the SAME surface instead of reshuffling it.
+    params: [
+      { key: "chop", label: "Chop", min: 0, max: 1, step: 0.05, def: 0.45 },
+      { key: "foam", label: "Foam", min: 0, max: 1, step: 0.05, def: 0.3 },
+    ],
+    svg: (co, _t, pa) => {
+      // `rows` must be EVEN: the bands alternate weight, so the row sitting on the tile's bottom
+      // edge has to be the same parity as the one on its top or the shading steps at every seam.
+      const tw = 60, th = 60, rows = 4, gap = th / rows;
+      const chop = Math.max(0, Math.min(1, pa.chop ?? 0.45));
+      const foam = Math.max(0, Math.min(1, pa.foam ?? 0.3));
+      // Row i's shape is row (i mod rows)'s shape, moved. That is what makes row 4 identical to row
+      // 0 and the vertical repeat invisible; take any of these from `i` instead and the tile grows
+      // a horizontal seam every 60px. Amplitude stays under half the row gap so bands never cross.
+      const wave = (i) => {
+        const j = ((i % rows) + rows) % rows;
+        return {
+          // Rows are nudged off their even spacing — by a per-row amount, so the row at the bottom
+          // edge still matches the one at the top. Evenly spaced ripples are the other half of what
+          // makes a wave field read as a woven fabric; the segment breaks alone don't fix it.
+          y: i * gap + (trnd(j * 31.1) - 0.5) * gap * 0.4,
+          amp: (0.5 + trnd(j * 3.1) * 1.0) * (0.3 + chop * 2.2),
+          k: 1 + Math.floor(trnd(j * 5.9) * 2),        // whole waves per tile: 1 is a long swell, 2 a shorter chop
+          ph: trnd(j * 14.1),
+          w: 0.9 + trnd(j * 7.7) * 0.8,                // crest line weight
+          cap: trnd(j * 13.7),                         // does this row break into foam?
+          // A ripple is never a line all the way across a pool: it is a few short crests with open
+          // water between them, and unbroken lines at every row are exactly what made the first
+          // version of this read as corduroy. The whole break pattern carries a per-row phase so
+          // the gaps can't stack into a vertical channel.
+          segs: [0, 1, 2].map((m) => [((trnd(j * 18.3) + m / 3) % 1) * tw, tw * (0.07 + trnd(j * 27.7 + m * 6.3) * 0.19)]),
+        };
+      };
+      const yAt = (w, x, dy) => w.y + dy + Math.sin(((x / tw) * w.k + w.ph) * Math.PI * 2) * w.amp;
+      // Always sampled to x1 exactly, so a crest that runs off the tile and its wrapped other half
+      // meet flush at the edge instead of a rounded stub each.
+      const pts = (w, dy, x0, x1) => {
+        const a = [];
+        for (let x = x0; x < x1; x += 3) a.push([x, yAt(w, x, dy)]);
+        a.push([x1, yAt(w, x1, dy)]);
+        return a;
+      };
+      const path = (a, cmd) => a.map(([x, y], i) => (i === 0 ? (cmd || "M") : "L") + px(x) + "," + px(y)).join("");
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.deep);
+      // Bands between one crest and the next, so the surface has areas of tone and not only lines.
+      // Both edges are the same periodic curve, so a band can never introduce a vertical seam. The
+      // band at i = -1 is the wrap copy: it fills the sliver the tile above loses where its bottom
+      // curve dips past the edge, which is the only reason the horizontal seam disappears.
+      for (let i = -1; i < rows; i++) {
+        const j = ((i % rows) + rows) % rows;
+        out += `<path d="${path(pts(wave(i), 0, -3, tw + 3)) + path(pts(wave(i + 1), 0, -3, tw + 3).reverse(), "L")}Z" fill="${co.dark}" opacity="${px((j % 2 ? 0.06 : 0.17) + chop * 0.06)}"/>`;
+      }
+      // Row `rows` is drawn as well as row 0: they are the same crest, each cut in half by the tile
+      // edge, and together they make one whole line across the join. A segment that runs off the
+      // right edge is drawn again a tile to the left for the same reason — the sine repeats over
+      // the tile, so the two pieces are one continuous ripple.
+      for (let i = 0; i <= rows; i++) {
+        const w = wave(i);
+        for (const [s0, len] of w.segs) {
+          for (const ox of [0].concat(s0 + len > tw ? [-tw] : [])) {
+            // Shadow first, under the crest and offset down by about its own width — that pairing
+            // is what gives a flat line the lip of a wave.
+            out += `<path d="${path(pts(w, 1.4 + chop * 0.9, s0 + ox, s0 + ox + len))}" stroke="${co.dark}" stroke-width="${px(w.w * 0.9)}" fill="none" opacity="${px(0.28 + chop * 0.25)}"/>`;
+            out += `<path d="${path(pts(w, 0, s0 + ox, s0 + ox + len))}" stroke="${co.light}" stroke-width="${px(w.w)}" fill="none" opacity="${px(0.38 + chop * 0.35)}"/>`;
+          }
+        }
+      }
+      // A whitecap is not a flake sitting on the water, it is a piece of the crest itself going
+      // white as it breaks. So it is drawn as the middle of a ripple restroked heavier in the foam
+      // colour, following that same curve — which also means foam can never end up floating in
+      // open water where there is no wave to break.
+      for (let i = 0; i <= rows; i++) {
+        const w = wave(i);
+        if (foam <= 0 || w.cap > 0.15 + foam * 0.85) continue;
+        for (const [s0, len] of w.segs) {
+          const fs = s0 + len * 0.25, fl = len * (0.25 + foam * 0.4);
+          for (const ox of [0].concat(fs + fl > tw ? [-tw] : [])) {
+            out += `<path d="${path(pts(w, 0, fs + ox, fs + ox + fl))}" stroke="${co.foam}" stroke-width="${px(w.w * (1.1 + foam * 0.7))}" fill="none" opacity="${px(0.4 + foam * 0.45)}"/>`;
+          }
+        }
+      }
+      return out;
+    },
+  },
   metal: {
     label: "Metal", icon: "⚙️", tile: [40, 40], base: "base",
     colors: [["base", "Metal", "#8a929c"], ["light", "Sheen", "#a8b0b9"], ["dark", "Groove", "#666d76"], ["rust", "Rust", "#8a4a24"]],

@@ -1894,6 +1894,167 @@ describe("glass texture", () => {
   });
 });
 
+describe("sidewalk texture", () => {
+  const t = () => newTexture("sidewalk");
+  const draw = (params) => TEXTURES.sidewalk.svg(t().colors, TEXTURES.sidewalk.tile, { ...t().params, ...params });
+
+  test("is registered, so the picker and pattern switcher both offer it", () => {
+    expect(TEXTURE_KEYS).toContain("sidewalk");
+    expect(TEXTURES.sidewalk.label).toBe("Sidewalk");
+    expect(newTexture("sidewalk").tex).toBe("sidewalk");
+  });
+
+  test("a new instance starts at every default, and falls back to its concrete colour", () => {
+    expect(t().params).toEqual({ size: 2, wear: 0.35 });
+    expect(Object.keys(t().colors).sort()).toEqual(["alt", "grit", "joint", "slab"]);
+    expect(textureBaseColor(t())).toBe(t().colors.slab);
+  });
+
+  test("renders deterministically — same settings, same bytes, so nothing shimmers", () => {
+    expect(textureDataUri(newTexture("sidewalk"))).toBe(textureDataUri(newTexture("sidewalk")));
+  });
+
+  test("the joint is drawn under the slabs, so neighbouring cells share one score line", () => {
+    const svg = draw({});
+    // Joint colour laid over the whole tile first, then every slab inset by half a joint. Slabs
+    // inset from a tile edge that draws nothing would give each cell its own frame instead of a
+    // score line shared with its neighbour.
+    expect(svg.startsWith(`<rect x="-2" y="-2" width="124" height="124" fill="${t().colors.joint}"/>`)).toBe(true);
+    expect(svg).toContain(`<rect x="1.2" y="1.2"`);
+  });
+
+  test("every slab size lands its joints on the 30px cell grid", () => {
+    for (const size of [1, 2, 3]) {
+      const svg = draw({ size });
+      const slabs = (svg.match(new RegExp(`fill="(${t().colors.slab}|${t().colors.alt})"`, "g")) || []).length;
+      const n = Math.sqrt(slabs);
+      expect(Number.isInteger(n)).toBe(true);
+      // A slab pitch that didn't divide the cell would put a score line through the middle of a
+      // path painted one cell deep, which is the one place a sidewalk never has one.
+      expect((TEXTURES.sidewalk.tile[0] / n) % 30).toBe(0);
+    }
+  });
+
+  test("wear cracks the same slabs deeper rather than re-breaking the pavement", () => {
+    const starts = (svg) => (svg.match(/<path d="M[-\d.]+,[-\d.]+/g) || []);
+    expect(starts(draw({ wear: 0 }))).toEqual([]);      // a freshly poured slab has no cracks at all
+    const half = starts(draw({ wear: 0.5 })), full = starts(draw({ wear: 1 }));
+    expect(half.length).toBeGreaterThan(0);
+    expect(full.length).toBeGreaterThan(half.length);
+    // Every crack already there starts from exactly the same point — sliding Wear must not shuffle
+    // the cracks around the pavement, only lengthen them and add more.
+    expect(full).toEqual(expect.arrayContaining(half));
+  });
+
+  test("every colour control actually reaches the render", () => {
+    const base = newTexture("sidewalk");
+    for (const key of ["slab", "alt", "joint", "grit"]) {
+      const recoloured = { ...base, colors: { ...base.colors, [key]: "#ff00ff" } };
+      expect(textureDataUri(recoloured)).not.toBe(textureDataUri(base));
+    }
+  });
+});
+
+describe("water texture", () => {
+  const CO = newTexture("water").colors;
+  const [TW, TH] = TEXTURES.water.tile;
+  const t = () => newTexture("water");
+  const draw = (params) => TEXTURES.water.svg(t().colors, TEXTURES.water.tile, { ...t().params, ...params });
+  const points = (tag) => tag.match(/[-\d.]+,[-\d.]+/g).map((p) => p.split(",").map(Number));
+  // Every path stroked in one colour, as arrays of [x, y] samples: `light` is the ripple crests,
+  // `foam` the whitecaps drawn over them, `dark` their shadows.
+  const stroked = (svg, colour) => (svg.match(new RegExp(`<path d="[^"]+" stroke="${colour}"`, "g")) || []).map(points);
+  const bandTops = (svg) => (svg.match(new RegExp(`<path d="[^"]+Z" fill="${CO.dark}"`, "g")) || []).map((tag) => {
+    const pts = points(tag), top = [pts[0]];
+    // The band closes back along its lower edge, so the top edge is the run before x turns round.
+    for (let i = 1; i < pts.length && pts[i][0] > pts[i - 1][0]; i++) top.push(pts[i]);
+    return top;
+  });
+  // Rows are derived from the render, not assumed: one more band is drawn than there are rows.
+  const gap = () => TH / (bandTops(draw({})).length - 1);
+  const rowOf = (pts) => Math.round(pts[0][1] / gap());
+
+  test("is registered, so the picker and pattern switcher both offer it", () => {
+    expect(TEXTURE_KEYS).toContain("water");
+    expect(TEXTURES.water.label).toBe("Water");
+    expect(newTexture("water").tex).toBe("water");
+  });
+
+  test("a new instance starts at every default, and falls back to its deep colour", () => {
+    expect(t().params).toEqual({ chop: 0.45, foam: 0.3 });
+    expect(Object.keys(t().colors).sort()).toEqual(["dark", "deep", "foam", "light"]);
+    expect(textureBaseColor(t())).toBe(t().colors.deep);
+  });
+
+  test("renders deterministically — same settings, same bytes, so nothing shimmers", () => {
+    expect(textureDataUri(newTexture("water"))).toBe(textureDataUri(newTexture("water")));
+  });
+
+  test("a wave leaving one side of the tile arrives at the other at the same height", () => {
+    for (const top of bandTops(draw({}))) {
+      const at = (x) => top.find(([px2]) => px2 === x)[1];
+      // The wavelength is a whole fraction of the tile, so x and x + 60 are the same phase. Any
+      // other wavelength steps at the seam and a pond shows a grid of vertical cuts.
+      expect(at(-3)).toBeCloseTo(at(TW - 3), 6);
+      expect(at(0)).toBeCloseTo(at(TW), 6);
+    }
+  });
+
+  test("the ripples at the bottom of the tile are the ones from the top, moved down", () => {
+    const crests = stroked(draw({}), CO.light);
+    const rows = Math.round(TH / gap());
+    const sig = (dy) => (pts) => JSON.stringify(pts.map(([x, y]) => [x, +(y - dy).toFixed(2)]));
+    const top = crests.filter((p) => rowOf(p) === 0).map(sig(0)).sort();
+    const bottom = crests.filter((p) => rowOf(p) === rows).map(sig(TH)).sort();
+    expect(top.length).toBeGreaterThan(0);
+    // Same crests, same breaks, exactly one tile lower — that identity is the horizontal seam.
+    expect(bottom).toEqual(top);
+  });
+
+  test("a ripple running off the right edge is redrawn on the left", () => {
+    const crests = stroked(draw({}), CO.light);
+    const wrapped = crests.filter((pts) => pts[0][0] < 0);
+    expect(wrapped.length).toBeGreaterThan(0);
+    for (const w of wrapped) {
+      // Its other half: the same row, starting exactly one tile to the right. Without the pair the
+      // ripple would stop dead at the seam instead of continuing into the next cell.
+      expect(crests.some((c) => rowOf(c) === rowOf(w) && Math.abs(c[0][0] - (w[0][0] + TW)) < 0.01)).toBe(true);
+    }
+  });
+
+  test("chop raises the same ripples instead of reshuffling the surface", () => {
+    const flat = stroked(draw({ chop: 0 }), CO.light), rough = stroked(draw({ chop: 1 }), CO.light);
+    const ownSpread = (pts) => Math.max(...pts.map(([, y]) => y)) - Math.min(...pts.map(([, y]) => y));
+    expect(ownSpread(flat[0])).toBeLessThan(1);        // chop 0 is a pool, not a wave
+    expect(ownSpread(rough[0])).toBeGreaterThan(ownSpread(flat[0]));
+    // Same count, each starting at exactly the same x: only the height changed. If the slider
+    // reseeded the field, the whole pool would crawl sideways as you dragged it.
+    expect(rough.map((p) => p[0][0])).toEqual(flat.map((p) => p[0][0]));
+  });
+
+  test("foam breaks on a ripple, never in open water", () => {
+    expect(stroked(draw({ foam: 0 }), CO.foam)).toEqual([]);
+    const svg = draw({ foam: 1 });
+    const caps = stroked(svg, CO.foam), crests = stroked(svg, CO.light);
+    expect(caps.length).toBeGreaterThan(stroked(draw({ foam: 0.3 }), CO.foam).length - 1);
+    for (const cap of caps) {
+      // A whitecap is a piece of a crest gone white, so it has to sit inside one — same row, and
+      // within that crest's own span.
+      const host = crests.some((c) => rowOf(c) === rowOf(cap)
+        && c[0][0] <= cap[0][0] && c[c.length - 1][0] >= cap[cap.length - 1][0]);
+      expect(host).toBe(true);
+    }
+  });
+
+  test("every colour control actually reaches the render", () => {
+    const base = newTexture("water");
+    for (const key of ["deep", "light", "dark", "foam"]) {
+      const recoloured = { ...base, colors: { ...base.colors, [key]: "#ff00ff" } };
+      expect(textureDataUri(recoloured)).not.toBe(textureDataUri(base));
+    }
+  });
+});
+
 describe("throwable cluster burst", () => {
   test("bomblets fan symmetrically from full left to full right", () => {
     const vs = [0, 1, 2, 3, 4].map((i) => clusterBombletVelocity(i, 5));
