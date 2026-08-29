@@ -325,7 +325,93 @@ import {
   enemyThrowRangePx,
   enemyWantsToThrow,
   enemyThrowVelocity,
+  spawnGearTagOf,
+  enemyGearTagPool,
+  rollEnemyGear,
+  spawnWithRolledGear,
 } from "./App";
+
+/* 🎲 A GEAR TAG ON A PLACEMENT. The point of the feature is that six copies of one guard are six
+   loadouts, so what matters here is (a) the pool is the same pedestal search minus the things an
+   enemy cannot carry, and (b) whatever it rolls reaches the readers that already exist, rather
+   than becoming a fifth answer to "what is this unit holding". */
+describe("enemy gear tags", () => {
+  const rifle = { id: "rifle", type: "weapon", categories: ["T1", "gun"] };
+  const bat = { id: "bat", type: "weapon", categories: ["t1"] };            // matching is case-insensitive
+  const nade = { id: "nade", type: "weapon", wtype: "throw", categories: ["T1"] };
+  const coat = { id: "coat", type: "equipment", slot: "shirt", categories: [" T1 ", "jacket"] }; // ...and trimmed
+  const tonic = { id: "tonic", type: "item", categories: ["T1"] };          // a consumable: in a pedestal's pool, never in this one
+  const body = { id: "body", type: "body" };
+  const lib = [rifle, bat, nade, coat, tonic, body];
+
+  test("the pool is the pedestal search, minus what an enemy cannot carry", () => {
+    expect(enemyGearTagPool(lib, "T1").map((a) => a.id).sort()).toEqual(["bat", "coat", "nade", "rifle"]);
+    expect(enemyGearTagPool(lib, " t1 ").map((a) => a.id).sort()).toEqual(["bat", "coat", "nade", "rifle"]);
+    expect(enemyGearTagPool(lib, "jacket").map((a) => a.id)).toEqual(["coat"]);
+    expect(enemyGearTagPool(lib, "nothing")).toEqual([]);
+    // NO TAG IS NOT "EVERYTHING". A pedestal with no filter deliberately searches the whole
+    // library; a spawn with no tag is not rolling at all, and returning the library here would
+    // arm every enemy in every level ever saved with a random weapon.
+    expect(enemyGearTagPool(lib, "")).toEqual([]);
+    expect(enemyGearTagPool(lib, "   ")).toEqual([]);
+    expect(enemyGearTagPool(lib, undefined)).toEqual([]);
+  });
+
+  test("the roll spans the whole pool and is null when there is nothing to roll", () => {
+    const ids = new Set();
+    for (const r of [0, 0.25, 0.5, 0.75, 0.999999]) ids.add(rollEnemyGear(lib, "T1", r).id);
+    expect(ids.size).toBeGreaterThan(1);            // it actually varies — that is the entire feature
+    expect(rollEnemyGear(lib, "jacket", 0.999999).id).toBe("coat"); // and never runs off the end
+    expect(rollEnemyGear(lib, "nothing", 0)).toBe(null);
+    expect(rollEnemyGear(lib, "", 0)).toBe(null);
+    expect(rollEnemyGear([], "T1", 0)).toBe(null);
+  });
+
+  test("what it rolls is folded into the placement, so the readers that exist see it", () => {
+    const spawn = { enemyId: "thug", facing: -1 };
+    // A gun: the placement now OVERRIDES, which is what strips the frozen copy a dressed look
+    // bakes into its own art. Read back through the one resolver all four readers use.
+    const armed = spawnWithRolledGear(spawn, rifle);
+    expect(armed.weaponId).toBe("rifle");
+    expect(spawnOverridesWeapon(armed)).toBe(true);
+    expect(spawnWeaponIdOf(armed, { weaponId: "somethingElse" })).toBe("rifle");
+    // A grenade goes in the grenade slot, not the hand — a rifleman who also lobs one is the point.
+    const lobber = spawnWithRolledGear(spawn, nade);
+    expect(lobber.throwId).toBe("nade");
+    expect(lobber.weaponId).toBeUndefined();
+    expect(enemyThrowCarry(lobber)).toBe(ENEMY_THROW_CARRY_DEFAULT);
+    expect(enemyThrowCarry(spawnWithRolledGear({ ...spawn, throwCount: 5 }, nade))).toBe(5);
+    // Clothing rides in its own field: nothing else has anywhere to put it.
+    expect(spawnWithRolledGear(spawn, coat).wearId).toBe("coat");
+    expect(spawnWithRolledGear(spawn, coat).weaponId).toBeUndefined();
+    expect(spawnWithRolledGear(spawn, { id: "x", type: "equipment" }).wearId).toBeUndefined(); // no slot = nowhere to wear it
+    // NOTHING ROLLED RETURNS THE PLACEMENT ITSELF, not a copy of it — every level saved before
+    // this feature existed has to go through here completely untouched.
+    expect(spawnWithRolledGear(spawn, null)).toBe(spawn);
+    expect(spawnWithRolledGear(spawn, undefined)).toBe(spawn);
+    expect(spawnWithRolledGear(spawn, body)).toBe(spawn);
+    expect(spawnWithRolledGear(null, rifle)).toBe(null);
+  });
+
+  test("a rolled garment is looted off the body, whether or not the unit could wear it", () => {
+    const find = (id) => lib.find((a) => a.id === id) || null;
+    const look = { id: "thug", type: "character", recipe: { weaponId: "rifle", slots: {} }, components: {} };
+    const spawn = spawnWithRolledGear({ enemyId: "thug" }, coat);
+    expect(enemyEquippedGear(look, find, spawn).map((a) => a.id).sort()).toEqual(["coat", "rifle"]);
+    // An animal cannot be dressed, so the coat is never drawn on it — but it is still on the body
+    // as far as the loot is concerned, which is the only place it can show up at all.
+    expect(enemyEquippedGear({ id: "dog", type: "enemy" }, find, spawn).map((a) => a.id)).toEqual(["coat"]);
+    // A garment deleted from the library since the roll drops nothing, rather than throwing.
+    expect(enemyEquippedGear(look, () => null, spawn)).toEqual([]);
+  });
+
+  test("the tag is read trimmed, and an absent one is blank", () => {
+    expect(spawnGearTagOf({ gearTag: "  T1 " })).toBe("T1");
+    expect(spawnGearTagOf({ gearTag: "" })).toBe("");
+    expect(spawnGearTagOf({})).toBe("");
+    expect(spawnGearTagOf(null)).toBe("");
+  });
+});
 
 describe("door transitions", () => {
   // 1 = full size in the level, 0 = gone into the doorway.

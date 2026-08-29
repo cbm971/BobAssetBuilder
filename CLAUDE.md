@@ -805,6 +805,46 @@ One consequence in `pieceBelongsToAsset`: a **throwable is never drawn on the bo
 not answer the `_isWeapon` question, or looting a grenade off a corpse strips the rifle still lying
 in its hands.
 
+**AND A PLACEMENT CAN ROLL ITS GEAR OFF A TAG INSTEAD OF BEING HANDED ONE THING** — `gearTag` on
+the spawn, beside the weapon and grenade pickers, running the **same search a 💎 Pedestal runs**
+over the same free-text categories already typed on the items. Six copies of one guard tagged
+"T1" are six loadouts instead of six identical ones. Blake's library is already tagged this way
+(44 items on `t1`, 11 on `army`, 6 on `hat`), so the feature needed no new vocabulary.
+
+* **The roll happens once, when the level is entered**, into the level's own `roomState` bucket
+  (`gear`) next to the pedestal rolls — so leaving through a door and coming back does not
+  re-dress everybody, and only ▶ Playtest re-rolls. Four readers each asking the tag for
+  themselves would be four separate rolls: the unit shoots one gun, is drawn holding a second and
+  drops a third. That is the exact failure `spawnWeaponFor` exists to prevent.
+* **What it rolled is folded back into the placement** (`spawnWithRolledGear`) rather than read
+  separately anywhere: a gun becomes `weaponId`, so `spawnOverridesWeapon` goes true and the
+  frozen weapon baked into a dressed look is stripped exactly as a hand-picked override strips it;
+  a grenade becomes `throwId`; a garment becomes `wearId`, which is its own field because it
+  cannot ride in the weapon one. Nothing rolled returns the placement OBJECT ITSELF, so every
+  level already saved goes through untouched — verified in the running app: an untagged spawn's
+  sprite and corpse are byte-identical across five Playtests, a tagged one cycles the pool.
+* **Clothing is actually worn**, not just dropped: `liveEnemyAsset` re-composes the look through
+  `assembleLook` — the same compositor Dress Bob and the player's pedestal pickups use — with the
+  rolled garment over that slot, which also writes it into the recipe so it loots off the body and
+  strips off the corpse art. An Enemy-creator asset (an animal, a turret) has no body to dress, so
+  it comes back untouched and the coat is loot only, via the `wearId` line in `enemyEquippedGear`.
+* **Consumables are deliberately out of the pool** (`enemyGearTagPool`), which is the one place
+  this parts company with a pedestal. A pedestal can hand you a potion because you drink it; an
+  enemy is being asked what it CARRIES, and a rifleman holding a health tonic is the pool being
+  wrong, not the roll.
+* **A blank tag is not "everything".** A pedestal with no filter searches the whole library on
+  purpose; a spawn with no tag is not rolling at all, and returning the library there would arm
+  every enemy in every level ever saved with a random weapon.
+
+**THE WEAPON PICKER IS GONE FROM DRESS BOB** (removed 2026-08-28, at Blake's request — "it's
+clutter, I won't use it there"). What a character fights with is decided where it is USED: per
+placement in the Level Creator, and per session for the player. A third place to answer it was the
+only one whose answer gets FROZEN — a look saved holding a rifle bakes a copy of that rifle into
+every pose, which every override downstream then has to strip back off the art. The card still
+appears, and only then, for a look saved BEFORE this and carrying a `recipe.weaponId`, so a rifle
+already baked into one of those can still be set to none and saved out. Do not "restore" it for
+new looks.
+
 Comments explain **why**, and usually name the bug that motivated the code. Match that
 density.
 

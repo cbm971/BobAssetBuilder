@@ -1505,6 +1505,12 @@ export const enemyEquippedGear = (ea, findAsset, spawn) => {
   // the id IS the look's own, or a spawn handed a different (and deleted) gun would drop the look's.
   add(resolve(heldId, heldId && heldId === ownWeaponId ? (ea.components && ea.components.weapon) : null));
   add(resolve(spawnThrowIdOf(spawn), null));
+  // A garment this placement ROLLED off its gear tag (spawnWithRolledGear). It is not in the look's
+  // recipe — the roll happened when the level was entered, not in Dress Bob — so without this line
+  // the jacket you can see on the body is the one thing you cannot loot off it. It also covers the
+  // unit that cannot WEAR what it rolled (an animal, a turret): the coat is still on the body as
+  // far as the loot is concerned, it just was never drawn on it.
+  add(resolve(spawn && spawn.wearId, null));
   const slots = (ea.recipe && ea.recipe.slots) || {};
   const worn = (ea.components && ea.components.equipment) || {};
   for (const s of new Set([...Object.keys(slots), ...Object.keys(worn)])) add(resolve(slots[s], worn[s]));
@@ -2596,6 +2602,50 @@ export const ENEMY_THROW_CARRY_MAX = 8;
 // spawner: a hand-edited level asking for 500 grenades is a level that never stops exploding.
 export const enemyThrowCarry = (spawn) =>
   spawnThrowIdOf(spawn) ? Math.max(1, Math.min(ENEMY_THROW_CARRY_MAX, Math.round(spawn.throwCount ?? ENEMY_THROW_CARRY_DEFAULT))) : 0;
+/* ── A PLACEMENT CAN ROLL ITS GEAR OFF A TAG INSTEAD OF BEING HANDED ONE THING ────────────────
+   The weapon and grenade pickers decide one exact item for one exact spawn. A `gearTag` says
+   "whatever is tagged T1" (or "jacket", or "cursed") and lets a roll decide, using the SAME search
+   a 💎 Pedestal runs over the same free-text categories typed on the items themselves — so the
+   tags the library is already sorted by work here with no new vocabulary to invent. Six copies of
+   one guard tagged "T1" are six silhouettes with six loadouts instead of six identical ones.
+
+   CONSUMABLES ARE DELIBERATELY NOT IN THE POOL, which is the one place this parts company with a
+   pedestal. A pedestal can hand you a potion because you drink it; an enemy is being asked what it
+   CARRIES, and a rifleman holding a health tonic where his rifle should be is the pool being
+   wrong, not the roll. Same split enemyGearDropPool already draws for loot. */
+export const spawnGearTagOf = (spawn) => ((spawn && spawn.gearTag) || "").trim();
+export const enemyGearTagPool = (assets, tag) => (tag || "").trim() ? enemyGearDropPool(pedestalItemPool(assets, [tag], "or")) : [];
+export const rollEnemyGear = (assets, tag, rnd) => {
+  const pool = enemyGearTagPool(assets, tag);
+  if (!pool.length) return null;
+  const r = typeof rnd === "number" ? rnd : Math.random();
+  return pool[Math.min(pool.length - 1, Math.floor(r * pool.length))];
+};
+/* WHAT THE ROLL PRODUCED IS FOLDED BACK INTO THE PLACEMENT, and every existing reader then works
+   unchanged. spawnWeaponIdOf hands the AI loop, the living sprite, the corpse and the loot roll
+   the rolled gun without any of the four learning what a tag is, and spawnOverridesWeapon goes
+   true, so the frozen weapon a dressed look bakes into its own art is stripped off exactly the way
+   a hand-picked override strips it. Four readers each asking the tag for themselves would be four
+   separate rolls — the unit would shoot one gun, be drawn holding a second and drop a third, which
+   is the precise failure spawnWeaponFor exists to prevent.
+
+   A ROLL WINS over the pickers beside it. "Give it a random one" is not a request that can
+   politely lose to a default, and a placement that wants one exact rifle simply leaves the tag
+   blank. Nothing rolled (no tag, or a tag nothing matches) returns the placement UNTOUCHED, so
+   every level already saved is byte-identical through here.
+
+   A rolled GARMENT cannot ride in the weapon field, so it rides in its own (`wearId`): read by
+   enemyEquippedGear so the body drops it, and by the render, which re-composes the look wearing
+   it. A rolled GRENADE lands in the throw slot for the same reason that slot exists at all — a
+   rifle and a grenade are not competing for the same hand. */
+export const spawnWithRolledGear = (spawn, rolled) => {
+  if (!spawn || !rolled) return spawn;
+  if (rolled.type === "weapon") return isThrowable(rolled.wtype)
+    ? { ...spawn, throwId: rolled.id, throwCount: spawn.throwCount ?? ENEMY_THROW_CARRY_DEFAULT }
+    : { ...spawn, weaponId: rolled.id };
+  if (rolled.type === "equipment" && rolled.slot) return { ...spawn, wearId: rolled.id };
+  return spawn;
+};
 // ── When a unit lets one fly ─────────────────────────────────────────────────────────────────
 // A grenade is a mid-range answer, so it is gated at both ends. Too close and it goes off in the
 // thrower's own face (a unit lobbing one at its own feet just reads as broken); past its own arc it
@@ -6672,6 +6722,7 @@ export default function AssetStudio() {
   const [lEnemyWeapon, setLEnemyWeapon] = useState("");   // weapon stamped onto newly-placed enemies: "" = the look's own, SPAWN_WEAPON_NONE = bare hands, else a weapon id (spawnWeaponIdOf)
   const [lEnemyThrow, setLEnemyThrow] = useState("");     // throwable stamped onto newly-placed enemies — its own slot, so a rifleman can also lob grenades
   const [lEnemyThrowN, setLEnemyThrowN] = useState(ENEMY_THROW_CARRY_DEFAULT); // how many of it that placement starts the level with
+  const [lEnemyGear, setLEnemyGear] = useState("");       // item category stamped onto newly-placed enemies as `gearTag` — blank = no roll, the placement carries exactly what the pickers say (spawnGearTagOf)
   const [lSel, setLSel] = useState(null);              // selected connector key
   const [gen, setGen] = useState(null);                // generated chain preview
   const [play, setPlay] = useState(false);             // playtest mode
@@ -6698,6 +6749,9 @@ export default function AssetStudio() {
   const enemyPos = useRef({});                            // spawnKey -> { y, vy, onGround } — lets enemies fall to the ground on Playtest start ("drop into place") instead of being frozen at their placed cell
   const playerHP = useRef(10);                            // player's remaining HP this Playtest session — seeded from the player asset's HP stat when Playtest starts
   const pedestalRolls = useRef({});
+  const enemyGearRolls = useRef({});                       // spawnKey -> the item that placement's gear tag rolled this session (null = the tag matched nothing). Rolled once per level entry, exactly like pedestalRolls, and kept in the same per-level bucket — re-rolling per reader would arm the unit with one gun and drop another.
+  const enemyGearLookCache = useRef(new Map());            // "run|lookId|rolledId" -> that look re-composed WEARING what it rolled. assembleLook is not free and the render asks every frame.
+  const liveSpawnCache = useRef(new Map());                // spawnKey -> { raw, rolled, out } — keeps the gear-folded placement IDENTITY-stable, so a per-frame reader isn't handed a brand-new object 60 times a second
   const pedestalDepleted = useRef(new Set());              // pedestal keys the player emptied (took the item, had nothing to swap back) — these vanish rather than showing "no match"
   const equipped = useRef({});                            // slot -> equipment item taken from a pedestal this session (weapons go through playtestWeaponId instead)
   const itemBuffs = useRef([]);                            // active temporary stat boosts from consumed items: [{ stat, amount, until }] (until = performance.now ms). Pruned every frame.
@@ -7194,7 +7248,7 @@ export default function AssetStudio() {
     const [r, c] = t.key.split(",").map(Number);
     if (t.kind === "npc") {
       const ep = enemyPos.current[t.key];
-      const ea = findA(((level && level.enemies && level.enemies[t.key]) || {}).enemyId);
+      const ea = liveEnemyAsset(t.key, findA(((level && level.enemies && level.enemies[t.key]) || {}).enemyId));
       if (ep && ea) {
         const shape = sideBodyShape(ea), renderW = enemyRenderW(ea, LV_CELL);
         const h = ep.crouch ? enemyCrouchH(ea, LV_CELL) : enemyStandH(ea, LV_CELL);
@@ -7256,7 +7310,7 @@ export default function AssetStudio() {
         const base = findA(playerId);
         const merged = mergeEquip(base, equipped.current, equippedBodyIdFor(base));
         const bonus = allyMaxHPBonus(merged && merged.effects);
-        const ea = findA(((level && level.enemies && level.enemies[t.key]) || {}).enemyId);
+        const ea = liveEnemyAsset(t.key, findA(((level && level.enemies && level.enemies[t.key]) || {}).enemyId));
         const cur = enemyHP.current[t.key] === undefined ? enemyMaxHP(ea) : enemyHP.current[t.key];
         const res = applyAllyHPBonus(cur, enemyMaxHP(ea), bonus, ep.allyHpGranted);
         enemyHP.current[t.key] = res.hp; ep.allyHpGranted = res.granted;
@@ -7386,10 +7440,11 @@ export default function AssetStudio() {
     // fresh Playtest (the button) wipes them. hazLife is (re)built by the seeding just below and then
     // written back into the bucket so its countdowns persist across visits too.
     let _bkt = roomState.current[lv.id];
-    if (!_bkt) { _bkt = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, stripped: {}, haz: {} }; roomState.current[lv.id] = _bkt; }
+    if (!_bkt) { _bkt = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, stripped: {}, haz: {}, gear: {} }; roomState.current[lv.id] = _bkt; }
     if (!_bkt.drops) _bkt.drops = {}; // migrate a bucket created earlier in this same hot-reloaded play session
     if (!_bkt.stripped) _bkt.stripped = {}; // same migration for looted-corpse art
-    pedestalRolls.current = _bkt.rolls; pedestalDepleted.current = _bkt.depleted; enemyHP.current = _bkt.eHP; enemyPos.current = _bkt.ePos; enemyDrops.current = _bkt.drops; corpseStripped.current = _bkt.stripped; hazLife.current = _bkt.haz;
+    if (!_bkt.gear) _bkt.gear = {};    // and for gear-tag rolls
+    pedestalRolls.current = _bkt.rolls; pedestalDepleted.current = _bkt.depleted; enemyHP.current = _bkt.eHP; enemyPos.current = _bkt.ePos; enemyDrops.current = _bkt.drops; corpseStripped.current = _bkt.stripped; hazLife.current = _bkt.haz; enemyGearRolls.current = _bkt.gear;
     // Seed each finite-life fire cell's countdown. Permanent cells (life 0) deliberately never
     // enter the ref, so alive() below treats them as always burning.
     // IMPORTANT: this effect re-runs mid-play whenever `level` changes — and it changes every
@@ -7411,6 +7466,12 @@ export default function AssetStudio() {
     // "no match" placeholder) the first time it's on screen — rooms included, since this runs on
     // every level swap. Already-rolled or spent pedestals in the bucket are left as they are.
     if (lv.markers) for (const _mk in lv.markers) { const _pm = lv.markers[_mk]; if (_pm && _pm.kind === "pedestal" && pedestalRolls.current[_mk] === undefined && !pedestalDepleted.current.has(_mk)) pedestalRolls.current[_mk] = rollPedestalItem(allAssets, _pm.cats, _pm.logic); }
+    // Same one-roll-per-thing rule, for the spawns carrying a 🎲 gear tag: rolled the first time
+    // this level is entered and then left alone, so the guard you walked past is still wearing the
+    // coat he rolled when you come back through the door — and so the four readers of a spawn's
+    // weapon can never disagree about which gun he rolled. A spawn with no tag never enters the
+    // map, which is what keeps every level built before this untouched. Only ▶ Playtest re-rolls.
+    if (lv.enemies) for (const _ek in lv.enemies) { if (spawnGearTagOf(lv.enemies[_ek]) && enemyGearRolls.current[_ek] === undefined) enemyGearRolls.current[_ek] = rollEnemyGear(allAssets, spawnGearTagOf(lv.enemies[_ek])); }
     // A hazard cell is still burning if it's permanent (never entered the ref) or its countdown
     // hasn't hit zero. Shared by the damage sampler and the visual, so they can't disagree.
     const hazardAlive = (key) => hazardStillBurning(hazLife.current, key);
@@ -7997,7 +8058,7 @@ export default function AssetStudio() {
             // stops a tall body snapping UP onto terrain it merely overlaps). Once landed we set
             // restedDead and stop simulating, so a settled body costs nothing per frame.
             const dep = enemyPos.current[k];
-            const dea = findA(lv.enemies[k].enemyId);
+            const dea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId));
             if (dep && dea && !dep.restedDead) {
               const dShape = sideBodyShape(dea);
               const dRenderW = enemyRenderW(dea, CW), dw = dRenderW * dShape.fraction;
@@ -8011,8 +8072,8 @@ export default function AssetStudio() {
             }
             continue; // defeated: nothing else about it updates
           }
-          const spawn = lv.enemies[k];
-          const ea = findA(spawn.enemyId);
+          const spawn = liveSpawnAt(k, lv.enemies[k]);
+          const ea = liveEnemyAsset(k, findA(spawn.enemyId));
           if (!ea) continue;
           const [er, ec] = k.split(",").map(Number);
           const eShape = sideBodyShape(ea);
@@ -8157,7 +8218,7 @@ export default function AssetStudio() {
             for (const k2 of Object.keys(lv.enemies)) {
               if (k2 === k) continue;
               const ep2 = enemyPos.current[k2]; if (!ep2) continue;
-              const ea2 = findA(lv.enemies[k2].enemyId); if (!ea2) continue;
+              const ea2 = liveEnemyAsset(k2, findA(lv.enemies[k2].enemyId)); if (!ea2) continue;
               if (enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) continue; // corpse
               const s2 = unitSide(ea2, ep2);
               if (wantFriendly ? (s2 === "friendly") : (s2 === "hostile")) out.push({ key: k2, cx: unitCenter(ea2, ep2), ea: ea2, ep: ep2 });
@@ -8725,7 +8786,7 @@ export default function AssetStudio() {
                 for (const b of swingBoxes) {
                   for (const k of Object.keys(lv.enemies || {})) {
                     const ep = enemyPos.current[k];
-                    const ea = findA(lv.enemies[k].enemyId);
+                    const ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId));
                     if (!ea || !ep) continue;
                     const hp = enemyHP.current[k] === undefined ? (enemyMaxHP(ea)) : enemyHP.current[k];
                     if (!canResurrect(hp, ep)) continue;
@@ -8753,8 +8814,8 @@ export default function AssetStudio() {
                 if (p.hitRegistered) break hitLoop; // one ENEMY hit per swing; parries above are unlimited
                 const hbX = b.x, hbY = b.y, hbW = b.w, hbH = b.h;
                 for (const k of Object.keys(lv.enemies || {})) {
-                  const spawn = lv.enemies[k];
-                  const ea = findA(spawn.enemyId);
+                  const spawn = liveSpawnAt(k, lv.enemies[k]);
+                  const ea = liveEnemyAsset(k, findA(spawn.enemyId));
                   if (!ea) continue;
                   if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
                   if (enemyHP.current[k] <= 0) continue; // already defeated
@@ -8856,7 +8917,7 @@ export default function AssetStudio() {
               // landing somewhere behind you, which is the bug the impact test exists to fix.
               if (blastHitsBox(g.x, g.y, p.x, p.y, pw, ph, impactRadPx)) struck.push({ kind: "player" });
               for (const k of Object.keys(lv.enemies || {})) {
-                const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
+                const ea2 = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea2) continue;
                 const ep2 = enemyPos.current[k]; if (!ep2 || !ep2.friendly) continue; // a foe's grenade catches YOUR side, and the throwers are immune to their own
                 if (enemyHP.current[k] === undefined) enemyHP.current[k] = unitMaxHP(ea2, ep2, allyHpBonus);
                 if (enemyHP.current[k] <= 0) continue;
@@ -8865,7 +8926,7 @@ export default function AssetStudio() {
               }
             } else {
               for (const k of Object.keys(lv.enemies || {})) {
-                const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
+                const ea2 = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea2) continue;
                 if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea2);
                 if (enemyHP.current[k] <= 0) continue;
                 const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly || unitTalkImmune(ep2)) continue; // your own allies aren't pelted, and neither is anyone you haven't picked a fight with
@@ -8905,7 +8966,7 @@ export default function AssetStudio() {
           if (!offLevel && !g.foe && captureCount(g.asset) > 0) {
             const contactRadPx = THROW_IMPACT_RADIUS_CELLS * CW;   // the same "that is contact" reach the impact test uses
             for (const k of Object.keys(lv.enemies || {})) {
-              const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
+              const ea2 = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea2) continue;
               const ep2 = enemyPos.current[k]; if (!ep2) continue;
               // Read HP without seeding it: an untouched enemy is at full health and therefore not
               // catchable anyway, and writing enemyHP here would stamp a body count onto every
@@ -9002,7 +9063,7 @@ export default function AssetStudio() {
               // by any other stun. Your allies are caught in it too; the thrower's side is not.
               if (blastHitsBox(g.x, g.y, p.x, p.y, pw, ph, stunRadPx)) { stunPlayer(p, stunSecs); stunnedCount++; }
               for (const k of Object.keys(lv.enemies || {})) {
-                const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
+                const ea2 = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea2) continue;
                 const ep2 = enemyPos.current[k]; if (!ep2 || !ep2.friendly) continue;
                 if (!(enemyHP.current[k] > 0)) continue;
                 const b = stunBoxOf(ea2, ep2);
@@ -9013,7 +9074,7 @@ export default function AssetStudio() {
               }
             } else {
               for (const k of Object.keys(lv.enemies || {})) {
-                const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
+                const ea2 = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea2) continue;
                 if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea2);
                 if (enemyHP.current[k] <= 0) continue;
                 const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly || unitTalkImmune(ep2)) continue; // your own resurrected allies aren't shocked, nor is a talkable NPC — a stun IS something landing on them
@@ -9042,7 +9103,7 @@ export default function AssetStudio() {
             const capRadPx = throwStunRadiusCells(radius) * CW; // one shared "how far a landed payload reaches" rule
             const inRange = [];
             for (const k of Object.keys(lv.enemies || {})) {
-              const ea2 = findA(lv.enemies[k].enemyId); if (!ea2) continue;
+              const ea2 = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea2) continue;
               const ep2 = enemyPos.current[k]; if (!ep2) continue;
               const hp2 = enemyHP.current[k] === undefined ? enemyMaxHP(ea2) : enemyHP.current[k];
               if (!canCapture(ea2, hp2, ep2)) continue;
@@ -9123,14 +9184,14 @@ export default function AssetStudio() {
             }
             for (const k of Object.keys(lv.enemies || {})) {
               const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0)) continue;
-              const ea = findA(lv.enemies[k].enemyId); if (!ea) continue;
+              const ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea) continue;
               const bx = enemyBlastBox(ea, ep);
               if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) enemyHP.current[k] = Math.max(0, enemyHP.current[k] - Math.max(1, baseDmg));
             }
           } else {
             let hits = 0;
             for (const k of Object.keys(lv.enemies || {})) {
-              const ea = findA(lv.enemies[k].enemyId); if (!ea) continue;
+              const ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea) continue;
               if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
               if (enemyHP.current[k] <= 0) continue;
               const ep = enemyPos.current[k]; if (!ep || ep.friendly || unitTalkImmune(ep)) continue; // an explosion sweeps a room, and a bystander in it is exactly who this must not catch
@@ -9203,7 +9264,7 @@ export default function AssetStudio() {
             for (const k of Object.keys(lv.enemies || {})) {
               const ep = enemyPos.current[k]; if (!ep || !ep.friendly) continue;
               if (enemyHP.current[k] === undefined || enemyHP.current[k] <= 0) continue;
-              const ea = findA(lv.enemies[k].enemyId); if (!ea) continue;
+              const ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea) continue;
               const eShape = sideBodyShape(ea);
               const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
               const eph = ep && ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
@@ -9221,7 +9282,7 @@ export default function AssetStudio() {
             // no damage and passes through the living / empty space (keeps flying until it hits a body).
             for (const k of Object.keys(lv.enemies || {})) {
               const ep = enemyPos.current[k];
-              const ea = findA(lv.enemies[k].enemyId);
+              const ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId));
               if (!ea || !ep) continue;
               const hp = enemyHP.current[k] === undefined ? (enemyMaxHP(ea)) : enemyHP.current[k];
               if (!canResurrect(hp, ep)) continue; // must be a dead body that's never been raised
@@ -9242,8 +9303,8 @@ export default function AssetStudio() {
             }
           } else {
           for (const k of Object.keys(lv.enemies || {})) {
-            const spawn = lv.enemies[k];
-            const ea = findA(spawn.enemyId);
+            const spawn = liveSpawnAt(k, lv.enemies[k]);
+            const ea = liveEnemyAsset(k, findA(spawn.enemyId));
             if (!ea) continue;
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             if (enemyHP.current[k] <= 0) continue; // already defeated
@@ -9290,10 +9351,10 @@ export default function AssetStudio() {
       // all get the same single drop roll. A stored null records the failed roll and prevents rerolls.
       for (const k of Object.keys(lv.enemies || {})) {
         if (!(enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0) || Object.prototype.hasOwnProperty.call(enemyDrops.current, k)) continue;
-        const [er, ec] = k.split(",").map(Number), ea = findA(lv.enemies[k].enemyId), ep = enemyPos.current[k];
+        const [er, ec] = k.split(",").map(Number), ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)), ep = enemyPos.current[k];
         // Gear is looted off THIS body — only what it actually had equipped. Consumables still
         // come from the whole item pool (a potion isn't something it was wearing).
-        const item = rollEnemyItemDrop(allAssets, enemyEquippedGear(ea, findA, lv.enemies[k]));
+        const item = rollEnemyItemDrop(allAssets, enemyEquippedGear(ea, findA, liveSpawnAt(k, lv.enemies[k])));
         if (!item) { enemyDrops.current[k] = null; continue; }
         const shape = ea ? sideBodyShape(ea) : { fraction: 1 }, renderW = ea ? enemyRenderW(ea, CW) : CW;
         const hitW = renderW * shape.fraction, standH = ea ? enemyStandH(ea, CH) : CH;
@@ -9355,7 +9416,7 @@ export default function AssetStudio() {
             const sp2 = lv.enemies[k2]; const dId = talkDialogueId(sp2); if (!dId) continue;
             const ep2 = enemyPos.current[k2]; if (!ep2) continue;
             if (enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) continue; // no chatting with a corpse
-            const ea2 = findA(sp2.enemyId); if (!ea2) continue;
+            const ea2 = liveEnemyAsset(k2, findA(sp2.enemyId)); if (!ea2) continue;
             if (unitSide(ea2, ep2) === "hostile") continue;
             const sh2 = sideBodyShape(ea2), rw2 = enemyRenderW(ea2, CW);
             cands.push({ key: k2, dialogueId: dId, name: ea2.name, cx: ep2.x + sh2.centerFrac * rw2, cy: ep2.y + enemyStandH(ea2, CW) / 2 });
@@ -9476,7 +9537,7 @@ export default function AssetStudio() {
             const allyBonusAfter = allyMaxHPBonus(after && after.effects);
             for (const ak of Object.keys(lv.enemies || {})) {
               const aep = enemyPos.current[ak]; if (!aep || !aep.friendly) continue;
-              const aea = findA(lv.enemies[ak].enemyId); if (!aea) continue;
+              const aea = liveEnemyAsset(ak, findA(lv.enemies[ak].enemyId)); if (!aea) continue;
               const curA = enemyHP.current[ak] === undefined ? enemyMaxHP(aea) : enemyHP.current[ak];
               const res = applyAllyHPBonus(curA, enemyMaxHP(aea), allyBonusAfter, aep.allyHpGranted);
               enemyHP.current[ak] = res.hp; aep.allyHpGranted = res.granted;
@@ -11948,6 +12009,52 @@ export default function AssetStudio() {
     // re-baked after its skin's ❤️ HP stat changed comes back with the new pool for free.
     return assembleLook(c.body, c.skin || null, c.weapon || null, equipment, base);
   };
+  /* ── READING A SPAWN'S GEAR-TAG ROLL. Three helpers, and every play-time reader of an enemy goes
+     through them, because a roll that different readers see differently is worse than no roll at
+     all: the sprite wears one jacket, the hitbox is measured off another, and the corpse drops a
+     third. All three are the IDENTITY function until a tag actually rolls something, so every
+     level built before this existed takes byte-identically the path it always did. ── */
+  const rolledGearAt = (k) => enemyGearRolls.current[k] || null;
+  // The placement, with whatever it rolled folded in — use this anywhere the weapon, the grenades
+  // or the loot of a spawn are being asked about. Memoised on the raw spawn's identity so the
+  // folded object is stable across frames; handing every reader a brand-new object each frame
+  // would quietly defeat every === check downstream of it.
+  const liveSpawnAt = (k, spawn) => {
+    const rolled = rolledGearAt(k);
+    if (!spawn || !rolled) return spawn;
+    const hit = liveSpawnCache.current.get(k);
+    if (hit && hit.raw === spawn && hit.rolled === rolled) return hit.out;
+    const out = spawnWithRolledGear(spawn, rolled);
+    liveSpawnCache.current.set(k, { raw: spawn, rolled, out });
+    return out;
+  };
+  // The ASSET that spawn is, wearing the garment it rolled. A rolled WEAPON needs nothing here —
+  // it is folded into the placement above, and the render's existing strip-and-attach puts it in
+  // the hand. Clothing has nowhere to go but into the art, so the look is re-composed through the
+  // very same compositor Dress Bob and the player's own pedestal pickups use (assembleLook), with
+  // the rolled garment laid over whatever that look wore in that slot. That also writes it into
+  // the recipe, which is how it ends up looted off the body and stripped off the corpse art.
+  //
+  // An ENEMY-creator asset (an animal, a turret) has no body/skin to dress, so it comes back
+  // untouched and the coat it rolled is loot only — see the wearId line in enemyEquippedGear.
+  const liveEnemyAsset = (k, ea) => {
+    const rolled = rolledGearAt(k);
+    if (!ea || !rolled || rolled.type !== "equipment" || !rolled.slot) return ea;
+    const c = ea.components;
+    if (ea.type !== "character" || !c || !c.body) return ea;
+    const key = playRunId.current + "|" + ea.id + "|" + rolled.id;
+    const hit = enemyGearLookCache.current.get(key);
+    if (hit) return hit;
+    const eq = { ...(c.equipment || {}), [rolled.slot]: rolled };
+    const base = {
+      ...ea, angles: undefined, hand: undefined, shoulder: undefined, stats: undefined, defense: undefined, effects: undefined,
+      recipe: { ...(ea.recipe || {}), slots: { ...((ea.recipe && ea.recipe.slots) || {}), [rolled.slot]: rolled.id } },
+      components: { ...c, equipment: eq },
+    };
+    const out = assembleLook(c.body, c.skin || null, c.weapon || null, eq, base);
+    enemyGearLookCache.current.set(key, out);
+    return out;
+  };
   const exportLook = () => { const l = composeLook(); if (!l) { flash("Pick a body first."); return; } setCombo(JSON.stringify(l, null, 2)); };
   const saveDressedBob = async () => {
     const body = findA(loadout.bodyId);
@@ -13185,13 +13292,27 @@ export default function AssetStudio() {
                 );
               })}
             </div>
-            <div className="card">
-              <div className="ct">Weapon</div>
-              <select className="big" value={loadout.weaponId} onChange={(e) => { setLoadout({ ...loadout, weaponId: e.target.value }); setViewDressed(null); }}>
-                <option value="">none</option>
-                {weapons.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-            </div>
+            {/* NO WEAPON PICKER ON A LOOK ANY MORE — the same reasoning that retired the 👹 Enemy
+                tickbox above. What a character fights with is decided where it is USED: per
+                PLACEMENT in the Level Creator (spawnWeaponIdOf, and the 🎲 gear tag beside it) and
+                per session for the player. A third place to answer the same question was clutter
+                on this screen, and it was the one whose answer gets FROZEN: a look saved holding a
+                rifle bakes a copy of that rifle into every pose, which every override downstream
+                then has to strip back off the art again.
+
+                It reappears — and only then — for a look saved BEFORE this, so a rifle already
+                baked into one of those can still be taken off. Nothing is lost from those looks by
+                leaving it alone: they open, preview and place exactly as they always did. */}
+            {loadout.weaponId ? (
+              <div className="card">
+                <div className="ct">Weapon (baked into this saved look)</div>
+                <select className="big" value={loadout.weaponId} onChange={(e) => { setLoadout({ ...loadout, weaponId: e.target.value }); setViewDressed(null); }}>
+                  <option value="">none</option>
+                  {weapons.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+                <p className="mini">Weapons are picked per placement in the Level Creator now. Set this to <b>none</b> and save to drop the baked-in copy.</p>
+              </div>
+            ) : null}
           </aside>
         </div>
         {combo && (
@@ -13374,7 +13495,7 @@ export default function AssetStudio() {
         // Every optional field is spread in only when it is SET, so a spawn placed with the
         // defaults is byte-identical to one placed before any of them existed — which is what lets
         // spawnWeaponIdOf treat "no weaponId" as "the look's own" without a migration.
-        if (lTool === "paint") { setLevel((lv2) => ({ ...lv2, enemies: { ...(lv2.enemies || {}), [k]: { enemyId: lEnemyId, facing: lEnemyFace, ...(lEnemyAi !== "asset" ? { ai: lEnemyAi } : {}), ...(lEnemyDlg ? { dialogueId: lEnemyDlg } : {}), ...(lEnemyWeapon ? { weaponId: lEnemyWeapon } : {}), ...(lEnemyThrow ? { throwId: lEnemyThrow, throwCount: lEnemyThrowN } : {}) } } })); return; }
+        if (lTool === "paint") { setLevel((lv2) => ({ ...lv2, enemies: { ...(lv2.enemies || {}), [k]: { enemyId: lEnemyId, facing: lEnemyFace, ...(lEnemyAi !== "asset" ? { ai: lEnemyAi } : {}), ...(lEnemyDlg ? { dialogueId: lEnemyDlg } : {}), ...(lEnemyWeapon ? { weaponId: lEnemyWeapon } : {}), ...(lEnemyThrow ? { throwId: lEnemyThrow, throwCount: lEnemyThrowN } : {}), ...(lEnemyGear.trim() ? { gearTag: lEnemyGear.trim() } : {}) } } })); return; }
       }
       if (lTool === "areaCopy") { areaAnchor.current = { r, c }; setAreaDragOn(true); return; }
       if (lTool === "fill") { floodFill(r, c); return; }
@@ -13513,7 +13634,7 @@ export default function AssetStudio() {
           <span className="badge">{lv.isRoom ? "🚪 Room" : "🗺️ Level"}</span>
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel}>↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel}>↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -13584,6 +13705,20 @@ export default function AssetStudio() {
               {lEnemyId && lEnemyThrow ? <select className="ltbtn" value={lEnemyThrowN} onChange={(e) => setLEnemyThrowN(Number(e.target.value))} title="How many it starts the level with. It stops throwing when they run out.">
                 {[1, 2, 3, 4, 5, 6, 8].map((n) => <option key={n} value={n}>×{n}</option>)}
               </select> : null}
+              {/* ONE TAG INSTEAD OF ONE ITEM. Every picker to the left hands this exact placement
+                  one exact thing. A gear tag hands it the SAME search a 💎 Pedestal runs — over the
+                  free-text categories already typed on the items themselves — and lets the roll
+                  decide, once per Playtest. Six copies of one guard tagged "T1" are six different
+                  loadouts instead of six identical ones, and it needs no new vocabulary: the tags
+                  the library is already sorted by are the tags this reads.
+
+                  A gun goes in its hand, a grenade goes in the grenade slot, and CLOTHING IS
+                  ACTUALLY WORN — the look is re-composed wearing it, so a squad tagged "jacket"
+                  walks out in a different coat each, and each drops the one it has on. See
+                  spawnWithRolledGear (what the roll becomes) and liveEnemyAsset (what wears it). */}
+              {lEnemyId ? <input className="catinline" style={{ flex: "0 1 210px" }} list="enemyGearTags" value={lEnemyGear} onChange={(e) => setLEnemyGear(e.target.value)} placeholder="🎲 Random gear tagged…" title="Roll this placement's gear instead of picking it: type an item category (e.g. T1, jacket) and every Playtest hands this enemy one random item carrying that tag — worn if it's clothing, held if it's a weapon, and lootable off the body either way. What it rolls overrides the pickers to the left, so leave this blank for one exact loadout." /> : null}
+              {lEnemyId ? <datalist id="enemyGearTags">{catSuggest.map((c) => <option key={c} value={c} />)}</datalist> : null}
+              {lEnemyId && lEnemyGear.trim() ? (() => { const n = enemyGearTagPool(allAssets, lEnemyGear).length; return <span className="hint2">{n ? "🎲 " + n + " item" + (n === 1 ? "" : "s") + " tagged \"" + lEnemyGear.trim() + "\" — one at random each run" : "⚠ nothing wearable or holdable is tagged \"" + lEnemyGear.trim() + "\" — it keeps its own gear"}</span>; })() : null}
               {/* ATTACHING A TREE HERE IS ALSO WHAT MAKES THIS ONE PEACEFUL (spawnStartsPeaceful).
                   Stamped per placement, exactly like Facing and the AI behaviour beside it, so the
                   same drawn enemy can be the quiet one by the gate and the pack of hostiles behind
@@ -13861,7 +13996,7 @@ export default function AssetStudio() {
                 {/* The hover text names what this placement is CARRYING, not what the asset was
                     drawn holding. With one outfit standing in for a whole squad, "which of these is
                     the one with the rifle" is otherwise unanswerable without starting a playtest. */}
-                {!play && lv.enemies && Object.keys(lv.enemies).map((k) => { const [r, c] = k.split(",").map(Number); const sp = lv.enemies[k]; const ea = findA(sp.enemyId); const dId = talkDialogueId(sp); const dName = dId ? ((dlgLib.find((d) => d.id === dId) || {}).name || "a deleted dialogue ⚠") : ""; const spwId = spawnWeaponIdOf(sp, ea); const spw = spwId ? findA(spwId) : null; const spThrow = spawnThrowIdOf(sp) ? findA(spawnThrowIdOf(sp)) : null; return <div key={"en" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { cursor: "pointer" } : {}) }} title={(ea ? ea.name : "missing enemy asset") + " · " + (spw ? "🗡️ " + spw.name : spwId ? "🗡️ a deleted weapon ⚠" : "✊ bare hands") + (spThrow ? " · 💣 " + spThrow.name + " ×" + enemyThrowCarry(sp) : "") + (dId ? " · 💬 talks: \"" + dName + "\" · starts PEACEFUL" : "")} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv2) => { const enemies = { ...(lv2.enemies || {}) }; delete enemies[k]; return { ...lv2, enemies }; }); } : undefined}>{ea ? (dId ? "💬" : "👹") : "❓"}</div>; })}
+                {!play && lv.enemies && Object.keys(lv.enemies).map((k) => { const [r, c] = k.split(",").map(Number); const sp = lv.enemies[k]; const ea = findA(sp.enemyId); const dId = talkDialogueId(sp); const dName = dId ? ((dlgLib.find((d) => d.id === dId) || {}).name || "a deleted dialogue ⚠") : ""; const spwId = spawnWeaponIdOf(sp, ea); const spw = spwId ? findA(spwId) : null; const spThrow = spawnThrowIdOf(sp) ? findA(spawnThrowIdOf(sp)) : null; return <div key={"en" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { cursor: "pointer" } : {}) }} title={(ea ? ea.name : "missing enemy asset") + " · " + (spw ? "🗡️ " + spw.name : spwId ? "🗡️ a deleted weapon ⚠" : "✊ bare hands") + (spThrow ? " · 💣 " + spThrow.name + " ×" + enemyThrowCarry(sp) : "") + (spawnGearTagOf(sp) ? " · 🎲 rolls gear tagged \"" + spawnGearTagOf(sp) + "\"" : "") + (dId ? " · 💬 talks: \"" + dName + "\" · starts PEACEFUL" : "")} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv2) => { const enemies = { ...(lv2.enemies || {}) }; delete enemies[k]; return { ...lv2, enemies }; }); } : undefined}>{ea ? (dId ? "💬" : "👹") : "❓"}</div>; })}
                 {!play && !lv.isRoom && CONN_KEYS.map((k) => { const pos = CONN_POS[k], cc = lv.conns[k]; return (
                   <button key={k} className={"conn " + (cc.open ? "open" : "blocked") + (lSel === k ? " sel" : "")} style={{ left: pos.x + "%", top: pos.y + "%" }} onClick={(e) => { e.stopPropagation(); setLSel(k); }} title={CONN_LABEL[k] + (cc.open ? " · accepts: " + (cc.accepts || lv.floor) : " · blocked")}>✕</button>
                 ); })}
@@ -14335,8 +14470,8 @@ export default function AssetStudio() {
                     sight, and show a live HP bar. */}
                 {play && lv.enemies && Object.keys(lv.enemies).map((k) => {
                   const [r, c] = k.split(",").map(Number);
-                  const eSpawn = lv.enemies[k];
-                  const ea = findA(eSpawn.enemyId);
+                  const eSpawn = liveSpawnAt(k, lv.enemies[k]);
+                  const ea = liveEnemyAsset(k, findA(eSpawn.enemyId));
                   if (!ea) return null;
                   // The bar has to read the ALLY ceiling or a buffed minion shows as permanently
                   // over-full — 20 HP drawn against a 10 HP track.
