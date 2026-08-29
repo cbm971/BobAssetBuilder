@@ -329,6 +329,26 @@ import {
   enemyGearTagPool,
   rollEnemyGear,
   spawnWithRolledGear,
+  MONEY_CHAR,
+  normItemEffect,
+  itemEffectSummary,
+  isMoneyItem,
+  itemValue,
+  shopIntel,
+  shopBuyMultiplier,
+  shopTradeMultiplier,
+  shopBuyPrice,
+  shopTradeInValue,
+  shopNetPrice,
+  shopStock,
+  shopStockSorted,
+  SHOP_BUY_MARKUP_AT_0,
+  SHOP_BUY_MARKUP_AT_10,
+  SHOP_TRADE_FRAC_AT_0,
+  SHOP_TRADE_FRAC_AT_10,
+  dialogueActNeedsPerson,
+  newAsset,
+  HAS_CATEGORIES,
 } from "./App";
 
 /* 🎲 A GEAR TAG ON A PLACEMENT. The point of the feature is that six copies of one guard are six
@@ -6271,11 +6291,11 @@ describe("dialogue trees: what a choice does", () => {
     // The two halves are independent on purpose: "make me" turns him hostile and he still gets a
     // last line out before the swords come out.
     const step = dialogueAdvance(guardTree(), "nStart", 2);
-    expect(step).toEqual({ ok: true, act: "hostile", nextId: "nFight" });
+    expect(step).toEqual({ ok: true, act: "hostile", nextId: "nFight", shopTag: "" });
   });
 
   test("an option with no target ends the talk", () => {
-    expect(dialogueAdvance(guardTree(), "nStart", 0)).toEqual({ ok: true, act: "", nextId: null });
+    expect(dialogueAdvance(guardTree(), "nStart", 0)).toEqual({ ok: true, act: "", nextId: null, shopTag: "" });
   });
 
   test("an option pointing at a deleted line ends the talk rather than dead-ending", () => {
@@ -6989,5 +7009,209 @@ describe("a ground line the artist draws", () => {
     expect(alignPoseFootBaseline(standing, attack, 150, 172)[0].y).toBe(105);  // same answer stated explicitly
     expect(alignPoseFootBaseline(standing, attack, 150, 150)[0].y).toBe(127);  // both marked at 150 = no shift
     expect(alignPoseFootBaseline(standing, attack, 120, 172)[0].y).toBe(75);   // base line higher pulls it up
+  });
+});
+
+/* ── 💵 MONEY, VALUES AND SHOPS ────────────────────────────────────────────────────────────── */
+
+describe("money is an item, and only the effect kind makes it money", () => {
+  const bill = { id: "b", type: "item", name: "Dollar", effect: { kind: "money", amount: 20 } };
+
+  test("a money effect survives a round trip through the normalizer", () => {
+    expect(normItemEffect({ kind: "money", amount: 20 })).toEqual({ kind: "money", amount: 20 });
+    expect(isMoneyItem(bill)).toBe(true);
+  });
+
+  test("a note worth nothing is not a thing you can build", () => {
+    // A pickup that flashes "+0" is indistinguishable from a broken one.
+    expect(normItemEffect({ kind: "money", amount: 0 }).amount).toBe(1);
+    expect(normItemEffect({ kind: "money", amount: -50 }).amount).toBe(1);
+    expect(normItemEffect({ kind: "money", amount: 12.6 }).amount).toBe(13); // wallets are whole units
+    expect(normItemEffect({ kind: "money" }).amount).toBe(10);
+  });
+
+  test("nothing else is money", () => {
+    expect(isMoneyItem({ type: "item", effect: { kind: "heal", amount: 5 } })).toBe(false);
+    expect(isMoneyItem({ type: "weapon", effect: { kind: "money", amount: 5 } })).toBe(false); // a gun is not cash
+    expect(isMoneyItem(null)).toBe(false);
+  });
+
+  test("the pickup line says what it pays", () => {
+    expect(itemEffectSummary({ kind: "money", amount: 20 })).toBe(MONEY_CHAR + " +20");
+    expect(itemEffectSummary({ kind: "heal", amount: 5 })).toBe("Heal 5 HP"); // unchanged
+  });
+});
+
+describe("what a thing is worth, and what a shop charges for it", () => {
+  const rifle = { id: "r", type: "weapon", name: "Rifle", value: 100, categories: ["T1", "", ""] };
+
+  test("an unpriced item is worth nothing, never NaN", () => {
+    expect(itemValue({})).toBe(0);
+    expect(itemValue({ value: -20 })).toBe(0);
+    expect(itemValue({ value: 12.4 })).toBe(12);
+    expect(itemValue(null)).toBe(0);
+  });
+
+  test("buying costs 25% over at Int 0 and 5% over at Int 10", () => {
+    expect(shopBuyMultiplier(0)).toBeCloseTo(1 + SHOP_BUY_MARKUP_AT_0, 12);
+    expect(shopBuyMultiplier(10)).toBeCloseTo(1 + SHOP_BUY_MARKUP_AT_10, 12);
+    expect(shopBuyMultiplier(5)).toBeCloseTo(1.15, 12); // the straight line between them
+    expect(shopBuyPrice(rifle, 0)).toBe(125);
+    expect(shopBuyPrice(rifle, 5)).toBe(115);
+    expect(shopBuyPrice(rifle, 10)).toBe(105);
+  });
+
+  test("trading in pays 75% at Int 0 and 95% at Int 10", () => {
+    expect(shopTradeMultiplier(0)).toBeCloseTo(SHOP_TRADE_FRAC_AT_0, 12);
+    expect(shopTradeMultiplier(10)).toBeCloseTo(SHOP_TRADE_FRAC_AT_10, 12);
+    expect(shopTradeInValue(rifle, 0)).toBe(75);
+    expect(shopTradeInValue(rifle, 5)).toBe(85);
+    expect(shopTradeInValue(rifle, 10)).toBe(95);
+  });
+
+  test("every point of Intelligence moves both rates the same 2%, in your favour", () => {
+    for (let i = 0; i < 10; i++) {
+      expect(shopBuyPrice(rifle, i) - shopBuyPrice(rifle, i + 1)).toBe(2);          // cheaper to buy
+      expect(shopTradeInValue(rifle, i + 1) - shopTradeInValue(rifle, i)).toBe(2);  // more for your old one
+    }
+  });
+
+  test("a stat pushed past its slider cannot keep moving the price", () => {
+    // Worn kit and a timed boost can put Intelligence either side of 0-10; without the clamp the
+    // line keeps going and a clever enough character eventually gets PAID to shop.
+    expect(shopIntel(-4)).toBe(0);
+    expect(shopIntel(40)).toBe(10);
+    expect(shopBuyPrice(rifle, 40)).toBe(shopBuyPrice(rifle, 10));
+    expect(shopTradeInValue(rifle, -4)).toBe(shopTradeInValue(rifle, 0));
+    expect(shopBuyMultiplier(undefined)).toBeCloseTo(shopBuyMultiplier(5), 12); // no stat = the baseline 5
+  });
+
+  test("an unpriced item is free rather than unsellable", () => {
+    expect(shopBuyPrice({ value: 0 }, 5)).toBe(0);
+    expect(shopNetPrice(0, 0)).toBe(0);
+  });
+});
+
+describe("you pay the difference, and the difference never runs backwards", () => {
+  const cheap = { type: "weapon", name: "Soap", value: 4 };
+  const dear = { type: "weapon", name: "Rifle", value: 100 };
+
+  test("trading up costs the gap", () => {
+    // A 100-value rifle bought at Int 5 costs 115; a 4-value bar of soap traded in is worth 3.
+    expect(shopNetPrice(shopBuyPrice(dear, 5), shopTradeInValue(cheap, 5))).toBe(112);
+  });
+
+  test("trading DOWN is free and never pays out", () => {
+    // Without the floor you could stand at a counter buying the cheapest thing on the shelf over
+    // and over, cashing out most of the last purchase each time, and the wallet only goes up.
+    expect(shopNetPrice(shopBuyPrice(cheap, 10), shopTradeInValue(dear, 10))).toBe(0);
+    expect(shopNetPrice(1, 999)).toBe(0);
+  });
+});
+
+describe("what a shopkeeper has on the shelf", () => {
+  const lib = [
+    { id: "w1", type: "weapon", name: "Rifle", value: 100, categories: ["T1", "", ""] },
+    { id: "e1", type: "equipment", name: "Cap", slot: "hat", value: 30, categories: ["t1", "hat", ""] },
+    { id: "i1", type: "item", name: "Tonic", value: 12, categories: ["T1", "", ""], effect: { kind: "heal", amount: 5 } },
+    { id: "m1", type: "item", name: "Dollar", value: 20, categories: ["T1", "", ""], effect: { kind: "money", amount: 20 } },
+    { id: "w2", type: "weapon", name: "Bow", value: 60, categories: ["T2", "", ""] },
+    { id: "p1", type: "prop", name: "Crate", categories: ["T1", "", ""] },
+  ];
+
+  test("it stocks everything carrying its tag, whatever the case or padding", () => {
+    expect(shopStock(lib, "T1").map((a) => a.id)).toEqual(["w1", "e1", "i1"]);
+    expect(shopStock(lib, "  t1 ").map((a) => a.id)).toEqual(["w1", "e1", "i1"]);
+    expect(shopStock(lib, "T2").map((a) => a.id)).toEqual(["w2"]);
+  });
+
+  test("a shop selling cash is a losing trade, so it never stocks any", () => {
+    // A note worth 20 sold at a markup costs you money to press. There is no reading of that row
+    // that makes sense, so it is not offered.
+    expect(shopStock(lib, "T1").some((a) => a.id === "m1")).toBe(false);
+  });
+
+  test("a blank tag sells NOTHING, unlike a pedestal's blank filter", () => {
+    // A pedestal with no filter rolling the whole library is a feature. A shopkeeper whose tag you
+    // forgot to type offering every item in the game is a bug you would only find in Playtest.
+    expect(shopStock(lib, "")).toEqual([]);
+    expect(shopStock(lib, "   ")).toEqual([]);
+    expect(shopStock(lib, undefined)).toEqual([]);
+    expect(shopStock(null, "T1")).toEqual([]);
+  });
+
+  test("props and bodies are not merchandise", () => {
+    expect(shopStock(lib, "T1").every(HAS_CATEGORIES)).toBe(true);
+  });
+
+  test("the shelf reads as a price ladder, and holds still between visits", () => {
+    expect(shopStockSorted(lib, "T1", 5).map((a) => a.name)).toEqual(["Tonic", "Cap", "Rifle"]);
+    const tie = [
+      { id: "b", type: "item", name: "Bandage", value: 10, categories: ["T1", "", ""], effect: { kind: "heal", amount: 1 } },
+      { id: "a", type: "item", name: "Aspirin", value: 10, categories: ["T1", "", ""], effect: { kind: "heal", amount: 1 } },
+    ];
+    expect(shopStockSorted(tie, "T1", 5).map((a) => a.name)).toEqual(["Aspirin", "Bandage"]);
+  });
+});
+
+describe("a shop is a dialogue option", () => {
+  const shopTree = {
+    id: "d", name: "Trader", start: "n1",
+    nodes: { n1: { id: "n1", speaker: "", text: "Want anything?", choices: [
+      { id: "c1", text: "Show me", to: "", act: "shop", tone: "", shopTag: " T1 " },
+      { id: "c2", text: "No thanks", to: "", act: "", tone: "", shopTag: "" },
+    ] } },
+  };
+
+  test("taking it reports the tag beside the act", () => {
+    // One place decides what taking an option MEANS, so the tag cannot be fished out of the option
+    // at the call site and disagree with the act that was resolved here.
+    expect(dialogueAdvance(shopTree, "n1", 0)).toEqual({ ok: true, act: "shop", nextId: null, shopTag: "T1" });
+    expect(dialogueAdvance(shopTree, "n1", 1).shopTag).toBe("");
+  });
+
+  test("the act carries its own authoring flag and a fresh choice has the field", () => {
+    expect(DIALOGUE_ACTS.shop.tagParam).toBe(true);
+    expect(newDialogueChoice("hi").shopTag).toBe("");
+  });
+
+  test("a sign can run a shop, but cannot turn anybody hostile", () => {
+    // A market stall with a price list painted on it is a legal thing to build; a sign has nobody
+    // to make angry.
+    expect(dialogueActNeedsPerson("hostile")).toBe(true);
+    expect(dialogueActNeedsPerson("friendly")).toBe(true);
+    expect(dialogueActNeedsPerson("calm")).toBe(true);
+    expect(dialogueActNeedsPerson("heal")).toBe(false);
+    expect(dialogueActNeedsPerson("shop")).toBe(false);
+    expect(dialogueActNeedsPerson("")).toBe(false);
+  });
+
+  test("a tree read back off disk keeps its shop tag", () => {
+    const back = migrateDialogue(JSON.parse(JSON.stringify(shopTree)));
+    expect(back.nodes.n1.choices[0].shopTag).toBe(" T1 ");
+    expect(back.nodes.n1.choices[0].act).toBe("shop");
+  });
+
+  test("a tree written before shops existed opens with a blank tag, not undefined", () => {
+    const old = migrateDialogue({ id: "d", name: "n", start: "a", nodes: {
+      a: { id: "a", text: "hi", choices: [{ id: "c", text: "go", to: "", act: "heal" }] },
+    } });
+    expect(old.nodes.a.choices[0].shopTag).toBe("");
+  });
+});
+
+describe("every item that can be tagged can be priced", () => {
+  test("a new weapon, garment and consumable all start free", () => {
+    for (const a of [newAsset("weapon", null, "melee"), newAsset("equipment", "hat"), newAsset("item")]) {
+      expect(HAS_CATEGORIES(a)).toBe(true);
+      expect(a.value).toBe(0);
+    }
+  });
+
+  test("nothing that isn't merchandise grows a price field", () => {
+    // A body and an enemy are not things a shop can sell, so they must not sprout a control for it.
+    expect(newAsset("body").value).toBeUndefined();
+    expect(newAsset("enemy").value).toBeUndefined();
+    expect(newAsset("prop").value).toBeUndefined();
   });
 });

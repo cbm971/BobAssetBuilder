@@ -531,6 +531,64 @@ and hanging the same conversation on a second NPC would mean writing it twice.
   options is given a synthesized "(Leave)", generated in ONE place (`dialogueOptions`) so what the
   screen offers and what a keypress does cannot drift.
 
+**💵 MONEY AND SHOPS HANG OFF THAT SAME REGISTRY, and a shop is an OPTION rather than a place.**
+`DIALOGUE_ACTS.shop` is the fifth act; taking it opens a shelf. That means a shopkeeper is an
+ordinary talkable NPC and everything the tree already does works on one — he can refuse to trade
+until you have said the right thing, sell you a rifle and *then* turn hostile, and the same tree
+can hang on six market stalls. The act carries `tagParam: true` (the idiom `EFFECT_TYPES.tagBoost`
+uses) and the choice grows one field, `shopTag`, because "browse his guns" and "browse his potions"
+are two options on one line. `dialogueActNeedsPerson` is why a sign can run a shop but cannot turn
+anybody hostile.
+
+* **Money is an ITEM, not a new kind of thing** — a third `normItemEffect` kind next to heal and
+  stat (`{kind:"money", amount}`). A dollar bill is drawn in the item editor like a potion, tagged
+  like a potion, rolls onto a pedestal like a potion and drops off a body like a potion. Every
+  route cash can reach the player by already existed; a separate "currency pickup" would have meant
+  re-teaching all four of them. `isMoneyItem` is the one reader.
+* **The wallet is run-wide** (`wallet` ref + `walletUI` state, the talkRef/talk pattern). Same
+  shape as `playerHP` and for the same reason — money carried through a door is still money. It is
+  deliberately NOT in the per-level `roomState` bucket, and only ▶ Playtest clears it. The 💵 badge
+  in the header is the only permanent readout this game has; everything else is a toast, which is
+  fine for what just happened and useless for a number you are about to spend.
+* **`value` is on the asset, one number, read by every shop** (`itemValue`, on the three
+  `HAS_CATEGORIES` types beside the categories, because a shop finds stock by the tag and prices it
+  by the value). Not a price list per shopkeeper: re-price a rifle and every T1 stall re-prices it,
+  and no two shops can disagree about what a rifle costs. 0 means FREE and is shown as such — a
+  shop that refused to stock unpriced items would look broken rather than unfinished.
+* **Nobody ever pays the value.** Buying costs 25% over at Intelligence 0 and 5% over at 10; a
+  trade-in pays 75% of its own value at 0 and 95% at 10. Both slide 2% a point and they are
+  separate constants, because they are separate dials and one spread would silently move both.
+  `shopIntel` clamps to 0–10 rather than the slider's 1–10: worn kit and a timed 🧪 boost push the
+  stat either side, and an unclamped line eventually pays you to shop. **Prices are quoted against
+  the LIVE stat**, so an Int potion really does buy eight seconds of better prices — and the
+  opposite is visible too: buying the Army Hat (−1 Int) puts every other price on the shelf up by a
+  point, which is the feature, not a bug.
+* **`shopNetPrice` floors at zero and that floor is load-bearing.** Trading a rifle in against a
+  bar of soap must not make the shopkeeper pay you: without it you could stand at a counter buying
+  the cheapest thing over and over, cashing out most of the last purchase each time, and the wallet
+  only ever goes up. The row says "worth more than this — no change given" rather than hiding it.
+* **A blank tag sells NOTHING** — the opposite of a pedestal's blank filter, which searches the
+  whole library on purpose. A shopkeeper whose tag you forgot to type offering every item in the
+  game is a bug you would only find in Playtest. **And money is never stock**: a note worth 20 sold
+  at a markup is a row that can only cost you money to press.
+* **A purchase is a pedestal pickup that costs money**, and `buyFromShop` is written to keep it
+  literally that — the same `wornEquipMap`/`equipDisplacedSlot`/`mergeEquip` swap, the same weapon
+  and throwable slots, the same NULL-not-delete on the vacated slot. The only differences are that
+  money changes hands and what you traded in does not land back on a plinth. `settleAllyHPCeiling`
+  is now shared by both doors, because swapping kit is the only thing that moves the worn ally
+  bonus and two copies of the top-up would be two chances to pay an ally twice.
+* **The shop is a `.modal`, not a speech bubble**, and that is a deliberate departure from the rule
+  above. What he SAYS is still in his bubble; this is a price list with a wallet, a trade-in column
+  and a button per row, which is a menu — and the app's idiom for a menu is `.modal > .dlg`. It
+  pauses the world on the same line the conversation does (`shopRef`, one early return), owns the
+  keyboard while it is up (or Esc would close the talk *underneath* the shelf), and closing it
+  drops you back into whatever the shopkeeper is still saying — the option's `to` is untouched, so
+  act and destination stay independent exactly as they are everywhere else here.
+* **One flash, not two.** `consumeItemNow` takes the shop's receipt as a `suffix` rather than the
+  shop firing a second `flash`: two on the same tick and the second silently replaces the first —
+  measured in play, buying a tonic showed only "paid 💵 23" and how much it healed you never
+  appeared. A toast is a single slot.
+
 Attachment is per PLACEMENT, not per asset: a `sign` marker (`{kind:"sign", dialogueId, text}` —
 the `text` is the five-second version, a one-off line with no tree) and a spawn's `dialogueId`.
 

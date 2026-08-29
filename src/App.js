@@ -1562,14 +1562,21 @@ export const enemyDropOverlapping = (drops, x, y, w, h, cellSize) => {
 export const pedestalSummary = (m) => { const cs = ((m && m.cats) || []).map((c) => (c || "").trim()).filter(Boolean); return cs.length ? cs.join((m && m.logic) === "and" ? " AND " : " OR ") : "any item"; };
 // ── Single-use passive items (heal / temporary stat boost) ───────────────────
 // An "item" is a consumable placed on a pedestal (Binding-of-Isaac style). Taking it applies its
-// effect immediately and empties the pedestal — nothing swaps back, unlike gear. Two effect kinds:
+// effect immediately and empties the pedestal — nothing swaps back, unlike gear. Three effect kinds:
 //   { kind: "heal", amount }                  — instantly restores `amount` HP (clamped to your max)
 //   { kind: "stat", stat, amount, duration }  — adds `amount` to a stat for `duration` seconds
+//   { kind: "money", amount }                 — pays `amount` into your wallet (a dollar bill, a coin)
 // It carries `categories` like gear so the SAME pedestal search finds it. Only the stats the player
 // actually reads in play are offered: Speed (move), Agility (jump), Strength (melee+throw damage),
 // Intelligence (crit chance, melee and ranged) — every one has a live effect.
+//
+// MONEY IS AN ITEM AND NOT A NEW KIND OF THING, deliberately. A dollar bill is drawn in the item
+// editor like a potion, tagged like a potion, rolls onto a pedestal like a potion and drops off a
+// body like a potion — every route cash can reach the player by already existed, and inventing a
+// separate "currency pickup" would have meant re-teaching all four of them.
 export const ITEM_STAT_KEYS = ["speed", "agility", "intelligence", "strength"];
 export const ITEM_STAT_LABEL = { speed: "Speed", agility: "Agility", intelligence: "Int", strength: "Str" };
+export const MONEY_CHAR = "💵"; // 💵 — one symbol for the wallet, the prices and the pickup flash
 export const DEFAULT_ITEM_EFFECT = () => ({ kind: "heal", amount: 5 });
 export const normItemEffect = (e) => {
   if (!e || typeof e !== "object") return DEFAULT_ITEM_EFFECT();
@@ -1577,14 +1584,80 @@ export const normItemEffect = (e) => {
     const stat = ITEM_STAT_KEYS.includes(e.stat) ? e.stat : "speed";
     return { kind: "stat", stat, amount: Number.isFinite(e.amount) ? e.amount : 2, duration: Number.isFinite(e.duration) ? e.duration : 8 };
   }
+  // Rounded and floored at 1: a wallet is whole units, and a note worth nothing is a pickup that
+  // flashes "+0" and reads as broken.
+  if (e.kind === "money") return { kind: "money", amount: Math.max(1, Math.round(Number.isFinite(e.amount) ? e.amount : 10)) };
   return { kind: "heal", amount: Number.isFinite(e.amount) ? e.amount : 5 };
 };
 // One-line human summary for the pedestal callout / pickup flash.
 export const itemEffectSummary = (e) => {
   const x = normItemEffect(e);
   return x.kind === "heal" ? "Heal " + x.amount + " HP"
+    : x.kind === "money" ? MONEY_CHAR + " +" + x.amount
     : "+" + x.amount + " " + (ITEM_STAT_LABEL[x.stat] || x.stat) + " for " + x.duration + "s";
 };
+export const isMoneyItem = (a) => !!a && a.type === "item" && normItemEffect(a.effect).kind === "money";
+
+/* ── 💵 WHAT A THING IS WORTH, AND WHAT A SHOP CHARGES FOR IT ────────────────────────────────
+   Every item that can be tagged can also be PRICED — `value` on the asset, typed in its editor,
+   in the same three places the categories live (equipment, weapon, item; see HAS_CATEGORIES).
+   One number per item and every shop reads it, rather than a price list per shopkeeper: a T1
+   shop anywhere in the game charges what a T1 item is worth, and re-pricing a rifle re-prices it
+   in every shop at once.
+
+   `value` is what the item is WORTH. Nobody ever pays exactly that:
+
+     * BUYING costs more than the item is worth — 25% more at Intelligence 0, 5% more at 10.
+     * TRADING IN pays less than it is worth — 75% of it at Intelligence 0, 95% at 10.
+
+   Both slide 2% a point, in the direction that rewards a clever character, so the whole of the
+   Intelligence stat's effect on a shop is one straight line from "haggled badly" to "haggled
+   well". The two are separate constants rather than one spread, because they are separate
+   decisions Blake gets to tune and a single number would silently move both. */
+export const SHOP_BUY_MARKUP_AT_0 = 0.25;   // Int 0 → pay 125% of value
+export const SHOP_BUY_MARKUP_AT_10 = 0.05;  // Int 10 → pay 105%
+export const SHOP_TRADE_FRAC_AT_0 = 0.75;   // Int 0 → your old item is taken at 75% of ITS value
+export const SHOP_TRADE_FRAC_AT_10 = 0.95;  // Int 10 → 95%
+// Intelligence as the shop reads it. Clamped to 0-10 rather than 1-10 like the slider: a stat
+// can be pushed either side of its authored range by worn kit and a timed item boost, and a
+// price that keeps sliding past the ends would eventually pay you to shop.
+export const shopIntel = (intelligence) => Math.max(0, Math.min(10, intelligence ?? 5));
+export const shopBuyMultiplier = (intelligence) =>
+  1 + SHOP_BUY_MARKUP_AT_0 - (SHOP_BUY_MARKUP_AT_0 - SHOP_BUY_MARKUP_AT_10) * (shopIntel(intelligence) / 10);
+export const shopTradeMultiplier = (intelligence) =>
+  SHOP_TRADE_FRAC_AT_0 + (SHOP_TRADE_FRAC_AT_10 - SHOP_TRADE_FRAC_AT_0) * (shopIntel(intelligence) / 10);
+// An item's own worth. 0 (an item nobody has priced yet) means FREE and is shown as such — a
+// shop that refused to stock unpriced items would look broken rather than unfinished.
+export const itemValue = (a) => Math.max(0, Math.round((a && a.value) || 0));
+export const shopBuyPrice = (a, intelligence) => Math.max(0, Math.round(itemValue(a) * shopBuyMultiplier(intelligence)));
+export const shopTradeInValue = (a, intelligence) => Math.max(0, Math.round(itemValue(a) * shopTradeMultiplier(intelligence)));
+// WHAT YOU ACTUALLY HAND OVER. Never below zero: trading a rifle in against a bar of soap does
+// not make the shopkeeper pay you, because that is a SALE and nobody asked for one. Without the
+// floor you could stand at a counter buying the cheapest thing on it over and over, each time
+// cashing out most of the last purchase, and the wallet only ever goes up.
+export const shopNetPrice = (buyPrice, tradeIn) => Math.max(0, Math.round(buyPrice) - Math.round(tradeIn));
+// WHAT A SHOP HAS ON THE SHELF: everything in the library carrying the shopkeeper's tag, run
+// through the SAME search a 💎 Pedestal and a spawn's gear tag run (itemMatchesPedestal), so the
+// vocabulary Blake has already typed onto 44 items works in a shop with no new tagging at all.
+//
+// Two deliberate exclusions:
+//   * A BLANK TAG SELLS NOTHING. A pedestal with no filter searching the whole library is a
+//     feature (it is a random reward); a shopkeeper whose tag you forgot to type offering every
+//     item in the game is not a shop, it is a bug you would find in Playtest.
+//   * MONEY IS NOT STOCK. A note worth 20 sold at a markup is a strictly-losing trade and there
+//     is no reading of it that makes sense; leaving it in would put a row in the shop that only
+//     ever costs you money to press.
+export const shopStock = (assets, tag) => {
+  const t = (tag || "").trim();
+  if (!t) return [];
+  return (assets || []).filter((a) => HAS_CATEGORIES(a) && !isMoneyItem(a) && itemMatchesPedestal(a, [t], "or"));
+};
+// Sorted for the shelf: dearest last, so a row of prices reads as a ladder. Ties keep name order
+// rather than library order — two identically-priced hats jumping around between visits reads as
+// the stock changing when it has not.
+export const shopStockSorted = (assets, tag, intelligence) =>
+  shopStock(assets, tag).slice().sort((a, b) =>
+    shopBuyPrice(a, intelligence) - shopBuyPrice(b, intelligence) || String(a.name || "").localeCompare(String(b.name || ""), undefined, { numeric: true }));
 // Heal is clamped to [0, max] and never lowers HP (a negative amount is treated as 0). Pure.
 export const applyHeal = (curHP, maxHP, amount) => Math.max(0, Math.min(maxHP, curHP + Math.max(0, amount || 0)));
 // How much extra maximum HP the worn kit gives everything fighting for you. Several items stack,
@@ -1676,13 +1749,26 @@ export const DIALOGUE_ACTS = {
   friendly: { label: "🟢 They join you", blurb: "They fight FOR you from now on, exactly like a body raised with the Resurrect staff — but they glow GREEN rather than purple, because nobody had to die for this one.", flash: "🟢 {name} is fighting for you!" },
   calm: { label: "🕊️ Calm them down", blurb: "They stop fighting and go back to standing there — talking a hostile down.", flash: "🕊️ {name} stands down." },
   heal: { label: "❤️ Heal you fully", blurb: "Tops your HP back up to full. A healer NPC in three clicks.", flash: "❤️ {name} patched you up." },
+  // THE SHOP IS AN OPTION, not a marker or a room type — you get a shop by writing "Let's see what
+  // you've got" into somebody's tree. That means a shopkeeper is an ordinary talkable NPC and
+  // everything the dialogue system already does works on one: he can refuse to trade until you
+  // have said the right thing, he can sell you a gun and THEN turn hostile, and the same tree can
+  // be hung on six market stalls. `tagParam` is the same idiom EFFECT_TYPES.tagBoost uses — the
+  // act needs one extra piece of authoring (which tag he stocks), so the editor grows one input.
+  shop: { label: "🛒 Open their shop", blurb: "They open up shop: everything in your library carrying the tag you type below goes on the shelf, priced from each item's own 💵 Value. Type the tag (e.g. T1) in the box that appears.", flash: "🛒 {name} opens up shop.", tagParam: true, anyone: true },
 };
+// Which acts a SIGN can carry. Turning somebody hostile needs a person to turn; healing you and
+// opening a shop do not, so a market stall with a price list painted on it is a legal thing to
+// build. One flag on the registry entry rather than a list of exceptions at the call site.
+export const dialogueActNeedsPerson = (act) => !!DIALOGUE_ACTS[act] && act !== "heal" && !DIALOGUE_ACTS[act].anyone;
 // Node and choice ids are PREFIXED, and that is not decoration. `nodes` is an object, and a
 // JavaScript object puts integer-like string keys first however they were inserted — uid() is
 // base36 and does sometimes come out all digits, so an unprefixed id would silently jump to the
 // top of the node list every few hundred trees and reorder the editor for no visible reason.
 export const newDialogueNode = (text) => ({ id: "n" + uid(), speaker: "", text: text || "", choices: [] });
-export const newDialogueChoice = (text) => ({ id: "c" + uid(), text: text || "", to: "", act: "", tone: "" });
+// `shopTag` is the one act-specific field a choice carries. It rides on the choice rather than on
+// the node, because "browse his weapons" and "browse his potions" are two options on one line.
+export const newDialogueChoice = (text) => ({ id: "c" + uid(), text: text || "", to: "", act: "", tone: "", shopTag: "" });
 // ✅/❌ RIGHT-OR-WRONG. An option can be tagged so that PICKING it lights up green or red for a
 // beat before the talk moves on — the author saying "that was the right answer" without having to
 // write a line of dialogue that says so. Only shown once it is chosen: colouring the list up front
@@ -1730,6 +1816,7 @@ export const migrateDialogue = (raw) => {
         to: typeof c.to === "string" ? c.to : "",
         act: DIALOGUE_ACTS[c.act] ? c.act : "",
         tone: DIALOGUE_TONES[c.tone] ? c.tone : "",
+        shopTag: typeof c.shopTag === "string" ? c.shopTag : "",
       })),
     };
   }
@@ -1783,11 +1870,13 @@ export const dialogueChoiceForKey = (key, options) => {
 };
 // Taking option `i` on `nodeId`: what the world should do, and where the talk goes next (null =
 // it's over). Pure, so every branch of a tree can be walked in a test without a running game.
+// `shopTag` comes back beside the act rather than being fished out of the option at the call site,
+// so the one place that decides "what does taking this option mean" answers the whole question.
 export const dialogueAdvance = (d, nodeId, i) => {
   const node = d && d.nodes && d.nodes[nodeId];
   const opt = dialogueOptions(node)[i];
-  if (!node || !opt) return { ok: false, act: "", nextId: null };
-  return { ok: true, act: DIALOGUE_ACTS[opt.act] ? opt.act : "", nextId: (opt.to && d.nodes[opt.to]) ? opt.to : null };
+  if (!node || !opt) return { ok: false, act: "", nextId: null, shopTag: "" };
+  return { ok: true, act: DIALOGUE_ACTS[opt.act] ? opt.act : "", nextId: (opt.to && d.nodes[opt.to]) ? opt.to : null, shopTag: (opt.shopTag || "").trim() };
 };
 // Every node the talk can actually get to from the start. The editor flags the rest — an
 // orphaned node is a line you wrote that no player will ever see, and it looks identical to a
@@ -2898,6 +2987,11 @@ export function newAsset(type, slot, wtype) {
   // A single-use item: one Front canvas (drawn like a projectile), an effect, and category tags so
   // a pedestal can roll it. No poses/frames/rig — it only ever shows on a pedestal and in menus.
   if (type === "item") { a.effect = DEFAULT_ITEM_EFFECT(); a.categories = ["", "", ""]; }
+  // 💵 WHAT IT IS WORTH sits beside the categories, on exactly the same three types, because the
+  // two are asked together: a shop finds its stock by the tag and prices it by the value. New
+  // items start at 0 — free — rather than at some invented price, so an unpriced shelf is
+  // obviously unpriced instead of quietly charging a number nobody chose.
+  if (HAS_CATEGORIES(a)) a.value = 0;
   return a;
 }
 const guideAsset = { angles: DEFAULT_BODY, hand: DEFAULT_HAND, shoulder: DEFAULT_SHOULDER };
@@ -2915,7 +3009,7 @@ export const KNOWN_ASSET_TYPES = ["body", "skin", "weapon", "enemy", "equipment"
 export const inferAssetType = (raw) => {
   if (raw.type && KNOWN_ASSET_TYPES.includes(raw.type)) return raw.type;
   if (raw.recipe || raw.components) return "character";
-  if (raw.effect && typeof raw.effect === "object" && (raw.effect.kind === "heal" || raw.effect.kind === "stat")) return "item";
+  if (raw.effect && typeof raw.effect === "object" && (raw.effect.kind === "heal" || raw.effect.kind === "stat" || raw.effect.kind === "money")) return "item";
   if (raw.slot) return "equipment";
   if (raw.wtype || raw.projectileId !== undefined || (raw.states && raw.states.fire)) return "weapon";
   if (raw.hasArms !== undefined || (raw.states && raw.states.onFire)) return "enemy";
@@ -2985,6 +3079,7 @@ export const normalizeAssetJson = (raw) => {
     if (Object.keys(out).length) a.variants = out; else delete a.variants;
   }
   if (type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
+  if (HAS_CATEGORIES(a) && !Number.isFinite(a.value)) a.value = 0; // hand-written JSON rarely carries a price; 0 = free, never undefined
   if (type === "prop" && typeof a.category !== "string") a.category = ""; // no sub-category = files under "Unknown", never missing
   if (!a.id) a.id = uid();
   if (typeof a.name !== "string" || !a.name.trim()) a.name = (type === "equipment" ? SLOTS[a.slot].label : (TYPES[type] ? TYPES[type].label : type));
@@ -6755,6 +6850,18 @@ export default function AssetStudio() {
   const pedestalDepleted = useRef(new Set());              // pedestal keys the player emptied (took the item, had nothing to swap back) — these vanish rather than showing "no match"
   const equipped = useRef({});                            // slot -> equipment item taken from a pedestal this session (weapons go through playtestWeaponId instead)
   const itemBuffs = useRef([]);                            // active temporary stat boosts from consumed items: [{ stat, amount, until }] (until = performance.now ms). Pruned every frame.
+  // 💵 THE WALLET IS RUN-WIDE, not per level — the same shape playerHP has, and for the same
+  // reason: money you carried through a door is still money. It deliberately does NOT live in the
+  // per-level roomState bucket (that is for what you did TO a room), and it is wiped only by the
+  // ▶ Playtest button, alongside HP and the pedestal rolls.
+  //
+  // Two homes for one number, on purpose. `wallet` is the ref the physics loop writes when you
+  // walk over a dollar bill (that loop is a closure and cannot see React state); `walletUI` is
+  // what the header badge and the shop panel render. Written through setWallet so they can never
+  // disagree — the same trick talkRef/talk already plays.
+  const wallet = useRef(0);
+  const [walletUI, setWalletUI] = useState(0);
+  const setWallet = (n) => { wallet.current = Math.max(0, Math.round(n || 0)); setWalletUI(wallet.current); };
   const roomReturn = useRef(null);                         // while inside a room during play: { level: <the level to return to>, x, y } — set on enter, consumed on exit/stop
   const roomState = useRef({});                             // per-level PERSISTENT state for the current play session, keyed by level id: { rolls, depleted, eHP, ePos, drops, haz }. Never cleared on a transition — only on a fresh Playtest. This is what makes a level/room keep what you did to it when you leave and come back.
   const sessionRooms = useRef({});                          // "originLevelId|doorCell" -> chosen room id, so a given door leads to the SAME room all session (re-entering doesn't re-roll)
@@ -6770,6 +6877,15 @@ export default function AssetStudio() {
   const [talk, setTalk] = useState(null);                 // { dlg, nodeId, kind, key, name } | null — the open conversation
   const talkRef = useRef(null);
   useEffect(() => { talkRef.current = talk; }, [talk]);
+  // 🛒 THE SHOP, opened by a dialogue option carrying the `shop` act. It gets its OWN ref for the
+  // same reason talk does — the world has to stay frozen while you are reading a price list, and
+  // the loop can only be told that through a ref. It is a separate piece of state from `talk`
+  // rather than a mode of it, because a conversation and a shelf are not the same thing and the
+  // option's `to` still decides where the TALK goes; browsing simply happens on top of it, and
+  // closing the shop drops you back into whatever the shopkeeper is saying.
+  const [shop, setShop] = useState(null);                 // { tag, name } | null — the open shop
+  const shopRef = useRef(null);
+  useEffect(() => { shopRef.current = shop; }, [shop]);
   const [pframe, setPframe] = useState(0);             // playtest re-render tick
   const frontCellsRef = useRef(null);      // wrapper around the memoized Front tile layer — lets the playtest loop fade covered cells imperatively, without re-rendering the whole (memoized) layer every frame
   const hazardCellsRef = useRef(null);     // same idea for fire: the layer is memoized (not rebuilt every frame), so a burnt-out cell is hidden imperatively by toggling its own element's opacity
@@ -7278,6 +7394,11 @@ export default function AssetStudio() {
   // talkH goes back to 0 so the next conversation measures itself rather than inheriting the last
   // one's height and deciding, on its very first frame, that it doesn't fit above somebody's head.
   const closeTalk = () => { clearTalkTimer(); talkRef.current = null; setTalk(null); setTalkH(0); };
+  // Both written synchronously as well as through setState, for the reason openTalk gives: the
+  // loop is mid-frame and reads the ref at the top of the NEXT one, so waiting for React to
+  // commit would let a frame of physics through under an open shop.
+  const openShop = (tag, name) => { const s = { tag, name: name || "" }; shopRef.current = s; setShop(s); };
+  const closeShop = () => { shopRef.current = null; setShop(null); };
   // BRING THE BUBBLE INTO VIEW when a conversation opens. This game has no camera — nothing follows
   // the player — so on a 160-column level the person you just walked up to is very often outside
   // the scrolled viewport, and so is what they are saying. Scoped as tightly as it can be: only on
@@ -7290,7 +7411,7 @@ export default function AssetStudio() {
   }, [talk && talk.key, talk && talk.nodeId]);
   // What an option DOES to the world. One switch, off DIALOGUE_ACTS, so "what can a choice do" has
   // exactly one answer and adding an entry to the registry is the only edit a new consequence needs.
-  const applyTalkAct = (act, t) => {
+  const applyTalkAct = (act, t, step) => {
     if (!act || !DIALOGUE_ACTS[act]) return;
     const ep = t.kind === "npc" ? enemyPos.current[t.key] : null;
     const name = t.name || "They";
@@ -7298,6 +7419,14 @@ export default function AssetStudio() {
       const base = findA(playerId);
       const merged = mergeEquip(base, equipped.current, equippedBodyIdFor(base));
       playerHP.current = maxPlayerHP(merged);
+    } else if (act === "shop") {
+      // A SHOP WITH NO TAG IS THE ONE THING THAT CAN GO WRONG HERE, and it goes wrong silently:
+      // shopStock deliberately returns nothing for a blank tag (see the note there), so opening
+      // the panel would show an empty shelf and read as the whole feature being broken. Say which
+      // half is missing instead, in the same voice the "needs a person" line uses.
+      const tag = (step && step.shopTag) || "";
+      if (!tag) { flash("🛒 That shop option has no tag typed on it — open the 💬 Dialogue editor and say which tag it sells (e.g. T1)."); return; }
+      openShop(tag, name);
     } else if (ep) {
       // A sign cannot turn anybody hostile — there is nobody there. Said out loud rather than
       // silently ignored, because a choice that visibly does nothing reads as a broken feature.
@@ -7316,11 +7445,134 @@ export default function AssetStudio() {
         enemyHP.current[t.key] = res.hp; ep.allyHpGranted = res.granted;
         ep.friendly = true; ep.allyKind = "talked"; ep.turned = null; ep.peaceful = false; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
       }
-    } else if (act !== "heal") {
+    } else if (dialogueActNeedsPerson(act)) {
       flash("💬 \"" + DIALOGUE_ACTS[act].label + "\" needs a person — a sign has nobody to turn.");
       return;
     }
     flash(DIALOGUE_ACTS[act].flash.replace("{name}", name));
+  };
+
+  /* ---- 🛒 shopping ---------------------------------------------------------------------------
+     A purchase is a PEDESTAL PICKUP THAT COSTS MONEY, and everything below is written to keep it
+     literally that: the same wornEquipMap / equipDisplacedSlot / mergeEquip swap, the same weapon
+     and throwable slots, the same ally-ceiling settle-up. The only two differences are that money
+     changes hands and that what you traded in does not land back on a plinth — the shopkeeper
+     keeps it. Anything that behaves differently in a shop than it does at a pedestal is a bug. */
+  const playNowMs = () => ((typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now());
+  // The player as the game currently reads them: the look, plus what they picked up this run.
+  const livePlayerAsset = () => { const base = findA(playerId); return mergeEquip(base, equipped.current, equippedBodyIdFor(base)); };
+  // THE INTELLIGENCE A PRICE IS QUOTED AGAINST is the live one — the look's own stat, plus worn
+  // kit, plus any 🧪 timed boost still running. Exactly the number pstats hands the crit roll, so
+  // a "+3 Int for 8s" potion really does buy you eight seconds of better prices, which is the
+  // whole reason to hang shop prices off a stat that items can already move.
+  const shopperIntelligence = () => {
+    const merged = livePlayerAsset();
+    const buffs = activeBuffSum(itemBuffs.current, playNowMs());
+    return (merged && merged.stats && merged.stats.intelligence !== undefined ? merged.stats.intelligence : 5) + (buffs.intelligence || 0);
+  };
+  // PAY THE ALLIES WHAT THE NEW KIT OWES THEM, and trim anyone now over the ceiling. Swapping gear
+  // is the only way the worn ally bonus moves mid-run, so every route that swaps gear has to come
+  // through here — the pedestal, and now the shop. Both halves are applyAllyHPBonus's, so the
+  // no-farming rule is stated once and cannot drift between the two doors into it.
+  const settleAllyHPCeiling = (afterAsset, enemies) => {
+    const bonus = allyMaxHPBonus(afterAsset && afterAsset.effects);
+    for (const ak of Object.keys(enemies || {})) {
+      const aep = enemyPos.current[ak]; if (!aep || !aep.friendly) continue;
+      const aea = liveEnemyAsset(ak, findA(enemies[ak].enemyId)); if (!aea) continue;
+      const curA = enemyHP.current[ak] === undefined ? enemyMaxHP(aea) : enemyHP.current[ak];
+      const res = applyAllyHPBonus(curA, enemyMaxHP(aea), bonus, aep.allyHpGranted);
+      enemyHP.current[ak] = res.hp; aep.allyHpGranted = res.granted;
+    }
+  };
+  // USING A CONSUMABLE, wherever it came from. One reader for all three effect kinds so a potion
+  // bought over a counter and a potion taken off a plinth cannot end up healing different amounts.
+  // Money is the third kind and pays straight into the wallet.
+  //
+  // `suffix` (the shop's receipt) is appended to this ONE flash rather than being a second one.
+  // Two flashes fired on the same tick and the second silently replaced the first — measured in
+  // play: buying a tonic showed only "paid 💵 23", so how much it healed you never appeared. A
+  // toast is a single slot; anything that has two things to say has to say them in one line.
+  const consumeItemNow = (item, suffix) => {
+    const eff = normItemEffect(item.effect);
+    const tail = suffix || "";
+    if (eff.kind === "heal") {
+      const mx = maxPlayerHP(livePlayerAsset()), was = playerHP.current;
+      playerHP.current = applyHeal(playerHP.current, mx, eff.amount);
+      flash("🧪 " + item.name + " · +" + (playerHP.current - was) + " HP (" + playerHP.current + "/" + mx + ")" + tail);
+    } else if (eff.kind === "money") {
+      setWallet(wallet.current + eff.amount);
+      flash(MONEY_CHAR + " " + item.name + " · +" + eff.amount + " (" + wallet.current + " total)" + tail);
+    } else {
+      const nowMs = playNowMs();
+      itemBuffs.current = pruneBuffs(itemBuffs.current, nowMs);
+      itemBuffs.current.push({ stat: eff.stat, amount: eff.amount, until: nowMs + eff.duration * 1000 });
+      flash("🧪 " + item.name + " · +" + eff.amount + " " + (ITEM_STAT_LABEL[eff.stat] || eff.stat) + " for " + eff.duration + "s" + tail);
+    }
+  };
+  // WHAT LEAVES YOUR HANDS WHEN YOU BUY THIS. Asked of exactly what the take itself will displace,
+  // never guessed — a quote that promises a trade-in and then delivers a straight purchase is the
+  // same class of bug takePromptText exists to stop at a pedestal. A consumable displaces nothing:
+  // you drink it, there is no old potion to hand over.
+  const shopDisplaced = (item) => {
+    if (!item) return { off: null, offSlot: null };
+    if (item.type === "item") return { off: null, offSlot: null };
+    if (item.type === "weapon") {
+      // A throwable trades against your throwable and a gun against your gun, because that is
+      // which slot it is about to fill — buying a grenade must not take the rifle off you.
+      const heldId = isThrowable(item.wtype) ? playtestThrowId : playtestWeaponId;
+      return { off: heldId ? findA(heldId) : null, offSlot: null };
+    }
+    const worn = wornEquipMap(findA(playerId), equipped.current);
+    const offSlot = equipDisplacedSlot(item, worn);
+    return { off: offSlot ? worn[offSlot] : null, offSlot };
+  };
+  // The whole price of one row: what it costs, what your old one is worth to him, and the
+  // difference you actually hand over. Computed in ONE place so the number on the button, the
+  // number in the affordability test and the number taken out of the wallet are the same number.
+  const shopQuote = (item) => {
+    const intel = shopperIntelligence();
+    const { off, offSlot } = shopDisplaced(item);
+    const price = shopBuyPrice(item, intel);
+    const tradeIn = off ? shopTradeInValue(off, intel) : 0;
+    return { intel, off, offSlot, price, tradeIn, net: shopNetPrice(price, tradeIn) };
+  };
+  const buyFromShop = (item) => {
+    if (!item) return;
+    const q = shopQuote(item);
+    if (wallet.current < q.net) { flash(MONEY_CHAR + " " + item.name + " costs " + q.net + " and you have " + wallet.current + "."); return; }
+    setWallet(wallet.current - q.net);
+    // Said once, here, and appended to whatever the acquisition itself reports — so a swap says
+    // both what you are now holding and what it cost, rather than one line hiding the other.
+    const paid = " · " + (q.net > 0 ? "paid " + MONEY_CHAR + " " + q.net : "no charge")
+      + (q.off ? " (traded " + q.off.name + " for " + MONEY_CHAR + " " + q.tradeIn + ")" : "")
+      + " · " + MONEY_CHAR + " " + wallet.current + " left";
+    if (item.type === "item") { consumeItemNow(item, paid); return; }
+    if (item.type === "weapon") {
+      if (isThrowable(item.wtype)) {
+        // A bought throwable arrives at ×3 exactly as a looted one does (throwPickup), so the
+        // shelf and the plinth hand over the same thing for the same grenade.
+        throwPickup.current = 3;
+        setPlaytestThrowId(item.id);
+        flash("🛒 Carrying " + item.name + " ×3" + paid);
+      } else {
+        setPlaytestWeaponId(item.id);
+        flash("🛒 Wielding " + item.name + " · " + (isRanged(item.wtype) ? "ranged" : "melee") + " · " + (item.damage ?? 5) + " dmg" + paid);
+      }
+      return;
+    }
+    // Clothing: the same two-line swap the pedestal does. NULL on the displaced slot, not delete —
+    // deleting reads as "no pickup here" and puts the look's own garment straight back on you
+    // while the shopkeeper is holding it. See wornEquipMap.
+    const base = findA(playerId);
+    const before = mergeEquip(base, equipped.current, equippedBodyIdFor(base));
+    const nextMap = { ...equipped.current }; if (q.offSlot) nextMap[q.offSlot] = null; nextMap[item.slot] = item;
+    const after = mergeEquip(base, nextMap, equippedBodyIdFor(base));
+    equipped.current = nextMap;
+    const parts = equipEffectSummary(before, after);
+    flash("🛒 Equipped " + item.name + (parts.length ? " · " + parts.join(" · ") : " · no stat change") + paid);
+    playerHP.current = Math.min(playerHP.current, maxPlayerHP(after));
+    settleAllyHPCeiling(after, level && level.enemies);
+    setEquipGen((g) => g + 1);
   };
   // Taking option i. The whole branch is decided by dialogueAdvance (pure), so what happens here
   // is only the two side effects: the consequence, and moving the panel on.
@@ -7332,7 +7584,7 @@ export default function AssetStudio() {
     const opt = dialogueOptions(t.dlg.nodes[t.nodeId])[i];
     const commit = () => {
       clearTalkTimer();
-      applyTalkAct(step.act, t);
+      applyTalkAct(step.act, t, step);
       if (step.nextId) { const next = { ...t, nodeId: step.nextId, picked: null }; talkRef.current = next; setTalk(next); }
       else closeTalk();
     };
@@ -7352,7 +7604,10 @@ export default function AssetStudio() {
   // an option is a one-shot event that must fire exactly once per press. Only mounted while a
   // conversation is open, so digits mean nothing to the rest of the game.
   useEffect(() => {
-    if (!talk) return;
+    // AN OPEN SHOP OWNS THE KEYBOARD. The shop is a panel over the conversation, so leaving this
+    // mounted would mean Esc closed the talk UNDERNEATH the shelf you are reading, and a digit
+    // committed an option you cannot see. Escape belongs to the thing on top.
+    if (!talk || shop) return;
     const onKey = (e) => {
       const el = e.target;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
@@ -7362,10 +7617,24 @@ export default function AssetStudio() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [talk]);
+  }, [talk, shop]);
+  // Esc leaves the shop — and ONLY Esc. A shelf can hold forty things, so there is no honest
+  // "press its number" rule to offer here the way a dialogue line has one; buying is a click, and
+  // saying so in the panel is better than a numbering that silently stops working at ten.
+  useEffect(() => {
+    if (!shop) return;
+    const onKey = (e) => {
+      const el = e.target;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      if (e.key === "Escape") { e.preventDefault(); closeShop(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [shop]);
   // Stopping Playtest (or swapping level) with a conversation open must close it, or the panel
   // sits over the editor with no way to dismiss it and the loop stays paused for the next session.
-  useEffect(() => { if (!play) closeTalk(); }, [play]);
+  // The shop is closed on the same line and for exactly the same reason.
+  useEffect(() => { if (!play) { closeTalk(); closeShop(); } }, [play]);
 
   // Playtest: keyboard + a simple gravity/collision loop against the foreground layer.
   useEffect(() => {
@@ -7529,7 +7798,10 @@ export default function AssetStudio() {
       // already advanced above, so the frame that resumes is an ordinary one; and dtMul is clamped
       // at 3 anyway, so even a long read cannot teleport anyone through a wall on the way back.
       // The ref, not the state: this closure was built once and never sees a re-render.
-      if (talkRef.current) { raf = requestAnimationFrame(loop); return; }
+      // A SHOP PAUSES IT ON THE SAME LINE, for the same reason — reading a price list is reading,
+      // and a shelf you have to skim while a Pit Bull eats you is not a shop. It is a separate ref
+      // rather than folded into talkRef because the conversation can still be open underneath.
+      if (talkRef.current || shopRef.current) { raf = requestAnimationFrame(loop); return; }
       // STATUS FREEZES ON THE PLAYER — 💫 stunned by an enemy's Stun weapon, 😵 flattened by an
       // enemy's Tackle. Ticked here, before anything reads the keys, because a frozen player has no
       // input INTENT at all: mergeInputIntent({}) hands the rest of the loop the same all-false
@@ -9478,17 +9750,12 @@ export default function AssetStudio() {
           if (item.type === "item") {
             // Single-use consumable: apply its effect right now and empty the pedestal (nothing
             // swaps back). Heal restores HP up to your max; a stat item pushes a timed buff that
-            // pstats layers in until it expires. No equip, no re-key — the loop already reads pstats.
-            const eff = normItemEffect(item.effect);
-            if (eff.kind === "heal") {
-              const mx = maxPlayerHP(playerAsset), was = playerHP.current;
-              playerHP.current = applyHeal(playerHP.current, mx, eff.amount);
-              flash("🧪 " + item.name + " · +" + (playerHP.current - was) + " HP (" + playerHP.current + "/" + mx + ")");
-            } else {
-              itemBuffs.current = pruneBuffs(itemBuffs.current, nowT);
-              itemBuffs.current.push({ stat: eff.stat, amount: eff.amount, until: nowT + eff.duration * 1000 });
-              flash("🧪 " + item.name + " · +" + eff.amount + " " + (ITEM_STAT_LABEL[eff.stat] || eff.stat) + " for " + eff.duration + "s");
-            }
+            // pstats layers in until it expires; 💵 money pays into the wallet. No equip, no
+            // re-key — the loop already reads pstats.
+            //
+            // consumeItemNow is shared with the shop counter, so a potion bought over a counter
+            // and the same potion taken off a plinth can never heal different amounts.
+            consumeItemNow(item);
             putBack(null);
           } else if (item.type === "weapon") {
             if (isThrowable(item.wtype)) {
@@ -9530,18 +9797,12 @@ export default function AssetStudio() {
             const parts = equipEffectSummary(before, after);
             flash("🧥 Equipped " + item.name + (parts.length ? " · " + parts.join(" · ") : " · no stat change") + (prev ? " (put " + prev.name + " back)" : ""));
             playerHP.current = Math.min(playerHP.current, maxPlayerHP(after));
-            // The ALLY side of that same line. Swapping kit at a pedestal is the only way the worn
-            // ally bonus can change mid-run, so it is the only place the allies already on the
-            // field need settling up — pay anyone owed a top-up, trim anyone now over the ceiling.
-            // Both halves are applyAllyHPBonus's, so the no-farming property is stated once.
-            const allyBonusAfter = allyMaxHPBonus(after && after.effects);
-            for (const ak of Object.keys(lv.enemies || {})) {
-              const aep = enemyPos.current[ak]; if (!aep || !aep.friendly) continue;
-              const aea = liveEnemyAsset(ak, findA(lv.enemies[ak].enemyId)); if (!aea) continue;
-              const curA = enemyHP.current[ak] === undefined ? enemyMaxHP(aea) : enemyHP.current[ak];
-              const res = applyAllyHPBonus(curA, enemyMaxHP(aea), allyBonusAfter, aep.allyHpGranted);
-              enemyHP.current[ak] = res.hp; aep.allyHpGranted = res.granted;
-            }
+            // The ALLY side of that same line — pay anyone owed a top-up, trim anyone now over the
+            // ceiling. Swapping kit is the only way the worn ally bonus moves mid-run, and there
+            // are now TWO ways to swap kit (this plinth and a shop counter), so the rule lives in
+            // settleAllyHPCeiling and both come through it. Two copies of the top-up would be two
+            // chances to pay an ally twice, which is exactly what applyAllyHPBonus exists to stop.
+            settleAllyHPCeiling(after, lv.enemies);
             setEquipGen((g) => g + 1);
           }
         }
@@ -9549,7 +9810,7 @@ export default function AssetStudio() {
       // Talking swallows the E that opened the conversation, the same trick the door transition
       // uses two hundred lines up. Without it, closing a one-line sign with E still held would
       // re-open it on the very next frame and the sign would be impossible to walk away from.
-      p.wasInteract = talkRef.current ? true : !!K.interact;
+      p.wasInteract = (talkRef.current || shopRef.current) ? true : !!K.interact;
 
       // Which connected Front sheet (if any) the player is currently tucked behind — asked of the
       // UNPADDED hitbox, because "am I inside this building" is a question about overlap, not about
@@ -11547,6 +11808,9 @@ export default function AssetStudio() {
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
   const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
+    // Every item Blake has already saved predates prices, so it opens worth 0 (free) rather than
+    // undefined — a shop reading NaN would price the whole shelf as "💵 NaN". His to set.
+    if (HAS_CATEGORIES(a) && !Number.isFinite(a.value)) a.value = 0;
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; if (typeof a.category !== "string") a.category = ""; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
     if (a.type === "enemy") { if (!a.states) a.states = { normal: a.angles || blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.angles = a.states.normal || a.angles; if (a.hasArms === undefined) a.hasArms = !!(a.angles && ANGLES.some((ang) => (a.angles[ang] || []).some((p) => p.role === "weaponArm"))); for (const k of Object.keys(a.angles || {})) (a.angles[k] || []).forEach((p) => { if (p.locked) delete p.locked; }); if (!a.stats) a.stats = DEFAULT_STATS(); if (a.hp === undefined) a.hp = 10; if (!a.ai) a.ai = "guard"; if (a.weaponId === undefined) a.weaponId = null; a.groundLine = cleanGround(a.groundLine); }
@@ -13109,6 +13373,9 @@ export default function AssetStudio() {
           <button className="save" onClick={saveDialogue}>💾 Save</button>
         </header>
         <div className="dlgEdit">
+          {/* The tags Blake has already typed onto his items, so a 🛒 shop option is picked from a
+              list rather than spelled from memory — a shop tag with a typo in it is an empty shelf. */}
+          <datalist id="catsuggest">{catSuggest.map((c) => <option key={c} value={c} />)}</datalist>
           <p className="statusline">Write what an NPC or a sign says. <b>Every line can offer options, and the player presses its number to pick one.</b> An option can lead to another line, end the talk, and/or <b>do something</b> — the point of the whole thing being that "I'm not moving" can turn a peaceful guard hostile. Attach the finished tree to a 💬 Sign or to an enemy <b>as you place it</b> in the Level Creator.</p>
           {ids.map((nid, ni) => {
             const n = d.nodes[nid];
@@ -13148,6 +13415,26 @@ export default function AssetStudio() {
                       <option value="">⚪ no colour</option>
                       {Object.keys(DIALOGUE_TONES).map((t) => <option key={t} value={t}>{DIALOGUE_TONES[t].label}</option>)}
                     </select>
+                    {/* AN ACT THAT NEEDS AUTHORING GETS ITS OWN INPUT, and it appears only while
+                        that act is picked — the same rule the 🏹 Tag Damage effect's tag box
+                        follows. A tag box permanently sitting on every option would read as
+                        something every option needs; one that vanishes with the act it belongs to
+                        cannot be filled in for the wrong consequence. The list of tags is the one
+                        Blake has already typed onto his items, so a shop is picked, not spelled. */}
+                    {DIALOGUE_ACTS[c.act] && DIALOGUE_ACTS[c.act].tagParam && (() => {
+                      // COUNT THE SHELF HERE, in the editor. A shop tag that matches nothing looks
+                      // identical to one that matches forty until you are standing in front of the
+                      // shopkeeper in Playtest — the same reason the spawn's gear tag counts its
+                      // own pool right under the picker.
+                      const st = (c.shopTag || "").trim();
+                      const n = st ? shopStock(allAssets, st).length : 0;
+                      return (
+                        <>
+                          <input className="dlgShopTag" list="catsuggest" value={c.shopTag || ""} onChange={(e) => patchChoice(nid, ci, { shopTag: e.target.value })} placeholder="sells which tag? e.g. T1" maxLength={24} title="Everything in your library carrying this tag goes on his shelf, priced from each item's own 💵 Value" />
+                          <span className="hint2">{!st ? "⚠ no tag — his shelf will be empty" : n ? "🛒 " + n + " item" + (n === 1 ? "" : "s") + " on the shelf" : "⚠ nothing is tagged \"" + st + "\""}</span>
+                        </>
+                      );
+                    })()}
                     <button className="ltbtn" disabled={ci === 0} onClick={() => moveChoice(nid, ci, -1)} title="Move up — this is the number the player presses">⌃</button>
                     <button className="ltbtn" disabled={ci === n.choices.length - 1} onClick={() => moveChoice(nid, ci, 1)} title="Move down">⌄</button>
                     <button className="ltbtn" onClick={() => delChoice(nid, ci)} title="Delete this option">🗑</button>
@@ -13570,7 +13857,9 @@ export default function AssetStudio() {
     // as loot on a plinth, so it answers the same question.
     const takePromptText = (it) => {
       if (!it) return null;
-      if (it.type === "item") return "Press E to use · " + itemEffectSummary(it.effect);
+      // "Use" is wrong for cash — you don't drink a twenty. Same one line, because a money item is
+      // still a consumable and takes the identical single-use path; only the verb differs.
+      if (it.type === "item") return "Press E to " + (isMoneyItem(it) ? "pocket" : "use") + " · " + itemEffectSummary(it.effect);
       if (it.type === "weapon") {
         const held = playtestWeaponId ? findA(playtestWeaponId) : null, ad = it.damage ?? 5;
         const delta = held ? (ad !== (held.damage ?? 5) ? ["Dmg " + (held.damage ?? 5) + "→" + ad] : []) : ["Dmg " + ad];
@@ -13632,9 +13921,15 @@ export default function AssetStudio() {
           <button className="back" onClick={() => setScreen("menu")}>‹ Menu</button>
           <input className="nm wide2" value={lv.name} onChange={(e) => setLevel({ ...lv, name: e.target.value })} />
           <span className="badge">{lv.isRoom ? "🚪 Room" : "🗺️ Level"}</span>
+          {/* 💵 THE WALLET, and the only permanent readout this game has ever had. Everything else
+              in Playtest (HP, ammo, what you just picked up) is a toast that fades, which is fine
+              for something that just happened and useless for a number you are about to spend:
+              standing at a counter you need to know what you have BEFORE you press the button.
+              Only while playing — it is not a property of the level. */}
+          {play && <span className="badge money" title="Money you are carrying this Playtest run. Pick up a 💵 item to earn it, spend it in a shopkeeper's dialogue.">{MONEY_CHAR} {walletUI}</span>}
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel}>↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel}>↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -15136,6 +15431,75 @@ export default function AssetStudio() {
         </div>
 
 
+        {/* 🛒 THE SHOP COUNTER. A modal, not a speech bubble — and that is a deliberate departure
+            from the rule that a conversation belongs over the speaker's head. What he SAYS is
+            still up there in his bubble; this is a price list with forty rows, a wallet, a
+            trade-in column and a button per line, which is a menu, and the app's own idiom for a
+            menu you pick from is .modal > .dlg. Putting it in .lgrid would also have meant
+            clamping a 500px panel inside the level's own pixels, which is what talkBubbleBox
+            exists to do for something a fraction of the size.
+            Note the world is frozen the whole time (shopRef, at the top of the loop). */}
+        {play && shop && (() => {
+          const intel = shopperIntelligence();
+          const stock = shopStockSorted(allAssets, shop.tag, intel);
+          const buyPct = Math.round((shopBuyMultiplier(intel) - 1) * 100);
+          const tradePct = Math.round(shopTradeMultiplier(intel) * 100);
+          return (
+            <div className="modal" onClick={closeShop}>
+              <div className="dlg shopDlg" onClick={(e) => e.stopPropagation()}>
+                <div className="dt">🛒 {(shop.name || "Shop").trim()} — {shop.tag}</div>
+                {/* SAY WHAT THE PRICES ARE DOING AND WHY, because both numbers move with a stat
+                    the player can change. Without this line a rifle that cost 126 last time and
+                    118 now reads as the shop being random rather than as the 🧠 Int boost you
+                    are still wearing. */}
+                <div className="shopHead">
+                  <span className="shopWallet">{MONEY_CHAR} {walletUI}</span>
+                  <span className="hint2">🧠 Int {intel} — you pay {buyPct > 0 ? "+" + buyPct + "%" : "list price"} over value, and he takes your old kit at {tradePct}% of its own.</span>
+                </div>
+                {!stock.length && <p className="mini">Nothing in your library is tagged <b>{shop.tag}</b>. Tag some items in their editors (🏷️ Item categories) and they turn up here — no restock, no re-save.</p>}
+                {stock.map((it) => {
+                  const q = shopQuote(it);
+                  const { pieces: artPieces, bb } = groundArt(it);
+                  const box = 44;
+                  let plane = null;
+                  if (bb) { const sc = Math.min(box / bb.w, box / bb.h) * 0.86; plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${box / 2 - sc * (bb.x + bb.w / 2)}px,${box / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})` }; }
+                  const what = it.type === "item" ? itemEffectSummary(it.effect)
+                    : it.type === "weapon" ? ((isThrowable(it.wtype) ? "💣 throwable ×3" : isRanged(it.wtype) ? "🏹 ranged" : "🗡️ melee") + " · " + (it.damage ?? 5) + " dmg")
+                    : "🎒 " + ((SLOTS[it.slot] && SLOTS[it.slot].label) || "worn") + (it.defense ? " · 🛡️ " + it.defense : "");
+                  const broke = wallet.current < q.net;
+                  return (
+                    <div key={it.id} className={"shopRow" + (broke ? " broke" : "")}>
+                      <div className="shopArt" style={{ width: box, height: box }}>
+                        {bb ? <div style={plane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "shop_" + it.id, keyPrefix: "shop" + it.id + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}</div>
+                            : <span className="shopArtIcon">{it.type === "weapon" ? "⚔️" : it.type === "equipment" ? "🎒" : "🧪"}</span>}
+                      </div>
+                      <div className="shopMeta">
+                        <div className="shopName">{it.name}</div>
+                        <div className="hint2">{what}</div>
+                        {/* THE WHOLE SUM, SHOWN. "Pay the difference" is the one part of this that
+                            is genuinely surprising the first time, so the row spells it out rather
+                            than quoting a net number the player has to reverse-engineer. */}
+                        <div className="shopSum">
+                          {MONEY_CHAR} {q.price}{itemValue(it) === 0 ? " (free — no value set on it yet)" : ""}
+                          {q.off ? <> − {MONEY_CHAR} {q.tradeIn} for your {q.off.name}{q.tradeIn > q.price ? " (worth more than this — no change given)" : ""}</> : null}
+                        </div>
+                      </div>
+                      <button className="shopBuy" disabled={broke} onClick={() => buyFromShop(it)}
+                        title={broke ? "You cannot afford this" : (q.off ? "Trade in your " + q.off.name + " and pay the difference" : "Buy it")}>
+                        {q.net > 0 ? MONEY_CHAR + " " + q.net : "Free"}
+                        <span className="shopBuyVerb">{it.type === "item" ? "buy & use" : q.off ? "trade up" : "buy"}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+                <div className="shopFoot">
+                  <span className="hint2">Click a price to buy · <b>Esc</b> or click outside to leave · everything else is paused</span>
+                  <button className="ltbtn" onClick={closeShop}>Done</button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
         {levelLoadOpen && (
           <div className="modal" onClick={() => setLevelLoadOpen(false)}>
             <div className="dlg" onClick={(e) => e.stopPropagation()}>
@@ -15724,9 +16088,18 @@ export default function AssetStudio() {
                 <div className="seg">
                   <button className={eff.kind === "heal" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "heal" ? cur : { kind: "heal", amount: 5 } }; })}>❤️ Heal</button>
                   <button className={eff.kind === "stat" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "stat" ? cur : { kind: "stat", stat: "speed", amount: 2, duration: 8 } }; })}>📊 Boost a stat</button>
+                  <button className={eff.kind === "money" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "money" ? cur : { kind: "money", amount: 10 } }; })}>{MONEY_CHAR} Money</button>
                 </div>
                 {eff.kind === "heal" ? (
                   <label className="slider">❤️ Heal amount<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>HP</span></label>
+                ) : eff.kind === "money" ? (
+                  <>
+                    <label className="slider">{MONEY_CHAR} Worth<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 70 }} /></label>
+                    {/* Money is drawn, tagged and picked up exactly like a potion — the only thing
+                        that makes a dollar bill a dollar bill is this button. Say what it can do
+                        so it doesn't get built and then wondered about. */}
+                    <p className="mini">Walking over this pays {eff.amount} into your wallet. Draw a note or a coin, then put it on a 💎 Pedestal, tag it so a pedestal search finds it, or leave it to drop off a body — every route a potion already takes. Spend it in a shopkeeper's 💬 dialogue.</p>
+                  </>
                 ) : (
                   <>
                     <label className="slider">📊 Stat
@@ -15749,6 +16122,24 @@ export default function AssetStudio() {
               ))}
             </div>
           )}
+          {/* 💵 WHAT IT IS WORTH. Sits directly under the categories because the two are one
+              thought: a shop finds its stock by the tag and prices it from this. One number per
+              item rather than a price list per shopkeeper — re-price a rifle here and every T1
+              stall in the game re-prices it, and no shop can quietly disagree with another about
+              what a rifle costs. The two rates below are the whole of the Intelligence stat's
+              effect on a shop, shown live so the number you type has a visible consequence. */}
+          {HAS_CATEGORIES(asset) && !effEdit && (() => {
+            const v = itemValue(asset);
+            return (
+              <div className="card">
+                <div className="ct">{MONEY_CHAR} Value</div>
+                <label className="slider">{MONEY_CHAR} Worth<input type="number" min="0" value={asset.value ?? 0} onChange={(e) => setAsset((a) => ({ ...a, value: Math.max(0, Math.round(+e.target.value || 0)) }))} style={{ width: 80 }} /></label>
+                {v === 0
+                  ? <p className="mini">0 means <b>free</b> — a shop will still stock it and hand it over for nothing. Type what it's worth and shops price themselves.</p>
+                  : <p className="mini">A shop sells it for <b>{MONEY_CHAR} {shopBuyPrice(asset, 0)}</b> at 🧠 Int 0 down to <b>{MONEY_CHAR} {shopBuyPrice(asset, 10)}</b> at Int 10, and takes it in part-exchange for <b>{MONEY_CHAR} {shopTradeInValue(asset, 0)}</b> up to <b>{MONEY_CHAR} {shopTradeInValue(asset, 10)}</b>.</p>}
+              </div>
+            );
+          })()}
           {asset.type === "skin" && !effEdit && (() => {
             const pal = collectAssetColors(asset);
             return (
@@ -16262,6 +16653,26 @@ const css = `
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:30;padding:14px}
 .dlg{width:min(520px,96vw);max-height:90vh;overflow:auto;background:#171b26;border:1px solid #2c3245;border-radius:16px;padding:18px}
 .dt{font-weight:700;font-size:16px;margin-bottom:12px}
+/* 🛒 the shop counter. Wider than an ordinary .dlg because every row carries art, what the thing
+   does, the sum and a button; at 520px the sum wrapped under the name and the arithmetic stopped
+   reading as arithmetic. The rows scroll inside .dlg's own max-height, so a 44-item T1 shelf is
+   one scroll rather than a panel taller than the window. */
+.shopDlg{width:min(680px,96vw)}
+.shopHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 12px;padding-bottom:10px;border-bottom:1px solid #2c3245}
+.shopWallet{background:#1d2b1f;border:1px solid #3a6b42;border-radius:20px;padding:5px 12px;font-size:14px;font-weight:800;color:#8fe59a}
+.badge.money{background:#1d2b1f;border-color:#3a6b42;color:#8fe59a;font-weight:700}
+.shopRow{display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid #232838}
+.shopRow.broke{opacity:.55}
+.shopArt{position:relative;overflow:hidden;flex:0 0 auto;background:#0d1119;border:1px solid #2c3245;border-radius:9px;display:flex;align-items:center;justify-content:center}
+.shopArtIcon{font-size:20px}
+.shopMeta{flex:1 1 auto;min-width:0}
+.shopName{font-size:14px;font-weight:600;color:#e8ecf5}
+.shopSum{margin-top:3px;font-size:12px;color:#cfd8e8}
+.shopBuy{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:96px;background:#1f3a24;border:1px solid #3a6b42;border-radius:10px;padding:7px 12px;color:#cdf5d4;font-size:14px;font-weight:800;cursor:pointer}
+.shopBuy:hover:not(:disabled){background:#2a4d31;border-color:#59a366}
+.shopBuy:disabled{background:#241a1a;border-color:#5b3535;color:#c58f8f;cursor:not-allowed}
+.shopBuyVerb{font-size:10px;font-weight:600;opacity:.75;text-transform:uppercase;letter-spacing:.04em}
+.shopFoot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid #2c3245}
 .emcount{font-weight:400;font-size:12px;color:#7b8398;margin-left:6px}
 .emgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:6px;max-height:55vh;overflow:auto}
 .emgrid-recent{max-height:none;overflow:visible;margin-bottom:10px}
@@ -16597,6 +17008,7 @@ const css = `
 .dlgChoice{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0}
 .dlgChoiceText{flex:1 1 220px;min-width:160px;background:#0d1119;border:1px solid #333c52;border-radius:6px;color:#e8ecf5;padding:6px 8px;font:inherit;font-size:13px}
 .dlgChoice select{background:#0d1119;border:1px solid #333c52;border-radius:6px;color:#cfd8e8;padding:6px;font-size:12px;max-width:220px}
+.dlgShopTag{flex:0 1 190px;min-width:130px;background:#0d1119;border:1px solid #3a6b42;border-radius:6px;color:#cdf5d4;padding:6px 8px;font:inherit;font-size:12px}
 .dlgActs{display:flex;flex-direction:column;gap:2px;margin:6px 0 2px}
 .dlgLoadRow{display:flex;gap:6px;align-items:stretch}
 .dlgLoadRow>button:first-child{flex:1;text-align:left}
