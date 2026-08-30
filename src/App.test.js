@@ -359,6 +359,8 @@ import {
   HAS_CATEGORIES,
   propArtPieces,
   propArtBlockCount,
+  MIN_GROUP_PIECE_SIZE,
+  groupScaleFloor,
   groupProps,
   propCat,
   propCatKey,
@@ -7546,4 +7548,116 @@ describe("propArtPieces — the blocks the 🌿 Object art shelf copies out of a
     expect(groups[0].props.map((p) => p.id)).toEqual(["door", "lamp"]);
     expect(propCatKey(propCat(mk("x", "  Interior ")))).toBe("interior");
   });
+});
+
+/* 🎭 WALKING BEHIND A FRONT-LAYER OBJECT. It fades (.lobj.infront transitions opacity), and that
+   fade is the one thing in a level that flips exactly TWICE per object '—' on the way in and on
+   the way out '—' because behind is a single boolean over the whole object rather than a sliding
+   window of cells. An un-promoted opacity transition is repainted by the CPU on every frame it
+   runs, and what it repaints is the prop's whole pixel art plus a CSS mask wrapper per cutter.
+   That is why the hitch was at both ends of a pass-through and nowhere in the middle. The
+   promotion is one style prop with no visible effect, which makes it exactly the kind of thing a
+   later edit to that line drops without noticing. */
+describe("a fading Front object stays on its own compositor layer", () => {
+  const readSrc = () => require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+  const renderLine = () => {
+    const lines = readSrc().split(String.fromCharCode(10)).filter((ln) => ln.includes(String.fromCharCode(34) + 'lobj infront '));
+    expect(lines).toHaveLength(1); // one render pass draws these; if that changes, this test is reading the wrong line
+    return lines[0];
+  };
+
+  test("the element that fades is the element that is promoted", () => {
+    const ln = renderLine();
+    expect(ln).toContain('opacity: behind ? 0.55 : 1');   // it really is an opacity change
+    expect(ln).toContain('willChange: play ? ' + String.fromCharCode(34) + 'opacity' + String.fromCharCode(34) + ' : undefined');
+  });
+
+  test("the promotion is gated on play, so the editor pays nothing for it", () => {
+    // behind is itself gated on play, so outside a playtest the transition can never run and a
+    // layer per Front object would be memory spent on a fade that cannot happen.
+    expect(readSrc()).toContain('const behind = play &&');
+  });
+
+  test("the fade it pays for is still a transition, not an instant swap", () => {
+    // Drop the transition from the stylesheet and the promotion is dead weight; drop the promotion
+    // and leave the transition, and the cost this fixes is straight back.
+    expect(readSrc()).toContain('.lobj.infront{z-index:5101;transition:opacity');
+  });
+});
+
+/* ↙ SHRINKING A HELD GROUP, which is what a prop pulled into the editor from the 🌿 Object art
+   shelf needs before it can be a badge on a shirt. It arrives at the size it was drawn '—' a
+   bookshelf is 76 blocks and fills the canvas '—' and it could not be made smaller at all. Two
+   separate clamps, both of which report success and change nothing, which is why it read as a
+   dead slider rather than as a limit. */
+describe("scaling a held group down", () => {
+  const grp = (sizes) => sizes.map(([w, h], i) => ({ id: 'p' + i, x: 10 + i * 20, y: 10, w, h }));
+  const smallest = (ps) => Math.min(...ps.map((p) => Math.min(p.w, p.h)));
+
+  test("THE BUG: one thin block used to pin the whole group at its drawn size", () => {
+    // groupScaleFloor is the one answer to "how small will it go", shared by the scale itself and
+    // by the control that has to SAY when it has hit it.
+    expect(groupScaleFloor(grp([[60, 40], [1, 30]]))).toBeCloseTo(0.05, 6);
+    expect(groupScaleFloor(grp([[60, 40], [40, 40]]))).toBeCloseTo(0.00125, 6);
+    expect(groupScaleFloor([])).toBe(0);
+    // A sliver one unit wide put the floor at scale 1.0, so every request to shrink came back
+    // unchanged for the ENTIRE group, however big its other blocks were.
+    const withSliver = grp([[60, 40], [1, 30], [24, 24]]);
+    const half = scalePieceGroup(withSliver, 0.5);
+    expect(half[0].w).toBeCloseTo(30, 6);
+    expect(half[2].w).toBeCloseTo(12, 6);
+  });
+
+  test("it keeps shrinking, drag after drag, the way a relative slider asks it to", () => {
+    let g = grp([[60, 40], [2, 30], [24, 24]]);
+    for (let i = 0; i < 6; i++) g = scalePieceGroup(g, 0.5);
+    // Six halvings would be one sixty-fourth; the 2-unit sliver reaches the floor first and stops
+    // the group at about a fortieth. That is the floor working, not the old bug: a fortieth turns
+    // a full-canvas prop into a badge, and the point is that it got there at all.
+    expect(g[0].w).toBeLessThan(60 / 30);
+    expect(smallest(g)).toBeGreaterThanOrEqual(MIN_GROUP_PIECE_SIZE);
+  });
+
+  test("no member is ever rounded away to nothing", () => {
+    // A zero-width block is not a small block, it is one that no later scale can bring back: zero
+    // times anything is zero. That is the whole reason there is a floor at all.
+    let g = grp([[60, 40], [2, 30]]);
+    for (let i = 0; i < 40; i++) g = scalePieceGroup(g, 0.25);
+    expect(smallest(g)).toBeGreaterThanOrEqual(MIN_GROUP_PIECE_SIZE);
+    for (const p of g) { expect(Number.isFinite(p.w)).toBe(true); expect(Number.isFinite(p.h)).toBe(true); }
+  });
+
+  test("a clamp may refuse to shrink as far as asked, but must never GROW the group", () => {
+    // The old floor was a scale derived from the smallest member, and a member already below it
+    // demanded a scale ABOVE 1 '—' so asking to shrink made the group bigger. Members at or under
+    // the floor are skipped now, and the clamp is capped at 1, so a shrink is only ever a shrink.
+    const tiny = [{ id: 'a', x: 0, y: 0, w: 0.01, h: 0.01 }, { id: 'b', x: 5, y: 0, w: 40, h: 40 }];
+    const out = scalePieceGroup(tiny, 0.5);
+    expect(out[1].w).toBeLessThanOrEqual(40);
+    expect(pieceGroupBounds(out).width).toBeLessThanOrEqual(pieceGroupBounds(tiny).width + 1e-6);
+  });
+
+  test("growing is untouched, and the arrangement survives a round trip", () => {
+    const g = grp([[60, 40], [2, 30], [24, 24]]);
+    const out = scalePieceGroup(scalePieceGroup(g, 0.25), 4);
+    for (let i = 0; i < g.length; i++) {
+      expect(out[i].w).toBeCloseTo(g[i].w, 3);
+      expect(out[i].x).toBeCloseTo(g[i].x, 3);
+    }
+  });
+
+  test("the group has a control of its own, not one member's Width", () => {
+    // The SECOND clamp, and the half that would have looked fixed and not been: updSelSize derives
+    // a group scale from the anchor block's new width, and that slider is whole units with a floor
+    // of 1 '—' so once the selected block reached 1 there was no smaller number left to ask for.
+    // scaleGroupBy takes a ratio instead, and is what the Whole group size slider calls.
+    const src = readSrcApp();
+    expect(src).toContain('const scaleGroupBy = (factor) =>');
+    expect(src).toContain('scaleGroupBy(next / groupScale)');
+    expect(src).toContain('Whole group size');
+  });
+
+  function readSrcApp() {
+    return require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+  }
 });

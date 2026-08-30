@@ -3255,17 +3255,50 @@ export const pieceGroupBounds = (pieces) => {
 export const PIECE_STEP = 0.5;
 export const snapPiece = (v) => Math.round(v / PIECE_STEP) * PIECE_STEP;
 export const MIN_PIECE_SIZE = 3;
+// The smallest a member of a SCALED GROUP may become (design units, on the 200x260 canvas). Not
+// the same number as MIN_PIECE_SIZE above, which is the floor for dragging ONE block's corner by
+// hand — that one is about staying grabbable with a finger. This one is only about staying
+// non-zero through r3's rounding, because the group is being scaled as a whole and its smallest
+// member must not be what stops it (see scalePieceGroup).
+export const MIN_GROUP_PIECE_SIZE = 0.05;
+// The smallest scale a group will accept, as ONE exported answer rather than a number buried in
+// scalePieceGroup. The caller needs it too: a clamp that silently returns the group unchanged is
+// indistinguishable from a broken slider, and that is precisely how the old floor was reported.
+// Now the control can say it has reached the limit instead of just not moving.
+export const groupScaleFloor = (pieces) => Math.min(1, (pieces || []).reduce((m, p) => {
+  const smallest = Math.min(p.w, p.h);
+  return smallest > MIN_GROUP_PIECE_SIZE ? Math.max(m, MIN_GROUP_PIECE_SIZE / smallest) : m;
+}, 0));
 export const scalePieceGroup = (pieces, requestedScale, center = null) => {
   if (!pieces || !pieces.length) return [];
   const bounds = pieceGroupBounds(pieces);
   const cx = center?.x ?? bounds.cx, cy = center?.y ?? bounds.cy;
-  const minScale = pieces.reduce((m, p) => Math.max(m, 1 / Math.max(0.001, p.w), 1 / Math.max(0.001, p.h)), 0);
-  const scale = Math.max(minScale, Number.isFinite(requestedScale) ? requestedScale : 1);
+  // HOW SMALL A MEMBER IS ALLOWED TO GET, and it used to be one whole design unit — which made a
+  // group containing any thin block unshrinkable. The floor is computed as a SCALE (the largest
+  // any member needs the group to stay at), so one 1-unit sliver pinned the entire group at 1.0
+  // and every further request to shrink returned the group unchanged: the slider moved and
+  // nothing happened. That is exactly what a prop dropped in from the 🌿 shelf hits — a bookshelf
+  // is 76 blocks and its shelf edges and book spines are slivers, so it arrived at prop size and
+  // stayed there. A unit is not a meaningful floor anyway: this canvas is 200x260 units and every
+  // coordinate here is kept to 3 decimals, so a fraction of a unit is an ordinary size.
+  //
+  // What the floor is really FOR is that r3 rounds, and a member rounded to zero width is gone for
+  // good — zero times any later scale is still zero. So it sits at MIN_GROUP_PIECE_SIZE, fifty
+  // times the rounding step, and the output is clamped as well so nothing can reach zero by any
+  // route.
+  //
+  // Two rules that keep the clamp from doing the opposite of what was asked. A member already AT
+  // or below the floor is skipped rather than counted — counted, it would demand a scale above 1
+  // and a request to shrink would GROW the group. And the clamp itself is capped at 1 for the same
+  // reason: it may refuse to shrink as far as asked, never turn a shrink into a grow.
+  const scale = Math.max(groupScaleFloor(pieces), Number.isFinite(requestedScale) ? requestedScale : 1);
   const r3 = (n) => Math.round(n * 1000) / 1000;
   return pieces.map((p) => {
     const left = r3(cx + (p.x - cx) * scale), right = r3(cx + (p.x + p.w - cx) * scale);
     const top = r3(cy + (p.y - cy) * scale), bottom = r3(cy + (p.y + p.h - cy) * scale);
-    return { ...p, x: left, y: top, w: r3(right - left), h: r3(bottom - top) };
+    // Clamped so a member can never come back as zero-sized, whatever it was handed. A zero is
+    // not a small block, it is a block that no later scale can ever bring back.
+    return { ...p, x: left, y: top, w: Math.max(MIN_GROUP_PIECE_SIZE, r3(right - left)), h: Math.max(MIN_GROUP_PIECE_SIZE, r3(bottom - top)) };
   });
 };
 // Add one block to the held group, or drop it back out if it is already in it. Three places
@@ -6757,6 +6790,12 @@ export default function AssetStudio() {
   const [stampName, setStampName] = useState("");
   const [stampPick, setStampPick] = useState(""); // selected reusable group in the compact stored-group shelf
   const [confirmStampDel, setConfirmStampDel] = useState(null); // stamp id armed for deletion — a second tap actually deletes it
+  // The ↙ Whole group size slider's position, as a percentage. RELATIVE, not absolute: there is no
+  // such thing as a group's “true” size to measure against, so each move scales by the ratio to
+  // where the slider just was, and letting go re-centres it on 100. That is what makes it
+  // unlimited — a prop dropped in at prop size can be taken down as far as it needs to go over as
+  // many drags as it takes, instead of bottoming out at the end of one slider's travel.
+  const [groupScale, setGroupScale] = useState(100);
   // The 🌿 Object art shelf is the stored-group shelf's twin, reading the props library instead of
   // the stamp store (see placeProp). Its own cursor, kept separate from the stamp shelf's so
   // browsing one never disturbs the other: which sub-category is open, which prop is picked, and
@@ -10403,6 +10442,12 @@ export default function AssetStudio() {
   // Is a real multi-block group live — more than one member, with the properties panel's anchor
   // inside it? Every group-aware control keys off this one answer instead of re-deriving it.
   const groupSel = groupIds.length > 1 && groupIds.includes(selId);
+  // A relative slider has to be re-centred whenever it starts pointing at a different thing, or
+  // the first nudge after picking up a new group would scale it by the leftover ratio from the
+  // last one. Keyed on the membership itself, not just its size: swapping one block for another
+  // is a different group.
+  const groupKey = groupIds.join(",");
+  useEffect(() => { setGroupScale(100); }, [groupKey]);
   // The distinct animation flags across that group, already labelled. A group whose blocks don't
   // agree can then SAY so, rather than showing only the anchor's flag and looking already-set.
   const groupLimbs = groupSel ? [...new Set(pieces.filter((p) => groupIds.includes(p.id)).map((p) => p.limb === "arm" ? "💪 Arm" : p.limb === "leg" ? "🦵 Leg" : "None"))] : [];
@@ -10523,7 +10568,7 @@ export default function AssetStudio() {
     // placeStamp's reasons, and here the group especially matters: a prop is drawn at prop size, so
     // the first thing wanted is to drag and resize the whole arrival as one object.
     setMultiSelect(false); setGroupIds(fresh.map((p) => p.id)); setSelId(fresh[fresh.length - 1]?.id || null);
-    flash("Placed \"" + ((a && a.name) || "object") + "\" (" + fresh.length + " block" + (fresh.length === 1 ? "" : "s") + ") at the size it was drawn — drag it, or the Width slider sizes the whole group down. Grab any other block to let go of it.");
+    flash("Placed \"" + ((a && a.name) || "object") + "\" (" + fresh.length + " block" + (fresh.length === 1 ? "" : "s") + ") at the size it was drawn — drag it, or use ↙ Whole group size to shrink the lot. Grab any other block to let go of it.");
   };
   const deleteStamp = async (id) => {
     let list = []; const idx = await sget("stampIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
@@ -10651,6 +10696,25 @@ export default function AssetStudio() {
   // derived from the anchor piece's requested new size vs. its current size, then applied to both
   // dimensions of every member (uniform scale — the natural feel of dragging a group corner). A
   // single-piece selection just resizes that one piece on the one axis, exactly as before.
+  // SCALE THE WHOLE HELD GROUP, asked as a ratio rather than through any one member's Width.
+  // That route existed (updSelSize below derives a group scale from the anchor block's new width)
+  // and it could not do this job: the anchor's own slider is whole units with a floor of 1, so
+  // once the block you happened to have selected reached 1 there was no smaller number left to
+  // type and the group could not shrink again, whatever the other 75 blocks were doing. Blake hit
+  // both halves at once on a prop pulled in from the 🌿 shelf — that clamp AND the floor inside
+  // scalePieceGroup — and the symptom of both is the same: the slider moves, nothing happens.
+  // “Shrink this whole thing” is a property of the group, so it gets a control of its own.
+  const scaleGroupBy = (factor) => {
+    if (!groupSel || !Number.isFinite(factor) || factor === 1) return;
+    const members = pieces.filter((p) => groupIds.includes(p.id));
+    if (members.length < 2) return;
+    // A refusal has to be AUDIBLE. The floor exists so the group's smallest block can never round
+    // away to a zero it could not come back from, but a control that quietly returns the group
+    // unchanged is exactly what “it is not letting me shrink them” looked like the first time.
+    if (factor < 1 && factor < groupScaleFloor(members)) flash("That is as small as this group goes — its thinnest block is at the minimum size. Delete or fatten that block to go smaller.");
+    const scaled = new Map(scalePieceGroup(members, factor).map((p) => [p.id, p]));
+    setPieces((ps) => ps.map((p) => scaled.get(p.id) || p));
+  };
   const updSelSize = (dim, val) => {
     if (!sel) return;
     if (!groupSel) { updSel({ [dim]: Math.max(1, Math.round(val)) }); return; }
@@ -14935,10 +14999,33 @@ export default function AssetStudio() {
                     // your own scenery fully swallow you on screen. A moderate fade (not too see-
                     // through, not too strong) so the object still clearly reads as there.
                     const behind = play && p.x + pw > left && p.x < left + layout.width && p.y + ph > top && p.y < top + layout.height;
+                    // ...AND THAT FADE IS A CSS TRANSITION (`.lobj.infront`), WHICH IS WHY THE ELEMENT IS
+                    // PROMOTED TO ITS OWN COMPOSITOR LAYER FOR THE WHOLE PLAYTEST. An opacity transition on
+                    // an un-promoted element is repainted by the CPU on every one of the ~7 frames it runs,
+                    // and what gets repainted is the object's ENTIRE SUBTREE — for a Front prop that is its
+                    // pixel art plus the CSS mask wrapper every cutter needs (Blake's Trailer 2 is 31 blocks
+                    // and 5 cutters drawn 20 cells wide; a Berry Bush is 48 and 6, at size 8).
+                    //
+                    // That is the “lag when I first walk behind something, and again when I am no longer
+                    // behind it”. `behind` is a single boolean over the whole object, so those two moments
+                    // are the ONLY ones it flips — and therefore the only ones the transition runs. In
+                    // between, fully behind, opacity is constant and nothing repaints, which is exactly why
+                    // it was smooth in the middle and hitched at both ends. `will-change` hands the whole
+                    // transition to the compositor, which only has to change one already-painted layer's
+                    // alpha.
+                    //
+                    // Gated on `play` deliberately: `behind` cannot be true outside a playtest, so in the
+                    // editor a layer per Front object would be memory spent on a transition that never runs.
+                    // And deliberately NOT extended to `.lcell.front`, which fades the same way and is fine
+                    // as it is: the see-through window is PADDED, so it slides a few cells at a time and
+                    // those transitions run constantly while you walk rather than twice per object — if they
+                    // were the expensive ones the stutter would be continuous, not at the two ends. They are
+                    // also plain boxes rather than masked art, and one room here has 917 of them; a layer
+                    // each would cost far more than the repaint it saved.
                     const eraseNow = !play && lTool === "erase";
                     const eraseObject = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined;
                     const prop = o.kind === "prop";
-                    return <div key={key} data-object-key={k} data-object-index={si} className={"lobj infront " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "") + (behind ? " behindFade" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left, top, width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: eraseNow && !prop ? "auto" : "none", cursor: eraseNow && !prop ? "pointer" : undefined, opacity: behind ? 0.55 : 1 }} onPointerDown={eraseNow && !prop ? eraseObject : undefined}>{renderObj(o, layout.width, key, pframe, layout.height, layout.box, prop ? eraseObject : undefined)}</div>;
+                    return <div key={key} data-object-key={k} data-object-index={si} className={"lobj infront " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "") + (behind ? " behindFade" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left, top, width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: eraseNow && !prop ? "auto" : "none", cursor: eraseNow && !prop ? "pointer" : undefined, opacity: behind ? 0.55 : 1, willChange: play ? "opacity" : undefined }} onPointerDown={eraseNow && !prop ? eraseObject : undefined}>{renderObj(o, layout.width, key, pframe, layout.height, layout.box, prop ? eraseObject : undefined)}</div>;
                   });
                 })()}
                 {/* Enemy spawns: AI-driven (Guard/Seek/Avoid, per-enemy in the Enemy Creator), fall via
@@ -16428,6 +16515,21 @@ export default function AssetStudio() {
               )}
               <label className="slider">Width<input type="range" min="1" max="190" value={sel.w} onChange={(e) => updSelSize("w", +e.target.value)} /></label>
               <label className="slider">Height<input type="range" min="1" max="240" value={sel.h} onChange={(e) => updSelSize("h", +e.target.value)} /></label>
+              {/* WHOLE-GROUP SIZE, directly under Width and Height because it is the same question
+                  asked of the group instead of of one block. It has to be its own control: Width
+                  above scales a group by the ratio of the ANCHOR block's new width to its old one,
+                  and that slider is whole units with a floor of 1 — so the moment the block you
+                  happen to have selected reaches 1 there is no smaller number to ask for and the
+                  group stops shrinking, however big the rest of it still is. A prop pulled in from
+                  the 🌿 shelf arrives at prop size and is full of slivers, so it hit that on the
+                  first drag.
+                  The slider is RELATIVE and re-centres on 100% when you let go, which is what makes
+                  it unlimited: keep dragging left and it keeps halving. Only shown for a real group
+                  — with one block held, Width and Height already are the answer. */}
+              {groupSel && <label className="slider">Whole group size<input type="range" min="20" max="180" value={groupScale}
+                onChange={(e) => { const next = +e.target.value; scaleGroupBy(next / groupScale); setGroupScale(next); }}
+                onPointerUp={() => setGroupScale(100)} onPointerCancel={() => setGroupScale(100)} onKeyUp={() => setGroupScale(100)} /></label>}
+              {groupSel && <p className="mini">Scales all {groupIds.length} held blocks about the group's centre, keeping them arranged. Let go and it re-centres on 100%, so drag it left again to keep going — a prop dropped in at its own size takes two or three pulls to become a badge.</p>}
               {/* "0°" straightens: back to the piece's own default, unrotated orientation — the quick
                   way to make a hand-drawn line flat again. Goes through updSelRot like the ↺/↻
                   buttons, so with a group selected the whole group turns rigidly until the selected
@@ -16558,7 +16660,7 @@ export default function AssetStudio() {
                   half the art, and the whole reason to reach for one here is to lift a single still. */}
               {pickedPropFrames > 1 && <select aria-label="Animation frame" value={Math.min(propStampFrame, pickedPropFrames - 1)} onChange={(e) => setPropStampFrame(+e.target.value)}>{pickedPropStamp.frames.map((f, i) => <option key={i} value={i}>Frame {i + 1}</option>)}</select>}
               <button className="ltbtn" disabled={!pickedPropStamp} title="Copy this object's blocks into the pose you're drawing. The object itself is not changed." onClick={() => pickedPropStamp && placeProp(pickedPropStamp, propStampFrame)}>Place</button>
-              {pickedPropStamp && (() => { const n = propArtBlockCount(propArtPieces(pickedPropStamp, propStampFrame)); return <p className="mini">{n ? "Drops " + n + " block" + (n === 1 ? "" : "s") + " at the size they were drawn, held as one group — the Width slider resizes the lot." : "That frame has no art in it."}</p>; })()}
+              {pickedPropStamp && (() => { const n = propArtBlockCount(propArtPieces(pickedPropStamp, propStampFrame)); return <p className="mini">{n ? "Drops " + n + " block" + (n === 1 ? "" : "s") + " at the size they were drawn, held as one group — ↙ Whole group size shrinks the lot." : "That frame has no art in it."}</p>; })()}
             </div>}
             {savedGroups.length > 0 && <p className="tip">📁 Saved: {savedGroups.map((g) => <span key={g.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => loadGroup(g)}>{g.name} ({g.ids.length})</button><button className="ltbtn" onClick={() => deleteGroup(g.id)}>✕</button></span>)}</p>}
           </div>

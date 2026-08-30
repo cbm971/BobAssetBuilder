@@ -353,7 +353,31 @@ already files scenery under are the folders he picks trim, badges and signage ou
   `propArtBlockCount`, not `.length`: 12 entries on the middle frame of his Explosion LAND as 18.
 * Nothing about the prop changes. It is not opened, not saved, not touched; what lands is
   ordinary blocks in the asset being drawn, held as a group with add-mode off so the first drag
-  and the Width slider move the whole arrival.
+  and the group controls move the whole arrival.
+* **AND IT ARRIVES AT PROP SIZE, so it has to be shrinkable** — a bookshelf is 76 blocks spanning
+  172 of the canvas's 200 units, and a badge on a shirt is maybe fifteen. It could not be shrunk
+  at all, by two separate clamps that each reported success and changed nothing, which is why it
+  read as a dead slider rather than as a limit.
+  * `scalePieceGroup`'s floor was **one whole design unit per member**, expressed as the largest
+    scale any member needs the group to keep. One 1-unit sliver therefore pinned the WHOLE group
+    at 1.0 forever; a 2-unit one allowed exactly one halving and then pinned it. The bookshelf's
+    thinnest block is 2, so the old floor let it go to 0.5 once and never again. It is
+    `MIN_GROUP_PIECE_SIZE` (0.05) now — fifty times the 3-decimal rounding step, which is all the
+    floor was ever really for: a member rounded to zero width is gone for good, because zero times
+    any later scale is still zero. The output is clamped as well, so no route reaches zero.
+  * Two rules stop the clamp doing the opposite of what was asked, and the old one broke both: a
+    member already at or under the floor is **skipped** rather than counted (counted, it demands a
+    scale above 1 and a request to shrink GROWS the group), and the clamp is **capped at 1**. A
+    shrink may be refused, never inverted. `groupScaleFloor` is the one exported answer so the
+    control can SAY it has hit the limit instead of going quiet.
+  * The second clamp was the **control**, and it is the half that would have looked fixed and not
+    been. A group's size was only ever askable through the anchor block's **Width** slider
+    (`updSelSize` turns its new width into a group scale) — whole units, floor of 1 — so once the
+    block you happened to have selected reached 1 there was no smaller number to ask for, whatever
+    the other 75 were doing. **↙ Whole group size** (`scaleGroupBy`) takes a ratio instead. It is
+    RELATIVE and re-centres on 100% when you let go, which is what makes it unlimited: measured on
+    the real bookshelf, 172 units down to 1.25 over repeated drags, with its thinnest block
+    resting exactly on the floor and never at zero.
 
 **Level cells.** `lv.fg` / `lv.bg` / `lv.front`, keyed `"r,c"`. A value is a colour
 string or `{ c, tex, ol, slope, run, step, upsideDown }`. A **foreground cell can hold
@@ -532,6 +556,33 @@ with a left/right sense must be added there**, or a flipped level breaks in a wa
 that field shows.
 
 **Layer z-ladder:** 1 bg · 2 fg · 4 climb/pedestals · 5 player/hazards · 6 front.
+
+**A FRONT-LAYER OBJECT FADES WHEN YOU WALK BEHIND IT, AND THAT FADE HAS TO BE COMPOSITED.**
+`.lobj.infront` transitions `opacity`, and an un-promoted opacity transition is repainted by the
+CPU on every one of the ~7 frames it runs — repainting the object's whole subtree, which for a
+prop is its pixel art plus a CSS mask wrapper per cutter (Blake's Trailer 2 is 31 blocks and 5
+cutters drawn 20 cells wide; a Berry Bush is 48 and 6, at size 8). He reported it as lag “just
+when I first walk behind and when I am no longer behind”, and that shape is the diagnosis:
+`behind` is a single boolean over the whole object, so those two moments are the only ones it
+flips and therefore the only ones the transition runs — fully behind, opacity is constant and
+nothing repaints, which is why the middle was smooth. The element carries `will-change: opacity`
+for the duration of a playtest, so the transition runs on the compositor.
+
+Two things that are deliberately NOT done, both of which look like the obvious next step:
+
+* **`.lcell.front` fades the same way and is left alone.** Its see-through window is PADDED
+  (`FRONT_FADE_PAD_CELLS`), so it slides a few cells at a time and those transitions run
+  constantly while you walk rather than twice per object — if they were the expensive ones the
+  stutter would be continuous, not at the two ends. They are plain boxes rather than masked art,
+  and Tree Treasure Room 1 has **917** of them; a layer each would cost far more than the repaint
+  it saved.
+* **The promotion is gated on `play`.** `behind` cannot be true outside a playtest, so in the
+  editor a layer per Front object is memory spent on a fade that can never happen.
+
+Ruled out on the way, so nobody re-derives them: the per-cell `querySelector('[data-fk=...]')`
+burst is **0.06–0.29 ms** for 131 cells measured on the real 917-cell sheet, and
+`connectedFrontRegion` is gated behind a signature that changes on every cell boundary while you
+walk, not just at the two ends. Neither matches the symptom.
 
 **DIALOGUE TREES are the sixth saved kind, and that is the whole design.** A tree is authored on
 its own screen (`screen === "dialogue"`, the 💬 tile on the menu) and levels only ever refer to it
