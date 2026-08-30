@@ -342,6 +342,9 @@ import {
   shopNetPrice,
   shopStock,
   shopStockSorted,
+  shopPriceOrder,
+  rollShopStock,
+  SHOP_SHELF_SIZE,
   SHOP_BUY_MARKUP_AT_0,
   SHOP_BUY_MARKUP_AT_10,
   SHOP_TRADE_FRAC_AT_0,
@@ -7213,5 +7216,71 @@ describe("every item that can be tagged can be priced", () => {
     expect(newAsset("body").value).toBeUndefined();
     expect(newAsset("enemy").value).toBeUndefined();
     expect(newAsset("prop").value).toBeUndefined();
+  });
+});
+
+describe("a shopkeeper puts three things out, not his whole warehouse", () => {
+  const lib = [];
+  for (let i = 0; i < 12; i++) lib.push({ id: "w" + i, type: "weapon", name: "Gun " + i, value: 10 + i, categories: ["T1", "", ""] });
+  lib.push({ id: "other", type: "weapon", name: "Bow", value: 50, categories: ["T2", "", ""] });
+
+  test("the shelf is three deep however big the pool is", () => {
+    expect(shopStock(lib, "T1")).toHaveLength(12);
+    expect(rollShopStock(lib, "T1", "seed")).toHaveLength(SHOP_SHELF_SIZE);
+    expect(SHOP_SHELF_SIZE).toBe(3);
+  });
+
+  test("it never puts the same thing out twice", () => {
+    // Each pick is spliced out of the pool, so three rows are three different items — a shelf
+    // holding the same rifle three times reads as the roll being broken.
+    for (const seed of ["a", "b", "c", "d", "e", "f", "g", "h"]) {
+      const ids = rollShopStock(lib, "T1", seed).map((a) => a.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    }
+  });
+
+  test("the same shopkeeper has the same three all run", () => {
+    // Re-rolling on each open would let you close and re-open the panel until the thing you
+    // wanted turned up, and the rifle you left to go and afford would be gone when you got back.
+    const a = rollShopStock(lib, "T1", "npc13,22|t1").map((x) => x.id);
+    const b = rollShopStock(lib, "T1", "npc13,22|t1").map((x) => x.id);
+    expect(b).toEqual(a);
+  });
+
+  test("two stalls selling the same tag stock different things", () => {
+    // Which is the whole reason not to put the pool on one shelf: walking to the next stall has
+    // to be worth doing.
+    const one = rollShopStock(lib, "T1", "run1|13,22|t1").map((x) => x.id).join();
+    const two = rollShopStock(lib, "T1", "run1|13,40|t1").map((x) => x.id).join();
+    expect(one).not.toBe(two);
+  });
+
+  test("a pool smaller than the shelf is not padded, and an empty tag stays empty", () => {
+    const two = [
+      { id: "a", type: "item", name: "A", value: 5, categories: ["tiny", "", ""], effect: { kind: "heal", amount: 1 } },
+      { id: "b", type: "item", name: "B", value: 5, categories: ["tiny", "", ""], effect: { kind: "heal", amount: 1 } },
+    ];
+    expect(rollShopStock(two, "tiny", "s").map((x) => x.id).sort()).toEqual(["a", "b"]);
+    expect(rollShopStock(lib, "", "s")).toEqual([]);          // a blank tag still sells nothing
+    expect(rollShopStock(lib, "nosuchtag", "s")).toEqual([]);
+    expect(rollShopStock([], "T1", "s")).toEqual([]);
+  });
+
+  test("everything it rolls is really on sale", () => {
+    // The roll goes through shopStock, so the money exclusion and the tag match hold here too —
+    // a shelf is never a second, looser search.
+    const withCash = lib.concat([{ id: "cash", type: "item", name: "Note", value: 20, categories: ["T1", "", ""], effect: { kind: "money", amount: 20 } }]);
+    for (const seed of ["a", "b", "c", "d", "e", "f"]) {
+      for (const it of rollShopStock(withCash, "T1", seed)) {
+        expect(isMoneyItem(it)).toBe(false);
+        expect(HAS_CATEGORIES(it)).toBe(true);
+      }
+    }
+  });
+
+  test("a rolled shelf still reads as a price ladder", () => {
+    const rolled = rollShopStock(lib, "T1", "seed");
+    const shown = shopPriceOrder(rolled, 5).map((a) => shopBuyPrice(a, 5));
+    expect(shown).toEqual([...shown].sort((a, b) => a - b));
   });
 });

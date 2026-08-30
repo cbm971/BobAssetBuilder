@@ -1655,9 +1655,29 @@ export const shopStock = (assets, tag) => {
 // Sorted for the shelf: dearest last, so a row of prices reads as a ladder. Ties keep name order
 // rather than library order — two identically-priced hats jumping around between visits reads as
 // the stock changing when it has not.
-export const shopStockSorted = (assets, tag, intelligence) =>
-  shopStock(assets, tag).slice().sort((a, b) =>
+export const shopPriceOrder = (items, intelligence) =>
+  (items || []).slice().sort((a, b) =>
     shopBuyPrice(a, intelligence) - shopBuyPrice(b, intelligence) || String(a.name || "").localeCompare(String(b.name || ""), undefined, { numeric: true }));
+export const shopStockSorted = (assets, tag, intelligence) => shopPriceOrder(shopStock(assets, tag), intelligence);
+// A SHOPKEEPER PUTS THREE THINGS OUT, not his whole warehouse. 44 items tagged T1 is a scrolling
+// spreadsheet rather than a shop, and it makes every stall selling that tag identical — three
+// picked out of the pool is what makes walking into the next one worth doing.
+export const SHOP_SHELF_SIZE = 3;
+// WHICH three is decided ONCE per shopkeeper per Playtest run, from a seed, exactly the way a
+// pedestal's roll is. Rolling on each open would let you close and re-open the panel until the
+// thing you wanted appeared, which is not shopping — and re-rolling on the way back from a fight
+// would mean the rifle you left to go and afford is gone when you return with the money.
+// Deterministic on `seedStr`, and distinct by construction (each pick is spliced out of the pool).
+export const rollShopStock = (assets, tag, seedStr, size) => {
+  const rest = shopStock(assets, tag);
+  const want = Math.max(0, Math.min(size == null ? SHOP_SHELF_SIZE : size, rest.length));
+  const out = [];
+  for (let i = 0; i < want; i++) {
+    const r = roomSeed(String(seedStr) + "|" + i);
+    out.push(rest.splice(Math.min(rest.length - 1, Math.floor(r * rest.length)), 1)[0]);
+  }
+  return out;
+};
 // Heal is clamped to [0, max] and never lowers HP (a negative amount is treated as 0). Pure.
 export const applyHeal = (curHP, maxHP, amount) => Math.max(0, Math.min(maxHP, curHP + Math.max(0, amount || 0)));
 // How much extra maximum HP the worn kit gives everything fighting for you. Several items stack,
@@ -1755,7 +1775,7 @@ export const DIALOGUE_ACTS = {
   // have said the right thing, he can sell you a gun and THEN turn hostile, and the same tree can
   // be hung on six market stalls. `tagParam` is the same idiom EFFECT_TYPES.tagBoost uses — the
   // act needs one extra piece of authoring (which tag he stocks), so the editor grows one input.
-  shop: { label: "🛒 Open their shop", blurb: "They open up shop: everything in your library carrying the tag you type below goes on the shelf, priced from each item's own 💵 Value. Type the tag (e.g. T1) in the box that appears.", flash: "🛒 {name} opens up shop.", tagParam: true, anyone: true },
+  shop: { label: "🛒 Open their shop", blurb: "They open up shop: three items carrying the tag you type below, picked at random once per Playtest and priced from each one's own 💵 Value. Type the tag (e.g. T1) in the box that appears.", flash: "🛒 {name} opens up shop.", tagParam: true, anyone: true },
 };
 // Which acts a SIGN can carry. Turning somebody hostile needs a person to turn; healing you and
 // opening a shop do not, so a market stall with a price list painted on it is a legal thing to
@@ -6883,9 +6903,13 @@ export default function AssetStudio() {
   // rather than a mode of it, because a conversation and a shelf are not the same thing and the
   // option's `to` still decides where the TALK goes; browsing simply happens on top of it, and
   // closing the shop drops you back into whatever the shopkeeper is saying.
-  const [shop, setShop] = useState(null);                 // { tag, name } | null — the open shop
+  const [shop, setShop] = useState(null);                 // { tag, name, roll } | null — the open shop
   const shopRef = useRef(null);
   useEffect(() => { shopRef.current = shop; }, [shop]);
+  // WHAT EACH SHOPKEEPER HAS OUT, keyed "<talk key>|<tag>" -> the ids he rolled. Same shape and
+  // same lifetime as pedestalRolls: rolled once, kept for the whole run, wiped only by ▶ Playtest.
+  // Ids rather than the assets themselves, so editing a price mid-session reaches the shelf.
+  const shopRolls = useRef({});
   const [pframe, setPframe] = useState(0);             // playtest re-render tick
   const frontCellsRef = useRef(null);      // wrapper around the memoized Front tile layer — lets the playtest loop fade covered cells imperatively, without re-rendering the whole (memoized) layer every frame
   const hazardCellsRef = useRef(null);     // same idea for fire: the layer is memoized (not rebuilt every frame), so a burnt-out cell is hidden imperatively by toggling its own element's opacity
@@ -7397,7 +7421,15 @@ export default function AssetStudio() {
   // Both written synchronously as well as through setState, for the reason openTalk gives: the
   // loop is mid-frame and reads the ref at the top of the NEXT one, so waiting for React to
   // commit would let a frame of physics through under an open shop.
-  const openShop = (tag, name) => { const s = { tag, name: name || "" }; shopRef.current = s; setShop(s); };
+  const openShop = (tag, name, key) => {
+    // Roll his three the first time you ask, then never again this run — see rollShopStock. The
+    // roll is keyed on the SPEAKER as well as the tag, so two stalls both selling "T1" stock
+    // different things, which is the entire point of not putting the whole pool on one shelf.
+    const rk = (key || "") + "|" + (tag || "").trim().toLowerCase();
+    if (!shopRolls.current[rk]) shopRolls.current[rk] = rollShopStock(allAssets, tag, playRunId.current + "|" + rk).map((a) => a.id);
+    const s = { tag, name: name || "", roll: rk };
+    shopRef.current = s; setShop(s);
+  };
   const closeShop = () => { shopRef.current = null; setShop(null); };
   // BRING THE BUBBLE INTO VIEW when a conversation opens. This game has no camera — nothing follows
   // the player — so on a 160-column level the person you just walked up to is very often outside
@@ -7426,7 +7458,7 @@ export default function AssetStudio() {
       // half is missing instead, in the same voice the "needs a person" line uses.
       const tag = (step && step.shopTag) || "";
       if (!tag) { flash("🛒 That shop option has no tag typed on it — open the 💬 Dialogue editor and say which tag it sells (e.g. T1)."); return; }
-      openShop(tag, name);
+      openShop(tag, name, t.key);
     } else if (ep) {
       // A sign cannot turn anybody hostile — there is nobody there. Said out loud rather than
       // silently ignored, because a choice that visibly does nothing reads as a broken feature.
@@ -13430,8 +13462,8 @@ export default function AssetStudio() {
                       const n = st ? shopStock(allAssets, st).length : 0;
                       return (
                         <>
-                          <input className="dlgShopTag" list="catsuggest" value={c.shopTag || ""} onChange={(e) => patchChoice(nid, ci, { shopTag: e.target.value })} placeholder="sells which tag? e.g. T1" maxLength={24} title="Everything in your library carrying this tag goes on his shelf, priced from each item's own 💵 Value" />
-                          <span className="hint2">{!st ? "⚠ no tag — his shelf will be empty" : n ? "🛒 " + n + " item" + (n === 1 ? "" : "s") + " on the shelf" : "⚠ nothing is tagged \"" + st + "\""}</span>
+                          <input className="dlgShopTag" list="catsuggest" value={c.shopTag || ""} onChange={(e) => patchChoice(nid, ci, { shopTag: e.target.value })} placeholder="sells which tag? e.g. T1" maxLength={24} title={"He puts " + SHOP_SHELF_SIZE + " items carrying this tag on his shelf, picked at random once per Playtest and priced from each one's own 💵 Value"} />
+                          <span className="hint2">{!st ? "⚠ no tag — his shelf will be empty" : n ? "🛒 " + Math.min(SHOP_SHELF_SIZE, n) + " of " + n + " tagged \"" + st + "\", picked each run" : "⚠ nothing is tagged \"" + st + "\""}</span>
                         </>
                       );
                     })()}
@@ -13929,7 +13961,7 @@ export default function AssetStudio() {
           {play && <span className="badge money" title="Money you are carrying this Playtest run. Pick up a 💵 item to earn it, spend it in a shopkeeper's dialogue.">{MONEY_CHAR} {walletUI}</span>}
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel}>↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel}>↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -15433,30 +15465,28 @@ export default function AssetStudio() {
 
         {/* 🛒 THE SHOP COUNTER. A modal, not a speech bubble — and that is a deliberate departure
             from the rule that a conversation belongs over the speaker's head. What he SAYS is
-            still up there in his bubble; this is a price list with forty rows, a wallet, a
-            trade-in column and a button per line, which is a menu, and the app's own idiom for a
-            menu you pick from is .modal > .dlg. Putting it in .lgrid would also have meant
-            clamping a 500px panel inside the level's own pixels, which is what talkBubbleBox
-            exists to do for something a fraction of the size.
-            Note the world is frozen the whole time (shopRef, at the top of the loop). */}
+            still up there in his bubble; this is a shelf with a wallet and a button per line,
+            which is a menu, and the app's own idiom for a menu you pick from is .modal > .dlg.
+            Putting it in .lgrid would also have meant clamping the panel inside the level's own
+            pixels, which is what talkBubbleBox exists to do for something a fraction of the size.
+            Note the world is frozen the whole time (shopRef, at the top of the loop).
+
+            IT SHOWS WHAT YOU GIVE UP AND WHAT IT COSTS, AND NOTHING ELSE. The first pass printed
+            the arithmetic on every row ("💵 115 − 💵 85 for your Machete"), the shopkeeper's tag
+            in the title, and a line explaining how Intelligence moves both rates. All three were
+            Blake reading a spreadsheet to buy a hat. The sum is still exactly the sum — it is
+            just not narrated: the button IS the price, and the only other thing a shopper needs
+            to know is which of their things is about to be handed over. */}
         {play && shop && (() => {
           const intel = shopperIntelligence();
-          const stock = shopStockSorted(allAssets, shop.tag, intel);
-          const buyPct = Math.round((shopBuyMultiplier(intel) - 1) * 100);
-          const tradePct = Math.round(shopTradeMultiplier(intel) * 100);
+          const rolled = (shopRolls.current[shop.roll] || []).map(findA).filter(Boolean);
+          const stock = shopPriceOrder(rolled, intel);
           return (
             <div className="modal" onClick={closeShop}>
               <div className="dlg shopDlg" onClick={(e) => e.stopPropagation()}>
-                <div className="dt">🛒 {(shop.name || "Shop").trim()} — {shop.tag}</div>
-                {/* SAY WHAT THE PRICES ARE DOING AND WHY, because both numbers move with a stat
-                    the player can change. Without this line a rifle that cost 126 last time and
-                    118 now reads as the shop being random rather than as the 🧠 Int boost you
-                    are still wearing. */}
-                <div className="shopHead">
-                  <span className="shopWallet">{MONEY_CHAR} {walletUI}</span>
-                  <span className="hint2">🧠 Int {intel} — you pay {buyPct > 0 ? "+" + buyPct + "%" : "list price"} over value, and he takes your old kit at {tradePct}% of its own.</span>
-                </div>
-                {!stock.length && <p className="mini">Nothing in your library is tagged <b>{shop.tag}</b>. Tag some items in their editors (🏷️ Item categories) and they turn up here — no restock, no re-save.</p>}
+                <div className="dt">🛒 {(shop.name || "Shop").trim()}</div>
+                <div className="shopHead"><span className="shopWallet">{MONEY_CHAR} {walletUI}</span></div>
+                {!stock.length && <p className="mini">He has nothing to sell — nothing in your library is tagged <b>{shop.tag}</b>.</p>}
                 {stock.map((it) => {
                   const q = shopQuote(it);
                   const { pieces: artPieces, bb } = groundArt(it);
@@ -15476,24 +15506,22 @@ export default function AssetStudio() {
                       <div className="shopMeta">
                         <div className="shopName">{it.name}</div>
                         <div className="hint2">{what}</div>
-                        {/* THE WHOLE SUM, SHOWN. "Pay the difference" is the one part of this that
-                            is genuinely surprising the first time, so the row spells it out rather
-                            than quoting a net number the player has to reverse-engineer. */}
-                        <div className="shopSum">
-                          {MONEY_CHAR} {q.price}{itemValue(it) === 0 ? " (free — no value set on it yet)" : ""}
-                          {q.off ? <> − {MONEY_CHAR} {q.tradeIn} for your {q.off.name}{q.tradeIn > q.price ? " (worth more than this — no change given)" : ""}</> : null}
-                        </div>
+                        {/* THE ONE THING THE PRICE ALONE CANNOT TELL YOU: which of your own things
+                            walks out of the door to pay for it. Only shown when something actually
+                            goes — a straight purchase says nothing, because there is nothing to
+                            warn about. The arithmetic behind the number is in the button. */}
+                        {q.off && <div className="shopSwap">↔ Replaces your {q.off.name}</div>}
                       </div>
                       <button className="shopBuy" disabled={broke} onClick={() => buyFromShop(it)}
                         title={broke ? "You cannot afford this" : (q.off ? "Trade in your " + q.off.name + " and pay the difference" : "Buy it")}>
                         {q.net > 0 ? MONEY_CHAR + " " + q.net : "Free"}
-                        <span className="shopBuyVerb">{it.type === "item" ? "buy & use" : q.off ? "trade up" : "buy"}</span>
+                        <span className="shopBuyVerb">{it.type === "item" ? "buy & use" : q.off ? "trade" : "buy"}</span>
                       </button>
                     </div>
                   );
                 })}
                 <div className="shopFoot">
-                  <span className="hint2">Click a price to buy · <b>Esc</b> or click outside to leave · everything else is paused</span>
+                  <span className="hint2"><b>Esc</b> to leave</span>
                   <button className="ltbtn" onClick={closeShop}>Done</button>
                 </div>
               </div>
@@ -16135,8 +16163,8 @@ export default function AssetStudio() {
                 <div className="ct">{MONEY_CHAR} Value</div>
                 <label className="slider">{MONEY_CHAR} Worth<input type="number" min="0" value={asset.value ?? 0} onChange={(e) => setAsset((a) => ({ ...a, value: Math.max(0, Math.round(+e.target.value || 0)) }))} style={{ width: 80 }} /></label>
                 {v === 0
-                  ? <p className="mini">0 means <b>free</b> — a shop will still stock it and hand it over for nothing. Type what it's worth and shops price themselves.</p>
-                  : <p className="mini">A shop sells it for <b>{MONEY_CHAR} {shopBuyPrice(asset, 0)}</b> at 🧠 Int 0 down to <b>{MONEY_CHAR} {shopBuyPrice(asset, 10)}</b> at Int 10, and takes it in part-exchange for <b>{MONEY_CHAR} {shopTradeInValue(asset, 0)}</b> up to <b>{MONEY_CHAR} {shopTradeInValue(asset, 10)}</b>.</p>}
+                  ? <p className="mini">0 = free.</p>
+                  : <p className="mini">Sells for about <b>{MONEY_CHAR} {shopBuyPrice(asset, 5)}</b>, traded in for about <b>{MONEY_CHAR} {shopTradeInValue(asset, 5)}</b>.</p>}
               </div>
             );
           })()}
@@ -16667,7 +16695,7 @@ const css = `
 .shopArtIcon{font-size:20px}
 .shopMeta{flex:1 1 auto;min-width:0}
 .shopName{font-size:14px;font-weight:600;color:#e8ecf5}
-.shopSum{margin-top:3px;font-size:12px;color:#cfd8e8}
+.shopSwap{margin-top:3px;font-size:12px;color:#e8c37f}
 .shopBuy{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:96px;background:#1f3a24;border:1px solid #3a6b42;border-radius:10px;padding:7px 12px;color:#cdf5d4;font-size:14px;font-weight:800;cursor:pointer}
 .shopBuy:hover:not(:disabled){background:#2a4d31;border-color:#59a366}
 .shopBuy:disabled{background:#241a1a;border-color:#5b3535;color:#c58f8f;cursor:not-allowed}

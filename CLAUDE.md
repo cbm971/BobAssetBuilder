@@ -571,6 +571,22 @@ anybody hostile.
   whole library on purpose. A shopkeeper whose tag you forgot to type offering every item in the
   game is a bug you would only find in Playtest. **And money is never stock**: a note worth 20 sold
   at a markup is a row that can only cost you money to press.
+* **A SHOPKEEPER PUTS THREE THINGS OUT** (`SHOP_SHELF_SIZE`, `rollShopStock`), not his whole
+  warehouse — 44 items tagged T1 is a scrolling spreadsheet, and it makes every stall selling that
+  tag identical. Which three is decided ONCE per shopkeeper per run, from a seed, keyed
+  `"<talk key>|<tag>"` in `shopRolls` — same shape and lifetime as `pedestalRolls`, wiped only by
+  ▶ Playtest. Rolling on each open would let you close and re-open the panel until the thing you
+  wanted appeared, and the rifle you left to go and afford would be gone when you came back with
+  the money. The key includes the SPEAKER, so two stalls selling "T1" stock different things —
+  which is the whole reason not to put the pool on one shelf. Ids are stored, not assets, so
+  re-pricing an item mid-session reaches the shelf.
+* **THE PANEL SHOWS WHAT YOU GIVE UP AND WHAT IT COSTS, AND NOTHING ELSE.** The first pass printed
+  the arithmetic on every row ("💵 115 − 💵 85 for your Machete"), the shopkeeper's tag in the
+  title, and a line explaining how Intelligence moves both rates; Blake's note was that this is
+  reading a spreadsheet to buy a hat. The sum is unchanged, it is just not narrated — the button IS
+  the price, and the only other thing a shopper needs is `↔ Replaces your X`, shown only when
+  something actually leaves. Do not re-add the working out. Same call in the item editor's 💵 Value
+  card: one short line at the neutral Int 5, not the range and the formula.
 * **A purchase is a pedestal pickup that costs money**, and `buyFromShop` is written to keep it
   literally that — the same `wornEquipMap`/`equipDisplacedSlot`/`mergeEquip` swap, the same weapon
   and throwable slots, the same NULL-not-delete on the vacated slot. The only differences are that
