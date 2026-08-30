@@ -327,6 +327,37 @@ picked then shifts the palette's colours around, which is how the three palettes
 came to look slowly "distorted" and got fixed. The `PALETTES` constants themselves
 have never changed; if a palette looks wrong, suspect the row, not the hexes.
 
+**PIECE IDS ARE NOT UNIQUE ACROSS AN ASSET, and anything that walks the whole asset by id has to
+know that.** They are unique inside ONE pose list; the other poses and the per-body fits under
+`.variants` are separate lists and do repeat them. **Eight of the 120 assets in the library carry
+a collision.** The Jeans has `frwly0y` twice — a gold `#c8a23c` 6x10 belt buckle at (98,171) in
+`angles.front`, and a blue `#386aff` 7x25 trouser leg at (63,206) in `variants.default.front`.
+
+That is what broke **🪣 Change this color everywhere**, reported as “changing the blue on these
+pants to black also changes the yellow belt buckle”. The group is resolved to piece IDS — and it
+has to be, because a `<input type="color">` fires continuously while dragged, so re-matching on
+the colour every step enrols anything the drag passes over. But an id ALONE then swept in a
+different block that merely shared one: measured on his real Jeans, the old rule repainted **73**
+blocks where there are only **71** blue ones, the two extras being that buckle in `angles.front`
+(the copy actually on screen) and in the other body's fit.
+
+So `inColorGroup` needs **both halves, and each is there because the other alone was wrong**: a
+piece is in the group if its id is in the set **AND** it is still wearing one of the shades this
+edit has painted. Two things follow that are easy to get wrong:
+
+* **The shade being painted joins `seen` only AFTER this step** (`applyPieceColor`,
+  `remapPalette`). Add it first and a same-id piece that already wears the colour you are painting
+  TO passes the colour test — the same bug through the other door.
+* **Carrying a group across a repaint means carrying that shade with it** —
+  `colorGroupAfter(g, to)`. Its members are wearing the new colour by then, so a group handed on
+  without it recognises nobody and the control goes dead on its second step. `updFx` (the
+  brightness/glow/fade sliders) shares the same group deliberately, so both controls mean one
+  thing.
+
+**Do not “fix” this by re-IDing the saved art.** Ids are what saved groups, arm flags and every
+other cross-pose reference are written in terms of; rewriting them rewrites his library. The
+colour test costs nothing and is right whether or not ids are ever made unique.
+
 **Poses.** `ANGLES` is the five base poses (front/back/side/up/crouch), but
 `editablePoses(type, wtype)` is the real list per asset type — enemies also get
 `attack` and `death`, and a ranged weapon has **no front pose at all**. Anything that

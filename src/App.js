@@ -888,9 +888,42 @@ export const assetColorGroup = (a, from) => {
     if (a.states) { forEachAngles(a.states.rest, add); forEachAngles(a.states.fire, add); }
     if (a.variants) for (const k of Object.keys(a.variants)) { const v = a.variants[k]; if (v && v.states) { forEachAngles(v.states.rest, add); forEachAngles(v.states.fire, add); } else forEachAngles(v, add); }
   }
-  return { ids, from: f };
+  // `seen` is the other half of the answer, and without it the ids above are not safe on their
+  // own — see inColorGroup. It starts as just the colour asked for; each step of a live edit adds
+  // the shade it painted.
+  return { ids, from: f, seen: new Set([f]) };
 };
-const inColorGroup = (g, p) => !!g && typeof p.color === "string" && (p.id ? g.ids.has(p.id) : p.color.toLowerCase() === g.from);
+// A PIECE IS IN THE GROUP ONLY IF ITS ID IS IN THE SET **AND** IT IS STILL WEARING ONE OF THE
+// SHADES THIS EDIT HAS PAINTED. Both halves are load-bearing, and each one is there because the
+// other alone was wrong:
+//
+// * Colour alone swallows anything the edit's own drag passes over (the note on assetColorGroup
+//   above — that is what the ids were introduced for).
+// * IDS ALONE SWALLOW A DIFFERENT BLOCK THAT HAPPENS TO SHARE AN ID, and in Blake's real library
+//   that is not hypothetical: piece ids are unique inside ONE pose list, not across an asset's
+//   poses and per-body fits. His Jeans has `frwly0y` twice — a gold 6x10 belt buckle at (98,171)
+//   in `angles.front`, and a blue 7x25 trouser leg at (63,206) in `variants.default.front`.
+//   Selecting the blue and changing it therefore resolved an id set containing `frwly0y`, and the
+//   recolour repainted every piece wearing that id — buckle included. He reported it as
+//   “changing the blue on these pants to black also changes the yellow belt buckle”, and he was
+//   exactly right: #c8a23c was never #386aff. Eight of his 120 assets carry such a collision.
+//
+// Re-ID-ing the saved art would be the other way to fix it and is the wrong one: ids are what
+// saved groups, arm flags and every other cross-pose reference are written in terms of. The
+// colour test costs nothing and is right whether or not ids are unique.
+// CARRYING A GROUP ACROSS A REPAINT MEANS CARRYING THE SHADE IT JUST PAINTED. Membership is
+// "id in the set AND still wearing a colour this edit painted" (see below), so a group handed on
+// without its new colour matches nothing on the next step — the control would go dead halfway
+// through a drag. One helper, used by both live controls and by the tests, rather than three
+// copies of the same set arithmetic.
+export const colorGroupAfter = (g, to) => (!g || typeof to !== "string") ? g
+  : { ...g, seen: new Set([...(g.seen || []), to.toLowerCase()]), from: to.toLowerCase() };
+const inColorGroup = (g, p) => {
+  if (!g || typeof p.color !== "string") return false;
+  const c = p.color.toLowerCase();
+  if (!p.id) return c === g.from;                 // pieces old enough to predate ids follow the colour chain, as they always did
+  return g.ids.has(p.id) && (!g.seen || g.seen.has(c));
+};
 // Swap the group's fill colour across the ENTIRE asset — every piece, in all 5 poses, in the live
 // .angles, in a weapon's rest/fire states, and in every per-body fit under .variants. Only
 // `p.color` is touched: outlineColor, fx.glowColor and an emoji's tint are deliberately left alone
@@ -10610,7 +10643,7 @@ export default function AssetStudio() {
   const colorGroupFor = (from) => {
     const f = from.toLowerCase(), g = colorGroup.current;
     if (g && g.selId === selId && g.seen.has(f)) return g;
-    return { ...assetColorGroup(asset, from), selId, seen: new Set([f]) };
+    return { ...assetColorGroup(asset, from), selId }; // assetColorGroup seeds `seen` with `f` itself
   };
   // Setting a block's color with "Change this color everywhere" on repaints every block that
   // shared that exact color when the edit began — all 5 poses, a weapon's rest AND fire states,
@@ -10621,8 +10654,11 @@ export default function AssetStudio() {
     const from = sel && sel.color;
     if (!recolorAll || !from || effEdit || (sel && sel.kind === "emoji") || c === from) { updSel({ color: c }); return; }
     const g = colorGroupFor(from);
-    g.seen.add(c.toLowerCase());
-    colorGroup.current = { ...g, from: c.toLowerCase() }; // the group's colour moves with it, for id-less legacy pieces
+    const cl = c.toLowerCase();
+    // The new shade joins `seen` for the NEXT step, never for this one. Adding it first would let
+    // a same-id piece that already wears the colour being painted TO pass the colour test and get
+    // dragged in — the same bug this test exists to stop, entered through the other door.
+    colorGroup.current = colorGroupAfter(g, cl);
     setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(recolorAssetGroup(a, g, c)); });
   };
   // Skin-palette remap: repaint one of the skin's colours everywhere it appears. palGroup.current
@@ -10633,8 +10669,11 @@ export default function AssetStudio() {
   const remapPalette = (orig, to) => {
     if (!orig || !to) return;
     const g = palGroup.current[orig] || assetColorGroup(asset, orig);
-    palGroup.current[orig] = { ...g, from: to.toLowerCase() };
-    if (g.from === to.toLowerCase()) return;
+    const tl = to.toLowerCase();
+    // Same rule as applyPieceColor: the shade being painted joins the set for the next drag step,
+    // so this one still matches only what the remap has already been through.
+    palGroup.current[orig] = colorGroupAfter(g, tl);
+    if (g.from === tl) return;
     setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(recolorAssetGroup(a, g, to)); });
   };
   // Twisting one piece while a group is selected turns the WHOLE group together, like one rigid
