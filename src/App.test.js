@@ -314,6 +314,8 @@ import {
   wornEquipMap,
   slotWasEmptied,
   equipDisplacedSlot,
+  equipKindTags,
+  EQUIP_KIND_TAG_MAX_SLOTS,
   SPAWN_WEAPON_NONE,
   spawnWeaponIdOf,
   spawnOverridesWeapon,
@@ -7104,11 +7106,11 @@ describe("you pay the difference, and the difference never runs backwards", () =
     expect(shopNetPrice(shopBuyPrice(dear, 5), shopTradeInValue(cheap, 5))).toBe(112);
   });
 
-  test("trading DOWN is free and never pays out", () => {
+  test("trading DOWN hands the balance back", () => {
     // Without the floor you could stand at a counter buying the cheapest thing on the shelf over
     // and over, cashing out most of the last purchase each time, and the wallet only goes up.
-    expect(shopNetPrice(shopBuyPrice(cheap, 10), shopTradeInValue(dear, 10))).toBe(0);
-    expect(shopNetPrice(1, 999)).toBe(0);
+    expect(shopNetPrice(shopBuyPrice(cheap, 10), shopTradeInValue(dear, 10))).toBe(-91);
+    expect(shopNetPrice(1, 999)).toBe(-998);
   });
 });
 
@@ -7282,5 +7284,116 @@ describe("a shopkeeper puts three things out, not his whole warehouse", () => {
     const rolled = rollShopStock(lib, "T1", "seed");
     const shown = shopPriceOrder(rolled, 5).map((a) => shopBuyPrice(a, 5));
     expect(shown).toEqual([...shown].sort((a, b) => a - b));
+  });
+});
+
+describe("you get the change, and the counter still cannot be farmed", () => {
+  const cheap = { type: "weapon", name: "Soap", value: 4 };
+  const dear = { type: "weapon", name: "Rifle", value: 100 };
+
+  test("trading DOWN hands the balance back", () => {
+    // Refusing to give change is quietly confiscating it — you handed over the rifle.
+    expect(shopNetPrice(shopBuyPrice(cheap, 10), shopTradeInValue(dear, 10))).toBe(-91); // 4 -> 95
+    expect(shopNetPrice(1, 999)).toBe(-998);
+  });
+
+  test("trading up still costs the gap", () => {
+    expect(shopNetPrice(shopBuyPrice(dear, 5), shopTradeInValue(cheap, 5))).toBe(112);
+  });
+
+  test("BUYING ANYTHING BACK COSTS MORE THAN SELLING IT JUST PAID, at every Intelligence", () => {
+    // This is the property that makes the change safe, and it holds by construction: the buy
+    // multiplier never drops below 1.05 and the trade multiplier never rises above 0.95. If either
+    // constant is moved so they cross, a round trip turns a profit and this test is the alarm.
+    for (let i = 0; i <= 10; i++) {
+      expect(shopTradeMultiplier(i)).toBeLessThan(shopBuyMultiplier(i));
+      for (const v of [1, 4, 17, 60, 100, 999]) {
+        const item = { value: v };
+        expect(shopTradeInValue(item, i)).toBeLessThanOrEqual(shopBuyPrice(item, i));
+      }
+    }
+    expect(SHOP_TRADE_FRAC_AT_10).toBeLessThan(1 + SHOP_BUY_MARKUP_AT_10);
+  });
+
+  test("a full sell-and-rebuy cycle always ends down", () => {
+    // Hold the rifle, buy the soap (paid back), then buy the rifle again: strictly a loss.
+    for (let i = 0; i <= 10; i++) {
+      const out = shopNetPrice(shopBuyPrice(cheap, i), shopTradeInValue(dear, i));   // negative = you gain
+      const back = shopNetPrice(shopBuyPrice(dear, i), shopTradeInValue(cheap, i));  // positive = you pay
+      expect(out + back).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("a hat does not replace your underwear", () => {
+  // Blake's own tagging: box 1 is a TIER every item carries, box 2 is the kind, box 3 is a mood.
+  const hat = { id: "h", type: "equipment", slot: "hat", name: "Cap", categories: ["T1", "Hat", "Strong"] };
+  const undies = { id: "u", type: "equipment", slot: "under_bottom", name: "Shorts", categories: ["T1", "Underwear", ""] };
+  const jacket = { id: "j", type: "equipment", slot: "jacket", name: "Jacket", categories: ["T1", "Coat", ""] };
+  const shirt = { id: "s", type: "equipment", slot: "shirt", name: "Shirt", categories: ["T1", "Coat", ""] };
+  const boots = { id: "b", type: "equipment", slot: "shoes", name: "Boots", categories: ["T1", "Boots", ""] };
+  const lib = [hat, undies, jacket, shirt, boots];
+  const kinds = equipKindTags(lib);
+
+  test("a tag every kind of garment carries is not a kind", () => {
+    // T1 is on five garments across five slots, so it cannot be saying what any of them IS.
+    expect(kinds.has("t1")).toBe(false);
+    expect(kinds.has("hat")).toBe(true);
+    expect(kinds.has("underwear")).toBe(true);
+    expect(kinds.has("coat")).toBe(true);   // a shirt and a jacket is two slots — still a kind
+    expect(kinds.has("strong")).toBe(true); // on one garment only; harmless either way
+  });
+
+  test("THE BUG: a hat displaced the underwear because both were tagged T1", () => {
+    const worn = { under_bottom: undies };
+    expect(equipDisplacedSlot(hat, worn)).toBe("under_bottom");            // what it used to answer
+    expect(equipDisplacedSlot(hat, worn, kinds)).toBe(null);               // and what it answers now
+  });
+
+  test("a hat still replaces a hat", () => {
+    // The slot rule comes first and is untouched — this is the case that must never regress.
+    const worn = { hat, under_bottom: undies };
+    expect(equipDisplacedSlot({ ...hat, id: "h2", name: "Other Cap" }, worn, kinds)).toBe("hat");
+  });
+
+  test("a real kind tag still displaces across slots", () => {
+    // Tag a jacket and a shirt "Coat" and taking one takes the other off. That is the feature and
+    // it is the whole reason the cross-slot rule exists; narrowing must not have deleted it.
+    expect(equipDisplacedSlot(shirt, { jacket }, kinds)).toBe("jacket");
+    expect(equipDisplacedSlot(jacket, { shirt }, kinds)).toBe("shirt");
+  });
+
+  test("boots over a hat and pants take neither", () => {
+    expect(equipDisplacedSlot(boots, { hat, under_bottom: undies }, kinds)).toBe(null);
+  });
+
+  test("omitting the tag set keeps the old answer, so an unconverted caller is not surprised", () => {
+    expect(equipDisplacedSlot(hat, { under_bottom: undies })).toBe("under_bottom");
+  });
+
+  test("A RARITY ON EXACTLY TWO SLOTS IS CAUGHT BY THE SECOND SIGNAL", () => {
+    // "Rare" sits on a shirt and a jacket in Blake own library, so the slot count alone lets it
+    // through and a Rare shirt would take his Rare jacket off. It is also on three of his guns,
+    // and a kind of garment is not a kind of gun.
+    const rareShirt = { id: "rs", type: "equipment", slot: "shirt", name: "Rare Shirt", categories: ["Rare", "", ""] };
+    const rareJacket = { id: "rj", type: "equipment", slot: "jacket", name: "Rare Jacket", categories: ["Rare", "", ""] };
+    const rareGun = { id: "rg", type: "weapon", name: "Rare Gun", categories: ["Rare", "", ""] };
+    expect(equipKindTags([rareShirt, rareJacket]).has("rare")).toBe(true);            // slots alone: not enough
+    expect(equipKindTags([rareShirt, rareJacket, rareGun]).has("rare")).toBe(false);  // ...the gun settles it
+    expect(equipDisplacedSlot(rareShirt, { jacket: rareJacket }, equipKindTags([rareShirt, rareJacket, rareGun]))).toBe(null);
+  });
+
+  test("weapons and consumables never make a tag look like a garment kind", () => {
+    // Only equipment has a slot, so only equipment can say what a tag means about garments — a
+    // library of 44 T1 rifles must not make "t1" a kind by accident.
+    const mixed = lib.concat([
+      { id: "w", type: "weapon", name: "Gun", categories: ["T1", "Gun", ""] },
+      { id: "i", type: "item", name: "Tonic", categories: ["T1", "Heal", ""], effect: { kind: "heal", amount: 5 } },
+    ]);
+    const k2 = equipKindTags(mixed);
+    expect(k2.has("t1")).toBe(false);
+    expect(k2.has("gun")).toBe(false);   // never seen on a garment at all
+    expect(equipKindTags([]).size).toBe(0);
+    expect(equipKindTags(null).size).toBe(0);
   });
 });

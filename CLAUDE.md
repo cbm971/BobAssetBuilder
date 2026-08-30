@@ -563,10 +563,39 @@ anybody hostile.
   the LIVE stat**, so an Int potion really does buy eight seconds of better prices — and the
   opposite is visible too: buying the Army Hat (−1 Int) puts every other price on the shelf up by a
   point, which is the feature, not a bug.
-* **`shopNetPrice` floors at zero and that floor is load-bearing.** Trading a rifle in against a
-  bar of soap must not make the shopkeeper pay you: without it you could stand at a counter buying
-  the cheapest thing over and over, cashing out most of the last purchase each time, and the wallet
-  only ever goes up. The row says "worth more than this — no change given" rather than hiding it.
+* **`shopNetPrice` IS SIGNED — a trade worth more than what you are buying hands the change back.**
+  It shipped floored at zero out of a farming worry and the worry was wrong; refusing change is
+  quietly confiscating the balance, since you handed the rifle over. **A round trip is a loss BY
+  CONSTRUCTION:** buying costs at least 1.05x value and a trade-in pays at most 0.95x, so buying
+  anything back always costs more than selling it just paid, at every Intelligence. There is a test
+  asserting `shopTradeMultiplier(i) < shopBuyMultiplier(i)` across the whole range — **if either
+  constant is ever moved so they cross, that stops being true** and the floor (or a real sell
+  price) has to come back. Only a POSITIVE net can be unaffordable; the button shows `+39` in blue
+  rather than a price when the trade pays you.
+* **A TIER TAG IS NOT A KIND OF GARMENT, and `equipDisplacedSlot` used to think it was.** The
+  cross-slot half of that rule ("you can't wear two Coats") reads free-text categories, and Blake's
+  boxes hold three different sorts of thing: "Shirt" is a kind, "T1" is a tier, "Strong" is a mood.
+  All 33 of his garments carry `t1`, across all seven slots — so a T1 hat "shared a category" with
+  T1 underwear and claimed it, and since `SLOT_ORDER` starts at `under_bottom` the underwear was
+  simply the first occupied slot the search reached. He reported it as "it is saying a hat would
+  replace underwear". `equipKindTags(assets)` now asks the library which tags behave like kinds,
+  and **both** signals are needed — measured on his data, either alone still lets a label through:
+  * **how many slots it spans** (≤ `EQUIP_KIND_TAG_MAX_SLOTS`, 2): kills `t1` (7), `common` (5),
+    `army` (5), `football` (3). Two is also the floor — a tag living in ONE slot can never
+    cross-displace anyway, because the incoming item is then in that slot and the slot rule has
+    already answered.
+  * **whether a rifle also carries it**: kills `rare`, which is on a shirt and a jacket (so it
+    passes the slot test) and on three of his guns. A kind of garment is not a kind of gun.
+  What survives is exactly right: shirt, hat, glasses, shoes, pants, underwear, cape, jacket,
+  socks. The `kindTags` argument is OPTIONAL and omitting it keeps the old library-blind answer, so
+  no existing test or future caller changes behaviour by accident. **This fixes pedestals too** —
+  the same wrong swap was there and nobody had noticed.
+* **The panel is square, slightly brighter and slightly transparent, with NO emoji in it at all**
+  (Blake's call). The transparency is why every colour in the shop CSS is stated as `rgba` rather
+  than inherited: the level shows through, so anything on top has to stay readable over whatever is
+  behind it. Losing the emoji also lost the 💵, so amounts are labelled in words — a "Wallet" chip
+  and bare numbers — rather than being given an invented currency sign. Do not let the app-wide
+  rounded `.dlg`/`.ltbtn` look creep back in.
 * **A blank tag sells NOTHING** — the opposite of a pedestal's blank filter, which searches the
   whole library on purpose. A shopkeeper whose tag you forgot to type offering every item in the
   game is a bug you would only find in Playtest. **And money is never stock**: a note worth 20 sold

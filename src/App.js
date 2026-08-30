@@ -1631,11 +1631,18 @@ export const shopTradeMultiplier = (intelligence) =>
 export const itemValue = (a) => Math.max(0, Math.round((a && a.value) || 0));
 export const shopBuyPrice = (a, intelligence) => Math.max(0, Math.round(itemValue(a) * shopBuyMultiplier(intelligence)));
 export const shopTradeInValue = (a, intelligence) => Math.max(0, Math.round(itemValue(a) * shopTradeMultiplier(intelligence)));
-// WHAT YOU ACTUALLY HAND OVER. Never below zero: trading a rifle in against a bar of soap does
-// not make the shopkeeper pay you, because that is a SALE and nobody asked for one. Without the
-// floor you could stand at a counter buying the cheapest thing on it over and over, each time
-// cashing out most of the last purchase, and the wallet only ever goes up.
-export const shopNetPrice = (buyPrice, tradeIn) => Math.max(0, Math.round(buyPrice) - Math.round(tradeIn));
+// WHAT ACTUALLY CHANGES HANDS. Signed: positive is what you pay, NEGATIVE IS MONEY BACK. Trading
+// a rifle in against a bar of soap really does pay you the difference, because you have handed
+// over the rifle — refusing to give change is just quietly confiscating the balance.
+//
+// This shipped floored at 0 out of a farming worry, and the worry was wrong. A round trip through
+// the counter is always a loss, and it is a loss BY CONSTRUCTION: buying costs at least 1.05x
+// value (SHOP_BUY_MARKUP_AT_10) and a trade-in pays at most 0.95x (SHOP_TRADE_FRAC_AT_10), so
+// buying anything back costs strictly more than selling it just paid. Sell a 100 rifle for 95 and
+// the same rifle is 105 to get again — there is no cycle that ends up ahead, at any Intelligence.
+// If either constant is ever moved so that trade >= buy, that stops being true and the floor
+// (or a proper sell price) has to come back.
+export const shopNetPrice = (buyPrice, tradeIn) => Math.round(buyPrice) - Math.round(tradeIn);
 // WHAT A SHOP HAS ON THE SHELF: everything in the library carrying the shopkeeper's tag, run
 // through the SAME search a 💎 Pedestal and a spawn's gear tag run (itemMatchesPedestal), so the
 // vocabulary Blake has already typed onto 44 items works in a shop with no new tagging at all.
@@ -2137,14 +2144,61 @@ export const wornEquipMap = (baseAsset, pickedUp) => {
 // Has this slot been explicitly emptied (as opposed to never touched)? One reader, so the render,
 // the art cache key and the swap can never disagree about what a null in the map means.
 export const slotWasEmptied = (pickedUp, sl) => !!pickedUp && Object.prototype.hasOwnProperty.call(pickedUp, sl) && !pickedUp[sl];
-export const equipDisplacedSlot = (item, equippedMap) => {
+// WHICH CATEGORIES DESCRIBE A KIND OF GARMENT, and which are just labels stuck on everything.
+//
+// The cross-slot rule below exists so you cannot wear two of the same KIND at once — tag a jacket
+// and a shirt "Coat" and taking one takes the other off. That is a real authoring intent and it
+// stays. But the tags are free text and Blake's three boxes hold three different sorts of thing:
+// "Shirt" is a kind, "T1" is a TIER, "Strong" is a mood. 44 of his items carry T1, across every
+// slot there is — so "shares a category" made a T1 hat displace T1 underwear, which is what he
+// reported ("it is saying a hat would replace underwear"). SLOT_ORDER starts at under_bottom, so
+// the underwear was simply the first occupied slot the search reached.
+//
+// So the library itself is asked which tags behave like kinds, and TWO signals decide it. Both are
+// needed — measured against Blake's own 33 garments, either one alone still lets a label through:
+//
+//   1. HOW MANY SLOTS IT SPANS. A tag cannot be saying what a garment IS if it is on garments in
+//      every slot there is. "t1" spans 7, "common" and "army" 5, "football" 3 — all labels.
+//      "Shirt" spans 2 (an under_top and a shirt) and is a real kind, so the ceiling is 2, which
+//      is also the minimum that keeps the feature working at all: a tag living in ONE slot can
+//      never cross-displace anyway, because the incoming item is then in that slot too and the
+//      slot rule above has already answered.
+//   2. WHETHER A RIFLE ALSO CARRIES IT. A kind of garment is not a kind of gun, so a tag that also
+//      appears on a weapon or a consumable is a tier, a rarity or a theme. This is what catches
+//      "rare" — on a shirt and a jacket, so it passes the slot test, and on three of his guns.
+//
+// What survives on his library is exactly the right list: shirt, hat, glasses, shoes, pants,
+// underwear, cape, jacket, socks. Nothing needs re-tagging.
+export const EQUIP_KIND_TAG_MAX_SLOTS = 2;
+export const equipKindTags = (assets) => {
+  const bySlot = new Map(), onNonGarment = new Set();
+  for (const a of (assets || [])) {
+    if (!a) continue;
+    if (a.type === "equipment" && a.slot) {
+      for (const c of normCats(a.categories)) {
+        let s = bySlot.get(c); if (!s) bySlot.set(c, (s = new Set()));
+        s.add(a.slot);
+      }
+    } else if (HAS_CATEGORIES(a)) {
+      for (const c of normCats(a.categories)) onNonGarment.add(c);
+    }
+  }
+  const out = new Set();
+  for (const [c, slots] of bySlot) if (slots.size <= EQUIP_KIND_TAG_MAX_SLOTS && !onNonGarment.has(c)) out.add(c);
+  return out;
+};
+// `kindTags` is OPTIONAL and omitting it keeps the original, library-blind behaviour — every
+// caller in play passes it, and a test or a future caller that does not gets what it always got
+// rather than a silently different swap.
+export const equipDisplacedSlot = (item, equippedMap, kindTags) => {
   if (!item) return null;
   // Returned as a slot NAME and tested for truthiness by every caller, so a falsy slot id would
   // read as "nothing came off" while the write below still overwrote it. Guarded rather than
   // trusted: every equipment asset in the library has a real slot today, and one that didn't
   // would lose the garment it replaced in exactly the way this whole function now exists to stop.
   if (item.slot && equippedMap && equippedMap[item.slot]) return item.slot;
-  const xCats = normCats(item.categories);
+  let xCats = normCats(item.categories);
+  if (kindTags) xCats = xCats.filter((c) => kindTags.has(c));
   if (!xCats.length) return null;
   return SLOT_ORDER.find((sl) => { const it = equippedMap && equippedMap[sl]; return it && normCats(it.categories).some((c) => xCats.includes(c)); }) || null;
 };
@@ -7491,6 +7545,15 @@ export default function AssetStudio() {
      changes hands and that what you traded in does not land back on a plinth — the shopkeeper
      keeps it. Anything that behaves differently in a shop than it does at a pedestal is a bug. */
   const playNowMs = () => ((typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now());
+  // Which tags mean a KIND of garment (see equipKindTags), cached against the library's own
+  // identity. Every "what comes off" question goes through this — a pedestal prompt asks it inside
+  // the render body, which runs 60x a second in Playtest, and walking 120 assets there would be a
+  // real cost. `allAssets` is a useMemo, so the identity check is the whole invalidation rule.
+  const equipKindsCache = useRef({ src: null, tags: null });
+  const equipKinds = () => {
+    if (equipKindsCache.current.src !== allAssets) equipKindsCache.current = { src: allAssets, tags: equipKindTags(allAssets) };
+    return equipKindsCache.current.tags;
+  };
   // The player as the game currently reads them: the look, plus what they picked up this run.
   const livePlayerAsset = () => { const base = findA(playerId); return mergeEquip(base, equipped.current, equippedBodyIdFor(base)); };
   // THE INTELLIGENCE A PRICE IS QUOTED AGAINST is the live one — the look's own stat, plus worn
@@ -7555,7 +7618,7 @@ export default function AssetStudio() {
       return { off: heldId ? findA(heldId) : null, offSlot: null };
     }
     const worn = wornEquipMap(findA(playerId), equipped.current);
-    const offSlot = equipDisplacedSlot(item, worn);
+    const offSlot = equipDisplacedSlot(item, worn, equipKinds());
     return { off: offSlot ? worn[offSlot] : null, offSlot };
   };
   // The whole price of one row: what it costs, what your old one is worth to him, and the
@@ -7571,11 +7634,13 @@ export default function AssetStudio() {
   const buyFromShop = (item) => {
     if (!item) return;
     const q = shopQuote(item);
-    if (wallet.current < q.net) { flash(MONEY_CHAR + " " + item.name + " costs " + q.net + " and you have " + wallet.current + "."); return; }
-    setWallet(wallet.current - q.net);
+    // Only a POSITIVE net can be unaffordable. A trade that pays you back is never blocked by an
+    // empty wallet, which is the whole point of getting change.
+    if (q.net > 0 && wallet.current < q.net) { flash(MONEY_CHAR + " " + item.name + " costs " + q.net + " and you have " + wallet.current + "."); return; }
+    setWallet(wallet.current - q.net); // net < 0 pays INTO the wallet — see shopNetPrice
     // Said once, here, and appended to whatever the acquisition itself reports — so a swap says
     // both what you are now holding and what it cost, rather than one line hiding the other.
-    const paid = " · " + (q.net > 0 ? "paid " + MONEY_CHAR + " " + q.net : "no charge")
+    const paid = " · " + (q.net > 0 ? "paid " + MONEY_CHAR + " " + q.net : q.net < 0 ? "got " + MONEY_CHAR + " " + (-q.net) + " back" : "no charge")
       + (q.off ? " (traded " + q.off.name + " for " + MONEY_CHAR + " " + q.tradeIn + ")" : "")
       + " · " + MONEY_CHAR + " " + wallet.current + " left";
     if (item.type === "item") { consumeItemNow(item, paid); return; }
@@ -9816,7 +9881,7 @@ export default function AssetStudio() {
             // used to displace "nothing", so nothing went back on the plinth — and the render
             // stopped drawing the old jacket regardless. That is the item that disappeared.
             const worn = wornEquipMap(basePlayerAsset, equipped.current);
-            const slot = item.slot, offSlot = equipDisplacedSlot(item, worn), prev = offSlot ? worn[offSlot] : null;
+            const slot = item.slot, offSlot = equipDisplacedSlot(item, worn, equipKinds()), prev = offSlot ? worn[offSlot] : null;
             const before = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
             // NULL, not delete. Deleting only says "no pickup here", which the render reads as
             // "wear the look's own one" — so a displaced garment came straight back on while its
@@ -13899,7 +13964,7 @@ export default function AssetStudio() {
       }
       // Same worn map the take itself uses, or the callout promises an "equip" and delivers a swap.
       const wornNow = wornEquipMap(basePlayerAsset, equipped.current);
-      const offSlot = equipDisplacedSlot(it, wornNow);
+      const offSlot = equipDisplacedSlot(it, wornNow, equipKinds());
       const before = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
       const nextMap = { ...equipped.current }; if (offSlot) nextMap[offSlot] = null; nextMap[it.slot] = it;
       const delta = equipEffectSummary(before, mergeEquip(basePlayerAsset, nextMap, equippedBodyIdFor(basePlayerAsset)));
@@ -15484,8 +15549,12 @@ export default function AssetStudio() {
           return (
             <div className="modal" onClick={closeShop}>
               <div className="dlg shopDlg" onClick={(e) => e.stopPropagation()}>
-                <div className="dt">🛒 {(shop.name || "Shop").trim()}</div>
-                <div className="shopHead"><span className="shopWallet">{MONEY_CHAR} {walletUI}</span></div>
+                {/* NO EMOJI ANYWHERE IN HERE — Blake's call, and it is why the money symbol is
+                    gone too: with nothing to hang a 💵 on, the amounts are labelled in words
+                    instead of being given an invented currency sign. Prices are bare numbers and
+                    the "Wallet" chip is what anchors them as money. */}
+                <div className="dt">{(shop.name || "Shop").trim()}</div>
+                <div className="shopHead"><span className="shopWallet">Wallet {walletUI}</span></div>
                 {!stock.length && <p className="mini">He has nothing to sell — nothing in your library is tagged <b>{shop.tag}</b>.</p>}
                 {stock.map((it) => {
                   const q = shopQuote(it);
@@ -15494,14 +15563,16 @@ export default function AssetStudio() {
                   let plane = null;
                   if (bb) { const sc = Math.min(box / bb.w, box / bb.h) * 0.86; plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${box / 2 - sc * (bb.x + bb.w / 2)}px,${box / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})` }; }
                   const what = it.type === "item" ? itemEffectSummary(it.effect)
-                    : it.type === "weapon" ? ((isThrowable(it.wtype) ? "💣 throwable ×3" : isRanged(it.wtype) ? "🏹 ranged" : "🗡️ melee") + " · " + (it.damage ?? 5) + " dmg")
-                    : "🎒 " + ((SLOTS[it.slot] && SLOTS[it.slot].label) || "worn") + (it.defense ? " · 🛡️ " + it.defense : "");
-                  const broke = wallet.current < q.net;
+                    : it.type === "weapon" ? ((isThrowable(it.wtype) ? "Throwable ×3" : isRanged(it.wtype) ? "Ranged" : "Melee") + " · " + (it.damage ?? 5) + " dmg")
+                    : ((SLOTS[it.slot] && SLOTS[it.slot].label) || "Worn") + (it.defense ? " · Defense " + it.defense : "");
+                  // Only a price you PAY can be out of reach; one that pays you back never is.
+                  const broke = q.net > 0 && wallet.current < q.net;
+                  const gain = q.net < 0;
                   return (
                     <div key={it.id} className={"shopRow" + (broke ? " broke" : "")}>
                       <div className="shopArt" style={{ width: box, height: box }}>
                         {bb ? <div style={plane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "shop_" + it.id, keyPrefix: "shop" + it.id + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}</div>
-                            : <span className="shopArtIcon">{it.type === "weapon" ? "⚔️" : it.type === "equipment" ? "🎒" : "🧪"}</span>}
+                            : <span className="shopArtIcon">{(it.name || "?").trim().charAt(0).toUpperCase()}</span>}
                       </div>
                       <div className="shopMeta">
                         <div className="shopName">{it.name}</div>
@@ -15510,11 +15581,13 @@ export default function AssetStudio() {
                             walks out of the door to pay for it. Only shown when something actually
                             goes — a straight purchase says nothing, because there is nothing to
                             warn about. The arithmetic behind the number is in the button. */}
-                        {q.off && <div className="shopSwap">↔ Replaces your {q.off.name}</div>}
+                        {q.off && <div className="shopSwap">Replaces your {q.off.name}</div>}
                       </div>
-                      <button className="shopBuy" disabled={broke} onClick={() => buyFromShop(it)}
-                        title={broke ? "You cannot afford this" : (q.off ? "Trade in your " + q.off.name + " and pay the difference" : "Buy it")}>
-                        {q.net > 0 ? MONEY_CHAR + " " + q.net : "Free"}
+                      {/* A trade worth more than the thing you are buying hands the balance back,
+                          so the button has three faces: a price, "Free", and a plus. */}
+                      <button className={"shopBuy" + (gain ? " gain" : "")} disabled={broke} onClick={() => buyFromShop(it)}
+                        title={broke ? "You cannot afford this" : q.off ? ("Trade in your " + q.off.name + (gain ? " and take the difference" : " and pay the difference")) : "Buy it"}>
+                        {q.net > 0 ? String(q.net) : gain ? "+" + (-q.net) : "Free"}
                         <span className="shopBuyVerb">{it.type === "item" ? "buy & use" : q.off ? "trade" : "buy"}</span>
                       </button>
                     </div>
@@ -16685,22 +16758,32 @@ const css = `
    does, the sum and a button; at 520px the sum wrapped under the name and the arithmetic stopped
    reading as arithmetic. The rows scroll inside .dlg's own max-height, so a 44-item T1 shelf is
    one scroll rather than a panel taller than the window. */
-.shopDlg{width:min(680px,96vw)}
-.shopHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 12px;padding-bottom:10px;border-bottom:1px solid #2c3245}
-.shopWallet{background:#1d2b1f;border:1px solid #3a6b42;border-radius:20px;padding:5px 12px;font-size:14px;font-weight:800;color:#8fe59a}
+/* SQUARE, BRIGHTER AND SLIGHTLY SEE-THROUGH — Blake's call, and the transparency is the reason
+   every colour in here is stated as rgba rather than inherited: the panel lets a little of the
+   level show through, so anything painted on top of it has to be opaque enough to stay readable
+   over whatever happens to be behind it. Radius 0 throughout; do not let the app-wide rounded
+   .dlg/.ltbtn look creep back in. */
+.shopDlg{width:min(680px,96vw);border-radius:0;background:rgba(42,49,68,.93);border:1px solid rgba(122,136,170,.55)}
+.shopDlg .dt{letter-spacing:.01em}
+.shopHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 12px;padding-bottom:10px;border-bottom:1px solid rgba(122,136,170,.35)}
+.shopWallet{background:rgba(46,74,52,.92);border:1px solid rgba(122,196,138,.7);border-radius:0;padding:5px 12px;font-size:14px;font-weight:800;color:#c3f5cc}
 .badge.money{background:#1d2b1f;border-color:#3a6b42;color:#8fe59a;font-weight:700}
-.shopRow{display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid #232838}
-.shopRow.broke{opacity:.55}
-.shopArt{position:relative;overflow:hidden;flex:0 0 auto;background:#0d1119;border:1px solid #2c3245;border-radius:9px;display:flex;align-items:center;justify-content:center}
-.shopArtIcon{font-size:20px}
+.shopRow{display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid rgba(122,136,170,.25)}
+.shopRow.broke{opacity:.5}
+.shopArt{position:relative;overflow:hidden;flex:0 0 auto;background:rgba(22,27,40,.85);border:1px solid rgba(122,136,170,.45);border-radius:0;display:flex;align-items:center;justify-content:center}
+.shopArtIcon{font-size:18px;font-weight:800;color:#9aa6c0}
 .shopMeta{flex:1 1 auto;min-width:0}
-.shopName{font-size:14px;font-weight:600;color:#e8ecf5}
-.shopSwap{margin-top:3px;font-size:12px;color:#e8c37f}
-.shopBuy{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:96px;background:#1f3a24;border:1px solid #3a6b42;border-radius:10px;padding:7px 12px;color:#cdf5d4;font-size:14px;font-weight:800;cursor:pointer}
-.shopBuy:hover:not(:disabled){background:#2a4d31;border-color:#59a366}
-.shopBuy:disabled{background:#241a1a;border-color:#5b3535;color:#c58f8f;cursor:not-allowed}
-.shopBuyVerb{font-size:10px;font-weight:600;opacity:.75;text-transform:uppercase;letter-spacing:.04em}
-.shopFoot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid #2c3245}
+.shopName{font-size:14px;font-weight:600;color:#f2f5fb}
+.shopSwap{margin-top:3px;font-size:12px;color:#f0cd8d}
+.shopBuy{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:96px;background:rgba(46,74,52,.92);border:1px solid rgba(122,196,138,.7);border-radius:0;padding:7px 12px;color:#d8f7de;font-size:15px;font-weight:800;cursor:pointer}
+.shopBuy:hover:not(:disabled){background:rgba(62,102,71,.95);border-color:#8fdda0}
+.shopBuy:disabled{background:rgba(64,42,42,.9);border-color:rgba(180,120,120,.6);color:#dcaaaa;cursor:not-allowed}
+/* A trade that pays you back reads as the opposite of a cost, so it is not the same green. */
+.shopBuy.gain{background:rgba(44,66,96,.92);border-color:rgba(130,180,240,.75);color:#d5e8ff}
+.shopBuy.gain:hover:not(:disabled){background:rgba(58,88,128,.95);border-color:#9cc8f5}
+.shopBuyVerb{font-size:10px;font-weight:600;opacity:.8;text-transform:uppercase;letter-spacing:.04em}
+.shopFoot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid rgba(122,136,170,.35)}
+.shopFoot .ltbtn{border-radius:0}
 .emcount{font-weight:400;font-size:12px;color:#7b8398;margin-left:6px}
 .emgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:6px;max-height:55vh;overflow:auto}
 .emgrid-recent{max-height:none;overflow:visible;margin-bottom:10px}
