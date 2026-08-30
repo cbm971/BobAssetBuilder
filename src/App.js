@@ -17033,9 +17033,23 @@ const css = `
 .pedestalEmpty{font-size:10px;color:#ff9b9b;background:rgba(0,0,0,.6);border:1px solid #5a2e36;border-radius:5px;padding:1px 5px}
 .pedestalGem{position:absolute;left:50%;bottom:0;transform:translateX(-50%);font-size:${LV_CELL*0.75}px;line-height:1}
 .pedestalCap{position:absolute;left:50%;top:-4px;transform:translate(-50%,-100%);white-space:nowrap;background:rgba(0,0,0,.72);border:1px solid #c8a23c;border-radius:6px;padding:0 5px;font-size:10px;color:#f3d98a}
-.pedcallout{position:absolute;left:50%;top:-24px;transform:translate(-50%,-100%);white-space:nowrap;background:#241b0d;border:1px solid #c8a23c;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:600;color:#f3d98a;box-shadow:0 1px 4px rgba(0,0,0,.55)}
-.enemyDropPlay{position:absolute;z-index:7000;pointer-events:none;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 0 5px rgba(243,217,138,.7));animation:lootBob .9s ease-in-out infinite alternate}
-.enemyDropOrb{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%,#fff5bf,#c8a23c 55%,#6a4b12);border:1px solid #f3d98a;font-size:15px}
+/* THE TAKE PROMPT IS BARE WORDS — no box, no border, no plate behind it (Blake's call). It is the
+   one label in the level that has to be legible over literally anything, because it hangs wherever
+   the item happens to be standing: a dark trailer wall, a pale sky, a lit fire. A panel would have
+   to be opaque enough for the worst of those and would then be a slab sitting in the middle of the
+   room. So the contrast is carried by the TEXT: white, and outlined in black on all four sides,
+   with two soft black glows under that to lift it off a busy texture. The four hard shadows are
+   the outline and the two soft ones are the halo — dropping either half is what makes white text
+   on a light wall disappear. */
+.pedcallout{position:absolute;left:50%;top:-24px;transform:translate(-50%,-100%);white-space:nowrap;font-size:11.5px;font-weight:700;letter-spacing:.01em;color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85)}
+/* The gold loot glow lives on the ORB, not on the whole card. A CSS filter applies to the entire
+   subtree, so on the wrapper it also rimmed the caption and — once the take prompt lost its box —
+   put a gold halo around white letters that are supposed to be outlined in black. On the orb it
+   still marks the loot, and on a drop with real art (.art, no gradient or border) it now follows
+   the drawn silhouette instead of a square, which is what the glow was always for.
+   (No backticks in here: this sheet is a JS template literal and one would end the string.) */
+.enemyDropPlay{position:absolute;z-index:7000;pointer-events:none;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;animation:lootBob .9s ease-in-out infinite alternate}
+.enemyDropOrb{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%,#fff5bf,#c8a23c 55%,#6a4b12);border:1px solid #f3d98a;font-size:15px;filter:drop-shadow(0 0 5px rgba(243,217,138,.7))}
 /* A drop that has real drawn art shows the art itself, not the gold emoji bead — so the gradient,
    the border and the round clip all come off, and the box becomes the positioning context for the
    scaled art plane. The lootBob animation and gold caption still mark it as loot. */

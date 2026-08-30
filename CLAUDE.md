@@ -590,6 +590,17 @@ anybody hostile.
   socks. The `kindTags` argument is OPTIONAL and omitting it keeps the old library-blind answer, so
   no existing test or future caller changes behaviour by accident. **This fixes pedestals too** —
   the same wrong swap was there and nobody had noticed.
+* **THE TAKE PROMPT (`.pedcallout`) IS BARE WORDS — no box, no plate, no border.** It is the one
+  label in the level with no fixed backdrop: it hangs wherever the item is standing, which might
+  be a dark trailer wall, a pale sky or a lit fire. A panel would have to be opaque enough for the
+  worst of those and would then be a slab in the middle of the room, so the contrast is carried by
+  the TEXT — white, outlined in black on all four sides, with two soft black glows under that.
+  Both halves are load-bearing: drop the outline and it dies on a light wall, drop the glow and it
+  dies on a busy texture. The item's NAME caption keeps its box; only the details line lost one.
+  * The gold loot glow moved from `.enemyDropPlay` to `.enemyDropOrb` at the same time. A CSS
+    filter applies to the whole subtree, so on the wrapper it put a gold halo around the white
+    letters that are supposed to be outlined in black. On the orb it still marks the loot, and on
+    a drop with real art it now follows the drawn silhouette rather than a square.
 * **The panel is square, slightly brighter and slightly transparent, with NO emoji in it at all**
   (Blake's call). The transparency is why every colour in the shop CSS is stated as `rgba` rather
   than inherited: the level shows through, so anything on top has to stay readable over whatever is
