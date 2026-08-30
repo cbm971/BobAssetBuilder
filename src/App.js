@@ -6098,6 +6098,40 @@ export const pieceOriginCss = (p) => { const o = pieceOriginFrac(p); return (o[0
 // ...and as an absolute canvas point, which is what the SVG rotate()/mirror ops in cutterMaskCss take.
 export const pieceOriginPoint = (p) => { const o = pieceOriginFrac(p); return { x: p.x + o[0] * p.w, y: p.y + o[1] * p.h }; };
 export const pieceBox = (p) => ({ x: p.x, y: p.y, w: p.w, h: p.h, rot: p.rot || 0, o: pieceOriginFrac(p) });
+// Flagging a block must never MOVE it. Three flags quietly change which point the renderer turns
+// a piece about — 💪 Arm and 🫱 Shoulder side swap the piece's centre for an edge of its box, and
+// so does making a piece the weaponArm (all of them land in pieceOriginFrac above). The same box
+// turned by the same angle about a DIFFERENT point lands somewhere else entirely, so tagging a
+// hand-drawn arm — which is exactly the art that is built out of turned blocks — threw every
+// rotated block in the selection off its neighbours the instant the flag went on. With a group
+// held that is the whole arm at once: "assigning a group to arm unaligns everything". Nothing
+// about the drawing was asked to change; only the flag was.
+//
+// The correction is pure geometry. Moving the transform-origin from O1 to O2, with the same box
+// and the same rotation, shifts what you see by (I - R)(O1 - O2) — so shifting the box back by
+// exactly that leaves the picture where it was. R is the identity at rot 0, which is why flat art
+// never moved and the bug only ever showed on turned blocks.
+//
+// A MIRRORED block's twin (reflect(), rendered through an extra scaleX(-1)) needs the mirror image
+// of this shift, and that is what it gets for free: the twin's x is W-(x+w), so shifting the
+// original by +tx shifts the twin by -tx. That is exactly right whenever the origin's HORIZONTAL
+// fraction is unchanged — true of 💪 Arm itself and of the top/bottom shoulder sides. Only the
+// left/right shoulder sides move the origin sideways, and there the twin keeps the small residual.
+export const repivotForFlags = (p, patch) => {
+  const q = { ...p, ...patch };
+  // Only a PIVOT change is being compensated here. A patch that moves or resizes the box is a real
+  // geometry edit and has to land exactly as asked.
+  if (q.x !== p.x || q.y !== p.y || q.w !== p.w || q.h !== p.h) return q;
+  const o1 = pieceOriginFrac(p), o2 = pieceOriginFrac(q);
+  if (o1[0] === o2[0] && o1[1] === o2[1]) return q;
+  const rot = p.rot || 0;
+  if (!rot) return q;
+  const dx = (o1[0] - o2[0]) * p.w, dy = (o1[1] - o2[1]) * p.h;
+  const r = rot * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
+  const tx = dx - (dx * cs - dy * sn), ty = dy - (dx * sn + dy * cs);
+  const r3 = (n) => Math.round(n * 1000) / 1000;   // same 3-decimal precision group scaling produces
+  return { ...q, x: r3(p.x + tx), y: r3(p.y + ty) };
+};
 // A point given as a fraction of the block's own box (0,0 = top-left corner, 1,1 = bottom-right),
 // converted to canvas coordinates through the block's rotation. Linear in box.x/box.y, which is
 // what lets applyEdgeSnap solve for a position by measuring the same point at the origin.
@@ -10614,7 +10648,7 @@ export default function AssetStudio() {
     await loadStamps();
     flash(deleteNote("🗑 Stored group deleted", forgot));
   };
-  const updSel = (patch) => setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig({ ...a, angles: { ...a.angles, [angle]: (a.angles[angle] || []).map((p) => (p.id === selId ? { ...p, ...patch } : p)) } }); });
+  const updSel = (patch) => setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig({ ...a, angles: { ...a.angles, [angle]: (a.angles[angle] || []).map((p) => (p.id === selId ? repivotForFlags(p, patch) : p)) } }); });
   // Which pieces a whole-selection edit touches: every member of a live group, else just the
   // selected piece. Shared by the layering buttons (toFront/toBack) and by updSelAll below.
   const selOrGroupIds = () => (groupSel ? new Set(groupIds) : new Set([selId]));
@@ -10631,7 +10665,7 @@ export default function AssetStudio() {
   const updSelAll = (patch, only) => setAsset((a) => {
     if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default");
     const ids = selOrGroupIds();
-    return withRig({ ...a, angles: { ...a.angles, [angle]: (a.angles[angle] || []).map((p) => (ids.has(p.id) && (!only || only(p)) ? { ...p, ...patch } : p)) } });
+    return withRig({ ...a, angles: { ...a.angles, [angle]: (a.angles[angle] || []).map((p) => (ids.has(p.id) && (!only || only(p)) ? repivotForFlags(p, patch) : p)) } });
   });
   // Which blocks the colour controls are about to repaint. A continuation of the edit already in
   // progress reuses the group it froze; anything else resolves a fresh one from the live asset.
@@ -16143,6 +16177,69 @@ export default function AssetStudio() {
       </div>
       )}
 
+      {/* 🔗 The group bar — every group-based control, lifted out of the "Add a block" card and
+          into the strip under the pose tabs. The right-hand panel had grown to Item categories,
+          Value, Add a block, the palette, BOTH shelves and the layer list, so the group controls
+          sat off the bottom of the screen and needed a scroll to reach, while this strip sat
+          empty. Nothing about them changed — same buttons, same order, same handlers, only where
+          they live. Its own bar rather than more chips inside .angles: the pose tabs are hidden
+          for props and for the effect editor, and groups are still drawn in both. */}
+      <div className="groupbar">
+        <span className="gblab">🔗 Groups</span>
+        {/* Turning add-mode ON keeps any group that's already held, so a stamp you just placed
+            can be extended. Turning it OFF now KEEPS it too — the mode and the selection are
+            separate things everywhere else in here (a placed stamp is a live group with the
+            mode off, and a group drags as one whether the mode is on or not), and this button
+            was the only place that conflated them. It stopped being harmless the moment
+            ▣ Select all started switching the mode on: "Done" is the natural last tap after
+            curating a selection, and it would have thrown the whole thing away. Clearing did
+            not go anywhere — ✕ Clear, right next to it, now ends the mode as well, so
+            "drop everything and get out" is still one tap. */}
+        <button className={"ltbtn" + (multiSelect ? " on" : "")} onClick={() => setMultiSelect((v) => !v)} >🔲 {multiSelect ? "Done" : "Group select"}</button>
+        {/* Select all — one tap to hold every block in this pose, so a multi-part item (a rocket
+            launcher drawn from a dozen blocks) can be dragged, rotated or resized as one object
+            without hunting each block first. Sits next to the mode toggle rather than inside the
+            group tip so it's reachable from a cold start. This POSE's blocks only: a group is a
+            list of piece ids inside one pose, so it can never span them.
+
+            It also switches Group select ON, and that is the half that makes a selection
+            REFINABLE rather than all-or-nothing. Tapping a member back out only fires in
+            add-mode (see the pointerup handler), so "select all" used to be a one-way door:
+            the only way to hold "everything except the shadow" was ✕ Clear and then picking
+            the other fifteen blocks by hand. Turning the mode on here can't sweep anything in
+            behind your back either — in add-mode a tap only ADDS a block that isn't already
+            held, and immediately after Select all there is no such block. */}
+        {pieces.length > 0 && <button className="ltbtn" onClick={() => { setGroupIds(pieces.map((pc) => pc.id)); setSelId(pieces[pieces.length - 1].id); setMultiSelect(true); }}>▣ Select all ({pieces.length})</button>}
+        {/* A group can be live WITHOUT add-mode (that's what placing a stamp leaves you with),
+            so the count and the group buttons key off the group itself. Only the "click blocks
+            to add/remove" line is about the mode. */}
+        {(multiSelect || groupIds.length > 0) && <p className="tip">{multiSelect ? "🔲 Multi-select" : "🔗 Group held"} ({groupIds.length} selected).{multiSelect && <span className="gbhint">Tap a held block — on the canvas or in the layer list — to drop it back out; tap it again to put it back in.</span>}{groupIds.length > 0 && <> <button className="ltbtn" onClick={() => { setGroupIds([]); setMultiSelect(false); }}>✕ Clear</button></>}{groupIds.length > 1 && <> <button className="ltbtn" onClick={saveGroup}>💾 Save group</button></>}{hasStore && groupIds.length > 0 && <> <input className="gname" value={stampName} placeholder="stamp name" onChange={(e) => setStampName(e.target.value)} /> <button className="ltbtn" onClick={storeGroup}>📦 Store group</button></>}</p>}
+        {stamps.length > 0 && <div className="stampShelf"><span>📦 Stored</span><select aria-label="Stored group" value={stampPick} onChange={(e) => { setStampPick(e.target.value); setConfirmStampDel(null); }}><option value="">Choose a group…</option>{stamps.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.pieces.length})</option>)}</select><button className="ltbtn" disabled={!pickedStamp} onClick={() => pickedStamp && placeStamp(pickedStamp)}>Place</button><button className={"ltbtn" + (pickedStamp && confirmStampDel === pickedStamp.id ? " on" : "")} disabled={!pickedStamp} onClick={() => { if (!pickedStamp) return; if (confirmStampDel === pickedStamp.id) { setConfirmStampDel(null); deleteStamp(pickedStamp.id); } else { setConfirmStampDel(pickedStamp.id); flash("Tap Sure? to permanently delete stored group \"" + pickedStamp.name + "\""); } }} title={pickedStamp && confirmStampDel === pickedStamp.id ? "Tap again to permanently delete" : "Delete the selected stored group"}>{pickedStamp && confirmStampDel === pickedStamp.id ? "Sure?" : "✕"}</button></div>}
+        {/* 🌿 Object art — the stored-group shelf's twin, reading the props library. Same act
+            (drop a copy of blocks drawn elsewhere into this pose), different source — and the
+            source is the whole point: a prop carries a sub-category, so a growing collection of
+            reusable visual elements stays findable in folders instead of one flat list of names.
+            Sits under 📦 Stored rather than in the Load browser because this is not opening
+            another asset: nothing about the prop changes, and nothing about it is loaded. */}
+        {propGroupsAll.length > 0 && <div className="stampShelf propShelf">
+          <span>🌿 Object art</span>
+          <select aria-label="Object sub-category" value={propStampCat} onChange={(e) => setPropStampCat(e.target.value)}>
+            <option value="">📂 All ({propGroupsAll.reduce((n, g) => n + g.props.length, 0)})</option>
+            {propGroupsAll.map((g) => <option key={g.key} value={g.key}>{g.key === propCatKey(PROP_UNCAT) ? "📦" : "📂"} {g.label} ({g.props.length})</option>)}
+          </select>
+          <select aria-label="Object to place" value={pickedPropStamp ? pickedPropStamp.id : ""} onChange={(e) => { setPropStampPick(e.target.value); setPropStampFrame(0); }}>
+            <option value="">Choose an object…</option>
+            {propShelfList.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          {/* Only an ANIMATED prop offers a frame, and it has to: frame 1 of a flickering sign is
+              half the art, and the whole reason to reach for one here is to lift a single still. */}
+          {pickedPropFrames > 1 && <select aria-label="Animation frame" value={Math.min(propStampFrame, pickedPropFrames - 1)} onChange={(e) => setPropStampFrame(+e.target.value)}>{pickedPropStamp.frames.map((f, i) => <option key={i} value={i}>Frame {i + 1}</option>)}</select>}
+          <button className="ltbtn" disabled={!pickedPropStamp} title="Copy this object's blocks into the pose you're drawing. The object itself is not changed." onClick={() => pickedPropStamp && placeProp(pickedPropStamp, propStampFrame)}>Place</button>
+          {pickedPropStamp && (() => { const n = propArtBlockCount(propArtPieces(pickedPropStamp, propStampFrame)); return <p className="mini">{n ? "Drops " + n + " block" + (n === 1 ? "" : "s") + " at the size they were drawn, held as one group — ↙ Whole group size shrinks the lot." : "That frame has no art in it."}</p>; })()}
+        </div>}
+        {savedGroups.length > 0 && <p className="tip">📁 Saved: {savedGroups.map((g) => <span key={g.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => loadGroup(g)}>{g.name} ({g.ids.length})</button><button className="ltbtn" onClick={() => deleteGroup(g.id)}>✕</button></span>)}</p>}
+      </div>
+
       <div className="main">
         <div className="stage">
           {asset.type === "body" && (() => {
@@ -16597,7 +16694,7 @@ export default function AssetStudio() {
                 </div>
               </>)}
               {asset.type === "enemy" && sel.limb === "arm" && sel.role !== "weaponArm" && (
-                <button className="wide" onClick={() => setPieces((arr) => arr.map((p) => p.id === sel.id ? { ...p, role: "weaponArm" } : (p.role === "weaponArm" ? { ...p, role: undefined } : p)))}>🫱 Make this the shoulder piece</button>
+                <button className="wide" onClick={() => setPieces((arr) => arr.map((p) => p.id === sel.id ? repivotForFlags(p, { role: "weaponArm" }) : (p.role === "weaponArm" ? repivotForFlags(p, { role: undefined }) : p)))}>🫱 Make this the shoulder piece</button>
               )}
               {/* No animation flag on a WEAPON. The whole weapon is gripped by the hand and rides
                   the arm's swing on its own, and attachWeaponBlocks strips limb/role on the way
@@ -16645,63 +16742,12 @@ export default function AssetStudio() {
             <div className="newcolor"><span>New block color</span></div>
             <div className="swatches newswatches">{palettePicker(palKey, setPalKey)}{pal.map((c) => <button key={"n" + c} className={newColor === c ? "on" : ""} style={{ background: c }} onClick={() => setNewColor(c)} />)}{swBreak}{recent.filter((c) => !pal.includes(c)).slice(0, 5).map((c) => <button key={"nr" + c} className={"rc" + (newColor === c ? " on" : "")} style={{ background: c }} onClick={() => setNewColor(c)} title="recent" />)}<label className="pick"><input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
             <button className={"ltbtn" + (eyedrop ? " on" : "")} onClick={() => setEyedrop((v) => !v)} >🎨 {eyedrop ? "Click a block…" : "Eyedropper"}</button>
-            {/* Turning add-mode ON keeps any group that's already held, so a stamp you just placed
-                can be extended. Turning it OFF now KEEPS it too — the mode and the selection are
-                separate things everywhere else in here (a placed stamp is a live group with the
-                mode off, and a group drags as one whether the mode is on or not), and this button
-                was the only place that conflated them. It stopped being harmless the moment
-                ▣ Select all started switching the mode on: "Done" is the natural last tap after
-                curating a selection, and it would have thrown the whole thing away. Clearing did
-                not go anywhere — ✕ Clear, right next to it, now ends the mode as well, so
-                "drop everything and get out" is still one tap. */}
-            <button className={"ltbtn" + (multiSelect ? " on" : "")} onClick={() => setMultiSelect((v) => !v)} >🔲 {multiSelect ? "Done" : "Group select"}</button>
-            {/* Select all — one tap to hold every block in this pose, so a multi-part item (a rocket
-                launcher drawn from a dozen blocks) can be dragged, rotated or resized as one object
-                without hunting each block first. Sits next to the mode toggle rather than inside the
-                group tip so it's reachable from a cold start. This POSE's blocks only: a group is a
-                list of piece ids inside one pose, so it can never span them.
-
-                It also switches Group select ON, and that is the half that makes a selection
-                REFINABLE rather than all-or-nothing. Tapping a member back out only fires in
-                add-mode (see the pointerup handler), so "select all" used to be a one-way door:
-                the only way to hold "everything except the shadow" was ✕ Clear and then picking
-                the other fifteen blocks by hand. Turning the mode on here can't sweep anything in
-                behind your back either — in add-mode a tap only ADDS a block that isn't already
-                held, and immediately after Select all there is no such block. */}
-            {pieces.length > 0 && <button className="ltbtn" onClick={() => { setGroupIds(pieces.map((pc) => pc.id)); setSelId(pieces[pieces.length - 1].id); setMultiSelect(true); }}>▣ Select all ({pieces.length})</button>}
-            {/* Snap lives here, next to Group select, because it's a way of PLACING blocks — a mode
-                that applies to whatever you drag next — rather than a property of the selected one.
+            {/* Snap is a way of PLACING blocks — a mode that applies to whatever you drag next —
+                rather than a property of the selected one, so it stays here on the ADD side even
+                though 🔲 Group select, which it used to sit beside, has moved up to the group bar.
                 Ticked state is remembered across reloads (see the snapEdges pref). */}
             <label className="chk"><input type="checkbox" checked={snapOn} onChange={(e) => setSnapOn(e.target.checked)} /> 🧲 Snap to edges</label>
             {snapOn && <p className="mini">Aim a block roughly right (within {SNAP_ANGLE}°) and drag it up against a <b>similar-length</b> edge on another block: it jumps flush and takes that edge's exact angle and length. The edge it caught turns green. Sloped and hand-drawn shapes snap by their real outline, not their box. A held group only slides into place — it never turns or resizes.</p>}
-            {/* A group can be live WITHOUT add-mode (that's what placing a stamp leaves you with),
-                so the count and the group buttons key off the group itself. Only the "click blocks
-                to add/remove" line is about the mode. */}
-            {(multiSelect || groupIds.length > 0) && <p className="tip">{multiSelect ? "🔲 Multi-select" : "🔗 Group held"} ({groupIds.length} selected).{multiSelect && <> Tap a held block — on the canvas or in the layer list — to drop it back out; tap it again to put it back in.</>}{groupIds.length > 0 && <> <button className="ltbtn" onClick={() => { setGroupIds([]); setMultiSelect(false); }}>✕ Clear</button></>}{groupIds.length > 1 && <> <button className="ltbtn" onClick={saveGroup}>💾 Save group</button></>}{hasStore && groupIds.length > 0 && <> <input className="gname" value={stampName} placeholder="stamp name" onChange={(e) => setStampName(e.target.value)} /> <button className="ltbtn" onClick={storeGroup}>📦 Store group</button></>}</p>}
-            {stamps.length > 0 && <div className="stampShelf"><span>📦 Stored</span><select aria-label="Stored group" value={stampPick} onChange={(e) => { setStampPick(e.target.value); setConfirmStampDel(null); }}><option value="">Choose a group…</option>{stamps.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.pieces.length})</option>)}</select><button className="ltbtn" disabled={!pickedStamp} onClick={() => pickedStamp && placeStamp(pickedStamp)}>Place</button><button className={"ltbtn" + (pickedStamp && confirmStampDel === pickedStamp.id ? " on" : "")} disabled={!pickedStamp} onClick={() => { if (!pickedStamp) return; if (confirmStampDel === pickedStamp.id) { setConfirmStampDel(null); deleteStamp(pickedStamp.id); } else { setConfirmStampDel(pickedStamp.id); flash("Tap Sure? to permanently delete stored group \"" + pickedStamp.name + "\""); } }} title={pickedStamp && confirmStampDel === pickedStamp.id ? "Tap again to permanently delete" : "Delete the selected stored group"}>{pickedStamp && confirmStampDel === pickedStamp.id ? "Sure?" : "✕"}</button></div>}
-            {/* 🌿 Object art — the stored-group shelf's twin, reading the props library. Same act
-                (drop a copy of blocks drawn elsewhere into this pose), different source — and the
-                source is the whole point: a prop carries a sub-category, so a growing collection of
-                reusable visual elements stays findable in folders instead of one flat list of names.
-                Sits under 📦 Stored rather than in the Load browser because this is not opening
-                another asset: nothing about the prop changes, and nothing about it is loaded. */}
-            {propGroupsAll.length > 0 && <div className="stampShelf propShelf">
-              <span>🌿 Object art</span>
-              <select aria-label="Object sub-category" value={propStampCat} onChange={(e) => setPropStampCat(e.target.value)}>
-                <option value="">📂 All ({propGroupsAll.reduce((n, g) => n + g.props.length, 0)})</option>
-                {propGroupsAll.map((g) => <option key={g.key} value={g.key}>{g.key === propCatKey(PROP_UNCAT) ? "📦" : "📂"} {g.label} ({g.props.length})</option>)}
-              </select>
-              <select aria-label="Object to place" value={pickedPropStamp ? pickedPropStamp.id : ""} onChange={(e) => { setPropStampPick(e.target.value); setPropStampFrame(0); }}>
-                <option value="">Choose an object…</option>
-                {propShelfList.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-              {/* Only an ANIMATED prop offers a frame, and it has to: frame 1 of a flickering sign is
-                  half the art, and the whole reason to reach for one here is to lift a single still. */}
-              {pickedPropFrames > 1 && <select aria-label="Animation frame" value={Math.min(propStampFrame, pickedPropFrames - 1)} onChange={(e) => setPropStampFrame(+e.target.value)}>{pickedPropStamp.frames.map((f, i) => <option key={i} value={i}>Frame {i + 1}</option>)}</select>}
-              <button className="ltbtn" disabled={!pickedPropStamp} title="Copy this object's blocks into the pose you're drawing. The object itself is not changed." onClick={() => pickedPropStamp && placeProp(pickedPropStamp, propStampFrame)}>Place</button>
-              {pickedPropStamp && (() => { const n = propArtBlockCount(propArtPieces(pickedPropStamp, propStampFrame)); return <p className="mini">{n ? "Drops " + n + " block" + (n === 1 ? "" : "s") + " at the size they were drawn, held as one group — ↙ Whole group size shrinks the lot." : "That frame has no art in it."}</p>; })()}
-            </div>}
-            {savedGroups.length > 0 && <p className="tip">📁 Saved: {savedGroups.map((g) => <span key={g.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => loadGroup(g)}>{g.name} ({g.ids.length})</button><button className="ltbtn" onClick={() => deleteGroup(g.id)}>✕</button></span>)}</p>}
           </div>
 
           {shapePicker && (
@@ -16811,8 +16857,8 @@ export default function AssetStudio() {
 
 const css = `
 .bb{height:100vh;display:flex;flex-direction:column;background:#0f1117;color:#e7e9ee;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
-.bb.weaponEditor{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto}
-.weaponEditor>.bar{grid-row:1}.weaponEditor>.main{grid-row:2;min-height:0}.weaponEditor>.angles{grid-row:3}.weaponEditor>.weaponSettings{grid-row:4}
+.bb.weaponEditor{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto auto}
+.weaponEditor>.bar{grid-row:1}.weaponEditor>.main{grid-row:2;min-height:0}.weaponEditor>.angles{grid-row:3}.weaponEditor>.groupbar{grid-row:4}.weaponEditor>.weaponSettings{grid-row:5}
 .weaponSettings{min-height:0;max-height:34vh;overflow:auto;border-top:2px solid #2c3245;background:#14111a}
 /* The weapon settings consume a bottom grid row, so an 88vh canvas cannot fit in the remaining
    middle row. Its overflowing transparent artrow covered Menu, Fire, and the settings and stole
@@ -16893,6 +16939,19 @@ const css = `
 .copytorow button.prim{background:#2f6fb5;border-color:#3f80c9;color:#fff}
 .copytorow button:disabled{opacity:.45;cursor:not-allowed}
 .posecopy select{background:#1f2433;border:1px dashed #3a4258;border-radius:9px;padding:7px 10px;font-size:12px;color:#9aa3b8;cursor:pointer}
+/* 🔗 The group bar. Its own strip directly under the pose tabs, a shade lighter so the two read
+   as separate bars rather than one tall toolbar. Everything inside it was written for the 330px
+   panel COLUMN, so every rule here is about un-stacking it for a ROW: the shelves stop being
+   full-width grids, the tips stop being centred 330px paragraphs, and Object art's hint stops
+   forcing its own line. */
+.groupbar{display:flex;align-items:center;gap:8px;padding:8px 14px;background:#151926;border-bottom:1px solid #232838;flex-wrap:wrap;flex-shrink:0}
+.gblab{font-size:12px;color:#9aa3b8}
+.groupbar .tip{margin:0;max-width:none;text-align:left;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.groupbar .mini{margin:0;max-width:280px}
+.groupbar .gbhint{max-width:300px;font-size:11.5px;line-height:1.25}
+.groupbar .stampShelf{margin:0;width:auto;display:flex;flex-wrap:nowrap;padding:5px 8px}
+.groupbar .stampShelf select{width:auto;min-width:104px;max-width:200px}
+.groupbar .propShelf select{flex:0 1 auto}
 .artrow{display:flex;gap:14px;align-items:flex-start;justify-content:center;width:100%;flex-wrap:wrap}
 .pcp-wrap{display:flex;flex-direction:column;gap:6px}
 .pcp-head{display:flex;align-items:center;gap:8px;font-size:11.5px;color:#9aa3b8;max-width:200px}

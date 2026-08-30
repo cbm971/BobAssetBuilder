@@ -101,6 +101,7 @@ import {
   armPivotFrac,
   armPivotOrigin,
   pieceOriginFrac,
+  repivotForFlags,
   pieceOriginCss,
   pieceOriginPoint,
   slopeSurfaceAt,
@@ -7804,5 +7805,93 @@ describe("recolour everywhere never leaves the colour it was asked about", () =>
     const shades = new Set();
     walk(jeansAsset, (p) => { if (p.id === 'frwly0y' && p.color) shades.add(p.color.toLowerCase()); });
     expect([...shades].sort()).toEqual([GOLD, BLUE].sort());
+  });
+});
+
+// A flag is not a move. The 💪 Arm flag (and the 🫱 shoulder side, and making a piece the weapon
+// arm) changes which point the renderer turns the block about — so on a block that is rotated at
+// all, turning the flag on used to slide the art somewhere else. Blake hit it with a whole arm
+// held as a group: "assigning a group to arm unaligns everything". These tests are written the
+// way the bug is seen — where the four corners of the block actually LAND on screen — rather than
+// on the x/y numbers, because the x/y numbers are exactly what has to change to keep the corners
+// still.
+describe("flagging a block never moves it", () => {
+  // The same transform the renderer applies: rotate the box about pieceOriginFrac's point.
+  const corners = (p) => {
+    const o = pieceOriginPoint(p);
+    const r = (p.rot || 0) * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
+    return [[p.x, p.y], [p.x + p.w, p.y], [p.x + p.w, p.y + p.h], [p.x, p.y + p.h]].map(([x, y]) => {
+      const dx = x - o.x, dy = y - o.y;
+      return { x: o.x + dx * cs - dy * sn, y: o.y + dx * sn + dy * cs };
+    });
+  };
+  // 2 decimals, not more: the correction rounds x/y to 3 decimals the way the rest of the app
+  // stores geometry, which is a hundredth of one canvas unit — far under a screen pixel.
+  const sameSpot = (a, b) => {
+    expect(a.length).toBe(b.length);
+    a.forEach((pt, i) => { expect(pt.x).toBeCloseTo(b[i].x, 2); expect(pt.y).toBeCloseTo(b[i].y, 2); });
+  };
+  const turned = { id: "a1", kind: "rect", x: 40, y: 60, w: 20, h: 80, rot: 130 };
+  const flat = { id: "a2", kind: "rect", x: 40, y: 60, w: 20, h: 80, rot: 0 };
+
+  test("THE BUG: 💪 Arm on a rotated block used to fling it — now the art holds still", () => {
+    const naive = { ...turned, limb: "arm" };                 // what the flag edit used to do
+    expect(corners(naive)).not.toEqual(corners(turned));      // ...and this is the bug, still there in the naive merge
+    sameSpot(corners(repivotForFlags(turned, { limb: "arm" })), corners(turned));
+  });
+
+  test("flat art never moved, so it must not move now either", () => {
+    const out = repivotForFlags(flat, { limb: "arm" });
+    expect(out.x).toBe(flat.x);
+    expect(out.y).toBe(flat.y);
+    expect(out.limb).toBe("arm");
+  });
+
+  test("taking the flag off again puts the numbers back where they started", () => {
+    const on = repivotForFlags(turned, { limb: "arm" });
+    const off = repivotForFlags(on, { limb: null });
+    expect(off.x).toBeCloseTo(turned.x, 2);
+    expect(off.y).toBeCloseTo(turned.y, 2);
+    sameSpot(corners(off), corners(turned));
+  });
+
+  test("the 🫱 shoulder side moves the pivot too, and holds the art still on all four", () => {
+    const armed = repivotForFlags(turned, { limb: "arm" });
+    for (const pv of ["top", "bottom", "left", "right"]) {
+      sameSpot(corners(repivotForFlags(armed, { armPivot: pv })), corners(armed));
+    }
+  });
+
+  test("making a piece the weapon arm is the same pivot swap, and the same rule", () => {
+    sameSpot(corners(repivotForFlags(turned, { role: "weaponArm" })), corners(turned));
+    const wa = repivotForFlags(turned, { role: "weaponArm" });
+    sameSpot(corners(repivotForFlags(wa, { role: undefined })), corners(wa));
+  });
+
+  test("a whole group keeps its shape: blocks that touched still touch", () => {
+    const upper = { id: "u", x: 90, y: 40, w: 14, h: 50, rot: 25 };
+    const lower = { id: "l", x: 90, y: 90, w: 14, h: 50, rot: 25 };
+    const gap = (a, b) => corners(b)[0].y - corners(a)[3].y;   // lower's top-left vs upper's bottom-left
+    const before = gap(upper, lower);
+    const after = gap(repivotForFlags(upper, { limb: "arm" }), repivotForFlags(lower, { limb: "arm" }));
+    expect(after).toBeCloseTo(before, 2);
+  });
+
+  test("a real geometry edit is NOT compensated — dragging and resizing still land where asked", () => {
+    const moved = repivotForFlags(turned, { limb: "arm", x: 10, y: 12 });
+    expect(moved.x).toBe(10);
+    expect(moved.y).toBe(12);
+    const sized = repivotForFlags(turned, { limb: "arm", w: 99 });
+    expect(sized.x).toBe(turned.x);
+    expect(sized.w).toBe(99);
+  });
+
+  test("a flag that doesn't touch the pivot is left completely alone", () => {
+    const painted = repivotForFlags(turned, { color: "#ff0000", mirror: true });
+    expect(painted).toEqual({ ...turned, color: "#ff0000", mirror: true });
+    // A shoe is flagged limb "arm" nowhere, but it IS flagged leg — and a leg keeps its centre.
+    const leg = repivotForFlags(turned, { limb: "leg" });
+    expect(leg.x).toBe(turned.x);
+    expect(leg.y).toBe(turned.y);
   });
 });
