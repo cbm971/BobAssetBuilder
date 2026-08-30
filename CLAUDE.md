@@ -590,17 +590,30 @@ anybody hostile.
   socks. The `kindTags` argument is OPTIONAL and omitting it keeps the old library-blind answer, so
   no existing test or future caller changes behaviour by accident. **This fixes pedestals too** —
   the same wrong swap was there and nobody had noticed.
-* **THE TAKE PROMPT (`.pedcallout`) IS BARE WORDS — no box, no plate, no border.** It is the one
-  label in the level with no fixed backdrop: it hangs wherever the item is standing, which might
-  be a dark trailer wall, a pale sky or a lit fire. A panel would have to be opaque enough for the
-  worst of those and would then be a slab in the middle of the room, so the contrast is carried by
-  the TEXT — white, outlined in black on all four sides, with two soft black glows under that.
-  Both halves are load-bearing: drop the outline and it dies on a light wall, drop the glow and it
-  dies on a busy texture. The item's NAME caption keeps its box; only the details line lost one.
-  * The gold loot glow moved from `.enemyDropPlay` to `.enemyDropOrb` at the same time. A CSS
-    filter applies to the whole subtree, so on the wrapper it put a gold halo around the white
-    letters that are supposed to be outlined in black. On the orb it still marks the loot, and on
-    a drop with real art it now follows the drawn silhouette rather than a square.
+* **EVERY FLOATING LABEL IN THE LEVEL IS BARE WORDS — no box, no plate, no border on any of them.**
+  `.pedcallout`, `.pedestalCap`, `.pedestalEmpty`, `.enemyDropCap`, `.doorPromptFloat`,
+  `.talkCallout` and its `.talkKey`. They are the labels with no fixed backdrop: each hangs
+  wherever its thing is standing, which might be a dark trailer wall, a pale sky or a lit fire. A
+  panel would have to be opaque enough for the worst of those and would then be a slab in the
+  middle of the room, so the contrast is carried by the TEXT — white, outlined in black on all four
+  sides, with two soft black glows under that. **Both halves are load-bearing:** drop the four hard
+  shadows and it dies on a light wall, drop the two soft ones and it dies on a busy texture. They
+  share ONE rule so a new label cannot quietly drift back to having a box. Two deliberate
+  exceptions: the dialogue BUBBLE keeps its panel (black on white — somebody is talking, and it is
+  meant to read as a panel), and `.pedestalEmpty` keeps its red after the shared rule, because
+  "no match" is a mis-tagged-filter warning rather than a caption.
+* **...AND THEY ALL SIT IN FRONT OF THE PLAYER (`.pedLabels`, z 8500).** A pedestal draws BELOW the
+  player on purpose — you walk in front of the item on its stand — but a z-index on a positioned
+  element makes a stacking context, so its labels were trapped down there with it and the player's
+  head covered the name of the very thing they were standing on to read. The labels are emitted as
+  a SIBLING layer over the same box instead, exactly the trick `.unitStatus` already plays for an
+  enemy's HP bar (stuck behind scenery for the same reason). Both are direct children of `.lgrid`,
+  which is the one stacking context, so 8500 vs the player's 5000 is a real comparison. **A new
+  in-level label goes in that layer, not inside the thing it labels.**
+* The gold loot glow moved from `.enemyDropPlay` to `.enemyDropOrb` at the same time. A CSS filter
+  applies to the whole subtree, so on the wrapper it put a gold halo around white letters that are
+  supposed to be outlined in black. On the orb it still marks the loot, and on a drop with real art
+  it now follows the drawn silhouette rather than a square.
 * **The panel is square, slightly brighter and slightly transparent, with NO emoji in it at all**
   (Blake's call). The transparency is why every colour in the shop CSS is stated as `rgba` rather
   than inherited: the level shows through, so anything on top has to stay readable over whatever is
@@ -1021,6 +1034,26 @@ own fists still 2. So the Pit Bulls and the Elaphant two-shot an unarmoured play
 Park M1 has five Pit Bulls in it**. Defense still applies on top (10 Defense halves it), and this
 is the intended shape of the change — but if a level suddenly reads as unfair, this is why, and the
 dial to turn is that creature's 💪 Strength, not the constant.
+
+**A CROUCHING UNIT'S BOX IS NOT THE SHAPE OF ITS ART, AND THAT SQUASHED THE GUN.** Sprite pieces
+are laid out as percentages of their wrapper, so the wrapper's box IS the scale: horizontally
+`renderW/W`, vertically `boxH/H`. Standing, those are equal by construction — `PLAYER_RENDER_W_CELLS`
+is `PLAYER_H_CELLS * (W/H)` precisely so the render box is aspect-true. Duck and the height alone
+drops 7 cells to 4.2, so everything inside flattens to **60% while staying full width**: the body,
+and the rifle attached to its arm. Blake reported it as "enemies distort weapons when crouching and
+firing" — the two happen together because enemies duck to **dodge a shot**, not to fire, so a ranged
+one keeps aiming the whole time it is down there. Squashing is wrong on its own terms too:
+`ePoseKey` already switches to the hand-drawn CROUCH pose, so the art was being crouched twice, once
+by the artist and once by arithmetic.
+
+The player never had this — `crouchArtPlane` keeps its art at a uniform scale and lets it overflow
+the shorter box (`.playerWrap` is `overflow:visible`). `spriteUnsquashY(renderW, boxH)` is that same
+rule for enemies, written as the correction factor rather than a second layout, and applied about
+`spriteFloorY` (the floor line) so the feet stay planted and the body grows back UP out of the
+shorter hitbox. It is **exactly 1** when the box is already aspect-true, so a standing unit renders
+bit-identically and no extra element is emitted at all. Measured in Playtest with the correction
+stripped on the same frame as a control: scaleX 0.8077 / scaleY 0.4846 (aspect 0.600) without it,
+0.8077 / 0.8077 (aspect 1.000) with it, and the lowest drawn edge moves 0.00px either way.
 
 **Animals are drawn side-on facing LEFT** (Jumping Pit Bull, Elaphant, Squirrel). No front or
 back art at all; `side` / `up` / `crouch` are the same drawing with their own piece ids, plus

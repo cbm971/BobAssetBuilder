@@ -315,6 +315,9 @@ import {
   slotWasEmptied,
   equipDisplacedSlot,
   equipKindTags,
+  spriteUnsquashY,
+  spriteFloorY,
+  enemyRenderW,
   EQUIP_KIND_TAG_MAX_SLOTS,
   SPAWN_WEAPON_NONE,
   spawnWeaponIdOf,
@@ -7395,5 +7398,57 @@ describe("a hat does not replace your underwear", () => {
     expect(k2.has("gun")).toBe(false);   // never seen on a garment at all
     expect(equipKindTags([]).size).toBe(0);
     expect(equipKindTags(null).size).toBe(0);
+  });
+});
+
+describe("a crouching enemy does not get its weapon squashed", () => {
+  // Sprite pieces are laid out as percentages of the wrapper, so the wrapper's box IS the scale.
+  const cell = 30;
+  const W = 200, H = 260;   // the design canvas, restated — App.js keeps these private
+  const ea = { id: "e", type: "enemy" };
+
+  test("a STANDING box is already aspect-true, so the correction is exactly 1", () => {
+    // PLAYER_RENDER_W_CELLS is PLAYER_H_CELLS * (W/H) precisely so this holds. If it ever stops
+    // holding, every standing sprite in the game is quietly distorted and this is the alarm.
+    expect(spriteUnsquashY(enemyRenderW(ea, cell), enemyStandH(ea, cell))).toBeCloseTo(1, 12);
+    for (const scale of [0.5, 1, 1.7, 4]) {
+      const big = { ...ea, scale };
+      expect(spriteUnsquashY(enemyRenderW(big, cell), enemyStandH(big, cell))).toBeCloseTo(1, 12);
+    }
+  });
+
+  test("THE BUG: a crouch box flattens everything inside it to 60%", () => {
+    // 4.2 cells of height where the art is drawn for 7 — the body and the rifle attached to its
+    // arm both come out squat. The correction is the reciprocal.
+    const w = enemyRenderW(ea, cell);
+    expect(enemyCrouchH(ea, cell) / enemyStandH(ea, cell)).toBeCloseTo(0.6, 12);
+    expect(spriteUnsquashY(w, enemyCrouchH(ea, cell))).toBeCloseTo(1 / 0.6, 12);
+  });
+
+  test("the correction is exactly what puts the vertical scale back on the horizontal one", () => {
+    // This is the whole property, stated directly: after correcting, px-per-design-unit matches.
+    for (const scale of [0.5, 1, 2.5]) {
+      const a = { ...ea, scale };
+      const w = enemyRenderW(a, cell), h = enemyCrouchH(a, cell);
+      const scaleX = w / W, scaleY = (h / H) * spriteUnsquashY(w, h);
+      expect(scaleY).toBeCloseTo(scaleX, 12);
+    }
+  });
+
+  test("it scales about the floor, so the feet stay planted", () => {
+    // The art is anchored so its ground line sits on the bottom of the hitbox; that point is the
+    // one an unsquash must not move, or a ducking enemy sinks into the floor or hovers over it.
+    const h = enemyCrouchH(ea, cell);
+    expect(spriteFloorY(h, 0)).toBeCloseTo(h, 12);          // art already reaching the box bottom
+    expect(spriteFloorY(h, 12)).toBeCloseTo(h - 12, 12);    // 12px of empty canvas under the feet
+    expect(spriteFloorY(h, h + 50)).toBe(0);                // never negative, whatever the anchor
+    expect(spriteFloorY(0, 0)).toBe(0);
+  });
+
+  test("degenerate boxes fall back to 1 rather than to NaN or Infinity", () => {
+    // A zero-height box would divide by zero and put transform:scaleY(Infinity) on the sprite.
+    expect(spriteUnsquashY(0, 100)).toBe(1);
+    expect(spriteUnsquashY(100, 0)).toBe(1);
+    expect(spriteUnsquashY(undefined, undefined)).toBe(1);
   });
 });

@@ -3427,6 +3427,26 @@ export const enemyScale = (ea) => { const s = ea && typeof ea.scale === "number"
 export const enemyRenderW = (ea, cell) => cell * PLAYER_RENDER_W_CELLS * enemyScale(ea);
 export const enemyStandH = (ea, cell) => cell * PLAYER_H_CELLS * enemyScale(ea);
 export const enemyCrouchH = (ea, cell) => cell * PLAYER_CROUCH_H_CELLS * enemyScale(ea);
+/* A CROUCHING UNIT'S BOX IS NOT THE SHAPE OF ITS ART, AND THAT SQUASHED THE GUN.
+   Sprite pieces are laid out as percentages of their wrapper, so the wrapper's box IS the scale:
+   horizontally renderW/W, vertically boxH/H. Standing those are equal by construction —
+   PLAYER_RENDER_W_CELLS is PLAYER_H_CELLS * (W/H) precisely so the render box is aspect-true. Duck
+   and the height alone drops 7 cells to 4.2, so everything inside is flattened to 60% while
+   staying full width: the body, and the rifle attached to its arm, which is the "enemies distort
+   weapons when crouching and firing" Blake reported. (Enemies duck to DODGE a shot, not to fire,
+   so a ranged one keeps aiming the whole time it is down there — the two happen together.)
+   Squashing is also plain wrong on its own terms: `ePoseKey` already switches to the hand-drawn
+   CROUCH pose, so the art is being crouched twice, once by the artist and once by arithmetic.
+   The player never had this — crouchArtPlane keeps its art at a uniform scale and simply lets it
+   overflow the shorter box (.playerWrap is overflow:visible). This is that same rule for enemies,
+   written as the correction factor rather than a second layout: multiply the vertical scale by
+   this and it matches the horizontal one again. Exactly 1 when the box is already aspect-true, so
+   a standing unit renders bit-identically and only a ducking one changes. */
+export const spriteUnsquashY = (renderW, boxH) => (renderW > 0 && boxH > 0 ? (renderW * H) / (W * boxH) : 1);
+// The one point an unsquash must not move: the floor the feet are standing on. The art is anchored
+// so its ground line lands on the bottom of the hitbox, which is `anchor` above the wrapper's own
+// bottom edge — scale about that and the feet stay planted while the body grows back upwards.
+export const spriteFloorY = (boxH, anchor) => Math.max(0, (boxH || 0) - (anchor || 0));
 // Free-flying art (a fired Projectile, a thrown grenade) is drawn in the exact same 200×260
 // design canvas every asset uses — the Projectile/Throwable editor just displays that canvas
 // much bigger on screen than usual for precision. "The size it is in the creator" means: at the
@@ -15133,7 +15153,17 @@ export default function AssetStudio() {
                         {eTalkWaiting && !downed ? <div className="talkBadge">💬</div> : null}
                       </div>
                       <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...((ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? " (💬 not fighting you — press E to talk)" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
-                        {renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
+                        {(() => {
+                          const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss });
+                          // Put the art back to a true aspect when the box isn't one (ducking) —
+                          // see spriteUnsquashY. Scaled about the floor line so the feet stay
+                          // planted and the body grows back UP out of the shorter hitbox, the way
+                          // the player's crouch already works. Skipped entirely when the factor is
+                          // 1, so a standing unit renders exactly as it did, with no extra element.
+                          const unsquash = spriteUnsquashY(eRenderW, eph);
+                          if (Math.abs(unsquash - 1) < 0.001) return art;
+                          return <div style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "100%", transform: "scaleY(" + unsquash.toFixed(4) + ")", transformOrigin: "50% " + spriteFloorY(eph, eAnchor).toFixed(2) + "px" }}>{art}</div>;
+                        })()}
                       </div>
                     </React.Fragment>
                   );
@@ -15258,11 +15288,28 @@ export default function AssetStudio() {
                   // number you'll get — and an enemy drop now reads its callout from that same function.
                   const promptText = (play && pedPrompt && pedPrompt.key === k && rolled) ? takePromptText(rolled) : null;
                   return (
-                    <div key={"ped" + k} className={"pedestalPlay" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
-                      <div className="pedestalArt" style={artStyle}>{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + k, keyPrefix: "ped" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}</div> : <div className="pedestalEmpty">no match</div>}</div>
-                      {promptText && <div className="pedcallout">💎 {promptText}</div>}
-                      {rolled && <div className="pedestalCap">{rolled.name}</div>}
-                    </div>
+                    // THE LABELS ARE A SEPARATE ELEMENT SITTING ON TOP, not children of the stand.
+                    // The pedestal deliberately draws below the player (you walk in front of the
+                    // item), and its z-index makes a stacking context, so anything inside it was
+                    // stuck down there too — the player's head covered the name of the very thing
+                    // they were standing on to read it. Same box, same coordinates, own layer.
+                    <React.Fragment key={"ped" + k}>
+                      <div className={"pedestalPlay" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
+                        <div className="pedestalArt" style={artStyle}>{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + k, keyPrefix: "ped" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}</div> : null}</div>
+                      </div>
+                      {(promptText || rolled || !bb) && (
+                        <div className={"pedLabels" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }}>
+                          {promptText && <div className="pedcallout">💎 {promptText}</div>}
+                          {rolled && <div className="pedestalCap">{rolled.name}</div>}
+                          {/* The "no match" warning rides up here with the rest of the words, so a
+                              mis-tagged pedestal still says so with the player standing on it. The
+                              cap and callout are absolutely positioned and so sit outside the flex
+                              flow; this one is the only in-flow child, which is what centres it in
+                              the stand's box exactly where the art would have been. */}
+                          {!bb && <div className="pedestalEmpty">no match</div>}
+                        </div>
+                      )}
+                    </React.Fragment>
                   );
                 })}
                 {play && projectiles.current.map((pr, i) => {
@@ -17028,20 +17075,38 @@ const css = `
    playtest loop), not by lifting the pedestal over it. The washed-out look while it shows through
    is applied inline per pedestal, since it eases off with distance. */
 .pedestalPlay{position:absolute;z-index:4000;pointer-events:none}
-.pedestalPlay.xray .pedestalCap{border-color:#7ad2ff;color:#d6f1ff;background:rgba(6,20,30,.72)}
+.pedestalPlay.xray .pedestalCap,.pedLabels.xray .pedestalCap{color:#d6f1ff}
 .pedestalArt{position:absolute;inset:0;overflow:hidden;display:flex;align-items:center;justify-content:center;transition:opacity .15s ease,filter .15s ease}
-.pedestalEmpty{font-size:10px;color:#ff9b9b;background:rgba(0,0,0,.6);border:1px solid #5a2e36;border-radius:5px;padding:1px 5px}
+.pedestalEmpty{font-size:11px;font-weight:700;color:#ff9b9b}
 .pedestalGem{position:absolute;left:50%;bottom:0;transform:translateX(-50%);font-size:${LV_CELL*0.75}px;line-height:1}
-.pedestalCap{position:absolute;left:50%;top:-4px;transform:translate(-50%,-100%);white-space:nowrap;background:rgba(0,0,0,.72);border:1px solid #c8a23c;border-radius:6px;padding:0 5px;font-size:10px;color:#f3d98a}
-/* THE TAKE PROMPT IS BARE WORDS — no box, no border, no plate behind it (Blake's call). It is the
-   one label in the level that has to be legible over literally anything, because it hangs wherever
-   the item happens to be standing: a dark trailer wall, a pale sky, a lit fire. A panel would have
-   to be opaque enough for the worst of those and would then be a slab sitting in the middle of the
-   room. So the contrast is carried by the TEXT: white, and outlined in black on all four sides,
-   with two soft black glows under that to lift it off a busy texture. The four hard shadows are
-   the outline and the two soft ones are the halo — dropping either half is what makes white text
-   on a light wall disappear. */
-.pedcallout{position:absolute;left:50%;top:-24px;transform:translate(-50%,-100%);white-space:nowrap;font-size:11.5px;font-weight:700;letter-spacing:.01em;color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85)}
+.pedestalCap{position:absolute;left:50%;top:-4px;transform:translate(-50%,-100%);white-space:nowrap;font-size:11px;font-weight:700}
+.pedcallout{position:absolute;left:50%;top:-24px;transform:translate(-50%,-100%);white-space:nowrap;font-size:11.5px;font-weight:700;letter-spacing:.01em}
+/* EVERY FLOATING LABEL IN THE LEVEL IS BARE WORDS — no box, no border, no plate behind any of
+   them (Blake's call). They are the labels with no fixed backdrop: each hangs wherever its thing
+   happens to be standing, which might be a dark trailer wall, a pale sky or a lit fire. A panel
+   would have to be opaque enough for the worst of those and would then be a slab in the middle of
+   the room. So the contrast is carried by the TEXT: white, outlined in black on all four sides,
+   with two soft black glows under that. BOTH HALVES ARE LOAD-BEARING — drop the four hard shadows
+   and it dies on a light wall, drop the two soft ones and it dies on a busy texture.
+
+   One rule listing every label, so a new one cannot quietly drift back to having a box. The
+   dialogue BUBBLE is deliberately not in here: that one is a speech bubble with black text on
+   white and it is meant to look like a panel, because somebody is talking. */
+.pedcallout,.pedestalCap,.pedestalEmpty,.enemyDropCap,.doorPromptFloat,.talkCallout,.talkCallout .talkKey{
+  color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85)}
+/* ...AND THEY ALL SIT IN FRONT OF THE PLAYER. A pedestal draws BELOW the player on purpose (you
+   walk in front of the item on its stand), but z-index on a positioned element makes a stacking
+   context, so its labels were trapped down there with it and the player's head covered the name of
+   the thing they were standing on. The labels are lifted out into their own layer instead — the
+   same trick .unitStatus already plays for an enemy's HP bar, which was stuck behind scenery for
+   exactly the same reason. 8500 is above the player (5000) and the drops (7000), below the door
+   and talk prompts (9500/9600). */
+.pedLabels{position:absolute;z-index:8500;pointer-events:none;display:flex;align-items:center;justify-content:center}
+/* "no match" is a WARNING, not a caption — a pedestal whose filter found nothing in the library.
+   It keeps its red (it is the only thing on screen that says a filter is mis-tagged); it just
+   loses the box like everything else. After the shared rule because both are one class deep, so
+   source order is what decides. */
+.pedestalEmpty{color:#ff9b9b}
 /* The gold loot glow lives on the ORB, not on the whole card. A CSS filter applies to the entire
    subtree, so on the wrapper it also rimmed the caption and — once the take prompt lost its box —
    put a gold halo around white letters that are supposed to be outlined in black. On the orb it
@@ -17054,19 +17119,19 @@ const css = `
    the border and the round clip all come off, and the box becomes the positioning context for the
    scaled art plane. The lootBob animation and gold caption still mark it as loot. */
 .enemyDropOrb.art{background:none;border:none;border-radius:0;position:relative;overflow:hidden}
-.enemyDropCap{margin-top:2px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.78);border:1px solid #c8a23c;border-radius:6px;padding:0 5px;font-size:10px;color:#f3d98a}
+.enemyDropCap{margin-top:2px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:700}
 .enemyDropPlay .pedcallout{top:-8px}
 @keyframes lootBob{from{margin-top:0}to{margin-top:-3px}}
-.doorPromptFloat{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;background:#241b0d;border:1px solid #c8a23c;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;color:#f3d98a;box-shadow:0 1px 4px rgba(0,0,0,.55);pointer-events:none;z-index:9500}
+.doorPromptFloat{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;font-size:12.5px;font-weight:700;pointer-events:none;z-index:9500}
 /* 💬 The talk prompt is the door prompt in a different colour, deliberately — the two mean the
    same thing ("press E here") and looking alike is the point. */
-.talkPromptFloat{background:#131f2e;border-color:#5b9bd5;color:#bfe0ff}
+.talkPromptFloat{color:#bfe0ff}
 /* 💬 "PRESS E TO TALK" — the loud version. The door prompt's dim 12px pill was walked straight
    past, so this is bigger, brighter, has the key drawn as a key, and breathes. Same
    translate(-50%,-100%) anchoring as the door prompt so it sits on a head. */
-.talkCallout{position:absolute;transform:translate(-50%,-100%);display:flex;align-items:center;gap:7px;white-space:nowrap;background:linear-gradient(180deg,#22405f,#16283d);border:2px solid #7fc0ff;border-radius:9px;padding:5px 11px 5px 7px;font-size:14px;font-weight:700;color:#eaf4ff;box-shadow:0 2px 10px rgba(0,0,0,.6),0 0 14px rgba(90,160,255,.35);pointer-events:none;z-index:9600;animation:talkpulse 1.25s ease-in-out infinite}
+.talkCallout{position:absolute;transform:translate(-50%,-100%);display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:14px;font-weight:800;pointer-events:none;z-index:9600;animation:talkpulse 1.25s ease-in-out infinite}
 @keyframes talkpulse{0%,100%{transform:translate(-50%,-100%) scale(1)}50%{transform:translate(-50%,-100%) scale(1.06)}}
-.talkKey{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;background:#eaf4ff;color:#16283d;border-radius:4px;border-bottom:2px solid #9ab8d6;font-size:12px;font-weight:800;font-family:inherit;padding:0 4px}
+.talkKey{display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;font-family:inherit}
 /* 💬 over a waiting NPC's head, everywhere in the level. Sits in the status layer (z 8000) with
    the HP bar, which is above the Front tiles, so somebody behind a tree still advertises. Bobs so
    it reads as an invitation and not as one more status icon. */
