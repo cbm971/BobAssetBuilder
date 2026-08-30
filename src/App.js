@@ -842,113 +842,86 @@ export const mergeWeaponBlocks = (bodyBlocks, weaponBlocks) => {
   return bodyBlocks.slice(0, armIdx).concat(behind, bodyBlocks.slice(armIdx)).concat(front);
 };
 
-// Swap every occurrence of one fill color for another across an ENTIRE asset — every piece, in
-// all 5 poses, in the live .angles, in a weapon's rest/fire states, and in every per-body fit
-// under .variants. Only `p.color` is touched: outlineColor, fx.glowColor and an emoji's tint are
-// deliberately left alone (a near-miss shade stays a near-miss shade — Blake finishes those by
-// hand). Matching is case-insensitive on the hex so "#45552A" and "#45552a" are the same color.
-// The walk itself lives in one place because more than one "…everywhere" action needs it: the
-// recolor below and the brightness/glow/fade restyle under it must visit the exact same pieces,
-// or "everywhere" would mean two different things depending on which control you touched.
-const mapPieces = (arr, fn) => (arr || []).map(fn);
-const mapAngles = (ang, fn) => { if (!ang) return ang; const o = {}; for (const k of Object.keys(ang)) o[k] = mapPieces(ang[k], fn); return o; };
-const mapFitVariant = (v, fn) => (v && v.states) ? { ...v, states: { ...v.states, rest: mapAngles(v.states.rest, fn), fire: mapAngles(v.states.fire, fn) } } : mapAngles(v, fn);
+// The one walk both "…everywhere" actions share, threading a PLACE KEY through it: which list a
+// piece sits in, and where in that list.
+//   angles.side[3]   states.rest.up[0]   var.<bodyId>.front[7]   var.<bodyId>.fire.side[2]
+// That key is the whole identity a colour group is frozen as (see assetColorGroup), which is why
+// the read walk and the write walk are one pair of helpers and not two hand-written copies: the
+// day they disagree about a key is the day "everywhere" repaints the wrong blocks.
+const mapPieces = (arr, fn, path) => (arr || []).map((p, i) => fn(p, path + "[" + i + "]"));
+const mapAngles = (ang, fn, path) => { if (!ang) return ang; const o = {}; for (const k of Object.keys(ang)) o[k] = mapPieces(ang[k], fn, path + "." + k); return o; };
+const mapFitVariant = (v, fn, path) => (v && v.states) ? { ...v, states: { ...v.states, rest: mapAngles(v.states.rest, fn, path + ".rest"), fire: mapAngles(v.states.fire, fn, path + ".fire") } } : mapAngles(v, fn, path);
 const mapAssetPieces = (a, fn) => {
   const out = { ...a };
-  if (out.angles) out.angles = mapAngles(out.angles, fn);
-  if (out.states) out.states = { ...out.states, rest: mapAngles(out.states.rest, fn), fire: mapAngles(out.states.fire, fn) };
-  if (out.variants) { const v = {}; for (const k of Object.keys(out.variants)) v[k] = mapFitVariant(out.variants[k], fn); out.variants = v; }
+  if (out.angles) out.angles = mapAngles(out.angles, fn, "angles");
+  if (out.states) out.states = { ...out.states, rest: mapAngles(out.states.rest, fn, "states.rest"), fire: mapAngles(out.states.fire, fn, "states.fire") };
+  if (out.variants) { const v = {}; for (const k of Object.keys(out.variants)) v[k] = mapFitVariant(out.variants[k], fn, "var." + k); out.variants = v; }
   return out;
 };
-// WHICH pieces "this colour" means, resolved to piece IDs and frozen.
+// The read-only twin of that walk. Same keys, no copying — one pair, because a colour group is
+// frozen by the keys the READ produces and repainted by the keys the WRITE produces, and the day
+// those two disagree the feature silently paints the wrong blocks.
+export const forEachAssetPiece = (a, fn) => {
+  if (!a || typeof a !== "object") return;
+  const doAngles = (ang, path) => { if (ang && typeof ang === "object") for (const k of Object.keys(ang)) (ang[k] || []).forEach((p, i) => { if (p) fn(p, path + "." + k + "[" + i + "]"); }); };
+  doAngles(a.angles, "angles");
+  if (a.states) { doAngles(a.states.rest, "states.rest"); doAngles(a.states.fire, "states.fire"); }
+  if (a.variants) for (const k of Object.keys(a.variants)) { const v = a.variants[k]; if (v && v.states) { doAngles(v.states.rest, "var." + k + ".rest"); doAngles(v.states.fire, "var." + k + ".fire"); } else doAngles(v, "var." + k); }
+};
+// WHICH pieces "this colour" means — resolved once, up front, and frozen as PLACES.
 //
-// Matching purely on the colour is only correct for the FIRST step of an edit. The moment the
-// group's new shade lands on one another piece already wears, that piece is indistinguishable
-// from a group member and every later step drags it along too. That is the "Change this colour
-// everywhere repainted blocks that weren't that colour" bug, and it needs no second click to
-// happen: a native <input type="color"> fires onChange continuously while it is dragged, so one
-// slow drag from blue to red walks through hundreds of intermediate shades. Pass through the exact
-// red the boots are already painted and the boots silently join the shirt's group, then ride it to
-// wherever the drag finishes — a colour that was never the one being changed. Ending a drag ON a
-// shade something else already wore does the same thing to the NEXT edit.
+// Two things have to hold at the same time, and every earlier attempt bought one by giving up the
+// other:
 //
-// So the group is resolved once, up front, and every following step of the same edit repaints
-// those ids rather than re-asking what is currently that colour. Ids are stable across the whole
-// asset (every pose, both weapon states, every per-body fit), which is also why a lagging closure
-// can no longer mis-target: an id means the same piece no matter which render resolved it.
-// `from` is kept alongside, tracking the group's CURRENT colour, purely so pieces old enough to
-// predate ids still follow a chain by colour exactly as they always did.
-const forEachAngles = (ang, fn) => { if (ang && typeof ang === "object") for (const k of Object.keys(ang)) for (const p of (ang[k] || [])) if (p) fn(p); };
+// * It must not re-ask "what is this colour NOW" on every step. A native <input type="color">
+//   fires onChange continuously while it is dragged, so one slow drag from blue to red walks
+//   through hundreds of intermediate shades — pass through the exact red the boots already wear
+//   and the boots join the shirt's group and ride it to wherever the drag ends.
+// * It must never sweep in a block that was not that colour. Freezing the group as piece IDS broke
+//   this, because an id is only unique inside ONE pose list: the Jeans carries `frwly0y` on both a
+//   gold belt buckle in `angles.front` and a blue trouser leg in `variants.default.front`, and
+//   eight of the 120 assets have a collision like it. Bolting a colour test onto the ids covered
+//   that one report and left the door open, because the test passes for any stranger whose own
+//   colour happens to be one the edit has already painted.
+//
+// A PLACE — which list, which index — has neither problem. No two pieces share one, so it needs
+// no second test to be safe, and it does not move under a recolour, which only ever rewrites
+// `color` where it stands. So: freeze the places wearing that exact colour, repaint those places
+// and nothing else for as long as the edit runs, and re-resolve from what is actually on screen
+// the moment it ends (see colorDrag). "Only blocks that are exactly this colour" is then true
+// of every path into it rather than true of the first step and approximately true afterwards.
 export const assetColorGroup = (a, from) => {
   const f = typeof from === "string" ? from.toLowerCase() : "";
-  const ids = new Set();
-  if (a && typeof a === "object" && f) {
-    const add = (p) => { if (typeof p.color === "string" && p.color.toLowerCase() === f && p.id) ids.add(p.id); };
-    forEachAngles(a.angles, add);
-    if (a.states) { forEachAngles(a.states.rest, add); forEachAngles(a.states.fire, add); }
-    if (a.variants) for (const k of Object.keys(a.variants)) { const v = a.variants[k]; if (v && v.states) { forEachAngles(v.states.rest, add); forEachAngles(v.states.fire, add); } else forEachAngles(v, add); }
-  }
-  // `seen` is the other half of the answer, and without it the ids above are not safe on their
-  // own — see inColorGroup. It starts as just the colour asked for; each step of a live edit adds
-  // the shade it painted.
-  return { ids, from: f, seen: new Set([f]) };
+  const keys = new Set();
+  if (f) forEachAssetPiece(a, (p, k) => { if (typeof p.color === "string" && p.color.toLowerCase() === f) keys.add(k); });
+  return { keys, from: f };
 };
-// A PIECE IS IN THE GROUP ONLY IF ITS ID IS IN THE SET **AND** IT IS STILL WEARING ONE OF THE
-// SHADES THIS EDIT HAS PAINTED. Both halves are load-bearing, and each one is there because the
-// other alone was wrong:
-//
-// * Colour alone swallows anything the edit's own drag passes over (the note on assetColorGroup
-//   above — that is what the ids were introduced for).
-// * IDS ALONE SWALLOW A DIFFERENT BLOCK THAT HAPPENS TO SHARE AN ID, and in Blake's real library
-//   that is not hypothetical: piece ids are unique inside ONE pose list, not across an asset's
-//   poses and per-body fits. His Jeans has `frwly0y` twice — a gold 6x10 belt buckle at (98,171)
-//   in `angles.front`, and a blue 7x25 trouser leg at (63,206) in `variants.default.front`.
-//   Selecting the blue and changing it therefore resolved an id set containing `frwly0y`, and the
-//   recolour repainted every piece wearing that id — buckle included. He reported it as
-//   “changing the blue on these pants to black also changes the yellow belt buckle”, and he was
-//   exactly right: #c8a23c was never #386aff. Eight of his 120 assets carry such a collision.
-//
-// Re-ID-ing the saved art would be the other way to fix it and is the wrong one: ids are what
-// saved groups, arm flags and every other cross-pose reference are written in terms of. The
-// colour test costs nothing and is right whether or not ids are unique.
-// CARRYING A GROUP ACROSS A REPAINT MEANS CARRYING THE SHADE IT JUST PAINTED. Membership is
-// "id in the set AND still wearing a colour this edit painted" (see below), so a group handed on
-// without its new colour matches nothing on the next step — the control would go dead halfway
-// through a drag. One helper, used by both live controls and by the tests, rather than three
-// copies of the same set arithmetic.
-export const colorGroupAfter = (g, to) => (!g || typeof to !== "string") ? g
-  : { ...g, seen: new Set([...(g.seen || []), to.toLowerCase()]), from: to.toLowerCase() };
-const inColorGroup = (g, p) => {
-  if (!g || typeof p.color !== "string") return false;
-  const c = p.color.toLowerCase();
-  if (!p.id) return c === g.from;                 // pieces old enough to predate ids follow the colour chain, as they always did
-  return g.ids.has(p.id) && (!g.seen || g.seen.has(c));
-};
+// Handing the group on to the next step of the same edit. Membership is the frozen place set and
+// never changes; `from` follows the shade those places are now wearing, which is how a caller
+// tells "this edit is still running" from "this is a new one".
+export const colorGroupAfter = (g, to) => (!g || typeof to !== "string") ? g : { ...g, from: to.toLowerCase() };
+const inColorGroup = (g, key) => !!g && !!g.keys && g.keys.has(key);
 // Swap the group's fill colour across the ENTIRE asset — every piece, in all 5 poses, in the live
 // .angles, in a weapon's rest/fire states, and in every per-body fit under .variants. Only
 // `p.color` is touched: outlineColor, fx.glowColor and an emoji's tint are deliberately left alone
 // (a near-miss shade stays a near-miss shade — Blake finishes those by hand).
-// The walk itself lives in one place because more than one "…everywhere" action needs it: the
-// recolor here and the brightness/glow/fade restyle under it must visit the exact same pieces,
-// or "everywhere" would mean two different things depending on which control you touched.
 export const recolorAssetGroup = (a, g, to) => {
   if (!a || !g || typeof to !== "string") return a;
-  return mapAssetPieces(a, (p) => (inColorGroup(g, p) ? { ...p, color: to } : p));
+  return mapAssetPieces(a, (p, k) => (inColorGroup(g, k) ? { ...p, color: to } : p));
 };
-// "Replace this colour everywhere" is about the COLOUR, not just its hex: dimming one leaf
-// should dim every leaf that shares its green, the same way repainting one repaints them all.
-// So the brightness/glow/fade sliders reuse the toggle and land here — same pieces
-// recolorAssetGroup would touch, but patching fx instead of color. The patch merges over
-// defaultFx() so a piece that never had fx of its own gets a complete one rather than a
-// half-filled object.
+// "Change this colour everywhere" is about the COLOUR, not just its hex: dimming one leaf should
+// dim every leaf that shares its green, the same way repainting one repaints them all. So the
+// brightness/glow/fade sliders reuse the toggle and land here — the same places recolorAssetGroup
+// would touch, patching fx instead of color. The patch merges over defaultFx() so a piece that
+// never had fx of its own gets a complete one rather than a half-filled object.
 export const restyleAssetGroup = (a, g, patch) => {
   if (!a || !g || !patch) return a;
-  return mapAssetPieces(a, (p) => (inColorGroup(g, p) ? { ...p, fx: { ...defaultFx(), ...(p.fx || {}), ...patch } } : p));
+  return mapAssetPieces(a, (p, k) => (inColorGroup(g, k) ? { ...p, fx: { ...defaultFx(), ...(p.fx || {}), ...patch } } : p));
 };
 // The one-shot forms: resolve the group and apply it in a single call. Matching is
-// case-insensitive on the hex so "#45552A" and "#45552a" are the same colour. Correct on its own
-// for a single click; a control that fires repeatedly must hold the group across its steps
-// instead (see colorGroupFor / palGroup) or it re-opens the drift described above.
+// case-insensitive on the hex so "#45552A" and "#45552a" are the same colour. This is the whole
+// story for a discrete click — a swatch, a tap. Only a control that fires REPEATEDLY (a dragged
+// colour input) has to hold one group across its steps instead; see colorDrag and palGroup.
 export const recolorAsset = (a, from, to) => (typeof from === "string" ? recolorAssetGroup(a, assetColorGroup(a, from), to) : a);
 export const restyleAsset = (a, from, patch) => (typeof from === "string" ? restyleAssetGroup(a, assetColorGroup(a, from), patch) : a);
 // Every distinct fill colour this asset uses, with how many pieces use each, most-used first
@@ -6927,12 +6900,12 @@ export default function AssetStudio() {
   // now renders exactly as authored no matter what you've been picking, and ＋ is always in the
   // same place. Nothing is hidden: everything that was reachable before still is, one row down.
   const swBreak = <div className="swbreak" />;
-  const palGroup = useRef({}); // skin-palette: original swatch colour -> the frozen piece group its remap is repainting
-  // The piece group the block-colour controls are repainting, held across the steps of one edit —
-  // see assetColorGroup for why re-resolving it every step swallows blocks it shouldn't.
-  // `seen` is every shade this edit has painted, which is how a later call recognises itself as a
-  // continuation: the selected block still wearing one of them means nothing else has repainted it.
+  const palGroup = useRef({}); // skin-palette: "<assetId>|<swatch>" -> the places one dragged remap is repainting
+  // The places the block-colour controls are repainting while a colour input is being DRAGGED, and
+  // nothing else — null between drags. Every discrete tap resolves its own group from what is on
+  // screen; see colorDrag, and assetColorGroup for why a drag is the one thing that cannot.
   const colorGroup = useRef(null);
+  const COLOR_DRAG_GAP_MS = 1500; // longer than any gap between one dragged colour input's onChange events, far shorter than a pause between two edits
   const [recent, setRecent] = useState([]);            // last-used custom colors
   const [recentEmoji, setRecentEmoji] = useState([]);   // last-used emoji — the picker had no memory of this at all before
   const [emojiQuery, setEmojiQuery] = useState("");     // search box in the emoji picker
@@ -10667,49 +10640,66 @@ export default function AssetStudio() {
     const ids = selOrGroupIds();
     return withRig({ ...a, angles: { ...a.angles, [angle]: (a.angles[angle] || []).map((p) => (ids.has(p.id) && (!only || only(p)) ? repivotForFlags(p, patch) : p)) } });
   });
-  // Which blocks the colour controls are about to repaint. A continuation of the edit already in
-  // progress reuses the group it froze; anything else resolves a fresh one from the live asset.
-  // "Continuation" is: same selected block, and it is still wearing a shade this edit painted (or
-  // the one it started on). That deliberately survives more than a drag — click blue, then click
-  // green, and the green lands on the blue group rather than on everything that happens to be red
-  // now. Repaint the block by itself in between, though, and its colour is one this edit never
-  // painted, so the next group edit re-resolves from what is actually on screen.
-  const colorGroupFor = (from) => {
-    const f = from.toLowerCase(), g = colorGroup.current;
-    if (g && g.selId === selId && g.seen.has(f)) return g;
-    return { ...assetColorGroup(asset, from), selId }; // assetColorGroup seeds `seen` with `f` itself
+  // Which blocks the colour controls are about to repaint.
+  //
+  // A DISCRETE action — tapping a swatch, hitting 🎨 Apply picked colour — resolves fresh, every
+  // time, from the colour the selected block is wearing at that instant. That is the only thing
+  // the toggle has ever claimed to do, and it is now literally what it does: the blocks that are
+  // exactly this colour, and no others. It used to reuse a group frozen by an earlier tap, which
+  // is how "change this colour everywhere" ended up repainting blocks that were a completely
+  // different shade by then — the group had outlived the edit that made it.
+  //
+  // Only a control that fires REPEATEDLY needs more: a native <input type="color"> fires onChange
+  // continuously while it is dragged, and re-resolving mid-drag enrols whatever shade the drag has
+  // just passed over. So a drag freezes its group on its FIRST step and keeps it for the rest.
+  // The input's onBlur ends it, and a gap longer than one drag's frame-to-frame spacing ends it
+  // too — belt and braces, because a group that outlives its drag is the whole bug above, and a
+  // colour dialog that never fires blur (mobile) would otherwise leave one lying about.
+  const colorDrag = (from) => {
+    const g = colorGroup.current;
+    if (g && g.selId === selId && Date.now() - g.at < COLOR_DRAG_GAP_MS) return g;
+    return { ...assetColorGroup(asset, from), selId, at: Date.now() };
   };
-  // Setting a block's color with "Change this color everywhere" on repaints every block that
-  // shared that exact color when the edit began — all 5 poses, a weapon's rest AND fire states,
-  // and every per-body fit under .variants — instead of just the selected one. Only the fill
-  // changes; outline color, glow color and emoji tints are untouched, so a shade that's merely
-  // CLOSE to the old one is left for Blake to catch by hand rather than silently flattened.
-  const applyPieceColor = (c) => {
+  const endColorDrag = () => { colorGroup.current = null; };
+  // Setting a block's colour with "Change this colour everywhere" on repaints every block that is
+  // that exact colour — all 5 poses, a weapon's rest AND fire states, and every per-body fit under
+  // .variants — instead of only the selected one. Only the fill changes; outline colour, glow
+  // colour and emoji tints are untouched, so a shade that is merely CLOSE is left for Blake to
+  // catch by hand rather than silently flattened. `live` marks the calls coming from a dragged
+  // colour input, which are the ones that must hold the group rather than re-resolve.
+  const applyPieceColor = (c, live) => {
     const from = sel && sel.color;
     if (!recolorAll || !from || effEdit || (sel && sel.kind === "emoji") || c === from) { updSel({ color: c }); return; }
-    const g = colorGroupFor(from);
-    const cl = c.toLowerCase();
-    // The new shade joins `seen` for the NEXT step, never for this one. Adding it first would let
-    // a same-id piece that already wears the colour being painted TO pass the colour test and get
-    // dragged in — the same bug this test exists to stop, entered through the other door.
-    colorGroup.current = colorGroupAfter(g, cl);
+    const g = live ? colorDrag(from) : assetColorGroup(asset, from);
+    if (live) colorGroup.current = { ...colorGroupAfter(g, c.toLowerCase()), selId, at: Date.now() };
     setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(recolorAssetGroup(a, g, c)); });
   };
-  // Skin-palette remap: repaint one of the skin's colours everywhere it appears. palGroup.current
-  // remembers, per original swatch, the blocks that swatch resolved to — so dragging a colour input
-  // (which fires repeatedly) keeps repainting those same blocks instead of re-asking what is
-  // currently that colour and picking up whatever the drag has passed over, and a mobile colour
-  // dialog (one final value) just does a single clean remap.
+  // 🎨 Apply picked colour + fx is a colour change like any other and has to obey the 🪣 toggle.
+  // It was the one path that always landed on the single selected block — read as "Change this
+  // colour everywhere does not work with Apply picked colour", and it was exactly that. Colour and
+  // fx go on in ONE pass over ONE frozen group, so the two can never disagree about which blocks
+  // they meant.
+  const applyPickedColorFx = (c, fx) => {
+    const from = sel && sel.color;
+    if (!recolorAll || !from || effEdit || (sel && sel.kind === "emoji")) { updSel({ color: c, fx: { ...fx } }); return; }
+    const g = assetColorGroup(asset, from);
+    setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(restyleAssetGroup(recolorAssetGroup(a, g, c), g, fx)); });
+  };
+  // Skin-palette remap: repaint one of the palette's colours everywhere it appears. Driven only by
+  // a colour input, so it is always a drag: palGroup remembers the places that swatch resolved to
+  // for the length of one, and the onBlur beside the input drops it. The entry is keyed by the
+  // ASSET as well as the swatch — keyed by the swatch alone it survived opening a different asset
+  // and repainted places belonging to the last one.
   const remapPalette = (orig, to) => {
     if (!orig || !to) return;
-    const g = palGroup.current[orig] || assetColorGroup(asset, orig);
+    const key = (asset && asset.id) + "|" + orig.toLowerCase();
+    const g = palGroup.current[key] || assetColorGroup(asset, orig);
     const tl = to.toLowerCase();
-    // Same rule as applyPieceColor: the shade being painted joins the set for the next drag step,
-    // so this one still matches only what the remap has already been through.
-    palGroup.current[orig] = colorGroupAfter(g, tl);
+    palGroup.current[key] = colorGroupAfter(g, tl);
     if (g.from === tl) return;
     setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(recolorAssetGroup(a, g, to)); });
   };
+  const forgetPaletteDrag = (orig) => { if (asset && orig) delete palGroup.current[(asset.id) + "|" + orig.toLowerCase()]; };
   // Twisting one piece while a group is selected turns the WHOLE group together, like one rigid
   // object (e.g. a machete's blade + handle + guard) — not just the single piece the Twist
   // control happens to be bound to. Every group member's own rot turns by the same delta, and
@@ -10808,8 +10798,10 @@ export default function AssetStudio() {
   const updFx = (patch) => {
     const from = sel && sel.color;
     if (!recolorAll || !from || effEdit || (sel && sel.kind === "emoji")) { setPieces((ps) => ps.map((p) => (p.id === selId ? { ...p, fx: { ...defaultFx(), ...(p.fx || {}), ...patch } } : p))); return; }
-    const g = colorGroupFor(from); // the same frozen group the swatches repaint, so both controls keep meaning one thing
-    colorGroup.current = g;
+    // No freezing needed here: a brightness/glow/fade drag never changes anyone's COLOUR, so
+    // re-resolving on each step returns the same places every time — and always the places that
+    // really are this colour, which is the only promise the toggle makes.
+    const g = assetColorGroup(asset, from);
     setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(restyleAssetGroup(a, g, patch)); });
   };
   // Horizontally mirror the selection like one rigid object (a "flip orientation" for a grouped
@@ -16142,102 +16134,101 @@ export default function AssetStudio() {
       })()}
       </div>
 
-      {!effEdit && asset.type !== "prop" && (
+      {/* ONE strip, not two. The pose tabs use a fraction of it — five short buttons on the left,
+          the body picker pinned right — and the rest was blank screen, which is exactly where the
+          group controls were asked to go. They keep the whole row between the two, so nothing has
+          moved DOWN to make room for them: the canvas is the same height it was.
+
+          The strip itself now renders always. The pose tabs inside it do not — an Object has one
+          pose and the effect editor has its own frame list, so neither shows them — but both draw
+          blocks and both need the group controls, and this is where the group controls live. */}
       <div className="angles">
-        {/* Only offer poses gameplay can actually render for this asset type — the audit:
-            player renders side (walk), back (climb/doors), up (ranged aim-up), crouch; NEVER front.
-            Enemies render side + crouch (others only as fallback art). Melee weapons can never
-            appear in Up (aiming is ranged-only). Projectiles read ONLY the Front pose. Editing
-            surfaces for poses that can never appear were pure wasted work. */}
-        {editablePoses(asset.type, asset.wtype).map((a) => {
-          const hasLimbs = (asset.type === "body" || asset.type === "enemy") && (asset.angles[a] || []).some((p) => p.limb === "leg" || (p.limb === "arm" && p.role !== "weaponArm"));
-          return <button key={a} className={angle === a ? "on" : ""} onClick={() => { setAngle(a); setSelId(null); if (poseCopySrc === a) setPoseCopySrc(null); closeCopyTo(); }} title={hasLimbs ? "Has an arm/leg flagged for animation" : ""}>{ALABEL[a]}{hasLimbs ? " 🦴" : ""}</button>;
-        })}
-        {(asset.type === "body" || asset.type === "enemy") ? (
-          <span className="posecopy">
-            <select value={poseCopySrc || ""} onChange={(e) => setPoseCopySrc(e.target.value || null)} >
-              <option value="">📋 Copy pose…</option>
-              {editablePoses(asset.type, asset.wtype).filter((a) => a !== angle).map((a) => <option key={a} value={a}>{ALABEL[a]}</option>)}
+        {!effEdit && asset.type !== "prop" && (<>
+          {/* Only offer poses gameplay can actually render for this asset type — the audit:
+              player renders side (walk), back (climb/doors), up (ranged aim-up), crouch; NEVER front.
+              Enemies render side + crouch (others only as fallback art). Melee weapons can never
+              appear in Up (aiming is ranged-only). Projectiles read ONLY the Front pose. Editing
+              surfaces for poses that can never appear were pure wasted work. */}
+          {editablePoses(asset.type, asset.wtype).map((a) => {
+            const hasLimbs = (asset.type === "body" || asset.type === "enemy") && (asset.angles[a] || []).some((p) => p.limb === "leg" || (p.limb === "arm" && p.role !== "weaponArm"));
+            return <button key={a} className={angle === a ? "on" : ""} onClick={() => { setAngle(a); setSelId(null); if (poseCopySrc === a) setPoseCopySrc(null); closeCopyTo(); }} title={hasLimbs ? "Has an arm/leg flagged for animation" : ""}>{ALABEL[a]}{hasLimbs ? " 🦴" : ""}</button>;
+          })}
+          {(asset.type === "body" || asset.type === "enemy") ? (
+            <span className="posecopy">
+              <select value={poseCopySrc || ""} onChange={(e) => setPoseCopySrc(e.target.value || null)} >
+                <option value="">📋 Copy pose…</option>
+                {editablePoses(asset.type, asset.wtype).filter((a) => a !== angle).map((a) => <option key={a} value={a}>{ALABEL[a]}</option>)}
+              </select>
+              {poseCopySrc && <button className="copyang" onClick={() => setPoseCopySrc(null)}>✕ remove copy</button>}
+              {/* Creatures get BOTH: the reference overlay above (trace/pull piece-by-piece) and this
+                  one-click full copy of the whole current pose into all the others at once. */}
+              {asset.type === "enemy" && copyToPosesMenu}
+            </span>
+          ) : (
+            copyToPosesMenu
+          )}
+        </>)}
+        <span className="groupbar">
+          {/* Turning add-mode ON keeps any group that's already held, so a stamp you just placed
+              can be extended. Turning it OFF now KEEPS it too — the mode and the selection are
+              separate things everywhere else in here (a placed stamp is a live group with the
+              mode off, and a group drags as one whether the mode is on or not), and this button
+              was the only place that conflated them. It stopped being harmless the moment
+              ▣ Select all started switching the mode on: "Done" is the natural last tap after
+              curating a selection, and it would have thrown the whole thing away. Clearing did
+              not go anywhere — ✕ Clear, right next to it, now ends the mode as well, so
+              "drop everything and get out" is still one tap. */}
+          <button className={"ltbtn" + (multiSelect ? " on" : "")} onClick={() => setMultiSelect((v) => !v)} >🔲 {multiSelect ? "Done" : "Group select"}</button>
+          {/* Select all — one tap to hold every block in this pose, so a multi-part item (a rocket
+              launcher drawn from a dozen blocks) can be dragged, rotated or resized as one object
+              without hunting each block first. Sits next to the mode toggle rather than inside the
+              group tip so it's reachable from a cold start. This POSE's blocks only: a group is a
+              list of piece ids inside one pose, so it can never span them.
+  
+              It also switches Group select ON, and that is the half that makes a selection
+              REFINABLE rather than all-or-nothing. Tapping a member back out only fires in
+              add-mode (see the pointerup handler), so "select all" used to be a one-way door:
+              the only way to hold "everything except the shadow" was ✕ Clear and then picking
+              the other fifteen blocks by hand. Turning the mode on here can't sweep anything in
+              behind your back either — in add-mode a tap only ADDS a block that isn't already
+              held, and immediately after Select all there is no such block. */}
+          {pieces.length > 0 && <button className="ltbtn" onClick={() => { setGroupIds(pieces.map((pc) => pc.id)); setSelId(pieces[pieces.length - 1].id); setMultiSelect(true); }}>▣ Select all ({pieces.length})</button>}
+          {/* A group can be live WITHOUT add-mode (that's what placing a stamp leaves you with),
+              so the count and the group buttons key off the group itself. Only the "click blocks
+              to add/remove" line is about the mode. */}
+          {(multiSelect || groupIds.length > 0) && <p className="tip">{multiSelect ? "🔲 Multi-select" : "🔗 Group held"} ({groupIds.length} selected).{multiSelect && <span className="gbhint">Tap a held block — on the canvas or in the layer list — to drop it back out; tap it again to put it back in.</span>}{groupIds.length > 0 && <> <button className="ltbtn" onClick={() => { setGroupIds([]); setMultiSelect(false); }}>✕ Clear</button></>}{groupIds.length > 1 && <> <button className="ltbtn" onClick={saveGroup}>💾 Save group</button></>}{hasStore && groupIds.length > 0 && <> <input className="gname" value={stampName} placeholder="stamp name" onChange={(e) => setStampName(e.target.value)} /> <button className="ltbtn" onClick={storeGroup}>📦 Store group</button></>}</p>}
+          {stamps.length > 0 && <div className="stampShelf"><span>📦 Stored</span><select aria-label="Stored group" value={stampPick} onChange={(e) => { setStampPick(e.target.value); setConfirmStampDel(null); }}><option value="">Choose a group…</option>{stamps.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.pieces.length})</option>)}</select><button className="ltbtn" disabled={!pickedStamp} onClick={() => pickedStamp && placeStamp(pickedStamp)}>Place</button><button className={"ltbtn" + (pickedStamp && confirmStampDel === pickedStamp.id ? " on" : "")} disabled={!pickedStamp} onClick={() => { if (!pickedStamp) return; if (confirmStampDel === pickedStamp.id) { setConfirmStampDel(null); deleteStamp(pickedStamp.id); } else { setConfirmStampDel(pickedStamp.id); flash("Tap Sure? to permanently delete stored group \"" + pickedStamp.name + "\""); } }} title={pickedStamp && confirmStampDel === pickedStamp.id ? "Tap again to permanently delete" : "Delete the selected stored group"}>{pickedStamp && confirmStampDel === pickedStamp.id ? "Sure?" : "✕"}</button></div>}
+          {/* 🌿 Object art — the stored-group shelf's twin, reading the props library. Same act
+              (drop a copy of blocks drawn elsewhere into this pose), different source — and the
+              source is the whole point: a prop carries a sub-category, so a growing collection of
+              reusable visual elements stays findable in folders instead of one flat list of names.
+              Sits under 📦 Stored rather than in the Load browser because this is not opening
+              another asset: nothing about the prop changes, and nothing about it is loaded. */}
+          {propGroupsAll.length > 0 && <div className="stampShelf propShelf">
+            <span>🌿 Object art</span>
+            <select aria-label="Object sub-category" value={propStampCat} onChange={(e) => setPropStampCat(e.target.value)}>
+              <option value="">📂 All ({propGroupsAll.reduce((n, g) => n + g.props.length, 0)})</option>
+              {propGroupsAll.map((g) => <option key={g.key} value={g.key}>{g.key === propCatKey(PROP_UNCAT) ? "📦" : "📂"} {g.label} ({g.props.length})</option>)}
             </select>
-            {poseCopySrc && <button className="copyang" onClick={() => setPoseCopySrc(null)}>✕ remove copy</button>}
-            {/* Creatures get BOTH: the reference overlay above (trace/pull piece-by-piece) and this
-                one-click full copy of the whole current pose into all the others at once. */}
-            {asset.type === "enemy" && copyToPosesMenu}
-          </span>
-        ) : (
-          copyToPosesMenu
-        )}
-        {showGuide && <span className="refpick">🧍 {asset.variants ? "Design for body:" : "Load body:"}
+            <select aria-label="Object to place" value={pickedPropStamp ? pickedPropStamp.id : ""} onChange={(e) => { setPropStampPick(e.target.value); setPropStampFrame(0); }}>
+              <option value="">Choose an object…</option>
+              {propShelfList.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            {/* Only an ANIMATED prop offers a frame, and it has to: frame 1 of a flickering sign is
+                half the art, and the whole reason to reach for one here is to lift a single still. */}
+            {pickedPropFrames > 1 && <select aria-label="Animation frame" value={Math.min(propStampFrame, pickedPropFrames - 1)} onChange={(e) => setPropStampFrame(+e.target.value)}>{pickedPropStamp.frames.map((f, i) => <option key={i} value={i}>Frame {i + 1}</option>)}</select>}
+            <button className="ltbtn" disabled={!pickedPropStamp} title="Copy this object's blocks into the pose you're drawing. The object itself is not changed." onClick={() => pickedPropStamp && placeProp(pickedPropStamp, propStampFrame)}>Place</button>
+            {pickedPropStamp && (() => { const n = propArtBlockCount(propArtPieces(pickedPropStamp, propStampFrame)); return <p className="mini">{n ? "Drops " + n + " block" + (n === 1 ? "" : "s") + " at the size they were drawn, held as one group — ↙ Whole group size shrinks the lot." : "That frame has no art in it."}</p>; })()}
+          </div>}
+          {savedGroups.length > 0 && <p className="tip">📁 Saved: {savedGroups.map((g) => <span key={g.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => loadGroup(g)}>{g.name} ({g.ids.length})</button><button className="ltbtn" onClick={() => deleteGroup(g.id)}>✕</button></span>)}</p>}
+        </span>
+        {!effEdit && asset.type !== "prop" && showGuide && <span className="refpick">🧍 {asset.variants ? "Design for body:" : "Load body:"}
           <select value={asset.guideId} onChange={(e) => switchGuideFit(e.target.value)}>
             <option value="default">Default body</option>
             {library.filter((a) => a.type === "body").map((a) => <option key={a.id} value={a.id}>{(asset.variants && asset.variants[a.id] ? "✓ " : "") + a.name}</option>)}
           </select>
           {asset.variants && <button className="ltbtn" onClick={copyFitToOtherBodies}>📋 Copy to other characters</button>}
         </span>}
-      </div>
-      )}
-
-      {/* 🔗 The group bar — every group-based control, lifted out of the "Add a block" card and
-          into the strip under the pose tabs. The right-hand panel had grown to Item categories,
-          Value, Add a block, the palette, BOTH shelves and the layer list, so the group controls
-          sat off the bottom of the screen and needed a scroll to reach, while this strip sat
-          empty. Nothing about them changed — same buttons, same order, same handlers, only where
-          they live. Its own bar rather than more chips inside .angles: the pose tabs are hidden
-          for props and for the effect editor, and groups are still drawn in both. */}
-      <div className="groupbar">
-        <span className="gblab">🔗 Groups</span>
-        {/* Turning add-mode ON keeps any group that's already held, so a stamp you just placed
-            can be extended. Turning it OFF now KEEPS it too — the mode and the selection are
-            separate things everywhere else in here (a placed stamp is a live group with the
-            mode off, and a group drags as one whether the mode is on or not), and this button
-            was the only place that conflated them. It stopped being harmless the moment
-            ▣ Select all started switching the mode on: "Done" is the natural last tap after
-            curating a selection, and it would have thrown the whole thing away. Clearing did
-            not go anywhere — ✕ Clear, right next to it, now ends the mode as well, so
-            "drop everything and get out" is still one tap. */}
-        <button className={"ltbtn" + (multiSelect ? " on" : "")} onClick={() => setMultiSelect((v) => !v)} >🔲 {multiSelect ? "Done" : "Group select"}</button>
-        {/* Select all — one tap to hold every block in this pose, so a multi-part item (a rocket
-            launcher drawn from a dozen blocks) can be dragged, rotated or resized as one object
-            without hunting each block first. Sits next to the mode toggle rather than inside the
-            group tip so it's reachable from a cold start. This POSE's blocks only: a group is a
-            list of piece ids inside one pose, so it can never span them.
-
-            It also switches Group select ON, and that is the half that makes a selection
-            REFINABLE rather than all-or-nothing. Tapping a member back out only fires in
-            add-mode (see the pointerup handler), so "select all" used to be a one-way door:
-            the only way to hold "everything except the shadow" was ✕ Clear and then picking
-            the other fifteen blocks by hand. Turning the mode on here can't sweep anything in
-            behind your back either — in add-mode a tap only ADDS a block that isn't already
-            held, and immediately after Select all there is no such block. */}
-        {pieces.length > 0 && <button className="ltbtn" onClick={() => { setGroupIds(pieces.map((pc) => pc.id)); setSelId(pieces[pieces.length - 1].id); setMultiSelect(true); }}>▣ Select all ({pieces.length})</button>}
-        {/* A group can be live WITHOUT add-mode (that's what placing a stamp leaves you with),
-            so the count and the group buttons key off the group itself. Only the "click blocks
-            to add/remove" line is about the mode. */}
-        {(multiSelect || groupIds.length > 0) && <p className="tip">{multiSelect ? "🔲 Multi-select" : "🔗 Group held"} ({groupIds.length} selected).{multiSelect && <span className="gbhint">Tap a held block — on the canvas or in the layer list — to drop it back out; tap it again to put it back in.</span>}{groupIds.length > 0 && <> <button className="ltbtn" onClick={() => { setGroupIds([]); setMultiSelect(false); }}>✕ Clear</button></>}{groupIds.length > 1 && <> <button className="ltbtn" onClick={saveGroup}>💾 Save group</button></>}{hasStore && groupIds.length > 0 && <> <input className="gname" value={stampName} placeholder="stamp name" onChange={(e) => setStampName(e.target.value)} /> <button className="ltbtn" onClick={storeGroup}>📦 Store group</button></>}</p>}
-        {stamps.length > 0 && <div className="stampShelf"><span>📦 Stored</span><select aria-label="Stored group" value={stampPick} onChange={(e) => { setStampPick(e.target.value); setConfirmStampDel(null); }}><option value="">Choose a group…</option>{stamps.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.pieces.length})</option>)}</select><button className="ltbtn" disabled={!pickedStamp} onClick={() => pickedStamp && placeStamp(pickedStamp)}>Place</button><button className={"ltbtn" + (pickedStamp && confirmStampDel === pickedStamp.id ? " on" : "")} disabled={!pickedStamp} onClick={() => { if (!pickedStamp) return; if (confirmStampDel === pickedStamp.id) { setConfirmStampDel(null); deleteStamp(pickedStamp.id); } else { setConfirmStampDel(pickedStamp.id); flash("Tap Sure? to permanently delete stored group \"" + pickedStamp.name + "\""); } }} title={pickedStamp && confirmStampDel === pickedStamp.id ? "Tap again to permanently delete" : "Delete the selected stored group"}>{pickedStamp && confirmStampDel === pickedStamp.id ? "Sure?" : "✕"}</button></div>}
-        {/* 🌿 Object art — the stored-group shelf's twin, reading the props library. Same act
-            (drop a copy of blocks drawn elsewhere into this pose), different source — and the
-            source is the whole point: a prop carries a sub-category, so a growing collection of
-            reusable visual elements stays findable in folders instead of one flat list of names.
-            Sits under 📦 Stored rather than in the Load browser because this is not opening
-            another asset: nothing about the prop changes, and nothing about it is loaded. */}
-        {propGroupsAll.length > 0 && <div className="stampShelf propShelf">
-          <span>🌿 Object art</span>
-          <select aria-label="Object sub-category" value={propStampCat} onChange={(e) => setPropStampCat(e.target.value)}>
-            <option value="">📂 All ({propGroupsAll.reduce((n, g) => n + g.props.length, 0)})</option>
-            {propGroupsAll.map((g) => <option key={g.key} value={g.key}>{g.key === propCatKey(PROP_UNCAT) ? "📦" : "📂"} {g.label} ({g.props.length})</option>)}
-          </select>
-          <select aria-label="Object to place" value={pickedPropStamp ? pickedPropStamp.id : ""} onChange={(e) => { setPropStampPick(e.target.value); setPropStampFrame(0); }}>
-            <option value="">Choose an object…</option>
-            {propShelfList.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-          {/* Only an ANIMATED prop offers a frame, and it has to: frame 1 of a flickering sign is
-              half the art, and the whole reason to reach for one here is to lift a single still. */}
-          {pickedPropFrames > 1 && <select aria-label="Animation frame" value={Math.min(propStampFrame, pickedPropFrames - 1)} onChange={(e) => setPropStampFrame(+e.target.value)}>{pickedPropStamp.frames.map((f, i) => <option key={i} value={i}>Frame {i + 1}</option>)}</select>}
-          <button className="ltbtn" disabled={!pickedPropStamp} title="Copy this object's blocks into the pose you're drawing. The object itself is not changed." onClick={() => pickedPropStamp && placeProp(pickedPropStamp, propStampFrame)}>Place</button>
-          {pickedPropStamp && (() => { const n = propArtBlockCount(propArtPieces(pickedPropStamp, propStampFrame)); return <p className="mini">{n ? "Drops " + n + " block" + (n === 1 ? "" : "s") + " at the size they were drawn, held as one group — ↙ Whole group size shrinks the lot." : "That frame has no art in it."}</p>; })()}
-        </div>}
-        {savedGroups.length > 0 && <p className="tip">📁 Saved: {savedGroups.map((g) => <span key={g.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => loadGroup(g)}>{g.name} ({g.ids.length})</button><button className="ltbtn" onClick={() => deleteGroup(g.id)}>✕</button></span>)}</p>}
       </div>
 
       <div className="main">
@@ -16592,7 +16583,7 @@ export default function AssetStudio() {
                       <label key={color} className="palchip" title={color + " · " + count + " block" + (count === 1 ? "" : "s") + " · tap to recolour everywhere"}>
                         <span className="palsw" style={{ background: color }} />
                         <span className="palmeta"><span className="palhex">{color}</span><span className="palcount">{count}×</span></span>
-                        <input type="color" value={color} onChange={(e) => remapPalette(color, e.target.value)} onBlur={(e) => { addRecent(e.target.value); delete palGroup.current[color]; }} />
+                        <input type="color" value={color} onChange={(e) => remapPalette(color, e.target.value)} onBlur={(e) => { addRecent(e.target.value); forgetPaletteDrag(color); }} />
                       </label>
                     ))}
                   </div>
@@ -16615,7 +16606,7 @@ export default function AssetStudio() {
                 
                 <button className="wide" onClick={() => setPicker({ mode: "change" })}>Change emoji ({sel.char})</button>
               </> : <>
-                <div className="swatches">{palettePicker(palKey, setPalKey)}{pal.map((c) => <button key={c} className={sel.color === c ? "on" : ""} style={{ background: c }} onClick={() => applyPieceColor(c)} />)}{swBreak}{recent.filter((c) => !pal.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.color === c ? " on" : "")} style={{ background: c }} onClick={() => applyPieceColor(c)} title="recent" />)}<label className="pick"><input type="color" value={sel.color} onChange={(e) => applyPieceColor(e.target.value)} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
+                <div className="swatches">{palettePicker(palKey, setPalKey)}{pal.map((c) => <button key={c} className={sel.color === c ? "on" : ""} style={{ background: c }} onClick={() => applyPieceColor(c)} />)}{swBreak}{recent.filter((c) => !pal.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.color === c ? " on" : "")} style={{ background: c }} onClick={() => applyPieceColor(c)} title="recent" />)}<label className="pick"><input type="color" value={sel.color} onChange={(e) => applyPieceColor(e.target.value, true)} onBlur={(e) => { addRecent(e.target.value); endColorDrag(); }} />＋</label></div>
                 {!effEdit && <label className="chk"><input type="checkbox" checked={recolorAll} onChange={(e) => setRecolorAll(e.target.checked)} /> 🪣 Change this color everywhere </label>}
                 {/* PATTERN — the same texture library the Level Creator paints walls with, applied
                     to this block instead. Flannel is the one built for cloth, but any of them work;
@@ -16628,7 +16619,7 @@ export default function AssetStudio() {
                   {sel.tex && <button className="ltbtn" onClick={() => updSel({ tex: null })}>✕ Plain</button>}
                 </div>
               </>}
-              <button className="ltbtn" onClick={() => updSel(sel.kind === "emoji" ? { tint: newColor, fx: { ...newFx } } : { color: newColor, fx: { ...newFx } })} >🎨 Apply picked color + fx</button>
+              <button className="ltbtn" onClick={() => (sel.kind === "emoji" ? updSel({ tint: newColor, fx: { ...newFx } }) : applyPickedColorFx(newColor, { ...newFx }))} >🎨 Apply picked color + fx</button>
               <label className="chk outlinechk"><input type="checkbox" checked={!!sel.outline} onChange={(e) => updSel({ outline: e.target.checked, outlineFx: sel.outlineFx || defaultFx() })} /> 🖍 Outline </label>
               {sel.outline && <label className="pick" style={{ marginBottom: 8 }}>Outline color<input type="color" value={sel.outlineColor || "#000000"} onChange={(e) => updSel({ outlineColor: e.target.value })} /></label>}
               {sel.outline && (
@@ -16856,9 +16847,11 @@ export default function AssetStudio() {
 }
 
 const css = `
+html,body{margin:0;padding:0;background:#0f1117}
+#root{height:100%}
 .bb{height:100vh;display:flex;flex-direction:column;background:#0f1117;color:#e7e9ee;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
-.bb.weaponEditor{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto auto}
-.weaponEditor>.bar{grid-row:1}.weaponEditor>.main{grid-row:2;min-height:0}.weaponEditor>.angles{grid-row:3}.weaponEditor>.groupbar{grid-row:4}.weaponEditor>.weaponSettings{grid-row:5}
+.bb.weaponEditor{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto}
+.weaponEditor>.bar{grid-row:1}.weaponEditor>.main{grid-row:2;min-height:0}.weaponEditor>.angles{grid-row:3}.weaponEditor>.weaponSettings{grid-row:4}
 .weaponSettings{min-height:0;max-height:34vh;overflow:auto;border-top:2px solid #2c3245;background:#14111a}
 /* The weapon settings consume a bottom grid row, so an 88vh canvas cannot fit in the remaining
    middle row. Its overflowing transparent artrow covered Menu, Fire, and the settings and stole
@@ -16939,13 +16932,12 @@ const css = `
 .copytorow button.prim{background:#2f6fb5;border-color:#3f80c9;color:#fff}
 .copytorow button:disabled{opacity:.45;cursor:not-allowed}
 .posecopy select{background:#1f2433;border:1px dashed #3a4258;border-radius:9px;padding:7px 10px;font-size:12px;color:#9aa3b8;cursor:pointer}
-/* 🔗 The group bar. Its own strip directly under the pose tabs, a shade lighter so the two read
-   as separate bars rather than one tall toolbar. Everything inside it was written for the 330px
-   panel COLUMN, so every rule here is about un-stacking it for a ROW: the shelves stop being
-   full-width grids, the tips stop being centred 330px paragraphs, and Object art's hint stops
-   forcing its own line. */
-.groupbar{display:flex;align-items:center;gap:8px;padding:8px 14px;background:#151926;border-bottom:1px solid #232838;flex-wrap:wrap;flex-shrink:0}
-.gblab{font-size:12px;color:#9aa3b8}
+/* 🔗 The group controls, living in the blank middle of the pose strip — no bar of its own, so
+   they cost the canvas no height at all. It takes the row between the pose tabs and the body
+   picker and wraps within it. Everything inside was written for the 330px panel COLUMN, so every
+   rule below is about un-stacking it for a ROW: the shelves stop being full-width grids, the tips
+   stop being centred 330px paragraphs, and Object art's hint stops forcing its own line. */
+.groupbar{display:flex;align-items:center;gap:8px;flex:0 1 auto;min-width:0;flex-wrap:wrap;padding-left:12px;border-left:1px solid #2a3040}
 .groupbar .tip{margin:0;max-width:none;text-align:left;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .groupbar .mini{margin:0;max-width:280px}
 .groupbar .gbhint{max-width:300px;font-size:11.5px;line-height:1.25}

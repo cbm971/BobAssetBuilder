@@ -168,6 +168,8 @@ import {
   recolorAsset,
   restyleAsset,
   assetColorGroup,
+  collectAssetColors,
+  forEachAssetPiece,
   colorGroupAfter,
   recolorAssetGroup,
   restyleAssetGroup,
@@ -3105,11 +3107,13 @@ describe("changing a colour everywhere never swallows a block that was a differe
 
   test("the group is every block wearing that colour, in every pose, state and body fit", () => {
     const g = assetColorGroup(asset(), "#2E7D32");
-    expect([...g.ids].sort()).toEqual(["shirt-f", "shirt-r", "shirt-s", "shirt-t"]);
+    // The group is a set of PLACES — which list, which index — not of piece ids; ids repeat
+    // across an asset's poses and body fits, which is what used to drag a stranger in.
+    expect([...g.keys].sort()).toEqual(["angles.front[0]", "angles.side[0]", "states.rest.front[0]", "var.tall.front[0]"]);
   });
 
   test("matching to build the group is case-insensitive on the hex", () => {
-    expect(assetColorGroup(asset(), "#2e7d32").ids.has("shirt-f")).toBe(true);
+    expect(assetColorGroup(asset(), "#2e7d32").keys.has("angles.front[0]")).toBe(true);
   });
 
   // The report: dragging the colour input fires onChange for every shade in between, and one of
@@ -3143,10 +3147,10 @@ describe("changing a colour everywhere never swallows a block that was a differe
     expect(out.angles.front[1].fx).toBeUndefined(); // boots, same colour now, still not in the group
   });
 
-  test("blocks too old to have an id still follow the group by colour", () => {
+  test("blocks too old to have an id are grouped like any other — a place needs no id", () => {
     const legacy = { angles: { front: [{ color: "#2E7D32" }, { color: "#8D6E63" }] } };
     const g = assetColorGroup(legacy, "#2E7D32");
-    expect(g.ids.size).toBe(0);
+    expect([...g.keys]).toEqual(["angles.front[0]"]);
     const out = recolorAssetGroup(legacy, g, "#C62828");
     expect(out.angles.front[0].color).toBe("#C62828");
     expect(out.angles.front[1].color).toBe("#8D6E63");
@@ -3156,8 +3160,8 @@ describe("changing a colour everywhere never swallows a block that was a differe
     expect(recolorAssetGroup(null, assetColorGroup(asset(), "#2E7D32"), "#fff")).toBe(null);
     const a = asset();
     expect(recolorAssetGroup(a, null, "#fff")).toBe(a);
-    expect(assetColorGroup(null, "#2E7D32").ids.size).toBe(0);
-    expect(assetColorGroup(asset(), null).ids.size).toBe(0);
+    expect(assetColorGroup(null, "#2E7D32").keys.size).toBe(0);
+    expect(assetColorGroup(asset(), null).keys.size).toBe(0);
   });
 });
 
@@ -7730,46 +7734,49 @@ describe("recolour everywhere never leaves the colour it was asked about", () =>
     expect(colourOf(out, 'telfv37', 'frwly0y')).toEqual([BLACK]);
   });
 
-  test("the drift the ids were added for is still prevented", () => {
+  test("the drift a frozen group exists to prevent is still prevented", () => {
     // A colour input fires continuously while dragged, so an edit walks through shades other
-    // blocks already wear. A block that was never in the group must not join by passing through
-    // its colour — that needs the id half, and it is still doing its job.
+    // blocks already wear. A block that was never in the group must not join by having the edit
+    // pass through its colour — that is what freezing the group buys, and it still holds.
     const g = assetColorGroup(jeans(), BLUE);
-    expect(g.ids.has('leg2')).toBe(true);
-    expect(g.ids.has('belt1')).toBe(false);
+    expect(g.keys.has('var.default.front[1]')).toBe(true);    // leg2, a real blue leg
+    expect(g.keys.has('angles.front[1]')).toBe(false);        // belt1, the belt
     // dragged onto the belt's own shade and then away again
     const mid = recolorAssetGroup(jeans(), g, BELT);
     expect(colourOf(mid, 'angles', 'belt1')).toEqual([BELT]);
-    const end = recolorAssetGroup(mid, { ...g, seen: new Set([...g.seen, BELT]) }, BLACK);
+    const end = recolorAssetGroup(mid, colorGroupAfter(g, BELT), BLACK);
     expect(colourOf(end, 'angles', 'belt1')).toEqual([BELT]);   // never joined
     expect(colourOf(end, 'default', 'leg2')).toEqual([BLACK]);  // the real members followed
   });
 
   test("a group handed across a repaint keeps recognising its own members", () => {
-    // colorGroupAfter is the whole reason a live drag does not go dead on its second step: the
-    // members are wearing the new colour by then, so the shade painted has to join the set.
+    // The members are wearing the new colour by the second step of a drag, so membership cannot be
+    // a colour test at all. It is the frozen place set, and colorGroupAfter passes it through
+    // untouched — only `from` moves on, so a caller can tell one edit from the next.
     const g = assetColorGroup(jeans(), BLUE);
     const mid = recolorAssetGroup(jeans(), g, BELT);              // dragged onto the belt's shade
     const g2 = colorGroupAfter(g, BELT);
     expect(g2.from).toBe(BELT);
-    expect([...g2.seen].sort()).toEqual([BLUE, BELT].sort());
-    expect(g2.ids).toBe(g.ids);                                   // same members, no re-resolve
+    expect(g2.keys).toBe(g.keys);                                 // same members, no re-resolve
     const end = recolorAssetGroup(mid, g2, BLACK);
     expect(colourOf(end, 'default', 'leg2')).toEqual([BLACK]);
     expect(colourOf(end, 'angles', 'belt1')).toEqual([BELT]);      // still never joined
     expect(colourOf(end, 'angles', 'frwly0y')).toEqual([GOLD]);    // and the buckle still has not
   });
 
-  test("the group carries the shades it has painted, seeded with the one asked for", () => {
+  test("the group is places, so a same-id stranger can never be one of them", () => {
+    // The buckle and one blue leg share the id `frwly0y`; they do not share a place. Nothing
+    // about the group refers to the id at all any more, which is why no colour test is needed to
+    // keep the buckle out — it simply is not in the set.
     const g = assetColorGroup(jeans(), BLUE);
     expect(g.from).toBe(BLUE);
-    expect([...g.seen]).toEqual([BLUE]);
-    // A member repainted by hand mid-edit has left the group, and must not be swept back in.
+    expect([...g.keys].sort()).toEqual(['angles.front[2]', 'var.default.front[0]', 'var.default.front[1]']);
+    expect(g.keys.has('angles.front[0]')).toBe(false);   // the gold buckle's place is simply not in it
     const a = jeans();
-    a.variants.default.front[1].color = '#00ff00';
+    a.angles.front[0].color = BLUE;              // the buckle is repainted blue by hand AFTER the freeze
     const out = recolorAssetGroup(a, g, BLACK);
-    expect(colourOf(out, 'default', 'leg2')).toEqual(['#00ff00']);
-    expect(colourOf(out, 'default', 'frwly0y')).toEqual([BLACK]);
+    expect(colourOf(out, 'angles', 'frwly0y')).toEqual([BLUE]);   // still not in this edit's group
+    expect(colourOf(out, 'default', 'leg2')).toEqual([BLACK]);
   });
 
   test("the brightness/glow sliders read the same membership, so both controls mean one thing", () => {
@@ -7893,5 +7900,99 @@ describe("flagging a block never moves it", () => {
     const leg = repivotForFlags(turned, { limb: "leg" });
     expect(leg.x).toBe(turned.x);
     expect(leg.y).toBe(turned.y);
+  });
+});
+
+/* 🪣 The two ways "Change this colour everywhere" was still wrong, reported together:
+   "It does not work with Apply Picked color and it changes the color even if the items are a
+   completely different shade."
+
+   Both came from the same place. The group was frozen as piece IDS plus a growing set of every
+   shade the edit had painted — so it could outlive the edit that made it and repaint places that
+   had since become something else — and 🎨 Apply picked color never consulted the toggle at all.
+   The group is now the frozen set of PLACES that were exactly that colour, and every discrete tap
+   resolves its own. */
+describe("change this colour everywhere means exactly this colour", () => {
+  const RED = '#c62828', DARKRED = '#8e1f1f', BLUE = '#1e88e5';
+  const shirt = () => ({
+    id: 'shirt', type: 'equipment', slot: 'shirt',
+    angles: { front: [
+      { id: 'a', color: RED }, { id: 'b', color: RED }, { id: 'c', color: DARKRED }, { id: 'd', color: BLUE },
+    ], back: [], side: [{ id: 'e', color: RED }], up: [], crouch: [] },
+  });
+
+  test("a different SHADE of the same colour is never taken", () => {
+    const out = recolorAsset(shirt(), RED, BLUE);
+    expect(out.angles.front.map((p) => p.color)).toEqual([BLUE, BLUE, DARKRED, BLUE]);
+    expect(out.angles.side[0].color).toBe(BLUE);   // every real red went, in every pose
+  });
+
+  test("a group frozen for one edit cannot be reused by the next one", () => {
+    // What made a stale group dangerous: paint the reds blue, then come back later and the old
+    // group still names those places. A fresh resolve is the only thing that can mean "the blocks
+    // that are this colour", so every discrete tap does one — and here is the difference it makes.
+    const g = assetColorGroup(shirt(), RED);
+    const painted = recolorAssetGroup(shirt(), g, BLUE);
+    // Reusing g on the repainted asset would repaint the same places again, including the one that
+    // is now the SAME blue as a block that was never in the group. Resolving fresh from what is on
+    // screen takes that fourth block too, because it really is that colour now.
+    const stale = recolorAssetGroup(painted, g, '#000000');
+    expect(stale.angles.front[3].color).toBe(BLUE);              // block d untouched: not in the old group
+    const fresh = recolorAsset(painted, BLUE, '#000000');
+    expect(fresh.angles.front.map((p) => p.color)).toEqual(['#000000', '#000000', DARKRED, '#000000']);
+  });
+
+  test("colorGroupAfter no longer accumulates shades — there is nothing to accumulate", () => {
+    const g = assetColorGroup(shirt(), RED);
+    const g2 = colorGroupAfter(g, BLUE);
+    expect(g2.keys).toBe(g.keys);
+    expect(g2.from).toBe(BLUE);
+    expect(g2.seen).toBeUndefined();
+  });
+
+  test("🎨 Apply picked colour + fx lands on the whole group, colour and fx together", () => {
+    // The button applies both in one pass over ONE group, which is what applyPickedColorFx does.
+    const g = assetColorGroup(shirt(), RED);
+    const out = restyleAssetGroup(recolorAssetGroup(shirt(), g, BLUE), g, { bright: 0.6, glow: 4 });
+    const front = out.angles.front;
+    expect(front[0].color).toBe(BLUE); expect(front[0].fx.bright).toBe(0.6); expect(front[0].fx.glow).toBe(4);
+    expect(front[1].fx.bright).toBe(0.6);
+    expect(out.angles.side[0].fx.bright).toBe(0.6);
+    expect(front[2].color).toBe(DARKRED); expect(front[2].fx).toBeUndefined();  // the near shade, untouched
+    expect(front[3].fx).toBeUndefined();
+  });
+
+  test("a place still names the same piece after a repaint, which is what lets a drag hold one", () => {
+    const g = assetColorGroup(shirt(), RED);
+    const once = recolorAssetGroup(shirt(), g, '#111111');
+    const twice = recolorAssetGroup(once, colorGroupAfter(g, '#111111'), '#222222');
+    expect(twice.angles.front.map((p) => p.color)).toEqual(['#222222', '#222222', DARKRED, BLUE]);
+    expect(twice.angles.side[0].color).toBe('#222222');
+  });
+
+  // The strongest guard available: every colour of every asset Blake actually has. A made-up
+  // fixture cannot catch a bug that only fires on the shape his data has — the id collision that
+  // started all of this was exactly that — so this sweeps the real library instead.
+  test("on the REAL library, one recolour changes every block of that colour and no other", () => {
+    const lib = JSON.parse(require("fs").readFileSync(
+      require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
+    const TO = '#010203';
+    let over = 0, under = 0, colours = 0;
+    for (const a of lib.assets) {
+      for (const { color } of collectAssetColors(a)) {
+        colours++;
+        const out = recolorAsset(a, color, TO);
+        const before = new Map(); forEachAssetPiece(a, (p, k) => before.set(k, typeof p.color === 'string' ? p.color.toLowerCase() : null));
+        forEachAssetPiece(out, (p, k) => {
+          const was = before.get(k), now = typeof p.color === 'string' ? p.color.toLowerCase() : null;
+          const changed = now === TO && was !== TO;
+          if (changed && was !== color) over++;
+          if (!changed && was === color) under++;
+        });
+      }
+    }
+    expect(colours).toBeGreaterThan(200);   // the sweep really did run over the library
+    expect(over).toBe(0);
+    expect(under).toBe(0);
   });
 });
