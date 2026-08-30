@@ -333,6 +333,28 @@ have never changed; if a palette looks wrong, suspect the row, not the hexes.
 walks poses must use `editablePoses`, not `ANGLES`, or it silently drops art.
 `displayPoseKey()` picks a pose that actually has art when showing an item on its own.
 
+**ART COMES INTO THE EDITOR TWO WAYS, AND THE SECOND ONE IS THE PROPS LIBRARY.** A stored group
+(a “stamp”) is a deep copy of some blocks kept outside any asset; the 📦 Stored shelf places one.
+The trouble is that it is a flat list of names with no filing of any kind, so Blake was keeping a
+SECOND, uncategorised copy of every reusable visual element on it purely so it could be stamped.
+The 🌿 **Object art** shelf sits under it and does the same thing out of the props library, which
+is the one asset kind carrying a sub-category (`propCat` / `groupProps`) — so the folders he
+already files scenery under are the folders he picks trim, badges and signage out of.
+
+* `propArtPieces(prop, frameIdx)` is the read: `frames[i].front`, which is the only pose a prop
+  ever draws. Hitbox and muzzle blocks are dropped (metadata, never drawn — they would arrive as
+  invisible mystery rows in the layer list); cutters are kept, because a cutter is part of the
+  look it was drawn with. The list comes back BY REFERENCE, so `placeProp` copies before it bakes.
+* **Mirroring is baked out on the way in**, for `storeGroup`'s reason (a live `scaleX(-1)` twin is
+  not a group member, so the group would rotate and resize around something that doesn't follow)
+  and for one specific to this door: a prop's art lives in `front`, where mirror applies, but the
+  pose it is being dropped into may be `side`, where `pmirror` says it does not — an un-baked
+  mirrored block would arrive as half of itself. That is also why the shelf's block count is
+  `propArtBlockCount`, not `.length`: 12 entries on the middle frame of his Explosion LAND as 18.
+* Nothing about the prop changes. It is not opened, not saved, not touched; what lands is
+  ordinary blocks in the asset being drawn, held as a group with add-mode off so the first drag
+  and the Width slider move the whole arrival.
+
 **Level cells.** `lv.fg` / `lv.bg` / `lv.front`, keyed `"r,c"`. A value is a colour
 string or `{ c, tex, ol, slope, run, step, upsideDown }`. A **foreground cell can hold
 more than one fill**: `more` is an array of extra fills under the primary one, so a

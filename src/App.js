@@ -2585,6 +2585,30 @@ export const groupProps = (assets) => {
   return groups.sort((x, y) => (x.key === unk) - (y.key === unk) || cmp(x.label, y.label));
 };
 
+// The blocks a prop actually DRAWS, for one animation frame. This is what the asset editor's
+// 🌿 Object art shelf copies into whatever is being drawn, and it is deliberately a plain read of
+// the art rather than anything prop-specific: a prop keeps every frame in `frames[i].front`
+// (front is the only pose a prop ever renders from — see propVisibleArtBox), with `angles` as the
+// live copy of whichever frame is open in the editor, so an asset written by hand with no frames
+// array still answers.
+// Hitbox and muzzle blocks are dropped. They are editor metadata for weapons and creatures — never
+// drawn anywhere — so copying them onto a shirt would add invisible blocks that surface only as
+// mystery rows in the layer list. Cutters are KEPT: a cutter is part of the look it was drawn with
+// (it carves the hole), exactly as a stored group keeps its own.
+export const propArtPieces = (propAsset, frameIdx) => {
+  if (!propAsset) return [];
+  const frames = (propAsset.frames && propAsset.frames.length) ? propAsset.frames : [propAsset.angles].filter(Boolean);
+  if (!frames.length) return [];
+  const i = Math.max(0, Math.min(frames.length - 1, Math.round(frameIdx) || 0));
+  return ((frames[i] && frames[i].front) || []).filter((p) => p && !p.isHitbox && !p.isMuzzle);
+};
+// How many blocks that art actually LANDS as, which is not the length of the list. A mirrored
+// block is one entry drawing two halves, and placing bakes it into two concrete blocks
+// (bakeMirrorOut, and see placeProp for why) — so a shelf line counting the source promised 12
+// and delivered 18 on the middle frame of Blake's Explosion. The label and the flash read the
+// same number now. This mirrors bakeMirrorOut's rule and has to keep mirroring it.
+export const propArtBlockCount = (pieces) => (pieces || []).reduce((n, p) => n + (p && p.mirror ? 2 : 1), 0);
+
 // Categories for the "Load" browser. `fitTracked` marks types that carry per-body variants
 // (skin/equipment) — those get the body-fit checklist in the item list; weapons and bodies
 // themselves don't need one (a weapon's hand-attachment point already adapts to any body
@@ -6733,6 +6757,13 @@ export default function AssetStudio() {
   const [stampName, setStampName] = useState("");
   const [stampPick, setStampPick] = useState(""); // selected reusable group in the compact stored-group shelf
   const [confirmStampDel, setConfirmStampDel] = useState(null); // stamp id armed for deletion — a second tap actually deletes it
+  // The 🌿 Object art shelf is the stored-group shelf's twin, reading the props library instead of
+  // the stamp store (see placeProp). Its own cursor, kept separate from the stamp shelf's so
+  // browsing one never disturbs the other: which sub-category is open, which prop is picked, and
+  // which of that prop's animation frames Place copies.
+  const [propStampCat, setPropStampCat] = useState("");
+  const [propStampPick, setPropStampPick] = useState("");
+  const [propStampFrame, setPropStampFrame] = useState(0);
   useEffect(() => { setGroupIds([]); setMultiSelect(false); }, [angle, asset?.id]);
   const [newColor, setNewColor] = useState("#7aa2d6");
   const [newFx, setNewFx] = useState(defaultFx()); // brightness/glow/fade for the NEXT block created — the eyedropper feeds this too, alongside newColor
@@ -10467,6 +10498,33 @@ export default function AssetStudio() {
     setMultiSelect(false); setGroupIds(fresh.map((p) => p.id)); setSelId(fresh[fresh.length - 1]?.id || null);
     flash("Placed \"" + s.name + "\" — drag to position it. Grab any other block to let go of it.");
   };
+  // Placing a PROP is the same act as placing a stored group, sourced from the props library
+  // instead of the stamp store. Blake already draws reusable visual elements — badges, trim,
+  // signage — as props, and a prop is the one kind of asset carrying a sub-category to file it
+  // under (propCat / groupProps). The stamp shelf is a flat list of names, which stops being
+  // findable at a couple of dozen; keeping a second, uncategorised copy of every such element on
+  // that shelf, purely so it could be stamped, is the workaround this replaces.
+  //
+  // The blocks are COPIED. The prop is never opened, never saved and never changed, and what lands
+  // is ordinary blocks in this asset from the moment it arrives — recolour, resize, regroup or
+  // delete them and the prop they came from is untouched.
+  //
+  // Mirroring is baked out for the reason storeGroup bakes it (a live scaleX(-1) twin is not a real
+  // group member, so a group would rotate and resize around a twin that doesn't follow) — and for a
+  // second reason specific to this door: a prop's art lives in `front`, where mirror applies, but
+  // the pose it is being dropped into may be `side`, where pmirror says it does not. An un-baked
+  // mirrored block would arrive as half of itself.
+  const placeProp = (a, frameIdx) => {
+    const src = propArtPieces(a, frameIdx);
+    if (!src.length) { flash("\"" + ((a && a.name) || "That object") + "\" has no art in that frame."); return; }
+    const fresh = bakeMirrorOut(JSON.parse(JSON.stringify(src)));
+    setPieces((list) => list.concat(fresh));
+    // Lands selected, anchored, and held as a group with add-mode OFF — placeStamp's ending, for
+    // placeStamp's reasons, and here the group especially matters: a prop is drawn at prop size, so
+    // the first thing wanted is to drag and resize the whole arrival as one object.
+    setMultiSelect(false); setGroupIds(fresh.map((p) => p.id)); setSelId(fresh[fresh.length - 1]?.id || null);
+    flash("Placed \"" + ((a && a.name) || "object") + "\" (" + fresh.length + " block" + (fresh.length === 1 ? "" : "s") + ") at the size it was drawn — drag it, or the Width slider sizes the whole group down. Grab any other block to let go of it.");
+  };
   const deleteStamp = async (id) => {
     let list = []; const idx = await sget("stampIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     await sdel("stamp:" + id);
@@ -13033,6 +13091,13 @@ export default function AssetStudio() {
   const floorSuggest = [...new Set(levelLib.map((l) => (l.floor || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   const propGroupsAll = groupProps(allAssets);
   const propCatSuggest = propGroupsAll.filter((g) => g.key !== propCatKey(PROP_UNCAT)).map((g) => g.label);
+  // What the 🌿 Object art shelf offers: the props inside the open sub-category, or every prop when
+  // none is chosen. `pickedPropStamp` resolves against that SAME list rather than the whole library,
+  // so narrowing the category can never leave Place armed on something that is no longer on screen —
+  // and widening it back brings the pick straight back, because the id itself is never cleared.
+  const propShelfList = propStampCat ? ((propGroupsAll.find((g) => g.key === propStampCat) || { props: [] }).props) : propGroupsAll.flatMap((g) => g.props);
+  const pickedPropStamp = propShelfList.find((a) => a.id === propStampPick) || null;
+  const pickedPropFrames = pickedPropStamp ? (pickedPropStamp.frames || []).length : 0;
   const catSuggest = [...new Set(allAssets.filter(HAS_CATEGORIES).flatMap((a) => (a.categories || []).map((c) => (c || "").trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   // Hoisted to component scope (not inside the level-screen block) because BOTH commit paths
   // need it: the status-strip destination buttons AND selectLayer below — clicking a layer tab
@@ -16473,6 +16538,28 @@ export default function AssetStudio() {
                 to add/remove" line is about the mode. */}
             {(multiSelect || groupIds.length > 0) && <p className="tip">{multiSelect ? "🔲 Multi-select" : "🔗 Group held"} ({groupIds.length} selected).{multiSelect && <> Tap a held block — on the canvas or in the layer list — to drop it back out; tap it again to put it back in.</>}{groupIds.length > 0 && <> <button className="ltbtn" onClick={() => { setGroupIds([]); setMultiSelect(false); }}>✕ Clear</button></>}{groupIds.length > 1 && <> <button className="ltbtn" onClick={saveGroup}>💾 Save group</button></>}{hasStore && groupIds.length > 0 && <> <input className="gname" value={stampName} placeholder="stamp name" onChange={(e) => setStampName(e.target.value)} /> <button className="ltbtn" onClick={storeGroup}>📦 Store group</button></>}</p>}
             {stamps.length > 0 && <div className="stampShelf"><span>📦 Stored</span><select aria-label="Stored group" value={stampPick} onChange={(e) => { setStampPick(e.target.value); setConfirmStampDel(null); }}><option value="">Choose a group…</option>{stamps.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.pieces.length})</option>)}</select><button className="ltbtn" disabled={!pickedStamp} onClick={() => pickedStamp && placeStamp(pickedStamp)}>Place</button><button className={"ltbtn" + (pickedStamp && confirmStampDel === pickedStamp.id ? " on" : "")} disabled={!pickedStamp} onClick={() => { if (!pickedStamp) return; if (confirmStampDel === pickedStamp.id) { setConfirmStampDel(null); deleteStamp(pickedStamp.id); } else { setConfirmStampDel(pickedStamp.id); flash("Tap Sure? to permanently delete stored group \"" + pickedStamp.name + "\""); } }} title={pickedStamp && confirmStampDel === pickedStamp.id ? "Tap again to permanently delete" : "Delete the selected stored group"}>{pickedStamp && confirmStampDel === pickedStamp.id ? "Sure?" : "✕"}</button></div>}
+            {/* 🌿 Object art — the stored-group shelf's twin, reading the props library. Same act
+                (drop a copy of blocks drawn elsewhere into this pose), different source — and the
+                source is the whole point: a prop carries a sub-category, so a growing collection of
+                reusable visual elements stays findable in folders instead of one flat list of names.
+                Sits under 📦 Stored rather than in the Load browser because this is not opening
+                another asset: nothing about the prop changes, and nothing about it is loaded. */}
+            {propGroupsAll.length > 0 && <div className="stampShelf propShelf">
+              <span>🌿 Object art</span>
+              <select aria-label="Object sub-category" value={propStampCat} onChange={(e) => setPropStampCat(e.target.value)}>
+                <option value="">📂 All ({propGroupsAll.reduce((n, g) => n + g.props.length, 0)})</option>
+                {propGroupsAll.map((g) => <option key={g.key} value={g.key}>{g.key === propCatKey(PROP_UNCAT) ? "📦" : "📂"} {g.label} ({g.props.length})</option>)}
+              </select>
+              <select aria-label="Object to place" value={pickedPropStamp ? pickedPropStamp.id : ""} onChange={(e) => { setPropStampPick(e.target.value); setPropStampFrame(0); }}>
+                <option value="">Choose an object…</option>
+                {propShelfList.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+              {/* Only an ANIMATED prop offers a frame, and it has to: frame 1 of a flickering sign is
+                  half the art, and the whole reason to reach for one here is to lift a single still. */}
+              {pickedPropFrames > 1 && <select aria-label="Animation frame" value={Math.min(propStampFrame, pickedPropFrames - 1)} onChange={(e) => setPropStampFrame(+e.target.value)}>{pickedPropStamp.frames.map((f, i) => <option key={i} value={i}>Frame {i + 1}</option>)}</select>}
+              <button className="ltbtn" disabled={!pickedPropStamp} title="Copy this object's blocks into the pose you're drawing. The object itself is not changed." onClick={() => pickedPropStamp && placeProp(pickedPropStamp, propStampFrame)}>Place</button>
+              {pickedPropStamp && (() => { const n = propArtBlockCount(propArtPieces(pickedPropStamp, propStampFrame)); return <p className="mini">{n ? "Drops " + n + " block" + (n === 1 ? "" : "s") + " at the size they were drawn, held as one group — the Width slider resizes the lot." : "That frame has no art in it."}</p>; })()}
+            </div>}
             {savedGroups.length > 0 && <p className="tip">📁 Saved: {savedGroups.map((g) => <span key={g.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => loadGroup(g)}>{g.name} ({g.ids.length})</button><button className="ltbtn" onClick={() => deleteGroup(g.id)}>✕</button></span>)}</p>}
           </div>
 
@@ -16953,6 +17040,9 @@ const css = `
 .stampShelf{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:6px;margin:7px 0;padding:7px 8px;background:#171b26;border:1px solid #2c3245;border-radius:10px;font-size:12px;color:#aeb6c9}
 .stampShelf select{min-width:0;width:100%;background:#141824;border:1px solid #2c3245;border-radius:8px;padding:7px 8px;color:inherit;font-size:12px}
 .stampShelf .ltbtn{padding:7px 9px}.stampShelf .ltbtn:disabled{opacity:.45;cursor:default}
+.propShelf{display:flex;flex-wrap:wrap;gap:6px}
+.propShelf select{flex:1 1 130px;width:auto}
+.propShelf .mini{flex:1 1 100%;margin:0}
 .bgNameInput{width:140px;background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:8px 11px;font-size:13px;color:inherit}
 .ltbtn.on{border-color:#4f7cf6;background:#26304d}
 .ltbtn:hover{border-color:#4f7cf6}.ltbtn.up{display:inline-flex;align-items:center}

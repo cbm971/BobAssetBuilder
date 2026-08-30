@@ -357,6 +357,12 @@ import {
   dialogueActNeedsPerson,
   newAsset,
   HAS_CATEGORIES,
+  propArtPieces,
+  propArtBlockCount,
+  groupProps,
+  propCat,
+  propCatKey,
+  PROP_UNCAT,
 } from "./App";
 
 /* 🎲 A GEAR TAG ON A PLACEMENT. The point of the feature is that six copies of one guard are six
@@ -7450,5 +7456,94 @@ describe("a crouching enemy does not get its weapon squashed", () => {
     expect(spriteUnsquashY(0, 100)).toBe(1);
     expect(spriteUnsquashY(100, 0)).toBe(1);
     expect(spriteUnsquashY(undefined, undefined)).toBe(1);
+  });
+});
+
+/* 🌿 REUSING A PROP'S ART IN THE ASSET EDITOR. Blake draws reusable visual elements — badges,
+   trim, signage — as props, then wants them on a garment. He was doing it by keeping a SECOND
+   copy of each one on the stored-group shelf, which is a flat list of names with no filing at
+   all; a prop carries a sub-category, which is the whole reason to read the art from there
+   instead. propArtPieces is the read. It answers with the blocks a prop actually draws — what
+   the editor then copies in — and everything it must NOT hand back is the interesting half. */
+describe("propArtPieces — the blocks the 🌿 Object art shelf copies out of a prop", () => {
+  const blk = (id, extra) => ({ id, kind: "rect", x: 10, y: 20, w: 30, h: 40, color: "#c8442a", ...extra });
+  const prop = (frames) => ({ id: "p1", type: "prop", name: "Sign", size: 2, frames, angles: frames[0] });
+
+  test("reads the FRONT list of the frame asked for — the only pose a prop ever draws", () => {
+    const a = prop([
+      { front: [blk("a")], back: [], side: [], up: [], crouch: [] },
+      { front: [blk("b"), blk("c")], back: [], side: [], up: [], crouch: [] },
+    ]);
+    expect(propArtPieces(a, 0).map((p) => p.id)).toEqual(["a"]);
+    expect(propArtPieces(a, 1).map((p) => p.id)).toEqual(["b", "c"]);
+  });
+
+  test("art parked in another pose is not art — a prop only ever renders `front`", () => {
+    // Guards against 'helpfully' sweeping every pose together: side/back on a prop is leftover
+    // from blankAngles and nothing in the game has ever drawn it.
+    const a = prop([{ front: [], back: [blk("b")], side: [blk("s")], up: [], crouch: [] }]);
+    expect(propArtPieces(a, 0)).toEqual([]);
+  });
+
+  test("hitbox and muzzle helpers are dropped; a cutter is kept", () => {
+    // Hitbox/muzzle are editor metadata and are never drawn anywhere, so copying them onto a
+    // shirt adds invisible blocks that show up only as mystery rows in the layer list. A cutter
+    // IS part of the look — it carves the hole — exactly as a stored group keeps its own.
+    const a = prop([{ front: [blk("hit", { isHitbox: true }), blk("art"), blk("muz", { isMuzzle: true }), blk("cut", { isCutter: true })], back: [], side: [], up: [], crouch: [] }]);
+    expect(propArtPieces(a, 0).map((p) => p.id)).toEqual(["art", "cut"]);
+  });
+
+  test("a frame index out of range clamps instead of returning nothing", () => {
+    // The shelf remembers a frame across a change of prop, so 'frame 3' can outlive the 3-frame
+    // prop it was picked on. Clamping shows the last frame; undefined/NaN means the base look.
+    const a = prop([{ front: [blk("a")] }, { front: [blk("b")] }]);
+    expect(propArtPieces(a, 9).map((p) => p.id)).toEqual(["b"]);
+    expect(propArtPieces(a, -4).map((p) => p.id)).toEqual(["a"]);
+    expect(propArtPieces(a, undefined).map((p) => p.id)).toEqual(["a"]);
+    expect(propArtPieces(a, NaN).map((p) => p.id)).toEqual(["a"]);
+  });
+
+  test("a hand-written prop with no frames array still answers, from .angles", () => {
+    // normalizeAssetJson builds frames for these, but the shelf must not depend on having been
+    // through it — an asset can reach the picker straight off an import.
+    expect(propArtPieces({ type: "prop", angles: { front: [blk("a")] } }, 0).map((p) => p.id)).toEqual(["a"]);
+  });
+
+  test("nothing, an empty prop and an empty frame are all an empty list, never a throw", () => {
+    expect(propArtPieces(null, 0)).toEqual([]);
+    expect(propArtPieces(undefined, 2)).toEqual([]);
+    expect(propArtPieces({ type: "prop" }, 0)).toEqual([]);
+    expect(propArtPieces({ type: "prop", frames: [] }, 0)).toEqual([]);
+    expect(propArtPieces({ type: "prop", frames: [{}] }, 0)).toEqual([]);
+  });
+
+  test("the pieces come back BY REFERENCE, so the caller must copy before it edits", () => {
+    // placeProp does JSON.parse(JSON.stringify(...)) then bakeMirrorOut for exactly this reason.
+    // Handing back the prop's own objects and mutating them would edit the prop from inside a
+    // garment — a saved asset changing because something else was drawn.
+    const a = prop([{ front: [blk("a")] }]);
+    expect(propArtPieces(a, 0)[0]).toBe(a.frames[0].front[0]);
+  });
+
+  test("the block count is what LANDS, so a mirrored block counts twice", () => {
+    // The middle frame of Blake's Explosion is 12 entries and arrives as 18 blocks, because
+    // placing bakes each mirrored one into a concrete twin pair. A label counting the source
+    // undercounts by exactly the number of mirrors, and the flash afterwards then disagrees
+    // with the shelf that offered it.
+    expect(propArtBlockCount([blk("a"), blk("b")])).toBe(2);
+    expect(propArtBlockCount([blk("a", { mirror: true }), blk("b")])).toBe(3);
+    expect(propArtBlockCount([blk("a", { mirror: true }), blk("b", { mirror: true })])).toBe(4);
+    expect(propArtBlockCount([])).toBe(0);
+    expect(propArtBlockCount(null)).toBe(0);
+  });
+
+  test("the shelf's folders are groupProps' — one filing system, not a second one", () => {
+    // The point of sourcing from props at all is their sub-category. If the shelf ever grew its
+    // own grouping this is the test that would fail.
+    const mk = (id, category) => ({ id, type: "prop", name: id, category, frames: [{ front: [blk(id)] }] });
+    const groups = groupProps([mk("door", "Interior"), mk("lamp", "interior "), mk("weed", "")]);
+    expect(groups.map((g) => g.label)).toEqual(["Interior", PROP_UNCAT]);
+    expect(groups[0].props.map((p) => p.id)).toEqual(["door", "lamp"]);
+    expect(propCatKey(propCat(mk("x", "  Interior ")))).toBe("interior");
   });
 });
