@@ -311,6 +311,7 @@ import {
   TALK_PICK_FLASH_MS,
   TALK_PICK_FLASH_PLAIN_MS,
   removedIds,
+  newerRecord,
   hostDelete,
   isTombstoneRecord,
   TOMBSTONE_VALUE,
@@ -7900,12 +7901,42 @@ describe("the project file keeps the newer-dated copy of a record", () => {
     const out = mergeById([{ id: "a", name: "old", savedAt: 100 }], [{ id: "a", name: "new", savedAt: 200 }]);
     expect(out).toEqual([{ id: "a", name: "new", savedAt: 200 }]);
   });
-  test("an undated record keeps the old rule: incoming wins", () => {
+  test("two undated records keep the old rule: incoming wins; a dated stored one beats an undated incoming", () => {
     expect(mergeById([{ id: "a", name: "stored" }], [{ id: "a", name: "incoming" }])).toEqual([{ id: "a", name: "incoming" }]);
-    expect(mergeById([{ id: "a", name: "stored", savedAt: 5 }], [{ id: "a", name: "incoming" }])).toEqual([{ id: "a", name: "incoming" }]);
+    expect(mergeById([{ id: "a", name: "stored", savedAt: 5 }], [{ id: "a", name: "incoming" }])).toEqual([{ id: "a", name: "stored", savedAt: 5 }]);
   });
   test("ids only on one side are kept, and nothing stored is ever dropped", () => {
     const out = mergeById([{ id: "a", savedAt: 1 }, { id: "b", savedAt: 1 }], [{ id: "c", savedAt: 1 }]);
     expect(out.map((x) => x.id).sort()).toEqual(["a", "b", "c"]);
+  });
+});
+
+// A DATED SAVE BEATS AN UNDATED ONE, in both directions. Levels never carried savedAt, so the first
+// "both sides dated" rule could not touch them and the 2026-09-10 recovery left Blake's tab holding
+// its Aug 22 copies of four levels while the file held the Sep 1 ones. Every save is stamped now.
+describe("which of two saves is newer", () => {
+  test("both dated: strictly newer wins, equal does not", () => {
+    expect(newerRecord({ savedAt: 2 }, { savedAt: 1 })).toBe(true);
+    expect(newerRecord({ savedAt: 1 }, { savedAt: 2 })).toBe(false);
+    expect(newerRecord({ savedAt: 2 }, { savedAt: 2 })).toBe(false);
+  });
+  test("dated beats undated: an undated record was written by older code", () => {
+    expect(newerRecord({ savedAt: 1 }, {})).toBe(true);
+    expect(newerRecord({ savedAt: 1 }, { savedAt: "2026" })).toBe(true);
+    expect(newerRecord({ savedAt: 1 }, null)).toBe(true);
+  });
+  test("an undated record never wins over anything", () => {
+    expect(newerRecord({}, { savedAt: 1 })).toBe(false);
+    expect(newerRecord({}, {})).toBe(false);
+    expect(newerRecord(null, {})).toBe(false);
+  });
+  test("the server applies the same rule on the way up", () => {
+    const { mergeById } = require("./setupProxy").__test;
+    // a tab still running the old build pushes its undated stale copy over a dated recovered one
+    expect(mergeById([{ id: "l", name: "recovered", savedAt: 5 }], [{ id: "l", name: "stale" }])).toEqual([{ id: "l", name: "recovered", savedAt: 5 }]);
+    // two undated copies keep the original rule
+    expect(mergeById([{ id: "l", name: "stored" }], [{ id: "l", name: "incoming" }])).toEqual([{ id: "l", name: "incoming" }]);
+    // a dated incoming save still lands over an undated stored one
+    expect(mergeById([{ id: "l", name: "stored" }], [{ id: "l", name: "fresh", savedAt: 9 }])).toEqual([{ id: "l", name: "fresh", savedAt: 9 }]);
   });
 });

@@ -82,15 +82,21 @@ const writeLibrary = (next) => {
 // Merge by id, incoming wins for anything it names, nothing already stored is ever dropped.
 const mergeById = (existing, incoming) => {
   const byId = new Map((existing || []).filter((a) => a && a.id).map((a) => [a.id, a]));
-  // ...unless the copy already stored is DATED NEWER than the one coming in. The bulk sync from
+  // ...unless the copy already stored is a NEWER SAVE than the one coming in. The bulk sync from
   // the studio pushes whatever that browser holds, and a browser that has just loaded a stale
   // snapshot holds old versions of everything: without this, its push overwrote the newer copy
-  // in this file with the old one, and the next commit shipped the regression to everyone. Only
-  // decided when both sides carry a numeric savedAt; anything undated keeps the old rule.
+  // in this file with the old one, and the next commit shipped the regression to everyone.
+  //
+  // Same rule as newerRecord in App.js, and it has to be: dated beats undated. Every save stamps
+  // savedAt now, so an undated record was written by older code and is older than anything
+  // dated. The first version of this only compared two dated records, and a tab still running
+  // the previous build could push its undated copy of a level straight over the dated one the
+  // recovery had just put here — which is exactly the race that would have undone that recovery
+  // between the push and his reload. Two undated records keep the original rule: incoming wins.
   for (const a of (incoming || [])) {
     if (!a || !a.id) continue;
     const cur = byId.get(a.id);
-    if (cur && typeof cur.savedAt === "number" && typeof a.savedAt === "number" && cur.savedAt > a.savedAt) continue;
+    if (cur && typeof cur.savedAt === "number" && (typeof a.savedAt !== "number" || cur.savedAt > a.savedAt)) continue;
     byId.set(a.id, a);
   }
   return [...byId.values()];

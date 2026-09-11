@@ -380,6 +380,18 @@ const projectLibrary = {
 // This existed for ASSETS ONLY and was written up in CLAUDE.md as though it covered everything.
 // It did not: levels, stored groups, textures, backgrounds and dialogues each had the loop intact,
 // which is why "I delete stuff and it comes back" kept being true after the asset fix.
+// IS `a` A STRICTLY NEWER SAVE THAN `b`? The one rule every merge here uses, in both directions
+// (the project file updating a browser, and a browser's push updating the project file):
+//   * both dated       -> a wins only if its savedAt is strictly greater (a round trip through the
+//                         file must never rewrite a record that has not changed)
+//   * a dated, b not   -> a wins: every save stamps savedAt now, so an undated record was written
+//                         by older code and is older than anything dated
+//   * a undated        -> a never wins over anything; there is nothing to argue from
+export const newerRecord = (a, b) => {
+  if (!a || typeof a.savedAt !== "number") return false;
+  if (!b || typeof b.savedAt !== "number") return true;
+  return a.savedAt > b.savedAt;
+};
 export const removedIds = (proj, kind) => new Set(((((proj && proj.removed) || {})[kind]) || []).filter(Boolean));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const rect = (x, y, w, h, color = SKIN) => ({ id: uid(), kind: "rect", x, y, w, h, color, mirror: true });
@@ -7494,10 +7506,17 @@ export default function AssetStudio() {
   // carry a real number. A record with no timestamp is left exactly as the browser has it, so
   // this can never overwrite work it cannot date. Strictly newer, not newer-or-equal, so a
   // round-trip through the file never rewrites a record that has not changed.
+  //
+  // AND A DATED COPY BEATS AN UNDATED ONE. Levels, dialogues, textures and backgrounds were never
+  // stamped on save (only assets and stored groups were), so the first version of this rule —
+  // "both sides numeric" — could not touch a level at all, and the 2026-09-10 recovery reached
+  // every asset and not one of the four levels Blake was actually missing: his tab kept its
+  // Aug 22 copies of Trailor Park M1-M3 and Forest M1 while the file held the Sep 1 ones. Every
+  // save now stamps savedAt (see newerRecord), so an undated record is by definition older than
+  // any dated one: it was written before this shipped. Both undated: leave the browser's alone.
   const fileIsNewer = (fileRec, storedRaw) => {
-    if (!fileRec || typeof fileRec.savedAt !== "number") return false;
     if (storedRaw === null || storedRaw === undefined || isTombstoneRecord(storedRaw)) return false;
-    try { const s = JSON.parse(storedRaw); return !!(s && typeof s.savedAt === "number" && fileRec.savedAt > s.savedAt); } catch { return false; }
+    try { return newerRecord(fileRec, JSON.parse(storedRaw)); } catch { return false; }
   };
   const purgeRemoved = async (proj, kind, prefix, rows, known) => {
     const tombed = known || await tombstoneSet(proj, kind);
@@ -12706,7 +12725,7 @@ export default function AssetStudio() {
   // way — one library, one storage entry, usable from both screens.
   const saveTexture = async (t, applyTo) => {
     if (!TEXTURES[t.tex]) { flash("Unknown texture pattern."); return null; }
-    const clean = { ...t, name: (t.name || "").trim() || TEXTURES[t.tex].label };
+    const clean = { ...t, name: (t.name || "").trim() || TEXTURES[t.tex].label, savedAt: Date.now() }; // stamped, same reason as saveLevel
     let list = []; const idx = await sget("textureIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     const ok1 = await sset("texture:" + clean.id, JSON.stringify(clean));
     list = list.filter((x) => x.id !== clean.id); list.push({ id: clean.id, name: clean.name });
@@ -12776,11 +12795,12 @@ export default function AssetStudio() {
     if (!level) return;
     const name = bgName.trim() || (level.name + " background");
     const id = uid();
-    const ok1 = await sset("background:" + id, JSON.stringify({ id, name, bg: level.bg }));
+    const rec = { id, name, bg: level.bg, savedAt: Date.now() }; // stamped, same reason as saveLevel
+    const ok1 = await sset("background:" + id, JSON.stringify(rec));
     let list = []; const idx = await sget("backgroundIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     list.push({ id, name });
     const ok2 = await sset("backgroundIndex", JSON.stringify(list));
-    projectLibrary.save({ backgrounds: [{ id, name, bg: level.bg }] }, { revive: true });
+    projectLibrary.save({ backgrounds: [rec] }, { revive: true });
     if (ok1 && ok2) { flash("Background \"" + name + "\" saved ✓"); setBgName(""); loadBgLib(); } else flash("Couldn't save the background — " + (lastStoreFailure() || "storage unavailable") + ".");
   };
   const loadBackground = async (id) => {
@@ -12897,7 +12917,9 @@ export default function AssetStudio() {
     // BEFORE writing (the old code wrote the record first), because the fork has to be decided
     // against the stored name, not against the one already being overwritten.
     const target = resolveSaveTarget(list, level);
-    const payload = target.id !== level.id ? { ...level, id: target.id } : level;
+    // STAMPED. A level never carried savedAt, which is why no merge could ever tell a stale copy
+    // of one from a fresh one — see fileIsNewer. Assets have always had this; now everything does.
+    const payload = { ...(target.id !== level.id ? { ...level, id: target.id } : level), savedAt: Date.now() };
     const ok1 = await sset("level:" + payload.id, JSON.stringify(payload));
     list = list.filter((x) => x.id !== payload.id); list.push({ id: payload.id, name: payload.name });
     const ok2 = await sset("levelIndex", JSON.stringify(list));
@@ -12907,7 +12929,7 @@ export default function AssetStudio() {
     if (ok1 && ok2) {
       // Carry on editing the FORK, not the level it came from. Leaving the editor pointed at the
       // old id would fork again on the next save, quietly stamping out M3 after M3 after M3.
-      if (payload !== level) setLevel(payload);
+      setLevel(payload); // always a new object now (it carries the fresh savedAt), so the baseline below matches it
       levelBaseline.current = JSON.stringify(payload);
       flash(target.mode === "rename"
         ? "Saved \"" + payload.name + "\" as a NEW level ✓ — the one you renamed it from is still there"
@@ -12974,7 +12996,7 @@ export default function AssetStudio() {
     // resolveSaveTarget. Without it, opening "Guard" and renaming it "Guard (angry)" would write
     // straight over the original and the tree you started from would simply cease to exist.
     const target = resolveSaveTarget(list, dlgDoc);
-    const payload = target.id !== dlgDoc.id ? { ...dlgDoc, id: target.id } : dlgDoc;
+    const payload = { ...(target.id !== dlgDoc.id ? { ...dlgDoc, id: target.id } : dlgDoc), savedAt: Date.now() }; // stamped, same reason as saveLevel
     const ok1 = await sset("dialogue:" + payload.id, JSON.stringify(payload));
     list = list.filter((x) => x && x.id !== payload.id); list.push({ id: payload.id, name: payload.name });
     const ok2 = await sset("dialogueIndex", JSON.stringify(list));

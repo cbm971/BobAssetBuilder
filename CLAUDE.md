@@ -316,6 +316,19 @@ Three rules that came out of it, all now in the code:
   is also why agents had been re-issuing reworked assets under new ids; that is no longer
   needed. **`mergeById` in setupProxy applies the same rule on the way UP**, so a stale browser's
   bulk push can no longer roll the file back either.
+* **A level (or dialogue, texture, background) that carries no `savedAt` cannot be told from a
+  stale one.** Assets and stored groups were always stamped on save; the other four kinds never
+  were, so `fileIsNewer`'s first form — both sides dated — reached every asset in the 2026-09-10
+  recovery and not one of the four levels he was actually missing. His tab kept its Aug 22
+  copies of Trailor Park M1-M3 and Forest M1 (no concession stand, no new enemies, 54 front cells
+  short on the football level) while the file held the Sep 1 ones. Every save stamps now, and
+  `newerRecord` — one exported rule, used by the six loaders AND by `mergeById` on the way up —
+  says a dated save beats an undated one. To push a rebuilt record into a browser that already
+  holds an undated copy, stamp it in the file; leave records you do NOT want to override undated.
+  When you recover from a store, check the level metrics against every backup by hand before
+  trusting "newest wins": M1/M2's front layer LOST 98/94 cells between Aug 22 and Sep 1, and
+  that was his deliberate erase (cells drawn over a trailer that belonged under it), not a bug —
+  a union would have put them back.
 * **A test must never pin his data.** Two agent-written test blocks asserted that specific
   assets (three Vaporeon props, the Squirrel's death-pose geometry) exist in
   `asset-data/library.json` in a specific state. He had deleted the props and redrawn the
