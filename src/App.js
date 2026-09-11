@@ -7478,6 +7478,27 @@ export default function AssetStudio() {
   //
   // So every restore loop takes the SAME tombstone set and skips it. If you add a seventh kind,
   // that skip is not optional.
+  // THE PROJECT FILE CAN BE NEWER THAN THIS BROWSER, AND WHEN IT IS, IT WINS.
+  //
+  // Every restore loop used to ask one question of the file: "which ids do I not have?" A record
+  // the browser already held was never looked at again, however old the copy. That is fine for
+  // the usual direction (the studio is ahead of the file) and exactly wrong for the other one:
+  // an agent reworking an asset in the file, or a whole library put back from a recovered store
+  // after the browser had loaded a stale snapshot. On 2026-09-10 the studio came up on a fresh
+  // address, restored a weeks-old library from the committed file, and then could not be told
+  // about the real one: 83 assets had newer versions in the file and the browser kept every old
+  // one, because it already "had" them. It is also why agents were re-issuing reworked assets
+  // under new ids just to make an edit visible (CLAUDE.md, you cannot revise an asset in place).
+  //
+  // The rule is the one every merge here already uses: savedAt decides, and only when BOTH sides
+  // carry a real number. A record with no timestamp is left exactly as the browser has it, so
+  // this can never overwrite work it cannot date. Strictly newer, not newer-or-equal, so a
+  // round-trip through the file never rewrites a record that has not changed.
+  const fileIsNewer = (fileRec, storedRaw) => {
+    if (!fileRec || typeof fileRec.savedAt !== "number") return false;
+    if (storedRaw === null || storedRaw === undefined || isTombstoneRecord(storedRaw)) return false;
+    try { const s = JSON.parse(storedRaw); return !!(s && typeof s.savedAt === "number" && fileRec.savedAt > s.savedAt); } catch { return false; }
+  };
   const purgeRemoved = async (proj, kind, prefix, rows, known) => {
     const tombed = known || await tombstoneSet(proj, kind);
     if (!tombed.size) return rows;
@@ -10366,13 +10387,20 @@ export default function AssetStudio() {
     // record back into the list in the first place, so purging before them would purge nothing.
     const tombedA = await tombstoneSet(proj, "assets");
     list = await purgeRemoved(proj, "assets", "asset:", list, tombedA);
+    let updatedFromProject = 0;
     if (proj && proj.assets.length) {
       const have = new Set(list.map((it) => it.id));
       for (const raw of proj.assets) {
         // ...and never one that was deleted. `have` cannot carry this: the purge above is what
         // makes a deleted id missing, which is the exact thing this loop reads as "new to us".
-        if (!raw || !raw.id || have.has(raw.id) || tombedA.has(raw.id)) continue;
+        if (!raw || !raw.id || tombedA.has(raw.id)) continue;
         try {
+          if (have.has(raw.id)) {
+            // Already here, but is OURS the old one? See fileIsNewer. The record is read again a
+            // few lines down anyway, so this costs one extra read per id and saves the edit.
+            if (fileIsNewer(raw, await sget("asset:" + raw.id))) { const a = migrate(raw); if (await sset("asset:" + a.id, JSON.stringify(a))) updatedFromProject++; }
+            continue;
+          }
           const a = migrate(raw);
           if (await sset("asset:" + a.id, JSON.stringify(a))) { list.push({ id: a.id, name: a.name, type: a.type }); have.add(a.id); fromProject++; }
         } catch { /* one bad record must not stop the rest coming home */ }
@@ -10407,7 +10435,7 @@ export default function AssetStudio() {
     // gravestone, and let the heal below rewrite both indexes without it.
     if (buried.length) { localRemoved.add("assets", buried); projectLibrary.forget("assets", buried); list = list.filter((it) => !buried.includes(it && it.id)); console.warn("[Bob] " + buried.length + " deleted asset(s) were still indexed and have been re-filed as deleted:", buried); }
     // Heal the index so the rescue is permanent rather than repeated every load.
-    if (fromProject && full.length) flash("🛟 Restored " + fromProject + " asset" + (fromProject > 1 ? "s" : "") + " from the project file — " + full.length + " loaded.");
+    if ((fromProject || updatedFromProject) && full.length) flash("🛟 " + (fromProject ? "Restored " + fromProject + " asset" + (fromProject > 1 ? "s" : "") : "") + (fromProject && updatedFromProject ? " and " : "") + (updatedFromProject ? "updated " + updatedFromProject + " to " + (updatedFromProject > 1 ? "their" : "its") + " newer version" : "") + " from the project file — " + full.length + " loaded.");
     // Push whatever this browser has back INTO the project file, so the copy that survives an
     // address change is always the fullest one either side has seen.
     if (full.length) projectLibrary.save({ assets: full });
@@ -10458,7 +10486,8 @@ export default function AssetStudio() {
       const have = new Set(full.map((x) => x && x.id));
       let restored = 0;
       for (const st of ((proj && proj.stamps) || [])) {
-        if (!st || !st.id || have.has(st.id) || tombedS.has(st.id)) continue;
+        if (!st || !st.id || tombedS.has(st.id)) continue;
+        if (have.has(st.id)) { if (fileIsNewer(st, await sget("stamp:" + st.id)) && await sset("stamp:" + st.id, JSON.stringify(st))) { const i = full.findIndex((x) => x && x.id === st.id); if (i >= 0) full[i] = st; } continue; }
         if (await sset("stamp:" + st.id, JSON.stringify(st))) { full.push(st); have.add(st.id); restored++; }
       }
       if (restored) await sset("stampIndex", JSON.stringify(full.map((x) => ({ id: x.id, name: x.name }))));
@@ -12661,7 +12690,8 @@ export default function AssetStudio() {
       const have = new Set(full.map((t) => t && t.id));
       let restored = 0;
       for (const t of ((proj && proj.textures) || [])) {
-        if (!t || !t.id || have.has(t.id) || tombedT.has(t.id)) continue;
+        if (!t || !t.id || tombedT.has(t.id)) continue;
+        if (have.has(t.id)) { if (fileIsNewer(t, await sget("texture:" + t.id)) && await sset("texture:" + t.id, JSON.stringify(t))) { const i = full.findIndex((x) => x && x.id === t.id); if (i >= 0) full[i] = t; } continue; }
         if (await sset("texture:" + t.id, JSON.stringify(t))) { full.push(t); have.add(t.id); restored++; }
       }
       if (restored) await sset("textureIndex", JSON.stringify(full.map((t) => ({ id: t.id, name: t.name }))));
@@ -12729,7 +12759,8 @@ export default function AssetStudio() {
       const have = new Set(full.map((b) => b && b.id));
       let restored = 0;
       for (const b of ((proj && proj.backgrounds) || [])) {
-        if (!b || !b.id || have.has(b.id) || tombedB.has(b.id)) continue;
+        if (!b || !b.id || tombedB.has(b.id)) continue;
+        if (have.has(b.id)) { if (fileIsNewer(b, await sget("background:" + b.id)) && await sset("background:" + b.id, JSON.stringify(b))) { const i = full.findIndex((x) => x && x.id === b.id); if (i >= 0) full[i] = b; } continue; }
         if (await sset("background:" + b.id, JSON.stringify(b))) { full.push(b); have.add(b.id); restored++; }
       }
       if (restored) await sset("backgroundIndex", JSON.stringify(full.map((b) => ({ id: b.id, name: b.name }))));
@@ -12791,9 +12822,10 @@ export default function AssetStudio() {
     if (purgedAny) { full.length = 0; full.push(...keptL); }
     const have = new Set(full.map((l) => l && l.id));
     for (const raw of ((proj && proj.levels) || [])) {
-      if (!raw || !raw.id || have.has(raw.id) || tombedL.has(raw.id)) continue;
+      if (!raw || !raw.id || tombedL.has(raw.id)) continue;
       try {
         const lv = migrateLevel(JSON.parse(JSON.stringify(raw)));
+        if (have.has(raw.id)) { if (fileIsNewer(raw, await sget("level:" + raw.id)) && await sset("level:" + lv.id, JSON.stringify(lv))) { const i = full.findIndex((x) => x && x.id === lv.id); if (i >= 0) full[i] = lv; } continue; }
         if (await sset("level:" + lv.id, JSON.stringify(lv))) { full.push(lv); have.add(lv.id); fromProject++; }
       } catch { /* one bad record must never stop the rest coming home */ }
     }
@@ -12919,9 +12951,10 @@ export default function AssetStudio() {
     if (purgedAnyD) { full.length = 0; full.push(...keptD); }
     const have = new Set(full.map((d) => d && d.id));
     for (const raw of ((proj && proj.dialogues) || [])) {
-      if (!raw || !raw.id || have.has(raw.id) || tombedD.has(raw.id)) continue;
+      if (!raw || !raw.id || tombedD.has(raw.id)) continue;
       try {
         const d = migrateDialogue(JSON.parse(JSON.stringify(raw)));
+        if (have.has(raw.id)) { if (fileIsNewer(raw, await sget("dialogue:" + raw.id)) && await sset("dialogue:" + d.id, JSON.stringify(d))) { const i = full.findIndex((x) => x && x.id === d.id); if (i >= 0) full[i] = d; } continue; }
         if (await sset("dialogue:" + d.id, JSON.stringify(d))) { full.push(d); have.add(d.id); fromProject++; }
       } catch { /* one bad tree must never stop the rest coming home */ }
     }

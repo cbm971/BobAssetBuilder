@@ -294,6 +294,41 @@ If work ever looks missing: **it is almost certainly still there.** Back up firs
 read-only dump of every key to a downloaded JSON), then diagnose. Never clear storage
 to "reset".
 
+### THE ONE THING TO KNOW ABOUT HIS DATA: it is never gone, and it is never only in git
+
+On 2026-09-10 Blake opened the studio after two weeks away. StackBlitz had built a new container
+on a new preview address, so the browser store was empty and the studio restored the COMMITTED
+`asset-data/library.json` — a snapshot that was weeks old. Every asset he had made since was
+missing, 83 he had edited were back at old versions, and 18 he had deleted were back. He said,
+reasonably, that an asset builder that cannot save is worthless. Nothing was lost: the old
+address's IndexedDB was still on disk in Chrome's profile, complete to the last write. The
+reader that gets it out is now committed as **`tools/read-chrome-leveldb.js`** (it had been
+rebuilt from a paragraph twice). Run it, merge with newest-`savedAt`-wins, honour the
+`removedIndex` it also recovers (his deletion list), commit the result. The whole procedure
+and every format fact are in the file header. **Do this before telling him anything is lost.**
+
+Three rules that came out of it, all now in the code:
+
+* **The project file can be newer than the browser, and when it is, it wins.** Every restore
+  loop used to ask only "which ids do I not have?", so a browser holding a stale copy could
+  never be told about a newer one — that is why 83 assets stayed old after the recovery until
+  `fileIsNewer` (savedAt, both sides numeric, strictly newer) was added to all six loaders. It
+  is also why agents had been re-issuing reworked assets under new ids; that is no longer
+  needed. **`mergeById` in setupProxy applies the same rule on the way UP**, so a stale browser's
+  bulk push can no longer roll the file back either.
+* **A test must never pin his data.** Two agent-written test blocks asserted that specific
+  assets (three Vaporeon props, the Squirrel's death-pose geometry) exist in
+  `asset-data/library.json` in a specific state. He had deleted the props and redrawn the
+  Squirrel, and the tests would have vetoed the commit that brought his library back. Test
+  authoring RULES against fixtures you construct; test his file only for structural invariants
+  (every record has an id, no gravestones, KINDS match), never for the presence or shape of a
+  particular piece of his art.
+* **Commit `asset-data/` after he works, or the next container rebuild throws it away.** The
+  container's copy of the file dies with the container; his browser store dies with the preview
+  address. Git is the only durable tier, and only an agent commits to it. A dated full backup
+  (`assetbuilder-backup-<date>.json`, exactly one, the newest) sits at the repo root as the
+  second copy; the merged 2026-09-10 one is also in his Downloads.
+
 ### Getting data out of a preview address that is gone
 
 An origin whose container no longer serves anything cannot be reached by the in-app

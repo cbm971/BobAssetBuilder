@@ -82,7 +82,17 @@ const writeLibrary = (next) => {
 // Merge by id, incoming wins for anything it names, nothing already stored is ever dropped.
 const mergeById = (existing, incoming) => {
   const byId = new Map((existing || []).filter((a) => a && a.id).map((a) => [a.id, a]));
-  for (const a of (incoming || [])) if (a && a.id) byId.set(a.id, a);
+  // ...unless the copy already stored is DATED NEWER than the one coming in. The bulk sync from
+  // the studio pushes whatever that browser holds, and a browser that has just loaded a stale
+  // snapshot holds old versions of everything: without this, its push overwrote the newer copy
+  // in this file with the old one, and the next commit shipped the regression to everyone. Only
+  // decided when both sides carry a numeric savedAt; anything undated keeps the old rule.
+  for (const a of (incoming || [])) {
+    if (!a || !a.id) continue;
+    const cur = byId.get(a.id);
+    if (cur && typeof cur.savedAt === "number" && typeof a.savedAt === "number" && cur.savedAt > a.savedAt) continue;
+    byId.set(a.id, a);
+  }
   return [...byId.values()];
 };
 
