@@ -193,3 +193,118 @@ merged by id, so it overwrites just those and leaves everything else alone.
 `living-room-pack.json`, same as the other packs: home screen → **Load** → **⬆ Open a file**.
 Four assets, merged by id, nothing else touched. Or open `bear-skin-rug.json`, `bookshelf.json`,
 `couch.json` or `armchair.json` one at a time with the same button.
+
+---
+
+# Chaplin pack — Chap the cat head, priest robes, and a tie
+
+Three assets for the Chaplin character: a tuxedo-cat head that wears as a **Hat**, black
+priest's robes that wear as a **Jacket**, and a **necktie** built as an Object purely so it
+can be stored as a group and stamped into other garments.
+
+![The three assets on BoB — five poses each, and the tie stamped onto a jacket](preview-chaplin.png)
+
+| Asset | Type | What it is |
+| --- | --- | --- |
+| **Chap — Cat Head** | 🎩 Hat | A tuxedo cat's head, big enough to wear as a mascot head. Black, gold eyes with slit pupils, dusty-rose nose and inner ears, and the white muzzle drawn as a **moustache** — a bar under the nose with a whisker-pad lobe on each side. Defence 1, +1 Agility. |
+| **Priest Cassock** | 🧥 Jacket | Floor-length black cassock, closed up the front with a lifted placket and three buttons, a dark cincture at the waist, and a white Roman collar. Defence 2, +1 Intelligence. |
+| **Necktie** | 🌿 Object / Prop | Not really an Object — a delivery vehicle. Three frames (Front / Side / Crouch), each drawn at the exact coordinates the tie needs on BoB's chest. Sub-category **Clothing Parts** so it's easy to find and easy to delete. |
+
+## "Is there a checkmark to hide the hair under a hat?"
+
+Yes, and it works — but the checkbox is on the **skin**, not on the hat.
+
+- Open the skin, click a hair block, and tick **Hide if hat** *(e.g. top of the hair)* in the
+  block panel. Do it **per block, per pose** — each pose is its own drawing.
+- Any Hat-slot item then hides those blocks outright while it's worn. Nothing to set on the
+  hat itself.
+- The hat can opt **out**: the Hat editor has a **🚫 Ignore "Hide if hat"** card —
+  *"This hat doesn't hide 'Hide if hat' pieces"* — which is there for glasses and the like.
+  **Chap leaves it off**, which is what you want.
+
+One thing to fix on your side: in the copy of **Bob Skin** that's in this repo, the hair is
+flagged in Front, Back and Crouch but **not in Side** — all three side hair blocks are
+unflagged. So in profile a wedge of brown hair pokes out over the back of the cat's head.
+Tick those three and the profile goes clean. (If your current skin already has them flagged,
+ignore this — nothing else needs changing.)
+
+Independently of the flag, the cat head is drawn to swallow BoB's head box whole in every
+pose: his head is `x72–128` at `y34–90` (`y70–120` crouched), and the skull is a flat-bottomed
+block at `x66–134` running to the bottom of that box, domed on top. So it covers his face
+without relying on the flag at all — the flag is only about hair that sticks out past his head.
+
+## What the robes were built from
+
+Not from "Bobs Robes" — from the **Leather Jacket's** BoB fit, which is the one whose
+shoulders, sleeves and crouch layout already sit right. Kept verbatim: the `tri2` shoulder
+slopes, the sleeve angles (81° front/back, 90° side, 88° crouch), and the crouch sleeve. Changed:
+
+- The two front panels with a gap between them became one closed panel — a cassock buttons up,
+  it doesn't hang open over a shirt.
+- The body runs on past the waist to a hem at `y245`, just above the shoes. One straight fall,
+  not a widening skirt — a tiered hem reads as a dress.
+- The crouch skirt and hem are flagged **Over arms**. Plain jacket panels get tucked behind the
+  bent knee in Crouch (correct for a coat, so the knee comes through); a robe should drape over
+  the knee instead, and `overArms` is what keeps it in front.
+- Sleeves end at the wrist, so the hands show — same as every other jacket in the library.
+
+## The tie, and how to get it out of the Object editor
+
+The tie is drawn **at body scale, in body coordinates** — the knot at `y89`, the point at
+`y161`, centred on `x100`. That matters: **📦 Store group** copies blocks at their exact
+coordinates and **places them back at those same coordinates**. So a stored tie dropped into a
+shirt or jacket lands on the chest already positioned; there's nothing to drag.
+
+The Object editor draws no guide body (Objects don't get one), so in there the tie looks like
+it's floating in an empty canvas. That's right — it's sitting where BoB's chest would be.
+
+Because Objects only ever use the Front pose, the three poses are kept as **frames** instead:
+
+| 🎞 Frame | Pose it's drawn for |
+| --- | --- |
+| **1** | Front — and Aim up, which uses the same torso box |
+| **2** | Side — shifted to the front edge of the chest, narrower |
+| **3** | Crouch — shorter blade, and 30px further down the canvas, where the crouched torso is |
+
+So the run is:
+
+1. Open **Necktie**, pick **🎞 Frame 1**.
+2. Select all four blocks, type a name, **📦 Store group**.
+3. Repeat for frames 2 and 3 under different names (e.g. `Tie F`, `Tie S`, `Tie C`).
+4. Open the suit jacket (or the button-up) and, in each pose, click the matching
+   **📦 Stored:** button. Front and Aim up both take `Tie F`; Back gets nothing — a tie isn't
+   visible from behind.
+5. Delete the Necktie Object once every copy is placed. The stored groups outlive it — they
+   live in the stamp store, not in the Object.
+
+Saves are keyed by **id**, so saving in step 4 updates the jacket you already have rather than
+making a second one. To end up with both a plain jacket and a tie'd variant, fork it first:
+**💾 Save & Open** on the plain jacket, then in that dialog's textarea change the `"id"` to
+something new, rename it above, hit **Load this text** and **💾 Save**. You're now editing the
+copy, and the original is untouched.
+
+The tie is flat `#b0504f` with one hard line under the knot, and nothing else. To recolour it,
+click a block, pick a shade with **Replace everywhere** on and the whole tie follows.
+
+## Fits
+
+Both garments ship with the **BoB** fit (`telfv37`) and the same art under Default, so they
+work on the guide body too. There's no Bobbett fit: her front and side head boxes are 44 wide
+and centred on `x96`, while mirrored blocks always reflect about `x100`, so a cat head fitted
+to her can't be built out of mirrored pairs the way this one is. If you want her in it, open
+the asset, switch the guide to Bobbett and hit **📋 Copy to other characters**, then nudge the
+ears in — it's a two-minute job by hand and a wrong-by-4px job automatically.
+
+## Colours
+
+Nothing new: `#2b2b2b` for the fur and the cassock, `#f4f4f4` for the tuxedo markings and the
+collar, `#b0504f` for the nose, inner ears and the tie, `#c8a23c` for the eyes. Every lighter
+or darker shade is the *same* hex at a different `bright` — the crown at `1.22`, the muzzle in
+profile at `1.25`, the placket at `1.4`, the buttons at `1.75`, the cincture at `0.62` — so the
+whole pack is four colours.
+
+## Import
+
+`chaplin-pack.json`, same as the other packs: home screen → **Load** → **⬆ Open a file**.
+Three assets, merged by id, nothing else touched. Or open `chap-cat-head.json`,
+`priest-cassock.json` or `necktie.json` one at a time with the same button.
