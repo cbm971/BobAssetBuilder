@@ -460232,6 +460232,1013 @@
     "up": [],
     "crouch": []
    }
+  },
+  {
+   "id": "hpstrhat",
+   "name": "Hipster Hat",
+   "type": "equipment",
+   "slot": "hat",
+   "guideId": "telfv37",
+   "angles": {
+    "front": [
+     {
+      "id": "hhcrwn1",
+      "kind": "halfcircle",
+      "x": 65,
+      "y": 19,
+      "w": 70,
+      "h": 23,
+      "color": "#7a6a4d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hhband1",
+      "kind": "rect",
+      "x": 69,
+      "y": 38,
+      "w": 62,
+      "h": 4,
+      "color": "#7a6a4d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hhpeak1",
+      "kind": "pentagon",
+      "x": 73,
+      "y": 40,
+      "w": 54,
+      "h": 7,
+      "color": "#7a6a4d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.65
+      },
+      "rot": 181
+     },
+     {
+      "id": "hhseam1",
+      "kind": "rect",
+      "x": 74,
+      "y": 40,
+      "w": 52,
+      "h": 1,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [
+     {
+      "id": "hhcrwn2",
+      "kind": "halfcircle",
+      "x": 65,
+      "y": 19,
+      "w": 70,
+      "h": 22,
+      "color": "#7a6a4d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hhband2",
+      "kind": "rect",
+      "x": 70,
+      "y": 38,
+      "w": 60,
+      "h": 5,
+      "color": "#7a6a4d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hhseam2",
+      "kind": "rect",
+      "x": 71,
+      "y": 41,
+      "w": 58,
+      "h": 1,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "side": [
+     {
+      "id": "hhcrwn3",
+      "kind": "halfcircle",
+      "x": 62,
+      "y": 19,
+      "w": 70,
+      "h": 22,
+      "color": "#7a6a4d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 9
+     },
+     {
+      "id": "hhband3",
+      "kind": "rect",
+      "x": 66,
+      "y": 36,
+      "w": 64,
+      "h": 6,
+      "color": "#7a6a4d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hhpeak3",
+      "kind": "tri2",
+      "x": 129,
+      "y": 40,
+      "w": 19,
+      "h": 6,
+      "color": "#7a6a4d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.65
+      },
+      "rot": 8
+     },
+     {
+      "id": "hhseam3",
+      "kind": "rect",
+      "x": 68,
+      "y": 41,
+      "w": 60,
+      "h": 1,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "up": [
+     {
+      "id": "hhcrwn4",
+      "kind": "halfcircle",
+      "x": 65,
+      "y": 19,
+      "w": 70,
+      "h": 23,
+      "color": "#7a6a4d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hhband4",
+      "kind": "rect",
+      "x": 69,
+      "y": 38,
+      "w": 62,
+      "h": 4,
+      "color": "#7a6a4d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hhpeak4",
+      "kind": "pentagon",
+      "x": 73,
+      "y": 40,
+      "w": 54,
+      "h": 7,
+      "color": "#7a6a4d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.65
+      },
+      "rot": 181
+     },
+     {
+      "id": "hhseam4",
+      "kind": "rect",
+      "x": 74,
+      "y": 40,
+      "w": 52,
+      "h": 1,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "crouch": [
+     {
+      "id": "hhcrwn5",
+      "kind": "halfcircle",
+      "x": 65,
+      "y": 55,
+      "w": 70,
+      "h": 23,
+      "color": "#7a6a4d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hhband5",
+      "kind": "rect",
+      "x": 69,
+      "y": 74,
+      "w": 62,
+      "h": 4,
+      "color": "#7a6a4d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hhpeak5",
+      "kind": "pentagon",
+      "x": 73,
+      "y": 76,
+      "w": 54,
+      "h": 7,
+      "color": "#7a6a4d",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.65
+      },
+      "rot": 181
+     },
+     {
+      "id": "hhseam5",
+      "kind": "rect",
+      "x": 74,
+      "y": 76,
+      "w": 52,
+      "h": 1,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ]
+   },
+   "groups": {
+    "front": [],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "variants": {
+    "default": {
+     "front": [],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    },
+    "telfv37": {
+     "front": [
+      {
+       "id": "hhcrwn1",
+       "kind": "halfcircle",
+       "x": 65,
+       "y": 19,
+       "w": 70,
+       "h": 23,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhband1",
+       "kind": "rect",
+       "x": 69,
+       "y": 38,
+       "w": 62,
+       "h": 4,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhpeak1",
+       "kind": "pentagon",
+       "x": 73,
+       "y": 40,
+       "w": 54,
+       "h": 7,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.65
+       },
+       "rot": 181
+      },
+      {
+       "id": "hhseam1",
+       "kind": "rect",
+       "x": 74,
+       "y": 40,
+       "w": 52,
+       "h": 1,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "back": [
+      {
+       "id": "hhcrwn2",
+       "kind": "halfcircle",
+       "x": 65,
+       "y": 19,
+       "w": 70,
+       "h": 22,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhband2",
+       "kind": "rect",
+       "x": 70,
+       "y": 38,
+       "w": 60,
+       "h": 5,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhseam2",
+       "kind": "rect",
+       "x": 71,
+       "y": 41,
+       "w": 58,
+       "h": 1,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "side": [
+      {
+       "id": "hhcrwn3",
+       "kind": "halfcircle",
+       "x": 62,
+       "y": 19,
+       "w": 70,
+       "h": 22,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 9
+      },
+      {
+       "id": "hhband3",
+       "kind": "rect",
+       "x": 66,
+       "y": 36,
+       "w": 64,
+       "h": 6,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhpeak3",
+       "kind": "tri2",
+       "x": 129,
+       "y": 40,
+       "w": 19,
+       "h": 6,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.65
+       },
+       "rot": 8
+      },
+      {
+       "id": "hhseam3",
+       "kind": "rect",
+       "x": 68,
+       "y": 41,
+       "w": 60,
+       "h": 1,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "up": [
+      {
+       "id": "hhcrwn4",
+       "kind": "halfcircle",
+       "x": 65,
+       "y": 19,
+       "w": 70,
+       "h": 23,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhband4",
+       "kind": "rect",
+       "x": 69,
+       "y": 38,
+       "w": 62,
+       "h": 4,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhpeak4",
+       "kind": "pentagon",
+       "x": 73,
+       "y": 40,
+       "w": 54,
+       "h": 7,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.65
+       },
+       "rot": 181
+      },
+      {
+       "id": "hhseam4",
+       "kind": "rect",
+       "x": 74,
+       "y": 40,
+       "w": 52,
+       "h": 1,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "crouch": [
+      {
+       "id": "hhcrwn5",
+       "kind": "halfcircle",
+       "x": 65,
+       "y": 55,
+       "w": 70,
+       "h": 23,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhband5",
+       "kind": "rect",
+       "x": 69,
+       "y": 74,
+       "w": 62,
+       "h": 4,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhpeak5",
+       "kind": "pentagon",
+       "x": 73,
+       "y": 76,
+       "w": 54,
+       "h": 7,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.65
+       },
+       "rot": 181
+      },
+      {
+       "id": "hhseam5",
+       "kind": "rect",
+       "x": 74,
+       "y": 76,
+       "w": 52,
+       "h": 1,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ]
+    },
+    "oipvf3l": {
+     "front": [
+      {
+       "id": "hhcrwn1",
+       "kind": "halfcircle",
+       "x": 65,
+       "y": 19,
+       "w": 70,
+       "h": 23,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhband1",
+       "kind": "rect",
+       "x": 69,
+       "y": 38,
+       "w": 62,
+       "h": 4,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhpeak1",
+       "kind": "pentagon",
+       "x": 73,
+       "y": 40,
+       "w": 54,
+       "h": 7,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.65
+       },
+       "rot": 181
+      },
+      {
+       "id": "hhseam1",
+       "kind": "rect",
+       "x": 74,
+       "y": 40,
+       "w": 52,
+       "h": 1,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "back": [
+      {
+       "id": "hhcrwn2",
+       "kind": "halfcircle",
+       "x": 65,
+       "y": 19,
+       "w": 70,
+       "h": 22,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhband2",
+       "kind": "rect",
+       "x": 70,
+       "y": 38,
+       "w": 60,
+       "h": 5,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhseam2",
+       "kind": "rect",
+       "x": 71,
+       "y": 41,
+       "w": 58,
+       "h": 1,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "side": [
+      {
+       "id": "hhcrwn3",
+       "kind": "halfcircle",
+       "x": 62,
+       "y": 19,
+       "w": 70,
+       "h": 22,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 9
+      },
+      {
+       "id": "hhband3",
+       "kind": "rect",
+       "x": 66,
+       "y": 36,
+       "w": 64,
+       "h": 6,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhpeak3",
+       "kind": "tri2",
+       "x": 129,
+       "y": 40,
+       "w": 19,
+       "h": 6,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.65
+       },
+       "rot": 8
+      },
+      {
+       "id": "hhseam3",
+       "kind": "rect",
+       "x": 68,
+       "y": 41,
+       "w": 60,
+       "h": 1,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "up": [
+      {
+       "id": "hhcrwn4",
+       "kind": "halfcircle",
+       "x": 65,
+       "y": 19,
+       "w": 70,
+       "h": 23,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhband4",
+       "kind": "rect",
+       "x": 69,
+       "y": 38,
+       "w": 62,
+       "h": 4,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhpeak4",
+       "kind": "pentagon",
+       "x": 73,
+       "y": 40,
+       "w": 54,
+       "h": 7,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.65
+       },
+       "rot": 181
+      },
+      {
+       "id": "hhseam4",
+       "kind": "rect",
+       "x": 74,
+       "y": 40,
+       "w": 52,
+       "h": 1,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "crouch": [
+      {
+       "id": "hhcrwn5",
+       "kind": "halfcircle",
+       "x": 65,
+       "y": 43,
+       "w": 70,
+       "h": 23,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhband5",
+       "kind": "rect",
+       "x": 69,
+       "y": 62,
+       "w": 62,
+       "h": 4,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hhpeak5",
+       "kind": "pentagon",
+       "x": 73,
+       "y": 64,
+       "w": 54,
+       "h": 7,
+       "color": "#7a6a4d",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.65
+       },
+       "rot": 181
+      },
+      {
+       "id": "hhseam5",
+       "kind": "rect",
+       "x": 74,
+       "y": 64,
+       "w": 52,
+       "h": 1,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ]
+    }
+   },
+   "lastFit": "telfv37",
+   "confirmedFits": [
+    "telfv37",
+    "oipvf3l"
+   ],
+   "statBoosts": {
+    "hp": 0,
+    "speed": 0,
+    "agility": 0,
+    "intelligence": 1,
+    "strength": 0
+   },
+   "defense": 1,
+   "effects": [],
+   "categories": [
+    "T1",
+    "Hat",
+    "Common"
+   ],
+   "value": 9,
+   "savedAt": 1789253015344
   }
  ],
  "levels": [
