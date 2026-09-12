@@ -1049,6 +1049,28 @@ range and still backs off when crowded.
 `burstDelay`, `resurrect`, `stun`, …). Adding one means three places: the `newAsset`
 defaults, a `migrate` default so older saves get it, and the editor control.
 
+**A UNIT'S HIT BOX STARTS AT `unitHitTop`, NEVER AT `ep.y + topFrac * eph`.** The renderer pushes
+every sprite DOWN so the art's floor line sits on the terrain (`eAnchor`), and the HP bar with it;
+the hit tests boxed the body on its UNPUSHED canvas. For a body drawn to the canvas floor that is
+the same thing. For every animal it is one whole body height out: the Pit Bulls (ground line
+y 148) had their box 107–208px above their feet with the drawn dog at 0–100px, the Squirrel the
+same. Measured in the running game before the fix: a level shot at y 451 registered a hit on a dog
+whose topmost drawn pixel was at y 500. Eleven sites (shots, swings, bites, tackles, blasts, rocks,
+resurrect, capture, the dodge look-out) now all go through `unitHitTop(ea, shape, eph)`, which is
+the renderer's own anchor rule. If you write a twelfth, use it.
+
+**Ranged shots get a slight lock-on (`aimAssistAngle`).** A keyboard aims in five fixed directions
+and the arc from each is fixed, so from a given spot there were five lines a bullet could fly. Now
+the held direction picks a `AIM_ASSIST_CONE_DEG` (22°, half the spacing between held directions)
+cone, and the shot is bent onto the NEAREST hostile whose box centre the real arc
+(`projectileDropAtDistance`) can reach inside it — nearest, not smallest bend: the first drive with
+smallest-bend sent a level shot over a dog 11 cells out to kill a squirrel 27 cells out. A body
+whose centre is outside the cone still gets the cone-edge shot if that crosses its middle half; a
+body behind solid cells (`shotPathClear`, the shot's own 2×2 probe) never locks. The fire block
+re-reads the muzzle at the bent arm angle, and `p.firing.aimTilt` tilts the arm for the fire pose
+so the lock-on is visible. No target in the cone = the shot flies exactly as held, including
+straight up and facing away (both measured). Enemy AI shots are untouched (still plain `atan2`).
+
 **THERE IS NO 👹 ENEMY FLAG ON A DRESSED LOOK ANY MORE, AND IT WAS REMOVED BECAUSE IT MADE
 DUPLICATES.** `isEnemy` used to decide which Dress Bob looks the Level Creator would offer as
 enemies, so wanting the same outfit as a fightable enemy meant saving it twice — and wanting that

@@ -1375,6 +1375,119 @@ export const projectileFallSpeedMul = (pr, distance) => {
   const t = (d - half) / half;                   // 0 at the top of the fall, 1 at max range, higher past it
   return 1 + Math.min(PROJECTILE_FALL_ACCEL_CAP, PROJECTILE_FALL_ACCEL * t);
 };
+// --- Aim assist -------------------------------------------------------------------------------
+// A keyboard aims a gun in FIVE directions — level, the two 45° diagonals, the 40° dip and
+// straight up (aimAngleDeg) — and from each one the shot follows one fixed arc. So from any spot
+// there are exactly five lines a bullet can travel, and an enemy standing anywhere else — on a
+// ledge two cells up, a dog at knee height six cells out, anyone at the far end of the range where
+// the drop has set in — cannot be hit from that spot at all. That was "you can only hit a few
+// locations so it's hard to aim".
+//
+// So a shot gets a SLIGHT lock-on at the instant it leaves the barrel. The held direction still
+// decides where you are shooting; if a target sits within AIM_ASSIST_CONE_DEG of it, the launch
+// angle is bent to the one whose arc actually passes through that body. Outside the cone nothing
+// changes — hold a better direction. The cone is deliberately HALF the spacing between the held
+// directions (they sit 40–45° apart), so whichever key is nearest the enemy is the one that locks:
+// aiming stays keyboard-like — you pick the direction — and the gun does the last few degrees.
+//
+// The arc it solves against is the real one (projectileDropAtDistance), not a straight line: a
+// target at the far end of the range has to be met where the shot has already started falling,
+// and a straight-line aim would fly under it. Solved numerically because the drop is a function of
+// the distance ALONG the path, which itself depends on the angle being solved for.
+export const AIM_ASSIST_CONE_DEG = 22;
+export const AIM_ASSIST_TARGET_MARGIN = 0.25;   // a cone-edge shot must pass through the middle half of the body, not just clip its outline
+// The shot's y when it reaches the column `dx` px ahead of the muzzle, launched at `deg` (screen
+// degrees, positive = downward — the aimAngleDeg convention). Exactly the arc the flying shot
+// follows (projectilePositionAtDistance): the distance along the aimed line is dx / cos(deg), and
+// the drop is a function of that distance. null when the shot never reaches the column at all —
+// launched vertically, or backwards.
+export const shotYAtColumn = (sy, groundY, rangePx, deg, dx) => {
+  const rad = deg * Math.PI / 180, c = Math.cos(rad);
+  if (c <= 1e-6) return null;
+  const d = dx / c;
+  return sy + Math.sin(rad) * d + projectileDropAtDistance(sy, groundY, d, rangePx);
+};
+// The launch angle whose arc passes through the point `dx` ahead and at screen-y `ty`, or null
+// when no angle reaches it (too high for the arc to climb to). There can be TWO solutions — a
+// direct shot, and a steep lob that comes back down onto the point after its apex — and this
+// always returns the direct one, the flatter angle, because that is the only one that reads as a
+// gun firing at something. Coarse 2° scan from steep-down toward steep-up until the shot first
+// passes ABOVE the point (y decreases as the angle lifts, until the apex), then bisect that bracket.
+export const solveShotAngleToPoint = (sy, groundY, rangePx, dx, ty) => {
+  let prevDeg = null, prevMiss = null;
+  for (let deg = 89; deg >= -89; deg -= 2) {
+    const y = shotYAtColumn(sy, groundY, rangePx, deg, dx);
+    if (y === null) break;
+    const miss = y - ty;                        // positive: the shot passes BELOW the point at this column
+    if (prevMiss !== null && prevMiss >= 0 && miss < 0) {
+      let hi = prevDeg, lo = deg;               // hi: below the point, lo: above it
+      for (let i = 0; i < 24; i++) {
+        const mid = (hi + lo) / 2;
+        if (shotYAtColumn(sy, groundY, rangePx, mid, dx) - ty < 0) lo = mid; else hi = mid;
+      }
+      return (hi + lo) / 2;
+    }
+    prevDeg = deg; prevMiss = miss;
+  }
+  return null;
+};
+// Is the bent path open all the way to the target's column? Sampled every `step` px along the
+// arc — the same probe the flying shot itself dies on (a 2×2 box against solid cells), so the
+// assist can never steer a shot INTO a wall the held aim would have cleared. A target behind cover
+// simply doesn't get locked; the shot flies exactly as held, as it always did.
+const shotPathClear = (sx, sy, groundY, rangePx, deg, dir, dx, clear, step) => {
+  const rad = deg * Math.PI / 180, c = Math.cos(rad), s = Math.sin(rad);
+  const dEnd = dx / c;
+  for (let d = step; d < dEnd; d += step) {
+    if (!clear(sx + dir * c * d, sy + s * d + projectileDropAtDistance(sy, groundY, d, rangePx))) return false;
+  }
+  return true;
+};
+// Pick the nearest target the held aim can be bent onto, and the launch angle that hits it.
+//   sx, sy    the muzzle, level px          face  ±1        aimDeg  the held direction's launch angle
+//   groundY   the shooter's feet line at firing time — what calibrates the arc (see rangePx above)
+//   rangePx   the weapon's range in px: the arc's own calibration, AND how far ahead the assist
+//             looks. It will not reach past the gun.
+//   targets   [{ x, y, w, h, … }] — hit boxes, and they MUST be the same boxes the flying shot is
+//             tested against (the visible body, not the render box), or the lock-on lands the
+//             shot on a body the hit test doesn't recognise. The caller builds them from the same
+//             sideBodyShape math the projectile loop uses.
+//   clear     optional (x, y) => bool, false where a solid cell is — see shotPathClear
+// The chosen target is the NEAREST body the cone can reach, not the one needing the smallest
+// bend. Smallest-bend was the first rule and it was measured doing the wrong thing on the first
+// drive: a level shot with a Pit Bull 11 cells out (15° below the line) and a Squirrel 27 cells
+// out (3° below it) sailed over the dog and killed the squirrel — a body at the far edge of the
+// range, quite possibly off screen, stealing the shot from the one in your face. A lock-on locks
+// onto the closest thing in the direction you are holding; that is what a player can predict.
+// Ties on distance go to the smaller bend. The angle aims at the CENTRE of its box, not at the
+// first edge that would count as a hit: a body moves during the flight, and a shot solved to just
+// clip an outline misses the moment it does. When the centre is outside the cone the bend is
+// clamped to the cone's edge and kept only if that path still crosses the middle half of the body.
+// Returns { deg, target, dx } or null, in which case the shot flies exactly as held.
+export const aimAssistAngle = ({ sx, sy, groundY, rangePx, face, aimDeg, targets, coneDeg = AIM_ASSIST_CONE_DEG, clear = null, step = 15 }) => {
+  const dir = face < 0 ? -1 : 1;
+  let best = null;
+  for (const t of targets || []) {
+    if (!t || !(t.w > 0) || !(t.h > 0)) continue;
+    const cx = t.x + t.w / 2, cy = t.y + t.h / 2;
+    const dx = (cx - sx) * dir;
+    if (dx <= 1 || dx > rangePx) continue;                  // behind you, on top of you, or past the gun's reach
+    const want = solveShotAngleToPoint(sy, groundY, rangePx, dx, cy);
+    if (want === null) continue;                            // no arc climbs that high
+    let deg;
+    if (Math.abs(want - aimDeg) <= coneDeg) deg = want;
+    else {
+      deg = aimDeg + (want > aimDeg ? coneDeg : -coneDeg);
+      const y = shotYAtColumn(sy, groundY, rangePx, deg, dx);
+      const m = t.h * AIM_ASSIST_TARGET_MARGIN;
+      if (y === null || y < t.y + m || y > t.y + t.h - m) continue;
+    }
+    if (clear && !shotPathClear(sx, sy, groundY, rangePx, deg, dir, dx, clear, step)) continue;
+    const dev = Math.abs(deg - aimDeg);
+    if (!best || dx < best.dx - 1e-9 || (Math.abs(dx - best.dx) <= 1e-9 && dev < best.dev)) best = { deg, dev, dx, target: t };
+  }
+  return best;
+};
 // Melee swing timing — shared by both the hit-test geometry (game loop) and the visual arm
 // render, which used to each duplicate their own copy of a single symmetric sine sweep. Now a
 // deliberate 3-phase motion instead: a WINDUP raising the arm well past its eventual impact
@@ -3995,6 +4108,32 @@ export const poseGroundY = (asset, poseKey, blocks) => {
 // renderer has ONE call site and an untagged enemy takes the identical path it always did.
 export const poseGroundFrac = (asset, poseKey, blocks) =>
   Math.max(0, Math.min(1, (H - poseGroundY(asset, poseKey, blocks)) / H));
+// WHERE A UNIT'S HIT BOX STARTS, measured down from the top of its physics box — and it is NOT
+// `topFrac * eph`, which is what every hit test in the game used for a year.
+//
+// The renderer pushes the whole sprite DOWN (eAnchor in the enemy render) so the art's floor
+// line lands on the terrain instead of the art hovering above it by whatever empty canvas the
+// artist left under the feet — a ground line if the enemy carries one, else that measured gap.
+// The HP bar is pushed down by the same amount. The hit tests were not: they boxed the body at
+// `ep.y + topFrac * eph`, the art's position on its UNPUSHED canvas. For a body drawn all the way
+// to the canvas floor that is the same thing. For an animal it is not, and it is not by exactly
+// one body height: the Pit Bulls carry a ground line at canvas y 148, so their sprite is pushed
+// down 108px of a 252px box, and the box every shot, swing, bite, blast and rock was tested
+// against sat 107–208px above their feet — the drawn dog is 0–100px above its feet. The Squirrel
+// (no line, 51px of empty canvas) had its whole box above its head as well. So a bullet through
+// the dog's chest missed and one over its head killed it, which is the part of "it's hard to
+// aim" that no aim assist could fix — an assist solved against that box bends every shot to a
+// point in the air above the animal, and looks broken while it registers a hit.
+//
+// Same rule as the renderer, deliberately: the SIDE pose's ground line (the standing baseline
+// every other pose is pinned to) when one is set, else the empty canvas under the drawn feet —
+// which makes a lineless body's box end exactly on its feet. Bodies whose art fills the canvas
+// get 0 anchor and move by nothing.
+export const unitHitTop = (ea, shape, eph) => {
+  const gY = enemyGroundLine(ea, enemyPoseKey(ea, "side"));
+  const anchor = gY !== null ? ((H - gY) / H) * eph : Math.max(0, 1 - shape.topFrac - shape.heightFrac) * eph;
+  return anchor + shape.topFrac * eph;
+};
 // Where a single piece's box actually reaches, LEFT and RIGHT, once the renderer has had its way
 // with it. shapeStyle mirrors the piece first and then rotates it about pieceOriginFrac — the
 // shoulder for an arm, the hip for a swung leg, the middle of the box for everything else — so for
@@ -8787,7 +8926,7 @@ export default function AssetStudio() {
           if (tackleSecs != null && !ep.friendly && !unitTalkImmune(ep) && !playerFrozen(p)) {
             if ((ep.downCd || 0) > 0) ep.downCd = Math.max(0, ep.downCd - dtMul);
             const tBoxLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
-            const tBoxTop = ep.y + eShape.topFrac * oldEph, tBoxH = eShape.heightFrac * oldEph;
+            const tBoxTop = ep.y + unitHitTop(ea, eShape, oldEph), tBoxH = eShape.heightFrac * oldEph;
             if (!(ep.down > 0) && !(ep.downCd > 0) && boxesOverlap(p.x, p.y, pw, ph, tBoxLeft, tBoxTop, epw, tBoxH)) {
               ep.down = tackleDownFrames(tackleSecs);
               ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; ep.walking = false;
@@ -8835,7 +8974,7 @@ export default function AssetStudio() {
             const eCenterX = ep.x + epw / 2;
             const feetY = ep.y + (ep.crouch ? crouchEph : standEph);
             const standTop = feetY - standEph;
-            const standHitTop = standTop + eShape.topFrac * standEph, standHitH = eShape.heightFrac * standEph;
+            const standHitTop = standTop + unitHitTop(ea, eShape, standEph), standHitH = eShape.heightFrac * standEph;
             let threat = null;
             for (const pr of projectiles.current) {
               if (pr.foe) continue; // an enemy never flinches at its own side's shots
@@ -9021,7 +9160,7 @@ export default function AssetStudio() {
           // and a half back on your feet before the next one, and blocks the next charge too.
           if (eTackleSecs != null && hostile && !stunned && !(p.down > 0) && !(p.downCd > 0) && (ep.tackleCd || 0) <= 0 && !p.transitioning) {
             const tBoxLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
-            const tBoxTop = ep.y + eShape.topFrac * newEph, tBoxH = eShape.heightFrac * newEph;
+            const tBoxTop = ep.y + unitHitTop(ea, eShape, newEph), tBoxH = eShape.heightFrac * newEph;
             if (boxesOverlap(p.x, p.y, pw, ph, tBoxLeft, tBoxTop, epw, tBoxH)) {
               knockDownPlayer(p, eTackleSecs);
               ep.charge = 0; ep.chargeCd = TACKLE_CHARGE_COOLDOWN_FRAMES;
@@ -9277,8 +9416,6 @@ export default function AssetStudio() {
         if (playtestWeapon && isRanged(playtestWeapon.wtype)) {
           const aimDir = p.aimDir; // live-tracked above, not re-snapshotted here
           const spd = playtestWeapon.projectileSpeed ?? playtestWeapon.projectile?.speed ?? 12;
-          const aimRad = projectileAimRad(aimDir); // straight up when aimDir is -1 — see projectileAimRad
-          const vx = p.face * spd * Math.cos(aimRad), vy = spd * Math.sin(aimRad);
           // Where the shot comes OUT of. If the weapon has a 🔴 muzzle piece drawn on it, the
           // spawn point is that piece's live position — attached to the arm through exactly the
           // same attachWeaponBlocks call the visible art goes through, then converted from the
@@ -9287,32 +9424,69 @@ export default function AssetStudio() {
           // So the bullet leaves the barrel tip, at the right height, however the arm is posed.
           // No muzzle drawn (every weapon made before this existed) -> the old chest-height
           // spawn point, unchanged.
-          let spawnX = p.x + pw / 2 + p.face * pw * 0.3, spawnY = p.y + ph * 0.35;
+          // A closure rather than straight-line code because the aim assist below can bend the
+          // arm (tiltDeg) after the first answer, and the barrel has to be re-read at the bent
+          // angle so the bullet still leaves the gun and not a spot a few px beside it.
           const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, aiming: p.aiming, aimDir, crouch: p.crouch, walking: p.walking });
           const armPieceM = playerAsset ? armOf(playerAsset.angles[angleNow] || []) : null;
-          if (armPieceM) {
+          const muzzleSpawn = (tiltDeg) => {
+            if (!armPieceM) return null;
             const baseArmRotM = armPieceM.rot || 0;
             const aimAbsM = armAimAbs(armPieceM.armPivot);
             // Matches the renderer's own aim branch: the arm is SET to a horizontal, extended
             // angle plus the aim tilt — except in the dedicated Aim-up pose, which is drawn pointing
             // up. Crouch DOES extend now, so a ducked shot leaves the barrel instead of thin air.
             const aimingNow = p.aiming && angleNow !== "up";
-            const curArmM = { ...armPieceM, rot: aimingNow ? (aimAbsM + aimArmOffsetDeg(aimDir)) : baseArmRotM };
+            const curArmM = { ...armPieceM, rot: aimingNow ? (aimAbsM + aimArmOffsetDeg(aimDir) + tiltDeg) : baseArmRotM };
             const wfitM = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
             const guideHandM = handForGuideId(wfitM.guideId)[angleNow] || DEFAULT_HAND[angleNow];
             const muzArt = bake({ ...playtestWeapon, angles: wfitM.states.rest || blankAngles() }, angleNow).filter((pc) => pc.isMuzzle);
             const mp = muzArt.length ? muzzleLocalPoint(attachWeaponBlocks(muzArt, curArmM, guideHandM, baseArmRotM)) : null;
-            if (mp) {
-              const renderWM = CW * PLAYER_RENDER_W_CELLS;
-              const wrapLeftM = p.x - (bodyShape.centerFrac * renderWM - pw / 2);
-              const lx = (mp.x / W) * renderWM;
-              // Mirrored-ness, not raw facing: an enemy-as-player sprite mirrors on the OTHER
-              // facing (playerSpriteMirrored), and the muzzle has to follow the art or the shot
-              // leaves from behind the body.
-              spawnX = wrapLeftM + (playerSpriteMirrored(basePlayerAsset, p.face) ? renderWM - lx : lx);
-              spawnY = p.y + (mp.y / H) * ph;
-            }
+            if (!mp) return null;
+            const renderWM = CW * PLAYER_RENDER_W_CELLS;
+            const wrapLeftM = p.x - (bodyShape.centerFrac * renderWM - pw / 2);
+            const lx = (mp.x / W) * renderWM;
+            // Mirrored-ness, not raw facing: an enemy-as-player sprite mirrors on the OTHER
+            // facing (playerSpriteMirrored), and the muzzle has to follow the art or the shot
+            // leaves from behind the body.
+            return { x: wrapLeftM + (playerSpriteMirrored(basePlayerAsset, p.face) ? renderWM - lx : lx), y: p.y + (mp.y / H) * ph };
+          };
+          let spawn = muzzleSpawn(0) || { x: p.x + pw / 2 + p.face * pw * 0.3, y: p.y + ph * 0.35 };
+          const rangePxNow = Math.max(1, playtestWeapon.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW * rangeBoostMultiplier(playerAsset.effects);
+          // AIM ASSIST — see aimAssistAngle. Every body this shot could register on, boxed EXACTLY
+          // the way the in-flight hit test boxes it (the visible body via sideBodyShape, not the
+          // render box); a lock-on solved against any other box is a lock-on that misses. Same
+          // eligibility as the hit test too: a resurrect shot locks onto the corpses it can raise
+          // (they lie flat and are the hardest thing in the game to land a shot on), anything else
+          // locks onto living hostiles only — never an ally, never someone you haven't picked a
+          // fight with (unitTalkImmune), since the shot passes through both anyway. HP is read
+          // without seeding it: a body a shot merely considered must not get a stamped HP entry.
+          const assistTargets = [];
+          for (const k of Object.keys(lv.enemies || {})) {
+            const spawnA = liveSpawnAt(k, lv.enemies[k]);
+            const ea = liveEnemyAsset(k, findA(spawnA.enemyId)); if (!ea) continue;
+            const ep = enemyPos.current[k]; if (!ep) continue;
+            const hp = enemyHP.current[k] === undefined ? enemyMaxHP(ea) : enemyHP.current[k];
+            if (!(playtestWeapon.resurrect ? canResurrect(hp, ep) : (hp > 0 && !ep.friendly && !unitTalkImmune(ep)))) continue;
+            const eShape = sideBodyShape(ea);
+            const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
+            const eph = ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
+            assistTargets.push({ key: k, x: ep.x + (eShape.centerFrac * eRenderW - epw / 2), y: ep.y + unitHitTop(ea, eShape, eph), w: epw, h: eShape.heightFrac * eph });
           }
+          const aimDegHeld = aimAngleDeg(aimDir); // straight up when aimDir is -1 — see aimAngleDeg
+          let shotDeg = aimDegHeld, aimTilt = 0;
+          const assist = assistTargets.length ? aimAssistAngle({ sx: spawn.x, sy: spawn.y, groundY: p.y + ph, rangePx: rangePxNow, face: p.face, aimDeg: aimDegHeld, targets: assistTargets, clear: (x, y) => cellsHit(x, y, 2, 2).length === 0 }) : null;
+          if (assist) {
+            aimTilt = assist.deg - aimDegHeld;
+            shotDeg = assist.deg;
+            // The arm follows the bent shot for the fire pose (p.firing.aimTilt, read by the
+            // renderer's aim branch) — that is what makes the lock-on VISIBLE, the gun snapping
+            // onto its target as it fires. Moving the arm moves the barrel, so read it again.
+            spawn = muzzleSpawn(aimTilt) || spawn;
+          }
+          const aimRad = shotDeg * Math.PI / 180;
+          const vx = p.face * spd * Math.cos(aimRad), vy = spd * Math.sin(aimRad);
+          const spawnX = spawn.x, spawnY = spawn.y;
           // The equipped Projectile asset (built once, loadable onto any Ranged weapon) is the
           // primary source of both the visual and its own hitbox. A weapon that hasn't been
           // assigned one yet (old saves, migrated from when "ranged" was called "projectile"
@@ -9334,7 +9508,7 @@ export default function AssetStudio() {
             x: spawnX, y: spawnY,
             vx, vy,
             startX: spawnX, startY: spawnY, groundY: p.y + ph,
-            rangePx: Math.max(1, playtestWeapon.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW * rangeBoostMultiplier(playerAsset.effects), traveled: 0,
+            rangePx: rangePxNow, traveled: 0,
             char: playtestWeapon.projectile?.char || "🔥", tint: playtestWeapon.projectile?.tint || null,
             pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
             size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
@@ -9346,7 +9520,9 @@ export default function AssetStudio() {
           // next one is scheduled off burstDelay, not the fire rate.
           p.burstLeft = burstDue ? (p.burstLeft || 0) - 1 : weaponBurstShotCount(playtestWeapon) - 1;
           p.burstT = burstDelayFrames(playtestWeapon.burstDelay);
-          p.firing = { t: 0, dur: RANGED_FIRE_POSE_FRAMES };
+          // aimTilt: how far the aim assist bent this shot off the held direction, in degrees.
+          // The renderer's aim branch adds it to the arm for as long as the fire pose lasts.
+          p.firing = { t: 0, dur: RANGED_FIRE_POSE_FRAMES, aimTilt };
         } else if (wantFire) {
           p.firing = { t: 0, dur: 12 }; // swing duration — same for a real melee weapon or a bare-handed swing (faster than the old sine sweep)
           p.hitRegistered = false; // a fresh swing can land a fresh hit
@@ -9459,7 +9635,7 @@ export default function AssetStudio() {
                     const eShape = sideBodyShape(ea);
                     const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
                     const eph = ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
-                    const hitTop = ep.y + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
+                    const hitTop = ep.y + unitHitTop(ea, eShape, eph), hitH = eShape.heightFrac * eph;
                     const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
                     if (b.x < eHitLeft + epw && b.x + b.w > eHitLeft && b.y < hitTop + hitH && b.y + b.h > hitTop) {
                       enemyHP.current[k] = enemyMaxHP(ea) + allyHpBonus; // raised at the ALLY ceiling
@@ -9493,7 +9669,7 @@ export default function AssetStudio() {
                   const [er, ec] = k.split(",").map(Number);
                   const eLeft = ep ? ep.x : ec * CW + CW / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2);
                   const eTop = ep ? ep.y : (er + 1) * CW - eph;
-                  const hitTop = eTop + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
+                  const hitTop = eTop + unitHitTop(ea, eShape, eph), hitH = eShape.heightFrac * eph;
                   // Enemy's VISIBLE body X-span sits INSIDE the wider render box (same offset the HP bar and
                   // draw use). Test against THAT, exactly as the Y-axis already does with hitTop/hitH — not the
                   // full eRenderW, which added ~1.6 cells of phantom horizontal reach on the enemy's near side and
@@ -9555,7 +9731,7 @@ export default function AssetStudio() {
           const eShape = sideBodyShape(ea2);
           const eRenderW = enemyRenderW(ea2, CW), epw2 = eRenderW * eShape.fraction;
           const eph2 = ep2 && ep2.crouch ? enemyCrouchH(ea2, CW) : enemyStandH(ea2, CW);
-          return { x: ep2.x + (eShape.centerFrac * eRenderW - epw2 / 2), y: ep2.y + eShape.topFrac * eph2, w: epw2, h: eShape.heightFrac * eph2 };
+          return { x: ep2.x + (eShape.centerFrac * eRenderW - epw2 / 2), y: ep2.y + unitHitTop(ea2, eShape, eph2), w: epw2, h: eShape.heightFrac * eph2 };
         };
         for (const g of thrown.current) {
           g.vy = Math.min(40, g.vy + 0.175 * dtMul);
@@ -9834,7 +10010,7 @@ export default function AssetStudio() {
             const eShape = sideBodyShape(ea2);
             const eRenderW = enemyRenderW(ea2, CW), epw2 = eRenderW * eShape.fraction;
             const eph2 = ep2 && ep2.crouch ? enemyCrouchH(ea2, CW) : enemyStandH(ea2, CW);
-            return { x: ep2.x + (eShape.centerFrac * eRenderW - epw2 / 2), y: ep2.y + eShape.topFrac * eph2, w: epw2, h: eShape.heightFrac * eph2 };
+            return { x: ep2.x + (eShape.centerFrac * eRenderW - epw2 / 2), y: ep2.y + unitHitTop(ea2, eShape, eph2), w: epw2, h: eShape.heightFrac * eph2 };
           };
           if (pr.foe) {
             if (p.invuln <= 0) {
@@ -9934,7 +10110,7 @@ export default function AssetStudio() {
               const eShape = sideBodyShape(ea);
               const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
               const eph = ep && ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
-              const hitTop = ep.y + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
+              const hitTop = ep.y + unitHitTop(ea, eShape, eph), hitH = eShape.heightFrac * eph;
               const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
               if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop) {
                 if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
@@ -9955,7 +10131,7 @@ export default function AssetStudio() {
               const eShape = sideBodyShape(ea);
               const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
               const eph = ep && ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
-              const hitTop = ep.y + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
+              const hitTop = ep.y + unitHitTop(ea, eShape, eph), hitH = eShape.heightFrac * eph;
               const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
               if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop) {
                 enemyHP.current[k] = enemyMaxHP(ea) + allyHpBonus; // back on its feet, full HP at the ALLY ceiling
@@ -9983,7 +10159,7 @@ export default function AssetStudio() {
             const [er, ec] = k.split(",").map(Number);
             const eLeft = ep ? ep.x : ec * CW + CW / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2);
             const eTop = ep ? ep.y : (er + 1) * CW - eph;
-            const hitTop = eTop + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
+            const hitTop = eTop + unitHitTop(ea, eShape, eph), hitH = eShape.heightFrac * eph;
             const eHitLeft = eLeft + (eShape.centerFrac * eRenderW - epw / 2);
             const overlap = prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop;
             if (overlap) {
@@ -15082,10 +15258,17 @@ export default function AssetStudio() {
                     // which was the actual bug: 90°/-90° is "horizontal, extended", matching how
                     // climbing's 180°/0° means "straight up" for the same top/bottom pivots.
                     const aimDir = p.aimDir || 0;
+                    // Aim assist: a shot that locked on left the barrel bent off the held direction
+                    // by p.firing.aimTilt degrees (see aimAssistAngle). The arm follows that bend
+                    // for the fire pose so the lock-on is something you can SEE — the gun snaps
+                    // onto its target as it fires — and drops back to the held direction when the
+                    // pose ends. Same sign convention as aimArmOffsetDeg (positive = downward), so
+                    // it is simply added; armMirrorTwist below handles facing for both alike.
+                    const armAimDeg = aimArmOffsetDeg(aimDir) + ((p.firing && p.firing.aimTilt) || 0);
                     const aimAnchorOf = armAnchorFinder(blocks);
                     blocks = blocks.map((b) => {
                       if (b.role !== "weaponArm" && b.limb !== "arm") return b;
-                      const target = armAimAbs(b.armPivot) + aimArmOffsetDeg(aimDir);
+                      const target = armAimAbs(b.armPivot) + armAimDeg;
                       if (b.role === "weaponArm") return { ...b, rot: target * armMirrorTwist(b) };
                       // Equipment (e.g. a jacket sleeve) flagged limb:"arm" so it tracks the arm
                       // may have its OWN baked rest rotation for a reason — a design-time twist
@@ -15097,7 +15280,7 @@ export default function AssetStudio() {
                       // delta-based approach the melee swing and weapon attachment already use.
                       const a = aimAnchorOf(b);
                       if (!a) { const armDelta = target - baseArmRot; return { ...b, rot: (b.rot || 0) + armDelta * armMirrorTwist(b) }; }
-                      const aTarget = armAimAbs(a.armPivot) + aimArmOffsetDeg(aimDir);
+                      const aTarget = armAimAbs(a.armPivot) + armAimDeg;
                       // Same delta idea as before, but applied RIGIDLY about the anchor arm's
                       // shoulder — the rot-only version detached any sleeve whose own pivot
                       // wasn't at the shoulder (the jacket sleeve visibly fell below the arm

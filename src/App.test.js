@@ -153,6 +153,7 @@ import {
   enemyCrouchH,
   enemyNeedsFlip,
   enemyStandH,
+  unitHitTop,
   effectiveMagazineSize,
   flipPropFramesHorizontally,
   incomingPlayerDamage,
@@ -180,6 +181,11 @@ import {
   flipPiecesHorizontally,
   projectileDropAtDistance,
   projectilePositionAtDistance,
+  AIM_ASSIST_CONE_DEG,
+  AIM_ASSIST_TARGET_MARGIN,
+  shotYAtColumn,
+  solveShotAngleToPoint,
+  aimAssistAngle,
   projectileDropSlope,
   projectileAngleAtDistance,
   projectileFallSpeedMul,
@@ -1281,6 +1287,145 @@ describe("projectile range trajectory", () => {
   });
 });
 
+describe("aim assist", () => {
+  // Bob's own numbers: 30px cells, a 7-cell body with the shot leaving 35% down from the top, so
+  // the muzzle sits 137px above the feet line; the default 14-cell range. Muzzle at x=0, facing right.
+  const CELL = 30, sy = 100, groundY = sy + 137, rangePx = 14 * CELL;
+  const yAt = (deg, dx) => shotYAtColumn(sy, groundY, rangePx, deg, dx);
+  const centreY = (t) => t.y + t.h / 2, centreX = (t) => t.x + t.w / 2;
+  const assist = (aimDeg, targets, extra = {}) => aimAssistAngle({ sx: 0, sy, groundY, rangePx, face: 1, aimDeg, targets, ...extra });
+  // A standing human-sized body (2 cells wide, 6 tall), feet on the shooter's ground line,
+  // `cells` ahead and raised `up` cells.
+  const body = (cells, up = 0) => ({ x: cells * CELL - CELL, y: groundY - up * CELL - 6 * CELL, w: 2 * CELL, h: 6 * CELL });
+
+  test("shotYAtColumn is the flying shot's own arc", () => {
+    expect(yAt(0, rangePx / 2)).toBe(sy);                 // level through the flat half: no drop yet
+    expect(yAt(0, rangePx)).toBe(groundY);                // level at full range: back on the ground line
+    expect(yAt(45, 100)).toBeCloseTo(sy + 100, 6);        // 45° in the flat half: as far down as along
+    expect(yAt(-90, 100)).toBeNull();                     // straight up never reaches the column
+    expect(yAt(120, 100)).toBeNull();                     // neither does backwards
+  });
+
+  test("solves the direct angle to a point, through the flat half and into the drop", () => {
+    // Flat half, no drop yet: plain trigonometry.
+    expect(solveShotAngleToPoint(sy, groundY, rangePx, 150, sy - 60)).toBeCloseTo(-Math.atan2(60, 150) * 180 / Math.PI, 3);
+    // The ground line at full range is exactly where a level shot lands.
+    expect(solveShotAngleToPoint(sy, groundY, rangePx, rangePx, groundY)).toBeCloseTo(0, 3);
+    // Chest height at full range needs LIFT to meet the shot where it has already fallen — a
+    // straight-line aim (0°) flies under it — and the solved arc really does pass through it.
+    const lifted = solveShotAngleToPoint(sy, groundY, rangePx, rangePx, sy);
+    expect(lifted).toBeLessThan(-5);
+    expect(yAt(lifted, rangePx)).toBeCloseTo(sy, 3);
+  });
+
+  test("returns the direct shot, never the lob that comes back down onto the point", () => {
+    // 200px up and 60 out: reachable directly at ~73°, and again by a lob past 80° that has
+    // climbed and started falling back by the time it reaches that column.
+    const deg = solveShotAngleToPoint(sy, groundY, rangePx, 60, sy - 200);
+    expect(deg).toBeCloseTo(-Math.atan2(200, 60) * 180 / Math.PI, 3);
+    // A hair flatter than the solution and the shot passes UNDER the point: it is the flatter crossing.
+    expect(yAt(deg + 0.5, 60)).toBeGreaterThan(sy - 200);
+    expect(yAt(-87, 60)).toBeGreaterThan(sy - 200);       // ...and the lob side exists: steep enough and it has fallen back below it
+  });
+
+  test("a point no arc can climb to is unreachable", () => {
+    expect(solveShotAngleToPoint(sy, groundY, rangePx, 300, sy - 20000)).toBeNull();
+  });
+
+  test("nothing to lock onto: the shot flies exactly as held", () => {
+    expect(assist(0, [])).toBeNull();
+    expect(assist(0, null)).toBeNull();
+    expect(assist(0, [{ x: 100, y: 50, w: 0, h: 0 }])).toBeNull();
+  });
+
+  test("bends a level shot up onto a small target the held line passes under", () => {
+    const perch = { x: 165, y: 25, w: 30, h: 30 };        // centre 60px above the muzzle, 18° up: inside the cone
+    expect(yAt(0, centreX(perch))).toBeGreaterThan(perch.y + perch.h); // the level shot misses below it
+    const r = assist(0, [perch]);
+    expect(r.target).toBe(perch);
+    expect(r.deg).toBeCloseTo(-Math.atan2(60, 180) * 180 / Math.PI, 3);
+    expect(yAt(r.deg, centreX(perch))).toBeCloseTo(centreY(perch), 3);   // aimed at the centre, not the edge
+  });
+
+  test("lifts a shot to meet a body at the far end of the range where the drop has set in", () => {
+    const far = body(14);
+    const r = assist(0, [far]);
+    expect(r.deg).toBeLessThan(0);
+    expect(-r.deg).toBeLessThanOrEqual(AIM_ASSIST_CONE_DEG);
+    expect(yAt(r.deg, centreX(far))).toBeCloseTo(centreY(far), 3);
+  });
+
+  test("a dog at your feet: no lock from a level aim, locked from the down aim", () => {
+    const dog = { x: 135, y: groundY - 30, w: 60, h: 30 };  // 5½ cells out, one cell tall, on the ground: 36° below the muzzle
+    expect(assist(0, [dog])).toBeNull();                    // 22° is as far as level bends, and that still sails over it
+    const r = assist(40, [dog]);                            // ↓ held: the 40° dip is 4° off — locked
+    expect(r.target).toBe(dog);
+    expect(yAt(r.deg, centreX(dog))).toBeCloseTo(centreY(dog), 3);
+    expect(assist(45, [dog]).target).toBe(dog);             // ↓+→ diagonal too
+  });
+
+  test("cone-edge shot is kept only if it crosses the middle half of the body", () => {
+    // Centre 30° up — outside the cone — but the body is tall, and the shot clamped to the cone's
+    // edge still passes through its middle: take it, at exactly the cone's edge.
+    const tall = body(6, 5);
+    const r = assist(0, [tall]);
+    expect(r.deg).toBe(-AIM_ASSIST_CONE_DEG);
+    const y = yAt(r.deg, centreX(tall)), m = tall.h * AIM_ASSIST_TARGET_MARGIN;
+    expect(y).toBeGreaterThanOrEqual(tall.y + m);
+    expect(y).toBeLessThanOrEqual(tall.y + tall.h - m);
+    // Centre 33° up, and the clamped shot only clips the bottom quarter of the outline: refused.
+    const clip = { x: 165, y: -60, w: 30, h: 90 };
+    const yc = yAt(-AIM_ASSIST_CONE_DEG, centreX(clip));
+    expect(yc).toBeLessThan(clip.y + clip.h);
+    expect(yc).toBeGreaterThan(clip.y + clip.h * (1 - AIM_ASSIST_TARGET_MARGIN));
+    expect(assist(0, [clip])).toBeNull();
+  });
+
+  test("never behind you, never past the gun's reach", () => {
+    const behind = { x: -200, y: sy - 15, w: 30, h: 30 };
+    expect(assist(0, [behind])).toBeNull();
+    expect(assist(0, [behind], { face: -1 }).target).toBe(behind);   // turn round and it is in front
+    expect(assist(0, [{ x: rangePx + 20, y: sy - 15, w: 30, h: 30 }])).toBeNull();
+    expect(assist(0, [{ x: rangePx - 45, y: sy - 15, w: 30, h: 30 }])).not.toBeNull();
+  });
+
+  test("facing left is the mirror image, same angle", () => {
+    const right = { x: 165, y: 25, w: 30, h: 30 }, left = { x: -195, y: 25, w: 30, h: 30 };
+    expect(assist(0, [left], { face: -1 }).deg).toBeCloseTo(assist(0, [right]).deg, 9);
+    expect(assist(0, [right], { face: -1 })).toBeNull();
+  });
+
+  test("the nearest body in the cone wins, even over one dead on the held line", () => {
+    // Measured on the first drive with the opposite rule: a level shot sailed over the dog 11
+    // cells out (15° below the line) to kill a squirrel 27 cells out that needed only 3°.
+    const near = { x: 135, y: sy + 25, w: 30, h: 30 };     // 5 cells out, 15° down
+    const far = { x: 285, y: sy - 5, w: 30, h: 30 };       // 10 cells out, dead on the line
+    expect(assist(0, [far, near]).target).toBe(near);
+    // Same distance: the smaller bend.
+    const a = { x: 135, y: sy - 15, w: 30, h: 30 }, b = { x: 135, y: sy + 35, w: 30, h: 30 };
+    expect(assist(0, [b, a]).target).toBe(a);
+    // ...but a near body OUTSIDE the cone does not block the far one inside it.
+    const tooLow = { x: 135, y: sy + 105, w: 30, h: 30 };  // 38° down
+    expect(assist(0, [tooLow, far]).target).toBe(far);
+  });
+
+  test("a body behind cover is not locked: the shot is never bent into a wall", () => {
+    const perch = { x: 165, y: 25, w: 30, h: 30 };
+    const wallAt120 = (x) => !(x >= 120 && x < 150);
+    expect(assist(0, [perch], { clear: wallAt120 })).toBeNull();
+    const inFront = { x: 75, y: 55, w: 30, h: 30 };      // 3 cells out, 18° up: in the cone, and short of the wall
+    expect(assist(0, [perch, inFront], { clear: wallAt120 }).target).toBe(inFront);
+  });
+
+  test("straight up locks onto something above and a little ahead", () => {
+    const above = { x: 45, y: sy - 215, w: 30, h: 30 };    // 2 cells ahead, 200px up: 73° — 17° inside the cone from -90
+    const r = assist(-90, [above]);
+    expect(r.target).toBe(above);
+    expect(r.deg).toBeCloseTo(-Math.atan2(200, 60) * 180 / Math.PI, 3);
+    expect(r.deg).toBeGreaterThan(-89);
+  });
+});
+
 describe("Long Shot range boost", () => {
   test("no boost worn leaves range untouched", () => {
     expect(rangeBoostMultiplier(undefined)).toBe(1);
@@ -1312,6 +1457,33 @@ describe("Long Shot range boost", () => {
     expect(projectilePositionAtDistance({ ...shot, rangePx: base }, base).y).toBe(220);
     expect(projectilePositionAtDistance({ ...shot, rangePx: boosted }, base).y).toBe(100);
     expect(projectilePositionAtDistance({ ...shot, rangePx: boosted }, boosted).x).toBe(base * 2);
+  });
+});
+
+describe("unit hit box sits on the DRAWN body", () => {
+  // The Pit Bull, measured: a 252px box (scale 1.2), art from 17.3% to 57.7% of the canvas, floor
+  // line drawn at canvas y 148. The renderer pushes its sprite down (260-148)/260 of the box.
+  const dog = { topFrac: 0.17307692307692307, heightFrac: 0.40384615384615385 };
+  const eph = 252;
+
+  test("with a ground line, the box starts where the pushed-down art starts", () => {
+    const ea = { angles: { side: [{ x: 0, y: 45, w: 10, h: 10 }] }, groundLine: { side: 148 } };
+    const top = unitHitTop(ea, dog, eph);
+    expect(top).toBeCloseTo(((260 - 148) / 260) * eph + dog.topFrac * eph, 6);   // 152, not the old 44
+    // ...so its bottom is the floor line, give or take the 2 canvas px of paw drawn below it.
+    expect(top + dog.heightFrac * eph).toBeCloseTo(eph + (150 - 148) / 260 * eph, 6);
+  });
+
+  test("with no line, the box ends exactly on the feet", () => {
+    const ea = { angles: { side: [{ x: 0, y: 45, w: 10, h: 10 }] } };
+    const top = unitHitTop(ea, dog, eph);
+    expect(top + dog.heightFrac * eph).toBeCloseTo(eph, 6);
+    expect(top).toBeGreaterThan(dog.topFrac * eph + 100);  // a whole body height lower than the old box
+  });
+
+  test("art that fills its canvas moves by nothing", () => {
+    const full = { topFrac: 0.03, heightFrac: 0.97 };
+    expect(unitHitTop({ angles: { side: [] } }, full, 210)).toBeCloseTo(0.03 * 210, 9);
   });
 });
 
