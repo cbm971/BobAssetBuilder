@@ -2724,6 +2724,46 @@ const DEFAULT_RANGED_ATTACK_RANGE = 540; // px = 18 cells @ 30px — an enemy ho
 const ATTACK_COOLDOWN_FRAMES = 45; // frames between one enemy's attacks (~0.75s)
 const ATTACK_SWING_FRAMES = 14;    // how long the attack's arm-swing/lunge visual plays
 const PLAYER_INVULN_FRAMES = 40;   // brief invulnerability after the player is hit, so standing in one enemy's range doesn't melt HP every frame
+/* --- Extra Lives: instead of dying, get back up where you fell --------------------------------
+   Worn clothing (EFFECT_TYPES.extraLives — "nine lives on a cat head") can carry lives. The rule
+   is deliberately three small pure pieces so the loop's five death sites can all go through ONE
+   closure (playerDefeated, in the Playtest effect) and never disagree about what a death costs:
+     * extraLivesGranted — how many the kit you are wearing RIGHT NOW carries, summed across
+       items exactly the way Magazine Size and Ally Health sum theirs.
+     * extraLivesLeft — granted minus SPENT THIS RUN. Spent is a run-wide counter (livesUsed),
+       wiped only by the ▶ Playtest button, and it is NOT tied to any one item on purpose: the
+       same wear → remove → wear cycle Ally Health guards against would otherwise restock a cat
+       head by taking it off at a pedestal and putting it back on. Swapping to a smaller item
+       mid-run just reads as fewer (never negative) left; swapping back finds the spent count
+       still standing.
+     * reviveInPlace — what getting back up does to the player record. Position and momentum are
+       untouched, because that is the whole ask ("exactly where they were" — the ordinary death
+       is a walk back from the spawn point); HP is the caller's ref, set to EXTRA_LIFE_HP.
+   THE GRACE WINDOW IS THE ONE THING THAT NEEDS ITS OWN FIELD. The ordinary post-hit blink
+   (invuln) is ignored by fire ON PURPOSE — fire is a steady drain, not a discrete hit — so a life
+   spent standing in flames would be followed by the next one a sixth of a second later, and nine
+   lives would be gone in under two seconds with no chance to step out. `lifeGrace` is the window
+   fire (and a tackler, via downCd) DOES honour; invuln is raised alongside it so the same blink
+   the hit flash already draws shows the window on screen, just for longer and tinted gold. */
+export const EXTRA_LIFE_HP = 1;                 // what you get back up with
+export const EXTRA_LIFE_GRACE_FRAMES = 90;      // ~1.5s of flashing, untouchable, to get clear
+export const extraLivesGranted = (effects) => {
+  let n = 0;
+  for (const e of (effects || [])) if (e && e.type === "extraLives") n += Math.max(0, Math.round(e.lives ?? 1));
+  return n;
+};
+export const extraLivesLeft = (effects, used) => Math.max(0, extraLivesGranted(effects) - Math.max(0, Math.round(used || 0)));
+export const reviveInPlace = (p) => {
+  if (!p) return p;
+  p.invuln = Math.max(p.invuln || 0, EXTRA_LIFE_GRACE_FRAMES);
+  p.lifeGrace = EXTRA_LIFE_GRACE_FRAMES;
+  // Up on your feet and clear-headed: a revive that left you 💫 stunned or 😵 flat on the floor
+  // would hand the next life straight to whoever just took this one. downCd is the tackle get-up
+  // grace, held for the whole window so a tackler standing over you cannot re-floor you mid-flash.
+  p.stun = 0; p.down = 0; p.downCd = Math.max(p.downCd || 0, EXTRA_LIFE_GRACE_FRAMES);
+  p.burnPool = 0; p.onFire = 0;
+  return p;
+};
 /* --- Door transitions -----------------------------------------------------------------------
    Going INTO a room reads as going in: back to the camera, shrinking and fading into the doorway
    for half a second, and then the room loads. Coming back OUT used to play that exact same
@@ -3074,6 +3114,21 @@ const EFFECT_TYPES = {
     noAnim: true,
     params: [
       { key: "rounds", label: "Extra rounds", min: 1, max: 30, step: 1, def: 2 },
+    ],
+  },
+  // Instead of dying you get back up — on 1 HP, RIGHT WHERE YOU FELL, flashing — and one life is
+  // spent. "Where you fell" is the whole point and the whole difference from the ordinary death,
+  // which sends you back to the start: nine lives on a cat head means nine more goes at the fight
+  // you were in, not nine walks back from the spawn point. The count is per Playtest RUN and only
+  // the ▶ button refills it (see extraLivesLeft). Player-side only, the same line Ally Health
+  // draws: an enemy wearing it dies as normal. Say so if you want that too — it is a different
+  // feature (every enemy death site, and the corpse it leaves), not a bug here.
+  extraLives: {
+    label: "Extra Lives", icon: "🐱",
+    blurb: "Instead of dying you flash and get straight back up on 1 HP, exactly where you fell — no trip back to the start. Spends one life each time; set how many the item carries (a cat head might carry 9). While you flash, nothing can hurt you — fire included — so you have a moment to get clear. Lives refill only when you press ▶ Playtest: taking the item off and putting it back on does not restock them, and the lives on several worn items add together. Player-side only. No animation of its own.",
+    noAnim: true,
+    params: [
+      { key: "lives", label: "Lives", min: 1, max: 9, step: 1, def: 1 },
     ],
   },
 };
@@ -7103,6 +7158,7 @@ export default function AssetStudio() {
   const meleeReach = useRef({});                          // enemyId|weaponId -> swept melee-hitbox reach in px, so the engage gate doesn't re-sweep the whole swing arc every frame
   const enemyPos = useRef({});                            // spawnKey -> { y, vy, onGround } — lets enemies fall to the ground on Playtest start ("drop into place") instead of being frozen at their placed cell
   const playerHP = useRef(10);                            // player's remaining HP this Playtest session — seeded from the player asset's HP stat when Playtest starts
+  const livesUsed = useRef(0);                            // 🐱 Extra Lives SPENT this Playtest run — run-wide like playerHP and the wallet, wiped only by the ▶ button (never by a door or a re-run); what is LEFT is extraLivesLeft(worn effects, this), so swapping the item off and on cannot restock
   const pedestalRolls = useRef({});
   const enemyGearRolls = useRef({});                       // spawnKey -> the item that placement's gear tag rolled this session (null = the tag matched nothing). Rolled once per level entry, exactly like pedestalRolls, and kept in the same per-level bucket — re-rolling per reader would arm the unit with one gun and drop another.
   const enemyGearLookCache = useRef(new Map());            // "run|lookId|rolledId" -> that look re-composed WEARING what it rolled. assembleLook is not free and the render asks every frame.
@@ -7279,7 +7335,7 @@ export default function AssetStudio() {
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
   const groundArtCache = useRef(new Map());   // item id -> its baked ground art + bounding box; see groundArt() — an item on a pedestal or lying where a body dropped it is otherwise re-baked every playtest frame
-  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 });
+  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 });
   const keys = useRef({});
   const lvRef = useRef(null);
 
@@ -8056,6 +8112,30 @@ export default function AssetStudio() {
     // hasn't hit zero. Shared by the damage sampler and the visual, so they can't disagree.
     const hazardAlive = (key) => hazardStillBurning(hazLife.current, key);
     const SPAWN = { x: 60, y: 40 };
+    // WHERE EVERY DEATH GOES — all five of them (fire, a melee hit, a thrown rock, a blast, a shot),
+    // so what a death costs is decided exactly once. With a 🐱 Extra Life left you get back up
+    // where you fell on EXTRA_LIFE_HP, flashing and untouchable for the grace window, and the life
+    // is spent; without one it is the ordinary walk back to the start, unchanged. The five sites
+    // used to each carry their own copy of that respawn line, which is precisely the shape that
+    // would have let a lives rule reach four of them and miss the fifth. Returns true when a life
+    // was spent. The lives are read off `playerAsset`, which this effect re-derives from what is
+    // worn every time it re-runs (a pedestal pickup bumps equipGen), so a cat head picked up
+    // mid-run counts from the moment it is on.
+    const playerDefeated = (p, deathMsg) => {
+      const left = extraLivesLeft(playerAsset?.effects, livesUsed.current);
+      if (left > 0) {
+        livesUsed.current += 1;
+        playerHP.current = EXTRA_LIFE_HP;
+        reviveInPlace(p);
+        const now = left - 1;
+        flash("🐱 Extra life! Back up on " + EXTRA_LIFE_HP + " HP right where you fell — " + (now > 0 ? now + (now === 1 ? " life" : " lives") + " left" : "that was the last one"));
+        return true;
+      }
+      flash(deathMsg);
+      p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0;
+      playerHP.current = maxPlayerHP(playerAsset);
+      return false;
+    };
     // Precompute solid object footprints (a sized emoji can cover more than its anchor cell).
     // "In front of player" objects are a purely visual overlay (that's the whole point of the
     // 3-state model: Behind / In front / Same-layer-solid) — they must NEVER block movement,
@@ -8313,6 +8393,7 @@ export default function AssetStudio() {
       if (p.climbJumpKind && p.vy >= 0) p.climbJumpKind = null;
       if (p.dropCooldown > 0) p.dropCooldown -= dtMul;
       if (p.invuln > 0) p.invuln -= dtMul;
+      if (p.lifeGrace > 0) p.lifeGrace -= dtMul; // the 🐱 Extra Life window — the one fire honours (see reviveInPlace)
       // Purely visual, and deliberately NOT a freeze like the enter animation: you've already
       // landed in the level, so you can walk away from the door while you're still growing back in.
       if (p.arriving > 0) p.arriving = Math.max(0, p.arriving - dtMul);
@@ -8598,14 +8679,16 @@ export default function AssetStudio() {
       // the post-hit invulnerability window on purpose: that's for discrete enemy hits, whereas
       // fire is meant to be a steady drain the whole time you stand in it. Accumulates into a
       // fractional pool so sub-1-HP ticks aren't rounded away to nothing each frame.
+      // The ONE window it does honour is lifeGrace, the 🐱 Extra Life flash: you get back up in the
+      // flames you died in, and without this the next life goes a sixth of a second later.
       const pDps = hazardDpsAt(lv, p.x, p.y, pw, ph, CW, CH, hazardAlive);
-      if (pDps > 0 && !p.transitioning) {
+      if (pDps > 0 && !p.transitioning && !(p.lifeGrace > 0)) {
         p.burnPool = (p.burnPool || 0) + pDps * (dtMul / 60);
         if (p.burnPool >= 1) {
           const loss = Math.floor(p.burnPool); p.burnPool -= loss;
           playerHP.current = Math.max(0, playerHP.current - loss);
           p.onFire = 12; // frames of the "burning" red flicker on the player sprite
-          if (playerHP.current <= 0) { flash("🔥 Burned to a crisp — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0; playerHP.current = maxPlayerHP(playerAsset); p.burnPool = 0; }
+          if (playerHP.current <= 0) { playerDefeated(p, "🔥 Burned to a crisp — back to the start."); p.burnPool = 0; }
         }
       } else { p.burnPool = 0; }
       if (p.onFire > 0) p.onFire -= dtMul;
@@ -9015,7 +9098,7 @@ export default function AssetStudio() {
               const dmg = incomingPlayerDamage(rawDmg, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(ew && ew.ignoreArmor));
               playerHP.current = Math.max(0, playerHP.current - dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
-              if (playerHP.current <= 0) { flash("💀 " + ea.name + " defeated you — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0; playerHP.current = maxPlayerHP(playerAsset); }
+              if (playerHP.current <= 0) { playerDefeated(p, "💀 " + ea.name + " defeated you — back to the start."); }
               else {
                 // The WEAPON'S OWN STATUS EFFECT, felt from this side too. Of the abilities a
                 // weapon can carry, Stun is the only one that lands on the person rather than on
@@ -9575,7 +9658,7 @@ export default function AssetStudio() {
               const dmg = incomingPlayerDamage(impactDmg, playerAsset?.defense ?? 0, p.face, g.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(g.asset && g.asset.ignoreArmor));
               playerHP.current = Math.max(0, playerHP.current - dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
-              if (playerHP.current <= 0) { flash("💀 Blown off your feet — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0; playerHP.current = maxPlayerHP(playerAsset); }
+              if (playerHP.current <= 0) { playerDefeated(p, "💀 Blown off your feet — back to the start."); }
               else impactNote += " · 🪨 hit you for " + dmg + " (" + playerHP.current + " HP left)";
               continue;
             }
@@ -9760,7 +9843,7 @@ export default function AssetStudio() {
                 const dmg = incomingPlayerDamage(baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch);
                 playerHP.current = Math.max(0, playerHP.current - dmg);
                 p.invuln = PLAYER_INVULN_FRAMES;
-                if (playerHP.current <= 0) { flash("💀 Caught in the blast — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0; playerHP.current = maxPlayerHP(playerAsset); }
+                if (playerHP.current <= 0) { playerDefeated(p, "💀 Caught in the blast — back to the start."); }
                 else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash("💥 Blast hit for " + dmg + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
                 else flash("💥 Blast hit for " + dmg + " (" + playerHP.current + " HP left)");
               }
@@ -9836,7 +9919,7 @@ export default function AssetStudio() {
                 const dmg = incomingPlayerDamage(pr.damage ?? 5, playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, pr.ignoreArmor);
                 playerHP.current = Math.max(0, playerHP.current - dmg);
                 p.invuln = PLAYER_INVULN_FRAMES;
-                if (playerHP.current <= 0) { flash("💀 Shot down — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0; playerHP.current = maxPlayerHP(playerAsset); }
+                if (playerHP.current <= 0) { playerDefeated(p, "💀 Shot down — back to the start."); }
                 else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash("🏹 Hit for " + dmg + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
                 else flash("🏹 Hit for " + dmg + " (" + playerHP.current + " HP left)");
                 return false; // consumed on impact
@@ -14342,7 +14425,7 @@ export default function AssetStudio() {
           {play && <span className="badge money" title="Money you are carrying this Playtest run. Pick up a 💵 item to earn it, spend it in a shopkeeper's dialogue.">{MONEY_CHAR} {walletUI}</span>}
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel}>↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel}>↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -14651,6 +14734,16 @@ export default function AssetStudio() {
               if (playtestWeaponId) { const w = findA(playtestWeaponId); if (w) bits.push("🗡️ " + w.name); }
               for (const sl of SLOT_ORDER) { const it = equipped.current[sl]; if (it) bits.push((SLOTS[sl] ? SLOTS[sl].icon : "🧩") + " " + it.name); }
               return bits.length ? <p className="statusline equipline">Carrying: {bits.join(" · ")}</p> : null;
+            })()}
+            {play && (() => {
+              // 🐱 Extra Lives: counted off the kit you are wearing right now minus what this run has
+              // spent — the very sum the loop's playerDefeated makes, so the number shown is the
+              // number you get. Nothing worn grants any → no line at all, like the ammo line.
+              // Reads the live ref straight off; the loop re-renders every frame anyway.
+              const granted = extraLivesGranted(playerAsset?.effects);
+              if (!granted) return null;
+              const left = extraLivesLeft(playerAsset?.effects, livesUsed.current);
+              return <p className={"statusline ammoline" + (left <= 0 ? " empty" : "")}>🐱 {left > 0 ? left + (left === 1 ? " extra life" : " extra lives") + " — you get back up where you fell" : "no extra lives left — the next one is for real"}</p>;
             })()}
             {play && playtestThrowId && (() => {
               const n = throwCarry.current;
@@ -15106,6 +15199,11 @@ export default function AssetStudio() {
                   const downLift = downed ? layFlatLiftPx(blocks, renderW, ph) : 0; // every-frame path: don't walk the pieces unless someone is actually on the floor
                   const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift, width: renderW, height: ph, transform: (downed ? [flip, shrink, "translateY(" + (-downLift).toFixed(2) + "px)", LAY_FLAT_ROT_CSS] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...(downed ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
                   if (p.onFire > 0) style.filter = "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)";
+                  // The 🐱 Extra Life window: the same invuln blink as an ordinary hit (set longer by
+                  // reviveInPlace), tinted gold so it reads as "you got a life back" rather than
+                  // "you got hit". After the fire filter on purpose — you may well have died IN the
+                  // fire, and for this window the flames are not touching you.
+                  if (p.lifeGrace > 0) style.filter = "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)";
                   const maxHp = maxPlayerHP(playerAsset), curHp = Math.max(0, Math.min(maxHp, playerHP.current));
                   const hpFrac = maxHp > 0 ? curHp / maxHp : 0;
                   return (
@@ -16541,6 +16639,10 @@ export default function AssetStudio() {
                 return (
                   <div key={eff.id} className="outlinefx" style={{ marginBottom: 10 }}>
                     <div className="ct2">{def.icon} {def.label}</div>
+                    {/* Every entry in the catalog carries a blurb saying what it does in play, and
+                        until Extra Lives landed none of them was shown anywhere — the sliders had
+                        to explain themselves. It is the description, so it sits under the name. */}
+                    {def.blurb && <p className="mini">{def.blurb}</p>}
                     {def.tagParam && (
                       <label className="slider">
                         Tag to boost
@@ -16580,7 +16682,7 @@ export default function AssetStudio() {
                       {fxPickerOpen ? "－" : "＋"} Add an effect ({addable.length} available)
                     </button>
                     {fxPickerOpen && addable.map((t) => (
-                      <button key={t} className="ltbtn" onClick={() => { addEffect(t); setFxPickerOpen(false); }}>＋ Add {EFFECT_TYPES[t].icon} {EFFECT_TYPES[t].label}</button>
+                      <button key={t} className="ltbtn" title={EFFECT_TYPES[t].blurb} onClick={() => { addEffect(t); setFxPickerOpen(false); }}>＋ Add {EFFECT_TYPES[t].icon} {EFFECT_TYPES[t].label}</button>
                     ))}
                   </>
                 );

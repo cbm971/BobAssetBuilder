@@ -284,6 +284,11 @@ import {
   allyMaxHPBonus,
   applyAllyHPBonus,
   unitMaxHP,
+  EXTRA_LIFE_HP,
+  EXTRA_LIFE_GRACE_FRAMES,
+  extraLivesGranted,
+  extraLivesLeft,
+  reviveInPlace,
   DIALOGUE_ACTS,
   DIALOGUE_TONES,
   DIALOGUE_MAX_KEYED,
@@ -5670,6 +5675,76 @@ describe("catching a defeated creature with a throwable", () => {
     // cover the same ground instead of the ball catching a shorter arc than the shock.
     expect(throwStunRadiusCells(0)).toBe(1);
     expect(throwStunRadiusCells(2)).toBe(3);
+  });
+});
+
+describe("clothing that gives you extra lives (🐱 nine lives on a cat head)", () => {
+  const catHead = (lives) => [{ type: "extraLives", lives }];
+  // A player record the way the loop holds it, mid-fight: somewhere in the level, moving, stunned
+  // and floored by the thing that just killed them, half a burn tick banked, blinking from the hit.
+  const fallen = () => ({ x: 412, y: 133, vx: -2.5, vy: 1.2, face: -1, invuln: 40, lifeGrace: 0, stun: 30, down: 60, downCd: 0, burnPool: 0.6, onFire: 12 });
+
+  test("lives are read off the worn effects, and several items stack", () => {
+    expect(extraLivesGranted(catHead(9))).toBe(9);
+    expect(extraLivesGranted([{ type: "extraLives", lives: 9 }, { type: "extraLives", lives: 2 }])).toBe(11);
+    expect(extraLivesGranted([{ type: "backGuard", reduce: 0.5 }])).toBe(0);
+    expect(extraLivesGranted([])).toBe(0);
+    expect(extraLivesGranted(null)).toBe(0);
+    expect(extraLivesGranted([{ type: "extraLives" }])).toBe(1); // the slider's own default
+  });
+
+  test("what is left is granted minus spent this run, and never goes negative", () => {
+    expect(extraLivesLeft(catHead(9), 0)).toBe(9);
+    expect(extraLivesLeft(catHead(9), 3)).toBe(6);
+    expect(extraLivesLeft(catHead(9), 9)).toBe(0);
+    expect(extraLivesLeft(catHead(9), 12)).toBe(0);
+    expect(extraLivesLeft(catHead(9), undefined)).toBe(9);
+    expect(extraLivesLeft([], 0)).toBe(0);
+  });
+
+  test("nine lives are nine revives and then a real death", () => {
+    let used = 0, revives = 0;
+    for (let death = 0; death < 12; death++) { if (extraLivesLeft(catHead(9), used) > 0) { used += 1; revives += 1; } }
+    expect(revives).toBe(9);
+  });
+
+  test("taking the cat head off and putting it back on restocks nothing", () => {
+    // The spent count is run-wide and belongs to no item, so the pedestal swap Ally Health guards
+    // against buys nothing here either: off → nothing left at all, on → still the six you had.
+    let used = 3;
+    expect(extraLivesLeft(catHead(9), used)).toBe(6);
+    expect(extraLivesLeft([], used)).toBe(0);                 // hat off
+    expect(extraLivesLeft(catHead(9), used)).toBe(6);         // hat back on — 6, not 9
+    expect(extraLivesLeft(catHead(1), used)).toBe(0);         // a smaller item mid-run: fewer, never negative
+    expect(extraLivesLeft([...catHead(9), ...catHead(1)], used)).toBe(7); // a second item adds to the pool
+  });
+
+  test("getting back up leaves you exactly where you fell, still moving the way you were", () => {
+    const p = reviveInPlace(fallen());
+    expect([p.x, p.y, p.vx, p.vy, p.face]).toEqual([412, 133, -2.5, 1.2, -1]);
+  });
+
+  test("...on your feet, clear-headed, and untouchable for the grace window", () => {
+    const p = reviveInPlace(fallen());
+    expect(p.stun).toBe(0);
+    expect(p.down).toBe(0);
+    expect(p.lifeGrace).toBe(EXTRA_LIFE_GRACE_FRAMES);
+    expect(p.invuln).toBe(EXTRA_LIFE_GRACE_FRAMES);                  // the blink runs the whole window, not the shorter hit flash
+    expect(p.downCd).toBeGreaterThanOrEqual(EXTRA_LIFE_GRACE_FRAMES); // a tackler standing over you cannot re-floor you mid-flash
+    expect(p.burnPool).toBe(0);                                      // no half-banked burn tick carried into the new life
+    expect(p.onFire).toBe(0);
+  });
+
+  test("the window is longer than an ordinary hit's i-frames, and a longer blink is never shortened", () => {
+    expect(EXTRA_LIFE_GRACE_FRAMES).toBeGreaterThan(40); // PLAYER_INVULN_FRAMES
+    const p = reviveInPlace({ ...fallen(), invuln: 200, downCd: 500 });
+    expect(p.invuln).toBe(200);
+    expect(p.downCd).toBe(500);
+  });
+
+  test("you come back on 1 HP, and a missing record is left alone", () => {
+    expect(EXTRA_LIFE_HP).toBe(1);
+    expect(reviveInPlace(null)).toBe(null);
   });
 });
 

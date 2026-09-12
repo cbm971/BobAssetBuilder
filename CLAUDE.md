@@ -626,6 +626,37 @@ strip is a dedicated effect keyed on `play` alone, because this effect re-runs e
 time a landing grenade calls `setLevel` and stripping here deleted each grenade's own
 flames a frame after they landed.
 
+**🐱 EXTRA LIVES (`EFFECT_TYPES.extraLives`, added 2026-09-12) — EVERY PLAYER DEATH GOES THROUGH
+`playerDefeated`, and that is the invariant to keep.** Blake asked for "nine lives on the cat
+head": instead of dying you flash and get back up on 1 HP *exactly where you fell*. There were
+five death sites in the loop (fire, melee, thrown impact, blast, shot), each carrying its own copy
+of the respawn line — precisely the shape that lets a rule reach four and miss the fifth — so they
+now all call one closure in the Playtest effect. **Add a sixth way to die and route it through
+`playerDefeated(p, msg)`**, never a bare `p.x = SPAWN.x`. The pieces:
+
+* `extraLivesGranted(effects)` sums `lives` across worn items (Magazine Size / Ally Health style);
+  `extraLivesLeft(effects, livesUsed.current)` is what you actually have. **`livesUsed` is a
+  RUN-WIDE ref like `playerHP` and the wallet, wiped only by the ▶ button** — deliberately not
+  per-item, so a pedestal swap off-and-on cannot restock (the Ally Health anti-farming rule).
+  It survives doors and the effect's mid-play re-runs. The HUD line in the status row and the
+  loop read the same two functions, so the number shown is the number you get.
+* `reviveInPlace(p)` touches no position or velocity. It clears stun/down, sets `invuln` to the
+  longer `EXTRA_LIFE_GRACE_FRAMES` (90) so the existing hit-blink shows the window, tinted gold in
+  the sprite render, and sets **`p.lifeGrace`, which is the field fire honours** — `invuln` is
+  ignored by fire on purpose (steady drain, not a hit), and without a window fire respects you
+  would lose the next life a sixth of a second after the first, nine in under two seconds. It
+  also holds `downCd` for the window so a tackler standing over you cannot re-floor you.
+* Player-side only, like Ally Health. An enemy in the cat head dies as normal; making it work
+  for enemies means every enemy death site plus the corpse it leaves — a separate feature.
+* The effect card in the equipment editor now shows each effect's `blurb` (it never had, for any
+  effect), and the ＋ Add buttons carry it as a tooltip.
+
+Verified by seeding a 5-HP character carrying `{type:"extraLives", lives:3}` into
+`asset-data/library.json` with a 30-dps fire pit and sampling every frame through the rAF shim:
+three revives at the same (x,y) on HP 1 with `lifeGrace` 90→0 and the gold filter, then the
+ordinary "Burned to a crisp" respawn at (60,40). Dress Bob packs a hat's `lives` onto the look
+generically (checked on a saved look: `{type:"extraLives", lives:9, slot:"hat"}`).
+
 **Mirroring a level** (`flipLevelHorizontally`, the ⇄ Flip buttons) is c -> cols-1-c on
 every layer plus a reversal of everything that carries a direction: ramp `slope` and
 `step`, object `flip`/`rot`/`ox` (and its key moves by the whole footprint, not the

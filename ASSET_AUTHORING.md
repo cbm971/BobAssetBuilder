@@ -59,6 +59,14 @@ anywhere. Three assets were lost to exactly this. Copy the shape above literally
 `hat`, `jacket`, `shoes`, `shirt`, `pants`, `under_top`, `under_bottom`.
 `type` is `"equipment"` for all clothing.
 
+### Effects (abilities)
+Leave `"effects": []` — abilities are added in the editor's ✨ Effects card after import, and
+each one comes with its own sliders. If one must be authored in the file, an entry looks like
+`{ "id": "k3m9x2a", "type": "extraLives", "lives": 9, "animByBody": {}, "lastFit": "default" }`.
+Type keys: `doubleJump`, `backGuard`, `crouchGuard`, `glide`, `slide`, `tagBoost`, `tagLuck`,
+`rangeBoost`, `tackle`, `allyHP`, `magazineSize`, `extraLives` (🐱 get back up where you fell on
+1 HP instead of dying, `lives` 1–9). One of each type per item.
+
 ---
 
 ## 3. The canvas and the two bodies
