@@ -1568,6 +1568,37 @@ export const rollEnemyItemDrop = (assets, ownGear, chanceRnd, itemRnd, gearChanc
   if (g < ENEMY_GEAR_DROP_CHANCE) return pickFromPool(enemyGearDropPool(ownGear), gearRnd);
   return null;
 };
+// A worn "Lucky Find" ability (EFFECT_TYPES.tagLuck) makes a KIND of loot more likely: everything
+// carrying the tag it is set to gets its own roll, at the chance it is set to, BEFORE the ordinary
+// 5%/2% gates above. Only when that roll misses (or nothing tagged is available) does the normal
+// roll run, so the ability only ever adds drops — it cannot make an enemy drop less than it did.
+//
+// The pool is the pedestal search over the tag, split the same way rollEnemyItemDrop splits it:
+// consumables come from the whole library, gear ONLY from what this enemy had on. A charm tagged
+// "jacket" is not a jacket generator — it raises the odds that the jacket you can see on the body
+// actually comes off it. That keeps "gear is looted off the body" true with the charm worn.
+//
+// A tag that matches nothing does not spend a roll (so a charm set to a typo is inert, not a
+// silent 25% chance of nothing), and several worn charms are rolled in turn, each at its own
+// chance — two 25% charms on the same tag are a real 44%, not a capped 25%. `rnds` is the
+// tests' injection point: one number per roll consumed, in order (gate, pick, gate, pick, …).
+export const tagLuckDropPool = (assets, ownGear, tag) => {
+  const t = (tag || "").trim();
+  if (!t) return [];
+  return [...enemyItemDropPool(pedestalItemPool(assets, [t], "or")), ...enemyGearTagPool(ownGear, t)];
+};
+export const rollTagLuckDrop = (assets, ownGear, effects, rnds) => {
+  let i = 0;
+  const next = () => { const r = rnds && typeof rnds[i] === "number" ? rnds[i] : Math.random(); i++; return r; };
+  for (const e of (effects || [])) {
+    if (!e || e.type !== "tagLuck") continue;
+    const pool = tagLuckDropPool(assets, ownGear, e.tag);
+    if (!pool.length) continue;
+    const chance = Math.min(1, Math.max(0, e.chance ?? 0.25));
+    if (next() < chance) return pickFromPool(pool, next());
+  }
+  return null;
+};
 export const enemyDropOverlapping = (drops, x, y, w, h, cellSize) => {
   const box = Math.max(18, (cellSize || 30) * 1.35), half = box / 2;
   for (const [key, drop] of Object.entries(drops || {})) {
@@ -2984,6 +3015,19 @@ const EFFECT_TYPES = {
     tagParam: true,
     params: [
       { key: "mult", label: "Damage ×", min: 1, max: 5, step: 0.25, def: 1.5 },
+    ],
+  },
+  // A clothing ability that makes a KIND of loot more likely: every enemy you kill while it's worn
+  // gets an extra drop roll, at the chance set below, over everything tagged with the tag typed
+  // below. Resolved in rollTagLuckDrop — the ordinary drop roll still runs when this one misses,
+  // so it can only ever add drops. No animation of its own.
+  tagLuck: {
+    label: "Lucky Find", icon: "🍀",
+    blurb: "Makes a kind of loot drop more often: every enemy you kill while this is worn gets an extra drop roll, at the chance you set, over items carrying the tag you type below (e.g. \"potion\"). Consumables with the tag can come from anywhere; tagged clothing and weapons still only drop off an enemy that was actually wearing or holding them. If the lucky roll misses, the normal drop roll happens as usual. No animation of its own.",
+    noAnim: true,
+    tagParam: true,
+    params: [
+      { key: "chance", label: "Drop chance", min: 0.05, max: 1, step: 0.05, def: 0.25 },
     ],
   },
   // A clothing ability that makes your GUNS/BOWS reach farther: multiplies the flight distance
@@ -9892,13 +9936,16 @@ export default function AssetStudio() {
         if (!(enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0) || Object.prototype.hasOwnProperty.call(enemyDrops.current, k)) continue;
         const [er, ec] = k.split(",").map(Number), ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)), ep = enemyPos.current[k];
         // Gear is looted off THIS body — only what it actually had equipped. Consumables still
-        // come from the whole item pool (a potion isn't something it was wearing).
-        const item = rollEnemyItemDrop(allAssets, enemyEquippedGear(ea, findA, liveSpawnAt(k, lv.enemies[k])));
+        // come from the whole item pool (a potion isn't something it was wearing). A worn 🍀 Lucky
+        // Find charm gets its tagged roll in first; the ordinary roll only runs when that misses.
+        const ownGear = enemyEquippedGear(ea, findA, liveSpawnAt(k, lv.enemies[k]));
+        const lucky = rollTagLuckDrop(allAssets, ownGear, playerAsset?.effects);
+        const item = lucky || rollEnemyItemDrop(allAssets, ownGear);
         if (!item) { enemyDrops.current[k] = null; continue; }
         const shape = ea ? sideBodyShape(ea) : { fraction: 1 }, renderW = ea ? enemyRenderW(ea, CW) : CW;
         const hitW = renderW * shape.fraction, standH = ea ? enemyStandH(ea, CH) : CH;
         enemyDrops.current[k] = { item, x: ep ? ep.x + hitW / 2 : ec * CW + CW / 2, y: ep ? ep.y + standH : (er + 1) * CH };
-        flash("🎁 " + item.name + " dropped!");
+        flash((lucky ? "🍀 " : "🎁 ") + item.name + " dropped!");
       }
 
       let curPedKey = null, curDropKey = null, curDoorKey = null;

@@ -208,6 +208,8 @@ import {
   pieceBelongsToAsset,
   enemyDropOverlapping,
   rollEnemyItemDrop,
+  rollTagLuckDrop,
+  tagLuckDropPool,
   multiLegPivot,
   MULTI_LEG_SWING_SCALE,
   crouchArtPlane,
@@ -643,6 +645,45 @@ describe("enemy item drops", () => {
     for (const r of [0, 0.5, 0.999999]) {
       expect(rollEnemyItemDrop(wardrobe, onlyHat, 0.05, 0, 0.01, r).id).toBe("shirt7");
     }
+  });
+
+  /* 🍀 LUCKY FIND. The ability's whole promise is "more of THAT kind of loot", so the things to
+     pin are: the tag picks the pool, the chance is the charm's own number rather than the 5%/2%
+     gates, a miss falls through to the ordinary roll untouched, and gear still comes off the body. */
+  test("a worn Lucky Find charm rolls its tagged loot first, at its own chance", () => {
+    const lib = [
+      { id: "potion", type: "item", categories: ["potion"] },
+      { id: "brew", type: "item", categories: [" Potion "] },     // case-insensitive, trimmed — the pedestal's own compare
+      { id: "cash", type: "item", categories: ["money"] },
+      { id: "rifle", type: "weapon", categories: ["T1"] },
+      { id: "coat", type: "equipment", slot: "shirt", categories: ["T1"] },
+      { id: "spare", type: "equipment", slot: "hat", categories: ["T1"] }, // tagged, but nobody is wearing it
+    ];
+    const worn = [lib[3], lib[4]]; // rifle + coat on the body
+    const charm = { type: "tagLuck", tag: "potion", chance: 0.5 };
+    // The pool is the tag's consumables from anywhere plus the tag's gear off THIS body only.
+    expect(tagLuckDropPool(lib, worn, "potion").map((a) => a.id)).toEqual(["potion", "brew"]);
+    expect(tagLuckDropPool(lib, worn, "t1").map((a) => a.id)).toEqual(["rifle", "coat"]);
+    expect(tagLuckDropPool(lib, [], "t1")).toEqual([]);
+    expect(tagLuckDropPool(lib, worn, "")).toEqual([]);
+    // Inside the charm's chance you get something tagged; the pick roll walks the pool.
+    expect(rollTagLuckDrop(lib, worn, [charm], [0.499, 0]).id).toBe("potion");
+    expect(rollTagLuckDrop(lib, worn, [charm], [0.499, 0.999]).id).toBe("brew");
+    // A miss is a miss — nothing, so the caller's ordinary roll takes over.
+    expect(rollTagLuckDrop(lib, worn, [charm], [0.5, 0])).toBeNull();
+    // A charm whose tag matches nothing does not spend a roll: the first number is still unused
+    // when the next charm asks for it.
+    const dud = { type: "tagLuck", tag: "nothing", chance: 1 };
+    expect(rollTagLuckDrop(lib, worn, [dud, charm], [0.499, 0]).id).toBe("potion");
+    // Two charms are two rolls, each at its own chance — a miss on the first does not end it.
+    const gearCharm = { type: "tagLuck", tag: "T1", chance: 0.25 };
+    expect(rollTagLuckDrop(lib, worn, [charm, gearCharm], [0.9, 0.2, 0.999]).id).toBe("coat");
+    // The gear charm can only hand over what the enemy had on, however tagged the library is.
+    expect(rollTagLuckDrop(lib, [], [gearCharm], [0, 0])).toBeNull();
+    // Nothing worn, or no charm among what is worn: no lucky roll at all.
+    expect(rollTagLuckDrop(lib, worn, [], [0, 0])).toBeNull();
+    expect(rollTagLuckDrop(lib, worn, [{ type: "tagBoost", tag: "potion", mult: 2 }], [0, 0])).toBeNull();
+    expect(rollTagLuckDrop(lib, worn, undefined, [0, 0])).toBeNull();
   });
 
   test("equipped gear is read off the loadout, IDs first and embedded copies as fallback", () => {
