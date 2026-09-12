@@ -82,6 +82,9 @@ Running the dev server **writes the browser's library back into `asset-data/`**,
 * `PowerShell` here is Windows PowerShell 5.1 — no `&&`, no ternary.
 * **A spawn's loadout is per PLACEMENT.** Anything that reads "what weapon is this enemy holding"
   must take the spawn, not just the asset — see the 👹-flag section under *Weapon flags*.
+* **To SEE a piece of art without a browser, run `node tools/rasterize-pieces.js --asset <id> out.png`** and
+  Read the PNG. It reimplements the flat-art renderer (poly, mirror, rot, cutters, outline) and has been
+  rebuilt from notes in four sessions before it was committed; extend it rather than writing another.
 * **Building an asset by hand? Read `ASSET_AUTHORING.md` first.** It is the spec Blake hands to a
   chat that has no repo access: the file envelope, both bodies' real head/torso geometry per pose,
   the shape list, and the flat-colour house style (4–8 pieces, no shading — assisted assets that
