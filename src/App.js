@@ -8406,6 +8406,37 @@ export default function AssetStudio() {
       const pw = CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, ph = crouch ? CH * PLAYER_CROUCH_H_CELLS : CH * PLAYER_H_CELLS;
       if (ph !== oldPh) p.y += (oldPh - ph); // keep the feet planted — only the head should move when crouch toggles
       p.crouch = crouch;
+      // AIM ASSIST TARGETS — see aimAssistAngle. Every body a shot from one side could register
+      // on, boxed EXACTLY the way the in-flight hit tests box it; a lock-on solved against any
+      // other box is a lock-on that misses. One builder for both trigger fingers so the two can
+      // never disagree about who is shootable:
+      //   foe        a hostile's shot (pr.foe): the player's full physics box — what the foe-shot
+      //              test uses — plus your living friendlies (unitHitTop boxes).
+      //   !foe       the player's or a friendly's shot: living hostiles only — never an ally,
+      //              never someone you haven't picked a fight with (unitTalkImmune), since the
+      //              shot passes through both anyway; or, for a resurrect shot, the corpses it
+      //              can raise (they lie flat and are the hardest thing in the game to land on).
+      // HP is read without seeding it: a body a shot merely considered must not get a stamped
+      // HP entry. `skipKey` leaves the shooter itself out of its own list.
+      const shotTargetsFor = (foe, resurrect, skipKey) => {
+        const out = [];
+        if (foe) out.push({ key: "player", x: p.x, y: p.y, w: pw, h: ph });
+        for (const k of Object.keys(lv.enemies || {})) {
+          if (k === skipKey) continue;
+          const spawnA = liveSpawnAt(k, lv.enemies[k]);
+          const ea = liveEnemyAsset(k, findA(spawnA.enemyId)); if (!ea) continue;
+          const ep = enemyPos.current[k]; if (!ep) continue;
+          const hp = enemyHP.current[k] === undefined ? enemyMaxHP(ea) : enemyHP.current[k];
+          const eligible = foe ? (!!ep.friendly && hp > 0) : resurrect ? canResurrect(hp, ep) : (hp > 0 && !ep.friendly && !unitTalkImmune(ep));
+          if (!eligible) continue;
+          const eShape = sideBodyShape(ea);
+          const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
+          const eph = ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
+          out.push({ key: k, x: ep.x + (eShape.centerFrac * eRenderW - epw / 2), y: ep.y + unitHitTop(ea, eShape, eph), w: epw, h: eShape.heightFrac * eph });
+        }
+        return out;
+      };
+      const shotPathProbe = (x, y) => cellsHit(x, y, 2, 2).length === 0; // the flying shot's own solid test, for shotPathClear
       // One-shot spawn placement (start of test, or the moment a room/level loads). Uses the real
       // player size so nothing clips. Gate = enter through a connector (top-left first); roomDoor =
       // appear at this room's door; {x,y} = the exact door you came back out to.
@@ -9208,11 +9239,13 @@ export default function AssetStudio() {
           } else if (targetKind === "unit" && targetEp && targetEa) {
             const tShape = sideBodyShape(targetEa);
             const tRenderW = enemyRenderW(targetEa, CW), tpw2 = tRenderW * tShape.fraction;
-            const tEph = targetEp.crouch ? crouchEph : standEph;
+            // The TARGET's own height, not this unit's: `standEph` above is the shooter's, and a
+            // Squirrel sizing a Pit Bull by its own 116px box put the dog's feet a cell in the air.
+            const tEph = targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW);
             tgtBoxLeft = targetEp.x + (tShape.centerFrac * tRenderW - tpw2 / 2);
-            tgtBoxTop = targetEp.y + tShape.topFrac * tEph;
+            tgtBoxTop = targetEp.y + unitHitTop(targetEa, tShape, tEph); // the drawn body, same as every other hit box
             tgtBoxW = tpw2; tgtBoxH = tShape.heightFrac * tEph;
-            tgtFeetY = targetEp.y + tEph; tgtAimCY = targetEp.y + tEph * 0.5;
+            tgtFeetY = targetEp.y + tEph; tgtAimCY = tgtBoxTop + tgtBoxH / 2; // aim at the middle of the drawn body, not of the physics box (which for a dog is above its head)
           }
           const attacking = (targetKind === "player" || targetKind === "unit"); // has someone to fight (not just following you)
           // Land a hit on whatever this unit is fighting. The player gets the full incoming-damage
@@ -9369,14 +9402,35 @@ export default function AssetStudio() {
                   }
                   const spd = ew.projectileSpeed ?? 12;
                   const sx = eCenterXFinal, sy = ep.y + newEph * 0.42;
-                  const shotAng = Math.atan2(tgtAimCY - sy, tgtAimCX - sx);
                   const rangePx = Math.max(1, ew.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW;
+                  // THE SAME LOCK-ON THE PLAYER GETS (aimAssistAngle), pointed the other way. A unit
+                  // used to fire along the straight line to its target's aim point — a line that
+                  // ignores the drop the shot actually takes, so past half its range every shot fell
+                  // short of you, and one at a body whose drawn centre isn't where the line was
+                  // pointed (a crouching ally, a dog) sailed over. Its "held direction" is that
+                  // straight line, expressed in the facing frame the solver works in (dir·cos, sin);
+                  // the targets are whoever this side's shot can register on — you and your
+                  // friendlies for a hostile, hostiles for a friendly — and the nearest body inside
+                  // the cone gets the real arc solved onto its centre. Cover still wins: the path is
+                  // probed with the shot's own solid test, so a unit never bends a round into a wall
+                  // between you. Nothing in the cone (or nothing reachable) = the straight line it
+                  // always fired, unchanged.
+                  const dir = Math.sign(tgtAimCX - sx) || ep.face || 1;
+                  const lineDeg = Math.atan2(tgtAimCY - sy, Math.abs(tgtAimCX - sx)) * 180 / Math.PI;
+                  const eAssist = aimAssistAngle({ sx, sy, groundY: ep.y + newEph, rangePx, face: dir, aimDeg: lineDeg, targets: shotTargetsFor(hostile, false, k), clear: shotPathProbe });
+                  const shotDeg = eAssist ? eAssist.deg : lineDeg;
+                  const shotRad = shotDeg * Math.PI / 180;
+                  const vx = dir * Math.cos(shotRad) * spd, vy = Math.sin(shotRad) * spd;
+                  // Facing-frame degrees the shot left the level line by (+ = down). The render
+                  // tilts the aim arm by it for the swing frames, the way p.firing.aimTilt does
+                  // for the player, so the gun visibly snaps onto whoever it is shooting.
+                  ep.shotTilt = shotDeg;
                   projectiles.current.push({
-                    x: sx, y: sy, vx: Math.cos(shotAng) * spd, vy: Math.sin(shotAng) * spd,
+                    x: sx, y: sy, vx, vy,
                     startX: sx, startY: sy, groundY: ep.y + newEph, rangePx, traveled: 0,
                     char: ew.projectile?.char || "🔥", tint: ew.projectile?.tint || null,
                     pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece,
-                    rot: shotAng * 180 / Math.PI, size: sizeUnits,
+                    rot: Math.atan2(vy, vx) * 180 / Math.PI, size: sizeUnits,
                     damage: enemyAttackDamage(ea, ew), life: 0, foe: hostile,
                     ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0,
                     explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeChar: ew.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
@@ -9453,29 +9507,13 @@ export default function AssetStudio() {
           };
           let spawn = muzzleSpawn(0) || { x: p.x + pw / 2 + p.face * pw * 0.3, y: p.y + ph * 0.35 };
           const rangePxNow = Math.max(1, playtestWeapon.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW * rangeBoostMultiplier(playerAsset.effects);
-          // AIM ASSIST — see aimAssistAngle. Every body this shot could register on, boxed EXACTLY
-          // the way the in-flight hit test boxes it (the visible body via sideBodyShape, not the
-          // render box); a lock-on solved against any other box is a lock-on that misses. Same
-          // eligibility as the hit test too: a resurrect shot locks onto the corpses it can raise
-          // (they lie flat and are the hardest thing in the game to land a shot on), anything else
-          // locks onto living hostiles only — never an ally, never someone you haven't picked a
-          // fight with (unitTalkImmune), since the shot passes through both anyway. HP is read
-          // without seeding it: a body a shot merely considered must not get a stamped HP entry.
-          const assistTargets = [];
-          for (const k of Object.keys(lv.enemies || {})) {
-            const spawnA = liveSpawnAt(k, lv.enemies[k]);
-            const ea = liveEnemyAsset(k, findA(spawnA.enemyId)); if (!ea) continue;
-            const ep = enemyPos.current[k]; if (!ep) continue;
-            const hp = enemyHP.current[k] === undefined ? enemyMaxHP(ea) : enemyHP.current[k];
-            if (!(playtestWeapon.resurrect ? canResurrect(hp, ep) : (hp > 0 && !ep.friendly && !unitTalkImmune(ep)))) continue;
-            const eShape = sideBodyShape(ea);
-            const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
-            const eph = ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
-            assistTargets.push({ key: k, x: ep.x + (eShape.centerFrac * eRenderW - epw / 2), y: ep.y + unitHitTop(ea, eShape, eph), w: epw, h: eShape.heightFrac * eph });
-          }
+          // AIM ASSIST — see aimAssistAngle; the targets come from shotTargetsFor, the same
+          // builder a unit's trigger finger uses, so both sides lock onto exactly what their shot
+          // can hit and nothing else.
+          const assistTargets = shotTargetsFor(false, !!playtestWeapon.resurrect, null);
           const aimDegHeld = aimAngleDeg(aimDir); // straight up when aimDir is -1 — see aimAngleDeg
           let shotDeg = aimDegHeld, aimTilt = 0;
-          const assist = assistTargets.length ? aimAssistAngle({ sx: spawn.x, sy: spawn.y, groundY: p.y + ph, rangePx: rangePxNow, face: p.face, aimDeg: aimDegHeld, targets: assistTargets, clear: (x, y) => cellsHit(x, y, 2, 2).length === 0 }) : null;
+          const assist = assistTargets.length ? aimAssistAngle({ sx: spawn.x, sy: spawn.y, groundY: p.y + ph, rangePx: rangePxNow, face: p.face, aimDeg: aimDegHeld, targets: assistTargets, clear: shotPathProbe }) : null;
           if (assist) {
             aimTilt = assist.deg - aimDegHeld;
             shotDeg = assist.deg;
@@ -15647,8 +15685,16 @@ export default function AssetStudio() {
                   const eAiming = eRanged && ep && !ep.reloading && !eThrowingNow && ((ep.aimHold || 0) > 0 || ep.swingT > 0);
                   if (ep && eArm0 && !eUseAtkPose && (eAiming || eThrowingNow || (ep.swingT > 0 && !eRanged))) {
                     const eSwingA = meleeSwingAngle(ATTACK_SWING_FRAMES - (eThrowingNow ? ep.throwT : ep.swingT), ATTACK_SWING_FRAMES);
+                    // A ranged unit's arm follows the shot it just fired (ep.shotTilt, facing-frame
+                    // degrees off level, + = down) for the swing frames — the same visible lock-on
+                    // the player's p.firing.aimTilt gives. The stored rot is in the ART's frame,
+                    // and a horizontal mirror flips the direction of a rotation: for art drawn
+                    // facing right, + tilts the forward-pointing arm down (the player's own
+                    // convention); for art drawn facing left, the same screen tilt is a − rotation.
+                    // The wrapper's flip for the unit's facing then keeps it right on screen.
+                    const eShotTilt = (eRanged && !eThrowingNow && (ep.swingT || 0) > 0) ? (playerArtFacesRight(ea) ? 1 : -1) * (ep.shotTilt || 0) : 0;
                     const rot = (eRanged && !eThrowingNow)
-                      ? armAimAbs(eArm0.armPivot)
+                      ? armAimAbs(eArm0.armPivot) + eShotTilt
                       : eBaseRot + armPivotSign(eArm0.armPivot) * eSwingA;
                     const primary = eArm0;
                     eBlocks = eBlocks.map((b) => {

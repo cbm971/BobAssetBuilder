@@ -1069,7 +1069,18 @@ whose centre is outside the cone still gets the cone-edge shot if that crosses i
 body behind solid cells (`shotPathClear`, the shot's own 2×2 probe) never locks. The fire block
 re-reads the muzzle at the bent arm angle, and `p.firing.aimTilt` tilts the arm for the fire pose
 so the lock-on is visible. No target in the cone = the shot flies exactly as held, including
-straight up and facing away (both measured). Enemy AI shots are untouched (still plain `atan2`).
+straight up and facing away (both measured).
+
+**Units get the same lock-on, pointed the other way.** A unit's "held direction" is the straight
+line to its target's aim point (what it always fired along, which ignores the drop and so fell
+short past half range), its targets come from the same `shotTargetsFor(foe, …)` builder the
+player uses — you and your friendlies for a hostile, hostiles for a friendly — and `ep.shotTilt`
+tilts its aim arm for the swing frames. Measured: an M16 Army Bob 762px from a CROUCHED player
+put every straight-line round into the ground short of them (HP 100% for 330 frames); with the
+solve it launches 7° higher and kills. Guns in enemy hands are meaningfully more dangerous at
+range now, and crouching is no longer a way to duck long-range fire. The brawl target box in the
+enemy loop was a twelfth un-anchored site (and sized the target with the SHOOTER's height); both
+fixed there.
 
 **THERE IS NO 👹 ENEMY FLAG ON A DRESSED LOOK ANY MORE, AND IT WAS REMOVED BECAUSE IT MADE
 DUPLICATES.** `isEnemy` used to decide which Dress Bob looks the Level Creator would offer as
