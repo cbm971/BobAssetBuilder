@@ -2610,7 +2610,7 @@ export const resolvePlayerCrouch = (held, onGround, wasCrouch) => !!held && (!!o
 // One shared player-art pose rule for rendering and for the weapon/hitbox geometry that must match
 // it. Walking does not cancel crouch: a created character must keep its authored Crouch pose while
 // the shorter physics box moves, then the ordinary walk animation can animate that crouched art.
-export const playerPoseKey = ({ transitioning, climbing, climbKind, climbJumpKind, aiming, aimDir, crouch, walking } = {}) => {
+export const playerPoseKey = ({ transitioning, climbing, climbKind, climbJumpKind, aiming, aimDir, crouch, walking, topdown, tdView } = {}) => {
   if (transitioning) return "back";
   if (climbing) return climbKind === "bars" ? "side" : "back";
   // PUSHING OFF a ladder/vine keeps the climbing pose for the rest of the leap. You were facing
@@ -2624,7 +2624,16 @@ export const playerPoseKey = ({ transitioning, climbing, climbKind, climbJumpKin
   if (aiming && aimDir === -1 && !walking) return "up";
   // The authored Crouch pose is a stationary, front-facing duck. Moving keeps the established
   // sideways Side walk and the renderer lowers that complete artwork as one aligned assembly.
-  return crouch && !walking ? "crouch" : "side";
+  if (crouch && !walking) return "crouch";
+  // On a 🚶 Top-down surface the pose is the direction you last WALKED on it: Side for ←/→ exactly
+  // as everywhere else, Back walking up the screen (away from the camera), Front walking down it
+  // (towards the camera). It HOLDS when you stop, the way a top-down character keeps facing the
+  // way it was going — the physics loop's topdown branch is the only writer of tdView. This is the
+  // one place in the game the Front pose is rendered on the player; it sits below the crouch and
+  // aim-up rules above so those two stationary poses still win on a street the way they do on
+  // any other floor.
+  if (topdown) return tdView || "side";
+  return "side";
 };
 // Whether this frame's ledge step-assist (auto-climb a single solid cell of rise so a small step
 // doesn't need a jump) should run at all. It must NOT run while the player is actively climbing a
@@ -3653,7 +3662,9 @@ export const OBJ_ROT_NUDGE = 5;   // degrees per ↺/↻ tap — hillside angles
 export const normalizeObjRot = (deg) => ((Math.round(deg) % 360) + 360) % 360;
 // Paint brush sizes (in cells) — applies to Foreground/Background only. Objects/Markers/Climb
 // all stay single-cell: Objects/Markers place discrete items, and Climb is a toggle flag where
-// a lingering large brush size could silently flood a huge area from one click.
+// a lingering large brush size could silently flood a huge area from one click. The one climb
+// kind that takes the brush is 🚶 Top-down, because that one IS an area (see paintBrush) — and
+// its brush row is on screen while it is selected, so nothing about the size is silent.
 const BRUSH_SIZES = [1, 2, 3, 4, 6, 8];
 // The player's actual in-world size, in cells — not a display trick. 7 tall so the grid reads
 // as fine detail around a properly human-sized character, not the other way around.
@@ -6280,11 +6291,40 @@ const cellOutlineStyle = (map, cell, r, c, texLib) => {
   return bs ? { ...base, boxShadow: bs } : base;
 };
 
-// Climb cells carry a kind now: { kind: "ladder" | "bars" | "cliff" }. Old saves stored a plain
-// `true` — migrateLevel() normalizes those to { kind: "ladder" } on load, but this stays
-// defensive (treats any truthy non-object, or an object with no kind, as a ladder) so nothing
-// downstream has to know or care whether a given level has been through migration yet.
+// Climb cells carry a kind now: { kind: "ladder" | "bars" | "cliff" | "topdown" }. Old saves
+// stored a plain `true` — migrateLevel() normalizes those to { kind: "ladder" } on load, but this
+// stays defensive (treats any truthy non-object, or an object with no kind, as a ladder) so
+// nothing downstream has to know or care whether a given level has been through migration yet.
 const climbKindOf = (cell) => cell ? ((typeof cell === "object" ? cell.kind : null) || "ladder") : null;
+// 🚶 TOP-DOWN is the fourth kind on the Climb layer, and it is a WALKABLE PLANE rather than anything
+// you grip. Painted over a crosswalk intersection it turns that patch of the level into a top-down
+// game: ←/→ is the ordinary sideways walk, ↑/↓ walks the player up or down the SCREEN showing their
+// Back (away from the camera) or Front (towards it), and gravity is off while they are on it. It
+// deliberately shares the layer and the cell record with the ladders — one painting tool, one flip
+// rule, one migration — but none of their physics: the loop keeps it in `p.topdown`, not
+// `p.climbing`, so every "no aiming / no throwing / no blocking while climbing" gate stays exactly
+// as it is and you can still fight on a street.
+//
+// You are ON it when your FEET are: a one-cell window centred on the feet line, at the body's
+// horizontal centre. Never the box-overlap test the ladder uses — a seven-cell-tall box overlapping
+// "any painted cell" would let the feet walk seven cells above the top of the painted road before the
+// head finally left it, which is precisely what a top-down floor must not do: where the feet are IS
+// where you are on the ground plane. Half a cell of slop either side, so a region painted on the road
+// surface itself and one painted just above it both catch a player standing on the ground (whose
+// feet sit exactly on the cell boundary between the two).
+export const CLIMB_KIND_TOPDOWN = "topdown";
+export const isTopdownKind = (kind) => kind === CLIMB_KIND_TOPDOWN;
+export const topdownAt = (lv, x, feetY, pw, CW, CH) => {
+  if (!lv || !lv.climb) return false;
+  const c = Math.floor((x + pw / 2) / CW);
+  if (c < 0 || c >= lv.cols) return false;
+  const r0 = Math.floor((feetY - CH / 2) / CH), r1 = Math.floor((feetY + CH / 2 - 0.001) / CH);
+  for (let r = r0; r <= r1; r++) {
+    if (r < 0 || r >= lv.rows) continue;
+    if (isTopdownKind(climbKindOf(lv.climb[cellKey(r, c)]))) return true;
+  }
+  return false;
+};
 /* ============================== HAZARDS ==================================
    A hazard is a painted cell that hurts whoever stands in it — right now just Fire, but the
    layer is a generic { kind, dps } so more (acid, spikes) drop in the same way later. It's a
@@ -6753,13 +6793,16 @@ const objInner = (o, sz) => {
 // pixel-perfectly centered on a single 1-cell column to ever trigger climbing.)
 // Returns the KIND touched — "ladder" wins if a box somehow overlaps more than one kind at
 // once, so behavior stays deterministic instead of depending on Object.keys() ordering.
+// 🚶 Top-down cells are invisible to this and to resolveClimbKind below: they are a floor plane,
+// not a grip, and are found by the feet through topdownAt — a body merely overlapping one must
+// not hang from it.
 export const climbKindAt = (lv, x, y, pw, ph, CW, CH) => {
   const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH);
   let found = null;
   for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
     if (r < 0 || c < 0 || r >= lv.rows || c >= lv.cols) continue;
     const kind = climbKindOf(lv.climb && lv.climb[cellKey(r, c)]);
-    if (!kind) continue;
+    if (!kind || isTopdownKind(kind)) continue;
     if (kind === "ladder") return "ladder";
     if (!found) found = kind;
   }
@@ -6816,7 +6859,7 @@ export const resolveClimbKind = (lv, x, y, pw, ph, CW, CH, wantsUp, curKind) => 
   for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
     if (r < 0 || c < 0 || r >= lv.rows || c >= lv.cols) continue;
     const kind = climbKindOf(lv.climb && lv.climb[cellKey(r, c)]);
-    if (!kind) continue;
+    if (!kind || isTopdownKind(kind)) continue; // a 🚶 Top-down plane is walked on by the feet (topdownAt), never gripped
     if (kind === "ladder") { if (cx >= c * CW - CW / 2 && cx <= (c + 1) * CW + CW / 2) ladder = true; }
     else if (!other) other = kind;
   }
@@ -7181,6 +7224,12 @@ export const slopeShouldAutoSlide = (run, hasSlideEffect) =>
 // the Slide effect) and a flat-ground coast both keep the legs settled instead of air-running.
 export const groundLegsShouldWalk = (dx, onGround, climbing, sliding, moveHeld) =>
   !!dx && !!onGround && !climbing && !sliding && !!moveHeld;
+// The same question on a 🚶 Top-down surface, which has no ground contact to require (the loop
+// keeps onGround false there, the way a ladder does): the legs walk whenever you are actually
+// moving with a move key held — sideways (dx, with ←/→ down, so a Slide coast still settles the
+// legs) or up/down the screen (vMove, the distance the ↑/↓ walk covered this frame; a step pinned
+// at the plane's edge covers nothing and the legs stop rather than marching on the spot).
+export const topdownLegsShouldWalk = (dx, vMove, moveHeld) => (!!dx && !!moveHeld) || vMove > 0;
 // Is this solid cell part of a RAMP FORMATION — the hill's flesh under/beside a ramp, which the
 // slope-surface pass owns, rather than a wall the player should clamp against?
 //
@@ -7447,7 +7496,7 @@ export default function AssetStudio() {
   const [lPedCat1, setLPedCat1] = useState("");        // pedestal search: first category filter (blank = any)
   const [lPedCat2, setLPedCat2] = useState("");        // pedestal search: second category filter (blank = any)
   const [lPedLogic, setLPedLogic] = useState("or");     // pedestal search logic: "or" (either tag) | "and" (both tags)
-  const [lClimbKind, setLClimbKind] = useState("ladder"); // ladder | bars | cliff — which climb layer paints
+  const [lClimbKind, setLClimbKind] = useState("ladder"); // ladder | bars | cliff | topdown — which climb kind paints
   const [lHazDps, setLHazDps] = useState(DEFAULT_HAZARD_DPS.fire); // fire hazard damage-per-second the Hazard tool paints with
   const [lHazLife, setLHazLife] = useState(DEFAULT_HAZARD_LIFE);   // seconds a painted fire burns before going out (0 = permanent)
   const [lHazHide, setLHazHide] = useState(false);                // paint fire that's INVISIBLE during play (still deals damage) — so you can lay your own pixel-art fire Object on top of it via the Front layer
@@ -7622,7 +7671,7 @@ export default function AssetStudio() {
   // Climb glyphs are directly erasable: Erase tool + click the glyph = gone, no matter which
   // layer tab is active. Erasing a visible thing by clicking it should just work — requiring
   // the Climb layer tab to be selected first made climb cells feel impossible to delete.
-  const lvClimbLayer = useMemo(() => level && level.climb ? <div style={CELL_LAYER_STYLE}>{Object.keys(level.climb).map((k) => { const [r, c] = k.split(",").map(Number); const kind = climbKindOf(level.climb[k]); const glyph = kind === "bars" ? "🙌" : kind === "cliff" ? "🧗" : "🪜"; const label = kind === "bars" ? "Monkey bars — hang & shimmy ← →, ↓ to drop" : kind === "cliff" ? "Cliff ledge — hang & shimmy ← →, ↓ to drop (forward-facing)" : "Ladder — climb straight up/down"; return <div key={"cl" + k} className={"lclimb kind-" + kind} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} title={label} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv) => { const climb = { ...lv.climb }; delete climb[k]; return { ...lv, climb }; }); } : undefined}>{glyph}</div>; })}</div> : null, [level, lTool]);
+  const lvClimbLayer = useMemo(() => level && level.climb ? <div style={CELL_LAYER_STYLE}>{Object.keys(level.climb).map((k) => { const [r, c] = k.split(",").map(Number); const kind = climbKindOf(level.climb[k]); const glyph = kind === "bars" ? "🙌" : kind === "cliff" ? "🧗" : isTopdownKind(kind) ? "🚶" : "🪜"; const label = kind === "bars" ? "Monkey bars — hang & shimmy ← →, ↓ to drop" : kind === "cliff" ? "Cliff ledge — hang & shimmy ← →, ↓ to drop (forward-facing)" : isTopdownKind(kind) ? "Top-down walkway — A/D walk as normal, W/S walk up/down the screen (back/front view), no gravity while your feet are on it" : "Ladder — climb straight up/down"; return <div key={"cl" + k} className={"lclimb kind-" + kind} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} title={label} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv) => { const climb = { ...lv.climb }; delete climb[k]; return { ...lv, climb }; }); } : undefined}>{glyph}</div>; })}</div> : null, [level, lTool]);
   // Fire hazard cells: shown in the editor AND during play (it's a real, visible danger volume,
   // not an invisible marker). Erasable by clicking with the Erase tool on any layer, same as
   // climb. The flicker is CSS-only, so re-rendering this list every playtest frame isn't needed —
@@ -7661,7 +7710,7 @@ export default function AssetStudio() {
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
   const groundArtCache = useRef(new Map());   // item id -> its baked ground art + bounding box; see groundArt() — an item on a pedestal or lying where a body dropped it is otherwise re-baked every playtest frame
-  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 });
+  const player = useRef({ x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null });
   const keys = useRef({});
   const lvRef = useRef(null);
 
@@ -8560,7 +8609,7 @@ export default function AssetStudio() {
         // far side, in the level being returned to (p.arriving, below).
         if (p.transitioning.t >= (p.transitioning.mode === "enter" ? DOOR_ENTER_FRAMES : 0)) {
           const tr = p.transitioning;
-          p.transitioning = null; p.climbing = false; p.crouch = false; p.vy = 0;
+          p.transitioning = null; p.climbing = false; p.topdown = false; p.tdJumpY = null; p.crouch = false; p.vy = 0;
           // No state is cleared here — each level/room keeps its own PERSISTENT bucket (roomState),
           // repointed at the top of the effect, so a level remembers what you did and a room you
           // re-enter is the same room in the same state. Worn gear and item buffs travel with you.
@@ -8588,9 +8637,16 @@ export default function AssetStudio() {
       }
 
       const wasCrouch = p.crouch;
-      const crouch = resolvePlayerCrouch(K.crouch, p.onGround, wasCrouch);
       const oldPh = wasCrouch ? CH * PLAYER_CROUCH_H_CELLS : CH * PLAYER_H_CELLS;
-      const pw = CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, ph = crouch ? CH * PLAYER_CROUCH_H_CELLS : CH * PLAYER_H_CELLS;
+      const pw = CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction;
+      // On a 🚶 Top-down surface S/↓ means "walk down the screen", never "duck". The merged intent
+      // folds both into K.crouch (mergeInputIntent), so with the feet on such a plane only the
+      // dedicated C key ducks — otherwise the very key that walks you toward the camera would
+      // also squash you flat. And the plane counts as ground for STARTING a crouch: it is the
+      // floor you are standing on, even though onGround stays false there like on a ladder.
+      const tdHere = topdownAt(lv, p.x, p.y + oldPh, pw, CW, CH);
+      const crouch = resolvePlayerCrouch(tdHere ? !!(!frozen && RK.crouch) : K.crouch, p.onGround || p.topdown, wasCrouch);
+      const ph = crouch ? CH * PLAYER_CROUCH_H_CELLS : CH * PLAYER_H_CELLS;
       if (ph !== oldPh) p.y += (oldPh - ph); // keep the feet planted — only the head should move when crouch toggles
       p.crouch = crouch;
       // AIM ASSIST TARGETS — see aimAssistAngle. Every body a shot from one side could register
@@ -8663,12 +8719,12 @@ export default function AssetStudio() {
       const jumpV = Math.sqrt(2 * 0.175 * jumpHeightBlocks * CH);
       const jumpVMulRel = jumpV / Math.sqrt(2 * 0.175 * 3 * CH); // same relative scaling (1.0× at baseline Agility 5), reused below for the double-jump effect's own configurable height
       let dx = 0;
-      const grounded = p.onGround || p.climbing;
+      const grounded = p.onGround || p.climbing || p.topdown; // a 🚶 Top-down plane is a floor: full ground control, no air-steering cap
       if (K.left) p.face = -1; if (K.right) p.face = 1; // facing follows movement, even mid-air
       // Aiming left/right also turns you — so you can stand still and point the other way to
       // shoot without having to walk. Movement keys win if both are held (you face where you go).
       if (!K.left && !K.right) { if (K.aimLeft) p.face = -1; else if (K.aimRight) p.face = 1; }
-      const glideMove = glideState(glideEffect, K, p.onGround, p.climbing, p.vy);
+      const glideMove = glideState(glideEffect, K, p.onGround, p.climbing || p.topdown, p.vy);
       dx = horizVel(K, speed, grounded, p.vx, glideMove, slideResolved, dtMul);
       if (!grounded && !(glideMove && glideMove.active)) dx = capAirborneSpeed(dx, speed);
       // Ramp feel: last frame's slope check set p.onSlope/p.slideVx. Standing on a ramp with
@@ -8716,7 +8772,7 @@ export default function AssetStudio() {
       // actually clear. Skipped while climbing a ladder. The PHYSICS snap stays instant (so
       // collision is always exact) but the RENDER eases up over a few frames via p.stepEase —
       // the old same-frame visual jump was the "jarring teleport up one block".
-      if (shouldStepAssist(wallHits.length, dx, p.climbing, p.onSlope)) {
+      if (shouldStepAssist(wallHits.length, dx, p.climbing || p.topdown, p.onSlope)) { // a 🚶 Top-down plane owns its own height too: a solid on it is an obstacle, not a stair
         const targetY = Math.min(...wallHits.map((h) => h.r * CH)) - ph;
         const rise = p.y - targetY;
         if (rise > 0 && rise <= CH && cellsHit(p.x, targetY, pw, ph).length === 0) { p.y = targetY; p.stepEase = Math.min(CH, (p.stepEase || 0) + rise); wallHits = []; }
@@ -8834,7 +8890,22 @@ export default function AssetStudio() {
       // "you can hang, you can drop, you can shimmy — you cannot get on top of it."
       if (climbing && !canGripClimb(lv, p.x, p.y, pw, ph, CW, CH, climbKindHere)) climbing = false;
       if (climbing && K.jump) { p.climbJump = true; p.climbJumpKind = climbKindHere; p.climbJumpGrab = true; climbing = false; p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0; } // jump straight off — same agility-scaled jump height as a ground jump; climbJumpKind keeps the climbing pose on screen through the rise, climbJumpGrab lets the ladder above catch you without holding ↑
-      let climbMove = 0;
+      // 🚶 TOP-DOWN: the feet are on a painted walkable plane and nothing is gripping (a real climb
+      // resolved above wins — a ladder standing in the intersection is still a ladder). Automatic,
+      // with no opt-in key: there is nothing to grab, you are simply standing on a road, and the
+      // ladder's walk-past freeze cannot happen here because sideways movement is the ordinary
+      // walk. The one gate is the hop: Space off the plane is a beat-em-up jump, which lands you
+      // back at the height you LEFT (tdJumpY), not wherever the road happened to be under your
+      // feet at the apex — on a plane painted tall enough the feet never leave it mid-air, and
+      // without this a jump would be a teleport up the road. Snapped onto that line exactly, since
+      // the frame that crosses it overshoots by up to one fall step. The `vy >= 0` half is not
+      // decoration: the hop sets tdJumpY to the CURRENT y and the rise only begins in the gravity
+      // branch a frame later, so on that next frame y still equals the line and a height test
+      // alone re-grabbed the plane before the feet had left it — measured as a one-frame "jump".
+      const tdOverlap = !climbing && topdownAt(lv, p.x, p.y + ph, pw, CW, CH);
+      let topdown = tdOverlap && (p.tdJumpY == null || (p.vy >= 0 && p.y >= p.tdJumpY - 0.001));
+      if (topdown && p.tdJumpY != null) { if (p.y - p.tdJumpY <= Math.abs(p.vy * dtMul) + 0.01) p.y = p.tdJumpY; p.tdJumpY = null; }
+      let climbMove = 0, tdMove = 0;
       if (climbing && climbKindHere === "ladder") {
         if (K.up) {
           // Climbing above the top of the climb zone used to exit it, flip to the falling
@@ -8863,6 +8934,42 @@ export default function AssetStudio() {
         // Left/right is already handled above like normal walking (dx), so nothing more to do
         // here beyond killing gravity for as long as the grip holds.
         p.vy = 0; p.onGround = false;
+      } else if (topdown) {
+        if (K.jump) {
+          // The hop off the plane (see tdJumpY above). Taken INSIDE this branch rather than up
+          // beside the ladder's jump so the gravity branch below cannot also run this frame and
+          // hand a Double Jump cape its bonus jump on the same keypress.
+          p.tdJumpY = p.y; topdown = false; p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0;
+        } else {
+          // W/S walk the feet up or down the plane at ordinary WALKING speed — this is a road, not
+          // a ladder, so it is not CLIMB_SPEED, and W with S cancel. RAW W/S, not the merged K.up/
+          // K.down: those fold the arrow keys in (a ladder takes ↑/↓ too, on purpose), and on a
+          // street that made holding ↑ to AIM a rifle up also walk you up the road — measured, 80px
+          // of drift over one aim hold. Here the WASD-move / arrows-aim split holds the way it does
+          // on any other floor, so you can stand on a crosswalk and shoot up at a window. The full
+          // step is taken only if the feet stay on the plane; otherwise inch to its edge and pin
+          // there, the ladder's own top-of-zone rule (leaving and re-grabbing every frame is a
+          // visible flicker).
+          // Walking DOWN also stops at solid ground the body has not already sunk into — the
+          // "new hits only" idiom the wall clamp uses — so a crosswalk at street level ends ON
+          // the street and never in it. Walking UP ignores solids on purpose: the box is seven
+          // cells tall and the far side of an intersection routinely sits under a building or an
+          // awning painted on the Foreground, and blocking on the head would stop you seven cells
+          // short of the kerb.
+          const tdUp = !frozen && !!RK.up, tdDown = !frozen && !!RK.down;
+          const vdir = tdUp === tdDown ? 0 : (tdUp ? -1 : 1);
+          if (vdir) {
+            const curKeys = new Set(cellsHit(p.x, p.y, pw, ph).map((h) => h.r + "," + h.c));
+            const canStep = (ny) => topdownAt(lv, p.x, ny + ph, pw, CW, CH) && (vdir < 0 || !cellsHit(p.x, ny, pw, ph).some((h) => !curKeys.has(h.r + "," + h.c)));
+            if (canStep(p.y + vdir * speed)) { p.y += vdir * speed; tdMove = speed; }
+            else { let m = 0; while (m + 1 <= speed && canStep(p.y + vdir)) { p.y += vdir; m++; } tdMove = m; }
+          }
+          // The view is the direction you LAST walked in, and it holds when you stop (see
+          // playerPoseKey). Sideways wins a diagonal: that keeps the Side walk — the pose every
+          // character is drawn best in — on screen whenever it can be.
+          if (dx !== 0 && (K.left || K.right)) p.tdView = "side"; else if (tdMove > 0) p.tdView = vdir < 0 ? "back" : "front";
+          p.vy = 0; p.onGround = false;
+        }
       } else {
         if (K.jump && p.onGround) { p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0; } // Agility-scaled jump HEIGHT, given directly in blocks — see jumpHeightBlocks above
         else if (doubleJumpEffect && !p.onGround && !p.extraJumped && K.jump && !p.wasJump) {
@@ -8913,6 +9020,10 @@ export default function AssetStudio() {
       }
       p.climbing = climbing;
       p.climbKind = climbing ? climbKindHere : null;
+      p.topdown = topdown;
+      // Off the plane you are simply side-on again — but not during the hop off it, so a jump
+      // taken while walking up the road lands you still walking up the road.
+      if (!topdown && p.tdJumpY == null) p.tdView = "side";
       // The climb-jump's ladder unlock is spent the moment it does its job (you caught something)
       // or the moment the jump is over (you landed). It must not survive into the next jump, or a
       // plain ground jump near a ladder would start grabbing it without you asking.
@@ -8953,7 +9064,7 @@ export default function AssetStudio() {
       // run first — that was the stair-step / teleport bug: centerHits included hill backing cells
       // in the centre column and snapped the player to the plateau lip before the ramp pass ran.
       p.onSlope = false; p.slopeDir = 0; p.slopeRun = 0;
-      if (!climbing) {
+      if (!climbing && !topdown) { // a 🚶 Top-down plane owns the feet's height exactly as a ladder does — a ramp in reach must not snap them off it
         const feetBottom = p.y + ph;
         const slopeHit = slopeSurfaceForPlayer(lv, p.x + pw / 2, p.y, feetBottom, p.vy, dx, dtMul, CW, CH);
         if (slopeHit) {
@@ -9026,9 +9137,13 @@ export default function AssetStudio() {
         p.slideVx = p.sliding ? downhill * SLOPE_SLIDE_SPEED : 0;
       } else { p.sliding = false; p.slideVx = 0; }
       if (p.y > lv.rows * CH - ph) { p.y = lv.rows * CH - ph; p.vy = 0; p.onGround = true; }
-      if (p.onGround) { p.extraJumped = false; p.effectAnim = null; p.djGravMul = 1; p.jumpHoldT = 0; p.gliding = false; }
+      // Standing on a 🚶 Top-down plane resets the air budget the way the ground does: it IS the
+      // ground there, and landing back on it from the hop must hand the Double Jump cape its next
+      // jump exactly as landing on a street would. tdJumpY only ever outlives the hop when the
+      // hop carried you clear of the plane and you came down on real ground instead.
+      if (p.onGround || topdown) { p.extraJumped = false; p.effectAnim = null; p.djGravMul = 1; p.jumpHoldT = 0; p.gliding = false; p.tdJumpY = null; }
       if (climbing) p.gliding = false;
-      if (p.y < -200) { p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0; }
+      if (p.y < -200) { p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0; p.tdJumpY = null; }
 
       // Fire hazard: continuous damage-over-time while the player's box overlaps a fire cell.
       // dps is per SECOND, scaled by real elapsed time (dtMul/60), so it's frame-rate independent
@@ -9052,8 +9167,11 @@ export default function AssetStudio() {
 
       // Walk/climb-cycle phase for limb-flagged pieces — advances with actual movement so
       // animation speed naturally scales with how fast (or slow, e.g. crouched) you're moving.
-      p.walking = groundLegsShouldWalk(dx, p.onGround, climbing, p.sliding, K.left || K.right);
-      if (p.walking) p.walkPhase = (p.walkPhase || 0) + Math.abs(dx) * 0.03;
+      // A 🚶 Top-down plane walks in two axes: sideways exactly as the ground does, and up/down
+      // the screen by tdMove — both feed the one phase, so a diagonal stride is a faster stride.
+      const tdWalking = topdown && topdownLegsShouldWalk(dx, tdMove, K.left || K.right);
+      p.walking = tdWalking || groundLegsShouldWalk(dx, p.onGround, climbing, p.sliding, K.left || K.right);
+      if (p.walking) p.walkPhase = (p.walkPhase || 0) + (Math.abs(dx) + tdMove) * 0.03;
       else if (climbing && climbMove) p.walkPhase = (p.walkPhase || 0) + climbMove * 0.03;
       // Hanging is a DANGLE, not a stride: the legs need to keep moving even when you're gripping
       // still, which walkPhase can't do (it only advances with actual movement — hold still on the
@@ -9668,7 +9786,7 @@ export default function AssetStudio() {
           // A closure rather than straight-line code because the aim assist below can bend the
           // arm (tiltDeg) after the first answer, and the barrel has to be re-read at the bent
           // angle so the bullet still leaves the gun and not a spot a few px beside it.
-          const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, aiming: p.aiming, aimDir, crouch: p.crouch, walking: p.walking });
+          const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, aiming: p.aiming, aimDir, crouch: p.crouch, walking: p.walking, topdown: p.topdown, tdView: p.tdView });
           const armPieceM = playerAsset ? armOf(playerAsset.angles[angleNow] || []) : null;
           const muzzleSpawn = (tiltDeg) => {
             if (!armPieceM) return null;
@@ -9788,7 +9906,7 @@ export default function AssetStudio() {
         // centered on the same guide-hand point a weapon would use, riding the arm the same way.
         const unarmedSwing = !!(p.firing && p.firing.unarmed); // Q/V bare-handed swing — ignores the held weapon entirely
         if (unarmedSwing || !playtestWeapon || !isRanged(playtestWeapon.wtype)) {
-          const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, crouch: p.crouch, walking: p.walking });
+          const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, crouch: p.crouch, walking: p.walking, topdown: p.topdown, tdView: p.tdView });
           const armPiece = playerAsset ? armOf(playerAsset.angles[angleNow] || []) : null;
           // A DRAWN CREATURE HAS NO ARM TO SWING, AND THIS WHOLE BLOCK USED TO HANG OFF ONE.
           // armOf finds only a piece flagged role:"weaponArm", and an animal built in the Enemy
@@ -13679,7 +13797,7 @@ export default function AssetStudio() {
   // Stamps paintCell across a brush-size square. Objects/Markers always stay single-cell —
   // stacking or placing N copies per stroke isn't what a "brush" should do for discrete items.
   const paintBrush = (r, c, erase, inb) => {
-    if (lLayer === "obj" || lLayer === "marker" || lLayer === "climb" || lBrush <= 1) { paintCell(r, c, erase); return; }
+    if (lLayer === "obj" || lLayer === "marker" || (lLayer === "climb" && !isTopdownKind(lClimbKind)) || lBrush <= 1) { paintCell(r, c, erase); return; } // 🚶 Top-down is the one climb kind that IS an area (a whole intersection), so it alone takes the brush
     const half = Math.floor((lBrush - 1) / 2);
     // Every footprint cell paints normally; Outline mode rides along on each cell (via paintCell)
     // and the outer edge of the whole painted mass is resolved at render — not per brush stamp.
@@ -14830,7 +14948,7 @@ export default function AssetStudio() {
           {play && <span className="badge money" title="Money you are carrying this Playtest run. Pick up a 💵 item to earn it, spend it in a shopkeeper's dialogue.">{MONEY_CHAR} {walletUI}</span>}
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel}>↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel}>↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0 }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -14927,7 +15045,7 @@ export default function AssetStudio() {
               {lEnemyId && !dlgLib.length ? <button className="ltbtn" onClick={openDialogueEditor} title="No dialogue trees saved yet — write one">✎ Write a dialogue</button> : null}
             </div>
           )}
-          {(lLayer === "fg" || lLayer === "bg" || lLayer === "front" || lLayer === "hazard") && (
+          {(lLayer === "fg" || lLayer === "bg" || lLayer === "front" || lLayer === "hazard" || (lLayer === "climb" && isTopdownKind(lClimbKind))) && (
             <div className="seg brushseg">{BRUSH_SIZES.map((n) => <button key={n} className={lBrush === n ? "on" : ""} onClick={() => setLBrush(n)} title={n + "x" + n + " brush"}>🖊 {n}×{n}</button>)}</div>
           )}
           {(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && (
@@ -15065,7 +15183,8 @@ export default function AssetStudio() {
             </>
           ) : lLayer === "climb" ? (
             <>
-              <div className="seg"><button className={lClimbKind === "ladder" ? "on" : ""} onClick={() => setLClimbKind("ladder")}>🪜 Ladder</button><button className={lClimbKind === "bars" ? "on" : ""} onClick={() => setLClimbKind("bars")}>🙌 Bars</button><button className={lClimbKind === "cliff" ? "on" : ""} onClick={() => setLClimbKind("cliff")}>🧗 Cliff</button></div>
+              <div className="seg"><button className={lClimbKind === "ladder" ? "on" : ""} onClick={() => setLClimbKind("ladder")}>🪜 Ladder</button><button className={lClimbKind === "bars" ? "on" : ""} onClick={() => setLClimbKind("bars")}>🙌 Bars</button><button className={lClimbKind === "cliff" ? "on" : ""} onClick={() => setLClimbKind("cliff")}>🧗 Cliff</button><button className={isTopdownKind(lClimbKind) ? "on" : ""} onClick={() => setLClimbKind(CLIMB_KIND_TOPDOWN)} title="A patch of the level played top-down, like a crosswalk intersection: no gravity, W/S walk up and down the screen">🚶 Top-down</button></div>
+              {isTopdownKind(lClimbKind) && <span className="hint2">Paint the whole walkable area (the brush works here). Inside it A/D walk as normal, W/S walk up/down the screen showing the character&apos;s back/front, and there is no gravity while your feet are on it. The arrows still aim, Space hops and lands you back where you were.</span>}
             </>
           ) : lLayer === "hazard" ? (
             <>
@@ -15234,10 +15353,13 @@ export default function AssetStudio() {
                 {!play && lTool === "fill" && fillPreview && fillPreview.cells.length <= 500 && (
                   <>{fillPreview.cells.map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fp" + k} style={{ position: "absolute", left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, background: "rgba(255,255,255,.3)", outline: "1px solid rgba(255,255,255,.7)", pointerEvents: "none", zIndex: 5000 }} />; })}</>
                 )}
-                {!play && lLayer === "climb" && lTool === "paint" && lHoverCell && (
-                  // Climb tiles always paint single-cell regardless of brush size (see paintBrush).
-                  <div className="blockGhost" style={{ left: lHoverCell.c * LV_CELL, top: lHoverCell.r * LV_CELL, width: LV_CELL, height: LV_CELL, background: "#7aa2d6" }} />
-                )}
+                {!play && lLayer === "climb" && lTool === "paint" && lHoverCell && (() => {
+                  // Climb tiles paint single-cell regardless of brush size (see paintBrush) — except
+                  // 🚶 Top-down, which is an area and takes the brush, so preview the whole square.
+                  const n = isTopdownKind(lClimbKind) ? lBrush : 1;
+                  const half = Math.floor((n - 1) / 2);
+                  return <div className="blockGhost" style={{ left: (lHoverCell.c - half) * LV_CELL, top: (lHoverCell.r - half) * LV_CELL, width: LV_CELL * n, height: LV_CELL * n, background: isTopdownKind(lClimbKind) ? "#6cc48a" : "#7aa2d6" }} />;
+                })()}
                 {!play && lLayer === "hazard" && lTool === "paint" && lHoverCell && (() => {
                   // Fire honors the brush size (fields of flame), so preview the whole r×c square.
                   const half = Math.floor((lBrush - 1) / 2);
@@ -15393,6 +15515,16 @@ export default function AssetStudio() {
                       if (!a) return { ...b, rot: limbFollowRot(b, target, baseArmRot) };
                       return rigidArmFollow(b, a, armPushOffAbs(a.armPivot)); // sleeves/cuffs ride the shoulder, same rule every other arm branch uses
                     });
+                  } else if (blocks && p.walking && p.topdown && angle !== "side") {
+                    // Walking up or down the screen on a 🚶 Top-down plane, seen from behind or in
+                    // front. A hip swing is a sagittal motion — it reads as nothing at all from these
+                    // two views, the same reason the ladder's legs STEP instead of swinging — so the
+                    // legs lift alternately and the arms pump gently in counter-phase, which is what a
+                    // walk actually looks like head-on. Sideways on the plane falls through to the
+                    // ordinary walk branch below, untouched: that is the "looks as is" half.
+                    const { legIds, armIds } = identifyLimbs(blocks);
+                    const stride = Math.sin(p.walkPhase || 0);
+                    blocks = applyLimbSwing(blocks, legIds, armIds, 0, { alternate: true, legLift: stride * 8, armReach: stride * 5 });
                   } else if (blocks && p.walking) {
                     // Legs and non-weapon arms swing back and forth, opposite phase, like a normal
                     // walk cycle. Uses flags where set; otherwise the ground-nearest piece(s) and
@@ -17941,6 +18073,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .lclimb{position:absolute;pointer-events:none;z-index:4000;background:repeating-linear-gradient(135deg,rgba(122,162,214,.28) 0 4px,transparent 4px 9px);border:1px dashed rgba(122,162,214,.55);box-sizing:border-box;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1}
 .lclimb.kind-bars{background:repeating-linear-gradient(135deg,rgba(214,162,90,.28) 0 4px,transparent 4px 9px);border-color:rgba(214,162,90,.6)}
 .lclimb.kind-cliff{background:repeating-linear-gradient(135deg,rgba(150,122,214,.28) 0 4px,transparent 4px 9px);border-color:rgba(150,122,214,.6)}
+.lclimb.kind-topdown{background:repeating-linear-gradient(0deg,rgba(108,196,138,.22) 0 4px,transparent 4px 9px);border-color:rgba(108,196,138,.6)}
 .lmarker{position:absolute;display:flex;align-items:center;justify-content:center;font-size:15px;z-index:7000;background:rgba(0,0,0,.3);border:1px dashed #c8a23c;border-radius:4px;box-sizing:border-box;cursor:default}
 .catinline{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:7px 10px;color:#e7e9ee;font-size:13px;width:170px}
 .lobj.solid::after{content:"";position:absolute;inset:1px;border:1px dashed rgba(255,90,90,.6);border-radius:3px}

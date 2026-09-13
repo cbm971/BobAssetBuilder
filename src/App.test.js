@@ -58,6 +58,12 @@ import {
   weaponBurstShotCount,
   weaponFireMode,
   groundLegsShouldWalk,
+  topdownLegsShouldWalk,
+  topdownAt,
+  isTopdownKind,
+  CLIMB_KIND_TOPDOWN,
+  climbKindAt,
+  resolveClimbKind,
   slopeShouldAutoSlide,
   SHAPE_LIST,
   copyAngleTargets,
@@ -2672,6 +2678,87 @@ describe("movement and facing regressions", () => {
     expect(groundLegsShouldWalk(4, true, false, false, true)).toBe(true);
     expect(groundLegsShouldWalk(4, true, false, true, true)).toBe(false);
     expect(groundLegsShouldWalk(4, true, false, false, false)).toBe(false);
+  });
+});
+
+describe("🚶 Top-down walkway (the fourth climb kind)", () => {
+  // A crosswalk intersection: 8 rows of top-down plane painted over columns 10..19, rows 12..19,
+  // sitting directly above a solid street at row 20. The player is a 7-cell body (ph 210) whose
+  // feet stand exactly on the street's top edge, y = 20 * 30 = 600.
+  const CW = 30, CH = 30, PW = 138, PH = 210;
+  const mk = (rows) => {
+    const lv = { cols: 40, rows: 30, fg: {}, climb: {} };
+    for (let c = 0; c < 40; c++) lv.fg["20," + c] = "#555";
+    for (const r of rows) for (let c = 10; c <= 19; c++) lv.climb[r + "," + c] = { kind: CLIMB_KIND_TOPDOWN };
+    return lv;
+  };
+  const feetOnStreet = 600;
+
+  test("it is found by the FEET, not by the body overlapping it", () => {
+    const lv = mk([12, 13, 14, 15, 16, 17, 18, 19]);
+    const x = 15 * CW - PW / 2; // centred on column 15
+    // Standing on the street with the plane painted on the rows above: the feet line is the
+    // boundary between row 19 (painted) and row 20 (the street), and the half-cell window catches it.
+    expect(topdownAt(lv, x, feetOnStreet, PW, CW, CH)).toBe(true);
+    // A plane painted ONLY on the street row itself is caught the same way — half a cell either side.
+    expect(topdownAt(mk([20]), x, feetOnStreet, PW, CW, CH)).toBe(true);
+    // Feet three cells above the top of the plane: the body (7 cells tall) still overlaps nothing
+    // relevant either way, but the point is the feet are off it, so it is off.
+    expect(topdownAt(lv, x, 12 * CH - 3 * CH, PW, CW, CH)).toBe(false);
+    // ...and feet one cell BELOW the plane's top edge is on it: the body above is irrelevant.
+    expect(topdownAt(lv, x, 13 * CH, PW, CW, CH)).toBe(true);
+    // It is the horizontal CENTRE that has to be over the plane. Half a body hanging over the
+    // side edge is still on; the centre one cell past the edge is off.
+    expect(topdownAt(lv, 19 * CW + CW / 2 - PW / 2 + 10, feetOnStreet, PW, CW, CH)).toBe(true);
+    expect(topdownAt(lv, 21 * CW - PW / 2, feetOnStreet, PW, CW, CH)).toBe(false);
+    // Half-cell slop at the top: the feet may rise half a cell past the highest painted row, no more.
+    expect(topdownAt(lv, x, 12 * CH - CH / 2 + 1, PW, CW, CH)).toBe(true);
+    expect(topdownAt(lv, x, 12 * CH - CH / 2 - 1, PW, CW, CH)).toBe(false);
+    expect(topdownAt({ cols: 40, rows: 30 }, x, feetOnStreet, PW, CW, CH)).toBe(false); // no climb layer at all
+  });
+
+  test("ladders, bars and cliffs never see a top-down cell — it is a floor, not a grip", () => {
+    const lv = mk([12, 13, 14, 15, 16, 17, 18, 19]);
+    const x = 15 * CW - PW / 2, y = feetOnStreet - PH;
+    // The box overlaps eight rows of top-down plane; the grip resolvers report nothing to grab.
+    expect(climbKindAt(lv, x, y, PW, PH, CW, CH)).toBe(null);
+    expect(resolveClimbKind(lv, x, y, PW, PH, CW, CH, true, null)).toBe(null);
+    // A real ladder painted through the intersection is still a ladder — and wins.
+    lv.climb["15,15"] = { kind: "ladder" };
+    expect(climbKindAt(lv, x, y, PW, PH, CW, CH)).toBe("ladder");
+    expect(resolveClimbKind(lv, x, y, PW, PH, CW, CH, true, null)).toBe("ladder");
+    expect(isTopdownKind("topdown")).toBe(true);
+    expect(isTopdownKind("ladder")).toBe(false);
+  });
+
+  test("the pose is the way you last walked on it, and it holds when you stop", () => {
+    expect(playerPoseKey({ topdown: true, tdView: "side", walking: true })).toBe("side");
+    expect(playerPoseKey({ topdown: true, tdView: "back", walking: true })).toBe("back");
+    expect(playerPoseKey({ topdown: true, tdView: "front", walking: true })).toBe("front");
+    // Stopped: still facing the way you went, like any top-down character.
+    expect(playerPoseKey({ topdown: true, tdView: "front", walking: false })).toBe("front");
+    expect(playerPoseKey({ topdown: true, tdView: "back", walking: false })).toBe("back");
+    // A view that was never written (fresh state) is plain side-on.
+    expect(playerPoseKey({ topdown: true })).toBe("side");
+    // Off the plane the view is ignored entirely.
+    expect(playerPoseKey({ topdown: false, tdView: "front" })).toBe("side");
+  });
+
+  test("the stationary crouch and aim-up poses still win on a street, exactly as on any floor", () => {
+    expect(playerPoseKey({ topdown: true, tdView: "back", crouch: true, walking: false })).toBe("crouch");
+    expect(playerPoseKey({ topdown: true, tdView: "back", crouch: true, walking: true })).toBe("back"); // crouch-walking keeps the walk view
+    expect(playerPoseKey({ topdown: true, tdView: "front", aiming: true, aimDir: -1, walking: false })).toBe("up");
+    // A real climb or a door transition outranks it, same as they outrank everything.
+    expect(playerPoseKey({ topdown: true, tdView: "front", climbing: true, climbKind: "ladder" })).toBe("back");
+    expect(playerPoseKey({ topdown: true, tdView: "front", transitioning: true })).toBe("back");
+  });
+
+  test("the legs walk for movement in either axis, and stop when pinned at the edge", () => {
+    expect(topdownLegsShouldWalk(4, 0, true)).toBe(true);    // sideways
+    expect(topdownLegsShouldWalk(0, 7, false)).toBe(true);   // up/down the screen
+    expect(topdownLegsShouldWalk(4, 7, true)).toBe(true);    // diagonal
+    expect(topdownLegsShouldWalk(0, 0, true)).toBe(false);   // key held, nothing moved (pinned at the plane's edge)
+    expect(topdownLegsShouldWalk(4, 0, false)).toBe(false);  // coasting on a Slide item with no key held settles the legs
   });
 });
 

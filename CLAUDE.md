@@ -684,6 +684,54 @@ that field shows.
 
 **Layer z-ladder:** 1 bg · 2 fg · 4 climb/pedestals · 5 player/hazards · 6 front.
 
+**🚶 TOP-DOWN IS THE FOURTH CLIMB KIND, AND IT IS A FLOOR, NOT A GRIP (added 2026-09-13).** Blake asked
+for a crosswalk intersection: a patch of the level that plays like a top-down game — ←/→ is the
+ordinary sideways walk, up/down the SCREEN shows the character's Back or Front, no gravity. It is
+painted on the Climb layer as `{ kind: "topdown" }` so it gets the painting tool, the erase-by-glyph,
+the flip rule and `migrateLevel` for free, and it is the only climb kind that takes the brush
+(`paintBrush`), because an intersection is an area and the others are rungs. Everything else about
+it is deliberately NOT a climb:
+
+* **The loop keeps it in `p.topdown`, never `p.climbing`.** Every "no aiming / throwing / blocking
+  while climbing" gate therefore stays exactly as it was and you can still fight on a street —
+  verified: aim-up, an M16 shot and the hop all work standing on the plane. `climbKindAt` and
+  `resolveClimbKind` skip top-down cells outright; a real ladder painted through the intersection is
+  still a ladder and wins.
+* **You are on it when your FEET are** (`topdownAt`: a one-cell window centred on the feet line at
+  the body's horizontal centre), never by box overlap. A seven-cell body overlapping "any painted
+  cell" would let the feet walk seven cells above the painted road before the head left it. Half a
+  cell of slop either side so a region painted on the street row and one painted just above it both
+  catch a player standing on the ground. It grabs automatically — there is no opt-in key, you are
+  simply standing on a road — and the feet can't walk past the painted edge: W/S inch to it and pin
+  there, the ladder's own top-of-zone rule. Walking sideways off the plane hands you back to gravity.
+* **W/S walk up and down, the ARROWS still aim.** The merged `K.up`/`K.down` fold the arrows in (a
+  ladder takes ↑/↓ on purpose), and reading those here made holding ↑ to aim a rifle also walk you
+  80px up the road. The topdown branch reads raw `RK.up`/`RK.down`. S never crouches on the plane
+  (crouch reads the dedicated C key there), or the key that walks you toward the camera would also
+  squash you flat.
+* **The pose is `p.tdView`** — "side"/"back"/"front", the direction you last walked, held when you
+  stop; sideways wins a diagonal. `playerPoseKey` returns it below the crouch and aim-up rules, and
+  it is the ONE place the player's Front pose is rendered in play (the pose-tab audit comment in the
+  editor still says "NEVER front" for the player — it now means "never on a normal floor"). The
+  front/back walk cycle is the ladder's alternating leg LIFT plus a gentle arm pump
+  (`applyLimbSwing` with `legLift`/`armReach`), because a hip swing reads as nothing head-on.
+* **Space is a beat-em-up hop**: `p.tdJumpY` remembers the line you left and the re-grab waits for
+  `vy >= 0 && y >= tdJumpY`, then snaps you onto it. Without the height gate a plane painted tall
+  enough that the feet never leave it mid-air made every jump a teleport up the road; without the
+  `vy` half the re-grab fired the frame after take-off, while y still equalled the line — measured
+  as a one-frame "jump". The view is kept through the hop, so you land still facing the way you were
+  walking.
+* **Enemies know nothing about it.** They walk the real ground under gravity; a player who walked "up"
+  the road is, to them, floating seven cells in the air. Fine for a crossing, not for a top-down
+  arena — if that is ever wanted it is the enemy loop's own feature.
+
+Verified in the running app on a seeded 60x30 level (a street at row 24, a 10x8 intersection over it
+and a 6-wide road running up to row 8): sideways across the crossing at y 510 the whole way with the
+side signature unchanged, W up to the pinned y 15 (= row 8's top edge - half a cell - 210), S down in
+the front pose with no crouch, the hop rising 87px and landing on y 454.8 exactly, and a sideways
+walk-off falling 51 frames to the street.
+
+
 **A FRONT-LAYER OBJECT FADES WHEN YOU WALK BEHIND IT, AND THAT FADE HAS TO BE COMPOSITED.**
 `.lobj.infront` transitions `opacity`, and an un-promoted opacity transition is repainted by the
 CPU on every one of the ~7 frames it runs — repainting the object's whole subtree, which for a
