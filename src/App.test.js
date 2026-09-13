@@ -1935,6 +1935,93 @@ describe("tie dye texture", () => {
   });
 });
 
+describe("stained glass texture", () => {
+  const render = (params, colors) => {
+    const t = newTexture("stainedGlass");
+    return TEXTURES.stainedGlass.svg({ ...t.colors, ...(colors || {}) }, TEXTURES.stainedGlass.tile, { ...t.params, ...(params || {}) });
+  };
+
+  test("is registered, so both the level and the piece pickers offer it", () => {
+    expect(TEXTURE_KEYS).toContain("stainedGlass");
+    expect(TEXTURES.stainedGlass.label).toBe("Stained glass");
+    expect(newTexture("stainedGlass").tex).toBe("stainedGlass");
+  });
+
+  test("every glass colour and the lead are editable, and all of them are actually used", () => {
+    const t = newTexture("stainedGlass");
+    expect(Object.keys(t.colors).sort()).toEqual(["a", "b", "c", "d", "e", "f", "lead", "lit"]);
+    const svg = render();
+    for (const c of Object.values(t.colors)) expect(svg).toContain(c);
+    // The six glass colours each get a fair share — a window that came out all amber would be a bug
+    // in the family balancing, not taste.
+    for (const k of ["a", "b", "c", "d", "e", "f"]) expect((svg.match(new RegExp(`fill="${t.colors[k]}"`, "g")) || []).length).toBeGreaterThanOrEqual(5);
+  });
+
+  test("the pieces tile: the lead outline drawn across a seam is the same curve from both sides", () => {
+    // Every outline path is a closed loop of quadratic curves. For each curve whose midpoint lies
+    // OUTSIDE the tile there must be a matching curve, shifted by exactly one tile, drawn INSIDE —
+    // that is the neighbouring copy painting the same piece, and it is what makes the seam vanish.
+    const svg = render();
+    const paths = [...svg.matchAll(/<path d="([^"]+)" fill="none" stroke="#1d1b1b" stroke-width="2.7"/g)].map((m) => m[1]);
+    expect(paths.length).toBeGreaterThan(30);
+    const curves = [];
+    const outside = [];
+    for (const d of paths) {
+      const nums = d.match(/-?\d+(\.\d+)?/g).map(Number);
+      let x0 = nums[0], y0 = nums[1];
+      for (let i = 2; i + 3 < nums.length; i += 4) {
+        const [cx, cy, x1, y1] = nums.slice(i, i + 4);
+        curves.push([x0, y0, cx, cy, x1, y1]);
+        if (cx < 0 || cx > 150 || cy < 0 || cy > 150) outside.push([x0, y0, cx, cy, x1, y1]);
+        x0 = x1; y0 = y1;
+      }
+    }
+    expect(outside.length).toBeGreaterThan(10);
+    for (const c of outside) {
+      const sx = c[2] < 0 ? 150 : c[2] > 150 ? -150 : 0, sy = c[3] < 0 ? 150 : c[3] > 150 ? -150 : 0;
+      const twin = [c[0] + sx, c[1] + sy, c[2] + sx, c[3] + sy, c[4] + sx, c[5] + sy];
+      // Tolerance of one rounding step: both copies round their own coordinates to 2dp.
+      expect(curves.some((k) => k.every((v, i) => Math.abs(v - twin[i]) <= 0.011))).toBe(true);
+    }
+  });
+
+  test("Piece size merges the SAME pieces rather than reshuffling them", () => {
+    // The first 20 seeds of the fine window are the whole chunky window, so every chunky piece's
+    // seed is also a fine piece's seed. Cheapest observable proof: the chunky render's pieces are
+    // fewer, and both renders are deterministic.
+    const fine = render({ pieces: 0 }), chunky = render({ pieces: 1 });
+    const count = (svg) => (svg.match(/stroke-linejoin="round"/g) || []).length;
+    expect(count(fine)).toBeGreaterThan(count(chunky) * 2);
+    expect(render({ pieces: 1 })).toBe(chunky);
+    expect(render({ pieces: 0 })).toBe(fine);
+  });
+
+  test("Glow 0 is flat colour with lead only, and Cracks 0 draws no hairlines", () => {
+    const flat = render({ glow: 0 });
+    expect(flat).not.toContain('fill="#fff6dc"');
+    expect(render({ glow: 1 })).toContain('fill="#fff6dc"');
+    const solid = render({ cracks: 0 });
+    expect(solid).not.toContain('opacity="0.85"');
+    expect(render({ cracks: 1 })).toContain('opacity="0.85"');
+  });
+
+  test("Lead widens the outline without moving a single piece", () => {
+    const thin = render({ lead: 0 }), thick = render({ lead: 1 });
+    expect(thin).toContain('stroke-width="1.2"');
+    expect(thick).toContain('stroke-width="4.2"');
+    // Same fills in the same order — only the strokes differ.
+    const fills = (svg) => svg.match(/<path d="[^"]+" fill="#[0-9a-f]{6}"\/>/g);
+    expect(fills(thin)).toEqual(fills(thick));
+  });
+
+  test("recolouring changes the bytes, so the data-URI cache can't serve a stale window", () => {
+    const base = newTexture("stainedGlass");
+    expect(textureDataUri(base)).toBe(textureDataUri(newTexture("stainedGlass")));
+    expect(textureDataUri({ ...base, colors: { ...base.colors, d: "#112233" } })).not.toBe(textureDataUri(base));
+    expect(textureDataUri({ ...base, params: { ...base.params, pieces: 1 } })).not.toBe(textureDataUri(base));
+  });
+});
+
 describe("a texture painted on an art piece", () => {
   const lib = [{ id: "fl-1", name: "Red flannel", tex: "flannel", colors: { base: "#7c2b26", band: "#3a1512", over: "#e0c98a" }, params: { sett: 1 } }];
 

@@ -5204,6 +5204,76 @@ const brickCourse = (tw, th, bw, bh, gap, mortar, shades, jitter) => {
   return out;
 };
 
+// STAINED GLASS helpers — the leaded pieces are a Voronoi diagram, and it has to TILE. Every seed
+// is clipped against all nine wrapped copies of every seed, so a piece that runs off one edge of
+// the tile continues out of the opposite edge as the neighbouring copy's piece: the seam is exact
+// by construction rather than hidden under a lead line. A half-plane clip per neighbour is all
+// the geometry needed (no Delaunay, no Fortune sweep), and at most ~70 seeds it is instant.
+// Each vertex carries the index of the neighbour whose bisector forms the edge LEAVING it — the
+// bowed outline below needs to know which two pieces share an edge.
+const glassCells = (seeds, tw, th) => {
+  const all = [];
+  for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) seeds.forEach(([x, y], i) => all.push([x + ox * tw, y + oy * th, i, ox || oy]));
+  return seeds.map(([sx, sy], i) => {
+    let poly = [[-tw, -th, -1], [2 * tw, -th, -1], [2 * tw, 2 * th, -1], [-tw, 2 * th, -1]];
+    for (const [qx, qy, j, wrapped] of all) {
+      if (j === i && !wrapped) continue;
+      const mx = (sx + qx) / 2, my = (sy + qy) / 2, dx = qx - sx, dy = qy - sy;
+      const f = (p) => (p[0] - mx) * dx + (p[1] - my) * dy;   // <= 0: closer to this seed than to q
+      const out = [];
+      for (let k = 0; k < poly.length; k++) {
+        const cur = poly[k], prev = poly[(k + poly.length - 1) % poly.length];
+        const fc = f(cur), fp = f(prev);
+        if (fc <= 0) {
+          if (fp > 0) { const t = fp / (fp - fc); out.push([prev[0] + (cur[0] - prev[0]) * t, prev[1] + (cur[1] - prev[1]) * t, prev[2]]); }
+          out.push(cur);
+        } else if (fp <= 0) {
+          const t = fp / (fp - fc); out.push([prev[0] + (cur[0] - prev[0]) * t, prev[1] + (cur[1] - prev[1]) * t, j]);
+        }
+      }
+      poly = out;
+      if (poly.length < 3) break;
+    }
+    return poly;
+  });
+};
+// A straight-edged Voronoi reads as a cracked phone screen, not as glass cut by hand, so every
+// shared edge bows. The bow is keyed on the PAIR of seeds and signed toward the lower index, so
+// the two pieces that share an edge compute the identical curve and neither a sliver of lead nor
+// a sliver of the wrong colour can open between them. A piece bordering its own wrapped copy
+// stays straight: the two sides of that seam are the same piece and cannot agree on a direction.
+const glassBow = (i, j, amt) => (i === j) ? 0 : (trnd(Math.min(i, j) * 7.1 + Math.max(i, j) * 13.3) - 0.5) * 2 * amt;
+// One piece's outline as quadratic curves, optionally shrunk toward `c` by `inset` for the lit
+// patch. The inward normal of a bisector edge is exactly the direction from the neighbour to this
+// seed, so no perpendicular has to be derived from the edge itself.
+const glassPath = (poly, seed, seeds, i, tw, th, bowAmt, c, inset) => {
+  const n = poly.length;
+  const sh = (p) => inset ? [c[0] + (p[0] - c[0]) * (1 - inset), c[1] + (p[1] - c[1]) * (1 - inset)] : p;
+  let d = "";
+  for (let k = 0; k < n; k++) {
+    const a = poly[k], b = poly[(k + 1) % n], j = a[2];
+    const pa = sh(a), pb = sh(b);
+    if (k === 0) d += "M" + px(pa[0]) + "," + px(pa[1]);
+    let ux = 0, uy = 0;
+    if (j >= 0) {
+      // The copy of neighbour j nearest the edge's midpoint is the one that made the edge.
+      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+      let best = null, bd = Infinity;
+      for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+        const qx = seeds[j][0] + ox * tw, qy = seeds[j][1] + oy * th;
+        const dd = (qx - mx) ** 2 + (qy - my) ** 2;
+        if (dd < bd) { bd = dd; best = [qx, qy]; }
+      }
+      ux = seed[0] - best[0]; uy = seed[1] - best[1];
+      const l = Math.hypot(ux, uy) || 1; ux /= l; uy /= l;
+    }
+    const k0 = glassBow(i, j, bowAmt) * (i <= j ? 1 : -1) * (1 - (inset || 0));
+    d += "Q" + px((pa[0] + pb[0]) / 2 + ux * k0) + "," + px((pa[1] + pb[1]) / 2 + uy * k0) + " " + px(pb[0]) + "," + px(pb[1]);
+  }
+  return d + "Z";
+};
+const glassArea = (poly) => { let a = 0; for (let k = 0; k < poly.length; k++) { const p = poly[k], q = poly[(k + 1) % poly.length]; a += p[0] * q[1] - q[0] * p[1]; } return Math.abs(a) / 2; };
+
 export const TEXTURES = {
   brick: {
     label: "Brick", icon: "🧱", tile: [60, 30], base: "a",
@@ -5494,6 +5564,104 @@ export const TEXTURES = {
         out += svgRect(-2, p + barW / 2, tw + 4, lip, co.lit, ' opacity="0.4"');
       }
       return out;
+    },
+  },
+  // STAINED GLASS — a church window: hand-cut pieces of coloured glass held in dark lead. Built for
+  // the windows of a church level, and the second glass in this registry: "Glass" above is a pane
+  // you look THROUGH, this is a picture you look AT, so it borrows nothing from it.
+  //
+  // The pieces are Voronoi cells of a fixed seed list, with every edge bowed (see glassCells /
+  // glassPath). Piece size does not move a single seed — the seeds are a low-discrepancy sequence
+  // (every prefix of it is evenly spread) plus a fixed jitter per seed, and the slider only decides
+  // how many are switched on. So sliding it merges or splits the SAME pieces instead of reshuffling
+  // the whole window on every keystroke, the rule metal's Rust and gravel's Coarse follow.
+  //
+  // Colour is what makes it a window and not confetti. A real window is composed in regions — a
+  // run of blues, a run of reds and golds — so each piece usually joins the warm or cool family of a
+  // piece already coloured beside it, never repeats a colour it touches, and the two families are
+  // nudged back toward balance so a window can't come out all amber by chance. Six glass colours
+  // are all editable, so a level can have an all-blue chapel window as easily as this one.
+  //
+  // Glow is two nested lighter patches, off-centre toward the top-left, at low opacity: light
+  // through bevelled glass pools on one side of the piece rather than filling it evenly, and two
+  // steps read as that pooling where one reads as a sticker on a sticker. Glow 0 is the flat,
+  // outline-only look of Blake's own art, so it is available. Cracks are hairline leads splitting
+  // only the LARGEST pieces, which is where a glazier would actually have added a support.
+  //
+  // The tile is 150px (five cells), the largest here, because a Voronoi field repeats far more
+  // visibly than bricks do — a piece's silhouette is recognisable in a way a brick's is not.
+  stainedGlass: {
+    label: "Stained glass", icon: "⛪", tile: [150, 150], base: "a",
+    colors: [["lead", "Lead", "#1d1b1b"], ["a", "Ruby", "#d6303c"], ["b", "Amber", "#ee7d2c"], ["c", "Gold", "#f2c744"], ["d", "Sapphire", "#3a78d6"], ["e", "Violet", "#7d4cb8"], ["f", "Teal", "#3db4c8"], ["lit", "Light", "#fff6dc"]],
+    params: [
+      { key: "pieces", label: "Piece size", min: 0, max: 1, step: 0.05, def: 0.5 },
+      { key: "lead", label: "Lead", min: 0, max: 1, step: 0.05, def: 0.5 },
+      { key: "glow", label: "Glow", min: 0, max: 1, step: 0.05, def: 0.5 },
+      { key: "cracks", label: "Cracks", min: 0, max: 1, step: 0.05, def: 0.4 },
+    ],
+    svg: (co, _t, pa) => {
+      const tw = 150, th = 150;
+      const size = Math.max(0, Math.min(1, pa.pieces ?? 0.5));
+      const lead = Math.max(0, Math.min(1, pa.lead ?? 0.5));
+      const glow = Math.max(0, Math.min(1, pa.glow ?? 0.5));
+      const cracks = Math.max(0, Math.min(1, pa.cracks ?? 0.4));
+      const n = Math.round(68 - size * 48);                              // 68 fine pieces .. 20 chunky ones
+      const seeds = [];
+      for (let i = 0; i < n; i++) {
+        // R2 sequence (Roberts): the plane-filling constants give an even spread for ANY count.
+        const x = ((0.5 + i * 0.7548776662) % 1) * tw + (trnd(i * 3.1) - 0.5) * 30;
+        const y = ((0.5 + i * 0.5698402910) % 1) * th + (trnd(i * 5.3) - 0.5) * 30;
+        seeds.push([((x % tw) + tw) % tw, ((y % th) + th) % th]);
+      }
+      const cells = glassCells(seeds, tw, th);
+      const glass = [co.a, co.b, co.c, co.d, co.e, co.f];
+      const warm = [0, 1, 2], cool = [3, 4, 5];
+      const pick = new Array(n).fill(-1);
+      let warmCount = 0, coolCount = 0;
+      for (let i = 0; i < n; i++) {
+        const nb = [...new Set(cells[i].map((v) => v[2]).filter((j) => j >= 0 && j !== i && pick[j] >= 0))];
+        let fam = trnd(i * 9.7) < 0.5 - (warmCount - coolCount) * 0.08 ? warm : cool;
+        if (nb.length && trnd(i * 11.9) < 0.7) fam = warm.includes(pick[nb[Math.floor(trnd(i * 2.3) * nb.length)]]) ? warm : cool;
+        const used = new Set(nb.map((j) => pick[j]));
+        const start = Math.floor(trnd(i * 4.7) * 3);
+        let ch = fam[start];
+        for (let s = 0; s < 3; s++) if (!used.has(fam[(start + s) % 3])) { ch = fam[(start + s) % 3]; break; }
+        pick[i] = ch;
+        if (warm.includes(ch)) warmCount++; else coolCount++;
+      }
+      const bowAmt = 4.5, meanArea = tw * th / n, leadW = 1.2 + lead * 3;
+      let fills = "", glows = "", lines = "", crackLines = "";
+      // Every wrapped copy whose box touches the tile is drawn, so the pieces that straddle an edge
+      // are painted from both sides of the seam. Fills, then glow, then cracks, then every lead
+      // line last — a lead drawn before a neighbour's fill would be half covered by it.
+      for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+        const dx = ox * tw, dy = oy * th;
+        cells.forEach((poly, i) => {
+          const xs = poly.map((p) => p[0] + dx), ys = poly.map((p) => p[1] + dy);
+          if (Math.max(...xs) < -4 || Math.min(...xs) > tw + 4 || Math.max(...ys) < -4 || Math.min(...ys) > th + 4) return;
+          const shifted = poly.map((p) => [p[0] + dx, p[1] + dy, p[2]]);
+          const seed = [seeds[i][0] + dx, seeds[i][1] + dy];
+          const sseeds = seeds.map((s) => [s[0] + dx, s[1] + dy]);
+          const d = glassPath(shifted, seed, sseeds, i, tw, th, bowAmt);
+          fills += `<path d="${d}" fill="${glass[pick[i]]}"/>`;
+          if (glow > 0) {
+            for (const ins of [0.2, 0.48]) {
+              const d2 = glassPath(shifted, seed, sseeds, i, tw, th, bowAmt, [seed[0] - 3, seed[1] - 4], ins);
+              glows += `<path d="${d2}" fill="${co.lit}" opacity="${px(0.05 + glow * 0.17)}"/>`;
+            }
+          }
+          lines += `<path d="${d}" fill="none" stroke="${co.lead}" stroke-width="${px(leadW)}" stroke-linejoin="round"/>`;
+          if (cracks > 0 && poly.length >= 5 && glassArea(poly) > meanArea * (1.6 - cracks * 0.9)) {
+            // A chord between two non-adjacent corners, bent a little so it doesn't read as a ruler line.
+            const a = Math.floor(trnd(i * 6.1) * poly.length);
+            const b = (a + 2 + Math.floor(trnd(i * 8.9) * (poly.length - 3))) % poly.length;
+            const pa2 = shifted[a], pb2 = shifted[b];
+            const mx = (pa2[0] + pb2[0]) / 2 + (trnd(i * 2.9) - 0.5) * 6, my = (pa2[1] + pb2[1]) / 2 + (trnd(i * 3.7) - 0.5) * 6;
+            crackLines += `<path d="M${px(pa2[0])},${px(pa2[1])} Q${px(mx)},${px(my)} ${px(pb2[0])},${px(pb2[1])}" fill="none" stroke="${co.lead}" stroke-width="${px(leadW * 0.45)}" opacity="0.85"/>`;
+          }
+        });
+      }
+      return svgRect(-2, -2, tw + 4, th + 4, co.lead) + fills + glows + crackLines + lines;
     },
   },
   rock: {
