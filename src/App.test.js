@@ -26,6 +26,7 @@ import {
   paintIntoCell,
   enumerateHostKeys,
   mergeIndexWrite,
+  assetIndexHealPlan,
   objRotStyle,
   normalizeObjRot,
   OBJ_ROT_NUDGE,
@@ -1229,6 +1230,88 @@ describe("asset index: surviving a bad write", () => {
   test("an empty write can never blank a full index", () => {
     expect(mergeIndexWrite(A, [], false)).toHaveLength(3);
     expect(mergeIndexWrite(A, null, false)).toHaveLength(3);
+  });
+});
+
+/* ↙ A PROJECT-FILE RESTORE IS NOT A RESCUE. Seen 2026-09-12: 136 in the index, a 137th delivered
+   through asset-data/library.json. Load 1 restored it, said "Restored 1 asset — 137 loaded", and
+   refreshed only the MIRROR. Load 2 found the id in the mirror and not in the index, filed it as
+   fromMirror, and flashed "🛟 Recovered 1 asset the index had lost — 137 loaded" plus a console
+   warning, for an asset that was never lost. Every delivered asset did this once. The numbers
+   below are the shape of that report and nothing else — never his real library. */
+describe("asset index: a project-file restore is not a rescue", () => {
+  test("a restore persists the index as well as the mirror, and says nothing more", () => {
+    expect(assetIndexHealPlan({ recovered: 0, buried: 0, fromProject: 1, updatedFromProject: 0, loaded: 137 })).toEqual({ index: true, mirror: true, recovery: false });
+    expect(assetIndexHealPlan({ updatedFromProject: 1, loaded: 137 })).toEqual({ index: true, mirror: true, recovery: false });
+  });
+
+  test("a rescue still rewrites both copies and still announces itself", () => {
+    expect(assetIndexHealPlan({ recovered: 1, loaded: 137 })).toEqual({ index: true, mirror: true, recovery: true });
+    expect(assetIndexHealPlan({ buried: 1, loaded: 136 })).toEqual({ index: true, mirror: true, recovery: true });
+    expect(assetIndexHealPlan({ recovered: 1, fromProject: 1, loaded: 138 })).toEqual({ index: true, mirror: true, recovery: true });
+  });
+
+  test("a clean load refreshes only the mirror, and an empty load writes nothing at all", () => {
+    expect(assetIndexHealPlan({ loaded: 136 })).toEqual({ index: false, mirror: true, recovery: false });
+    expect(assetIndexHealPlan({ fromProject: 1, loaded: 0 })).toEqual({ index: false, mirror: false, recovery: false });
+    expect(assetIndexHealPlan()).toEqual({ index: false, mirror: false, recovery: false });
+  });
+
+  // Two loads through a fake store, unioning the sources the way loadLibrary does (index, then the
+  // mirror's extras, then a raw scan of asset: keys) and writing the index through the real
+  // mergeIndexWrite. Load 1 restores one asset from a constructed project file; load 2 must find
+  // nothing to recover. The old rule is run as the control, so the test is known to see the bug.
+  const twoLoads = (planFn) => {
+    const store = new Map();
+    const idx = (k) => (store.has(k) ? JSON.parse(store.get(k)).filter((x) => x && x.id) : []);
+    const writeIndex = (list) => { const prev = idx("assetIndex"); if (prev.length) store.set("assetIndex.bak", JSON.stringify(prev)); store.set("assetIndex", JSON.stringify(mergeIndexWrite(prev, list, false))); };
+    const stored = ["a", "b", "c"].map((id) => ({ id, name: id.toUpperCase(), type: "prop" }));
+    store.set("assetIndex", JSON.stringify(stored));
+    store.set("assetIndex.bak", JSON.stringify(stored));
+    for (const it of stored) store.set("asset:" + it.id, JSON.stringify(it));
+    const project = [{ id: "d", name: "D", type: "prop" }];
+    const load = () => {
+      let list = idx("assetIndex");
+      const seen = new Set(list.map((it) => it.id));
+      const fromMirror = idx("assetIndex.bak").filter((it) => !seen.has(it.id));
+      list = list.concat(fromMirror); for (const it of fromMirror) seen.add(it.id);
+      const orphans = [...store.keys()].filter((k) => k.startsWith("asset:")).map((k) => k.slice(6)).filter((id) => !seen.has(id));
+      list = list.concat(orphans.map((id) => ({ id })));
+      const have = new Set(list.map((it) => it.id));
+      let fromProject = 0;
+      for (const a of project) if (!have.has(a.id)) { store.set("asset:" + a.id, JSON.stringify(a)); list.push({ id: a.id, name: a.name, type: a.type }); fromProject++; }
+      const full = list.map((it) => JSON.parse(store.get("asset:" + it.id)));
+      const recovered = fromMirror.length + orphans.length;
+      const heal = planFn({ recovered, buried: 0, fromProject, updatedFromProject: 0, loaded: full.length });
+      const healed = full.map((x) => ({ id: x.id, name: x.name, type: x.type }));
+      if (heal.index) writeIndex(healed);
+      if (heal.mirror) store.set("assetIndex.bak", JSON.stringify(healed));
+      return { fromProject, recovered, recovery: heal.recovery, loaded: full.length, indexed: idx("assetIndex").length };
+    };
+    return [load(), load()];
+  };
+  // The rule as it stood: a rescue rewrote both copies, everything else refreshed the mirror only.
+  const mirrorOnly = ({ recovered, buried, loaded }) => (!loaded ? { index: false, mirror: false, recovery: false } : (recovered || buried) ? { index: true, mirror: true, recovery: true } : { index: false, mirror: true, recovery: false });
+
+  test("THE BUG: the second load after a restore 'recovered' the asset out of the mirror", () => {
+    const [first, second] = twoLoads(mirrorOnly);
+    expect(first).toEqual({ fromProject: 1, recovered: 0, recovery: false, loaded: 4, indexed: 3 }); // "137 loaded", index still at 136
+    expect(second).toEqual({ fromProject: 0, recovered: 1, recovery: true, loaded: 4, indexed: 4 }); // the alarm, for nothing
+  });
+
+  test("with the fix the index names every asset after load 1, and load 2 is silent", () => {
+    const [first, second] = twoLoads(assetIndexHealPlan);
+    expect(first).toEqual({ fromProject: 1, recovered: 0, recovery: false, loaded: 4, indexed: 4 });
+    expect(second).toEqual({ fromProject: 0, recovered: 0, recovery: false, loaded: 4, indexed: 4 });
+  });
+
+  test("loadLibrary asks the plan rather than keeping a private copy of the rule", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    const body = src.slice(src.indexOf("const loadLibrary = async"), src.indexOf("const loadStamps = async"));
+    expect(body.match(/assetIndexHealPlan\(/g)).toHaveLength(1);
+    expect(body).toContain("if (heal.index) await writeAssetIndex(healed)");
+    expect(body).toContain("if (heal.mirror) await sset(ASSET_INDEX_BAK, JSON.stringify(healed))");
+    expect(body).toContain("if (heal.recovery) {");
   });
 });
 

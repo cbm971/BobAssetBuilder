@@ -284,6 +284,25 @@ export const mergeIndexWrite = (prev, next, allowShrink) => {
   for (const x of n) byId.set(x.id, x);
   return [...byId.values()];
 };
+// Which index writes does a finished load owe? Three sources were unioned on the way in and the
+// records were read as truth, so what was loaded IS the healed list; this decides where it goes.
+// Nothing here can shrink anything: the index write goes through mergeIndexWrite, and an empty
+// load writes nothing at all — a page that read zero records must never blank the record.
+//   recovered / buried — the index had lost ids the mirror or a raw scan found, or was still
+//     naming a gravestone. Rewrite BOTH copies and say so: this is the rescue being made permanent.
+//   fromProject / updatedFromProject — the project file handed this browser something new. The
+//     record is already in every store and the id is already in the in-memory list, but if only
+//     the mirror is refreshed (which every clean load does) the NEXT load finds the id in the
+//     mirror and not in the index, files it as fromMirror, and announces "Recovered 1 asset the
+//     index had lost" for an asset that was never lost. Every asset delivered through
+//     asset-data/library.json produced exactly that on its second load. So a restore persists the
+//     index too — quietly, because nothing was rescued and the "Restored" flash already said it.
+//   otherwise — a clean load. Only the mirror is refreshed, so the next bad write has a fallback.
+export const assetIndexHealPlan = ({ recovered = 0, buried = 0, fromProject = 0, updatedFromProject = 0, loaded = 0 } = {}) => {
+  if (!loaded) return { index: false, mirror: false, recovery: false };
+  if (recovered || buried) return { index: true, mirror: true, recovery: true };
+  return { index: !!(fromProject || updatedFromProject), mirror: true, recovery: false };
+};
 // The index mirror key. Module level so the storage helpers can name it with no ordering risk.
 const ASSET_INDEX_BAK = "assetIndex.bak";
 // ---- The project-file library (see src/setupProxy.js) -------------------------------------------
@@ -10802,18 +10821,22 @@ export default function AssetStudio() {
     // Push whatever this browser has back INTO the project file, so the copy that survives an
     // address change is always the fullest one either side has seen.
     if (full.length) projectLibrary.save({ assets: full });
-    if ((recovered || buried.length) && full.length) {
-      const healed = full.map((x) => ({ id: x.id, name: x.name, type: x.type }));
-      await writeAssetIndex(healed);
-      // Refresh the mirror to the HEALED list too. Otherwise it keeps the broken copy it shadowed
-      // on the way in, and the safety net spends a whole load being wrong.
-      await sset(ASSET_INDEX_BAK, JSON.stringify(healed));
+    // What the heal owes is decided in one place (assetIndexHealPlan, tested) — a rescue rewrites
+    // both copies and says so; a project-file restore rewrites both copies and says nothing more;
+    // a clean load refreshes only the mirror. The restore case used to fall through to the
+    // mirror-only branch, which left the index one id short and made the NEXT load "recover" the
+    // asset out of its own mirror, alarm and all.
+    const healed = full.map((x) => ({ id: x.id, name: x.name, type: x.type }));
+    const heal = assetIndexHealPlan({ recovered, buried: buried.length, fromProject, updatedFromProject, loaded: full.length });
+    if (heal.index) await writeAssetIndex(healed); // merges by id — this write can never shrink the index
+    // Refresh the mirror to the HEALED list too. Otherwise it keeps the broken copy it shadowed
+    // on the way in, and the safety net spends a whole load being wrong. Kept current even on a
+    // clean load, so the next bad write has something to fall back to — the cheap insurance
+    // that makes the whole scheme work.
+    if (heal.mirror) await sset(ASSET_INDEX_BAK, JSON.stringify(healed));
+    if (heal.recovery) {
       console.warn("[Bob] recovered " + recovered + " asset(s) missing from the index:", { fromMirror: fromMirror.map((x) => x.id), orphanIds });
       flash("🛟 Recovered " + recovered + " asset" + (recovered > 1 ? "s" : "") + " the index had lost — " + full.length + " loaded.");
-    } else if (full.length) {
-      // Keep the mirror current even on a clean load, so the next bad write has something to fall
-      // back to. This is the cheap insurance that makes the whole scheme work.
-      await sset(ASSET_INDEX_BAK, JSON.stringify(full.map((x) => ({ id: x.id, name: x.name, type: x.type }))));
     }
     if (bad.length) {
       // These ids were looked for in the host store, IndexedDB, localStorage AND the project

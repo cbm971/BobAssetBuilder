@@ -230,6 +230,20 @@ after he deletes**, so both the missing record and its tombstone ship.
    studio sat on "Loading your saves…" for ever with a full library on disk. `idbOpen` now times
    out and resolves null, which sget/sset already treat as "no IndexedDB here".
 
+9. **A project-file restore is not a rescue, and used to announce itself as one a load late.**
+   `loadLibrary` heals two copies of the index — `assetIndex` and its mirror `assetIndex.bak` —
+   but only the RESCUE branch (mirror or orphan scan found an id the index lacked) wrote both; a
+   load whose only event was a restore from `asset-data/library.json` fell through to the clean-load
+   branch and refreshed the mirror alone. Index 136, mirror 137, so the NEXT load found the new id
+   in the mirror, filed it as `fromMirror`, and flashed "🛟 Recovered 1 asset the index had lost —
+   137 loaded" plus a console warning for an asset that was never lost. Every asset an agent
+   delivered through the project file produced that once. `assetIndexHealPlan` (module level,
+   tested against a constructed two-load fixture) now decides the writes in one place: rescue →
+   both copies + the message; restore → both copies, no extra message; clean load → mirror only;
+   nothing loaded → nothing written. The index write still goes through `writeAssetIndex`, which
+   merges by id, so none of this can shrink the list. The other five loaders never had the gap —
+   each already rewrites its index whenever `restored`/`fromProject` is non-zero.
+
 **The reproduction that finally caught it** (worth keeping — every earlier test passed while the
 bug was live): stand up the fake `window.storage` rig, let the project file restore into it, add a
 few assets that exist ONLY in the browser, delete one browser-only asset AND one that IS in the
