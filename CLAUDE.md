@@ -488,6 +488,23 @@ clicked cell is usually *not* the key — find an object under a click with `obj
 `rot` twists the art, `flip` mirrors it, `ox`/`oy` nudge it — all three move the ART
 and never the footprint, which stays the axis-aligned square/rect `size` describes.
 
+**A PROP'S "SOLID BY DEFAULT" IS READ BY THE OBJECT PICKER NOW** (2026-09-14). The flag was set in the
+Object editor and read nowhere: picking a prop copied its default `size` into the placement controls
+and left the Solid box at whatever it was last, so a stage flagged solid placed as decor right after a
+row of pews and a bookshelf flagged solid blocked nothing. The picker's `onChange` now sets `lSolid`
+from `solidDefault` beside the size. It is only the STARTING value — the box is still editable — and
+nothing already placed changes, because `solid` is stamped on the placement.
+
+**The "Church" prop folder (`chrpew1` Church Pew, `chrstg1` Chancel Stage, `chrplp1` Pulpit, `chraltr`
+Altar Table, `chrcndl` Candle Stand, `chrcrss` Wall Cross; also `assets/church-pack.json`)** was built
+for a small church interior. Two things about it are load-bearing: the pew is drawn END-ON (the view
+from the aisle — end panel hides the seat, backrest leaning up behind it) and faces right, so a row
+facing the other way is ⇄ Flip on each placement; and the stage is drawn exactly 8:1 so that at size 8
+(or 16) its solid footprint is a whole number of cells — the collision grid is whole cells, so a
+1.25-cell-tall solid prop blocks two rows and leaves an invisible ledge above the art. A 1-cell stage
+is a step (`rise <= CH`), not a jump, for the player and for enemies alike. Verified in Playtest: a
+character spawned above it settles with its feet on the stage row, not the floor.
+
 **Object draw order is `z`, and every render pass must go through
 `levelObjectsInDrawOrder(fx)`.** It used to be `Object.keys(lv.fx)` order, which means
 the order each *cell key* first entered the map — so dropping a prop onto a cell that

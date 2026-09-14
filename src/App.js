@@ -15090,7 +15090,12 @@ export default function AssetStudio() {
                         {groups.map((g) => <option key={g.key} value={g.key}>📂 {g.label} ({g.props.length})</option>)}
                       </select>
                     )}
-                    <select className="big" value={lPropId} onChange={(e) => { const id = e.target.value; setLPropId(id); setLFxSel(null); setLFxEditIdx(null); const pa = findA(id); if (pa && pa.size) setLObjSize(pa.size); }}>
+                    <select className="big" value={lPropId} onChange={(e) => { const id = e.target.value; setLPropId(id); setLFxSel(null); setLFxEditIdx(null); const pa = findA(id); if (pa && pa.size) setLObjSize(pa.size);
+                      // "Solid by default" is set per prop in the Object editor and was read NOWHERE — the Solid box
+                      // simply kept whatever it was last, so a stage flagged solid placed as decor after a row of
+                      // pews, and a bookshelf flagged solid blocked nothing. The size above already follows the prop;
+                      // the flag follows it the same way. The box stays editable, so this is only the starting value.
+                      if (pa) setLSolid(!!pa.solidDefault); }}>
                       <option value="">— pick an Object —</option>
                       {shownGroups.map((g) => (
                         <optgroup key={g.key} label={g.label}>
