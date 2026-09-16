@@ -613,6 +613,15 @@ that is already on, so a stale flag can be removed) and does nothing — the exp
 `landPropId`. The card now says so rather than sitting there looking live. **If you make throwables
 really explode, that is a damage change to every grenade already built** — ask first.
 
+**A shot's boom is sized like a placed prop (`boomLayout`, 2026-09-16).** "Boom size N" means the longer
+side of the explosion prop's VISIBLE art spans N cells — the same `fitArt` footprint rule a fresh
+placement uses, one box across every frame. It used to hand `propArtInner` four arguments against
+a seven-argument signature (frame index in the `heightPx` slot, key in `frameIdx`): the whole
+200x260 canvas was scaled into N cells and `frames[NaN]` meant only frame 0 ever drew, so Blake's
+RPG at Boom size 8 came out 2.8 cells wide and never animated. Measured A/B in one page: 2.83 →
+7.7 cells, 1 → 5 frames. Anything else that draws a prop outside `renderObj` must pass the tight
+box, or it draws at canvas scale.
+
 **A throwable's `damage` is its IMPACT damage** (`throwImpactDamage`), applied to whatever
 it physically strikes — tested every frame of flight, so it catches both a hit in mid-air
 and one that lands at someone's feet. It was read for melee and for shots and **for
