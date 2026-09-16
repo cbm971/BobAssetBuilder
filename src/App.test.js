@@ -302,6 +302,8 @@ import {
   extraLivesGranted,
   extraLivesLeft,
   reviveInPlace,
+  unitUntouchable,
+  livesLeftNote,
   DIALOGUE_ACTS,
   DIALOGUE_TONES,
   DIALOGUE_MAX_KEYED,
@@ -6174,6 +6176,48 @@ describe("clothing that gives you extra lives (🐱 nine lives on a cat head)", 
   test("you come back on 1 HP, and a missing record is left alone", () => {
     expect(EXTRA_LIFE_HP).toBe(1);
     expect(reviveInPlace(null)).toBe(null);
+  });
+
+  // THE ENEMY HALF. Blake's first report after it shipped: "enemies with a bonus lives item do
+  // not get the bonus lives". Same helpers, a unit's own record instead of the player's.
+  test("a unit mid-revive is untouchable, and only then", () => {
+    expect(unitUntouchable({ lifeGrace: 90 })).toBe(true);
+    expect(unitUntouchable({ lifeGrace: 0.5 })).toBe(true);
+    expect(unitUntouchable({ lifeGrace: 0 })).toBe(false);
+    expect(unitUntouchable({ lifeGrace: -0.3 })).toBe(false); // ticked past zero: the window is over
+    expect(unitUntouchable({})).toBe(false);                  // a unit that never had a life
+    expect(unitUntouchable(null)).toBe(false);
+  });
+
+  test("reviving a unit's record works on the fields a unit actually has, and wakes a settled corpse", () => {
+    // An enemy record (enemyPos.current[k]) mid-fight: on the floor from a tackle, burning, and —
+    // the belt-and-braces case — a corpse that had already come to rest.
+    const ep = { x: 640, y: 210, vy: 0, face: 1, friendly: false, stun: 20, down: 45, downCd: 0, burnPool: 0.8, onFire: 12, restedDead: true, livesUsed: 2 };
+    reviveInPlace(ep);
+    expect([ep.x, ep.y, ep.face, ep.friendly, ep.livesUsed]).toEqual([640, 210, 1, false, 2]); // where it fell, whose side it is on, what it has spent — all untouched
+    expect(ep.lifeGrace).toBe(EXTRA_LIFE_GRACE_FRAMES);
+    expect(unitUntouchable(ep)).toBe(true);
+    expect(ep.stun).toBe(0);
+    expect(ep.down).toBe(0);
+    expect(ep.restedDead).toBe(false);   // gravity is back on: a body that got up must not keep "stop simulating"
+    expect(ep.burnPool).toBe(0);
+    expect(ep.onFire).toBe(0);
+  });
+
+  test("a unit's lives come off its live asset minus what its own record has spent", () => {
+    // The revive pass's exact read: liveEnemyAsset(...).effects and ep.livesUsed.
+    const catBob = { name: "Cat Bob", effects: [{ type: "extraLives", lives: 3, slot: "hat" }] };
+    expect(extraLivesLeft(catBob.effects, undefined)).toBe(3); // a fresh spawn has no livesUsed field yet
+    expect(extraLivesLeft(catBob.effects, 2)).toBe(1);
+    expect(extraLivesLeft(catBob.effects, 3)).toBe(0);
+    const dog = { name: "Pit Bull", hp: 75 };                   // an Enemy-creator animal has no effects at all
+    expect(extraLivesLeft(dog.effects, 0)).toBe(0);
+  });
+
+  test("the toast's tail is spelt one way for both sides", () => {
+    expect(livesLeftNote(2)).toBe("2 lives left");
+    expect(livesLeftNote(1)).toBe("1 life left");
+    expect(livesLeftNote(0)).toBe("that was the last one");
   });
 });
 

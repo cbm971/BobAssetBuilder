@@ -680,8 +680,24 @@ now all call one closure in the Playtest effect. **Add a sixth way to die and ro
   ignored by fire on purpose (steady drain, not a hit), and without a window fire respects you
   would lose the next life a sixth of a second after the first, nine in under two seconds. It
   also holds `downCd` for the window so a tackler standing over you cannot re-floor you.
-* Player-side only, like Ally Health. An enemy in the cat head dies as normal; making it work
-  for enemies means every enemy death site plus the corpse it leaves — a separate feature.
+* **It works on ENEMIES too (2026-09-16), and it shipped without that first.** The line above
+  used to say "player-side only, like Ally Health"; Blake's first report was "enemies with a bonus
+  lives item do not get the bonus lives", which from where he stands is a bug — Tackle and
+  Magazine Size both work in both directions. Do not take the enemy half out again. It is built
+  the way the loot roll is built, and for the same reason: **eight** places can hurt a unit (fire,
+  your swing, your shot, a splash, a thrown impact, a brawl hit, a foe's bullet into your ally, a
+  grenade on your side), so the revive is ONE central pass just before the loot roll, using the
+  loot pass's own "died this frame" test (HP ≤ 0 and no drop record yet). It runs before the
+  loot roll and before the render, so a unit with a life left never drops loot and is never drawn
+  as a corpse. The spent count is `ep.livesUsed` (the per-level bucket — a door does not restock,
+  ▶ Playtest does); the lives come off `liveEnemyAsset(k, …).effects`, so a gear-tag roll that
+  handed out the cat head counts. `reviveInPlace` is the same function (`ep` has the same fields;
+  it also clears `restedDead`). **Every one of the eight damage sites asks `unitUntouchable(ep)`**
+  (`ep.lifeGrace > 0`) — a ninth way to hurt a unit must ask it too, or a machine gun spends
+  nine lives in a second. Shots and brawl hits on an untouchable unit are consumed and do nothing
+  (the player's own i-frame reading); your melee arc and a splash pass it by; a rock still stops
+  on it. On screen: the same gold blink on the wrapper, and a `🐱×N` count beside the HP bar
+  (`.enemyLives`, to the RIGHT of the bar because −10/−17/−30 are all taken).
 * The effect card in the equipment editor now shows each effect's `blurb` (it never had, for any
   effect), and the ＋ Add buttons carry it as a tooltip.
 
@@ -689,7 +705,12 @@ Verified by seeding a 5-HP character carrying `{type:"extraLives", lives:3}` int
 `asset-data/library.json` with a 30-dps fire pit and sampling every frame through the rAF shim:
 three revives at the same (x,y) on HP 1 with `lifeGrace` 90→0 and the gold filter, then the
 ordinary "Burned to a crisp" respawn at (60,40). Dress Bob packs a hat's `lives` onto the look
-generically (checked on a saved look: `{type:"extraLives", lives:9, slot:"hat"}`).
+generically (checked on a saved look: `{type:"extraLives", lives:9, slot:"hat"}`). The enemy
+half the same way, twice: the same look placed as a 👹 in the fire pit next to a no-lives control
+(three revives at its own (x,y), the control dead from frame 3 and never back, then both corpses
+and "burned up!"), and on a fire-free range shot with Bobs Gun — the first round kills and it gets
+back up, the seven rounds fired during the flash change nothing, the first round after it kills
+again, and after the third life "🎯 Hit … — defeated!" leaves a corpse that stays down.
 
 **Mirroring a level** (`flipLevelHorizontally`, the ⇄ Flip buttons) is c -> cols-1-c on
 every layer plus a reversal of everything that carries a direction: ramp `slope` and

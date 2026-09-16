@@ -2885,7 +2885,22 @@ const PLAYER_INVULN_FRAMES = 40;   // brief invulnerability after the player is 
    spent standing in flames would be followed by the next one a sixth of a second later, and nine
    lives would be gone in under two seconds with no chance to step out. `lifeGrace` is the window
    fire (and a tackler, via downCd) DOES honour; invuln is raised alongside it so the same blink
-   the hit flash already draws shows the window on screen, just for longer and tinted gold. */
+   the hit flash already draws shows the window on screen, just for longer and tinted gold.
+
+   THE SAME RULE SERVES A UNIT (2026-09-16). It shipped player-side only and Blake's first report
+   was that an enemy in the cat head got nothing, which from where he stands is a bug — Tackle and
+   Magazine Size both work in both directions, so of course the hat should. The pieces are shared
+   on purpose, the way tackleSecsOf serves both sides:
+     * the lives are read off the unit's live asset (liveEnemyAsset — a dressed look with its
+       rolled gear folded in), and the spent count lives on its `ep` record in the per-level
+       bucket, so it survives a door and is wiped only by ▶ Playtest, exactly like the player's;
+     * reviveInPlace is the same function — `ep` has the same stun/down/downCd/burnPool/onFire
+       fields, and `lifeGrace` is the same window. `invuln` and `restedDead` are simply fields the
+       other side never reads;
+     * unitUntouchable(ep) is the one gate every place that can hurt a unit asks — the same job
+       `p.invuln > 0` does at every player-side site. Eight places can hurt a unit and a
+       centralised revive (see the pass before the loot roll) is worthless without this, because
+       a machine gun would spend nine lives in a second and it would read as "it just dies". */
 export const EXTRA_LIFE_HP = 1;                 // what you get back up with
 export const EXTRA_LIFE_GRACE_FRAMES = 90;      // ~1.5s of flashing, untouchable, to get clear
 export const extraLivesGranted = (effects) => {
@@ -2903,8 +2918,16 @@ export const reviveInPlace = (p) => {
   // grace, held for the whole window so a tackler standing over you cannot re-floor you mid-flash.
   p.stun = 0; p.down = 0; p.downCd = Math.max(p.downCd || 0, EXTRA_LIFE_GRACE_FRAMES);
   p.burnPool = 0; p.onFire = 0;
+  // A unit's corpse flag. The revive runs the same frame as the death, before the dead branch
+  // ever sees it, so this is belt-and-braces — but a settled corpse that got back up must not
+  // keep "stop simulating" set, or it would stand there with gravity switched off.
+  p.restedDead = false;
   return p;
 };
+// Is this unit inside its Extra Life grace window? Asked by every site that can hurt one.
+export const unitUntouchable = (ep) => !!(ep && ep.lifeGrace > 0);
+// The line the ▶ Playtest toast and the enemy's own revive share, so "N left" is spelt one way.
+export const livesLeftNote = (n) => (n > 0 ? n + (n === 1 ? " life" : " lives") + " left" : "that was the last one");
 /* --- Door transitions -----------------------------------------------------------------------
    Going INTO a room reads as going in: back to the camera, shrinking and fading into the doorway
    for half a second, and then the room loads. Coming back OUT used to play that exact same
@@ -3261,12 +3284,13 @@ const EFFECT_TYPES = {
   // spent. "Where you fell" is the whole point and the whole difference from the ordinary death,
   // which sends you back to the start: nine lives on a cat head means nine more goes at the fight
   // you were in, not nine walks back from the spawn point. The count is per Playtest RUN and only
-  // the ▶ button refills it (see extraLivesLeft). Player-side only, the same line Ally Health
-  // draws: an enemy wearing it dies as normal. Say so if you want that too — it is a different
-  // feature (every enemy death site, and the corpse it leaves), not a bug here.
+  // the ▶ button refills it (see extraLivesLeft). Works in BOTH directions, like Tackle: a dressed
+  // 👹 Enemy wearing it gets back up the same way (see the revive pass before the loot roll), and
+  // it shipped player-only first — Blake's first report was an enemy in the cat head dying as
+  // normal, so do not take the enemy half out again.
   extraLives: {
     label: "Extra Lives", icon: "🐱",
-    blurb: "Instead of dying you flash and get straight back up on 1 HP, exactly where you fell — no trip back to the start. Spends one life each time; set how many the item carries (a cat head might carry 9). While you flash, nothing can hurt you — fire included — so you have a moment to get clear. Lives refill only when you press ▶ Playtest: taking the item off and putting it back on does not restock them, and the lives on several worn items add together. Player-side only. No animation of its own.",
+    blurb: "Instead of dying you flash and get straight back up on 1 HP, exactly where you fell — no trip back to the start. Spends one life each time; set how many the item carries (a cat head might carry 9). While you flash, nothing can hurt you — fire included — so you have a moment to get clear. Lives refill only when you press ▶ Playtest: taking the item off and putting it back on does not restock them, and the lives on several worn items add together. Worn by a 👹 Enemy it works on THEM — they get back up too, with a 🐱×N count by their HP bar. No animation of its own.",
     noAnim: true,
     params: [
       { key: "lives", label: "Lives", min: 1, max: 9, step: 1, def: 1 },
@@ -8502,8 +8526,7 @@ export default function AssetStudio() {
         livesUsed.current += 1;
         playerHP.current = EXTRA_LIFE_HP;
         reviveInPlace(p);
-        const now = left - 1;
-        flash("🐱 Extra life! Back up on " + EXTRA_LIFE_HP + " HP right where you fell — " + (now > 0 ? now + (now === 1 ? " life" : " lives") + " left" : "that was the last one"));
+        flash("🐱 Extra life! Back up on " + EXTRA_LIFE_HP + " HP right where you fell — " + livesLeftNote(left - 1));
         return true;
       }
       flash(deathMsg);
@@ -9276,6 +9299,7 @@ export default function AssetStudio() {
           if (ep.down > 0) { ep.down -= dtMul; if (ep.down <= 0) { ep.down = 0; ep.downCd = TACKLE_GETUP_GRACE_FRAMES; } }
           const stunned = (ep.stun || 0) > 0 || (ep.down || 0) > 0; // hit by a stun weapon, or tackled flat — frozen: the dodge/face/move/attack gates below all skip it while this lasts
           if ((ep.stun || 0) > 0) ep.stun -= dtMul;
+          if ((ep.lifeGrace || 0) > 0) ep.lifeGrace -= dtMul; // the 🐱 Extra Life window — every damage site asks unitUntouchable(ep) while it runs
           const eIntel = ea.stats?.intelligence ?? 5;
           // The Tackle ability THIS unit is wearing (null for almost everything). Read through the
           // same tackleSecsOf the player's own lookup uses, so a dressed 👹 Enemy in a football kit
@@ -9512,7 +9536,9 @@ export default function AssetStudio() {
           // is not a special case so much as closing the door the rest of the rule leaves open: a
           // Burn throwable paints hazard cells, so without this a molotov at their feet is simply
           // the way you kill the NPC your bullets cannot touch, and the immunity means nothing.
-          if (eDps > 0 && !unitTalkImmune(ep)) {
+          // ...and the one window fire DOES honour is a unit's 🐱 Extra Life grace, for the reason
+          // the player's own fire check honours it: it got back up in the flames it died in.
+          if (eDps > 0 && !unitTalkImmune(ep) && !unitUntouchable(ep)) {
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             ep.burnPool = (ep.burnPool || 0) + eDps * (dtMul / 60);
             if (ep.burnPool >= 1) {
@@ -9590,6 +9616,7 @@ export default function AssetStudio() {
               return true;
             }
             if (targetKind === "unit" && targetKey) {
+              if (unitUntouchable(targetEp)) return false; // mid-revive: the swing finds nobody, exactly as the player's i-frames read just above
               const cur = enemyHP.current[targetKey] === undefined ? unitMaxHP(targetEa, targetEp, allyHpBonus) : enemyHP.current[targetKey];
               enemyHP.current[targetKey] = Math.max(0, cur - Math.max(1, Math.round(rawDmg)));
               if (enemyHP.current[targetKey] <= 0) flash(friendly ? (allyBadge(ep) + " Your " + ea.name + " defeated " + (targetEa.name || "a foe") + "!") : ("💔 Your " + (targetEa.name || "ally") + " fell."));
@@ -10005,6 +10032,7 @@ export default function AssetStudio() {
                   if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
                   if (enemyHP.current[k] <= 0) continue; // already defeated
                   if (enemyPos.current[k] && enemyPos.current[k].friendly) continue; // don't clobber your own minion
+                  if (unitUntouchable(enemyPos.current[k])) continue; // 🐱 mid-revive: the arc carries on past it, as it does past an NPC
                   const eShape = sideBodyShape(ea);
                   const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
                   const ep = enemyPos.current[k];
@@ -10181,6 +10209,7 @@ export default function AssetStudio() {
               else impactNote += " · 🪨 hit you for " + dmg + " (" + playerHP.current + " HP left)";
               continue;
             }
+            if (unitUntouchable(s.ep)) continue; // 🐱 mid-revive: it stopped the rock (see the collision note above) and took nothing
             enemyHP.current[s.k] = Math.max(0, enemyHP.current[s.k] - impactDmg);
             impactNote += " · 🪨 hit " + s.ea.name + " for " + impactDmg
               + (enemyHP.current[s.k] <= 0 ? " — defeated!" : " (" + enemyHP.current[s.k] + " HP left)");
@@ -10368,7 +10397,7 @@ export default function AssetStudio() {
               }
             }
             for (const k of Object.keys(lv.enemies || {})) {
-              const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0)) continue;
+              const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0) || unitUntouchable(ep)) continue;
               const ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea) continue;
               const bx = enemyBlastBox(ea, ep);
               if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) enemyHP.current[k] = Math.max(0, enemyHP.current[k] - Math.max(1, baseDmg));
@@ -10379,7 +10408,7 @@ export default function AssetStudio() {
               const ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea) continue;
               if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
               if (enemyHP.current[k] <= 0) continue;
-              const ep = enemyPos.current[k]; if (!ep || ep.friendly || unitTalkImmune(ep)) continue; // an explosion sweeps a room, and a bystander in it is exactly who this must not catch
+              const ep = enemyPos.current[k]; if (!ep || ep.friendly || unitTalkImmune(ep) || unitUntouchable(ep)) continue; // an explosion sweeps a room, and a bystander in it is exactly who this must not catch — nor one mid-🐱-revive
               const bx = enemyBlastBox(ea, ep);
               if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
                 // Splash is still a SHOT — flat weapon damage plus the same crit roll as a direct
@@ -10457,6 +10486,7 @@ export default function AssetStudio() {
               const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
               if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop) {
                 if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
+                if (unitUntouchable(ep)) return false; // 🐱 mid-revive: consumed, does nothing — the same reading an invulnerable player gets
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - Math.max(1, pr.damage ?? 5));
                 if (enemyHP.current[k] <= 0) flash("💔 Your " + ea.name + " fell.");
                 return false;
@@ -10511,6 +10541,10 @@ export default function AssetStudio() {
               // the explode branch: a rocket must not detonate on a body it cannot hurt.
               if (unitTalkImmune(ep)) { talkPhaseNote(ea, ep); continue; }
               if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
+              // 🐱 Mid-revive: the round is consumed and does nothing, the same reading a shot
+              // gets off an invulnerable player. After the explode branch on purpose — a rocket
+              // still goes off on it, and the blast pass then reads the same window.
+              if (unitUntouchable(ep)) return false;
               // The weapon's Damage number, flat, whoever pulled the trigger — then the one
               // permitted character difference: an Intelligence crit roll for double.
               const base = playerRangedDamage(pr.damage);
@@ -10531,6 +10565,30 @@ export default function AssetStudio() {
       }
 
       if (booms.current.length) { for (const b of booms.current) b.life += dtMul; booms.current = booms.current.filter((b) => b.life <= b.maxLife); }
+
+      // 🐱 EXTRA LIVES ON A UNIT — one central pass, for the very reason the loot roll below is
+      // one: eight places can kill a unit (fire, your swing, your shot, a splash, a thrown impact,
+      // a brawl hit, a foe's bullet into your ally, a grenade on your side), and a rule written at
+      // each of them would reach seven. "Died this frame" is the loot pass's own test — HP at
+      // zero with no drop record yet — and this runs BEFORE that pass and before the render, so a
+      // unit with a life left never rolls loot and is never drawn as a corpse: it is back on
+      // EXTRA_LIFE_HP, where it fell, flashing gold, exactly as the player is. The spent count sits
+      // on `ep` (the per-level bucket, so a door does not restock it and only ▶ Playtest does),
+      // and the lives are read off liveEnemyAsset — a dressed look with its rolled coat folded
+      // in — so a gear-tag placement that rolled the cat head counts from the moment it spawned.
+      // The "defeated!" a hit site may have just flashed is simply overwritten here: a flash
+      // fired a frame before another is never seen, so this one carries the outcome.
+      for (const k of Object.keys(lv.enemies || {})) {
+        if (!(enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0) || Object.prototype.hasOwnProperty.call(enemyDrops.current, k)) continue;
+        const ep = enemyPos.current[k]; if (!ep) continue;
+        const ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea) continue;
+        const left = extraLivesLeft(ea.effects, ep.livesUsed);
+        if (left <= 0) continue;
+        ep.livesUsed = (ep.livesUsed || 0) + 1;
+        enemyHP.current[k] = EXTRA_LIFE_HP;
+        reviveInPlace(ep);
+        flash("🐱 " + (ea.name || "It") + " got back up on " + EXTRA_LIFE_HP + " HP — " + livesLeftNote(left - 1));
+      }
 
       // Resolve loot in one central pass so fire, melee, bullets, explosions and friendly enemies
       // all get the same single drop roll. A stored null records the failed roll and prevents rerolls.
@@ -16105,6 +16163,11 @@ export default function AssetStudio() {
                             you, and it is the only on-screen difference between "immune" and "my
                             gun is broken". It appears the moment a conversation turns them. */}
                         {!unitTalkImmune(ep) && <div className="enemyHpTrack"><div className="enemyHpFill" style={{ width: (hpFrac * 100) + "%", background: hpFrac > 0.5 ? "#6bd06b" : hpFrac > 0.2 ? "#c8a23c" : "#b0504f" }} /></div>}
+                        {/* 🐱×N beside the HP bar for a unit still holding Extra Lives — read the
+                            same way the revive pass reads it (its live asset minus what it has
+                            spent), so the count shown is the count it gets. Without it the first
+                            revive is a surprise and the second reads as an enemy that won't die. */}
+                        {(() => { const n = extraLivesLeft(ea.effects, ep && ep.livesUsed); return n > 0 ? <div className="enemyLives">🐱×{n}</div> : null; })()}
                         {/* Reload timer, directly above the HP bar: a ranged enemy caught mid-reload
                             is the window you push in, and the only other tell is that it stopped
                             shooting — which doesn't say how long you have. Fills left-to-right as
@@ -16126,7 +16189,7 @@ export default function AssetStudio() {
                             an NPC standing behind a tree still advertises itself. */}
                         {eTalkWaiting && !downed ? <div className="talkBadge">💬</div> : null}
                       </div>
-                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...((ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? " (💬 not fighting you — press E to talk)" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? " (💬 not fighting you — press E to talk)" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {(() => {
                           const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss });
                           // Put the art back to a true aspect when the box isn't one (ducking) —
@@ -18057,6 +18120,10 @@ html,body{margin:0;padding:0;background:#0f1117}
 .unitStatus{position:absolute;height:0;pointer-events:none;z-index:8000}
 .enemyHpTrack{position:absolute;left:0;right:0;top:-10px;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden}
 .enemyStun{position:absolute;left:0;right:0;top:-30px;text-align:center;font-size:16px;line-height:1;pointer-events:none;animation:stunbob .6s ease-in-out infinite}
+/* 🐱×N Extra Lives, to the RIGHT of the HP bar rather than stacked over it: -10 is the HP bar,
+   -17 the reload bar and -30 the 💫/😵 badge, and a fourth thing in that column would sit on one
+   of them. Same gold as the revive flash so the number and the flash read as one thing. */
+.enemyLives{position:absolute;left:100%;top:-14px;margin-left:3px;font-size:10px;line-height:1;font-weight:700;white-space:nowrap;color:#ffd84a;text-shadow:0 1px 2px rgba(0,0,0,.85);pointer-events:none}
 @keyframes stunbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 .enemyHpFill{height:100%;transition:width .15s ease}
 /* Reload timer, sitting just above the HP bar (which is at -10px, 5px tall). Deliberately thinner
