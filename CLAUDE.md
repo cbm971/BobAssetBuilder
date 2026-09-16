@@ -836,6 +836,22 @@ burst is **0.06–0.29 ms** for 131 cells measured on the real 917-cell sheet, a
 `connectedFrontRegion` is gated behind a signature that changes on every cell boundary while you
 walk, not just at the two ends. Neither matches the symptom.
 
+**THE FRONT-PAINT WINDOW IS ROUND AND GRADED (`frontFadeMap`, 2026-09-16).** Blake, looking at
+the padded rectangle at a flat 0.55: "it all becomes invisible in a big square … I'd like it to
+become a more almost circular radius where the closer the front layer is to the player the more
+you can see through it." So every Front cell within `FRONT_FADE_RADIUS_CELLS` (5) of the body's
+BOX gets its own opacity: `FRONT_FADE_MIN_OPACITY` (0.15) touching you, rising with the square
+of the distance to solid at the radius. Measured from the box, not the centre — a 7-cell body
+measured from its middle would have its own feet half behind the wall — so it is a rounded
+capsule, which reads as round once the radius beats the body's width. Quantised to
+`FRONT_FADE_STEP` (0.05) and a cell that rounds to 1 is left out of the map, so a cell is written
+only when its step moves: measured on the real church room, **~39 cell writes a frame while
+walking and 0 standing still** (108 cells in the window). Elements are indexed per mounted layer
+(`frontCellEl`, re-looked-up on a miss or a detached node) instead of a query per cell per frame.
+The pedestal x-ray keeps the old flat `FRONT_XRAY_OPACITY` (0.55) — that is a reveal, not a
+window. `frontFadeKeys` (unpadded) is still the yes/no "am I inside this building" test;
+`FRONT_FADE_PAD_CELLS` is now unused by the loop and kept only for that function's tests.
+
 **DIALOGUE TREES are the sixth saved kind, and that is the whole design.** A tree is authored on
 its own screen (`screen === "dialogue"`, the 💬 tile on the menu) and levels only ever refer to it
 by id. Written inside the level editor it would have belonged to the one sign you were standing on,

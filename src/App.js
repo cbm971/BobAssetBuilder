@@ -3762,6 +3762,50 @@ export const frontFadeKeys = (front, x, y, pw, ph, CW, CH, padCells) => {
 };
 // How far past the player's own body the see-through window reaches, in level blocks.
 export const FRONT_FADE_PAD_CELLS = 5;
+/* THE SEE-THROUGH WINDOW IS ROUND, AND IT FADES WITH DISTANCE (2026-09-16). It used to be the
+   padded rectangle above at one flat 0.55 — "a big square" in Blake's words — and he asked for
+   "a more almost circular radius where the closer the front layer is to the player the more you
+   can see through it". So every Front cell within FRONT_FADE_RADIUS_CELLS of the body gets its
+   own opacity: FRONT_FADE_MIN_OPACITY for a cell touching you, rising with the SQUARE of the
+   distance to fully solid at the radius. The distance is measured from the body's BOX (zero
+   anywhere inside it), not from its centre — a 7-cell-tall body measured from its middle would
+   have its own feet half behind the wall — which makes the window a rounded capsule around the
+   body rather than a true circle; with the radius larger than the body is wide that reads as
+   round. Squared rather than linear so the space right around you is genuinely clear and the
+   wall closes in fast near the edge, which is the "closer = more see-through" he described.
+   Quantised to steps of FRONT_FADE_STEP so a cell's style is rewritten only when its value
+   actually moves — the layer is memoised and faded imperatively (see the loop), and the per-cell
+   write is the cost that matters there. `frontFadeKeys` above is still the right tool for the
+   yes/no "am I inside this building" question; this one is for what you SEE. */
+export const FRONT_FADE_RADIUS_CELLS = 5;
+export const FRONT_FADE_MIN_OPACITY = 0.15;
+export const FRONT_FADE_STEP = 0.05;
+export const FRONT_XRAY_OPACITY = 0.55; // the old flat value, kept for the pedestal x-ray (a fixed reveal, not a window)
+export const frontFadeOpacity = (t, minOpacity) => {
+  const min = minOpacity == null ? FRONT_FADE_MIN_OPACITY : minOpacity;
+  const u = Math.max(0, Math.min(1, t));
+  const v = min + (1 - min) * u * u;
+  return Math.min(1, +(Math.round(v / FRONT_FADE_STEP) * FRONT_FADE_STEP).toFixed(2)); // toFixed: 3 × 0.05 is 0.15000000000000002 in floating point, and that string would go straight into style.opacity
+};
+export const frontFadeMap = (front, x, y, pw, ph, CW, CH, radiusCells, minOpacity) => {
+  const out = new Map();
+  if (!front) return out;
+  const R = Math.max(0, radiusCells == null ? FRONT_FADE_RADIUS_CELLS : radiusCells) * CW;
+  const c0 = Math.floor((x - R) / CW), c1 = Math.floor((x + pw + R - 0.001) / CW);
+  const r0 = Math.floor((y - R) / CH), r1 = Math.floor((y + ph + R - 0.001) / CH);
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    const k = r + "," + c;
+    if (!front[k]) continue;
+    const cx = c * CW + CW / 2, cy = r * CH + CH / 2;
+    const dx = Math.max(x - cx, 0, cx - (x + pw)), dy = Math.max(y - cy, 0, cy - (y + ph));
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (R > 0 ? d >= R : d > 0) continue;
+    const op = R > 0 ? frontFadeOpacity(d / R, minOpacity) : frontFadeOpacity(0, minOpacity);
+    if (op >= 1) continue; // rounds to solid: indistinguishable from an untouched cell, so never written
+    out.set(k, op);
+  }
+  return out;
+};
 // Every Front cell reachable from `startKeys` by 4-way adjacency — i.e. one connected SHEET of
 // Front tiles, such as the near wall/roof a building interior is painted with. The pedestal x-ray
 // keys off this rather than off distance: the moment you step behind any part of an interior's
@@ -7780,7 +7824,23 @@ export default function AssetStudio() {
   const rampCur = useRef(null);
   const areaAnchor = useRef(null);                       // {r, c} anchor cell while dragging out an area-copy rectangle — cleared on commit
   const clipboard = useRef(null);                        // { w, h, fg, bg, fx } captured from the last area-copy selection, keyed relative to its own top-left corner
-  const fadedFrontKeys = useRef(new Set()); // Front cell keys currently faded, so leaving a cell restores it and unchanged cells aren't touched at all
+  const fadedFrontKeys = useRef(new Map()); // Front cell key -> the opacity it is currently faded TO, so leaving a cell restores it and a cell whose step didn't move isn't touched at all
+  // key -> the Front cell's element, indexed once per mounted layer. The gradient window rewrites
+  // a few hundred cells a frame as you walk; a querySelector for each was measured cheap when the
+  // window was a flat set that changed a few cells at a time, and this keeps it cheap now. Falls
+  // back to a query on a miss, and re-indexes if the memoised layer ever remounts.
+  const frontCellIndex = useRef({ root: null, map: null });
+  const frontCellEl = (k) => {
+    const root = frontCellsRef.current; if (!root) return null;
+    if (frontCellIndex.current.root !== root) { const map = new Map(); for (const el of root.querySelectorAll("[data-fk]")) map.set(el.getAttribute("data-fk"), el); frontCellIndex.current = { root, map }; }
+    const map = frontCellIndex.current.map;
+    let el = map.get(k);
+    // A cell not in the index, or one whose element has since been replaced (React keeps the
+    // wrapper node across a level change through a door, so `root` alone can't tell): look it
+    // up once and remember it, so the slow path is paid per key, not per frame.
+    if (!el || !el.isConnected) { el = root.querySelector(`[data-fk="${k}"]`) || null; if (el) map.set(k, el); else map.delete(k); }
+    return el;
+  };
   const xrayFrontSig = useRef("");         // signature of the Front cells the player was behind last frame; the flood fill above only re-runs when this changes, so standing still costs nothing
   const xrayPedKeys = useRef(new Set());   // marker keys of the pedestals that sheet hides — the loop fades the wall over each one, the render draws them by distance
   const playerCenter = useRef({ x: 0, y: 0 }); // the player's hitbox centre, published each frame by the loop (which already has the live pw/ph) so the render can measure distances without re-deriving the body size per drawn thing
@@ -10868,19 +10928,26 @@ export default function AssetStudio() {
         xrayPedKeys.current = peds;
       }
       // Front tiles the player is currently behind go translucent — imperatively, on just the
-      // handful of covered cells, because this layer is deliberately memoized for playtest
-      // performance and must NOT rebuild every frame. Touch only cells whose state changed.
+      // covered cells, because this layer is deliberately memoized for playtest performance and
+      // must NOT rebuild every frame. Touch only cells whose VALUE changed: the window is a
+      // gradient now (frontFadeMap — nearly clear against the body, solid at the radius), so a
+      // cell's opacity moves as you walk, but it is quantised to FRONT_FADE_STEP and a cell
+      // whose step did not change is not written. The elements are indexed once per mounted
+      // layer (frontCellEl) rather than querySelector'd per cell per frame — cheap as that was
+      // measured (see CLAUDE.md), the gradient touches several times as many cells as the flat
+      // window did.
       if (frontCellsRef.current) {
-        // The see-through window (padded), PLUS the wall directly over any x-rayed pedestal. Fading
-        // the wall — rather than lifting the pedestal above it — is what lets the item keep its own
-        // colours and stay BEHIND the player, exactly like the player's own see-through window.
-        const want = new Set(frontFadeKeys(lv.front, p.x, p.y, pw, ph, CW, CH, FRONT_FADE_PAD_CELLS));
+        // The see-through window, PLUS the wall directly over any x-rayed pedestal at the old
+        // flat reveal. Fading the wall — rather than lifting the pedestal above it — is what lets
+        // the item keep its own colours and stay BEHIND the player, exactly like the window.
+        const want = frontFadeMap(lv.front, p.x, p.y, pw, ph, CW, CH, FRONT_FADE_RADIUS_CELLS);
         for (const mk of xrayPedKeys.current) {
           const [pr0, pc0] = mk.split(",").map(Number);
-          for (const ck of pedestalCoverKeys(pr0, pc0)) if (lv.front[ck]) want.add(ck);
+          for (const ck of pedestalCoverKeys(pr0, pc0)) if (lv.front[ck]) want.set(ck, Math.min(want.has(ck) ? want.get(ck) : 1, FRONT_XRAY_OPACITY));
         }
-        for (const k of fadedFrontKeys.current) if (!want.has(k)) { const d = frontCellsRef.current.querySelector(`[data-fk="${k}"]`); if (d) d.style.opacity = ""; }
-        for (const k of want) if (!fadedFrontKeys.current.has(k)) { const d = frontCellsRef.current.querySelector(`[data-fk="${k}"]`); if (d) d.style.opacity = "0.55"; }
+        const had = fadedFrontKeys.current;
+        for (const k of had.keys()) if (!want.has(k)) { const d = frontCellEl(k); if (d) d.style.opacity = ""; }
+        for (const [k, op] of want) if (had.get(k) !== op) { const d = frontCellEl(k); if (d) d.style.opacity = String(op); }
         fadedFrontKeys.current = want;
       }
 
@@ -10904,8 +10971,8 @@ export default function AssetStudio() {
       cancelAnimationFrame(raf); if (myGen === __ptLoopGen) __ptLoopGen++; window.removeEventListener("keydown", kd); window.removeEventListener("keyup", ku); window.removeEventListener("blur", onBlur);
       // Playtest over (or level/loadout changed): the memoized Front layer lives on, so any cells
       // left faded must be restored by hand or they'd stay see-through back in the editor.
-      if (frontCellsRef.current) for (const k of fadedFrontKeys.current) { const d = frontCellsRef.current.querySelector(`[data-fk="${k}"]`); if (d) d.style.opacity = ""; }
-      fadedFrontKeys.current = new Set();
+      if (frontCellsRef.current) for (const k of fadedFrontKeys.current.keys()) { const d = frontCellEl(k); if (d) d.style.opacity = ""; }
+      fadedFrontKeys.current = new Map();
       xrayFrontSig.current = ""; xrayPedKeys.current = new Set(); // no stale interior left x-rayed once play stops
       // Fires that burned out during play are only hidden imperatively; the level still has them.
       // Restore every hazard element's display so the editor shows the full painted set again.

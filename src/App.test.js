@@ -127,6 +127,11 @@ import {
   connectedFrontRegion,
   throwStunRadiusCells,
   frontFadeKeys,
+  frontFadeMap,
+  frontFadeOpacity,
+  FRONT_FADE_MIN_OPACITY,
+  FRONT_FADE_STEP,
+  FRONT_XRAY_OPACITY,
   pedestalCoverKeys,
   pedestalXrayGhost,
   PED_XRAY_NEAR_CELLS,
@@ -1690,6 +1695,63 @@ describe("see-through window radius", () => {
   test("only painted cells are returned, padding or not", () => {
     expect(frontFadeKeys({ "5,5": 1 }, 150, 150, 30, 30, 30, 30, 4)).toEqual(["5,5"]);
     expect(frontFadeKeys(null, 150, 150, 30, 30, 30, 30, 4)).toEqual([]);
+  });
+
+  // Blake: "when behind a front layer as the player it all becomes invisible in a big square
+  // ... I'd like it to become a more almost circular radius where the closer the front layer is
+  // to the player the more you can see through it."
+  describe("the see-through window is round and fades with distance", () => {
+    // Same 1x1 body at cell (5,5), Front paint everywhere; radius 3 cells = 90px.
+    const near = (k, m) => m.get(k);
+
+    test("the cell you are in is as clear as it gets, and the window is solid at the radius", () => {
+      const m = frontFadeMap(front, 150, 150, 30, 30, 30, 30, 3);
+      expect(near("5,5", m)).toBe(FRONT_FADE_MIN_OPACITY);
+      expect(m.has("2,5")).toBe(true);    // 3 cells straight up: its centre is 75px from the box edge, inside the 90px radius
+      expect(near("2,5", m)).toBeLessThan(1);
+      expect(m.has("1,5")).toBe(false);   // 4 up: 105px out, past the radius — solid, not in the map at all
+      expect(m.has("5,9")).toBe(false);
+    });
+
+    test("closer is clearer: opacity rises monotonically with distance", () => {
+      const m = frontFadeMap(front, 150, 150, 30, 30, 30, 30, 2); // 60px radius, so neighbouring cells land on different steps
+      const col = ["5,5", "4,5", "3,5"].map((k) => near(k, m)); // 0, 15, 45 px from the box edge
+      expect(col[0]).toBeLessThan(col[1]);
+      expect(col[1]).toBeLessThan(col[2]);
+      expect(col[2]).toBeLessThan(1);
+      expect(col[1]).toBeLessThan(FRONT_XRAY_OPACITY); // one cell out is still clearer than the old flat 0.55
+    });
+
+    test("it is round: the diagonal is further away than the straight line, so it is more solid", () => {
+      const m = frontFadeMap(front, 150, 150, 30, 30, 30, 30, 3);
+      expect(near("3,5", m)).toBeLessThan(near("3,7", m));      // 45px straight up vs 64px on the diagonal
+      // the corners of the old square are exactly what is gone
+      expect(m.has("2,2")).toBe(false);
+      expect(m.has("2,8")).toBe(false);
+    });
+
+    test("the curve is squared, quantised, and clamped to 1", () => {
+      expect(frontFadeOpacity(0)).toBe(FRONT_FADE_MIN_OPACITY);
+      expect(frontFadeOpacity(1)).toBe(1);
+      expect(frontFadeOpacity(2)).toBe(1);
+      expect(frontFadeOpacity(-1)).toBe(FRONT_FADE_MIN_OPACITY);
+      // half way out is far nearer the clear end than the solid one — the window is generous near you
+      expect(frontFadeOpacity(0.5)).toBeLessThan((FRONT_FADE_MIN_OPACITY + 1) / 2);
+      // every value lands on a step
+      for (const t of [0.1, 0.33, 0.5, 0.77, 0.9]) expect(Math.round(frontFadeOpacity(t) / FRONT_FADE_STEP)).toBeCloseTo(frontFadeOpacity(t) / FRONT_FADE_STEP, 6);
+    });
+
+    test("measured from the body's BOX, so a tall body is clear from head to foot", () => {
+      // A 1x7 body: its own seven cells all read the minimum, not a value that grows toward the feet.
+      const m = frontFadeMap(front, 150, 60, 30, 210, 30, 30, 3);
+      for (let r = 2; r <= 8; r++) expect(near(r + ",5", m)).toBe(FRONT_FADE_MIN_OPACITY);
+      expect(near("10,5", m)).toBeGreaterThan(FRONT_FADE_MIN_OPACITY); // two below the feet: starts to close in
+    });
+
+    test("only painted cells, and nothing with no Front at all", () => {
+      expect([...frontFadeMap({ "5,5": 1 }, 150, 150, 30, 30, 30, 30, 4).keys()]).toEqual(["5,5"]);
+      expect(frontFadeMap(null, 150, 150, 30, 30, 30, 30, 4).size).toBe(0);
+    });
   });
 });
 
