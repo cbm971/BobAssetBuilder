@@ -4526,6 +4526,18 @@ export const levelObjectFootprint = (object, propAsset) => {
   const scale = object.canvasScale ? size / Math.max(W, H) : size / Math.max(box.w, box.h);
   return { cols: Math.max(1, box.w * scale), rows: Math.max(1, box.h * scale), box };
 };
+// The box a live explosion (an "explode" shot's boom) draws in, in px, plus the tight art box to
+// crop the prop to. "Boom size" means exactly what a placed prop's size means — the longer side
+// of the prop's VISIBLE art spans that many cells — so it goes through the same footprint rule a
+// fresh placement uses (fitArt). It did not: the boom handed propArtInner the bare size with no
+// tight box, so the WHOLE 200x260 design canvas was scaled into `size` cells and the explosion
+// drawn on it came out as the fraction of the canvas it happened to cover. Blake's RPG, with
+// Boom size and the prop both maxed, landed as "like 2x2" and no slider could grow it. Without a
+// prop (the plain 💥 glyph) the box stays square, as before.
+export const boomLayout = (propAsset, size, cellPx) => {
+  const fp = levelObjectFootprint({ kind: "prop", size: size || 3, fitArt: true }, propAsset || null);
+  return { width: fp.cols * cellPx, height: fp.rows * cellPx, box: fp.box };
+};
 export const objFootprintAnchor = (r, c, footprint) => {
   const rows = Math.max(1, (footprint && footprint.rows) || 1);
   const cols = Math.max(1, (footprint && footprint.cols) || 1);
@@ -16542,16 +16554,21 @@ export default function AssetStudio() {
                   // A live explosion: the weapon's chosen Object/Prop, drawn in the front layer at
                   // the impact point, playing its animation frames once across the boom's short life
                   // and fading out at the end. No prop assigned -> a plain 💥 so the blast is still
-                  // visible. Aspect-correct, same as any placed prop (propArtInner).
+                  // visible. Aspect-correct and cropped to the art, same as a placed prop (boomLayout
+                  // -> propArtInner with its tight box). This call used to pass propArtInner four
+                  // arguments against its seven-argument signature: the frame index landed in the
+                  // heightPx slot and the key in frameIdx, so the frame lookup was frames[NaN] — the
+                  // boom never animated, it only ever showed the base pose — and with no tight box the
+                  // art drew at canvas scale, which is the "explosion is tiny" bug boomLayout explains.
                   const pa = b.propId ? findA(b.propId) : null;
-                  const sz = LV_CELL * (b.size || 3);
+                  const lay = boomLayout(pa, b.size || 3, LV_CELL);
                   const frames = (pa && pa.frames && pa.frames.length) ? pa.frames.length : 1;
                   const prog = b.life / Math.max(1, b.maxLife);
                   const frameIdx = Math.min(frames - 1, Math.floor(prog * frames));
                   const fade = prog > 0.66 ? Math.max(0, 1 - (prog - 0.66) / 0.34) : 1;
                   return (
-                    <div key={"boom" + i} className="lobj infront" style={{ left: b.x - sz / 2, top: b.y - sz / 2, width: sz, height: sz, zIndex: 9000, opacity: fade }}>
-                      {pa ? propArtInner(pa, sz, frameIdx, "boom" + i) : <span style={{ fontSize: sz * 0.7 + "px", lineHeight: 1 }}>{b.char || DEFAULT_BOOM_CHAR}</span>}
+                    <div key={"boom" + i} className="lobj infront" style={{ left: b.x - lay.width / 2, top: b.y - lay.height / 2, width: lay.width, height: lay.height, zIndex: 9000, opacity: fade }}>
+                      {pa ? propArtInner(pa, lay.width, lay.height, frameIdx, "boom" + i, lay.box) : <span style={{ fontSize: Math.max(lay.width, lay.height) * 0.7 + "px", lineHeight: 1 }}>{b.char || DEFAULT_BOOM_CHAR}</span>}
                     </div>
                   );
                 })}

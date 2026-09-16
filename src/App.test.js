@@ -176,6 +176,7 @@ import {
   objKeyAt,
   removeLevelObject,
   levelObjectFootprint,
+  boomLayout,
   levelShapeLabel,
   propVisibleArtBox,
   recolorAsset,
@@ -3371,6 +3372,27 @@ describe("objects place centred on the clicked cell", () => {
   test("legacy Prop placements keep their square bounds until explicitly converted", () => {
     const prop = { angles: { front: [{ id: "wide", x: 0, y: 200, w: 200, h: 40 }] } };
     expect(levelObjectFootprint({ kind: "prop", size: 40 }, prop)).toEqual({ cols: 40, rows: 40, box: null });
+  });
+
+  test("an explode shot's boom is sized like a placed prop: the visible art spans Boom size cells", () => {
+    // Blake's RPG at Boom size 8 came out "like 2x2": the boom scaled the whole 200x260 design
+    // canvas into 8 cells, so an explosion drawn 50 units wide showed as 2. The art itself must
+    // span the size, exactly as a fresh (fitArt) placement of the same prop would.
+    const boom = { frames: [
+      { front: [{ id: "a", x: 75, y: 100, w: 50, h: 50 }] },
+      { front: [{ id: "b", x: 70, y: 95, w: 60, h: 60 }, { id: "hb", x: 0, y: 0, w: 200, h: 260, isHitbox: true }] },
+    ] };
+    const lay = boomLayout(boom, 8, 10);
+    expect(lay.width).toBe(80);                       // 8 cells of 10px: the art's longer side, not the canvas
+    expect(lay.height).toBe(80);
+    expect(lay.box).toEqual(propVisibleArtBox(boom)); // one box across every frame, so the animation does not jitter
+    expect(lay.box).toEqual({ minX: 70, minY: 95, w: 60, h: 60 });
+    // Aspect is kept: a wide blast is wider than it is tall.
+    const wide = { frames: [{ front: [{ id: "w", x: 0, y: 100, w: 200, h: 50 }] }] };
+    expect(boomLayout(wide, 8, 10)).toEqual({ width: 80, height: 20, box: { minX: 0, minY: 100, w: 200, h: 50 } });
+    // No prop (the plain glyph) and a missing size keep the old square box.
+    expect(boomLayout(null, 4, 10)).toEqual({ width: 40, height: 40, box: null });
+    expect(boomLayout(null, undefined, 10)).toEqual({ width: 30, height: 30, box: null });
   });
 
   test("one prop can now be the whole backdrop instead of two halves that must match", () => {
