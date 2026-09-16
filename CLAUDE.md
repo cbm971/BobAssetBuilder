@@ -1164,6 +1164,47 @@ to 4ms by the spec, which made every measurement read "5ms" regardless of what w
 sent a whole investigation down the wrong path. Post a `MessageChannel` message instead (not
 clamped, and it lands after React's own scheduler task).
 
+**THE CHURCH ON TRAILOR PARK M6 (2026-09-16): the see-through window was repainting textured cells.**
+Blake: frame-rate dips, mostly inside the church, worse in combat, some on M3 too. Measured on his real
+export (152 assets, 12 levels) in the running game, Squirrel in tow:
+
+* Script is NOT it, and it is flat: the loop + React commit is **5.9–6.5 ms a frame** (dev build,
+  timing wrapper on) at column 10 outdoors and at column 128 inside the church, standing or walking.
+  Frame pacing on the shim is 60/60 everywhere. Nothing in the JS numbers tells the church apart.
+* What tells it apart is what changes on screen. Walking outdoors writes **0** Front-cell styles a
+  frame; walking through the church writes **~40–70** (144 cells sit in the window at once), and each
+  write starts the 120 ms `.lcell.front` opacity transition. The church's Front sheet is 937 cells,
+  704 of them textured — 588 white stone brick (90×45 tile, 18 rects), 64 stained glass (150×150 tile,
+  **304 paths, 63 KB of SVG per cell**), 36 wood panelling. An un-promoted opacity change repaints the
+  cell, and a repaint rebuilds the cell's SVG pattern from its vector paths (the rasterised tile is
+  cached only for as long as the cell's paint record lives). Measured in the same page with a canvas
+  pattern fill of the exact background image, per 30-px cell: **stained glass 0.58 ms fresh vs
+  0.02 ms cached, grass 0.35 vs 0.01, stone brick 0.017 vs 0.007**. Up to ~20 glass cells plus ~100
+  brick ones are in the window, and with the transition running all of them repaint every frame —
+  that is a frame budget's worth of raster on top of the ordinary work, and nothing of the kind
+  happens outdoors because nothing outdoors is a Front cell.
+* The fix is `promotedFrontKeys`: the fade loop gives a Front cell `will-change: opacity` the FIRST
+  time the window writes to it, so the opacity and its transition run on the compositor and the cell
+  is never repainted again; the cleanup takes every layer back when play stops. Only cells the window
+  has reached are promoted (144 standing, 529 after walking half the church, 0 outdoors, 0 after
+  ■ Stop, all verified by reading the DOM back), and a cell stays promoted rather than following the
+  window out, because dropping the layer repaints the cell into the sheet — the exact re-raster this
+  avoids, at the trailing edge, on every cell boundary. Script cost after: 6.1–6.5 ms, unchanged.
+* **What was NOT measured, and why.** The Browser pane stayed hidden for the whole session (the
+  Claude window was on screen; the pane itself was closed), so the compositor produced no frames:
+  no real frame times, no paint or raster timings, and the long-animation-frame API went silent too.
+  The canvas number above is a stand-in for the raster, not the raster. If the pane is ever visible,
+  the A/B is one CSS rule away in the same page: inject `.lcell.front{will-change:auto !important}`
+  to get the old behaviour back, walk the church both ways, and compare rAF intervals.
+* Ruled out on the way: props with cutters (9 masked elements on the whole level, none in the church
+  viewport); Front-layer objects (28, none in the church viewport); DOM count (the church viewport
+  holds 257 Front cells + 33 Background boxes + 6 objects against ~40 boxes outdoors — more, but
+  static); the per-cell element lookup (indexed, see `frontCellEl`). Do not "fix" the stained glass
+  by simplifying its SVG — it is Blake's texture, and with the layer its cost is paid once.
+* Trap: the Squirrel follows you into the church and kills a 25 HP player in ~2 s, which reads as
+  "the teleport failed" (the player is back at x=60). Find the HP ref (the numeric ref that drops by
+  10 on a bite) and top it up before measuring.
+
 **Facing.** Enemy art is drawn facing LEFT by default; player art (body/skin/dressed)
 faces RIGHT. `enemyNeedsFlip` and `playerSpriteMirrored` are the two answers, and
 anything deriving piece-local x from the mirror (muzzle spawn, melee hitbox) must read

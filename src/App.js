@@ -7837,6 +7837,7 @@ export default function AssetStudio() {
   const areaAnchor = useRef(null);                       // {r, c} anchor cell while dragging out an area-copy rectangle — cleared on commit
   const clipboard = useRef(null);                        // { w, h, fg, bg, fx } captured from the last area-copy selection, keyed relative to its own top-left corner
   const fadedFrontKeys = useRef(new Map()); // Front cell key -> the opacity it is currently faded TO, so leaving a cell restores it and a cell whose step didn't move isn't touched at all
+  const promotedFrontKeys = useRef(new Set()); // Front cell keys the see-through window has ever touched this playtest — each carries will-change:opacity from then on (see the fade in the loop), and the cleanup takes it back off
   // key -> the Front cell's element, indexed once per mounted layer. The gradient window rewrites
   // a few hundred cells a frame as you walk; a querySelector for each was measured cheap when the
   // window was a flat set that changed a few cells at a time, and this keeps it cheap now. Falls
@@ -10958,8 +10959,23 @@ export default function AssetStudio() {
           for (const ck of pedestalCoverKeys(pr0, pc0)) if (lv.front[ck]) want.set(ck, Math.min(want.has(ck) ? want.get(ck) : 1, FRONT_XRAY_OPACITY));
         }
         const had = fadedFrontKeys.current;
+        // A CELL THE WINDOW TOUCHES GETS ITS OWN COMPOSITOR LAYER, THE FIRST TIME AND FOR THE REST OF
+        // THE PLAYTEST (2026-09-16, "the church on Trailor Park 6 runs badly"). Without it every one of
+        // these opacity writes — and every frame of the 120ms transition it starts, on ~40-70 cells a
+        // frame while walking — REPAINTS the cell on the CPU, and repainting a textured cell throws
+        // away the rasterised copy of its SVG pattern, so the pattern is drawn again from its vector
+        // paths: measured in this page at ~0.58ms per stained-glass cell (a 150px tile of ~300 paths)
+        // against ~0.02ms with the bitmap cached, and the church puts up to ~20 glass cells plus ~100
+        // brick ones in the window at once. Outdoors nothing is Front, so nothing repaints, which is
+        // why the same level was fine there. With the layer, opacity is a compositor property: the
+        // transition runs off the main thread and the cell's paint is never touched again. Only cells
+        // the window has actually reached are promoted (Tree Treasure Room 1 has 917 Front cells; the
+        // window holds ~110), and a promoted cell STAYS promoted rather than following the window out —
+        // dropping the layer repaints the cell into the sheet again, which is the very re-raster this
+        // avoids, and it would happen at the window's trailing edge on every cell boundary you cross.
+        const promoted = promotedFrontKeys.current;
         for (const k of had.keys()) if (!want.has(k)) { const d = frontCellEl(k); if (d) d.style.opacity = ""; }
-        for (const [k, op] of want) if (had.get(k) !== op) { const d = frontCellEl(k); if (d) d.style.opacity = String(op); }
+        for (const [k, op] of want) if (had.get(k) !== op) { const d = frontCellEl(k); if (d) { if (!promoted.has(k)) { promoted.add(k); d.style.willChange = "opacity"; } d.style.opacity = String(op); } }
         fadedFrontKeys.current = want;
       }
 
@@ -10985,6 +11001,10 @@ export default function AssetStudio() {
       // left faded must be restored by hand or they'd stay see-through back in the editor.
       if (frontCellsRef.current) for (const k of fadedFrontKeys.current.keys()) { const d = frontCellEl(k); if (d) d.style.opacity = ""; }
       fadedFrontKeys.current = new Map();
+      // ...and the compositor layers the window handed out go back too — a layer per cell is only
+      // worth its memory while a fade can actually run, and in the editor it never can.
+      if (frontCellsRef.current) for (const k of promotedFrontKeys.current) { const d = frontCellEl(k); if (d) d.style.willChange = ""; }
+      promotedFrontKeys.current = new Set();
       xrayFrontSig.current = ""; xrayPedKeys.current = new Set(); // no stale interior left x-rayed once play stops
       // Fires that burned out during play are only hidden imperatively; the level still has them.
       // Restore every hazard element's display so the editor shows the full painted set again.
@@ -16056,12 +16076,11 @@ export default function AssetStudio() {
                     //
                     // Gated on `play` deliberately: `behind` cannot be true outside a playtest, so in the
                     // editor a layer per Front object would be memory spent on a transition that never runs.
-                    // And deliberately NOT extended to `.lcell.front`, which fades the same way and is fine
-                    // as it is: the see-through window is PADDED, so it slides a few cells at a time and
-                    // those transitions run constantly while you walk rather than twice per object — if they
-                    // were the expensive ones the stutter would be continuous, not at the two ends. They are
-                    // also plain boxes rather than masked art, and one room here has 917 of them; a layer
-                    // each would cost far more than the repaint it saved.
+                    // `.lcell.front` used to be deliberately left out of this (917 of them in one room; a
+                    // layer each looked dearer than the repaint) — and that was the church on Trailor Park 6:
+                    // those cells are textured, and a repaint of a textured cell re-rasterises its SVG
+                    // pattern from scratch. They are promoted now too, but imperatively and only the cells
+                    // the see-through window has reached — see promotedFrontKeys and the note in the loop.
                     const eraseNow = !play && lTool === "erase";
                     const eraseObject = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined;
                     const prop = o.kind === "prop";
