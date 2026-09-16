@@ -1731,12 +1731,40 @@ export const rollTagLuckDrop = (assets, ownGear, effects, rnds) => {
   }
   return null;
 };
+// WHERE A DROP COMES TO REST. `y` is the dead unit's feet — and that used to be `ep.y + standH`
+// whatever pose it died in, so a creature that DUCKED under the shot that killed it (its wrapper is
+// crouch-height, so its feet are standH - crouchH higher than that sum) had its loot planted that
+// far underground. Blake: "an item dropped and I cannot pick it up. I think it slightly dropped
+// underground." Past ~40px the pickup box below no longer touched his feet at all. So a drop now
+// SETTLES: from the row its feet are in, scan down for the first solid cell (terrain or a solid
+// object, via `solidAt`) and sit on its top edge — which also un-buries a point already inside
+// solid, and lands the loot of a unit killed mid-jump on the ground beneath it instead of leaving
+// it hanging in the air. Nothing below at all: the level floor.
+export const settleDropY = (rows, cols, x, y, CW, CH, solidAt) => {
+  const c = Math.floor(x / CW);
+  if (c < 0 || c >= cols) return Math.max(0, Math.min(rows * CH, y));
+  let r = Math.floor(y / CH);
+  // Under the level floor, or inside solid: come UP to the top of whatever solid run this is in.
+  // The first version only scanned downward, and the test for Blake's own case caught it — a
+  // corpse on the bottom row with its loot a whole cell under the floor starts the scan past the
+  // level's end, and "nothing below" then reports the floor line the loot was already under.
+  if (r >= rows) { r = rows; while (r > 0 && solidAt(r - 1, c)) r--; return r * CH; }
+  if (r < 0) r = 0;
+  if (solidAt(r, c)) { while (r > 0 && solidAt(r - 1, c)) r--; return r * CH; }
+  for (; r < rows; r++) if (solidAt(r, c)) return r * CH; // in the air: down to the first solid
+  return rows * CH;
+};
+// The pickup box: a square standing on `drop.y`, plus a forgiving apron — half a cell out to each
+// side and half a cell BELOW the resting point — so loot that ends up a little sunk into a ramp or
+// an uneven edge is still reachable from standing over it (the second half of the fix above; the
+// settle is the cause, this is the safety net).
+export const DROP_PICK_SLACK_CELLS = 0.5;
 export const enemyDropOverlapping = (drops, x, y, w, h, cellSize) => {
-  const box = Math.max(18, (cellSize || 30) * 1.35), half = box / 2;
+  const cell = cellSize || 30, box = Math.max(18, cell * 1.35), half = box / 2, slack = cell * DROP_PICK_SLACK_CELLS;
   for (const [key, drop] of Object.entries(drops || {})) {
     if (!drop || !drop.item) continue;
-    const left = drop.x - half, top = drop.y - box;
-    if (x < left + box && x + w > left && y < top + box && y + h > top) return { key, drop };
+    const left = drop.x - half - slack, right = drop.x + half + slack, top = drop.y - box, bottom = drop.y + slack;
+    if (x < right && x + w > left && y < bottom && y + h > top) return { key, drop };
   }
   return null;
 };
@@ -2887,6 +2915,16 @@ const PLAYER_INVULN_FRAMES = 40;   // brief invulnerability after the player is 
    fire (and a tackler, via downCd) DOES honour; invuln is raised alongside it so the same blink
    the hit flash already draws shows the window on screen, just for longer and tinted gold.
 
+   LOSING A LIFE KNOCKS YOU DOWN (2026-09-16). Blake: "when the player or enemy loses a life they
+   should fall down for half a second and be invincible until they stand back up." So the revive
+   goes through the same 😵 channel a Tackle uses — `down` for EXTRA_LIFE_DOWN_FRAMES, which lays
+   the sprite flat (layFlatLiftPx), freezes input/AI, and on standing sets the ordinary get-up
+   grace (downCd) by itself. The untouchable window is the fall PLUS EXTRA_LIFE_GETUP_FRAMES after
+   standing: "until they stand back up" read literally hands the next life straight to the fire
+   you fell in, because you cannot walk while you are down and you have a sixth of a second once
+   you are up. Half a second on your feet is enough to step clear, and the gold flash runs the
+   whole window so it is visible when it ends.
+
    THE SAME RULE SERVES A UNIT (2026-09-16). It shipped player-side only and Blake's first report
    was that an enemy in the cat head got nothing, which from where he stands is a bug — Tackle and
    Magazine Size both work in both directions, so of course the hat should. The pieces are shared
@@ -2902,7 +2940,9 @@ const PLAYER_INVULN_FRAMES = 40;   // brief invulnerability after the player is 
        centralised revive (see the pass before the loot roll) is worthless without this, because
        a machine gun would spend nine lives in a second and it would read as "it just dies". */
 export const EXTRA_LIFE_HP = 1;                 // what you get back up with
-export const EXTRA_LIFE_GRACE_FRAMES = 90;      // ~1.5s of flashing, untouchable, to get clear
+export const EXTRA_LIFE_DOWN_FRAMES = 30;       // half a second flat on the floor
+export const EXTRA_LIFE_GETUP_FRAMES = 30;      // ...and half a second on your feet, still untouchable, to step clear
+export const EXTRA_LIFE_GRACE_FRAMES = EXTRA_LIFE_DOWN_FRAMES + EXTRA_LIFE_GETUP_FRAMES; // the whole flashing window
 export const extraLivesGranted = (effects) => {
   let n = 0;
   for (const e of (effects || [])) if (e && e.type === "extraLives") n += Math.max(0, Math.round(e.lives ?? 1));
@@ -2913,10 +2953,15 @@ export const reviveInPlace = (p) => {
   if (!p) return p;
   p.invuln = Math.max(p.invuln || 0, EXTRA_LIFE_GRACE_FRAMES);
   p.lifeGrace = EXTRA_LIFE_GRACE_FRAMES;
-  // Up on your feet and clear-headed: a revive that left you 💫 stunned or 😵 flat on the floor
-  // would hand the next life straight to whoever just took this one. downCd is the tackle get-up
-  // grace, held for the whole window so a tackler standing over you cannot re-floor you mid-flash.
-  p.stun = 0; p.down = 0; p.downCd = Math.max(p.downCd || 0, EXTRA_LIFE_GRACE_FRAMES);
+  // DOWN YOU GO — exactly the half second, whatever you were doing. Not Math.max'd with a tackle
+  // already running: a life lost while flat under a tackler restarts the clock at half a second
+  // rather than leaving you pinned for the tackle's full eight. Clear-headed on the way down (a
+  // stun carried into the new life would hand it straight back), and the same hands-empty clears
+  // knockDownPlayer makes, because a raised guard or a half-drawn grenade cannot survive a fall.
+  // downCd is left alone on purpose: the loop sets the ordinary get-up grace the frame `down`
+  // reaches zero, and the window here outlasts it anyway.
+  p.stun = 0; p.down = EXTRA_LIFE_DOWN_FRAMES;
+  p.blocking = null; p.throwAiming = false; p.throwAim = 0; p.burstLeft = 0;
   p.burnPool = 0; p.onFire = 0;
   // A unit's corpse flag. The revive runs the same frame as the death, before the dead branch
   // ever sees it, so this is belt-and-braces — but a settled corpse that got back up must not
@@ -7453,6 +7498,12 @@ export default function AssetStudio() {
   const [bgLib, setBgLib] = useState([]);               // saved reusable backgrounds — {id, name} index; full data fetched on load
   const [bgName, setBgName] = useState("");             // name field for saving the current level's background
   const [lLayer, setLLayer] = useState("fg");          // fg (collision) | bg | obj
+  // 👁 Layers hidden IN THE EDITOR ONLY — { fg, front }. Blake: "I need a button to inspect layers
+  // behind front layers so that I can edit the background layer behind this front layer without
+  // erasing the front layer." Purely a display switch: the level data is untouched, Playtest
+  // ignores it (the class is only put on the grid while not playing), and picking a hidden layer's
+  // own tab shows it again, because painting into a layer you cannot see is how art gets lost.
+  const [lHidden, setLHidden] = useState({ fg: false, front: false });
   const [lTool, setLTool] = useState("paint");         // paint | erase
   const [layerMove, setLayerMove] = useState(null);    // { layer, cells: {key: val} } — a flood-matched region picked up with the Move tool, awaiting a destination layer
   const [lColor, setLColor] = useState("#6b7b3a");
@@ -8526,7 +8577,7 @@ export default function AssetStudio() {
         livesUsed.current += 1;
         playerHP.current = EXTRA_LIFE_HP;
         reviveInPlace(p);
-        flash("🐱 Extra life! Back up on " + EXTRA_LIFE_HP + " HP right where you fell — " + livesLeftNote(left - 1));
+        flash("🐱 Extra life! Down for a moment, then back on " + EXTRA_LIFE_HP + " HP right where you fell — " + livesLeftNote(left - 1));
         return true;
       }
       flash(deathMsg);
@@ -10587,7 +10638,7 @@ export default function AssetStudio() {
         ep.livesUsed = (ep.livesUsed || 0) + 1;
         enemyHP.current[k] = EXTRA_LIFE_HP;
         reviveInPlace(ep);
-        flash("🐱 " + (ea.name || "It") + " got back up on " + EXTRA_LIFE_HP + " HP — " + livesLeftNote(left - 1));
+        flash("🐱 " + (ea.name || "It") + " is down but not out — back on " + EXTRA_LIFE_HP + " HP, " + livesLeftNote(left - 1));
       }
 
       // Resolve loot in one central pass so fire, melee, bullets, explosions and friendly enemies
@@ -10603,8 +10654,15 @@ export default function AssetStudio() {
         const item = lucky || rollEnemyItemDrop(allAssets, ownGear);
         if (!item) { enemyDrops.current[k] = null; continue; }
         const shape = ea ? sideBodyShape(ea) : { fraction: 1 }, renderW = ea ? enemyRenderW(ea, CW) : CW;
-        const hitW = renderW * shape.fraction, standH = ea ? enemyStandH(ea, CH) : CH;
-        enemyDrops.current[k] = { item, x: ep ? ep.x + hitW / 2 : ec * CW + CW / 2, y: ep ? ep.y + standH : (er + 1) * CH };
+        // The feet are the bottom of the wrapper AS IT IS — crouch height if it ducked under the
+        // shot that killed it — and then the drop settles onto whatever is under that point. It
+        // used to be standH unconditionally, which put a crouched creature's loot underground.
+        const hitW = renderW * shape.fraction;
+        const bodyH = ea ? (ep && ep.crouch ? enemyCrouchH(ea, CH) : enemyStandH(ea, CH)) : CH;
+        const dropX = ep ? ep.x + (shape.centerFrac * renderW - hitW / 2) + hitW / 2 : ec * CW + CW / 2;
+        const feetY = ep ? ep.y + bodyH : (er + 1) * CH;
+        const dropY = settleDropY(lv.rows, lv.cols, dropX, feetY, CW, CH, (rr, cc) => fgSolid(lv.fg[cellKey(rr, cc)]) || fxBlocks(rr, cc));
+        enemyDrops.current[k] = { item, x: dropX, y: dropY };
         flash((lucky ? "🍀 " : "🎁 ") + item.name + " dropped!");
       }
 
@@ -14012,7 +14070,17 @@ export default function AssetStudio() {
     setLayerMove(null);
   };
   const cancelMove = () => setLayerMove(null);
+  // 👁/🙈 one editor-hidden layer. Hiding the layer you are working ON also moves you to the
+  // Background tab — the whole reason to hide Foreground or Front is to get at what is behind it,
+  // and a paint tool left pointed at an invisible layer would draw where you cannot see.
+  const toggleHiddenLayer = (l) => {
+    const next = !lHidden[l];
+    setLHidden((h) => ({ ...h, [l]: next }));
+    if (next && lLayer === l) selectLayer("bg");
+    flash(next ? ("🙈 " + (l === "fg" ? "Foreground" : "Front") + " hidden in the editor — Playtest still shows it. Tap again to show.") : ("👁 " + (l === "fg" ? "Foreground" : "Front") + " shown again."));
+  };
   const selectLayer = (l) => {
+    if (lHidden[l]) setLHidden((h) => ({ ...h, [l]: false })); // picking a hidden layer's own tab shows it: never paint blind
     if (moving.current && l !== "obj" && l !== "marker") cancelMoving();
     if (lEnemyId) setLEnemyId("");            // a layer tab means "work on this layer" — leave enemy-placement so clicks stop dropping enemies
     if ((lTool === "select" || lTool === "copy") && l !== "obj" && l !== "marker") setLTool("paint");
@@ -14841,6 +14909,9 @@ export default function AssetStudio() {
       if (lTool === "adjust" && lLayer === "obj") {
         const hit = objTopAt(level, r, c, findA);
         if (!hit) { setLFxSel(null); setLFxEditIdx(null); flash("No object here — click one to pick it up for adjusting."); return; }
+        // An object on a 👁-hidden layer is not on screen, so it cannot be grabbed — dragging
+        // something you cannot see is how it ends up somewhere you cannot find.
+        { const hl = objectLay(level.fx[hit.key][hit.index]); if ((hl === "fg" && lHidden.fg) || (hl === "front" && lHidden.front)) { flash("🙈 That object is on the hidden " + (hl === "fg" ? "Foreground" : "Front") + " layer — show it with 👁 to adjust it."); return; } }
         setLFxSel(hit.key); setLFxEditIdx(hit.index);
         const [hr, hc] = hit.key.split(",").map(Number);
         const o = level.fx[hit.key][hit.index];
@@ -15037,6 +15108,23 @@ export default function AssetStudio() {
           <div className="lgroup">
             <div className="seg"><button className={lLayer === "fg" ? "on" : ""} onClick={() => selectLayer("fg")} >⬛ Foreground</button><button className={lLayer === "bg" ? "on" : ""} onClick={() => selectLayer("bg")} >🌫 Background</button><button className={lLayer === "front" ? "on" : ""} onClick={() => selectLayer("front")} >🎭 Front</button><button className={lLayer === "obj" ? "on" : ""} onClick={() => selectLayer("obj")} >🧩 Objects</button><button className={lLayer === "climb" ? "on" : ""} onClick={() => selectLayer("climb")} >🧗 Climb</button><button className={lLayer === "hazard" ? "on" : ""} onClick={() => selectLayer("hazard")} >🔥 Hazard</button><button className={lLayer === "marker" ? "on" : ""} onClick={() => selectLayer("marker")} title="Invisible during play">📍 Markers</button></div>
           </div>
+          {/* 👁 HIDE A LAYER WHILE YOU WORK BEHIND IT. A church interior is painted on Background
+              with its near wall on Front, and once that wall is up there was no way to see the
+              Background again short of erasing the wall — and Foreground blocks hide Background the
+              same way. These switch a layer OFF in the editor only (a class on the grid; see
+              .lgrid.hideFront / .hideFg), so the layer's cells and its objects take no clicks and
+              no erases while hidden, the data is never touched, and Playtest always shows all of it.
+              Its own group, not folded into the layer tabs, so "hide" cannot be mistaken for "paint
+              on" — the tabs choose what you edit, these choose what you see. */}
+          {!play && (
+            <div className="lgroup">
+              <span className="lgrouplabel">See through:</span>
+              <div className="seg">
+                <button className={lHidden.fg ? "on" : ""} onClick={() => toggleHiddenLayer("fg")} title={lHidden.fg ? "Foreground is hidden in the editor — tap to show it" : "Hide the Foreground layer in the editor so you can see and edit what is behind it (Playtest still shows it)"}>{lHidden.fg ? "🙈" : "👁"} Foreground</button>
+                <button className={lHidden.front ? "on" : ""} onClick={() => toggleHiddenLayer("front")} title={lHidden.front ? "Front is hidden in the editor — tap to show it" : "Hide the Front layer in the editor so you can see and edit what is behind it (Playtest still shows it)"}>{lHidden.front ? "🙈" : "👁"} Front</button>
+              </div>
+            </div>
+          )}
           <div className="lgroup">
             <span className="lgrouplabel">Action:</span>
             <div className="seg"><button className={lTool === "paint" ? "on" : ""} onClick={() => selectTool("paint")}>🖌 Paint</button><button className={lTool === "erase" ? "on" : ""} onClick={() => selectTool("erase")}>🧽 Erase</button>{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={lTool === "fill" ? "on" : ""} onClick={() => selectTool("fill")} >🪣 Fill</button>}{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={lTool === "move" ? "on" : ""} onClick={() => selectTool("move")} >🔀 Move</button>}{lLayer === "obj" && <button className={lTool === "adjust" ? "on" : ""} onClick={() => selectTool("adjust")} title="Click an object already in the level to line it up: drag it pixel by pixel, arrow-key it, snap its edges to the ground or to the object next to it, or push it in front of / behind the others.">✥ Adjust</button>}{(lLayer === "obj" || lLayer === "marker") && <button className={lTool === "select" ? "on" : ""} onClick={() => selectTool("select")} >👆 Select</button>}{(lLayer === "obj" || lLayer === "marker") && <button className={lTool === "copy" ? "on" : ""} onClick={() => selectTool("copy")} >📋 Copy</button>}<button className={lTool === "areaCopy" ? "on" : ""} onClick={() => selectTool("areaCopy")} >▭ Area Copy{hasClipboard ? " (" + clipboard.current.w + "×" + clipboard.current.h + " ready)" : ""}</button></div>
@@ -15357,6 +15445,7 @@ export default function AssetStudio() {
                 </p>
               );
             })()}
+            {!play && (lHidden.fg || lHidden.front) && <p className="statusline">🙈 Hidden in the editor: <b>{[lHidden.fg ? "Foreground" : null, lHidden.front ? "Front" : null].filter(Boolean).join(" and ")}</b> — still there, still in Playtest. Use the 👁 buttons to show {lHidden.fg && lHidden.front ? "them" : "it"} again.</p>}
             {!play && lTool === "areaCopy" && <p className="statusline">👉 Drag a rectangle to copy that area ({hasClipboard ? "already have a " + clipboard.current.w + "×" + clipboard.current.h + " copy loaded" : "nothing copied yet"}) — or click anywhere to stamp {hasClipboard ? "it" : "the last copy (once you've made one)"}.</p>}
             {!play && lTool === "fill" && fillPreview && <p className="statusline">🪣 Clicking here fills <b>{fillPreview.cells.length}{fillPreview.hitCap ? "+" : ""} cell{fillPreview.cells.length === 1 ? "" : "s"}</b> on <b>{lLayer === "fg" ? "Foreground" : lLayer === "bg" ? "Background" : "Front"}</b>{fillPreview.cells.length > 300 ? " — that's a lot; wrong layer tab?" : ""}</p>}
             {/* Adjust gets its own line because the panel it drives lives off to the right, and
@@ -15368,7 +15457,7 @@ export default function AssetStudio() {
               : <p className="statusline">👉 Clicking the canvas right now will <b>{lTool === "erase" ? "erase from" : lTool === "select" ? "select on" : lTool === "move" ? "pick up on" : "paint"}</b> the <b>{lLayer === "fg" ? "Foreground" : lLayer === "bg" ? "Background" : lLayer === "front" ? "Front" : lLayer === "obj" ? "Objects" : lLayer === "climb" ? "Climb" : lLayer === "hazard" ? "Fire" : "Markers"}</b> layer.</p>)}
             </div>
             <div className={"lscroll layer-" + lLayer}>
-              <div ref={lvRef} className="lgrid" style={{ width: lvW, height: lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px" }} onPointerDown={lvDown} onPointerMove={lvMove} onPointerLeave={() => setLHoverCell(null)}>
+              <div ref={lvRef} className={"lgrid" + (!play && lHidden.front ? " hideFront" : "") + (!play && lHidden.fg ? " hideFg" : "")} style={{ width: lvW, height: lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px" }} onPointerDown={lvDown} onPointerMove={lvMove} onPointerLeave={() => setLHoverCell(null)}>
                 {lvBgLayer}
                 {lvFgLayer}
                 {lvFrontLayer}
@@ -16163,11 +16252,10 @@ export default function AssetStudio() {
                             you, and it is the only on-screen difference between "immune" and "my
                             gun is broken". It appears the moment a conversation turns them. */}
                         {!unitTalkImmune(ep) && <div className="enemyHpTrack"><div className="enemyHpFill" style={{ width: (hpFrac * 100) + "%", background: hpFrac > 0.5 ? "#6bd06b" : hpFrac > 0.2 ? "#c8a23c" : "#b0504f" }} /></div>}
-                        {/* 🐱×N beside the HP bar for a unit still holding Extra Lives — read the
-                            same way the revive pass reads it (its live asset minus what it has
-                            spent), so the count shown is the count it gets. Without it the first
-                            revive is a surprise and the second reads as an enemy that won't die. */}
-                        {(() => { const n = extraLivesLeft(ea.effects, ep && ep.livesUsed); return n > 0 ? <div className="enemyLives">🐱×{n}</div> : null; })()}
+                        {/* NO 🐱×N COUNT HERE. A unit's Extra Lives used to be printed beside its HP
+                            bar (2026-09-16, for one day); Blake: "I don't like the x8 at all". The
+                            revive toast and the gold fall-and-flash are the whole tell now — an
+                            enemy's remaining lives are something you find out by knocking it down. */}
                         {/* Reload timer, directly above the HP bar: a ranged enemy caught mid-reload
                             is the window you push in, and the only other tell is that it stopped
                             shooting — which doesn't say how long you have. Fills left-to-right as
@@ -18103,6 +18191,13 @@ html,body{margin:0;padding:0;background:#0f1117}
 .lcell.bg{opacity:.42;z-index:1000}
 .lcell.front{z-index:6000;transition:opacity .12s ease}
 .lcell.moveSel{z-index:9000;background:rgba(79,124,246,0.28);outline:2px dashed #4f7cf6;outline-offset:-2px;pointer-events:none}
+/* 👁 EDITOR-ONLY LAYER HIDING (lHidden). display:none rather than opacity, so a hidden layer's
+   objects take no erase clicks either — hiding a wall to reach what is behind it must not be the
+   way the wall gets deleted. A Foreground cell is a bare .lcell (bg and front carry their own
+   class), so the fg rule excludes those two and the Move overlay. The class is only ever put on the
+   grid while NOT playing, so Playtest cannot inherit a hidden layer. */
+.lgrid.hideFront .lcell.front,.lgrid.hideFront .lobj.lay-front{display:none}
+.lgrid.hideFg .lcell:not(.bg):not(.front):not(.moveSel),.lgrid.hideFg .lobj.lay-fg{display:none}
 /* The bare .lobj z is for transient in-play things that aren't placed level objects — projectiles
    and thrown grenades, which should read over the terrain they fly past. Placed objects always
    carry a lay-* class and land on the ladder above instead. */
@@ -18113,17 +18208,21 @@ html,body{margin:0;padding:0;background:#0f1117}
 .lobj.infront{z-index:5101;transition:opacity .12s ease}
 .lobjGhost{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:4000;opacity:.5;outline:2px dashed rgba(255,255,255,.4);outline-offset:-2px;border-radius:4px}
 .enemyGhost{position:absolute;pointer-events:none;z-index:4000;opacity:.6;outline:2px dashed #c0504f;outline-offset:-2px;border-radius:6px;box-sizing:border-box}
-/* THE STATUS LAYER. Sits above the Front tiles (z 6) on purpose: a unit's HP, reload and 💫 are
-   information you need even when the unit itself is behind a tree. It is a plain positioned box
-   with no transform of its own, so the bars inside are free of the sprite wrapper's facing flip
-   and simply fill left-to-right. Spans the VISIBLE body, and the bars hang off its top edge. */
-.unitStatus{position:absolute;height:0;pointer-events:none;z-index:8000}
+/* THE STATUS LAYER. It is a plain positioned box with no transform of its own, so the bars
+   inside are free of the sprite wrapper's facing flip and simply fill left-to-right. Spans the
+   VISIBLE body, and the bars hang off its top edge.
+   UNDER THE FRONT LAYER, since 2026-09-16. It sat above the Front tiles (z 8000) from the day it
+   existed, on the theory that a unit's HP, reload and 💫 are information you need even when the
+   unit is behind a tree — and the practical result was an NPC hidden inside a church, behind a
+   painted front wall, with its 💬 floating crisply on the outside of the building. Blake: "I don't
+   like that I can see the dialogue box ... through a front layer." So the layer now takes the
+   rung between the units (5000) and their corpses (5050) below it, and the Front OBJECTS (5101+)
+   and Front PAINT (6000) above it: whatever hides the unit hides its badges, and the see-through
+   window the player carries (frontFadeKeys / behindFade) reveals both together. The player's own
+   .playerHpTrack stays at 8000 — that is your status, not the scene's. */
+.unitStatus{position:absolute;height:0;pointer-events:none;z-index:5060}
 .enemyHpTrack{position:absolute;left:0;right:0;top:-10px;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden}
 .enemyStun{position:absolute;left:0;right:0;top:-30px;text-align:center;font-size:16px;line-height:1;pointer-events:none;animation:stunbob .6s ease-in-out infinite}
-/* 🐱×N Extra Lives, to the RIGHT of the HP bar rather than stacked over it: -10 is the HP bar,
-   -17 the reload bar and -30 the 💫/😵 badge, and a fourth thing in that column would sit on one
-   of them. Same gold as the revive flash so the number and the flash read as one thing. */
-.enemyLives{position:absolute;left:100%;top:-14px;margin-left:3px;font-size:10px;line-height:1;font-weight:700;white-space:nowrap;color:#ffd84a;text-shadow:0 1px 2px rgba(0,0,0,.85);pointer-events:none}
 @keyframes stunbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 .enemyHpFill{height:100%;transition:width .15s ease}
 /* Reload timer, sitting just above the HP bar (which is at -10px, 5px tall). Deliberately thinner

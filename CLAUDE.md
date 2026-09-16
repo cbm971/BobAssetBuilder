@@ -674,12 +674,17 @@ now all call one closure in the Playtest effect. **Add a sixth way to die and ro
   per-item, so a pedestal swap off-and-on cannot restock (the Ally Health anti-farming rule).
   It survives doors and the effect's mid-play re-runs. The HUD line in the status row and the
   loop read the same two functions, so the number shown is the number you get.
-* `reviveInPlace(p)` touches no position or velocity. It clears stun/down, sets `invuln` to the
-  longer `EXTRA_LIFE_GRACE_FRAMES` (90) so the existing hit-blink shows the window, tinted gold in
-  the sprite render, and sets **`p.lifeGrace`, which is the field fire honours** — `invuln` is
-  ignored by fire on purpose (steady drain, not a hit), and without a window fire respects you
-  would lose the next life a sixth of a second after the first, nine in under two seconds. It
-  also holds `downCd` for the window so a tackler standing over you cannot re-floor you.
+* `reviveInPlace(p)` touches no position or velocity. **Losing a life KNOCKS YOU DOWN (since
+  2026-09-16, Blake: "fall down for half a second and be invincible until they stand back up")**:
+  it sets `down = EXTRA_LIFE_DOWN_FRAMES` (30) — the same 😵 channel a Tackle uses, so the sprite
+  lays flat, input/AI freeze, and the loop sets the ordinary get-up grace by itself when `down`
+  hits zero (`downCd` is deliberately not touched here). The untouchable window is
+  `EXTRA_LIFE_GRACE_FRAMES` = 30 down + `EXTRA_LIFE_GETUP_FRAMES` (30) on your feet: read
+  literally, "until they stand up" hands the next life straight to the fire you fell in, because
+  you cannot walk while down and have a sixth of a second once up. `invuln` is raised to the same
+  60 so the existing hit-blink shows the window, tinted gold, and **`p.lifeGrace` is the field
+  fire honours** — `invuln` is ignored by fire on purpose (steady drain, not a hit). The same
+  hands-empty clears as `knockDownPlayer` (blocking, throw aim, burst).
 * **It works on ENEMIES too (2026-09-16), and it shipped without that first.** The line above
   used to say "player-side only, like Ally Health"; Blake's first report was "enemies with a bonus
   lives item do not get the bonus lives", which from where he stands is a bug — Tackle and
@@ -696,10 +701,44 @@ now all call one closure in the Playtest effect. **Add a sixth way to die and ro
   (`ep.lifeGrace > 0`) — a ninth way to hurt a unit must ask it too, or a machine gun spends
   nine lives in a second. Shots and brawl hits on an untouchable unit are consumed and do nothing
   (the player's own i-frame reading); your melee arc and a splash pass it by; a rock still stops
-  on it. On screen: the same gold blink on the wrapper, and a `🐱×N` count beside the HP bar
-  (`.enemyLives`, to the RIGHT of the bar because −10/−17/−30 are all taken).
+  on it. On screen: the same gold blink on the wrapper and the same fall. **NO `🐱×N` count by
+  the HP bar** — it shipped for one day and Blake's reply was "I don't like the x8 at all"; the
+  toast and the fall are the whole tell. Do not bring it back.
 * The effect card in the equipment editor now shows each effect's `blurb` (it never had, for any
   effect), and the ＋ Add buttons carry it as a tooltip.
+
+**`.unitStatus` (a unit's HP bar, reload bar, 💫/😵, 💬) is UNDER the Front layer — z 5060,
+since 2026-09-16.** It sat at 8000 from the start, on the theory that a unit's bars are information
+you need even when it is behind a tree, and the result was an NPC inside a church, behind a painted
+front wall, with its 💬 floating crisply on the outside of the building ("I don't like that I can
+see the dialogue box … through a front layer"). 5060 is above the units (5000) and their corpses
+(5050) and below Front objects (5101+) and Front paint (6000): whatever hides the unit hides its
+badges, and the player's see-through window (frontFadeKeys/behindFade) reveals both together. The
+player's own `.playerHpTrack` stays at 8000. If Blake ever asks for bars over trees again, that is
+the object rung (5101) to slot between, not a return to 8000.
+
+**👁 SEE THROUGH — hiding Foreground/Front in the editor (`lHidden`, 2026-09-16).** Blake: "I need
+a button to inspect layers behind front layers so that I can edit the background layer behind this
+front layer without erasing the front layer." Two toggles in their own `See through:` group beside
+the layer tabs put `hideFg` / `hideFront` on `.lgrid` (only while NOT playing — Playtest never
+inherits it); CSS `display:none`s that layer's cells and its `lay-*` objects, so nothing hidden
+takes a click or an erase and the data is untouched. Picking a hidden layer's own tab shows it
+again (never paint blind), hiding the layer you are on moves you to Background, a status line
+says what is hidden, and Adjust refuses an object on a hidden layer with a message. Foreground
+cells are bare `.lcell` — the fg rule excludes `.bg`, `.front` and `.moveSel`.
+
+**A DROP SETTLES ONTO THE GROUND (`settleDropY`, 2026-09-16).** Blake: "an item dropped and I
+cannot pick it up. I think it slightly dropped underground." It had: the loot pass placed a drop at
+`ep.y + standH` whatever pose the unit died in, and a creature that DUCKED under the fatal shot
+(crouch-capable units crouch-dodge incoming fire) has a crouch-height wrapper, so its loot went
+`standH − crouchH` into the floor — 84px on a Bobby-sized look, past the ~40px pickup box. Now
+the feet are the wrapper's ACTUAL bottom (crouch or stand) and the point settles: inside solid or
+under the level, it comes UP to the top of that solid run (a downward-only scan started past the
+level's end for a bottom-row corpse — the unit test caught it); in the air it comes down to the
+first solid cell or object; nothing at all, the level floor. `enemyDropOverlapping` also grew a
+half-cell apron below and beside the resting point (`DROP_PICK_SLACK_CELLS`) as the safety net.
+The x is now the visible body's centre (`ep.x + centerFrac·renderW`), not the wrapper's left edge
+plus half the hit width.
 
 Verified by seeding a 5-HP character carrying `{type:"extraLives", lives:3}` into
 `asset-data/library.json` with a 30-dps fire pit and sampling every frame through the rAF shim:

@@ -220,6 +220,8 @@ import {
   enemyEquippedGear,
   pieceBelongsToAsset,
   enemyDropOverlapping,
+  settleDropY,
+  DROP_PICK_SLACK_CELLS,
   rollEnemyItemDrop,
   rollTagLuckDrop,
   tagLuckDropPool,
@@ -299,6 +301,8 @@ import {
   unitMaxHP,
   EXTRA_LIFE_HP,
   EXTRA_LIFE_GRACE_FRAMES,
+  EXTRA_LIFE_DOWN_FRAMES,
+  EXTRA_LIFE_GETUP_FRAMES,
   extraLivesGranted,
   extraLivesLeft,
   reviveInPlace,
@@ -785,6 +789,48 @@ describe("enemy item drops", () => {
     const drops = { dead1: { item: assets[0], x: 60, y: 90 }, dead2: null, taken: { item: null, x: 20, y: 20 } };
     expect(enemyDropOverlapping(drops, 45, 55, 25, 35, 30).key).toBe("dead1");
     expect(enemyDropOverlapping(drops, 120, 120, 20, 20, 30)).toBeNull();
+  });
+
+  // Blake: "an item dropped and I cannot pick it up. I think it slightly dropped underground."
+  // The loot of a creature that DUCKED under the fatal shot was planted standH - crouchH below
+  // the floor; a drop now settles onto the ground under its feet, and the pickup box got an apron.
+  describe("a drop settles onto the ground and stays reachable", () => {
+    const CW = 30, CH = 30, rows = 12, cols = 40;
+    const floorRow = 11;
+    const solidAt = (r, c) => r === floorRow;                    // one flat floor at row 11 (y 330)
+    const groundY = floorRow * CH;
+
+    test("feet on the floor: it rests exactly on the ground line", () => {
+      expect(settleDropY(rows, cols, 300, groundY, CW, CH, solidAt)).toBe(groundY);
+    });
+
+    test("Blake's case: feet reported UNDER the ground come back up to it", () => {
+      // A 2-cell-tall creature that died crouched at 1 cell: the old sum put its loot 30px into the floor.
+      expect(settleDropY(rows, cols, 300, groundY + 30, CW, CH, solidAt)).toBe(groundY);
+      expect(settleDropY(rows, cols, 300, groundY + 5, CW, CH, solidAt)).toBe(groundY);
+    });
+
+    test("killed mid-jump: the loot lands on the ground beneath, not in the air", () => {
+      expect(settleDropY(rows, cols, 300, groundY - 95, CW, CH, solidAt)).toBe(groundY);
+    });
+
+    test("a solid object counts as ground, and nothing at all means the level floor", () => {
+      const crate = (r, c) => r === 8 && c === 10;                 // a crate top at y 240 in column 10
+      expect(settleDropY(rows, cols, 315, 200, CW, CH, (r, c) => solidAt(r, c) || crate(r, c))).toBe(8 * CH);
+      expect(settleDropY(rows, cols, 315, 200, CW, CH, () => false)).toBe(rows * CH);
+      expect(settleDropY(rows, cols, -40, 200, CW, CH, solidAt)).toBe(200); // off the level's edge: left where it is
+    });
+
+    test("the pickup box reaches half a cell below and beside the resting point", () => {
+      const drops = { d: { item: assets[0], x: 300, y: 330 } };
+      // Standing on the floor with your feet at 330: box bottom is 330 + 15, so a drop sunk 14px
+      // is still reachable from the same stance...
+      expect(enemyDropOverlapping({ d: { item: assets[0], x: 300, y: 344 } }, 290, 120, 20, 210, 30)).not.toBeNull();
+      // ...and half a cell to the side of it.
+      expect(enemyDropOverlapping(drops, 300 + 20 + 14, 120, 20, 210, 30)).not.toBeNull();
+      expect(enemyDropOverlapping(drops, 300 + 20 + 40, 120, 20, 210, 30)).toBeNull();
+      expect(DROP_PICK_SLACK_CELLS).toBe(0.5);
+    });
   });
 });
 
@@ -6155,22 +6201,43 @@ describe("clothing that gives you extra lives (🐱 nine lives on a cat head)", 
     expect([p.x, p.y, p.vx, p.vy, p.face]).toEqual([412, 133, -2.5, 1.2, -1]);
   });
 
-  test("...on your feet, clear-headed, and untouchable for the grace window", () => {
+  test("...knocked flat for half a second, clear-headed, and untouchable for the whole window", () => {
+    // Blake: "when the player or enemy loses a life they should fall down for half a second and
+    // be invincible until they stand back up." The fall is the same 😵 channel a Tackle uses.
     const p = reviveInPlace(fallen());
     expect(p.stun).toBe(0);
-    expect(p.down).toBe(0);
+    expect(p.down).toBe(EXTRA_LIFE_DOWN_FRAMES);                    // exactly the half second — NOT the 60 the tackle had left
+    expect(EXTRA_LIFE_DOWN_FRAMES).toBe(30);
     expect(p.lifeGrace).toBe(EXTRA_LIFE_GRACE_FRAMES);
     expect(p.invuln).toBe(EXTRA_LIFE_GRACE_FRAMES);                  // the blink runs the whole window, not the shorter hit flash
-    expect(p.downCd).toBeGreaterThanOrEqual(EXTRA_LIFE_GRACE_FRAMES); // a tackler standing over you cannot re-floor you mid-flash
     expect(p.burnPool).toBe(0);                                      // no half-banked burn tick carried into the new life
     expect(p.onFire).toBe(0);
+    expect(p.blocking).toBe(null);                                   // hands empty on the way down, as a tackle leaves them
+    expect(p.throwAiming).toBe(false);
   });
 
-  test("the window is longer than an ordinary hit's i-frames, and a longer blink is never shortened", () => {
-    expect(EXTRA_LIFE_GRACE_FRAMES).toBeGreaterThan(40); // PLAYER_INVULN_FRAMES
+  test("the window outlasts the fall, so you are still untouchable for a beat after standing", () => {
+    // Read literally, "until they stand back up" hands the next life straight to the fire you fell
+    // in: you cannot walk while down, and on 1 HP you have a sixth of a second once you are up.
+    expect(EXTRA_LIFE_GRACE_FRAMES).toBe(EXTRA_LIFE_DOWN_FRAMES + EXTRA_LIFE_GETUP_FRAMES);
+    expect(EXTRA_LIFE_GETUP_FRAMES).toBeGreaterThanOrEqual(20);
+    expect(EXTRA_LIFE_GRACE_FRAMES).toBeGreaterThan(40);              // PLAYER_INVULN_FRAMES: longer than an ordinary hit's i-frames
+    // Tick both the way the loop does and check the order they end in.
+    const p = reviveInPlace(fallen());
+    let stoodAt = null, clearAt = null;
+    for (let f = 1; f <= 200; f++) {
+      if (p.down > 0) { p.down -= 1; if (p.down <= 0 && stoodAt == null) stoodAt = f; }
+      if (p.lifeGrace > 0) { p.lifeGrace -= 1; if (p.lifeGrace <= 0 && clearAt == null) clearAt = f; }
+    }
+    expect(stoodAt).toBe(EXTRA_LIFE_DOWN_FRAMES);
+    expect(clearAt).toBe(EXTRA_LIFE_GRACE_FRAMES);
+    expect(clearAt).toBeGreaterThan(stoodAt);
+  });
+
+  test("a longer blink is never shortened, and the get-up grace is the loop's to set", () => {
     const p = reviveInPlace({ ...fallen(), invuln: 200, downCd: 500 });
     expect(p.invuln).toBe(200);
-    expect(p.downCd).toBe(500);
+    expect(p.downCd).toBe(500); // untouched: the loop writes TACKLE_GETUP_GRACE_FRAMES the frame `down` reaches zero
   });
 
   test("you come back on 1 HP, and a missing record is left alone", () => {
@@ -6198,7 +6265,7 @@ describe("clothing that gives you extra lives (🐱 nine lives on a cat head)", 
     expect(ep.lifeGrace).toBe(EXTRA_LIFE_GRACE_FRAMES);
     expect(unitUntouchable(ep)).toBe(true);
     expect(ep.stun).toBe(0);
-    expect(ep.down).toBe(0);
+    expect(ep.down).toBe(EXTRA_LIFE_DOWN_FRAMES); // flat for the half second, the tackle's 45 replaced not extended
     expect(ep.restedDead).toBe(false);   // gravity is back on: a body that got up must not keep "stop simulating"
     expect(ep.burnPool).toBe(0);
     expect(ep.onFire).toBe(0);
