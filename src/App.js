@@ -7096,6 +7096,175 @@ function generateChain(levels, maxLen = 8) {
 
 
 
+/* ============================ RUNS — a playable chain of levels ============================ */
+// A RUN is the actual game: an Intro level, up to RUN_MIDDLE_LEVELS middle levels chained by the
+// connector rules above (canAttach), then an Exit level — with a sewer hanging under any level
+// whose bottom gate finds a match. Only ONE level is ever live (physics, enemies, tiles). Crossing
+// an open gate hands the player to the neighbouring level at the matching gate with momentum and
+// facing intact, and the camera keeps its WORLD position across the swap, so it plays as one big
+// level without the page ever holding ten levels' worth of tiles (tile count is the thing that has
+// cost frames twice — see the performance notes in CLAUDE.md). A strip of each neighbour is drawn
+// across an open seam so the far side of a gate is already on screen before you reach it.
+export const RUN_MIDDLE_LEVELS = 8;    // how many middle levels a run chains between Intro and Exit — the one knob
+export const SEAM_STRIP_CELLS = 40;    // how many cells of a neighbouring level are drawn past an open seam (keep >= half a viewport)
+export const GATE_REACH_CELLS = 10;    // a crossing counts as "through gate X" only within this many cells of X's marked point
+export const CAMERA_EASE = 0.14;       // fraction of the remaining distance the camera closes each frame (at 60fps)
+const CONN_SIDE = { N1: "N", N2: "N", E1: "E", E2: "E", S1: "S", S2: "S", W1: "W", W2: "W" };
+const SIDE_OPP = { N: "S", S: "N", E: "W", W: "E" };
+const SIDE_STEP = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] }; // [dcol, drow] on the run's grid
+// Which part a level plays in a run, from its free-text Section, case-insensitively. A few
+// spellings each so "Start" or "Ending" work as well; anything else (blank included) is a middle
+// level. Rooms are never in the chain — they hang off doors, exactly as they do in a Playtest.
+const RUN_INTRO_WORDS = ["intro", "start", "beginning", "begin"];
+const RUN_EXIT_WORDS = ["exit", "end", "ending", "finish"];
+export const runRole = (lv) => {
+  if (!lv || lv.isRoom) return null;
+  const s = (lv.section || "").trim().toLowerCase();
+  return RUN_INTRO_WORDS.includes(s) ? "intro" : RUN_EXIT_WORDS.includes(s) ? "exit" : "middle";
+};
+// A seeded random sequence (mulberry32 over the same FNV hash roomSeed uses), so a run started
+// with seed "12345" replays identically for testing while a blank seed rolls a fresh one.
+export const seededRng = (seedStr) => {
+  let a = Math.floor(roomSeed(String(seedStr)) * 4294967296) >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+};
+// A gate's marked point on its level, in level pixels — CONN_POS is a percentage of the rect.
+export const gatePoint = (lv, k, cell = LV_CELL) => ({ x: (CONN_POS[k].x / 100) * lv.cols * cell, y: (CONN_POS[k].y / 100) * lv.rows * cell });
+// Where a neighbour joined through OUR gate `k` sits in our pixel frame: the offset that lays its
+// opposite gate exactly on ours. E1 meets W1 at the same height and S1 meets N1 at the same x, so
+// a body crossing the seam keeps its place by subtracting this from its position.
+export const neighbourOffset = (lv, k, nb, cell = LV_CELL) => { const a = gatePoint(lv, k, cell), b = gatePoint(nb, CONN_OPP[k], cell); return { x: a.x - b.x, y: a.y - b.y }; };
+// Which OPEN gate on `side` a body centred at (cx, cy) is leaving through: the nearest one along
+// that edge, and only within GATE_REACH_CELLS of its marked point. Past that the edge stays the
+// wall it is today, so a hole in the floor nowhere near a bottom gate still just stops you.
+export const gateLeavingThrough = (lv, side, cx, cy, cell = LV_CELL, reach = GATE_REACH_CELLS) => {
+  let best = null, bestD = reach * cell;
+  for (const k of CONN_KEYS) {
+    if (CONN_SIDE[k] !== side || !lv.conns || !lv.conns[k] || !lv.conns[k].open) continue;
+    const g = gatePoint(lv, k, cell);
+    const d = (side === "E" || side === "W") ? Math.abs(cy - g.y) : Math.abs(cx - g.x);
+    if (d <= bestD) { bestD = d; best = k; }
+  }
+  return best;
+};
+// One slot in a run. `level` is that slot's own (shallow, migrated) copy carrying `runKey`: a level
+// can appear twice in one run, and the play loop keys its per-level state bucket (enemies killed,
+// fires burning, pedestals taken) on runKey rather than the level id, so each visit is its own
+// place. `links` is what lies on each side: a node key, null for "nothing — that seam is a wall",
+// or absent for "not decided yet".
+const runNode = (level, key, col, row) => ({ key, col, row, level: { ...migrateLevel(level), runKey: key }, links: {} });
+const addRunNode = (run, level, col, row) => { const key = "run" + run.nextKey++; const n = runNode(level, key, col, row); run.nodes[key] = n; return n; };
+// The main chain, built up front so intro → exit is guaranteed before play starts. Several seeded
+// attempts, keeping the best — an Exit that actually joins beats a longer chain that dead-ends.
+// Each step picks at random among the levels that ATTACH on the east (canAttach: both gate pairs
+// on the seam agree and at least one is an open mutual match), preferring ones not used yet, so
+// with six middle levels and eight slots the same level can appear twice.
+export const buildRun = (levels, seed, opts = {}) => {
+  const maxMiddles = opts.maxMiddles !== undefined ? opts.maxMiddles : RUN_MIDDLE_LEVELS;
+  const attempts = opts.attempts || 24;
+  const rnd = seededRng(seed);
+  const pool = (levels || []).filter((l) => l && !l.isRoom && l.conns).map(migrateLevel);
+  const intros = pool.filter((l) => runRole(l) === "intro"), exits = pool.filter((l) => runRole(l) === "exit"), middles = pool.filter((l) => runRole(l) === "middle");
+  const eastOpen = (l) => l.conns.E1.open || l.conns.E2.open;
+  let best = null;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const chain = [], used = new Set();
+    const pick = (cands) => { if (!cands.length) return null; const fresh = cands.filter((c) => !used.has(c.id)); const list = fresh.length ? fresh : cands; return list[Math.floor(rnd() * list.length)]; };
+    const intro = pick(intros); if (intro) { chain.push(intro); used.add(intro.id); }
+    for (let i = 0; i < maxMiddles; i++) {
+      const last = chain[chain.length - 1];
+      const m = pick(last ? middles.filter((c) => canAttach(last, c, "E")) : middles.filter(eastOpen));
+      if (!m) break;
+      chain.push(m); used.add(m.id);
+    }
+    const last = chain[chain.length - 1];
+    const exit = last ? pick(exits.filter((e) => canAttach(last, e, "E"))) : pick(exits);
+    if (exit) chain.push(exit);
+    const score = chain.length + (exit ? 1000 : 0);
+    if (!best || score > best.score) best = { chain, exit: !!exit, intro: !!intro, score };
+    if (best.exit && best.chain.length >= maxMiddles + 2) break;
+  }
+  const run = { seed: String(seed), nodes: {}, nextKey: 1, order: [], startKey: null, curKey: null, hasIntro: !!(best && best.intro), hasExit: !!(best && best.exit), notes: [] };
+  if (!intros.length) run.notes.push("no Intro level yet (Section = Intro)");
+  if (!exits.length) run.notes.push("no Exit level yet (Section = Exit)");
+  else if (!run.hasExit) run.notes.push("no Exit level joins the last middle level's right gate");
+  let prev = null;
+  (best ? best.chain : []).forEach((lv, i) => {
+    const n = addRunNode(run, lv, i, 0);
+    run.order.push(n.key);
+    if (prev) { prev.links.E = n.key; n.links.W = prev.key; }
+    prev = n;
+  });
+  run.startKey = run.curKey = run.order[0] || null;
+  // The run begins at its first level and ends at the Exit: nothing is ever attached behind the
+  // start or beyond the Exit's right-hand gates (those seams stay walls, and the far side of the
+  // Exit says "floor complete" — the next floor is a stub for now). Every other open gate,
+  // bottom gates included, resolves when its level goes live.
+  if (run.startKey) run.nodes[run.startKey].links.W = null;
+  run.exitKey = run.hasExit ? run.order[run.order.length - 1] : null;
+  if (run.exitKey) run.nodes[run.exitKey].links.E = null;
+  return run;
+};
+// What lies on `side` of a node — decided the first time that seam matters (the moment its level
+// goes live) and remembered for the rest of the run, so walking back through a gate always lands
+// in the SAME level you came from, never a re-roll. The run is a grid: a sewer's east gate leads
+// to the slot under the NEXT main level, and if a node already sits in a slot it is joined when
+// the gates agree and a wall when they don't. An empty slot is filled with a seeded pick among the
+// levels that attach there (Intro and Exit levels stay out of side passages).
+export const resolveRunNeighbour = (run, node, side, levels) => {
+  if (node.links[side] !== undefined) return node.links[side];
+  const [dc, dr] = SIDE_STEP[side];
+  const col = node.col + dc, row = node.row + dr;
+  let target = null;
+  const existing = Object.values(run.nodes).find((n) => n.col === col && n.row === row);
+  if (existing) target = canAttach(node.level, existing.level, side) ? existing : null;
+  else {
+    const cands = (levels || []).filter((l) => l && !l.isRoom && l.conns && runRole(l) === "middle").map(migrateLevel).filter((l) => canAttach(node.level, l, side));
+    if (cands.length) target = addRunNode(run, cands[Math.floor(roomSeed(run.seed + "|" + node.key + "|" + side) * cands.length)], col, row);
+  }
+  node.links[side] = target ? target.key : null;
+  if (target) target.links[SIDE_OPP[side]] = node.key;
+  return node.links[side];
+};
+export const resolveRunSides = (run, node, levels) => { for (const s of ["N", "E", "S", "W"]) resolveRunNeighbour(run, node, s, levels); };
+// The neighbours of a live level, for drawing and for the seam test: one entry per side that has
+// a level behind it, with that level and where its origin sits in ours (`off`).
+export const runSeams = (run, node, cell = LV_CELL) => {
+  const out = {};
+  if (!run || !node) return out;
+  for (const side of ["N", "E", "S", "W"]) {
+    const key = node.links[side]; if (!key) continue;
+    const nb = run.nodes[key]; if (!nb) continue;
+    // Both gates of one side share a coordinate, so the offset is the same through either — take the first open, matching pair.
+    let off = null;
+    for (const k of CONN_KEYS) { if (CONN_SIDE[k] === side && connMatch(node.level.conns[k], node.level, nb.level.conns[CONN_OPP[k]], nb.level)) { off = neighbourOffset(node.level, k, nb.level, cell); break; } }
+    if (off) out[side] = { key, level: nb.level, off };
+  }
+  return out;
+};
+// The run line shown over the level while playing: which slot of the chain this is.
+export const runHudFor = (run, node) => ({ seed: run.seed, where: node.row === 0 ? "level " + (node.col + 1) + " of " + run.order.length : (node.row > 0 ? "under" : "above") + " level " + (node.col + 1), name: node.level.name, notes: (run.notes || []).join(", ") });
+// Is a cell (or an object's top-left cell plus its size) of the neighbour inside the strip that is
+// drawn across `side` of the live level? `side` is OUR side, so an east neighbour shows its WEST
+// edge — its lowest columns.
+export const inSeamStrip = (nb, side, r, c, size = 1, strip = SEAM_STRIP_CELLS) =>
+  side === "E" ? c < strip : side === "W" ? c + size > nb.cols - strip : side === "S" ? r < strip : r + size > nb.rows - strip;
+// The part of a cell map that lies inside the strip, so the strip renderer can hand it to the same
+// cellRuns / outline / clip-path code the live layers use and get identical tiles.
+export const seamStripMap = (map, nb, side, strip = SEAM_STRIP_CELLS) => {
+  const out = {};
+  for (const k of Object.keys(map || {})) { const i = k.indexOf(","); if (inSeamStrip(nb, side, +k.slice(0, i), +k.slice(i + 1), 1, strip)) out[k] = map[k]; }
+  return out;
+};
+// The camera target and clamp, kept pure for the tests: centre the body, clamp to the level, but
+// let the view run past an edge (by the strip's width) wherever a neighbour is drawn across it.
+export const cameraTarget = (p, pw, ph, lv, seams, vw, vh, cell = LV_CELL, strip = SEAM_STRIP_CELLS) => {
+  const lvW = lv.cols * cell, lvH = lv.rows * cell, s = strip * cell;
+  const minX = seams.W ? -s : 0, maxX = Math.max(minX, lvW - vw + (seams.E ? s : 0));
+  const minY = seams.N ? -s : 0, maxY = Math.max(minY, lvH - vh + (seams.S ? s : 0));
+  return { x: Math.max(minX, Math.min(maxX, p.x + pw / 2 - vw / 2)), y: Math.max(minY, Math.min(maxY, p.y + ph / 2 - vh / 2)) };
+};
+
 /* ---- Enemy senses & hill-collision helpers (module-level, exported for tests) ------------- */
 // One "player body length" — the unit enemy senses are specified in: the standing player is
 // PLAYER_H_CELLS tall, so a body length is that height in pixels (210px at the 30px cell).
@@ -7684,6 +7853,14 @@ export default function AssetStudio() {
   const wallet = useRef(0);
   const [walletUI, setWalletUI] = useState(0);
   const setWallet = (n) => { wallet.current = Math.max(0, Math.round(n || 0)); setWalletUI(wallet.current); };
+  const runRef = useRef(null);                              // the RUN in progress (buildRun), or null for a plain Playtest: { seed, nodes, order, curKey, editorLevel, pool }
+  const camRef = useRef({ x: 0, y: 0, init: false });       // the camera, in the live level's pixels; init=false snaps it to the body on the next frame instead of easing there
+  const gateNag = useRef(0);                                // when the "this gate leads nowhere yet" flash last showed, so it does not fire 60 times a second
+  const carryKeys = useRef(null);                           // keys still held at a seam handoff — the loop effect re-runs on the level swap and would otherwise drop a held D
+  const lscrollRef = useRef(null);                          // the level viewport (.lscroll): the camera needs its size, and its editor scroll position is parked during play
+  const editorScroll = useRef(null);                        // where the editor had .lscroll scrolled when Playtest started, put back on Stop
+  const [runHud, setRunHud] = useState(null);               // the run line over the level during play: { seed, where, name, notes }
+  const [runSeedText, setRunSeedText] = useState("");       // the seed box next to 🏁 Play run; blank rolls a new one and the box then shows what was rolled
   const roomReturn = useRef(null);                         // while inside a room during play: { level: <the level to return to>, x, y } — set on enter, consumed on exit/stop
   const roomState = useRef({});                             // per-level PERSISTENT state for the current play session, keyed by level id: { rolls, depleted, eHP, ePos, drops, haz }. Never cleared on a transition — only on a fresh Playtest. This is what makes a level/room keep what you did to it when you leave and come back.
   const sessionRooms = useRef({});                          // "originLevelId|doorCell" -> chosen room id, so a given door leads to the SAME room all session (re-entering doesn't re-roll)
@@ -7781,6 +7958,33 @@ export default function AssetStudio() {
       {fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(level.front, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}
     </div>;
   })}</div> : null, [level, texLib]);
+  // RUN — the neighbour strips. Each open seam with a level behind it draws SEAM_STRIP_CELLS of that
+  // level's tiles across the edge, placed in THIS level's pixel frame, so the far side of a gate is
+  // on screen before you cross and the swap at the seam changes nothing you can see. Tiles only
+  // here (bg, fg, front cells, through the very same run/outline/clip code as the live layers);
+  // objects reaching into the strip are listed by seamStripObjects and drawn in the render body,
+  // and the neighbour's enemies, fires and doors appear when it goes live. Memoized on the live
+  // level — the links were decided before it went live — so this costs a frame nothing.
+  const runNodeNow = play && runRef.current && level && level.runKey ? runRef.current.nodes[level.runKey] : null;
+  const seamStripLayers = useMemo(() => {
+    if (!runNodeNow) return null;
+    const seams = runSeams(runRef.current, runNodeNow, LV_CELL);
+    return Object.keys(seams).map((side) => {
+      const { level: nb, off } = seams[side];
+      const bg = seamStripMap(nb.bg, nb, side), fg = seamStripMap(nb.fg, nb, side), front = seamStripMap(nb.front, nb, side);
+      return <div key={"seam" + side} className="seamStrip" style={{ left: off.x, top: off.y, width: nb.cols * LV_CELL, height: nb.rows * LV_CELL }}>
+        {cellRuns(bg).map(({ key, r, c, span, cell }) => { const fills = fgFills(cell); if (fills.length <= 1) return <div key={"sb" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(nb.bg, cell, r, c, texLib), clipPath: fgClipPath(cell), width: span * LV_CELL }} />; return <div key={"sb" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, width: span * LV_CELL }}>{fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(nb.bg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}</div>; })}
+        {cellRuns(fg).flatMap(({ key, r, c, span, cell, sig }) => { if (sig !== null) { const fill = fgFills(cell)[0]; if (fgHiddenInPlay(fill)) return []; return [<div key={"sf" + key + "_0"} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(nb.fg, fill, r, c, texLib), width: span * LV_CELL }} />]; } return fgFills(cell).map((fill, i) => fgHiddenInPlay(fill) ? null : <div key={"sf" + key + "_" + i} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(nb.fg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse(); })}
+        {Object.keys(front).map((k) => { const [r, c] = k.split(",").map(Number); const cell = front[k], fills = fgFills(cell); if (fills.length <= 1) return <div key={"sr" + k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(nb.front, cell, r, c, texLib), clipPath: fgClipPath(cell) }} />; return <div key={"sr" + k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL }}>{fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(nb.front, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}</div>; })}
+      </div>;
+    });
+  }, [runNodeNow, texLib]);
+  const seamStripObjects = useMemo(() => {
+    if (!runNodeNow) return [];
+    const seams = runSeams(runRef.current, runNodeNow, LV_CELL), out = [];
+    for (const side of Object.keys(seams)) { const { level: nb, off } = seams[side]; for (const it of levelObjectsInDrawOrder(nb.fx || {})) { if (inSeamStrip(nb, side, it.r, it.c, it.o.size || 1)) out.push({ side, off, ...it }); } }
+    return out;
+  }, [runNodeNow]);
   // ALL THREE object render passes below walk levelObjectsInDrawOrder, not Object.keys(level.fx).
   // Same objects, but ordered by their own `z` instead of by when their cell key happened to enter
   // the map — that accident of key order was why a prop placed second could end up drawn behind
@@ -8534,7 +8738,9 @@ export default function AssetStudio() {
     // forever, so the next session spawned already aiming up and every shot went upward until
     // that key was pressed and released again. Clear on every session start, and on window
     // blur (alt-tab mid-hold has the same missed-keyup problem).
-    keys.current = {};
+    // ...except across a RUN's seam handoff: the level swap re-runs this effect mid-stride, and
+    // dropping the held D there would stop the body dead on the far side of every gate.
+    keys.current = carryKeys.current || {}; carryKeys.current = null;
     const onBlur = () => { keys.current = {}; };
     window.addEventListener("blur", onBlur);
     // WASD moves, the arrow keys aim (that's the "move with WASD, aim with the arrows" split).
@@ -8562,6 +8768,45 @@ export default function AssetStudio() {
     const DODGE_LOOKOUT_RANGE = 200;  // px — how far out an enemy notices an incoming shot at all. Wider than the duck-only value above, because a JUMP needs lead time to actually get off the ground before the shot arrives.
     const CROUCH_HOLD_FRAMES = 24;    // how long a dodge-crouch holds once triggered, absent a fresh threat
     const lv = level;
+    // RUN: what lies across each open seam of THIS level (nothing, in a plain Playtest). Decided
+    // before the level went live (resolveRunSides, in startRun and seamHandoff) so the strip
+    // renderer, the edge clamps and the handoff below all agree on what is there.
+    const runNow = runRef.current;
+    const runNodeLive = runNow && lv.runKey ? runNow.nodes[lv.runKey] : null;
+    const seams = runSeams(runNow, runNodeLive, LV_CELL);
+    // An open seam with a level behind it is not a wall — but only near its gate (gateLeavingThrough).
+    const seamAt = (side, p, pw, ph) => !!(seams[side] && gateLeavingThrough(lv, side, p.x + pw / 2, p.y + ph / 2, LV_CELL));
+    // The handoff. The body's centre has crossed an edge through an open gate with a level behind
+    // it: that level goes live. Position, camera and held keys are re-based into the neighbour's
+    // frame by the seam offset, so nothing on screen moves — momentum, facing and crouch are
+    // untouched, and the level being left is kept as it is now (fires painted, props landed) so
+    // coming back through the same gate finds it unchanged. The loop effect re-runs with the new
+    // level, the same way a door does.
+    const seamHandoff = (side, p) => {
+      const seam = seams[side], nb = runNow.nodes[seam.key];
+      runNodeLive.level = lv;
+      p.x -= seam.off.x; p.y -= seam.off.y;
+      camRef.current.x -= seam.off.x; camRef.current.y -= seam.off.y;
+      carryKeys.current = keys.current;
+      resolveRunSides(runNow, nb, runNow.pool || levelLib);
+      runNow.curKey = nb.key;
+      setDoorPrompt(null); setPedPrompt(null);
+      setRunHud(runHudFor(runNow, nb));
+      setLevel(nb.level);
+    };
+    // CAMERA — centre the body, eased, clamped to the level except across a drawn seam
+    // (cameraTarget). Read back at render as a transform on .lgrid inside commitFrame, so the view
+    // lands on the same frame as the position it was computed from. A plain Playtest gets this
+    // too; the editor never does (the transform is only emitted while play is on).
+    const updateCamera = (p, pw, ph, dtMul) => {
+      const view = lscrollRef.current; if (!view) return;
+      const t = cameraTarget(p, pw, ph, lv, seams, view.clientWidth, view.clientHeight, LV_CELL);
+      const cam = camRef.current;
+      if (!cam.init) { cam.x = t.x; cam.y = t.y; cam.init = true; return; }
+      const k = 1 - Math.pow(1 - CAMERA_EASE, dtMul);
+      cam.x += (t.x - cam.x) * k; cam.y += (t.y - cam.y) * k;
+      if (Math.abs(t.x - cam.x) < 0.5) cam.x = t.x; if (Math.abs(t.y - cam.y) < 0.5) cam.y = t.y;
+    };
     const basePlayerAsset = findA(playerId);
     const playerAsset = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
     const playtestWeapon = playtestWeaponId ? findA(playtestWeaponId) : null;
@@ -8598,8 +8843,10 @@ export default function AssetStudio() {
     // when you leave through a door and come back. Each level/room gets its own bucket by id; only a
     // fresh Playtest (the button) wipes them. hazLife is (re)built by the seeding just below and then
     // written back into the bucket so its countdowns persist across visits too.
-    let _bkt = roomState.current[lv.id];
-    if (!_bkt) { _bkt = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, stripped: {}, haz: {}, gear: {} }; roomState.current[lv.id] = _bkt; }
+    // (Keyed by runKey inside a run: the same level can sit in two slots of one run, and each slot
+    // is its own place — the enemies you cleared in one are still standing in the other.)
+    let _bkt = roomState.current[lv.runKey || lv.id];
+    if (!_bkt) { _bkt = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, stripped: {}, haz: {}, gear: {} }; roomState.current[lv.runKey || lv.id] = _bkt; }
     if (!_bkt.drops) _bkt.drops = {}; // migrate a bucket created earlier in this same hot-reloaded play session
     if (!_bkt.stripped) _bkt.stripped = {}; // same migration for looted-corpse art
     if (!_bkt.gear) _bkt.gear = {};    // and for gear-tag rolls
@@ -8767,6 +9014,7 @@ export default function AssetStudio() {
               roomReturn.current = { level: JSON.parse(JSON.stringify(lv)), x: tr.retX, y: tr.retY };
               p.arriving = 0;                               // a door taken mid-arrival: you're going IN, don't keep growing out
 
+              camRef.current.init = false;                  // a door is a cut, not a pan: the camera snaps to the far side
               spawnReq.current = { roomDoor: true };        // appear at the room's own door
               setLevel(JSON.parse(JSON.stringify(room)));   // swaps the active level — the loop effect re-runs with the room
               return;                                       // a fresh loop takes over; don't schedule another frame here
@@ -8774,6 +9022,7 @@ export default function AssetStudio() {
           } else if (tr.mode === "exit") {
             const back = roomReturn.current; roomReturn.current = null;
             p.arriving = DOOR_ARRIVE_FRAMES;                // step back out of the door on the other side
+            camRef.current.init = false;                    // same cut on the way back out
             if (back && back.level) { spawnReq.current = { x: back.x, y: back.y }; setLevel(back.level); return; }
             spawnReq.current = { gate: true };
           }
@@ -8903,7 +9152,11 @@ export default function AssetStudio() {
       if (grounded) p.vx = uphillSlideVx !== null ? uphillSlideVx : dx; // remember momentum to carry into the air; air frames keep it, keys don't steer (uphill+slide keeps the PRE-slope velocity — see the walkingUphill comment)
       else if (glideEffect && p.vy > 0 && K.jump && !p.climbing) p.vx = dx; // while gliding, the steered velocity BECOMES your momentum, so it carries if you stop steering or the glide ends
       const prevX = p.x;
-      p.x += dx; if (p.x < 0) p.x = 0; if (p.x > lv.cols * CW - pw) p.x = lv.cols * CW - pw;
+      p.x += dx;
+      // The level's edges are walls — except an open gate with a level behind it (a RUN seam), where
+      // the box may straddle the edge, its far half over the neighbour's strip, until its CENTRE
+      // crosses and seamHandoff (below the vertical pass) makes that level live.
+      if (p.x < 0 && !seamAt("W", p, pw, ph)) p.x = 0; if (p.x > lv.cols * CW - pw && !seamAt("E", p, pw, ph)) p.x = lv.cols * CW - pw;
       let hits = cellsHit(p.x, p.y, pw, ph);
       // Hill suppression (splitHillHits): blocking cells that belong to a RAMP FORMATION and sit
       // near foot level are handed to the slope-surface pass below instead of being treated as
@@ -9283,7 +9536,28 @@ export default function AssetStudio() {
         // isn't actively walking uphill, horizVel/ground movement uses it; walking uphill zeroes it.
         p.slideVx = p.sliding ? downhill * SLOPE_SLIDE_SPEED : 0;
       } else { p.sliding = false; p.slideVx = 0; }
-      if (p.y > lv.rows * CH - ph) { p.y = lv.rows * CH - ph; p.vy = 0; p.onGround = true; }
+      if (p.y > lv.rows * CH - ph && !seamAt("S", p, pw, ph)) { p.y = lv.rows * CH - ph; p.vy = 0; p.onGround = true; } // the floor of the world — unless a bottom gate with a level under it is right here
+      // RUN — the seam handoff, once the body's centre is past an edge through an open gate that has
+      // a level behind it. Nothing else this frame: the new level's loop takes over from here.
+      if (runNodeLive) {
+        const cx = p.x + pw / 2, cy = p.y + ph / 2;
+        const side = cx > lv.cols * CW ? "E" : cx < 0 ? "W" : cy > lv.rows * CH ? "S" : cy < 0 ? "N" : null;
+        if (side && seams[side] && gateLeavingThrough(lv, side, cx, cy, LV_CELL)) { seamHandoff(side, p); return; }
+        // ...and a gate with NOTHING behind it: pressed against an edge at an open gate that no saved
+        // level attaches to (no sewer built yet, or the far side of the Exit), say so, once every
+        // couple of seconds. In a plain Playtest the edges are silent walls exactly as before.
+        const atE = dx > 0 && p.x >= lv.cols * CW - pw - 0.5, atW = dx < 0 && p.x <= 0.5, atS = p.onGround && p.y >= lv.rows * CH - ph - 0.5;
+        const edge = atE ? "E" : atW ? "W" : atS ? "S" : null;
+        if (edge && !seams[edge] && nowT - gateNag.current > 2500) {
+          const gk = gateLeavingThrough(lv, edge, cx, cy, LV_CELL);
+          if (gk) {
+            gateNag.current = nowT;
+            flash(runNodeLive.key === runNow.exitKey && edge === "E" ? "🏁 Floor complete! The next floor is not built yet — this is where it would start."
+              : runNodeLive.key === runNow.startKey && edge === "W" ? "🏁 The run starts here — there is nothing behind you."
+              : "🚧 " + CONN_LABEL[gk] + " gate leads nowhere yet: no saved level attaches here (it accepts \"" + (lv.conns[gk].accepts || lv.floor) + "\").");
+          }
+        }
+      }
       // Standing on a 🚶 Top-down plane resets the air budget the way the ground does: it IS the
       // ground there, and landing back on it from the hop must hand the Double Jump cape its next
       // jump exactly as landing on a street would. tdJumpY only ever outlives the hop when the
@@ -10823,7 +11097,7 @@ export default function AssetStudio() {
         if (roomReturn.current) { p.transitioning = { mode: "exit", t: 0 }; }
         else {
           const tag = doorTagOf(lv.markers[curDoorKey]);
-          const cacheKey = lv.id + "|" + curDoorKey;
+          const cacheKey = (lv.runKey || lv.id) + "|" + curDoorKey;    // per run slot, like the state bucket
           let roomId = sessionRooms.current[cacheKey];              // a door leads to the SAME room all session
           if (!roomId) { const r = pickRoom(levelLib, tag, playRunId.current + "|" + cacheKey + "|" + tag); roomId = r && r.id; if (roomId) sessionRooms.current[cacheKey] = roomId; }
           if (roomId) { const [dr, dc] = curDoorKey.split(",").map(Number); p.transitioning = { mode: "enter", t: 0, roomId, retX: dc * CW, retY: dr * CH + CH - ph }; }
@@ -10991,6 +11265,7 @@ export default function AssetStudio() {
         }
       }
 
+      updateCamera(p, pw, ph, dtMul);
       commitFrame();
       raf = requestAnimationFrame(loop);
     };
@@ -14212,6 +14487,49 @@ export default function AssetStudio() {
     setLTool(t);
   };
   const runGenerate = () => { const chain = generateChain(allLevels, 8); if (chain.length < 1) { flash("Make/save a couple of levels with matching open connectors first."); return; } setGen(chain); flash("Generated a chain of " + chain.length); };
+  // ▶ Playtest / ■ Stop. The resets are what the button has always done (every per-session ref back
+  // to empty, a fresh player, spawn through a gate or at a room's door); what is new is around
+  // them: the camera is told to snap rather than pan to the spawn, the editor's scroll position is
+  // parked (the camera drives .lgrid by transform while play is on, so the viewport itself must sit
+  // at 0,0) and put back on Stop, and a RUN in progress hands the editor its own level back.
+  const togglePlaytest = (runStart) => {
+    const view = lscrollRef.current;
+    // The player as the level screen composes them (its own playerAsset lives inside that render branch).
+    const basePlayerAsset = findA(playerId);
+    const playerAsset = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
+    if (play) {
+      if (roomReturn.current) { setLevel(roomReturn.current.level); }
+      if (runRef.current) { setLevel(runRef.current.editorLevel); runRef.current = null; setRunHud(null); }
+      if (view && editorScroll.current) { view.scrollLeft = editorScroll.current.x; view.scrollTop = editorScroll.current.y; editorScroll.current = null; }
+    } else {
+      if (view) { editorScroll.current = { x: view.scrollLeft, y: view.scrollTop }; view.scrollLeft = 0; view.scrollTop = 0; }
+      camRef.current = { x: 0, y: 0, init: false };
+    }
+    const startLevel = runStart ? runStart.nodes[runStart.startKey].level : level;
+    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true };
+    if (runStart) { runRef.current = runStart; setRunHud(runHudFor(runStart, runStart.nodes[runStart.startKey])); setLevel(startLevel); setPlay(true); return; }
+    setPlay((v) => !v);
+  };
+  // 🏁 Play run: the chain is built from every saved level (plus the one open in the editor) by
+  // buildRun, seeded from the box beside the button (blank = a fresh roll, and the box then shows
+  // what was rolled so a good run can be typed back in); its first level goes live and an ordinary
+  // Playtest starts in it, entering through a gate. Missing Intro/Exit levels are said in the run
+  // line, not refused — the middle levels alone are a run.
+  const startRun = () => {
+    if (play) { flash("Stop the current Playtest first."); return; }
+    const seed = runSeedText.trim() || String(Math.floor(Math.random() * 1000000));
+    // The pool is every SAVED level, with the editor's live copy standing in for its saved one so
+    // unsaved edits count — but a level that was never saved (the blank one the creator opens on,
+    // floor "1", both upper gates open) stays out, or it fills every slot of the chain with itself.
+    const pool = levelLib.some((l) => l && l.id === level.id) ? allLevels : levelLib;
+    const run = buildRun(pool, seed);
+    if (!run.startKey) { flash("No level can start a run yet — save one with an open Right gate (or Section = Intro)."); return; }
+    run.editorLevel = level; run.pool = pool;
+    resolveRunSides(run, run.nodes[run.startKey], pool);
+    setRunSeedText(seed);
+    flash("🏁 Run " + seed + " — " + run.order.length + " levels" + (run.notes.length ? " · " + run.notes.join(", ") : ""));
+    togglePlaytest(run);
+  };
 
   // The texture picker and the texture creator, built ONCE and rendered by both the Level Creator
   // and the asset creator. They used to live inside the level screen's markup, which is why a
@@ -15176,7 +15494,7 @@ export default function AssetStudio() {
           {play && <span className="badge money" title="Money you are carrying this Playtest run. Pick up a 💵 item to earn it, spend it in a shopkeeper's dialogue.">{MONEY_CHAR} {walletUI}</span>}
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel}>↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel}>↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => { if (play && roomReturn.current) { setLevel(roomReturn.current.level); } roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); spawnReq.current = (level && level.isRoom) ? { roomDoor: true } : { gate: true }; setPlay((v) => !v); }}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          <button className={"save " + (play ? "playon" : "")} onClick={() => togglePlaytest(null)}>{play ? "■ Stop" : "▶ Playtest"}</button>
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -15471,6 +15789,8 @@ export default function AssetStudio() {
           <button className="ltbtn" onClick={flipLevelNow} title="Mirror the whole level left↔right — every layer, ramps, objects, enemies and exits included. Press it again (or Undo) to put it back.">⇄ Flip</button>
           <button className="ltbtn" onClick={flipLevelToCopy} title="Same mirror, but into a NEW level so the one you're editing is left alone — this is how a downhill level becomes its uphill twin.">⇄ Flip to a copy</button>
           <button className="ltbtn" onClick={runGenerate}>🎲 Generate</button>
+          <button className="ltbtn" onClick={startRun} title="Play a RUN: an Intro level (Section = Intro), up to eight middle levels joined by their gates, then an Exit level (Section = Exit). Walk out through an open gate to reach the next level; a bottom gate drops you into a level that matches it (a sewer). Type a seed to replay the same run.">🏁 Play run</button>
+          <input className="bgNameInput runSeed" value={runSeedText} onChange={(e) => setRunSeedText(e.target.value)} placeholder="Run seed (blank = new)" title="A run is picked from this seed: the same seed gives the same chain of levels every time, so a run you want to test again can be typed back in. Leave it blank for a new one — the box shows what was rolled." />
           <button className="ltbtn" onClick={newLevelFresh}>＋ New Level</button>
           <button className="ltbtn" onClick={newRoomFresh}>＋ New Room</button>
           <button className="ltbtn" onClick={() => setLevelLoadOpen(true)}>📂 Load a level</button>
@@ -15502,6 +15822,7 @@ export default function AssetStudio() {
                 level. They flow side by side now and only wrap when the stage is genuinely too
                 narrow, so the canvas keeps its vertical space. */}
             <div className="statusrow">
+            {play && runHud && <p className="statusline runhud" title="This run: its seed (type it into the box beside 🏁 Play run to play the same run again), where you are in the chain, and what the chain is still missing.">🏁 Run <b>{runHud.seed}</b> · {runHud.where} · <b>{runHud.name}</b>{runHud.notes ? <span className="runnote"> · {runHud.notes}</span> : null}</p>}
             {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb (two arrows = 45°) · <b>J/F</b> fire · <b>Q</b> {playtestWeapon && !isRanged(playtestWeapon.wtype) ? "tap to block" : "melee"}{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload early" : ""}{playtestThrowId ? " · hold G to aim (↑/↓ angles the arc), release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
             {play && (playtestWeaponId || SLOT_ORDER.some((sl) => equipped.current[sl])) && (() => {
               const bits = [];
@@ -15555,14 +15876,23 @@ export default function AssetStudio() {
               ? <p className="statusline">👉 Clicking places <b>👹 {(findA(lEnemyId) || {}).name || "enemy"}</b>. Pick <b>— none —</b> to paint normally.</p>
               : <p className="statusline">👉 Clicking the canvas right now will <b>{lTool === "erase" ? "erase from" : lTool === "select" ? "select on" : lTool === "move" ? "pick up on" : "paint"}</b> the <b>{lLayer === "fg" ? "Foreground" : lLayer === "bg" ? "Background" : lLayer === "front" ? "Front" : lLayer === "obj" ? "Objects" : lLayer === "climb" ? "Climb" : lLayer === "hazard" ? "Fire" : "Markers"}</b> layer.</p>)}
             </div>
-            <div className={"lscroll layer-" + lLayer}>
-              <div ref={lvRef} className={"lgrid" + (!play && lHidden.front ? " hideFront" : "") + (!play && lHidden.fg ? " hideFg" : "")} style={{ width: lvW, height: lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px" }} onPointerDown={lvDown} onPointerMove={lvMove} onPointerLeave={() => setLHoverCell(null)}>
+            {/* While play is on the CAMERA drives the level: .lscroll stops scrolling and .lgrid is
+                translated by the camera (camRef, written by the loop and read here inside
+                commitFrame, so it lands on the frame it was computed for). In the editor no transform
+                is emitted at all and the viewport scrolls exactly as it always has. */}
+            <div ref={lscrollRef} className={"lscroll layer-" + lLayer + (play ? " playing" : "")}>
+              <div ref={lvRef} className={"lgrid" + (play ? " camera" : "") + (!play && lHidden.front ? " hideFront" : "") + (!play && lHidden.fg ? " hideFg" : "")} style={{ width: lvW, height: lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px", ...(play ? { transform: "translate3d(" + (-Math.round(camRef.current.x * 2) / 2) + "px, " + (-Math.round(camRef.current.y * 2) / 2) + "px, 0)" } : {}) }} onPointerDown={lvDown} onPointerMove={lvMove} onPointerLeave={() => setLHoverCell(null)}>
                 {lvBgLayer}
                 {lvFgLayer}
                 {lvFrontLayer}
+                {play && seamStripLayers}
                 {layerMove && layerMove.levelId === lv.id && Object.keys(layerMove.cells).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"mv" + k} className="lcell moveSel" style={{ left: c * LV_CELL, top: r * LV_CELL }} />; })}
                 {lvFxLayer}
                 {lvPropMeta.map(({ o, si, r, c, k, ord }) => { const layout = levelObjectPixelLayout(o); const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
+                {/* RUN — objects of a neighbouring level whose footprint reaches into its seam strip,
+                    drawn static in that level's frame (offset by the seam), props and emoji alike.
+                    Same layer rung and draw order as they will have once that level goes live. */}
+                {play && seamStripObjects.map(({ side, off, o, si, r, c, k, ord }) => { const isProp = o.kind === "prop"; const layout = isProp ? levelObjectPixelLayout(o) : null; const sz = (o.size || 1) * LV_CELL; return <div key={"seam" + side + "_" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: off.x + objNudgedLeft(o, c, LV_CELL), top: off.y + objNudgedTop(o, r, LV_CELL), width: isProp ? layout.width : sz, height: isProp ? layout.height : sz, ...objRotStyle(o), pointerEvents: "none" }}>{isProp ? renderObj(o, layout.width, "seam" + side + "_" + k + "_" + si, pframe, layout.height, layout.box) : objInner(o, sz)}</div>; })}
                 {!play && lvClimbLayer}
                 {lvHazardLayer}
                 {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : m.kind === "sign" ? "💬 Sign · " + signSummary(m, dlgLib) + " · invisible in play until you stand on it · Erase tool: click to delete" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : m.kind === "sign" ? "💬" : "💎"}</div>; })}
@@ -18273,6 +18603,12 @@ html,body{margin:0;padding:0;background:#0f1117}
    the page's root context and outrank the modals (30) and toasts (40) — a level that draws over
    its own "Load a level" dialog. Contained here, the grid competes with page chrome only as a
    single z-auto box, which is exactly how it behaved when these were 1-9. */
+.lscroll.playing{overflow:hidden}
+.lgrid.camera{will-change:transform}
+.seamStrip{position:absolute;pointer-events:none;background:inherit;background-size:inherit}
+.runhud{color:#ffd166;background:#1d1a12;border-color:#4a3f1e}
+.runhud .runnote{color:#c9a15a;font-weight:400}
+.runSeed{width:150px}
 .lgrid{position:relative;isolation:isolate;flex:none;margin:auto;background-color:#0e1018;background-image:linear-gradient(#1a1f2e 1px,transparent 1px),linear-gradient(90deg,#1a1f2e 1px,transparent 1px);touch-action:none}
 /* The level's layer ladder. Painted cells and placed objects share it, so an object always sits
    level with the blocks that behave the way it does (see objectLayerClass):

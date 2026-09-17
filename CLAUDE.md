@@ -1125,6 +1125,70 @@ the block welds to the first edge it brushes and can never be pulled off; and ed
 use the same rotation origin the renderer does (`pieceOriginFrac`, arms pivot at the shoulder).
 A held group only ever translates — turning it to suit one member would tear the assembly apart.
 
+**A RUN IS THE GAME, AND THE CAMERA CAME WITH IT (2026-09-16).** Blake's first test build: an Intro
+level, up to eight middle levels joined by their gates, an Exit level, sewers underneath — played as
+one continuous world. Everything for it sits in one block of `App.js` headed `RUNS — a playable
+chain of levels` (module level, just after `generateChain`), plus a few marked `// RUN —` / `// CAMERA —`
+spots in the play loop and the level render. In plain words:
+
+* **Starting one.** 🏁 Play run in the Level Creator's toolbar, with a seed box beside it. `buildRun`
+  takes every SAVED level (the editor's live copy stands in for its saved one; a never-saved level
+  stays out, or the blank one the creator opens on filled every slot with itself), picks a level whose
+  free-text **Section** reads Intro (or Start/Beginning), chains middle levels east→west by
+  `canAttach` — both gate pairs on the seam agree, at least one is an open mutual match, unused
+  levels preferred so a level can still repeat — up to `RUN_MIDDLE_LEVELS` (8, the one knob), then a
+  level whose Section reads Exit (or End/Ending) that attaches to the last one. Rooms are never in the
+  chain. No Intro or Exit yet? It runs with the middles and the run line over the level says what is
+  missing; it never refuses. The seed drives a `seededRng` (mulberry32 over `roomSeed`'s hash), so the
+  same seed is the same run; blank rolls one and the box then shows it. `togglePlaytest` is the old
+  ▶ Playtest button body, shared: the same per-session resets, plus parking the editor's scroll,
+  snapping the camera, and on ■ Stop handing the editor its own level back (`run.editorLevel`).
+* **One level is live at a time.** A run is a grid of NODES (`run.nodes`, `col`/`row`, `links` per
+  side). Each node holds its own shallow, migrated copy of the level with a `runKey`, and the loop
+  keys `roomState` and `sessionRooms` on `runKey || id`, so the two M4s in one run are two places.
+  What lies on a side is decided the moment a level goes live (`resolveRunSides` →
+  `resolveRunNeighbour`) and remembered: a node already sitting in that grid slot is joined when the
+  gates agree and a wall when they don't; an empty slot gets a seeded pick among middle levels that
+  attach there (Intro/Exit never fill side slots). That is how a bottom gate accepting "Sewer" finds a
+  level with floor "Sewer" whose top gate accepts "Trailor Park", how the sewer's east gate leads to
+  the slot under the NEXT main level, and why walking back through any gate lands in the SAME level.
+  Behind the start and beyond the Exit's right gates the links are pinned to null: the run begins and
+  ends there (the far side of the Exit flashes "Floor complete"; the next floor is a stub).
+* **Crossing.** `runSeams` gives the live level its neighbours with each one's origin in this level's
+  pixels (`neighbourOffset`: the offset that lays E1 on W1, S1 on N1 — the pairs share a coordinate,
+  which is why his "bottom gates misplaced" worry was unfounded). At an open seam with a level behind
+  it the edge clamp and the world-floor clamp are lifted — only near that gate, `gateLeavingThrough`
+  (nearest open gate on that edge within `GATE_REACH_CELLS`); elsewhere the edge is the wall it always
+  was. The body may straddle the edge; when its CENTRE crosses, `seamHandoff` subtracts the offset
+  from the position AND the camera, stashes the held keys in `carryKeys` (the loop effect re-runs on
+  `setLevel` and its stuck-key guard would drop a held D), keeps the leaving level's live copy on its
+  node, and `setLevel`s the neighbour — the same mechanism a door uses, minus the animation. Momentum,
+  facing and crouch are untouched. Verified on his real export: M1→M3→M2→M4 and back, x rebased by
+  exactly 4800 each time, camera by exactly 4800, a mid-air vx of 20.47 carried across; a door on M1
+  entered and left inside the run, back to the same slot.
+* **What you see across a seam.** `seamStripLayers` draws `SEAM_STRIP_CELLS` (40) of each
+  neighbour's bg/fg/front cells across the seam through the very same run/outline/clip code as the
+  live layers, positioned by the offset, and `seamStripObjects` the objects whose footprint reaches
+  into the strip (drawn static in the render body, props through `renderObj`). Enemies, fires and
+  doors of a neighbour appear when it goes live. Memoized on the live level, so per frame it costs
+  nothing; per level it is ~300–400 extra cells on his levels (measured 371 + 299 on M1). It is NOT
+  the ten-levels-in-one-DOM build he first described — tile count is what has cost frames twice.
+* **The camera.** `cameraTarget` (pure): centre the body, clamp to the level, but let the view run past
+  an edge by the strip's width where a neighbour is drawn. `updateCamera` eases toward it
+  (`CAMERA_EASE`, dt-scaled) into `camRef`; the level render reads `camRef` and emits a
+  `translate3d` on `.lgrid` while play is on, inside `commitFrame`, so it lands on the frame it was
+  computed for. `.lscroll` gets `overflow:hidden` (`.playing`) and its scroll position is parked at
+  0,0 and restored on Stop; in the editor no transform is emitted at all. A door is a cut: both door
+  swaps set `camRef.init = false` so the camera snaps on the far side instead of panning across the
+  level. A plain ▶ Playtest gets the camera too (verified: follows, clamps, no strips, no run line).
+* **Gates with nothing behind them.** Pressed against an edge at an open gate no level attaches to,
+  the loop flashes once every 2.5 s (`gateNag`): "🚧 Bottom Left gate leads nowhere yet … (it accepts
+  "Sewer")", "🏁 The run starts here", or "🏁 Floor complete!". Plain Playtest edges stay silent.
+
+The tests (`describe("runs")`) build their own fixtures — never his levels — and cover the role
+words, the seeded rng, the gate geometry, the chain rules, the missing-Intro/Exit notes, the sewer
+slot logic, the camera clamp and the strip filters.
+
 **Playtest performance.** The loop re-renders this whole component every frame (`setPframe`), so
 anything in the level render body runs 60x a second. What is actually true, measured on Forest M1
 (160x46, ~8,400 painted cells) — do not re-guess this, measure:
@@ -1151,9 +1215,10 @@ anything in the level render body runs 60x a second. What is actually true, meas
   wraps it in `flushSync`, which puts the commit back inside the frame (verified 104/104 in-frame,
   step SD 0.33px). Anything new that must be on screen for the frame it was computed for goes
   through `commitFrame`, not a bare setState.
-* **There is no camera.** Nothing in `src/` calls `scrollLeft`/`scrollTop`/`scrollIntoView`, so
-  `.lscroll` never follows the player — walking to x=1364 in an 878px viewport leaves scrollLeft at
-  0. Verify before assuming a view-follow bug is a regression; it has never existed.
+* **There was no camera until 2026-09-16.** The view now follows the body during play through a
+  `translate3d` on `.lgrid` (see the RUN section above: `cameraTarget`, `camRef`), not by scrolling —
+  `.lscroll` is `overflow:hidden` while play is on and nothing calls `scrollLeft`. A view-follow bug
+  is therefore a camera bug, and the editor never gets the transform at all.
 * Paint/raster is NOT measurable in the hidden pane — say so rather than inventing a number. What
   differs across Trailor Park is composition, not count: column 0 carries 1035 textured cells and
   164 Front-layer cells over them, column 120 carries 421 and 62.

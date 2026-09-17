@@ -155,6 +155,7 @@ import {
   relocateLevelObject,
   relocatedObjectKey,
   migrateLevel,
+  runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, buildRun, resolveRunNeighbour, resolveRunSides, runSeams, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
   objTopAt,
   objNudgedLeft,
   objNudgedTop,
@@ -8678,5 +8679,183 @@ describe("which of two saves is newer", () => {
     expect(mergeById([{ id: "l", name: "stored" }], [{ id: "l", name: "incoming" }])).toEqual([{ id: "l", name: "incoming" }]);
     // a dated incoming save still lands over an undated stored one
     expect(mergeById([{ id: "l", name: "stored" }], [{ id: "l", name: "fresh", savedAt: 9 }])).toEqual([{ id: "l", name: "fresh", savedAt: 9 }]);
+  });
+});
+
+/* ───────────────────────── RUNS: camera, seams and the seeded chain ───────────────────────── */
+// Fixtures are constructed here, never read from his library (CLAUDE.md: a test must never pin
+// his data). Gate letters follow CONN_KEYS: E1/W1 are the upper pair, E2/W2 the lower, N1/S1 the
+// left pair, N2/S2 the right.
+describe("runs", () => {
+  const CELL = 30;
+  const mk = (id, opts = {}) => {
+    const conns = {};
+    for (const k of ["N1", "N2", "E1", "E2", "S1", "S2", "W1", "W2"]) conns[k] = { open: false, accepts: "" };
+    for (const k of Object.keys(opts.open || {})) conns[k] = { open: true, accepts: opts.open[k] || "" };
+    return { id, name: id, floor: opts.floor || "Trailor Park", section: opts.section === undefined ? "Middle" : opts.section, cols: opts.cols || 160, rows: opts.rows || 46, fg: {}, bg: {}, front: {}, fx: {}, climb: {}, hazard: {}, markers: {}, enemies: {}, conns, ...(opts.isRoom ? { isRoom: true, roomTag: "x" } : {}) };
+  };
+  // The shape of his real chain: two right-hand exits (upper or lower), matching left-hand entrances.
+  const A = mk("A", { open: { W1: "", E2: "" } });          // like Trailor Park M1
+  const B = mk("B", { open: { W2: "", E1: "" } });          // like M2
+  const C = mk("C", { open: { W2: "", E2: "", S1: "Sewer" } }); // like M6
+  const D = mk("D", { open: { W1: "", E1: "" } });          // like M4
+  const INTRO = mk("INTRO", { section: "Intro", open: { E2: "" } });
+  const EXIT = mk("EXIT", { section: "exit", open: { W1: "" } });
+  const SEWER = mk("SEWER", { floor: "Sewer", open: { N1: "Trailor Park", E1: "" } });
+  const SEWER2 = mk("SEWER2", { floor: "Sewer", open: { W1: "", N1: "Trailor Park" } });
+  const ROOM = mk("ROOM", { isRoom: true, section: "Intro" });
+
+  test("runRole reads the free-text Section case-insensitively and never puts a room in the chain", () => {
+    expect(runRole(mk("x", { section: " Intro " }))).toBe("intro");
+    expect(runRole(mk("x", { section: "START" }))).toBe("intro");
+    expect(runRole(mk("x", { section: "Exit" }))).toBe("exit");
+    expect(runRole(mk("x", { section: "ending" }))).toBe("exit");
+    expect(runRole(mk("x", { section: "Middle" }))).toBe("middle");
+    expect(runRole(mk("x", { section: "" }))).toBe("middle");
+    expect(runRole(ROOM)).toBe(null);
+  });
+
+  test("seededRng replays for the same seed and differs across seeds", () => {
+    const a = seededRng("12345"), b = seededRng("12345"), c = seededRng("12346");
+    const sa = [a(), a(), a()], sb = [b(), b(), b()], sc = [c(), c(), c()];
+    expect(sa).toEqual(sb);
+    expect(sa).not.toEqual(sc);
+    for (const v of sa) { expect(v).toBeGreaterThanOrEqual(0); expect(v).toBeLessThan(1); }
+  });
+
+  test("gatePoint / neighbourOffset lay the opposite gate exactly on ours", () => {
+    expect(gatePoint(A, "E2", CELL)).toEqual({ x: 4800, y: 0.7 * 46 * CELL });
+    expect(neighbourOffset(A, "E2", B, CELL)).toEqual({ x: 4800, y: 0 });          // same size: the neighbour starts where we end, same height
+    expect(neighbourOffset(B, "W2", A, CELL)).toEqual({ x: -4800, y: 0 });         // and the way back is the mirror
+    expect(neighbourOffset(C, "S1", SEWER, CELL)).toEqual({ x: 0, y: 1380 });      // a bottom gate: straight down
+    const half = mk("half", { floor: "Sewer", cols: 80, open: { N1: "Trailor Park" } });
+    expect(neighbourOffset(C, "S1", half, CELL)).toEqual({ x: 1440 - 720, y: 1380 }); // a narrower level is shifted so its N1 sits under our S1
+  });
+
+  test("gateLeavingThrough picks the nearest open gate on that edge, and only within reach", () => {
+    const lower = 0.7 * 46 * CELL, upper = 0.35 * 46 * CELL;
+    expect(gateLeavingThrough(A, "E", 4801, lower + 40, CELL)).toBe("E2");
+    expect(gateLeavingThrough(A, "E", 4801, upper, CELL)).toBe(null);            // only E2 is open and 35% is 16 rows away
+    expect(gateLeavingThrough(A, "W", -1, upper + 20, CELL)).toBe("W1");
+    expect(gateLeavingThrough(A, "W", -1, lower, CELL)).toBe(null);
+    const both = mk("both", { open: { E1: "", E2: "" } });
+    expect(gateLeavingThrough(both, "E", 4801, 20 * CELL, CELL)).toBe("E1");     // row 20 is nearer 16 than 32
+    expect(gateLeavingThrough(both, "E", 4801, 30 * CELL, CELL)).toBe("E2");
+    expect(gateLeavingThrough(C, "S", 0.3 * 160 * CELL + 60, 1400, CELL)).toBe("S1");
+    expect(gateLeavingThrough(C, "S", 0.7 * 160 * CELL, 1400, CELL)).toBe(null);  // S2 is closed on C
+    expect(gateLeavingThrough(A, "N", 100, -1, CELL)).toBe(null);                 // no top gates at all
+  });
+
+  test("buildRun is reproducible per seed, chains by the gate rules, and puts Intro first / Exit last", () => {
+    const pool = [A, B, C, D, INTRO, EXIT, ROOM];
+    const r1 = buildRun(pool, "seed-1"), r2 = buildRun(pool, "seed-1");
+    expect(r1.order.map((k) => r1.nodes[k].level.id)).toEqual(r2.order.map((k) => r2.nodes[k].level.id));
+    expect(r1.hasIntro && r1.hasExit).toBe(true);
+    expect(r1.notes).toEqual([]);
+    const ids = r1.order.map((k) => r1.nodes[k].level.id);
+    expect(ids[0]).toBe("INTRO"); expect(ids[ids.length - 1]).toBe("EXIT");
+    expect(r1.nodes[r1.order[0]].links.W).toBe(null);                       // a wall behind the start
+    expect(r1.exitKey).toBe(r1.order[r1.order.length - 1]);
+    expect(r1.nodes[r1.exitKey].links.E).toBe(null);                        // and beyond the Exit: the floor ends there
+    expect(resolveRunNeighbour(r1, r1.nodes[r1.exitKey], "E", pool)).toBe(null); // asking again does not re-open it
+    expect(ids).not.toContain("ROOM");
+    expect(ids.length).toBeLessThanOrEqual(RUN_MIDDLE_LEVELS + 2);
+    // every consecutive pair joins east→west through an open, mutual gate pair (runSeams uses connMatch)
+    for (let i = 0; i < r1.order.length; i++) {
+      const n = r1.nodes[r1.order[i]], seams = runSeams(r1, n, CELL);
+      if (i > 0) { expect(seams.W.key).toBe(r1.order[i - 1]); expect(seams.W.off).toEqual({ x: -4800, y: 0 }); }
+      if (i < r1.order.length - 1) { expect(seams.E.key).toBe(r1.order[i + 1]); expect(seams.E.off).toEqual({ x: 4800, y: 0 }); }
+      expect(n.level.runKey).toBe(n.key); expect(n.row).toBe(0); expect(n.col).toBe(i);
+    }
+    // a different seed is allowed to differ (and does, over a few tries)
+    const seeds = ["a", "b", "c", "d", "e", "f"].map((s) => { const r = buildRun(pool, s); return r.order.map((k) => r.nodes[k].level.id).join(">"); });
+    expect(new Set(seeds).size).toBeGreaterThan(1);
+    // the knob
+    expect(buildRun(pool, "x", { maxMiddles: 2 }).order.length).toBeLessThanOrEqual(4);
+  });
+
+  test("buildRun still runs with no Intro or Exit level and says so", () => {
+    const r = buildRun([A, B, C, D], "7");
+    expect(r.startKey).toBe(r.order[0]);
+    expect(r.order.length).toBeGreaterThanOrEqual(2);
+    expect(r.hasIntro).toBe(false); expect(r.hasExit).toBe(false); expect(r.exitKey).toBe(null);
+    expect(r.nodes[r.startKey].links.W).toBe(null);
+    expect(r.notes).toEqual(["no Intro level yet (Section = Intro)", "no Exit level yet (Section = Exit)"]);
+    const first = r.nodes[r.order[0]].level;
+    expect(first.conns.E1.open || first.conns.E2.open).toBe(true); // a run without an Intro starts on a level you can leave to the right
+    expect(buildRun([], "7").startKey).toBe(null);
+    expect(buildRun([ROOM], "7").order).toEqual([]);
+  });
+
+  test("resolveRunNeighbour: a bottom gate finds a sewer, remembers it, links back, and the grid joins slots", () => {
+    const pool = [A, B, C, D, SEWER, SEWER2];
+    // The start of a run without an Intro is a seeded pick among east-open levels, so take the first
+    // seed whose chain begins on C; from C the only fresh level that attaches east is B.
+    const seed = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"].find((s) => buildRun([C, B], s, { maxMiddles: 2 }).order.length === 2);
+    const run = buildRun([C, B], seed, { maxMiddles: 2 });
+    expect(run.order.map((k) => run.nodes[k].level.id)).toEqual(["C", "B"]);
+    const c = run.nodes[run.order[0]], b = run.nodes[run.order[1]];
+    const sKey = resolveRunNeighbour(run, c, "S", pool);
+    expect(sKey).toBeTruthy();
+    const s = run.nodes[sKey];
+    expect(s.level.id).toBe("SEWER"); expect(s.col).toBe(0); expect(s.row).toBe(1);
+    expect(s.links.N).toBe(c.key);                                     // the way back up is the same level
+    expect(resolveRunNeighbour(run, c, "S", pool)).toBe(sKey);         // asked again: no re-roll
+    expect(resolveRunNeighbour(run, c, "N", pool)).toBe(null);         // nothing above; a wall from now on
+    expect(c.links.N).toBe(null);
+    // the sewer's east gate opens the slot under B; SEWER2 is the only level that attaches there
+    const s2Key = resolveRunNeighbour(run, s, "E", pool);
+    const s2 = run.nodes[s2Key];
+    expect(s2.level.id).toBe("SEWER2"); expect(s2.col).toBe(1); expect(s2.row).toBe(1);
+    expect(s2.links.W).toBe(sKey);
+    // B has no bottom gate, so its S side meets the sewer slot and is a wall — the slot is reused, never re-rolled
+    expect(resolveRunNeighbour(run, b, "S", pool)).toBe(null);
+    // and the sewer under B looks up at the same B slot: nothing joins, so up is a wall there too
+    expect(resolveRunNeighbour(run, s2, "N", pool)).toBe(null);
+    expect(Object.keys(run.nodes).length).toBe(4);
+    const seams = runSeams(run, c, CELL);
+    expect(seams.S.key).toBe(sKey); expect(seams.S.off).toEqual({ x: 0, y: 1380 });
+    expect(seams.E.key).toBe(b.key); expect(seams.N).toBeUndefined(); expect(seams.W).toBeUndefined();
+    expect(runHudFor(run, s)).toEqual({ seed, where: "under level 1", name: "SEWER", notes: "no Intro level yet (Section = Intro), no Exit level yet (Section = Exit)" });
+    expect(runHudFor(run, b).where).toBe("level 2 of 2");
+  });
+
+  test("resolveRunSides keeps Intro and Exit levels out of side passages", () => {
+    const CE = mk("CE", { open: { E2: "", S1: "Sewer" } });            // no west gate, so nothing (not even itself) attaches on either side
+    const run = buildRun([CE], "s", { maxMiddles: 1 });
+    const c = run.nodes[run.order[0]];
+    const introSewer = mk("IS", { floor: "Sewer", section: "Intro", open: { N1: "Trailor Park" } });
+    resolveRunSides(run, c, [CE, introSewer]);
+    expect(c.links).toEqual({ N: null, E: null, S: null, W: null });
+  });
+
+  test("cameraTarget centres the body, clamps to the level, and may run past a drawn seam", () => {
+    const p = { x: 2000, y: 600 }, pw = 138, ph = 210;
+    expect(cameraTarget(p, pw, ph, A, {}, 900, 500, CELL)).toEqual({ x: 2000 + 69 - 450, y: 600 + 105 - 250 });
+    expect(cameraTarget({ x: 10, y: 10 }, pw, ph, A, {}, 900, 500, CELL)).toEqual({ x: 0, y: 0 });          // top-left: pinned
+    expect(cameraTarget({ x: 4700, y: 1300 }, pw, ph, A, {}, 900, 500, CELL)).toEqual({ x: 4800 - 900, y: 1380 - 500 }); // bottom-right: pinned
+    expect(cameraTarget({ x: 4700, y: 1300 }, pw, ph, A, { E: {} }, 900, 500, CELL)).toEqual({ x: 4700 + 69 - 450, y: 880 }); // a drawn seam to the east: the view follows across
+    expect(cameraTarget({ x: -100, y: 10 }, pw, ph, A, { W: {} }, 900, 500, CELL).x).toBe(-100 + 69 - 450);
+    expect(cameraTarget({ x: -3000, y: 10 }, pw, ph, A, { W: {} }, 900, 500, CELL).x).toBe(-SEAM_STRIP_CELLS * CELL);  // but never past the strip
+    const room = mk("room", { cols: 40, rows: 24 });
+    expect(cameraTarget({ x: 600, y: 300 }, pw, ph, room, {}, 1600, 900, CELL)).toEqual({ x: 0, y: 0 });       // a level smaller than the viewport does not move
+  });
+
+  test("inSeamStrip / seamStripMap take the neighbour's edge that faces us", () => {
+    const nb = mk("nb");
+    expect(inSeamStrip(nb, "E", 0, 5)).toBe(true); expect(inSeamStrip(nb, "E", 0, SEAM_STRIP_CELLS)).toBe(false); // an east neighbour shows its WEST columns
+    expect(inSeamStrip(nb, "W", 0, 159)).toBe(true); expect(inSeamStrip(nb, "W", 0, 100)).toBe(false);
+    expect(inSeamStrip(nb, "W", 0, 100, 30)).toBe(true);                                                          // a wide object whose far edge reaches in
+    expect(inSeamStrip(nb, "S", 3, 0)).toBe(true); expect(inSeamStrip(nb, "N", 3, 0)).toBe(false); expect(inSeamStrip(nb, "N", 45, 0)).toBe(true);
+    expect(seamStripMap({ "0,1": "#f00", "0,150": "#0f0" }, nb, "E")).toEqual({ "0,1": "#f00" });
+    expect(seamStripMap({ "0,1": "#f00", "0,150": "#0f0" }, nb, "W")).toEqual({ "0,150": "#0f0" });
+  });
+
+  test("a run's level copies keep the saved level untouched and migrateLevel leaves runKey alone", () => {
+    const saved = mk("A2", { open: { E1: "" } });
+    const run = buildRun([saved], "z");
+    expect(saved.runKey).toBeUndefined();
+    expect(run.nodes[run.order[0]].level.runKey).toBe(run.order[0]);
+    expect(migrateLevel(saved).runKey).toBeUndefined();
   });
 });
