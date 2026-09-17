@@ -726,6 +726,27 @@ badges, and the player's see-through window (frontFadeKeys/behindFade) reveals b
 player's own `.playerHpTrack` stays at 8000. If Blake ever asks for bars over trees again, that is
 the object rung (5101) to slot between, not a return to 8000.
 
+**Inside 5060 the bars sort themselves by who is being hurt (`unitStatusZ`, 2026-09-17).** Blake:
+"whatever HP bars are going down shouldn't stay hidden under the ones that are not". A full bar is
+5060, a bar that has ever fallen is 5061, and one that fell within the last `HP_BAR_HOT_MS` (1.5 s)
+is 5062 — so in a pack the bar draining right now is always the one on top, and the whole band
+still sits under Front objects at 5101. Detected by the bar's own HP falling between two renders
+(`noteUnitHp` on the `unitHpSeen` ref), the ONE place every way of hurting a unit meets, rather
+than a stamp at each of the eight damage sites.
+
+**A melee swing hits EVERY body in its arc, once each (2026-09-17).** Blake: "a melee weapon
+should be able to hit multiple enemies at once if they are all in the hit box." The player's swing
+keeps `p.swingHits` (spawn key → true) for the stroke; each frame the arc is tested against every
+living enemy not already in the map, so a swing overlapping the same body for six frames lands
+once and a swing through three dogs lands three times, reported in ONE toast. `p.hitRegistered`
+now means only "this stroke is spent" (a throw, a raise). The AI side is the same rule:
+`ep.swingHit` is that map (it was a one-shot boolean), swept over the chosen target first, then
+every other unit on the opposing side, then the player when a hostile was fighting your ally —
+via `hitBodyOf`/`applyHitTo`, which are `applyAttackHit` parametrised by the body. A blocked blow
+still staggers the swinger and ends the sweep. Verified in the running app: one machete swing took
+20 off each of three overlapping 100-HP dummies and lifted all three bars to 5062; an enemy's
+machete swing landed once on the player and once on the raised dummy beside them.
+
 **👁 SEE THROUGH — hiding Foreground/Front in the editor (`lHidden`, 2026-09-16).** Blake: "I need
 a button to inspect layers behind front layers so that I can edit the background layer behind this
 front layer without erasing the front layer." Two toggles in their own `See through:` group beside

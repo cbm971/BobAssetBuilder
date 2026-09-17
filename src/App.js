@@ -7534,6 +7534,24 @@ export const LAYER_BAND = 899; // objects per rung before the band would run int
 // down. Pinned to a constant rather than the bare 6000 it used to carry, because that number was
 // only ever "one rung above the player" and silently became "above every Front prop" otherwise.
 export const CORPSE_Z = 5050;
+// A UNIT'S HP BAR RISES WHILE IT IS TAKING DAMAGE. Every .unitStatus used to sit on one z (5060),
+// so in a crowd the bars stacked in spawn order and the one actually draining was as likely as
+// not to be hidden under a full green bar belonging to somebody behind it — Blake: "whatever HP
+// bars are going down shouldn't stay hidden under the ones that are not". Three rungs, all
+// inside the 5051-5100 gap so scenery still hides them with the unit (see .unitStatus):
+//   5060 untouched (full HP)     5061 hurt at some point     5062 hit within the last HP_BAR_HOT_MS
+// Read from the bar's own HP falling between two renders (noteUnitHp), which is the ONE place
+// every way of hurting a unit meets — a melee swing, a shot, a blast, fire, a brawl — rather
+// than a stamp at each of those eight damage sites, any one of which would be forgotten.
+export const UNIT_STATUS_Z = 5060;
+export const HP_BAR_HOT_MS = 1500;
+export const noteUnitHp = (seen, key, hp, nowMs) => {
+  const s = seen[key] || (seen[key] = { hp, at: -Infinity });
+  if (hp < s.hp) s.at = nowMs;
+  s.hp = hp;
+  return nowMs - s.at < HP_BAR_HOT_MS;
+};
+export const unitStatusZ = (hpFrac, hotNow) => UNIT_STATUS_Z + (hotNow ? 2 : hpFrac < 1 ? 1 : 0);
 export const levelObjectZIndex = (o, ord) =>
   (LAYER_BASE_Z[objectLay(o)] ?? LAYER_BASE_Z.bg) + 1 + Math.max(0, Math.min(LAYER_BAND - 1, Math.round(ord) || 0));
 export const splitObjectStackByPlayerLayer = (stack) => {
@@ -7953,6 +7971,7 @@ export default function AssetStudio() {
   const playRunId = useRef(0);                            // bumped once each time Playtest actually STARTS — lets the loop tell a genuine new session from an incidental effect re-run (e.g. a grenade's setLevel), so fire countdowns aren't reset mid-play
   const lastSeededRun = useRef(-1);                       // the playRunId hazLife was last freshly seeded for; equal => this is a re-run of the same session, so preserve in-progress countdowns
   const enemyHP = useRef({});                             // spawnKey -> remaining HP this Playtest session (lazily seeded from the enemy asset's base hp on first hit)
+  const unitHpSeen = useRef({});                          // spawnKey -> { hp, at } the HP bar last drew and when it last fell; drives unitStatusZ so a draining bar rises over full ones
   const enemyDrops = useRef({});                          // spawnKey -> null (no loot) | { item, x, y }; rolled once per defeated enemy
   const corpseStripped = useRef({});                      // spawnKey -> [asset, ...] looted OFF that body: its art stops drawing those pieces, so a corpse you took the rifle from is visibly unarmed
   const meleeReach = useRef({});                          // enemyId|weaponId -> swept melee-hitbox reach in px, so the engage gate doesn't re-sweep the whole swing arc every frame
@@ -10099,25 +10118,31 @@ export default function AssetStudio() {
           // a feet line, and an aim point, plus a damage sink — so the SAME reaction-timed, line-of-
           // sight-gated, melee-OR-ranged pipeline below fights whichever one this unit is up against.
           const atkCX = ep.x + eShape.centerFrac * eRenderW;
-          let tgtBoxLeft = 0, tgtBoxTop = 0, tgtBoxW = pw, tgtBoxH = ph, tgtFeetY = 0, tgtAimCX = targetCX, tgtAimCY = 0;
-          if (targetKind === "player") {
-            tgtBoxLeft = p.x; tgtBoxTop = p.y; tgtBoxW = pw; tgtBoxH = ph; tgtFeetY = p.y + ph; tgtAimCY = p.y + ph * 0.5;
-          } else if (targetKind === "unit" && targetEp && targetEa) {
-            const tShape = sideBodyShape(targetEa);
-            const tRenderW = enemyRenderW(targetEa, CW), tpw2 = tRenderW * tShape.fraction;
+          // The hittable box of ONE body — the player or a unit — as the AI sees it. Written as a
+          // function of the body rather than of `targetKind` because a weapon swing sweeps EVERY
+          // opposing body in its arc (see the swing test below), not just the one it picked to chase.
+          const hitBodyOf = (kind, bEp, bEa) => {
+            if (kind === "player") return { left: p.x, top: p.y, w: pw, h: ph, feetY: p.y + ph, aimCY: p.y + ph * 0.5 };
+            const tShape = sideBodyShape(bEa);
+            const tRenderW = enemyRenderW(bEa, CW), tpw2 = tRenderW * tShape.fraction;
             // The TARGET's own height, not this unit's: `standEph` above is the shooter's, and a
             // Squirrel sizing a Pit Bull by its own 116px box put the dog's feet a cell in the air.
-            const tEph = targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW);
-            tgtBoxLeft = targetEp.x + (tShape.centerFrac * tRenderW - tpw2 / 2);
-            tgtBoxTop = targetEp.y + unitHitTop(targetEa, tShape, tEph); // the drawn body, same as every other hit box
-            tgtBoxW = tpw2; tgtBoxH = tShape.heightFrac * tEph;
-            tgtFeetY = targetEp.y + tEph; tgtAimCY = tgtBoxTop + tgtBoxH / 2; // aim at the middle of the drawn body, not of the physics box (which for a dog is above its head)
+            const tEph = bEp.crouch ? enemyCrouchH(bEa, CW) : enemyStandH(bEa, CW);
+            const top = bEp.y + unitHitTop(bEa, tShape, tEph); // the drawn body, same as every other hit box
+            const h = tShape.heightFrac * tEph;
+            return { left: bEp.x + (tShape.centerFrac * tRenderW - tpw2 / 2), top, w: tpw2, h, feetY: bEp.y + tEph, aimCY: top + h / 2 }; // aim at the middle of the drawn body, not of the physics box (which for a dog is above its head)
+          };
+          let tgtBoxLeft = 0, tgtBoxTop = 0, tgtBoxW = pw, tgtBoxH = ph, tgtFeetY = 0, tgtAimCX = targetCX, tgtAimCY = 0;
+          if (targetKind === "player" || (targetKind === "unit" && targetEp && targetEa)) {
+            const tb = hitBodyOf(targetKind, targetEp, targetEa);
+            tgtBoxLeft = tb.left; tgtBoxTop = tb.top; tgtBoxW = tb.w; tgtBoxH = tb.h; tgtFeetY = tb.feetY; tgtAimCY = tb.aimCY;
           }
           const attacking = (targetKind === "player" || targetKind === "unit"); // has someone to fight (not just following you)
-          // Land a hit on whatever this unit is fighting. The player gets the full incoming-damage
-          // treatment (defense, back-guard, i-frames, respawn); a unit target simply loses HP.
-          const applyAttackHit = (rawDmg) => {
-            if (targetKind === "player") {
+          // Land a hit on ONE body: the player gets the full incoming-damage treatment (defense,
+          // back-guard, i-frames, respawn); a unit simply loses HP. Parametrised by the body, not
+          // by the chosen target, so a swing can land on everybody standing in it.
+          const applyHitTo = (kind, key, bEp, bEa, rawDmg) => {
+            if (kind === "player") {
               if (p.invuln > 0) return false;
               // Guard up (Q/V with a melee weapon): a blow onto your front is turned aside for
               // nothing. Only this melee path consults it — an enemy's SHOT resolves in the
@@ -10150,30 +10175,41 @@ export default function AssetStudio() {
               }
               return true;
             }
-            if (targetKind === "unit" && targetKey) {
-              if (unitUntouchable(targetEp)) return false; // mid-revive: the swing finds nobody, exactly as the player's i-frames read just above
-              const cur = enemyHP.current[targetKey] === undefined ? unitMaxHP(targetEa, targetEp, allyHpBonus) : enemyHP.current[targetKey];
-              enemyHP.current[targetKey] = Math.max(0, cur - Math.max(1, Math.round(rawDmg)));
-              if (enemyHP.current[targetKey] <= 0) flash(friendly ? (allyBadge(ep) + " Your " + ea.name + " defeated " + (targetEa.name || "a foe") + "!") : ("💔 Your " + (targetEa.name || "ally") + " fell."));
+            if (kind === "unit" && key) {
+              if (unitUntouchable(bEp)) return false; // mid-revive: the swing finds nobody, exactly as the player's i-frames read just above
+              const cur = enemyHP.current[key] === undefined ? unitMaxHP(bEa, bEp, allyHpBonus) : enemyHP.current[key];
+              enemyHP.current[key] = Math.max(0, cur - Math.max(1, Math.round(rawDmg)));
+              if (enemyHP.current[key] <= 0) flash(friendly ? (allyBadge(ep) + " Your " + ea.name + " defeated " + (bEa.name || "a foe") + "!") : ("💔 Your " + (bEa.name || "ally") + " fell."));
               return true;
             }
             return false;
           };
+          const applyAttackHit = (rawDmg) => applyHitTo(targetKind, targetKey, targetEp, targetEa, rawDmg); // ...on whatever this unit is fighting
           // PLAYER-BASED melee connects like the player's own swing: while the swing timer runs, place
-          // the weapon's hitbox on the swung arm and land the hit the frame it overlaps the target's
-          // body. One hit per swing (swingHit) — against the player or a brawl opponent alike.
-          if (!stunned && attacking && meleeGeom && ep.swingT > 0 && ep.swingHit === false) {
+          // the weapon's hitbox on the swung arm and land the hit the frame it overlaps a body. The
+          // SAME crowd rule the player's swing has: one hit per body per swing, every opposing body
+          // in the arc. ep.swingHit is the map of who this swing has already struck (it was a
+          // one-shot boolean, so a hostile's sword through you AND your dog only ever cut one of
+          // you). The chosen target is swept first — it is the one the AI aimed at — and then
+          // everybody else on the other side, plus the player when a hostile is fighting a unit.
+          if (!stunned && attacking && meleeGeom && ep.swingT > 0 && ep.swingHit && typeof ep.swingHit === "object") {
             const tSw = Math.max(0, ATTACK_SWING_FRAMES - ep.swingT);
             const saNow = meleeSwingAngle(tSw, ATTACK_SWING_FRAMES);
-            for (const hb of enemyMeleeHitboxAt(meleeGeom, ew, saNow)) {
+            const arc = enemyMeleeHitboxAt(meleeGeom, ew, saNow).map((hb) => {
               const lxE = (hb.x / W) * eRenderW, lwE = (hb.w / W) * eRenderW;
-              const hbX = ep.x + (ep.face < 0 ? eRenderW - (lxE + lwE) : lxE);
-              const hbY = ep.y + (hb.y / H) * newEph, hbH = (hb.h / H) * newEph;
-              if (hbX < tgtBoxLeft + tgtBoxW && hbX + lwE > tgtBoxLeft && hbY < tgtBoxTop + tgtBoxH && hbY + hbH > tgtBoxTop) {
-                applyAttackHit(enemyAttackDamage(ea, ew));
-                ep.swingHit = true;
-                break;
-              }
+              return { x: ep.x + (ep.face < 0 ? eRenderW - (lxE + lwE) : lxE), y: ep.y + (hb.y / H) * newEph, w: lwE, h: (hb.h / H) * newEph };
+            });
+            const bodies = [{ kind: targetKind, key: targetKind === "player" ? "player" : targetKey, ep: targetEp, ea: targetEa }];
+            for (const o of aliveOpposite(hostile)) if (o.key !== targetKey) bodies.push({ kind: "unit", key: o.key, ep: o.ep, ea: o.ea });
+            if (hostile && targetKind !== "player") bodies.push({ kind: "player", key: "player", ep: null, ea: null });
+            for (const body of bodies) {
+              if (ep.swingHit[body.key]) continue; // already struck by this swing
+              const box = hitBodyOf(body.kind, body.ep, body.ea);
+              const struck = arc.some((hb) => hb.x < box.left + box.w && hb.x + hb.w > box.left && hb.y < box.top + box.h && hb.y + hb.h > box.top);
+              if (!struck) continue;
+              applyHitTo(body.kind, body.key === "player" ? null : body.key, body.ep, body.ea, enemyAttackDamage(ea, ew));
+              ep.swingHit[body.key] = true;
+              if (ep.swingT <= 0) break; // the blow was BLOCKED and the stagger cut the swing short: nobody behind the shield gets hit by a stroke that stopped
             }
           }
           if (ep.attackT > 0) ep.attackT -= dtMul;
@@ -10304,7 +10340,7 @@ export default function AssetStudio() {
                   });
                   ep.weaponAmmo = consumeShot(ep.weaponAmmo, weaponFireCooldownFrames(ew.fireRate));
                 } else if (meleeGeom) {
-                  ep.swingHit = false; // weapon-hitbox melee: committing only STARTS the swing; the hit lands in the swing test above
+                  ep.swingHit = {}; // weapon-hitbox melee: committing only STARTS the swing; the hits (one per body in the arc) land in the swing test above
                 } else {
                   // Bare-handed / drawn-monster melee: an instant hit on commit (applyAttackHit
                   // respects the player's i-frames, and routes to a unit's HP in a brawl).
@@ -10430,7 +10466,7 @@ export default function AssetStudio() {
           p.firing = { t: 0, dur: RANGED_FIRE_POSE_FRAMES, aimTilt };
         } else if (wantFire) {
           p.firing = { t: 0, dur: 12 }; // swing duration — same for a real melee weapon or a bare-handed swing (faster than the old sine sweep)
-          p.hitRegistered = false; // a fresh swing can land a fresh hit
+          p.hitRegistered = false; p.swingHits = {}; // a fresh swing can land a fresh hit on every body in its arc
         }
       }
       p.wasFire = !!K.fire;
@@ -10445,7 +10481,7 @@ export default function AssetStudio() {
       const wantMelee = K.melee && !p.wasMelee;
       const meleeInHand = !!playtestWeapon && !isRanged(playtestWeapon.wtype); // a real melee weapon — bare hands still swing
       if (!meleeInHand && wantMelee && !p.firing) {
-        p.firing = { t: 0, dur: 12, unarmed: true }; p.hitRegistered = false;
+        p.firing = { t: 0, dur: 12, unarmed: true }; p.hitRegistered = false; p.swingHits = {};
       }
       p.wasMelee = !!K.melee;
       // All of the guard's timing is advanceBlock: the press raises it, BLOCK_FRAMES later the arm
@@ -10462,8 +10498,12 @@ export default function AssetStudio() {
         p.firing.t += dtMul;
         // Melee hit-test — reconstructs just enough of the render section's arm-swing/weapon-
         // attach geometry (swingAngle, attachWeaponBlocks) to place the hitbox piece in world
-        // space, without needing the full visual bake() pipeline. Guarded by p.hitRegistered so
-        // a swing can only land one hit, no matter how many frames it overlaps an enemy for.
+        // space, without needing the full visual bake() pipeline. ONE HIT PER ENEMY PER SWING:
+        // p.swingHits remembers who this stroke has already connected with, so a swing that
+        // overlaps the same body for six frames still lands once — but a blade sweeping through a
+        // crowd hits EVERY body in its arc (Blake: "a melee weapon should be able to hit multiple
+        // enemies at once if they are all in the hit box"). It used to be one enemy per swing
+        // (p.hitRegistered), which made a wide swing into a pack no better than a jab at the nearest.
         // With no weapon equipped, this is a bare-handed swing: a small fist-sized hitbox
         // centered on the same guide-hand point a weapon would use, riding the arm the same way.
         const unarmedSwing = !!(p.firing && p.firing.unarmed); // Q/V bare-handed swing — ignores the held weapon entirely
@@ -10555,12 +10595,19 @@ export default function AssetStudio() {
                   }
                 }
               }
+              // Every hit this frame is collected and reported in ONE toast: hitting three dogs
+              // with one swing used to flash three messages on the same frame and only the last
+              // one survived, so the two you could not read looked like they never happened.
+              const swingHitNotes = [];
+              let swingCrit = false, swingArmedNote = null;
+              if (!p.swingHits) p.swingHits = {}; // belt and braces for a p.firing set anywhere that forgot the map
               hitLoop:
               for (const b of swingBoxes) {
                 if (meleeResurrect) break hitLoop; // a raising staff deals no damage, ever
-                if (p.hitRegistered) break hitLoop; // one ENEMY hit per swing; parries above are unlimited
+                if (p.hitRegistered) break hitLoop; // this stroke is spent (a throw or a raise); parries above are unlimited
                 const hbX = b.x, hbY = b.y, hbW = b.w, hbH = b.h;
                 for (const k of Object.keys(lv.enemies || {})) {
+                  if (p.swingHits[k]) continue; // already struck by THIS swing — one hit per body per stroke, however many pieces or frames overlap it
                   const spawn = liveSpawnAt(k, lv.enemies[k]);
                   const ea = liveEnemyAsset(k, findA(spawn.enemyId));
                   if (!ea) continue;
@@ -10606,12 +10653,16 @@ export default function AssetStudio() {
                     const dmg = isCrit ? base * 2 : base;
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
                     if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon && (playtestWeapon.stun ?? 0) > 0) { ep.stun = Math.round(playtestWeapon.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
-                    p.hitRegistered = true;
-                    flash((isCrit ? "💥 Critical! " : ((!unarmedSwing && playtestWeapon) ? "⚔️ " : "👊 ")) + "Hit " + ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
-                    break hitLoop;
+                    // Mark THIS body as struck and carry on: the rest of the arc may still be
+                    // through somebody else. (Not p.hitRegistered — that would end the whole swing.)
+                    p.swingHits[k] = true;
+                    swingCrit = swingCrit || isCrit;
+                    swingArmedNote = (!unarmedSwing && playtestWeapon) ? "⚔️ " : "👊 ";
+                    swingHitNotes.push(ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
                   }
                 }
               }
+              if (swingHitNotes.length) flash((swingCrit ? "💥 Critical! " : swingArmedNote) + "Hit " + swingHitNotes.join(", "));
             }
           }
         }
@@ -14643,7 +14694,7 @@ export default function AssetStudio() {
       camRef.current = { x: 0, y: 0, init: false };
     }
     const startLevel = runStart ? runStart.nodes[runStart.startKey].level : level;
-    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true };
+    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true };
     if (runStart) { runRef.current = runStart; setRunHud(runHudFor(runStart, runStart.nodes[runStart.startKey])); setLevel(startLevel); setPlay(true); return; }
     setPlay((v) => !v);
   };
@@ -16786,6 +16837,8 @@ export default function AssetStudio() {
                     }
                   }
                   const hpFrac = Math.max(0, Math.min(1, curHp / maxHp));
+                  // The bar of whoever is being hurt RIGHT NOW draws over the rest of the crowd (unitStatusZ).
+                  const hpHot = noteUnitHp(unitHpSeen.current, k, curHp, performance.now());
                   // A FRONT POSE IS NEVER MIRRORED. The flip exists to point a side-on drawing the
                   // way the unit is walking; applied to art already facing the camera it just
                   // swaps the poor character's left and right for no reason, and any lettering or
@@ -16820,7 +16873,7 @@ export default function AssetStudio() {
                           behind a tree had its HP, reload and 💫 swallowed by the leaves, which is
                           the one time you most want to read them. Out here there's also no mirror
                           to undo, so the reload bar just fills left-to-right on its own. */}
-                      <div className="unitStatus" style={{ left: eLeft + hitboxOffset, top: eTop + eAnchor, width: epw }}>
+                      <div className="unitStatus" style={{ left: eLeft + hitboxOffset, top: eTop + eAnchor, width: epw, zIndex: unitStatusZ(hpFrac, hpHot) }}>
                         {/* NO HP BAR ON SOMEBODY YOU CANNOT HURT. A full green bar over a person
                             your shots pass through is the game promising a fight it will not give
                             you, and it is the only on-screen difference between "immune" and "my
@@ -18814,7 +18867,7 @@ html,body{margin:0;padding:0;background:#0f1117}
    and Front PAINT (6000) above it: whatever hides the unit hides its badges, and the see-through
    window the player carries (frontFadeKeys / behindFade) reveals both together. The player's own
    .playerHpTrack stays at 8000 — that is your status, not the scene's. */
-.unitStatus{position:absolute;height:0;pointer-events:none;z-index:5060}
+.unitStatus{position:absolute;height:0;pointer-events:none;z-index:5060} /* the inline zIndex (unitStatusZ) lifts a hurt unit's bar to 5061 and one being hit right now to 5062 - still under Front objects at 5101 */
 .enemyHpTrack{position:absolute;left:0;right:0;top:-10px;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden}
 .enemyStun{position:absolute;left:0;right:0;top:-30px;text-align:center;font-size:16px;line-height:1;pointer-events:none;animation:stunbob .6s ease-in-out infinite}
 @keyframes stunbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}

@@ -407,6 +407,10 @@ import {
   propCat,
   propCatKey,
   PROP_UNCAT,
+  noteUnitHp,
+  unitStatusZ,
+  UNIT_STATUS_Z,
+  HP_BAR_HOT_MS,
 } from "./App";
 
 /* 🎲 A GEAR TAG ON A PLACEMENT. The point of the feature is that six copies of one guard are six
@@ -8968,5 +8972,33 @@ describe("runs", () => {
     expect(saved.runKey).toBeUndefined();
     expect(run.nodes[run.order[0]].level.runKey).toBe(run.order[0]);
     expect(migrateLevel(saved).runKey).toBeUndefined();
+  });
+});
+
+describe("a draining HP bar rises over the full ones around it", () => {
+  test("noteUnitHp: hot only while the bar has fallen within HP_BAR_HOT_MS, and only on a FALL", () => {
+    const seen = {};
+    expect(noteUnitHp(seen, "1,1", 10, 1000)).toBe(false);           // first sight: never hot
+    expect(noteUnitHp(seen, "1,1", 10, 1500)).toBe(false);           // holding steady: still not
+    expect(noteUnitHp(seen, "1,1", 7, 2000)).toBe(true);             // it fell: hot now...
+    expect(noteUnitHp(seen, "1,1", 7, 2000 + HP_BAR_HOT_MS - 1)).toBe(true);  // ...for the window...
+    expect(noteUnitHp(seen, "1,1", 7, 2000 + HP_BAR_HOT_MS)).toBe(false);     // ...and then cools
+    expect(noteUnitHp(seen, "1,1", 10, 5000)).toBe(false);           // a heal (raise / ally ceiling) is not a hit
+    expect(noteUnitHp(seen, "1,1", 9, 5001)).toBe(true);             // the next fall is hot again
+    // Keys are independent: one dog's bite does not light up the other dog's bar.
+    expect(noteUnitHp(seen, "2,2", 10, 5001)).toBe(false);
+    expect(seen["2,2"]).toEqual({ hp: 10, at: -Infinity });
+  });
+
+  test("unitStatusZ: hot > hurt > untouched, all inside the unit/Front gap", () => {
+    const untouched = unitStatusZ(1, false), hurt = unitStatusZ(0.6, false), hot = unitStatusZ(0.6, true);
+    expect(untouched).toBe(UNIT_STATUS_Z);
+    expect(hurt).toBeGreaterThan(untouched);
+    expect(hot).toBeGreaterThan(hurt);
+    // a full bar that was JUST topped back up but is flagged hot still wins (the flag is about the fall, not the level)
+    expect(unitStatusZ(1, true)).toBe(hot);
+    // the whole band stays above corpses (5050) and below Front objects (5101)
+    expect(untouched).toBeGreaterThan(5050);
+    expect(hot).toBeLessThan(5101);
   });
 });
