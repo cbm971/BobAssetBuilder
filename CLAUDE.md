@@ -1166,7 +1166,8 @@ spots in the play loop and the level render. In plain words:
   facing and crouch are untouched. Verified on his real export: M1→M3→M2→M4 and back, x rebased by
   exactly 4800 each time, camera by exactly 4800, a mid-air vx of 20.47 carried across; a door on M1
   entered and left inside the run, back to the same slot.
-* **What you see across a seam.** `seamStripLayers` draws `SEAM_STRIP_CELLS` (40) of each
+* **What you see across a seam (superseded the same evening — see the seam-hitch bullet below; the
+  strips became whole cached neighbours).** `seamStripLayers` drew `SEAM_STRIP_CELLS` (40) of each
   neighbour's bg/fg/front cells across the seam through the very same run/outline/clip code as the
   live layers, positioned by the offset, and `seamStripObjects` the objects whose footprint reaches
   into the strip (drawn static in the render body, props through `renderObj`). Enemies, fires and
@@ -1181,6 +1182,39 @@ spots in the play loop and the level render. In plain words:
   0,0 and restored on Stop; in the editor no transform is emitted at all. A door is a cut: both door
   swaps set `camRef.init = false` so the camera snaps on the far side instead of panning across the
   level. A plain ▶ Playtest gets the camera too (verified: follows, clamps, no strips, no run line).
+* **The seam hitch, followers, and the bubble (later on 2026-09-16).** Blake's first play: "too much
+  lag going from one level to the next", "followers should follow you through levels", and a
+  nine-option dialogue whose words scrolled off the top. Measured in the test pane (dev build, ~30 ms
+  frames): the handoff frame was **60 ms + 54 ms** — the whole live level's DOM torn down and the
+  next one's built, ~2,000 nodes. Two changes, both in the level render:
+  - **Tiles are cached per cell map and neighbours are drawn WHOLE** (`RUN_TILE_CACHE`, `runTiles`,
+    `cachedRunTiles`): one wrapper per run node keyed by the node, so at the swap React only rewrites
+    two `left` values and creates nothing. This replaced the 40-cell strips — a strip has different
+    elements from the full level, so it could never be reused as the level. Whole neighbours cost
+    per-frame JS (15.4 ms standing vs 12.3 with strips, 2,193 cells mounted vs 1,301) until…
+  - **View culling during play** (`cullView` / `offScreen`, `VIEW_CULL_MARGIN_CELLS` = 8): props,
+    front objects, neighbour objects and unit sprites (alive and dead, ~140 nodes each) are not
+    rendered when their box misses the camera window by more than the margin. Physics, AI, collision,
+    hazards and loot never read the DOM, so nothing else changes; the editor culls nothing. Standing
+    per-frame JS **7.6 ms** (from 15.4), walking median 7 ms (from 16), the handoff **51 + 35 ms**
+    (from 60 + 54) with the first new-level frame 19 ms (from 39). What is left of the hitch is the
+    new level's on-screen sprites mounting and the loop effect re-running; if it is still felt, the
+    next step is keying the object passes per node the way the tiles are.
+  - Because the level being left stays mounted, `seamHandoff` un-fades its Front cells and drops
+    their `will-change` BEFORE `setLevel` — the effect cleanup runs after `frontCellsRef` has moved.
+  - **Followers come with you** (`carryAlliesAcrossSeam`, `ALLY_CARRY_RANGE_CELLS` = 24): every
+    living `ep.friendly` unit within that range of the body at the crossing is moved — its spawn
+    record into the next level's `enemies` under a fresh "r,c" key at its new place, its live state
+    (position re-based, HP if it has one, rolled gear) into that level's bucket — and out of the level
+    left. A unit that has never been hurt has NO `eHP` entry; that is alive, not dead (the first
+    version got this wrong and carried nobody). Verified: a talked-over unit crossed M1→M3 as key
+    "35,0" with its HP, M1 lost it, M3 gained it. The gang at M1's lower-right gate kills an ally in
+    seconds, so a test ally needs its HP topped up like the player's.
+  - **The bubble stays on SCREEN, not merely inside the level** (`talkBubbleBox` with `view`): the
+    camera's window in level pixels is the fourth clamp; it flips below only when there is genuinely
+    more room there, and hands back `maxH`, which caps the bubble — `.talkBubble` is a flex column,
+    `.talkBox` never shrinks, `.talkOpts` scrolls. Verified on the Bridge Troll's nine-option node:
+    bubble top 433 in a view starting at 423, the words fully visible, options 445 px scrolling in 64.
 * **Gates with nothing behind them.** Pressed against an edge at an open gate no level attaches to,
   the loop flashes once every 2.5 s (`gateNag`): "🚧 Bottom Left gate leads nowhere yet … (it accepts
   "Sewer")", "🏁 The run starts here", or "🏁 Floor complete!". Plain Playtest edges stay silent.

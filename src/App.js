@@ -2177,21 +2177,37 @@ export const TALK_NOTICE_ROWS = 2.5;
 // moved the box to, so it still says which of the three people in the room is talking.
 export const TALK_BUBBLE_W = 420;   // px; a comfortable two or three lines of text per row
 export const TALK_BUBBLE_GAP = 12;  // px of air between the bubble and the head/feet it hangs off
-export const talkBubbleBox = (t, boxH, levelW) => {
+//
+// AND SINCE THE CAMERA (2026-09-16) THE LEVEL IS NOT WHAT YOU CAN SEE. The view is a window a third
+// the level's height, so a bubble that "fits above the head" inside the level could still run off
+// the top of the SCREEN — with eight options under it, the words themselves were the part that
+// went, and Blake reported it as "you cannot see the original dialogue box message". With `view`
+// (the camera's rectangle in level pixels) the fourth job is: clamp to the view, flip below when
+// there is more room there, and hand back `maxH`, the room in the chosen direction — the bubble is
+// capped to it and its OPTIONS scroll (see .talkOpts), so the line being said is always on screen.
+// Without `view` (older callers, the tests) it behaves exactly as before.
+export const TALK_BUBBLE_MIN_H = 120; // px; below this the cap would squash the words themselves, so let it overflow instead
+export const talkBubbleBox = (t, boxH, levelW, view = null) => {
   const width = Math.min(TALK_BUBBLE_W, Math.max(200, levelW - 16));
   const half = width / 2;
   const wantLeft = (t.ax || 0) - half;
   // Clamped, but only when the level is actually wider than the bubble — otherwise the two clamps
   // fight and the box jumps to one edge.
-  const left = levelW <= width + 16 ? Math.max(8, (levelW - width) / 2) : Math.min(Math.max(8, wantLeft), levelW - width - 8);
+  let left = levelW <= width + 16 ? Math.max(8, (levelW - width) / 2) : Math.min(Math.max(8, wantLeft), levelW - width - 8);
+  if (view) { const lo = Math.max(8, view.x + 8), hi = Math.min(levelW - width - 8, view.x + view.w - width - 8); left = hi < lo ? view.x + (view.w - width) / 2 : Math.min(Math.max(lo, wantLeft), hi); }
   const headY = t.ay || 0;
+  const aboveSpace = headY - TALK_BUBBLE_GAP - (view ? view.y : 0);
+  const belowSpace = (view ? view.y + view.h : Infinity) - (headY + (t.ah || 0) + TALK_BUBBLE_GAP);
   // Only drop below once we have actually MEASURED the box (boxH > 0). On the first render the
-  // height is unknown, and guessing "it doesn't fit" there makes the bubble visibly jump.
-  const below = boxH > 0 && headY - boxH - TALK_BUBBLE_GAP < 0;
+  // height is unknown, and guessing "it doesn't fit" there makes the bubble visibly jump. With a
+  // view the measured height is the CAPPED one, so "it is being capped above" (boxH has reached
+  // the room above) is the flip test, and it flips only when there is genuinely more room below.
+  const below = boxH > 0 && (view ? (aboveSpace <= boxH + 8 && belowSpace > aboveSpace) : headY - boxH - TALK_BUBBLE_GAP < 0);
   const top = below ? headY + (t.ah || 0) + TALK_BUBBLE_GAP : headY - TALK_BUBBLE_GAP;
   // The tail's x is relative to the box, and clamped inside it so it can never detach off an end.
   const tailX = Math.min(Math.max(14, (t.ax || 0) - left), width - 14);
-  return { left, top, width, below, tailX };
+  const maxH = view ? Math.max(TALK_BUBBLE_MIN_H, (below ? belowSpace : aboveSpace) - 8) : null;
+  return { left, top, width, below, tailX, maxH };
 };
 export const nearestTalkable = (candidates, px, py, rangeX, rangeY) => {
   let best = null, bd = Infinity;
@@ -7256,6 +7272,76 @@ export const seamStripMap = (map, nb, side, strip = SEAM_STRIP_CELLS) => {
   for (const k of Object.keys(map || {})) { const i = k.indexOf(","); if (inSeamStrip(nb, side, +k.slice(0, i), +k.slice(i + 1), 1, strip)) out[k] = map[k]; }
   return out;
 };
+// THE TILES OF A LEVEL IN A RUN ARE BUILT ONCE AND KEPT. Crossing a seam used to unmount the whole
+// live level and mount the whole next one (plus fresh strips), which is ~2,000 DOM nodes torn down
+// and rebuilt in one frame — measured as a 60 ms frame against a 30 ms norm in the test pane, and
+// Blake felt it as lag at every gate. Now every level that is on screen (the live one AND its
+// neighbours) renders through ONE path, a wrapper per run node keyed by the node, holding tile
+// elements cached per cell MAP (bg/fg/front map object identity + texture set). At the swap the
+// wrappers keep their keys and their cached children, so React only rewrites two `left` values —
+// nothing is created or destroyed. Neighbours are drawn whole rather than as a 40-cell strip for
+// exactly this reason: a strip has different elements from the full level, so it could never be
+// reused as the level. The cost is offscreen DOM (~1,000–1,500 boxes per neighbour on his levels),
+// which React never walks (the cached layer element bails out) and the compositor never paints;
+// measured per-frame JS with two whole neighbours mounted is in the notes in CLAUDE.md.
+const RUN_LAYER_STYLE = { display: "contents" };
+const RUN_TILE_CACHE = { bg: new WeakMap(), fg: new WeakMap(), front: new WeakMap() };
+const cachedRunTiles = (kind, map, texLib, build) => {
+  if (!map) return null;
+  const hit = RUN_TILE_CACHE[kind].get(map);
+  if (hit && hit.texLib === texLib) return hit.el;
+  const el = <div style={RUN_LAYER_STYLE}>{build()}</div>;   // ONE element per layer, so a bail-out at it skips every cell (see CELL_LAYER_STYLE)
+  RUN_TILE_CACHE[kind].set(map, { texLib, el });
+  return el;
+};
+// The three builders are the play-mode halves of lvBgLayer / lvFgLayer / lvFrontLayer, cell for
+// cell (same classes, same runs, same outline/clip code), minus the editor's erase handlers and
+// minus the Front ref, which the run wrapper puts on an outer div instead.
+const buildRunBgTiles = (map, texLib) => cellRuns(map).map(({ key, r, c, span, cell }) => {
+  const fills = fgFills(cell);
+  if (fills.length <= 1) return <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(map, cell, r, c, texLib), clipPath: fgClipPath(cell), width: span * LV_CELL }} />;
+  return <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, width: span * LV_CELL }}>{fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(map, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}</div>;
+});
+const buildRunFgTiles = (map, texLib) => cellRuns(map).flatMap(({ key, r, c, span, cell, sig }) => {
+  if (sig !== null) { const fill = fgFills(cell)[0]; if (fgHiddenInPlay(fill)) return []; return [<div key={"f" + key + "_0"} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(map, fill, r, c, texLib), width: span * LV_CELL }} />]; }
+  return fgFills(cell).map((fill, i) => fgHiddenInPlay(fill) ? null : <div key={"f" + key + "_" + i} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(map, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse();
+});
+const buildRunFrontTiles = (map, texLib) => Object.keys(map).map((k) => {
+  const [r, c] = k.split(",").map(Number); const cell = map[k], fills = fgFills(cell);
+  if (fills.length <= 1) return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(map, cell, r, c, texLib), clipPath: fgClipPath(cell) }} />;
+  return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL }}>{fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(map, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}</div>;
+});
+// FOLLOWERS COME WITH YOU THROUGH A GATE. Every living ally (ep.friendly — the one ally pipeline)
+// within ALLY_CARRY_RANGE_CELLS of the body when it crosses is moved into the next level: its spawn
+// record is copied into that level's enemies map under a fresh "r,c" key at its new place, its live
+// state (position re-based by the seam offset, HP, rolled gear) goes into that level's state bucket,
+// and it is taken out of the level being left so it is not also standing there when you come back.
+// Everything else about it travels on ep itself (allyKind, turned, following). Pure over the two
+// buckets so it can be tested; the loop hands it the live refs, which ARE the buckets.
+export const ALLY_CARRY_RANGE_CELLS = 24;   // an ally further behind than most of a screen stays where it is
+export const VIEW_CULL_MARGIN_CELLS = 8;    // how far past the camera's window a sprite is still drawn (see the level render)
+export const carryAlliesAcrossSeam = (src, dst, off, px, rangePx, standHOf, cell = LV_CELL) => {
+  const srcEnemies = { ...(src.enemies || {}) }, dstEnemies = { ...(dst.enemies || {}) };
+  let moved = 0;
+  for (const k of Object.keys(src.ePos || {})) {
+    const ep = src.ePos[k], spawn = src.enemies && src.enemies[k];
+    // No HP entry yet means it has never been hurt (the loop only writes eHP on damage) — alive.
+    const hp = src.eHP ? src.eHP[k] : undefined;
+    if (!ep || !spawn || !ep.friendly || (hp !== undefined && hp <= 0) || Math.abs(ep.x - px) > rangePx) continue;
+    const nx = ep.x - off.x, ny = ep.y - off.y;
+    const r = Math.max(0, Math.floor((ny + (standHOf(spawn) || cell)) / cell) - 1);   // the row the feet stand on, the way the seeding reads a key
+    let col = Math.max(0, Math.round(nx / cell));
+    while (dstEnemies[r + "," + col] || dst.ePos[r + "," + col]) col++;
+    const nk = r + "," + col;
+    dstEnemies[nk] = spawn;
+    dst.ePos[nk] = { ...ep, x: nx, y: ny };
+    if (hp !== undefined) dst.eHP[nk] = hp;
+    if (src.gear && src.gear[k]) dst.gear[nk] = src.gear[k];
+    delete srcEnemies[k]; delete src.ePos[k]; if (src.eHP) delete src.eHP[k]; if (src.gear) delete src.gear[k];
+    moved++;
+  }
+  return { moved, srcEnemies, dstEnemies };
+};
 // The camera target and clamp, kept pure for the tests: centre the body, clamp to the level, but
 // let the view run past an edge (by the strip's width) wherever a neighbour is drawn across it.
 export const cameraTarget = (p, pw, ph, lv, seams, vw, vh, cell = LV_CELL, strip = SEAM_STRIP_CELLS) => {
@@ -7958,27 +8044,26 @@ export default function AssetStudio() {
       {fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(level.front, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}
     </div>;
   })}</div> : null, [level, texLib]);
-  // RUN — the neighbour strips. Each open seam with a level behind it draws SEAM_STRIP_CELLS of that
-  // level's tiles across the edge, placed in THIS level's pixel frame, so the far side of a gate is
-  // on screen before you cross and the swap at the seam changes nothing you can see. Tiles only
-  // here (bg, fg, front cells, through the very same run/outline/clip code as the live layers);
-  // objects reaching into the strip are listed by seamStripObjects and drawn in the render body,
-  // and the neighbour's enemies, fires and doors appear when it goes live. Memoized on the live
-  // level — the links were decided before it went live — so this costs a frame nothing.
+  // RUN — every level on screen, live one included, through the cached-tile path (see RUN_TILE_CACHE):
+  // one wrapper per run node, keyed by the node, at that node's offset in the live level's pixels.
+  // At a seam handoff the same wrappers come back with new offsets and their cached children, so the
+  // swap creates nothing. The live node's Front layer gets frontCellsRef on an OUTER div (the cached
+  // element cannot carry a ref that changes), which is all the fade loop needs — it looks cells up
+  // under that root, so a neighbour's identical data-fk keys are never in its way.
   const runNodeNow = play && runRef.current && level && level.runKey ? runRef.current.nodes[level.runKey] : null;
-  const seamStripLayers = useMemo(() => {
+  const runTiles = useMemo(() => {
     if (!runNodeNow) return null;
     const seams = runSeams(runRef.current, runNodeNow, LV_CELL);
-    return Object.keys(seams).map((side) => {
-      const { level: nb, off } = seams[side];
-      const bg = seamStripMap(nb.bg, nb, side), fg = seamStripMap(nb.fg, nb, side), front = seamStripMap(nb.front, nb, side);
-      return <div key={"seam" + side} className="seamStrip" style={{ left: off.x, top: off.y, width: nb.cols * LV_CELL, height: nb.rows * LV_CELL }}>
-        {cellRuns(bg).map(({ key, r, c, span, cell }) => { const fills = fgFills(cell); if (fills.length <= 1) return <div key={"sb" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(nb.bg, cell, r, c, texLib), clipPath: fgClipPath(cell), width: span * LV_CELL }} />; return <div key={"sb" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, width: span * LV_CELL }}>{fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(nb.bg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}</div>; })}
-        {cellRuns(fg).flatMap(({ key, r, c, span, cell, sig }) => { if (sig !== null) { const fill = fgFills(cell)[0]; if (fgHiddenInPlay(fill)) return []; return [<div key={"sf" + key + "_0"} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(nb.fg, fill, r, c, texLib), width: span * LV_CELL }} />]; } return fgFills(cell).map((fill, i) => fgHiddenInPlay(fill) ? null : <div key={"sf" + key + "_" + i} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(nb.fg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse(); })}
-        {Object.keys(front).map((k) => { const [r, c] = k.split(",").map(Number); const cell = front[k], fills = fgFills(cell); if (fills.length <= 1) return <div key={"sr" + k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(nb.front, cell, r, c, texLib), clipPath: fgClipPath(cell) }} />; return <div key={"sr" + k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL }}>{fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(nb.front, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}</div>; })}
+    const shown = [{ node: runNodeNow, off: { x: 0, y: 0 } }, ...Object.keys(seams).map((side) => ({ node: runRef.current.nodes[seams[side].key], off: seams[side].off }))];
+    return shown.map(({ node, off }) => {
+      const nb = node.level, live = node === runNodeNow;
+      return <div key={node.key} className={"seamStrip" + (live ? " live" : "")} style={{ left: off.x, top: off.y, width: nb.cols * LV_CELL, height: nb.rows * LV_CELL }}>
+        {cachedRunTiles("bg", nb.bg, texLib, () => buildRunBgTiles(nb.bg, texLib))}
+        {cachedRunTiles("fg", nb.fg, texLib, () => buildRunFgTiles(nb.fg, texLib))}
+        <div ref={live ? frontCellsRef : undefined} style={RUN_LAYER_STYLE}>{cachedRunTiles("front", nb.front, texLib, () => buildRunFrontTiles(nb.front, texLib))}</div>
       </div>;
     });
-  }, [runNodeNow, texLib]);
+  }, [runNodeNow, level, texLib]);
   const seamStripObjects = useMemo(() => {
     if (!runNodeNow) return [];
     const seams = runSeams(runRef.current, runNodeNow, LV_CELL), out = [];
@@ -8784,7 +8869,20 @@ export default function AssetStudio() {
     // level, the same way a door does.
     const seamHandoff = (side, p) => {
       const seam = seams[side], nb = runNow.nodes[seam.key];
-      runNodeLive.level = lv;
+      // The level being left stays MOUNTED as a neighbour (RUN_TILE_CACHE), so the see-through
+      // window's fades and compositor layers on its Front cells must be taken back here, now, while
+      // frontCellsRef still points at it — the effect cleanup below runs after the ref has moved.
+      for (const k of fadedFrontKeys.current.keys()) { const d = frontCellEl(k); if (d) d.style.opacity = ""; }
+      for (const k of promotedFrontKeys.current) { const d = frontCellEl(k); if (d) d.style.willChange = ""; }
+      fadedFrontKeys.current = new Map(); promotedFrontKeys.current = new Set(); xrayFrontSig.current = "";
+      // Followers come too (carryAlliesAcrossSeam). The live refs ARE the leaving level's bucket;
+      // the arriving level's bucket is made here if this is its first visit, in the shape the
+      // effect makes it, so the effect adopts it as-is.
+      let dstB = roomState.current[nb.key];
+      if (!dstB) { dstB = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, stripped: {}, haz: {}, gear: {} }; roomState.current[nb.key] = dstB; }
+      const carried = carryAlliesAcrossSeam({ enemies: lv.enemies, ePos: enemyPos.current, eHP: enemyHP.current, gear: enemyGearRolls.current }, { enemies: nb.level.enemies, ePos: dstB.ePos, eHP: dstB.eHP, gear: dstB.gear }, seam.off, p.x, ALLY_CARRY_RANGE_CELLS * CW, (spawn) => { const ea = findA(spawn.enemyId); return ea ? enemyStandH(ea, CW) : CH; }, CW);
+      runNodeLive.level = carried.moved ? { ...lv, enemies: carried.srcEnemies } : lv;
+      if (carried.moved) nb.level = { ...nb.level, enemies: carried.dstEnemies };
       p.x -= seam.off.x; p.y -= seam.off.y;
       camRef.current.x -= seam.off.x; camRef.current.y -= seam.off.y;
       carryKeys.current = keys.current;
@@ -15182,6 +15280,17 @@ export default function AssetStudio() {
   if (screen === "level") {
     const lv = level;
     const lvW = lv.cols * LV_CELL, lvH = lv.rows * LV_CELL;
+    // VIEW CULLING, play only. The camera shows ~40 of a level's 160 columns, and every one of the
+    // passes below that is rebuilt per frame (props through renderObj, the front objects, every
+    // unit's sprite — ~140 DOM nodes each) used to be built for the whole level: three quarters of
+    // that work was for things nowhere near the screen. Anything whose box misses the view by more
+    // than VIEW_CULL_MARGIN_CELLS is simply not rendered this frame; its physics, AI, collision,
+    // hazards and loot are untouched (none of them read the DOM). It also shrinks what a seam
+    // handoff has to mount — the tiles are cached (RUN_TILE_CACHE), so the swap's remaining cost
+    // was the new level's sprites, and now only the on-screen ones are built. The margin is
+    // generous so a rotated or nudged prop never pops at the edge. In the editor nothing is culled.
+    const cullView = play && lscrollRef.current ? (() => { const m = VIEW_CULL_MARGIN_CELLS * LV_CELL, v = lscrollRef.current; return { x: camRef.current.x - m, y: camRef.current.y - m, x2: camRef.current.x + v.clientWidth + m, y2: camRef.current.y + v.clientHeight + m }; })() : null;
+    const offScreen = (left, top, w, h) => !!cullView && (left + w < cullView.x || left > cullView.x2 || top + h < cullView.y || top > cullView.y2);
     // Anything usable as an enemy: standalone Enemy-type assets (the animals), or ANY Dress Bob
     // look. This used to demand a 👹 flag on the look, which is what forced a duplicate of every
     // outfit you wanted to fight as well as wear — the flag is gone and the list is the whole
@@ -15882,17 +15991,14 @@ export default function AssetStudio() {
                 is emitted at all and the viewport scrolls exactly as it always has. */}
             <div ref={lscrollRef} className={"lscroll layer-" + lLayer + (play ? " playing" : "")}>
               <div ref={lvRef} className={"lgrid" + (play ? " camera" : "") + (!play && lHidden.front ? " hideFront" : "") + (!play && lHidden.fg ? " hideFg" : "")} style={{ width: lvW, height: lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px", ...(play ? { transform: "translate3d(" + (-Math.round(camRef.current.x * 2) / 2) + "px, " + (-Math.round(camRef.current.y * 2) / 2) + "px, 0)" } : {}) }} onPointerDown={lvDown} onPointerMove={lvMove} onPointerLeave={() => setLHoverCell(null)}>
-                {lvBgLayer}
-                {lvFgLayer}
-                {lvFrontLayer}
-                {play && seamStripLayers}
+                {runTiles || <>{lvBgLayer}{lvFgLayer}{lvFrontLayer}</>}
                 {layerMove && layerMove.levelId === lv.id && Object.keys(layerMove.cells).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"mv" + k} className="lcell moveSel" style={{ left: c * LV_CELL, top: r * LV_CELL }} />; })}
                 {lvFxLayer}
-                {lvPropMeta.map(({ o, si, r, c, k, ord }) => { const layout = levelObjectPixelLayout(o); const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
+                {lvPropMeta.map(({ o, si, r, c, k, ord }) => { const layout = levelObjectPixelLayout(o); if (offScreen(objNudgedLeft(o, c, LV_CELL), objNudgedTop(o, r, LV_CELL), layout.width, layout.height)) return null; const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
                 {/* RUN — objects of a neighbouring level whose footprint reaches into its seam strip,
                     drawn static in that level's frame (offset by the seam), props and emoji alike.
                     Same layer rung and draw order as they will have once that level goes live. */}
-                {play && seamStripObjects.map(({ side, off, o, si, r, c, k, ord }) => { const isProp = o.kind === "prop"; const layout = isProp ? levelObjectPixelLayout(o) : null; const sz = (o.size || 1) * LV_CELL; return <div key={"seam" + side + "_" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: off.x + objNudgedLeft(o, c, LV_CELL), top: off.y + objNudgedTop(o, r, LV_CELL), width: isProp ? layout.width : sz, height: isProp ? layout.height : sz, ...objRotStyle(o), pointerEvents: "none" }}>{isProp ? renderObj(o, layout.width, "seam" + side + "_" + k + "_" + si, pframe, layout.height, layout.box) : objInner(o, sz)}</div>; })}
+                {play && seamStripObjects.map(({ side, off, o, si, r, c, k, ord }) => { const isProp = o.kind === "prop"; const layout = isProp ? levelObjectPixelLayout(o) : null; const sz = (o.size || 1) * LV_CELL; if (offScreen(off.x + objNudgedLeft(o, c, LV_CELL), off.y + objNudgedTop(o, r, LV_CELL), isProp ? layout.width : sz, isProp ? layout.height : sz)) return null; return <div key={"seam" + side + "_" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: off.x + objNudgedLeft(o, c, LV_CELL), top: off.y + objNudgedTop(o, r, LV_CELL), width: isProp ? layout.width : sz, height: isProp ? layout.height : sz, ...objRotStyle(o), pointerEvents: "none" }}>{isProp ? renderObj(o, layout.width, "seam" + side + "_" + k + "_" + si, pframe, layout.height, layout.box) : objInner(o, sz)}</div>; })}
                 {!play && lvClimbLayer}
                 {lvHazardLayer}
                 {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : m.kind === "sign" ? "💬 Sign · " + signSummary(m, dlgLib) + " · invisible in play until you stand on it · Erase tool: click to delete" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : m.kind === "sign" ? "💬" : "💎"}</div>; })}
@@ -16383,6 +16489,7 @@ export default function AssetStudio() {
                     if (play && o._thrown && !hazardStillBurning(hazLife.current, k)) return null;
                     const left = objNudgedLeft(o, c, LV_CELL), top = objNudgedTop(o, r, LV_CELL);
                     const layout = levelObjectPixelLayout(o);
+                    if (offScreen(left, top, layout.width, layout.height)) return null;
                     // Fades whenever the player's own hitbox overlaps a front-layer object —
                     // solid (a tree trunk that still blocks movement, see solidFx above) or
                     // decorative walk-through alike. Either way the point is the same: don't let
@@ -16439,6 +16546,7 @@ export default function AssetStudio() {
                   const eph = ducking ? enemyCrouchH(ea, LV_CELL) : enemyStandH(ea, LV_CELL);
                   const eLeft = ep ? ep.x : (c * LV_CELL + LV_CELL / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2));
                   const eTop = ep ? ep.y : ((r + 1) * LV_CELL - eph); // live AI/gravity position; static fallback for the first frame before physics has run
+                  if (offScreen(eLeft - LV_CELL * 2, eTop - LV_CELL * 2, eRenderW + LV_CELL * 4, eph + LV_CELL * 4)) return null; // off the screen: no sprite this frame (its AI still runs — see cullView)
                   const hitboxOffset = eShape.centerFrac * eRenderW - epw / 2; // hitbox-left relative to the wider render box — constant regardless of live position
                   const eFootAnchor = Math.max(0, 1 - eShape.topFrac - eShape.heightFrac) * eph; // empty canvas below the drawn feet: shift the art down by it so the visible feet rest on the ground instead of hovering by that gap (scales with the enemy, so big/tall enemies do not float)
                   if (isDead) {
@@ -16755,10 +16863,14 @@ export default function AssetStudio() {
                   const opts = dialogueOptions(node);
                   const who = (node.speaker || "").trim() || talk.name || (talk.kind === "sign" ? "Sign" : "");
                   const overNine = opts.length > DIALOGUE_MAX_KEYED;
-                  const box = talkBubbleBox(talk, talkH, lv.cols * LV_CELL);
+                  // The camera's window, in level pixels, so the bubble stays on SCREEN and not merely
+                  // inside the level (see talkBubbleBox): where the view is and how big it is.
+                  const viewEl = lscrollRef.current;
+                  const view = viewEl ? { x: camRef.current.x, y: camRef.current.y, w: viewEl.clientWidth, h: viewEl.clientHeight } : null;
+                  const box = talkBubbleBox(talk, talkH, lv.cols * LV_CELL, view);
                   return (
                     <div key="talkbubble" ref={talkBubbleRef} className={"talkBubble" + (box.below ? " below" : "")}
-                      style={{ left: box.left, top: box.top, width: box.width }}
+                      style={{ left: box.left, top: box.top, width: box.width, ...(box.maxH ? { maxHeight: box.maxH } : {}) }}
                       onPointerDown={(e) => e.stopPropagation()}>
                       {/* THE BUBBLE IS ONLY THE WORDS. What they say is a speech bubble — white,
                           black outline, tail on the speaker — and what YOU say is a list of buttons
@@ -18790,7 +18902,11 @@ html,body{margin:0;padding:0;background:#0f1117}
    talkBubbleBox for the anchor, the clamp and the flip-below. z 9600 puts it over the door prompt
    (9500) and every sprite; .lgrid's isolation:isolate keeps that local to the level, which is why
    this cannot and must not be relied on to sit above a modal. */
-.talkBubble{position:absolute;transform:translateY(-100%);z-index:9600;pointer-events:none}
+.talkBubble{position:absolute;transform:translateY(-100%);z-index:9600;pointer-events:none;display:flex;flex-direction:column}
+/* Capped to the room on screen (talkBubbleBox's maxH): the words keep their full height and the
+   OPTIONS give way and scroll, so a long list can never push the line being said off the top. */
+.talkBubble .talkBox{flex:none}
+.talkBubble .talkOpts{flex:0 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
 .talkBubble.below{transform:none}
 /* A PLAIN WHITE SPEECH BUBBLE. Semi-transparent so the room behind it still reads (this thing
    hangs in the middle of the level, over the scenery, not in a HUD bar), but at .93 — far enough

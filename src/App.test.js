@@ -155,6 +155,7 @@ import {
   relocateLevelObject,
   relocatedObjectKey,
   migrateLevel,
+  carryAlliesAcrossSeam, ALLY_CARRY_RANGE_CELLS, TALK_BUBBLE_MIN_H,
   runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, buildRun, resolveRunNeighbour, resolveRunSides, runSeams, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
   objTopAt,
   objNudgedLeft,
@@ -8849,6 +8850,63 @@ describe("runs", () => {
     expect(inSeamStrip(nb, "S", 3, 0)).toBe(true); expect(inSeamStrip(nb, "N", 3, 0)).toBe(false); expect(inSeamStrip(nb, "N", 45, 0)).toBe(true);
     expect(seamStripMap({ "0,1": "#f00", "0,150": "#0f0" }, nb, "E")).toEqual({ "0,1": "#f00" });
     expect(seamStripMap({ "0,1": "#f00", "0,150": "#0f0" }, nb, "W")).toEqual({ "0,150": "#0f0" });
+  });
+
+  test("carryAlliesAcrossSeam moves living allies in range into the next level and out of this one", () => {
+    const spawnA = { enemyId: "dog" }, spawnB = { enemyId: "dog" }, spawnC = { enemyId: "cat" }, spawnD = { enemyId: "cat" };
+    const src = {
+      enemies: { "20,150": spawnA, "20,151": spawnB, "20,10": spawnC, "20,152": spawnD },
+      ePos: { "20,150": { x: 4500, y: 480, friendly: true, allyKind: "talked", following: true }, "20,151": { x: 4530, y: 480, friendly: false }, "20,10": { x: 300, y: 480, friendly: true }, "20,152": { x: 4560, y: 480, friendly: true } },
+      eHP: { "20,150": 12, "20,151": 30, "20,10": 9, "20,152": 0 },
+      gear: { "20,150": { weaponId: "m16" } },
+    };
+    const dst = { enemies: { "15,0": { enemyId: "rat" } }, ePos: {}, eHP: {}, gear: {} };
+    const out = carryAlliesAcrossSeam(src, dst, { x: 4800, y: 0 }, 4750, ALLY_CARRY_RANGE_CELLS * 30, () => 150, 30);
+    expect(out.moved).toBe(1);                                            // the hostile stays, the far ally stays, the dead ally stays
+    expect(Object.keys(out.srcEnemies).sort()).toEqual(["20,10", "20,151", "20,152"]);
+    expect(src.ePos["20,150"]).toBeUndefined(); expect(src.eHP["20,150"]).toBeUndefined(); expect(src.gear["20,150"]).toBeUndefined();
+    const nk = Object.keys(out.dstEnemies).find((k) => k !== "15,0");
+    const [r, col] = nk.split(",").map(Number);
+    expect(r).toBe(Math.floor((480 + 150) / 30) - 1);                     // feet row - 1, the way the seeding reads a key
+    expect(col).toBe(0);                                                  // x 4500 - 4800 = -300 → clamped to column 0, still to the left of everything
+    expect(out.dstEnemies[nk]).toBe(spawnA);
+    expect(dst.ePos[nk]).toEqual({ x: -300, y: 480, friendly: true, allyKind: "talked", following: true });
+    expect(dst.eHP[nk]).toBe(12); expect(dst.gear[nk]).toEqual({ weaponId: "m16" });
+    expect(out.dstEnemies["15,0"]).toEqual({ enemyId: "rat" });         // the next level's own placements are untouched
+    // a taken key slides right rather than overwriting
+    const dst2 = { enemies: { "20,0": { enemyId: "rat" } }, ePos: { "20,1": { x: 0, y: 0 } }, eHP: {}, gear: {} };
+    const src2 = { enemies: { "20,150": spawnA }, ePos: { "20,150": { x: 4500, y: 480, friendly: true } }, eHP: { "20,150": 5 }, gear: {} };
+    const out2 = carryAlliesAcrossSeam(src2, dst2, { x: 4800, y: 0 }, 4750, 720, () => 150, 30);
+    expect(Object.keys(out2.dstEnemies).sort()).toEqual(["20,0", "20,2"]);
+    // an ally that has never been hurt has no HP entry at all — it is alive and comes along
+    const src3 = { enemies: { "20,150": spawnA }, ePos: { "20,150": { x: 4500, y: 480, friendly: true } }, eHP: {}, gear: {} };
+    const dst3 = { enemies: {}, ePos: {}, eHP: {}, gear: {} };
+    expect(carryAlliesAcrossSeam(src3, dst3, { x: 4800, y: 0 }, 4750, 720, () => 150, 30).moved).toBe(1);
+    expect(dst3.eHP["20,0"]).toBeUndefined();
+  });
+
+  test("talkBubbleBox with a view keeps the bubble on screen and hands back the room to fill", () => {
+    const t = { ax: 2400, ay: 700, ah: 210 };
+    // no view: unchanged behaviour
+    expect(talkBubbleBox(t, 300, 4800)).toEqual({ left: 2190, top: 688, width: 420, below: false, tailX: 210, maxH: null });
+    // view 1200x450 with the head 300px below the view's top: 288px of room above, 420 - 12 - ... below
+    const view = { x: 1800, y: 400, w: 1200, h: 450 };
+    const b1 = talkBubbleBox(t, 0, 4800, view);
+    expect(b1.below).toBe(false); expect(b1.maxH).toBe(700 - 12 - 400 - 8);          // capped to the room above
+    expect(b1.left).toBe(2190);
+    // measured at the cap: the bubble is being squashed above, and there is LESS room below (850 - 922 < 0) → stays above
+    expect(talkBubbleBox(t, 280, 4800, view).below).toBe(false);
+    // head near the top of the view: flips below, and the cap is the room below
+    const t2 = { ax: 2400, ay: 420, ah: 210 };
+    const b2 = talkBubbleBox(t2, 20, 4800, view);
+    expect(b2.below).toBe(true); expect(b2.top).toBe(420 + 210 + 12); expect(b2.maxH).toBe(850 - (420 + 210 + 12) - 8);
+    // never squashed under the minimum
+    expect(talkBubbleBox({ ax: 2400, ay: 405, ah: 400 }, 50, 4800, view).maxH).toBe(TALK_BUBBLE_MIN_H);
+    // clamped sideways to the view, not just the level
+    expect(talkBubbleBox({ ax: 1810, ay: 700, ah: 210 }, 100, 4800, view).left).toBe(1808);
+    expect(talkBubbleBox({ ax: 2990, ay: 700, ah: 210 }, 100, 4800, view).left).toBe(1800 + 1200 - 420 - 8);
+    // a view narrower than the bubble centres it in the view
+    expect(talkBubbleBox(t, 100, 4800, { x: 2300, y: 400, w: 300, h: 450 }).left).toBe(2300 + (300 - 420) / 2);
   });
 
   test("a run's level copies keep the saved level untouched and migrateLevel leaves runKey alone", () => {
