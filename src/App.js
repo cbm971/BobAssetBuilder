@@ -1662,13 +1662,6 @@ export const pickWeightedFromPool = (pool, rnd) => {
   }
   return last; // rnd rounding landed exactly on `total`: the final weighted item, never a 0 one
 };
-// What share of consumable drops one item gets, for the item maker's live readout: its weight over
-// the library's total. An item alone in the pool is 100% of every drop, however small its weight.
-export const itemDropShare = (assets, a) => {
-  const pool = enemyItemDropPool(assets), mine = itemDropWeight(a);
-  const total = pool.reduce((s, x) => s + (x.id === (a && a.id) ? mine : itemDropWeight(x)), pool.some((x) => x.id === (a && a.id)) ? 0 : mine);
-  return total > 0 ? mine / total : 0;
-};
 // GEAR IS LOOTED OFF THE BODY, not conjured from the library. An enemy can only drop what it is
 // actually wearing or holding, so the rifle you pick up is the rifle it was shooting at you with
 // and the jacket is the one it had on. Consumables are different on purpose — a potion is not worn,
@@ -15978,7 +15971,6 @@ export default function AssetStudio() {
                 narrow, so the canvas keeps its vertical space. */}
             <div className="statusrow">
             {play && runHud && <p className="statusline runhud" title="This run: its seed (type it into the box beside 🏁 Play run to play the same run again), where you are in the chain, and what the chain is still missing.">🏁 Run <b>{runHud.seed}</b> · {runHud.where} · <b>{runHud.name}</b>{runHud.notes ? <span className="runnote"> · {runHud.notes}</span> : null}</p>}
-            {play && <p className="statusline ctrlhint">⌨ <b>WASD</b> move · <b>Space</b> jump · <b>↑↓←→</b> aim/climb (two arrows = 45°) · <b>J/F</b> fire · <b>Q</b> {playtestWeapon && !isRanged(playtestWeapon.wtype) ? "tap to block" : "melee"}{playtestWeapon && isRanged(playtestWeapon.wtype) ? " · R reload early" : ""}{playtestThrowId ? " · hold G to aim (↑/↓ angles the arc), release to throw" : ""} <span className="buildtag">build ramp-fix-6 (overhang block)</span></p>}
             {play && (playtestWeaponId || SLOT_ORDER.some((sl) => equipped.current[sl])) && (() => {
               const bits = [];
               if (playtestWeaponId) { const w = findA(playtestWeaponId); if (w) bits.push("🗡️ " + w.name); }
@@ -18025,10 +18017,6 @@ export default function AssetStudio() {
                 ) : eff.kind === "money" ? (
                   <>
                     <label className="slider">{MONEY_CHAR} Worth<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 70 }} /></label>
-                    {/* Money is drawn, tagged and picked up exactly like a potion — the only thing
-                        that makes a dollar bill a dollar bill is this button. Say what it can do
-                        so it doesn't get built and then wondered about. */}
-                    <p className="mini">Walking over this pays {eff.amount} into your wallet. Draw a note or a coin, then put it on a 💎 Pedestal, tag it so a pedestal search finds it, or leave it to drop off a body — every route a potion already takes. Spend it in a shopkeeper's 💬 dialogue.</p>
                   </>
                 ) : (
                   <>
@@ -18046,25 +18034,16 @@ export default function AssetStudio() {
           })()}
           {/* 🎲 HOW OFTEN IT DROPS. One number per item, read by the loot roll's weighted pick
               (pickWeightedFromPool). Blake asked for this as "adjust the weight when an item does
-              drop" — the item pool, not weapons and armour, which come off the body it wore. The
-              share is computed live against the whole library so the number has a visible
-              consequence: type 3 and watch the potion next to it fall from 50% to 25%. The live
-              (unsaved) weight stands in for the library's copy, so the readout is right before
-              💾, and a brand-new unsaved item counts itself into the pool. */}
-          {asset.type === "item" && !effEdit && (() => {
-            const w = itemDropWeight(asset), share = itemDropShare(allAssets, asset);
-            const others = enemyItemDropPool(allAssets).filter((x) => x.id !== asset.id).length;
-            const perKill = ENEMY_ITEM_DROP_CHANCE * share;
-            return (
-              <div className="card">
-                <div className="ct">🎲 Drop weight</div>
-                <label className="slider">🎲 Weight<input type="number" min="0" step="1" value={asset.dropWeight ?? DEFAULT_DROP_WEIGHT} onChange={(e) => setAsset((a) => ({ ...a, dropWeight: Math.max(0, +e.target.value || 0) }))} style={{ width: 70 }} /></label>
-                {w === 0
-                  ? <p className="mini">0 = never drops off a body. It can still sit on a 💎 Pedestal or be sold in a shop.</p>
-                  : <p className="mini">A kill has a <b>{Math.round(ENEMY_ITEM_DROP_CHANCE * 100)}%</b> chance to drop an item at all. When one does, this one is about <b>{Math.round(share * 100)}%</b> of the picks{others ? " (" + others + " other item" + (others === 1 ? "" : "s") + " in the library, weight " + DEFAULT_DROP_WEIGHT + " unless you changed it)" : " — it is the only item"}, so about <b>1 in {Math.max(1, Math.round(1 / Math.max(perKill, 1e-9)))}</b> kills. Weight 2 comes up twice as often as weight 1.</p>}
-              </div>
-            );
-          })()}
+              drop" — the item pool, not weapons and armour, which come off the body it wore.
+              Just the number, on purpose: the first cut had a live "X% of picks, 1 in N kills"
+              readout under it and he called it clutter ("useless UI text") — the number is the
+              whole control. 0 = never off a body. */}
+          {asset.type === "item" && !effEdit && (
+            <div className="card">
+              <div className="ct">🎲 Drop weight</div>
+              <label className="slider">🎲 Weight<input type="number" min="0" step="1" value={asset.dropWeight ?? DEFAULT_DROP_WEIGHT} onChange={(e) => setAsset((a) => ({ ...a, dropWeight: Math.max(0, +e.target.value || 0) }))} style={{ width: 70 }} /></label>
+            </div>
+          )}
           {HAS_CATEGORIES(asset) && !effEdit && (
             <div className="card">
               <div className="ct">🏷️ Item categories</div>
@@ -18730,9 +18709,6 @@ html,body{margin:0;padding:0;background:#0f1117}
 .ammoline{color:#e7e9ee;background:#1a1320;border-color:#7a4fbf;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;gap:8px}
 .ammoline.empty{color:#ffb3b3;border-color:#b0504f;background:#2a1618}
 .ammoline.reloading{color:#f3d98a;border-color:#c8a23c;background:#2a2113}
-.ctrlhint{color:#9aa3b8;background:#12151d;border-color:#242a3a;font-weight:400}
-.buildtag{opacity:.5;font-size:11px;margin-left:6px}
-.ctrlhint b{color:#cdd3df}
 .reloadbar{display:inline-block;width:110px;height:6px;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.2);border-radius:4px;overflow:hidden}
 .reloadfill{display:block;height:100%;background:#c8a23c}
 .texbtn{display:inline-flex;align-items:center;gap:7px}

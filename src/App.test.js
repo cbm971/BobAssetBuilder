@@ -226,7 +226,6 @@ import {
   DEFAULT_DROP_WEIGHT,
   itemDropWeight,
   pickWeightedFromPool,
-  itemDropShare,
   enemyItemDropPool,
   enemyGearDropPool,
   enemyEquippedGear,
@@ -706,13 +705,6 @@ describe("enemy item drops", () => {
     const hat = { id: "hat", type: "equipment" };
     expect(rollEnemyItemDrop([never, hat], [hat], 0.05, 0, 0.5, 0)).toBeNull();
     expect(rollEnemyItemDrop([never], [hat], 0.05, 0, 0.01, 0).id).toBe("hat");
-    // The live readout: this item's share of the pool, with the unsaved weight standing in for
-    // the library's copy and a not-yet-saved item counting itself in.
-    expect(itemDropShare(lib, cash)).toBeCloseTo(0.6);
-    expect(itemDropShare(lib, { ...cash, dropWeight: 1 })).toBeCloseTo(1 / 3);
-    expect(itemDropShare(lib, { id: "new", type: "item", dropWeight: 5 })).toBeCloseTo(0.5);
-    expect(itemDropShare(lib, never)).toBe(0);
-    expect(itemDropShare([], { id: "solo", type: "item" })).toBe(1);
     // 🍀 A Lucky Find pool is weighted the same way, and a tagged pool that is all weight 0 is
     // "nothing available" — it does not spend a roll.
     const tagged = [{ id: "note", type: "item", categories: ["money"], dropWeight: 3 }, { id: "coin", type: "item", categories: ["money"] }];

@@ -760,9 +760,11 @@ plus half the hit width.
   in a shop — and a pool that is ALL weight 0 rolls nothing rather than falling back to an even
   pick. Gear has no weight: what falls off a body is what it wore, and that pick stays even (in a
   mixed 🍀 Lucky Find pool gear counts as 1; a tagged pool that is all weight 0 is "nothing
-  available" and does not spend the charm's roll). The card's readout (`itemDropShare`) is live
-  against the whole library with the UNSAVED weight standing in for the saved copy, so it is right
-  before 💾. Both asset normalisers default the field, so an old item never reads as `undefined`.
+  available" and does not spend the charm's roll). **The card is the number and nothing else** —
+  the first cut had a live "X% of picks, 1 in N kills" readout under it, and the ⌨ controls
+  banner in the level tester and the money item's how-to blurb went in the same breath: "you
+  have a bad habit of leaving in useless UI text that just adds clutter". Both asset
+  normalisers default the field, so an old item never reads as `undefined`.
 
 Verified by seeding a 5-HP character carrying `{type:"extraLives", lives:3}` into
 `asset-data/library.json` with a 30-dps fire pit and sampling every frame through the rAF shim:
