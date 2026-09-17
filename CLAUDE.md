@@ -749,6 +749,21 @@ half-cell apron below and beside the resting point (`DROP_PICK_SLACK_CELLS`) as 
 The x is now the visible body's centre (`ep.x + centerFrac·renderW`), not the wrapper's left edge
 plus half the hit width.
 
+**LOOT ODDS DOUBLED, AND WHICH ITEM IS WEIGHTED (2026-09-17).** Blake, after playtesting the run:
+"in testing not enough items drop" — and specifically that money notes never came up. Two changes:
+* `ENEMY_ITEM_DROP_CHANCE` 5% → **10%** and `ENEMY_GEAR_DROP_CHANCE` 2% → **4%** (he asked for
+  weapons and armour doubled too). Same two independent gates as before, consumables first.
+* **Which consumable falls is a weighted pick** (`pickWeightedFromPool`), by a per-item
+  `dropWeight` set in the item maker's 🎲 Drop weight card (default `DEFAULT_DROP_WEIGHT` = 1,
+  so his existing library picks evenly, exactly as before). A note at weight 3 beside two weight-1
+  potions is 3/5 of consumable drops. **Weight 0 = never off a body** — still fine on a pedestal or
+  in a shop — and a pool that is ALL weight 0 rolls nothing rather than falling back to an even
+  pick. Gear has no weight: what falls off a body is what it wore, and that pick stays even (in a
+  mixed 🍀 Lucky Find pool gear counts as 1; a tagged pool that is all weight 0 is "nothing
+  available" and does not spend the charm's roll). The card's readout (`itemDropShare`) is live
+  against the whole library with the UNSAVED weight standing in for the saved copy, so it is right
+  before 💾. Both asset normalisers default the field, so an old item never reads as `undefined`.
+
 Verified by seeding a 5-HP character carrying `{type:"extraLives", lives:3}` into
 `asset-data/library.json` with a 30-dps fire pit and sampling every frame through the rAF shim:
 three revives at the same (x,y) on HP 1 with `lifeGrace` 90→0 and the gold filter, then the

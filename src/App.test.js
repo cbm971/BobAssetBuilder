@@ -223,6 +223,10 @@ import {
   duplicateSelectedPieces,
   ENEMY_ITEM_DROP_CHANCE,
   ENEMY_GEAR_DROP_CHANCE,
+  DEFAULT_DROP_WEIGHT,
+  itemDropWeight,
+  pickWeightedFromPool,
+  itemDropShare,
   enemyItemDropPool,
   enemyGearDropPool,
   enemyEquippedGear,
@@ -652,17 +656,74 @@ describe("enemy item drops", () => {
   const MISS = 0.99; // a roll that fails either gate
   const gear = [assets[2], assets[3]]; // sword + hat, as if the enemy had both equipped
 
-  test("consumables are the common drop at 5%, gear the rare one at 2%", () => {
-    expect(ENEMY_ITEM_DROP_CHANCE).toBe(0.05);
-    expect(ENEMY_GEAR_DROP_CHANCE).toBe(0.02);
+  // Doubled 2026-09-17 from 5%/2% — "in testing not enough items drop". Pinned so a later
+  // "tidy" of the constants cannot quietly halve the loot again.
+  test("consumables are the common drop at 10%, gear the rare one at 4%", () => {
+    expect(ENEMY_ITEM_DROP_CHANCE).toBe(0.10);
+    expect(ENEMY_GEAR_DROP_CHANCE).toBe(0.04);
     // Inside the item gate you get a consumable, never a shirt.
-    expect(rollEnemyItemDrop(assets, gear, 0.049999, 0, MISS).type).toBe("item");
+    expect(rollEnemyItemDrop(assets, gear, 0.099999, 0, MISS).type).toBe("item");
     expect(rollEnemyItemDrop(assets, gear, 0, 0.999999, MISS).id).toBe("elixir");
     // Past the item gate but inside the gear gate you get gear — a weapon or a piece of clothing.
-    expect(rollEnemyItemDrop(assets, gear, 0.05, 0, 0.019999, 0).id).toBe("sword");
-    expect(rollEnemyItemDrop(assets, gear, 0.05, 0, 0.019999, 0.999999).id).toBe("hat");
+    expect(rollEnemyItemDrop(assets, gear, 0.10, 0, 0.039999, 0).id).toBe("sword");
+    expect(rollEnemyItemDrop(assets, gear, 0.10, 0, 0.039999, 0.999999).id).toBe("hat");
     // Past both gates: nothing.
-    expect(rollEnemyItemDrop(assets, gear, 0.05, 0, 0.02, 0)).toBeNull();
+    expect(rollEnemyItemDrop(assets, gear, 0.10, 0, 0.04, 0)).toBeNull();
+  });
+
+  /* 🎲 DROP WEIGHT. What to pin: an untouched library (no dropWeight anywhere) picks exactly as
+     evenly as before the field existed; a heavier item takes a proportionally bigger slice of the
+     pick roll; weight 0 is "never", including when it is the only thing in the pool; and gear is
+     never weighted — it is looted off the body, so the pick over what it wore stays even. */
+  test("which consumable drops is weighted by the item maker's drop weight", () => {
+    // Missing, non-numeric and negative weights all read as the default; gear always reads 1.
+    expect(DEFAULT_DROP_WEIGHT).toBe(1);
+    expect(itemDropWeight({ type: "item" })).toBe(1);
+    expect(itemDropWeight({ type: "item", dropWeight: "3" })).toBe(1);
+    expect(itemDropWeight({ type: "item", dropWeight: -2 })).toBe(0);
+    expect(itemDropWeight({ type: "item", dropWeight: 3 })).toBe(3);
+    expect(itemDropWeight({ type: "weapon", dropWeight: 9 })).toBe(1);
+    // Cash at weight 3 beside two weight-1 potions: 3/5 of the roll is cash.
+    const cash = { id: "cash", type: "item", dropWeight: 3 }, p1 = { id: "p1", type: "item" }, p2 = { id: "p2", type: "item", dropWeight: 1 };
+    const pool = [p1, cash, p2];
+    expect(pickWeightedFromPool(pool, 0).id).toBe("p1");
+    expect(pickWeightedFromPool(pool, 0.199).id).toBe("p1");
+    expect(pickWeightedFromPool(pool, 0.2).id).toBe("cash");
+    expect(pickWeightedFromPool(pool, 0.799).id).toBe("cash");
+    expect(pickWeightedFromPool(pool, 0.8).id).toBe("p2");
+    expect(pickWeightedFromPool(pool, 0.999999).id).toBe("p2");
+    // Weight 0 is skipped whatever the roll — even a roll that rounds up to the pool's end.
+    const never = { id: "never", type: "item", dropWeight: 0 };
+    for (const r of [0, 0.5, 0.999999, 1]) expect(pickWeightedFromPool([p1, never], r).id).toBe("p1");
+    for (const r of [0, 0.5, 0.999999]) expect(pickWeightedFromPool([never, p1], r).id).toBe("p1");
+    expect(pickWeightedFromPool([never], 0)).toBeNull();
+    expect(pickWeightedFromPool([], 0)).toBeNull();
+    // Through the real roll: inside the 10% gate, the pick is the weighted one.
+    const lib = [p1, cash, p2, { id: "hat", type: "equipment" }];
+    expect(rollEnemyItemDrop(lib, [], 0.05, 0.5).id).toBe("cash");
+    expect(rollEnemyItemDrop(lib, [], 0.05, 0.1).id).toBe("p1");
+    // An all-weight-0 item library does not promote the gear roll, exactly like an empty one.
+    const hat = { id: "hat", type: "equipment" };
+    expect(rollEnemyItemDrop([never, hat], [hat], 0.05, 0, 0.5, 0)).toBeNull();
+    expect(rollEnemyItemDrop([never], [hat], 0.05, 0, 0.01, 0).id).toBe("hat");
+    // The live readout: this item's share of the pool, with the unsaved weight standing in for
+    // the library's copy and a not-yet-saved item counting itself in.
+    expect(itemDropShare(lib, cash)).toBeCloseTo(0.6);
+    expect(itemDropShare(lib, { ...cash, dropWeight: 1 })).toBeCloseTo(1 / 3);
+    expect(itemDropShare(lib, { id: "new", type: "item", dropWeight: 5 })).toBeCloseTo(0.5);
+    expect(itemDropShare(lib, never)).toBe(0);
+    expect(itemDropShare([], { id: "solo", type: "item" })).toBe(1);
+    // 🍀 A Lucky Find pool is weighted the same way, and a tagged pool that is all weight 0 is
+    // "nothing available" — it does not spend a roll.
+    const tagged = [{ id: "note", type: "item", categories: ["money"], dropWeight: 3 }, { id: "coin", type: "item", categories: ["money"] }];
+    const charm = { type: "tagLuck", tag: "money", chance: 1 };
+    expect(rollTagLuckDrop(tagged, [], [charm], [0, 0.74]).id).toBe("note");
+    expect(rollTagLuckDrop(tagged, [], [charm], [0, 0.76]).id).toBe("coin");
+    const shelfOnly = [{ id: "relic", type: "item", categories: ["money"], dropWeight: 0 }];
+    expect(rollTagLuckDrop(shelfOnly, [], [charm], [0, 0])).toBeNull();
+    // A weight-0 item among live ones is just absent from the pick — still one gate roll, still a miss here.
+    expect(rollTagLuckDrop([...shelfOnly, ...tagged], [], [{ type: "tagLuck", tag: "money", chance: 0.5 }], [0.6, 0])).toBeNull();
+    expect(rollTagLuckDrop([...shelfOnly, ...tagged], [], [{ type: "tagLuck", tag: "money", chance: 0.5 }], [0.4, 0]).id).toBe("note");
   });
 
   test("gear can only be what the enemy actually had equipped", () => {
@@ -670,12 +731,12 @@ describe("enemy item drops", () => {
     // however many shirts and rifles are saved. Consumables still come from the whole pool.
     const wardrobe = [{ id: "potion", type: "item" }];
     for (let i = 0; i < 50; i++) wardrobe.push({ id: "shirt" + i, type: "equipment" });
-    expect(rollEnemyItemDrop(wardrobe, [], 0.05, 0, 0, 0)).toBeNull();          // naked enemy: no gear
+    expect(rollEnemyItemDrop(wardrobe, [], 0.10, 0, 0, 0)).toBeNull();          // naked enemy: no gear
     expect(rollEnemyItemDrop(wardrobe, [], 0.01, 0, MISS).id).toBe("potion");   // but still drops potions
     // Wearing exactly one thing, that one thing is the only gear it can ever yield.
     const onlyHat = [{ id: "shirt7", type: "equipment" }];
     for (const r of [0, 0.5, 0.999999]) {
-      expect(rollEnemyItemDrop(wardrobe, onlyHat, 0.05, 0, 0.01, r).id).toBe("shirt7");
+      expect(rollEnemyItemDrop(wardrobe, onlyHat, 0.10, 0, 0.01, r).id).toBe("shirt7");
     }
   });
 

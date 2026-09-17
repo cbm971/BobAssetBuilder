@@ -1626,10 +1626,49 @@ export const rollPedestalItem = (assets, cats, logic, rnd) => {
 // equipment + weapon + item (see HAS_CATEGORIES). With 50-odd clothing assets saved and a handful
 // of consumables, "a random member of that pool" was overwhelmingly a piece of clothing, so
 // enemies looked like they only ever dropped clothes. The pool, not the chance, was the bug.
-export const ENEMY_ITEM_DROP_CHANCE = 0.05; // consumables (potions etc) — the common drop
-export const ENEMY_GEAR_DROP_CHANCE = 0.02; // clothing + weapons — the rare one
+//
+// Both gates were DOUBLED on 2026-09-17 (5%/2% → 10%/4%). Blake, after playtesting the run:
+// "in testing not enough items drop" — with a level's worth of kills at 5% a whole run could go
+// by without a single potion or note, and the money economy (shopkeepers price off `value`) never
+// had anything to spend. The gear gate doubled with it at his ask; gear still stays the rare one.
+export const ENEMY_ITEM_DROP_CHANCE = 0.10; // consumables (potions, money etc) — the common drop
+export const ENEMY_GEAR_DROP_CHANCE = 0.04; // clothing + weapons — the rare one
 export const enemyItemDropPool = (assets) => (assets || []).filter((a) => a && a.type === "item");
 export const enemyGearDropPool = (assets) => (assets || []).filter((a) => a && (a.type === "equipment" || a.type === "weapon"));
+// 🎲 WHICH consumable falls, once the 10% gate is passed, is a WEIGHTED pick. Every item carries a
+// `dropWeight` set in the item maker (default 1, so an untouched library still picks evenly, exactly
+// as it did before weights existed): a money note at weight 3 beside two weight-1 potions is 3/5 of
+// consumable drops, not 1/3. This exists because the fix Blake actually wanted for "money items do
+// not drop enough" was not more kinds of money — "atm I do not have enough of them" — but a way to
+// make the ones he HAS come up more often than a potion does. Weight 0 takes an item out of the
+// body-loot pool entirely (a pedestal-only or shop-only item), and a pool that is ALL weight 0 rolls
+// nothing rather than falling back to an even pick — "never drops" has to mean never. Gear has no
+// weight (what falls off a body is what it wore, and that pick stays even); in a mixed 🍀 Lucky Find
+// pool it simply counts as 1.
+export const DEFAULT_DROP_WEIGHT = 1;
+export const itemDropWeight = (a) => {
+  if (!a || a.type !== "item") return DEFAULT_DROP_WEIGHT;
+  return Number.isFinite(a.dropWeight) ? Math.max(0, a.dropWeight) : DEFAULT_DROP_WEIGHT;
+};
+export const pickWeightedFromPool = (pool, rnd) => {
+  const ws = (pool || []).map(itemDropWeight), total = ws.reduce((s, w) => s + w, 0);
+  if (!(total > 0)) return null;
+  const r = (typeof rnd === "number" ? rnd : Math.random()) * total;
+  let acc = 0, last = null;
+  for (let i = 0; i < pool.length; i++) {
+    if (ws[i] <= 0) continue; // a weight-0 item is not even the "last" fallback below
+    acc += ws[i]; last = pool[i];
+    if (r < acc) return pool[i];
+  }
+  return last; // rnd rounding landed exactly on `total`: the final weighted item, never a 0 one
+};
+// What share of consumable drops one item gets, for the item maker's live readout: its weight over
+// the library's total. An item alone in the pool is 100% of every drop, however small its weight.
+export const itemDropShare = (assets, a) => {
+  const pool = enemyItemDropPool(assets), mine = itemDropWeight(a);
+  const total = pool.reduce((s, x) => s + (x.id === (a && a.id) ? mine : itemDropWeight(x)), pool.some((x) => x.id === (a && a.id)) ? 0 : mine);
+  return total > 0 ? mine / total : 0;
+};
 // GEAR IS LOOTED OFF THE BODY, not conjured from the library. An enemy can only drop what it is
 // actually wearing or holding, so the rifle you pick up is the rifle it was shooting at you with
 // and the jacket is the one it had on. Consumables are different on purpose — a potion is not worn,
@@ -1690,10 +1729,12 @@ const pickFromPool = (pool, rnd) => {
 // what THIS enemy has equipped (enemyEquippedGear) — an enemy carrying nothing simply never drops
 // gear. Each rnd is injectable for the tests; leaving them out uses Math.random as before. An empty
 // consumable library does NOT promote the gear roll — the two gates stay independent and honest.
+// (Nor does a consumable library whose every item is weight 0: the gate was passed and the pick
+// came up empty, and that is the end of the consumable roll, same as an empty pool.)
 export const rollEnemyItemDrop = (assets, ownGear, chanceRnd, itemRnd, gearChanceRnd, gearRnd) => {
   const c = typeof chanceRnd === "number" ? chanceRnd : Math.random();
   if (c < ENEMY_ITEM_DROP_CHANCE) {
-    const consumable = pickFromPool(enemyItemDropPool(assets), itemRnd);
+    const consumable = pickWeightedFromPool(enemyItemDropPool(assets), itemRnd);
     if (consumable) return consumable;
   }
   const g = typeof gearChanceRnd === "number" ? gearChanceRnd : Math.random();
@@ -1702,7 +1743,7 @@ export const rollEnemyItemDrop = (assets, ownGear, chanceRnd, itemRnd, gearChanc
 };
 // A worn "Lucky Find" ability (EFFECT_TYPES.tagLuck) makes a KIND of loot more likely: everything
 // carrying the tag it is set to gets its own roll, at the chance it is set to, BEFORE the ordinary
-// 5%/2% gates above. Only when that roll misses (or nothing tagged is available) does the normal
+// 10%/4% gates above. Only when that roll misses (or nothing tagged is available) does the normal
 // roll run, so the ability only ever adds drops — it cannot make an enemy drop less than it did.
 //
 // The pool is the pedestal search over the tag, split the same way rollEnemyItemDrop splits it:
@@ -1727,7 +1768,12 @@ export const rollTagLuckDrop = (assets, ownGear, effects, rnds) => {
     const pool = tagLuckDropPool(assets, ownGear, e.tag);
     if (!pool.length) continue;
     const chance = Math.min(1, Math.max(0, e.chance ?? 0.25));
-    if (next() < chance) return pickFromPool(pool, next());
+    // Weighted like the ordinary roll, so a charm tagged "money" still favours the note Blake set
+    // to weight 3 over the coin at 1 — the charm changes how OFTEN, never the item maker's odds of
+    // WHICH. A tagged pool whose every member is weight 0 is "nothing tagged is available" (those
+    // items never come off a body) and, like an empty pool, does not spend a roll.
+    if (!pool.some((a) => itemDropWeight(a) > 0)) continue;
+    if (next() < chance) return pickWeightedFromPool(pool, next());
   }
   return null;
 };
@@ -3519,7 +3565,7 @@ export const normalizeAssetJson = (raw) => {
     }
     if (Object.keys(out).length) a.variants = out; else delete a.variants;
   }
-  if (type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
+  if (type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; if (!Number.isFinite(a.dropWeight)) a.dropWeight = DEFAULT_DROP_WEIGHT; }
   if (HAS_CATEGORIES(a) && !Number.isFinite(a.value)) a.value = 0; // hand-written JSON rarely carries a price; 0 = free, never undefined
   if (type === "prop" && typeof a.category !== "string") a.category = ""; // no sub-category = files under "Unknown", never missing
   if (!a.id) a.id = uid();
@@ -13405,7 +13451,7 @@ export default function AssetStudio() {
     // undefined — a shop reading NaN would price the whole shelf as "💵 NaN". His to set.
     if (HAS_CATEGORIES(a) && !Number.isFinite(a.value)) a.value = 0;
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; if (typeof a.category !== "string") a.category = ""; }
-    if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; }
+    if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; if (!Number.isFinite(a.dropWeight)) a.dropWeight = DEFAULT_DROP_WEIGHT; }
     if (a.type === "enemy") { if (!a.states) a.states = { normal: a.angles || blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.angles = a.states.normal || a.angles; if (a.hasArms === undefined) a.hasArms = !!(a.angles && ANGLES.some((ang) => (a.angles[ang] || []).some((p) => p.role === "weaponArm"))); for (const k of Object.keys(a.angles || {})) (a.angles[k] || []).forEach((p) => { if (p.locked) delete p.locked; }); if (!a.stats) a.stats = DEFAULT_STATS(); if (a.hp === undefined) a.hp = 10; if (!a.ai) a.ai = "guard"; if (a.weaponId === undefined) a.weaponId = null; a.groundLine = cleanGround(a.groundLine); }
     if (a.type === "skin" && !a.stats) a.stats = DEFAULT_STATS();
     if (HAS_FIT_VARIANTS(a) && !a.variants) {
@@ -17995,6 +18041,27 @@ export default function AssetStudio() {
                     <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
                   </>
                 )}
+              </div>
+            );
+          })()}
+          {/* 🎲 HOW OFTEN IT DROPS. One number per item, read by the loot roll's weighted pick
+              (pickWeightedFromPool). Blake asked for this as "adjust the weight when an item does
+              drop" — the item pool, not weapons and armour, which come off the body it wore. The
+              share is computed live against the whole library so the number has a visible
+              consequence: type 3 and watch the potion next to it fall from 50% to 25%. The live
+              (unsaved) weight stands in for the library's copy, so the readout is right before
+              💾, and a brand-new unsaved item counts itself into the pool. */}
+          {asset.type === "item" && !effEdit && (() => {
+            const w = itemDropWeight(asset), share = itemDropShare(allAssets, asset);
+            const others = enemyItemDropPool(allAssets).filter((x) => x.id !== asset.id).length;
+            const perKill = ENEMY_ITEM_DROP_CHANCE * share;
+            return (
+              <div className="card">
+                <div className="ct">🎲 Drop weight</div>
+                <label className="slider">🎲 Weight<input type="number" min="0" step="1" value={asset.dropWeight ?? DEFAULT_DROP_WEIGHT} onChange={(e) => setAsset((a) => ({ ...a, dropWeight: Math.max(0, +e.target.value || 0) }))} style={{ width: 70 }} /></label>
+                {w === 0
+                  ? <p className="mini">0 = never drops off a body. It can still sit on a 💎 Pedestal or be sold in a shop.</p>
+                  : <p className="mini">A kill has a <b>{Math.round(ENEMY_ITEM_DROP_CHANCE * 100)}%</b> chance to drop an item at all. When one does, this one is about <b>{Math.round(share * 100)}%</b> of the picks{others ? " (" + others + " other item" + (others === 1 ? "" : "s") + " in the library, weight " + DEFAULT_DROP_WEIGHT + " unless you changed it)" : " — it is the only item"}, so about <b>1 in {Math.max(1, Math.round(1 / Math.max(perKill, 1e-9)))}</b> kills. Weight 2 comes up twice as often as weight 1.</p>}
               </div>
             );
           })()}
