@@ -1484,6 +1484,21 @@ are `Army Bob` / `Army Bob E` / `Army Bob EV` / `Army Bob EVG`, and `Footbob` / 
 `Footbob E` / `FootBall Bob E`. Twenty character assets for perhaps eight looks, each one needing
 every future edit made in all of its copies.
 
+**A DRESSED LOOK FILES UNDER ONE FREE-TEXT 📂 CATEGORY, THE SAME ONE AN OBJECT CARRIES** (added
+2026-09-18, "there are becoming a decently large amount of dressed Bobs"). Same `category` field,
+same rules (trimmed, case-folded, "Unknown" last, names A→Z inside a folder), one reader:
+`groupByCategory(assets, type)`, with `groupProps` and `groupLooks` as its two type-bound
+spellings. Nothing in the game reads it — it is filing. It shows up in every place a look is
+picked, all through one `lookOptions()` helper in App: Dress Bob's "Open saved look…", the Level
+Creator's 👹 Enemy picker (animals get their own heading only once the looks have folders), the
+Playtest player picker, and Load → Dressed Looks, which drills down by folder exactly as Objects
+does. Fewer than two folders = the flat list it always was, so a wardrobe with nothing filed is
+unchanged. The field lives in a 📂 Category card in Dress Bob's side panel with chips for the
+folders already in use; `composeLook` trims it onto the saved record and `rebuildLook` keeps it
+because it spreads the whole look. **Opening a saved look now fills its NAME into the header too**
+(`openDressedLook`) — before, the box stayed blank and Save minted a second "<body> — dressed"
+beside the one you had opened, which made "open it, file it, save" impossible.
+
 So **every `character` is placeable as an enemy**, and what a placement CARRIES is stamped on the
 spawn beside the facing, the AI and the dialogue that were already stamped there:
 

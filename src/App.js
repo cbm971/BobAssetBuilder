@@ -2830,23 +2830,30 @@ export const rigidArmFollow = (b, arm, armNewRot) => {
 // below 40% — much smaller and there's barely a design area left to see at all.
 export const ARTZOOM_MIN = 0.4, ARTZOOM_MAX = 1;
 export const clampArtZoom = (z, delta) => Math.max(ARTZOOM_MIN, Math.min(ARTZOOM_MAX, +(z + delta).toFixed(2)));
-// ── Object / Prop sub-categories ────────────────────────────
-// Objects are the one asset type with no natural sub-division — a body has no sub-kinds and
+// ── Object / Prop (and Dressed Look) sub-categories ─────────
+// Objects were the one asset type with no natural sub-division — a body has no sub-kinds and
 // clothing already splits by slot — and the list only grows. So a prop carries one free-text
 // sub-category Blake types in himself: "Interior", "Trailer Park". It is purely a filing label:
 // nothing in the game reads it, and a prop that was never given one groups under "Unknown"
 // rather than dropping out of a list. Matching is trimmed and case-insensitive, so "interior",
 // "Interior" and "Interior " are one group; the label shown is the first spelling saved.
+// DRESSED LOOKS ARE THE SECOND SUCH TYPE (2026-09-18). Every look is both a playable character and
+// a placeable enemy, so the wardrobe turned up as one flat dropdown in four places — Dress Bob's
+// "Open saved look", the Level Creator's 👹 Enemy picker, the Playtest player picker and Load —
+// and past a couple of dozen outfits none of them was findable. A look carries the SAME
+// `category` field under the same rules, so one filing system serves both: `groupByCategory` is
+// the read, and `groupProps` / `groupLooks` are the two type-bound spellings of it.
 export const PROP_UNCAT = "Unknown";
 export const propCat = (a) => ((a && typeof a.category === "string" ? a.category.trim() : "") || PROP_UNCAT);
 export const propCatKey = (c) => (c || "").trim().toLowerCase();
-// Every prop in `assets`, bucketed: [{ key, label, props }]. Named groups sort A→Z and "Unknown"
-// always lands last, so untagged props never push the tidy ones down. Props inside a group sort
-// by name — past a couple of dozen, library order stops being findable.
-export const groupProps = (assets) => {
+// Every asset of `type` in `assets`, bucketed: [{ key, label, props }]. Named groups sort A→Z
+// and "Unknown" always lands last, so untagged ones never push the tidy ones down. Assets inside
+// a group sort by name — past a couple of dozen, library order stops being findable. (`props` is
+// the bucket's name whatever the type: the shelf and the Level Creator already read it.)
+export const groupByCategory = (assets, type) => {
   const map = new Map();
   for (const a of assets || []) {
-    if (!a || a.type !== "prop") continue;
+    if (!a || a.type !== type) continue;
     const label = propCat(a), key = propCatKey(label);
     if (!map.has(key)) map.set(key, { key, label, props: [] });
     map.get(key).props.push(a);
@@ -2857,6 +2864,8 @@ export const groupProps = (assets) => {
   for (const g of groups) g.props.sort((x, y) => cmp(x.name || "", y.name || ""));
   return groups.sort((x, y) => (x.key === unk) - (y.key === unk) || cmp(x.label, y.label));
 };
+export const groupProps = (assets) => groupByCategory(assets, "prop");
+export const groupLooks = (assets) => groupByCategory(assets, "character");
 
 // The blocks a prop actually DRAWS, for one animation frame. This is what the asset editor's
 // 🌿 Object art shelf copies into whatever is being drawn, and it is deliberately a plain read of
@@ -7865,6 +7874,7 @@ export default function AssetStudio() {
   const [sessionAssets, setSessionAssets] = useState([]);
   const [loadout, setLoadout] = useState({ bodyId: "", skinId: "", slots: {}, weaponId: "" });
   const [dressedBobName, setDressedBobName] = useState(""); // editable — blank falls back to "<body> — dressed"
+  const [dressedBobCat, setDressedBobCat] = useState("");   // the look's filing category — one free-text group, same field and rules as an Object's (see groupByCategory)
   const [savedDressedIds, setSavedDressedIds] = useState({}); // name -> id, so re-saving under the SAME name updates it; a different name saves as a new, separate entry
   const [viewDressed, setViewDressed] = useState(null); // a previously-saved dressed character currently being viewed
   const [aAngle, setAAngle] = useState("front");
@@ -13966,7 +13976,10 @@ export default function AssetStudio() {
   // edit after opening a look — e.g. picking a different weapon — would render on whatever body/
   // skin `loadout` last held from an earlier session, not the look that was just opened. Syncing
   // loadout from the look's own recipe here keeps them in lockstep from the moment it's opened.
-  const openDressedLook = (a) => { setViewDressed(a); if (a.recipe) setLoadout({ bodyId: a.recipe.bodyId || "", skinId: a.recipe.skinId || "", slots: { ...(a.recipe.slots || {}) }, weaponId: a.recipe.weaponId || "" }); };
+  // Opening a look also fills its name and 📂 category into the header, so "open it, file it under
+  // Gangsters, Save" lands on the SAME record — before this the name box stayed blank and Save
+  // minted a second "<body> — dressed" beside the one you meant to tidy.
+  const openDressedLook = (a) => { setViewDressed(a); setDressedBobName(a.name || ""); setDressedBobCat(typeof a.category === "string" ? a.category : ""); if (a.recipe) setLoadout({ bodyId: a.recipe.bodyId || "", skinId: a.recipe.skinId || "", slots: { ...(a.recipe.slots || {}) }, weaponId: a.recipe.weaponId || "" }); };
   // Same fix as the Playtest attach sites above, for the Dress Bob composer/preview: the offset
   // and art shown here must come from the TARGET body's own resolved fit, not whatever body the
   // weapon editor's guide picker was last left on.
@@ -14061,7 +14074,9 @@ export default function AssetStudio() {
     // one is a bad guy holding a rifle" — is decided per placement in the Level Creator now, where
     // facing, AI and dialogue have always been decided (see spawnWeaponIdOf). Looks already saved
     // carrying `isEnemy: true` are unaffected: nothing reads it any more, so it is simply inert.
-    const base = { id: idOverride || uid(), name: body.name + " — dressed", type: "character" };
+    // `category` is the look's filing group (see groupByCategory) — trimmed here so "Gangsters "
+    // and "Gangsters" never become two folders. Blank is simply absent: it files under Unknown.
+    const base = { id: idOverride || uid(), name: body.name + " — dressed", type: "character", ...((dressedBobCat || "").trim() ? { category: dressedBobCat.trim() } : {}) };
     // The look IS its layers — embed full copies of every component so any layer can be
     // recovered, re-edited, or swapped later, even if the source assets get deleted.
     // The baked angles are just the pre-rendered output for playtest.
@@ -14739,6 +14754,14 @@ export default function AssetStudio() {
   const floorSuggest = [...new Set(levelLib.map((l) => (l.floor || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   const propGroupsAll = groupProps(allAssets);
   const propCatSuggest = propGroupsAll.filter((g) => g.key !== propCatKey(PROP_UNCAT)).map((g) => g.label);
+  // Dressed looks file the same way. `lookOptions` is the one way every <select> lists them: an
+  // <optgroup> per category once there is more than one, a flat run of <option>s until then — so
+  // a wardrobe that is all "Unknown" reads exactly as it did before categories existed.
+  const lookGroupsAll = groupLooks(allAssets);
+  const lookCatSuggest = lookGroupsAll.filter((g) => g.key !== propCatKey(PROP_UNCAT)).map((g) => g.label);
+  const lookOptions = (label = (a) => a.name) => lookGroupsAll.length > 1
+    ? lookGroupsAll.map((g) => <optgroup key={"lg:" + g.key} label={(g.key === propCatKey(PROP_UNCAT) ? "📦 " : "📂 ") + g.label}>{g.props.map((a) => <option key={a.id} value={a.id}>{label(a)}</option>)}</optgroup>)
+    : lookGroupsAll.flatMap((g) => g.props).map((a) => <option key={a.id} value={a.id}>{label(a)}</option>);
   // What the 🌿 Object art shelf offers: the props inside the open sub-category, or every prop when
   // none is chosen. `pickedPropStamp` resolves against that SAME list rather than the whole library,
   // so narrowing the category can never leave Place armed on something that is no longer on screen —
@@ -15075,10 +15098,10 @@ export default function AssetStudio() {
                 const bySlot = cat.key === "equipment";
                 const inSlot = (a, sl) => (sl === "__other" ? !SLOT_ORDER.includes(a.slot) : a.slot === sl);
                 const bodies = allAssets.filter((a) => a.type === "body");
-                // Objects drill down by sub-category the same way Clothes & Armor drills down by
-                // slot. Only worth a step when there is more than one group — with everything
-                // under "Unknown" it would just be a page you always click through.
-                const propGroups = cat.key === "prop" ? propGroupsAll : [];
+                // Objects and Dressed Looks drill down by sub-category the same way Clothes & Armor
+                // drills down by slot. Only worth a step when there is more than one group — with
+                // everything under "Unknown" it would just be a page you always click through.
+                const propGroups = cat.key === "prop" ? propGroupsAll : cat.key === "character" ? lookGroupsAll : [];
                 const byCat = propGroups.length > 1;
                 const subSel = byCat ? propGroups.find((g) => g.key === loadSub) : null;
                 if (bySlot && !loadSub) {
@@ -15413,7 +15436,7 @@ export default function AssetStudio() {
         <div className="angles">{ANGLES.map((a) => <button key={a} className={aAngle === a ? "on" : ""} onClick={() => setAAngle(a)}>{ALABEL[a]}</button>)}
           {dressedList.length > 0 && <select className="openDressed" value="" onChange={(e) => { const a = findA(e.target.value); if (a) { openDressedLook(a); flash("Viewing \"" + a.name + "\" — pick parts on the left to start a new one instead."); } }} >
             <option value="">📂 Open saved look…</option>
-            {dressedList.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {lookOptions()}
           </select>}
           <label className="up" style={{ marginLeft: dressedList.length ? 0 : "auto" }}>⬆ Add asset file<input type="file" accept=".json,application/json,text/plain" onChange={sessionUpload} hidden /></label>
         </div>
@@ -15439,6 +15462,14 @@ export default function AssetStudio() {
                 {bodies.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
               {!bodies.length && <p className="mini">No bodies yet. Make one from the menu (or add a file above).</p>}
+            </div>
+            {/* 📂 Where this look files. Same one-line free-text group an Object carries, read by the
+                same groupByCategory — the chips are the folders already in the wardrobe. No
+                readout under it: the folder shows up in every picker, which is the whole point. */}
+            <div className="card">
+              <div className="ct">📂 Category</div>
+              <input className="catItemInput dressCat" value={dressedBobCat} onChange={(e) => setDressedBobCat(e.target.value)} placeholder={"e.g. Gangsters, Townsfolk — blank files under \"" + PROP_UNCAT + "\""} maxLength={28} />
+              {lookCatSuggest.length > 0 && <div className="catchips">{lookCatSuggest.map((c) => <button key={c} className={propCatKey(c) === propCatKey(dressedBobCat) ? "on" : ""} onClick={() => setDressedBobCat(c)}>{c}</button>)}</div>}
             </div>
             <div className="card">
               <div className="ct">Skin (tone / face / hair)</div>
@@ -15883,7 +15914,12 @@ export default function AssetStudio() {
               <span className="lgrouplabel">👹 Enemy:</span>
               <select className="big" value={lEnemyId} onChange={(e) => { setLEnemyId(e.target.value); if (e.target.value) setLTool("paint"); }}>
                 <option value="">— none —</option>
-                {enemyChoices.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                {/* Animals first, then the wardrobe filed by 📂 category (lookOptions). The animals only
+                    get a heading of their own once the looks have folders — otherwise it is the
+                    flat list it always was. */}
+                {lookGroupsAll.length > 1
+                  ? <>{enemyChoices.some((a) => a.type === "enemy") && <optgroup label="👹 Enemies">{enemyChoices.filter((a) => a.type === "enemy").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</optgroup>}{lookOptions()}</>
+                  : <>{enemyChoices.filter((a) => a.type === "enemy").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}{lookOptions()}</>}
               </select>
               {lEnemyId ? <button className="ltbtn" onClick={() => setLEnemyFace((f) => -f)}>{lEnemyFace === 1 ? "Facing ▶" : "◀ Facing"}</button> : null}
               {lEnemyId ? <select className="ltbtn" value={lEnemyAi} onChange={(e) => setLEnemyAi(e.target.value)}>
@@ -17447,7 +17483,11 @@ export default function AssetStudio() {
               <div className="ct">Playtest player</div>
               <select className="big" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
                 <option value="">▢ Plain box</option>
-                {allAssets.filter((a) => a.type === "body" || a.type === "character" || a.type === "enemy").map((a) => <option key={a.id} value={a.id}>{(a.type === "enemy" ? "👹 " : "") + a.name}</option>)}
+                {/* Bare bodies, then the wardrobe filed by 📂 category (lookOptions), then the animals —
+                    the same folders the Enemy picker and Dress Bob show. */}
+                {allAssets.filter((a) => a.type === "body").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                {lookOptions()}
+                {allAssets.filter((a) => a.type === "enemy").map((a) => <option key={a.id} value={a.id}>{"👹 " + a.name}</option>)}
               </select>
               <label className="ltbtn up wide3b">⬆ Upload a character file<input type="file" accept=".json,application/json,text/plain" onChange={sessionUpload} hidden /></label>
               <div className="ct" style={{ marginTop: 12 }}>Playtest weapon</div>
@@ -18863,6 +18903,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .catchips{display:flex;gap:5px;flex-wrap:wrap}
 .catchips button{background:#1f2433;border:1px solid #2c3245;border-radius:14px;padding:5px 11px;cursor:pointer;font-size:12px;color:#aab2c6}
 .catchips button:hover{border-color:#4f7cf6;color:#e7e9ee}
+.catchips button.on{border-color:#4f7cf6;color:#e7e9ee;background:#243052}
 .save.playon{background:#b0504f}.save.playon:hover{background:#c75f5e}
 .ltools{display:flex;align-items:center;gap:8px;padding:9px 14px;background:#13161f;border-bottom:1px solid #232838;flex-wrap:wrap}
 .seg{display:flex;border:1px solid #2c3245;border-radius:9px;overflow:hidden}

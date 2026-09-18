@@ -406,6 +406,8 @@ import {
   MIN_GROUP_PIECE_SIZE,
   groupScaleFloor,
   groupProps,
+  groupLooks,
+  groupByCategory,
   propCat,
   propCatKey,
   PROP_UNCAT,
@@ -8269,6 +8271,25 @@ describe("propArtPieces — the blocks the 🌿 Object art shelf copies out of a
     expect(groups.map((g) => g.label)).toEqual(["Interior", PROP_UNCAT]);
     expect(groups[0].props.map((p) => p.id)).toEqual(["door", "lamp"]);
     expect(propCatKey(propCat(mk("x", "  Interior ")))).toBe("interior");
+  });
+
+  test("dressed looks file under the same system as Objects, and neither leaks into the other", () => {
+    // Blake's wardrobe outgrew a flat dropdown. A look carries the same `category` field a prop
+    // does and groupLooks reads it with the same rules: trim + case-fold, A→Z, Unknown last, names
+    // sorted inside a folder. A prop tagged "Gangsters" is NOT a look, and a look tagged
+    // "Interior" is NOT an Object — the two reads are type-bound, so a folder name shared across
+    // types never mixes the pickers.
+    const look = (id, category) => ({ id, type: "character", name: id, category });
+    const prop = (id, category) => ({ id, type: "prop", name: id, category });
+    const lib = [look("Thug", "Gangsters"), look("Boss", "gangsters "), look("Vicar", "Townsfolk"), look("Bob — dressed", ""), look("Old", undefined), prop("door", "Gangsters"), prop("lamp", "Interior")];
+    const groups = groupLooks(lib);
+    expect(groups.map((g) => g.label)).toEqual(["Gangsters", "Townsfolk", PROP_UNCAT]);
+    expect(groups[0].props.map((p) => p.id)).toEqual(["Boss", "Thug"]);
+    expect(groups[2].props.map((p) => p.id)).toEqual(["Bob — dressed", "Old"]);
+    expect(groups.flatMap((g) => g.props).every((p) => p.type === "character")).toBe(true);
+    expect(groupProps(lib).map((g) => g.label)).toEqual(["Gangsters", "Interior"]);
+    expect(groupByCategory(lib, "prop")).toEqual(groupProps(lib));
+    expect(groupLooks([])).toEqual([]);
   });
 });
 
