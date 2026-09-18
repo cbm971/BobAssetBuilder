@@ -1912,7 +1912,7 @@ export const shopStock = (assets, tag) => {
 // the stock changing when it has not.
 export const shopPriceOrder = (items, intelligence) =>
   (items || []).slice().sort((a, b) =>
-    shopBuyPrice(a, intelligence) - shopBuyPrice(b, intelligence) || String(a.name || "").localeCompare(String(b.name || ""), undefined, { numeric: true }));
+    shopBuyPrice(a, intelligence) - shopBuyPrice(b, intelligence) || NUMERIC_COLLATOR.compare(String(a.name || ""), String(b.name || "")));
 export const shopStockSorted = (assets, tag, intelligence) => shopPriceOrder(shopStock(assets, tag), intelligence);
 // A SHOPKEEPER PUTS THREE THINGS OUT, not his whole warehouse. 44 items tagged T1 is a scrolling
 // spreadsheet rather than a shop, and it makes every stall selling that tag identical — three
@@ -2843,6 +2843,15 @@ export const clampArtZoom = (z, delta) => Math.max(ARTZOOM_MIN, Math.min(ARTZOOM
 // and past a couple of dozen outfits none of them was findable. A look carries the SAME
 // `category` field under the same rules, so one filing system serves both: `groupByCategory` is
 // the read, and `groupProps` / `groupLooks` are the two type-bound spellings of it.
+// ONE COLLATOR, BUILT ONCE. `x.localeCompare(y, undefined, { numeric: true, ... })` builds a fresh
+// Intl.Collator on EVERY call (V8 only caches the collator for the no-options form), and a sort is
+// hundreds of calls. It was harmless in a click handler; it was not harmless once these groupings
+// ran in the render body of a component that re-renders every playtest frame — measured on Blake's
+// Trailor Park M7 (49 props, 15 looks): the two groupings plus the item-category list were ~1 ms a
+// frame, doubled by StrictMode, i.e. a sixth of the whole frame. The memos below stop the re-runs;
+// this stops each run costing 50x what it should. Same ordering, byte for byte.
+export const NAME_COLLATOR = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+export const NUMERIC_COLLATOR = new Intl.Collator(undefined, { numeric: true });
 export const PROP_UNCAT = "Unknown";
 export const propCat = (a) => ((a && typeof a.category === "string" ? a.category.trim() : "") || PROP_UNCAT);
 export const propCatKey = (c) => (c || "").trim().toLowerCase();
@@ -2858,7 +2867,7 @@ export const groupByCategory = (assets, type) => {
     if (!map.has(key)) map.set(key, { key, label, props: [] });
     map.get(key).props.push(a);
   }
-  const cmp = (x, y) => x.localeCompare(y, undefined, { numeric: true, sensitivity: "base" });
+  const cmp = (x, y) => NAME_COLLATOR.compare(x, y);
   const unk = propCatKey(PROP_UNCAT);
   const groups = [...map.values()];
   for (const g of groups) g.props.sort((x, y) => cmp(x.name || "", y.name || ""));
@@ -4557,7 +4566,23 @@ const cellKey = (r, c) => r + "," + c;
 // trailer acquired a huge empty collision/selection box above it. Measure the union of every
 // animation frame's actually drawn art instead. Authored hitbox and muzzle helpers are editor
 // metadata, cutters draw holes rather than pixels, and none of them may inflate this box.
+// Measured ONCE per asset record (a WeakMap on the object, checked against the art arrays it was
+// measured from). Every placed prop asks for its box on every render — the level render runs
+// once per playtest frame — and this walks and rotates every piece of every frame each time. A
+// library record is replaced, never edited in place (the editor works on a clone), so the object
+// identity is the record: a re-saved prop is a new object and measures fresh.
+const PROP_ART_BOX_CACHE = new WeakMap();
 export const propVisibleArtBox = (propAsset) => {
+  if (propAsset && typeof propAsset === "object") {
+    const hit = PROP_ART_BOX_CACHE.get(propAsset);
+    if (hit && hit.frames === propAsset.frames && hit.angles === propAsset.angles) return hit.box;
+    const box = propVisibleArtBoxUncached(propAsset);
+    PROP_ART_BOX_CACHE.set(propAsset, { frames: propAsset.frames, angles: propAsset.angles, box });
+    return box;
+  }
+  return propVisibleArtBoxUncached(propAsset);
+};
+const propVisibleArtBoxUncached = (propAsset) => {
   const frames = (propAsset && propAsset.frames && propAsset.frames.length)
     ? propAsset.frames
     : [propAsset && propAsset.angles].filter(Boolean);
@@ -6706,7 +6731,20 @@ export const renderPieceRuns = ({ pieces, cacheKey, keyPrefix, drawPiece, maskCs
         </div>));
   });
 export const shapePolyPoints = (p) => (p && p.kind === "poly" && p.points) ? p.points : (p && SHAPE_POINTS[p.kind]) || (typeof p === "string" ? SHAPE_POINTS[p] : null);
-export const shapeClipPath = (pieceOrKind) => { const pts = shapePolyPoints(typeof pieceOrKind === "string" ? { kind: pieceOrKind } : pieceOrKind); return pts ? "polygon(" + pts.map(([x, y]) => (x * 100) + "% " + (y * 100) + "%").join(",") + ")" : null; };
+// The polygon string is cached PER POINTS ARRAY. Every drawn piece asks for it every frame (a
+// sprite of ~100 pieces, several sprites on screen, 60 times a second), and a semicircle is 32
+// segments of "12.34% 56.78%" — the string building was a measurable slice of the per-frame
+// garbage that has the collector taking a frame every ten or so. The points arrays are shared
+// constants (SHAPE_POINTS) or a poly piece's own array that never changes in place, so keying on
+// the array itself is exact: same array, same string, byte for byte.
+const CLIP_PATH_CACHE = new WeakMap();
+export const shapeClipPath = (pieceOrKind) => {
+  const pts = shapePolyPoints(typeof pieceOrKind === "string" ? { kind: pieceOrKind } : pieceOrKind);
+  if (!pts) return null;
+  let cp = CLIP_PATH_CACHE.get(pts);
+  if (cp === undefined) { cp = "polygon(" + pts.map(([x, y]) => (x * 100) + "% " + (y * 100) + "%").join(",") + ")"; CLIP_PATH_CACHE.set(pts, cp); }
+  return cp;
+};
 
 /* ---- Snap to edges ------------------------------------------------------- */
 // The "🧲 Snap to edges" mode. While a block is being dragged, if one of its own edges comes to
@@ -8093,6 +8131,7 @@ export default function AssetStudio() {
   const roomState = useRef({});                             // per-level PERSISTENT state for the current play session, keyed by level id: { rolls, depleted, eHP, ePos, drops, haz }. Never cleared on a transition — only on a fresh Playtest. This is what makes a level/room keep what you did to it when you leave and come back.
   const sessionRooms = useRef({});                          // "originLevelId|doorCell" -> chosen room id, so a given door leads to the SAME room all session (re-entering doesn't re-roll)
   const spawnReq = useRef(null);                            // one-shot spawn placement for the next frame: { gate:true } | { roomDoor:true } | { x, y }. Resolved once, using the real player size, then cleared.
+  const propArtCache = useRef(new Map());                  // placement key -> the prop art element last built for it and what it was built from (see renderObj): a placed prop that has not changed is handed React the SAME element, so it bails out of that subtree instead of re-diffing ~90 nodes a frame
   const playerLookCache = useRef({ key: "", look: null }); // memoises the live-composed player look (all angles) so re-composing every frame is free until the equipped set actually changes
   const [equipGen, setEquipGen] = useState(0);            // bumped when pedestal equipment changes, so the playtest loop re-keys and the merged stats/effects take effect live
   const [pedPrompt, setPedPrompt] = useState(null);       // { key, name, type, slot } | { key, empty, summary } | null — pedestal the player is standing on, for the "Press E" HUD                       // cellKey -> the item this pedestal rolled this Playtest session (stable; pre-rolled at Playtest start, Binding-of-Isaac style)
@@ -13461,6 +13500,23 @@ export default function AssetStudio() {
       const frames = (pa.frames && pa.frames.length) ? pa.frames.length : 1;
       const fps = pa.animFps || 6;
       const frameIdx = (play && frames > 1) ? Math.floor(((animT || 0) / 60) * fps) % frames : 0;
+      // THE SAME ELEMENT BACK, while nothing about the placement has changed. A placed prop is
+      // static art (or a frame of it), yet the level render runs once per playtest frame and used
+      // to rebuild its ~90 elements every time for React to diff and discard — measured at an
+      // eighth of the frame on Trailor Park M7 with six props in view. Handing React the element
+      // it already holds makes it bail out of the whole subtree (same props object, no work).
+      // Keyed on the placement, checked against everything the art is built from: the asset
+      // RECORD (replaced on save, never mutated), the animation frame, the box in px, the tight
+      // art box, and the texture library the pieces paint with. The editor path is not cached:
+      // its erase handler is a fresh closure every render and would never hit.
+      if (keyBase && !onPiecePointerDown) {
+        const bsig = tightBox ? tightBox.minX + "," + tightBox.minY + "," + tightBox.w + "," + tightBox.h : "";
+        const hit = propArtCache.current.get(keyBase);
+        if (hit && hit.pa === pa && hit.frameIdx === frameIdx && hit.w === widthPx && hit.h === heightPx && hit.bsig === bsig && hit.texLib === texLib) return hit.el;
+        const el = propArtInner(pa, widthPx, heightPx, frameIdx, keyBase, tightBox, onPiecePointerDown);
+        propArtCache.current.set(keyBase, { pa, frameIdx, w: widthPx, h: heightPx, bsig, texLib, el });
+        return el;
+      }
       return propArtInner(pa, widthPx, heightPx, frameIdx, keyBase, tightBox, onPiecePointerDown);
     }
     return objInner(o, widthPx);
@@ -14751,14 +14807,20 @@ export default function AssetStudio() {
   const setConnAccepts = (k, t) => setLevel((lv) => ({ ...lv, conns: { ...lv.conns, [k]: { ...lv.conns[k], accepts: t } } }));
   const addCatSuggest = (k, tag) => setLevel((lv) => { const cur = lv.conns[k].accepts || ""; const has = cur.split(/[,\n]/).map((s) => s.trim().toLowerCase()).includes(tag); if (has) return lv; const next = cur ? cur + ", " + tag : tag; return { ...lv, conns: { ...lv.conns, [k]: { ...lv.conns[k], accepts: next } } }; });
   const allLevels = level ? [level, ...levelLib.filter((l) => l.id !== level.id)] : levelLib;
-  const floorSuggest = [...new Set(levelLib.map((l) => (l.floor || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  const propGroupsAll = groupProps(allAssets);
-  const propCatSuggest = propGroupsAll.filter((g) => g.key !== propCatKey(PROP_UNCAT)).map((g) => g.label);
+  // MEMOIZED, ALL OF THEM, because this render body runs once per playtest frame (setPframe) and
+  // none of these change while you play: they are read off the library and the level list, which
+  // only move when something is saved. Left bare, the two groupings and the two suggestion lists
+  // were rebuilt and re-sorted 60 times a second (120 under StrictMode) — measured at ~1 ms of a
+  // ~6 ms frame on Trailor Park M7, plus their share of the garbage that has the collector
+  // stealing a frame every ten or so (see NAME_COLLATOR for the other half of that cost).
+  const floorSuggest = useMemo(() => [...new Set(levelLib.map((l) => (l.floor || "").trim()).filter(Boolean))].sort((a, b) => NUMERIC_COLLATOR.compare(a, b)), [levelLib]);
+  const propGroupsAll = useMemo(() => groupProps(allAssets), [allAssets]);
+  const propCatSuggest = useMemo(() => propGroupsAll.filter((g) => g.key !== propCatKey(PROP_UNCAT)).map((g) => g.label), [propGroupsAll]);
   // Dressed looks file the same way. `lookOptions` is the one way every <select> lists them: an
   // <optgroup> per category once there is more than one, a flat run of <option>s until then — so
   // a wardrobe that is all "Unknown" reads exactly as it did before categories existed.
-  const lookGroupsAll = groupLooks(allAssets);
-  const lookCatSuggest = lookGroupsAll.filter((g) => g.key !== propCatKey(PROP_UNCAT)).map((g) => g.label);
+  const lookGroupsAll = useMemo(() => groupLooks(allAssets), [allAssets]);
+  const lookCatSuggest = useMemo(() => lookGroupsAll.filter((g) => g.key !== propCatKey(PROP_UNCAT)).map((g) => g.label), [lookGroupsAll]);
   const lookOptions = (label = (a) => a.name) => lookGroupsAll.length > 1
     ? lookGroupsAll.map((g) => <optgroup key={"lg:" + g.key} label={(g.key === propCatKey(PROP_UNCAT) ? "📦 " : "📂 ") + g.label}>{g.props.map((a) => <option key={a.id} value={a.id}>{label(a)}</option>)}</optgroup>)
     : lookGroupsAll.flatMap((g) => g.props).map((a) => <option key={a.id} value={a.id}>{label(a)}</option>);
@@ -14769,7 +14831,7 @@ export default function AssetStudio() {
   const propShelfList = propStampCat ? ((propGroupsAll.find((g) => g.key === propStampCat) || { props: [] }).props) : propGroupsAll.flatMap((g) => g.props);
   const pickedPropStamp = propShelfList.find((a) => a.id === propStampPick) || null;
   const pickedPropFrames = pickedPropStamp ? (pickedPropStamp.frames || []).length : 0;
-  const catSuggest = [...new Set(allAssets.filter(HAS_CATEGORIES).flatMap((a) => (a.categories || []).map((c) => (c || "").trim()).filter(Boolean)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const catSuggest = useMemo(() => [...new Set(allAssets.filter(HAS_CATEGORIES).flatMap((a) => (a.categories || []).map((c) => (c || "").trim()).filter(Boolean)))].sort((a, b) => NUMERIC_COLLATOR.compare(a, b)), [allAssets]);
   // Hoisted to component scope (not inside the level-screen block) because BOTH commit paths
   // need it: the status-strip destination buttons AND selectLayer below — clicking a layer tab
   // while a region is picked up is the most natural way to say "put it there", and the original
@@ -17588,7 +17650,7 @@ export default function AssetStudio() {
               <div className="dt">Load a level or room</div>
               {levelLib.length === 0 && <p className="mini">Nothing saved yet — make a level or room, then Save.</p>}
               {Object.entries(levelLib.reduce((groups, l) => { const k = l.isRoom ? "🚪 Rooms" : ((l.floor || "").trim() || "—"); (groups[k] = groups[k] || []).push(l); return groups; }, {}))
-                .sort(([a], [b]) => (a === "🚪 Rooms" ? 1 : b === "🚪 Rooms" ? -1 : a.localeCompare(b, undefined, { numeric: true })))
+                .sort(([a], [b]) => (a === "🚪 Rooms" ? 1 : b === "🚪 Rooms" ? -1 : NUMERIC_COLLATOR.compare(a, b)))
                 .map(([floor, items]) => (
                 <div key={floor} className="loadgroup">
                   <div className="loadgrouplabel">{floor === "🚪 Rooms" ? "🚪 Rooms" : floor === "—" ? "No floor set" : "🏢 Floor " + floor}</div>

@@ -183,6 +183,9 @@ import {
   boomLayout,
   levelShapeLabel,
   propVisibleArtBox,
+  shapeClipPath,
+  NAME_COLLATOR,
+  NUMERIC_COLLATOR,
   recolorAsset,
   restyleAsset,
   assetColorGroup,
@@ -9089,3 +9092,36 @@ describe("a draining HP bar rises over the full ones around it", () => {
     expect(hot).toBeLessThan(5101);
   });
 });
+
+describe("per-frame render caches (Trailor Park M7 lag, 2026-09-18)", () => {
+  // The level render runs once per playtest frame. Everything here is a cache that hands the
+  // SAME answer back for the same input, so the frame stops rebuilding what has not changed —
+  // and each one has to stay byte-identical to the uncached answer, or it is a rendering bug.
+  test("propVisibleArtBox measures a record once and re-measures when its art is replaced", () => {
+    const prop = { frames: [{ front: [{ id: "a", x: 10, y: 190, w: 100, h: 50 }] }] };
+    const first = propVisibleArtBox(prop);
+    expect(first).toEqual({ minX: 10, minY: 190, w: 100, h: 50 });
+    expect(propVisibleArtBox(prop)).toBe(first);                       // same record: the same object back, no re-walk
+    prop.frames = [{ front: [{ id: "a", x: 0, y: 0, w: 200, h: 260 }] }]; // a save replaces the art array
+    expect(propVisibleArtBox(prop)).toEqual({ minX: 0, minY: 0, w: 200, h: 260 });
+    expect(propVisibleArtBox({ ...prop, frames: prop.frames })).toEqual({ minX: 0, minY: 0, w: 200, h: 260 }); // a fresh record measures on its own
+  });
+  test("shapeClipPath is the same string for the same points and still exact per shape", () => {
+    expect(shapeClipPath("tri")).toBe(shapeClipPath("tri"));
+    expect(shapeClipPath({ kind: "tri" })).toBe(shapeClipPath("tri"));
+    const poly = { kind: "poly", points: [[0, 0], [1, 0], [0.5, 1]] };
+    expect(shapeClipPath(poly)).toBe("polygon(0% 0%,100% 0%,50% 100%)");
+    expect(shapeClipPath(poly)).toBe(shapeClipPath(poly));
+    expect(shapeClipPath({ kind: "poly", points: [[0, 0], [1, 0], [0.5, 0.5]] })).toBe("polygon(0% 0%,100% 0%,50% 50%)"); // different points, different string
+    expect(shapeClipPath({ kind: "circle" })).toBeNull();
+  });
+  test("the shared collators order names exactly as the per-call localeCompare did", () => {
+    const names = ["Viatnamese 10", "viatnamese 2", "Bobby", "bobbett", "Nixon 1968", "The Chaplin", "Ash"];
+    const legacyBase = names.slice().sort((x, y) => x.localeCompare(y, undefined, { numeric: true, sensitivity: "base" }));
+    const legacyNum = names.slice().sort((x, y) => x.localeCompare(y, undefined, { numeric: true }));
+    expect(names.slice().sort((x, y) => NAME_COLLATOR.compare(x, y))).toEqual(legacyBase);
+    expect(names.slice().sort((x, y) => NUMERIC_COLLATOR.compare(x, y))).toEqual(legacyNum);
+    expect(NAME_COLLATOR.compare("viatnamese 2", "Viatnamese 10")).toBeLessThan(0); // numeric: 2 before 10
+  });
+});
+

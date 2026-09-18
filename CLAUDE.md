@@ -1345,6 +1345,44 @@ anything in the level render body runs 60x a second. What is actually true, meas
 * Paint/raster is NOT measurable in the hidden pane — say so rather than inventing a number. What
   differs across Trailor Park is composition, not count: column 0 carries 1035 textured cells and
   164 Front-layer cells over them, column 120 carries 421 and 62.
+* **"Suddenly way laggier … random pretty bad stutters" (2026-09-18, Trailor Park M7).** The
+  frame had DOUBLED and the collector was taking a frame every ten. Bisected in the test pane with
+  his M7 export (10 units, 11 props): 64dae83 walked at p50 6.4 ms, HEAD at 10.3 ms. Two things,
+  and a rule that comes out of them:
+  - **Nothing in the render body may read the library bare.** `groupProps(allAssets)`,
+    `groupLooks(allAssets)`, `catSuggest` and `floorSuggest` were plain `const`s in
+    `AssetStudio`, so each playtest frame re-grouped and re-sorted 152 assets (twice, under
+    StrictMode). They are `useMemo`s on `allAssets` / `levelLib` now. The tell in a profile is
+    `groupByCategory` or `cmp` under `AssetStudio` at all.
+  - **`localeCompare(y, undefined, { numeric: true })` builds an Intl.Collator PER CALL** (V8 only
+    caches the no-options form), and a sort is hundreds of calls — ~3 µs each plus ICU garbage
+    that fattens every scavenge. `NAME_COLLATOR` / `NUMERIC_COLLATOR` are the two collators the
+    module owns; every sort by name goes through them. Same order, byte for byte (tested).
+  - Also in that commit, because the profile showed them once the sorts were gone: `propArtCache`
+    hands React the SAME element for a placed prop whose inputs have not changed (React bails out
+    of the ~90-node subtree; the editor's erase path is uncached), `PROP_ART_BOX_CACHE` measures a
+    prop record once, `CLIP_PATH_CACHE` builds a polygon string once per points array, and
+    `src/index.js` no longer wraps the app in StrictMode — he plays the dev build, and the double
+    render was ~3,200 React elements a frame against ~1,600 (see the comment there).
+  - Result in the same pane, dressed Super Bob + M16 on M7: standing p50 5.9 → 4.1 ms, walking
+    9.5 → 5.2 ms, p99 19.2 → 9.0 ms; garbage ~1.9 → ~1.4 MB a frame, so the scavenge every ~10
+    frames costs ~6 ms instead of ~11. What is left is the sprites themselves (`Static` per piece,
+    ~140 nodes for a look, rebuilt each frame because poses animate) and React dev-mode prop
+    validation (~15% of the frame) — a per-unit sprite memo keyed on the pose inputs is the next
+    step if he asks again.
+  - **The JS self-profiler works in the pane.** `setupProxy.js` can set
+    `Document-Policy: js-profiling` (temporarily — do not commit it) and then
+    `new Profiler({ sampleInterval: 1 })` in `javascript_tool` gives real stacks with function
+    names and bundle lines (the interval clamps to ~16 ms, so profile for 10+ s). Aggregate
+    "total" time per App-level frame name; `sed -n <line>p` on the dev bundle maps a line back to
+    App.js. Allocation: `performance.memory.usedJSHeapSize` is cached ~30 ms, so only the rate
+    over 40+ frames means anything — and subtract the gated shim's own ~0.16 MB/frame of
+    postMessage spin. Counting React elements a frame: wrap `Object.freeze` and count objects
+    with `$typeof` (dev jsxDEV freezes every element).
+  - **The Playtest player picker is not the first `<select>` with a look in it** any more — the
+    👹 Enemy picker lists the wardrobe too since 9f0cbfd. A driver that picks a select by an
+    option's text lands on the enemy picker and the player stays a ▢ Plain box, which measures
+    ~2 ms a frame lighter than his real look. Find the player picker by its "Plain box" option.
 
 Measuring it at all needs care: the Browser pane is usually hidden, so rAF never fires — patch it
 to `setTimeout(cb, 16)`. And **do not sample with `setTimeout(…, 0)`**: nested timeouts are clamped
