@@ -7325,31 +7325,72 @@ export const seamStripMap = (map, nb, side, strip = SEAM_STRIP_CELLS) => {
 // measured per-frame JS with two whole neighbours mounted is in the notes in CLAUDE.md.
 const RUN_LAYER_STYLE = { display: "contents" };
 const RUN_TILE_CACHE = { bg: new WeakMap(), fg: new WeakMap(), front: new WeakMap() };
-const cachedRunTiles = (kind, map, texLib, build) => {
+// A NEIGHBOUR IS BUILT AND MOUNTED A SLICE AT A TIME, NOT IN ONE FRAME. Measured at the seam
+// (2026-09-17, dev build in the test pane): of the ~100 ms freeze Blake saw as "the camera sort of
+// stops for a second, then jerks with you", about half was the level BEYOND the one just entered —
+// never yet on screen, 4,800 px away — getting all of its ~1,300 tile boxes built (15 ms of element
+// creation), inserted and laid out (25 ms of forced layout on the next frame) inside the handoff.
+// Nothing needs it for a couple of seconds of walking, so the swap render builds and mounts only
+// the first RUN_MOUNT_ITEMS_PER_FRAME items of it and each following frame the next slice (bg
+// first, then fg, then front) until it is whole; from then on the wrapper renders the one cached
+// element and React never walks it again. Per frame that is a few ms spread over a couple of dozen
+// frames instead of ~50 ms in one. The live level is always whole at once — it is on screen — and
+// so is a neighbour that was whole before (it was the live level a moment ago; the swap keeps it).
+//
+// One cache entry per cell MAP (identity) and texture set: `items` are the layer's runs (bg, fg —
+// see cellRuns) or keys (front), `built` the tile elements made so far from the first `n` of them,
+// and `el` the ONE element wrapping them all once every item is built, so a bail-out at it skips
+// every cell (see CELL_LAYER_STYLE). runMountPlan is the pure arithmetic: per-layer item counts,
+// how many are already up, the budget -> how many of each layer to have this frame.
+export const RUN_MOUNT_ITEMS_PER_FRAME = 30;
+export const runMountPlan = (counts, done, budget = RUN_MOUNT_ITEMS_PER_FRAME) => {
+  const total = counts.reduce((a, b) => a + b, 0);
+  const next = Math.min(total, done + budget);
+  const take = []; let left = next;
+  for (const n of counts) { const t = Math.min(n, left); take.push(t); left -= t; }
+  return { done: next, take, complete: next >= total };
+};
+const cachedRunTiles = (kind, map, texLib, itemsOf, buildItem) => {
   if (!map) return null;
   const hit = RUN_TILE_CACHE[kind].get(map);
-  if (hit && hit.texLib === texLib) return hit.el;
-  const el = <div style={RUN_LAYER_STYLE}>{build()}</div>;   // ONE element per layer, so a bail-out at it skips every cell (see CELL_LAYER_STYLE)
-  RUN_TILE_CACHE[kind].set(map, { texLib, el });
-  return el;
+  if (hit && hit.texLib === texLib) return hit;
+  const entry = { texLib, items: itemsOf(map), built: [], n: 0, el: null, buildItem: (it) => buildItem(map, texLib, it) };
+  RUN_TILE_CACHE[kind].set(map, entry);
+  return entry;
 };
+// Build the entry's items up to `upTo` (Infinity = all of them) and hand back what to render: the
+// cached whole-layer element once complete, else a fresh wrapper over the elements built so far.
+// The array is appended in place; React only reads it while reconciling, and the elements in it
+// never change, so the already-mounted cells bail out and only the new slice mounts.
+const runTilesUpTo = (entry, upTo) => {
+  for (; entry.n < upTo && entry.n < entry.items.length; entry.n++) { const out = entry.buildItem(entry.items[entry.n]); if (Array.isArray(out)) { for (const e of out) if (e) entry.built.push(e); } else if (out) entry.built.push(out); }
+  if (entry.n >= entry.items.length) { if (!entry.el) entry.el = <div style={RUN_LAYER_STYLE}>{entry.built}</div>; return entry.el; }
+  return <div style={RUN_LAYER_STYLE}>{entry.built}</div>;
+};
+const RUN_MOUNT_PROGRESS = new WeakMap();   // run node -> how many of its tile items are mounted so far; cleared when its wrapper unmounts
+// The wrapper's ref callback, ONE function per node: an inline arrow would be a new ref every
+// render, and React then calls the old one with null on every commit, which would wipe the
+// progress each frame and the neighbour would never finish mounting.
+const RUN_WRAPPER_REF = new WeakMap();
+const runWrapperRef = (node) => { let f = RUN_WRAPPER_REF.get(node); if (!f) { f = (el) => { if (!el) RUN_MOUNT_PROGRESS.delete(node); }; RUN_WRAPPER_REF.set(node, f); } return f; };
 // The three builders are the play-mode halves of lvBgLayer / lvFgLayer / lvFrontLayer, cell for
 // cell (same classes, same runs, same outline/clip code), minus the editor's erase handlers and
-// minus the Front ref, which the run wrapper puts on an outer div instead.
-const buildRunBgTiles = (map, texLib) => cellRuns(map).map(({ key, r, c, span, cell }) => {
+// minus the Front ref, which the run wrapper puts on an outer div instead. Each is one ITEM at a
+// time (a run for bg/fg, a key for front) so the slice-per-frame mount above can build as it goes.
+const buildRunBgTile = (map, texLib, { key, r, c, span, cell }) => {
   const fills = fgFills(cell);
   if (fills.length <= 1) return <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(map, cell, r, c, texLib), clipPath: fgClipPath(cell), width: span * LV_CELL }} />;
   return <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, width: span * LV_CELL }}>{fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(map, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}</div>;
-});
-const buildRunFgTiles = (map, texLib) => cellRuns(map).flatMap(({ key, r, c, span, cell, sig }) => {
+};
+const buildRunFgTile = (map, texLib, { key, r, c, span, cell, sig }) => {
   if (sig !== null) { const fill = fgFills(cell)[0]; if (fgHiddenInPlay(fill)) return []; return [<div key={"f" + key + "_0"} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(map, fill, r, c, texLib), width: span * LV_CELL }} />]; }
   return fgFills(cell).map((fill, i) => fgHiddenInPlay(fill) ? null : <div key={"f" + key + "_" + i} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(map, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse();
-});
-const buildRunFrontTiles = (map, texLib) => Object.keys(map).map((k) => {
+};
+const buildRunFrontTile = (map, texLib, k) => {
   const [r, c] = k.split(",").map(Number); const cell = map[k], fills = fgFills(cell);
   if (fills.length <= 1) return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(map, cell, r, c, texLib), clipPath: fgClipPath(cell) }} />;
   return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL }}>{fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(map, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}</div>;
-});
+};
 // FOLLOWERS COME WITH YOU THROUGH A GATE. Every living ally (ep.friendly — the one ally pipeline)
 // within ALLY_CARRY_RANGE_CELLS of the body when it crosses is moved into the next level: its spawn
 // record is copied into that level's enemies map under a fresh "r,c" key at its new place, its live
@@ -7357,17 +7398,39 @@ const buildRunFrontTiles = (map, texLib) => Object.keys(map).map((k) => {
 // and it is taken out of the level being left so it is not also standing there when you come back.
 // Everything else about it travels on ep itself (allyKind, turned, following). Pure over the two
 // buckets so it can be tested; the loop hands it the live refs, which ARE the buckets.
+//
+// AND SO DOES WHATEVER IS CHASING YOU (2026-09-17). Blake: "if you have enemies following you
+// they disappear as soon as you enter a new level … you can cheese enemy spawning with obvious
+// level boundaries". The loop passes `opts.follows(ep, spawn, k)`, its own rule for which hostile
+// comes through (a Seek unit that can see you right now — see seamHandoff); this function only
+// moves it, exactly the way it moves an ally. A room is a door, not a seam, so nothing follows
+// into one, which is what he asked for.
+//
+// Every carried unit is clamped INTO the next level (`dst.cols`, `opts.widthOf`): re-based by the
+// seam offset, something behind you lands at x < 0 for an eastward crossing, outside the level,
+// where the collision code sees no cells at all and it would fall out of the world. It arrives at
+// the seam edge instead, which is where the gate is, and its own AI walks it on from there.
 export const ALLY_CARRY_RANGE_CELLS = 24;   // an ally further behind than most of a screen stays where it is
 export const VIEW_CULL_MARGIN_CELLS = 8;    // how far past the camera's window a sprite is still drawn (see the level render)
-export const carryAlliesAcrossSeam = (src, dst, off, px, rangePx, standHOf, cell = LV_CELL) => {
+export const carryAlliesAcrossSeam = (src, dst, off, px, rangePx, standHOf, cell = LV_CELL, opts = {}) => {
   const srcEnemies = { ...(src.enemies || {}) }, dstEnemies = { ...(dst.enemies || {}) };
-  let moved = 0;
+  let moved = 0, atLow = 0, atHigh = 0;
   for (const k of Object.keys(src.ePos || {})) {
     const ep = src.ePos[k], spawn = src.enemies && src.enemies[k];
     // No HP entry yet means it has never been hurt (the loop only writes eHP on damage) — alive.
     const hp = src.eHP ? src.eHP[k] : undefined;
-    if (!ep || !spawn || !ep.friendly || (hp !== undefined && hp <= 0) || Math.abs(ep.x - px) > rangePx) continue;
-    const nx = ep.x - off.x, ny = ep.y - off.y;
+    if (!ep || !spawn || (hp !== undefined && hp <= 0)) continue;
+    const comes = ep.friendly ? Math.abs(ep.x - px) <= rangePx : !!(opts.follows && opts.follows(ep, spawn, k));
+    if (!comes) continue;
+    let nx = ep.x - off.x; const ny = ep.y - off.y;
+    if (dst.cols) {
+      // A pack clamped to the same edge is lined up one body apart, not stacked on one pixel:
+      // two chasers with the same speed that start on the same spot stay on it for good and
+      // read as one enemy (seen the first time four Pika-Squirrels came through together).
+      const w = opts.widthOf ? opts.widthOf(spawn) : cell, maxX = dst.cols * cell - w;
+      if (nx < 0) nx = Math.min(maxX, w * atLow++);
+      else if (nx > maxX) nx = Math.max(0, maxX - w * atHigh++);
+    }
     const r = Math.max(0, Math.floor((ny + (standHOf(spawn) || cell)) / cell) - 1);   // the row the feet stand on, the way the seeding reads a key
     let col = Math.max(0, Math.round(nx / cell));
     while (dstEnemies[r + "," + col] || dst.ePos[r + "," + col]) col++;
@@ -8061,7 +8124,12 @@ export default function AssetStudio() {
   // separately and then stack, so a merged cell would come out visibly more solid than the plain
   // cells beside it — a rendering artefact that reads as a worse bug than the one being fixed.
   // Nested, the browser composites the stack first and fades the result once.
-  const lvBgLayer = useMemo(() => level ? <div style={CELL_LAYER_STYLE}>{cellRuns(level.bg || {}).map(({ key, r, c, span, cell }) => {
+  // None of the three editor layers is built during a RUN: the run wrappers below draw the level
+  // through the cached-tile path instead, and building ~8,000 cell elements three times over just
+  // to discard them was a measured slice of every seam handoff. A room entered from a run has no
+  // runKey, so it still renders through these.
+  const runNodeNow = play && runRef.current && level && level.runKey ? runRef.current.nodes[level.runKey] : null;
+  const lvBgLayer = useMemo(() => level && !runNodeNow ? <div style={CELL_LAYER_STYLE}>{cellRuns(level.bg || {}).map(({ key, r, c, span, cell }) => {
     const fills = fgFills(cell);
     // One fill — byte-identical to how Background has always drawn, runs included.
     if (fills.length <= 1) return <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.bg, cell, r, c, texLib), clipPath: fgClipPath(cell), width: span * LV_CELL }} />;
@@ -8069,13 +8137,13 @@ export default function AssetStudio() {
     return <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, width: span * LV_CELL }}>
       {fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(level.bg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}
     </div>;
-  })}</div> : null, [level, texLib]);
+  })}</div> : null, [level, texLib, runNodeNow]);
   // One div per FILL, not per cell: a cell holding a gravel ramp over grass blocks draws both,
   // the grass first and the ramp over it. fgFills is newest-first, so it's walked backwards to
   // put the most recent paint on top. Single-material cells (every cell in an older save) come
   // back as a one-item list and render exactly one div, as they always did.
   // (Same z-index for every fill in a cell, so DOM order alone decides what covers what.)
-  const lvFgLayer = useMemo(() => level ? <div style={CELL_LAYER_STYLE}>{cellRuns(level.fg || {}).flatMap(({ key, r, c, span, cell, sig }) => {
+  const lvFgLayer = useMemo(() => level && !runNodeNow ? <div style={CELL_LAYER_STYLE}>{cellRuns(level.fg || {}).flatMap(({ key, r, c, span, cell, sig }) => {
     // A run (plain paint, no ramp, no outline, one fill) draws as a single wide box; anything
     // cellRunSig refused to merge falls through to the original one-box-per-fill path below.
     if (sig !== null) {
@@ -8088,40 +8156,58 @@ export default function AssetStudio() {
       if (play && hidden) return null; // collision reads level.fg directly; only its Playtest art is omitted
       return <div key={"f" + key + "_" + i} data-fg-hidden={hidden ? "true" : undefined} className={"lcell" + (hidden ? " collisionOnly" : "")} title={hidden ? "Collision only — invisible during play" : undefined} style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />;
     }).reverse();
-  })}</div> : null, [level, texLib, play]);
+  })}</div> : null, [level, texLib, play, runNodeNow]);
   // The Front layer keeps its ref here (the loop fades covered cells imperatively) — the wrapper it
   // always had simply moved INSIDE the memo, so the element itself is stable across frames too.
   // Front stacks for the same reason Background does. Its extra fills are nested inside the one
   // element for a second reason too: the play loop fades covered Front cells by querying
   // [data-fk] and setting style.opacity, so the cell has to stay ONE element to fade as a unit.
-  const lvFrontLayer = useMemo(() => level ? <div ref={frontCellsRef} style={CELL_LAYER_STYLE}>{Object.keys(level.front || {}).map((k) => {
+  const lvFrontLayer = useMemo(() => level && !runNodeNow ? <div ref={frontCellsRef} style={CELL_LAYER_STYLE}>{Object.keys(level.front || {}).map((k) => {
     const [r, c] = k.split(",").map(Number);
     const cell = level.front[k], fills = fgFills(cell);
     if (fills.length <= 1) return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.front, cell, r, c, texLib), clipPath: fgClipPath(cell) }} />;
     return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL }}>
       {fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(level.front, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}
     </div>;
-  })}</div> : null, [level, texLib]);
+  })}</div> : null, [level, texLib, runNodeNow]);
   // RUN — every level on screen, live one included, through the cached-tile path (see RUN_TILE_CACHE):
   // one wrapper per run node, keyed by the node, at that node's offset in the live level's pixels.
   // At a seam handoff the same wrappers come back with new offsets and their cached children, so the
   // swap creates nothing. The live node's Front layer gets frontCellsRef on an OUTER div (the cached
   // element cannot carry a ref that changes), which is all the fade loop needs — it looks cells up
   // under that root, so a neighbour's identical data-fk keys are never in its way.
-  const runNodeNow = play && runRef.current && level && level.runKey ? runRef.current.nodes[level.runKey] : null;
-  const runTiles = useMemo(() => {
+  // Not a useMemo any more: a neighbour new to the run is mounted a slice per frame (runMountPlan,
+  // above the builders), so this has to be built every render while any wrapper is still filling.
+  // It costs three small elements a frame; the cached layer elements inside them are the same
+  // objects every time, so React bails out at each one exactly as it did under the memo.
+  const runTiles = (() => {
     if (!runNodeNow) return null;
     const seams = runSeams(runRef.current, runNodeNow, LV_CELL);
     const shown = [{ node: runNodeNow, off: { x: 0, y: 0 } }, ...Object.keys(seams).map((side) => ({ node: runRef.current.nodes[seams[side].key], off: seams[side].off }))];
     return shown.map(({ node, off }) => {
       const nb = node.level, live = node === runNodeNow;
-      return <div key={node.key} className={"seamStrip" + (live ? " live" : "")} style={{ left: off.x, top: off.y, width: nb.cols * LV_CELL, height: nb.rows * LV_CELL }}>
-        {cachedRunTiles("bg", nb.bg, texLib, () => buildRunBgTiles(nb.bg, texLib))}
-        {cachedRunTiles("fg", nb.fg, texLib, () => buildRunFgTiles(nb.fg, texLib))}
-        <div ref={live ? frontCellsRef : undefined} style={RUN_LAYER_STYLE}>{cachedRunTiles("front", nb.front, texLib, () => buildRunFrontTiles(nb.front, texLib))}</div>
+      const layers = [
+        cachedRunTiles("bg", nb.bg, texLib, cellRuns, buildRunBgTile),
+        cachedRunTiles("fg", nb.fg, texLib, cellRuns, buildRunFgTile),
+        cachedRunTiles("front", nb.front, texLib, Object.keys, buildRunFrontTile),
+      ];
+      const counts = layers.map((l) => (l ? l.items.length : 0));
+      const total = counts[0] + counts[1] + counts[2];
+      // The live level is whole at once (it is on screen); a neighbour fills in over the frames
+      // after it appears. Progress lives on the node so it survives the swap that makes the
+      // neighbour live, and the wrapper's ref clears it on unmount (a door out of the run and
+      // back mounts everything afresh, the way a door always has).
+      let mounted = live ? total : (RUN_MOUNT_PROGRESS.get(node) || 0);
+      let take = null;
+      if (mounted < total) { const plan = runMountPlan(counts, mounted); mounted = plan.done; RUN_MOUNT_PROGRESS.set(node, mounted); if (!plan.complete) take = plan.take; }
+      const layer = (i) => !layers[i] ? null : runTilesUpTo(layers[i], take ? take[i] : Infinity);
+      return <div key={node.key} ref={runWrapperRef(node)} className={"seamStrip" + (live ? " live" : "")} style={{ left: off.x, top: off.y, width: nb.cols * LV_CELL, height: nb.rows * LV_CELL }}>
+        {layer(0)}
+        {layer(1)}
+        <div ref={live ? frontCellsRef : undefined} style={RUN_LAYER_STYLE}>{layer(2)}</div>
       </div>;
     });
-  }, [runNodeNow, level, texLib]);
+  })();
   const seamStripObjects = useMemo(() => {
     if (!runNodeNow) return [];
     const seams = runSeams(runRef.current, runNodeNow, LV_CELL), out = [];
@@ -8925,7 +9011,7 @@ export default function AssetStudio() {
     // untouched, and the level being left is kept as it is now (fires painted, props landed) so
     // coming back through the same gate finds it unchanged. The loop effect re-runs with the new
     // level, the same way a door does.
-    const seamHandoff = (side, p) => {
+    const seamHandoff = (side, p, pw) => {
       const seam = seams[side], nb = runNow.nodes[seam.key];
       // The level being left stays MOUNTED as a neighbour (RUN_TILE_CACHE), so the see-through
       // window's fades and compositor layers on its Front cells must be taken back here, now, while
@@ -8938,7 +9024,23 @@ export default function AssetStudio() {
       // effect makes it, so the effect adopts it as-is.
       let dstB = roomState.current[nb.key];
       if (!dstB) { dstB = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, stripped: {}, haz: {}, gear: {} }; roomState.current[nb.key] = dstB; }
-      const carried = carryAlliesAcrossSeam({ enemies: lv.enemies, ePos: enemyPos.current, eHP: enemyHP.current, gear: enemyGearRolls.current }, { enemies: nb.level.enemies, ePos: dstB.ePos, eHP: dstB.eHP, gear: dstB.gear }, seam.off, p.x, ALLY_CARRY_RANGE_CELLS * CW, (spawn) => { const ea = findA(spawn.enemyId); return ea ? enemyStandH(ea, CW) : CH; }, CW);
+      // ...and so does anything CHASING you. Which hostile comes through is decided here, where the
+      // AI's own words are: a Seek unit (a Guard holds its ground and an Avoid keeps its distance,
+      // so neither would ever reach the gate), hostile (a talked-over ally has its own range rule
+      // above; a peaceful NPC with a dialogue is furniture until you hit it), on its feet (not
+      // floored by a tackle, not stunned), and SEEING you this frame through its own sight cone
+      // (enemyDetects — six body lengths ahead, one behind) — which is what "aggro" is in this game.
+      // No screen test: a chaser 30 cells behind you is off screen but still coming, and it
+      // arriving at the gate a moment after you is the point ("you can cheese enemy spawning with
+      // obvious level boundaries").
+      const unitW = (ea) => enemyRenderW(ea, CW) * sideBodyShape(ea).fraction;
+      const hostileFollows = (ep, spawn) => {
+        if (ep.friendly || ep.peaceful || ep.down > 0 || ep.stun > 0) return false;
+        const ea = findA(spawn.enemyId); if (!ea) return false;
+        if ((spawn.ai || ea.ai || "guard") !== "seek") return false;
+        return enemyDetects((p.x + pw / 2) - (ep.x + unitW(ea) / 2), ep.face);
+      };
+      const carried = carryAlliesAcrossSeam({ enemies: lv.enemies, ePos: enemyPos.current, eHP: enemyHP.current, gear: enemyGearRolls.current }, { enemies: nb.level.enemies, ePos: dstB.ePos, eHP: dstB.eHP, gear: dstB.gear, cols: nb.level.cols }, seam.off, p.x, ALLY_CARRY_RANGE_CELLS * CW, (spawn) => { const ea = findA(spawn.enemyId); return ea ? enemyStandH(ea, CW) : CH; }, CW, { follows: hostileFollows, widthOf: (spawn) => { const ea = findA(spawn.enemyId); return ea ? unitW(ea) : CW; } });
       runNodeLive.level = carried.moved ? { ...lv, enemies: carried.srcEnemies } : lv;
       if (carried.moved) nb.level = { ...nb.level, enemies: carried.dstEnemies };
       p.x -= seam.off.x; p.y -= seam.off.y;
@@ -9698,7 +9800,7 @@ export default function AssetStudio() {
       if (runNodeLive) {
         const cx = p.x + pw / 2, cy = p.y + ph / 2;
         const side = cx > lv.cols * CW ? "E" : cx < 0 ? "W" : cy > lv.rows * CH ? "S" : cy < 0 ? "N" : null;
-        if (side && seams[side] && gateLeavingThrough(lv, side, cx, cy, LV_CELL)) { seamHandoff(side, p); return; }
+        if (side && seams[side] && gateLeavingThrough(lv, side, cx, cy, LV_CELL)) { seamHandoff(side, p, pw); return; }
         // ...and a gate with NOTHING behind it: pressed against an edge at an open gate that no saved
         // level attaches to (no sewer built yet, or the far side of the Exit), say so, once every
         // couple of seconds. In a plain Playtest the edges are silent walls exactly as before.

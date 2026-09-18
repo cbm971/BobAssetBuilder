@@ -156,6 +156,7 @@ import {
   relocatedObjectKey,
   migrateLevel,
   carryAlliesAcrossSeam, ALLY_CARRY_RANGE_CELLS, TALK_BUBBLE_MIN_H,
+  runMountPlan, RUN_MOUNT_ITEMS_PER_FRAME,
   runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, buildRun, resolveRunNeighbour, resolveRunSides, runSeams, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
   objTopAt,
   objNudgedLeft,
@@ -8940,6 +8941,49 @@ describe("runs", () => {
     const dst3 = { enemies: {}, ePos: {}, eHP: {}, gear: {} };
     expect(carryAlliesAcrossSeam(src3, dst3, { x: 4800, y: 0 }, 4750, 720, () => 150, 30).moved).toBe(1);
     expect(dst3.eHP["20,0"]).toBeUndefined();
+  });
+
+  test("carryAlliesAcrossSeam also moves the hostiles the loop says are chasing, and lines every arrival up inside the next level", () => {
+    // Four hostiles behind the body at the east seam: the loop's `follows` rule decides which come
+    // (here: everyone it is handed except the one it refuses), the function only moves them.
+    const spawn = (id) => ({ enemyId: id });
+    const src = {
+      enemies: { "20,140": spawn("sq1"), "20,142": spawn("sq2"), "20,144": spawn("guard"), "20,146": spawn("dead"), "20,148": spawn("ally") },
+      ePos: { "20,140": { x: 4200, y: 480, face: 1 }, "20,142": { x: 4260, y: 480, face: 1 }, "20,144": { x: 4320, y: 480, face: -1 }, "20,146": { x: 4380, y: 480, face: 1 }, "20,148": { x: 4440, y: 480, friendly: true } },
+      eHP: { "20,146": 0 },
+      gear: {},
+    };
+    const dst = { enemies: {}, ePos: {}, eHP: {}, gear: {}, cols: 160 };
+    const asked = [];
+    const follows = (ep, sp, k) => { asked.push(k); return sp.enemyId !== "guard"; };
+    const out = carryAlliesAcrossSeam(src, dst, { x: 4800, y: 0 }, 4750, 720, () => 150, 30, { follows, widthOf: () => 60 });
+    expect(asked.sort()).toEqual(["20,140", "20,142", "20,144"]);          // the dead one and the ally are never asked (their own rules apply)
+    expect(out.moved).toBe(3);                                            // two chasers + the ally; the guard and the corpse stay
+    expect(Object.keys(out.srcEnemies).sort()).toEqual(["20,144", "20,146"]);
+    // Re-based they would sit at x -600, -540 and -360 — outside the level. They arrive at the seam
+    // edge instead, one body apart in the order they were met, so a pack is not one pixel.
+    const xs = Object.values(dst.ePos).map((e) => e.x).sort((a, b) => a - b);
+    expect(xs).toEqual([0, 60, 120]);
+    expect(Object.values(dst.ePos).every((e) => e.y === 480)).toBe(true);
+    // ...and the same at the far edge for a westward crossing (the offset is negative there).
+    const src2 = { enemies: { "20,1": spawn("a"), "20,3": spawn("b") }, ePos: { "20,1": { x: 100, y: 480, face: -1 }, "20,3": { x: 200, y: 480, face: -1 } }, eHP: {}, gear: {} };
+    const dst2 = { enemies: {}, ePos: {}, eHP: {}, gear: {}, cols: 160 };
+    carryAlliesAcrossSeam(src2, dst2, { x: -4800, y: 0 }, 50, 720, () => 150, 30, { follows: () => true, widthOf: () => 60 });
+    expect(Object.values(dst2.ePos).map((e) => e.x).sort((a, b) => a - b)).toEqual([160 * 30 - 120, 160 * 30 - 60]);
+    // No `follows` at all (a plain caller) keeps the old contract: hostiles never move.
+    const src3 = { enemies: { "20,140": spawn("sq1") }, ePos: { "20,140": { x: 4200, y: 480, face: 1 } }, eHP: {}, gear: {} };
+    expect(carryAlliesAcrossSeam(src3, { enemies: {}, ePos: {}, eHP: {}, gear: {} }, { x: 4800, y: 0 }, 4750, 720, () => 150, 30).moved).toBe(0);
+  });
+
+  test("runMountPlan doles a neighbour's tiles out a slice per frame, layer by layer, and says when it is whole", () => {
+    // 100 bg runs, 50 fg runs, 30 front keys; 40 items a frame.
+    expect(runMountPlan([100, 50, 30], 0, 40)).toEqual({ done: 40, take: [40, 0, 0], complete: false });
+    expect(runMountPlan([100, 50, 30], 80, 40)).toEqual({ done: 120, take: [100, 20, 0], complete: false });   // a slice can straddle two layers
+    expect(runMountPlan([100, 50, 30], 160, 40)).toEqual({ done: 180, take: [100, 50, 30], complete: true });   // the last slice is short and completes it
+    expect(runMountPlan([100, 50, 30], 180, 40)).toEqual({ done: 180, take: [100, 50, 30], complete: true });   // asking again past the end is a no-op
+    expect(runMountPlan([0, 0, 0], 0, 40)).toEqual({ done: 0, take: [0, 0, 0], complete: true });               // an empty level is whole at once
+    expect(RUN_MOUNT_ITEMS_PER_FRAME).toBeGreaterThan(0);
+    expect(runMountPlan([10, 10, 10], 0).done).toBe(Math.min(30, RUN_MOUNT_ITEMS_PER_FRAME));
   });
 
   test("talkBubbleBox with a view keeps the bubble on screen and hands back the room to fill", () => {

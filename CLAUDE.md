@@ -1253,6 +1253,45 @@ spots in the play loop and the level render. In plain words:
     more room there, and hands back `maxH`, which caps the bubble — `.talkBubble` is a flex column,
     `.talkBox` never shrinks, `.talkOpts` scrolls. Verified on the Bridge Troll's nine-option node:
     bubble top 433 in a view starting at 423, the words fully visible, options 445 px scrolling in 64.
+* **The seam hitch, measured and halved; chasers cross with you (2026-09-17).** Blake: "the camera
+  sort of stops for a second, and then jerks with you again on the next level", and "if you have
+  enemies following you they disappear as soon as you enter a new level … you can cheese enemy
+  spawning with obvious level boundaries". Timing marks around the handoff in the test pane (dev
+  build, 64 fps shim) put the freeze at **~100 ms**: 62 ms swap render + commit, then the first new
+  frame took 28 ms, of which 25 ms was a forced layout and 1 ms was physics. The camera itself was
+  continuous (rebased by exactly the seam offset, the transform on the very next commit) — the
+  "stop" IS the freeze, and the "jerk" is play resuming. Three things were in that freeze:
+  - **The level BEYOND the one entered was mounted whole in the swap** — ~1,300 tile boxes built
+    (15 ms of elements), inserted and laid out, for a level 4,800 px off screen. Now a neighbour new
+    to the run is built AND mounted `RUN_MOUNT_ITEMS_PER_FRAME` (30) items a frame (`runMountPlan`,
+    `runTilesUpTo`, progress per node in `RUN_MOUNT_PROGRESS`, cleared by the wrapper's ref on
+    unmount): bg runs, then fg runs, then front keys, until whole; then the one cached element as
+    before. `runTiles` is no longer a `useMemo` for that reason (three small elements a frame; the
+    cached layer elements inside bail out as they always did). The ref callback is one function
+    per node (`runWrapperRef`) — an inline arrow is a new ref every render and React would call
+    the old one with null each commit, wiping the progress.
+  - **The editor's three tile memos were rebuilt for every swap** (`lvBgLayer`/`lvFgLayer`/
+    `lvFrontLayer`, ~8,000 elements each, doubled by StrictMode) although the run wrappers draw
+    the level. They are gated on `runNodeNow` now; a room inside a run has no `runKey` and still
+    renders through them.
+  - Result in the same pane: **handoff-to-first-new-commit 99 → 58 ms**, the swap render 62 → 22
+    ms, the first frame's forced layout 25 → 7 ms; the ~16 frames after run 10–19 ms (dev build,
+    StrictMode double-invokes the render so it mounts 2× the budget) then settle at 7–8. What is
+    left is roughly two frames' worth of work in one; StrictMode's double render is a third of it
+    and is not touched here. Note the loop's first frame after a swap has `lastT = null`, so
+    `dtMul` is 1 — the lost time is not caught up, on purpose (catching up IS a jerk).
+  - **What is chasing you comes through the gate too.** `carryAlliesAcrossSeam` takes an `opts`
+    tail: `follows(ep, spawn, k)` decides which HOSTILE comes (the loop's rule in `seamHandoff`:
+    not friendly, not `peaceful`, not floored or stunned, effective AI `seek` — `spawn.ai || ea.ai`,
+    a Guard holds its ground and an Avoid keeps away — and `enemyDetects` true this frame, the
+    game's own "aggro"), and `widthOf(spawn)` + `dst.cols` clamp every arrival INSIDE the next
+    level, lined up one body apart from the seam edge (`atLow`/`atHigh`) — re-based, something
+    behind you lands at x < 0 where `cellsHit` sees no cells and it would fall out of the world,
+    and two same-speed chasers dropped on one pixel stay on it for good and read as one enemy
+    (seen with four Pika-Squirrels). Allies get the same clamp. A room is a door, not a seam:
+    nothing follows into one. Verified on his run seed 7, M4 → M1 through E1: the four Seek units
+    that had caught sight of the player crossed as keys 19,0 / 19,2 / 19,11 / 19,16 (x 0, 64, …),
+    the Guard squirrel and the peaceful Ash stayed on M4, and they kept chasing on M1.
 * **Gates with nothing behind them.** Pressed against an edge at an open gate no level attaches to,
   the loop flashes once every 2.5 s (`gateNag`): "🚧 Bottom Left gate leads nowhere yet … (it accepts
   "Sewer")", "🏁 The run starts here", or "🏁 Floor complete!". Plain Playtest edges stay silent.
