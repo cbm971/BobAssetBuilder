@@ -6505,6 +6505,17 @@ export const topdownAt = (lv, x, feetY, pw, CW, CH) => {
   }
   return false;
 };
+// Does the plane HOLD a body whose feet are on it this frame? One rule for the player and for
+// every enemy: a plane is a floor, so a body standing on it (jumpY == null) stays at its height;
+// a body that HOPPED off it (jumpY remembers the line it left) is only taken back once it is
+// falling (vy >= 0) and has come back down to that line — never at the apex, and never the frame
+// after take-off while y still equals the line. Enemies did not run this at all until 2026-09-17:
+// they walked the real ground under gravity, so a road painted UP the screen (a top-down column
+// with nothing solid under it) was a hole to them — a unit patrolling the street fell straight
+// down the crossing the moment its feet left the kerb. Blake: "They should treat it like flat
+// ground", which is exactly the player's own rule, so it is shared rather than copied.
+export const topdownHolds = (onPlane, vy, y, jumpY) =>
+  !!onPlane && (jumpY == null || (vy >= 0 && y >= jumpY - 0.001));
 /* ============================== HAZARDS ==================================
    A hazard is a painted cell that hurts whoever stands in it — right now just Fire, but the
    layer is a generic { kind, dps } so more (acid, spikes) drop in the same way later. It's a
@@ -9561,7 +9572,7 @@ export default function AssetStudio() {
       // branch a frame later, so on that next frame y still equals the line and a height test
       // alone re-grabbed the plane before the feet had left it — measured as a one-frame "jump".
       const tdOverlap = !climbing && topdownAt(lv, p.x, p.y + ph, pw, CW, CH);
-      let topdown = tdOverlap && (p.tdJumpY == null || (p.vy >= 0 && p.y >= p.tdJumpY - 0.001));
+      let topdown = topdownHolds(tdOverlap, p.vy, p.y, p.tdJumpY);
       if (topdown && p.tdJumpY != null) { if (p.y - p.tdJumpY <= Math.abs(p.vy * dtMul) + 0.01) p.y = p.tdJumpY; p.tdJumpY = null; }
       let climbMove = 0, tdMove = 0;
       if (climbing && climbKindHere === "ladder") {
@@ -9888,6 +9899,7 @@ export default function AssetStudio() {
               const dFeet = dep.y + dh;
               const dFloor = cellsHit(dep.x, dep.y, dw, dh).filter((h) => h.r * CH >= dFeet - CH * 0.5);
               if (dFloor.length && dep.vy > 0) { dep.y = Math.min(...dFloor.map((h) => h.r * CH)) - dh; dep.vy = 0; dep.restedDead = true; }
+              else if (dep.vy > 0 && topdownAt(lv, dep.x, dFeet, dw, CW, CH)) { dep.vy = 0; dep.restedDead = true; } // a 🚶 Top-down plane is a floor to a corpse too: a body killed on the crossing lies where it fell instead of sliding down the road
               if (dep.y > lv.rows * CH - dh) { dep.y = lv.rows * CH - dh; dep.vy = 0; dep.restedDead = true; } // level floor
             }
             continue; // defeated: nothing else about it updates
@@ -10006,7 +10018,7 @@ export default function AssetStudio() {
               if (!ep.dodgeRolled) { ep.willDodge = Math.random() < enemyDodgeChance(eIntel); ep.dodgeRolled = true; }
               if (ep.willDodge) {
                 if (threat === "crouch" && canCrouch) { ep.crouch = true; ep.crouchT = CROUCH_HOLD_FRAMES; }
-                else if (threat === "jump" && ep.onGround && !ep.crouch) { ep.vy = -enemyJumpVelocity(ea.stats?.agility, CH); ep.onGround = false; }
+                else if (threat === "jump" && ep.onGround && !ep.crouch) { if (ep.topdown) ep.tdJumpY = ep.y; ep.vy = -enemyJumpVelocity(ea.stats?.agility, CH); ep.onGround = false; } // hopping off a 🚶 Top-down plane remembers the line it left, so it lands back on it
               }
             } else {
               ep.dodgeRolled = false;
@@ -10141,19 +10153,38 @@ export default function AssetStudio() {
             }
           }
 
-          // Gravity + ground collision — identical rule to the player's own fall, reusing the
-          // same generic cellsHit() so enemies land on and are stopped by the same terrain.
-          ep.vy = Math.min(60, ep.vy + 0.175 * dtMul);
-          ep.y += ep.vy * dtMul;
-          const eHits = cellsHit(ep.x, ep.y, epw, newEph);
-          // Land only on a surface AT OR BELOW the feet — never snap UP onto elevated terrain the
-          // (now possibly tall, scaled) body merely overlaps. Same feet-filter the player's own
-          // landing uses; without it a big enemy near forest canopy floats up onto the leaves.
-          const eFeet = ep.y + newEph;
-          const eFloor = eHits.filter((h) => h.r * CH >= eFeet - CH * 0.5);
-          if (eFloor.length) { if (ep.vy > 0) { ep.y = Math.min(...eFloor.map((h) => h.r * CH)) - newEph; ep.vy = 0; ep.onGround = true; } }
-          else { ep.onGround = false; }
-          if (ep.y > lv.rows * CH - newEph) { ep.y = lv.rows * CH - newEph; ep.vy = 0; ep.onGround = true; }
+          // 🚶 A TOP-DOWN PLANE IS A FLOOR TO AN ENEMY TOO. Found the way the player finds it — by
+          // the FEET (topdownAt), never by box overlap — and held by the same rule (topdownHolds):
+          // a unit whose feet are on the plane keeps its height, no gravity, no landing snap, and
+          // counts as on the ground so it keeps walking, dodging and fighting exactly as it does
+          // on a street. Before this the plane meant nothing to enemies: a road painted UP the
+          // screen has nothing solid under it, so a unit patrolling the kerb fell straight down the
+          // crossing the moment its feet left the last solid cell — reported as "enemies can fall
+          // down the top down climbing surface". A dodge hop off the plane remembers the line it
+          // left (ep.tdJumpY, the player's own gate) so the re-grab lands it back on that line
+          // rather than wherever the road happened to be under its feet at the apex.
+          const eTdOverlap = topdownAt(lv, ep.x, ep.y + newEph, epw, CW, CH);
+          const eTopdown = topdownHolds(eTdOverlap, ep.vy, ep.y, ep.tdJumpY);
+          if (eTopdown) {
+            if (ep.tdJumpY != null && ep.y - ep.tdJumpY <= Math.abs(ep.vy * dtMul) + 0.01) ep.y = ep.tdJumpY;
+            ep.tdJumpY = null; ep.vy = 0; ep.onGround = true;
+          } else {
+            // Gravity + ground collision — identical rule to the player's own fall, reusing the
+            // same generic cellsHit() so enemies land on and are stopped by the same terrain.
+            ep.vy = Math.min(60, ep.vy + 0.175 * dtMul);
+            ep.y += ep.vy * dtMul;
+            const eHits = cellsHit(ep.x, ep.y, epw, newEph);
+            // Land only on a surface AT OR BELOW the feet — never snap UP onto elevated terrain the
+            // (now possibly tall, scaled) body merely overlaps. Same feet-filter the player's own
+            // landing uses; without it a big enemy near forest canopy floats up onto the leaves.
+            const eFeet = ep.y + newEph;
+            const eFloor = eHits.filter((h) => h.r * CH >= eFeet - CH * 0.5);
+            if (eFloor.length) { if (ep.vy > 0) { ep.y = Math.min(...eFloor.map((h) => h.r * CH)) - newEph; ep.vy = 0; ep.onGround = true; } }
+            else { ep.onGround = false; }
+            if (ep.y > lv.rows * CH - newEph) { ep.y = lv.rows * CH - newEph; ep.vy = 0; ep.onGround = true; }
+            if (ep.onGround) ep.tdJumpY = null; // real ground under it again: the hop's line is forgotten, as the player's is
+          }
+          ep.topdown = eTopdown;
           // Walk cycle: advance the enemy's stride by how far it actually moved on the ground this
           // frame, exactly like the player's walkPhase. Enemies had no walk phase at all, so their
           // legs stayed frozen mid-chase. Blocked-by-a-wall (no displacement) reads as not walking.

@@ -845,9 +845,21 @@ it is deliberately NOT a climb:
   `vy` half the re-grab fired the frame after take-off, while y still equalled the line — measured
   as a one-frame "jump". The view is kept through the hop, so you land still facing the way you were
   walking.
-* **Enemies know nothing about it.** They walk the real ground under gravity; a player who walked "up"
-  the road is, to them, floating seven cells in the air. Fine for a crossing, not for a top-down
-  arena — if that is ever wanted it is the enemy loop's own feature.
+* **Enemies stand on it too (2026-09-17).** They used to know nothing about it and walked the real
+  ground under gravity — so a road painted UP the screen, which has nothing solid under it, was a
+  hole: a unit patrolling the kerb fell straight down the crossing the moment its feet left the
+  last solid cell (Blake: "enemies can fall down the top down climbing surface. They should treat
+  it like flat ground"). The enemy loop now runs the player's own two checks before its gravity:
+  `topdownAt` at the FEET, then `topdownHolds` (the one shared hold rule — standing on it holds
+  at the current height; a hop off it, `ep.tdJumpY`, is only re-grabbed when falling and back down
+  to the line it left). Held, a unit has `vy = 0`, counts as `onGround` (so it keeps walking,
+  dodging and fighting) and `ep.topdown` is set for the dodge-jump to read; otherwise the gravity
+  block runs exactly as before. A corpse rests on the plane the same way. Enemies still do not WALK
+  up or down the road — they hold whatever height they had when they stepped on, which for a
+  crossing painted on the street is the street. Verified in the running app against a control build
+  with the hold gated off: a Chasing Pit Bull seeking across a 14-cell column painted down from the
+  kerb fell 300 px to the level floor and stayed there; with the hold on it crossed twice at
+  y 348 to the pixel.
 
 Verified in the running app on a seeded 60x30 level (a street at row 24, a 10x8 intersection over it
 and a 6-wide road running up to row 8): sideways across the crossing at y 510 the whole way with the

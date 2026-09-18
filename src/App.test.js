@@ -60,6 +60,7 @@ import {
   groundLegsShouldWalk,
   topdownLegsShouldWalk,
   topdownAt,
+  topdownHolds,
   isTopdownKind,
   CLIMB_KIND_TOPDOWN,
   climbKindAt,
@@ -2886,6 +2887,27 @@ describe("🚶 Top-down walkway (the fourth climb kind)", () => {
     expect(topdownAt(lv, x, 12 * CH - CH / 2 + 1, PW, CW, CH)).toBe(true);
     expect(topdownAt(lv, x, 12 * CH - CH / 2 - 1, PW, CW, CH)).toBe(false);
     expect(topdownAt({ cols: 40, rows: 30 }, x, feetOnStreet, PW, CW, CH)).toBe(false); // no climb layer at all
+  });
+
+  test("the plane holds a body by one rule shared by the player and every enemy", () => {
+    // Standing on it (no hop in progress): held whatever the vertical speed — a unit that walked
+    // sideways off the kerb onto a road painted UP the screen has nothing solid under it, and this
+    // is the rule that keeps it at kerb height instead of dropping it down the crossing.
+    expect(topdownHolds(true, 0, 400, null)).toBe(true);
+    expect(topdownHolds(true, 3, 400, null)).toBe(true);   // falling onto it from above: caught
+    expect(topdownHolds(true, -3, 400, undefined)).toBe(true);
+    // Feet off the plane: nothing to hold, whatever else is true.
+    expect(topdownHolds(false, 0, 400, null)).toBe(false);
+    expect(topdownHolds(false, 3, 500, 400)).toBe(false);
+    // Mid-hop (jumpY remembers the line it left): not while rising, not at the apex, not the frame
+    // after take-off while y still equals the line (vy < 0 there) — only once it is falling AND
+    // back down to the line. Without the vy half the re-grab fired the frame after take-off.
+    expect(topdownHolds(true, -8, 400, 400)).toBe(false);
+    expect(topdownHolds(true, -1, 360, 400)).toBe(false);
+    expect(topdownHolds(true, 0, 360, 400)).toBe(false);   // apex, still above the line
+    expect(topdownHolds(true, 4, 399, 400)).toBe(false);   // falling but not yet down to it
+    expect(topdownHolds(true, 4, 400, 400)).toBe(true);    // back on the line
+    expect(topdownHolds(true, 4, 403, 400)).toBe(true);    // overshot by a fall step: still taken (the loop snaps it back)
   });
 
   test("ladders, bars and cliffs never see a top-down cell — it is a floor, not a grip", () => {
