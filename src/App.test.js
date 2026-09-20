@@ -138,6 +138,9 @@ import {
   PED_XRAY_NEAR_CELLS,
   PED_XRAY_FAR_CELLS,
   cutterLayerSegments,
+  cutterHoleClip,
+  renderPieceRuns,
+  cutterShapePoints,
   CUTTER_MASK_PAD,
   cutterMaskFrameLayout,
   advanceAutoReloadWeapon,
@@ -9222,5 +9225,71 @@ describe("the save folder on his disk (diskLibrary) and the two-backend merge", 
     window.showDirectoryPicker = async () => { const e = new Error("Cross origin sub frames aren't allowed to show a file picker."); e.name = "SecurityError"; throw e; };
     expect(await diskLibrary.connect(true)).toBe("iframe");
     delete window.showDirectoryPicker; reset();
+  });
+});
+
+describe("cutter holes as per-piece clips (cutterHoleClip, 2026-09-20)", () => {
+  // Read the hole polygons back out of the clip string, in percent of the piece box.
+  const holesOf = (clip) => {
+    expect(clip.startsWith("polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, ")).toBe(true);
+    const body = clip.slice("polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, ".length, -1);
+    return body.split(", 0% 0%").filter((s) => s.trim()).map((h) => h.split(", ").filter(Boolean).map((pt) => pt.split(" ").map(parseFloat)));
+  };
+  const near = (a, b) => Math.abs(a - b) < 0.02;
+  test("a rect cutter inside a rect piece becomes one hole at the cutter's place, closed back on itself", () => {
+    const piece = { id: "face", kind: "rect", x: 50, y: 40, w: 100, h: 100 };
+    const eye = { id: "eye", kind: "rect", x: 70, y: 60, w: 20, h: 10, isCutter: true };
+    const holes = holesOf(cutterHoleClip(piece, false, [eye]));
+    expect(holes).toHaveLength(1);
+    const h = holes[0];
+    expect(h).toHaveLength(5); // four corners + back to the first
+    expect(h[0]).toEqual([20, 20]); expect(h[1]).toEqual([40, 20]); expect(h[2]).toEqual([40, 30]); expect(h[3]).toEqual([20, 30]); expect(h[4]).toEqual([20, 20]);
+  });
+  test("a cutter that never touches the piece leaves it unclipped; one that does is cut, the rest ignored", () => {
+    const piece = { id: "p", kind: "rect", x: 0, y: 0, w: 50, h: 50 };
+    expect(cutterHoleClip(piece, false, [{ id: "far", kind: "rect", x: 100, y: 100, w: 10, h: 10, isCutter: true }])).toBeNull();
+    expect(cutterHoleClip(piece, false, [])).toBeNull();
+    expect(cutterHoleClip(piece, false, null)).toBeNull();
+    const clip = cutterHoleClip(piece, false, [{ id: "far", kind: "rect", x: 100, y: 100, w: 10, h: 10 }, { id: "near", kind: "rect", x: 10, y: 10, w: 10, h: 10 }]);
+    expect(holesOf(clip)).toHaveLength(1);
+  });
+  test("a rotated piece gets the hole in its own unrotated box: the cutter's canvas position turns back with it", () => {
+    // piece 100x40 about its centre (100, 100) turned 90°: on the canvas its box is x 80..120, y 50..150.
+    const piece = { id: "bar", kind: "rect", x: 50, y: 80, w: 100, h: 40, rot: 90 };
+    // a cutter sitting on the canvas at the TOP of the turned bar (x 90..110, y 55..65)
+    const cut = { id: "c", kind: "rect", x: 90, y: 55, w: 20, h: 10 };
+    const h = holesOf(cutterHoleClip(piece, false, [cut]))[0];
+    // CSS rotate(90deg) is clockwise on screen, so the bar's LEFT end went to the top; turned back the
+    // cutter lands on that end: local x 55..65, y 90..110 -> percent of the 100x40 box at (50,80): x 5..15 %, y 25..75 %
+    const xs = h.map((p) => p[0]), ys = h.map((p) => p[1]);
+    expect(near(Math.min(...xs), 5) && near(Math.max(...xs), 15)).toBe(true);
+    expect(near(Math.min(...ys), 25) && near(Math.max(...ys), 75)).toBe(true);
+  });
+  test("a mirrored twin is cut where its mirrored art is", () => {
+    // reflect(): the twin's box is at W - (x + w); its art is drawn scaleX(-1) about its origin.
+    const piece = { id: "cheek_m", kind: "rect", x: 200 - (120 + 60), y: 100, w: 60, h: 30, _m: true };
+    // a cutter on the canvas over the twin's LEFT part (x 25..35)
+    const cut = { id: "c", kind: "rect", x: 25, y: 110, w: 10, h: 10 };
+    const h = holesOf(cutterHoleClip(piece, true, [cut]))[0];
+    // the twin's box is x 20..80 (centre 50); mirrored back about that centre, 25..35 becomes 65..75 -> percent 75..91.7
+    const xs = h.map((p) => p[0]);
+    expect(near(Math.min(...xs), 75) && near(Math.max(...xs), 91.667)).toBe(true);
+  });
+  test("cutterShapePoints traces every cutter kind inside its own box", () => {
+    const box = { x: 10, y: 20, w: 40, h: 20 };
+    for (const kind of ["circle", "roundrect", "stadium", "rect", "tri"]) {
+      const pts = cutterShapePoints({ ...box, kind });
+      expect(pts.length).toBeGreaterThan(2);
+      for (const [x, y] of pts) { expect(x).toBeGreaterThanOrEqual(10 - 1e-9); expect(x).toBeLessThanOrEqual(50 + 1e-9); expect(y).toBeGreaterThanOrEqual(20 - 1e-9); expect(y).toBeLessThanOrEqual(40 + 1e-9); }
+    }
+    const circle = cutterShapePoints({ ...box, kind: "circle" });
+    expect(circle).toHaveLength(48);
+    expect(circle[0][0]).toBeCloseTo(50); expect(circle[0][1]).toBeCloseTo(30); // starts at the right of the ellipse
+  });
+  test("renderPieceRuns hands each cut piece exactly the cutters above it, and nothing to the rest", () => {
+    const seen = [];
+    const drawPiece = (p, key, cutters) => { seen.push([p.id, cutters ? cutters.map((c) => c.id) : null]); return null; };
+    renderPieceRuns({ pieces: [{ id: "below" }, { id: "hole", isCutter: true }, { id: "above" }], keyPrefix: "t", drawPiece });
+    expect(seen).toEqual([["below", ["hole"]], ["above", null]]);
   });
 });

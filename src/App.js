@@ -6915,22 +6915,19 @@ export const cutterMaskFrameLayout = () => ({
   },
   viewBox: { x: -CUTTER_MASK_PAD, y: -CUTTER_MASK_PAD, width: W + CUTTER_MASK_PAD * 2, height: H + CUTTER_MASK_PAD * 2 },
 });
-// Renders one finished (non-editable) piece list, wrapping only the runs that actually contain
-// a cutter. `drawPiece(piece, key)` supplies the renderer, `maskCss(runPieces, cacheKey)` the
-// hole. Returns a flat-ish node array for JSX to splat.
+// Renders one finished (non-editable) piece list. `drawPiece(piece, key, cutters)` supplies the
+// renderer; `cutters` is the list of cutter pieces above that piece in its run, which the
+// renderer cuts into the piece itself (cutterHoleClip). Returns a flat node array for JSX to splat.
 // The run is split into contiguous segments according to which later (higher) cutters affect
-// each piece. Unmasked segments include both `noCut` pieces and pieces above every cutter. Since
+// each piece. Uncut segments include both `noCut` pieces and pieces above every cutter. Since
 // all segments stay in original order, the finished stack preserves its exact layer ordering.
-export const renderPieceRuns = ({ pieces, cacheKey, keyPrefix, drawPiece, maskCss }) =>
+// Until 2026-09-20 every cut segment was wrapped in a padded frame carrying an SVG mask-image
+// (cutterMaskCss); see cutterShapePoints for why that could not stay. `cacheKey` is accepted so
+// no call site had to change; nothing reads it now.
+export const renderPieceRuns = ({ pieces, cacheKey, keyPrefix, drawPiece }) =>
   cutterRuns(pieces).map((r, gi) => {
     if (!r.hasCutter) return r.drawn.map((p, n) => drawPiece(p, keyPrefix + gi + "_" + n));
-    const segs = cutterLayerSegments(r.pieces);
-    const frame = cutterMaskFrameLayout();
-    return segs.map((s, si) => (!s.cutters.length
-      ? s.items.map(([p, n]) => drawPiece(p, keyPrefix + gi + "_" + n))
-      : <div key={keyPrefix + "g" + gi + "s" + si} style={{ position: "absolute", ...frame.outer, ...maskCss(s.cutters, cacheKey + ":" + r.key + ":" + si) }}>
-          <div style={{ position: "absolute", ...frame.inner }}>{s.items.map(([p, n]) => drawPiece(p, keyPrefix + gi + "_" + n))}</div>
-        </div>));
+    return cutterLayerSegments(r.pieces).map((s) => s.items.map(([p, n]) => drawPiece(p, keyPrefix + gi + "_" + n, s.cutters.length ? s.cutters : undefined)));
   });
 export const shapePolyPoints = (p) => (p && p.kind === "poly" && p.points) ? p.points : (p && SHAPE_POINTS[p.kind]) || (typeof p === "string" ? SHAPE_POINTS[p] : null);
 // The polygon string is cached PER POINTS ARRAY. Every drawn piece asks for it every frame (a
@@ -6988,6 +6985,81 @@ export const pieceOriginCss = (p) => { const o = pieceOriginFrac(p); return (o[0
 // ...and as an absolute canvas point, which is what the SVG rotate()/mirror ops in cutterMaskCss take.
 export const pieceOriginPoint = (p) => { const o = pieceOriginFrac(p); return { x: p.x + o[0] * p.w, y: p.y + o[1] * p.h }; };
 export const pieceBox = (p) => ({ x: p.x, y: p.y, w: p.w, h: p.h, rot: p.rot || 0, o: pieceOriginFrac(p) });
+// ---- Cutter holes as per-piece clip-paths -------------------------------------------------------
+// A CUTTER USED TO BE A MASK OVER THE WHOLE GROUP, and that mask was the single biggest cost in a
+// playtest frame. Measured on Blake's own machine (RTX 5070 Ti, 165 Hz, the published build,
+// Trailor Park M7 with six units on screen, 2026-09-20): walking ran at 70–90 fps with the masks
+// and at the 165 fps refresh cap with them removed — nothing else changed. A CSS mask-image on a
+// wrapper around dozens of pieces makes the browser draw that whole wrapper into an offscreen
+// surface and composite it back through the mask on EVERY repaint, and a walking sprite repaints
+// every frame. A clip-path on the group costs nearly as much (124 fps). A clip-path on each PIECE
+// costs nothing measurable (159 fps with a hole clip on every piece in the group).
+//
+// So the hole is now cut into each piece it overlaps, as an evenodd polygon clip on that piece's
+// positioning box: the box's own outline, then each hole, joined by zero-width bridges back to the
+// box corner (a single CSS polygon has no subpaths; under evenodd a bridge walked out and back
+// contributes nothing). The box element clips its child, and the child still carries the piece's
+// own silhouette clip (or border-radius), so what shows is silhouette MINUS hole — exactly what the
+// mask produced — with no filled corners where a hole reaches past a triangle's edge, because the
+// hole never lives on the silhouette clip itself. Same holes on the piece's outline layer.
+//
+// The geometry is the mask's geometry: a cutter is turned about pieceOriginPoint (the shoulder for
+// an arm piece, the centre otherwise — see pieceOriginFrac), then mirrored about that point for a
+// reflected twin, exactly as cutterMaskCss drew it and shapeStyle draws the piece it cuts. A hole
+// is then carried into the cut piece's UNROTATED local box by undoing that piece's own transform,
+// because clip-path coordinates are in the element's own box before its transform applies.
+// Curved cutters (circle, roundrect, stadium) are sampled: a 48-gon for an ellipse, 6 points per
+// rounded corner — a fraction of a canvas unit off a true arc, invisible at sprite scale.
+export const cutterShapePoints = (c) => {
+  const x = c.x, y = c.y, w = c.w, h = c.h;
+  const arc = (cx, cy, rx, ry, a0, a1, n, out) => { for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * (i / n); out.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]); } return out; };
+  const rounded = (rx, ry) => {
+    rx = Math.min(rx, w / 2); ry = Math.min(ry, h / 2);
+    const out = [];
+    arc(x + w - rx, y + ry, rx, ry, -Math.PI / 2, 0, 6, out);
+    arc(x + w - rx, y + h - ry, rx, ry, 0, Math.PI / 2, 6, out);
+    arc(x + rx, y + h - ry, rx, ry, Math.PI / 2, Math.PI, 6, out);
+    arc(x + rx, y + ry, rx, ry, Math.PI, Math.PI * 1.5, 6, out);
+    return out;
+  };
+  if (c.kind === "circle") { const out = []; for (let i = 0; i < 48; i++) { const a = (i / 48) * Math.PI * 2; out.push([x + w / 2 + (w / 2) * Math.cos(a), y + h / 2 + (h / 2) * Math.sin(a)]); } return out; }
+  if (c.kind === "roundrect") return rounded(w * 0.22, h * 0.22);
+  if (c.kind === "stadium") { const r = stadiumRadius(w, h); return rounded(r, r); }
+  const pts = shapePolyPoints(c);
+  if (pts) return pts.map(([fx, fy]) => [x + fx * w, y + fy * h]);
+  return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+};
+// The transform shapeStyle / cutterMaskCss give a piece: rotate about its origin point, then (for a
+// reflected twin) mirror about that point. `rad` follows the mirrorTwist rule both of them use.
+const pieceTurn = (q, mirrored) => {
+  const o = pieceOriginPoint(q);
+  const rot = mirrored ? (q.mirrorTwist === false ? -(q.rot || 0) : (q.rot || 0)) : (q.rot || 0);
+  return { ox: o.x, oy: o.y, rad: rot * Math.PI / 180, mirrored: !!mirrored };
+};
+const turnToCanvas = (f, x, y) => { const dx = x - f.ox, dy = y - f.oy, c = Math.cos(f.rad), s = Math.sin(f.rad); let rx = dx * c - dy * s; const ry = dx * s + dy * c; if (f.mirrored) rx = -rx; return [f.ox + rx, f.oy + ry]; };
+const turnToLocal = (f, x, y) => { let dx = x - f.ox; const dy = y - f.oy; if (f.mirrored) dx = -dx; const c = Math.cos(-f.rad), s = Math.sin(-f.rad); return [f.ox + dx * c - dy * s, f.oy + dx * s + dy * c]; };
+const boundsOf = (pts) => { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const [x, y] of pts) { if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; } return [x0, y0, x1, y1]; };
+// The clip-path for piece `p` (drawn mirrored or not) under `cutters`, or null when no cutter
+// touches it. Only cutters whose turned outline overlaps the piece's turned box are cut in; the
+// rest of the group is left exactly as it was, which is what keeps this free.
+export const cutterHoleClip = (p, mirrored, cutters) => {
+  if (!p || !(p.w > 0 && p.h > 0) || !cutters || !cutters.length) return null;
+  const pf = pieceTurn(p, mirrored);
+  const pb = boundsOf([[p.x, p.y], [p.x + p.w, p.y], [p.x + p.w, p.y + p.h], [p.x, p.y + p.h]].map(([x, y]) => turnToCanvas(pf, x, y)));
+  const pct = (v, size) => +((v / size) * 100).toFixed(3) + "%";
+  const holes = [];
+  for (const c of cutters) {
+    if (!c || !(c.w > 0 && c.h > 0)) continue;
+    const cf = pieceTurn(c, !!c._m);
+    const pts = cutterShapePoints(c).map(([x, y]) => turnToCanvas(cf, x, y));
+    const hb = boundsOf(pts);
+    if (hb[2] < pb[0] || hb[0] > pb[2] || hb[3] < pb[1] || hb[1] > pb[3]) continue;
+    const loc = pts.map(([x, y]) => { const [lx, ly] = turnToLocal(pf, x, y); return pct(lx - p.x, p.w) + " " + pct(ly - p.y, p.h); });
+    holes.push(loc.join(", ") + ", " + loc[0]);
+  }
+  if (!holes.length) return null;
+  return "polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, " + holes.map((h) => h + ", 0% 0%").join(", ") + ")";
+};
 // Flagging a block must never MOVE it. Three flags quietly change which point the renderer turns
 // a piece about — 💪 Arm and 🫱 Shoulder side swap the piece's centre for an edge of its box, and
 // so does making a piece the weaponArm (all of them land in pieceOriginFrac above). The same box
@@ -13548,63 +13620,9 @@ export default function AssetStudio() {
     else { if (p.kind === "circle") s.borderRadius = "50%"; else if (p.kind === "roundrect") s.borderRadius = "22%"; else if (p.kind === "stadium") s.borderRadius = STADIUM_CSS_RADIUS; s.boxShadow = "0 0 0 2px " + oc; }
     return s;
   };
-  // Builds a CSS mask-image for a CONTAINER that hosts a finished (non-editable) render of
-  // `pieces`, punching a real transparent hole wherever a cutter piece sits. mix-blend-mode
-  // cannot do this (see shapeStyle) — masks can, but only against the element they're applied
-  // to, not sibling pieces — so the hole is computed once here and applied to the shared
-  // wrapper instead of the individual cutter piece. An SVG <mask> (white keep / black cut)
-  // is rasterized first and used purely for its resulting ALPHA channel (the outer rect is
-  // "cut out" internally by the SVG's own mask, which turns each hole into real alpha:0 pixels
-  // in the flattened image) — that sidesteps the luminance-vs-alpha ambiguity browsers have
-  // for CSS mask-image sources, since alpha:0/alpha:1 mean the same thing under either mode.
-  // Rotation/position match shapeStyle's own math exactly (rotate about the piece's own
-  // center); mirrored twins get the same scaleX(-1)-about-center flip shapeStyle applies, so a
-  // mirrored cutter's hole lines up with its mirrored piece. Callers must also filter cutter
-  // pieces OUT of their own piece-render list — this only supplies the hole, not the piece.
-  const cutterMaskCache = useRef({});
-  const cutterMaskCss = (pieces, cacheKey) => {
-    const cutters = (pieces || []).filter((p) => p.isCutter);
-    if (!cutters.length) return {};
-    // Cheap signature of just what actually affects the mask's shape — if this hasn't changed
-    // since last frame (the common case: a static face/eye cutter on a body that's just
-    // walking around), skip rebuilding the SVG string and reuse the exact same style object.
-    const sig = cutters.map((p) => [p.id, Math.round(p.x), Math.round(p.y), Math.round(p.w), Math.round(p.h), Math.round((p.rot || 0) * 10), p.kind, p._m ? 1 : 0, p.mirrorTwist === false ? 1 : 0, pieceOriginFrac(p).join(",")].join(":")).join("|");
-    const key = cacheKey || "default";
-    const cached = cutterMaskCache.current[key];
-    if (cached && cached.sig === sig) return cached.css;
-    const shapes = cutters.map((p) => {
-      // Turn the hole about the point the RENDERER turns the piece about, not the box's middle.
-      // pieceOriginFrac is that answer (shapeStyle's transformOrigin reads the same function), and
-      // for weapon art it is usually the shoulder, not the centre: every block drawn in the weapon
-      // editor is flagged limb:"arm" so it tracks the arm. Rotating the hole about the centre while
-      // the art rotated about its top edge offset the two by (I - R(rot))·(centre→edge) — a bow's
-      // cut-out limb landed clear of the bow, so the pedestal, an enemy's drop and any sleeve cutter
-      // showed the piece solid. In-hand weapons were the one place it looked right, because
-      // attachWeaponBlocks strips limb/role and pre-shifts the box to the centre-pivot equivalent.
-      const org = pieceOriginPoint(p);
-      const cx = org.x, cy = org.y;
-      const mirrored = !!p._m;
-      const rot = mirrored ? (p.mirrorTwist === false ? -(p.rot || 0) : (p.rot || 0)) : (p.rot || 0);
-      const ops = [];
-      if (mirrored) ops.push(`translate(${cx} ${cy}) scale(-1,1) translate(${-cx} ${-cy})`);
-      if (rot) ops.push(`rotate(${rot} ${cx} ${cy})`);
-      const tAttr = ops.length ? ` transform="${ops.join(" ")}"` : "";
-      if (p.kind === "circle") return `<ellipse cx="${cx}" cy="${cy}" rx="${p.w / 2}" ry="${p.h / 2}" fill="#000"${tAttr}/>`;
-      if (p.kind === "roundrect") return `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="${p.w * 0.22}" ry="${p.h * 0.22}" fill="#000"${tAttr}/>`;
-      // Equal rx AND ry in real units — that, not a percentage, is what keeps the caps circular.
-      if (p.kind === "stadium") { const r = stadiumRadius(p.w, p.h); return `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="${r}" ry="${r}" fill="#000"${tAttr}/>`; }
-      const pts = shapePolyPoints(p);
-      if (pts) return `<polygon points="${pts.map(([fx, fy]) => (p.x + fx * p.w) + "," + (p.y + fy * p.h)).join(" ")}" fill="#000"${tAttr}/>`;
-      return `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" fill="#000"${tAttr}/>`;
-    }).join("");
-    const frame = cutterMaskFrameLayout();
-    const vb = frame.viewBox;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb.x} ${vb.y} ${vb.width} ${vb.height}"><mask id="cm" maskUnits="userSpaceOnUse" x="${vb.x}" y="${vb.y}" width="${vb.width}" height="${vb.height}"><rect x="${vb.x}" y="${vb.y}" width="${vb.width}" height="${vb.height}" fill="#fff"/>${shapes}</mask><rect x="${vb.x}" y="${vb.y}" width="${vb.width}" height="${vb.height}" fill="#fff" mask="url(#cm)"/></svg>`;
-    const url = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
-    const css = { WebkitMaskImage: url, maskImage: url, WebkitMaskSize: "100% 100%", maskSize: "100% 100%", WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat" };
-    cutterMaskCache.current[key] = { sig, css };
-    return css;
-  };
+  // The cutter hole used to be a CSS mask-image built here (cutterMaskCss, until 2026-09-20). It is
+  // an evenodd clip on each cut piece now — cutterHoleClip, next to pieceOriginPoint — because the
+  // mask cost more than everything else in a playtest frame put together.
   // Curated web-safe fonts — no external loading (network dependency / FOUC risk), just
   // reasonably distinct built-in system fonts covering different vibes: clean sans, bold
   // poster, classic serif, and a typewriter/vintage look (handy for period pieces).
@@ -13657,11 +13675,16 @@ export default function AssetStudio() {
   const pieceShowsOutline = (p) => p.outline && p.kind !== "emoji";
   // Shared by Static/MirrorGhost/Block: renders the outline layer as outer(outlineStyle) +
   // inner(outlineFillStyle), except text, which has no separate fill child (see outlineStyle).
-  const OutlineLayer = (p, off, mirrored, faded) => !pieceShowsOutline(p) ? null : (
-    p.kind === "text"
-      ? <div style={outlineStyle(p, off, mirrored, faded)}>{textInner(p, true)}</div>
-      : <div style={outlineStyle(p, off, mirrored, faded)}><div style={outlineFillStyle(p)} /></div>
-  );
+  // `hole` is the cutter clip Static computed for the piece (cutterHoleClip); the ring sits in the
+  // same box under the same transform, so the same clip cuts the same hole through it.
+  const OutlineLayer = (p, off, mirrored, faded, hole) => {
+    if (!pieceShowsOutline(p)) return null;
+    const s = outlineStyle(p, off, mirrored, faded);
+    if (hole) s.clipPath = hole;
+    return p.kind === "text"
+      ? <div style={s}>{textInner(p, true)}</div>
+      : <div style={s}><div style={outlineFillStyle(p)} /></div>;
+  };
   // Editor selection must trace the painted silhouette, not the piece's rectangular layout box.
   // That box is especially misleading for a half-triangle: half of the old blue rectangle was
   // transparent, and clicking there bubbled to the canvas and deselected the piece. An SVG stroke
@@ -13683,15 +13706,19 @@ export default function AssetStudio() {
     else shape = <rect x="0" y="0" width="100" height="100" {...common} />;
     return <svg style={s} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">{shape}</svg>;
   };
-  const Static = (p, off, faded, flip, key, onPiecePointerDown) => {
+  const Static = (p, off, faded, flip, key, onPiecePointerDown, cutters) => {
     const s = shapeStyle(p, off, faded, flip);
     // The positioning wrapper is rectangular, even for circles, triangles, stars, and sparse
     // prop art. Keep that transparent rectangle out of hit-testing. When an interaction is
     // supplied, only the clipped/painted inner shape receives the click.
     s.pointerEvents = "none";
+    // A cutter above this piece in its run is cut into THIS piece's box (cutterHoleClip) — the
+    // silhouette clip on the inner fill then does the rest — instead of a mask over the group.
+    const hole = cutters ? cutterHoleClip(p, flip, cutters) : null;
+    if (hole) s.clipPath = hole;
     const fill = shapeFillStyle(p);
     if (onPiecePointerDown) { fill.pointerEvents = "auto"; fill.cursor = "pointer"; }
-    return <React.Fragment key={key}>{OutlineLayer(p, off, flip, faded)}<div style={s}><div style={fill} onPointerDown={onPiecePointerDown}>{pieceInner(p)}</div></div></React.Fragment>;
+    return <React.Fragment key={key}>{OutlineLayer(p, off, flip, faded, hole)}<div style={s}><div style={fill} onPointerDown={onPiecePointerDown}>{pieceInner(p)}</div></div></React.Fragment>;
   };
   // Renders a PROP asset's pixel art scaled to fill its placement box, at animation frame
   // `frameIdx`. The prop's pieces are positioned by percentage of the 200×260 design canvas (that's
@@ -13715,10 +13742,10 @@ export default function AssetStudio() {
       // translate that canvas so the measured visible-art box begins at the placement's 0,0.
       // This crops empty authoring-canvas space without stretching or relocating any piece.
       const scale = Math.min(widthPx / tightBox.w, heightPx / tightBox.h);
-      return <div style={{ position: "absolute", left: -tightBox.minX * scale, top: -tightBox.minY * scale, width: W * scale, height: H * scale, pointerEvents: "none" }}>{renderPieceRuns({ pieces, cacheKey: keyBase || "prop", keyPrefix: (keyBase || "prop") + "_", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k, onPiecePointerDown), maskCss: cutterMaskCss })}</div>;
+      return <div style={{ position: "absolute", left: -tightBox.minX * scale, top: -tightBox.minY * scale, width: W * scale, height: H * scale, pointerEvents: "none" }}>{renderPieceRuns({ pieces, cacheKey: keyBase || "prop", keyPrefix: (keyBase || "prop") + "_", drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, onPiecePointerDown, cut) })}</div>;
     }
     const sz = Math.max(widthPx, heightPx);
-    const _k = Math.min(sz / W, sz / H), _bw = W * _k, _bh = H * _k; return <div style={{ position: "absolute", left: (sz - _bw) / 2, top: (sz - _bh) / 2, width: _bw, height: _bh, pointerEvents: "none" }}>{renderPieceRuns({ pieces, cacheKey: keyBase || "prop", keyPrefix: (keyBase || "prop") + "_", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k, onPiecePointerDown), maskCss: cutterMaskCss })}</div>;
+    const _k = Math.min(sz / W, sz / H), _bw = W * _k, _bh = H * _k; return <div style={{ position: "absolute", left: (sz - _bw) / 2, top: (sz - _bh) / 2, width: _bw, height: _bh, pointerEvents: "none" }}>{renderPieceRuns({ pieces, cacheKey: keyBase || "prop", keyPrefix: (keyBase || "prop") + "_", drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, onPiecePointerDown, cut) })}</div>;
   };
   // One place that turns a placed level object into its inner JSX — emoji/shape via objInner,
   // or a prop via propArtInner (looking the asset up + choosing its current animation frame).
@@ -15744,7 +15771,7 @@ export default function AssetStudio() {
             })()}
             <div ref={artRef} className="art">
               {!body && !viewDressed && <div className="emptyart">pick a body →</div>}
-              {renderPieceRuns({ pieces: dressArtPieces, cacheKey: "dressbob", keyPrefix: "d", drawPiece: (p, k) => Static(p, null, false, !!p._m, k), maskCss: cutterMaskCss })}
+              {renderPieceRuns({ pieces: dressArtPieces, cacheKey: "dressbob", keyPrefix: "d", drawPiece: (p, k, cut) => Static(p, null, false, !!p._m, k, undefined, cut) })}
             </div>
           </div>
           <aside className="side">
@@ -17012,7 +17039,7 @@ export default function AssetStudio() {
                       )}
                       <div className={blocks ? "playerWrap" : "player"} style={style}>
                         {blocks ? (() => {
-                          const art = renderPieceRuns({ pieces: blocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "player", keyPrefix: "pl", drawPiece: (pc, k) => Static(pc, null, false, !!pc._m, k), maskCss: cutterMaskCss });
+                          const art = renderPieceRuns({ pieces: blocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "player", keyPrefix: "pl", drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, undefined, cut) });
                           const crouchWalk = p.crouch && p.walking;
                           return crouchPlane ? <div style={{ position: "absolute", left: 0, top: crouchPlane.top, width: renderW, height: crouchPlane.height, transform: crouchWalk ? `scaleY(${crouchPlane.walkScaleY})` : undefined, transformOrigin: crouchWalk ? `50% ${crouchPlane.originY}px` : undefined }}>{art}</div> : art;
                         })() : <><div className="peye" /><div className="pbody" /></>}
@@ -17170,7 +17197,7 @@ export default function AssetStudio() {
                     const deadFlip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1) " : "";
                     return (
                       <div key={"enp" + k} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop + deadFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", zIndex: CORPSE_Z, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (eph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
-                        {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + k + "_s" + stripped.length, keyPrefix: "dead" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
+                        {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + k + "_s" + stripped.length, keyPrefix: "dead" + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}
                       </div>
                     );
                   }
@@ -17368,7 +17395,7 @@ export default function AssetStudio() {
                       </div>
                       <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? " (💬 not fighting you — press E to talk)" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {(() => {
-                          const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss });
+                          const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
                           // Put the art back to a true aspect when the box isn't one (ducking) —
                           // see spriteUnsquashY. Scaled about the floor line so the feet stay
                           // planted and the body grows back UP out of the shorter hitbox, the way
@@ -17470,7 +17497,7 @@ export default function AssetStudio() {
                   if (bb) { const sc = Math.min(dBox / bb.w, dBox / bb.h) * 0.86; dPlane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${dBox / 2 - sc * (bb.x + bb.w / 2)}px,${dBox / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})` }; }
                   const icon = item.type === "weapon" ? "⚔️" : item.type === "equipment" ? "🎒" : "🧪";
                   return <div key={"drop" + k} className="enemyDropPlay" style={{ left: drop.x, top: drop.y }} title={"Dropped " + item.name}>
-                    <div className={"enemyDropOrb" + (bb ? " art" : "")} style={bb ? { width: dBox, height: dBox } : undefined}>{bb ? <div style={dPlane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "drop_" + k, keyPrefix: "drop" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}</div> : icon}</div>
+                    <div className={"enemyDropOrb" + (bb ? " art" : "")} style={bb ? { width: dBox, height: dBox } : undefined}>{bb ? <div style={dPlane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "drop_" + k, keyPrefix: "drop" + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : icon}</div>
                     {pedPrompt && pedPrompt.key === "drop:" + k && <div className="pedcallout">🎁 {takePromptText(item) || "Press E to pick up"}</div>}
                     <div className="enemyDropCap">{item.name}</div>
                   </div>;
@@ -17513,7 +17540,7 @@ export default function AssetStudio() {
                     // they were standing on to read it. Same box, same coordinates, own layer.
                     <React.Fragment key={"ped" + k}>
                       <div className={"pedestalPlay" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
-                        <div className="pedestalArt" style={artStyle}>{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + k, keyPrefix: "ped" + k + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}</div> : null}</div>
+                        <div className="pedestalArt" style={artStyle}>{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + k, keyPrefix: "ped" + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : null}</div>
                       </div>
                       {(promptText || rolled || !bb) && (
                         <div className={"pedLabels" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }}>
@@ -17541,7 +17568,7 @@ export default function AssetStudio() {
                   if (pr.pieces) {
                     return (
                       <div key={"proj" + i} className="lobj" style={{ left: pr.x - sz / 2, top: pr.y - sz / 2, width: sz, height: sz, transform: pr.rot ? `rotate(${pr.rot}deg)` : "none" }}>
-                        {renderPieceRuns({ pieces: pr.pieces, cacheKey: "proj_" + i, keyPrefix: "proj" + i + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}
+                        {renderPieceRuns({ pieces: pr.pieces, cacheKey: "proj_" + i, keyPrefix: "proj" + i + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}
                       </div>
                     );
                   }
@@ -17559,7 +17586,7 @@ export default function AssetStudio() {
                   return (
                     <div key={"thr" + i} className="lobj" style={{ left: g.x - cwPx / 2, top: g.y - chPx / 2, width: cwPx, height: chPx, transform: `rotate(${g.rot}deg)`, zIndex: 8000 }}>
                       {g.pieces
-                        ? renderPieceRuns({ pieces: g.pieces, cacheKey: "thr_" + i, keyPrefix: "thr" + i + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })
+                        ? renderPieceRuns({ pieces: g.pieces, cacheKey: "thr_" + i, keyPrefix: "thr" + i + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })
                         : <span style={{ fontSize: emojiSz * 0.85 + "px", lineHeight: 1 }}>💣</span>}
                     </div>
                   );
@@ -17845,7 +17872,7 @@ export default function AssetStudio() {
                   return (
                     <div key={it.id} className={"shopRow" + (broke ? " broke" : "")}>
                       <div className="shopArt" style={{ width: box, height: box }}>
-                        {bb ? <div style={plane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "shop_" + it.id, keyPrefix: "shop" + it.id + "_", drawPiece: (pc, kk) => Static(pc, null, false, !!pc._m, kk), maskCss: cutterMaskCss })}</div>
+                        {bb ? <div style={plane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "shop_" + it.id, keyPrefix: "shop" + it.id + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>
                             : <span className="shopArtIcon">{(it.name || "?").trim().charAt(0).toUpperCase()}</span>}
                       </div>
                       <div className="shopMeta">
@@ -19334,7 +19361,7 @@ html,body{margin:0;padding:0;background:#0f1117}
    and Front PAINT (6000) above it: whatever hides the unit hides its badges, and the see-through
    window the player carries (frontFadeKeys / behindFade) reveals both together. The player's own
    .playerHpTrack stays at 8000 — that is your status, not the scene's. */
-.unitStatus{position:absolute;height:0;pointer-events:none;z-index:5060} /* the inline zIndex (unitStatusZ) lifts a hurt unit's bar to 5061 and one being hit right now to 5062 - still under Front objects at 5101 */
+.unitStatus{position:absolute;height:0;pointer-events:none;z-index:5060;will-change:transform} /* the inline zIndex (unitStatusZ) lifts a hurt unit's bar to 5061 and one being hit right now to 5062 - still under Front objects at 5101 */
 .enemyHpTrack{position:absolute;left:0;right:0;top:-10px;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden}
 .enemyStun{position:absolute;left:0;right:0;top:-30px;text-align:center;font-size:16px;line-height:1;pointer-events:none;animation:stunbob .6s ease-in-out infinite}
 @keyframes stunbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
@@ -19366,7 +19393,8 @@ html,body{margin:0;padding:0;background:#0f1117}
 .conn.blocked{border-color:#c0504f;color:#c0504f;opacity:.85}
 .conn.sel{box-shadow:0 0 0 3px #4f7cf6;z-index:7000}
 .player{position:absolute;background:#7aa2d6;border-radius:5px;z-index:5000;box-shadow:0 2px 6px rgba(0,0,0,.5);overflow:visible}
-.playerWrap{position:absolute;z-index:5000;overflow:visible;isolation:isolate}
+/* will-change: every unit sprite and its HP bar composite on their own layer. Without it a sprite paints INTO the level's layer, and each step re-rasters the SVG-textured cells under it: measured on Blake's machine walking M7 at 36-50 fps with 50-100 ms hitches, 65-100 fps and no hitches with this alone (2026-09-20). Props (.lobj) and Front cells are NOT promoted — tried, and more layers made it slower. */
+.playerWrap{position:absolute;z-index:5000;overflow:visible;isolation:isolate;will-change:transform}
 .lcell.collisionOnly,.blockGhost.collisionOnly,.rampGhost.collisionOnly{opacity:.48;outline:2px dashed #62d9ff;outline-offset:-2px;filter:saturate(.55)}
 .player .pbody{position:absolute;inset:0;background:#7aa2d6;border-radius:5px}
 .player .peye{position:absolute;right:3px;top:5px;width:4px;height:4px;border-radius:50%;background:#0a0c12;z-index:2}
