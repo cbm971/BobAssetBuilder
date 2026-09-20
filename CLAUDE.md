@@ -36,6 +36,7 @@ once, `CI=true npm test`, `npm run build`.
 * Other agents push to this branch. Always `fetch` + `rebase` before pushing. Never
   force.
 * No `gh` CLI. Confirm a push landed with `git ls-remote`.
+* **Then `npm run publish`** so https://cbm971.github.io/BobAssetBuilder/ runs what you just pushed (see the Storage section).
 
 ## Verify in the running app, not just in tests
 
@@ -116,6 +117,22 @@ than once. The rules below are not style preferences.
   and renames (atomic — no half-written library), keeps `library.bak.json`, and puts the
   first write of each day aside in `asset-data/snapshots/` keeping the last 5 (gitignored;
   the committed `library.json` is the copy that leaves the container).
+
+**THE STUDIO HAS ONE PERMANENT ADDRESS: https://cbm971.github.io/BobAssetBuilder/ (2026-09-20).**
+The root cause of every loss was the address changing; this address never does, so the browser
+store there never dies, and it is the production build (no dev server, no StrictMode, no
+dev-mode prop validation — the StackBlitz preview runs the dev build). `npm run publish`
+(`tools/publish.js`) builds under `/BobAssetBuilder`, puts the committed `library.json` beside
+the app (the read-only seed `projectLibrary.load` falls back to when there is no `/__library`),
+and force-pushes the build as the `gh-pages` branch. **Run it after every push to the play
+branch** — a published site that lags the branch is never a data problem, but the fix he is
+waiting for stays invisible until someone publishes. GitHub Pages is enabled on the repo; the
+source has to be "Deploy from a branch: gh-pages / (root)" (Settings → Pages) — setting it
+through the API was refused by the tool permission classifier on this machine, and the stored
+git credential has no `workflow` scope, so a Pages Actions workflow cannot be pushed either.
+On the permanent address his data lives in the browser store (`navigator.storage.persist()`
+is requested) and in his 📁 Save folder; the committed seed only matters for a brand-new
+browser. The StackBlitz link still works exactly as before for anyone who uses it.
 
 **THREE tiers since 2026-09-20, and the third is the one that cannot die with the address.**
 Trailor Park M7, nine assets and two days of edits vanished on 2026-09-20 because the studio
