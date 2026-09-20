@@ -117,6 +117,45 @@ than once. The rules below are not style preferences.
   first write of each day aside in `asset-data/snapshots/` keeping the last 5 (gitignored;
   the committed `library.json` is the copy that leaves the container).
 
+**THREE tiers since 2026-09-20, and the third is the one that cannot die with the address.**
+Trailor Park M7, nine assets and two days of edits vanished on 2026-09-20 because the studio
+came up on a new preview address (`bobassetbuilder-hzer-nkzk0qq2…`), its browser store was
+empty, and the committed `library.json` had not been refreshed since the 2026-09-16 export —
+the fourth time this exact thing happened. The two tiers above are BOTH tied to something that
+gets replaced: the browser store to the page address, the project file to the running
+container (it only reaches git when an agent commits it). So there is now:
+
+* **📁 Save folder** (`diskLibrary` in App.js, right above `projectLibrary`) — a folder on
+  Blake's own disk, picked once through the browser's directory picker (File System Access
+  API). One file per record, `<kind>/<id>.json`, plus `removed.json` for deleted ids. The
+  handle is kept in IndexedDB so the same address finds it again without a picker; Chrome may
+  want one click to re-grant write access (the button reads **Reconnect save folder** and a
+  toast says so once). It is a full peer of the project file through the ONE seam every
+  loader already uses: `projectLibrary.load()` returns `mergeLibraries(serverFile, folder)`
+  (newest `savedAt` per id, tombstones unioned), `save()` writes both, `forget()` tombstones
+  both. Nothing else in the loaders changed. On a brand-new address the front screen shows
+  **📁 Save folder**; one click on it runs every loader and the whole library comes back out
+  of the folder. Verified in the running app on a fresh origin with the project file taken
+  away and the browser store wiped: 0 assets → click → 161 assets, 13 levels (M7 included), 19
+  groups, 17 textures, 5 dialogues; a level save bumps the folder's copy; a delete removes
+  the file and lands in `removed.json` and stays deleted across a reload; a delete made while
+  the folder was NOT connected is pushed into the folder at connect time (`connectSaveFolder`
+  hands `localRemoved` to `diskLibrary.forget` before the loaders run). Tests: `mergeLibraries`
+  and `diskLibrary` against an in-memory handle.
+* The picker cannot open inside a cross-origin iframe (Chrome: "Cross origin sub frames
+  aren't allowed to show a file picker") — that is the preview PANEL inside the StackBlitz
+  editor. The preview in its own tab is fine; `connect` reports the frame case as `"iframe"`
+  and the click says to open the preview in its own tab. There is no picker in my Browser pane
+  either: test the folder path by shimming `window.showDirectoryPicker = () =>
+  navigator.storage.getDirectory()` (OPFS has the same handle interface) and reading the
+  files back from `navigator.storage.getDirectory()`.
+* **The rule that follows:** a change of address is now a one-click recovery, not an outage —
+  but ONLY once he has clicked 📁 Save folder once on the address he is using. Until he does,
+  the old rules stand: merge his newest export into `library.json` before EVERY push, and when
+  the address changes anyway, `tools/read-chrome-leveldb.js` on the old origin's IndexedDB
+  is how everything comes back (2026-09-20: 161 assets / 13 levels read out of
+  `…hzer--3000--d5306e6f…`, merged newest-wins against the new address and the file).
+
 **A dated full backup lives at the repo root** — `assetbuilder-backup-<date>.json`,
 `{assetBuilderBackup:2, assets, levels, stamps, textures, backgrounds, dialogues}`. Keep exactly
 ONE, the newest, and check it is a superset before deleting the one it replaces (the

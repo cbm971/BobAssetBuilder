@@ -327,17 +327,200 @@ export const exportLevelCount = (browserIndex, projectLevels) => Math.max(
   Array.isArray(projectLevels) ? projectLevels.length : 0,
 );
 const PROJECT_KINDS = ["assets", "levels", "stamps", "textures", "backgrounds", "dialogues"];
+// ---- A SAVE FOLDER ON HIS OWN DISK -------------------------------------------------------------
+// THE ONE STORE THAT DOES NOT DIE WITH THE ADDRESS. Everything above this line keeps records in the
+// browser's storage for the page's ORIGIN, and the project file only lives inside the running
+// container. Both are tied to something that gets replaced: the preview hostname changed on
+// 2026-09-10, 2026-09-18 and 2026-09-20, and each time the studio came up on an empty store and
+// restored the committed library.json — a snapshot as old as the last agent commit — so every
+// asset, level and edit since that commit read as gone. It was never gone (see
+// tools/read-chrome-leveldb.js, which has read it back out of Chrome's profile three times), but
+// "I lost my assets on an ASSET BUILDER" once a week is not a save system.
+//
+// So the studio also writes to a FOLDER ON THE DISK, picked once through the browser's directory
+// picker (File System Access API): one file per record, <kind>/<id>.json, plus removed.json for
+// the ids he has deleted. Nothing about the page address, the container or git is involved. The
+// folder is a full peer of the project file: projectLibrary.load reads both and the newest save
+// per id wins (newerRecord), every save writes to both, every delete tombstones in both. On a
+// brand-new address the browser store is empty, the committed file is stale, and ONE click on
+// 📁 Save folder brings the folder's copy of everything back through the same loaders.
+//
+// The handle is kept in IndexedDB (a FileSystemDirectoryHandle is structured-cloneable), so on
+// the next visit to the SAME address the folder is found again without a picker. Chrome may still
+// want a click to re-grant write access ("prompt"); the front screen then shows Reconnect. Chrome
+// offers "Allow on every visit" in that prompt, after which it is silent.
+//
+// The picker cannot open inside a cross-origin iframe (Chrome: "Cross origin sub frames aren't
+// allowed to show a file picker"), which is what the preview panel inside the StackBlitz editor is.
+// The preview opened in its own tab — the way the studio is normally used — is fine. That case is
+// reported as a message, not swallowed.
+const DISK_HANDLE_KEY = "saveFolderHandle";
+const DISK_REMOVED_FILE = "removed.json";
+// One record per id from two libraries of the project-file shape, newest save winning (newerRecord:
+// dated beats undated, strictly greater savedAt beats older, an undated record never replaces
+// anything — a tie keeps `a`). Tombstones are the union. Pure, exported and tested: this is the
+// rule that decides what a load restores, and the wrong direction here is an old copy overwriting
+// his newest edit.
+export const mergeLibraries = (a, b) => {
+  if (!a) return b || null;
+  if (!b) return a;
+  const out = { ok: true, savedAt: a.savedAt || b.savedAt || null };
+  for (const k of PROJECT_KINDS) {
+    const by = new Map();
+    for (const r of (a[k] || [])) if (r && r.id) by.set(r.id, r);
+    for (const r of (b[k] || [])) { if (!r || !r.id) continue; const cur = by.get(r.id); if (!cur || newerRecord(r, cur)) by.set(r.id, r); }
+    out[k] = [...by.values()];
+  }
+  out.removed = {};
+  for (const k of PROJECT_KINDS) out.removed[k] = [...new Set([...(((a.removed || {})[k]) || []), ...(((b.removed || {})[k]) || [])].filter(Boolean))];
+  return out;
+};
+export const diskLibrary = {
+  handle: null,
+  // "unsupported" (no picker in this browser) | "none" (never picked) | "prompt" (picked before,
+  // needs a click to re-grant) | "ready" | "iframe" (the picker was refused by the frame)
+  state: "none",
+  name: "",
+  listeners: new Set(),
+  known: {},        // kind -> Map(id -> savedAt) as last read or written, so a bulk sync skips records the folder already holds at that save
+  initP: null,
+  supported: () => typeof window !== "undefined" && typeof window.showDirectoryPicker === "function",
+  emit: () => { for (const f of diskLibrary.listeners) { try { f(diskLibrary.state); } catch { /* a listener must not break the store */ } } },
+  set: (state) => { diskLibrary.state = state; diskLibrary.emit(); },
+  // Find the folder picked on a previous visit to this address. Silent: no picker, no prompt.
+  init: () => {
+    if (diskLibrary.initP) return diskLibrary.initP;
+    diskLibrary.initP = (async () => {
+      try {
+        if (!diskLibrary.supported()) { diskLibrary.set("unsupported"); return; }
+        const hit = await idbGet(DISK_HANDLE_KEY);
+        const h = hit && hit.ok ? hit.value : null;
+        if (!h || typeof h.getDirectoryHandle !== "function") { diskLibrary.set("none"); return; }
+        diskLibrary.handle = h; diskLibrary.name = h.name || "";
+        const p = typeof h.queryPermission === "function" ? await h.queryPermission({ mode: "readwrite" }) : "prompt";
+        diskLibrary.set(p === "granted" ? "ready" : "prompt");
+      } catch { diskLibrary.set("none"); }
+    })();
+    return diskLibrary.initP;
+  },
+  // A click: re-grant the remembered folder, or pick one. Returns the state it ended in.
+  connect: async (pickNew) => {
+    await diskLibrary.init();
+    try {
+      if (!pickNew && diskLibrary.handle && diskLibrary.state !== "ready") {
+        const p = await diskLibrary.handle.requestPermission({ mode: "readwrite" });
+        if (p === "granted") { diskLibrary.set("ready"); return "ready"; }
+      }
+      const h = await window.showDirectoryPicker({ id: "bob-okay-saves", mode: "readwrite" });
+      if (typeof h.requestPermission === "function") { const p = await h.requestPermission({ mode: "readwrite" }); if (p !== "granted") return diskLibrary.state; }
+      diskLibrary.handle = h; diskLibrary.name = h.name || ""; diskLibrary.known = {};
+      try { await idbSet(DISK_HANDLE_KEY, h); } catch { /* the folder still works for this visit */ }
+      diskLibrary.set("ready");
+      return "ready";
+    } catch (e) {
+      if (e && e.name === "AbortError") return diskLibrary.state;               // he closed the picker
+      if (e && e.name === "SecurityError") { diskLibrary.set("iframe"); return "iframe"; }
+      throw e;
+    }
+  },
+  ready: () => diskLibrary.state === "ready" && !!diskLibrary.handle,
+  dir: async (kind, create) => { try { return await diskLibrary.handle.getDirectoryHandle(kind, { create: !!create }); } catch { return null; } },
+  readJson: async (dir, name) => {
+    try { const fh = await dir.getFileHandle(name); const f = await fh.getFile(); const t = await f.text(); return t ? JSON.parse(t) : null; } catch { return null; }
+  },
+  writeJson: async (dir, name, value) => {
+    const fh = await dir.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    try { await w.write(JSON.stringify(value)); } finally { await w.close(); }
+  },
+  // Everything in the folder, in the project-file shape. A file that will not parse is skipped and
+  // named on the console — one bad record must never hide the rest, the same rule every loader has.
+  load: async () => {
+    await diskLibrary.init();
+    if (!diskLibrary.ready()) return null;
+    const out = { ok: true, savedAt: null };
+    for (const kind of PROJECT_KINDS) {
+      out[kind] = [];
+      const seen = new Map();
+      const dir = await diskLibrary.dir(kind, false);
+      if (dir) {
+        for await (const [name, entry] of dir.entries()) {
+          if (entry.kind !== "file" || !/\.json$/i.test(name)) continue;
+          const rec = await diskLibrary.readJson(dir, name);
+          if (rec && rec.id) { out[kind].push(rec); seen.set(rec.id, typeof rec.savedAt === "number" ? rec.savedAt : null); }
+          else console.warn("[Bob] save folder: could not read " + kind + "/" + name);
+        }
+      }
+      diskLibrary.known[kind] = seen;
+    }
+    const removed = await diskLibrary.readJson(diskLibrary.handle, DISK_REMOVED_FILE);
+    out.removed = {};
+    for (const kind of PROJECT_KINDS) out.removed[kind] = Array.isArray(removed && removed[kind]) ? removed[kind].filter(Boolean) : [];
+    return out;
+  },
+  // One file per record. A record the folder already holds at this exact savedAt is not rewritten
+  // (the loaders bulk-sync the whole library after every load). `revive` takes ids back off the
+  // deleted list, exactly as the project file does.
+  save: async (payload, opts) => {
+    await diskLibrary.init();
+    if (!diskLibrary.ready()) return false;
+    let wrote = 0;
+    for (const kind of PROJECT_KINDS) {
+      const list = ((payload && payload[kind]) || []).filter((x) => x && x.id);
+      if (!list.length) continue;
+      const dir = await diskLibrary.dir(kind, true);
+      if (!dir) return false;
+      const seen = diskLibrary.known[kind] || (diskLibrary.known[kind] = new Map());
+      for (const rec of list) {
+        const at = typeof rec.savedAt === "number" ? rec.savedAt : null;
+        if (at !== null && seen.has(rec.id) && seen.get(rec.id) === at) continue;
+        await diskLibrary.writeJson(dir, rec.id + ".json", rec);
+        seen.set(rec.id, at); wrote++;
+      }
+      if (opts && opts.revive) await diskLibrary.tomb(kind, [], list.map((x) => x.id));
+    }
+    return wrote >= 0;
+  },
+  forget: async (kind, ids) => {
+    await diskLibrary.init();
+    if (!diskLibrary.ready()) return false;
+    const list = (ids || []).filter(Boolean);
+    if (!list.length) return false;
+    const dir = await diskLibrary.dir(kind, false);
+    for (const id of list) {
+      if (dir) { try { await dir.removeEntry(id + ".json"); } catch { /* already gone */ } }
+      if (diskLibrary.known[kind]) diskLibrary.known[kind].delete(id);
+    }
+    await diskLibrary.tomb(kind, list, []);
+    return true;
+  },
+  // removed.json: add `add`, take `revive` back off, one read-modify-write.
+  tomb: async (kind, add, revive) => {
+    const cur = (await diskLibrary.readJson(diskLibrary.handle, DISK_REMOVED_FILE)) || {};
+    const have = new Set((Array.isArray(cur[kind]) ? cur[kind] : []).filter(Boolean));
+    for (const id of add) have.add(id);
+    for (const id of revive) have.delete(id);
+    cur[kind] = [...have];
+    await diskLibrary.writeJson(diskLibrary.handle, DISK_REMOVED_FILE, cur);
+  },
+};
 const projectLibrary = {
   available: false, // set on the first successful read; a plain static build simply won't have it
+  // BOTH backends, merged newest-wins (mergeLibraries): the dev server file, and the save folder on
+  // his disk (diskLibrary). Either may be absent — a static build has no server, a fresh address
+  // has no folder until it is clicked — and the loaders only ever see the one merged answer.
   load: async () => {
+    let data = null;
     try {
       const res = await fetch("/__library", { cache: "no-store" });
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (!data || !Array.isArray(data.assets)) return null;
-      projectLibrary.available = true;
-      return data;
-    } catch { return null; }
+      if (res.ok) {
+        const d = await res.json();
+        if (d && Array.isArray(d.assets)) { projectLibrary.available = true; data = d; }
+      }
+    } catch { /* no dev server */ }
+    let disk = null;
+    try { disk = await diskLibrary.load(); } catch (e) { console.warn("[Bob] save folder could not be read: " + (e && e.message)); }
+    return mergeLibraries(data, disk);
   },
   // Assets, levels, stored groups, textures and backgrounds are five separate bodies of work, and
   // any ONE of them is worth a write. This took three positional arrays and bailed out unless the
@@ -361,13 +544,17 @@ const projectLibrary = {
       if (body.revive && list.length) localRemoved.revive(k, list.map((x) => x.id));
     }
     if (!any) return false;
+    let serverOk = false;
     try {
       const res = await fetch("/__library", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      return res.ok;
-    } catch { return false; }
+      serverOk = res.ok;
+    } catch { serverOk = false; }
+    let diskOk = false;
+    try { diskOk = await diskLibrary.save(body, opts); } catch (e) { console.warn("[Bob] save folder write failed: " + (e && e.message)); }
+    return serverOk || diskOk;
   },
   // Deleting has to reach the file too. Everything above is deliberately additive — the merge on
   // the server never drops a record — so without this, deleting something in the browser only hid
@@ -381,13 +568,17 @@ const projectLibrary = {
     // refuses to erase reached nothing that mattered — both ended with the loader finding the
     // record and filing it back as real. The local list is what holds it out either way.
     localRemoved.add(kind, list);
+    let serverOk = false;
     try {
       const res = await fetch("/__library", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assets: [], remove: { [kind]: list } }),
       });
-      return res.ok;
-    } catch { return false; }
+      serverOk = res.ok;
+    } catch { serverOk = false; }
+    let diskOk = false;
+    try { diskOk = await diskLibrary.forget(kind, list); } catch (e) { console.warn("[Bob] save folder delete failed: " + (e && e.message)); }
+    return serverOk || diskOk;
   },
 };
 // WHICH IDS THE PROJECT FILE REMEMBERS AS DELETED, for one kind. `removed` is the tombstone list
@@ -7909,6 +8100,7 @@ export default function AssetStudio() {
   const [text, setText] = useState("");
   const [toast, setToast] = useState("");
   const [hasStore, setHasStore] = useState(false);
+  const [saveFolder, setSaveFolder] = useState(diskLibrary.state); // "none" | "prompt" | "ready" | "iframe" | "unsupported" — mirrors diskLibrary.state for the front-screen button
   const [sessionAssets, setSessionAssets] = useState([]);
   const [loadout, setLoadout] = useState({ bodyId: "", skinId: "", slots: {}, weaponId: "" });
   const [dressedBobName, setDressedBobName] = useState(""); // editable — blank falls back to "<body> — dressed"
@@ -8649,6 +8841,23 @@ export default function AssetStudio() {
   // only half-happened is how you get it. Only complains when the project file is actually there
   // to have taken it: on a plain static build there is nothing to reach and browser storage IS the
   // record, so the delete is complete as it stands.
+  // 📁 Save folder: pick (or re-grant) the folder on his disk, then run every loader so what the
+  // folder holds merges in at once — on a fresh address this is the whole library coming back —
+  // and the bulk sync at the end of each loader writes whatever this browser holds out to it.
+  const connectSaveFolder = async (pickNew) => {
+    let st;
+    try { st = await diskLibrary.connect(pickNew); } catch (e) { flash("📁 Couldn’t open a save folder: " + ((e && e.message) || "unknown error")); return; }
+    if (st === "iframe") { flash("📁 The folder picker can’t open inside the editor’s preview panel — open the preview in its own tab and try again."); return; }
+    if (st !== "ready") return;
+    flash("📁 Saving to \"" + diskLibrary.name + "\" — reading what it holds…");
+    // Deletes made while the folder was not connected reached only this browser's list. Hand them
+    // to the folder FIRST, so the loaders below never read a file for something he deleted and a
+    // fresh address can never bring it back out of the folder.
+    try { const near = await localRemoved.hydrate(); for (const kind of Object.keys(near || {})) if (Array.isArray(near[kind]) && near[kind].length) await diskLibrary.forget(kind, near[kind]); } catch { /* best effort */ }
+    await Promise.all([loadLibrary(), loadStamps(), loadLevels(), loadTextures(), loadBgLib(), loadDialogues()]);
+    readLevelIndexCount().then(setLevelCount);
+    flash("📁 Save folder \"" + diskLibrary.name + "\" connected ✓");
+  };
   const deleteNote = (msg, forgot) => msg + ((projectLibrary.available && !forgot)
     ? " — ⚠ the project file did NOT accept it, so it may come back on the next load. Say so and it can be removed at the source."
     : " ✓");
@@ -8659,7 +8868,17 @@ export default function AssetStudio() {
     // otherwise the first purge of the session runs against localStorage alone, which is the copy
     // that does not survive the address change that hands the records back.
     localRemoved.attach({ get: sget, set: sset });
-    setHasStore(ok); loadLibrary(); loadStamps(); readLevelIndexCount().then(setLevelCount);
+    // The save folder on his disk (diskLibrary): find the one picked on an earlier visit BEFORE the
+    // loaders run, so the very first load already merges it. A folder that Chrome wants a click to
+    // re-open says so once; the front-screen button is the click.
+    const onFolder = (st) => { setSaveFolder(st); if (st === "prompt") flash("📁 Click \"Reconnect save folder\" to keep saving to \"" + diskLibrary.name + "\""); };
+    diskLibrary.listeners.add(onFolder);
+    // Ask the browser not to evict this origin's storage under disk pressure. Best effort; a
+    // refusal changes nothing about how the studio works.
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch { /* ignore */ }
+    setHasStore(ok);
+    diskLibrary.init().finally(() => { loadLibrary(); loadStamps(); readLevelIndexCount().then(setLevelCount); });
+    return () => { diskLibrary.listeners.delete(onFolder); };
   }, []); // eslint-disable-line
   useEffect(() => { setEmojis(buildEmojiList()); }, []);
   // Persist the active paint color + recent-colors history so they survive a reload — previously
@@ -15098,6 +15317,7 @@ export default function AssetStudio() {
           <button className="ltbtn saveRead" disabled={libraryLoading} onClick={() => { setLoadOpen(true); setLoadCategory(null); setLoadSub(null); }}>{libraryLoading ? "⏳ Loading your saves…" : "📂 Load (" + allAssets.length + " saved)"}</button>
           {libraryLoading && <p className="mini saveLoading">Your saved assets are still being read from this browser. Nothing has been cleared.</p>}
           <label className="openfile">⬆ Open a file<input type="file" accept=".json,application/json,text/plain" onChange={upload} hidden /></label>
+          {saveFolder !== "unsupported" && <button className={"ltbtn saveRead saveFolder" + (saveFolder === "ready" ? " on" : "")} disabled={libraryLoading} onClick={() => connectSaveFolder(saveFolder === "ready")} title={saveFolder === "ready" ? "Every save also goes to this folder on your disk. Click to pick a different one." : "Pick a folder on your disk; every save goes there too, and it survives a new preview address."}>{saveFolder === "ready" ? "📁 Save folder ✓ " + diskLibrary.name : saveFolder === "prompt" ? "📁 Reconnect save folder" : "📁 Save folder"}</button>}
           <button className="ltbtn saveRead" disabled={libraryLoading} onClick={exportAllAssets} title="Downloads everything you have made — assets, levels, stored groups, textures and backgrounds — as one backup file. Re-open that file here later to restore it all.">⬇ Export everything{libraryLoading ? " (loading…)" : " (" + library.length + " assets, " + Math.max(levelLib.length, levelCount) + " levels)"}</button>
           <h2>Niche controls</h2>
           <button className="ltbtn" onClick={() => setNiche(true)}>🩹 Recover layers from a dressed look</button>
@@ -19016,7 +19236,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .texseg button{padding:7px 9px;font-size:12px}
 .row2 .danger{border-color:#5a2e36;color:#ff9b9b}
 .ltbtn{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:8px 11px;cursor:pointer;font-size:13px}
-.ltbtn.saveRead:disabled{opacity:.55;cursor:wait}.saveLoading{max-width:360px;color:#f3d98a;background:#241b0d;border:1px solid #5c481d;border-radius:8px;padding:6px 8px}
+.ltbtn.saveRead:disabled{opacity:.55;cursor:wait}.ltbtn.saveFolder.on{border-color:#3f8f5a;color:#bfe8c9}.saveLoading{max-width:360px;color:#f3d98a;background:#241b0d;border:1px solid #5c481d;border-radius:8px;padding:6px 8px}
 .gname{background:#141824;border:1px solid #2c3245;border-radius:9px;padding:7px 9px;font-size:13px;color:inherit;width:110px}
 .stampShelf{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:6px;margin:7px 0;padding:7px 8px;background:#171b26;border:1px solid #2c3245;border-radius:10px;font-size:12px;color:#aeb6c9}
 .stampShelf select{min-width:0;width:100%;background:#141824;border:1px solid #2c3245;border-radius:8px;padding:7px 8px;color:inherit;font-size:12px}

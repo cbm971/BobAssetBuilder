@@ -183,6 +183,8 @@ import {
   boomLayout,
   levelShapeLabel,
   propVisibleArtBox,
+  diskLibrary,
+  mergeLibraries,
   shapeClipPath,
   NAME_COLLATOR,
   NUMERIC_COLLATOR,
@@ -9125,3 +9127,100 @@ describe("per-frame render caches (Trailor Park M7 lag, 2026-09-18)", () => {
   });
 });
 
+describe("the save folder on his disk (diskLibrary) and the two-backend merge", () => {
+  // An in-memory stand-in for a FileSystemDirectoryHandle with exactly the surface diskLibrary
+  // uses: getDirectoryHandle / getFileHandle / getFile / createWritable / entries / removeEntry /
+  // queryPermission / requestPermission. The real one only exists behind a native picker.
+  const fakeDir = (name) => {
+    const files = new Map(), dirs = new Map();
+    const d = {
+      name, kind: "directory", files, dirs,
+      queryPermission: async () => "granted", requestPermission: async () => "granted",
+      getDirectoryHandle: async (n, o) => { if (!dirs.has(n)) { if (!(o && o.create)) throw new Error("NotFoundError"); dirs.set(n, fakeDir(n)); } return dirs.get(n); },
+      getFileHandle: async (n, o) => {
+        if (!files.has(n)) { if (!(o && o.create)) throw new Error("NotFoundError"); files.set(n, ""); }
+        return { kind: "file", name: n, getFile: async () => ({ text: async () => files.get(n) }), createWritable: async () => { let buf = ""; return { write: async (t) => { buf += t; }, close: async () => { files.set(n, buf); } }; } };
+      },
+      entries: async function* () { for (const [n] of files) yield [n, { kind: "file", name: n }]; for (const [n, sub] of dirs) yield [n, sub]; },
+      removeEntry: async (n) => { if (!files.delete(n) && !dirs.delete(n)) throw new Error("NotFoundError"); },
+    };
+    return d;
+  };
+  const reset = () => { diskLibrary.handle = null; diskLibrary.state = "none"; diskLibrary.name = ""; diskLibrary.known = {}; diskLibrary.initP = null; };
+
+  test("mergeLibraries: newest save per id wins, dated beats undated, tombstones union, either side may be missing", () => {
+    const a = { assets: [{ id: "x", name: "old", savedAt: 10 }, { id: "u", name: "undated-a" }, { id: "only-a", savedAt: 5 }], levels: [], removed: { assets: ["dead1"] } };
+    const b = { assets: [{ id: "x", name: "new", savedAt: 20 }, { id: "u", name: "dated-b", savedAt: 1 }, { id: "only-b", savedAt: 7 }], levels: [{ id: "L", savedAt: 3 }], removed: { assets: ["dead2"], levels: ["deadL"] } };
+    const m = mergeLibraries(a, b);
+    expect(m.assets.find((r) => r.id === "x").name).toBe("new");
+    expect(m.assets.find((r) => r.id === "u").name).toBe("dated-b");       // a dated record beats an undated one
+    expect(m.assets.map((r) => r.id).sort()).toEqual(["only-a", "only-b", "u", "x"]);
+    expect(m.levels).toEqual([{ id: "L", savedAt: 3 }]);
+    expect(m.removed.assets.sort()).toEqual(["dead1", "dead2"]);
+    expect(m.removed.levels).toEqual(["deadL"]);
+    expect(m.stamps).toEqual([]);
+    // the older side never wins on a tie or when it is undated
+    const tie = mergeLibraries({ assets: [{ id: "x", name: "first", savedAt: 5 }] }, { assets: [{ id: "x", name: "second", savedAt: 5 }] });
+    expect(tie.assets[0].name).toBe("first");
+    const und = mergeLibraries({ assets: [{ id: "x", name: "dated", savedAt: 5 }] }, { assets: [{ id: "x", name: "undated" }] });
+    expect(und.assets[0].name).toBe("dated");
+    expect(mergeLibraries(null, b)).toBe(b);
+    expect(mergeLibraries(a, null)).toBe(a);
+    expect(mergeLibraries(null, null)).toBeNull();
+  });
+
+  test("with no picker in the browser the folder is 'unsupported' and every call is a quiet no-op", async () => {
+    reset(); delete window.showDirectoryPicker;
+    await diskLibrary.init();
+    expect(diskLibrary.state).toBe("unsupported");
+    expect(await diskLibrary.load()).toBeNull();
+    expect(await diskLibrary.save({ assets: [{ id: "a", savedAt: 1 }] })).toBe(false);
+    expect(await diskLibrary.forget("assets", ["a"])).toBe(false);
+  });
+
+  test("connect, save one file per record, load them back, tombstone on forget, revive on a deliberate save", async () => {
+    reset();
+    const root = fakeDir("BobOkaySaves");
+    window.showDirectoryPicker = async () => root;
+    expect(await diskLibrary.connect(true)).toBe("ready");
+    expect(diskLibrary.name).toBe("BobOkaySaves");
+    // an empty folder loads as an empty library, not null (it is connected)
+    const empty = await diskLibrary.load();
+    expect(empty.assets).toEqual([]); expect(empty.removed.levels).toEqual([]);
+    expect(await diskLibrary.save({ assets: [{ id: "a1", name: "Hat", type: "equipment", savedAt: 100 }], levels: [{ id: "L1", name: "M7", savedAt: 200 }] })).toBe(true);
+    expect([...root.dirs.get("assets").files.keys()]).toEqual(["a1.json"]);
+    expect([...root.dirs.get("levels").files.keys()]).toEqual(["L1.json"]);
+    expect(JSON.parse(root.dirs.get("levels").files.get("L1.json"))).toEqual({ id: "L1", name: "M7", savedAt: 200 });
+    const back = await diskLibrary.load();
+    expect(back.assets).toEqual([{ id: "a1", name: "Hat", type: "equipment", savedAt: 100 }]);
+    expect(back.levels.map((l) => l.id)).toEqual(["L1"]);
+    // the bulk sync after a load must not rewrite a record the folder already holds at that save
+    root.dirs.get("assets").files.set("a1.json", "MARKER");
+    await diskLibrary.save({ assets: [{ id: "a1", name: "Hat", type: "equipment", savedAt: 100 }] });
+    expect(root.dirs.get("assets").files.get("a1.json")).toBe("MARKER");
+    // ...but a newer save is written
+    await diskLibrary.save({ assets: [{ id: "a1", name: "Hat v2", type: "equipment", savedAt: 101 }] });
+    expect(JSON.parse(root.dirs.get("assets").files.get("a1.json")).name).toBe("Hat v2");
+    // a delete removes the file and records the tombstone
+    expect(await diskLibrary.forget("levels", ["L1"])).toBe(true);
+    expect(root.dirs.get("levels").files.has("L1.json")).toBe(false);
+    expect((await diskLibrary.load()).removed.levels).toEqual(["L1"]);
+    // a deliberate re-save takes the id back off the list
+    await diskLibrary.save({ levels: [{ id: "L1", name: "M7 again", savedAt: 300 }] }, { revive: true });
+    const again = await diskLibrary.load();
+    expect(again.removed.levels).toEqual([]);
+    expect(again.levels[0].name).toBe("M7 again");
+    // an unreadable file is skipped, not fatal
+    root.dirs.get("assets").files.set("junk.json", "{not json");
+    expect((await diskLibrary.load()).assets.map((a) => a.id)).toEqual(["a1"]);
+  });
+
+  test("closing the picker keeps the previous state; a cross-origin frame is reported as 'iframe'", async () => {
+    reset();
+    window.showDirectoryPicker = async () => { const e = new Error("cancelled"); e.name = "AbortError"; throw e; };
+    expect(await diskLibrary.connect(true)).toBe("none");
+    window.showDirectoryPicker = async () => { const e = new Error("Cross origin sub frames aren't allowed to show a file picker."); e.name = "SecurityError"; throw e; };
+    expect(await diskLibrary.connect(true)).toBe("iframe");
+    delete window.showDirectoryPicker; reset();
+  });
+});
