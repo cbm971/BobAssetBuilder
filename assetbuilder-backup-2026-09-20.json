@@ -1,5 +1,6 @@
 {
- "savedAt": "2026-09-20T12:40:17.066Z",
+ "assetBuilderBackup": 2,
+ "exportedAt": 1789908118232,
  "assets": [
   {
    "id": "08z1bbk",
@@ -798414,43 +798415,5 @@
     }
    }
   }
- ],
- "removed": {
-  "assets": [
-   "p7fgwn5",
-   "22rzo3a",
-   "jywgwxh",
-   "sjkt9ab",
-   "sjkt2v3",
-   "slczopv",
-   "vapbdy1",
-   "vapruf1",
-   "vapear1",
-   "trldoor",
-   "07xf2ax",
-   "xtacmka",
-   "lr5lwjb",
-   "bi2unc1",
-   "px71gv9",
-   "08u6n51",
-   "gtkxyy7",
-   "bxfumr5",
-   "4v1clhn",
-   "shcd2kh",
-   "v2gn2ew",
-   "a9t6jtr",
-   "5xt4ns2",
-   "czqtow5",
-   "igrxert"
-  ],
-  "levels": [
-   "qqnz4wz",
-   "1ix5fko",
-   "frnhxhz"
-  ],
-  "stamps": [],
-  "textures": [],
-  "backgrounds": [],
-  "dialogues": []
- }
+ ]
 }
