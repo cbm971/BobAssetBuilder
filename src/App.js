@@ -518,6 +518,17 @@ const projectLibrary = {
         if (d && Array.isArray(d.assets)) { projectLibrary.available = true; data = d; }
       }
     } catch { /* no dev server */ }
+    // THE PUBLISHED STUDIO (GitHub Pages, .github/workflows/pages.yml) has no dev server, so the
+    // committed library ships beside the app as a plain file and is the seed a brand-new browser
+    // restores from. Read-only: nothing is pushed back to it (`available` stays false, so a delete
+    // that only the browser and the save folder took is reported honestly), but its deleted-ids
+    // list still counts, exactly as the dev server's does.
+    if (!data) {
+      try {
+        const res = await fetch((process.env.PUBLIC_URL || "") + "/library.json");
+        if (res.ok) { const d = await res.json(); if (d && Array.isArray(d.assets)) data = d; }
+      } catch { /* not published with a seed either */ }
+    }
     let disk = null;
     try { disk = await diskLibrary.load(); } catch (e) { console.warn("[Bob] save folder could not be read: " + (e && e.message)); }
     return mergeLibraries(data, disk);
