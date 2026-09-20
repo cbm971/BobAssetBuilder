@@ -30,6 +30,9 @@ const wt = path.join(root, ".gh-pages-worktree");
 if (fs.existsSync(wt)) { try { run(`git worktree remove --force "${wt}"`); } catch { fs.rmSync(wt, { recursive: true, force: true }); } }
 // A fresh orphan branch every time: the site is a build product, its history is worthless, and a
 // growing gh-pages history would just bloat every clone.
+// The local gh-pages branch is left over from the previous publish (the orphan checkout below
+// creates it); a second run must not trip over it. The remote branch is what matters.
+try { execSync("git branch -D gh-pages", { cwd: root, stdio: "ignore" }); } catch { /* none yet */ }
 run(`git worktree add --detach "${wt}"`);
 run("git checkout --orphan gh-pages", { cwd: wt });
 run("git rm -rfq --cached .", { cwd: wt });
