@@ -561,8 +561,19 @@ facing the other way is ⇄ Flip on each placement; and the stage is drawn exact
 is a step (`rise <= CH`), not a jump, for the player and for enemies alike. Verified in Playtest: a
 character spawned above it settles with its feet on the stage row, not the floor.
 
-**WHY THE TRAILERS AND CARS "FLOAT ON THEIR WHEELS", and how `cnham60` (1960s Canned Ham, 2026-09-22)
-doesn't.** A placed prop's footprint top sits on a whole cell and its art is stretched to exactly
+**"THE WHEEL ISN'T ATTACHED" IS THE WHEEL-ARCH CUTTER, and the Canned Ham (`cnham60`, 2026-09-22) has
+a solid well instead.** Blake asked for a trailer without "the floating on wheels effect a lot of the
+existing cars and trailers have", and on seeing the first version clarified: "I meant the wheel wells
+… it's as if you have a wheel not attached to the trailer." Trailer 1-5 and the three 1960s cars all
+cut a see-through arch (a cutter circle a few units bigger than the tyre), so a ring of sky or level
+background shows all round the top of every wheel and the tyre reads as a loose disc beside the body.
+The Canned Ham draws NO arch cutter: a flat dark `#33302e` half-disc well (circle clipped at the chassis
+rail's bottom) goes over the body, and the `#2b2b2b` tyre sits in it, so the wheel tucks up into the
+body with no gap. That is the vehicle wheel idiom he wants from now on — do not copy the cars' arch
+cutter into anything new.
+
+**Separately, a prop can float for a second reason: fractional footprint rows.** A placed prop's
+footprint top sits on a whole cell and its art is stretched to exactly
 `rows = box.h * size / max(box.w, box.h)` — so when that is fractional, the art's bottom lands mid-cell
 and the tyres hang up to a cell above the floor (Trailer 5 at his size 24 is 11.03 rows: ~1 cell of
 air; Beetle 5.14 rows; Trailor 3's jack post reaches lower than its tyre, and Trailer 1's stray dot at
@@ -570,9 +581,9 @@ y=210 lifts it ~3 cells). The fix is in the DRAWING, not the code: the Canned Ha
 exactly **2:1** (190 x 95 units, x 6..196, y 75..170), so every even size is a whole number of rows
 (24 -> 24x12, its default; 20 -> 20x10; 30 -> 30x15), and six pieces end exactly on the ground line
 y=170 — the flat-bottomed tyre, three cinder blocks (tongue jack, door steps) and two stabiliser jack
-feet — so it reads as parked, not hovering. Verified in the running app: art bottom = floor top to the
-pixel, placed by click. A new ground prop should do the same: pick a width:height with an integer
-rows-per-size at the sizes it will be used at, and end every ground-touching piece on one y.
+feet. Verified in the running app: art bottom = floor top to the pixel, placed by click. A new ground
+prop should do the same: pick a width:height with an integer rows-per-size at the sizes it will be
+used at, and end every ground-touching piece on one y.
 
 **Object draw order is `z`, and every render pass must go through
 `levelObjectsInDrawOrder(fx)`.** It used to be `Object.keys(lv.fx)` order, which means
