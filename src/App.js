@@ -6424,6 +6424,77 @@ export const TEXTURES = {
       return out;
     },
   },
+  // ATOMIC WALLPAPER — the back wall of a 1960s bedroom, and the one texture here that is meant to
+  // look PRINTED. Everything else in this registry imitates a material with depth (grain, pile, a
+  // pane of glass); wallpaper is flat ink on paper, so it is drawn flat: a pastel ground and a
+  // scatter of the period's motifs — the thin-rayed starburst, the four-point sparkle, the
+  // boomerang and a few dots — each in its own editable colour.
+  //
+  // It has to repeat without reading as a grid, which real wallpaper solves with a HALF-DROP: the
+  // second column of motifs sits half a repeat lower than the first. Two motif sets, one on each
+  // diagonal of the tile, give exactly that at a 60px tile. Any motif close enough to an edge to
+  // cross it is also drawn a whole tile over on the far side (the carpet's fibre rule), so a
+  // starburst cut by the seam comes back whole instead of being clipped into a half-star.
+  //
+  // Busy adds the small stuff (dots, a second boomerang) without moving the big motifs, so the
+  // slider thickens the same print rather than reshuffling it.
+  atomicWallpaper: {
+    label: "Atomic wallpaper", icon: "✨", tile: [60, 60], base: "ground",
+    colors: [["ground", "Paper", "#bfe3d6"], ["star", "Starburst", "#f5f5dc"], ["sparkle", "Sparkle", "#daa520"], ["boom", "Boomerang", "#3f9c8c"], ["dot", "Dots", "#e8917d"]],
+    params: [
+      { key: "scale", label: "Motif size", min: 0.6, max: 1.4, step: 0.05, def: 1 },
+      { key: "busy", label: "Busy", min: 0, max: 1, step: 0.05, def: 0.5 },
+    ],
+    svg: (co, _t, pa) => {
+      const tw = 60, th = 60;
+      const k = Math.max(0.6, Math.min(1.4, pa.scale ?? 1));
+      const busy = Math.max(0, Math.min(1, pa.busy ?? 0.5));
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.ground);
+      // Draw fn(x, y) at (x, y) and at every whole-tile shift that brings a copy of radius r back
+      // across an edge.
+      const wrap = (x, y, r, fn) => {
+        for (const ox of [0, x - r < 0 ? tw : null, x + r > tw ? -tw : null]) {
+          if (ox === null) continue;
+          for (const oy of [0, y - r < 0 ? th : null, y + r > th ? -th : null]) if (oy !== null) out += fn(x + ox, y + oy);
+        }
+      };
+      // The thin-rayed starburst: eight rays of alternating length and a dot at the hub.
+      const starburst = (cx, cy) => {
+        let d = "";
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2 + 0.2, len = (i % 2 ? 5.5 : 9) * k;
+          d += `M${px(cx)},${px(cy)} L${px(cx + Math.cos(a) * len)},${px(cy + Math.sin(a) * len)} `;
+        }
+        return `<path d="${d.trim()}" stroke="${co.star}" stroke-width="${px(1.1 * k)}" stroke-linecap="round" fill="none"/>` +
+          `<circle cx="${px(cx)}" cy="${px(cy)}" r="${px(1.8 * k)}" fill="${co.star}"/>`;
+      };
+      // The four-point sparkle: a concave diamond, long points on the axes.
+      const sparkle = (cx, cy) => {
+        const o = 5 * k, n = 1.3 * k;
+        const pts = [[0, -o], [n, -n], [o, 0], [n, n], [0, o], [-n, n], [-o, 0], [-n, -n]].map(([x, y]) => px(cx + x) + "," + px(cy + y)).join(" ");
+        return `<polygon points="${pts}" fill="${co.sparkle}"/>`;
+      };
+      // The boomerang: two quadratic curves bowing the same way, thick in the middle and pointed
+      // at both tips, tilted so the print has a direction.
+      const boomerang = (cx, cy, turn) => {
+        const r = 6 * k, c = Math.cos(turn), s = Math.sin(turn);
+        const at = (x, y) => px(cx + x * c - y * s) + "," + px(cy + x * s + y * c);
+        return `<path d="M${at(-r, 0)} Q${at(0, -r * 1.25)} ${at(r, 0)} Q${at(0, -r * 0.45)} ${at(-r, 0)} Z" fill="${co.boom}"/>`;
+      };
+      const dot = (cx, cy) => `<circle cx="${px(cx)}" cy="${px(cy)}" r="${px(1.2 * k)}" fill="${co.dot}"/>`;
+      // Half-drop: set A on one diagonal, set B on the other.
+      wrap(15, 16, 10 * k, starburst);
+      wrap(45, 46, 10 * k, starburst);
+      wrap(44, 14, 6 * k, sparkle);
+      wrap(14, 44, 6 * k, sparkle);
+      wrap(31, 30, 8 * k, (x, y) => boomerang(x, y, -0.5));
+      if (busy > 0.35) wrap(3, 31, 8 * k, (x, y) => boomerang(x, y, 2.4));
+      const dots = [[29, 7], [57, 25], [7, 55], [36, 53], [22, 36], [52, 3], [2, 12], [40, 29]];
+      const nDots = Math.round(busy * dots.length);
+      for (let i = 0; i < nDots; i++) wrap(dots[i][0], dots[i][1], 2 * k, dot);
+      return out;
+    },
+  },
 };
 export const TEXTURE_KEYS = Object.keys(TEXTURES);
 // A texture painted onto an ART PIECE (a jacket panel, a sleeve) rather than a level cell. The

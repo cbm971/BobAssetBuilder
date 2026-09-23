@@ -2123,6 +2123,49 @@ describe("tie dye texture", () => {
   });
 });
 
+describe("atomic wallpaper texture", () => {
+  const render = (params, colors) => {
+    const t = newTexture("atomicWallpaper");
+    return TEXTURES.atomicWallpaper.svg({ ...t.colors, ...(colors || {}) }, TEXTURES.atomicWallpaper.tile, { ...t.params, ...(params || {}) });
+  };
+
+  test("is registered, so both the level and the piece pickers offer it", () => {
+    expect(TEXTURE_KEYS).toContain("atomicWallpaper");
+    expect(TEXTURES.atomicWallpaper.label).toBe("Atomic wallpaper");
+    expect(newTexture("atomicWallpaper").tex).toBe("atomicWallpaper");
+  });
+
+  test("the paper and every motif are their own editable colour", () => {
+    const t = newTexture("atomicWallpaper");
+    expect(Object.keys(t.colors).sort()).toEqual(["boom", "dot", "ground", "sparkle", "star"]);
+    const svg = render();
+    for (const c of Object.values(t.colors)) expect(svg).toContain(c);
+  });
+
+  test("a motif crossing the seam is drawn again on the far side, so the repeat has no half-stars", () => {
+    // The left boomerang sits 3 units from the left edge, well inside its own radius: without the
+    // wrap it would be cut off at the seam and never completed by its neighbour.
+    const svg = render({ busy: 1 });
+    const booms = (svg.match(/<path d="M[^"]*Z" fill=/g) || []);
+    expect(booms.length).toBeGreaterThan(2);
+    const xs = booms.map((b) => parseFloat(b.slice(b.indexOf("M") + 1)));
+    expect(xs.some((x) => x > 55)).toBe(true);   // the copy one tile to the right
+  });
+
+  test("Busy thickens the same print instead of reshuffling it", () => {
+    const calm = render({ busy: 0 }), busy = render({ busy: 1 });
+    expect((busy.match(/<circle /g) || []).length).toBeGreaterThan((calm.match(/<circle /g) || []).length);
+    // the big motifs do not move: every starburst in the calm print is still there, byte for byte
+    for (const star of calm.match(/<path d="M[^"]*" stroke=[^>]*>/g) || []) expect(busy).toContain(star);
+    // deterministic: the same settings redraw the same paper
+    expect(render({ busy: 1 })).toBe(busy);
+  });
+
+  test("Motif size scales the print", () => {
+    expect(render({ scale: 0.6 })).not.toBe(render({ scale: 1.4 }));
+  });
+});
+
 describe("stained glass texture", () => {
   const render = (params, colors) => {
     const t = newTexture("stainedGlass");

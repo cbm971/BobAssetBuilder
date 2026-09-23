@@ -947,6 +947,41 @@ side signature unchanged, W up to the pinned y 15 (= row 8's top edge - half a c
 the front pose with no crouch, the hop rising 87px and landing on y 454.8 exactly, and a sideways
 walk-off falling 51 frames to the street.
 
+**A ROOM CAN BE A TOP-DOWN FLOOR: Trailor Int5, the back bedroom (2026-09-22).** Blake's trailer
+interiors (Int1 kitchen, Int2 living room; Int3/Int4 are copies with an NPC) are one-point-perspective
+dioramas: solid Foreground side walls, a Background back wall and carpet, and a hideInPlay floor row
+the player walks along. Background ALWAYS draws at 42% over the grid (`.lcell.bg`), which is why the
+far surfaces read dim — that is the look, not a bug. Int5 keeps it (bright birch Foreground side walls
+and a curved ceiling, a dim Atomic-wallpaper back wall, his Yellow Carpet) and paints the whole
+carpet as a 🚶 Top-down plane (rows 13..22, cols 6..33), so W/S walk you around the room. Blake had
+held back from this because top-down "gets wonky around solid surfaces". What keeps it clean:
+* **Nothing solid on the plane, and nothing standing ON it at all.** There is no y-sorting, so a
+  piece placed mid-floor draws on the wrong side of a player walking behind it. Furniture stands
+  against the back wall with its foot on the back-wall line (y 12; the feet reach 12.5 at most),
+  the rug lies flat under the player, and the two foreground pieces (Snake Plant, Tripod Floor
+  Lamp, `lay: "front"`) sit in the front corners the fence keeps you out of.
+* **The plane's sides are FENCED, with full-height columns.** Walking sideways off a plane hands
+  you back to gravity (deliberate, for crosswalks — do not change it for rooms). A staircase of
+  fence cells along the perspective diagonal does not work: the body is 7 rows tall, so a fence
+  cell a few rows above the feet lands inside the body's columns and pins it far from the edge.
+  Int5 uses the solid side-wall blocks above the floor line and invisible (hideInPlay) blocks at
+  cols 5 and 34 below it; the two slanted ramp rows between need nothing, because the body always
+  overlaps a block above or below them.
+* **Plane bottom row 22, not 23** — topdownAt's half-cell slop lets the feet go half a cell past
+  the painted edge, and at 23 that is below the room. **The door sits at the front centre
+  (21,19)** — doorOverlapping tests the whole body box, so a door at the back would fire from half
+  the floor.
+Verified in the running app: spawn at the door onto the plane; W to feet 376 (the back-wall line);
+A and D stop the box on cols 6 / 34 at every depth with `topdown` held the whole way; S to the front;
+a hop lands back on its line; door and pedestal prompts fire only at their spots; the Lava Lamp
+cycles its 3 frames. New: the `atomicWallpaper` texture (registry), texture records Birch panelling
+`brchpn5` and Atomic wallpaper `atmwlp5`, and eleven props under 📂 Interior — 1960s Bed `bed60s1`,
+Nightstand Lamp `nstlmp1`, Mirror Dresser `drsrmr1`, Console TV `cnsltv1`, Sunburst Clock `snbrstc`,
+Lava Lamp `lvlamp1` (animated), Cafe Curtains `cfcrtn1`, Braided Rug `brdrug1`, Snake Plant
+`snkplnt`, Tripod Floor Lamp `trplmp1`, Sputnik Light `sptnklt` (`lay: "fg"`, so it draws over the
+Foreground ceiling). Each is drawn on an exact whole-cell box (the Canned Ham rule) so it sits on
+its line to the pixel. The whole set is also in `assets/trailer-bedroom-pack.json`.
+
 
 **A FRONT-LAYER OBJECT FADES WHEN YOU WALK BEHIND IT, AND THAT FADE HAS TO BE COMPOSITED.**
 `.lobj.infront` transitions `opacity`, and an un-promoted opacity transition is repainted by the
