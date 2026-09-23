@@ -561,6 +561,19 @@ facing the other way is ⇄ Flip on each placement; and the stage is drawn exact
 is a step (`rise <= CH`), not a jump, for the player and for enemies alike. Verified in Playtest: a
 character spawned above it settles with its feet on the stage row, not the floor.
 
+**WHY THE TRAILERS AND CARS "FLOAT ON THEIR WHEELS", and how `cnham60` (1960s Canned Ham, 2026-09-22)
+doesn't.** A placed prop's footprint top sits on a whole cell and its art is stretched to exactly
+`rows = box.h * size / max(box.w, box.h)` — so when that is fractional, the art's bottom lands mid-cell
+and the tyres hang up to a cell above the floor (Trailer 5 at his size 24 is 11.03 rows: ~1 cell of
+air; Beetle 5.14 rows; Trailor 3's jack post reaches lower than its tyre, and Trailer 1's stray dot at
+y=210 lifts it ~3 cells). The fix is in the DRAWING, not the code: the Canned Ham's visible art is
+exactly **2:1** (190 x 95 units, x 6..196, y 75..170), so every even size is a whole number of rows
+(24 -> 24x12, its default; 20 -> 20x10; 30 -> 30x15), and six pieces end exactly on the ground line
+y=170 — the flat-bottomed tyre, three cinder blocks (tongue jack, door steps) and two stabiliser jack
+feet — so it reads as parked, not hovering. Verified in the running app: art bottom = floor top to the
+pixel, placed by click. A new ground prop should do the same: pick a width:height with an integer
+rows-per-size at the sizes it will be used at, and end every ground-touching piece on one y.
+
 **Object draw order is `z`, and every render pass must go through
 `levelObjectsInDrawOrder(fx)`.** It used to be `Object.keys(lv.fx)` order, which means
 the order each *cell key* first entered the map — so dropping a prop onto a cell that
