@@ -827,6 +827,22 @@ export const tagDamageMultiplier = (effects, weaponCategories) => {
   }
   return mult;
 };
+// Piercing Shot: a ranged shot that doesn't stop at the first enemy it hits — it flies on
+// through, hitting every enemy in its path, until a wall, the level edge or its range ends it.
+// It comes from EITHER the weapon itself (its own 🪡 Piercing toggle) or a worn clothing item
+// with the Piercing Shot effect. Two sources, one behaviour, so the fire code asks this once.
+export const shotPierces = (weapon, effects) => !!(weapon && weapon.pierce) || (effects || []).some((e) => e.type === "pierce");
+// A piercing shot hits each target only ONCE on its way through — otherwise it would re-hit the
+// same enemy every frame it spends overlapping it (a slow arrow through a big enemy would land a
+// dozen hits). Returns whether `key` is a fresh target for this shot, and records it. A normal
+// shot is consumed on its first hit, so for it every target is fresh.
+export const pierceFreshHit = (pr, key) => {
+  if (!pr.pierce) return true;
+  if (!pr.hits) pr.hits = [];
+  if (pr.hits.includes(key)) return false;
+  pr.hits.push(key);
+  return true;
+};
 // Horizontal movement rule. On the ground (or on a ladder/bars) your speed is driven by the keys
 // AND remembered as momentum. In the air the keys do NOT steer you (no air control) — you keep
 // whatever horizontal momentum you left the ground with, so running and jumping carries you along,
@@ -1166,6 +1182,14 @@ const EFFECT_TYPES = {
       { key: "mult", label: "Damage ×", min: 1, max: 5, step: 0.25, def: 1.5 },
     ],
   },
+  // The clothing twin of a Ranged weapon's 🪡 Piercing toggle: while this is worn, EVERY shot
+  // you fire pierces, whatever gun you're holding. Same behaviour, second source (shotPierces).
+  pierce: {
+    label: "Piercing Shot", icon: "🪡",
+    blurb: "Your ranged shots don't stop at the first enemy they hit — they fly on through, hitting each enemy in their path once, until a wall stops them. Works with any Ranged weapon you hold, exactly like a weapon's own 🪡 Piercing toggle. A 💥 exploding shot still bursts on its first hit. No animation of its own.",
+    noAnim: true,
+    params: [],
+  },
 };
 // Live pedestal pickup: layer a taken equipment item's stat boosts / defense / effects onto the
 // player during Playtest. Mirrors assembleLook's stat/effect math (additive stat boosts, summed
@@ -1221,7 +1245,7 @@ export function newAsset(type, slot, wtype) {
   const a = { id: uid(), name: slot ? SLOTS[slot].label : (TYPES[type] ? TYPES[type].label : type), type, angles: blankAngles(), guideId: "default" };
   if (type === "body") { a.angles = JSON.parse(JSON.stringify(DEFAULT_BODY)); return withRig(a); }
   if (type === "skin") { a.stats = DEFAULT_STATS(); a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; }
-  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.stun = 0; a.categories = ["", "", ""]; }
+  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.pierce = false; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.stun = 0; a.categories = ["", "", ""]; }
   if (type === "enemy") { a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = 10; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; return withRig(a); }
   if (type === "equipment") { a.slot = slot; a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; a.statBoosts = DEFAULT_STAT_BOOSTS(); a.defense = 0; a.effects = []; a.categories = ["", "", ""]; }
   if (type === "projectile") { a.size = 1; }
@@ -2894,6 +2918,7 @@ export default function AssetStudio() {
     const slideEffect = (playerAsset?.effects || []).find((e) => e.type === "slide") || null;
     const slideResolved = slideState(slideEffect);
     const backGuardReduce = backGuardEffect ? (backGuardEffect.reduce ?? 0.5) : null; // null = no cape, skip the behind check entirely
+    const playerShotsPierce = shotPierces(playtestWeapon, playerAsset?.effects); // the weapon's own toggle OR a worn Piercing Shot item
     // Ranged weapon ammo: a fresh full clip each Playtest session (this effect re-runs whenever
     // Playtest starts/stops or the equipped weapon changes). Melee weapons get an "unlimited"
     // record (clip 0), so nothing below ever gates a swing on ammo.
@@ -3683,7 +3708,7 @@ export default function AssetStudio() {
                     char: ew.projectile?.char || "🔥", tint: ew.projectile?.tint || null,
                     pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece,
                     rot: shotAng * 180 / Math.PI, size: sizeUnits,
-                    damage: enemyAttackDamage(ea, ew), life: 0, foe: hostile,
+                    damage: enemyAttackDamage(ea, ew), life: 0, foe: hostile, pierce: shotPierces(ew, ea.effects),
                     explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
                   });
                 } else if (meleeGeom) {
@@ -3769,7 +3794,7 @@ export default function AssetStudio() {
             vx, vy,
             char: playtestWeapon.projectile?.char || "🔥", tint: playtestWeapon.projectile?.tint || null,
             pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
-            size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset?.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
+            size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset?.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect, pierce: playerShotsPierce,
             explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
           });
           wpn.current = consumeShot(wpn.current, fireCdFrames); // spends a round (unless clip 0 = unlimited) and starts the fire-rate cooldown
@@ -3985,7 +4010,7 @@ export default function AssetStudio() {
           if (pr.foe) {
             // Fired BY an enemy: tested against the player, never against other enemies (no
             // friendly fire), and it can't be dodged by the shooter's own crouch/jump logic.
-            if (prLeft < p.x + pw && prLeft + boxW > p.x && prTop < p.y + ph && prTop + boxH > p.y) {
+            if (prLeft < p.x + pw && prLeft + boxW > p.x && prTop < p.y + ph && prTop + boxH > p.y && pierceFreshHit(pr, "player")) {
               if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
               if (p.invuln <= 0) {
                 // For a projectile, "from behind" is decided by which way the shot is travelling
@@ -3997,9 +4022,8 @@ export default function AssetStudio() {
                 p.invuln = PLAYER_INVULN_FRAMES;
                 if (playerHP.current <= 0) { flash("💀 Shot down — back to the start."); p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; playerHP.current = maxPlayerHP(playerAsset); }
                 else flash("🏹 Hit for " + dmg + " (" + playerHP.current + " HP left)");
-                return false; // consumed on impact
-              }
-              return false; // struck an invulnerable player: still consumed, just does nothing
+                if (!pr.pierce) return false; // consumed on impact — a piercing shot flies on through
+              } else if (!pr.pierce) return false; // struck an invulnerable player: still consumed, just does nothing
             }
             // Brawl: an enemy shot can also hit one of YOUR friendly NPCs it flies into.
             for (const k of Object.keys(lv.enemies || {})) {
@@ -4009,11 +4033,11 @@ export default function AssetStudio() {
               const eShape = sideBodyShape(ea);
               const eRenderW = enemyRenderW(ea, CW), eph = ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
               const hitTop = ep.y + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
-              if (prLeft < ep.x + eRenderW && prLeft + boxW > ep.x && prTop < hitTop + hitH && prTop + boxH > hitTop) {
+              if (prLeft < ep.x + eRenderW && prLeft + boxW > ep.x && prTop < hitTop + hitH && prTop + boxH > hitTop && pierceFreshHit(pr, k)) {
                 if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - Math.max(1, pr.damage ?? 5));
                 if (enemyHP.current[k] <= 0) flash("💔 Your " + ea.name + " fell.");
-                return false;
+                if (!pr.pierce) return false;
               }
             }
           } else if (pr.resurrect) {
@@ -4032,7 +4056,7 @@ export default function AssetStudio() {
                 enemyHP.current[k] = ea.hp ?? 10;          // back on its feet, full HP
                 ep.friendly = true; ep.resurrectedOnce = true; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
                 flash("🔮 Raised " + ea.name + " — now fighting for you!");
-                return false;
+                if (!pr.pierce) return false; // a piercing staff shot flies on and can raise every body in its path
               }
             }
           } else {
@@ -4053,7 +4077,7 @@ export default function AssetStudio() {
             const eTop = ep ? ep.y : (er + 1) * CW - eph;
             const hitTop = eTop + eShape.topFrac * eph, hitH = eShape.heightFrac * eph;
             const overlap = prLeft < eLeft + eRenderW && prLeft + boxW > eLeft && prTop < hitTop + hitH && prTop + boxH > hitTop;
-            if (overlap) {
+            if (overlap && pierceFreshHit(pr, k)) {
               if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
               const base = Math.max(1, Math.round((pr.damage ?? 5) * (strength / 5)));
               const isCrit = Math.random() < Math.min(0.6, intelligence * 0.02);
@@ -4061,7 +4085,7 @@ export default function AssetStudio() {
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
               if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
               flash((isCrit ? "💥 Critical! " : "🎯 ") + "Hit " + ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
-              return false; // projectile consumed on impact
+              if (!pr.pierce) return false; // projectile consumed on impact — a piercing one flies on to the next enemy
             }
           }
           }
@@ -7899,6 +7923,7 @@ export default function AssetStudio() {
             <label className="slider">Clip size<input type="number" min="0" value={asset.clipSize ?? DEFAULT_CLIP_SIZE} onChange={(e) => setAsset((a) => ({ ...a, clipSize: Math.max(0, +e.target.value || 0) }))} style={{ width: 60 }} /><span className="hint2">0 = unlimited, never reloads</span></label>
             <label className="slider">Reload<input type="range" min="0.2" max="5" step="0.1" value={asset.reloadTime ?? DEFAULT_RELOAD_TIME} onChange={(e) => setAsset((a) => ({ ...a, reloadTime: +e.target.value }))} /><span className="hint2">{asset.reloadTime ?? DEFAULT_RELOAD_TIME}s</span></label>
             <label className="chk"><input type="checkbox" checked={!!asset.resurrect} onChange={(e) => setAsset((a) => ({ ...a, resurrect: e.target.checked }))} /> 🔮 Resurrect staff <span className="hint2">(its shot deals no damage — instead it raises a defeated body into a friendly NPC that fights for you. One body can only be raised once.)</span></label>
+            <label className="chk"><input type="checkbox" checked={!!asset.pierce} onChange={(e) => setAsset((a) => ({ ...a, pierce: e.target.checked }))} /> 🪡 Piercing <span className="hint2">(shots don't stop at the first enemy — they fly on through, hitting each enemy in their path once, until a wall stops them)</span></label>
             {!asset.resurrect && explodeCard()}
             <button className="ltbtn" onClick={addMuzzle}><b>🔴</b> Add muzzle (shot spawn point)</button>
             {!ANGLES.some((ang) => ((wState === "rest" ? asset.angles?.[ang] : asset.states?.rest?.[ang]) || []).some((p) => p.isMuzzle)) && (
