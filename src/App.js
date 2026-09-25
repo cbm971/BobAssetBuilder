@@ -924,6 +924,10 @@ export const weaponFireCooldownFrames = (fireRate) => Math.max(1, Math.round(60 
 export const DEFAULT_BOOM_CHAR = "💥";
 export const DEFAULT_LAND_CHAR = "🔥";
 export const DEFAULT_STUN_SECS = 1; // seconds a freshly added Stun ability freezes for
+export const DEFAULT_MELEE_BOOST = 3; // 🦍 Melee boost: a freshly added one triples your punch
+// What the 👊 Q/V swing is multiplied by with this weapon in hand. Only a RANGED weapon can carry
+// it (a melee weapon's swing is its own Damage number already), and anything <= 1 means off.
+export const meleeBoostOf = (weapon) => (weapon && isRanged(weapon.wtype) && (weapon.meleeBoost ?? 0) > 1) ? weapon.meleeBoost : 1;
 export const DEFAULT_CLUSTER_SCALE = 0.5; // how big a cluster bomblet is next to its parent — see CLUSTER_SPREAD_VX
 export const DEFAULT_BURST = 1;
 export const DEFAULT_BURST_DELAY = 0.06;
@@ -1254,6 +1258,15 @@ export const WEAPON_ABILITIES = {
     icon: "🪡", label: "Pierce", types: ["ranged"],
     blurb: "Shots don't stop at the first enemy — they fly on through everyone in their path, hitting each once, until the ground or a wall stops them. Mutually exclusive with Explode.",
     on: { pierce: true, explode: false }, off: { pierce: false },
+  },
+  // A gun you WEAR on your fists (the DK Arms): the 👊 Q/V swing you can throw without holstering
+  // it is normally a bare-handed 2-damage punch, whatever is in your hand. This multiplies it.
+  // A NUMBER switch like Burn/Cluster, so isOn reads it; 0 (or anything <= 1) is off.
+  meleeBoost: {
+    icon: "🦍", label: "Melee boost", types: ["ranged"],
+    blurb: "Your 👊 melee swing (Q / V) hits harder while this weapon is in your hand — your bare-handed damage times the boost. Made for weapons you wear on your arms, where the punch lands with the same fists that hold the gun.",
+    isOn: (a) => !!a && isRanged(a.wtype) && (a.meleeBoost ?? 0) > 1,
+    on: { meleeBoost: DEFAULT_MELEE_BOOST }, off: { meleeBoost: 0 },
   },
   ignoreArmor: {
     icon: "🗡️", label: "Ignore armor", types: ["ranged", "melee"],
@@ -11233,7 +11246,7 @@ export default function AssetStudio() {
                       ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories), strength)
                       : isCreatureUnit(basePlayerAsset)
                       ? creatureMeleeDamage(strength)
-                      : playerMeleeDamage(UNARMED_DAMAGE, strength);
+                      : playerMeleeDamage(UNARMED_DAMAGE * meleeBoostOf(playtestWeapon), strength); // 🦍 a Melee-boost gun (DK Arms) punches harder
                     const isCrit = Math.random() < critChance(intelligence);
                     const dmg = isCrit ? base * 2 : base;
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
@@ -11242,7 +11255,7 @@ export default function AssetStudio() {
                     // through somebody else. (Not p.hitRegistered — that would end the whole swing.)
                     p.swingHits[k] = true;
                     swingCrit = swingCrit || isCrit;
-                    swingArmedNote = (!unarmedSwing && playtestWeapon) ? "⚔️ " : "👊 ";
+                    swingArmedNote = (!unarmedSwing && playtestWeapon) ? "⚔️ " : meleeBoostOf(playtestWeapon) > 1 ? "🦍 " : "👊 ";
                     swingHitNotes.push(ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
                   }
                 }
@@ -13111,6 +13124,9 @@ export default function AssetStudio() {
         {on.map((k) => (
           <div key={k} className="abilrow">
             <div className="abilhead"><b>{WEAPON_ABILITIES[k].icon} {WEAPON_ABILITIES[k].label}</b><button className="ltbtn abilx" onClick={() => setAsset((a) => ({ ...a, ...WEAPON_ABILITIES[k].off }))} title={"Remove " + WEAPON_ABILITIES[k].label}>✕ Remove</button></div>
+            {k === "meleeBoost" && (
+              <label className="slider">Punch x<input type="range" min="1.5" max="6" step="0.5" value={asset.meleeBoost || DEFAULT_MELEE_BOOST} onChange={(e) => setAsset((a) => ({ ...a, meleeBoost: +e.target.value }))} /><span className="hint2">{(asset.meleeBoost || DEFAULT_MELEE_BOOST)}x — a 👊 {UNARMED_DAMAGE} becomes {Math.round(UNARMED_DAMAGE * (asset.meleeBoost || DEFAULT_MELEE_BOOST))} at Strength 5</span></label>
+            )}
             {k === "stun" && (
               <label className="slider">Freeze for<input type="range" min="0.25" max="5" step="0.25" value={asset.stun || DEFAULT_STUN_SECS} onChange={(e) => setAsset((a) => ({ ...a, stun: +e.target.value }))} /><span className="hint2">{(asset.stun || DEFAULT_STUN_SECS)}s</span></label>
             )}

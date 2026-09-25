@@ -147,6 +147,8 @@ import {
   weaponAbilitiesFor,
   shotPierces,
   pierceFreshHit,
+  meleeBoostOf,
+  DEFAULT_MELEE_BOOST,
   snapPiece,
   PIECE_STEP,
   MIN_PIECE_SIZE,
@@ -9371,5 +9373,30 @@ describe("🪡 Piercing — the weapon ability and the clothing effect are one b
     const piercingAgain = { ...nowExplosive, ...WEAPON_ABILITIES.pierce.on };
     expect(weaponAbilityKeys(piercingAgain)).toEqual(["pierce"]);
     expect(weaponAbilityOn({ ...piercingAgain, ...WEAPON_ABILITIES.pierce.off }, "pierce")).toBe(false);
+  });
+});
+
+describe("🦍 Melee boost — a gun worn on the fists punches harder", () => {
+  test("only a ranged weapon carries it, and anything at or under 1x is off", () => {
+    expect(meleeBoostOf({ wtype: "ranged", meleeBoost: 3 })).toBe(3);
+    expect(meleeBoostOf({ wtype: "projectile", meleeBoost: 2.5 })).toBe(2.5); // the old name for ranged
+    expect(meleeBoostOf({ wtype: "ranged", meleeBoost: 1 })).toBe(1);
+    expect(meleeBoostOf({ wtype: "ranged", meleeBoost: 0 })).toBe(1);
+    expect(meleeBoostOf({ wtype: "ranged" })).toBe(1);
+    expect(meleeBoostOf({ wtype: "melee", meleeBoost: 4 })).toBe(1); // a melee weapon swings its own Damage
+    expect(meleeBoostOf(null)).toBe(1);
+  });
+
+  test("the picker offers it to ranged weapons only, and add/remove round-trips", () => {
+    expect(weaponAbilitiesFor("ranged")).toContain("meleeBoost");
+    expect(weaponAbilitiesFor("melee")).not.toContain("meleeBoost");
+    expect(weaponAbilitiesFor("throw")).not.toContain("meleeBoost");
+    const gun = { wtype: "ranged", ...WEAPON_ABILITIES.meleeBoost.on };
+    expect(gun.meleeBoost).toBe(DEFAULT_MELEE_BOOST);
+    expect(weaponAbilityKeys(gun)).toEqual(["meleeBoost"]);
+    // It sits alongside Pierce — the DK Arms carry both.
+    const both = { ...gun, ...WEAPON_ABILITIES.pierce.on };
+    expect(weaponAbilityKeys(both).sort()).toEqual(["meleeBoost", "pierce"]);
+    expect(weaponAbilityOn({ ...both, ...WEAPON_ABILITIES.meleeBoost.off }, "meleeBoost")).toBe(false);
   });
 });

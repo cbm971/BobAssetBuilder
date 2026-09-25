@@ -65,7 +65,8 @@ each one comes with its own sliders. If one must be authored in the file, an ent
 `{ "id": "k3m9x2a", "type": "extraLives", "lives": 9, "animByBody": {}, "lastFit": "default" }`.
 Type keys: `doubleJump`, `backGuard`, `crouchGuard`, `glide`, `slide`, `tagBoost`, `tagLuck`,
 `rangeBoost`, `tackle`, `allyHP`, `magazineSize`, `extraLives` (🐱 get back up where you fell on
-1 HP instead of dying, `lives` 1–9). One of each type per item.
+1 HP instead of dying, `lives` 1–9), `pierce` (🪡 every shot flies through everyone in its path,
+with any ranged weapon — no params). One of each type per item.
 
 ---
 

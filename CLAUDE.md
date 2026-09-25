@@ -1594,6 +1594,26 @@ range and still backs off when crowded.
 **Weapon flags** live flat on the asset (`explode`, `ignoreArmor`, `burst`,
 `burstDelay`, `resurrect`, `stun`, …). Adding one means three places: the `newAsset`
 defaults, a `migrate` default so older saves get it, and the editor control.
+(`pierce` and `meleeBoost` skip the first two on purpose: absent reads as off.)
+
+**🦍 MELEE BOOST (`WEAPON_ABILITIES.meleeBoost`, `meleeBoostOf`, added 2026-09-25) — a ranged weapon
+you wear on your fists.** With a gun in hand, Q/V is the bare-handed pistol-whip: `UNARMED_DAMAGE`
+x Strength/5, whatever the gun. `meleeBoost` (a number, 1.5–6, default 3; <= 1 is off, like
+Burn/Cluster's numbers) multiplies that `UNARMED_DAMAGE` for as long as the weapon is held, and the
+hit flash reads 🦍 instead of 👊. Ranged only: a melee weapon's swing is its own Damage already.
+Built for the **DK Arms** (`dkarms1`), which also carries 🪡 Pierce. Verified in the running game:
+"🦍 Hit Billy for 6" at Strength 5 (2 x 3).
+
+**A ONE-ROUND gun can look loaded.** `weaponPoseFired` holds a `clipSize: 1` weapon on its FIRE art
+for the whole reload, so draw the projectile IN the Rest art and leave it out of Fire, and the
+weapon is visibly empty exactly while it reloads. The RPG does it with its rocket; the DK Arms do
+it with the barrel (Rest: fists wrapped round a barrel; Fire: open hands). Put the 🔴 muzzle marker
+on the held projectile's centre so the shot leaves from where it was drawn.
+
+**A fired Projectile renders in a square `size` cells across, pieces as % of the 200x260 canvas**
+(not `prepFlyingArt` — that is throwables). Art drawn at body scale comes out tiny: the first
+Barrel was drawn 58 units wide and flew as a ~10px speck. Fill the canvas and set the size with
+Scale instead (the Barrel is 174x208 at size 2.2).
 
 **A UNIT'S HIT BOX STARTS AT `unitHitTop`, NEVER AT `ep.y + topFrac * eph`.** The renderer pushes
 every sprite DOWN so the art's floor line sits on the terrain (`eAnchor`), and the HP bar with it;
