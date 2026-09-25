@@ -145,6 +145,8 @@ import {
   cutterMaskFrameLayout,
   advanceAutoReloadWeapon,
   weaponAbilitiesFor,
+  shotPierces,
+  pierceFreshHit,
   snapPiece,
   PIECE_STEP,
   MIN_PIECE_SIZE,
@@ -9334,5 +9336,40 @@ describe("cutter holes as per-piece clips (cutterHoleClip, 2026-09-20)", () => {
     const drawPiece = (p, key, cutters) => { seen.push([p.id, cutters ? cutters.map((c) => c.id) : null]); return null; };
     renderPieceRuns({ pieces: [{ id: "below" }, { id: "hole", isCutter: true }, { id: "above" }], keyPrefix: "t", drawPiece });
     expect(seen).toEqual([["below", ["hole"]], ["above", null]]);
+  });
+});
+
+describe("🪡 Piercing — the weapon ability and the clothing effect are one behaviour", () => {
+  test("a shot pierces from the weapon's own Pierce OR a worn Piercing Shot, and from neither otherwise", () => {
+    expect(shotPierces({ pierce: true }, [])).toBe(true);
+    expect(shotPierces({ pierce: false }, [{ type: "pierce" }])).toBe(true); // clothing works on any gun
+    expect(shotPierces(null, [{ type: "pierce" }])).toBe(true);
+    expect(shotPierces({ pierce: false }, [{ type: "rangeBoost" }])).toBe(false);
+    expect(shotPierces(undefined, undefined)).toBe(false);
+  });
+
+  test("a piercing shot lands on each body once; a normal shot treats every body as fresh", () => {
+    const pr = { pierce: true };
+    expect(pierceFreshHit(pr, "11,14")).toBe(true);
+    expect(pierceFreshHit(pr, "11,14")).toBe(false); // still inside the same enemy next frame
+    expect(pierceFreshHit(pr, "11,19")).toBe(true);  // the one behind it
+    expect(pierceFreshHit(pr, "player")).toBe(true);
+    const plain = {};
+    expect(pierceFreshHit(plain, "11,14")).toBe(true);
+    expect(pierceFreshHit(plain, "11,14")).toBe(true);
+    expect(plain.hits).toBeUndefined();
+  });
+
+  test("Pierce is a ranged ability, and it and Explode can't both be on", () => {
+    expect(weaponAbilitiesFor("ranged")).toContain("pierce");
+    expect(weaponAbilitiesFor("melee")).not.toContain("pierce");
+    expect(weaponAbilitiesFor("throw")).not.toContain("pierce");
+    const piercing = { wtype: "ranged", ...WEAPON_ABILITIES.pierce.on };
+    expect(weaponAbilityKeys(piercing)).toEqual(["pierce"]);
+    const nowExplosive = { ...piercing, ...WEAPON_ABILITIES.explode.on };
+    expect(weaponAbilityKeys(nowExplosive)).toEqual(["explode"]);
+    const piercingAgain = { ...nowExplosive, ...WEAPON_ABILITIES.pierce.on };
+    expect(weaponAbilityKeys(piercingAgain)).toEqual(["pierce"]);
+    expect(weaponAbilityOn({ ...piercingAgain, ...WEAPON_ABILITIES.pierce.off }, "pierce")).toBe(false);
   });
 });
