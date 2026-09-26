@@ -444,6 +444,23 @@ import {
   UNIT_STATUS_Z,
   HP_BAR_HOT_MS,
 } from "./App";
+import {
+  DEFAULT_HOLD_ANGLE,
+  cleanHold,
+  enemyHoldPoint,
+  enemyHoldAngle,
+  enemyDefaultHoldPoint,
+  enemyHoldArm,
+  holdRestRot,
+  unitHoldArm,
+  armAimAbsFacing,
+  armForwardSign,
+  mirrorHeldArt,
+  spriteCanvasPointToWorld,
+  enemyAimArm,
+  muzzleLocalPoint,
+  armPivotSign,
+} from "./App";
 
 /* 🎲 A GEAR TAG ON A PLACEMENT. The point of the feature is that six copies of one guard are six
    loadouts, so what matters here is (a) the pool is the same pedestal search minus the things an
@@ -9598,5 +9615,160 @@ describe("🦍 Melee boost — a gun worn on the fists punches harder", () => {
     const both = { ...gun, ...WEAPON_ABILITIES.pierce.on };
     expect(weaponAbilityKeys(both).sort()).toEqual(["meleeBoost", "pierce"]);
     expect(weaponAbilityOn({ ...both, ...WEAPON_ABILITIES.meleeBoost.off }, "meleeBoost")).toBe(false);
+  });
+});
+
+describe("✋ Enemies hold a weapon the right way round, at a hold point", () => {
+  // A rifle drawn the way every rest pose in Blake's library is: hanging DOWN from Bob's side hand
+  // (97,177), stock above the grip, barrel below, the 🔴 muzzle at the barrel tip.
+  const HAND = { x: 97, y: 177 };
+  const rifle = [
+    { id: "stock", kind: "rect", x: 93, y: 150, w: 8, h: 27, color: "#333" },
+    { id: "barrel", kind: "rect", x: 95, y: 177, w: 4, h: 60, color: "#222" },
+    { id: "mz", kind: "circle", x: 92, y: 232, w: 10, h: 10, isMuzzle: true },
+  ];
+  const grip = { id: "g", kind: "rect", x: HAND.x - 1, y: HAND.y - 1, w: 2, h: 2 }; // a dot ON the grip
+  const centre = (p) => ({ x: p.x + p.w / 2, y: p.y + p.h / 2 });
+  // A Squirrel-shaped enemy: drawn facing LEFT (no faceRight), no arm, head at the left.
+  const squirrelArt = () => [
+    { id: "body", kind: "circle", x: 40, y: 100, w: 70, h: 46 },
+    { id: "head", kind: "circle", x: 22, y: 80, w: 34, h: 34 },
+    { id: "tail", kind: "stadium", x: 110, y: 42, w: 50, h: 100 },
+    { id: "l1", kind: "rect", x: 50, y: 136, w: 8, h: 10, limb: "leg" },
+    { id: "l2", kind: "rect", x: 92, y: 136, w: 8, h: 10, limb: "leg" },
+  ];
+  const squirrel = (extra) => ({ id: "sq", type: "enemy", angles: { side: squirrelArt() }, ...extra });
+
+  test("the aim angle and swing direction are mirrored for left-facing art, identical for right-facing", () => {
+    for (const pv of ["top", "bottom", "left", "right"]) {
+      expect(armAimAbsFacing(pv, true)).toBe(armAimAbs(pv)); // every dressed look: untouched
+      expect(armForwardSign(pv, true)).toBe(armPivotSign(pv));
+      expect(armForwardSign(pv, false)).toBe(-armPivotSign(pv));
+    }
+    expect(armAimAbsFacing("top", false)).toBe(90);
+    expect(armAimAbsFacing("bottom", false)).toBe(-90);
+    expect(armAimAbsFacing("left", false)).toBe(180);
+    expect(armAimAbsFacing("right", false)).toBe(0);
+  });
+
+  test("CONTROL: the old attach points a left-facing Squirrel's rifle out of its back", () => {
+    // What the render did before: the invisible stand-in arm, lifted to armAimAbs, and the rifle's
+    // art attached exactly as drawn for right-facing Bob.
+    const arm = enemyAimArm(squirrelArt());
+    const aimed = { ...arm, rot: armAimAbs(arm.armPivot) };
+    const shoulderX = arm.x + arm.w / 2;
+    const mz = muzzleLocalPoint(attachWeaponBlocks(rifle, aimed, HAND, 0));
+    // Its head is on the LEFT (x 22); the barrel ends up to the RIGHT of the shoulder, tail-side.
+    expect(mz.x).toBeGreaterThan(shoulderX + 20);
+  });
+
+  test("aiming, the barrel points FORWARD on either facing, as exact mirror images of each other", () => {
+    const pt = { x: 60, y: 80 };
+    const tipFor = (facesRight) => {
+      const hold = enemyHoldArm(pt, 0);
+      const arm = { ...hold, rot: armAimAbsFacing(hold.armPivot, facesRight) };
+      const art = facesRight ? rifle : mirrorHeldArt(rifle, HAND.x);
+      return muzzleLocalPoint(attachWeaponBlocks(art, arm, HAND, 0));
+    };
+    const r = tipFor(true), l = tipFor(false);
+    expect(r.x).toBeGreaterThan(pt.x + 40); // right-facing art: forward is +x
+    expect(l.x).toBeLessThan(pt.x - 40);    // left-facing art: forward is -x
+    expect(l.x - pt.x).toBeCloseTo(-(r.x - pt.x), 0);
+    expect(l.y).toBeCloseTo(r.y, 0);
+    expect(Math.abs(r.y - pt.y)).toBeLessThan(6); // level
+  });
+
+  test("the grip stays ON the hold point however the weapon is turned", () => {
+    const pt = { x: 150, y: 50 }; // the tip of a tail, up over the back
+    for (const rot of [0, 45, 90, -90, 180]) {
+      const [g] = attachWeaponBlocks([grip], enemyHoldArm(pt, rot), HAND, 0);
+      expect(centre(g).x).toBeCloseTo(pt.x, 6);
+      expect(centre(g).y).toBeCloseTo(pt.y, 6);
+    }
+  });
+
+  test("idle, holdAngle 90 holds it level and forward; 0 hangs it the way Bob's rest pose is drawn", () => {
+    const pt = { x: 60, y: 80 };
+    const tip = (ea, facesRight) => {
+      const art = facesRight ? rifle : mirrorHeldArt(rifle, HAND.x);
+      return muzzleLocalPoint(attachWeaponBlocks(art, enemyHoldArm(pt, holdRestRot(ea, facesRight)), HAND, 0));
+    };
+    expect(enemyHoldAngle({})).toBe(DEFAULT_HOLD_ANGLE);
+    expect(DEFAULT_HOLD_ANGLE).toBe(90);
+    expect(tip({}, false).x).toBeLessThan(pt.x - 40); // left-facing: forward is -x
+    expect(tip({}, true).x).toBeGreaterThan(pt.x + 40);
+    const hang = { holdAngle: 0 };
+    expect(tip(hang, false).y).toBeGreaterThan(pt.y + 40); // straight down, as drawn
+    expect(Math.abs(tip(hang, false).x - pt.x)).toBeLessThan(6);
+    expect(enemyHoldAngle({ holdAngle: 500 })).toBe(180);
+    expect(enemyHoldAngle({ holdAngle: NaN })).toBe(DEFAULT_HOLD_ANGLE);
+  });
+
+  test("a hold point is per pose, and Crouch falls back to Side's", () => {
+    const ea = squirrel({ holdPoint: { side: { x: 150, y: 50 } } });
+    expect(enemyHoldPoint(ea, "side")).toEqual({ x: 150, y: 50 });
+    expect(enemyHoldPoint(ea, "crouch")).toEqual({ x: 150, y: 50 });
+    const own = squirrel({ holdPoint: { side: { x: 150, y: 50 }, crouch: { x: 148, y: 60 } } });
+    expect(enemyHoldPoint(own, "crouch")).toEqual({ x: 148, y: 60 });
+    expect(enemyHoldPoint(squirrel({}), "side")).toBeNull();
+    // Only an Enemy-creator asset has one: a dressed look holds with its arm.
+    expect(enemyHoldPoint({ type: "character", holdPoint: { side: { x: 1, y: 1 } } }, "side")).toBeNull();
+  });
+
+  test("cleanHold drops anything that is not a finite point and clamps to the canvas", () => {
+    expect(cleanHold({ side: { x: 10, y: 20 }, crouch: { x: NaN, y: 3 }, up: "x", attack: { x: 999, y: -5 } }))
+      .toEqual({ side: { x: 10, y: 20 }, attack: { x: 200, y: 0 } });
+    expect(cleanHold(null)).toEqual({});
+    expect(cleanHold([1, 2])).toEqual({});
+  });
+
+  test("with no point set, an armless animal holds at the front of its upper body, not mid-tail", () => {
+    const ea = squirrel({});
+    const art = squirrelArt();
+    const hold = unitHoldArm(ea, "side", art);
+    expect(hold && hold.__hold).toBe(true);
+    // bbox x 22..160, y 42..146: 15% in from the LEFT (its front), 45% down — its mouth.
+    expect(hold.x).toBe(Math.round(22 + 138 * 0.15));
+    expect(hold.y).toBe(Math.round(42 + 104 * 0.45));
+    // The same drawing facing right is held 15% in from the right.
+    expect(enemyDefaultHoldPoint(art, true).x).toBe(Math.round(160 - 138 * 0.15));
+    // A set point wins.
+    const set = unitHoldArm(squirrel({ holdPoint: { side: { x: 150, y: 50 } } }), "side", art);
+    expect([set.x, set.y]).toEqual([150, 50]);
+  });
+
+  test("an enemy with a drawn arm keeps holding with it until it is given a point; a dressed look always does", () => {
+    const art = [...squirrelArt(), { id: "arm", kind: "rect", x: 40, y: 90, w: 10, h: 40, role: "weaponArm", limb: "arm", armPivot: "top" }];
+    const armed = { id: "ar", type: "enemy", angles: { side: art } };
+    expect(unitHoldArm(armed, "side", art)).toBeNull();
+    expect(unitHoldArm({ ...armed, holdPoint: { side: { x: 30, y: 70 } } }, "side", art)).not.toBeNull();
+    expect(unitHoldArm({ type: "character", angles: { side: [] } }, "side", [])).toBeNull();
+  });
+
+  test("mirrorHeldArt mirrors about the grip, swaps a sideways pivot, and undoes itself", () => {
+    const art = [{ id: "a", kind: "rect", x: 100, y: 170, w: 30, h: 6, rot: 20, armPivot: "left", limb: "arm" }];
+    const [m] = mirrorHeldArt(art, HAND.x);
+    expect(m.x + m.w / 2 - HAND.x).toBeCloseTo(-(art[0].x + art[0].w / 2 - HAND.x), 0);
+    expect(m.rot).toBe(340);
+    expect(m.armPivot).toBe("right");
+    const [back] = mirrorHeldArt([m], HAND.x);
+    expect(back.x).toBe(art[0].x);
+    expect(back.armPivot).toBe("left");
+    expect(((back.rot % 360) + 360) % 360).toBe(20);
+  });
+
+  test("a canvas point reaches the world the way the sprite wrapper draws it", () => {
+    const box = { left: 100, top: 50, renderW: 80, boxH: 104, anchor: 10, flip: false };
+    expect(spriteCanvasPointToWorld({ x: 50, y: 130 }, box)).toEqual({ x: 120, y: 50 + 10 + 52 });
+    expect(spriteCanvasPointToWorld({ x: 50, y: 130 }, { ...box, flip: true }).x).toBe(160);
+    // A ducking box is shorter than its art: a point is un-squashed about the floor line, so the
+    // floor itself does not move and anything above it rises back to its true height.
+    const duck = { ...box, boxH: 60 };
+    const floorY = duck.top + duck.anchor + spriteFloorY(duck.boxH, duck.anchor);
+    const onFloor = { x: 0, y: ((duck.boxH - duck.anchor) / duck.boxH) * 260 };
+    expect(spriteCanvasPointToWorld(onFloor, duck).y).toBeCloseTo(floorY, 6);
+    const k = spriteUnsquashY(duck.renderW, duck.boxH);
+    const head = spriteCanvasPointToWorld({ x: 0, y: 0 }, duck);
+    expect(floorY - head.y).toBeCloseTo((floorY - (duck.top + duck.anchor)) * k, 6);
   });
 });

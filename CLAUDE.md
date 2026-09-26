@@ -1876,6 +1876,40 @@ Park M1 has five Pit Bulls in it**. Defense still applies on top (10 Defense hal
 is the intended shape of the change — but if a level suddenly reads as unfair, this is why, and the
 dial to turn is that creature's 💪 Strength, not the constant.
 
+**AN ANIMAL HOLDING A GUN: IT FACES LEFT, AND IT HOLDS IT AT A ✋ HOLD POINT** (2026-09-26). A
+placement's weapon picker, or a `gearTag` roll (the T1 Squirrels in Trailor Park M7–M9), can hand
+ANY enemy a weapon. That began as a bug; Blake is keeping it ("think of like a squirrel holding an
+M16 with its tail"). Do not "fix" it by stopping animals from carrying things. Two faults were
+underneath his "wrong direction and in a weird place":
+
+* **Direction.** Every weapon is drawn against a BODY (the weapon editor's "Design for body" lists
+  bodies only), and a body's Side pose faces RIGHT. Animals face LEFT. The art was attached as drawn
+  and the aim drove the arm to `armAimAbs`, which is forward only for right-facing art, so the nose
+  pointed at you and the rifle pointed out of its back. Now, whenever `enemyArtFacesRight` is false,
+  the held art is mirrored about its grip (`mirrorHeldArt`) and every arm angle is mirrored too
+  (`armAimAbsFacing`, `armForwardSign`). Both are identities for right-facing art, so every dressed
+  look takes exactly the code path it always did. This covers the living sprite, the grenade in the
+  hand, and the corpse.
+* **Place.** An armless enemy used to get `enemyAimArm`, an invisible arm in the middle of its
+  bounding box (between the Squirrel's back and its tail). The rest pose then hung straight down off
+  it and through the floor. Now an Enemy-creator asset can carry `holdPoint[pose] = {x, y}` plus
+  `holdAngle` (degrees; default 90, which is level and forward). `unitHoldArm` is the one reader. It
+  makes a ZERO-LENGTH arm at the point, so every aim, swing or throw turns the weapon ABOUT the
+  grip and never moves the grip. Crouch falls back to Side's point. With no point set and no drawn
+  arm, `enemyDefaultHoldPoint` puts it at the mouth (15% in from the leading edge of the art, 45%
+  down). An enemy WITH a drawn 💪 arm and no point keeps holding with its arm.
+* **Editor:** a ✋ Weapon hold card, shown on Side and Crouch only (the two poses a unit ever holds a
+  weapon in). The orange ✋ marker on the canvas IS the control. Dragging it always writes that
+  pose's own point; the checkbox clears it. The Preview picker draws a weapon at the point through
+  the same `unitHoldArm` + attach the game uses. It lives in editor state and is never saved.
+* **Shots leave the barrel** for a unit on a hold point (`enemyHeldMuzzleAt`, via
+  `spriteCanvasPointToWorld`). The old spawn at 42% of the box put every Squirrel bullet in the air
+  above its head. Everyone else (dressed looks, drawn-arm enemies) still fires from the chest,
+  unchanged.
+* Measured in Playtest with the old code as a control: facing left, the old gun sat 412–463 px
+  against a body at 380–454, i.e. out of the back. With the fix it sits at 361–408, past the nose.
+  Facing right, the fix mirrors correctly. Shots started within 10 px of the drawn barrel tip.
+
 **A CROUCHING UNIT'S BOX IS NOT THE SHAPE OF ITS ART, AND THAT SQUASHED THE GUN.** Sprite pieces
 are laid out as percentages of their wrapper, so the wrapper's box IS the scale: horizontally
 `renderW/W`, vertically `boxH/H`. Standing, those are equal by construction — `PLAYER_RENDER_W_CELLS`

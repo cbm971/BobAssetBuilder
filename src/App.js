@@ -715,6 +715,108 @@ export const enemyAimArm = (blocks) => {
     x: Math.round(cx - w / 2), y: Math.round(shoulderY), w, h, armPivot: "top", rot: 0,
     color: "transparent" }; // invisible: it exists only to carry the aim geometry + hand point
 };
+// ---- WHERE AN ENEMY HOLDS ITS WEAPON, AND WHICH WAY IT POINTS (added 2026-09-26) ----------------
+// Blake: "When they get a weapon they always hold it the wrong direction and in a weird place ...
+// think of like a squirrel holding an M16 with its tail." Any enemy can be handed a weapon by its
+// placement (the Level Creator's per-spawn picker) — that started as a bug and is staying as a
+// feature — and an ANIMAL, an Enemy-creator asset with no drawn arm, got it wrong in two ways.
+//
+// WRONG DIRECTION. Every weapon is drawn in the weapon editor against a BODY (the "Design for body"
+// picker lists bodies only), and a body's Side pose faces RIGHT. Blake's animals are drawn facing
+// LEFT (enemyArtFacesRight). The weapon's art was attached to them exactly as drawn, and the aim
+// pose drove the arm to armAimAbs — level and forward for right-facing art, which on a left-facing
+// drawing is level and BACKWARDS. The wrapper's scaleX(-1) then points the whole sprite at you, so
+// the nose faced you and the rifle faced the other way. Fix: for left-facing art, mirror the
+// WEAPON's art about its grip (mirrorHeldArt) and mirror every angle the arm is driven to
+// (armAimAbsFacing, armForwardSign). Mirroring both is exact — the result is the mirror image of
+// what a right-facing sprite would draw, so it cannot drift from the art the weapon was drawn for.
+// Right-facing art (every dressed look, every body) takes the identity path and is untouched.
+//
+// WEIRD PLACE. With no arm to hold it, enemyAimArm invents an invisible one in the middle of the
+// bounding box — for the Squirrel that is between its back and its tail — and hangs the weapon's
+// rest pose off it pointing straight DOWN (a pose drawn for a person's hanging arm), through the
+// floor. So an enemy now has a ✋ HOLD POINT: holdPoint[pose] = a canvas {x, y}, dragged into place
+// in the Enemy creator. The weapon's grip goes exactly there and turns ABOUT it — held at holdAngle
+// while idle, level and forward while aiming, through the arc while swinging. A tail, a mouth, a
+// trunk, a turret mount. An enemy with no point set and no drawn arm gets enemyDefaultHoldPoint,
+// its mouth, held level — which is what every animal already handed a gun now
+// does instead of the dangle. An enemy WITH a drawn 💪 arm and no point keeps using its arm.
+export const DEFAULT_HOLD_ANGLE = 90;
+const holdPtOk = (v) => !!v && typeof v === "object" && typeof v.x === "number" && isFinite(v.x) && typeof v.y === "number" && isFinite(v.y);
+// Same contract as cleanGround: anything that is not a finite point is dropped, never kept as a
+// half-written one that would park the weapon at NaN.
+export const cleanHold = (h) => {
+  const out = {};
+  if (h && typeof h === "object" && !Array.isArray(h)) for (const k of Object.keys(h)) if (holdPtOk(h[k])) out[k] = { x: Math.max(0, Math.min(W, h[k].x)), y: Math.max(0, Math.min(H, h[k].y)) };
+  return out;
+};
+// The pose's own point, else Side's — an animal's Crouch is the same drawing as its Side, so one
+// point set on Side covers both until Crouch is given one of its own.
+export const enemyHoldPoint = (ea, poseKey) => {
+  const h = ea && ea.type === "enemy" && ea.holdPoint && typeof ea.holdPoint === "object" ? ea.holdPoint : null;
+  const v = h ? (holdPtOk(h[poseKey]) ? h[poseKey] : holdPtOk(h.side) ? h.side : null) : null;
+  return v ? { x: Math.max(0, Math.min(W, v.x)), y: Math.max(0, Math.min(H, v.y)) } : null;
+};
+// How the weapon sits while the unit is NOT aiming, in degrees. Written the way the aim pose turns:
+// +90 swings a weapon drawn hanging from the hand — which is how every rest pose in Blake's library
+// is drawn — up to level and pointing FORWARD. 0 is the rest pose exactly as drawn for Bob.
+export const enemyHoldAngle = (ea) => { const v = ea && ea.holdAngle; return typeof v === "number" && isFinite(v) ? Math.max(-180, Math.min(180, v)) : DEFAULT_HOLD_ANGLE; };
+// Where an animal would carry something with nobody showing it: its MOUTH, as near as a bounding box
+// can say — 15% in from the leading edge of the drawing and 45% of the way down. On the Squirrel that
+// is its snout (the box's top is the tip of its tail), on a Pit Bull its jaw, on the Elaphant its
+// trunk. A quarter in and three tenths down was tried first and sat the rifle on top of its head.
+export const enemyDefaultHoldPoint = (blocks, facesRight) => {
+  const list = (blocks || []).filter((b) => b && !b.isHitbox && !b.isMuzzle && !b.__synthArm);
+  if (!list.length) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const b of list) { minX = Math.min(minX, b.x); minY = Math.min(minY, b.y); maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h); }
+  const bw = maxX - minX, bh = maxY - minY;
+  return { x: Math.round(facesRight ? maxX - bw * 0.15 : minX + bw * 0.15), y: Math.round(minY + bh * 0.45) };
+};
+// A zero-length stand-in arm AT the hold point: its shoulder and its hand are the same point, so
+// every rotation the aim/swing pipeline gives it turns the weapon about the grip and moves the grip
+// nowhere. Tagged __hold so the renderer knows no drawn arm piece should follow it around.
+export const enemyHoldArm = (pt, rot) => ({ id: "__enemyHoldArm", __synthArm: true, __hold: true, kind: "rect", role: "weaponArm", limb: "arm",
+  x: pt.x, y: pt.y, w: 0, h: 0, armPivot: "top", rot: rot || 0, color: "transparent" });
+// The hold arm's idle rotation in the ART's frame: a top-pivot arm turns forward with a NEGATIVE
+// rot on right-facing art (armAimAbs is -90) and a positive one on left-facing art.
+export const holdRestRot = (ea, facesRight) => (facesRight ? -1 : 1) * enemyHoldAngle(ea);
+// The hold arm a unit uses for this pose, or null to hold it the way it always has (its drawn arm,
+// or enemyAimArm). ONE answer, read by the sprite and by the barrel the AI fires from. `poseArt` is
+// the pose's baked art BEFORE any walk swing, so the default point does not wander with the legs.
+export const unitHoldArm = (ea, poseKey, poseArt) => {
+  if (!ea || ea.type !== "enemy") return null;
+  const facesRight = enemyArtFacesRight(ea);
+  const pt = enemyHoldPoint(ea, poseKey) || (flaggedArmOf(poseArt) ? null : enemyDefaultHoldPoint(poseArt, facesRight));
+  return pt ? enemyHoldArm(pt, holdRestRot(ea, facesRight)) : null;
+};
+// armAimAbs for art that may face either way. Level-and-forward is a mirror image on left-facing
+// art: for a vertical arm that is the negated angle, for a horizontal one (whose shoulder is on the
+// other end once mirrored) it is 180 minus it. Identity on right-facing art.
+export const armAimAbsFacing = (pv0, facesRight) => {
+  const a = armAimAbs(pv0);
+  if (facesRight) return a;
+  const pv = pv0 || "top";
+  return (pv === "top" || pv === "bottom") ? -a : 180 - a;
+};
+// armPivotSign for either facing: the rotation sign that sweeps the hand FORWARD.
+export const armForwardSign = (pv0, facesRight) => (facesRight ? 1 : -1) * armPivotSign(pv0);
+// A held item's art mirrored about its own grip, for a unit drawn facing left. flipPiecesHorizontally
+// does the geometry (positions, rotations, asymmetric outlines); a piece that turns about its LEFT
+// edge turns about its right one once mirrored, which attachWeaponBlocks' pivot pre-shift reads.
+export const mirrorHeldArt = (pieces, gripX) => flipPiecesHorizontally(pieces, gripX)
+  .map((p) => (p.armPivot === "left" ? { ...p, armPivot: "right" } : p.armPivot === "right" ? { ...p, armPivot: "left" } : p));
+// A point on a unit's 200x260 canvas -> level pixels, the way its sprite wrapper actually draws it:
+// pushed down by the ground anchor, un-squashed about the floor line when the box is not aspect-true
+// (spriteUnsquashY — a crouch), and mirrored about the box when the wrapper flips.
+export const spriteCanvasPointToWorld = (pt, box) => {
+  const u = pt.x / W, v = pt.y / H;
+  const x = box.left + (box.flip ? 1 - u : u) * box.renderW;
+  let y = box.top + box.anchor + v * box.boxH;
+  const k = spriteUnsquashY(box.renderW, box.boxH);
+  if (Math.abs(k - 1) >= 0.001) { const floor = box.top + box.anchor + spriteFloorY(box.boxH, box.anchor); y = floor + (y - floor) * k; }
+  return { x, y };
+};
 const rotatePt = (pt, c, deg) => {
   if (!deg) return { x: pt.x, y: pt.y };
   const r = deg * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
@@ -3972,6 +4074,7 @@ export const normalizeAssetJson = (raw) => {
   if (type === "weapon") a.states = { rest: normalizeAngles((a.states && a.states.rest) || a.angles), fire: normalizeAngles(a.states && a.states.fire) };
   if (type === "enemy") a.states = { normal: normalizeAngles((a.states && a.states.normal) || a.angles), onFire: normalizeAngles(a.states && a.states.onFire), charge: normalizeAngles(a.states && a.states.charge) };
   if (type === "enemy") a.groundLine = cleanGround(a.groundLine);
+  if (type === "enemy" && a.holdPoint !== undefined) a.holdPoint = cleanHold(a.holdPoint); // a hand-written point that is not a finite {x, y} is dropped, never kept as NaN
   if (type === "equipment" && !SLOTS[a.slot]) a.slot = "shirt"; // an unknown slot would drop it out of every picker; shirt is the safe visible default
   // A per-body fit variant IS the flat pose map itself (a weapon's additionally wraps {states}) —
   // see blankFitVariant. Asset JSON written by hand or by another AI keeps getting this one wrong
@@ -8468,6 +8571,9 @@ export default function AssetStudio() {
   const [recoverUrl, setRecoverUrl] = useState("");     // a previous preview address to pull a library out of
   const [recoverState, setRecoverState] = useState(null); // { busy } | { error } | { found, imported }
   const [angle, setAngle] = useState("front");
+  // The weapon the Enemy creator draws at the ✋ hold point so you can see how it will be held. Editor
+  // only — never saved onto the asset. null = not picked yet (the first ranged weapon); "" = none.
+  const [holdPreviewId, setHoldPreviewId] = useState(null);
   const [selId, setSelId] = useState(null);
   const [multiSelect, setMultiSelect] = useState(false); // group-select mode: clicking blocks toggles them into groupIds instead of the normal single select+drag
   const [snapOn, setSnapOn] = useState(false);           // 🧲 Snap to edges — see findEdgeSnap; a dragged block welds itself to a similar-length edge nearby
@@ -11174,7 +11280,12 @@ export default function AssetStudio() {
                     sizeUnits = projAsset.size || 1;
                   }
                   const spd = ew.projectileSpeed ?? 12;
-                  const sx = eCenterXFinal, sy = ep.y + newEph * 0.42;
+                  // A unit holding its gun at a ✋ hold point fires from the barrel (enemyHeldMuzzleAt);
+                  // everyone else from the chest, exactly as before. Its line is solved from the
+                  // barrel too, and its facing — already turned onto the target just above — is the
+                  // direction, since a barrel poking past a close target would otherwise flip it.
+                  const eMuzzle0 = enemyHeldMuzzleAt(ea, ew, ep, newEph, eRenderW, 0);
+                  const sx = eMuzzle0 ? eMuzzle0.x : eCenterXFinal, sy = eMuzzle0 ? eMuzzle0.y : ep.y + newEph * 0.42;
                   const rangePx = Math.max(1, ew.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW;
                   // THE SAME LOCK-ON THE PLAYER GETS (aimAssistAngle), pointed the other way. A unit
                   // used to fire along the straight line to its target's aim point — a line that
@@ -11188,7 +11299,7 @@ export default function AssetStudio() {
                   // probed with the shot's own solid test, so a unit never bends a round into a wall
                   // between you. Nothing in the cone (or nothing reachable) = the straight line it
                   // always fired, unchanged.
-                  const dir = Math.sign(tgtAimCX - sx) || ep.face || 1;
+                  const dir = eMuzzle0 ? (ep.face || 1) : (Math.sign(tgtAimCX - sx) || ep.face || 1);
                   const lineDeg = Math.atan2(tgtAimCY - sy, Math.abs(tgtAimCX - sx)) * 180 / Math.PI;
                   const eAssist = aimAssistAngle({ sx, sy, groundY: ep.y + newEph, rangePx, face: dir, aimDeg: lineDeg, targets: shotTargetsFor(hostile, false, k), clear: shotPathProbe });
                   const shotDeg = eAssist ? eAssist.deg : lineDeg;
@@ -11198,9 +11309,12 @@ export default function AssetStudio() {
                   // tilts the aim arm by it for the swing frames, the way p.firing.aimTilt does
                   // for the player, so the gun visibly snaps onto whoever it is shooting.
                   ep.shotTilt = shotDeg;
+                  // The arm tilts by that much, which swings the barrel round the grip — so the round
+                  // leaves the barrel where it is drawn at the tilt, the way the player's re-read does.
+                  const eShotAt = (eMuzzle0 && enemyHeldMuzzleAt(ea, ew, ep, newEph, eRenderW, shotDeg)) || { x: sx, y: sy };
                   projectiles.current.push({
-                    x: sx, y: sy, vx, vy,
-                    startX: sx, startY: sy, groundY: ep.y + newEph, rangePx, traveled: 0,
+                    x: eShotAt.x, y: eShotAt.y, vx, vy,
+                    startX: eShotAt.x, startY: eShotAt.y, groundY: ep.y + newEph, rangePx, traveled: 0,
                     char: ew.projectile?.char || "🔥", tint: ew.projectile?.tint || null,
                     pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece,
                     rot: Math.atan2(vy, vx) * 180 / Math.PI, size: sizeUnits,
@@ -13181,6 +13295,7 @@ export default function AssetStudio() {
     drag.current = { mode: "size", id: p.id, rot: p.rot || 0, startW: p.w, startH: p.h, startMouse: m, group };
   };
   const grabHand = (e) => { e.stopPropagation(); drag.current = { mode: "hand" }; };
+  const grabHold = (e) => { e.stopPropagation(); drag.current = { mode: "hold" }; };
 
   // Light up the edge a drag is currently snapping to. Called on every pointermove, so it compares
   // an identity first: without that, each frame handed React a brand new {a,b} object and forced a
@@ -13199,6 +13314,9 @@ export default function AssetStudio() {
     const move = (e) => {
       const d = drag.current; if (!d || !artRef.current) return;
       const m = toXY(e);
+      // Dragging the ✋ hold marker always writes THIS pose's own point — even when what it showed was
+      // Side's point or the default one — so a drag is never lost to a fallback.
+      if (d.mode === "hold") { setAsset((a) => ({ ...a, holdPoint: { ...cleanHold(a.holdPoint), [angle]: { x: snapPiece(Math.max(0, Math.min(W, m.x))), y: snapPiece(Math.max(0, Math.min(H, m.y))) } } })); return; }
       if (d.mode === "hand") { setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return { ...a, hand: { ...a.hand, [angle]: { x: snapPiece(m.x), y: snapPiece(m.y) } } }; }); return; }
       if (d.mode === "groupMove") {
         const dx = m.x - d.startMouse.x, dy = m.y - d.startMouse.y;
@@ -14407,7 +14525,7 @@ export default function AssetStudio() {
     if (HAS_CATEGORIES(a) && !Number.isFinite(a.value)) a.value = 0;
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; if (typeof a.category !== "string") a.category = ""; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; if (!Number.isFinite(a.dropWeight)) a.dropWeight = DEFAULT_DROP_WEIGHT; }
-    if (a.type === "enemy") { if (!a.states) a.states = { normal: a.angles || blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.angles = a.states.normal || a.angles; if (a.hasArms === undefined) a.hasArms = !!(a.angles && ANGLES.some((ang) => (a.angles[ang] || []).some((p) => p.role === "weaponArm"))); for (const k of Object.keys(a.angles || {})) (a.angles[k] || []).forEach((p) => { if (p.locked) delete p.locked; }); if (!a.stats) a.stats = DEFAULT_STATS(); if (a.hp === undefined) a.hp = 10; if (!a.ai) a.ai = "guard"; if (a.weaponId === undefined) a.weaponId = null; a.groundLine = cleanGround(a.groundLine); }
+    if (a.type === "enemy") { if (!a.states) a.states = { normal: a.angles || blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.angles = a.states.normal || a.angles; if (a.hasArms === undefined) a.hasArms = !!(a.angles && ANGLES.some((ang) => (a.angles[ang] || []).some((p) => p.role === "weaponArm"))); for (const k of Object.keys(a.angles || {})) (a.angles[k] || []).forEach((p) => { if (p.locked) delete p.locked; }); if (!a.stats) a.stats = DEFAULT_STATS(); if (a.hp === undefined) a.hp = 10; if (!a.ai) a.ai = "guard"; if (a.weaponId === undefined) a.weaponId = null; a.groundLine = cleanGround(a.groundLine); if (a.holdPoint !== undefined) a.holdPoint = cleanHold(a.holdPoint); }
     if (a.type === "skin" && !a.stats) a.stats = DEFAULT_STATS();
     if (HAS_FIT_VARIANTS(a) && !a.variants) {
       if (a.type === "weapon") { a.variants = { default: { states: a.states || { rest: a.angles || blankAngles(), fire: blankAngles() } } }; }
@@ -14696,6 +14814,32 @@ export default function AssetStudio() {
   // Its grenades. Type-checked rather than trusted: a hand-edited level (or a throwId left behind
   // after the asset was rebuilt as a rifle) must not put a machine gun into the throwing arm.
   const spawnThrowableFor = (spawn) => { const id = spawnThrowIdOf(spawn); const a = id ? findA(id) : null; return a && isThrowable(a.wtype) ? a : null; };
+  // WHERE A UNIT HOLDING ITS GUN AT A ✋ HOLD POINT FIRES FROM: the weapon's 🔴 muzzle, placed by the
+  // same attach the sprite draws (unitHoldArm, the aim angle plus `tiltDeg` of lock-on, mirrored for
+  // left-facing art) and carried into level pixels the way its wrapper draws it. Returns null — and
+  // the caller keeps the old chest-height spawn — for any unit NOT on a hold point (every dressed
+  // look, every enemy with a drawn arm and no point) and for a weapon with no muzzle drawn.
+  // Why it exists: a Squirrel's canvas is mostly empty space above its head, and the old spawn at
+  // 42% of the box put every one of its bullets in the air ABOVE it, a body length from the rifle.
+  const enemyHeldMuzzleAt = (ea, ew, ep, eph, renderW, tiltDeg) => {
+    if (!ea || !ew || !ep) return null;
+    const poseKey = enemyPoseKey(ea, ep.crouch ? "crouch" : "side");
+    const hold = unitHoldArm(ea, poseKey, bake(ea, poseKey));
+    if (!hold) return null;
+    const facesRight = enemyArtFacesRight(ea);
+    const wfit = weaponFitFor(ew, ea.id);
+    const hand = handForGuideId(wfit.guideId)[poseKey] || DEFAULT_HAND[poseKey];
+    const muz = bake({ ...ew, angles: wfit.states.rest || blankAngles() }, poseKey).filter((pc) => pc.isMuzzle);
+    if (!muz.length) return null;
+    const arm = { ...hold, rot: armAimAbsFacing(hold.armPivot, facesRight) + (facesRight ? 1 : -1) * (tiltDeg || 0) };
+    const mp = muzzleLocalPoint(attachWeaponBlocks(facesRight ? muz : mirrorHeldArt(muz, hand.x), arm, hand, 0));
+    if (!mp) return null;
+    // The sprite's ground anchor, exactly as the render works it out (eAnchor there).
+    const shape = sideBodyShape(ea);
+    const gY = enemyGroundLine(ea, poseKey) ?? enemyGroundLine(ea, enemyPoseKey(ea, "side"));
+    const anchor = gY !== null ? ((H - gY) / H) * eph : Math.max(0, 1 - shape.topFrac - shape.heightFrac) * eph;
+    return spriteCanvasPointToWorld(mp, { left: ep.x, top: ep.y, renderW, boxH: eph, anchor, flip: enemyNeedsFlip(ea, ep.face) });
+  };
   // ---- PLAYER-BASED enemy melee: weapon-hitbox driven, exactly like the player --------------
   // A Dress Bob look placed as an enemy fights the way the player fights: its melee reach IS its
   // weapon's own (drawn or auto) hitbox swung through the same windup/strike arc, and a hit only
@@ -17631,7 +17775,8 @@ export default function AssetStudio() {
                         const dHand = handForGuideId(dfit.guideId)[dPose] || DEFAULT_HAND[dPose];
                         // Tagged _isWeapon AND _src exactly the way the baked copy is, so looting the
                         // gun off the body strips it from the art on the very next frame.
-                        const dPieces = attachWeaponBlocks(bake({ ...deadEw, angles: (dfit.states.rest || blankAngles()) }, dPose), dArm, dHand, dArm.rot || 0)
+                        const dArt = bake({ ...deadEw, angles: (dfit.states.rest || blankAngles()) }, dPose);
+                        const dPieces = attachWeaponBlocks(enemyArtFacesRight(ea) ? dArt : mirrorHeldArt(dArt, dHand.x), dArm, dHand, dArm.rot || 0)
                           .filter((pc) => !pc.isHitbox && !pc.isMuzzle)
                           .map((pc) => ({ ...pc, _isWeapon: true, _src: deadEw.id }));
                         deadPose = mergeWeaponBlocks(deadPose, dPieces);
@@ -17720,8 +17865,22 @@ export default function AssetStudio() {
                   // synthesized invisible stand-in (enemyAimArm) get spliced in, so a weapon can
                   // still be lifted/attached — without one, "guns never shoot".
                   let eArm0 = flaggedArmOf(eBlocks);
-                  if (!eArm0 && ew) { const synth = enemyAimArm(eBlocks); if (synth) { eBlocks = [...eBlocks, synth]; eArm0 = synth; } }
+                  // ✋ An Enemy-creator asset holds its weapon (and a grenade mid-throw) at its HOLD
+                  // POINT — see unitHoldArm. Read off the pose's own un-swung art, so the default
+                  // point stays put while the legs walk.
+                  const eThrowingNow = !!(ep && (ep.throwT || 0) > 0);
+                  const eFacesRight = enemyArtFacesRight(ea);
+                  const eHoldArm = (ew || (eThrowingNow && spawnThrowableFor(eSpawn))) ? unitHoldArm(ea, enemyPoseKey(ea, ducking ? "crouch" : "side"), bake(ea, enemyPoseKey(ea, ducking ? "crouch" : "side"))) : null;
+                  if (eHoldArm) { eBlocks = [...eBlocks, eHoldArm]; eArm0 = eHoldArm; }
+                  else if (!eArm0 && ew) { const synth = enemyAimArm(eBlocks); if (synth) { eBlocks = [...eBlocks, synth]; eArm0 = synth; } }
                   const eBaseRot = eArm0 ? (eArm0.rot || 0) : 0;
+                  // The rotation at which a held item's art sits exactly as drawn. For a real arm
+                  // that is wherever the arm was drawn; for the hold arm it is 0, because its idle
+                  // turn (holdAngle) is a turn OF the weapon, not where the weapon was drawn from.
+                  const eAttachBase = eArm0 && eArm0.__hold ? 0 : eBaseRot;
+                  // The arm the held item attaches to after the swing/aim below has turned it. The
+                  // hold arm is appended last, so flaggedArmOf would find a drawn arm first.
+                  const eHeldArmNow = () => (eArm0 && eArm0.__hold ? eBlocks.find((b) => b.__hold) : flaggedArmOf(eBlocks));
                   // Melee attack: swing EVERY 💪-flagged piece through the same windup/strike arc
                   // the player's own swing uses — the primary arm rotates about its shoulder and
                   // the other flagged pieces ride it rigidly (rigidArmFollow), so a multi-piece
@@ -17736,7 +17895,6 @@ export default function AssetStudio() {
                   // than a throw, because eAiming outranks the swing. So the throw overrides both:
                   // while it runs, the arm swings through the same windup/strike arc a melee swing
                   // uses, gun or no gun.
-                  const eThrowingNow = !!(ep && (ep.throwT || 0) > 0);
                   const eAiming = eRanged && ep && !ep.reloading && !eThrowingNow && ((ep.aimHold || 0) > 0 || ep.swingT > 0);
                   if (ep && eArm0 && !eUseAtkPose && (eAiming || eThrowingNow || (ep.swingT > 0 && !eRanged))) {
                     const eSwingA = meleeSwingAngle(ATTACK_SWING_FRAMES - (eThrowingNow ? ep.throwT : ep.swingT), ATTACK_SWING_FRAMES);
@@ -17748,18 +17906,25 @@ export default function AssetStudio() {
                     // convention); for art drawn facing left, the same screen tilt is a − rotation.
                     // The wrapper's flip for the unit's facing then keeps it right on screen.
                     const eShotTilt = (eRanged && !eThrowingNow && (ep.swingT || 0) > 0) ? (playerArtFacesRight(ea) ? 1 : -1) * (ep.shotTilt || 0) : 0;
+                    // ...and the LEVEL it tilts from is mirrored the same way (armAimAbsFacing), as is
+                    // the direction a swing sweeps (armForwardSign). Plain armAimAbs/armPivotSign are
+                    // "forward" for right-facing art only, which is why a left-facing Squirrel aimed
+                    // and swung out of its own back. Both are identities on right-facing art.
                     const rot = (eRanged && !eThrowingNow)
-                      ? armAimAbs(eArm0.armPivot) + eShotTilt
-                      : eBaseRot + armPivotSign(eArm0.armPivot) * eSwingA;
+                      ? armAimAbsFacing(eArm0.armPivot, eFacesRight) + eShotTilt
+                      : eBaseRot + armForwardSign(eArm0.armPivot, eFacesRight) * eSwingA;
                     const primary = eArm0;
                     eBlocks = eBlocks.map((b) => {
                       if (b === primary) return { ...b, rot };
+                      // A hold point is not an arm: a drawn 💪 arm on the same body stays where it
+                      // was drawn rather than being swung round a tail tip.
+                      if (primary.__hold) return b;
                       if (b.role !== "weaponArm" && !(b.limb === "arm" && !b._isShoe)) return b;
                       return rigidArmFollow(b, primary, rot);
                     });
                   }
                   if (ew && !eUseAtkPose && !eThrowingNow) {
-                    const curArm = flaggedArmOf(eBlocks);
+                    const curArm = eHeldArmNow();
                     if (curArm) {
                       const ebid = ea.type === "enemy" ? ea.id : equippedBodyIdFor(ea);
                       const wfit = weaponFitFor(ew, ebid);
@@ -17771,7 +17936,9 @@ export default function AssetStudio() {
                       // way yours does.
                       const eFired = weaponPoseFired(eRanged, ep && ep.swingT > 0 ? { t: ATTACK_SWING_FRAMES - ep.swingT, dur: ATTACK_SWING_FRAMES } : null, ep && ep.weaponAmmo);
                       const wpnAngles = eFired ? weaponFireArt(wfit.states, ePose) : (wfit.states.rest || blankAngles());
-                      eBlocks = mergeWeaponBlocks(eBlocks, attachWeaponBlocks(bake({ ...ew, angles: wpnAngles }, ePose), curArm, guideHand, eBaseRot));
+                      // Drawn for a right-facing body, so mirrored about its grip for left-facing art.
+                      const wArt = bake({ ...ew, angles: wpnAngles }, ePose);
+                      eBlocks = mergeWeaponBlocks(eBlocks, attachWeaponBlocks(eFacesRight ? wArt : mirrorHeldArt(wArt, guideHand.x), curArm, guideHand, eAttachBase));
                     }
                   }
                   // The grenade in its hand while it winds up and lets go — the same idea as the
@@ -17781,14 +17948,14 @@ export default function AssetStudio() {
                   // was already spawned into its arc.
                   if (eThrowingNow && !eUseAtkPose) {
                     const eThrownItem = spawnThrowableFor(eSpawn);
-                    const curArm = flaggedArmOf(eBlocks);
+                    const curArm = eHeldArmNow();
                     if (eThrownItem && curArm) {
                       const tbid = ea.type === "enemy" ? ea.id : equippedBodyIdFor(ea);
                       const tfit = weaponFitFor(eThrownItem, tbid);
                       const tPose = enemyPoseKey(ea, ducking ? "crouch" : "side");
                       const tHand = handForGuideId(tfit.guideId)[tPose] || DEFAULT_HAND[tPose];
                       const tPieces = bake({ ...eThrownItem, angles: (tfit.states.rest || blankAngles()) }, tPose).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
-                      eBlocks = mergeWeaponBlocks(eBlocks, attachWeaponBlocks(tPieces, curArm, tHand, eBaseRot));
+                      eBlocks = mergeWeaponBlocks(eBlocks, attachWeaponBlocks(eFacesRight ? tPieces : mirrorHeldArt(tPieces, tHand.x), curArm, tHand, eAttachBase));
                     }
                   }
                   const hpFrac = Math.max(0, Math.min(1, curHp / maxHp));
@@ -18457,6 +18624,26 @@ export default function AssetStudio() {
   const bodyRigNow = (asset.type === "body" || asset.type === "enemy") ? bodyRig(asset, angle) : null;
   const hand = asset.type === "body" ? bodyRigNow.hand : (asset.type === "enemy" ? (bodyRigNow ? bodyRigNow.hand : DEFAULT_HAND[angle]) : handForGuide(asset)[angle]);
   const shoulder = bodyRigNow ? bodyRigNow.shoulder : null;
+  // ✋ WEAPON HOLD — Enemy creator, on the two poses a unit ever holds a weapon in. `holdArm` is exactly
+  // what the game attaches to (unitHoldArm), so the marker and the preview weapon cannot disagree with
+  // play. An enemy with a drawn 💪 arm and no point of its own yet shows the marker on that arm's hand,
+  // which is where it holds today; dragging it from there gives the pose its own point.
+  const holdEditing = asset.type === "enemy" && (angle === "side" || angle === "crouch");
+  const holdPoseArt = holdEditing ? bake(asset, angle) : null;
+  const holdArm = holdEditing ? unitHoldArm(asset, angle, holdPoseArt) : null;
+  const holdRealArm = holdEditing && !holdArm ? flaggedArmOf(holdPoseArt) : null;
+  const holdMark = holdArm ? { x: holdArm.x, y: holdArm.y } : holdRealArm ? armRig(holdRealArm).hand : null;
+  const holdOwn = holdEditing && !!cleanHold(asset.holdPoint)[angle];
+  const holdWeapons = holdEditing ? library.filter((a) => a.type === "weapon").sort((a, b) => (a.name || "").localeCompare(b.name || "")) : [];
+  const holdPreview = !holdEditing ? null : holdPreviewId === null ? (holdWeapons.find((w) => isRanged(w.wtype)) || null) : (holdWeapons.find((w) => w.id === holdPreviewId) || null);
+  const holdPreviewPieces = (() => {
+    const arm = holdArm || holdRealArm;
+    if (!holdPreview || !arm) return null;
+    const wfit = weaponFitFor(holdPreview, asset.id);
+    const gh = handForGuideId(wfit.guideId)[angle] || DEFAULT_HAND[angle];
+    const art = bake({ ...holdPreview, angles: wfit.states.rest || blankAngles() }, angle).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
+    return attachWeaponBlocks(enemyArtFacesRight(asset) ? art : mirrorHeldArt(art, gh.x), arm, gh, holdArm ? 0 : (arm.rot || 0));
+  })();
   const frontPieces = pieces.filter((p) => !p.behindBody);
   const behindPieces = pieces.filter((p) => p.behindBody);
   const lrow = (p) => (
@@ -18825,6 +19012,8 @@ export default function AssetStudio() {
             {asset.type === "skin"
               ? <div onPointerDown={grabHand} className="handmk" style={{ left: (hand.x / W * 100) + "%", top: (hand.y / H * 100) + "%", cursor: "grab" }}>✋</div>
               : (asset.type !== "enemy" || showArmRig) && <div className="handmk guide" style={{ left: (hand.x / W * 100) + "%", top: (hand.y / H * 100) + "%" }}>✋</div>}
+            {holdPreviewPieces && <div className="holdPreview">{renderPieceRuns({ pieces: holdPreviewPieces, cacheKey: "holdpv", keyPrefix: "hpv_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>}
+            {holdMark && <div onPointerDown={grabHold} className="handmk hold" style={{ left: (holdMark.x / W * 100) + "%", top: (holdMark.y / H * 100) + "%", cursor: "grab" }} title="Weapon hold point">✋</div>}
           </div>
           </div>
           {(asset.type === "body" || asset.type === "enemy") && poseCopySrc && (
@@ -18902,6 +19091,31 @@ export default function AssetStudio() {
                 </label>
               ))}
               </div>
+            </div>
+          )}
+          {/* ✋ WEAPON HOLD. The marker on the canvas is the control — drag it to the tail, the mouth,
+              the trunk. The checkbox says whether this pose has a point of its own (off = Side's
+              point on Crouch, the automatic mouth point on Side) and is how one is cleared.
+              Angle is how the weapon sits while the unit is not aiming; Preview only draws a
+              weapon here and is never saved. See unitHoldArm. */}
+          {holdEditing && (
+            <div className="card">
+              <div className="ct">✋ Weapon hold</div>
+              <label className="chk"><input type="checkbox" checked={holdOwn} onChange={(e) => setAsset((a) => {
+                const h = cleanHold(a.holdPoint);
+                if (e.target.checked) h[angle] = holdMark ? { x: snapPiece(holdMark.x), y: snapPiece(holdMark.y) } : { x: W / 2, y: H / 2 };
+                else delete h[angle];
+                return { ...a, holdPoint: h };
+              })} /> Own point on {ALABEL[angle] || angle}</label>
+              {(holdArm || !holdRealArm) && (
+                <label className="slider">Angle<input type="range" min="-180" max="180" step="5" value={enemyHoldAngle(asset)} onChange={(e) => setAsset((a) => ({ ...a, holdAngle: +e.target.value }))} /><span className="hint2" style={{ marginLeft: 6 }}>{enemyHoldAngle(asset)}°</span></label>
+              )}
+              <label className="slider">Preview
+                <select value={holdPreview ? holdPreview.id : ""} onChange={(e) => setHoldPreviewId(e.target.value)} style={{ marginLeft: 6 }}>
+                  <option value="">None</option>
+                  {holdWeapons.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              </label>
             </div>
           )}
           {asset.type === "equipment" && !effEdit && (
@@ -19491,6 +19705,8 @@ html,body{margin:0;padding:0;background:#0f1117}
 .emptyart{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5b667e;font-size:13px}
 .handmk{position:absolute;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:rgba(79,124,246,.18);border:1.5px solid #4f7cf6;display:flex;align-items:center;justify-content:center;font-size:13px}
 .handmk.guide{background:none;border:1px dashed #4f7cf6;opacity:.7;pointer-events:none}
+.handmk.hold{border-color:#e8912c;background:rgba(232,145,44,.22);z-index:2}
+.holdPreview{position:absolute;inset:0;pointer-events:none;opacity:.85}
 .shouldermk{position:absolute;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:rgba(200,162,60,.2);border:1.5px solid #c8a23c;display:flex;align-items:center;justify-content:center;font-size:13px;touch-action:none;z-index:2}
 .armaxis{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
 .armaxis line{stroke:#c8a23c;stroke-width:1.6;stroke-dasharray:4 3;opacity:.6}
