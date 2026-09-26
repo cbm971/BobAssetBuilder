@@ -163,7 +163,7 @@ import {
   relocateLevelObject,
   relocatedObjectKey,
   migrateLevel,
-  carryAlliesAcrossSeam, ALLY_CARRY_RANGE_CELLS, TALK_BUBBLE_MIN_H,
+  newLevelBucket, runWorldParts, worldPartAt, worldPartOfCell, unitClampX, unitFloorY, moveRunUnit, adoptRunNeighbours, releaseRunUnits, TALK_BUBBLE_MIN_H,
   runMountPlan, RUN_MOUNT_ITEMS_PER_FRAME,
   runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, buildRun, resolveRunNeighbour, resolveRunSides, runSeams, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
   objTopAt,
@@ -9255,69 +9255,125 @@ describe("runs", () => {
     expect(seamStripMap({ "0,1": "#f00", "0,150": "#0f0" }, nb, "W")).toEqual({ "0,150": "#0f0" });
   });
 
-  test("carryAlliesAcrossSeam moves living allies in range into the next level and out of this one", () => {
-    const spawnA = { enemyId: "dog" }, spawnB = { enemyId: "dog" }, spawnC = { enemyId: "cat" }, spawnD = { enemyId: "cat" };
-    const src = {
-      enemies: { "20,150": spawnA, "20,151": spawnB, "20,10": spawnC, "20,152": spawnD },
-      ePos: { "20,150": { x: 4500, y: 480, friendly: true, allyKind: "talked", following: true }, "20,151": { x: 4530, y: 480, friendly: false }, "20,10": { x: 300, y: 480, friendly: true }, "20,152": { x: 4560, y: 480, friendly: true } },
-      eHP: { "20,150": 12, "20,151": 30, "20,10": 9, "20,152": 0 },
-      gear: { "20,150": { weaponId: "m16" } },
-    };
-    const dst = { enemies: { "15,0": { enemyId: "rat" } }, ePos: {}, eHP: {}, gear: {} };
-    const out = carryAlliesAcrossSeam(src, dst, { x: 4800, y: 0 }, 4750, ALLY_CARRY_RANGE_CELLS * 30, () => 150, 30);
-    expect(out.moved).toBe(1);                                            // the hostile stays, the far ally stays, the dead ally stays
-    expect(Object.keys(out.srcEnemies).sort()).toEqual(["20,10", "20,151", "20,152"]);
-    expect(src.ePos["20,150"]).toBeUndefined(); expect(src.eHP["20,150"]).toBeUndefined(); expect(src.gear["20,150"]).toBeUndefined();
-    const nk = Object.keys(out.dstEnemies).find((k) => k !== "15,0");
-    const [r, col] = nk.split(",").map(Number);
-    expect(r).toBe(Math.floor((480 + 150) / 30) - 1);                     // feet row - 1, the way the seeding reads a key
-    expect(col).toBe(0);                                                  // x 4500 - 4800 = -300 → clamped to column 0, still to the left of everything
-    expect(out.dstEnemies[nk]).toBe(spawnA);
-    expect(dst.ePos[nk]).toEqual({ x: -300, y: 480, friendly: true, allyKind: "talked", following: true });
-    expect(dst.eHP[nk]).toBe(12); expect(dst.gear[nk]).toEqual({ weaponId: "m16" });
-    expect(out.dstEnemies["15,0"]).toEqual({ enemyId: "rat" });         // the next level's own placements are untouched
-    // a taken key slides right rather than overwriting
-    const dst2 = { enemies: { "20,0": { enemyId: "rat" } }, ePos: { "20,1": { x: 0, y: 0 } }, eHP: {}, gear: {} };
-    const src2 = { enemies: { "20,150": spawnA }, ePos: { "20,150": { x: 4500, y: 480, friendly: true } }, eHP: { "20,150": 5 }, gear: {} };
-    const out2 = carryAlliesAcrossSeam(src2, dst2, { x: 4800, y: 0 }, 4750, 720, () => 150, 30);
-    expect(Object.keys(out2.dstEnemies).sort()).toEqual(["20,0", "20,2"]);
-    // an ally that has never been hurt has no HP entry at all — it is alive and comes along
-    const src3 = { enemies: { "20,150": spawnA }, ePos: { "20,150": { x: 4500, y: 480, friendly: true } }, eHP: {}, gear: {} };
-    const dst3 = { enemies: {}, ePos: {}, eHP: {}, gear: {} };
-    expect(carryAlliesAcrossSeam(src3, dst3, { x: 4800, y: 0 }, 4750, 720, () => 150, 30).moved).toBe(1);
-    expect(dst3.eHP["20,0"]).toBeUndefined();
+  // ONE WORLD (2026-09-26): the live level adopts every unit of the levels across its open seams and
+  // gives each back to the level it is standing in at the handoff. Built on a hand-made two-node run
+  // (A's lower right gate meets B's lower left), so nothing here depends on buildRun's seeded picks.
+  const twoNodeRun = (aEnemies = {}, bEnemies = {}) => {
+    const a = { ...A, enemies: aEnemies, runKey: "run1" }, b = { ...B, enemies: bEnemies, runKey: "run2" }; // B's W2 meets A's E2
+    const run = { seed: "t", nodes: {}, order: ["run1", "run2"] };
+    run.nodes.run1 = { key: "run1", col: 0, row: 0, level: a, links: { N: null, E: "run2", S: null, W: null } };
+    run.nodes.run2 = { key: "run2", col: 1, row: 0, level: b, links: { N: null, E: null, S: null, W: "run1" } };
+    return run;
+  };
+
+  test("neighbourOffset snaps to whole cells, so a neighbour's grid is the live grid shifted", () => {
+    const short = mk("short", { rows: 40, open: { W2: "" } });
+    // 70% of 46 rows is 966 px, of 40 rows 840 px: 126 px apart, which is 4.2 cells — the grids
+    // would be 6 px out of step, so the offset lands on the nearest whole cell instead.
+    expect(neighbourOffset(A, "E2", short, CELL)).toEqual({ x: 4800, y: 120 });
+    expect(neighbourOffset(A, "E2", B, CELL)).toEqual({ x: 4800, y: 0 });
+    expect(Object.is(neighbourOffset(C, "S1", SEWER, CELL).x, 0)).toBe(true);          // never a -0
   });
 
-  test("carryAlliesAcrossSeam also moves the hostiles the loop says are chasing, and lines every arrival up inside the next level", () => {
-    // Four hostiles behind the body at the east seam: the loop's `follows` rule decides which come
-    // (here: everyone it is handed except the one it refuses), the function only moves them.
-    const spawn = (id) => ({ enemyId: id });
-    const src = {
-      enemies: { "20,140": spawn("sq1"), "20,142": spawn("sq2"), "20,144": spawn("guard"), "20,146": spawn("dead"), "20,148": spawn("ally") },
-      ePos: { "20,140": { x: 4200, y: 480, face: 1 }, "20,142": { x: 4260, y: 480, face: 1 }, "20,144": { x: 4320, y: 480, face: -1 }, "20,146": { x: 4380, y: 480, face: 1 }, "20,148": { x: 4440, y: 480, friendly: true } },
-      eHP: { "20,146": 0 },
-      gear: {},
-    };
-    const dst = { enemies: {}, ePos: {}, eHP: {}, gear: {}, cols: 160 };
-    const asked = [];
-    const follows = (ep, sp, k) => { asked.push(k); return sp.enemyId !== "guard"; };
-    const out = carryAlliesAcrossSeam(src, dst, { x: 4800, y: 0 }, 4750, 720, () => 150, 30, { follows, widthOf: () => 60 });
-    expect(asked.sort()).toEqual(["20,140", "20,142", "20,144"]);          // the dead one and the ally are never asked (their own rules apply)
-    expect(out.moved).toBe(3);                                            // two chasers + the ally; the guard and the corpse stay
-    expect(Object.keys(out.srcEnemies).sort()).toEqual(["20,144", "20,146"]);
-    // Re-based they would sit at x -600, -540 and -360 — outside the level. They arrive at the seam
-    // edge instead, one body apart in the order they were met, so a pack is not one pixel.
-    const xs = Object.values(dst.ePos).map((e) => e.x).sort((a, b) => a - b);
-    expect(xs).toEqual([0, 60, 120]);
-    expect(Object.values(dst.ePos).every((e) => e.y === 480)).toBe(true);
-    // ...and the same at the far edge for a westward crossing (the offset is negative there).
-    const src2 = { enemies: { "20,1": spawn("a"), "20,3": spawn("b") }, ePos: { "20,1": { x: 100, y: 480, face: -1 }, "20,3": { x: 200, y: 480, face: -1 } }, eHP: {}, gear: {} };
-    const dst2 = { enemies: {}, ePos: {}, eHP: {}, gear: {}, cols: 160 };
-    carryAlliesAcrossSeam(src2, dst2, { x: -4800, y: 0 }, 50, 720, () => 150, 30, { follows: () => true, widthOf: () => 60 });
-    expect(Object.values(dst2.ePos).map((e) => e.x).sort((a, b) => a - b)).toEqual([160 * 30 - 120, 160 * 30 - 60]);
-    // No `follows` at all (a plain caller) keeps the old contract: hostiles never move.
-    const src3 = { enemies: { "20,140": spawn("sq1") }, ePos: { "20,140": { x: 4200, y: 480, face: 1 } }, eHP: {}, gear: {} };
-    expect(carryAlliesAcrossSeam(src3, { enemies: {}, ePos: {}, eHP: {}, gear: {} }, { x: 4800, y: 0 }, 4750, 720, () => 150, 30).moved).toBe(0);
+  test("runWorldParts / worldPartAt / unitClampX / unitFloorY: the live level and its neighbours as one world", () => {
+    const run = twoNodeRun(), n1 = run.nodes.run1;
+    const seams = runSeams(run, n1, CELL);
+    const parts = runWorldParts(n1.level, seams, CELL);
+    expect(parts.map((P) => [P.key, P.ox, P.oy, P.dr, P.dc, P.side])).toEqual([["run1", 0, 0, 0, 0, null], ["run2", 4800, 0, 0, 160, "E"]]);
+    expect(worldPartAt(parts, 4900, 600, CELL).key).toBe("run2");
+    expect(worldPartAt(parts, 100, 600, CELL).key).toBe("run1");
+    expect(worldPartAt(parts, 4900, -300, CELL).key).toBe("run2");                     // in the air above B: over B's columns, so B's
+    expect(worldPartAt(parts, -50, 600, CELL).key).toBe("run1");                        // off every level: the live one
+    expect(worldPartOfCell(parts, 20, 165).key).toBe("run2");
+    expect(worldPartOfCell(parts, 20, 159).key).toBe("run1");
+    expect(worldPartOfCell(parts, 20, 400)).toBe(null);
+    // Sideways: through the open lower-right gate (70% of 46 rows = 966 px), and only there.
+    const live = parts[0], east = parts[1], atGate = 0.7 * 46 * CELL, farFromGate = 200;
+    expect(unitClampX(live, 4790, 60, atGate, n1.level, seams, CELL)).toBe(4790);      // walks on into B
+    expect(unitClampX(live, 4790, 60, farFromGate, n1.level, seams, CELL)).toBe(4740); // a rooftop at the edge is still an edge
+    expect(unitClampX(live, -10, 60, atGate, n1.level, seams, CELL)).toBe(0);          // A's west gate is closed
+    expect(unitClampX(east, 4790, 60, atGate, n1.level, seams, CELL)).toBe(4790);      // and back the other way from B's side
+    expect(unitClampX(east, 4790, 60, farFromGate, n1.level, seams, CELL)).toBe(4800);
+    expect(unitClampX(east, 9700, 60, atGate, n1.level, seams, CELL)).toBe(9600 - 60);  // B's own far edge
+    expect(unitFloorY(live, 100, 600, n1.level, seams, CELL)).toBe(1380);
+    expect(unitFloorY(east, 4900, 600, n1.level, seams, CELL)).toBe(1380);
+    // A plain Playtest: one rectangle, and the same numbers the old one-level code used.
+    const solo = runWorldParts(A, {}, CELL);
+    expect(solo.length).toBe(1);
+    expect(unitClampX(solo[0], 4790, 60, atGate, A, {}, CELL)).toBe(4740);
+    expect(unitClampX(solo[0], -5, 60, atGate, A, {}, CELL)).toBe(0);
+    // A bottom gate with a sewer under it is no floor, near the gate only.
+    const cRun = { seed: "t", nodes: {}, order: [] };
+    cRun.nodes.c = { key: "c", col: 0, row: 0, level: { ...C, runKey: "c" }, links: { S: "s" } };
+    cRun.nodes.s = { key: "s", col: 0, row: 1, level: { ...SEWER, runKey: "s" }, links: { N: "c" } };
+    const cSeams = runSeams(cRun, cRun.nodes.c, CELL), cParts = runWorldParts(cRun.nodes.c.level, cSeams, CELL);
+    expect(unitFloorY(cParts[0], 0.3 * 160 * CELL, 1300, C, cSeams, CELL)).toBe(Infinity);
+    expect(unitFloorY(cParts[0], 0.7 * 160 * CELL, 1300, C, cSeams, CELL)).toBe(1380);
+    expect(worldPartAt(cParts, 0.3 * 160 * CELL, 1400, CELL).key).toBe("s");
+  });
+
+  test("adoptRunNeighbours files a neighbour's units in the live level at their own cells, state and all", () => {
+    const dog = { enemyId: "dog" }, cat = { enemyId: "cat" }, rat = { enemyId: "rat" };
+    const aEnemies = { "40,150": dog }, bEnemies = { "40,5": cat, "40,100": rat };
+    const run = twoNodeRun(aEnemies, bEnemies), n1 = run.nodes.run1, n2 = run.nodes.run2;
+    const ratEp = { uid: 7, x: 3000, y: 1000, tdJumpY: 990, face: -1 };
+    const buckets = { run2: { ...newLevelBucket(), ePos: { "40,100": ratEp }, eHP: { "40,100": 3 }, gear: { "40,100": { weaponId: "m16" } }, drops: { "40,100": { item: { id: "hat" }, x: 3010, y: 1200 } }, stripped: { "40,100": [{ id: "m16" }] } } };
+    expect(adoptRunNeighbours(run, n1, buckets, CELL)).toBe(2);
+    expect(Object.keys(n1.level.enemies).sort()).toEqual(["40,150", "40,165", "40,260"]);
+    expect(n1.level.enemies["40,260"]).toBe(rat);
+    expect(n2.level.enemies).toEqual({});
+    // His levels are never written: every enemies map that changed is a copy on the node.
+    expect(aEnemies).toEqual({ "40,150": dog }); expect(bEnemies).toEqual({ "40,5": cat, "40,100": rat });
+    // The SAME live-state object, re-based by 4800 px; everything else keyed by unit went with it.
+    const lb = buckets.run1;
+    expect(lb.ePos["40,260"]).toBe(ratEp);
+    expect(ratEp).toEqual({ uid: 7, x: 7800, y: 1000, tdJumpY: 990, face: -1 });
+    expect(lb.eHP["40,260"]).toBe(3); expect(lb.gear["40,260"]).toEqual({ weaponId: "m16" });
+    expect(lb.drops["40,260"]).toEqual({ item: { id: "hat" }, x: 7810, y: 1200 });
+    expect(lb.stripped["40,260"]).toEqual([{ id: "m16" }]);
+    expect(buckets.run2.ePos).toEqual({}); expect(buckets.run2.eHP).toEqual({});
+    // A never-seen unit has no live state and no HP entry — it simply arrives under its re-based cell.
+    expect(lb.ePos["40,165"]).toBeUndefined(); expect(lb.eHP["40,165"]).toBeUndefined();
+    // Adopting again moves nothing (the neighbour's books are empty now).
+    expect(adoptRunNeighbours(run, n1, buckets, CELL)).toBe(0);
+  });
+
+  test("releaseRunUnits gives every unit back to the level it is standing in", () => {
+    const dog = { enemyId: "dog" }, cat = { enemyId: "cat" }, rat = { enemyId: "rat" };
+    const run = twoNodeRun({ "40,150": dog }, { "40,5": cat, "40,100": rat }), n1 = run.nodes.run1, n2 = run.nodes.run2;
+    const buckets = {};
+    adoptRunNeighbours(run, n1, buckets, CELL);
+    const lb = buckets.run1;
+    lb.ePos["40,150"] = { uid: 1, x: 4900, y: 1000 };   // the dog walked through the gate into B
+    lb.ePos["40,165"] = { uid: 2, x: 4600, y: 1000 };   // the cat walked the other way, into A
+    lb.ePos["40,260"] = { uid: 3, x: 7800, y: 1000 };   // the rat stayed home
+    lb.eHP["40,150"] = 9;
+    const where = { "40,150": "E", "40,165": null, "40,260": "E" };
+    expect(releaseRunUnits(run, n1, buckets, (k) => where[k], CELL)).toBe(3);
+    // The rat goes home under its own old cell, at its old position.
+    expect(n2.level.enemies["40,100"]).toBe(rat); expect(buckets.run2.ePos["40,100"].x).toBe(3000);
+    // The dog is B's now, filed under the cell it stands on in B (x 100 → column 3), with its HP.
+    expect(n2.level.enemies["33,3"]).toBe(dog);
+    expect(buckets.run2.ePos["33,3"]).toEqual({ uid: 1, x: 100, y: 1000 }); expect(buckets.run2.eHP["33,3"]).toBe(9);
+    // The cat is A's now, re-filed inside A's own grid.
+    expect(n1.level.enemies).toEqual({ "33,153": cat });
+    expect(lb.ePos["33,153"].uid).toBe(2);
+    // ...and the world goes round: B live adopts A back, keys side by side with no collisions.
+    expect(adoptRunNeighbours(run, n2, buckets, CELL)).toBe(1);
+    expect(Object.keys(n2.level.enemies).sort()).toEqual(["33,-7", "33,3", "40,100"]);
+    expect(buckets.run2.ePos["33,-7"].x).toBe(4600 - 4800);
+  });
+
+  test("moveRunUnit slides off a taken key and never leaves a key outside the level it is given", () => {
+    const from = { enemies: { "20,170": { enemyId: "x" } }, ePos: { "20,170": { x: 5130, y: 600 } }, eHP: {}, gear: {}, drops: {}, stripped: {} };
+    const to = { enemies: { "20,11": { enemyId: "y" } }, ePos: { "20,12": { x: 0, y: 0 } }, eHP: {}, gear: {}, drops: {}, stripped: {} };
+    const nk = moveRunUnit("20,170", from, to, { x: -4800, y: 0 }, CELL, { rows: 46, cols: 160 });
+    expect(nk).toBe("20,10");                            // "20,10" was free: its old cell re-based
+    const from2 = { enemies: { "20,171": { enemyId: "z" } }, ePos: { "20,171": { x: 5130, y: 600 } }, eHP: {}, gear: {}, drops: {}, stripped: {} };
+    expect(moveRunUnit("20,171", from2, to, { x: -4800, y: 0 }, CELL, { rows: 46, cols: 160 })).toBe("20,13"); // 11 and 12 taken, so the nearest free on the right...
+    const edge = { enemies: { "20,159": { enemyId: "e" } }, ePos: {}, eHP: {}, gear: {}, drops: {}, stripped: {} };
+    const full = { enemies: { "20,159": { enemyId: "f" } }, ePos: {}, eHP: {}, gear: {}, drops: {}, stripped: {} };
+    expect(moveRunUnit("20,159", edge, full, { x: 0, y: 0 }, CELL, { rows: 46, cols: 160 })).toBe("20,158"); // ...or the left, never past the edge
   });
 
   test("runMountPlan doles a neighbour's tiles out a slice per frame, layer by layer, and says when it is whole", () => {

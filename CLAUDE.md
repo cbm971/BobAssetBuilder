@@ -1404,7 +1404,8 @@ spots in the play loop and the level render. In plain words:
   out of the blue"): the play render's unit loop walks `playUnitSets` — the live level plus one set per
   seam (`{ lv, pos, hp, stripped, gear, off, ns }` off the neighbour's `roomState` bucket) — through
   the one sprite code, standing at their spawn cell or where you left them. Only the live level
-  simulates. `prepRunNeighbours` (after `resolveRunSides`, in `togglePlaytest` and `seamHandoff`)
+  simulates (SUPERSEDED the same evening — see ONE WORLD below: the neighbours' units are adopted
+  into the live level and simulated, so these neighbour sets are empty in a run). `prepRunNeighbours` (after `resolveRunSides`, in `togglePlaytest` and `seamHandoff`)
   makes each neighbour's bucket and its 🎲 gear-tag rolls up front, so they are drawn in the gear
   they fight in and the loop effect adopts the bucket untouched. Memoized on the live level, so per frame it costs
   nothing; per level it is ~300–400 extra cells on his levels (measured 371 + 299 on M1). It is NOT
@@ -1437,7 +1438,8 @@ spots in the play loop and the level render. In plain words:
     next step is keying the object passes per node the way the tiles are.
   - Because the level being left stays mounted, `seamHandoff` un-fades its Front cells and drops
     their `will-change` BEFORE `setLevel` — the effect cleanup runs after `frontCellsRef` has moved.
-  - **Followers come with you** (`carryAlliesAcrossSeam`, `ALLY_CARRY_RANGE_CELLS` = 24): every
+  - **Followers come with you** (SUPERSEDED 2026-09-26 by ONE WORLD below — `carryAlliesAcrossSeam`
+    is gone; followers now walk through the gate) (`carryAlliesAcrossSeam`, `ALLY_CARRY_RANGE_CELLS` = 24): every
     living `ep.friendly` unit within that range of the body at the crossing is moved — its spawn
     record into the next level's `enemies` under a fresh "r,c" key at its new place, its live state
     (position re-based, HP if it has one, rolled gear) into that level's bucket — and out of the level
@@ -1477,7 +1479,8 @@ spots in the play loop and the level render. In plain words:
     left is roughly two frames' worth of work in one; StrictMode's double render is a third of it
     and is not touched here. Note the loop's first frame after a swap has `lastT = null`, so
     `dtMul` is 1 — the lost time is not caught up, on purpose (catching up IS a jerk).
-  - **What is chasing you comes through the gate too.** `carryAlliesAcrossSeam` takes an `opts`
+  - **What is chasing you comes through the gate too** (SUPERSEDED 2026-09-26 — this was the
+    teleport Blake called "teleporty"; see ONE WORLD below). `carryAlliesAcrossSeam` took an `opts`
     tail: `follows(ep, spawn, k)` decides which HOSTILE comes (the loop's rule in `seamHandoff`:
     not friendly, not `peaceful`, not floored or stunned, effective AI `seek` — `spawn.ai || ea.ai`,
     a Guard holds its ground and an Avoid keeps away — and `enemyDetects` true this frame, the
@@ -1489,6 +1492,70 @@ spots in the play loop and the level render. In plain words:
     nothing follows into one. Verified on his run seed 7, M4 → M1 through E1: the four Seek units
     that had caught sight of the player crossed as keys 19,0 / 19,2 / 19,11 / 19,16 (x 0, 64, …),
     the Guard squirrel and the peaceful Ash stayed on M4, and they kept chasing on M1.
+* **ONE WORLD: the neighbours are alive, shots cross gates, nothing teleports (2026-09-26 evening).**
+  Blake: "the level to level transition needs to be smoother. You should be able to shoot from one
+  level to the next if an enemy is close. And enemies need to be less teleporty." What was actually
+  wrong, measured in the pane before touching anything:
+  - A neighbour's units were drawn but FROZEN — deaf, blind, and bulletproof, because a shot was
+    deleted the moment it left the live level's rectangle (`pr.x > lv.cols * CW`).
+  - At the handoff `carryAlliesAcrossSeam` lifted chasers/followers to the next level's seam edge
+    in one frame (a squirrel 600 px behind you appeared at the gate), and everything else froze.
+  - The loop effect re-run at the swap refilled your clip (7 → 12, measured), reset the fire
+    cooldown, restocked grenades, and wiped grenades/blasts in flight; shots in flight were never
+    re-based, so they vanished 4,800 px off.
+  - The camera skipped the swap frame: the player lurched 12 px on screen (658 → 670) at every gate.
+  - Separately, units NEVER used ramps: a ramp cell is not solid, so a unit walked into the hill's
+    backing and the step-up popped it 30 px in one frame at every column (measured on M5's hill at
+    cols 104–108: 934.5 → 904.5 in one frame, then standing UNDER the ramp surface at 904.5).
+  **How it works now** (block headed `ONE WORLD, NOT ONE LEVEL AT A TIME` above `runWorldParts`):
+  - `adoptRunNeighbours(run, node, roomState)` moves every unit of every level across the live
+    level's open seams INTO the live level's books: spawn under its own cell re-based into the live
+    grid (keys like `"20,165"` / `"20,-12"` — outside 0..cols, which is exactly where it stands),
+    live state (the SAME `ep` object, x/y/tdJumpY re-based), HP, gear roll, loot (re-based),
+    stripped list. Called by `togglePlaytest` (run start) and `seamHandoff`. The one enemy loop then
+    simulates them like any other unit — they see you, shoot you, get shot, chase, die, drop loot.
+  - `releaseRunUnits(run, node, roomState, sideOf)` at the handoff gives every unit back to the
+    level it is STANDING in (`unitSideOf` = `worldPartAt` of its box centre). A unit that walked
+    into another level is re-filed under the cell it stands on, inside that level's grid, so every
+    level's keys stay in its own grid and the next adoption never collides (`moveRunUnit` slides a
+    taken key to the nearest free column). Nothing is "carried" any more: a chaser keeps walking.
+  - Terrain for units/shots/grenades: `runWorldParts(lv, seams)` = the live level + each neighbour
+    as a rectangle in live pixels (`ox/oy`, whole-cell `dr/dc` — `neighbourOffset` now ROUNDS to
+    whole cells for exactly this), each with its own solid objects. In the loop: `cellsHitW`,
+    `splitHillHitsW`, `inWorld`, `worldPartAt` for slope/top-down/floor lookups in the unit's own
+    level, `unitClampX` / `unitFloorY` (a unit leaves its level sideways only through an open seam
+    near its gate — the player's own rule — and falls through the live level's open bottom gate).
+    **The PLAYER still uses the old `cellsHit`** — its crossing rules were tuned against the live
+    level alone and are deliberately unchanged. With no seams (plain ▶ Playtest, rooms) the world is
+    one rectangle and every W helper is the old single-level code.
+  - Units walk ramps: `splitHillHitsW` hands a ramp's own backing to the vertical pass, which snaps
+    to `slopeSurfaceForPlayer` in the unit's level (only while not rising). A genuine one-cell lip
+    still steps up in one physics frame but is DRAWN easing (`ep.stepEase`, the player's `easeStep`).
+  - Sprites are keyed by `ep.uid` (seeded with the unit), not `ns + "r,c"`, so re-filing at the
+    handoff does not remount ~140 DOM nodes per unit on the frame that must be cheap.
+  - `seamCarry` tells the effect a re-run is a seam swap: clip, cooldown, grenade count and what is
+    in the air are kept (seamHandoff re-bases projectiles incl. startX/startY/groundY, thrown, booms).
+    The camera takes the swap frame's step before `seamHandoff` returns.
+  - A grenade landing across a gate hits/stuns/captures there but paints no fire (a neighbour's
+    fires are neither drawn nor burned until it is live).
+  - **💾 Save during a run saves `run.editorLevel`** (and updates it), never the run's working copy —
+    that copy carries a runKey and now every neighbour's units; saving it would have written other
+    levels' enemies into his level for good. The run keeps playing.
+  **Measured (production builds, same pane, same seed 7 drive M5 → M6, old vs new):** swap frames
+  44 + 36 ms → 28 + 26 ms against a 19 ms norm (cheaper — no sprite remounts); per-frame callback
+  3.7 ms before and after the gate with 15 units simulated instead of 2; player screen x steady
+  (658 → 656) instead of lurching to 670; clip stays 7; the chasing squirrel's screen x continuous
+  (-152 → -175 across the swap, two frames of its walk). Squirrel over M5's hill: max 3.7 px/frame
+  rise onto the ramp surface (old: one 30 px pop). A one-cell lip: physics 30 px, the sprite's
+  `style.top` stepped ~5 px/frame (985 → 955). Shot from M5 hit a squirrel standing in M6 (25 → 19
+  HP); a squirrel given an M16 standing in M5 shot the player standing in M6 ("Hit for 3").
+  M5 ⇄ M6 three crossings: 49 units in the run before and after, no duplicate uid, no orphan
+  ePos, no out-of-grid key in any non-live level. Plain ▶ Playtest on M5: one bucket, 7 units,
+  player stopped at 4735, shots culled at 4785. Tests: `describe("runs")` covers the offset
+  rounding, the world parts/clamps, adopt/release round trip, key sliding.
+  **A/B recipe for the production build:** build HEAD and the change into two folders and serve each
+  with a tiny static server that answers `GET /__library` from a copy of the committed
+  library.json (POSTs acknowledged and dropped), then run the identical drive on both ports.
 * **Gates with nothing behind them.** Pressed against an edge at an open gate no level attaches to,
   the loop flashes once every 2.5 s (`gateNag`): "🚧 Bottom Left gate leads nowhere yet … (it accepts
   "Sewer")", "🏁 The run starts here", or "🏁 Floor complete!". Plain Playtest edges stay silent.

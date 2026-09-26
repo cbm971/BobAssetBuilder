@@ -8088,7 +8088,12 @@ export const gatePoint = (lv, k, cell = LV_CELL) => ({ x: (CONN_POS[k].x / 100) 
 // Where a neighbour joined through OUR gate `k` sits in our pixel frame: the offset that lays its
 // opposite gate exactly on ours. E1 meets W1 at the same height and S1 meets N1 at the same x, so
 // a body crossing the seam keeps its place by subtracting this from its position.
-export const neighbourOffset = (lv, k, nb, cell = LV_CELL) => { const a = gatePoint(lv, k, cell), b = gatePoint(nb, CONN_OPP[k], cell); return { x: a.x - b.x, y: a.y - b.y }; };
+// Rounded to WHOLE CELLS: two levels of different heights put a side gate at a fraction of a cell
+// (35% of 46 rows against 35% of 40), and a neighbour's grid must be the live level's grid shifted
+// by whole cells, or its units could not be filed under live-grid keys nor stand on its terrain
+// (runWorldParts). Half a cell of slack in where two gates meet is invisible; a grid that is off
+// by half a cell is not.
+export const neighbourOffset = (lv, k, nb, cell = LV_CELL) => { const a = gatePoint(lv, k, cell), b = gatePoint(nb, CONN_OPP[k], cell), snap = (v) => Math.round(v / cell) * cell || 0; return { x: snap(a.x - b.x), y: snap(a.y - b.y) }; };
 // Which OPEN gate on `side` a body centred at (cx, cy) is leaving through: the nearest one along
 // that edge, and only within GATE_REACH_CELLS of its marked point. Past that the edge stays the
 // wall it is today, so a hole in the floor nowhere near a bottom gate still just stops you.
@@ -8322,58 +8327,162 @@ const buildRunFrontTile = (map, texLib, k) => {
   if (fills.length <= 1) return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(map, cell, r, c, texLib), clipPath: fgClipPath(cell) }} />;
   return <div key={"fr" + k} data-fk={k} className="lcell front" style={{ left: c * LV_CELL, top: r * LV_CELL }}>{fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(map, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}</div>;
 };
-// FOLLOWERS COME WITH YOU THROUGH A GATE. Every living ally (ep.friendly — the one ally pipeline)
-// within ALLY_CARRY_RANGE_CELLS of the body when it crosses is moved into the next level: its spawn
-// record is copied into that level's enemies map under a fresh "r,c" key at its new place, its live
-// state (position re-based by the seam offset, HP, rolled gear) goes into that level's state bucket,
-// and it is taken out of the level being left so it is not also standing there when you come back.
-// Everything else about it travels on ep itself (allyKind, turned, following). Pure over the two
-// buckets so it can be tested; the loop hands it the live refs, which ARE the buckets.
+// ONE WORLD, NOT ONE LEVEL AT A TIME (2026-09-26). Blake: "the level to level transition needs to
+// be smoother. You should be able to shoot from one level to the next if an enemy is close. And
+// enemies need to be less teleporty." Until this, only the LIVE level simulated. A neighbour's
+// units stood frozen across the gate — drawn, but deaf, blind and bulletproof, because a shot was
+// deleted the moment it left the live level's rectangle. And at the handoff everything chasing or
+// following you was picked up and set down at the next level's seam edge in one frame
+// (carryAlliesAcrossSeam, 2026-09-16/17): a Pit Bull twenty cells behind you appeared AT the gate
+// the instant you stepped through it, and the units that had been standing frozen across the gate
+// all woke up at once. That is what "teleporty" was, at the seams.
 //
-// AND SO DOES WHATEVER IS CHASING YOU (2026-09-17). Blake: "if you have enemies following you
-// they disappear as soon as you enter a new level … you can cheese enemy spawning with obvious
-// level boundaries". The loop passes `opts.follows(ep, spawn, k)`, its own rule for which hostile
-// comes through (a Seek unit that can see you right now — see seamHandoff); this function only
-// moves it, exactly the way it moves an ally. A room is a door, not a seam, so nothing follows
-// into one, which is what he asked for.
+// So the live level now ADOPTS every unit of every level across its open seams (adoptRunNeighbours).
+// Each is filed in the live level's enemies map under its own cell re-based into the live level's
+// grid — a key like "20,165" or "20,-12", outside 0..cols, which is exactly where it stands — with
+// its live state re-based the same way, and the one enemy loop simulates it like any other unit: it
+// sees you, shoots you, is shot, chases, dies and drops loot. What it walks on is ITS OWN level's
+// terrain: runWorldParts is the live level plus each neighbour as a rectangle in the live level's
+// pixels, and the loop asks whichever rectangle a body or a bullet is in. At the handoff every unit
+// is handed back to the level it is standing in (releaseRunUnits), the new live level adopts its own
+// neighbours, and a chaser simply keeps walking — it was already in the world, so nothing has to
+// carry it. An ally following you is the same case: it walks through the gate behind you. A plain
+// ▶ Playtest has no seams, so its world is one rectangle and every rule below reduces to exactly
+// the single-level code it replaced.
 //
-// Every carried unit is clamped INTO the next level (`dst.cols`, `opts.widthOf`): re-based by the
-// seam offset, something behind you lands at x < 0 for an eastward crossing, outside the level,
-// where the collision code sees no cells at all and it would fall out of the world. It arrives at
-// the seam edge instead, which is where the gate is, and its own AI walks it on from there.
-export const ALLY_CARRY_RANGE_CELLS = 24;   // an ally further behind than most of a screen stays where it is
+// Nothing here writes to a level's own maps: every enemies map that changes is a COPY on the run's
+// node (the node's level is already a copy of the saved one — runNode), so his saved levels are never
+// touched. Per-unit state lives in the per-level buckets (roomState), which are this play session's.
 export const VIEW_CULL_MARGIN_CELLS = 8;    // how far past the camera's window a sprite is still drawn (see the level render)
-export const carryAlliesAcrossSeam = (src, dst, off, px, rangePx, standHOf, cell = LV_CELL, opts = {}) => {
-  const srcEnemies = { ...(src.enemies || {}) }, dstEnemies = { ...(dst.enemies || {}) };
-  let moved = 0, atLow = 0, atHigh = 0;
-  for (const k of Object.keys(src.ePos || {})) {
-    const ep = src.ePos[k], spawn = src.enemies && src.enemies[k];
-    // No HP entry yet means it has never been hurt (the loop only writes eHP on damage) — alive.
-    const hp = src.eHP ? src.eHP[k] : undefined;
-    if (!ep || !spawn || (hp !== undefined && hp <= 0)) continue;
-    const comes = ep.friendly ? Math.abs(ep.x - px) <= rangePx : !!(opts.follows && opts.follows(ep, spawn, k));
-    if (!comes) continue;
-    let nx = ep.x - off.x; const ny = ep.y - off.y;
-    if (dst.cols) {
-      // A pack clamped to the same edge is lined up one body apart, not stacked on one pixel:
-      // two chasers with the same speed that start on the same spot stay on it for good and
-      // read as one enemy (seen the first time four Pika-Squirrels came through together).
-      const w = opts.widthOf ? opts.widthOf(spawn) : cell, maxX = dst.cols * cell - w;
-      if (nx < 0) nx = Math.min(maxX, w * atLow++);
-      else if (nx > maxX) nx = Math.max(0, maxX - w * atHigh++);
+// The shape of one level's per-session state — the same object the loop effect makes when a level
+// first goes live, so it adopts one made here untouched.
+export const newLevelBucket = () => ({ rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, stripped: {}, haz: {}, gear: {} });
+let unitUidSeq = 0;   // every unit's render name (ep.uid) — see where the loop seeds a unit
+// The live level and every level across its open seams, as rectangles in the live level's pixels.
+// `dr`/`dc` are the same offset in whole cells: neighbourOffset rounds to the grid, so a cell of a
+// neighbour is also exactly one cell of the live grid and every "r,c" converts by adding them.
+export const runWorldParts = (lv, seams, cell = LV_CELL) => {
+  const parts = [{ key: lv.runKey || lv.id, lv, ox: 0, oy: 0, dr: 0, dc: 0, side: null }];
+  for (const side of ["N", "E", "S", "W"]) {
+    const s = seams && seams[side]; if (!s) continue;
+    parts.push({ key: s.key, lv: s.level, ox: s.off.x, oy: s.off.y, dr: Math.round(s.off.y / cell), dc: Math.round(s.off.x / cell), side });
+  }
+  return parts;
+};
+// Which rectangle a point is in. Above or below every level (a jump over the top, a fall past the
+// floor) it is the one whose COLUMNS it is over — the live level first — so a body in the air is
+// still on its own level's terrain; anywhere else at all, the live level.
+export const worldPartAt = (parts, x, y, cell = LV_CELL) => {
+  let overColumns = null;
+  for (const P of parts) {
+    if (x < P.ox || x >= P.ox + P.lv.cols * cell) continue;
+    if (y >= P.oy && y < P.oy + P.lv.rows * cell) return P;
+    if (!overColumns) overColumns = P;
+  }
+  return overColumns || parts[0];
+};
+// Which rectangle a cell of the live grid belongs to, or null (off every level: nothing is there).
+export const worldPartOfCell = (parts, r, c) => {
+  for (const P of parts) { const lr = r - P.dr, lc = c - P.dc; if (lr >= 0 && lc >= 0 && lr < P.lv.rows && lc < P.lv.cols) return P; }
+  return null;
+};
+// A UNIT MAY LEAVE ITS LEVEL WHERE YOU MAY, AND ONLY THERE. Sideways, a unit standing in `P` is held
+// inside that level's edges exactly as it always was held inside the live level's — except through
+// an open seam near its gate, the player's own rule (seamAt / gateLeavingThrough), asked of the live
+// level because both sides of a seam are one gate. So a Pit Bull on a rooftop at the edge stays on
+// the rooftop, and one on the street at the gate follows you through it.
+export const unitClampX = (P, nx, w, cy, lv, seams, cell = LV_CELL) => {
+  let lo = P.ox, hi = P.ox + P.lv.cols * cell - w;
+  const open = (side) => !!(seams && seams[side] && gateLeavingThrough(lv, side, nx + w / 2, cy, cell));
+  if (!P.side) { if (open("W")) lo = -Infinity; if (open("E")) hi = Infinity; }
+  else if (P.side === "E") { if (open("E")) lo = -Infinity; }   // an east neighbour's west edge IS our east seam
+  else if (P.side === "W") { if (open("W")) hi = Infinity; }
+  return Math.max(lo, Math.min(hi, nx));
+};
+// The floor of the world under a unit standing in `P`: its own level's bottom edge — except over the
+// live level's open bottom gate (it drops into the sewer, as you do), or, standing in the level
+// ABOVE the live one, over the live level's open top gate.
+export const unitFloorY = (P, cx, cy, lv, seams, cell = LV_CELL) => {
+  const open = (side) => !!(seams && seams[side] && gateLeavingThrough(lv, side, cx, cy, cell));
+  if (!P.side && open("S")) return Infinity;
+  if (P.side === "N" && open("N")) return Infinity;
+  return P.oy + P.lv.rows * cell;
+};
+// Move ONE unit from one level's books to another's, re-based by `off` (the from-level's origin in
+// the to-level's pixels). `from`/`to` are { enemies, ePos, eHP, gear, drops, stripped } — the enemies
+// map a copy the caller writes back onto the run node, the rest the levels' own buckets. Everything
+// the loop keeps per unit travels under the new key: its live state (the SAME object, position
+// re-based, so nothing holding it goes stale), its HP, its 🎲 gear roll, the loot lying where it fell
+// (re-based), what was looted off its corpse.
+//
+// The new key is its old cell re-based. `fit` (the to-level's rows/cols) is given when a unit is
+// handed BACK to a level: one that walked in from another level has an old cell that means nothing
+// here, so it is filed under the cell its body is in, inside the level. A key is only the unit's
+// name once it has a position (the seeding reads the cell off the key only for a unit that has never
+// moved), so a taken key simply slides to the nearest free column.
+export const moveRunUnit = (k, from, to, off, cell = LV_CELL, fit = null) => {
+  const spawn = from.enemies[k], ep = from.ePos && from.ePos[k];
+  if (ep) { ep.x += off.x; ep.y += off.y; if (ep.tdJumpY != null) ep.tdJumpY += off.y; }
+  const i = k.indexOf(",");
+  let r = +k.slice(0, i) + Math.round(off.y / cell), c = +k.slice(i + 1) + Math.round(off.x / cell);
+  if (fit && (r < 0 || c < 0 || r >= fit.rows || c >= fit.cols)) {
+    if (ep) { r = Math.floor(ep.y / cell); c = Math.round(ep.x / cell); }
+    r = Math.max(0, Math.min(fit.rows - 1, r)); c = Math.max(0, Math.min(fit.cols - 1, c));
+  }
+  const free = (cc) => (!fit || (cc >= 0 && cc < fit.cols)) && to.enemies[r + "," + cc] === undefined && !(to.ePos && to.ePos[r + "," + cc]);
+  if (!free(c)) { for (let d = 1; d < 100000; d++) { if (free(c + d)) { c += d; break; } if (free(c - d)) { c -= d; break; } } }
+  const nk = r + "," + c;
+  to.enemies[nk] = spawn; delete from.enemies[k];
+  if (ep) { to.ePos[nk] = ep; delete from.ePos[k]; }
+  for (const f of ["eHP", "gear", "stripped"]) if (from[f] && Object.prototype.hasOwnProperty.call(from[f], k)) { to[f][nk] = from[f][k]; delete from[f][k]; }
+  if (from.drops && Object.prototype.hasOwnProperty.call(from.drops, k)) { const d = from.drops[k]; to.drops[nk] = d ? { ...d, x: d.x + off.x, y: d.y + off.y } : d; delete from.drops[k]; }
+  return nk;
+};
+const runUnitBooks = (enemies, b) => ({ enemies: { ...(enemies || {}) }, ePos: b.ePos, eHP: b.eHP, gear: b.gear || (b.gear = {}), drops: b.drops || (b.drops = {}), stripped: b.stripped || (b.stripped = {}) });
+// The live level takes in every unit of every level across its open seams. `buckets` is roomState
+// (created here in the loop's own shape when a level has none yet). Returns how many moved.
+export const adoptRunNeighbours = (run, node, buckets, cell = LV_CELL) => {
+  const seams = runSeams(run, node, cell);
+  const lb = buckets[node.key] || (buckets[node.key] = newLevelBucket());
+  const live = runUnitBooks(node.level.enemies, lb);
+  let moved = 0;
+  for (const side of Object.keys(seams)) {
+    const s = seams[side], nb = run.nodes[s.key];
+    const keys = Object.keys(nb.level.enemies || {}); if (!keys.length) continue;
+    const from = runUnitBooks(nb.level.enemies, buckets[s.key] || (buckets[s.key] = newLevelBucket()));
+    for (const k of keys) { moveRunUnit(k, from, live, s.off, cell); moved++; }
+    nb.level = { ...nb.level, enemies: from.enemies };
+  }
+  if (moved) node.level = { ...node.level, enemies: live.enemies };
+  return moved;
+};
+// ...and gives every one of them back at the handoff, to the level it is STANDING in: `sideOf(k)` is
+// the loop's answer (worldPartAt of the body's centre), null for the live level itself. A unit that
+// walked from one neighbour into the live level simply stays; one standing in a neighbour goes into
+// that level's books. Returns how many moved.
+export const releaseRunUnits = (run, node, buckets, sideOf, cell = LV_CELL) => {
+  const seams = runSeams(run, node, cell);
+  const lb = buckets[node.key] || (buckets[node.key] = newLevelBucket());
+  const live = runUnitBooks(node.level.enemies, lb), outs = {};
+  let moved = 0;
+  for (const k of Object.keys(live.enemies)) {
+    const side = sideOf(k);
+    if (!side || !seams[side]) {
+      // It stays. One that walked in from a neighbour is still filed under that level's re-based
+      // cell, outside this grid — re-file it by where it stands, so every level's books stay inside
+      // its own grid and the next adoption (whose keys are grids shifted side by side) never collides.
+      const i = k.indexOf(","), r = +k.slice(0, i), c = +k.slice(i + 1);
+      if (r < 0 || c < 0 || r >= node.level.rows || c >= node.level.cols) { moveRunUnit(k, live, live, { x: 0, y: 0 }, cell, { rows: node.level.rows, cols: node.level.cols }); moved++; }
+      continue;
     }
-    const r = Math.max(0, Math.floor((ny + (standHOf(spawn) || cell)) / cell) - 1);   // the row the feet stand on, the way the seeding reads a key
-    let col = Math.max(0, Math.round(nx / cell));
-    while (dstEnemies[r + "," + col] || dst.ePos[r + "," + col]) col++;
-    const nk = r + "," + col;
-    dstEnemies[nk] = spawn;
-    dst.ePos[nk] = { ...ep, x: nx, y: ny };
-    if (hp !== undefined) dst.eHP[nk] = hp;
-    if (src.gear && src.gear[k]) dst.gear[nk] = src.gear[k];
-    delete srcEnemies[k]; delete src.ePos[k]; if (src.eHP) delete src.eHP[k]; if (src.gear) delete src.gear[k];
+    const s = seams[side], nb = run.nodes[s.key];
+    const to = outs[side] || (outs[side] = runUnitBooks(nb.level.enemies, buckets[s.key] || (buckets[s.key] = newLevelBucket())));
+    moveRunUnit(k, live, to, { x: -s.off.x, y: -s.off.y }, cell, { rows: nb.level.rows, cols: nb.level.cols });
     moved++;
   }
-  return { moved, srcEnemies, dstEnemies };
+  for (const side of Object.keys(outs)) { const nb = run.nodes[seams[side].key]; nb.level = { ...nb.level, enemies: outs[side].enemies }; }
+  if (moved) node.level = { ...node.level, enemies: live.enemies };
+  return moved;
 };
 // The camera target and clamp, kept pure for the tests: centre the body, clamp to the level, but
 // let the view run past an edge (by the strip's width) wherever a neighbour is drawn across it.
@@ -9007,6 +9116,7 @@ export default function AssetStudio() {
   const camRef = useRef({ x: 0, y: 0, init: false });       // the camera, in the live level's pixels; init=false snaps it to the body on the next frame instead of easing there
   const gateNag = useRef(0);                                // when the "this gate leads nowhere yet" flash last showed, so it does not fire 60 times a second
   const carryKeys = useRef(null);                           // keys still held at a seam handoff — the loop effect re-runs on the level swap and would otherwise drop a held D
+  const seamCarry = useRef(false);                          // this effect re-run IS a seam handoff: keep the clip, the grenades, and what is in the air (see seamHandoff)
   const lscrollRef = useRef(null);                          // the level viewport (.lscroll): the camera needs its size, and its editor scroll position is parked during play
   const editorScroll = useRef(null);                        // where the editor had .lscroll scrolled when Playtest started, put back on Stop
   const [runHud, setRunHud] = useState(null);               // the run line over the level during play: { seed, where, name, notes }
@@ -10024,35 +10134,31 @@ export default function AssetStudio() {
       for (const k of fadedFrontKeys.current.keys()) { const d = frontCellEl(k); if (d) d.style.opacity = ""; }
       for (const k of promotedFrontKeys.current) { const d = frontCellEl(k); if (d) d.style.willChange = ""; }
       fadedFrontKeys.current = new Map(); promotedFrontKeys.current = new Set(); xrayFrontSig.current = "";
-      // Followers come too (carryAlliesAcrossSeam). The live refs ARE the leaving level's bucket;
-      // the arriving level's bucket is made here if this is its first visit, in the shape the
-      // effect makes it, so the effect adopts it as-is.
-      let dstB = roomState.current[nb.key];
-      if (!dstB) { dstB = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, stripped: {}, haz: {}, gear: {} }; roomState.current[nb.key] = dstB; }
-      // ...and so does anything CHASING you. Which hostile comes through is decided here, where the
-      // AI's own words are: a Seek unit (a Guard holds its ground and an Avoid keeps its distance,
-      // so neither would ever reach the gate), hostile (a talked-over ally has its own range rule
-      // above; a peaceful NPC with a dialogue is furniture until you hit it), on its feet (not
-      // floored by a tackle, not stunned), and SEEING you this frame through its own sight cone
-      // (enemyDetects — six body lengths ahead, one behind) — which is what "aggro" is in this game.
-      // No screen test: a chaser 30 cells behind you is off screen but still coming, and it
-      // arriving at the gate a moment after you is the point ("you can cheese enemy spawning with
-      // obvious level boundaries").
-      const unitW = (ea) => enemyRenderW(ea, CW) * sideBodyShape(ea).fraction;
-      const hostileFollows = (ep, spawn) => {
-        if (ep.friendly || ep.peaceful || ep.down > 0 || ep.stun > 0) return false;
-        const ea = findA(spawn.enemyId); if (!ea) return false;
-        if ((spawn.ai || ea.ai || "guard") !== "seek") return false;
-        return enemyDetects((p.x + pw / 2) - (ep.x + unitW(ea) / 2), ep.face);
-      };
-      const carried = carryAlliesAcrossSeam({ enemies: lv.enemies, ePos: enemyPos.current, eHP: enemyHP.current, gear: enemyGearRolls.current }, { enemies: nb.level.enemies, ePos: dstB.ePos, eHP: dstB.eHP, gear: dstB.gear, cols: nb.level.cols }, seam.off, p.x, ALLY_CARRY_RANGE_CELLS * CW, (spawn) => { const ea = findA(spawn.enemyId); return ea ? enemyStandH(ea, CW) : CH; }, CW, { follows: hostileFollows, widthOf: (spawn) => { const ea = findA(spawn.enemyId); return ea ? unitW(ea) : CW; } });
-      runNodeLive.level = carried.moved ? { ...lv, enemies: carried.srcEnemies } : lv;
-      if (carried.moved) nb.level = { ...nb.level, enemies: carried.dstEnemies };
+      // EVERY UNIT GOES BACK TO THE LEVEL IT IS STANDING IN (releaseRunUnits), and the level you are
+      // walking into then adopts its own neighbours — the one being left among them — so whatever
+      // was chasing or following you is still in the world exactly where it was, still coming. This
+      // replaced carryAlliesAcrossSeam, which lifted the chasers and followers to the next level's
+      // seam edge in a single frame (see ONE WORLD, above runWorldParts). Nothing is carried any
+      // more, so there is no rule for WHO is carried: a Seek unit that has seen you walks through
+      // the gate after you, a Guard stays at its post, and an ally follows you through on foot.
+      runNodeLive.level = lv;
+      releaseRunUnits(runNow, runNodeLive, roomState.current, unitSideOf, CW);
       p.x -= seam.off.x; p.y -= seam.off.y;
       camRef.current.x -= seam.off.x; camRef.current.y -= seam.off.y;
+      // WHAT IS IN THE AIR COMES WITH YOU. Shots, grenades and blasts are in the live level's pixels,
+      // and nothing re-based them: a bullet you fired at a dog across the gate was 4,800 px off in
+      // the new frame at the handoff and deleted as off the level, and the effect re-run below
+      // wiped grenades in flight and explosions mid-burst outright. Re-based here, and the effect
+      // leaves them alone on a seam handoff (seamCarry).
+      const rx = -seam.off.x, ry = -seam.off.y;
+      for (const pr of projectiles.current) { pr.x += rx; pr.y += ry; if (pr.startX !== undefined) { pr.startX += rx; pr.startY += ry; pr.groundY += ry; } }
+      for (const g of thrown.current) { g.x += rx; g.y += ry; }
+      for (const b of booms.current) { b.x += rx; b.y += ry; }
       carryKeys.current = keys.current;
+      seamCarry.current = true;
       resolveRunSides(runNow, nb, runNow.pool || levelLib);
-      prepRunNeighbours(runNow, nb); // the level beyond this one gets its units drawn (and its gear rolled) before you reach it
+      prepRunNeighbours(runNow, nb); // the level beyond this one gets its gear rolled before it is adopted
+      adoptRunNeighbours(runNow, nb, roomState.current, CW);
       runNow.curKey = nb.key;
       setDoorPrompt(null); setPedPrompt(null);
       setRunHud(runHudFor(runNow, nb));
@@ -10096,13 +10202,20 @@ export default function AssetStudio() {
     // record (clip 0), so nothing below ever gates a swing on ammo.
     const wpnIsRanged = !!(playtestWeapon && isRanged(playtestWeapon.wtype));
     const fireCdFrames = weaponFireCooldownFrames(playtestWeapon?.fireRate);
-    wpn.current = newWeaponAmmo(wpnIsRanged ? effectiveMagazineSize(playtestWeapon.clipSize, playerAsset?.effects) : 0);
+    // ...but walking through a RUN's gate is not a new session. This effect re-runs on that level
+    // swap too, and it used to hand you a full clip (and a fresh fire cooldown, cancelling a reload
+    // halfway) and restock your grenades at every gate, and wipe any grenade still in the air —
+    // the swap was visible in the ammo counter even when nothing on screen moved. seamHandoff says
+    // it was the swap (seamCarry), and has already re-based what is flying into the new level.
+    const fromSeam = seamCarry.current; seamCarry.current = false;
+    if (!fromSeam) wpn.current = newWeaponAmmo(wpnIsRanged ? effectiveMagazineSize(playtestWeapon.clipSize, playerAsset?.effects) : 0);
     // Throwable the player is carrying this session (chosen separately from the held weapon), plus
     // the count they start with. Single-use: each throw decrements throwCarry; at 0, G does nothing.
     const carriedThrow = playtestThrowId ? findA(playtestThrowId) : null;
-    if (carriedThrow && isThrowable(carriedThrow.wtype)) { throwCarry.current = throwPickup.current != null ? throwPickup.current : Math.max(0, playtestThrowCount || 0); } else { throwCarry.current = 0; }
+    if (fromSeam) { /* the count you had at the gate is the count you have past it */ }
+    else if (carriedThrow && isThrowable(carriedThrow.wtype)) { throwCarry.current = throwPickup.current != null ? throwPickup.current : Math.max(0, playtestThrowCount || 0); } else { throwCarry.current = 0; }
     throwPickup.current = null;
-    thrown.current = []; throwCd.current = 0; booms.current = [];
+    if (!fromSeam) { thrown.current = []; throwCd.current = 0; booms.current = []; }
     // PERSISTENT per-level state (this play session). Point the live refs at THIS level's bucket, so
     // everything you did here — pedestals taken, enemies defeated, fires burned down — is still here
     // when you leave through a door and come back. Each level/room gets its own bucket by id; only a
@@ -10178,6 +10291,34 @@ export default function AssetStudio() {
     const solidFx = []; for (const k of Object.keys(lv.fx || {})) { const [r, c] = k.split(",").map(Number); for (const o of (lv.fx[k] || [])) if (o.solid) { const fp = levelObjectFootprint(o, o.kind === "prop" ? findA(o.propId) : null); solidFx.push({ r, c, rows: fp.rows, cols: fp.cols }); } }
     const fxBlocks = (r, c) => solidFx.some((o) => r >= o.r && r < o.r + o.rows && c >= o.c && c < o.c + o.cols);
     const cellsHit = (x, y, pw, ph) => { const hits = []; const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH); for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { if (c < 0 || c >= lv.cols || r < 0 || r >= lv.rows) continue; const cell = lv.fg[cellKey(r, c)]; if (fgSolid(cell) || fxBlocks(r, c)) hits.push({ r, c }); } return hits; };
+    // THE WORLD (see ONE WORLD, above runWorldParts): this level plus every level across its open
+    // seams, each a rectangle in this level's pixels carrying its own solid objects. Units, shots and
+    // grenades now live in every rectangle, so they ask the world (cellsHitW and friends). The PLAYER
+    // keeps cellsHit: its crossing rules (seamAt, the straddle, the handoff at the centre) were tuned
+    // against the live level alone and are deliberately unchanged. With no seams — a plain Playtest,
+    // a room — the world is this one level and every W helper is the single-level code it wraps.
+    const worldParts = runWorldParts(lv, seams, CW);
+    for (const P of worldParts) {
+      if (P.lv === lv) { P.fxBlocks = fxBlocks; continue; }
+      const sf = []; for (const k of Object.keys(P.lv.fx || {})) { const [r, c] = k.split(",").map(Number); for (const o of (P.lv.fx[k] || [])) if (o.solid) { const fp = levelObjectFootprint(o, o.kind === "prop" ? findA(o.propId) : null); sf.push({ r, c, rows: fp.rows, cols: fp.cols }); } }
+      P.fxBlocks = (r, c) => sf.some((o) => r >= o.r && r < o.r + o.rows && c >= o.c && c < o.c + o.cols);
+    }
+    const solidAtW = (r, c) => { const P = worldPartOfCell(worldParts, r, c); if (!P) return false; const lr = r - P.dr, lc = c - P.dc; return fgSolid(P.lv.fg[cellKey(lr, lc)]) || P.fxBlocks(lr, lc); };
+    const cellsHitW = worldParts.length === 1 ? cellsHit : (x, y, w, h) => { const hits = []; const c0 = Math.floor(x / CW), c1 = Math.floor((x + w - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + h - 0.001) / CH); for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) if (solidAtW(r, c)) hits.push({ r, c }); return hits; };
+    // A ramp's own solid backing, anywhere in the world — splitHillHits with each cell asked of its own level.
+    const splitHillHitsW = (hits, footY) => { const out = { walls: [], hill: [] }; for (const h of hits) { const P = worldPartOfCell(worldParts, h.r, h.c); ((h.r * CH >= footY - CH * 2.5) && !!P && isHillFormationCell(P.lv, h.r - P.dr, h.c - P.dc) ? out.hill : out.walls).push(h); } return out; };
+    // Is a point inside any level of the world (edges included — the old one-level test for a shot).
+    const inWorld = (x, y) => worldParts.some((P) => x >= P.ox && x <= P.ox + P.lv.cols * CW && y >= P.oy && y <= P.oy + P.lv.rows * CH);
+    const unitBoxW = (ea) => enemyRenderW(ea, CW) * sideBodyShape(ea).fraction;
+    // Which neighbour a unit stands in (null = this level), by the centre of its box — asked by the
+    // handoff (releaseRunUnits) to give every unit back to the level it is standing in.
+    const unitSideOf = (k) => {
+      const spawn = lv.enemies && lv.enemies[k], ep = enemyPos.current[k], ea = spawn ? findA(spawn.enemyId) : null;
+      let cx, cy;
+      if (ep) { cx = ep.x + (ea ? unitBoxW(ea) : CW) / 2; cy = ep.y + (ea ? enemyStandH(ea, CW) : CH) / 2; }
+      else { const i = k.indexOf(","); cx = (+k.slice(i + 1) + 0.5) * CW; cy = (+k.slice(0, i) + 0.5) * CH; }
+      return worldPartAt(worldParts, cx, cy, CW).side;
+    };
     // Put the body at a spawn spec, using the real player size so nothing clips. Gate = enter
     // through a connector (`gateKey` when a run crossed you in through a known one, else the
     // top-left-first preference); roomDoor = this room's door; {x,y} = the exact door you came back
@@ -10376,7 +10517,7 @@ export default function AssetStudio() {
         }
         return out;
       };
-      const shotPathProbe = (x, y) => cellsHit(x, y, 2, 2).length === 0; // the flying shot's own solid test, for shotPathClear
+      const shotPathProbe = (x, y) => cellsHitW(x, y, 2, 2).length === 0; // the flying shot's own solid test, for shotPathClear — the world's, since a target can stand across a gate
       // One-shot spawn placement (start of test, or the moment a room/level loads). Uses the real
       // player size so nothing clips. Gate = enter through a connector (top-left first); roomDoor =
       // appear at this room's door; {x,y} = the exact door you came back out to.
@@ -10836,7 +10977,11 @@ export default function AssetStudio() {
         const cx = p.x + pw / 2, cy = p.y + ph / 2;
         const side = cx > lv.cols * CW ? "E" : cx < 0 ? "W" : cy > lv.rows * CH ? "S" : cy < 0 ? "N" : null;
         const leavingGate = side && seams[side] ? gateLeavingThrough(lv, side, cx, cy, LV_CELL) : null;
-        if (leavingGate) { seamHandoff(side, p, pw, leavingGate); return; }
+        // The camera takes this frame's step FIRST. The handoff returns before the bottom of the loop,
+        // where the camera normally moves, so the body walked ~12 px on the swap frame while the view
+        // stood still (measured: the player's screen x 653 → 665 at the swap, easing back over the
+        // next frames) — a small lurch at every gate, on top of the swap itself.
+        if (leavingGate) { updateCamera(p, pw, ph, dtMul); seamHandoff(side, p, pw, leavingGate); return; }
         // ...and a gate with NOTHING behind it: pressed against an edge at an open gate that no saved
         // level attaches to (no sewer built yet, or the far side of the Exit), say so, once every
         // couple of seconds. In a plain Playtest the edges are silent walls exactly as before.
@@ -10922,10 +11067,12 @@ export default function AssetStudio() {
               dep.vy = Math.min(60, (dep.vy || 0) + 0.175 * dtMul);
               dep.y += dep.vy * dtMul;
               const dFeet = dep.y + dh;
-              const dFloor = cellsHit(dep.x, dep.y, dw, dh).filter((h) => h.r * CH >= dFeet - CH * 0.5);
+              const dPart = worldPartAt(worldParts, dep.x + dw / 2, dep.y + dh / 2, CW); // the level it lies in (see THE WORLD)
+              const dFloor = cellsHitW(dep.x, dep.y, dw, dh).filter((h) => h.r * CH >= dFeet - CH * 0.5);
               if (dFloor.length && dep.vy > 0) { dep.y = Math.min(...dFloor.map((h) => h.r * CH)) - dh; dep.vy = 0; dep.restedDead = true; }
-              else if (dep.vy > 0 && topdownAt(lv, dep.x, dFeet, dw, CW, CH)) { dep.vy = 0; dep.restedDead = true; } // a 🚶 Top-down plane is a floor to a corpse too: a body killed on the crossing lies where it fell instead of sliding down the road
-              if (dep.y > lv.rows * CH - dh) { dep.y = lv.rows * CH - dh; dep.vy = 0; dep.restedDead = true; } // level floor
+              else if (dep.vy > 0 && topdownAt(dPart.lv, dep.x - dPart.ox, dFeet - dPart.oy, dw, CW, CH)) { dep.vy = 0; dep.restedDead = true; } // a 🚶 Top-down plane is a floor to a corpse too: a body killed on the crossing lies where it fell instead of sliding down the road
+              const dFloorY = unitFloorY(dPart, dep.x + dw / 2, dep.y + dh / 2, lv, seams, CW);
+              if (dep.y > dFloorY - dh) { dep.y = dFloorY - dh; dep.vy = 0; dep.restedDead = true; } // level floor
             }
             continue; // defeated: nothing else about it updates
           }
@@ -10944,7 +11091,11 @@ export default function AssetStudio() {
             // and `turned` starts unset — nothing has been said yet. Both live on ep, which lives
             // in the per-level roomState bucket, so an NPC you talked into fighting for you is
             // still your ally when you come back through the door.
-            enemyPos.current[k] = { x: spawnLeft, y: (er + 1) * CH - standEph, vy: 0, onGround: false, face: spawn.facing === 1 ? 1 : -1, crouch: false, crouchT: 0, dodgeRolled: false, willDodge: false, attackT: 0, swingT: 0, reactT: 0, aimHold: 0, faceFlipT: 0, following: false, walkPhase: 0, walking: false, weaponAmmo: null, reloading: false, peaceful: spawnStartsPeaceful(spawn), turned: null, lastHp: null };
+            // `uid` names the unit for the RENDER: its "r,c" key changes every time it changes level's
+            // books at a run's handoff (moveRunUnit), and a sprite keyed on that would be torn down and
+            // rebuilt on the very frame the level swaps — ~140 DOM nodes per unit on screen, in the
+            // one frame that must be cheap. Keyed on uid it is the same element before and after.
+            enemyPos.current[k] = { uid: ++unitUidSeq, x: spawnLeft, y: (er + 1) * CH - standEph, vy: 0, onGround: false, face: spawn.facing === 1 ? 1 : -1, crouch: false, crouchT: 0, dodgeRolled: false, willDodge: false, attackT: 0, swingT: 0, reactT: 0, aimHold: 0, faceFlipT: 0, following: false, walkPhase: 0, walking: false, weaponAmmo: null, reloading: false, peaceful: spawnStartsPeaceful(spawn), turned: null, lastHp: null, stepEase: 0 };
           }
           const ep = enemyPos.current[k];
           // HIT A PEACEFUL NPC AND IT FIGHTS BACK. Checked once here, off its HP falling, rather
@@ -11180,16 +11331,33 @@ export default function AssetStudio() {
           // chase across any real terrain read as completely broken. A one-cell lip gets the
           // same step-up the player has, so stairs and ledge lips don't dead-end the chase.
           const exBefore = ep.x; // remember where it was, so we can tell if it actually moved (walk cycle)
+          // The level this unit is standing in — the live one, or across a gate (see THE WORLD). Its
+          // edges, its floor, its ramps and its top-down planes are the ones that apply to it; the
+          // solid cells come from the whole world, so a body straddling a seam feels both sides.
+          const ePart = worldPartAt(worldParts, ep.x + epw / 2, ep.y + newEph / 2, CW);
           if (dxMove) {
-            const nx = Math.max(0, Math.min(lv.cols * CW - epw, ep.x + dxMove));
-            const eWallHits = cellsHit(nx, ep.y, epw, newEph);
+            const nx = unitClampX(ePart, ep.x + dxMove, epw, ep.y + newEph / 2, lv, seams, CW);
+            // RAMPS ARE WALKED, NOT CLIMBED LIKE STAIRS (2026-09-26 — part of "enemies need to be less
+            // teleporty"). A ramp cell is not solid; the hill's backing under it is. So a unit walking
+            // up a hill walked INTO that backing a column at a time, and the step-up below lifted it
+            // a whole cell in ONE frame at every column: feet sunk half a cell into the ramp, then a
+            // 30 px pop, five or six times a hill. The player has never done this — splitHillHits
+            // hands a ramp's own backing near the feet to the ramp-surface pass instead of calling it
+            // a wall — and a unit now asks the same question (splitHillHitsW) and is stood on the
+            // ramp's surface by the vertical pass below, exactly as you are.
+            const eWallHits = splitHillHitsW(cellsHitW(nx, ep.y, epw, newEph), ep.y + newEph).walls;
             if (!eWallHits.length) ep.x = nx;
             else {
               const stepY = Math.min(...eWallHits.map((h) => h.r * CH)) - newEph;
               const rise = ep.y - stepY;
-              if (rise > 0 && rise <= CH && cellsHit(nx, stepY, epw, newEph).length === 0) { ep.x = nx; ep.y = stepY; }
+              // A genuine one-cell lip (a kerb, a stair) still steps up in one frame for the physics,
+              // but is DRAWN easing up over the next few (ep.stepEase, decayed by the player's own
+              // easeStep) — the fix that took the "jarring teleport up one block" off the player,
+              // which units never had.
+              if (rise > 0 && rise <= CH && cellsHitW(nx, stepY, epw, newEph).length === 0) { ep.x = nx; ep.y = stepY; ep.stepEase = Math.min(CH, (ep.stepEase || 0) + rise); }
             }
           }
+          ep.stepEase = easeStep(ep.stepEase, dtMul);
 
           // 🚶 A TOP-DOWN PLANE IS A FLOOR TO AN ENEMY TOO. Found the way the player finds it — by
           // the FEET (topdownAt), never by box overlap — and held by the same rule (topdownHolds):
@@ -11201,25 +11369,39 @@ export default function AssetStudio() {
           // down the top down climbing surface". A dodge hop off the plane remembers the line it
           // left (ep.tdJumpY, the player's own gate) so the re-grab lands it back on that line
           // rather than wherever the road happened to be under its feet at the apex.
-          const eTdOverlap = topdownAt(lv, ep.x, ep.y + newEph, epw, CW, CH);
+          const eStand = worldPartAt(worldParts, ep.x + epw / 2, ep.y + newEph / 2, CW); // after the step: it may just have walked through a gate
+          const eTdOverlap = topdownAt(eStand.lv, ep.x - eStand.ox, ep.y + newEph - eStand.oy, epw, CW, CH);
           const eTopdown = topdownHolds(eTdOverlap, ep.vy, ep.y, ep.tdJumpY);
           if (eTopdown) {
             if (ep.tdJumpY != null && ep.y - ep.tdJumpY <= Math.abs(ep.vy * dtMul) + 0.01) ep.y = ep.tdJumpY;
             ep.tdJumpY = null; ep.vy = 0; ep.onGround = true;
           } else {
             // Gravity + ground collision — identical rule to the player's own fall, reusing the
-            // same generic cellsHit() so enemies land on and are stopped by the same terrain.
+            // same generic cell test so enemies land on and are stopped by the same terrain.
             ep.vy = Math.min(60, ep.vy + 0.175 * dtMul);
             ep.y += ep.vy * dtMul;
-            const eHits = cellsHit(ep.x, ep.y, epw, newEph);
-            // Land only on a surface AT OR BELOW the feet — never snap UP onto elevated terrain the
-            // (now possibly tall, scaled) body merely overlaps. Same feet-filter the player's own
-            // landing uses; without it a big enemy near forest canopy floats up onto the leaves.
-            const eFeet = ep.y + newEph;
-            const eFloor = eHits.filter((h) => h.r * CH >= eFeet - CH * 0.5);
-            if (eFloor.length) { if (ep.vy > 0) { ep.y = Math.min(...eFloor.map((h) => h.r * CH)) - newEph; ep.vy = 0; ep.onGround = true; } }
-            else { ep.onGround = false; }
-            if (ep.y > lv.rows * CH - newEph) { ep.y = lv.rows * CH - newEph; ep.vy = 0; ep.onGround = true; }
+            // THE RAMP FIRST, in the player's order (slopeSurfaceForPlayer, then flat landing): the
+            // surface nearest the feet within what they could reach this frame — up the few pixels a
+            // walk up the hill buried them, down the few a walk down it left them hanging. Only while
+            // not rising, the player's rule too, so a dodge-hop off a ramp is not snapped straight
+            // back onto it. Asked of the unit's own level, in that level's pixels.
+            let eOnRamp = false;
+            if (ep.vy >= 0) {
+              const sHit = slopeSurfaceForPlayer(eStand.lv, ep.x + epw / 2 - eStand.ox, ep.y - eStand.oy, ep.y + newEph - eStand.oy, ep.vy, dxMove, dtMul, CW, CH);
+              if (sHit) { ep.y = sHit.y + eStand.oy - newEph; ep.vy = 0; ep.onGround = true; eOnRamp = true; }
+            }
+            if (!eOnRamp) {
+              const eHits = cellsHitW(ep.x, ep.y, epw, newEph);
+              // Land only on a surface AT OR BELOW the feet — never snap UP onto elevated terrain the
+              // (now possibly tall, scaled) body merely overlaps. Same feet-filter the player's own
+              // landing uses; without it a big enemy near forest canopy floats up onto the leaves.
+              const eFeet = ep.y + newEph;
+              const eFloor = eHits.filter((h) => h.r * CH >= eFeet - CH * 0.5);
+              if (eFloor.length) { if (ep.vy > 0) { ep.y = Math.min(...eFloor.map((h) => h.r * CH)) - newEph; ep.vy = 0; ep.onGround = true; } }
+              else { ep.onGround = false; }
+            }
+            const eFloorY = unitFloorY(eStand, ep.x + epw / 2, ep.y + newEph / 2, lv, seams, CW); // its own level's floor — or none, over an open bottom gate
+            if (ep.y > eFloorY - newEph) { ep.y = eFloorY - newEph; ep.vy = 0; ep.onGround = true; }
             if (ep.onGround) ep.tdJumpY = null; // real ground under it again: the hop's line is forgotten, as the player's is
           }
           ep.topdown = eTopdown;
@@ -11429,7 +11611,7 @@ export default function AssetStudio() {
             let blocked = false;
             for (let s = 1; s < STEPS; s++) {
               const sx = eCenterXFinal + (tgtAimCX - eCenterXFinal) * (s / STEPS);
-              if (cellsHit(sx, chestY, 1, 1).length) { blocked = true; break; }
+              if (cellsHitW(sx, chestY, 1, 1).length) { blocked = true; break; } // the world's cells: a wall across a gate blocks a shot from across it
             }
             inSight = !blocked;
           }
@@ -11976,8 +12158,13 @@ export default function AssetStudio() {
         for (const g of thrown.current) {
           g.vy = Math.min(40, g.vy + 0.175 * dtMul);
           g.x += g.vx * dtMul; g.y += g.vy * dtMul; g.rot += (g.spin || 6) * dtMul;
-          const offLevel = g.x < 0 || g.x > lv.cols * CW || g.y > lv.rows * CH;
-          const hitSolid = !offLevel && cellsHit(g.x - 4, g.y - 4, 8, 8).length > 0;
+          // Off the WORLD, not off this level — a grenade lobbed through a gate flies on over the next
+          // level, lands on its ground and goes off among the units standing there (see THE WORLD).
+          // gPart is the level it is over; with no seams it is this one and this is the old test.
+          const gPart = worldPartAt(worldParts, g.x, g.y, CW);
+          const gFloor = unitFloorY(gPart, g.x, g.y, lv, seams, CW);
+          const offLevel = g.x < gPart.ox || g.x > gPart.ox + gPart.lv.cols * CW || g.y > gFloor;
+          const hitSolid = !offLevel && cellsHitW(g.x - 4, g.y - 4, 8, 8).length > 0;
           // IMPACT. Tested every frame, so it catches both the rock that hits someone in mid-air
           // and the one that lands at their feet — a thrown object used to pass clean THROUGH an
           // enemy, because the only thing it collided with was solid terrain. Striking someone
@@ -12059,7 +12246,7 @@ export default function AssetStudio() {
               if (blastHitsBox(g.x, g.y, cbx.x, cbx.y, cbx.w, cbx.h, contactRadPx)) { onCatchableBody = true; break; }
             }
           }
-          const landed = offLevel || hitSolid || struck.length > 0 || onCatchableBody || g.y >= lv.rows * CH - 1;
+          const landed = offLevel || hitSolid || struck.length > 0 || onCatchableBody || g.y >= gFloor - 1;
           if (!landed) { stillFlying.push(g); continue; }
           // Folded into the single landing message below rather than flashed here: the landing
           // flash fires a few lines later and simply overwrote this one, so the hit was invisible
@@ -12115,7 +12302,12 @@ export default function AssetStudio() {
           const cellState = (r, c) => { const cell = lv.fg[cellKey(r, c)]; if (fgSolid(cell)) return "block"; if (fxBlocks(r, c)) return "block"; if (fgSlopeFills(cell).length) return "ground"; return null; };
           let keys = groundedLandingCells(r0, c0, radius, lv.rows, lv.cols, cellState);
           if (!keys.length) keys = [r0 + "," + c0]; // never a total dud: if nothing is grounded (rare), fall back to the impact cell
-          setLevel((lv2) => {
+          // Its FIRE is painted only on THIS level. A level across a gate draws no fires and burns
+          // nothing until it is the live one, so a fire painted there would be invisible and could
+          // not go out on schedule; a grenade that lands over there still hits, stuns and captures
+          // what it lands among (all below), it just leaves no flames behind.
+          if (gPart.lv !== lv) keys = [];
+          if (keys.length) setLevel((lv2) => {
             const { hazard, fx, newHazKeys, newPropKeys } = applyLandingEffect(lv2.hazard, lv2.fx, keys, dps, life, landProp ? a.landPropId : null, propSize, a.landChar || DEFAULT_LAND_CHAR);
             for (const key of newHazKeys) thrownFireKeys.current.add(key);
             for (const key of newPropKeys) thrownPropKeys.current.add(key);
@@ -12311,7 +12503,12 @@ export default function AssetStudio() {
           // still detonate. It is NOT a despawn condition any more.
           const rangeReached = pr.traveled >= pr.rangePx;
           if (pr.life > 3600) return false; // safety only: protects against a malformed zero-speed shot
-          if (pr.x < 0 || pr.x > lv.cols * CW || pr.y < 0 || pr.y > lv.rows * CH) { if (rangeReached && pr.explode) detonate(pr, pr.x, pr.y); return false; }
+          // OFF THE WORLD, not off this level: across an open gate the next level is right there, and
+          // a shot fired at a dog standing in it used to be deleted the moment it crossed this level's
+          // edge ("you should be able to shoot from one level to the next if an enemy is close"). The
+          // dog is simulated here now (see THE WORLD), so a shot that reaches it hits it; one that
+          // leaves every level is gone as before. With no seams this is the old one-level test.
+          if (!inWorld(pr.x, pr.y)) { if (rangeReached && pr.explode) detonate(pr, pr.x, pr.y); return false; }
           const sz = LV_CELL * (pr.size || 1);
           let boxW = sz, boxH = sz, boxCx = pr.x, boxCy = pr.y;
           if (pr.hitbox) {
@@ -12428,7 +12625,7 @@ export default function AssetStudio() {
           }
           // Ground (or any solid) is what ends a shot now — not the range mark. A shot fired from
           // high up keeps travelling until it actually lands, which is the whole point.
-          if (cellsHit(pr.x, pr.y, 2, 2).length) { if (pr.explode) detonate(pr, pr.x, pr.y); return false; }
+          if (cellsHitW(pr.x, pr.y, 2, 2).length) { if (pr.explode) detonate(pr, pr.x, pr.y); return false; } // any level's ground or walls, whichever it is flying through
           return true;
         });
       }
@@ -12479,7 +12676,9 @@ export default function AssetStudio() {
         const bodyH = ea ? (ep && ep.crouch ? enemyCrouchH(ea, CH) : enemyStandH(ea, CH)) : CH;
         const dropX = ep ? ep.x + (shape.centerFrac * renderW - hitW / 2) + hitW / 2 : ec * CW + CW / 2;
         const feetY = ep ? ep.y + bodyH : (er + 1) * CH;
-        const dropY = settleDropY(lv.rows, lv.cols, dropX, feetY, CW, CH, (rr, cc) => fgSolid(lv.fg[cellKey(rr, cc)]) || fxBlocks(rr, cc));
+        // Settled on the ground of the level the body lies in — across a gate, that level's (THE WORLD).
+        const lootPart = worldPartAt(worldParts, dropX, feetY - 1, CW);
+        const dropY = lootPart.oy + settleDropY(lootPart.lv.rows, lootPart.lv.cols, dropX - lootPart.ox, feetY - lootPart.oy, CW, CH, (rr, cc) => fgSolid(lootPart.lv.fg[cellKey(rr, cc)]) || lootPart.fxBlocks(rr, cc));
         enemyDrops.current[k] = { item, x: dropX, y: dropY };
         flash((lucky ? "🍀 " : "🎁 ") + item.name + " dropped!");
       }
@@ -15553,7 +15752,16 @@ export default function AssetStudio() {
     setScreen("level");
   };
   const saveLevel = async () => {
-    if (!level) return;
+    // 💾 DURING A RUN SAVES THE LEVEL IN THE EDITOR, NOT THE RUN. The level on screen in a run is the
+    // run's working copy of one of his levels: it carries a runKey, the fires grenades painted, and —
+    // since the live level adopts its neighbours' units (adoptRunNeighbours) — every enemy of the
+    // levels either side of it, filed under keys outside its own grid. Saving THAT would have written
+    // other levels' enemies into his level, invisibly, for good. The editor's own level is kept on
+    // the run (run.editorLevel, handed back on ■ Stop), so that is what gets saved, and the run is
+    // left playing untouched.
+    const inRun = !!(play && runRef.current);
+    const toSave = inRun ? runRef.current.editorLevel : level;
+    if (!toSave) return;
     let list = []; const idx = await sget("levelIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     // RENAMING A LOADED LEVEL IS "SAVE AS" — it forks a fresh id, exactly as it already did for
     // assets (resolveSaveTarget, shared by both so the two screens can never drift apart again).
@@ -15564,10 +15772,10 @@ export default function AssetStudio() {
     // id to dodge it; ordinary Save was the path that never learned. Note this reads the index
     // BEFORE writing (the old code wrote the record first), because the fork has to be decided
     // against the stored name, not against the one already being overwritten.
-    const target = resolveSaveTarget(list, level);
+    const target = resolveSaveTarget(list, toSave);
     // STAMPED. A level never carried savedAt, which is why no merge could ever tell a stale copy
     // of one from a fresh one — see fileIsNewer. Assets have always had this; now everything does.
-    const payload = { ...(target.id !== level.id ? { ...level, id: target.id } : level), savedAt: Date.now() };
+    const payload = { ...(target.id !== toSave.id ? { ...toSave, id: target.id } : toSave), savedAt: Date.now() };
     const ok1 = await sset("level:" + payload.id, JSON.stringify(payload));
     list = list.filter((x) => x.id !== payload.id); list.push({ id: payload.id, name: payload.name });
     const ok2 = await sset("levelIndex", JSON.stringify(list));
@@ -15577,7 +15785,8 @@ export default function AssetStudio() {
     if (ok1 && ok2) {
       // Carry on editing the FORK, not the level it came from. Leaving the editor pointed at the
       // old id would fork again on the next save, quietly stamping out M3 after M3 after M3.
-      setLevel(payload); // always a new object now (it carries the fresh savedAt), so the baseline below matches it
+      if (inRun) runRef.current.editorLevel = payload; // ■ Stop hands the editor this one back; the run keeps playing
+      else setLevel(payload); // always a new object now (it carries the fresh savedAt), so the baseline below matches it
       levelBaseline.current = JSON.stringify(payload);
       flash(target.mode === "rename"
         ? "Saved \"" + payload.name + "\" as a NEW level ✓ — the one you renamed it from is still there"
@@ -16094,7 +16303,14 @@ export default function AssetStudio() {
     }
     const startLevel = runStart ? runStart.nodes[runStart.startKey].level : level;
     roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true };
-    if (runStart) { runRef.current = runStart; prepRunNeighbours(runStart, runStart.nodes[runStart.startKey]); setRunHud(runHudFor(runStart, runStart.nodes[runStart.startKey])); setLevel(startLevel); setPlay(true); return; }
+    if (runStart) {
+      const startNode = runStart.nodes[runStart.startKey];
+      runRef.current = runStart; prepRunNeighbours(runStart, startNode);
+      // The level beyond the first gate is alive from the first frame (see ONE WORLD, above
+      // runWorldParts): its units are the live level's to simulate, so they are adopted before it goes live.
+      adoptRunNeighbours(runStart, startNode, roomState.current, LV_CELL);
+      setRunHud(runHudFor(runStart, startNode)); setLevel(startNode.level); setPlay(true); return;
+    }
     setPlay((v) => !v);
   };
   // The pool a run is built from is every SAVED level, with the editor's live copy standing in for
@@ -16106,6 +16322,8 @@ export default function AssetStudio() {
   // rolls made — the same bucket shape and the same roll-once rule the loop effect applies when a
   // level goes live, so the effect adopts it untouched at the handoff. Without it a neighbour's
   // units could only be drawn in their base gear and would change clothes as you crossed.
+  // (Since 2026-09-26 the live level adopts those units right after this — adoptRunNeighbours —
+  // and each roll travels with its unit under the unit's new key, so it is still rolled once.)
   const prepRunNeighbours = (run, node) => {
     for (const s of Object.values(runSeams(run, node, LV_CELL))) {
       let b = roomState.current[s.key];
@@ -16821,9 +17039,13 @@ export default function AssetStudio() {
     // nowhere the instant you crossed — "they just jump in out of the blue". They are drawn by the
     // SAME sprite code as the live level's (it takes one of these sets), standing where the loop will
     // start them: their spawn cell, or where they were when you last left that level (its bucket).
-    // Only the live level simulates; a neighbour's units come alive at the handoff. Their gear rolls
-    // are made when the neighbour is first attached (prepRunNeighbours), so what they are drawn
-    // holding is what they will fight with.
+    // Their gear rolls are made when the neighbour is first attached (prepRunNeighbours), so what
+    // they are drawn holding is what they will fight with.
+    // SINCE 2026-09-26 THE NEIGHBOUR SETS ARE EMPTY in a run: the live level adopts every unit of its
+    // neighbours (adoptRunNeighbours) and simulates them, so they are drawn as the live level's own,
+    // at live-level positions that happen to lie across a gate. The sets are kept because they cost
+    // nothing empty and are the one place a neighbour's units would be drawn if anything ever again
+    // leaves some in a neighbour's books.
     const playUnitSets = !play ? [] : [
       { lv, pos: enemyPos.current, hp: enemyHP.current, stripped: corpseStripped.current, gear: enemyGearRolls.current, hpSeen: unitHpSeen.current, off: { x: 0, y: 0 }, ns: "" },
       ...(runNodeNow ? Object.values(runSeams(runRef.current, runNodeNow, LV_CELL)).map((s) => { const b = roomState.current[s.key] || {}; return { lv: s.level, pos: b.ePos || {}, hp: b.eHP || {}, stripped: b.stripped || {}, gear: b.gear || {}, hpSeen: {}, off: s.off, ns: s.key + ":" }; }) : []),
@@ -18126,7 +18348,12 @@ export default function AssetStudio() {
                   const ducking = !!(ep && ep.crouch);
                   const eph = ducking ? enemyCrouchH(ea, LV_CELL) : enemyStandH(ea, LV_CELL);
                   const eLeft = U.off.x + (ep ? ep.x : (c * LV_CELL + LV_CELL / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2)));
-                  const eTop = U.off.y + (ep ? ep.y : ((r + 1) * LV_CELL - eph)); // live AI/gravity position; static fallback for the first frame before physics has run
+                  // + stepEase: a unit that just stepped up a one-cell lip is drawn easing up to it (see the loop).
+                  const eTop = U.off.y + (ep ? ep.y + (ep.stepEase || 0) : ((r + 1) * LV_CELL - eph)); // live AI/gravity position; static fallback for the first frame before physics has run
+                  // The sprite's React name: the unit's own uid once it has live state, so the element
+                  // survives the handoff that re-files it under a new "r,c" (moveRunUnit); its key
+                  // until then (the first frame of a level, before the loop has seeded it).
+                  const uKey = ep && ep.uid ? "u" + ep.uid : "enp" + U.ns + k;
                   if (offScreen(eLeft - LV_CELL * 2, eTop - LV_CELL * 2, eRenderW + LV_CELL * 4, eph + LV_CELL * 4)) return null; // off the screen: no sprite this frame (its AI still runs — see cullView)
                   const hitboxOffset = eShape.centerFrac * eRenderW - epw / 2; // hitbox-left relative to the wider render box — constant regardless of live position
                   const eFootAnchor = Math.max(0, 1 - eShape.topFrac - eShape.heightFrac) * eph; // empty canvas below the drawn feet: shift the art down by it so the visible feet rest on the ground instead of hovering by that gap (scales with the enemy, so big/tall enemies do not float)
@@ -18200,8 +18427,8 @@ export default function AssetStudio() {
                     const deadFootAnchor = poseGroundFrac(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"), deadPose) * eph;
                     const deadFlip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1) " : "";
                     return (
-                      <div key={"enp" + U.ns + k} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop + deadFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", zIndex: CORPSE_Z, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (eph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
-                        {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + U.ns + k + "_s" + stripped.length, keyPrefix: "dead" + U.ns + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}
+                      <div key={uKey} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop + deadFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", zIndex: CORPSE_Z, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (eph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
+                        {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + uKey + "_s" + stripped.length, keyPrefix: "dead" + uKey + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}
                       </div>
                     );
                   }
@@ -18357,7 +18584,7 @@ export default function AssetStudio() {
                   }
                   const hpFrac = Math.max(0, Math.min(1, curHp / maxHp));
                   // The bar of whoever is being hurt RIGHT NOW draws over the rest of the crowd (unitStatusZ).
-                  const hpHot = noteUnitHp(U.hpSeen, U.ns + k, curHp, performance.now());
+                  const hpHot = noteUnitHp(U.hpSeen, uKey, curHp, performance.now());
                   // A FRONT POSE IS NEVER MIRRORED. The flip exists to point a side-on drawing the
                   // way the unit is walking; applied to art already facing the camera it just
                   // swaps the poor character's left and right for no reason, and any lettering or
@@ -18384,7 +18611,7 @@ export default function AssetStudio() {
                     ? (flip === "none" ? "" : flip + " ") + "translateY(" + (-layFlatLiftPx(eBlocks, eRenderW, eph)).toFixed(2) + "px) " + LAY_FLAT_ROT_CSS
                     : flip;
                   return (
-                    <React.Fragment key={"enp" + U.ns + k}>
+                    <React.Fragment key={uKey}>
                       {/* Status readouts live OUTSIDE the sprite wrapper, in their own layer above
                           the Front tiles. Inside it they were unreachable: the wrapper carries the
                           facing scaleX(-1), and a transform makes its own stacking context, so no
@@ -18425,7 +18652,7 @@ export default function AssetStudio() {
                       </div>
                       <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? " (💬 not fighting you — press E to talk)" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {(() => {
-                          const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + U.ns + k, keyPrefix: "enp" + U.ns + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
+                          const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + uKey, keyPrefix: uKey + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
                           // Put the art back to a true aspect when the box isn't one (ducking) —
                           // see spriteUnsquashY. Scaled about the floor line so the feet stay
                           // planted and the body grows back UP out of the shorter hitbox, the way
