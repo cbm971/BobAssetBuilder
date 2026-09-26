@@ -204,28 +204,46 @@ function decodeIDBKey(key) {
   return found;
 }
 
-// ---------- main ----------
-const [,, mode, dir, blobDir] = process.argv;
-if (!mode || !dir) { console.error("usage: node tools/read-chrome-leveldb.js idb <leveldb dir> [blob dir] | ls <Local Storage leveldb dir>"); process.exit(2); }
-const entries = readDir(dir);
-const out = [];
-if (mode === "idb") {
-  for (const e of entries) {
+// ---------- as a module (tools/bob-okay.js sweeps every copy of the game with this) ----------
+// [{ key, value }] for one IndexedDB directory: the stored JSON strings, newest write per key.
+// Unreadable values are skipped one by one; the caller decides what a record is.
+function readIdbRecords(dir, blobDir) {
+  const out = [];
+  for (const e of readDir(dir)) {
     const u = unwrapIDB(e.value, blobDir);
-    if (u.err) { out.push({ key: decodeIDBKey(e.key), seq: e.seq, err: u.err, blobSize: u.blobSize }); continue; }
+    if (u.err) continue;
     const str = decodeV8String(u.buf); if (str === null) continue;
-    out.push({ key: decodeIDBKey(e.key), seq: e.seq, wrapped: u.wrapped, len: str.length, value: str });
+    const key = decodeIDBKey(e.key); if (!key) continue;
+    out.push({ key, value: str });
   }
-} else {
-  for (const e of entries) {
-    const k = e.key; if (k[0] !== 0x5f) continue;
-    const nul = k.indexOf(0); if (nul < 0 || k[nul + 1] !== 1) continue;
-    const v = e.value;
-    out.push({ origin: k.subarray(1, nul).toString("latin1"), key: k.subarray(nul + 2).toString("latin1"), seq: e.seq, value: v[0] === 0 ? v.subarray(1).toString("utf16le") : v.subarray(1).toString("latin1") });
-  }
+  return out;
 }
-const target = path.join(path.dirname(path.resolve(dir)), path.basename(dir) + ".records.json");
-fs.writeFileSync(target, JSON.stringify(out));
-const summary = {};
-for (const r of out) { const k = (r.origin ? r.origin + " :: " : "") + String(r.key || "?").replace(/:.*/, ":*"); summary[k] = (summary[k] || 0) + 1; }
-console.log(JSON.stringify({ entries: entries.length, decoded: out.length, wrote: target, summary }, null, 1));
+module.exports = { readIdbRecords };
+
+// ---------- main ----------
+if (require.main === module) {
+  const [,, mode, dir, blobDir] = process.argv;
+  if (!mode || !dir) { console.error("usage: node tools/read-chrome-leveldb.js idb <leveldb dir> [blob dir] | ls <Local Storage leveldb dir>"); process.exit(2); }
+  const entries = readDir(dir);
+  const out = [];
+  if (mode === "idb") {
+    for (const e of entries) {
+      const u = unwrapIDB(e.value, blobDir);
+      if (u.err) { out.push({ key: decodeIDBKey(e.key), seq: e.seq, err: u.err, blobSize: u.blobSize }); continue; }
+      const str = decodeV8String(u.buf); if (str === null) continue;
+      out.push({ key: decodeIDBKey(e.key), seq: e.seq, wrapped: u.wrapped, len: str.length, value: str });
+    }
+  } else {
+    for (const e of entries) {
+      const k = e.key; if (k[0] !== 0x5f) continue;
+      const nul = k.indexOf(0); if (nul < 0 || k[nul + 1] !== 1) continue;
+      const v = e.value;
+      out.push({ origin: k.subarray(1, nul).toString("latin1"), key: k.subarray(nul + 2).toString("latin1"), seq: e.seq, value: v[0] === 0 ? v.subarray(1).toString("utf16le") : v.subarray(1).toString("latin1") });
+    }
+  }
+  const target = path.join(path.dirname(path.resolve(dir)), path.basename(dir) + ".records.json");
+  fs.writeFileSync(target, JSON.stringify(out));
+  const summary = {};
+  for (const r of out) { const k = (r.origin ? r.origin + " :: " : "") + String(r.key || "?").replace(/:.*/, ":*"); summary[k] = (summary[k] || 0) + 1; }
+  console.log(JSON.stringify({ entries: entries.length, decoded: out.length, wrote: target, summary }, null, 1));
+}

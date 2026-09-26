@@ -4,9 +4,60 @@ A browser game maker: draw assets out of blocks (bodies, skins, clothes, weapons
 enemies, props), dress a character, paint a level, then playtest it. Create React App
 + React 18. Everything is in **`src/App.js`** (~9400 lines). Tests in `src/App.test.js`.
 
+## HIS SAVES LIVE IN ONE FOLDER ON HIS PC (2026-09-26) — read this first
+
+**`C:\Users\cbm97\OneDrive\Documents\Bob Okay\Saves`** is the save. One file per record
+(`assets\<id>.json`, `levels\<id>.json`, ... + `removed.json`), and `History\<kind>\<id>\` holds
+EVERY version ever seen, gzipped, named `<savedAt>~<which copy>.json.gz`. Nothing deletes from
+History. It is OneDrive-backed, so it is also in his cloud.
+
+**Why:** on 2026-09-26 he had two copies of the game open in one day. Each kept a private save
+in its own browser storage and started from the committed `library.json`, so each showed half a
+day as "reverted" (top-down interiors in one, M1–M9 edits in the other). It was the fifth loss of
+that shape. He was clear: saves must work like Skyrim/Minecraft, one place, and **"addresses"
+must never be his problem again — do not explain origins or preview hostnames to him.**
+
+**How it works:** `tools/bob-okay.js` is the save keeper. The Desktop icon **"Bob Okay"**
+(`tools/Bob Okay.cmd`, copied to his Desktop) runs `launch`. That fetches the play branch into
+`%LOCALAPPDATA%\BobOkay\game` and rebuilds when the commit changed (~30–50 s, into
+`%LOCALAPPDATA%\BobOkay\builds\<sha>`, keeping the last good build). It then starts the keeper
+hidden and opens **http://localhost:47017**. The keeper serves the production build and
+answers `/__library` from the folder, using setupProxy's own `applyWrite`, so App.js has one
+storage path. On start and every minute it **sweeps every other copy of the game** out of the
+Chrome/Edge profiles (StackBlitz previews, the Pages copy) with `tools/read-chrome-leveldb.js`
+and folds their saves in. The rules are in `src/saveKeeperCore.js` and tested in
+`saveKeeperCore.test.js`:
+- newer work comes in;
+- two copies that edited the same record from the same version are combined cell by cell;
+- versions older than the keeper's first run are kept in History only (they are ancestors,
+  never merged);
+- a copy's deletes count only if made after the keeper first saw that copy.
+
+Every 5 minutes it also checks GitHub, rebuilds, and restarts itself when its own code changed.
+The log is `%LOCALAPPDATA%\BobOkay\keeper.log`.
+
+**In the game:**
+- The front screen shows `💾 Documents\Bob Okay\Saves` on the desktop copy and `☁ Online copy`
+  anywhere else.
+- The desktop copy refuses to be open in two tabs at once (Web Lock; "Play here instead" takes over).
+- A desktop save that fails to reach the folder says so in a toast.
+
+**For agents:**
+- **His real library is the folder, not `asset-data/library.json`.**
+  `node tools/bob-okay.js export <file>` writes it in library.json shape. Merge it into the
+  repo file before building on his records or pushing library.json.
+- Revisions you deliver through library.json reach the folder the same way as before: same id,
+  strictly newer numeric `savedAt`.
+- **Never point a test keeper at his folder.** Use `BOB_SAVES`, `BOB_HOME`, `BOB_PORT` and
+  `BOB_NO_SWEEP=1`.
+- The keeper only ever `git reset`s its own clone (`%LOCALAPPDATA%\BobOkay\game`). Run from
+  your scratchpad clone, it leaves your tree alone.
+- The StackBlitz link still works for anyone. Its saves are swept into his folder, but it does
+  not *show* his folder's saves. That is why he plays from the icon.
+
 ## How Blake plays it
 
-From a **StackBlitz linked to PR #1**, not `main`. The branch is
+**From the "Bob Okay" icon on his Desktop since 2026-09-26** (above); before that, and still for friends, from a **StackBlitz linked to PR #1**, not `main`. The branch is
 `agent/scaled-hitboxes-projectile-range`. **Pushing to that branch is what reaches
 them** — they reload the link. There is no other delivery path.
 

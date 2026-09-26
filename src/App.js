@@ -504,6 +504,32 @@ export const diskLibrary = {
     await diskLibrary.writeJson(diskLibrary.handle, DISK_REMOVED_FILE, cur);
   },
 };
+// ---- THE DESKTOP COPY: BOB OKAY ON HIS OWN PC, WITH ONE SAVE FOLDER (tools/bob-okay.js) -------
+// On 2026-09-26 two copies of the game were open on one day, each kept its own private save, and
+// each one showed half a day of work as "reverted". The fix is the desktop game's: a save keeper on
+// his PC serves the game and answers /__library from ONE folder (Documents\Bob Okay\Saves) that
+// keeps every version ever saved and sweeps up anything saved in any other copy. It speaks the dev
+// server's protocol exactly, so nothing below changes when it is the one answering — this only
+// tells the front screen which copy it is, and lets the desktop copy refuse to be open twice.
+export const keeperLink = {
+  state: "checking",   // "desktop" (served by the keeper) | "online" (any other copy)
+  saveDir: "",
+  problem: null,
+  onSaveFailed: null,  // set by the studio: a desktop save that did not reach the folder says so
+  probeP: null,
+  probe: () => keeperLink.probeP || (keeperLink.probeP = keeperLink.probeOnce()),
+  probeOnce: async () => {
+    try {
+      const res = await fetch("/__keeper", { cache: "no-store" });
+      const d = res.ok ? await res.json() : null;           // the dev server answers with index.html, which is not JSON
+      if (d && d.keeper) { keeperLink.state = "desktop"; keeperLink.saveDir = d.saveDir || ""; keeperLink.problem = d.problem || null; return keeperLink; }
+    } catch { /* not the desktop copy */ }
+    keeperLink.state = "online";
+    return keeperLink;
+  },
+};
+// "C:\Users\x\OneDrive\Documents\Bob Okay\Saves" -> "Documents\Bob Okay\Saves": the part he knows.
+export const keeperShortDir = (dir) => { const s = String(dir || ""); const i = s.toLowerCase().lastIndexOf("documents"); return i >= 0 ? s.slice(i) : s; };
 const projectLibrary = {
   available: false, // set on the first successful read; a plain static build simply won't have it
   // BOTH backends, merged newest-wins (mergeLibraries): the dev server file, and the save folder on
@@ -565,6 +591,9 @@ const projectLibrary = {
     } catch { serverOk = false; }
     let diskOk = false;
     try { diskOk = await diskLibrary.save(body, opts); } catch (e) { console.warn("[Bob] save folder write failed: " + (e && e.message)); }
+    // On the desktop copy the keeper IS the save. The browser still holds this save and the next
+    // load sends it again, but he has to hear that it did not land rather than find out later.
+    if (!serverOk && keeperLink.state === "desktop" && keeperLink.onSaveFailed) { try { keeperLink.onSaveFailed(); } catch { /* a notice must not break a save */ } }
     return serverOk || diskOk;
   },
   // Deleting has to reach the file too. Everything above is deliberately additive — the merge on
@@ -8620,6 +8649,7 @@ export default function AssetStudio() {
   const [toast, setToast] = useState("");
   const [hasStore, setHasStore] = useState(false);
   const [saveFolder, setSaveFolder] = useState(diskLibrary.state); // "none" | "prompt" | "ready" | "iframe" | "unsupported" — mirrors diskLibrary.state for the front-screen button
+  const [keeper, setKeeper] = useState(null);       // keeperLink once probed: which copy of the game this is
   const [sessionAssets, setSessionAssets] = useState([]);
   const [loadout, setLoadout] = useState({ bodyId: "", skinId: "", slots: {}, weaponId: "" });
   const [dressedBobName, setDressedBobName] = useState(""); // editable — blank falls back to "<body> — dressed"
@@ -9398,6 +9428,36 @@ export default function AssetStudio() {
     setHasStore(ok);
     diskLibrary.init().finally(() => { loadLibrary(); loadStamps(); readLevelIndexCount().then(setLevelCount); });
     return () => { diskLibrary.listeners.delete(onFolder); };
+  }, []); // eslint-disable-line
+  // WHICH COPY IS THIS, and on the desktop copy, ONE TAB AT A TIME. Two tabs of the same copy share
+  // the save folder but not what is open in them, so the tab still holding the older version of a
+  // level can save it over the newer one — the 2026-09-26 split in miniature. A Web Lock names the
+  // tab that has the game; any other tab says so and offers to take over (which reloads, so it
+  // starts from what the other tab saved). The notice is plain DOM on <body> because it has to
+  // cover every screen, and each screen has its own return below.
+  useEffect(() => {
+    const showOtherTab = () => {
+      if (document.getElementById("bobOtherTab")) return;
+      const d = document.createElement("div");
+      d.id = "bobOtherTab"; d.className = "otherTab";
+      d.innerHTML = '<div class="dlg"><div class="dt">Bob Okay is open in another tab</div><button class="ltbtn saveRead">Play here instead</button></div>';
+      d.querySelector("button").onclick = () => { try { sessionStorage.setItem("bobTakeOver", "1"); } catch { /* no session storage */ } window.location.reload(); };
+      document.body.appendChild(d);
+    };
+    keeperLink.onSaveFailed = () => flash("⚠ Not saved to your save folder — kept in this browser, it goes again on the next load");
+    let live = true;
+    keeperLink.probe().then((k) => {
+      if (!live) return;
+      setKeeper({ ...k });
+      if (k.state !== "desktop" || !(navigator.locks && navigator.locks.request)) return;
+      let steal = false;
+      try { steal = sessionStorage.getItem("bobTakeOver") === "1"; sessionStorage.removeItem("bobTakeOver"); } catch { /* no session storage */ }
+      navigator.locks.request("bob-okay-desktop", steal ? { steal: true } : { ifAvailable: true }, (lock) => {
+        if (!lock) { showOtherTab(); return undefined; }
+        return new Promise(() => {});                   // held for as long as this tab is open
+      }).catch(showOtherTab);                           // another tab took over
+    });
+    return () => { live = false; keeperLink.onSaveFailed = null; };
   }, []); // eslint-disable-line
   useEffect(() => { setEmojis(buildEmojiList()); }, []);
   // Persist the active paint color + recent-colors history so they survive a reload — previously
@@ -15954,7 +16014,9 @@ export default function AssetStudio() {
           <button className="ltbtn saveRead" disabled={libraryLoading} onClick={() => { setLoadOpen(true); setLoadCategory(null); setLoadSub(null); }}>{libraryLoading ? "⏳ Loading your saves…" : "📂 Load (" + allAssets.length + " saved)"}</button>
           {libraryLoading && <p className="mini saveLoading">Your saved assets are still being read from this browser. Nothing has been cleared.</p>}
           <label className="openfile">⬆ Open a file<input type="file" accept=".json,application/json,text/plain" onChange={upload} hidden /></label>
-          {saveFolder !== "unsupported" && <button className={"ltbtn saveRead saveFolder" + (saveFolder === "ready" ? " on" : "")} disabled={libraryLoading} onClick={() => connectSaveFolder(saveFolder === "ready")} title={saveFolder === "ready" ? "Every save also goes to this folder on your disk. Click to pick a different one." : "Pick a folder on your disk; every save goes there too, and it survives a new preview address."}>{saveFolder === "ready" ? "📁 Save folder ✓ " + diskLibrary.name : saveFolder === "prompt" ? "📁 Reconnect save folder" : "📁 Save folder"}</button>}
+          {keeper && keeper.state === "desktop" && <span className={"keeperChip " + (keeper.problem ? "bad" : "on")} title={keeper.problem || keeper.saveDir}>{keeper.problem ? "⚠ Save folder missing" : "💾 " + keeperShortDir(keeper.saveDir)}</span>}
+          {keeper && keeper.state === "online" && <span className="keeperChip off" title="Saves made here are picked up by Bob Okay on your desktop the next time it runs">☁ Online copy</span>}
+          {saveFolder !== "unsupported" && !(keeper && keeper.state === "desktop") && <button className={"ltbtn saveRead saveFolder" + (saveFolder === "ready" ? " on" : "")} disabled={libraryLoading} onClick={() => connectSaveFolder(saveFolder === "ready")} title={saveFolder === "ready" ? "Every save also goes to this folder on your disk. Click to pick a different one." : "Pick a folder on your disk; every save goes there too, and it survives a new preview address."}>{saveFolder === "ready" ? "📁 Save folder ✓ " + diskLibrary.name : saveFolder === "prompt" ? "📁 Reconnect save folder" : "📁 Save folder"}</button>}
           <button className="ltbtn saveRead" disabled={libraryLoading} onClick={exportAllAssets} title="Downloads everything you have made — assets, levels, stored groups, textures and backgrounds — as one backup file. Re-open that file here later to restore it all.">⬇ Export everything{libraryLoading ? " (loading…)" : " (" + library.length + " assets, " + Math.max(levelLib.length, levelCount) + " levels)"}</button>
           <h2>Niche controls</h2>
           <button className="ltbtn" onClick={() => setNiche(true)}>🩹 Recover layers from a dressed look</button>
@@ -19956,7 +20018,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .texseg button{padding:7px 9px;font-size:12px}
 .row2 .danger{border-color:#5a2e36;color:#ff9b9b}
 .ltbtn{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:8px 11px;cursor:pointer;font-size:13px}
-.ltbtn.saveRead:disabled{opacity:.55;cursor:wait}.ltbtn.saveFolder.on{border-color:#3f8f5a;color:#bfe8c9}.saveLoading{max-width:360px;color:#f3d98a;background:#241b0d;border:1px solid #5c481d;border-radius:8px;padding:6px 8px}
+.ltbtn.saveRead:disabled{opacity:.55;cursor:wait}.ltbtn.saveFolder.on{border-color:#3f8f5a;color:#bfe8c9}.keeperChip{display:inline-block;margin:4px 6px 4px 0;padding:4px 10px;border-radius:999px;font-size:12px;border:1px solid #444;color:#ccc;background:#1a1a1a}.keeperChip.on{border-color:#3f8f5a;color:#bfe8c9;background:#12251a}.keeperChip.off{border-color:#5c481d;color:#f3d98a;background:#241b0d}.keeperChip.bad{border-color:#8f3f3f;color:#f3b0b0;background:#2a1212}.otherTab{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center}.otherTab .dlg{text-align:center}.saveLoading{max-width:360px;color:#f3d98a;background:#241b0d;border:1px solid #5c481d;border-radius:8px;padding:6px 8px}
 .gname{background:#141824;border:1px solid #2c3245;border-radius:9px;padding:7px 9px;font-size:13px;color:inherit;width:110px}
 .stampShelf{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:6px;margin:7px 0;padding:7px 8px;background:#171b26;border:1px solid #2c3245;border-radius:10px;font-size:12px;color:#aeb6c9}
 .stampShelf select{min-width:0;width:100%;background:#141824;border:1px solid #2c3245;border-radius:8px;padding:7px 8px;color:inherit;font-size:12px}
