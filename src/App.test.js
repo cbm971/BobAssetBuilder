@@ -1769,6 +1769,16 @@ describe("stomp", () => {
     expect(under([short(170, "leaping", { y: 300 - 46 - 2 * CELL })])).toEqual([]);    // in the air over your foot
   });
 
+  test("units stomp too, but never YOU: the player's box is the whole 7-cell physics box", () => {
+    // A unit runs the same stompTargets from its own box. The player's box is 7 cells standing and
+    // 4.2 crouched whatever the character is — even playing AS a Squirrel — so a thug stamps on
+    // your pet, and swings at you.
+    const at = (h) => ({ key: "player", x: 170, y: 300 - h, w: 60, h });
+    expect(under([at(7 * CELL)])).toEqual([]);
+    expect(under([at(4.2 * CELL)])).toEqual([]);
+    expect(under([short(170, "pet")])).toEqual(["pet"]);
+  });
+
   test("nearest first; facing left is the mirror", () => {
     expect(under([short(175, "b"), short(120, "a")])).toEqual(["a", "b"]);
     expect(under([short(40, "left")], { face: -1 })).toEqual(["left"]);

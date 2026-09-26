@@ -1672,8 +1672,15 @@ except one. The close ones were also BEHIND the muzzle, which the cone skips (`d
   the foot then, with a 💥 boom (visual only) and a 3px body dip. Pose is `stompLegBlocks`: the
   front leg swings 28° and lifts; Bob's one drawn leg gets `addBackLeg`'s clone as the planted
   one. 40° read as a kick and 14° hid the leg under Army Bob's coat — tuned in the running game.
-  Squirrels (46–55px) qualify, Pit Bulls (93px+) do not. **Units do not stomp** — a hostile
-  thug would then one-shot a captured pet Squirrel; that is Blake's call to make.
+  Squirrels (46–55px) qualify, Pit Bulls (93px+) do not.
+* **Units stomp too** (Blake: "Enemies and allies can stomp", after being told a thug would then
+  one-shot his captured pet Squirrel — so that is intended). Any non-creature unit, armed or not,
+  runs `eStompFrom` (its own hit box against `aliveOpposite` + you) when it commits an attack and
+  stomps instead of swinging/shooting/punching; `ep.stomp` is the same `{t, dur, hits}` clock,
+  damage through `applyHitTo` at `stompDamage(its Strength)`, no crit. A MELEE unit whose target is
+  short narrows `engageRange` to `STOMP_REACH_CELLS` so it walks in — at weapon reach it stood
+  swinging over the Squirrel forever. A gunman keeps its range. Planted (`dxMove` 0, facing held),
+  cancelled by a stun. You are never stomped: the player's box is the full 7-cell physics box.
 
 **THERE IS NO 👹 ENEMY FLAG ON A DRESSED LOOK ANY MORE, AND IT WAS REMOVED BECAUSE IT MADE
 DUPLICATES.** `isEnemy` used to decide which Dress Bob looks the Level Creator would offer as

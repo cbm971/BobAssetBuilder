@@ -1864,6 +1864,13 @@ export const meleeHasFired = (t, dur) => (t / dur) >= (MELEE_WINDUP_FRAC + MELEE
 // swinging at anything taller changed. Q/V with a melee weapon is still the BLOCK. A creature
 // bites; only a body with legs stamps.
 //
+// UNITS STOMP TOO (Blake, the next day: "Enemies and allies can stomp"). Every attack a unit with
+// legs commits checks under its foot first (eStompFrom) and stamps instead of swinging, shooting
+// or punching; a melee one closes to STOMP_REACH_CELLS on a short foe rather than standing off at
+// its weapon's reach, where the swing passes over the animal. So your ally with a machete finally
+// kills the Squirrel — and a hostile thug stamps on your captured pet for the same damage. The
+// player is never a stomp target: its box is the full 7-cell physics box whatever you play as.
+//
 // SHORT is measured against the stomper: at most STOMP_MAX_TARGET_FRAC of its standing height, so
 // the Squirrel (46px of Bob's 210) and the Pika-Squirrel (55) qualify and the Pit Bulls (93+) do not
 // — a dog's back is at your hip, where the swing still reaches it. It must be standing on your floor
@@ -10660,7 +10667,7 @@ export default function AssetStudio() {
           // A player-based look engages at its WEAPON'S actual swept reach; only drawn
           // enemy-type monsters still use the ⚔️ range number.
           const meleeGeom = enemyMeleeGeom(ea, ew);
-          const engageRange = meleeGeom ? enemyMeleeReach(ea, ew, meleeGeom) : enemyAttackRange(ea, ew);
+          let engageRange = meleeGeom ? enemyMeleeReach(ea, ew, meleeGeom) : enemyAttackRange(ea, ew); // narrowed below for a 🦶 stomper facing something short
 
           // Dodging an incoming shot. The enemy picks the move that would actually help — duck
           // under a high shot, hop over a low one (see dodgeMoveFor) — rather than only ever
@@ -10695,7 +10702,7 @@ export default function AssetStudio() {
             }
             if (!canCrouch) { ep.crouch = false; ep.crouchT = 0; }
           }
-          if (stunned) { ep.walking = false; ep.aimHold = 0; } // frozen pose — no walk cycle, no aim tracking
+          if (stunned) { ep.walking = false; ep.aimHold = 0; ep.stomp = null; } // frozen pose — no walk cycle, no aim tracking, and a raised foot never lands
           const newEph = ep.crouch ? crouchEph : standEph;
           if (newEph !== oldEph) ep.y += (oldEph - newEph); // keep feet planted through the height change, same trick the player's own crouch uses
 
@@ -10738,6 +10745,18 @@ export default function AssetStudio() {
             if (near && near.key) { targetKind = "unit"; targetKey = near.key; targetCX = near.cx; targetEp = near.ep; targetEa = near.ea; targetW = enemyRenderW(near.ea, CW) * sideBodyShape(near.ea).fraction; }
             else { targetKind = "player"; targetCX = p.x + pw / 2; targetW = pw; }
           }
+          // 🦶 STOMP, THE UNITS' HALF (see STOMP_DAMAGE; Blake: "Enemies and allies can stomp").
+          // Anything with legs stamps — every body and dressed look, armed or not; a creature bites.
+          // A MELEE fighter whose foe is short walks in to stomping distance instead of holding
+          // station at its weapon's reach — that reach is exactly where its swing sails over a
+          // Squirrel's head, so without this it stood there swinging at the air forever and the
+          // stomp could never fire. A gunman keeps its range and stomps only what runs up to it,
+          // the way you stomp with Q/V without holstering. The player's box is never short (it is
+          // the full 7-cell physics box whatever you play as), so no unit ever stomps YOU.
+          const eStomper = !isCreatureUnit(ea);
+          const targetShort = eStomper && targetKind === "unit" && !!targetEa && !!targetEp
+            && sideBodyShape(targetEa).heightFrac * (targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW)) <= STOMP_MAX_TARGET_FRAC * standEph;
+          if (targetShort && !rangedEnemy) engageRange = Math.min(engageRange, STOMP_REACH_CELLS * CW);
           const distToTarget = targetCX - eCenterXNow;
           const aiSpeed = 2.2 * ((ea.stats?.speed ?? 5) / 5) * dtMul;
           const ai = friendly ? "seek" : (spawn.ai || ea.ai || "guard"); // friendlies always chase their foe; hostiles keep their set behavior
@@ -10791,7 +10810,7 @@ export default function AssetStudio() {
           // keeps engageRange exactly as before, so no hostile's behaviour moves.
           // Following you is not engaging you: it closes or it stands, and it never reverses.
           const following = targetKind === "followPlayer";
-          const dxMove = (stunned || !acts) ? 0
+          const dxMove = (stunned || !acts || ep.stomp) ? 0   // a stomp plants its feet, the player's rule
             : charging ? (Math.sign(distToTarget) || ep.face || 1) * aiSpeed * TACKLE_CHARGE_SPEED_MUL
             : following ? allyFollowIntent(gapSigned, ALLY_FOLLOW_RANGE_CELLS * CW, aiSpeed, ep.following)
             : enemyMoveIntent(ai, gapSigned, engageRange, aiSpeed, detected);
@@ -10804,6 +10823,7 @@ export default function AssetStudio() {
           // with your own pet had it permanently side-on, snapping round as you crossed it. Facing
           // the same way you do is what makes it read as walking WITH you.
           if (following && !dxMove && !stunned) wantFace = p.face || wantFace;
+          if (ep.stomp) wantFace = ep.face; // mid-stamp it does not turn round: the foot lands where the knee went up
           const faceHold = holdFacing(ep.face, wantFace, ep.faceFlipT, dtMul);
           ep.face = faceHold.face; ep.faceFlipT = faceHold.pendT;
           // Walls actually stop enemies now — they used to have NO horizontal collision at all:
@@ -11014,6 +11034,37 @@ export default function AssetStudio() {
               if (ep.swingT <= 0) break; // the blow was BLOCKED and the stagger cut the swing short: nobody behind the shield gets hit by a stroke that stopped
             }
           }
+          // 🦶 Every short opposing body under this unit's foot, nearest first — the player's own
+          // stompTargets rule, run from this unit's hit box against everybody on the other side:
+          // your friendlies (and you, never short enough to qualify) for a hostile, hostiles for a
+          // friendly. aliveOpposite already leaves out corpses and NPCs nobody is fighting.
+          const eStompFrom = () => {
+            const bodies = [];
+            for (const o of aliveOpposite(hostile)) { const b = hitBodyOf("unit", o.ep, o.ea); bodies.push({ key: o.key, kind: "unit", ep: o.ep, ea: o.ea, x: b.left, y: b.top, w: b.w, h: b.h }); }
+            if (hostile) { const b = hitBodyOf("player"); bodies.push({ key: "player", kind: "player", ep: null, ea: null, x: b.left, y: b.top, w: b.w, h: b.h }); }
+            return stompTargets({ x: ep.x + (eShape.centerFrac * eRenderW - epw / 2), w: epw, feetY: ep.y + newEph, standH: standEph, face: ep.face, cellPx: CW, bodies });
+          };
+          // The stomp's clock, the player's rules exactly: the foot lands on ONE frame, on whatever
+          // is under it at that moment, once per body, for stompDamage off this unit's own Strength
+          // (no crit — no unit attack crits). applyHitTo is the one damage sink every unit hit
+          // already goes through, so the revive window, the death flash and the loot all follow.
+          if (ep.stomp) {
+            const prevT = ep.stomp.t;
+            ep.stomp.t += dtMul;
+            if (stompLands(prevT, ep.stomp.t, ep.stomp.dur)) {
+              let puffX = ep.x + eShape.centerFrac * eRenderW + ep.face * epw * 0.3, stomped = 0;
+              for (const b of eStompFrom()) {
+                if (ep.stomp.hits[b.key]) continue;
+                if (applyHitTo(b.kind, b.kind === "player" ? null : b.key, b.ep, b.ea, stompDamage(ea.stats?.strength))) {
+                  if (!stomped) puffX = b.x + b.w / 2;
+                  stomped++;
+                }
+                ep.stomp.hits[b.key] = true;
+              }
+              booms.current.push({ x: puffX, y: ep.y + newEph - CW * 0.4, propId: null, char: "💥", size: 1.2, life: 0, maxLife: 14 });
+            }
+            if (ep.stomp && ep.stomp.t >= ep.stomp.dur) ep.stomp = null;
+          }
           if (ep.attackT > 0) ep.attackT -= dtMul;
           if (ep.swingT > 0) ep.swingT -= dtMul;
           const attackRange = engageRange; // weapon-swept reach for player-based looks, ⚔️ number for monsters
@@ -11093,7 +11144,14 @@ export default function AssetStudio() {
                 const rangedNow = rangedEnemy;
                 ep.attackT = rangedNow ? Math.max(20, weaponFireCooldownFrames(ew.fireRate)) : ATTACK_COOLDOWN_FRAMES;
                 ep.swingT = ATTACK_SWING_FRAMES;
-                if (rangedNow) {
+                // 🦶 Something short under its foot: the attack it commits is a STOMP, whatever it
+                // is holding — no swing, no shot, no punch. The hit lands later, in the stomp clock.
+                const eUnder = (eStomper && !ep.stomp) ? eStompFrom() : [];
+                if (eUnder.length) {
+                  ep.swingT = 0; ep.swingHit = null;
+                  ep.attackT = Math.max(ATTACK_COOLDOWN_FRAMES, STOMP_FRAMES);
+                  ep.stomp = { t: 0, dur: STOMP_FRAMES, hits: {} };
+                } else if (rangedNow) {
                   // Shoots at the target, aimed from its own chest. The shot is flagged for the side
                   // it should hurt: a hostile's shot is `foe` (tested against you AND your friendlies),
                   // a friendly's shot is a normal player-side shot (tested against hostiles).
@@ -17629,7 +17687,11 @@ export default function AssetStudio() {
                   // driven by the enemy's own walkPhase. Legs only — applyLimbSwing never touches arms,
                   // so the aim/attack/weapon pipeline below is completely unaffected. Without this the
                   // enemy slid around with frozen legs.
-                  if (ep && ep.walking && !ducking && !eUseAtkPose) {
+                  // 🦶 A stomping unit: the same knee-up/slam pose the player's stomp draws
+                  // (stompLegBlocks), forward read off which way this art was drawn.
+                  if (ep && ep.stomp && !eUseAtkPose) {
+                    eBlocks = stompLegBlocks(eBlocks, stompLift(ep.stomp.t, ep.stomp.dur), playerArtFacesRight(ea) ? 1 : -1);
+                  } else if (ep && ep.walking && !ducking && !eUseAtkPose) {
                     const { legIds, armIds } = identifyLimbs(eBlocks);
                     const eSwing = Math.sin(ep.walkPhase || 0) * 28;
                     const stackedPivot = multiLegPivot(eBlocks, legIds, eSwing);
@@ -17787,7 +17849,7 @@ export default function AssetStudio() {
                             an NPC standing behind a tree still advertises itself. */}
                         {eTalkWaiting && !downed ? <div className="talkBadge">💬</div> : null}
                       </div>
-                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor, width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? " (💬 not fighting you — press E to talk)" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? " (💬 not fighting you — press E to talk)" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {(() => {
                           const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
                           // Put the art back to a true aspect when the box isn't one (ducking) —
