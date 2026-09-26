@@ -440,7 +440,17 @@ const update = (tell) => {
           if (remote && remote !== local) {
             note("Getting the newest version...");
             // This clone is the keeper's own copy of the code, never edited by hand.
-            const r = git("reset", "--hard", "FETCH_HEAD");
+            // Retried: on Windows a file some other program has open for a moment (a virus scan,
+            // the search indexer) cannot be replaced, and git gives up with "unable to create
+            // file ...: File exists". That stopped the first real update on his PC (2026-09-26);
+            // the same reset by hand a minute later went straight through.
+            let r;
+            for (let i = 0; i < 6; i++) {
+              r = git("reset", "--hard", "FETCH_HEAD");
+              if (r.status === 0) break;
+              log("update: git reset attempt " + (i + 1) + " failed: " + (r.stderr || "").trim().split("\n")[0]);
+              await sleep(2000 * (i + 1));
+            }
             if (r.status !== 0) note("Update failed: " + (r.stderr || "").trim());
           }
         }
