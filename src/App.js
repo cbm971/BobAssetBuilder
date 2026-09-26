@@ -3328,8 +3328,9 @@ const LOAD_CATEGORIES = [
 // which this doesn't touch).
 const DEFAULT_STATS = () => ({ hp: 5, speed: 5, agility: 5, intelligence: 5, strength: 5 });
 // How far a stat slider goes in the creator. Every stat is a 1-10 scale and stays one — except an
-// ENEMY's Speed, which is the one stat whose number feeds a runtime formula that never clamps it:
-// aiSpeed is 2.2 * (speed / 5), straight into px per frame. 10 was therefore a UI ceiling rather
+// ENEMY's Speed, which is the one stat whose number feeds a runtime formula that never clamps it
+// from above: unitWalkSpeed is 2.2 * (speed / 5) px per frame (floored at Speed 0, nothing more).
+// 10 was therefore a UI ceiling rather
 // than a game one, and it had already been hit — both Pit Bulls sit at 10, so there was no way to
 // author anything FASTER than a dog, which is exactly what the Squirrel needed to be. Enemy Speed
 // runs to 20; a stat-20 enemy moves 8.8px a frame, a shade quicker than the player's own walk, so
@@ -3513,6 +3514,15 @@ export const enemyAttackRange = (ea, weapon) => {
 // stand nose-to-nose to shoot). Avoid and Guard behave exactly as before.
 // `dist` is signed: player position minus enemy position.
 export const ENEMY_STANDOFF_FAR = 0.85, ENEMY_STANDOFF_NEAR = 0.45;
+// How fast a unit walks, px per 60fps frame, off its Speed stat: 2.2 at Speed 5, straight-line, and
+// NO ceiling — the Squirrel is Speed 14 on purpose (see the Enemy Speed notes in CLAUDE.md).
+// It DOES have a floor, at 0 (Blake: "Speed should effectively stop going down at 0"). A dressed
+// look's Speed is its skin plus whatever its gear takes off, and that can go negative — the saved
+// Army Bob is −1 — which made this negative, and every move rule multiplies a direction by it:
+// a Seek Army Bob with its target 291px to its right was measured walking steadily LEFT, away
+// from the fight, and an Avoid one ran at you. Negative Speed now reads as 0: it holds its ground.
+export const UNIT_WALK_SPEED = 2.2;
+export const unitWalkSpeed = (speed) => UNIT_WALK_SPEED * (Math.max(0, speed ?? 5) / 5);
 export const enemyMoveIntent = (ai, dist, range, speed, detected) => {
   if (!detected) return 0;
   const ad = Math.abs(dist), s = Math.sign(dist) || 1;
@@ -10758,7 +10768,7 @@ export default function AssetStudio() {
             && sideBodyShape(targetEa).heightFrac * (targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW)) <= STOMP_MAX_TARGET_FRAC * standEph;
           if (targetShort && !rangedEnemy) engageRange = Math.min(engageRange, STOMP_REACH_CELLS * CW);
           const distToTarget = targetCX - eCenterXNow;
-          const aiSpeed = 2.2 * ((ea.stats?.speed ?? 5) / 5) * dtMul;
+          const aiSpeed = unitWalkSpeed(ea.stats?.speed) * dtMul;
           const ai = friendly ? "seek" : (spawn.ai || ea.ai || "guard"); // friendlies always chase their foe; hostiles keep their set behavior
           // THE FACING THIS UNIT *WANTS*, not the facing it gets. Both rules below used to write
           // straight to ep.face — turn-toward-your-target here, then feet-override-it further down —

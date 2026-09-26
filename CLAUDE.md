@@ -1818,6 +1818,13 @@ stat on a skin, still stops at 10, because the player's own speed and agility go
 `Math.min(10, …)` and a slider that sets a number the game then ignores is worse than one
 that stops.
 
+**...but it DOES stop at 0 from below** (`unitWalkSpeed`, 2026-09-26; Blake: "Speed should
+effectively stop going down at 0"). A dressed look's Speed is skin plus gear, and gear can take
+it negative — the saved Army Bob is −1 — which made `aiSpeed` negative and flipped every move
+rule: a Seek Army Bob was measured walking steadily AWAY from its target (x 977 → 499), an Avoid
+one runs at you. Negative now reads as 0: Army Bob, Billy and Bobby (Speed 0) hold their ground.
+The player was never affected — its own speed clamps to 1–10.
+
 **AN ANIMAL HAS NO ARM, AND TWO SYSTEMS ASSUMED EVERYTHING DOES.** Both halves read to Blake
 as one bug — "the squirrel does 0 damage whether it's controlled by me or attacking me" — and
 they are in completely different places, which is the usual shape here (see the throwable

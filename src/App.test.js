@@ -308,6 +308,8 @@ import {
   enemyAttackCommitted,
   enemyFaceThisFrame,
   enemyMoveIntent,
+  unitWalkSpeed,
+  UNIT_WALK_SPEED,
   enemyFaceToward,
   armClimbAbs,
   armAimAbs,
@@ -6307,6 +6309,19 @@ describe("how far a stat slider goes", () => {
     expect(statSliderMax("enemy", "speed")).toBe(ENEMY_SPEED_STAT_MAX);
     expect(ENEMY_SPEED_STAT_MAX).toBeGreaterThan(10);
     for (const s of ["agility", "intelligence", "strength", "hp"]) expect(statSliderMax("enemy", s)).toBe(10);
+  });
+
+  test("a unit's Speed stops going down at 0 — negative never walks it backwards", () => {
+    // Army Bob is saved at Speed -1 (his gear takes more off than his skin has): a Seek Army Bob
+    // was measured walking steadily AWAY from its target, and an Avoid one would run at you.
+    expect(unitWalkSpeed(5)).toBeCloseTo(UNIT_WALK_SPEED, 9);
+    expect(unitWalkSpeed(undefined)).toBeCloseTo(UNIT_WALK_SPEED, 9);   // no stats: the baseline
+    expect(unitWalkSpeed(0)).toBe(0);
+    expect(unitWalkSpeed(-1)).toBe(0);
+    expect(unitWalkSpeed(-7)).toBe(0);
+    expect(enemyMoveIntent("seek", 300, 30, unitWalkSpeed(-1), true)).toBe(0);  // holds its ground, facing the fight
+    expect(unitWalkSpeed(14)).toBeCloseTo(UNIT_WALK_SPEED * 14 / 5, 9);  // the Squirrel: still no ceiling
+    expect(unitWalkSpeed(ENEMY_SPEED_STAT_MAX)).toBeGreaterThan(unitWalkSpeed(10));
   });
 
   test("a skin's Speed still stops at 10, because the player's own formula clamps there anyway", () => {
