@@ -443,6 +443,13 @@ import {
   unitStatusZ,
   UNIT_STATUS_Z,
   HP_BAR_HOT_MS,
+  levelLoadGroups,
+  characterPickerGroups,
+  moveLevelArea,
+  moveLevelObject,
+  clampAreaShift,
+  liftLevelArea,
+  stampLevelArea,
 } from "./App";
 import {
   DEFAULT_HOLD_ANGLE,
@@ -4299,6 +4306,29 @@ describe("a weapon's cutter stays with the piece it cuts", () => {
   test("no behindArm piece at all still just concatenates, as before", () => {
     const body = [{ id: "arm", role: "weaponArm" }];
     expect(mergeWeaponBlocks(body, [{ id: "w1" }]).map((p) => p.id)).toEqual(["arm", "w1"]);
+  });
+});
+
+describe("a held weapon's 'Behind the WHOLE body' pieces go under the body in play", () => {
+  // DK Arms, Side pose, as saved on 2026-09-26: the far arm is five pieces carrying BOTH flags,
+  // then a dark knuckle line with behindArm only, then the near arm and the muzzle.
+  const farArm = ["kck", "kcl", "kcm", "kcn", "kcr"].map((id) => ({ id, behindArm: true, behindBody: true }));
+  const dk = [...farArm.slice(0, 4), { id: "kco" }, { id: "kcp" }, farArm[4], { id: "kcs", behindArm: true }, { id: "kct" }, { id: "kcz", isMuzzle: true }];
+  const body = [{ id: "cape", behindBody: true }, { id: "torso" }, { id: "arm", role: "weaponArm" }, { id: "jacket" }];
+
+  test("the far arm draws before the body; the rest keeps its old place", () => {
+    expect(mergeWeaponBlocks(body, dk).map((p) => p.id)).toEqual(["kck", "kcl", "kcm", "kcn", "kcr", "cape", "torso", "kcs", "arm", "jacket", "kco", "kcp", "kct", "kcz"]);
+  });
+
+  test("behindBody wins over behindArm, and a cutter follows the piece it cuts", () => {
+    const { under, behind, front } = groupWeaponBlocksByArm([{ id: "a", behindBody: true, behindArm: true }, { id: "c", isCutter: true }, { id: "b", behindArm: true }, { id: "f" }]);
+    expect(under.map((p) => p.id)).toEqual(["a", "c"]);
+    expect(behind.map((p) => p.id)).toEqual(["b"]);
+    expect(front.map((p) => p.id)).toEqual(["f"]);
+  });
+
+  test("an armless body still gets its behind-the-body pieces underneath", () => {
+    expect(mergeWeaponBlocks([{ id: "blob" }], [{ id: "u", behindBody: true }, { id: "w" }]).map((p) => p.id)).toEqual(["u", "blob", "w"]);
   });
 });
 
@@ -9770,5 +9800,139 @@ describe("✋ Enemies hold a weapon the right way round, at a hold point", () =>
     const k = spriteUnsquashY(duck.renderW, duck.boxH);
     const head = spriteCanvasPointToWorld({ x: 0, y: 0 }, duck);
     expect(floorY - head.y).toBeCloseTo((floorY - (duck.top + duck.anchor)) * k, 6);
+  });
+});
+
+/* 📂 THE LOAD DIALOG'S FOLDERS. His rooms, as saved on 2026-09-26: six "Trailor Int" rooms (five
+   carrying only the Room tag, one with a matching Section) and a "Tree" room, all of which used to
+   land in one "🚪 Rooms" pile. */
+describe("levelLoadGroups files rooms by Section, falling back to the room tag", () => {
+  const lv = (name, extra) => ({ id: name, name, isRoom: false, floor: "", section: "", ...extra });
+  const levels = [
+    lv("Trailor Park M2", { floor: "Trailor Park", section: "Middle" }),
+    lv("Trailor Int3", { isRoom: true, roomTag: "Trailor Int" }),
+    lv("Tree Treasure Room 1", { isRoom: true, roomTag: "Tree" }),
+    lv("Trailor Int1", { isRoom: true, roomTag: "Trailor Int", section: "Trailor Int" }),
+    lv("Forest M1", { floor: "Vietnam", section: "Middle" }),
+    lv("Trailor Park M10", { floor: "Trailor Park" }),
+    lv("Loose room", { isRoom: true }),
+    lv("Cellar", { isRoom: true, roomTag: "Tree", section: "Basement" }),
+  ];
+  const groups = levelLoadGroups(levels);
+
+  test("floors first, then one folder per room section/tag, untagged rooms last", () => {
+    expect(groups.map((g) => (g.isRoom ? "room " : "floor ") + g.label)).toEqual(["floor Trailor Park", "floor Vietnam", "room Basement", "room Trailor Int", "room Tree", "room "]);
+  });
+
+  test("a Section beats the room tag, and the two spellings of one folder are one folder", () => {
+    expect(groups.find((g) => g.label === "Trailor Int").items.map((l) => l.name)).toEqual(["Trailor Int1", "Trailor Int3"]);
+    expect(groups.find((g) => g.label === "Basement").items.map((l) => l.name)).toEqual(["Cellar"]);
+  });
+
+  test("levels inside a folder sort by name, numbers read as numbers", () => {
+    expect(groups[0].items.map((l) => l.name)).toEqual(["Trailor Park M2", "Trailor Park M10"]);
+  });
+});
+
+/* 👹 THE CHARACTER PICKERS' FOLDERS. */
+describe("characterPickerGroups", () => {
+  const assets = [
+    { id: "a", type: "character", name: "Bobby", category: "Trailor" },
+    { id: "b", type: "character", name: "DK", category: "Special" },
+    { id: "c", type: "character", name: "Army Bob", category: "Army" },
+    { id: "d", type: "enemy", name: "Squirrel" },
+    { id: "e", type: "body", name: "BoB" },
+    { id: "f", type: "character", name: "Billy", category: "trailor " },
+    { id: "g", type: "weapon", name: "DK Arms" },
+  ];
+
+  test("the Enemy picker: animals first, then the looks' own folders", () => {
+    expect(characterPickerGroups(assets, { enemiesFirst: true }).map((g) => g.label)).toEqual(["Enemies", "Army", "Special", "Trailor"]);
+  });
+
+  test("the player picker: bare bodies, the looks' folders, then the animals", () => {
+    const g = characterPickerGroups(assets, { bodies: true });
+    expect(g.map((x) => x.label)).toEqual(["Bodies", "Army", "Special", "Trailor"].concat(["Enemies"]));
+    expect(g.find((x) => x.label === "Trailor").items.map((a) => a.name)).toEqual(["Billy", "Bobby"]);
+  });
+
+  test("no weapons, and no empty folders", () => {
+    const g = characterPickerGroups([{ id: "x", type: "character", name: "Solo" }], { bodies: true });
+    expect(g.map((x) => x.label)).toEqual(["Unknown"]);
+  });
+});
+
+/* 🔀 MOVING PART OF A LEVEL. The case it exists for: Trailor Park M9's bottom section — ground,
+   a trailer, a ladder, an enemy — lifted up two rows. */
+describe("moveLevelArea / moveLevelObject", () => {
+  const base = () => ({
+    id: "m9", rows: 10, cols: 8,
+    fg: { "8,0": "#ground", "8,1": "#ground", "9,0": "#ground", "2,0": "#upper" },
+    bg: { "0,0": "#sky", "7,0": "#dusk", "7,1": "#dusk" },
+    front: {}, climb: { "6,3": "ladder" }, hazard: {}, markers: { "7,4": { kind: "door" } },
+    enemies: { "7,5": { enemyId: "sqrl" } },
+    fx: { "6,1": [{ kind: "prop", propId: "trailer" }], "1,1": [{ kind: "emoji", char: "☁️" }] },
+  });
+  const rect = { r0: 6, c0: 0, r1: 9, c1: 7 };
+
+  test("everything anchored in the box goes up by the shift, and nothing outside it moves", () => {
+    const out = moveLevelArea(base(), rect, -2, 0);
+    expect(out.fg).toEqual({ "6,0": "#ground", "6,1": "#ground", "7,0": "#ground", "2,0": "#upper" });
+    expect(out.bg).toEqual({ "0,0": "#sky", "5,0": "#dusk", "5,1": "#dusk" });
+    expect(out.climb).toEqual({ "4,3": "ladder" });
+    expect(out.markers).toEqual({ "5,4": { kind: "door" } });
+    expect(out.enemies).toEqual({ "5,5": { enemyId: "sqrl" } });
+    expect(Object.keys(out.fx).sort()).toEqual(["1,1", "4,1"]);
+  });
+
+  test("it lands OVER what is there: moved cells replace, empty ones leave the level's own paint", () => {
+    const lv = base(); lv.bg["5,3"] = "#keep"; lv.bg["5,0"] = "#replaced"; lv.fx["4,1"] = [{ kind: "emoji", char: "🌳" }];
+    const out = moveLevelArea(lv, rect, -2, 0);
+    expect(out.bg["5,3"]).toBe("#keep");
+    expect(out.bg["5,0"]).toBe("#dusk");
+    expect(out.fx["4,1"].map((o) => o.char || o.propId)).toEqual(["🌳", "trailer"]);
+  });
+
+  test("a zero shift hands back the very same level", () => {
+    const lv = base();
+    expect(moveLevelArea(lv, rect, 0, 0)).toBe(lv);
+  });
+
+  test("clampAreaShift keeps the box inside the level, so a move never drops cells off the edge", () => {
+    expect(clampAreaShift(rect, 5, 0, 10, 8)).toEqual({ dr: 0, dc: 0 });
+    expect(clampAreaShift(rect, -9, 3, 10, 8)).toEqual({ dr: -6, dc: 0 });
+    expect(clampAreaShift({ r0: 2, c0: 2, r1: 3, c1: 3 }, -5, -1, 10, 8)).toEqual({ dr: -2, dc: -1 });
+  });
+
+  // The bug the first version shipped to the pane: after one nudge up, the box sat over the upper
+  // floor's bottom row, and the second nudge re-read the box and carried that row off with it.
+  test("a lifted block is CARRIED: nudging twice never picks up what the box slid over", () => {
+    const lv = base(); lv.fg["5,0"] = "#upperFloor"; lv.fg["5,1"] = "#upperFloor";
+    const { base: under, block } = liftLevelArea(lv, rect);
+    const once = stampLevelArea(under, block, 5, 0), twice = stampLevelArea(under, block, 4, 0);
+    expect(once.fg["5,0"]).toBe("#upperFloor");   // row 6 of the block is empty in fg, so the floor shows through
+    expect(twice.fg["5,0"]).toBe("#upperFloor");  // ...and is still there after the second nudge
+    expect(twice.fg["4,0"]).toBeUndefined();       // not dragged up with the ground
+    expect(twice.fg["6,0"]).toBe("#ground");
+  });
+
+  test("sliding a block over something and back leaves it exactly as it was", () => {
+    const lv = base(); lv.bg["4,0"] = "#underneath";
+    const { base: under, block } = liftLevelArea(lv, rect);
+    const over = stampLevelArea(under, block, 3, 0);
+    expect(over.bg["4,0"]).toBe("#dusk");          // covered while the block sits on it
+    const back = stampLevelArea(under, block, rect.r0, rect.c0);
+    expect(back.bg).toEqual(lv.bg);
+    expect(back.fg).toEqual(lv.fg);
+    expect(back.enemies).toEqual(lv.enemies);
+  });
+
+  test("one object moves on its own, onto the top of the stack it lands on, nudge intact", () => {
+    const lv = base(); lv.fx["6,1"] = [{ kind: "emoji", char: "A" }, { kind: "prop", propId: "trailer", ox: 0.25 }];
+    const res = moveLevelObject(lv, "6,1", 1, -2, 0);
+    expect(res.key).toBe("4,1");
+    expect(res.level.fx["6,1"].map((o) => o.char)).toEqual(["A"]);
+    expect(res.level.fx["4,1"][res.index]).toEqual({ kind: "prop", propId: "trailer", ox: 0.25 });
+    expect(res.level.fg).toBe(lv.fg);
   });
 });

@@ -1191,21 +1191,30 @@ const fitVariantEmpty = (type, v) => type === "weapon" ? (anglesEmpty(v && v.sta
 // editor the two sit next to each other in one list, so it looked right there and only broke in
 // play. A cutter now inherits the behindArm grouping of the nearest piece BELOW it (the piece it
 // is cutting), which keeps the pair adjacent in whichever half that piece lands in.
+// A THIRD BUCKET, `under`, for pieces ticked "Behind the WHOLE body" (behindBody). The weapon
+// editor has always drawn those behind the guide body, so DK Arms looked right while it was being
+// drawn — his far-side arm tucked behind the torso — and then every held-weapon render site went
+// through this merge, which only knew behindArm, and painted that arm straight over the chest in
+// Playtest. behindBody wins over behindArm on a piece carrying both (his do): "behind the whole
+// body" already includes "behind the arm". Cutters ride with the piece below them, as before.
 export const groupWeaponBlocksByArm = (weaponBlocks) => {
-  const behind = [], front = [];
-  let carry = false; // behindArm of the last non-cutter piece seen
+  const under = [], behind = [], front = [];
+  let carry = null; // the bucket of the last non-cutter piece seen
   for (const p of weaponBlocks || []) {
-    if (p.isCutter) { (carry ? behind : front).push(p); continue; }
-    carry = !!p.behindArm;
-    (carry ? behind : front).push(p);
+    if (p.isCutter) { (carry || front).push(p); continue; }
+    carry = p.behindBody ? under : p.behindArm ? behind : front;
+    carry.push(p);
   }
-  return { behind, front };
+  return { under, behind, front };
 };
 export const mergeWeaponBlocks = (bodyBlocks, weaponBlocks) => {
-  const armIdx = (bodyBlocks || []).findIndex((b) => b.role === "weaponArm");
-  const { behind, front } = groupWeaponBlocksByArm(weaponBlocks);
-  if (armIdx === -1 || !behind.length) return (bodyBlocks || []).concat(weaponBlocks);
-  return bodyBlocks.slice(0, armIdx).concat(behind, bodyBlocks.slice(armIdx)).concat(front);
+  const body = bodyBlocks || [];
+  const armIdx = body.findIndex((b) => b.role === "weaponArm");
+  const { under, behind, front } = groupWeaponBlocksByArm(weaponBlocks);
+  // Behind-the-body pieces go under EVERYTHING the body is wearing, capes included — the same
+  // place layerBodyAndOverlays puts a garment's own behindBody pieces.
+  if (armIdx === -1 || !behind.length) { const rest = (weaponBlocks || []).filter((p) => !under.includes(p)); return under.concat(body, rest); }
+  return under.concat(body.slice(0, armIdx), behind, body.slice(armIdx), front);
 };
 
 // The one walk both "…everywhere" actions share, threading a PLACE KEY through it: which list a
@@ -3408,6 +3417,42 @@ export const groupByCategory = (assets, type) => {
 };
 export const groupProps = (assets) => groupByCategory(assets, "prop");
 export const groupLooks = (assets) => groupByCategory(assets, "character");
+// THE CHARACTER PICKERS' FOLDERS — the Level Creator's 👹 Enemy picker and the Playtest player
+// picker. Both listed every look as optgroup headings inside ONE dropdown, which past twenty-odd
+// characters is still "just one big list". They now work the way the 🌿 Object picker does: a
+// folder dropdown first, then the characters in that folder. The folders are the looks' own 📂
+// categories (groupLooks), plus the animals (type "enemy") as one folder of their own and — for the
+// player — the bare bodies. `enemiesFirst` keeps each picker's existing order.
+export const characterPickerGroups = (assets, { bodies = false, enemiesFirst = false } = {}) => {
+  const byName = (x, y) => NAME_COLLATOR.compare(x.name || "", y.name || "");
+  const ofType = (t) => (assets || []).filter((a) => a && a.type === t).sort(byName);
+  const looks = groupLooks(assets).map((g) => ({ key: "look:" + g.key, label: g.label, icon: g.key === propCatKey(PROP_UNCAT) ? "📦" : "📂", items: g.props }));
+  const en = ofType("enemy"), bd = bodies ? ofType("body") : [];
+  const enemyGroup = en.length ? [{ key: "__enemies", label: "Enemies", icon: "👹", items: en }] : [];
+  const bodyGroup = bd.length ? [{ key: "__bodies", label: "Bodies", icon: "🧍", items: bd }] : [];
+  return enemiesFirst ? [...enemyGroup, ...bodyGroup, ...looks] : [...bodyGroup, ...looks, ...enemyGroup];
+};
+// THE LOAD DIALOG'S FOLDERS. Levels file under their Floor, as they always have. Rooms all went into
+// ONE "🚪 Rooms" pile — Trailor Int1–6 and the Tree Treasure Room mixed together — even though each
+// room already says what it belongs to: its Section, or failing that its Room tag (every one of his
+// rooms has a tag and only one has a Section, so the tag is what files them today). Same matching
+// rule as every other category here: trimmed, case-insensitive, first spelling seen is the label.
+// Floors sort numerically, room folders A→Z after all the floors, and untagged rooms last.
+export const levelLoadGroups = (levels) => {
+  const floors = new Map(), rooms = new Map();
+  for (const l of levels || []) {
+    if (!l) continue;
+    const label = l.isRoom ? ((l.section || "").trim() || (l.roomTag || "").trim()) : (l.floor || "").trim();
+    const map = l.isRoom ? rooms : floors, key = label.toLowerCase();
+    if (!map.has(key)) map.set(key, { key: (l.isRoom ? "room:" : "floor:") + key, label, isRoom: !!l.isRoom, items: [] });
+    map.get(key).items.push(l);
+  }
+  const byName = (x, y) => NAME_COLLATOR.compare(x.name || "", y.name || "");
+  const order = (map) => [...map.values()].sort((x, y) => (!x.label) - (!y.label) || NUMERIC_COLLATOR.compare(x.label, y.label));
+  const out = [...order(floors), ...order(rooms)];
+  for (const g of out) g.items.sort(byName);
+  return out;
+};
 
 // The blocks a prop actually DRAWS, for one animation frame. This is what the asset editor's
 // 🌿 Object art shelf copies into whatever is being drawn, and it is deliberately a plain read of
@@ -5473,6 +5518,84 @@ export const objTopAt = (lv, r, c, findAsset) => {
   let index = 0, best = -Infinity;
   for (let i = 0; i < stack.length; i++) { const z = objectZ(stack[i], i); if (z >= best) { best = z; index = i; } }
   return { key, index };
+};
+/* ---- 🔀 MOVING PART OF A LEVEL -------------------------------------------------------------
+The Move tool used to do exactly one thing: click a painted cell and it flood-picked every
+same-looking cell joined to it on one colour layer, to be sent to ANOTHER layer. It never moved
+anything anywhere. Clicked on a trailer (an object, on no colour layer) it grabbed the whole sky
+of Background behind it, and there was no way at all to lift the bottom third of Trailor Park M9
+— ground, trailers, ladder, enemies — up a few rows. That layer swap is still what a plain click
+on paint does; these two are the move itself.
+
+A moved area is LIFTED once and then carried. liftLevelArea takes EVERYTHING anchored inside the
+rectangle out of the level — all three paint layers, climb, fire, markers, enemy spawns, and every
+object whose anchor (top-left) cell is inside it — into a block of cells relative to its corner,
+and hands back the level without it (the `base`). stampLevelArea sets that block down at a corner,
+laid OVER what is there, the same rule Area Copy's stamp uses: a carried cell replaces that cell,
+an empty one leaves the level's own paint alone, objects stack.
+
+Why lift-then-carry and not "move whatever is in the box": the box goes where the block goes, so
+after one nudge up it sits over the bottom row of whatever is above it. Re-reading the box on the
+next nudge grabbed that row too — the first try at this ate a row of Trailor Park M9's upper
+floor on the second press. Carrying the lifted block (and re-stamping it onto the same `base`)
+moves only what was selected, and a block slid over something and back leaves it exactly as it
+was, because the base underneath was never touched. The caller clamps with clampAreaShift so
+nothing is pushed off the edge of the level and lost. */
+const AREA_MOVE_LAYERS = ["fg", "bg", "front", "climb", "hazard", "markers", "enemies", "fx"];
+export const clampAreaShift = (rect, dr, dc, rows, cols) => ({
+  dr: Math.max(-rect.r0, Math.min(rows - 1 - rect.r1, dr)),
+  dc: Math.max(-rect.c0, Math.min(cols - 1 - rect.c1, dc)),
+});
+export const liftLevelArea = (lv, rect) => {
+  const base = { ...lv }, block = {};
+  for (const ln of AREA_MOVE_LAYERS) {
+    const src = lv && lv[ln]; if (!src) continue;
+    let next = null;
+    for (const k of Object.keys(src)) {
+      const i = k.indexOf(","), r = +k.slice(0, i), c = +k.slice(i + 1);
+      if (r < rect.r0 || r > rect.r1 || c < rect.c0 || c > rect.c1) continue;
+      if (!next) { next = { ...src }; block[ln] = {}; }
+      block[ln][(r - rect.r0) + "," + (c - rect.c0)] = src[k];
+      delete next[k];
+    }
+    if (next) base[ln] = next;
+  }
+  return { base, block };
+};
+export const stampLevelArea = (base, block, r0, c0) => {
+  const out = { ...base };
+  for (const ln of Object.keys(block || {})) {
+    const next = { ...(base[ln] || {}) };
+    for (const k of Object.keys(block[ln])) {
+      const i = k.indexOf(","), r = +k.slice(0, i) + r0, c = +k.slice(i + 1) + c0;
+      if (r < 0 || c < 0 || r >= base.rows || c >= base.cols) continue;
+      const nk = r + "," + c;
+      next[nk] = ln === "fx" ? [...(next[nk] || []), ...block[ln][k]] : block[ln][k];
+    }
+    out[ln] = next;
+  }
+  return out;
+};
+// One lift and one stamp — a single move of an area, from where it is now.
+export const moveLevelArea = (lv, rect, dr, dc) => {
+  if (!lv || !rect || (!dr && !dc)) return lv;
+  const { base, block } = liftLevelArea(lv, rect);
+  return stampLevelArea(base, block, rect.r0 + dr, rect.c0 + dc);
+};
+// One object, by whole cells: out of its stack at `key`, onto the top of the stack at the new
+// anchor. Its fine pixel nudge (ox/oy, from ✥ Adjust) rides along untouched. Returns where it went.
+export const moveLevelObject = (lv, key, index, dr, dc) => {
+  const stack = lv && lv.fx && lv.fx[key];
+  if (!stack || !stack[index] || (!dr && !dc)) return { level: lv, key, index };
+  const [r, c] = key.split(",").map(Number);
+  const nr = Math.max(0, Math.min(lv.rows - 1, r + dr)), nc = Math.max(0, Math.min(lv.cols - 1, c + dc));
+  const nk = nr + "," + nc;
+  if (nk === key) return { level: lv, key, index };
+  const fx = { ...lv.fx }, o = stack[index];
+  const rest = stack.filter((_, i) => i !== index);
+  if (rest.length) fx[key] = rest; else delete fx[key];
+  fx[nk] = [...(fx[nk] || []), o];
+  return { level: { ...lv, fx }, key: nk, index: fx[nk].length - 1 };
 };
 /* ---- Mirroring a whole level left↔right -------------------------------------------------
 A level you have already built is most of the work of its mirror image, so a downhill run can
@@ -7923,22 +8046,7 @@ const canAttach = (left, right, side) => { // does `right` attach to `side` of `
   const hasPassage = pairs.some(([la, rb]) => connMatch(left.conns[la], left, right.conns[rb], right));
   return allAgree && hasPassage;
 };
-// Beta generator: build a horizontal chain by matching each tile's East to the next tile's West.
-function generateChain(levels, maxLen = 8) {
-  const usable = levels.filter((l) => l && l.conns);
-  const anyOpen = usable.filter((l) => l.conns.E1.open || l.conns.E2.open || l.conns.W1.open || l.conns.W2.open);
-  if (!anyOpen.length) return [];
-  const starters = usable.filter((l) => l.conns.E1.open || l.conns.E2.open);
-  const pool = starters.length ? starters : anyOpen;
-  const chain = [pool[Math.floor(Math.random() * pool.length)]];
-  for (let i = 0; i < maxLen - 1; i++) {
-    const last = chain[chain.length - 1];
-    const cands = usable.filter((l) => canAttach(last, l, "E"));
-    if (!cands.length) break;
-    chain.push(cands[Math.floor(Math.random() * cands.length)]);
-  }
-  return chain;
-}
+
 
 
 
@@ -8089,6 +8197,37 @@ export const runSeams = (run, node, cell = LV_CELL) => {
   }
   return out;
 };
+// ONE <canvas> PER LEVEL THUMBNAIL. 🎲 Generate used to draw its thumbnails as a positioned div per
+// cell — every Background cell, every Foreground fill — which on his 160×46 levels is ~9,000 boxes a
+// level and ~75,000 for a chain of eight, rebuilt on every hover over the editor behind the dialog
+// (the level screen re-renders on each one). That froze the page on the one button meant to show
+// you a run at a glance. Painted once into a canvas, a level is one element and a few ms, and
+// memo keeps it from repainting until the level itself changes. Flat colours only — the top fill
+// of each cell, textures by their base colour, ramps as squares: it is a map, not the level.
+const LevelThumb = React.memo(function LevelThumb({ level, w = 132 }) {
+  const ref = useRef(null);
+  const h = level && level.cols ? (w / level.cols) * level.rows : 0;
+  useEffect(() => {
+    const cv = ref.current; if (!cv || !level || !level.cols) return;
+    const dpr = (typeof window !== "undefined" && window.devicePixelRatio) || 1;
+    cv.width = Math.max(1, Math.round(w * dpr)); cv.height = Math.max(1, Math.round(h * dpr));
+    const ctx = cv.getContext && cv.getContext("2d"); if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const cs = w / level.cols;
+    const paint = (map, alpha) => {
+      ctx.globalAlpha = alpha;
+      for (const k of Object.keys(map || {})) {
+        const fill = fgFills(map[k])[0]; if (!fill || fgHiddenInPlay(fill)) continue;
+        const i = k.indexOf(","), r = +k.slice(0, i), c = +k.slice(i + 1);
+        ctx.fillStyle = fgColor(fill) || "#888";
+        ctx.fillRect(c * cs, r * cs, cs + 0.35, cs + 0.35); // the overlap hides hairline seams between neighbouring cells
+      }
+    };
+    paint(level.bg, 0.4); paint(level.fg, 1); paint(level.front, 0.85);
+    ctx.globalAlpha = 1;
+  }, [level, w, h]);
+  return <canvas ref={ref} className="minilv" style={{ width: w, height: h }} />;
+});
 // The run line shown over the level while playing: which slot of the chain this is.
 export const runHudFor = (run, node) => ({ seed: run.seed, where: node.row === 0 ? "level " + (node.col + 1) + " of " + run.order.length : (node.row > 0 ? "under" : "above") + " level " + (node.col + 1), name: node.level.name, notes: (run.notes || []).join(", ") });
 // Is a cell (or an object's top-left cell plus its size) of the neighbour inside the strip that is
@@ -8735,6 +8874,10 @@ export default function AssetStudio() {
   const [lHidden, setLHidden] = useState({ fg: false, front: false });
   const [lTool, setLTool] = useState("paint");         // paint | erase
   const [layerMove, setLayerMove] = useState(null);    // { layer, cells: {key: val} } — a flood-matched region picked up with the Move tool, awaiting a destination layer
+  const [areaSel, setAreaSel] = useState(null);        // 🔀 Move's selection: { levelId, r0, c0, r1, c1 } (a box — everything in it moves) or the same plus { key, index } (one object)
+  const [areaDragView, setAreaDragView] = useState(null); // what a Move drag looks like right now: { band } while boxing, { dr, dc } while dragging the selection
+  const areaDrag = useRef(null);                        // the Move drag in progress: { sr, sc, x0, y0, mode: "press" | "band" | "shift", cr, cc }
+  const areaFloat = useRef(null);                       // the area Move has LIFTED and is carrying: { base, block, stamped } — valid only while `level` is still the `stamped` level it last produced (see liftLevelArea)
   const [lColor, setLColor] = useState("#6b7b3a");
   const [texLib, setTexLib] = useState([]);          // saved texture instances — { id, name, tex, colors, params }
   const [lTexId, setLTexId] = useState(null);        // texture the paint tool is currently painting with; null = plain color, exactly as before
@@ -8805,6 +8948,8 @@ export default function AssetStudio() {
   const [lHazLife, setLHazLife] = useState(DEFAULT_HAZARD_LIFE);   // seconds a painted fire burns before going out (0 = permanent)
   const [lHazHide, setLHazHide] = useState(false);                // paint fire that's INVISIBLE during play (still deals damage) — so you can lay your own pixel-art fire Object on top of it via the Front layer
   const [lEnemyId, setLEnemyId] = useState("");          // which Enemy asset or dressed character the Enemies layer paints with
+  const [lEnemyCat, setLEnemyCat] = useState("");        // which folder the 👹 Enemy picker is narrowed to ("" = all) — see characterPickerGroups
+  const [playerCat, setPlayerCat] = useState("");        // same, for the Playtest player picker
   const [lEnemyFace, setLEnemyFace] = useState(-1);       // which way newly-placed enemies face: -1 left (default — enemies confront a left-to-right player), 1 right
   const [lEnemyAi, setLEnemyAi] = useState("guard");      // AI behavior stamped onto newly-placed enemies (set HERE in the level tester, not the enemy creator) — "asset" = use the enemy's own saved default
   const [lEnemyDlg, setLEnemyDlg] = useState("");         // dialogue tree stamped onto newly-placed enemies — attaching one ALSO makes that spawn peaceful until a choice says otherwise (spawnStartsPeaceful)
@@ -8870,6 +9015,7 @@ export default function AssetStudio() {
   const roomState = useRef({});                             // per-level PERSISTENT state for the current play session, keyed by level id: { rolls, depleted, eHP, ePos, drops, haz }. Never cleared on a transition — only on a fresh Playtest. This is what makes a level/room keep what you did to it when you leave and come back.
   const sessionRooms = useRef({});                          // "originLevelId|doorCell" -> chosen room id, so a given door leads to the SAME room all session (re-entering doesn't re-roll)
   const spawnReq = useRef(null);                            // one-shot spawn placement for the next frame: { gate:true } | { roomDoor:true } | { x, y }. Resolved once, using the real player size, then cleared.
+  const respawnSpec = useRef(null);                         // where a death puts you back: { at: level/run-slot key, spec } — the spawnReq you last ARRIVED in that level by (or the gate a run crossed you in through)
   const propArtCache = useRef(new Map());                  // placement key -> the prop art element last built for it and what it was built from (see renderObj): a placed prop that has not changed is handed React the SAME element, so it bails out of that subtree instead of re-diffing ~90 nodes a frame
   const playerLookCache = useRef({ key: "", look: null }); // memoises the live-composed player look (all angles) so re-composing every frame is free until the equipped set actually changes
   const [equipGen, setEquipGen] = useState(0);            // bumped when pedestal equipment changes, so the playtest loop re-keys and the merged stats/effects take effect live
@@ -9136,7 +9282,7 @@ export default function AssetStudio() {
     const h = levelHistory.current; const cur = JSON.stringify(level);
     while (h.length) {
       const prev = h.pop();
-      if (prev !== cur) { levelFuture.current.push(cur); if (levelFuture.current.length > 80) levelFuture.current.shift(); try { setLevel(JSON.parse(prev)); } catch {} setLSel(null); break; }
+      if (prev !== cur) { levelFuture.current.push(cur); if (levelFuture.current.length > 80) levelFuture.current.shift(); try { setLevel(JSON.parse(prev)); } catch {} setLSel(null); setAreaSel(null); break; }
     }
     setCanUndoLevel(h.length > 0); setCanRedoLevel(levelFuture.current.length > 0);
   };
@@ -9145,7 +9291,7 @@ export default function AssetStudio() {
     const f = levelFuture.current; if (!f.length) return;
     const next = f.pop(); const cur = JSON.stringify(level);
     levelHistory.current.push(cur); if (levelHistory.current.length > 80) levelHistory.current.shift();
-    try { setLevel(JSON.parse(next)); } catch {} setLSel(null);
+    try { setLevel(JSON.parse(next)); } catch {} setLSel(null); setAreaSel(null); // a 🔀 Move selection points at where things WERE
     setCanUndoLevel(true); setCanRedoLevel(f.length > 0);
   };
   const resetLevelHistory = () => { levelHistory.current = []; levelFuture.current = []; setCanUndoLevel(false); setCanRedoLevel(false); };
@@ -9867,8 +10013,11 @@ export default function AssetStudio() {
     // untouched, and the level being left is kept as it is now (fires painted, props landed) so
     // coming back through the same gate finds it unchanged. The loop effect re-runs with the new
     // level, the same way a door does.
-    const seamHandoff = (side, p, pw) => {
+    const seamHandoff = (side, p, pw, leavingGate) => {
       const seam = seams[side], nb = runNow.nodes[seam.key];
+      // Dying in the level you are walking into puts you back at THIS gate's far side: E1 lands you
+      // on the neighbour's W1 (CONN_OPP), which is where neighbourOffset lined the two levels up.
+      respawnSpec.current = { at: nb.key, spec: { gate: true, gateKey: CONN_OPP[leavingGate] } };
       // The level being left stays MOUNTED as a neighbour (RUN_TILE_CACHE), so the see-through
       // window's fades and compositor layers on its Front cells must be taken back here, now, while
       // frontCellsRef still points at it — the effect cleanup below runs after the ref has moved.
@@ -9903,6 +10052,7 @@ export default function AssetStudio() {
       camRef.current.x -= seam.off.x; camRef.current.y -= seam.off.y;
       carryKeys.current = keys.current;
       resolveRunSides(runNow, nb, runNow.pool || levelLib);
+      prepRunNeighbours(runNow, nb); // the level beyond this one gets its units drawn (and its gear rolled) before you reach it
       runNow.curKey = nb.key;
       setDoorPrompt(null); setPedPrompt(null);
       setRunHud(runHudFor(runNow, nb));
@@ -10016,7 +10166,7 @@ export default function AssetStudio() {
         return true;
       }
       flash(deathMsg);
-      p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0;
+      respawnAtEntry(p);
       playerHP.current = maxPlayerHP(playerAsset);
       return false;
     };
@@ -10028,6 +10178,38 @@ export default function AssetStudio() {
     const solidFx = []; for (const k of Object.keys(lv.fx || {})) { const [r, c] = k.split(",").map(Number); for (const o of (lv.fx[k] || [])) if (o.solid) { const fp = levelObjectFootprint(o, o.kind === "prop" ? findA(o.propId) : null); solidFx.push({ r, c, rows: fp.rows, cols: fp.cols }); } }
     const fxBlocks = (r, c) => solidFx.some((o) => r >= o.r && r < o.r + o.rows && c >= o.c && c < o.c + o.cols);
     const cellsHit = (x, y, pw, ph) => { const hits = []; const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH); for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { if (c < 0 || c >= lv.cols || r < 0 || r >= lv.rows) continue; const cell = lv.fg[cellKey(r, c)]; if (fgSolid(cell) || fxBlocks(r, c)) hits.push({ r, c }); } return hits; };
+    // Put the body at a spawn spec, using the real player size so nothing clips. Gate = enter
+    // through a connector (`gateKey` when a run crossed you in through a known one, else the
+    // top-left-first preference); roomDoor = this room's door; {x,y} = the exact door you came back
+    // out to. Shared by arriving in a level AND by dying in it (respawnAtEntry), so the two can
+    // never disagree about where "the gate you came in by" is.
+    const placeSpawn = (p, sr, pw, ph) => {
+      const maxX = lv.cols * CW - pw, maxY = lv.rows * CH - ph;
+      if (sr.x !== undefined) { p.x = sr.x; p.y = sr.y; }
+      else if (sr.roomDoor) { const dk = firstDoorKey(lv.markers); if (dk) { const [dr, dc] = dk.split(",").map(Number); p.x = dc * CW + CW / 2 - pw / 2; p.y = dr * CH + CH - ph; } else { p.x = SPAWN.x; p.y = SPAWN.y; } }
+      else if (sr.gate) { const gk = sr.gateKey && lv.conns && lv.conns[sr.gateKey] ? sr.gateKey : preferredOpenGate(lv.conns); if (gk) { const gp = CONN_POS[gk]; p.x = (gp.x / 100) * lv.cols * CW - pw / 2; p.y = (gp.y / 100) * lv.rows * CH - ph * 0.5; } else { p.x = SPAWN.x; p.y = SPAWN.y; } }
+      p.x = Math.max(0, Math.min(maxX, p.x)); p.y = Math.max(0, Math.min(maxY, p.y));
+      // Spawn safety: never start with the body inside solid. A room door at the map edge, or a
+      // wide body in a tight room, can land the box in fill — which the wall pass would then read
+      // as an inverted teleport. If embedded, hop to the nearest clear box position (scanning a
+      // small neighbourhood, preferring the same height) so the player can actually move.
+      if (cellsHit(p.x, p.y, pw, ph).length) { let best = null, bestD = Infinity; for (let dyc = 0; dyc <= 6; dyc++) for (let dxc = -6; dxc <= 6; dxc++) { const tx = Math.max(0, Math.min(maxX, p.x + dxc * CW)), ty = Math.max(0, Math.min(maxY, p.y - dyc * CH)); if (!cellsHit(tx, ty, pw, ph).length) { const d = dxc * dxc + dyc * dyc * 4; if (d < bestD) { bestD = d; best = { x: tx, y: ty }; } } } if (best) { p.x = best.x; p.y = best.y; } }
+      p.vx = 0; p.vy = 0;
+    };
+    // A DEATH PUTS YOU BACK AT THE GATE YOU CAME IN BY. It used to be SPAWN — a fixed 60,40 in the
+    // top-left corner of whatever level you died in, which on his levels is up in the sky nowhere
+    // near a gate, and in a run nowhere near where you entered. Now it is the spawn you arrived in
+    // this level by: the Playtest's starting gate, a room's door, the door you came back out of,
+    // or — in a run — the gate on this side of the seam you crossed. Falling back to the level's
+    // preferred gate if nothing was recorded here, exactly where a fresh Playtest would put you.
+    const respawnAtEntry = (p) => {
+      const here = lv.runKey || lv.id, rs = respawnSpec.current;
+      const spec = rs && rs.at === here ? rs.spec : (lv.isRoom ? { roomDoor: true } : { gate: true });
+      p.crouch = false; p.climbing = false; p.climbJump = false; p.topdown = false; p.tdJumpY = null;
+      p.stun = 0; p.down = 0; p.downCd = 0;
+      placeSpawn(p, spec, CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, CH * PLAYER_H_CELLS);
+      camRef.current.init = false; // a respawn is a cut, like a door — not a pan across the level
+    };
     let lastPedestalKey = null;
     let lastDoorKey = null;
     let lastTalkSig = "";   // "npc:12,40" / "sign:8,3" / "" — so the 💬 prompt only hits React state when it CHANGES
@@ -10200,17 +10382,9 @@ export default function AssetStudio() {
       // appear at this room's door; {x,y} = the exact door you came back out to.
       if (spawnReq.current) {
         const sr = spawnReq.current; spawnReq.current = null;
-        const maxX = lv.cols * CW - pw, maxY = lv.rows * CH - ph;
-        if (sr.x !== undefined) { p.x = sr.x; p.y = sr.y; }
-        else if (sr.roomDoor) { const dk = firstDoorKey(lv.markers); if (dk) { const [dr, dc] = dk.split(",").map(Number); p.x = dc * CW + CW / 2 - pw / 2; p.y = dr * CH + CH - ph; } else { p.x = SPAWN.x; p.y = SPAWN.y; } }
-        else if (sr.gate) { const gk = preferredOpenGate(lv.conns); if (gk) { const gp = CONN_POS[gk]; p.x = (gp.x / 100) * lv.cols * CW - pw / 2; p.y = (gp.y / 100) * lv.rows * CH - ph * 0.5; } else { p.x = SPAWN.x; p.y = SPAWN.y; } }
-        p.x = Math.max(0, Math.min(maxX, p.x)); p.y = Math.max(0, Math.min(maxY, p.y));
-        // Spawn safety: never start with the body inside solid. A room door at the map edge, or a
-        // wide body in a tight room, can land the box in fill — which the wall pass would then read
-        // as an inverted teleport. If embedded, hop to the nearest clear box position (scanning a
-        // small neighbourhood, preferring the same height) so the player can actually move.
-        if (cellsHit(p.x, p.y, pw, ph).length) { let best = null, bestD = Infinity; for (let dyc = 0; dyc <= 6; dyc++) for (let dxc = -6; dxc <= 6; dxc++) { const tx = Math.max(0, Math.min(maxX, p.x + dxc * CW)), ty = Math.max(0, Math.min(maxY, p.y - dyc * CH)); if (!cellsHit(tx, ty, pw, ph).length) { const d = dxc * dxc + dyc * dyc * 4; if (d < bestD) { bestD = d; best = { x: tx, y: ty }; } } } if (best) { p.x = best.x; p.y = best.y; } }
-        p.vx = 0; p.vy = 0; p.wasInteract = true; // swallow the E that opened the door so you don't instantly step back through
+        placeSpawn(p, sr, pw, ph);
+        respawnSpec.current = { at: lv.runKey || lv.id, spec: sr }; // where a death in this level now puts you back
+        p.wasInteract = true; // swallow the E that opened the door so you don't instantly step back through
       }
       // Speed: linear, anchored so Speed 5 (baseline) is a plain 1× — same convention every
       // other stat in the game uses. Speed 1 sits at 0.6× (40% below baseline, not 40% below
@@ -10661,7 +10835,8 @@ export default function AssetStudio() {
       if (runNodeLive) {
         const cx = p.x + pw / 2, cy = p.y + ph / 2;
         const side = cx > lv.cols * CW ? "E" : cx < 0 ? "W" : cy > lv.rows * CH ? "S" : cy < 0 ? "N" : null;
-        if (side && seams[side] && gateLeavingThrough(lv, side, cx, cy, LV_CELL)) { seamHandoff(side, p, pw); return; }
+        const leavingGate = side && seams[side] ? gateLeavingThrough(lv, side, cx, cy, LV_CELL) : null;
+        if (leavingGate) { seamHandoff(side, p, pw, leavingGate); return; }
         // ...and a gate with NOTHING behind it: pressed against an edge at an open gate that no saved
         // level attaches to (no sewer built yet, or the far side of the Exit), say so, once every
         // couple of seconds. In a plain Playtest the edges are silent walls exactly as before.
@@ -10683,7 +10858,7 @@ export default function AssetStudio() {
       // hop carried you clear of the plane and you came down on real ground instead.
       if (p.onGround || topdown) { p.extraJumped = false; p.effectAnim = null; p.djGravMul = 1; p.jumpHoldT = 0; p.gliding = false; p.tdJumpY = null; }
       if (climbing) p.gliding = false;
-      if (p.y < -200) { p.x = SPAWN.x; p.y = SPAWN.y; p.vy = 0; p.stun = 0; p.down = 0; p.downCd = 0; p.tdJumpY = null; }
+      if (p.y < -200) respawnAtEntry(p); // flung off the top of the world: back to the gate you came in by, like a death
 
       // Fire hazard: continuous damage-over-time while the player's box overlaps a fire cell.
       // dps is per SECOND, scaled by real elapsed time (dtMul/60), so it's frame-rate independent
@@ -12625,7 +12800,7 @@ export default function AssetStudio() {
   // and hunting for a 30px-wide ← button in a side panel for every single pixel is not a way to
   // align anything. Ignored while typing in a field, and while playtesting (arrows are movement).
   useEffect(() => {
-    if (play || lLayer !== "obj" || !lFxSel) return;
+    if (play || lLayer !== "obj" || !lFxSel || lTool === "move") return; // under 🔀 Move the arrows move Move's selection (below), not this object a second time
     const onKey = (e) => {
       const t = e.target;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
@@ -12641,7 +12816,25 @@ export default function AssetStudio() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [play, lLayer, lFxSel, lFxEditIdx, lNudgeStep, level]);
+  }, [play, lLayer, lFxSel, lFxEditIdx, lNudgeStep, level, lTool]);
+
+  // 🔀 Move: the arrow keys shift the selection a cell at a time (Shift: five) — the precise way to
+  // lift a whole section "up three rows". Esc lets go of the selection. Ignored while typing.
+  useEffect(() => {
+    if (play || screen !== "level" || lTool !== "move" || !areaSel) return;
+    const onKey = (e) => {
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (e.key === "Escape") { setAreaSel(null); return; }
+      const dir = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] }[e.key];
+      if (!dir) return;
+      e.preventDefault();
+      const step = e.shiftKey ? 5 : 1;
+      shiftAreaSel(dir[0] * step, dir[1] * step);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [play, screen, lTool, areaSel, level]); // eslint-disable-line
 
   // Commits a multi-cell ramp on release, as ONE action (one undo step, already snapshotted by
   // the level editor's onPointerDownCapture at the start of the drag). What the stroke MEANS is
@@ -14998,7 +15191,10 @@ export default function AssetStudio() {
     for (const ang of ANGLES) { const r = bodyRig(body, ang); out.hand[ang] = r.hand; out.shoulder[ang] = r.shoulder; }
     for (const ang of ANGLES) {
       let arr = layerBodyAndOverlays(body, overlays, ang);
-      if (weapon) { const o = weaponOffset(body, weapon, ang); arr = arr.concat(bake({ ...weapon, angles: { ...blankAngles(), [ang]: weaponRestArt(weapon, body, ang) } }, ang).filter((p) => !p.isHitbox && !p.isMuzzle).map((p) => ({ ...p, x: p.x + o.x, y: p.y + o.y, _isWeapon: true, _src: weapon.id }))); }
+      // Merged, not appended: the Dress Bob preview has always drawn the weapon through
+      // mergeWeaponBlocks, so a plain concat here baked a look whose behind-the-arm and
+      // behind-the-body weapon pieces sat on top of the body the preview showed them under.
+      if (weapon) { const o = weaponOffset(body, weapon, ang); arr = mergeWeaponBlocks(arr, bake({ ...weapon, angles: { ...blankAngles(), [ang]: weaponRestArt(weapon, body, ang) } }, ang).filter((p) => !p.isHitbox && !p.isMuzzle).map((p) => ({ ...p, x: p.x + o.x, y: p.y + o.y, _isWeapon: true, _src: weapon.id }))); }
       out.angles[ang] = arr.map((p) => ({ ...p, id: uid() }));
     }
     return out;
@@ -15079,18 +15275,21 @@ export default function AssetStudio() {
      all: the sprite wears one jacket, the hitbox is measured off another, and the corpse drops a
      third. All three are the IDENTITY function until a tag actually rolls something, so every
      level built before this existed takes byte-identically the path it always did. ── */
-  const rolledGearAt = (k) => enemyGearRolls.current[k] || null;
+  // `gear` defaults to the LIVE level's rolls. A run's neighbour levels pass their own bucket's map
+  // (and a cache namespace, since two levels can both have a spawn at "12,40") so the units standing
+  // across a gate are drawn wearing what they will be wearing when you walk through it.
+  const rolledGearAt = (k, gear = enemyGearRolls.current) => (gear && gear[k]) || null;
   // The placement, with whatever it rolled folded in — use this anywhere the weapon, the grenades
   // or the loot of a spawn are being asked about. Memoised on the raw spawn's identity so the
   // folded object is stable across frames; handing every reader a brand-new object each frame
   // would quietly defeat every === check downstream of it.
-  const liveSpawnAt = (k, spawn) => {
-    const rolled = rolledGearAt(k);
+  const liveSpawnAt = (k, spawn, gear, ns = "") => {
+    const rolled = rolledGearAt(k, gear);
     if (!spawn || !rolled) return spawn;
-    const hit = liveSpawnCache.current.get(k);
+    const hit = liveSpawnCache.current.get(ns + k);
     if (hit && hit.raw === spawn && hit.rolled === rolled) return hit.out;
     const out = spawnWithRolledGear(spawn, rolled);
-    liveSpawnCache.current.set(k, { raw: spawn, rolled, out });
+    liveSpawnCache.current.set(ns + k, { raw: spawn, rolled, out });
     return out;
   };
   // The ASSET that spawn is, wearing the garment it rolled. A rolled WEAPON needs nothing here —
@@ -15102,8 +15301,8 @@ export default function AssetStudio() {
   //
   // An ENEMY-creator asset (an animal, a turret) has no body/skin to dress, so it comes back
   // untouched and the coat it rolled is loot only — see the wearId line in enemyEquippedGear.
-  const liveEnemyAsset = (k, ea) => {
-    const rolled = rolledGearAt(k);
+  const liveEnemyAsset = (k, ea, gear) => {
+    const rolled = rolledGearAt(k, gear);
     if (!ea || !rolled || rolled.type !== "equipment" || !rolled.slot) return ea;
     const c = ea.components;
     if (ea.type !== "character" || !c || !c.body) return ea;
@@ -15738,6 +15937,36 @@ export default function AssetStudio() {
   const lookOptions = (label = (a) => a.name) => lookGroupsAll.length > 1
     ? lookGroupsAll.map((g) => <optgroup key={"lg:" + g.key} label={(g.key === propCatKey(PROP_UNCAT) ? "📦 " : "📂 ") + g.label}>{g.props.map((a) => <option key={a.id} value={a.id}>{label(a)}</option>)}</optgroup>)
     : lookGroupsAll.flatMap((g) => g.props).map((a) => <option key={a.id} value={a.id}>{label(a)}</option>);
+  // The 👹 Enemy and Playtest player pickers: a folder dropdown, then the characters in it — the
+  // 🌿 Object picker's shape (see characterPickerGroups). Memoised because the level screen
+  // re-renders every Playtest frame and the player picker sits on it the whole time.
+  const enemyPickGroups = useMemo(() => characterPickerGroups(allAssets, { enemiesFirst: true }), [allAssets]);
+  const playerPickGroups = useMemo(() => characterPickerGroups(allAssets, { bodies: true }), [allAssets]);
+  // `keepPick`: the Playtest player is who you ARE, so browsing another folder must not swap them
+  // out — the current pick stays listed at the top instead. The Enemy picker is a paint brush, and
+  // like the Object picker it lets go of a pick that is not in the folder you switched to.
+  const characterPicker = ({ groups, cat, setCat, value, setValue, none, keepPick }) => {
+    const sel = groups.find((g) => g.key === cat) || null; // a folder that has since emptied shows everything
+    const opt = (a) => <option key={a.id} value={a.id}>{a.name}</option>;
+    const stray = keepPick && sel && value && !sel.items.some((a) => a.id === value) ? groups.flatMap((g) => g.items).find((a) => a.id === value) : null;
+    return <>
+      {groups.length > 1 && (
+        <select className="big" value={sel ? sel.key : ""} onChange={(e) => {
+          const g = groups.find((x) => x.key === e.target.value);
+          setCat(e.target.value);
+          if (!keepPick && g && value && !g.items.some((a) => a.id === value)) setValue("");
+        }}>
+          <option value="">📂 All ({groups.reduce((n, g) => n + g.items.length, 0)})</option>
+          {groups.map((g) => <option key={g.key} value={g.key}>{g.icon} {g.label} ({g.items.length})</option>)}
+        </select>
+      )}
+      <select className="big" value={value} onChange={(e) => setValue(e.target.value)}>
+        {none}
+        {stray && opt(stray)}
+        {sel ? sel.items.map(opt) : groups.map((g) => <optgroup key={g.key} label={g.icon + " " + g.label}>{g.items.map(opt)}</optgroup>)}
+      </select>
+    </>;
+  };
   // What the 🌿 Object art shelf offers: the props inside the open sub-category, or every prop when
   // none is chosen. `pickedPropStamp` resolves against that SAME list rather than the whole library,
   // so narrowing the category can never leave Place armed on something that is no longer on screen —
@@ -15764,6 +15993,43 @@ export default function AssetStudio() {
     setLayerMove(null);
   };
   const cancelMove = () => setLayerMove(null);
+  // 🔀 Move's selection, as the box a shift is clamped against: the area itself, or for one object
+  // just its anchor cell (a prop's art may hang off the level's edge; its anchor may not).
+  const areaSelClampRect = (sel) => { if (sel.key === undefined) return sel; const [r, c] = sel.key.split(",").map(Number); return { r0: r, c0: c, r1: r, c1: c }; };
+  const selectObjectForMove = (lv, hit) => {
+    const o = lv.fx[hit.key][hit.index];
+    const fp = levelObjectFootprint(o, o.kind === "prop" ? findA(o.propId) : null);
+    const [r, c] = hit.key.split(",").map(Number);
+    setAreaSel({ levelId: lv.id, key: hit.key, index: hit.index, name: o.kind === "prop" ? ((findA(o.propId) || {}).name || "Object") : (o.char || "Object"), r0: r, c0: c, r1: r + Math.max(1, fp.rows) - 1, c1: c + Math.max(1, fp.cols) - 1 });
+  };
+  // Shift the selection by (dr, dc) cells and take everything in it along — one undo step each
+  // (snapshotLevel skips a duplicate, so the press that started a drag and this can both call it).
+  const shiftAreaSel = (dr, dc) => {
+    const sel = areaSel;
+    if (!level || !sel || sel.levelId !== level.id) return;
+    const d = clampAreaShift(areaSelClampRect(sel), dr, dc, level.rows, level.cols);
+    if (!d.dr && !d.dc) return;
+    const moved = { r0: sel.r0 + d.dr, r1: sel.r1 + d.dr, c0: sel.c0 + d.dc, c1: sel.c1 + d.dc };
+    if (sel.key !== undefined) {
+      if (!((level.fx || {})[sel.key] || [])[sel.index]) { setAreaSel(null); return; } // the object is no longer where the selection says (undone, erased)
+      snapshotLevel();
+      const res = moveLevelObject(level, sel.key, sel.index, d.dr, d.dc); setLevel(res.level); setAreaSel({ ...sel, ...moved, key: res.key, index: res.index });
+    } else {
+      // Carry the block lifted on the first nudge. Anything else that changed the level since
+      // (a paint stroke, an Undo) means what is on screen is now the truth: lift afresh from here.
+      // Also tied to the very selection object it produced: a NEW box drawn on the same level must
+      // lift its own contents, never set down the previous box's block where it now is.
+      let fl = areaFloat.current;
+      if (!fl || fl.stamped !== level || fl.sel !== sel) { const lifted = liftLevelArea(level, sel); fl = { base: lifted.base, block: lifted.block }; }
+      snapshotLevel();
+      const nextSel = { ...sel, ...moved };
+      fl.stamped = stampLevelArea(fl.base, fl.block, moved.r0, moved.c0); fl.sel = nextSel;
+      areaFloat.current = fl;
+      setLevel(fl.stamped); setAreaSel(nextSel);
+    }
+    // The object inspector is keyed by an object's cell; anything it pointed at may have just moved.
+    if (lFxSel) { setLFxSel(null); setLFxEditIdx(null); }
+  };
   // 👁/🙈 one editor-hidden layer. Hiding the layer you are working ON also moves you to the
   // Background tab — the whole reason to hide Foreground or Front is to get at what is behind it,
   // and a paint tool left pointed at an invisible layer would draw where you cannot see.
@@ -15783,7 +16049,8 @@ export default function AssetStudio() {
     // painting terrain while believing you were still nudging a prop.
     if (lTool === "adjust" && l !== "obj") setLTool("paint");
     if (lTool === "fill" && l !== "fg" && l !== "bg" && l !== "front") setLTool("paint");
-    if (lTool === "move" && l !== "fg" && l !== "bg" && l !== "front") setLTool("paint");
+    // 🔀 Move is no longer a colour-layer-only tool: boxing an area or grabbing an object works on
+    // every layer, so it stays selected whichever tab you pick.
     if (layerMove) {
       // A region is picked up: clicking a color-layer tab means "move it THERE" (even the tab
       // that's already active — the pickup may have come from a different source layer). Only
@@ -15801,12 +16068,12 @@ export default function AssetStudio() {
   const selectTool = (t) => {
     if (moving.current && t !== "select" && t !== "copy") cancelMoving();
     if (layerMove && t !== "move") setLayerMove(null);
+    if (t !== "move") { setAreaSel(null); areaDrag.current = null; setAreaDragView(null); }
     // Adjust is exempt from the "click the active tool to go back to Foreground" shortcut: it only
     // exists on the Objects layer, so bouncing it to Foreground would turn itself off.
-    if (lTool === t && t !== "select" && t !== "copy" && t !== "adjust" && lLayer !== "fg" && lLayer !== "climb") { setLLayer("fg"); flash("Back to Foreground"); }
+    if (lTool === t && t !== "select" && t !== "copy" && t !== "adjust" && t !== "move" && lLayer !== "fg" && lLayer !== "climb") { setLLayer("fg"); flash("Back to Foreground"); }
     setLTool(t);
   };
-  const runGenerate = () => { const chain = generateChain(allLevels, 8); if (chain.length < 1) { flash("Make/save a couple of levels with matching open connectors first."); return; } setGen(chain); flash("Generated a chain of " + chain.length); };
   // ▶ Playtest / ■ Stop. The resets are what the button has always done (every per-session ref back
   // to empty, a fresh player, spawn through a gate or at a room's door); what is new is around
   // them: the camera is told to snap rather than pan to the spawn, the editor's scroll position is
@@ -15826,27 +16093,54 @@ export default function AssetStudio() {
       camRef.current = { x: 0, y: 0, init: false };
     }
     const startLevel = runStart ? runStart.nodes[runStart.startKey].level : level;
-    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true };
-    if (runStart) { runRef.current = runStart; setRunHud(runHudFor(runStart, runStart.nodes[runStart.startKey])); setLevel(startLevel); setPlay(true); return; }
+    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true };
+    if (runStart) { runRef.current = runStart; prepRunNeighbours(runStart, runStart.nodes[runStart.startKey]); setRunHud(runHudFor(runStart, runStart.nodes[runStart.startKey])); setLevel(startLevel); setPlay(true); return; }
     setPlay((v) => !v);
   };
+  // The pool a run is built from is every SAVED level, with the editor's live copy standing in for
+  // its saved one so unsaved edits count — but a level that was never saved (the blank one the
+  // creator opens on, floor "1", both upper gates open) stays out, or it fills every slot of the
+  // chain with itself. One function, because 🎲 Generate must preview the run 🏁 will play.
+  const runPool = () => (level && levelLib.some((l) => l && l.id === level.id) ? allLevels : levelLib);
+  // Give every level across an open seam of `node` its per-level bucket NOW, with its 🎲 gear-tag
+  // rolls made — the same bucket shape and the same roll-once rule the loop effect applies when a
+  // level goes live, so the effect adopts it untouched at the handoff. Without it a neighbour's
+  // units could only be drawn in their base gear and would change clothes as you crossed.
+  const prepRunNeighbours = (run, node) => {
+    for (const s of Object.values(runSeams(run, node, LV_CELL))) {
+      let b = roomState.current[s.key];
+      if (!b) { b = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, stripped: {}, haz: {}, gear: {} }; roomState.current[s.key] = b; }
+      if (!b.gear) b.gear = {};
+      for (const ek of Object.keys(s.level.enemies || {})) { const tag = spawnGearTagOf(s.level.enemies[ek]); if (tag && b.gear[ek] === undefined) b.gear[ek] = rollEnemyGear(allAssets, tag); }
+    }
+  };
+  const newRunSeed = () => String(Math.floor(Math.random() * 1000000));
+  // 🎲 GENERATE SHOWS THE RUN. It used to run its own older generator (generateChain — East-to-West
+  // matching only, rooms and the unsaved editor level in the pool, no Intro/Exit) and draw a chain
+  // 🏁 Play run would never actually produce, then freeze the page drawing it (see LevelThumb). Now
+  // it is buildRun from a seed — the same call startRun makes — so what it shows is what you play,
+  // and its seed box is where a run is typed back in (the box used to sit in the toolbar).
+  const rollGenerate = (seedText) => {
+    const typed = (seedText || "").trim(), seed = typed || newRunSeed();
+    const run = buildRun(runPool(), seed);
+    if (!typed) setRunSeedText(seed); // a fresh roll shows its seed; a typed one is left exactly as typed
+    setGen({ seed, levels: run.order.map((k) => run.nodes[k].level), notes: run.notes });
+  };
+  const runGenerate = () => rollGenerate("");
   // 🏁 Play run: the chain is built from every saved level (plus the one open in the editor) by
-  // buildRun, seeded from the box beside the button (blank = a fresh roll, and the box then shows
-  // what was rolled so a good run can be typed back in); its first level goes live and an ordinary
-  // Playtest starts in it, entering through a gate. Missing Intro/Exit levels are said in the run
-  // line, not refused — the middle levels alone are a run.
-  const startRun = () => {
+  // buildRun, seeded from `seedText` (blank = a fresh roll — the header's 🏁 always rolls fresh; the
+  // Generate dialog passes its seed box so a run can be replayed); its first level goes live and an
+  // ordinary Playtest starts in it, entering through a gate. Missing Intro/Exit levels are said in
+  // the run line, not refused — the middle levels alone are a run.
+  const startRun = (seedText) => {
     if (play) { flash("Stop the current Playtest first."); return; }
-    const seed = runSeedText.trim() || String(Math.floor(Math.random() * 1000000));
-    // The pool is every SAVED level, with the editor's live copy standing in for its saved one so
-    // unsaved edits count — but a level that was never saved (the blank one the creator opens on,
-    // floor "1", both upper gates open) stays out, or it fills every slot of the chain with itself.
-    const pool = levelLib.some((l) => l && l.id === level.id) ? allLevels : levelLib;
+    const seed = (seedText || "").trim() || newRunSeed();
+    const pool = runPool();
     const run = buildRun(pool, seed);
     if (!run.startKey) { flash("No level can start a run yet — save one with an open Right gate (or Section = Intro)."); return; }
     run.editorLevel = level; run.pool = pool;
     resolveRunSides(run, run.nodes[run.startKey], pool);
-    setRunSeedText(seed);
+    setRunSeedText(seed); setGen(null);
     flash("🏁 Run " + seed + " — " + run.order.length + " levels" + (run.notes.length ? " · " + run.notes.join(", ") : ""));
     togglePlaytest(run);
   };
@@ -16522,6 +16816,18 @@ export default function AssetStudio() {
     // generous so a rotated or nudged prop never pops at the edge. In the editor nothing is culled.
     const cullView = play && lscrollRef.current ? (() => { const m = VIEW_CULL_MARGIN_CELLS * LV_CELL, v = lscrollRef.current; return { x: camRef.current.x - m, y: camRef.current.y - m, x2: camRef.current.x + v.clientWidth + m, y2: camRef.current.y + v.clientHeight + m }; })() : null;
     const offScreen = (left, top, w, h) => !!cullView && (left + w < cullView.x || left > cullView.x2 || top + h < cullView.y || top > cullView.y2);
+    // WHOSE UNITS ARE DRAWN: the live level's, and in a RUN every neighbour's too. A neighbour's
+    // tiles and props were drawn across the gate but its enemies were not, so they appeared from
+    // nowhere the instant you crossed — "they just jump in out of the blue". They are drawn by the
+    // SAME sprite code as the live level's (it takes one of these sets), standing where the loop will
+    // start them: their spawn cell, or where they were when you last left that level (its bucket).
+    // Only the live level simulates; a neighbour's units come alive at the handoff. Their gear rolls
+    // are made when the neighbour is first attached (prepRunNeighbours), so what they are drawn
+    // holding is what they will fight with.
+    const playUnitSets = !play ? [] : [
+      { lv, pos: enemyPos.current, hp: enemyHP.current, stripped: corpseStripped.current, gear: enemyGearRolls.current, hpSeen: unitHpSeen.current, off: { x: 0, y: 0 }, ns: "" },
+      ...(runNodeNow ? Object.values(runSeams(runRef.current, runNodeNow, LV_CELL)).map((s) => { const b = roomState.current[s.key] || {}; return { lv: s.level, pos: b.ePos || {}, hp: b.eHP || {}, stripped: b.stripped || {}, gear: b.gear || {}, hpSeen: {}, off: s.off, ns: s.key + ":" }; }) : []),
+    ];
     // Anything usable as an enemy: standalone Enemy-type assets (the animals), or ANY Dress Bob
     // look. This used to demand a 👹 flag on the look, which is what forced a duplicate of every
     // outfit you wanted to fight as well as wear — the flag is gone and the list is the whole
@@ -16691,7 +16997,18 @@ export default function AssetStudio() {
       }
       if (lTool === "areaCopy") { areaAnchor.current = { r, c }; setAreaDragOn(true); return; }
       if (lTool === "fill") { floodFill(r, c); return; }
-      if (lTool === "move") { pickMoveRegion(r, c); return; }
+      // 🔀 MOVE. Nothing is decided on the press: dragging from inside the selection moves it,
+      // dragging from anywhere else boxes a new area, and a press that never leaves its cell is a
+      // CLICK, resolved on release (lvUp) — an object there is selected, bare paint gets the old
+      // send-to-another-layer pickup. The pointer is captured so a drag released outside the grid
+      // still ends here instead of leaving the tool stuck mid-drag.
+      if (lTool === "move") {
+        const sel = areaSel && areaSel.levelId === lv.id ? areaSel : null;
+        const inSel = !!sel && r >= sel.r0 && r <= sel.r1 && c >= sel.c0 && c <= sel.c1;
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* capture is a nicety */ }
+        areaDrag.current = { sr: r, sc: c, cr: r, cc: c, x0: e.clientX, y0: e.clientY, mode: inSel ? "grab" : "press" };
+        return;
+      }
       if (layerTakesRamps(lLayer) && lFgShape !== "block" && lTool === "paint") {
         // Ramps are placed as one multi-cell unit on release (see the pointerup effect above),
         // not stamped cell-by-cell while dragging — that's what let a bigger "size" turn into
@@ -16713,6 +17030,20 @@ export default function AssetStudio() {
       const { r, c } = lvCell(e);
       const within = inb(r, c);
       setLHoverCell(within ? { r, c } : null);
+      // 🔀 Move drag in progress (see lvDown). Clamped to the level so a drag that runs off the
+      // edge still tracks the nearest cell. A press becomes a box once it reaches another cell;
+      // a grab inside the selection becomes a shift the same way.
+      if (areaDrag.current) {
+        const d = areaDrag.current;
+        const cr = Math.max(0, Math.min(lv.rows - 1, r)), cc = Math.max(0, Math.min(lv.cols - 1, c));
+        if (cr === d.cr && cc === d.cc) return;
+        d.cr = cr; d.cc = cc;
+        if (d.mode === "press") d.mode = "band";
+        if (d.mode === "grab") d.mode = "shift";
+        if (d.mode === "band") setAreaDragView({ band: { r0: Math.min(d.sr, cr), c0: Math.min(d.sc, cc), r1: Math.max(d.sr, cr), c1: Math.max(d.sc, cc) } });
+        else if (d.mode === "shift" && areaSel) setAreaDragView(clampAreaShift(areaSelClampRect(areaSel), cr - d.sr, cc - d.sc, lv.rows, lv.cols));
+        return;
+      }
       // An Adjust drag in progress. Same few-pixels-of-slop rule as painting, so a click that means
       // "select this" can't shove the object a pixel sideways on the way to letting go.
       if (objDrag.current) {
@@ -16748,6 +17079,23 @@ export default function AssetStudio() {
       if (lLayer === "obj" && lpaint.current.last === k) return; // moving within the same cell shouldn't re-stack on every pointer jitter
       lpaint.current.last = k; paintBrush(r, c, undefined, inb);
       if (lLayer === "obj") { setLFxSel(objPaintKey(r, c)); setLFxEditIdx(null); }
+    };
+    // 🔀 Move release. A box selects that area; a shift commits (one undo step — the press already
+    // snapshotted the level); a click that never left its cell picks: the object under it if there
+    // is one (an object on a 👁-hidden layer is not on screen, so it cannot be grabbed — the same
+    // rule as ✥ Adjust), else the old colour-layer pickup on painted cells, else nothing.
+    const lvUp = () => {
+      const d = areaDrag.current;
+      if (!d) return;
+      areaDrag.current = null; setAreaDragView(null);
+      if (d.mode === "band") { setLayerMove(null); setAreaSel({ levelId: lv.id, r0: Math.min(d.sr, d.cr), c0: Math.min(d.sc, d.cc), r1: Math.max(d.sr, d.cr), c1: Math.max(d.sc, d.cc) }); return; }
+      if (d.mode === "shift") { shiftAreaSel(d.cr - d.sr, d.cc - d.sc); return; }
+      if (d.mode === "grab") return; // pressed inside the selection and let go: keep it
+      const hit = objTopAt(lv, d.sr, d.sc, findA);
+      const hl = hit ? objectLay(lv.fx[hit.key][hit.index]) : null;
+      if (hit && !((hl === "fg" && lHidden.fg) || (hl === "front" && lHidden.front))) { setLayerMove(null); selectObjectForMove(lv, hit); return; }
+      setAreaSel(null);
+      if (["fg", "bg", "front"].some((l) => (lv[l] || {})[cellKey(d.sr, d.sc)] != null)) pickMoveRegion(d.sr, d.sc);
     };
     const basePlayerAsset = findA(playerId);
     const playerAsset = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
@@ -16810,16 +17158,6 @@ export default function AssetStudio() {
     // its cell count as text so the mismatch is obvious either way.
     const fillPreview = (!play && lTool === "fill" && lHoverCell && lv && (lLayer === "fg" || lLayer === "bg" || lLayer === "front"))
       ? computeFillRegion(lv, layerWithPaintAt(lv, lHoverCell.r, lHoverCell.c), lHoverCell.r, lHoverCell.c) : null;
-    const miniLevel = (l, w = 132) => {
-      const cw = w / l.cols, ch = cw, h = ch * l.rows;
-      return (
-        <div className="minilv" style={{ width: w, height: h }}>
-          {Object.keys(l.bg).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"b" + k} style={{ position: "absolute", left: c * cw, top: r * ch, width: cw, height: ch, background: fgColor(l.bg[k]), opacity: 0.4, clipPath: fgClipPath(l.bg[k]) }} />; })}
-          {Object.keys(l.fg).flatMap((k) => { const [r, c] = k.split(",").map(Number); return fgFills(l.fg[k]).map((fill, i) => <div key={"f" + k + "_" + i} style={{ position: "absolute", left: c * cw, top: r * ch, width: cw, height: ch, background: fgColor(fill), clipPath: fgClipPath(fill), ...(fgHiddenInPlay(fill) ? { opacity: 0.45, outline: "1px dashed #62d9ff", outlineOffset: "-1px" } : {}) }} />).reverse(); })}
-          {l.fx && Object.keys(l.fx).flatMap((k) => { const [r, c] = k.split(",").map(Number); const stack = l.fx[k] || []; return stack.map((o, si) => { const sz = (o.size || 1) * cw; return <div key={"x" + k + "_" + si} style={{ position: "absolute", left: objNudgedLeft(o, c, cw), top: objNudgedTop(o, r, ch), width: sz, height: sz, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.85 }}>{o.kind === "shape" ? objInner(o, sz) : o.char}</div>; }); })}
-        </div>
-      );
-    };
     return (
       <div className="bb" onPointerDownCapture={snapshotLevel}><style>{css}</style>
         <header className="bar">
@@ -16834,7 +17172,11 @@ export default function AssetStudio() {
           {play && <span className="badge money" title="Money you are carrying this Playtest run. Pick up a 💵 item to earn it, spend it in a shopkeeper's dialogue.">{MONEY_CHAR} {walletUI}</span>}
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel}>↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel}>↪ Redo</button>
-          <button className={"save " + (play ? "playon" : "")} onClick={() => togglePlaytest(null)}>{play ? "■ Stop" : "▶ Playtest"}</button>
+          {/* ONE PLAY BUTTON, SPLIT IN TWO: ▶ this level, or 🏁 a whole run. 🏁 Play run used to be
+              its own button plus a seed box out in the toolbar; the seed now lives in 🎲 Generate. */}
+          {play
+            ? <button className="save playon" onClick={() => togglePlaytest(null)}>■ Stop</button>
+            : <span className="save splitPlay"><button onClick={() => togglePlaytest(null)}>▶ Playtest</button><button onClick={() => startRun("")}>🏁 Play run</button></span>}
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
@@ -16845,7 +17187,7 @@ export default function AssetStudio() {
                 <input value={lv.roomTag || ""} onChange={(e) => setLevel({ ...lv, roomTag: e.target.value })} placeholder="e.g. shop, item, secret" />
               </label>
               <label className="catfield">Section
-                <input value={lv.section || ""} onChange={(e) => setLevel({ ...lv, section: e.target.value })} placeholder="optional note" />
+                <input value={lv.section || ""} onChange={(e) => setLevel({ ...lv, section: e.target.value })} placeholder="e.g. Trailor Int, Tree" />
               </label>
             </>
           ) : (
@@ -16884,20 +17226,13 @@ export default function AssetStudio() {
           )}
           <div className="lgroup">
             <span className="lgrouplabel">Action:</span>
-            <div className="seg"><button className={lTool === "paint" ? "on" : ""} onClick={() => selectTool("paint")}>🖌 Paint</button><button className={lTool === "erase" ? "on" : ""} onClick={() => selectTool("erase")}>🧽 Erase</button>{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={lTool === "fill" ? "on" : ""} onClick={() => selectTool("fill")} >🪣 Fill</button>}{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={lTool === "move" ? "on" : ""} onClick={() => selectTool("move")} >🔀 Move</button>}{lLayer === "obj" && <button className={lTool === "adjust" ? "on" : ""} onClick={() => selectTool("adjust")} title="Click an object already in the level to line it up: drag it pixel by pixel, arrow-key it, snap its edges to the ground or to the object next to it, or push it in front of / behind the others.">✥ Adjust</button>}{(lLayer === "obj" || lLayer === "marker") && <button className={lTool === "select" ? "on" : ""} onClick={() => selectTool("select")} >👆 Select</button>}{(lLayer === "obj" || lLayer === "marker") && <button className={lTool === "copy" ? "on" : ""} onClick={() => selectTool("copy")} >📋 Copy</button>}<button className={lTool === "areaCopy" ? "on" : ""} onClick={() => selectTool("areaCopy")} >▭ Area Copy{hasClipboard ? " (" + clipboard.current.w + "×" + clipboard.current.h + " ready)" : ""}</button></div>
+            <div className="seg"><button className={lTool === "paint" ? "on" : ""} onClick={() => selectTool("paint")}>🖌 Paint</button><button className={lTool === "erase" ? "on" : ""} onClick={() => selectTool("erase")}>🧽 Erase</button>{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={lTool === "fill" ? "on" : ""} onClick={() => selectTool("fill")} >🪣 Fill</button>}<button className={lTool === "move" ? "on" : ""} onClick={() => selectTool("move")} >🔀 Move</button>{lLayer === "obj" && <button className={lTool === "adjust" ? "on" : ""} onClick={() => selectTool("adjust")} title="Click an object already in the level to line it up: drag it pixel by pixel, arrow-key it, snap its edges to the ground or to the object next to it, or push it in front of / behind the others.">✥ Adjust</button>}{(lLayer === "obj" || lLayer === "marker") && <button className={lTool === "select" ? "on" : ""} onClick={() => selectTool("select")} >👆 Select</button>}{(lLayer === "obj" || lLayer === "marker") && <button className={lTool === "copy" ? "on" : ""} onClick={() => selectTool("copy")} >📋 Copy</button>}<button className={lTool === "areaCopy" ? "on" : ""} onClick={() => selectTool("areaCopy")} >▭ Area Copy{hasClipboard ? " (" + clipboard.current.w + "×" + clipboard.current.h + " ready)" : ""}</button></div>
           </div>
           {enemyChoices.length > 0 && (
             <div className="lgroup">
               <span className="lgrouplabel">👹 Enemy:</span>
-              <select className="big" value={lEnemyId} onChange={(e) => { setLEnemyId(e.target.value); if (e.target.value) setLTool("paint"); }}>
-                <option value="">— none —</option>
-                {/* Animals first, then the wardrobe filed by 📂 category (lookOptions). The animals only
-                    get a heading of their own once the looks have folders — otherwise it is the
-                    flat list it always was. */}
-                {lookGroupsAll.length > 1
-                  ? <>{enemyChoices.some((a) => a.type === "enemy") && <optgroup label="👹 Enemies">{enemyChoices.filter((a) => a.type === "enemy").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</optgroup>}{lookOptions()}</>
-                  : <>{enemyChoices.filter((a) => a.type === "enemy").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}{lookOptions()}</>}
-              </select>
+              {/* Animals first, then the wardrobe filed by 📂 category — a folder, then who in it. */}
+              {characterPicker({ groups: enemyPickGroups, cat: lEnemyCat, setCat: setLEnemyCat, value: lEnemyId, setValue: (id) => { setLEnemyId(id); if (id) setLTool("paint"); }, none: <option value="">— none —</option> })}
               {lEnemyId ? <button className="ltbtn" onClick={() => setLEnemyFace((f) => -f)}>{lEnemyFace === 1 ? "Facing ▶" : "◀ Facing"}</button> : null}
               {lEnemyId ? <select className="ltbtn" value={lEnemyAi} onChange={(e) => setLEnemyAi(e.target.value)}>
                 <option value="guard">🛡 Guard (holds ground)</option>
@@ -17134,8 +17469,6 @@ export default function AssetStudio() {
           <button className="ltbtn" onClick={flipLevelNow} title="Mirror the whole level left↔right — every layer, ramps, objects, enemies and exits included. Press it again (or Undo) to put it back.">⇄ Flip</button>
           <button className="ltbtn" onClick={flipLevelToCopy} title="Same mirror, but into a NEW level so the one you're editing is left alone — this is how a downhill level becomes its uphill twin.">⇄ Flip to a copy</button>
           <button className="ltbtn" onClick={runGenerate}>🎲 Generate</button>
-          <button className="ltbtn" onClick={startRun} title="Play a RUN: an Intro level (Section = Intro), up to eight middle levels joined by their gates, then an Exit level (Section = Exit). Walk out through an open gate to reach the next level; a bottom gate drops you into a level that matches it (a sewer). Type a seed to replay the same run.">🏁 Play run</button>
-          <input className="bgNameInput runSeed" value={runSeedText} onChange={(e) => setRunSeedText(e.target.value)} placeholder="Run seed (blank = new)" title="A run is picked from this seed: the same seed gives the same chain of levels every time, so a run you want to test again can be typed back in. Leave it blank for a new one — the box shows what was rolled." />
           <button className="ltbtn" onClick={newLevelFresh}>＋ New Level</button>
           <button className="ltbtn" onClick={newRoomFresh}>＋ New Room</button>
           <button className="ltbtn" onClick={() => setLevelLoadOpen(true)}>📂 Load a level</button>
@@ -17167,7 +17500,7 @@ export default function AssetStudio() {
                 level. They flow side by side now and only wrap when the stage is genuinely too
                 narrow, so the canvas keeps its vertical space. */}
             <div className="statusrow">
-            {play && runHud && <p className="statusline runhud" title="This run: its seed (type it into the box beside 🏁 Play run to play the same run again), where you are in the chain, and what the chain is still missing.">🏁 Run <b>{runHud.seed}</b> · {runHud.where} · <b>{runHud.name}</b>{runHud.notes ? <span className="runnote"> · {runHud.notes}</span> : null}</p>}
+            {play && runHud && <p className="statusline runhud" title="This run: its seed (type it into 🎲 Generate to play the same run again), where you are in the chain, and what the chain is still missing.">🏁 Run <b>{runHud.seed}</b> · {runHud.where} · <b>{runHud.name}</b>{runHud.notes ? <span className="runnote"> · {runHud.notes}</span> : null}</p>}
             {play && (playtestWeaponId || SLOT_ORDER.some((sl) => equipped.current[sl])) && (() => {
               const bits = [];
               if (playtestWeaponId) { const w = findA(playtestWeaponId); if (w) bits.push("🗡️ " + w.name); }
@@ -17216,7 +17549,10 @@ export default function AssetStudio() {
                 "there is no option to make things line up" was the whole complaint — the tool has
                 to say what it does at the moment you turn it on. */}
             {!play && lTool === "adjust" && <p className="statusline">✥ Click any object to grab it — then <b>drag it</b> (pixel by pixel, no cell snapping) or <b>arrow-key it</b>, and use <b>Snap</b> / <b>Order</b> in the panel on the right to butt it against its neighbour, sit it on the ground, or push it in front. Hold <b>Shift</b> for ten steps at once.</p>}
-            {!play && lTool !== "areaCopy" && lTool !== "adjust" && !(layerMove && layerMove.levelId === lv.id) && (lEnemyId && lTool === "paint"
+            {!play && lTool === "move" && !(layerMove && layerMove.levelId === lv.id) && (areaSel && areaSel.levelId === lv.id
+              ? <p className="statusline">🔀 <b>{areaSel.key !== undefined ? areaSel.name : (areaSel.c1 - areaSel.c0 + 1) + "×" + (areaSel.r1 - areaSel.r0 + 1)}</b> selected — drag it, or use the arrow keys. <button className="ltbtn" onClick={() => setAreaSel(null)}>✕ Deselect</button></p>
+              : <p className="statusline">🔀 Drag a box around what to move, or click an object.</p>)}
+            {!play && lTool !== "areaCopy" && lTool !== "adjust" && lTool !== "move" && !(layerMove && layerMove.levelId === lv.id) && (lEnemyId && lTool === "paint"
               ? <p className="statusline">👉 Clicking places <b>👹 {(findA(lEnemyId) || {}).name || "enemy"}</b>. Pick <b>— none —</b> to paint normally.</p>
               : <p className="statusline">👉 Clicking the canvas right now will <b>{lTool === "erase" ? "erase from" : lTool === "select" ? "select on" : lTool === "move" ? "pick up on" : "paint"}</b> the <b>{lLayer === "fg" ? "Foreground" : lLayer === "bg" ? "Background" : lLayer === "front" ? "Front" : lLayer === "obj" ? "Objects" : lLayer === "climb" ? "Climb" : lLayer === "hazard" ? "Fire" : "Markers"}</b> layer.</p>)}
             </div>
@@ -17225,9 +17561,12 @@ export default function AssetStudio() {
                 commitFrame, so it lands on the frame it was computed for). In the editor no transform
                 is emitted at all and the viewport scrolls exactly as it always has. */}
             <div ref={lscrollRef} className={"lscroll layer-" + lLayer + (play ? " playing" : "")}>
-              <div ref={lvRef} className={"lgrid" + (play ? " camera" : "") + (!play && lHidden.front ? " hideFront" : "") + (!play && lHidden.fg ? " hideFg" : "")} style={{ width: lvW, height: lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px", ...(play ? { transform: "translate3d(" + (-Math.round(camRef.current.x * 2) / 2) + "px, " + (-Math.round(camRef.current.y * 2) / 2) + "px, 0)" } : {}) }} onPointerDown={lvDown} onPointerMove={lvMove} onPointerLeave={() => setLHoverCell(null)}>
+              <div ref={lvRef} className={"lgrid" + (play ? " camera" : "") + (!play && lHidden.front ? " hideFront" : "") + (!play && lHidden.fg ? " hideFg" : "")} style={{ width: lvW, height: lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px", ...(play ? { transform: "translate3d(" + (-Math.round(camRef.current.x * 2) / 2) + "px, " + (-Math.round(camRef.current.y * 2) / 2) + "px, 0)" } : {}) }} onPointerDown={lvDown} onPointerMove={lvMove} onPointerUp={lvUp} onPointerCancel={lvUp} onPointerLeave={() => setLHoverCell(null)}>
                 {runTiles || <>{lvBgLayer}{lvFgLayer}{lvFrontLayer}</>}
                 {layerMove && layerMove.levelId === lv.id && Object.keys(layerMove.cells).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"mv" + k} className="lcell moveSel" style={{ left: c * LV_CELL, top: r * LV_CELL }} />; })}
+                {/* 🔀 Move: the selection (following a drag as it goes), and the box being drawn. */}
+                {!play && lTool === "move" && areaSel && areaSel.levelId === lv.id && (() => { const dr = (areaDragView && areaDragView.dr) || 0, dc = (areaDragView && areaDragView.dc) || 0; return <div className="areaSel" style={{ left: (areaSel.c0 + dc) * LV_CELL, top: (areaSel.r0 + dr) * LV_CELL, width: (areaSel.c1 - areaSel.c0 + 1) * LV_CELL, height: (areaSel.r1 - areaSel.r0 + 1) * LV_CELL }} />; })()}
+                {!play && areaDragView && areaDragView.band && <div className="areaSel band" style={{ left: areaDragView.band.c0 * LV_CELL, top: areaDragView.band.r0 * LV_CELL, width: (areaDragView.band.c1 - areaDragView.band.c0 + 1) * LV_CELL, height: (areaDragView.band.r1 - areaDragView.band.r0 + 1) * LV_CELL }} />}
                 {lvFxLayer}
                 {lvPropMeta.map(({ o, si, r, c, k, ord }) => { const layout = levelObjectPixelLayout(o); if (offScreen(objNudgedLeft(o, c, LV_CELL), objNudgedTop(o, r, LV_CELL), layout.width, layout.height)) return null; const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
                 {/* RUN — objects of a neighbouring level whose footprint reaches into its seam strip,
@@ -17770,24 +18109,24 @@ export default function AssetStudio() {
                     gravity like the player, duck into their crouch pose when a shot looks threatening
                     (crouch-capable enemies only), attack the player when in range with a clear line of
                     sight, and show a live HP bar. */}
-                {play && lv.enemies && Object.keys(lv.enemies).map((k) => {
+                {play && playUnitSets.map((U) => Object.keys(U.lv.enemies || {}).map((k) => {
                   const [r, c] = k.split(",").map(Number);
-                  const eSpawn = liveSpawnAt(k, lv.enemies[k]);
-                  const ea = liveEnemyAsset(k, findA(eSpawn.enemyId));
+                  const eSpawn = liveSpawnAt(k, U.lv.enemies[k], U.gear, U.ns);
+                  const ea = liveEnemyAsset(k, findA(eSpawn.enemyId), U.gear);
                   if (!ea) return null;
                   // The bar has to read the ALLY ceiling or a buffed minion shows as permanently
                   // over-full — 20 HP drawn against a 10 HP track.
-                  const maxHp = unitMaxHP(ea, enemyPos.current[k], playAllyHpBonus);
-                  const curHp = enemyHP.current[k] ?? maxHp;
+                  const maxHp = unitMaxHP(ea, U.pos[k], playAllyHpBonus);
+                  const curHp = U.hp[k] ?? maxHp;
                   const isDead = curHp <= 0;
                   const eShape = sideBodyShape(ea);
                   const eRenderW = enemyRenderW(ea, LV_CELL);
                   const epw = eRenderW * eShape.fraction;
-                  const ep = enemyPos.current[k];
+                  const ep = U.pos[k];
                   const ducking = !!(ep && ep.crouch);
                   const eph = ducking ? enemyCrouchH(ea, LV_CELL) : enemyStandH(ea, LV_CELL);
-                  const eLeft = ep ? ep.x : (c * LV_CELL + LV_CELL / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2));
-                  const eTop = ep ? ep.y : ((r + 1) * LV_CELL - eph); // live AI/gravity position; static fallback for the first frame before physics has run
+                  const eLeft = U.off.x + (ep ? ep.x : (c * LV_CELL + LV_CELL / 2 - epw / 2 - (eShape.centerFrac * eRenderW - epw / 2)));
+                  const eTop = U.off.y + (ep ? ep.y : ((r + 1) * LV_CELL - eph)); // live AI/gravity position; static fallback for the first frame before physics has run
                   if (offScreen(eLeft - LV_CELL * 2, eTop - LV_CELL * 2, eRenderW + LV_CELL * 4, eph + LV_CELL * 4)) return null; // off the screen: no sprite this frame (its AI still runs — see cullView)
                   const hitboxOffset = eShape.centerFrac * eRenderW - epw / 2; // hitbox-left relative to the wider render box — constant regardless of live position
                   const eFootAnchor = Math.max(0, 1 - eShape.topFrac - eShape.heightFrac) * eph; // empty canvas below the drawn feet: shift the art down by it so the visible feet rest on the ground instead of hovering by that gap (scales with the enemy, so big/tall enemies do not float)
@@ -17806,7 +18145,7 @@ export default function AssetStudio() {
                     // the ground (or on you), so it can't still be painted on the corpse. The strip
                     // count rides the render cache key, or the run cache would keep serving the
                     // still-armed art after you picked the weapon up.
-                    const stripped = corpseStripped.current[k] || [];
+                    const stripped = U.stripped[k] || [];
                     /* A CORPSE HOLDS WHAT THE PLACEMENT GAVE IT, not what the look was drawn with.
                        A dressed look bakes a frozen copy of its own weapon into every pose. Leave it
                        there on a spawn whose weapon was overridden and the body lies in the dirt
@@ -17861,8 +18200,8 @@ export default function AssetStudio() {
                     const deadFootAnchor = poseGroundFrac(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"), deadPose) * eph;
                     const deadFlip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1) " : "";
                     return (
-                      <div key={"enp" + k} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop + deadFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", zIndex: CORPSE_Z, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (eph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
-                        {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + k + "_s" + stripped.length, keyPrefix: "dead" + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}
+                      <div key={"enp" + U.ns + k} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop + deadFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", zIndex: CORPSE_Z, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (eph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
+                        {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + U.ns + k + "_s" + stripped.length, keyPrefix: "dead" + U.ns + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}
                       </div>
                     );
                   }
@@ -17880,7 +18219,7 @@ export default function AssetStudio() {
                   // enemyPoseKey falls back to Side for art with no Front drawn at all, which is
                   // every animal (the Squirrel, the Pit Bulls) — those keep the turn-to-look rule
                   // in the AI loop instead, which is the whole reason that rule stays.
-                  const eTalkWaiting = !!(ep && !ep.talked && talkDialogueId(lv.enemies[k]) && !eUseAtkPose && !ducking && unitSide(ea, ep) !== "hostile");
+                  const eTalkWaiting = !!(ep && !ep.talked && talkDialogueId(U.lv.enemies[k]) && !eUseAtkPose && !ducking && unitSide(ea, ep) !== "hostile");
                   const eFrontPose = eTalkWaiting && enemyPoseKey(ea, "front") === "front";
                   const ePoseKey = eUseAtkPose ? "attack" : eFrontPose ? "front" : enemyPoseKey(ea, ducking ? "crouch" : "side");
                   // A ground line on the pose being drawn wins; failing that the Side line, because
@@ -18018,7 +18357,7 @@ export default function AssetStudio() {
                   }
                   const hpFrac = Math.max(0, Math.min(1, curHp / maxHp));
                   // The bar of whoever is being hurt RIGHT NOW draws over the rest of the crowd (unitStatusZ).
-                  const hpHot = noteUnitHp(unitHpSeen.current, k, curHp, performance.now());
+                  const hpHot = noteUnitHp(U.hpSeen, U.ns + k, curHp, performance.now());
                   // A FRONT POSE IS NEVER MIRRORED. The flip exists to point a side-on drawing the
                   // way the unit is walking; applied to art already facing the camera it just
                   // swaps the poor character's left and right for no reason, and any lettering or
@@ -18045,7 +18384,7 @@ export default function AssetStudio() {
                     ? (flip === "none" ? "" : flip + " ") + "translateY(" + (-layFlatLiftPx(eBlocks, eRenderW, eph)).toFixed(2) + "px) " + LAY_FLAT_ROT_CSS
                     : flip;
                   return (
-                    <React.Fragment key={"enp" + k}>
+                    <React.Fragment key={"enp" + U.ns + k}>
                       {/* Status readouts live OUTSIDE the sprite wrapper, in their own layer above
                           the Front tiles. Inside it they were unreachable: the wrapper carries the
                           facing scaleX(-1), and a transform makes its own stacking context, so no
@@ -18086,7 +18425,7 @@ export default function AssetStudio() {
                       </div>
                       <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? " (💬 not fighting you — press E to talk)" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {(() => {
-                          const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + k, keyPrefix: "enp" + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
+                          const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + U.ns + k, keyPrefix: "enp" + U.ns + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
                           // Put the art back to a true aspect when the box isn't one (ducking) —
                           // see spriteUnsquashY. Scaled about the floor line so the feet stay
                           // planted and the body grows back UP out of the shorter hitbox, the way
@@ -18099,7 +18438,7 @@ export default function AssetStudio() {
                       </div>
                     </React.Fragment>
                   );
-                })}
+                }))}
                 {play && doorPrompt && doorPrompt.key && (() => {
                   // Doors are invisible in play (you place your own visual over the cell). All that
                   // shows is this prompt when you're standing on one, so E has an obvious meaning.
@@ -18492,14 +18831,9 @@ export default function AssetStudio() {
 
             <div className="card">
               <div className="ct">Playtest player</div>
-              <select className="big" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
-                <option value="">▢ Plain box</option>
-                {/* Bare bodies, then the wardrobe filed by 📂 category (lookOptions), then the animals —
-                    the same folders the Enemy picker and Dress Bob show. */}
-                {allAssets.filter((a) => a.type === "body").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                {lookOptions()}
-                {allAssets.filter((a) => a.type === "enemy").map((a) => <option key={a.id} value={a.id}>{"👹 " + a.name}</option>)}
-              </select>
+              {/* Bare bodies, then the wardrobe filed by 📂 category, then the animals — the same
+                  folders the Enemy picker shows. */}
+              {characterPicker({ groups: playerPickGroups, cat: playerCat, setCat: setPlayerCat, value: playerId, setValue: setPlayerId, none: <option value="">▢ Plain box</option>, keepPick: true })}
               <label className="ltbtn up wide3b">⬆ Upload a character file<input type="file" accept=".json,application/json,text/plain" onChange={sessionUpload} hidden /></label>
               <div className="ct" style={{ marginTop: 12 }}>Playtest weapon</div>
               <select className="big" value={playtestWeaponId} onChange={(e) => setPlaytestWeaponId(e.target.value)}>
@@ -18598,17 +18932,17 @@ export default function AssetStudio() {
             <div className="dlg" onClick={(e) => e.stopPropagation()}>
               <div className="dt">Load a level or room</div>
               {levelLib.length === 0 && <p className="mini">Nothing saved yet — make a level or room, then Save.</p>}
-              {Object.entries(levelLib.reduce((groups, l) => { const k = l.isRoom ? "🚪 Rooms" : ((l.floor || "").trim() || "—"); (groups[k] = groups[k] || []).push(l); return groups; }, {}))
-                .sort(([a], [b]) => (a === "🚪 Rooms" ? 1 : b === "🚪 Rooms" ? -1 : NUMERIC_COLLATOR.compare(a, b)))
-                .map(([floor, items]) => (
-                <div key={floor} className="loadgroup">
-                  <div className="loadgrouplabel">{floor === "🚪 Rooms" ? "🚪 Rooms" : floor === "—" ? "No floor set" : "🏢 Floor " + floor}</div>
+              {levelLoadGroups(levelLib).map(({ key, label, isRoom, items }) => (
+                <div key={key} className="loadgroup">
+                  <div className="loadgrouplabel">{isRoom ? "🚪 " + (label || "Rooms") : label ? "🏢 Floor " + label : "No floor set"}</div>
                   {/* Open on the left, 🗑 on the right. Two taps to delete, exactly like the asset
                       shelf's — the first arms it and says which one, so a mis-tap on a picker you
                       opened to LOAD something cannot cost you a level. */}
                   <div className="loadlist">{items.map((l) => (
                     <div key={l.id} className="loadrow">
-                      <button className="loadopen" onClick={() => openLevel(l)}>{l.isRoom ? "🚪" : "🗺️"} {l.name}{l.isRoom && (l.roomTag || "").trim() ? <span className="hint2"> · tag: {l.roomTag}</span> : l.section ? <span className="hint2"> · {l.section}</span> : null}</button>
+                      {/* The room's tag only when it is NOT the folder it is filed in — "Trailor Int ·
+                          tag: Trailor Int" under a "🚪 Trailor Int" heading is the same word three times. */}
+                      <button className="loadopen" onClick={() => openLevel(l)}>{l.isRoom ? "🚪" : "🗺️"} {l.name}{l.isRoom ? ((l.roomTag || "").trim() && (l.roomTag || "").trim().toLowerCase() !== label.toLowerCase() ? <span className="hint2"> · tag: {l.roomTag}</span> : null) : l.section ? <span className="hint2"> · {l.section}</span> : null}</button>
                       <button className={"loaddel" + (confirmLvlDel === l.id ? " arm" : "")}
                         title={confirmLvlDel === l.id ? "Tap again to permanently delete" : "Delete this " + (l.isRoom ? "room" : "level")}
                         onClick={(e) => { e.stopPropagation(); if (confirmLvlDel === l.id) deleteLevel(l); else { setConfirmLvlDel(l.id); flash("Tap 🗑 again to permanently delete \"" + l.name + "\""); } }}>{confirmLvlDel === l.id ? "Sure?" : "🗑"}</button>
@@ -18639,14 +18973,19 @@ export default function AssetStudio() {
         {gen && (
           <div className="modal" onClick={() => setGen(null)}>
             <div className="dlg wide3" onClick={(e) => e.stopPropagation()}>
-              <div className="dt">Generated run — {gen.length} levels stitched left → right</div>
-              <div className="genrow">{gen.map((l, i) => (
+              <div className="dt">🎲 Run {gen.seed} — {gen.levels.length} level{gen.levels.length === 1 ? "" : "s"}{gen.notes.length ? <span className="emcount">{gen.notes.join(", ")}</span> : null}</div>
+              <div className="genrow">{gen.levels.map((l, i) => (
                 <React.Fragment key={i}>
                   {i > 0 && <div className="genlink">🔗</div>}
-                  <div className="gencol"><div className="genname">{l.name}</div>{miniLevel(l)}</div>
+                  <div className="gencol"><div className="genname">{l.name}</div><LevelThumb level={l} /></div>
                 </React.Fragment>
               ))}</div>
-              <div className="row2"><button onClick={runGenerate}>🎲 Re-roll</button><button onClick={() => setGen(null)}>Close</button></div>
+              <div className="row2">
+                <input className="bgNameInput runSeed" value={runSeedText} onChange={(e) => { const v = e.target.value; setRunSeedText(v); if (v.trim()) rollGenerate(v); }} placeholder="Seed" />
+                <button onClick={runGenerate}>🎲 Re-roll</button>
+                <button disabled={!gen.levels.length} onClick={() => startRun(gen.seed)}>🏁 Play this run</button>
+                <button onClick={() => setGen(null)}>Close</button>
+              </div>
             </div>
           </div>
         )}
@@ -19965,6 +20304,9 @@ html,body{margin:0;padding:0;background:#0f1117}
 .catchips button:hover{border-color:#4f7cf6;color:#e7e9ee}
 .catchips button.on{border-color:#4f7cf6;color:#e7e9ee;background:#243052}
 .save.playon{background:#b0504f}.save.playon:hover{background:#c75f5e}
+.save.splitPlay{display:inline-flex;padding:0;overflow:hidden;cursor:default}.save.splitPlay:hover{background:#3558c0}
+.splitPlay button{background:transparent;border:0;color:inherit;font:inherit;font-weight:600;padding:9px 13px;cursor:pointer;white-space:nowrap}
+.splitPlay button+button{border-left:1px solid rgba(255,255,255,.28)}.splitPlay button:hover{background:#3f66d8}
 .ltools{display:flex;align-items:center;gap:8px;padding:9px 14px;background:#13161f;border-bottom:1px solid #232838;flex-wrap:wrap}
 .seg{display:flex;border:1px solid #2c3245;border-radius:9px;overflow:hidden}
 .seg button{background:#171b26;border:0;padding:8px 11px;cursor:pointer;font-size:13px}
@@ -20071,6 +20413,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .lcell{position:absolute;width:${LV_CELL}px;height:${LV_CELL}px;z-index:2000}
 .lcell.bg{opacity:.42;z-index:1000}
 .lcell.front{z-index:6000;transition:opacity .12s ease}
+.areaSel{position:absolute;z-index:9001;box-sizing:border-box;border:4px dashed #ffd166;background:rgba(255,209,102,.18);box-shadow:0 0 0 1px rgba(0,0,0,.55);pointer-events:none}.areaSel.band{border-color:#62d9ff;background:rgba(98,217,255,.18)}
 .lcell.moveSel{z-index:9000;background:rgba(79,124,246,0.28);outline:2px dashed #4f7cf6;outline-offset:-2px;pointer-events:none}
 /* 👁 EDITOR-ONLY LAYER HIDING (lHidden). display:none rather than opacity, so a hidden layer's
    objects take no erase clicks either — hiding a wall to reach what is behind it must not be the

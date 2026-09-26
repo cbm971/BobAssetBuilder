@@ -807,7 +807,12 @@ head": instead of dying you flash and get back up on 1 HP *exactly where you fel
 five death sites in the loop (fire, melee, thrown impact, blast, shot), each carrying its own copy
 of the respawn line — precisely the shape that lets a rule reach four and miss the fifth — so they
 now all call one closure in the Playtest effect. **Add a sixth way to die and route it through
-`playerDefeated(p, msg)`**, never a bare `p.x = SPAWN.x`. The pieces:
+`playerDefeated(p, msg)`**, never a bare `p.x = SPAWN.x`. **A real death (no life left) goes back to
+the GATE YOU CAME IN BY (2026-09-26)**, not SPAWN (60,40, up in the sky of his levels):
+`respawnAtEntry` re-places you with `placeSpawn` — the same code that places an arriving spawnReq —
+using `respawnSpec`, which the spawnReq handler records on every arrival (Playtest's starting gate, a
+room's door, the door you came back out of) and `seamHandoff` sets to `CONN_OPP` of the gate you
+crossed (E2 → the neighbour's W2). Being flung above the top of the world uses it too. The pieces:
 
 * `extraLivesGranted(effects)` sums `lives` across worn items (Magazine Size / Ally Health style);
   `extraLivesLeft(effects, livesUsed.current)` is what you actually have. **`livesUsed` is a
@@ -1345,10 +1350,17 @@ A held group only ever translates — turning it to suit one member would tear t
 **A RUN IS THE GAME, AND THE CAMERA CAME WITH IT (2026-09-16).** Blake's first test build: an Intro
 level, up to eight middle levels joined by their gates, an Exit level, sewers underneath — played as
 one continuous world. Everything for it sits in one block of `App.js` headed `RUNS — a playable
-chain of levels` (module level, just after `generateChain`), plus a few marked `// RUN —` / `// CAMERA —`
+chain of levels` (module level, after `canAttach`), plus a few marked `// RUN —` / `// CAMERA —`
 spots in the play loop and the level render. In plain words:
 
-* **Starting one.** 🏁 Play run in the Level Creator's toolbar, with a seed box beside it. `buildRun`
+* **Starting one (buttons moved 2026-09-26).** The header's play button is split: **▶ Playtest | 🏁
+  Play run** (`.splitPlay`); 🏁 always rolls a fresh seed. The seed box moved out of the toolbar into
+  **🎲 Generate**, which is now a preview of the very run 🏁 would play — `rollGenerate` calls the
+  same `buildRun(runPool(), seed)` as `startRun`, thumbnails each level as ONE canvas
+  (`LevelThumb`), and has 🎲 Re-roll / a seed box (typing a seed re-previews it) / 🏁 Play this run.
+  The old `generateChain` (East→West only, rooms and the unsaved level in its pool, no Intro/Exit)
+  and its div-per-cell thumbnails (~75,000 divs for 8 of his levels, rebuilt on every editor hover —
+  the dialog froze the page) are gone. `buildRun`
   takes every SAVED level (the editor's live copy stands in for its saved one; a never-saved level
   stays out, or the blank one the creator opens on filled every slot with itself), picks a level whose
   free-text **Section** reads Intro (or Start/Beginning), chains middle levels east→west by
@@ -1387,8 +1399,14 @@ spots in the play loop and the level render. In plain words:
   strips became whole cached neighbours).** `seamStripLayers` drew `SEAM_STRIP_CELLS` (40) of each
   neighbour's bg/fg/front cells across the seam through the very same run/outline/clip code as the
   live layers, positioned by the offset, and `seamStripObjects` the objects whose footprint reaches
-  into the strip (drawn static in the render body, props through `renderObj`). Enemies, fires and
-  doors of a neighbour appear when it goes live. Memoized on the live level, so per frame it costs
+  into the strip (drawn static in the render body, props through `renderObj`). Fires and doors of a
+  neighbour appear when it goes live. **Its ENEMIES are drawn from 2026-09-26** ("they just jump in
+  out of the blue"): the play render's unit loop walks `playUnitSets` — the live level plus one set per
+  seam (`{ lv, pos, hp, stripped, gear, off, ns }` off the neighbour's `roomState` bucket) — through
+  the one sprite code, standing at their spawn cell or where you left them. Only the live level
+  simulates. `prepRunNeighbours` (after `resolveRunSides`, in `togglePlaytest` and `seamHandoff`)
+  makes each neighbour's bucket and its 🎲 gear-tag rolls up front, so they are drawn in the gear
+  they fight in and the loop effect adopts the bucket untouched. Memoized on the live level, so per frame it costs
   nothing; per level it is ~300–400 extra cells on his levels (measured 371 + 299 on M1). It is NOT
   the ten-levels-in-one-DOM build he first described — tile count is what has cost frames twice.
 * **The camera.** `cameraTarget` (pure): centre the body, clamp to the level, but let the view run past
@@ -1748,15 +1766,42 @@ every future edit made in all of its copies.
 same rules (trimmed, case-folded, "Unknown" last, names A→Z inside a folder), one reader:
 `groupByCategory(assets, type)`, with `groupProps` and `groupLooks` as its two type-bound
 spellings. Nothing in the game reads it — it is filing. It shows up in every place a look is
-picked, all through one `lookOptions()` helper in App: Dress Bob's "Open saved look…", the Level
-Creator's 👹 Enemy picker (animals get their own heading only once the looks have folders), the
-Playtest player picker, and Load → Dressed Looks, which drills down by folder exactly as Objects
-does. Fewer than two folders = the flat list it always was, so a wardrobe with nothing filed is
+picked: Dress Bob's "Open saved look…" (optgroups via `lookOptions()`), Load → Dressed Looks, which
+drills down by folder exactly as Objects does, and — **since 2026-09-26 as a FOLDER DROPDOWN, then the
+characters in it, like the 🌿 Object picker** ("it is just one big list" with optgroups) — the Level
+Creator's 👹 Enemy picker and the Playtest player picker (`characterPicker` over
+`characterPickerGroups`: the looks' folders, plus 👹 Enemies for the animals and 🧍 Bodies for the
+player). Browsing another folder never swaps out the current player (it stays listed); the Enemy
+picker, a paint brush, lets go of a pick outside the folder, as Objects does. Fewer than two folders = the flat list it always was, so a wardrobe with nothing filed is
 unchanged. The field lives in a 📂 Category card in Dress Bob's side panel with chips for the
 folders already in use; `composeLook` trims it onto the saved record and `rebuildLook` keeps it
 because it spreads the whole look. **Opening a saved look now fills its NAME into the header too**
 (`openDressedLook`) — before, the box stayed blank and Save minted a second "<body> — dressed"
 beside the one you had opened, which made "open it, file it, save" impossible.
+
+**ROOMS FILE BY SECTION, FALLING BACK TO THE ROOM TAG (2026-09-26).** The Load dialog put every room
+in one "🚪 Rooms" pile. `levelLoadGroups` now gives levels their Floor folders (as before) and rooms a
+folder each by Section, else Room tag — his rooms only carry tags (Trailor Int ×6, Tree), so the tag
+is what files them today. A room's "· tag:" hint is hidden when it repeats the folder name.
+
+**🔀 MOVE MOVES THINGS (2026-09-26).** It used to be only the colour-layer swap (click paint → flood
+pick → send to another layer), so clicking a trailer grabbed the whole Background behind it and there
+was no way to lift the bottom of Trailor Park M9 up a few rows. Now, on EVERY layer: **drag a box** →
+everything anchored in it (fg/bg/front, climb, fire, markers, enemy spawns, objects by their top-left
+cell); **click an object** → just that object. Then drag it or arrow-key it (Shift = 5 cells); Esc or
+✕ Deselect lets go; each nudge is one Undo step, and Undo/Redo drop the selection. A plain click on
+bare paint still does the old layer swap (`pickMoveRegion`, unchanged). The mechanics are pure and
+tested: `liftLevelArea` / `stampLevelArea` / `moveLevelArea`, `moveLevelObject`, `clampAreaShift`.
+**The block is lifted ONCE and carried** (`areaFloat`, valid only while `level` is the level it last
+stamped AND the selection is the one it made): the first build re-read the box on every nudge and, once
+the box sat over the upper floor's bottom row, carried that row off with it. Verified on his real M9:
+ground/ladder/trailer/row-35 enemies up two rows, everything above row 20 byte-identical.
+
+**A HELD WEAPON'S "Behind the WHOLE body" PIECES (2026-09-26).** `mergeWeaponBlocks` — every held-weapon
+render site (player, units, corpses, Dress Bob, and now `composeLook`'s bake too) — only knew
+`behindArm`, so DK Arms' far arm, flagged `behindBody` and drawn behind the torso in the editor, sat on
+DK's chest in Playtest. `groupWeaponBlocksByArm` now returns `{ under, behind, front }`: `under`
+(behindBody wins over behindArm) goes before the whole body, capes included.
 
 So **every `character` is placeable as an enemy**, and what a placement CARRIES is stamped on the
 spawn beside the facing, the AI and the dialogue that were already stamped there:
