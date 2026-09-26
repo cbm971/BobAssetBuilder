@@ -924,6 +924,50 @@ plus half the hit width.
   have a bad habit of leaving in useless UI text that just adds clutter". Both asset
   normalisers default the field, so an old item never reads as `undefined`.
 
+**...THEN ×4 (2026-09-26): 40% consumables, 16% gear.** "Can you multiply the drop rate of
+everything by 4?" Both gates, same ratio, pinned in the test. A worn 🍀 Lucky Find charm is NOT
+scaled — its chance is a number he set on the item, and it already rolls before these gates.
+
+**🎁 PICKING THINGS UP (2026-09-26): the callout, the banner, and abilities described.** Asked in
+one message: the item name flashed "bold, semi retro, dopamine inducing" on pickup; abilities
+described, "not just stat changes"; each change on its own line in a better font; "Press E to
+swap" cut down to "E" and one swap symbol. Then, mid-build: "make sure the font isn't too large
+and stack where you can as I don't want it too wide." What shipped:
+* **`pickupChangeRows(item, ctx)`** (pure, tested) is the ONE description of a take — stat rows
+  `{label, from, to}`, ability rows `{icon, label, desc, lost}`, or a consumable's text line.
+  The callout and the banner both render it through `pickupRowsView`, so they cannot disagree.
+* **Every ability has a `brief`** — `EFFECT_TYPES[k].brief(params)` and
+  `WEAPON_ABILITIES[k].brief(weapon)` — a short line with the item's own numbers ("8 extra lives ·
+  get back up where you fall", "shots explode · 2.5-cell blast"). The `blurb` is the editor's
+  paragraph and far too long for the level. A test fails if a new ability ships without one.
+  Weapon abilities are filtered to the ones its TYPE honours: his Grenade still carries a stale
+  `explode: true` a throw never reads, and printing it would promise an explosion.
+* **The callout floats over the PLAYER's head** (`takeCallout`, drawn with the player, z 8500,
+  anchored above the HP/reload bars), not on the pedestal — stacked, it grew straight up across
+  the body standing in front of the item. The item's NAME stays on the item. Because the camera
+  centres a 7-cell body, a tall stack near the top of a level ran off the view, so the top is
+  estimated from the row count and clamped to the camera's top edge. `.pedcallout` needs
+  `width:max-content`: it hangs off a zero-width anchor and would otherwise shrink to min-content.
+* **Narrow on purpose:** 12px Chakra Petch, an ability's description stacked UNDER its name and
+  wrapping at 150px. Stat numbers are a 4-column grid so they line up. Every class is `pk`-prefixed
+  — a bare `.up` is the app's rounded button style and boxed every stat that went up.
+* **The banner** (`showPickup`, `.pickupBanner`) is the name in Bungee (gold gradient, dark outline,
+  3-D drop, a shine sweep, a pop-in, a burst) over the top-centre of the VIEW — a sibling of
+  `.lgrid` inside `.lscroll.playing` (made `position:relative`), because `.lgrid` moves with the
+  camera. 20-32px by name length. It REPLACED the blue toast for pedestal and drop pickups (same
+  news twice = clutter); the shop still toasts, as its panel covers the level. `consumeItemNow(item,
+  suffix, quiet)` returns "+5 HP" for it. `PICKUP_BANNER_MS` must match the `pbLife` keyframes.
+* **Fonts** come from Google Fonts via one `<link>` (`loadGameFonts`, on studio mount) and are
+  preloaded with sample text "A" — `document.fonts.load` fetches only the unicode-range subset
+  covering the text it is given. Offline they fall back to Arial Black / Segoe UI.
+* **Fixed on the way:** a throwable's callout compared it to your GUN and promised a swap and a
+  damage change; it now compares to the throwable you carry, which is what E actually swaps.
+* **The sheet is a template literal** — a backtick in a CSS comment ends it and the build fails
+  with "Missing semicolon" at a CSS line.
+Verified in the production build against his real items on a test level with five pedestals
+(Cat Head, Grenade Launcher, First Aid Kit, a cape, a grenade) plus a drop injected into
+`enemyDrops`: callout text, widths (≤150px), fonts actually loaded, banner position, no toast.
+
 Verified by seeding a 5-HP character carrying `{type:"extraLives", lives:3}` into
 `asset-data/library.json` with a 30-dps fire pit and sampling every frame through the rAF shim:
 three revives at the same (x,y) on HP 1 with `lifeGrace` 90→0 and the gold filter, then the

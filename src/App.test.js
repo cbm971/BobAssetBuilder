@@ -468,6 +468,14 @@ import {
   muzzleLocalPoint,
   armPivotSign,
 } from "./App";
+import {
+  pickupChangeRows,
+  effectBrief,
+  weaponAbilityBrief,
+  mergeEquip as mergeEquipForRows,
+  PICKUP_BANNER_MS,
+  EFFECT_TYPES,
+} from "./App";
 
 /* 🎲 A GEAR TAG ON A PLACEMENT. The point of the feature is that six copies of one guard are six
    loadouts, so what matters here is (a) the pool is the same pedestal search minus the things an
@@ -715,19 +723,20 @@ describe("enemy item drops", () => {
   const MISS = 0.99; // a roll that fails either gate
   const gear = [assets[2], assets[3]]; // sword + hat, as if the enemy had both equipped
 
-  // Doubled 2026-09-17 from 5%/2% — "in testing not enough items drop". Pinned so a later
-  // "tidy" of the constants cannot quietly halve the loot again.
-  test("consumables are the common drop at 10%, gear the rare one at 4%", () => {
-    expect(ENEMY_ITEM_DROP_CHANCE).toBe(0.10);
-    expect(ENEMY_GEAR_DROP_CHANCE).toBe(0.04);
+  // Doubled 2026-09-17 from 5%/2% — "in testing not enough items drop" — then multiplied by FOUR
+  // on 2026-09-26 ("multiply the drop rate of everything by 4"). Pinned so a later "tidy" of the
+  // constants cannot quietly cut the loot again.
+  test("consumables are the common drop at 40%, gear the rare one at 16%", () => {
+    expect(ENEMY_ITEM_DROP_CHANCE).toBe(0.40);
+    expect(ENEMY_GEAR_DROP_CHANCE).toBe(0.16);
     // Inside the item gate you get a consumable, never a shirt.
-    expect(rollEnemyItemDrop(assets, gear, 0.099999, 0, MISS).type).toBe("item");
+    expect(rollEnemyItemDrop(assets, gear, 0.399999, 0, MISS).type).toBe("item");
     expect(rollEnemyItemDrop(assets, gear, 0, 0.999999, MISS).id).toBe("elixir");
     // Past the item gate but inside the gear gate you get gear — a weapon or a piece of clothing.
-    expect(rollEnemyItemDrop(assets, gear, 0.10, 0, 0.039999, 0).id).toBe("sword");
-    expect(rollEnemyItemDrop(assets, gear, 0.10, 0, 0.039999, 0.999999).id).toBe("hat");
+    expect(rollEnemyItemDrop(assets, gear, 0.40, 0, 0.159999, 0).id).toBe("sword");
+    expect(rollEnemyItemDrop(assets, gear, 0.40, 0, 0.159999, 0.999999).id).toBe("hat");
     // Past both gates: nothing.
-    expect(rollEnemyItemDrop(assets, gear, 0.10, 0, 0.04, 0)).toBeNull();
+    expect(rollEnemyItemDrop(assets, gear, 0.40, 0, 0.16, 0)).toBeNull();
   });
 
   /* 🎲 DROP WEIGHT. What to pin: an untouched library (no dropWeight anywhere) picks exactly as
@@ -783,12 +792,12 @@ describe("enemy item drops", () => {
     // however many shirts and rifles are saved. Consumables still come from the whole pool.
     const wardrobe = [{ id: "potion", type: "item" }];
     for (let i = 0; i < 50; i++) wardrobe.push({ id: "shirt" + i, type: "equipment" });
-    expect(rollEnemyItemDrop(wardrobe, [], 0.10, 0, 0, 0)).toBeNull();          // naked enemy: no gear
+    expect(rollEnemyItemDrop(wardrobe, [], 0.40, 0, 0, 0)).toBeNull();          // naked enemy: no gear
     expect(rollEnemyItemDrop(wardrobe, [], 0.01, 0, MISS).id).toBe("potion");   // but still drops potions
     // Wearing exactly one thing, that one thing is the only gear it can ever yield.
     const onlyHat = [{ id: "shirt7", type: "equipment" }];
     for (const r of [0, 0.5, 0.999999]) {
-      expect(rollEnemyItemDrop(wardrobe, onlyHat, 0.10, 0, 0.01, r).id).toBe("shirt7");
+      expect(rollEnemyItemDrop(wardrobe, onlyHat, 0.40, 0, 0.01, r).id).toBe("shirt7");
     }
   });
 
@@ -9990,5 +9999,85 @@ describe("moveLevelArea / moveLevelObject", () => {
     expect(res.level.fx["6,1"].map((o) => o.char)).toEqual(["A"]);
     expect(res.level.fx["4,1"][res.index]).toEqual({ kind: "prop", propId: "trailer", ox: 0.25 });
     expect(res.level.fg).toBe(lv.fg);
+  });
+});
+
+/* 🎁 WHAT TAKING AN ITEM CHANGES. The callout over a pedestal/drop and the pickup banner both print
+   pickupChangeRows. What to pin: one row per change (not a joined sentence), the ABILITIES are
+   there with a description carrying the item's own numbers, what comes off is marked lost, and a
+   throwable/gun with nothing to compare against prints just its number. */
+describe("pickup change rows", () => {
+  test("every clothing and weapon ability has a short description", () => {
+    for (const type of Object.keys(EFFECT_TYPES)) {
+      const r = effectBrief({ type });
+      expect(r && r.desc && r.desc.length > 0 ? type : "missing " + type).toBe(type);
+      expect(r.desc.length).toBeLessThan(60); // it hangs over a pedestal, not in the editor
+    }
+    const weapon = { wtype: "ranged", burst: 3, explodeRadius: 2, meleeBoost: 3, stun: 1, clusterCount: 3, captureMax: 1 };
+    for (const k of Object.keys(WEAPON_ABILITIES)) {
+      const r = weaponAbilityBrief(weapon, k);
+      expect(r.desc && r.desc.length > 0 ? k : "missing " + k).toBe(k);
+      expect(r.desc.length).toBeLessThan(60);
+    }
+    expect(effectBrief({ type: "nope" })).toBeNull();
+  });
+
+  test("a description carries the item's own numbers, or the default", () => {
+    expect(effectBrief({ type: "backGuard" }).desc).toBe("blocks 50% of hits from behind");
+    expect(effectBrief({ type: "backGuard", reduce: 0.75 }).desc).toBe("blocks 75% of hits from behind");
+    expect(effectBrief({ type: "tagBoost", tag: " bow ", mult: 2 }).desc).toBe("×2 damage with bow weapons");
+    expect(effectBrief({ type: "extraLives", lives: 9 }).desc).toBe("9 extra lives · get back up where you fall");
+    expect(effectBrief({ type: "extraLives" }).desc).toBe("1 extra life · get back up where you fall");
+    expect(effectBrief({ type: "extraLives" }).label).toBe("Extra Lives");
+    expect(weaponAbilityBrief({ stun: 1.5 }, "stun").desc).toBe("freezes what it hits for 1.5s");
+    expect(weaponAbilityBrief({ wtype: "throw", captureMax: 3 }, "capture").desc).toBe("up to 3 defeated creatures fight for you");
+  });
+
+  test("consumables are their one effect line", () => {
+    expect(pickupChangeRows({ type: "item", effect: { kind: "heal", amount: 5 } })).toEqual([{ kind: "text", text: "Heal 5 HP" }]);
+    expect(pickupChangeRows({ type: "item", effect: { kind: "money", amount: 20 } })[0].text).toBe(MONEY_CHAR + " +20");
+    expect(pickupChangeRows(null)).toEqual([]);
+  });
+
+  test("a weapon: damage change, then what it can do, then what the old one could that it can't", () => {
+    const boomer = { type: "weapon", wtype: "ranged", damage: 7, explode: true, explodeRadius: 2, stun: 1 };
+    // Nothing held: the number alone, no arrow.
+    const first = pickupChangeRows(boomer, {});
+    expect(first[0]).toEqual({ kind: "stat", label: "Dmg", from: null, to: 7 });
+    expect(first.slice(1).map((r) => r.label)).toEqual(["Explode", "Stun"]);
+    expect(first[1].desc).toBe("shots explode · 2-cell blast");
+    // Swapping a full-auto rifle of the same damage: no damage row, and full auto is LOST.
+    const rifle = { type: "weapon", wtype: "ranged", damage: 7, fullAuto: true };
+    const swap = pickupChangeRows(boomer, { held: rifle });
+    expect(swap.some((r) => r.kind === "stat")).toBe(false);
+    expect(swap.map((r) => r.label + (r.lost ? " (lost)" : ""))).toEqual(["Explode", "Stun", "Full auto (lost)"]);
+    // A flag this KIND of weapon never reads is not an ability: his Grenade carries a leftover
+    // explode:true, and a throw only burns.
+    const grenade = { type: "weapon", wtype: "throw", damage: 12, explode: true, landEffectDps: 6 };
+    expect(pickupChangeRows(grenade, {}).filter((r) => r.kind === "ability").map((r) => r.label)).toEqual(["Burn"]);
+    // A plain weapon on a plain weapon: a damage change only.
+    expect(pickupChangeRows({ type: "weapon", wtype: "melee", damage: 4 }, { held: { type: "weapon", wtype: "melee", damage: 6 } }))
+      .toEqual([{ kind: "stat", label: "Dmg", from: 6, to: 4 }]);
+  });
+
+  test("clothing: each stat change on its own row, its abilities described, the old garment's marked lost", () => {
+    const base = { stats: { hp: 5, speed: 5, agility: 5, intelligence: 5, strength: 5 }, defense: 0, effects: [] };
+    const oldCape = { type: "equipment", slot: "cape", statBoosts: {}, defense: 0, effects: [{ type: "backGuard", reduce: 0.5 }, { type: "extraLives", lives: 1 }] };
+    const catHat = { type: "equipment", slot: "cape", statBoosts: { speed: 2, agility: -1 }, defense: 1, effects: [{ type: "extraLives", lives: 9 }] };
+    const before = mergeEquipForRows(base, { cape: oldCape }), after = mergeEquipForRows(base, { cape: catHat });
+    const rows = pickupChangeRows(catHat, { before, after, off: oldCape });
+    expect(rows.filter((r) => r.kind === "stat")).toEqual([
+      { kind: "stat", label: "Speed", from: 5, to: 7 },
+      { kind: "stat", label: "Agility", from: 5, to: 4 },
+      { kind: "stat", label: "Def", from: 0, to: 1 },
+    ]);
+    const ab = rows.filter((r) => r.kind === "ability");
+    // Extra Lives is on BOTH — it is the new item's, described with ITS count, and not "lost".
+    expect(ab.map((r) => r.label + (r.lost ? " (lost)" : ""))).toEqual(["Extra Lives", "Back Guard (lost)"]);
+    expect(ab[0].desc).toBe("9 extra lives · get back up where you fall");
+  });
+
+  test("the banner lasts as long as its CSS life", () => {
+    expect(PICKUP_BANNER_MS).toBe(2600); // .pickupBanner's pbLife animation is 2.6s — keep them together
   });
 });

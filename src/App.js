@@ -1376,25 +1376,37 @@ export const isThrowable = (wtype) => wtype === "throw";
 // `on` / `off` are the exact patches applied when an ability is added or removed, so a
 // mutually-exclusive pair is stated once here rather than re-derived in the JSX: a Resurrect staff
 // deals no damage at all, so it and Explode can never both be live.
+//
+// `brief(weapon)` is the SHORT line — what the ability does, with this weapon's own numbers in it —
+// that the pickup callout and the pickup banner print under the item. The `blurb` is the editor's
+// explanation and is far too long to hang over a pedestal; the callout used to print only stat
+// changes, so a gun that explodes read exactly like a gun that doesn't until you fired it. Blake:
+// "make sure you describe an item's abilities, not just stat changes." (EFFECT_TYPES has the same.)
+export const briefNum = (n) => String(Math.round((Number(n) || 0) * 100) / 100);
+export const briefPct = (n) => Math.round((Number(n) || 0) * 100) + "%";
 export const WEAPON_ABILITIES = {
   burstFire: {
     icon: "🔫", label: "Burst fire", types: ["ranged"],
     blurb: "One press commits a quick salvo. The normal Fire rate controls when another burst may begin; Burst spacing controls the rounds inside it. Mutually exclusive with Full Auto.",
+    brief: (a) => Math.max(2, Math.round(a.burst ?? 3)) + "-shot bursts",
     on: { burstFire: true, fullAuto: false, burst: 3, burstDelay: DEFAULT_BURST_DELAY }, off: { burstFire: false },
   },
   fullAuto: {
     icon: "🔥", label: "Full auto", types: ["ranged"],
     blurb: "Hold Fire to keep shooting at the weapon's Fire rate until the trigger is released, the magazine empties, or a reload begins. Mutually exclusive with Burst Fire.",
+    brief: () => "hold Fire to keep shooting",
     on: { fullAuto: true, burstFire: false }, off: { fullAuto: false },
   },
   explode: {
     icon: "💥", label: "Explode", types: ["ranged"],
     blurb: "The shot bursts on impact: everything within the blast radius of where it lands takes the weapon's damage, plus an explosion drawn in front from an Object you pick.",
+    brief: (a) => "shots explode · " + briefNum(a.explodeRadius ?? 2) + "-cell blast",
     on: { explode: true, resurrect: false, pierce: false }, off: { explode: false },
   },
   pierce: {
     icon: "🪡", label: "Pierce", types: ["ranged"],
     blurb: "Shots don't stop at the first enemy — they fly on through everyone in their path, hitting each once, until the ground or a wall stops them. Mutually exclusive with Explode.",
+    brief: () => "shots go through every enemy",
     on: { pierce: true, explode: false }, off: { pierce: false },
   },
   // A gun you WEAR on your fists (the DK Arms): the 👊 Q/V swing you can throw without holstering
@@ -1403,24 +1415,28 @@ export const WEAPON_ABILITIES = {
   meleeBoost: {
     icon: "🦍", label: "Melee boost", types: ["ranged"],
     blurb: "Your 👊 melee swing (Q / V) hits harder while this weapon is in your hand — your bare-handed damage times the boost. Made for weapons you wear on your arms, where the punch lands with the same fists that hold the gun.",
+    brief: (a) => "punches hit ×" + briefNum(a.meleeBoost ?? DEFAULT_MELEE_BOOST) + " harder",
     isOn: (a) => !!a && isRanged(a.wtype) && (a.meleeBoost ?? 0) > 1,
     on: { meleeBoost: DEFAULT_MELEE_BOOST }, off: { meleeBoost: 0 },
   },
   ignoreArmor: {
     icon: "🗡️", label: "Ignore armor", types: ["ranged", "melee"],
     blurb: "Its shots bypass the target's Defense entirely — full damage no matter what armour is worn. Back Guard and Crouch Guard still apply.",
+    brief: () => "goes straight through armor",
     melee: true,
     on: { ignoreArmor: true }, off: { ignoreArmor: false },
   },
   stun: {
     icon: "💫", label: "Stun", types: ["ranged", "melee", "throw"],
     blurb: "A connecting hit freezes the target for a moment — it can't move or attack. Re-hitting refreshes the timer. Works in both directions: in a 👹 Enemy's hands it freezes YOU, controls and all, for the same number of seconds.",
+    brief: (a) => "freezes what it hits for " + briefNum(a.stun || DEFAULT_STUN_SECS) + "s",
     melee: true,
     on: { stun: DEFAULT_STUN_SECS }, off: { stun: 0 },
   },
   resurrect: {
     icon: "🔮", label: "Resurrect staff", types: ["ranged", "melee"],
     blurb: "Its shot deals no damage — instead it raises a defeated body into a friendly NPC that fights for you, glowing 🟣 purple. The staff gets ONE raise per body ever: you carry it all level, so without a ceiling one dog is an endless army. A 🔴 Capture throwable is limited by how many you brought instead, and can raise the same body again and again.",
+    brief: () => "raises the dead to fight for you",
     melee: true,
     on: { resurrect: true, explode: false }, off: { resurrect: false },
   },
@@ -1440,18 +1456,21 @@ export const WEAPON_ABILITIES = {
   burn: {
     icon: "🔥", label: "Burn", types: ["throw"],
     blurb: "Leaves fire on the ground where it lands, across the splash. Anything alive standing in it loses HP every second until it burns out — you included. Pick an Object to draw the flames, or leave it on the 🔥 emoji.",
+    brief: () => "sets the ground on fire where it lands",
     isOn: (a) => !!a && isThrowable(a.wtype) && (a.landEffectDps ?? 0) > 0,
     on: { landEffectDps: 6, landEffectLife: 6 }, off: { landEffectDps: 0 },
   },
   cluster: {
     icon: "💥", label: "Cluster", types: ["throw"],
     blurb: "It bursts on impact into smaller copies of itself that scatter and each pay out where THEY land, instead of paying out once where it hit. One generation only — bomblets never cluster again.",
+    brief: (a) => "bursts into " + Math.round(a.clusterCount || 3) + " bomblets",
     isOn: (a) => !!a && isThrowable(a.wtype) && (a.clusterCount ?? 0) > 0,
     on: { clusterCount: 3, clusterScale: DEFAULT_CLUSTER_SCALE }, off: { clusterCount: 0 },
   },
   capture: {
     icon: "🔴", label: "Capture", types: ["throw"],
     blurb: "Lands on a DEFEATED creature and it gets up fighting for you, glowing 🔴 red — it charges the nearest enemy, follows you when there are none left, and your own shots, fire and blasts pass through it. Creatures only: anything drawn in the 👹 Enemy creator, never a person. Nearest body first. UNLIKE the 🔮 staff there is no per-body limit: every catch costs one of these, so three of them will bring the same creature back three times.",
+    brief: (a) => { const n = captureCount(a) || 1; return n > 1 ? "up to " + n + " defeated creatures fight for you" : "a defeated creature fights for you"; },
     isOn: (a) => !!a && isThrowable(a.wtype) && (a.captureMax ?? 0) > 0,
     on: { captureMax: 1 }, off: { captureMax: 0 },
   },
@@ -2157,11 +2176,16 @@ export const rollPedestalItem = (assets, cats, logic, rnd) => {
 // "in testing not enough items drop" — with a level's worth of kills at 5% a whole run could go
 // by without a single potion or note, and the money economy (shopkeepers price off `value`) never
 // had anything to spend. The gear gate doubled with it at his ask; gear still stays the rare one.
-export const ENEMY_ITEM_DROP_CHANCE = 0.10; // consumables (potions, money etc) — the common drop
-export const ENEMY_GEAR_DROP_CHANCE = 0.04; // clothing + weapons — the rare one
+//
+// ...and both went up FOUR TIMES on 2026-09-26 (10%/4% → 40%/16%): "can you multiply the drop
+// rate of everything by 4?" The ratio between the two gates is untouched, so gear is still the
+// rare find — it is just no longer a rare one per RUN. A worn 🍀 Lucky Find charm is NOT scaled:
+// its chance is a number he sets on the item itself, and it already rolls before these gates.
+export const ENEMY_ITEM_DROP_CHANCE = 0.40; // consumables (potions, money etc) — the common drop
+export const ENEMY_GEAR_DROP_CHANCE = 0.16; // clothing + weapons — the rare one
 export const enemyItemDropPool = (assets) => (assets || []).filter((a) => a && a.type === "item");
 export const enemyGearDropPool = (assets) => (assets || []).filter((a) => a && (a.type === "equipment" || a.type === "weapon"));
-// 🎲 WHICH consumable falls, once the 10% gate is passed, is a WEIGHTED pick. Every item carries a
+// 🎲 WHICH consumable falls, once the item gate is passed, is a WEIGHTED pick. Every item carries a
 // `dropWeight` set in the item maker (default 1, so an untouched library still picks evenly, exactly
 // as it did before weights existed): a money note at weight 3 beside two weight-1 potions is 3/5 of
 // consumable drops, not 1/3. This exists because the fix Blake actually wanted for "money items do
@@ -2262,7 +2286,7 @@ export const rollEnemyItemDrop = (assets, ownGear, chanceRnd, itemRnd, gearChanc
 };
 // A worn "Lucky Find" ability (EFFECT_TYPES.tagLuck) makes a KIND of loot more likely: everything
 // carrying the tag it is set to gets its own roll, at the chance it is set to, BEFORE the ordinary
-// 10%/4% gates above. Only when that roll misses (or nothing tagged is available) does the normal
+// item/gear gates above. Only when that roll misses (or nothing tagged is available) does the normal
 // roll run, so the ability only ever adds drops — it cannot make an enemy drop less than it did.
 //
 // The pool is the pedestal search over the tag, split the same way rollEnemyItemDrop splits it:
@@ -3860,10 +3884,11 @@ export const creatureBiteBox = (x, y, w, h, face, cellPx) => {
 const DEFAULT_STAT_BOOSTS = () => ({ hp: 0, speed: 0, agility: 0, intelligence: 0, strength: 0 });
 // Effects catalog (equipment only). Each entry's `params` drives the sliders generically — adding
 // a future effect is a new entry here plus its own runtime hook in the Playtest loop, not new UI.
-const EFFECT_TYPES = {
+export const EFFECT_TYPES = {
   doubleJump: {
     label: "Double Jump", icon: "⤴️",
     blurb: "Grants one bonus mid-air jump. Design a custom Side-view animation for it, per body — a body with none yet just plays this item's normal look during the jump.",
+    brief: () => "jump again in mid-air",
     params: [
       { key: "height", label: "Height", min: 4, max: 16, step: 0.5, def: 9 },
       { key: "speed", label: "Speed", min: 1, max: 10, step: 1, def: 5 },
@@ -3875,6 +3900,7 @@ const EFFECT_TYPES = {
   backGuard: {
     label: "Back Guard", icon: "🛡️",
     blurb: "Blocks part of any hit that lands from BEHIND you (a cape catching the blow). Front and side hits are unaffected. Stacks after your normal Defense. No animation of its own.",
+    brief: (p) => "blocks " + briefPct(p.reduce) + " of hits from behind",
     noAnim: true,
     params: [
       { key: "reduce", label: "Block %", min: 0.1, max: 1, step: 0.05, def: 0.5 },
@@ -3886,6 +3912,7 @@ const EFFECT_TYPES = {
   crouchGuard: {
     label: "Crouch Guard", icon: "🧎",
     blurb: "Blocks part of any hit that lands while you are CROUCHING — duck behind it and you take less. Direction doesn't matter (that's Back Guard's job); staying crouched is the whole trick. Stacks after your normal Defense. No animation of its own.",
+    brief: (p) => "blocks " + briefPct(p.reduce) + " of hits while crouching",
     noAnim: true,
     params: [
       { key: "reduce", label: "Block %", min: 0.1, max: 1, step: 0.05, def: 0.5 },
@@ -3898,6 +3925,7 @@ const EFFECT_TYPES = {
   glide: {
     label: "Glide", icon: "🪂",
     blurb: "Hold Jump while falling to glide: fall speed is cut and you regain full mid-air steering (normally you keep your launch momentum with no air control). Design a Side-view animation for it, per body — a body with none yet just plays this item's normal look while gliding.",
+    brief: () => "hold Jump to float down",
     params: [
       { key: "fall", label: "Fall slow", min: 0.1, max: 0.9, step: 0.05, def: 0.35 },
       { key: "control", label: "Air control", min: 0.3, max: 1, step: 0.05, def: 1 },
@@ -3909,6 +3937,7 @@ const EFFECT_TYPES = {
   slide: {
     label: "Slide", icon: "🛼",
     blurb: "Low grip, like skates or ice: starting and stopping take a moment — you coast when you let go instead of stopping dead — and you slide faster down ramps. No animation of its own.",
+    brief: () => "coast on your momentum, faster downhill",
     noAnim: true,
     params: [
       { key: "grip", label: "Grip", min: 0.05, max: 1, step: 0.05, def: 0.15 },
@@ -3921,6 +3950,7 @@ const EFFECT_TYPES = {
   tagBoost: {
     label: "Tag Damage", icon: "🏹",
     blurb: "Empowers a kind of weapon: any equipped weapon whose category tags include the tag you set below (e.g. \"bow\") deals multiplied damage while this is worn. Set the tag and the multiplier. No animation of its own.",
+    brief: (p) => "×" + briefNum(p.mult) + " damage with " + (p.tag ? p.tag + " weapons" : "tagged weapons"),
     noAnim: true,
     tagParam: true,
     params: [
@@ -3934,6 +3964,7 @@ const EFFECT_TYPES = {
   tagLuck: {
     label: "Lucky Find", icon: "🍀",
     blurb: "Makes a kind of loot drop more often: every enemy you kill while this is worn gets an extra drop roll, at the chance you set, over items carrying the tag you type below (e.g. \"potion\"). Consumables with the tag can come from anywhere; tagged clothing and weapons still only drop off an enemy that was actually wearing or holding them. If the lucky roll misses, the normal drop roll happens as usual. No animation of its own.",
+    brief: (p) => "+" + briefPct(p.chance) + " chance of " + (p.tag ? p.tag + " loot" : "tagged loot"),
     noAnim: true,
     tagParam: true,
     params: [
@@ -3948,6 +3979,7 @@ const EFFECT_TYPES = {
   rangeBoost: {
     label: "Long Shot", icon: "🎯",
     blurb: "Your shots fly farther: multiplies the range of ANY ranged weapon you're holding while this is worn (a 14-block gun at ×1.5 reaches 21). Longer range also means the shot drops later, so it flies flatter. Melee and thrown weapons are unaffected. No animation of its own.",
+    brief: (p) => "shots reach ×" + briefNum(p.mult) + " farther",
     noAnim: true,
     params: [
       { key: "mult", label: "Range ×", min: 1, max: 4, step: 0.25, def: 1.5 },
@@ -3960,6 +3992,7 @@ const EFFECT_TYPES = {
   tackle: {
     label: "Tackle", icon: "🏈",
     blurb: "Barge into an enemy and they fall over. It does no damage — they just spend the seconds you set lying on the ground, unable to move, aim or attack, and get up where they fell. Touching them again once they're up knocks them down again. Worn by a 👹 Enemy it works on YOU, and that enemy will occasionally break off whatever it was doing to charge you down. No animation of its own.",
+    brief: (p) => "run into enemies to knock them down for " + briefNum(p.secs) + "s",
     noAnim: true,
     params: [
       { key: "secs", label: "Down for", min: 0.5, max: 8, step: 0.5, def: 2 },
@@ -3973,6 +4006,7 @@ const EFFECT_TYPES = {
   allyHP: {
     label: "Ally Health", icon: "🟣",
     blurb: "Raises the maximum HP of every ally fighting for you — anything you have captured or raised. Each ally is paid the bonus ONCE, the first time it is worn around them; an ally caught while you are wearing it simply arrives at the bigger maximum. Taking it off drops the ceiling again and trims anyone over it, and putting it back on pays nothing, so a wear/remove cycle can never top an ally up. Bonuses from several worn items stack. No animation of its own.",
+    brief: (p) => "+" + briefNum(p.hp) + " max HP for your allies",
     noAnim: true,
     params: [
       { key: "hp", label: "Extra HP", min: 1, max: 50, step: 1, def: 10 },
@@ -3983,12 +4017,14 @@ const EFFECT_TYPES = {
   pierce: {
     label: "Piercing Shot", icon: "🪡",
     blurb: "Your shots don't stop at the first enemy — they fly on through everyone in their path, with any ranged weapon. An exploding shot still bursts on its first hit.",
+    brief: () => "shots go through every enemy",
     noAnim: true,
     params: [],
   },
   magazineSize: {
     label: "Magazine Size", icon: "➕",
     blurb: "Adds rounds to the magazine of any finite-ammo ranged weapon while this is worn. Multiple clothing bonuses stack. Weapons set to unlimited ammo stay unlimited. No animation of its own.",
+    brief: (p) => "+" + briefNum(p.rounds) + " rounds per magazine",
     noAnim: true,
     params: [
       { key: "rounds", label: "Extra rounds", min: 1, max: 30, step: 1, def: 2 },
@@ -4005,6 +4041,7 @@ const EFFECT_TYPES = {
   extraLives: {
     label: "Extra Lives", icon: "🐱",
     blurb: "Instead of dying you flash and get straight back up on 1 HP, exactly where you fell — no trip back to the start. Spends one life each time; set how many the item carries (a cat head might carry 9). While you flash, nothing can hurt you — fire included — so you have a moment to get clear. Lives refill only when you press ▶ Playtest: taking the item off and putting it back on does not restock them, and the lives on several worn items add together. Worn by a 👹 Enemy it works on THEM — they get back up too, with a 🐱×N count by their HP bar. No animation of its own.",
+    brief: (p) => { const n = Math.max(1, Math.round(p.lives)); return n + " extra " + (n === 1 ? "life" : "lives") + " · get back up where you fall"; },
     noAnim: true,
     params: [
       { key: "lives", label: "Lives", min: 1, max: 9, step: 1, def: 1 },
@@ -4052,6 +4089,90 @@ export const equipEffectSummary = (before, after) => {
   const had = new Set(((before && before.effects) || []).map((e) => e.type));
   for (const e of ((after && after.effects) || [])) if (!had.has(e.type)) { had.add(e.type); parts.push("+" + ((EFFECT_TYPES[e.type] && EFFECT_TYPES[e.type].label) || e.type)); }
   return parts;
+};
+/* ── 🎁 WHAT TAKING AN ITEM CHANGES, AS ROWS ─────────────────────────────────────────────────
+   The pickup callout (standing on a pedestal or a drop) and the pickup banner (the moment you take
+   it) both print these. It used to be one " · "-joined sentence — "Press E to swap · Dmg 5→7 ·
+   +Extra Lives" — and Blake asked for three things at once (2026-09-26): each change on its own
+   line, a better-looking font, and the item's ABILITIES described rather than only its stat
+   changes. "+Extra Lives" named an ability without saying what it did, and a weapon's abilities
+   (explode, stun, burst…) were never mentioned at all — a gun that explodes read exactly like one
+   that doesn't until you fired it. Rows are data here and the look is CSS, so the callout and the
+   banner can never describe the same item two different ways.
+
+     { kind: "stat", label, from, to }   from = null when there is nothing to compare against (the
+                                         first gun you pick up) and it prints as just the number
+     { kind: "ability", icon, label, desc, lost }
+                                         lost = the thing coming OFF had it and this one does not
+     { kind: "text", text }              a consumable's one line ("Heal 5 HP", "💵 +20")
+
+   `ctx` is what the take is compared against, resolved by the caller exactly the way pressing E
+   resolves it: `held` = the weapon (or, for a throwable, the throwable) that goes back on the spot;
+   `before`/`after` = mergeEquip either side of a clothing take; `off` = the garment coming off. */
+export const effectBrief = (eff) => {
+  const def = eff && EFFECT_TYPES[eff.type];
+  if (!def) return null;
+  const p = { ...eff };
+  for (const pm of def.params || []) if (!Number.isFinite(p[pm.key])) p[pm.key] = pm.def;
+  if (def.tagParam) p.tag = String(eff.tag || "").trim();
+  return { kind: "ability", icon: def.icon, label: def.label, desc: def.brief ? def.brief(p) : "" };
+};
+export const weaponAbilityBrief = (w, k) => {
+  const ab = WEAPON_ABILITIES[k];
+  if (!ab || !w) return null;
+  return { kind: "ability", icon: ab.icon, label: ab.label, desc: ab.brief ? ab.brief(w) : "" };
+};
+export const pickupChangeRows = (item, ctx) => {
+  if (!item) return [];
+  const { held = null, before = null, after = null, off = null } = ctx || {};
+  if (item.type === "item") return [{ kind: "text", text: itemEffectSummary(item.effect) }];
+  const rows = [];
+  if (item.type === "weapon") {
+    // Only the abilities that WORK on this kind of weapon. A flag can outlive a type switch — his
+    // Grenade still carries `explode: true` from when it was built, and a throw never reads it
+    // (Burn is what it does) — and the editor lists such a flag only so it can be removed. Printed
+    // here it would promise an explosion the grenade does not have.
+    const liveKeys = (w) => weaponAbilityKeys(w).filter((k) => (WEAPON_ABILITIES[k].types || []).includes(isRanged(w.wtype) ? "ranged" : isThrowable(w.wtype) ? "throw" : "melee"));
+    const to = item.damage ?? 5, from = held ? (held.damage ?? 5) : null;
+    if (from !== to) rows.push({ kind: "stat", label: "Dmg", from, to });
+    const mineW = liveKeys(item);
+    for (const k of mineW) rows.push(weaponAbilityBrief(item, k));
+    // What the weapon you are putting DOWN could do and this one cannot — the half of a swap you
+    // would otherwise only find out about in the next fight.
+    if (held) for (const k of liveKeys(held)) if (!mineW.includes(k)) rows.push({ ...weaponAbilityBrief(held, k), lost: true });
+    return rows;
+  }
+  const bs = (before && before.stats) || {}, as = (after && after.stats) || {};
+  for (const k of EQUIP_STAT_KEYS) { const b = bs[k] ?? 5, a = as[k] ?? 5; if (a !== b) rows.push({ kind: "stat", label: EQUIP_STAT_LABEL[k], from: b, to: a }); }
+  const bd = (before && before.defense) || 0, ad = (after && after.defense) || 0;
+  if (ad !== bd) rows.push({ kind: "stat", label: "Def", from: bd, to: ad });
+  // The item's OWN abilities, whether or not something else you wear already has the same one —
+  // they stack (two Extra Lives items add their lives), so "you already had it" is not "nothing new".
+  const mine = new Set();
+  for (const e of item.effects || []) { if (!e || mine.has(e.type)) continue; const r = effectBrief(e); if (r) { mine.add(e.type); rows.push(r); } }
+  const gone = new Set();
+  for (const e of (off && off.effects) || []) { if (!e || mine.has(e.type) || gone.has(e.type)) continue; const r = effectBrief(e); if (r) { gone.add(e.type); rows.push({ ...r, lost: true }); } }
+  return rows;
+};
+// How long the pickup banner stays up. Matches the pbLife keyframes in the sheet (which fade it
+// out over their last quarter), so the element is gone the moment it has finished disappearing.
+export const PICKUP_BANNER_MS = 2600;
+// THE GAME'S TWO DISPLAY FONTS, from Google Fonts: Bungee (the pickup banner's name — chunky,
+// arcade-sign, "semi retro") and Chakra Petch (the stat and ability rows — squared-off and easy to
+// read small). Loaded by a <link> the first time the studio mounts rather than an @import in the
+// sheet, because an @import only works as a sheet's very first rule and this one is one big
+// template literal that other code appends to. Both are asked for up front (document.fonts.load)
+// so the first banner of a run does not flash up in the fallback face and then swap. Offline, every
+// rule that names them falls back to a heavy system face and nothing else changes.
+const GAME_FONTS_HREF = "https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@600;700&display=swap";
+const loadGameFonts = () => {
+  if (typeof document === "undefined" || !document.head || document.getElementById("bobGameFonts")) return;
+  const l = document.createElement("link");
+  l.id = "bobGameFonts"; l.rel = "stylesheet"; l.href = GAME_FONTS_HREF;
+  // The sample text matters: each family is split into unicode-range subsets, and load() fetches
+  // only the subset covering the text it is given — "A" is the Latin one every name is written in.
+  l.onload = () => { try { if (document.fonts) { document.fonts.load("40px Bungee", "A"); document.fonts.load("700 13px 'Chakra Petch'", "A"); } } catch (e) { /* a font that will not load just leaves the fallback */ } };
+  document.head.appendChild(l);
 };
 // One effect-animation frame — the SAME 5-pose shape normal art uses, so it can be edited with
 // the exact same piece toolbar (add/select/drag/resize). Only .side is ever shown/used, since
@@ -9415,6 +9536,21 @@ export default function AssetStudio() {
   const guardLevelSwitch = (label, run) => { if (levelIsDirty()) setPendingLevelAction({ label, run }); else run(); };
 
   const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 1600); };
+  // 🎁 THE PICKUP BANNER. Taking an item off a pedestal or a body throws its NAME up over the level
+  // in big gold arcade letters, with what it just did to you underneath (pickupChangeRows) — the
+  // Binding-of-Isaac "you got X" moment, asked for as "bold, semi retro, dopamine inducing". It
+  // REPLACES the blue toast those pickups used to fire, not adds to it: the same news twice, once at
+  // the top of the view and once at the bottom, is exactly the clutter Blake keeps taking out.
+  // `n` keys the element so a second pickup inside the banner's life restarts the pop animation,
+  // and it guards the timer so the first pickup's timeout cannot clear the second one's banner.
+  const [pickupBanner, setPickupBanner] = useState(null); // { n, name, rows } | null
+  const pickupSeq = useRef(0);
+  const showPickup = (name, rows) => {
+    const n = ++pickupSeq.current;
+    setPickupBanner({ n, name: name || "", rows: rows || [] });
+    setTimeout(() => setPickupBanner((b) => (b && b.n === n ? null : b)), PICKUP_BANNER_MS);
+  };
+  useEffect(() => { loadGameFonts(); }, []);
   // saves to Claude's storage when present, otherwise the browser's localStorage
   // ---- Pulling a library out of a PREVIOUS preview address ---------------------------------------
   //
@@ -9925,26 +10061,35 @@ export default function AssetStudio() {
   // Two flashes fired on the same tick and the second silently replaced the first — measured in
   // play: buying a tonic showed only "paid 💵 23", so how much it healed you never appeared. A
   // toast is a single slot; anything that has two things to say has to say them in one line.
-  const consumeItemNow = (item, suffix) => {
+  //
+  // `quiet` skips the toast and RETURNS what happened as one short line instead ("+5 HP") — the
+  // pedestal/drop take puts that line under the pickup banner, which replaced the toast there. The
+  // shop still flashes: its panel is open over the level, so a banner would land behind it.
+  const consumeItemNow = (item, suffix, quiet) => {
     const eff = normItemEffect(item.effect);
     const tail = suffix || "";
+    let line;
     if (eff.kind === "heal") {
       const mx = maxPlayerHP(livePlayerAsset()), was = playerHP.current;
       playerHP.current = applyHeal(playerHP.current, mx, eff.amount);
-      flash("🧪 " + item.name + " · +" + (playerHP.current - was) + " HP (" + playerHP.current + "/" + mx + ")" + tail);
+      line = "+" + (playerHP.current - was) + " HP";
+      if (!quiet) flash("🧪 " + item.name + " · " + line + " (" + playerHP.current + "/" + mx + ")" + tail);
     } else if (eff.kind === "money") {
       setWallet(wallet.current + eff.amount);
-      flash(MONEY_CHAR + " " + item.name + " · +" + eff.amount + " (" + wallet.current + " total)" + tail);
+      line = MONEY_CHAR + " +" + eff.amount;
+      if (!quiet) flash(MONEY_CHAR + " " + item.name + " · +" + eff.amount + " (" + wallet.current + " total)" + tail);
     } else {
       const nowMs = playNowMs();
       itemBuffs.current = pruneBuffs(itemBuffs.current, nowMs);
       itemBuffs.current.push({ stat: eff.stat, amount: eff.amount, until: nowMs + eff.duration * 1000 });
-      flash("🧪 " + item.name + " · +" + eff.amount + " " + (ITEM_STAT_LABEL[eff.stat] || eff.stat) + " for " + eff.duration + "s" + tail);
+      line = "+" + eff.amount + " " + (ITEM_STAT_LABEL[eff.stat] || eff.stat) + " for " + eff.duration + "s";
+      if (!quiet) flash("🧪 " + item.name + " · " + line + tail);
     }
+    return line;
   };
   // WHAT LEAVES YOUR HANDS WHEN YOU BUY THIS. Asked of exactly what the take itself will displace,
   // never guessed — a quote that promises a trade-in and then delivers a straight purchase is the
-  // same class of bug takePromptText exists to stop at a pedestal. A consumable displaces nothing:
+  // same class of bug takePrompt exists to stop at a pedestal. A consumable displaces nothing:
   // you drink it, there is no old potion to hand over.
   const shopDisplaced = (item) => {
     if (!item) return { off: null, offSlot: null };
@@ -12803,8 +12948,9 @@ export default function AssetStudio() {
             // re-key — the loop already reads pstats.
             //
             // consumeItemNow is shared with the shop counter, so a potion bought over a counter
-            // and the same potion taken off a plinth can never heal different amounts.
-            consumeItemNow(item);
+            // and the same potion taken off a plinth can never heal different amounts. Quiet here:
+            // what it did goes under the pickup banner instead of into a toast.
+            showPickup(item.name, [{ kind: "text", text: consumeItemNow(item, "", true) }]);
             putBack(null);
           } else if (item.type === "weapon") {
             if (isThrowable(item.wtype)) {
@@ -12814,13 +12960,12 @@ export default function AssetStudio() {
               const prevId = playtestThrowId, prev = prevId ? findA(prevId) : null;
               putBack(prev);
               throwPickup.current = 3;
-              flash("💣 Carrying " + item.name + " ×3" + (prev ? " (put " + prev.name + " back)" : ""));
+              showPickup(item.name + " ×3", pickupChangeRows(item, { held: prev }));
               setPlaytestThrowId(item.id);
             } else {
               const prevId = playtestWeaponId, prev = prevId ? findA(prevId) : null;
               putBack(prev);
-              const wl = isRanged(item.wtype) ? "ranged" : "melee";
-              flash("🗡️ Wielding " + item.name + " · " + wl + " · " + (item.damage ?? 5) + " dmg" + (prev ? " (put " + prev.name + " back)" : ""));
+              showPickup(item.name, pickupChangeRows(item, { held: prev }));
               setPlaytestWeaponId(item.id);
             }
           } else {
@@ -12843,8 +12988,7 @@ export default function AssetStudio() {
             const after = mergeEquip(basePlayerAsset, nextMap, equippedBodyIdFor(basePlayerAsset));
             equipped.current = nextMap;
             putBack(prev);
-            const parts = equipEffectSummary(before, after);
-            flash("🧥 Equipped " + item.name + (parts.length ? " · " + parts.join(" · ") : " · no stat change") + (prev ? " (put " + prev.name + " back)" : ""));
+            showPickup(item.name, pickupChangeRows(item, { before, after, off: prev }));
             playerHP.current = Math.min(playerHP.current, maxPlayerHP(after));
             // The ALLY side of that same line — pay anyone owed a top-up, trim anyone now over the
             // ceiling. Swapping kit is the only way the worn ally bonus moves mid-run, and there
@@ -16302,7 +16446,7 @@ export default function AssetStudio() {
       camRef.current = { x: 0, y: 0, init: false };
     }
     const startLevel = runStart ? runStart.nodes[runStart.startKey].level : level;
-    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true };
+    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true };
     if (runStart) {
       const startNode = runStart.nodes[runStart.startKey];
       runRef.current = runStart; prepRunNeighbours(runStart, startNode);
@@ -17323,31 +17467,91 @@ export default function AssetStudio() {
     const playerAsset = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
     const playtestWeapon = playtestWeaponId ? findA(playtestWeaponId) : null; // used by the render below; the physics loop above has its own copy in its own closure
     const playAllyHpBonus = allyMaxHPBonus(playerAsset?.effects); // ...and its own copy of the ally ceiling, for the HP bars
-    // What pressing E on an item will actually DO, in one line: "use · +20 HP", "swap · Dmg 5→7",
-    // "equip · Speed 5→7 · 🛡️ +2". Computed exactly the way the E handler resolves the take, so the
-    // number shown is the number you get.
+    // What pressing E on an item will actually DO: whether something of yours goes back on the spot
+    // (`swap`), and the rows pickupChangeRows prints — each stat change on its own line, then every
+    // ability the item has, described. Computed exactly the way the E handler resolves the take, so
+    // the number shown is the number you get.
     // Shared by pedestals AND enemy drops. A drop used to say only "Press E to pick up", so the one
     // way to find out what you were about to swap into was to take it and go read your own stats —
     // and by then the thing you were wearing is on the floor. Loot off a body is the same decision
     // as loot on a plinth, so it answers the same question.
-    const takePromptText = (it) => {
+    const takePrompt = (it) => {
       if (!it) return null;
-      // "Use" is wrong for cash — you don't drink a twenty. Same one line, because a money item is
-      // still a consumable and takes the identical single-use path; only the verb differs.
-      if (it.type === "item") return "Press E to " + (isMoneyItem(it) ? "pocket" : "use") + " · " + itemEffectSummary(it.effect);
+      if (it.type === "item") return { swap: false, rows: pickupChangeRows(it) };
       if (it.type === "weapon") {
-        const held = playtestWeaponId ? findA(playtestWeaponId) : null, ad = it.damage ?? 5;
-        const delta = held ? (ad !== (held.damage ?? 5) ? ["Dmg " + (held.damage ?? 5) + "→" + ad] : []) : ["Dmg " + ad];
-        return "Press E to " + (held ? "swap" : "equip") + (delta.length ? " · " + delta.join(" · ") : " · no stat change");
+        // A throwable goes into the THROW slot (G) and trades against the throwable you carry,
+        // never the gun in your hand. The one-line prompt compared it to the gun, so it promised a
+        // swap and a damage change for a take that left the gun exactly where it was.
+        const heldId = isThrowable(it.wtype) ? playtestThrowId : playtestWeaponId;
+        const held = heldId ? findA(heldId) : null;
+        return { swap: !!held, rows: pickupChangeRows(it, { held }) };
       }
       // Same worn map the take itself uses, or the callout promises an "equip" and delivers a swap.
       const wornNow = wornEquipMap(basePlayerAsset, equipped.current);
       const offSlot = equipDisplacedSlot(it, wornNow, equipKinds());
       const before = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
       const nextMap = { ...equipped.current }; if (offSlot) nextMap[offSlot] = null; nextMap[it.slot] = it;
-      const delta = equipEffectSummary(before, mergeEquip(basePlayerAsset, nextMap, equippedBodyIdFor(basePlayerAsset)));
+      const after = mergeEquip(basePlayerAsset, nextMap, equippedBodyIdFor(basePlayerAsset));
       const off = offSlot ? wornNow[offSlot] : null;
-      return "Press E to " + (off ? "swap out " + off.name : "equip") + (delta.length ? " · " + delta.join(" · ") : " · no stat change");
+      return { swap: !!off, rows: pickupChangeRows(it, { before, after, off }) };
+    };
+    // The rows, drawn — shared by the callout and the pickup banner so both look alike. Stats are
+    // one small GRID (label · old · → · new) so the numbers line up in columns down the stack
+    // rather than wandering with the width of each label; the new number is green when it went up
+    // and red when it went down (every stat here is better higher). A stat with nothing to compare
+    // against (the first gun you pick up) is just the label and the number.
+    // KEPT NARROW ON PURPOSE — "stack where you can, I don't want it too wide". An ability is its
+    // name on one line and what it does UNDER it, wrapping inside a fixed width, never one long
+    // "🐱 EXTRA LIVES 8 extra lives · get back up where you fall" run across the room.
+    // (The classes are all pk-prefixed: a bare `.up` is already the app's rounded button style and
+    // drew every stat that went up inside a little box.)
+    const pickupRowsView = (rows) => {
+      const stats = rows.filter((r) => r.kind === "stat"), rest = rows.filter((r) => r.kind !== "stat");
+      return (
+        <>
+          {stats.length > 0 && (
+            <div className="pkStats">
+              {stats.map((r, i) => (
+                <React.Fragment key={"s" + i}>
+                  <span className="pkLbl">{r.label}</span>
+                  {r.from == null
+                    ? <span className="pkTo pkSolo">{r.to}</span>
+                    : <><span className="pkFrom">{r.from}</span><span className="pkArr">→</span><span className={"pkTo " + (r.to > r.from ? "pkUp" : "pkDown")}>{r.to}</span></>}
+                </React.Fragment>
+              ))}
+            </div>
+          )}
+          {rest.map((r, i) => r.kind === "text"
+            ? <div key={"t" + i} className="pkText">{r.text}</div>
+            : <div key={"a" + i} className={"pkAb" + (r.lost ? " pkLost" : "")}><span className="pkAbName">{r.lost ? "− " : ""}{r.icon} {r.label}</span>{!r.lost && r.desc ? <span className="pkAbDesc">{r.desc}</span> : null}</div>)}
+        </>
+      );
+    };
+    // THE CALLOUT: "E", a ⇄ when something of yours goes back on the spot, then the rows. It was
+    // "💎 Press E to swap · Dmg 5→7" on one line; Blake asked for just the key and a swap symbol,
+    // then the stats — he knows what E does.
+    //
+    // (x, y) is the point over the player's head it stands on. Stacked one change per row it is
+    // TALL (a hat with six stat changes and an ability is ~10 lines), and the camera keeps a 7-cell
+    // body centred, so near the top of a level the head of the stack — the E itself — ran off the
+    // top of the view and was clipped. The top is estimated from the row count (TAKE_LINE_PX a
+    // line, a description wrapping every ~TAKE_DESC_CHARS characters at the .pkAbDesc width) and
+    // the whole callout is pushed down just enough to stay on screen, over the head if it must.
+    const TAKE_LINE_PX = 15, TAKE_DESC_CHARS = 20;
+    const takeCallout = (it, x, y) => {
+      const tp = takePrompt(it);
+      if (!tp) return null;
+      const lines = 1 + tp.rows.reduce((n, r) => n + (r.kind === "ability" && !r.lost && r.desc ? 1 + Math.ceil(r.desc.length / TAKE_DESC_CHARS) : 1), 0);
+      const viewTop = play ? camRef.current.y : 0;
+      const top = Math.max(y, viewTop + 8 + lines * TAKE_LINE_PX);
+      return (
+        <div className="takeCallout" style={{ left: x, top }}>
+          <div className="pedcallout">
+            <div className="pkHead"><span className="pkKey">E</span>{tp.swap && <span className="pkSwap">⇄</span>}</div>
+            {pickupRowsView(tp.rows)}
+          </div>
+        </div>
+      );
     };
     // An item lying on the ground — on a pedestal or dropped by a body — never changes its art, but
     // the whole level screen re-renders every playtest frame, so both call sites were re-baking
@@ -18262,6 +18466,18 @@ export default function AssetStudio() {
                       {((p.down || 0) > 0 || (p.stun || 0) > 0) && (
                         <div className="playerStun" style={{ left: p.x, top: p.y - 34 + (p.stepEase || 0) - climbLift, width: pw }}>{(p.down || 0) > 0 ? "😵" : "💫"}</div>
                       )}
+                      {/* 🎁 "E ⇄" and what taking the thing under you would change, OVER YOUR HEAD,
+                          above the HP and reload bars. It used to hang off the pedestal (or the drop)
+                          just above the item's name, which was fine as one line; as a stack of one
+                          change per row it climbed straight up across your own body, since you are
+                          standing in front of the item to read it. The item's name stays on the item.
+                          pedPrompt is set only while you are ON a pedestal or a drop, so this is
+                          always about the thing at your feet. */}
+                      {pedPrompt && (() => {
+                        const dk = pedPrompt.key.startsWith("drop:") ? pedPrompt.key.slice(5) : null;
+                        const it = dk ? (enemyDrops.current[dk] || {}).item : pedestalRolls.current[pedPrompt.key];
+                        return it ? takeCallout(it, p.x + pw / 2, p.y - 22 + (p.stepEase || 0) - climbLift) : null;
+                      })()}
                       <div className={blocks ? "playerWrap" : "player"} style={style}>
                         {blocks ? (() => {
                           const art = renderPieceRuns({ pieces: blocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "player", keyPrefix: "pl", drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, undefined, cut) });
@@ -18755,7 +18971,6 @@ export default function AssetStudio() {
                   const icon = item.type === "weapon" ? "⚔️" : item.type === "equipment" ? "🎒" : "🧪";
                   return <div key={"drop" + k} className="enemyDropPlay" style={{ left: drop.x, top: drop.y }} title={"Dropped " + item.name}>
                     <div className={"enemyDropOrb" + (bb ? " art" : "")} style={bb ? { width: dBox, height: dBox } : undefined}>{bb ? <div style={dPlane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "drop_" + k, keyPrefix: "drop" + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : icon}</div>
-                    {pedPrompt && pedPrompt.key === "drop:" + k && <div className="pedcallout">🎁 {takePromptText(item) || "Press E to pick up"}</div>}
                     <div className="enemyDropCap">{item.name}</div>
                   </div>;
                 })}
@@ -18783,12 +18998,10 @@ export default function AssetStudio() {
                     : undefined;
                   let planeStyle = null;
                   if (bb) { const sc = Math.min(boxW / bb.w, boxH / bb.h) * 0.86; const tx = boxW / 2 - sc * (bb.x + bb.w / 2), ty = boxH / 2 - sc * (bb.y + bb.h / 2); planeStyle = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${tx}px,${ty}px) scale(${sc})` }; }
-                  // When the player is standing on THIS pedestal, float the call-to-action over the
-                  // item: equip (nothing comes off) vs swap (a same-slot or same-category item does),
-                  // plus the stat distance. takePromptText (up with the other playtest render helpers)
-                  // works it out exactly the way pressing E resolves the take, so the number shown is the
-                  // number you'll get — and an enemy drop now reads its callout from that same function.
-                  const promptText = (play && pedPrompt && pedPrompt.key === k && rolled) ? takePromptText(rolled) : null;
+                  // The "E ⇄ + what changes" callout for the pedestal you are standing on is NOT drawn
+                  // here any more — it floats over the player's head (see takeCallout, drawn with the
+                  // player), because as a stack of rows it grew up the pedestal straight across the body
+                  // standing in front of it. The item's name stays here, on the item.
                   return (
                     // THE LABELS ARE A SEPARATE ELEMENT SITTING ON TOP, not children of the stand.
                     // The pedestal deliberately draws below the player (you walk in front of the
@@ -18799,9 +19012,8 @@ export default function AssetStudio() {
                       <div className={"pedestalPlay" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
                         <div className="pedestalArt" style={artStyle}>{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + k, keyPrefix: "ped" + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : null}</div>
                       </div>
-                      {(promptText || rolled || !bb) && (
+                      {(rolled || !bb) && (
                         <div className={"pedLabels" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }}>
-                          {promptText && <div className="pedcallout">💎 {promptText}</div>}
                           {rolled && <div className="pedestalCap">{rolled.name}</div>}
                           {/* The "no match" warning rides up here with the rest of the words, so a
                               mis-tagged pedestal still says so with the player standing on it. The
@@ -18898,6 +19110,20 @@ export default function AssetStudio() {
                   ));
                 })()}
               </div>
+              {/* 🎁 THE PICKUP BANNER (see showPickup). A sibling of .lgrid, NOT inside it: .lgrid is
+                  translated by the camera, and the banner belongs to the VIEW — top-centre of what
+                  you can see, wherever in the level you happen to be. .lscroll.playing is its
+                  positioning box. The name is written three times over (data-text feeds the outline
+                  and the shine layers in CSS) because a gradient fill clipped to the letters cannot
+                  also carry a text-shadow — the shadow paints through the transparent fill. Long
+                  names step the size down rather than running off the sides of the view. */}
+              {play && pickupBanner && (
+                <div key={"pickup" + pickupBanner.n} className="pickupBanner">
+                  <div className="pbBurst" />
+                  <div className="pbName" data-text={pickupBanner.name} style={{ fontSize: pickupBanner.name.length > 22 ? 20 : pickupBanner.name.length > 15 ? 24 : pickupBanner.name.length > 10 ? 28 : 32 }}><span>{pickupBanner.name}</span></div>
+                  {pickupBanner.rows.length > 0 && <div className="pbRows">{pickupRowsView(pickupBanner.rows)}</div>}
+                </div>
+              )}
             </div>
           </div>
 
@@ -20614,8 +20840,28 @@ html,body{margin:0;padding:0;background:#0f1117}
    the page's root context and outrank the modals (30) and toasts (40) — a level that draws over
    its own "Load a level" dialog. Contained here, the grid competes with page chrome only as a
    single z-auto box, which is exactly how it behaved when these were 1-9. */
-.lscroll.playing{overflow:hidden}
+.lscroll.playing{overflow:hidden;position:relative}
 .lgrid.camera{will-change:transform}
+/* 🎁 THE PICKUP BANNER — the item's name the moment you take it, positioned in the VIEW (the
+   .lscroll box made relative just above), top-centre, over the level. z 5 clears the grid (one
+   z-auto box, see above) and stays under the modals (30) and the toast (40), so it can never cover
+   a dialog. Three layers make the name: ::before is the chunky dark outline, the 3-D drop and the
+   orange glow; the span is the gold gradient clipped to the letters; ::after is a white shine that
+   sweeps across once. It pops in with an overshoot, holds, then drifts up and fades — pbLife's
+   length is PICKUP_BANNER_MS, which is when the element is removed. A soft gold burst flares behind
+   it on arrival. No backticks in here: this sheet is a JS template literal. */
+.pickupBanner{position:absolute;left:50%;top:14%;z-index:5;max-width:94%;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:7px;transform:translateX(-50%);animation:pbLife 2.6s ease-out forwards}
+@keyframes pbLife{0%,78%{opacity:1;transform:translateX(-50%) translateY(0)}100%{opacity:0;transform:translateX(-50%) translateY(-18px)}}
+.pbBurst{position:absolute;left:50%;top:18px;width:300px;height:100px;margin:-50px 0 0 -150px;border-radius:50%;background:radial-gradient(ellipse at center,rgba(255,214,90,.6),rgba(255,140,0,.2) 45%,transparent 70%);animation:pbBurst .75s ease-out forwards}
+@keyframes pbBurst{0%{transform:scale(.2);opacity:1}100%{transform:scale(1.6);opacity:0}}
+.pbName{position:relative;font-family:'Bungee','Arial Black',Impact,sans-serif;font-weight:400;line-height:1.05;letter-spacing:.03em;white-space:nowrap;text-transform:uppercase;animation:pbPop .55s cubic-bezier(.18,1.5,.4,1) both}
+.pbName span{position:relative;background:linear-gradient(180deg,#fffbe0 0%,#ffe45c 38%,#ffb31f 62%,#ff7a00 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+.pbName::before{content:attr(data-text);position:absolute;left:0;top:0;right:0;color:#2b1200;-webkit-text-stroke:.2em #2b1200;text-shadow:0 .12em 0 #2b1200,0 0 .5em rgba(255,170,30,.85),0 0 1.1em rgba(255,110,0,.5)}
+.pbName::after{content:attr(data-text);position:absolute;left:0;top:0;right:0;background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.95) 50%,transparent 60%) no-repeat;background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;animation:pbShine 1.1s .35s ease-in-out both}
+@keyframes pbPop{0%{transform:scale(.3) rotate(-4deg);opacity:0}55%{transform:scale(1.14) rotate(1deg);opacity:1}75%{transform:scale(.96) rotate(0)}100%{transform:scale(1) rotate(0)}}
+@keyframes pbShine{from{background-position:100% 0}to{background-position:0 0}}
+.pbRows{display:flex;flex-direction:column;align-items:center;gap:2px;white-space:nowrap;font-family:'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:13px;font-weight:700;line-height:1.2;color:#fff;animation:pbRowsIn .35s .3s ease-out both}
+@keyframes pbRowsIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .seamStrip{position:absolute;pointer-events:none;background:inherit;background-size:inherit}
 .runhud{color:#ffd166;background:#1d1a12;border-color:#4a3f1e}
 .runhud .runnote{color:#c9a15a;font-weight:400}
@@ -20742,7 +20988,36 @@ html,body{margin:0;padding:0;background:#0f1117}
 .pedestalEmpty{font-size:11px;font-weight:700;color:#ff9b9b}
 .pedestalGem{position:absolute;left:50%;bottom:0;transform:translateX(-50%);font-size:${LV_CELL*0.75}px;line-height:1}
 .pedestalCap{position:absolute;left:50%;top:-4px;transform:translate(-50%,-100%);white-space:nowrap;font-size:11px;font-weight:700}
-.pedcallout{position:absolute;left:50%;top:-24px;transform:translate(-50%,-100%);white-space:nowrap;font-size:11.5px;font-weight:700;letter-spacing:.01em}
+/* The anchor is a zero-size point over the player's head (above the HP and reload bars); the
+   callout stands on it, centred, and grows UP one row at a time. z 8500 is the labels' rung: over
+   the player (5000), the HP bar (8000) and Front paint, so a wall never hides the prompt. */
+.takeCallout{position:absolute;width:0;height:0;z-index:8500;pointer-events:none}
+.pedcallout{position:absolute;left:0;bottom:0;width:max-content;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:1px;white-space:nowrap;font-family:'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:12px;font-weight:700;line-height:1.15;letter-spacing:.01em}
+/* 🎁 THE TAKE CALLOUT, AND THE PICKUP BANNER'S ROWS (both drawn by pickupRowsView). One change per
+   line, which is what Blake asked for, in Chakra Petch — squared-off, gamey and still easy to read
+   at 12px — where it used to be one long run of the default UI face. The key is the only thing in
+   Bungee, the banner's arcade face, so "E" reads as a button and not as a word. Still bare words
+   with no plate, like every label in the level: the outline shadow inherits from the shared rule.
+   SMALL AND NARROW, both on his word ("make sure the font isn't too large and stack where you can,
+   I don't want it too wide"): 12px, and an ability is a centred name with its description
+   stacked under it, wrapping at 150px, so the widest line is the stat grid, not a sentence.
+   width:max-content on .pedcallout is load-bearing: it hangs off a ZERO-width anchor, so without
+   it the box shrinks to its min-content and a gun's description wraps one word per line. */
+.pkHead{display:flex;align-items:center;gap:4px;margin-bottom:1px}
+.pkKey{font-family:'Bungee','Arial Black',Impact,sans-serif;font-size:15px;font-weight:400;line-height:1;color:#fff}
+.pkSwap{font-size:15px;line-height:1;font-weight:800;color:#ffd84a}
+.pkStats{display:grid;grid-template-columns:auto auto auto auto;column-gap:5px;align-items:baseline}
+.pkLbl{text-align:left;text-transform:uppercase;letter-spacing:.05em;font-size:.88em;color:#dfe6f5}
+.pkFrom{text-align:right;color:#c3cbe0}
+.pkArr{font-size:.9em;color:#c3cbe0}
+.pkTo{text-align:left;color:#fff}
+.pkSolo{grid-column:span 3}
+.pkUp,.pkText{color:#7dff9e}
+.pkDown{color:#ff7d7d}
+.pkAb{display:flex;flex-direction:column;align-items:center;margin-top:2px}
+.pkAbName{text-transform:uppercase;letter-spacing:.04em;font-size:.9em;color:#ffd84a}
+.pkAbDesc{max-width:150px;white-space:normal;text-align:center;font-size:.92em;font-weight:600;line-height:1.15;color:#eef3ff}
+.pkLost .pkAbName{color:#ff7d7d}
 /* EVERY FLOATING LABEL IN THE LEVEL IS BARE WORDS — no box, no border, no plate behind any of
    them (Blake's call). They are the labels with no fixed backdrop: each hangs wherever its thing
    happens to be standing, which might be a dark trailer wall, a pale sky or a lit fire. A panel
@@ -20754,7 +21029,7 @@ html,body{margin:0;padding:0;background:#0f1117}
    One rule listing every label, so a new one cannot quietly drift back to having a box. The
    dialogue BUBBLE is deliberately not in here: that one is a speech bubble with black text on
    white and it is meant to look like a panel, because somebody is talking. */
-.pedcallout,.pedestalCap,.pedestalEmpty,.enemyDropCap,.doorPromptFloat,.talkCallout,.talkCallout .talkKey{
+.pedcallout,.pedestalCap,.pedestalEmpty,.enemyDropCap,.doorPromptFloat,.talkCallout,.talkCallout .talkKey,.pbRows{
   color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85)}
 /* ...AND THEY ALL SIT IN FRONT OF THE PLAYER. A pedestal draws BELOW the player on purpose (you
    walk in front of the item on its stand), but z-index on a positioned element makes a stacking
@@ -20782,7 +21057,6 @@ html,body{margin:0;padding:0;background:#0f1117}
    scaled art plane. The lootBob animation and gold caption still mark it as loot. */
 .enemyDropOrb.art{background:none;border:none;border-radius:0;position:relative;overflow:hidden}
 .enemyDropCap{margin-top:2px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:700}
-.enemyDropPlay .pedcallout{top:-8px}
 @keyframes lootBob{from{margin-top:0}to{margin-top:-3px}}
 .doorPromptFloat{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;font-size:12.5px;font-weight:700;pointer-events:none;z-index:9500}
 /* 💬 The talk prompt is the door prompt in a different colour, deliberately — the two mean the
