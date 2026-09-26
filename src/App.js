@@ -1702,28 +1702,130 @@ const shotPathClear = (sx, sy, groundY, rangePx, deg, dir, dx, clear, step) => {
 // first edge that would count as a hit: a body moves during the flight, and a shot solved to just
 // clip an outline misses the moment it does. When the centre is outside the cone the bend is
 // clamped to the cone's edge and kept only if that path still crosses the middle half of the body.
-// Returns { deg, target, dx } or null, in which case the shot flies exactly as held.
-export const aimAssistAngle = ({ sx, sy, groundY, rangePx, face, aimDeg, targets, coneDeg = AIM_ASSIST_CONE_DEG, clear = null, step = 15 }) => {
+// Returns { deg, target, dx } or null, in which case the shot flies exactly as held. A FLOOR lock
+// (below) also returns `spawn`: where the shot has to leave from — see floorLockShot.
+//
+// THE FLOOR LOCK (floorLock: true — the player's trigger finger passes it). Blake: "when it gets
+// close the gun ... don't like to hit it", about the Squirrel. Measured in the running game with
+// Army Bob's M16, before this existed: a level shot leaves a barrel 95px in front of the body and
+// 150px above the feet, so a Squirrel (46px tall) standing anywhere from touching you out to ~13
+// cells needed a 25–75° dip, and the level cone stops at 22°. Holding ↓ moves the barrel down to
+// 53px above the feet, and from there the 18–62° cone covers one strip about two cells wide. So a
+// Squirrel at your feet, or anywhere from 5 to 13 cells out, could not be shot with any key — and
+// the nearest ones were BEHIND the muzzle, which the cone test skips outright (dx <= 1).
+//
+// A body STANDING ON YOUR FLOOR (its feet within AIM_ASSIST_FLOOR_TOL_CELLS of yours), in front of
+// you and lower than the barrel, can now always be locked while you aim level or down: the bend
+// may go as far down as AIM_ASSIST_FLOOR_MAX_DEG, and (held ↓) back up as far as level. It is tried
+// only after the ordinary cone has failed, so nothing the cone already locked moves at all, and a
+// held direction pointing UP never reaches for the ground. Nearest still wins — measured from the
+// body (`bodyX`) rather than from the barrel, or a Squirrel under the gun would never count as near.
+//
+// Units do not pass floorLock: their held direction is already the straight line to whoever they
+// are fighting, fired from their own chest, so there is no keyboard to compensate for — and it
+// would let a gunman aiming at you swing onto your dog at his feet instead.
+export const AIM_ASSIST_FLOOR_TOL_CELLS = 1;     // feet within a cell of yours = standing on your floor (a step, a ramp)
+export const AIM_ASSIST_FLOOR_MAX_DEG = 85;      // how steeply the gun may be pointed at your feet
+// The floor lock's own solve. Big bends move the barrel a long way — pointing a rifle 70° at your
+// feet swings its tip down and BACK toward you — so every candidate angle is judged from where the
+// muzzle actually is AT that angle (muzzleAt, the arm-attached barrel tip the fire code already
+// computes). Solving from the level muzzle and firing from the bent one, the way the cone path does
+// for its few degrees, misses a squirrel completely; so does a solve that just iterates, which was
+// measured flipping to a shallow angle whose barrel tip sits in the air PAST the animal.
+//
+// So it sweeps the gun down from level in FLOOR_LOCK_SCAN_DEG steps. At shallow angles the tip is
+// often already past a close body (no line from it can reach the body at all); further down it
+// swings back in front, and its shot first passes above the body's middle, then below it. That
+// crossing is bracketed and bisected — the flattest angle whose shot, from its own barrel tip,
+// goes through the middle of the body.
+//
+// POINT-BLANK: if no angle down to AIM_ASSIST_FLOOR_MAX_DEG crosses the body, it is UNDER the gun.
+// The gun points as far down as it goes and the shot starts at the barrel tip when the tip is over
+// the body (it flies straight down into it), or inside the body when the tip is past it (the barrel
+// is pressed against it) — either way it lands at once instead of spawning beyond the animal and
+// flying off into the ground.
+// Returns { deg, spawn } or null. `spawn` is null only when there is no muzzleAt and no point-blank,
+// i.e. the shot leaves from (sx, sy) exactly as the caller already planned.
+export const FLOOR_LOCK_SCAN_DEG = 4;
+export const floorLockShot = ({ t, sx, sy, groundY, rangePx, dir, aimDeg, coneDeg = AIM_ASSIST_CONE_DEG, clear = null, step = 15, muzzleAt = null }) => {
+  const cx = t.x + t.w / 2, cy = t.y + t.h / 2;
+  const lo = Math.min(0, aimDeg - coneDeg), hi = AIM_ASSIST_FLOOR_MAX_DEG;
+  const margin = t.h * AIM_ASSIST_TARGET_MARGIN;
+  const sample = (deg) => {
+    const m = (muzzleAt && muzzleAt(deg - aimDeg)) || { x: sx, y: sy };
+    const dx = (cx - m.x) * dir;
+    const y = dx > 1 ? shotYAtColumn(m.y, groundY, rangePx, deg, dx) : null;
+    return { deg, m, dx, miss: y === null ? null : y - cy };   // miss < 0: passes ABOVE the middle; null: tip past the middle
+  };
+  const accept = (s) => {
+    if (!s || s.miss === null || Math.abs(s.miss) > t.h / 2 - margin) return null;
+    if (clear && !shotPathClear(s.m.x, s.m.y, groundY, rangePx, s.deg, dir, s.dx, clear, step)) return null;
+    return { deg: s.deg, spawn: muzzleAt ? { x: s.m.x, y: s.m.y } : null };
+  };
+  let prev = null;
+  for (let deg = lo; ; deg = Math.min(hi, deg + FLOOR_LOCK_SCAN_DEG)) {
+    const s = sample(deg);
+    if (s.miss !== null && s.miss >= 0) {
+      if (prev && prev.miss !== null && prev.miss < 0) {
+        let a = prev, b = s;                                   // a passes above, b passes below
+        for (let i = 0; i < 10; i++) {
+          const mid = sample((a.deg + b.deg) / 2);
+          if (mid.miss !== null && mid.miss < 0) a = mid; else b = mid;
+        }
+        const r = accept(b.miss !== null ? b : a) || accept(a);
+        if (r) return r;
+      } else {
+        // The first angle at which the tip is back in front of the body already passes below its
+        // middle — the tip is right over it. Take it if it still goes through the body.
+        const r = accept(s);
+        if (r) return r;
+      }
+    }
+    prev = s;
+    if (deg >= hi) break;
+  }
+  const down = sample(hi);
+  if (down.dx > t.w / 2 + 1) return null;                     // the tip, pointed at your feet, is not over the body: nothing to press against
+  const tipOver = down.dx >= -t.w / 2 && down.m.y <= t.y + t.h;
+  return { deg: hi, spawn: tipOver ? { x: down.m.x, y: down.m.y } : { x: cx, y: cy } };
+};
+export const aimAssistAngle = ({ sx, sy, groundY, rangePx, face, aimDeg, targets, coneDeg = AIM_ASSIST_CONE_DEG, clear = null, step = 15, floorLock = false, bodyX = null, cellPx = 30, muzzleAt = null }) => {
   const dir = face < 0 ? -1 : 1;
+  const originX = bodyX ?? sx;   // "nearest" is measured from the body; for a unit, the chest it fires from IS its body
+  // Every floor-lock sweep samples the same angle grid, and the player's muzzleAt bakes the weapon
+  // each call — remember each tilt's barrel tip for the length of this one shot.
+  const tips = new Map();
+  const muzzleMemo = muzzleAt ? (tilt) => { if (!tips.has(tilt)) tips.set(tilt, muzzleAt(tilt)); return tips.get(tilt); } : null;
   let best = null;
   for (const t of targets || []) {
     if (!t || !(t.w > 0) || !(t.h > 0)) continue;
     const cx = t.x + t.w / 2, cy = t.y + t.h / 2;
     const dx = (cx - sx) * dir;
-    if (dx <= 1 || dx > rangePx) continue;                  // behind you, on top of you, or past the gun's reach
-    const want = solveShotAngleToPoint(sy, groundY, rangePx, dx, cy);
-    if (want === null) continue;                            // no arc climbs that high
-    let deg;
-    if (Math.abs(want - aimDeg) <= coneDeg) deg = want;
-    else {
-      deg = aimDeg + (want > aimDeg ? coneDeg : -coneDeg);
-      const y = shotYAtColumn(sy, groundY, rangePx, deg, dx);
-      const m = t.h * AIM_ASSIST_TARGET_MARGIN;
-      if (y === null || y < t.y + m || y > t.y + t.h - m) continue;
+    const dist = (cx - originX) * dir;
+    let deg = null, spawn = null;
+    if (dx > 1 && dx <= rangePx) {                            // not behind you, on top of you, or past the gun's reach
+      const want = solveShotAngleToPoint(sy, groundY, rangePx, dx, cy);
+      if (want !== null) {                                    // null: no arc climbs that high
+        if (Math.abs(want - aimDeg) <= coneDeg) deg = want;
+        else {
+          const edge = aimDeg + (want > aimDeg ? coneDeg : -coneDeg);
+          const y = shotYAtColumn(sy, groundY, rangePx, edge, dx);
+          const m = t.h * AIM_ASSIST_TARGET_MARGIN;
+          if (!(y === null || y < t.y + m || y > t.y + t.h - m)) deg = edge;
+        }
+        if (deg !== null && clear && !shotPathClear(sx, sy, groundY, rangePx, deg, dir, dx, clear, step)) deg = null;
+      }
     }
-    if (clear && !shotPathClear(sx, sy, groundY, rangePx, deg, dir, dx, clear, step)) continue;
+    // In front of the BODY (dist), within the gun's reach from its BARREL (dx) — the range is how
+    // far the shot flies, and measuring it from the body cut the lock off short of the cone's.
+    if (deg === null && floorLock && aimDeg >= 0 && dist > 0 && dx <= rangePx && cy > sy
+        && Math.abs((t.y + t.h) - groundY) <= AIM_ASSIST_FLOOR_TOL_CELLS * cellPx) {
+      const fl = floorLockShot({ t, sx, sy, groundY, rangePx, dir, aimDeg, coneDeg, clear, step, muzzleAt: muzzleMemo });
+      if (fl) { deg = fl.deg; spawn = fl.spawn; }
+    }
+    if (deg === null) continue;
     const dev = Math.abs(deg - aimDeg);
-    if (!best || dx < best.dx - 1e-9 || (Math.abs(dx - best.dx) <= 1e-9 && dev < best.dev)) best = { deg, dev, dx, target: t };
+    if (!best || dist < best.dist - 1e-9 || (Math.abs(dist - best.dist) <= 1e-9 && dev < best.dev)) best = { deg, dev, dx, dist, target: t, spawn };
   }
   return best;
 };
@@ -1749,6 +1851,65 @@ export const meleeSwingAngle = (t, dur) => {
 // phase — this is the window the weapon's Fire-pose art (and nothing else — hit detection
 // itself still just follows wherever the arm/hitbox actually is, every frame, same as before).
 export const meleeHasFired = (t, dur) => (t / dur) >= (MELEE_WINDUP_FRAC + MELEE_STRIKE_FRAC);
+// ── 🦶 STOMP ─────────────────────────────────────────────────────────────────────────────────────
+// Blake: "when it gets close the gun and meelee don't like to hit it" — the Squirrel. A swing is an
+// arm arc: its lowest point is the hand hanging at your hip, ~90px above the floor on Army Bob, and a
+// Squirrel is 46px tall. Nothing in the arc could ever reach it, whatever the weapon. So a melee
+// press with something SHORT right at your feet stamps on it instead: the knee comes up, the foot
+// comes down on it, and it hurts — "have the stomp attack be really high damage".
+//
+// It replaces the swing only when there is something to stomp: the same buttons that swing — Fire
+// with a melee weapon or bare hands, the Q/V pistol-whip with a gun — look for a short body under
+// the foot first and fall through to the ordinary swing when there isn't one, so nothing about
+// swinging at anything taller changed. Q/V with a melee weapon is still the BLOCK. A creature
+// bites; only a body with legs stamps.
+//
+// SHORT is measured against the stomper: at most STOMP_MAX_TARGET_FRAC of its standing height, so
+// the Squirrel (46px of Bob's 210) and the Pika-Squirrel (55) qualify and the Pit Bulls (93+) do not
+// — a dog's back is at your hip, where the swing still reaches it. It must be standing on your floor
+// (feet within a cell of yours) and overlapping your own footprint or up to STOMP_REACH_CELLS in
+// front of it — "super close".
+//
+// Damage is its own number, STOMP_DAMAGE at Strength 5, riding Strength and the Intelligence crit
+// exactly like every other melee hit (muscle, not gear: no weapon damage, no Tag Damage, no Melee
+// Boost — it is a foot). 30 one-shots a 25 HP Squirrel and a 30 HP Pika at Strength 5; fists are 2,
+// the Machete 10. It lands once per body per stomp on everything under the foot at the impact frame.
+export const STOMP_DAMAGE = 30;
+export const STOMP_FRAMES = 24;               // 0.4s: knee up, slam, planted
+export const STOMP_RAISE_END = 0.5;           // the knee comes up over the first half...
+export const STOMP_IMPACT_FRAC = 0.62;        // ...slams down by here — the hit lands on this frame...
+                                              // ...and the rest is the planted foot and a small body dip
+export const STOMP_MAX_TARGET_FRAC = 0.4;
+export const STOMP_REACH_CELLS = 1;           // a biting Squirrel stands within 30px (its ⚔️ range); a foot does not travel further
+export const STOMP_FLOOR_TOL_CELLS = 1;
+export const stompDamage = (strength) => Math.max(1, Math.round(STOMP_DAMAGE * ((strength ?? 5) / 5)));
+// Every body a stomp from here would land on, nearest first. `bodies` are hit boxes ({x, y, w, h,
+// key}) — for the player the list shotTargetsFor already builds (living hostiles, no allies, no NPC
+// you haven't picked a fight with); x/w/feetY are the stomper's own box.
+export const stompTargets = ({ x, w, feetY, standH, face, cellPx, bodies }) => {
+  const reach = STOMP_REACH_CELLS * cellPx, tol = STOMP_FLOOR_TOL_CELLS * cellPx, maxH = STOMP_MAX_TARGET_FRAC * standH;
+  const left = face < 0 ? x - reach : x, right = face < 0 ? x + w : x + w + reach;
+  const cx = x + w / 2;
+  return (bodies || [])
+    .filter((b) => b && b.w > 0 && b.h > 0 && b.h <= maxH && b.x < right && b.x + b.w > left && Math.abs(b.y + b.h - feetY) <= tol)
+    .sort((a, b) => Math.abs(a.x + a.w / 2 - cx) - Math.abs(b.x + b.w / 2 - cx));
+};
+// How high the stomping knee is, 0 (planted) to 1 (top of the raise): eases up, then SLAMS down —
+// accelerating, so the last frame before impact is the fastest — and stays planted after.
+export const stompLift = (t, dur) => {
+  const f = Math.max(0, Math.min(1, t / Math.max(1e-6, dur)));
+  if (f <= STOMP_RAISE_END) return Math.sin((f / STOMP_RAISE_END) * Math.PI / 2);
+  if (f < STOMP_IMPACT_FRAC) { const s = (f - STOMP_RAISE_END) / (STOMP_IMPACT_FRAC - STOMP_RAISE_END); return 1 - s * s; }
+  return 0;
+};
+// True on the one frame the foot comes down (the frame t crosses the impact fraction).
+export const stompLands = (prevT, t, dur) => prevT / dur < STOMP_IMPACT_FRAC && t / dur >= STOMP_IMPACT_FRAC;
+// The little drop the whole body takes as the weight lands, in px, easing back out.
+export const STOMP_DIP_PX = 3;
+export const stompDipPx = (t, dur) => {
+  const f = t / Math.max(1e-6, dur);
+  return f < STOMP_IMPACT_FRAC ? 0 : STOMP_DIP_PX * Math.max(0, 1 - (f - STOMP_IMPACT_FRAC) / (1 - STOMP_IMPACT_FRAC));
+};
 // Defense reduces incoming damage with DIMINISHING returns and never fully negates it: the
 // multiplier is 10 / (10 + Defense). So 10 Defense = half damage (the calibration point), 20 =
 // a third, 30 = a quarter — it keeps helping past 10 but the curve flattens and can never reach
@@ -3270,7 +3431,7 @@ export const reviveInPlace = (p) => {
   // downCd is left alone on purpose: the loop sets the ordinary get-up grace the frame `down`
   // reaches zero, and the window here outlasts it anyway.
   p.stun = 0; p.down = EXTRA_LIFE_DOWN_FRAMES;
-  p.blocking = null; p.throwAiming = false; p.throwAim = 0; p.burstLeft = 0;
+  p.blocking = null; p.throwAiming = false; p.throwAim = 0; p.burstLeft = 0; p.stomp = null; // a stomp is committed state too
   p.burnPool = 0; p.onFire = 0;
   // A unit's corpse flag. The revive runs the same frame as the death, before the dead branch
   // ever sees it, so this is belt-and-braces — but a settled corpse that got back up must not
@@ -4758,6 +4919,45 @@ export const addBackLeg = (blocks, legIds, swing) => {
   const backLegIds = new Set();
   const backLeg = legPieces.map((b) => { const nb = { ...b, id: b.id + "_backLeg" }; backLegIds.add(nb.id); return nb; });
   return applyLimbSwing(backLeg, backLegIds, new Set(), -swing).concat(blocks);
+};
+// 🦶 The STOMP pose (see STOMP_DAMAGE): ONE leg — the front one — swings forward about its hip and
+// the knee comes up by `lift` (0–1, stompLift), while the other stays planted. Everything riding the
+// leg (pant leg, shoe) goes with it, because it is all leg-flagged and moved by the same two steps
+// the walk cycle uses: applyLimbSwing's rigid hip rotation, then one shared translation.
+//   A one-drawn-leg biped (Bob): the planted leg is addBackLeg's clone at swing 0 — a copy standing
+//     exactly where the real leg stood — and the real leg is the one that rises.
+//   A body that draws both legs: the columns are told apart the way addBackLeg does it, and only
+//     the one furthest FORWARD rises; the other is already the planted leg.
+// `forward` is +1 for art drawn facing right (every body and dressed look), where a hanging leg
+// swings forward on a NEGATIVE rotation (CSS +rot is clockwise) — the same rule as the melee arm.
+// Tuned on Army Bob in the running game, both ways wrong first: 40° of swing read as a KICK (the boot
+// stuck straight out in front of him), and 14° with a big lift hid the whole leg up under his long
+// coat, leaving a boot sole peeking out. Enough swing to bring the knee out past the coat, enough
+// lift that the foot is clearly off the floor, and then the slam straight down sells it.
+export const STOMP_KNEE_DEG = 28, STOMP_LIFT_PX = 36, STOMP_FWD_PX = 12;   // design-canvas units (200×260)
+export const stompLegBlocks = (blocks, lift, forward = 1) => {
+  const { legIds, armIds } = identifyLimbs(blocks);
+  const legs = blocks.filter((b) => legIds.has(b.id));
+  if (!legs.length) return blocks;
+  const gap = 6, xov = (a, b) => a.x <= b.x + b.w + gap && b.x <= a.x + a.w + gap;
+  const cols = [];
+  for (const l of legs.filter((b) => !b._slot && !b._isShoe)) {
+    const hits = cols.filter((c) => c.some((q) => xov(q, l)));
+    if (!hits.length) cols.push([l]);
+    else { hits[0].push(l); for (const h of hits.slice(1)) { hits[0].push(...h); cols.splice(cols.indexOf(h), 1); } }
+  }
+  let out = blocks, moving = legIds;
+  if (cols.length > 1) {
+    const mid = (c) => c.reduce((s, b) => s + b.x + b.w / 2, 0) / c.length;
+    const front = cols.reduce((a, c) => (mid(c) * forward > mid(a) * forward ? c : a));
+    // Clothing and shoes go with whichever body leg they sit over.
+    moving = new Set(legs.filter((b) => front.some((q) => q === b || xov(q, b))).map((b) => b.id));
+  } else {
+    out = addBackLeg(blocks, legIds, 0);
+  }
+  if (!(lift > 0)) return out;
+  out = applyLimbSwing(out, moving, armIds, -forward * STOMP_KNEE_DEG * lift);
+  return out.map((b) => (moving.has(b.id) ? { ...b, x: b.x + forward * STOMP_FWD_PX * lift, y: b.y - STOMP_LIFT_PX * lift } : b));
 };
 const LV_COLORS = PALETTES.terrain.colors;
 function newLevel() {
@@ -8120,12 +8320,12 @@ export const playerFrozen = (p) => !!p && (((p.stun || 0) > 0) || ((p.down || 0)
 export const stunPlayer = (p, secs) => {
   if (!p || !(secs > 0)) return;
   p.stun = Math.max(p.stun || 0, statusFreezeFrames(secs));
-  p.blocking = null; p.throwAiming = false; p.throwAim = 0; p.burstLeft = 0;
+  p.blocking = null; p.throwAiming = false; p.throwAim = 0; p.burstLeft = 0; p.stomp = null; // a stomp is committed state too
 };
 export const knockDownPlayer = (p, secs) => {
   if (!p || !(secs > 0)) return;
   p.down = Math.max(p.down || 0, tackleDownFrames(secs));
-  p.blocking = null; p.throwAiming = false; p.throwAim = 0; p.burstLeft = 0;
+  p.blocking = null; p.throwAiming = false; p.throwAim = 0; p.burstLeft = 0; p.stomp = null; // a stomp is committed state too
 };
 // The Tackle ability a unit is wearing, in seconds, or null when it isn't wearing one. Reads
 // `effects` exactly the way the player's own lookup does — mergeEquip and assembleLook both pack a
@@ -9713,7 +9913,11 @@ export default function AssetStudio() {
       // RK is the raw key state (move keys and aim keys tracked separately). K is the merged
       // "intent" the rest of the loop reads, via mergeInputIntent — so none of the movement/
       // climb/fire code below had to change when WASD/arrows were split apart.
-      const K = mergeInputIntent(frozen ? {} : RK);
+      // 🦶 A stomp PLANTS you for its 0.4s (see STOMP_DAMAGE): no walking off, jumping, ducking or
+      // turning round mid-stamp — the foot comes down where the knee went up, on the thing that was
+      // under it. Aim and trigger are untouched; only the keys that would move or turn the body.
+      const stompPlanted = !!(p.stomp && p.onGround);
+      const K = mergeInputIntent(frozen ? {} : stompPlanted ? { ...RK, left: false, right: false, jump: false, crouch: false, down: false, aimLeft: false, aimRight: false } : RK);
       // Temporary stat boosts from consumed items: expire by wall-clock, then layer what's still
       // active onto the player's base stats. Every stat read below (speed/agility/strength/int)
       // goes through pstats, so a boost fades on its own the moment its timer runs out — no re-key.
@@ -10950,6 +11154,26 @@ export default function AssetStudio() {
         }
       }
 
+      // 🦶 STOMP (see STOMP_DAMAGE). Called by both melee presses before they swing: if something
+      // short is under your foot, start the stamp and report true — the press is spent on it and no
+      // swing starts. Only a body with legs, standing on the ground (not climbing, not on a 🚶
+      // Top-down plane where "under your foot" is the wrong axis). The targets are shotTargetsFor's
+      // list — the living hostiles your hits can land on, boxed exactly the way every hit test boxes
+      // them — so an ally, an NPC you haven't picked a fight with, or a corpse is never stamped on.
+      // A body under you whose middle is BEHIND yours turns you to face it: the knee comes up in
+      // front, and that is where it is.
+      const stompFrom = () => stompTargets({ x: p.x, w: pw, feetY: p.y + ph, standH: CH * PLAYER_H_CELLS, face: p.face, cellPx: CW, bodies: shotTargetsFor(false, false, null) });
+      const startStomp = () => {
+        if (!basePlayerAsset || isCreatureUnit(basePlayerAsset) || !p.onGround || p.climbing || p.topdown || p.transitioning) return false;
+        const under = stompFrom();
+        if (!under.length) return false;
+        const t0 = under[0], tcx = t0.x + t0.w / 2;
+        if (Math.sign(tcx - (p.x + pw / 2)) === -p.face) p.face = -p.face;
+        p.stomp = { t: 0, dur: STOMP_FRAMES, hits: {} };
+        p.blocking = null;
+        return true;
+      };
+
       // Fire — edge-detected (fires once per press, not every frame while held) so holding the
       // key doesn't spam-fire. Melee starts a brief swing timer that drives both the arm's
       // swing angle and which weapon pose renders (see the render section below). Projectile
@@ -11014,14 +11238,18 @@ export default function AssetStudio() {
           const assistTargets = shotTargetsFor(false, !!playtestWeapon.resurrect, null);
           const aimDegHeld = aimAngleDeg(aimDir); // straight up when aimDir is -1 — see aimAngleDeg
           let shotDeg = aimDegHeld, aimTilt = 0;
-          const assist = assistTargets.length ? aimAssistAngle({ sx: spawn.x, sy: spawn.y, groundY: p.y + ph, rangePx: rangePxNow, face: p.face, aimDeg: aimDegHeld, targets: assistTargets, clear: shotPathProbe }) : null;
+          // floorLock: a Squirrel at your feet — see aimAssistAngle. It bends the arm a long way, so
+          // it is handed the barrel-tip function to solve from where the gun actually ends up.
+          const assist = assistTargets.length ? aimAssistAngle({ sx: spawn.x, sy: spawn.y, groundY: p.y + ph, rangePx: rangePxNow, face: p.face, aimDeg: aimDegHeld, targets: assistTargets, clear: shotPathProbe, floorLock: true, bodyX: p.x + pw / 2, cellPx: CW, muzzleAt: muzzleSpawn }) : null;
           if (assist) {
             aimTilt = assist.deg - aimDegHeld;
             shotDeg = assist.deg;
             // The arm follows the bent shot for the fire pose (p.firing.aimTilt, read by the
             // renderer's aim branch) — that is what makes the lock-on VISIBLE, the gun snapping
-            // onto its target as it fires. Moving the arm moves the barrel, so read it again.
-            spawn = muzzleSpawn(aimTilt) || spawn;
+            // onto its target as it fires. Moving the arm moves the barrel, so read it again —
+            // unless the floor lock already solved from the bent barrel (or from inside a body the
+            // barrel is pressed into), in which case that is exactly where the shot leaves.
+            spawn = assist.spawn || muzzleSpawn(aimTilt) || spawn;
           }
           const aimRad = shotDeg * Math.PI / 180;
           const vx = p.face * spd * Math.cos(aimRad), vy = spd * Math.sin(aimRad);
@@ -11062,9 +11290,12 @@ export default function AssetStudio() {
           // aimTilt: how far the aim assist bent this shot off the held direction, in degrees.
           // The renderer's aim branch adds it to the arm for as long as the fire pose lasts.
           p.firing = { t: 0, dur: RANGED_FIRE_POSE_FRAMES, aimTilt };
-        } else if (wantFire) {
-          p.firing = { t: 0, dur: 12 }; // swing duration — same for a real melee weapon or a bare-handed swing (faster than the old sine sweep)
-          p.hitRegistered = false; p.swingHits = {}; // a fresh swing can land a fresh hit on every body in its arc
+        } else if (wantFire && !p.stomp) {
+          // Something short at your feet: stamp on it instead (startStomp). Otherwise the swing.
+          if (!startStomp()) {
+            p.firing = { t: 0, dur: 12 }; // swing duration — same for a real melee weapon or a bare-handed swing (faster than the old sine sweep)
+            p.hitRegistered = false; p.swingHits = {}; // a fresh swing can land a fresh hit on every body in its arc
+          }
         }
       }
       p.wasFire = !!K.fire;
@@ -11078,7 +11309,12 @@ export default function AssetStudio() {
       // of an in-progress shot or swing.
       const wantMelee = K.melee && !p.wasMelee;
       const meleeInHand = !!playtestWeapon && !isRanged(playtestWeapon.wtype); // a real melee weapon — bare hands still swing
-      if (!meleeInHand && wantMelee && !p.firing) {
+      // The pistol-whip button stamps too (startStomp) — and it may, unlike the swing, while the
+      // gun is still in its fire pose: that pose is the arm, a stomp is the leg, and a Squirrel
+      // biting your ankle is exactly when you have just been shooting. A swing in progress still
+      // blocks it (p.firing.unarmed), as it blocks a second swing.
+      if (!meleeInHand && wantMelee && !p.stomp && !(p.firing && p.firing.unarmed) && startStomp()) { /* stamping */ }
+      else if (!meleeInHand && wantMelee && !p.firing && !p.stomp) {
         p.firing = { t: 0, dur: 12, unarmed: true }; p.hitRegistered = false; p.swingHits = {};
       }
       p.wasMelee = !!K.melee;
@@ -11265,6 +11501,40 @@ export default function AssetStudio() {
           }
         }
         if (p.firing && p.firing.t >= p.firing.dur) p.firing = null;
+      }
+      // 🦶 The stomp's own clock. The damage lands on the ONE frame the foot comes down
+      // (stompLands), on every short body under it at that moment — looked up again rather than
+      // remembered from the press, so a Squirrel that scampered out from under the raised knee is
+      // missed and one that ran in under it is not. One hit per body per stomp (p.stomp.hits).
+      if (p.stomp) {
+        const prevT = p.stomp.t;
+        p.stomp.t += dtMul;
+        if (stompLands(prevT, p.stomp.t, p.stomp.dur)) {
+          const notes = [];
+          let crit = false, puffX = p.face > 0 ? p.x + pw * 0.8 : p.x + pw * 0.2;
+          for (const b of stompFrom()) {
+            const k = b.key;
+            if (!k || p.stomp.hits[k]) continue;
+            const ep = enemyPos.current[k];
+            if (unitUntouchable(ep)) continue; // 🐱 mid-revive, exactly as the swing skips it
+            const ea = liveEnemyAsset(k, findA(liveSpawnAt(k, lv.enemies[k]).enemyId));
+            if (!ea) continue;
+            if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
+            if (enemyHP.current[k] <= 0) continue;
+            const isCrit = Math.random() < critChance(pstats.intelligence);
+            const dmg = stompDamage(pstats.strength) * (isCrit ? 2 : 1);
+            enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+            p.stomp.hits[k] = true;
+            if (!notes.length) puffX = b.x + b.w / 2;
+            crit = crit || isCrit;
+            notes.push(ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
+          }
+          // A small 💥 where the foot came down — the booms list is purely visual (the blast's
+          // damage is detonate's job, not the boom's), so this is only the impact reading on screen.
+          booms.current.push({ x: puffX, y: p.y + ph - CW * 0.4, propId: null, char: "💥", size: 1.2, life: 0, maxLife: 14 });
+          if (notes.length) flash((crit ? "💥 Critical! " : "🦶 ") + "Stomped " + notes.join(", "));
+        }
+        if (p.stomp.t >= p.stomp.dur) p.stomp = null;
       }
 
       // Advance live projectiles and cull anything expired, off-level, that hit solid ground, or
@@ -16897,6 +17167,12 @@ export default function AssetStudio() {
                       if (!a) return { ...b, rot: limbFollowRot(b, target, baseArmRot) };
                       return rigidArmFollow(b, a, armPushOffAbs(a.armPivot)); // sleeves/cuffs ride the shoulder, same rule every other arm branch uses
                     });
+                  } else if (blocks && p.stomp) {
+                    // 🦶 STOMP: the front knee comes up and slams down (stompLegBlocks/stompLift);
+                    // the other leg stays planted. Ahead of the walk and jump branches because a
+                    // stomp plants you — there is no stride to show — and the arms are left to the
+                    // aim/melee branches below exactly as they are for any other leg pose.
+                    blocks = stompLegBlocks(blocks, stompLift(p.stomp.t, p.stomp.dur), playerArtFacesRight(basePlayerAsset) ? 1 : -1);
                   } else if (blocks && p.walking && p.topdown && angle !== "side") {
                     // Walking up or down the screen on a 🚶 Top-down plane, seen from behind or in
                     // front. A hip swing is a sagittal motion — it reads as nothing at all from these
@@ -17123,7 +17399,8 @@ export default function AssetStudio() {
                   // answer for art that runs edge to edge across the design canvas, so being
                   // flattened by an enemy tackler left you hovering ~1.5 cells over the ground.
                   const downLift = downed ? layFlatLiftPx(blocks, renderW, ph) : 0; // every-frame path: don't walk the pieces unless someone is actually on the floor
-                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift, width: renderW, height: ph, transform: (downed ? [flip, shrink, "translateY(" + (-downLift).toFixed(2) + "px)", LAY_FLAT_ROT_CSS] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...(downed ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
+                  const stompDip = p.stomp ? stompDipPx(p.stomp.t, p.stomp.dur) : 0; // the weight landing on the stamping foot
+                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift + stompDip, width: renderW, height: ph, transform: (downed ? [flip, shrink, "translateY(" + (-downLift).toFixed(2) + "px)", LAY_FLAT_ROT_CSS] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...(downed ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
                   if (p.onFire > 0) style.filter = "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)";
                   // The 🐱 Extra Life window: the same invuln blink as an ordinary hit (set longer by
                   // reviveInPlace), tinted gold so it reads as "you got a life back" rather than

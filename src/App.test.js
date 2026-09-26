@@ -215,6 +215,20 @@ import {
   shotYAtColumn,
   solveShotAngleToPoint,
   aimAssistAngle,
+  AIM_ASSIST_FLOOR_MAX_DEG,
+  AIM_ASSIST_FLOOR_TOL_CELLS,
+  STOMP_DAMAGE,
+  STOMP_FRAMES,
+  STOMP_IMPACT_FRAC,
+  STOMP_MAX_TARGET_FRAC,
+  STOMP_REACH_CELLS,
+  STOMP_DIP_PX,
+  stompDamage,
+  stompTargets,
+  stompLift,
+  stompLands,
+  stompDipPx,
+  stompLegBlocks,
   projectileDropSlope,
   projectileAngleAtDistance,
   projectileFallSpeedMul,
@@ -1641,6 +1655,167 @@ describe("aim assist", () => {
     expect(r.target).toBe(above);
     expect(r.deg).toBeCloseTo(-Math.atan2(200, 60) * 180 / Math.PI, 3);
     expect(r.deg).toBeGreaterThan(-89);
+  });
+
+  // THE FLOOR LOCK — the player's trigger finger (floorLock: true). A gun arm modelled the way the
+  // real one behaves: the barrel pivots at a shoulder 60px behind the level muzzle, so pointing it
+  // down swings the tip down AND back toward the body. The shooter's body centre is further back.
+  const shoulder = { x: -60, y: sy }, barrel = 60, bodyX = -90;
+  const muzzleAt = (tilt) => ({ x: shoulder.x + barrel * Math.cos(tilt * Math.PI / 180), y: shoulder.y + barrel * Math.sin(tilt * Math.PI / 180) });
+  const floor = (aimDeg, targets, extra = {}) => assist(aimDeg, targets, { floorLock: true, bodyX, cellPx: CELL, muzzleAt, ...extra });
+  // A Squirrel-sized body (2 cells wide, 46px tall) standing on the shooter's floor.
+  const squirrel = (x) => ({ x, y: groundY - 46, w: 60, h: 46 });
+  // Where the shot really goes: from the barrel tip it left, at the angle it left at.
+  const landsIn = (r, t) => {
+    const s = r.spawn;
+    if (s.x >= t.x && s.x <= t.x + t.w && s.y >= t.y && s.y <= t.y + t.h) return true;   // started inside it
+    const y = shotYAtColumn(s.y, groundY, rangePx, r.deg, centreX(t) - s.x);
+    return y !== null && Math.abs(y - centreY(t)) <= t.h / 2 - t.h * AIM_ASSIST_TARGET_MARGIN;
+  };
+
+  test("a squirrel at your feet: the cone cannot reach it, the floor lock can", () => {
+    const sq = squirrel(20);                                // centre 50px past the muzzle, 114px down: 66°
+    expect(assist(0, [sq])).toBeNull();                     // the old rule, and still the unit rule
+    const r = floor(0, [sq]);
+    expect(r.target).toBe(sq);
+    expect(r.deg).toBeGreaterThan(AIM_ASSIST_CONE_DEG);
+    expect(r.deg).toBeLessThanOrEqual(AIM_ASSIST_FLOOR_MAX_DEG);
+    // Solved from the BENT barrel, not the level one: the spawn is the tip at that angle...
+    expect(r.spawn.x).toBeCloseTo(muzzleAt(r.deg).x, 6);
+    expect(r.spawn.y).toBeCloseTo(muzzleAt(r.deg).y, 6);
+    // ...and from there it goes through the middle of the body.
+    expect(landsIn(r, sq)).toBe(true);
+  });
+
+  test("the whole dead zone: every distance on your floor locks, level or down", () => {
+    for (let x = -20; x <= 360; x += 20) {
+      const sq = squirrel(x);
+      for (const held of [0, 40, 45]) {
+        const r = floor(held, [sq]);
+        expect(r && r.target).toBe(sq);
+        if (r.spawn) expect(landsIn(r, sq)).toBe(true);
+        else expect(landsIn({ ...r, spawn: { x: 0, y: sy } }, sq)).toBe(true);   // a cone lock: fired from the muzzle, as always
+      }
+    }
+  });
+
+  test("point-blank: a body the barrel is already past gets the shot started inside it", () => {
+    const under = squirrel(-150);                           // x -150..-90: behind even the barrel pointed straight down
+    const r = floor(0, [under], { bodyX: -200 });
+    expect(r.target).toBe(under);
+    expect(r.deg).toBe(AIM_ASSIST_FLOOR_MAX_DEG);
+    expect(landsIn(r, under)).toBe(true);
+  });
+
+  test("aiming UP never reaches for the ground", () => {
+    expect(floor(-90, [squirrel(20)])).toBeNull();
+    expect(floor(-45, [squirrel(20)])).toBeNull();
+  });
+
+  test("only a body on YOUR floor: one a floor below is left to the held aim", () => {
+    const below = { ...squirrel(80), y: squirrel(80).y + 2 * CELL };   // feet two cells under yours
+    expect(floor(0, [below])).toBeNull();
+    const step = { ...squirrel(80), y: squirrel(80).y + AIM_ASSIST_FLOOR_TOL_CELLS * CELL };   // a one-cell step down still counts
+    expect(floor(0, [step]).target).toBe(step);
+  });
+
+  test("never behind you, and never into a wall", () => {
+    expect(floor(0, [squirrel(-260)])).toBeNull();          // centre behind the body
+    expect(floor(0, [squirrel(-260)], { face: -1 })).not.toBeNull();   // turn round and it is in front
+    const wall = (x) => !(x >= 15 && x < 25);                 // a post between you and it
+    expect(floor(0, [squirrel(40)], { clear: wall })).toBeNull();
+  });
+
+  test("what the cone already locked does not move", () => {
+    const inCone = { x: 135, y: sy + 25, w: 30, h: 30 };    // 15° down, hanging in the air: the cone's
+    const plain = assist(0, [inCone]), withFloor = floor(0, [inCone]);
+    expect(withFloor.deg).toBe(plain.deg);
+    expect(withFloor.spawn).toBeNull();                      // the caller re-reads the barrel exactly as before
+  });
+
+  test("nearest is measured from the BODY, so the squirrel under the gun beats the dog past it", () => {
+    const sq = squirrel(-40);                                // centre -10: BEHIND the level muzzle
+    const dog = { x: 150, y: groundY - 100, w: 90, h: 100 }; // further out, in the cone
+    expect(floor(0, [dog, sq]).target).toBe(sq);
+    expect(assist(0, [dog, sq]).target).toBe(dog);           // without the floor lock the squirrel is not a candidate at all
+  });
+});
+
+describe("stomp", () => {
+  const CELL = 30, standH = 7 * CELL;
+  // The stomper: a 60px-wide body standing with its feet on y=300, facing right.
+  const me = { x: 100, w: 60, feetY: 300, standH, face: 1, cellPx: CELL };
+  const short = (x, key, extra = {}) => ({ key, x, y: 300 - 46, w: 60, h: 46, ...extra });
+  const under = (bodies, over = {}) => stompTargets({ ...me, ...over, bodies }).map((b) => b.key);
+
+  test("really high damage: 30 at Strength 5, riding Strength like every melee hit", () => {
+    expect(STOMP_DAMAGE).toBe(30);
+    expect(stompDamage(5)).toBe(30);
+    expect(stompDamage(10)).toBe(60);                         // Army Bob
+    expect(stompDamage(1)).toBe(6);
+    expect(stompDamage(undefined)).toBe(30);
+    expect(stompDamage(5)).toBeGreaterThanOrEqual(25);        // one stomp is a dead 25 HP Squirrel
+  });
+
+  test("a short body right at your feet, and nothing else", () => {
+    expect(under([short(170, "toes")])).toEqual(["toes"]);                          // 10px past your front
+    expect(under([short(160 + STOMP_REACH_CELLS * CELL - 1, "edge")])).toEqual(["edge"]);
+    expect(under([short(160 + STOMP_REACH_CELLS * CELL + 1, "far")])).toEqual([]);  // out of reach: swing instead
+    expect(under([short(90, "underneath")])).toEqual(["underneath"]);              // standing in your footprint
+    expect(under([short(20, "behind")])).toEqual([]);                               // past your back
+    expect(under([short(170, "tall", { y: 300 - 100, h: 100 })])).toEqual([]);     // a Pit Bull: the swing reaches it
+    expect(under([short(170, "maxH", { y: 300 - STOMP_MAX_TARGET_FRAC * standH, h: STOMP_MAX_TARGET_FRAC * standH })])).toEqual(["maxH"]);
+    expect(under([short(170, "downstairs", { y: 300 - 46 + 2 * CELL })])).toEqual([]);  // a floor below
+    expect(under([short(170, "leaping", { y: 300 - 46 - 2 * CELL })])).toEqual([]);    // in the air over your foot
+  });
+
+  test("nearest first; facing left is the mirror", () => {
+    expect(under([short(175, "b"), short(120, "a")])).toEqual(["a", "b"]);
+    expect(under([short(40, "left")], { face: -1 })).toEqual(["left"]);
+    expect(under([short(170, "right")], { face: -1 })).toEqual([]);
+  });
+
+  test("the knee comes up, slams down, and the hit lands on exactly one frame", () => {
+    expect(stompLift(0, STOMP_FRAMES)).toBe(0);
+    expect(stompLift(STOMP_FRAMES * 0.5, STOMP_FRAMES)).toBeCloseTo(1, 9);
+    const a = stompLift(STOMP_FRAMES * 0.53, STOMP_FRAMES), b = stompLift(STOMP_FRAMES * 0.59, STOMP_FRAMES);
+    expect(a).toBeGreaterThan(b);                                                   // on its way down...
+    expect(a - b).toBeGreaterThan(1 - a);                                           // ...and accelerating
+    expect(stompLift(STOMP_FRAMES * STOMP_IMPACT_FRAC, STOMP_FRAMES)).toBe(0);
+    expect(stompLift(STOMP_FRAMES, STOMP_FRAMES)).toBe(0);
+    let lands = 0;
+    for (let t = 0; t < STOMP_FRAMES; t += 1) if (stompLands(t, t + 1, STOMP_FRAMES)) lands++;
+    expect(lands).toBe(1);
+    expect(stompLands(0, STOMP_FRAMES, STOMP_FRAMES)).toBe(true);                   // one huge frame still lands it
+    expect(stompDipPx(STOMP_FRAMES * 0.3, STOMP_FRAMES)).toBe(0);
+    expect(stompDipPx(STOMP_FRAMES * STOMP_IMPACT_FRAC, STOMP_FRAMES)).toBeCloseTo(STOMP_DIP_PX, 9);
+    expect(stompDipPx(STOMP_FRAMES, STOMP_FRAMES)).toBe(0);
+  });
+
+  test("one leg rises, the other stays planted", () => {
+    const torso = { id: "torso", kind: "rect", x: 70, y: 40, w: 60, h: 100 };
+    const leg = { id: "leg", kind: "rect", x: 85, y: 140, w: 30, h: 110, limb: "leg" };
+    const planted = stompLegBlocks([torso, leg], 0);
+    expect(planted.find((b) => b.id === "leg_backLeg")).toBeTruthy();              // Bob draws one leg: the planted one is its copy
+    const up = stompLegBlocks([torso, leg], 1);
+    const moved = up.find((b) => b.id === "leg"), stay = up.find((b) => b.id === "leg_backLeg");
+    expect(moved.y).toBeLessThan(leg.y);                                            // the knee is up
+    expect(moved.rot).toBeLessThan(0);                                              // and forward, for art facing right
+    expect(stay.y).toBe(leg.y);
+    expect(stay.rot || 0).toBe(0);
+    expect(up.find((b) => b.id === "torso")).toEqual(torso);
+    expect(stompLegBlocks([torso, leg], 1, -1).find((b) => b.id === "leg").rot).toBeGreaterThan(0);
+  });
+
+  test("a body that draws both legs lifts only the front one", () => {
+    const back = { id: "back", kind: "rect", x: 60, y: 140, w: 25, h: 110, limb: "leg" };
+    const front = { id: "front", kind: "rect", x: 115, y: 140, w: 25, h: 110, limb: "leg" };
+    const shoe = { id: "shoe", kind: "rect", x: 112, y: 240, w: 34, h: 12, limb: "leg", _isShoe: true };
+    const up = stompLegBlocks([back, front, shoe], 1);
+    expect(up.find((b) => b.id === "back")).toEqual(back);
+    expect(up.find((b) => b.id === "front").y).toBeLessThan(front.y);
+    expect(up.find((b) => b.id === "shoe").y).toBeLessThan(shoe.y);                // the shoe goes with its leg
+    expect(up.some((b) => /_backLeg$/.test(b.id))).toBe(false);                    // it already has its planted leg
   });
 });
 

@@ -1648,6 +1648,33 @@ range now, and crouching is no longer a way to duck long-range fire. The brawl t
 enemy loop was a twelfth un-anchored site (and sized the target with the SHOOTER's height); both
 fixed there.
 
+**A SQUIRREL AT YOUR FEET: THE FLOOR LOCK AND THE 🦶 STOMP (2026-09-26).** Blake: "when it gets
+close the gun and meelee don't like to hit it". Measured with Army Bob + M16 on a flat test level
+before the fix: the level barrel sits 95px in front of the body and 150px above the feet, so a
+46px Squirrel anywhere from touching you out to ~13 cells needed a 25–75° dip (the cone stops at
+22°), and holding ↓ covered one two-cell strip. Level and ↓ both missed at every distance tried
+except one. The close ones were also BEHIND the muzzle, which the cone skips (`dx <= 1`).
+* **Floor lock** (`aimAssistAngle({ floorLock: true, bodyX, cellPx, muzzleAt })`, player only):
+  a body whose feet are within a cell of yours, in front of your BODY and lower than the barrel,
+  can always be locked while aiming level or down — bend down to 85°, or back up to level when
+  ↓ is held. Tried only after the cone fails, so cone locks are unchanged; aiming up never
+  reaches for the ground. `floorLockShot` sweeps the gun down and judges every angle from the
+  barrel tip AT that angle (`muzzleAt` = the fire code's `muzzleSpawn`) — solving from the level
+  muzzle, or a plain iterate, both measured shooting past the animal. No angle works = the body is
+  under the gun: point-blank, the shot starts at the tip over it or inside it. Range is measured
+  from the barrel, nearest-ness from the body. Verified: one hit per shot at 0–700px, level and ↓.
+  Units do not pass `floorLock` (their held line already points at their target).
+* **Stomp** (`STOMP_DAMAGE` 30 × Str/5, Int crit): Fire with a melee weapon or bare hands, or Q/V
+  with a gun, stamps instead of swinging when `stompTargets` finds a body ≤ 40% of your standing
+  height on your floor, overlapping your footprint or within 1 cell in front (`startStomp`). Q/V
+  with a melee weapon is still the BLOCK. It plants you for 0.4s (left/right/jump/crouch/arrow-turn
+  blanked in the K merge), damage lands on the one `stompLands` frame on everything short under
+  the foot then, with a 💥 boom (visual only) and a 3px body dip. Pose is `stompLegBlocks`: the
+  front leg swings 28° and lifts; Bob's one drawn leg gets `addBackLeg`'s clone as the planted
+  one. 40° read as a kick and 14° hid the leg under Army Bob's coat — tuned in the running game.
+  Squirrels (46–55px) qualify, Pit Bulls (93px+) do not. **Units do not stomp** — a hostile
+  thug would then one-shot a captured pet Squirrel; that is Blake's call to make.
+
 **THERE IS NO 👹 ENEMY FLAG ON A DRESSED LOOK ANY MORE, AND IT WAS REMOVED BECAUSE IT MADE
 DUPLICATES.** `isEnemy` used to decide which Dress Bob looks the Level Creator would offer as
 enemies, so wanting the same outfit as a fightable enemy meant saving it twice — and wanting that
