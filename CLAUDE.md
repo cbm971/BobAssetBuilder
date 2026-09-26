@@ -37,8 +37,9 @@ Every 5 minutes it also checks GitHub, rebuilds, and restarts itself when its ow
 The log is `%LOCALAPPDATA%\BobOkay\keeper.log`.
 
 **In the game:**
-- The front screen shows `💾 Documents\Bob Okay\Saves` on the desktop copy and `☁ Online copy`
-  anywhere else.
+- **No save-status indicator on screen.** One shipped (a `💾 Documents\...` / `☁ Online copy`
+  chip) and he rejected it the same day as clutter. `keeperLink.state` still says which copy
+  this is, for code; the desktop copy only hides the 📁 Save folder button.
 - The desktop copy refuses to be open in two tabs at once (Web Lock; "Play here instead" takes over).
 - A desktop save that fails to reach the folder says so in a toast.
 

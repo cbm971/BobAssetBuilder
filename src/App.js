@@ -528,8 +528,6 @@ export const keeperLink = {
     return keeperLink;
   },
 };
-// "C:\Users\x\OneDrive\Documents\Bob Okay\Saves" -> "Documents\Bob Okay\Saves": the part he knows.
-export const keeperShortDir = (dir) => { const s = String(dir || ""); const i = s.toLowerCase().lastIndexOf("documents"); return i >= 0 ? s.slice(i) : s; };
 const projectLibrary = {
   available: false, // set on the first successful read; a plain static build simply won't have it
   // BOTH backends, merged newest-wins (mergeLibraries): the dev server file, and the save folder on
@@ -16014,8 +16012,6 @@ export default function AssetStudio() {
           <button className="ltbtn saveRead" disabled={libraryLoading} onClick={() => { setLoadOpen(true); setLoadCategory(null); setLoadSub(null); }}>{libraryLoading ? "⏳ Loading your saves…" : "📂 Load (" + allAssets.length + " saved)"}</button>
           {libraryLoading && <p className="mini saveLoading">Your saved assets are still being read from this browser. Nothing has been cleared.</p>}
           <label className="openfile">⬆ Open a file<input type="file" accept=".json,application/json,text/plain" onChange={upload} hidden /></label>
-          {keeper && keeper.state === "desktop" && <span className={"keeperChip " + (keeper.problem ? "bad" : "on")} title={keeper.problem || keeper.saveDir}>{keeper.problem ? "⚠ Save folder missing" : "💾 " + keeperShortDir(keeper.saveDir)}</span>}
-          {keeper && keeper.state === "online" && <span className="keeperChip off" title="Saves made here are picked up by Bob Okay on your desktop the next time it runs">☁ Online copy</span>}
           {saveFolder !== "unsupported" && !(keeper && keeper.state === "desktop") && <button className={"ltbtn saveRead saveFolder" + (saveFolder === "ready" ? " on" : "")} disabled={libraryLoading} onClick={() => connectSaveFolder(saveFolder === "ready")} title={saveFolder === "ready" ? "Every save also goes to this folder on your disk. Click to pick a different one." : "Pick a folder on your disk; every save goes there too, and it survives a new preview address."}>{saveFolder === "ready" ? "📁 Save folder ✓ " + diskLibrary.name : saveFolder === "prompt" ? "📁 Reconnect save folder" : "📁 Save folder"}</button>}
           <button className="ltbtn saveRead" disabled={libraryLoading} onClick={exportAllAssets} title="Downloads everything you have made — assets, levels, stored groups, textures and backgrounds — as one backup file. Re-open that file here later to restore it all.">⬇ Export everything{libraryLoading ? " (loading…)" : " (" + library.length + " assets, " + Math.max(levelLib.length, levelCount) + " levels)"}</button>
           <h2>Niche controls</h2>
@@ -20018,7 +20014,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .texseg button{padding:7px 9px;font-size:12px}
 .row2 .danger{border-color:#5a2e36;color:#ff9b9b}
 .ltbtn{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:8px 11px;cursor:pointer;font-size:13px}
-.ltbtn.saveRead:disabled{opacity:.55;cursor:wait}.ltbtn.saveFolder.on{border-color:#3f8f5a;color:#bfe8c9}.keeperChip{display:inline-block;margin:4px 6px 4px 0;padding:4px 10px;border-radius:999px;font-size:12px;border:1px solid #444;color:#ccc;background:#1a1a1a}.keeperChip.on{border-color:#3f8f5a;color:#bfe8c9;background:#12251a}.keeperChip.off{border-color:#5c481d;color:#f3d98a;background:#241b0d}.keeperChip.bad{border-color:#8f3f3f;color:#f3b0b0;background:#2a1212}.otherTab{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center}.otherTab .dlg{text-align:center}.saveLoading{max-width:360px;color:#f3d98a;background:#241b0d;border:1px solid #5c481d;border-radius:8px;padding:6px 8px}
+.ltbtn.saveRead:disabled{opacity:.55;cursor:wait}.ltbtn.saveFolder.on{border-color:#3f8f5a;color:#bfe8c9}.otherTab{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center}.otherTab .dlg{text-align:center}.saveLoading{max-width:360px;color:#f3d98a;background:#241b0d;border:1px solid #5c481d;border-radius:8px;padding:6px 8px}
 .gname{background:#141824;border:1px solid #2c3245;border-radius:9px;padding:7px 9px;font-size:13px;color:inherit;width:110px}
 .stampShelf{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:6px;margin:7px 0;padding:7px 8px;background:#171b26;border:1px solid #2c3245;border-radius:10px;font-size:12px;color:#aeb6c9}
 .stampShelf select{min-width:0;width:100%;background:#141824;border:1px solid #2c3245;border-radius:8px;padding:7px 8px;color:inherit;font-size:12px}
