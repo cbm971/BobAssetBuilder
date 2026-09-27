@@ -1600,6 +1600,41 @@ spots in the play loop and the level render. In plain words:
   **A/B recipe for the production build:** build HEAD and the change into two folders and serve each
   with a tiny static server that answers `GET /__library` from a copy of the committed
   library.json (POSTs acknowledged and dropped), then run the identical drive on both ports.
+* **THE WORLD NEVER MOVES AT A GATE (2026-09-26, late).** Blake, after ONE WORLD: "try to remove the
+  camera stall and game freeze so it's more seamless". Every earlier fix measured JS only; the
+  hidden test pane never paints, and on his machine the frame is paint (see the cutter-mask note).
+  What the handoff did to the page: every run wrapper's `left` changed by a level's width, `.lgrid`
+  was resized to the entered level, and the camera transform moved back by the same amount. Nothing
+  moved on screen, but everything moved INSIDE `.lgrid`'s compositor layer, so the browser had to
+  re-rasterise every textured tile in view on the crossing frame. Measured as "area of elements whose
+  box moved inside `.lgrid`, clipped to the view": **4.3 views' worth of tiles** at every gate.
+  Four fixes, all run-only (plain ▶ Playtest, rooms and the editor are untouched):
+  - **A fixed world frame.** `runOrigin` = where the live level sits in the run's frame (reset in
+    `togglePlaytest`, moved by the seam offset in `seamHandoff` while the position and camera move
+    back). Wrappers sit at `runOrigin + off`, the transform adds `runOrigin`, `.lgrid` keeps the
+    first level's box all run (`.lgrid.inRun`: no own background; each wrapper paints the grid).
+    Everything else is still drawn in live-level pixels inside **`.lvLive`**, which sits at
+    `runOrigin` — no z-index, no transform, so NOT a stacking context and the z-ladder is unchanged;
+    outside a run it is `display:contents`. After: **0 tiles move** at a crossing.
+  - **One list of objects** (`runObjects` + the pass headed ONE LIST OF OBJECTS). Objects used to
+    switch between the live passes and the neighbour pass at a handoff: 31 built / 27 torn down on
+    the swap frame (more area than the view; a Front object is a compositor layer). Now one FLAT list
+    keyed `run node | cell`, so an object keeps its element. Flat on purpose — a list of lists puts
+    each level under its node's slot, and the slots reorder at every handoff. After: 0 rebuilt.
+  - **The swap render reads the entered level's books.** The effect re-points enemyPos/enemyHP/
+    drops/gear at a level's bucket (`pointLiveRefsAt`), but after the swap render, so that render drew
+    the new spawn list against the OLD positions: units flashed at their spawn cells for a frame and
+    were rebuilt twice. `seamHandoff` now points them first.
+  - **The level after next is got ready while you walk** (`warmRunAhead`/`warmRunNode`). Its tile
+    runs and its gear-rolled units' composed looks (`assembleLook`, 8.3 ms into M8) were computed on
+    the swap frame. The chain's links exist from `buildRun`, so after a 40-frame hold it does one step
+    every 3 frames (`RUN_WARM_HOLD_FRAMES`/`RUN_WARM_EVERY_FRAMES`). Only already-LINKED nodes are
+    touched (nothing resolved early, a seed builds the same run); rolls are prepRunNeighbours' own.
+  **Measured** (production builds, his seed 7, first entry into five fresh levels; timing marks
+  compiled into throwaway copies — `r`/`c` around the render, `h0/h1` around seamHandoff, `u0/u1`,
+  `t0/t1`, `L0/L1` — then stripped): swap render+commit **9–27 ms → 1.6–4.8 ms** (a normal render is
+  0.8–3), frames around the crossing 27–39 ms → 19–27 against an 18 ms norm. Paint itself is still
+  unmeasured (pane hidden); the proxy above is what went to zero.
 * **Gates with nothing behind them.** Pressed against an edge at an open gate no level attaches to,
   the loop flashes once every 2.5 s (`gateNag`): "🚧 Bottom Left gate leads nowhere yet … (it accepts
   "Sewer")", "🏁 The run starts here", or "🏁 Floor complete!". Plain Playtest edges stay silent.
@@ -1913,6 +1948,19 @@ render site (player, units, corpses, Dress Bob, and now `composeLook`'s bake too
 `behindArm`, so DK Arms' far arm, flagged `behindBody` and drawn behind the torso in the editor, sat on
 DK's chest in Playtest. `groupWeaponBlocksByArm` now returns `{ under, behind, front }`: `under`
 (behindBody wins over behindArm) goes before the whole body, capes included.
+
+**A TWO-ARMED WEAPON'S SECOND FOREARM RIDES THE OTHER ARM (2026-09-26).** Blake's screenshot: climbing
+in DK Arms, one DK forearm on his helmet with the barrel, the other floating out by the pole. The
+back/front/up/crouch poses draw the forearm with ⇋ Mirror, so its twin IS the second arm, over the
+body's other arm — and `attachWeaponBlocks` swept every piece round the one weapon arm's grip as a
+rigid body, so the ladder/wire's 175° turn swung that twin half a circle to the far side (measured:
+117–131% of the sprite width). `attachWeaponBlocksToArms` (player render, weapon + throwable) sends a
+`_m` piece drawn on the far side of the body from the grip to the body's own twin arm (`twinArmOf`:
+opposite `_m` parity, nearest the mirror spot — characters store it under its own id), attached
+mirror-for-mirror. At rest on the guide body it is the identical picture; the barrel and anything on
+the grip's side stay rigid with the weapon arm. Units are untouched: their other arms already follow
+the primary arm rigidly, which matches the rigid attach. Only the DK Arms have mirrored weapon pieces
+in his library today.
 
 So **every `character` is placeable as an enemy**, and what a placement CARRIES is stamped on the
 spawn beside the facing, the AI and the dialogue that were already stamped there:

@@ -50,6 +50,8 @@ import {
   fgSolid,
   armHoldsAimPose,
   attachWeaponBlocks,
+  attachWeaponBlocksToArms,
+  twinArmOf,
   burstDelayFrames,
   burstShotCount,
   burstShotDue,
@@ -4338,6 +4340,58 @@ describe("a held weapon's 'Behind the WHOLE body' pieces go under the body in pl
 
   test("an armless body still gets its behind-the-body pieces underneath", () => {
     expect(mergeWeaponBlocks([{ id: "blob" }], [{ id: "u", behindBody: true }, { id: "w" }]).map((p) => p.id)).toEqual(["u", "blob", "w"]);
+  });
+});
+
+// Blake's screenshot (2026-09-26): climbing a ladder in DK Arms, one DK forearm sat on his helmet
+// and the other floated off beside the pole. The back pose draws the forearm with ⇋ Mirror, so its
+// twin is the SECOND arm, on the body's other arm — and the rigid attach swung it 175° round the
+// first arm's grip.
+describe("a two-armed weapon's second forearm rides the body's other arm", () => {
+  // Footbob's back-pose arms (x139 / its twin at x41, both drawn at 355°) and the DK Arms' Bob fit.
+  const arm = { id: "w9", kind: "rect", role: "weaponArm", limb: "arm", armPivot: "top", x: 139, y: 94, w: 20, h: 82, rot: 355 };
+  const twin = { ...arm, id: "0o", x: 41, _m: true };
+  const HAND = { x: 156, y: 176 }; // the guide body's own hand: that arm's rig at 355° (handForGuideId)
+  const fore = { id: "kc6", kind: "roundrect", x: 126.4, y: 88.6, w: 28.8, h: 52, rot: 353, mirror: true };
+  const barrel = { id: "kc2", kind: "roundrect", x: 127.8, y: 162, w: 43.2, h: 46.4, rot: 353 };
+  const art = [barrel, fore, { ...fore, id: "kc6_m", x: 200 - (fore.x + fore.w), _m: true }];
+  const centre = (p) => ({ x: p.x + p.w / 2, y: p.y + p.h / 2 });
+  const climbed = (a) => ({ ...a, rot: 180 }); // armClimbAbs("top"), both arms, as the ladder branch sets them
+
+  test("finds the twin arm by where it is, not by its id", () => {
+    expect(twinArmOf([arm, { id: "torso", x: 60, w: 80 }, twin], arm)).toBe(twin);
+    expect(twinArmOf([arm, { id: "torso" }], arm)).toBe(null); // a side pose has one arm
+  });
+
+  test("at rest it is the same picture the rigid attach always drew", () => {
+    const old = attachWeaponBlocks(art, arm, HAND, 355);
+    const now = attachWeaponBlocksToArms(art, arm, twin, HAND, 355, 355);
+    now.forEach((p, i) => { expect(p.x).toBeCloseTo(old[i].x, 6); expect(p.y).toBeCloseTo(old[i].y, 6); expect(p.rot).toBeCloseTo(old[i].rot, 6); });
+  });
+
+  test("arms straight up: the twin forearm stays mirror-opposite its original, not flung across the body", () => {
+    const up = attachWeaponBlocksToArms(art, climbed(arm), climbed(twin), HAND, 355, 355);
+    const [, a, b] = up.map(centre);
+    expect(a.x + b.x).toBeCloseTo(200, 6); // a mirror pair about the canvas centre line...
+    expect(a.y).toBeCloseTo(b.y, 6);       // ...at the same height
+    expect(b.x).toBeLessThan(100);          // on the twin arm's side of the body
+    expect(up[2]._m).toBe(true);
+    // The control: the old rigid sweep put that forearm ~190 units off, outside the 200-wide canvas.
+    const rigid = centre(attachWeaponBlocks(art, climbed(arm), HAND, 355)[2]);
+    expect(rigid.x).toBeGreaterThan(200);
+  });
+
+  test("the barrel and the forearm on the grip's side still turn rigidly with the weapon arm", () => {
+    const up = attachWeaponBlocksToArms(art, climbed(arm), climbed(twin), HAND, 355, 355);
+    const old = attachWeaponBlocks(art, climbed(arm), HAND, 355);
+    for (const i of [0, 1]) { expect(up[i].x).toBeCloseTo(old[i].x, 6); expect(up[i].y).toBeCloseTo(old[i].y, 6); }
+  });
+
+  test("the twin forearm follows its OWN arm's pump, not the weapon arm's", () => {
+    const up = attachWeaponBlocksToArms(art, climbed(arm), climbed(twin), HAND, 355, 355);
+    const pumped = attachWeaponBlocksToArms(art, climbed(arm), { ...climbed(twin), y: twin.y - 10 }, HAND, 355, 355);
+    expect(pumped[2].y).toBeCloseTo(up[2].y - 10, 6);
+    expect(pumped[1].y).toBeCloseTo(up[1].y, 6);
   });
 });
 

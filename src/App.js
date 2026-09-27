@@ -938,6 +938,50 @@ export const attachWeaponBlocks = (weaponPieces, curArm, guideHand, baseArmRot) 
     return { ...pc, limb: undefined, role: undefined, x: newCx - pc.w / 2, y: newCy - pc.h / 2, rot: (pc.rot || 0) + pieceDelta, _isWeapon: true };
   });
 };
+// TWO-ARMED WEAPONS — the DK Arms (2026-09-26). A weapon drawn with ⇋ Mirror pieces in a front /
+// back / up / crouch pose gets a twin of each one on the other side of the canvas, and for the DK
+// Arms that twin is the SECOND FOREARM, drawn over the body's other arm. attachWeaponBlocks sweeps
+// every piece round the one weapon arm's grip as a single rigid body — right for a gun, wrong for a
+// second arm: the moment the weapon arm turns a long way (a ladder's arms-straight-up is a 175° turn
+// from the drawn 355°) the twin forearm, 90 canvas units across the body from the grip, is swung
+// half a circle round that grip and lands out in thin air on the far side. Blake's screenshot: one
+// DK fist up by his helmet with the barrel on it, the other forearm floating off by the pole.
+// So a twin piece drawn on the OTHER side of the body from the grip rides the body's own twin arm
+// instead: mirrored back across the canvas, attached to the mirror image of that twin arm exactly the
+// way its original is attached to the weapon arm, and mirrored out again. At rest on a body built
+// like the weapon's guide body that is the identical picture it always was; turned, each forearm
+// stays on its own shoulder. Pieces on the grip's side (the barrel, a symmetric blade drawn at the
+// middle) are untouched and stay rigid with the weapon arm, twins or not.
+const mirrorOnCanvas = (p, twin) => ({ ...p, x: W - (p.x + p.w), _m: twin || undefined,
+  armPivot: p.armPivot === "left" ? "right" : p.armPivot === "right" ? "left" : p.armPivot });
+// The body's other weapon arm — the mirror twin of `arm` (opposite _m parity, nearest the spot the
+// mirror of `arm` would sit). Characters store their twin under its own id, so it is found by
+// where it is, never by `arm.id + "_m"`. Null in a side pose, which has one arm.
+export const twinArmOf = (blocks, arm) => {
+  if (!arm) return null;
+  const mx = W - (arm.x + arm.w / 2);
+  let best = null;
+  for (const b of blocks || []) {
+    if (b === arm || b.role !== "weaponArm" || !!b._m === !!arm._m) continue;
+    if (!best || Math.abs(b.x + b.w / 2 - mx) < Math.abs(best.x + best.w / 2 - mx)) best = b;
+  }
+  return best;
+};
+// attachWeaponBlocks for a body that may have two arms: `twinArm` is twinArmOf(the live blocks) and
+// `baseTwinRot` its rotation before this frame's climb/walk/aim turned it (the twin of baseArmRot).
+export const attachWeaponBlocksToArms = (weaponPieces, curArm, twinArm, guideHand, baseArmRot, baseTwinRot) => {
+  const own = attachWeaponBlocks(weaponPieces, curArm, guideHand, baseArmRot);
+  if (!curArm || !twinArm || !guideHand) return own;
+  const farSide = (pc) => { const cx = pc.x + pc.w / 2; return Math.abs(cx - (W - guideHand.x)) < Math.abs(cx - guideHand.x); };
+  // The twin arm as the weapon arm's frame sees it: mirrored back, turned by what it SHOWS on screen.
+  const virt = { ...mirrorOnCanvas(twinArm, false), rot: -visualRotOf(twinArm, twinArm.rot) };
+  const virtBase = -visualRotOf(twinArm, baseTwinRot);
+  return (weaponPieces || []).map((pc, i) => {
+    if (!pc._m || !farSide(pc)) return own[i];
+    const placed = attachWeaponBlocks([mirrorOnCanvas(pc, false)], virt, guideHand, virtBase)[0];
+    return mirrorOnCanvas(placed, true);
+  });
+};
 // Hitboxes and the arm trajectory:
 // A weapon's damage box rides the swinging arm automatically — the drawn hitbox piece(s) are just
 // ordinary weapon pieces flagged isHitbox, so attachWeaponBlocks sweeps them around the grip with
@@ -8400,6 +8444,11 @@ const RUN_TILE_CACHE = { bg: new WeakMap(), fg: new WeakMap(), front: new WeakMa
 // every cell (see CELL_LAYER_STYLE). runMountPlan is the pure arithmetic: per-layer item counts,
 // how many are already up, the budget -> how many of each layer to have this frame.
 export const RUN_MOUNT_ITEMS_PER_FRAME = 30;
+// The level after next is prepared while you walk (warmRunAhead): nothing for the first
+// RUN_WARM_HOLD_FRAMES after a handoff, then one step every RUN_WARM_EVERY_FRAMES. A level takes a
+// few dozen steps, so it is ready ~2 s after you arrive in the one before it.
+export const RUN_WARM_HOLD_FRAMES = 40;
+export const RUN_WARM_EVERY_FRAMES = 3;
 export const runMountPlan = (counts, done, budget = RUN_MOUNT_ITEMS_PER_FRAME) => {
   const total = counts.reduce((a, b) => a + b, 0);
   const next = Math.min(total, done + budget);
@@ -9235,6 +9284,7 @@ export default function AssetStudio() {
   const setWallet = (n) => { wallet.current = Math.max(0, Math.round(n || 0)); setWalletUI(wallet.current); };
   const runRef = useRef(null);                              // the RUN in progress (buildRun), or null for a plain Playtest: { seed, nodes, order, curKey, editorLevel, pool }
   const camRef = useRef({ x: 0, y: 0, init: false });       // the camera, in the live level's pixels; init=false snaps it to the body on the next frame instead of easing there
+  const runOrigin = useRef({ x: 0, y: 0, w: 0, h: 0 });      // RUN — where the live level sits in the run's fixed world frame, and that frame's box (see THE WORLD NEVER MOVES AT A GATE)
   const gateNag = useRef(0);                                // when the "this gate leads nowhere yet" flash last showed, so it does not fire 60 times a second
   const carryKeys = useRef(null);                           // keys still held at a seam handoff — the loop effect re-runs on the level swap and would otherwise drop a held D
   const seamCarry = useRef(false);                          // this effect re-run IS a seam handoff: keep the clip, the grenades, and what is in the air (see seamHandoff)
@@ -9377,26 +9427,35 @@ export default function AssetStudio() {
       let take = null;
       if (mounted < total) { const plan = runMountPlan(counts, mounted); mounted = plan.done; RUN_MOUNT_PROGRESS.set(node, mounted); if (!plan.complete) take = plan.take; }
       const layer = (i) => !layers[i] ? null : runTilesUpTo(layers[i], take ? take[i] : Infinity);
-      return <div key={node.key} ref={runWrapperRef(node)} className={"seamStrip" + (live ? " live" : "")} style={{ left: off.x, top: off.y, width: nb.cols * LV_CELL, height: nb.rows * LV_CELL }}>
+      // In the run's WORLD frame (runOrigin + the seam offset), so at a handoff this is the same
+      // number it was the frame before for every level that stays on screen.
+      return <div key={node.key} ref={runWrapperRef(node)} className="seamStrip" style={{ left: runOrigin.current.x + off.x, top: runOrigin.current.y + off.y, width: nb.cols * LV_CELL, height: nb.rows * LV_CELL }}>
         {layer(0)}
         {layer(1)}
         <div ref={live ? frontCellsRef : undefined} style={RUN_LAYER_STYLE}>{layer(2)}</div>
       </div>;
     });
   })();
-  const seamStripObjects = useMemo(() => {
-    if (!runNodeNow) return [];
-    const seams = runSeams(runRef.current, runNodeNow, LV_CELL), out = [];
-    for (const side of Object.keys(seams)) { const { level: nb, off } = seams[side]; for (const it of levelObjectsInDrawOrder(nb.fx || {})) { if (inSeamStrip(nb, side, it.r, it.c, it.o.size || 1)) out.push({ side, off, ...it }); } }
-    return out;
-  }, [runNodeNow]);
   // ALL THREE object render passes below walk levelObjectsInDrawOrder, not Object.keys(level.fx).
   // Same objects, but ordered by their own `z` instead of by when their cell key happened to enter
   // the map — that accident of key order was why a prop placed second could end up drawn behind
   // one placed first (see the note on objectZ). Within one layer rung the browser paints in DOM
   // order, so emitting them back-to-front here IS the stacking.
   const lvDrawOrder = useMemo(() => level && level.fx ? levelObjectsInDrawOrder(level.fx) : [], [level]);
-  const lvFxLayer = useMemo(() => level && level.fx ? <div style={CELL_LAYER_STYLE}>{lvDrawOrder.filter(({ o }) => !o.inFront && o.kind !== "prop").map(({ k, r, c, si, o, ord }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; })}</div> : null, [level, lvDrawOrder, play, lFxSel, lTool]);
+  // RUN — the objects on screen in a run, the live level's AND each neighbour's, per run node, for
+  // the ONE keyed object pass in the level render (see ONE LIST OF OBJECTS there). A neighbour
+  // contributes the objects whose footprint reaches into its seam strip: the camera never sees
+  // further into it than that. Its `ord` is its place in its OWN level's whole draw order, the same
+  // number it has while it is live, so its z-index does not change at the handoff either.
+  const runObjects = useMemo(() => {
+    if (!runNodeNow) return null;
+    const out = [{ nk: runNodeNow.key, off: { x: 0, y: 0 }, live: true, items: lvDrawOrder }];
+    const seams = runSeams(runRef.current, runNodeNow, LV_CELL);
+    for (const side of Object.keys(seams)) { const { level: nb, off, key } = seams[side]; out.push({ nk: key, off, live: false, items: levelObjectsInDrawOrder(nb.fx || {}).filter((it) => inSeamStrip(nb, side, it.r, it.c, it.o.size || 1)) }); }
+    return out;
+  }, [runNodeNow, lvDrawOrder]);
+  // Not built in a run, where the one object pass draws these too (the same gate as the tile memos).
+  const lvFxLayer = useMemo(() => level && level.fx && !runNodeNow ? <div style={CELL_LAYER_STYLE}>{lvDrawOrder.filter(({ o }) => !o.inFront && o.kind !== "prop").map(({ k, r, c, si, o, ord }) => { const sz = (o.size || 1) * LV_CELL; const eraseNow = !play && lTool === "erase"; return <div key={"x" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: sz, height: sz, ...objRotStyle(o), ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const s2 = (lv2.fx[k] || []).filter((_, i) => i !== si); const fx = { ...lv2.fx }; if (s2.length) fx[k] = s2; else delete fx[k]; return { ...lv2, fx }; }); } : undefined}>{objInner(o, sz)}</div>; })}</div> : null, [level, lvDrawOrder, play, lFxSel, lTool, runNodeNow]);
   // Prop objects (pixel-art assets) are pulled OUT of the memoized fx layer above and rendered in
   // a separate LIVE pass (see the level render body) — the memo runs before the component-scoped
   // prop renderer exists, and animated props need to redraw every frame in play anyway. This
@@ -10262,12 +10321,16 @@ export default function AssetStudio() {
     const seams = runSeams(runNow, runNodeLive, LV_CELL);
     // An open seam with a level behind it is not a wall — but only near its gate (gateLeavingThrough).
     const seamAt = (side, p, pw, ph) => !!(seams[side] && gateLeavingThrough(lv, side, p.x + pw / 2, p.y + ph / 2, LV_CELL));
+    let warmWait = RUN_WARM_HOLD_FRAMES; // this effect re-runs at every handoff, so each level starts with the hold
     // The handoff. The body's centre has crossed an edge through an open gate with a level behind
     // it: that level goes live. Position, camera and held keys are re-based into the neighbour's
     // frame by the seam offset, so nothing on screen moves — momentum, facing and crouch are
     // untouched, and the level being left is kept as it is now (fires painted, props landed) so
     // coming back through the same gate finds it unchanged. The loop effect re-runs with the new
     // level, the same way a door does.
+    // Every live per-level ref pointed at one level's bucket — here in the effect, and in
+    // seamHandoff so the swap render already reads the entered level's books (see there).
+    const pointLiveRefsAt = (b) => { pedestalRolls.current = b.rolls; pedestalDepleted.current = b.depleted; enemyHP.current = b.eHP; enemyPos.current = b.ePos; enemyDrops.current = b.drops; corpseStripped.current = b.stripped; hazLife.current = b.haz; enemyGearRolls.current = b.gear; };
     const seamHandoff = (side, p, pw, leavingGate) => {
       const seam = seams[side], nb = runNow.nodes[seam.key];
       // Dying in the level you are walking into puts you back at THIS gate's far side: E1 lands you
@@ -10290,6 +10353,10 @@ export default function AssetStudio() {
       releaseRunUnits(runNow, runNodeLive, roomState.current, unitSideOf, CW);
       p.x -= seam.off.x; p.y -= seam.off.y;
       camRef.current.x -= seam.off.x; camRef.current.y -= seam.off.y;
+      // ...and the level being entered is where it already was in the run's world frame, so the
+      // world origin moves the other way by the same amount: every level's wrapper, and .lgrid's
+      // transform, come out of the swap render with exactly the numbers they went in with.
+      runOrigin.current.x += seam.off.x; runOrigin.current.y += seam.off.y;
       // WHAT IS IN THE AIR COMES WITH YOU. Shots, grenades and blasts are in the live level's pixels,
       // and nothing re-based them: a bullet you fired at a dog across the gate was 4,800 px off in
       // the new frame at the handoff and deleted as off the level, and the effect re-run below
@@ -10304,6 +10371,15 @@ export default function AssetStudio() {
       resolveRunSides(runNow, nb, runNow.pool || levelLib);
       prepRunNeighbours(runNow, nb); // the level beyond this one gets its gear rolled before it is adopted
       adoptRunNeighbours(runNow, nb, roomState.current, CW);
+      // THE SWAP RENDER READS THE ENTERED LEVEL'S BOOKS. The loop effect points enemyPos / enemyHP /
+      // drops / gear at a level's bucket, but it runs AFTER the render the setLevel below causes, so
+      // that one render drew the entered level's spawn list against the LEFT level's positions:
+      // every unit missed its live state, was drawn at its spawn cell under a different React key
+      // for one frame, and was rebuilt again the frame after (measured on seed 7, M9 → M10: all four
+      // units in view torn down and rebuilt across the crossing), with the left level's loot drawn
+      // in the new level's pixels. Pointed here, now; the effect points them at the same objects.
+      const nbB = roomState.current[nb.key];
+      if (nbB) { if (!nbB.drops) nbB.drops = {}; if (!nbB.stripped) nbB.stripped = {}; if (!nbB.gear) nbB.gear = {}; if (!nbB.haz) nbB.haz = {}; pointLiveRefsAt(nbB); }
       runNow.curKey = nb.key;
       setDoorPrompt(null); setPedPrompt(null);
       setRunHud(runHudFor(runNow, nb));
@@ -10373,7 +10449,7 @@ export default function AssetStudio() {
     if (!_bkt.drops) _bkt.drops = {}; // migrate a bucket created earlier in this same hot-reloaded play session
     if (!_bkt.stripped) _bkt.stripped = {}; // same migration for looted-corpse art
     if (!_bkt.gear) _bkt.gear = {};    // and for gear-tag rolls
-    pedestalRolls.current = _bkt.rolls; pedestalDepleted.current = _bkt.depleted; enemyHP.current = _bkt.eHP; enemyPos.current = _bkt.ePos; enemyDrops.current = _bkt.drops; corpseStripped.current = _bkt.stripped; hazLife.current = _bkt.haz; enemyGearRolls.current = _bkt.gear;
+    pointLiveRefsAt(_bkt);
     // Seed each finite-life fire cell's countdown. Permanent cells (life 0) deliberately never
     // enter the ref, so alive() below treats them as always burning.
     // IMPORTANT: this effect re-runs mid-play whenever `level` changes — and it changes every
@@ -13078,6 +13154,11 @@ export default function AssetStudio() {
           if (el) { const want = gone ? "none" : ""; if (el.style.display !== want) el.style.display = want; }
         }
       }
+
+      // RUN — the level after next gets one step of its preparation every few frames (warmRunAhead),
+      // starting a moment after you arrive: a step can be a whole layer's tile runs, and the frames
+      // right after a handoff are the ones the crossing still has to keep smooth.
+      if (runNodeLive && --warmWait <= 0) { warmWait = RUN_WARM_EVERY_FRAMES; warmRunAhead(runNow, runNodeLive); }
 
       updateCamera(p, pw, ph, dtMul);
       commitFrame();
@@ -16446,6 +16527,9 @@ export default function AssetStudio() {
       camRef.current = { x: 0, y: 0, init: false };
     }
     const startLevel = runStart ? runStart.nodes[runStart.startKey].level : level;
+    // The run's world frame starts at its first level, and .lgrid keeps that level's box for the
+    // whole run — see THE WORLD NEVER MOVES AT A GATE, at the level render.
+    runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
     roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true };
     if (runStart) {
       const startNode = runStart.nodes[runStart.startKey];
@@ -16474,6 +16558,53 @@ export default function AssetStudio() {
       if (!b) { b = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, stripped: {}, haz: {}, gear: {} }; roomState.current[s.key] = b; }
       if (!b.gear) b.gear = {};
       for (const ek of Object.keys(s.level.enemies || {})) { const tag = spawnGearTagOf(s.level.enemies[ek]); if (tag && b.gear[ek] === undefined) b.gear[ek] = rollEnemyGear(allAssets, tag); }
+    }
+  };
+  // RUN — THE LEVEL AFTER NEXT IS GOT READY WHILE YOU WALK (2026-09-26). At a handoff the level
+  // beyond the one you enter becomes a neighbour: its tile runs are worked out for the staged mount,
+  // its units are adopted, and every unit that rolled a garment has its look composed (assembleLook,
+  // cached per look + item) the first time anything asks — which is the swap render itself. Timed
+  // on seed 7 into M8, 8.3 ms of that one render was composing M7's gear-rolled units, on the frame
+  // the crossing most needs to be cheap. The main chain's links are known from buildRun, so the
+  // level after next is known the moment you enter the one before it, and this does its work one
+  // step a frame while you cross the level in between (a walk of ~16 s; there are a few dozen
+  // steps). Only levels ALREADY LINKED are touched — nothing is resolved early, so a seed still
+  // builds the same run — and the gear rolls are the very roll-once rolls prepRunNeighbours makes
+  // (it finds them made and keeps them). A level with nothing left to do is remembered and skipped.
+  const runWarmDone = useRef(new WeakSet());
+  const warmRunNode = (far) => {
+    const lvl = far.level;
+    if (runWarmDone.current.has(lvl)) return false;
+    // 1) Its tile runs (the staged mount builds and mounts the elements later, a slice a frame).
+    const layers = [["bg", lvl.bg, cellRuns, buildRunBgTile], ["fg", lvl.fg, cellRuns, buildRunFgTile], ["front", lvl.front, Object.keys, buildRunFrontTile]];
+    for (const [kind, map, itemsOf, build] of layers) {
+      if (!map) continue;
+      const hit = RUN_TILE_CACHE[kind].get(map);
+      if (!hit || hit.texLib !== texLib) { cachedRunTiles(kind, map, texLib, itemsOf, build); return true; }
+    }
+    // 2) Its units' gear rolls, then the looks they compose into — one roll or one look a frame.
+    let b = roomState.current[far.key];
+    if (!b) { b = newLevelBucket(); roomState.current[far.key] = b; }
+    if (!b.gear) b.gear = {};
+    for (const ek of Object.keys(lvl.enemies || {})) {
+      const spawn = lvl.enemies[ek], tag = spawnGearTagOf(spawn);
+      if (tag && b.gear[ek] === undefined) { b.gear[ek] = rollEnemyGear(allAssets, tag); return true; }
+      const n0 = enemyGearLookCache.current.size;
+      liveEnemyAsset(ek, findA(spawn.enemyId), b.gear);
+      if (enemyGearLookCache.current.size > n0) return true;
+    }
+    runWarmDone.current.add(lvl);
+    return false;
+  };
+  const warmRunAhead = (run, node) => {
+    const seams = runSeams(run, node, LV_CELL);
+    const near = new Set([node.key, ...Object.values(seams).map((s) => s.key)]);
+    for (const s of Object.values(seams)) {
+      const links = (run.nodes[s.key] && run.nodes[s.key].links) || {};
+      for (const side of ["N", "E", "S", "W"]) {
+        const fk = links[side]; if (!fk || near.has(fk) || !run.nodes[fk]) continue;
+        if (warmRunNode(run.nodes[fk])) return;
+      }
     }
   };
   const newRunSeed = () => String(Math.floor(Math.random() * 1000000));
@@ -17987,18 +18118,67 @@ export default function AssetStudio() {
                 commitFrame, so it lands on the frame it was computed for). In the editor no transform
                 is emitted at all and the viewport scrolls exactly as it always has. */}
             <div ref={lscrollRef} className={"lscroll layer-" + lLayer + (play ? " playing" : "")}>
-              <div ref={lvRef} className={"lgrid" + (play ? " camera" : "") + (!play && lHidden.front ? " hideFront" : "") + (!play && lHidden.fg ? " hideFg" : "")} style={{ width: lvW, height: lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px", ...(play ? { transform: "translate3d(" + (-Math.round(camRef.current.x * 2) / 2) + "px, " + (-Math.round(camRef.current.y * 2) / 2) + "px, 0)" } : {}) }} onPointerDown={lvDown} onPointerMove={lvMove} onPointerUp={lvUp} onPointerCancel={lvUp} onPointerLeave={() => setLHoverCell(null)}>
+              {/* THE WORLD NEVER MOVES AT A GATE (2026-09-26). A run used to draw every level in the
+                  LIVE level's pixels: the live one at 0,0, its neighbours at their seam offsets, and
+                  .lgrid as big as the live level. So the handoff rewrote every wrapper's left/top by
+                  a whole level's width, resized .lgrid, and shifted the camera transform back by the
+                  same amount. Nothing moved on screen, but everything moved INSIDE .lgrid's
+                  compositor layer, and the browser re-rasterises everything that moves in its layer:
+                  every textured tile in view, on the one frame the crossing has to be cheap. The JS
+                  of that frame was measured and halved twice (4e88d75, c215305); the raster never
+                  was, because the test pane never paints, and on Blake's machine the frame IS paint
+                  (see the cutter-mask note). That was the stall he still felt at every gate.
+                  Now a run has a fixed world frame. runOrigin is where the live level sits in it
+                  (seamHandoff moves it by the seam offset while the position and camera move back),
+                  the wrappers sit at runOrigin + offset, the transform adds runOrigin, and .lgrid
+                  keeps the first level's box for the whole run. Everything else in the level is
+                  still drawn in the live level's pixels, inside .lvLive, which sits at runOrigin.
+                  .lvLive has no z-index and no transform, so it is NOT a stacking context: sprites,
+                  objects and Front cells keep interleaving on the z-ladder exactly as they did.
+                  Outside a run it is display:contents, i.e. not there at all. */}
+              <div ref={lvRef} className={"lgrid" + (play ? " camera" : "") + (runNodeNow ? " inRun" : "") + (!play && lHidden.front ? " hideFront" : "") + (!play && lHidden.fg ? " hideFg" : "")} style={{ width: runNodeNow ? runOrigin.current.w : lvW, height: runNodeNow ? runOrigin.current.h : lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px", ...(play ? { transform: "translate3d(" + (-Math.round((camRef.current.x + (runNodeNow ? runOrigin.current.x : 0)) * 2) / 2) + "px, " + (-Math.round((camRef.current.y + (runNodeNow ? runOrigin.current.y : 0)) * 2) / 2) + "px, 0)" } : {}) }} onPointerDown={lvDown} onPointerMove={lvMove} onPointerUp={lvUp} onPointerCancel={lvUp} onPointerLeave={() => setLHoverCell(null)}>
                 {runTiles || <>{lvBgLayer}{lvFgLayer}{lvFrontLayer}</>}
+                <div className="lvLive" style={runNodeNow ? { position: "absolute", left: runOrigin.current.x, top: runOrigin.current.y, width: lvW, height: lvH } : RUN_LAYER_STYLE}>
                 {layerMove && layerMove.levelId === lv.id && Object.keys(layerMove.cells).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"mv" + k} className="lcell moveSel" style={{ left: c * LV_CELL, top: r * LV_CELL }} />; })}
                 {/* 🔀 Move: the selection (following a drag as it goes), and the box being drawn. */}
                 {!play && lTool === "move" && areaSel && areaSel.levelId === lv.id && (() => { const dr = (areaDragView && areaDragView.dr) || 0, dc = (areaDragView && areaDragView.dc) || 0; return <div className="areaSel" style={{ left: (areaSel.c0 + dc) * LV_CELL, top: (areaSel.r0 + dr) * LV_CELL, width: (areaSel.c1 - areaSel.c0 + 1) * LV_CELL, height: (areaSel.r1 - areaSel.r0 + 1) * LV_CELL }} />; })()}
                 {!play && areaDragView && areaDragView.band && <div className="areaSel band" style={{ left: areaDragView.band.c0 * LV_CELL, top: areaDragView.band.r0 * LV_CELL, width: (areaDragView.band.c1 - areaDragView.band.c0 + 1) * LV_CELL, height: (areaDragView.band.r1 - areaDragView.band.r0 + 1) * LV_CELL }} />}
                 {lvFxLayer}
-                {lvPropMeta.map(({ o, si, r, c, k, ord }) => { const layout = levelObjectPixelLayout(o); if (offScreen(objNudgedLeft(o, c, LV_CELL), objNudgedTop(o, r, LV_CELL), layout.width, layout.height)) return null; const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
-                {/* RUN — objects of a neighbouring level whose footprint reaches into its seam strip,
-                    drawn static in that level's frame (offset by the seam), props and emoji alike.
-                    Same layer rung and draw order as they will have once that level goes live. */}
-                {play && seamStripObjects.map(({ side, off, o, si, r, c, k, ord }) => { const isProp = o.kind === "prop"; const layout = isProp ? levelObjectPixelLayout(o) : null; const sz = (o.size || 1) * LV_CELL; if (offScreen(off.x + objNudgedLeft(o, c, LV_CELL), off.y + objNudgedTop(o, r, LV_CELL), isProp ? layout.width : sz, isProp ? layout.height : sz)) return null; return <div key={"seam" + side + "_" + k + "_" + si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: off.x + objNudgedLeft(o, c, LV_CELL), top: off.y + objNudgedTop(o, r, LV_CELL), width: isProp ? layout.width : sz, height: isProp ? layout.height : sz, ...objRotStyle(o), pointerEvents: "none" }}>{isProp ? renderObj(o, layout.width, "seam" + side + "_" + k + "_" + si, pframe, layout.height, layout.box) : objInner(o, sz)}</div>; })}
+                {!runObjects && lvPropMeta.map(({ o, si, r, c, k, ord }) => { const layout = levelObjectPixelLayout(o); if (offScreen(objNudgedLeft(o, c, LV_CELL), objNudgedTop(o, r, LV_CELL), layout.width, layout.height)) return null; const eraseNow = !play && lTool === "erase"; const eraseProp = eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => removeLevelObject(lv2, k, si)); } : undefined; return <div key={"xp" + k + "_" + si} data-object-key={k} data-object-index={si} className={"lobj " + objectLayerClass(o) + (o.solid ? " solid" : "") + (lFxSel === k ? " insp" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, LV_CELL), top: objNudgedTop(o, r, LV_CELL), width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, layout.width, "xp" + k + "_" + si, pframe, layout.height, layout.box, eraseProp)}</div>; })}
+                {/* RUN — ONE LIST OF OBJECTS (2026-09-26). A run used to draw its objects in four
+                    passes: the live level's emoji, its props, its in-front objects, and a fourth
+                    pass for every neighbour's objects near the seam. So at a handoff every object
+                    near the gate you were walking through CHANGED PASS: the level you left had its
+                    objects unmounted from the live passes and rebuilt in the neighbour pass, and
+                    the level you entered the other way round. Measured on his seed-7 run, M10 → M9:
+                    31 objects built and 27 torn down on the swap frame, over more area than the
+                    whole view, and a Front object built fresh is a fresh compositor layer too.
+                    Now every object on screen in a run is one flat list keyed by run node + cell
+                    (runObjects): at a handoff an object keeps its element and only its left/top
+                    are re-based, while .lvLive moves the other way (see THE WORLD NEVER MOVES AT A
+                    GATE), so it does not move at all. Flat on purpose: a list of lists would put
+                    each level's objects under whichever slot its node had, and the slots reorder
+                    at every handoff. A neighbour's in-front objects fade when you stand behind them
+                    now too, the same rule as the live level's; and a grenade's flame prop there
+                    follows that level's own fire clock. Outside a run nothing here changes. */}
+                {runObjects && (() => {
+                  const p = player.current;
+                  const pShape = sideBodyShape(playerAsset);
+                  const pw = LV_CELL * PLAYER_RENDER_W_CELLS * pShape.fraction;
+                  const ph = p.crouch ? LV_CELL * PLAYER_CROUCH_H_CELLS : LV_CELL * PLAYER_H_CELLS;
+                  return runObjects.flatMap(({ nk, off, live, items }) => {
+                    const haz = live ? hazLife.current : ((roomState.current[nk] || {}).haz || {});
+                    return items.map(({ k, r, c, si, o, ord }) => {
+                      if (play && o._thrown && !hazardStillBurning(haz, k)) return null;
+                      const layout = levelObjectPixelLayout(o);
+                      const left = off.x + objNudgedLeft(o, c, LV_CELL), top = off.y + objNudgedTop(o, r, LV_CELL);
+                      if (offScreen(left, top, layout.width, layout.height)) return null;
+                      const key = "ro" + nk + "|" + k + "_" + si;
+                      const behind = play && o.inFront && p.x + pw > left && p.x < left + layout.width && p.y + ph > top && p.y < top + layout.height;
+                      return <div key={key} data-object-key={live ? k : undefined} data-object-index={live ? si : undefined} className={"lobj " + (o.inFront ? "infront " : "") + objectLayerClass(o) + (o.solid ? " solid" : "") + (behind ? " behindFade" : "")} style={{ zIndex: levelObjectZIndex(o, ord), left, top, width: layout.width, height: layout.height, ...objRotStyle(o), pointerEvents: "none", ...(o.inFront ? { opacity: behind ? 0.55 : 1, willChange: play ? "opacity" : undefined } : {}) }}>{renderObj(o, layout.width, key, pframe, layout.height, layout.box)}</div>;
+                    });
+                  });
+                })()}
                 {!play && lvClimbLayer}
                 {lvHazardLayer}
                 {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : m.kind === "sign" ? "💬 Sign · " + signSummary(m, dlgLib) + " · invisible in play until you stand on it · Erase tool: click to delete" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : m.kind === "sign" ? "💬" : "💎"}</div>; })}
@@ -18138,6 +18318,10 @@ export default function AssetStudio() {
                   // weapon too, so it stays rigidly attached instead of freezing in place.
                   const baseArmPiece = blocks && armOf(blocks);
                   const baseArmRot = baseArmPiece ? (baseArmPiece.rot || 0) : 0;
+                  // ...and the OTHER arm's, for a two-armed weapon's second forearm (the DK Arms'
+                  // twin, which rides this arm — see attachWeaponBlocksToArms).
+                  const baseTwinArm = blocks && twinArmOf(blocks, baseArmPiece);
+                  const baseTwinRot = baseTwinArm ? (baseTwinArm.rot || 0) : 0;
                   // A mirrored twin (created for non-side poses — e.g. Back, used while
                   // climbing) renders inside scaleX(-1), which visually REVERSES whatever
                   // rotation it's given. Every place below that turns the arm (or equipment
@@ -18369,7 +18553,7 @@ export default function AssetStudio() {
                       const firedNow = weaponPoseFired(isProjectile, p.firing, wpn.current);
                       const wpnAngles = firedNow ? weaponFireArt(wfit.states, angle) : (wfit.states.rest || blankAngles());
                       const wpnPieces = bake({ ...playtestWeapon, angles: wpnAngles }, angle);
-                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocks(wpnPieces, curArm, guideHand, baseArmRot));
+                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocksToArms(wpnPieces, curArm, twinArmOf(blocks, curArm), guideHand, baseArmRot, baseTwinRot));
                     }
                   }
                   // Carried throwable in hand: shown while aiming (G held) or during the brief
@@ -18389,7 +18573,7 @@ export default function AssetStudio() {
                       const useFire = p.throwFiring > 0;
                       const thrAngles = useFire ? weaponFireArt(tfit.states, angle) : (tfit.states.rest || blankAngles());
                       const thrPieces = bake({ ...carriedThrowRender, angles: thrAngles }, angle).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
-                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocks(thrPieces, curArm, guideHand, baseArmRot));
+                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocksToArms(thrPieces, curArm, twinArmOf(blocks, curArm), guideHand, baseArmRot, baseTwinRot));
                     }
                   }
                   const doorT = doorAnimProgress(p);
@@ -18490,8 +18674,9 @@ export default function AssetStudio() {
                 })()}
                 {/* Objects flagged "in front of player" always use their own higher layer — in the
                     editor as well as Playtest. Placement order only controls stacking among front
-                    objects or among back objects; it can never put a back bush over a front bush. */}
-                {(() => {
+                    objects or among back objects; it can never put a back bush over a front bush.
+                    In a run the ONE LIST OF OBJECTS above draws these, by the same rules. */}
+                {!runObjects && (() => {
                   const p = player.current;
                   const bodyShape = sideBodyShape(playerAsset);
                   const pw = LV_CELL * PLAYER_RENDER_W_CELLS * bodyShape.fraction; // matches the physics hitbox exactly
@@ -19109,6 +19294,7 @@ export default function AssetStudio() {
                     <div key={"traj" + i} style={{ position: "absolute", left: pt.x - 3, top: pt.y - 3, width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,.85)", boxShadow: "0 0 4px rgba(0,0,0,.6)", zIndex: 9000, pointerEvents: "none", opacity: Math.max(0.35, 1 - i / pts.length) }} />
                   ));
                 })()}
+                </div>
               </div>
               {/* 🎁 THE PICKUP BANNER (see showPickup). A sibling of .lgrid, NOT inside it: .lgrid is
                   translated by the camera, and the banner belongs to the VIEW — top-centre of what
@@ -20863,6 +21049,8 @@ html,body{margin:0;padding:0;background:#0f1117}
 .pbRows{display:flex;flex-direction:column;align-items:center;gap:2px;white-space:nowrap;font-family:'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:13px;font-weight:700;line-height:1.2;color:#fff;animation:pbRowsIn .35s .3s ease-out both}
 @keyframes pbRowsIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .seamStrip{position:absolute;pointer-events:none;background:inherit;background-size:inherit}
+.lgrid.inRun{background:none}
+.lgrid.inRun .seamStrip{background-color:#0e1018;background-image:linear-gradient(#1a1f2e 1px,transparent 1px),linear-gradient(90deg,#1a1f2e 1px,transparent 1px);background-size:30px 30px}
 .runhud{color:#ffd166;background:#1d1a12;border-color:#4a3f1e}
 .runhud .runnote{color:#c9a15a;font-weight:400}
 .runSeed{width:150px}
