@@ -2005,6 +2005,28 @@ except one. The close ones were also BEHIND the muzzle, which the cone skips (`d
   swinging over the Squirrel forever. A gunman keeps its range. Planted (`dxMove` 0, facing held),
   cancelled by a stun. You are never stomped: the player's box is the full 7-cell physics box.
 
+**🐈 CHAP CAT (`c4tch4p`) AND 🦁 LION (`l10n5ht`), 2026-09-27 — "a Cat Enemy, inspired by Chap cat,
+not too small but at stomp height", and "the cats attack should sort of paw at who it attacks".**
+* **STOMP HEIGHT IS A HARD BUDGET, and Scale spends it.** A unit's box is `heightFrac` of its Side
+  art × 7 cells × `scale`, and a stomp takes bodies ≤ 40% of the stomper's 210px = 84px, i.e. at
+  most **104 canvas units of Side art at scale 1**. The cat is 97.5 units = 78.7px (Squirrel 46,
+  Pit Bull 93+), so **its Scale past ~1.06 makes it unstompable**. HP 30 = one Str-5 stomp.
+* The head IS his Chap — Cat Head hat's (`ch4pc4t`) side pose, mirrored to face left and scaled
+  0.65: his pieces, colours and brights. Tuxedo body, four white socks.
+* **The swat is the drawn Attack pose, not an animation.** `eUseAtkPose` swaps it in for the 14
+  swing frames of each strike (~every 45), which reads as batting. 💪-flagged pieces in an Attack
+  pose never swing (the arm path is gated off by `eUseAtkPose`), and lifting that gate would start
+  swinging the Pika-Squirrel's attack arms, so it was left alone.
+* **Lion:** scale 1.25, 4.6 cells tall, drawn with its feet on **y=190, not 150** — its rear-up
+  otherwise left the top of the canvas (the ground comes from the art; the Elaphant stands at 242).
+* **Both walk on FOUR leg columns** (far legs at his far-ear bright 0.62). `multiLegPivot` fuses
+  leg pieces within 6 units of each other: the Lion's front paws sat exactly 6 apart and walked as
+  one leg until moved. Check the column split with the real export, not by eye.
+* Verified in Playtest: the cat swaps 31 → 36 pieces for 13-14 frames per strike ("Chap Cat hit you
+  for 10"); BoB's bare-hands press stomps it (22 stomp frames) and it dies in its death pose on the
+  floor; the same press beside the Lion punches (150 → 148), and the Lion's legs swing ±17.9° in
+  alternating columns on Seek.
+
 **THERE IS NO 👹 ENEMY FLAG ON A DRESSED LOOK ANY MORE, AND IT WAS REMOVED BECAUSE IT MADE
 DUPLICATES.** `isEnemy` used to decide which Dress Bob looks the Level Creator would offer as
 enemies, so wanting the same outfit as a fightable enemy meant saving it twice — and wanting that
