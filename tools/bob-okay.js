@@ -511,9 +511,20 @@ const serve = async () => {
     fs.mkdirSync(where.dir, { recursive: true });
     const { bad } = await folder.load();
     log("save folder " + where.dir + ": " + folder.count() + " records" + (bad ? ", " + bad + " unreadable (History used)" : ""));
-    const s = await folder.seedFromRepo(path.join(ROOT, "asset-data", "library.json"));
-    if (s.take || s.deleted) log("from the project file: " + s.take + " new or newer, " + s.deleted + " deleted");
+    await reseed();
     await sweep(folder);
+  }
+  // THE PROJECT FILE IS READ AGAIN AFTER EVERY UPDATE, not only at start. It used to be read here once,
+  // so an asset an agent delivered through library.json sat in the freshly built clone and never
+  // reached the folder while the keeper stayed up — the 5-minute update rebuilt the game around it
+  // and the game still could not see it. Harmless to repeat: seedFromRepo only takes a record the
+  // folder lacks or a strictly newer save, and a repo delete counts once (state.repoRemoved).
+  async function reseed() {
+    if (problem) return;
+    try {
+      const s = await folder.seedFromRepo(path.join(ROOT, "asset-data", "library.json"));
+      if (s.take || s.deleted) log("from the project file: " + s.take + " new or newer, " + s.deleted + " deleted");
+    } catch (e) { log("reading the project file failed: " + (e && e.message)); }
   }
   const info = () => ({ ok: !problem, keeper: true, saveDir: where.dir, problem, records: folder.lib ? folder.count() : 0, commit: (headSha() || "").slice(0, 7) });
 
@@ -522,7 +533,7 @@ const serve = async () => {
       const url = new URL(req.url, "http://localhost");
       const p = decodeURIComponent(url.pathname);
       if (p === "/__keeper") {
-        if (req.method === "POST" && url.searchParams.get("do") === "update") { const r = await update(); send(res, 200, { ...info(), build: r.build }); if (keeperRestart) setTimeout(() => keeperRestart(), 500); return; }
+        if (req.method === "POST" && url.searchParams.get("do") === "update") { const r = await update(); await reseed(); send(res, 200, { ...info(), build: r.build }); if (keeperRestart) setTimeout(() => keeperRestart(), 500); return; }
         return send(res, 200, info());
       }
       if (p === "/__library") {
@@ -565,7 +576,7 @@ const serve = async () => {
     spawn(process.execPath, [__filename, "serve"], { cwd: ROOT, detached: true, stdio: "ignore", windowsHide: true, env: process.env }).unref();
     process.exit(0);
   };
-  setInterval(() => { update().then(restartIfNewCode); }, 5 * 60 * 1000).unref();
+  setInterval(() => { update().then(reseed).then(restartIfNewCode); }, 5 * 60 * 1000).unref();
   keeperRestart = restartIfNewCode;
   return server;
 };
