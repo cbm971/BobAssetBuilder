@@ -2336,7 +2336,8 @@ export const enemyEquippedGear = (ea, findAsset, spawn) => {
   // the jacket you can see on the body is the one thing you cannot loot off it. It also covers the
   // unit that cannot WEAR what it rolled (an animal, a turret): the coat is still on the body as
   // far as the loot is concerned, it just was never drawn on it.
-  add(resolve(spawn && spawn.wearId, null));
+  // `wearId` is the one-garment spelling from before a placement could roll three.
+  if (spawn) for (const id of [spawn.wearId, ...(spawn.wearIds || [])]) add(resolve(id, null));
   const slots = (ea.recipe && ea.recipe.slots) || {};
   const worn = (ea.components && ea.components.equipment) || {};
   for (const s of new Set([...Object.keys(slots), ...Object.keys(worn)])) add(resolve(slots[s], worn[s]));
@@ -3546,7 +3547,7 @@ export const characterPickerGroups = (assets, { bodies = false, enemiesFirst = f
   const ofType = (t) => (assets || []).filter((a) => a && a.type === t).sort(byName);
   const looks = groupLooks(assets).map((g) => ({ key: "look:" + g.key, label: g.label, icon: g.key === propCatKey(PROP_UNCAT) ? "📦" : "📂", items: g.props }));
   const en = ofType("enemy"), bd = bodies ? ofType("body") : [];
-  const enemyGroup = en.length ? [{ key: "__enemies", label: "Enemies", icon: "👹", items: en }] : [];
+  const enemyGroup = en.length ? [{ key: "__enemies", label: ENEMY_FOLDER_LABEL, icon: "👹", items: en }] : [];
   const bodyGroup = bd.length ? [{ key: "__bodies", label: "Bodies", icon: "🧍", items: bd }] : [];
   return enemiesFirst ? [...enemyGroup, ...bodyGroup, ...looks] : [...bodyGroup, ...looks, ...enemyGroup];
 };
@@ -3877,7 +3878,7 @@ export const enemyThrowCarry = (spawn) =>
    pedestal. A pedestal can hand you a potion because you drink it; an enemy is being asked what it
    CARRIES, and a rifleman holding a health tonic where his rifle should be is the pool being
    wrong, not the roll. Same split enemyGearDropPool already draws for loot. */
-export const spawnGearTagOf = (spawn) => ((spawn && spawn.gearTag) || "").trim();
+export const spawnGearTagOf = (spawn) => spawnGearTagsOf(spawn)[0] || "";
 export const enemyGearTagPool = (assets, tag) => (tag || "").trim() ? enemyGearDropPool(pedestalItemPool(assets, [tag], "or")) : [];
 export const rollEnemyGear = (assets, tag, rnd) => {
   const pool = enemyGearTagPool(assets, tag);
@@ -3885,6 +3886,85 @@ export const rollEnemyGear = (assets, tag, rnd) => {
   const r = typeof rnd === "number" ? rnd : Math.random();
   return pool[Math.min(pool.length - 1, Math.floor(r * pool.length))];
 };
+/* 🎲 UP TO THREE ROLLS PER PLACEMENT (Blake, 2026-09-27: "That should be increased to up to 3
+   random items"). A placement carries `gearTags`, up to SPAWN_GEAR_TAGS_MAX of them, and each tag
+   is its own roll — so "T1 / jacket / hat" is a gun, a coat and a hat, and "Trailor" typed three
+   times is three different things out of one pool. The single `gearTag` every level saved before
+   this carries is still read, as a list of one, so nothing already placed changes.
+
+   THE ROLLS NEVER FIGHT OVER ONE SLOT. A unit has one hand, one grenade slot and one of each
+   garment slot, so a second gun could only ever replace the first, and the loot would then drop
+   a rifle nobody saw it carry. Each roll is made from its tag's pool MINUS whatever a roll before
+   it already filled (gearRollSlot), which is also what makes the same tag typed twice two
+   different items instead of a coin flip on getting the same one again. A roll with nothing left
+   to pick adds nothing: fewer than three is fine, a clash is not. */
+export const SPAWN_GEAR_TAGS_MAX = 3;
+export const spawnGearTagsOf = (spawn) => {
+  if (!spawn) return [];
+  const raw = Array.isArray(spawn.gearTags) ? spawn.gearTags : [spawn.gearTag];
+  return raw.map((t) => (typeof t === "string" ? t.trim() : "")).filter(Boolean).slice(0, SPAWN_GEAR_TAGS_MAX);
+};
+export const gearRollSlot = (a) => a.type === "weapon"
+  ? (isThrowable(a.wtype) ? "throw" : "hand")
+  : a.slot ? "wear:" + a.slot : "item:" + a.id;
+// `rnd`: a number (every roll), an array (one per tag, for the tests) or nothing (Math.random).
+export const rollEnemyGearSet = (assets, tags, rnd) => {
+  const out = [], taken = new Set();
+  (tags || []).forEach((tag, i) => {
+    const pool = enemyGearTagPool(assets, tag).filter((a) => !taken.has(gearRollSlot(a)));
+    if (!pool.length) return;
+    const n = Array.isArray(rnd) ? rnd[i] : rnd;
+    const r = typeof n === "number" ? n : Math.random();
+    const a = pool[Math.min(pool.length - 1, Math.floor(r * pool.length))];
+    taken.add(gearRollSlot(a)); out.push(a);
+  });
+  return out;
+};
+/* 🎲 A PLACEMENT CAN BE "ANY ONE OF THESE" INSTEAD OF ONE CHARACTER (Blake, 2026-09-27: "random
+   spawn by tag … if it spawned Trailor it can make the potential enemies spawned more random and
+   allow me to delete dressed assets"). The tag is the 📂 category a dressed look is already filed
+   under — the very folders the 👹 Enemy picker lists — so a placement set to "Trailor" becomes one
+   of Bobbi, Bobby, Billy… each time the level is entered, and pairs with the gear rolls above to
+   make a crowd out of a handful of looks. It also means a look can be DELETED without leaving a
+   hole in a level: a tag placement names no look, it asks the library who is in the folder now.
+
+   The animals (Enemy-creator assets) have no folder of their own, so they answer to the picker's
+   "Enemies" folder name, exactly as the picker files them — and to a category, if one ever has one. */
+export const ENEMY_FOLDER_LABEL = "Enemies";
+// The 👹 Enemy picker's value when "🎲 Any in <folder>" is chosen instead of one character: this
+// prefix plus the folder's name. Never saved — painting turns it into the spawn's `enemyTag`.
+export const ENEMY_TAG_PICK = "🎲tag:";
+export const spawnEnemyTagOf = (spawn) => ((spawn && typeof spawn.enemyTag === "string" && spawn.enemyTag) || "").trim();
+export const enemyTagPool = (assets, tag) => {
+  const key = propCatKey(tag);
+  if (!key) return [];
+  const byName = (x, y) => NAME_COLLATOR.compare(x.name || "", y.name || "");
+  return (assets || []).filter((a) => a && (
+    (a.type === "character" && propCatKey(propCat(a)) === key) ||
+    (a.type === "enemy" && (key === propCatKey(ENEMY_FOLDER_LABEL) || (typeof a.category === "string" && propCatKey(a.category) === key)))
+  )).sort(byName);
+};
+// Everything one placement rolls when its level is entered, as ONE record — the character (for a
+// tag placement) and the gear — so a unit handed from one level's books to another's (moveRunUnit)
+// carries both under its one key. Undefined when the placement rolls nothing at all: that spawn
+// never enters the map, which keeps every level saved before rolls existed on its old path.
+export const spawnRolls = (spawn) => !!(spawn && (spawnEnemyTagOf(spawn) || spawnGearTagsOf(spawn).length));
+export const rollSpawn = (assets, spawn, rnd) => {
+  if (!spawnRolls(spawn)) return undefined;
+  const tag = spawnEnemyTagOf(spawn);
+  let enemyId = null;
+  if (tag) {
+    const pool = enemyTagPool(assets, tag);
+    const r = typeof rnd === "number" ? rnd : Math.random();
+    if (pool.length) enemyId = pool[Math.min(pool.length - 1, Math.floor(r * pool.length))].id;
+  }
+  return { enemyId, items: rollEnemyGearSet(assets, spawnGearTagsOf(spawn), rnd) };
+};
+// Who a placement IS: its one look, or — for a tag placement — who its roll picked (null until it
+// has rolled, or when the folder is empty, and a null draws and fights as nobody).
+export const spawnEnemyIdOf = (spawn, roll) => spawn
+  ? (spawnEnemyTagOf(spawn) ? ((roll && roll.enemyId) || null) : spawn.enemyId)
+  : null;
 /* WHAT THE ROLL PRODUCED IS FOLDED BACK INTO THE PLACEMENT, and every existing reader then works
    unchanged. spawnWeaponIdOf hands the AI loop, the living sprite, the corpse and the loot roll
    the rolled gun without any of the four learning what a tag is, and spawnOverridesWeapon goes
@@ -3898,17 +3978,23 @@ export const rollEnemyGear = (assets, tag, rnd) => {
    blank. Nothing rolled (no tag, or a tag nothing matches) returns the placement UNTOUCHED, so
    every level already saved is byte-identical through here.
 
-   A rolled GARMENT cannot ride in the weapon field, so it rides in its own (`wearId`): read by
-   enemyEquippedGear so the body drops it, and by the render, which re-composes the look wearing
-   it. A rolled GRENADE lands in the throw slot for the same reason that slot exists at all — a
-   rifle and a grenade are not competing for the same hand. */
+   A rolled GARMENT cannot ride in the weapon field, so it rides in its own (`wearIds`, one per
+   garment since a placement can roll three): read by enemyEquippedGear so the body drops it, and
+   by the render, which re-composes the look wearing it. A rolled GRENADE lands in the throw slot
+   for the same reason that slot exists at all — a rifle and a grenade are not competing for the
+   same hand. `rolled` is one item or the list rollEnemyGearSet makes. */
 export const spawnWithRolledGear = (spawn, rolled) => {
-  if (!spawn || !rolled) return spawn;
-  if (rolled.type === "weapon") return isThrowable(rolled.wtype)
-    ? { ...spawn, throwId: rolled.id, throwCount: spawn.throwCount ?? ENEMY_THROW_CARRY_DEFAULT }
-    : { ...spawn, weaponId: rolled.id };
-  if (rolled.type === "equipment" && rolled.slot) return { ...spawn, wearId: rolled.id };
-  return spawn;
+  const list = Array.isArray(rolled) ? rolled : rolled ? [rolled] : [];
+  if (!spawn || !list.length) return spawn;
+  let out = spawn;
+  for (const a of list) {
+    if (!a) continue;
+    if (a.type === "weapon") out = isThrowable(a.wtype)
+      ? { ...out, throwId: a.id, throwCount: out.throwCount ?? ENEMY_THROW_CARRY_DEFAULT }
+      : { ...out, weaponId: a.id };
+    else if (a.type === "equipment" && a.slot) out = { ...out, wearIds: [...(out.wearIds || []), a.id] };
+  }
+  return out;
 };
 // ── When a unit lets one fly ─────────────────────────────────────────────────────────────────
 // A grenade is a mid-range answer, so it is gated at both ends. Too close and it goes off in the
@@ -4251,21 +4337,26 @@ export const pickupChangeRows = (item, ctx) => {
 // How long the pickup banner stays up. Matches the pbLife keyframes in the sheet (which fade it
 // out over their last quarter), so the element is gone the moment it has finished disappearing.
 export const PICKUP_BANNER_MS = 2600;
-// THE GAME'S TWO DISPLAY FONTS, from Google Fonts: Bungee (the pickup banner's name — chunky,
-// arcade-sign, "semi retro") and Chakra Petch (the stat and ability rows — squared-off and easy to
-// read small). Loaded by a <link> the first time the studio mounts rather than an @import in the
+// THE GAME'S TWO DISPLAY FONTS, from Google Fonts: Shrikhand (the pickup banner's name — a heavy,
+// slanted 60s/70s poster face) and Chakra Petch (the stat and ability rows — squared-off and easy
+// to read small). The banner was Bungee until 2026-09-27, when Blake asked for something "less
+// generic … I feel I see that one elsewhere often. But something with the same action packed
+// vibe": a dozen display faces were set in the real banner (gradient, outline, 3-D drop) side by
+// side, and Shrikhand kept the weight and read as motion — it leans — and it belongs to the
+// game's own era, where Bungee reads as any modern arcade overlay.
+// Loaded by a <link> the first time the studio mounts rather than an @import in the
 // sheet, because an @import only works as a sheet's very first rule and this one is one big
 // template literal that other code appends to. Both are asked for up front (document.fonts.load)
 // so the first banner of a run does not flash up in the fallback face and then swap. Offline, every
 // rule that names them falls back to a heavy system face and nothing else changes.
-const GAME_FONTS_HREF = "https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@600;700&display=swap";
+const GAME_FONTS_HREF = "https://fonts.googleapis.com/css2?family=Shrikhand&family=Chakra+Petch:wght@600;700&display=swap";
 const loadGameFonts = () => {
   if (typeof document === "undefined" || !document.head || document.getElementById("bobGameFonts")) return;
   const l = document.createElement("link");
   l.id = "bobGameFonts"; l.rel = "stylesheet"; l.href = GAME_FONTS_HREF;
   // The sample text matters: each family is split into unicode-range subsets, and load() fetches
   // only the subset covering the text it is given — "A" is the Latin one every name is written in.
-  l.onload = () => { try { if (document.fonts) { document.fonts.load("40px Bungee", "A"); document.fonts.load("700 13px 'Chakra Petch'", "A"); } } catch (e) { /* a font that will not load just leaves the fallback */ } };
+  l.onload = () => { try { if (document.fonts) { document.fonts.load("40px Shrikhand", "A"); document.fonts.load("700 13px 'Chakra Petch'", "A"); } } catch (e) { /* a font that will not load just leaves the fallback */ } };
   document.head.appendChild(l);
 };
 // One effect-animation frame — the SAME 5-pose shape normal art uses, so it can be edited with
@@ -9001,6 +9092,17 @@ export const LAYER_BAND = 899; // objects per rung before the band would run int
 // down. Pinned to a constant rather than the bare 6000 it used to carry, because that number was
 // only ever "one rung above the player" and silently became "above every Front prop" otherwise.
 export const CORPSE_Z = 5050;
+// THE WORDS THAT FLOAT IN THE ROOM GO BEHIND THE FRONT LAYER TOO (Blake, 2026-09-27: "There is
+// item text and dialogue emojis going through front layer"). A pedestal's item name, the
+// E ⇄ take callout, the loot lying on the ground and "E Talk to The Chaplin" all sat at 7000–9600,
+// over Front paint (6000), so in M6 the Chaplin was hidden behind the church wall while his talk
+// prompt hung on the wall's face, and M3's pedestal named its item through the trailer. They are
+// part of the scene, like the 💬 over a waiting NPC (UNIT_STATUS_Z) that already hid correctly: each
+// now sits in the gap above the units, corpses and HP bars (5000–5062) and below Front props
+// (5101+) and Front paint, in the order they stacked before — drops, then labels, then talk. The
+// door prompt keeps its 9500 (a door is usually IN the Front wall), and the conversation bubble
+// its 9600 (once you are talking, the conversation is the screen).
+export const SCENE_LABEL_Z = { drop: 5063, label: 5070, talk: 5080 };
 // A UNIT'S HP BAR RISES WHILE IT IS TAKING DAMAGE. Every .unitStatus used to sit on one z (5060),
 // so in a crowd the bars stacked in spawn order and the one actually draining was as likely as
 // not to be hidden under a full green bar belonging to somebody behind it — Blake: "whatever HP
@@ -9430,7 +9532,7 @@ export default function AssetStudio() {
   const [lEnemyWeapon, setLEnemyWeapon] = useState("");   // weapon stamped onto newly-placed enemies: "" = the look's own, SPAWN_WEAPON_NONE = bare hands, else a weapon id (spawnWeaponIdOf)
   const [lEnemyThrow, setLEnemyThrow] = useState("");     // throwable stamped onto newly-placed enemies — its own slot, so a rifleman can also lob grenades
   const [lEnemyThrowN, setLEnemyThrowN] = useState(ENEMY_THROW_CARRY_DEFAULT); // how many of it that placement starts the level with
-  const [lEnemyGear, setLEnemyGear] = useState("");       // item category stamped onto newly-placed enemies as `gearTag` — blank = no roll, the placement carries exactly what the pickers say (spawnGearTagOf)
+  const [lEnemyGear, setLEnemyGear] = useState(["", "", ""]); // up to SPAWN_GEAR_TAGS_MAX item categories stamped onto newly-placed enemies as `gearTags`, one roll each — all blank = no roll, the placement carries exactly what the pickers say (spawnGearTagsOf)
   const [lSel, setLSel] = useState(null);              // selected connector key
   const [gen, setGen] = useState(null);                // generated chain preview
   const [play, setPlay] = useState(false);             // playtest mode
@@ -10187,7 +10289,7 @@ export default function AssetStudio() {
     const [r, c] = t.key.split(",").map(Number);
     if (t.kind === "npc") {
       const ep = enemyPos.current[t.key];
-      const ea = liveEnemyAsset(t.key, findA(((level && level.enemies && level.enemies[t.key]) || {}).enemyId));
+      const ea = unitAssetAt(t.key, level && level.enemies && level.enemies[t.key]);
       if (ep && ea) {
         const shape = sideBodyShape(ea), renderW = enemyRenderW(ea, LV_CELL);
         const h = ep.crouch ? enemyCrouchH(ea, LV_CELL) : enemyStandH(ea, LV_CELL);
@@ -10270,7 +10372,7 @@ export default function AssetStudio() {
         const base = findA(playerId);
         const merged = mergeEquip(base, equipped.current, equippedBodyIdFor(base));
         const bonus = allyMaxHPBonus(merged && merged.effects);
-        const ea = liveEnemyAsset(t.key, findA(((level && level.enemies && level.enemies[t.key]) || {}).enemyId));
+        const ea = unitAssetAt(t.key, level && level.enemies && level.enemies[t.key]);
         const cur = enemyHP.current[t.key] === undefined ? enemyMaxHP(ea) : enemyHP.current[t.key];
         const res = applyAllyHPBonus(cur, enemyMaxHP(ea), bonus, ep.allyHpGranted);
         enemyHP.current[t.key] = res.hp; ep.allyHpGranted = res.granted;
@@ -10318,7 +10420,7 @@ export default function AssetStudio() {
     const bonus = allyMaxHPBonus(afterAsset && afterAsset.effects);
     for (const ak of Object.keys(enemies || {})) {
       const aep = enemyPos.current[ak]; if (!aep || !aep.friendly) continue;
-      const aea = liveEnemyAsset(ak, findA(enemies[ak].enemyId)); if (!aea) continue;
+      const aea = unitAssetAt(ak, enemies[ak]); if (!aea) continue;
       const curA = enemyHP.current[ak] === undefined ? enemyMaxHP(aea) : enemyHP.current[ak];
       const res = applyAllyHPBonus(curA, enemyMaxHP(aea), bonus, aep.allyHpGranted);
       enemyHP.current[ak] = res.hp; aep.allyHpGranted = res.granted;
@@ -10697,7 +10799,7 @@ export default function AssetStudio() {
     // coat he rolled when you come back through the door — and so the four readers of a spawn's
     // weapon can never disagree about which gun he rolled. A spawn with no tag never enters the
     // map, which is what keeps every level built before this untouched. Only ▶ Playtest re-rolls.
-    if (lv.enemies) for (const _ek in lv.enemies) { if (spawnGearTagOf(lv.enemies[_ek]) && enemyGearRolls.current[_ek] === undefined) enemyGearRolls.current[_ek] = rollEnemyGear(allAssets, spawnGearTagOf(lv.enemies[_ek])); }
+    if (lv.enemies) for (const _ek in lv.enemies) { if (spawnRolls(lv.enemies[_ek]) && enemyGearRolls.current[_ek] === undefined) enemyGearRolls.current[_ek] = rollSpawn(allAssets, lv.enemies[_ek]); }
     // A hazard cell is still burning if it's permanent (never entered the ref) or its countdown
     // hasn't hit zero. Shared by the damage sampler and the visual, so they can't disagree.
     const hazardAlive = (key) => hazardStillBurning(hazLife.current, key);
@@ -10755,7 +10857,7 @@ export default function AssetStudio() {
     // Which neighbour a unit stands in (null = this level), by the centre of its box — asked by the
     // handoff (releaseRunUnits) to give every unit back to the level it is standing in.
     const unitSideOf = (k) => {
-      const spawn = lv.enemies && lv.enemies[k], ep = enemyPos.current[k], ea = spawn ? findA(spawn.enemyId) : null;
+      const spawn = lv.enemies && lv.enemies[k], ep = enemyPos.current[k], ea = spawn ? findA(spawnEnemyIdAt(k, spawn)) : null;
       let cx, cy;
       if (ep) { cx = ep.x + (ea ? unitBoxW(ea) : CW) / 2; cy = ep.y + (ea ? enemyStandH(ea, CW) : CH) / 2; }
       else { const i = k.indexOf(","); cx = (+k.slice(i + 1) + 0.5) * CW; cy = (+k.slice(0, i) + 0.5) * CH; }
@@ -10953,7 +11055,7 @@ export default function AssetStudio() {
         for (const k of Object.keys(lv.enemies || {})) {
           if (k === skipKey) continue;
           const spawnA = liveSpawnAt(k, lv.enemies[k]);
-          const ea = liveEnemyAsset(k, findA(spawnA.enemyId)); if (!ea) continue;
+          const ea = unitAssetAt(k, spawnA); if (!ea) continue;
           const ep = enemyPos.current[k]; if (!ep) continue;
           const hp = enemyHP.current[k] === undefined ? enemyMaxHP(ea) : enemyHP.current[k];
           const eligible = foe ? (!!ep.friendly && hp > 0) : resurrect ? canResurrect(hp, ep) : (hp > 0 && !ep.friendly && !unitTalkImmune(ep));
@@ -11507,7 +11609,7 @@ export default function AssetStudio() {
             // stops a tall body snapping UP onto terrain it merely overlaps). Once landed we set
             // restedDead and stop simulating, so a settled body costs nothing per frame.
             const dep = enemyPos.current[k];
-            const dea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId));
+            const dea = unitAssetAt(k, lv.enemies[k]);
             // Killed mid-duck: stand the body back up to full height about its FEET before it lies
             // down. A corpse in its crouch-height box was drawn squashed (the deformed sleeve — see
             // the corpse render), and everything that boxes a corpse — capture, resurrect, loot —
@@ -11530,7 +11632,7 @@ export default function AssetStudio() {
             continue; // defeated: nothing else about it updates
           }
           const spawn = liveSpawnAt(k, lv.enemies[k]);
-          const ea = liveEnemyAsset(k, findA(spawn.enemyId));
+          const ea = unitAssetAt(k, spawn);
           if (!ea) continue;
           const [er, ec] = k.split(",").map(Number);
           const eShape = sideBodyShape(ea);
@@ -11690,7 +11792,7 @@ export default function AssetStudio() {
             for (const k2 of Object.keys(lv.enemies)) {
               if (k2 === k) continue;
               const ep2 = enemyPos.current[k2]; if (!ep2) continue;
-              const ea2 = liveEnemyAsset(k2, findA(lv.enemies[k2].enemyId)); if (!ea2) continue;
+              const ea2 = unitAssetAt(k2, lv.enemies[k2]); if (!ea2) continue;
               if (enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) continue; // corpse
               const s2 = unitSide(ea2, ep2);
               if (wantFriendly ? (s2 === "friendly") : (s2 === "hostile")) out.push({ key: k2, cx: unitCenter(ea2, ep2), ea: ea2, ep: ep2 });
@@ -12486,7 +12588,7 @@ export default function AssetStudio() {
                 for (const b of swingBoxes) {
                   for (const k of Object.keys(lv.enemies || {})) {
                     const ep = enemyPos.current[k];
-                    const ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId));
+                    const ea = unitAssetAt(k, lv.enemies[k]);
                     if (!ea || !ep) continue;
                     const hp = enemyHP.current[k] === undefined ? (enemyMaxHP(ea)) : enemyHP.current[k];
                     if (!canResurrect(hp, ep)) continue;
@@ -12522,7 +12624,7 @@ export default function AssetStudio() {
                 for (const k of Object.keys(lv.enemies || {})) {
                   if (p.swingHits[k]) continue; // already struck by THIS swing — one hit per body per stroke, however many pieces or frames overlap it
                   const spawn = liveSpawnAt(k, lv.enemies[k]);
-                  const ea = liveEnemyAsset(k, findA(spawn.enemyId));
+                  const ea = unitAssetAt(k, spawn);
                   if (!ea) continue;
                   if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
                   if (enemyHP.current[k] <= 0) continue; // already defeated
@@ -12596,7 +12698,7 @@ export default function AssetStudio() {
             if (!k || p.stomp.hits[k]) continue;
             const ep = enemyPos.current[k];
             if (unitUntouchable(ep)) continue; // 🐱 mid-revive, exactly as the swing skips it
-            const ea = liveEnemyAsset(k, findA(liveSpawnAt(k, lv.enemies[k]).enemyId));
+            const ea = unitAssetAt(k, lv.enemies[k]);
             if (!ea) continue;
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             if (enemyHP.current[k] <= 0) continue;
@@ -12668,7 +12770,7 @@ export default function AssetStudio() {
               // landing somewhere behind you, which is the bug the impact test exists to fix.
               if (blastHitsBox(g.x, g.y, p.x, p.y, pw, ph, impactRadPx)) struck.push({ kind: "player" });
               for (const k of Object.keys(lv.enemies || {})) {
-                const ea2 = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea2) continue;
+                const ea2 = unitAssetAt(k, lv.enemies[k]); if (!ea2) continue;
                 const ep2 = enemyPos.current[k]; if (!ep2 || !ep2.friendly) continue; // a foe's grenade catches YOUR side, and the throwers are immune to their own
                 if (enemyHP.current[k] === undefined) enemyHP.current[k] = unitMaxHP(ea2, ep2, allyHpBonus);
                 if (enemyHP.current[k] <= 0) continue;
@@ -12677,7 +12779,7 @@ export default function AssetStudio() {
               }
             } else {
               for (const k of Object.keys(lv.enemies || {})) {
-                const ea2 = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea2) continue;
+                const ea2 = unitAssetAt(k, lv.enemies[k]); if (!ea2) continue;
                 if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea2);
                 if (enemyHP.current[k] <= 0) continue;
                 const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly || unitTalkImmune(ep2)) continue; // your own allies aren't pelted, and neither is anyone you haven't picked a fight with
@@ -12717,7 +12819,7 @@ export default function AssetStudio() {
           if (!offLevel && !g.foe && captureCount(g.asset) > 0) {
             const contactRadPx = THROW_IMPACT_RADIUS_CELLS * CW;   // the same "that is contact" reach the impact test uses
             for (const k of Object.keys(lv.enemies || {})) {
-              const ea2 = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea2) continue;
+              const ea2 = unitAssetAt(k, lv.enemies[k]); if (!ea2) continue;
               const ep2 = enemyPos.current[k]; if (!ep2) continue;
               // Read HP without seeding it: an untouched enemy is at full health and therefore not
               // catchable anyway, and writing enemyHP here would stamp a body count onto every
@@ -12820,7 +12922,7 @@ export default function AssetStudio() {
               // by any other stun. Your allies are caught in it too; the thrower's side is not.
               if (blastHitsBox(g.x, g.y, p.x, p.y, pw, ph, stunRadPx)) { stunPlayer(p, stunSecs); stunnedCount++; }
               for (const k of Object.keys(lv.enemies || {})) {
-                const ea2 = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea2) continue;
+                const ea2 = unitAssetAt(k, lv.enemies[k]); if (!ea2) continue;
                 const ep2 = enemyPos.current[k]; if (!ep2 || !ep2.friendly) continue;
                 if (!(enemyHP.current[k] > 0)) continue;
                 const b = stunBoxOf(ea2, ep2);
@@ -12831,7 +12933,7 @@ export default function AssetStudio() {
               }
             } else {
               for (const k of Object.keys(lv.enemies || {})) {
-                const ea2 = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea2) continue;
+                const ea2 = unitAssetAt(k, lv.enemies[k]); if (!ea2) continue;
                 if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea2);
                 if (enemyHP.current[k] <= 0) continue;
                 const ep2 = enemyPos.current[k]; if (!ep2 || ep2.friendly || unitTalkImmune(ep2)) continue; // your own resurrected allies aren't shocked, nor is a talkable NPC — a stun IS something landing on them
@@ -12860,7 +12962,7 @@ export default function AssetStudio() {
             const capRadPx = throwStunRadiusCells(radius) * CW; // one shared "how far a landed payload reaches" rule
             const inRange = [];
             for (const k of Object.keys(lv.enemies || {})) {
-              const ea2 = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea2) continue;
+              const ea2 = unitAssetAt(k, lv.enemies[k]); if (!ea2) continue;
               const ep2 = enemyPos.current[k]; if (!ep2) continue;
               const hp2 = enemyHP.current[k] === undefined ? enemyMaxHP(ea2) : enemyHP.current[k];
               if (!canCapture(ea2, hp2, ep2)) continue;
@@ -12941,14 +13043,14 @@ export default function AssetStudio() {
             }
             for (const k of Object.keys(lv.enemies || {})) {
               const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0) || unitUntouchable(ep)) continue;
-              const ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea) continue;
+              const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
               const bx = enemyBlastBox(ea, ep);
               if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) enemyHP.current[k] = Math.max(0, enemyHP.current[k] - Math.max(1, baseDmg));
             }
           } else {
             let hits = 0;
             for (const k of Object.keys(lv.enemies || {})) {
-              const ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea) continue;
+              const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
               if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
               if (enemyHP.current[k] <= 0) continue;
               const ep = enemyPos.current[k]; if (!ep || ep.friendly || unitTalkImmune(ep) || unitUntouchable(ep)) continue; // an explosion sweeps a room, and a bystander in it is exactly who this must not catch — nor one mid-🐱-revive
@@ -13025,7 +13127,7 @@ export default function AssetStudio() {
             for (const k of Object.keys(lv.enemies || {})) {
               const ep = enemyPos.current[k]; if (!ep || !ep.friendly) continue;
               if (enemyHP.current[k] === undefined || enemyHP.current[k] <= 0) continue;
-              const ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea) continue;
+              const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
               const eShape = sideBodyShape(ea);
               const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
               const eph = ep && ep.crouch ? enemyCrouchH(ea, CW) : enemyStandH(ea, CW);
@@ -13044,7 +13146,7 @@ export default function AssetStudio() {
             // no damage and passes through the living / empty space (keeps flying until it hits a body).
             for (const k of Object.keys(lv.enemies || {})) {
               const ep = enemyPos.current[k];
-              const ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId));
+              const ea = unitAssetAt(k, lv.enemies[k]);
               if (!ea || !ep) continue;
               const hp = enemyHP.current[k] === undefined ? (enemyMaxHP(ea)) : enemyHP.current[k];
               if (!canResurrect(hp, ep)) continue; // must be a dead body that's never been raised
@@ -13066,7 +13168,7 @@ export default function AssetStudio() {
           } else {
           for (const k of Object.keys(lv.enemies || {})) {
             const spawn = liveSpawnAt(k, lv.enemies[k]);
-            const ea = liveEnemyAsset(k, findA(spawn.enemyId));
+            const ea = unitAssetAt(k, spawn);
             if (!ea) continue;
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             if (enemyHP.current[k] <= 0) continue; // already defeated
@@ -13129,7 +13231,7 @@ export default function AssetStudio() {
       for (const k of Object.keys(lv.enemies || {})) {
         if (!(enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0) || Object.prototype.hasOwnProperty.call(enemyDrops.current, k)) continue;
         const ep = enemyPos.current[k]; if (!ep) continue;
-        const ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)); if (!ea) continue;
+        const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
         const left = extraLivesLeft(ea.effects, ep.livesUsed);
         if (left <= 0) continue;
         ep.livesUsed = (ep.livesUsed || 0) + 1;
@@ -13142,7 +13244,7 @@ export default function AssetStudio() {
       // all get the same single drop roll. A stored null records the failed roll and prevents rerolls.
       for (const k of Object.keys(lv.enemies || {})) {
         if (!(enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0) || Object.prototype.hasOwnProperty.call(enemyDrops.current, k)) continue;
-        const [er, ec] = k.split(",").map(Number), ea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId)), ep = enemyPos.current[k];
+        const [er, ec] = k.split(",").map(Number), ea = unitAssetAt(k, lv.enemies[k]), ep = enemyPos.current[k];
         // Gear is looted off THIS body — only what it actually had equipped. Consumables still
         // come from the whole item pool (a potion isn't something it was wearing). A worn 🍀 Lucky
         // Find charm gets its tagged roll in first; the ordinary roll only runs when that misses.
@@ -13219,7 +13321,7 @@ export default function AssetStudio() {
             const sp2 = lv.enemies[k2]; const dId = talkDialogueId(sp2); if (!dId) continue;
             const ep2 = enemyPos.current[k2]; if (!ep2) continue;
             if (enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) continue; // no chatting with a corpse
-            const ea2 = liveEnemyAsset(k2, findA(sp2.enemyId)); if (!ea2) continue;
+            const ea2 = unitAssetAt(k2, sp2); if (!ea2) continue;
             if (unitSide(ea2, ep2) === "hostile") continue;
             const sh2 = sideBodyShape(ea2), rw2 = enemyRenderW(ea2, CW);
             cands.push({ key: k2, dialogueId: dId, name: ea2.name, cx: ep2.x + sh2.centerFrac * rw2, cy: ep2.y + enemyStandH(ea2, CW) / 2 });
@@ -15963,18 +16065,25 @@ export default function AssetStudio() {
   // `gear` defaults to the LIVE level's rolls. A run's neighbour levels pass their own bucket's map
   // (and a cache namespace, since two levels can both have a spawn at "12,40") so the units standing
   // across a gate are drawn wearing what they will be wearing when you walk through it.
-  const rolledGearAt = (k, gear = enemyGearRolls.current) => (gear && gear[k]) || null;
+  // A map entry is the whole roll (rollSpawn): { enemyId, items }. This reads the items.
+  const rolledGearAt = (k, gear = enemyGearRolls.current) => { const roll = gear && gear[k]; return roll && roll.items && roll.items.length ? roll.items : null; };
+  // Who the unit at `k` is — its look, or who its 🎲 tag rolled. Every play-time reader asks this
+  // instead of reading `spawn.enemyId`, which a tag placement does not have.
+  const spawnEnemyIdAt = (k, spawn, gear = enemyGearRolls.current) => spawnEnemyIdOf(spawn, gear && gear[k]);
+  // ...and that unit's asset, wearing what it rolled. The one call the loop's readers make.
+  const unitAssetAt = (k, spawn, gear) => liveEnemyAsset(k, findA(spawnEnemyIdAt(k, spawn, gear)), gear);
   // The placement, with whatever it rolled folded in — use this anywhere the weapon, the grenades
   // or the loot of a spawn are being asked about. Memoised on the raw spawn's identity so the
   // folded object is stable across frames; handing every reader a brand-new object each frame
   // would quietly defeat every === check downstream of it.
-  const liveSpawnAt = (k, spawn, gear, ns = "") => {
-    const rolled = rolledGearAt(k, gear);
-    if (!spawn || !rolled) return spawn;
+  const liveSpawnAt = (k, spawn, gear = enemyGearRolls.current, ns = "") => {
+    const roll = gear && gear[k];
+    if (!spawn || !roll) return spawn;
     const hit = liveSpawnCache.current.get(ns + k);
-    if (hit && hit.raw === spawn && hit.rolled === rolled) return hit.out;
-    const out = spawnWithRolledGear(spawn, rolled);
-    liveSpawnCache.current.set(ns + k, { raw: spawn, rolled, out });
+    if (hit && hit.raw === spawn && hit.rolled === roll) return hit.out;
+    let out = spawnWithRolledGear(spawn, roll.items);
+    if (spawnEnemyTagOf(spawn)) out = { ...out, enemyId: roll.enemyId || undefined };
+    liveSpawnCache.current.set(ns + k, { raw: spawn, rolled: roll, out });
     return out;
   };
   // The ASSET that spawn is, wearing the garment it rolled. A rolled WEAPON needs nothing here —
@@ -15985,19 +16094,22 @@ export default function AssetStudio() {
   // the recipe, which is how it ends up looted off the body and stripped off the corpse art.
   //
   // An ENEMY-creator asset (an animal, a turret) has no body/skin to dress, so it comes back
-  // untouched and the coat it rolled is loot only — see the wearId line in enemyEquippedGear.
+  // untouched and the coat it rolled is loot only — see the wearIds line in enemyEquippedGear.
+  // Up to three rolls means up to three garments, each in its own slot (rollEnemyGearSet never
+  // rolls two for one slot), all laid on in one composition.
   const liveEnemyAsset = (k, ea, gear) => {
-    const rolled = rolledGearAt(k, gear);
-    if (!ea || !rolled || rolled.type !== "equipment" || !rolled.slot) return ea;
+    const worn = (rolledGearAt(k, gear) || []).filter((a) => a.type === "equipment" && a.slot);
+    if (!ea || !worn.length) return ea;
     const c = ea.components;
     if (ea.type !== "character" || !c || !c.body) return ea;
-    const key = playRunId.current + "|" + ea.id + "|" + rolled.id;
+    const key = playRunId.current + "|" + ea.id + "|" + worn.map((a) => a.id).join("|");
     const hit = enemyGearLookCache.current.get(key);
     if (hit) return hit;
-    const eq = { ...(c.equipment || {}), [rolled.slot]: rolled };
+    const eq = { ...(c.equipment || {}) }, slots = { ...((ea.recipe && ea.recipe.slots) || {}) };
+    for (const a of worn) { eq[a.slot] = a; slots[a.slot] = a.id; }
     const base = {
       ...ea, angles: undefined, hand: undefined, shoulder: undefined, stats: undefined, defense: undefined, effects: undefined,
-      recipe: { ...(ea.recipe || {}), slots: { ...((ea.recipe && ea.recipe.slots) || {}), [rolled.slot]: rolled.id } },
+      recipe: { ...(ea.recipe || {}), slots },
       components: { ...c, equipment: eq },
     };
     const out = assembleLook(c.body, c.skin || null, c.weapon || null, eq, base);
@@ -16640,7 +16752,9 @@ export default function AssetStudio() {
   // `keepPick`: the Playtest player is who you ARE, so browsing another folder must not swap them
   // out — the current pick stays listed at the top instead. The Enemy picker is a paint brush, and
   // like the Object picker it lets go of a pick that is not in the folder you switched to.
-  const characterPicker = ({ groups, cat, setCat, value, setValue, none, keepPick }) => {
+  // `anyOpt` (the Enemy picker only): an open folder also offers "🎲 Any in <folder>", whose value
+  // is ENEMY_TAG_PICK + the folder's name — see enemyTagPool.
+  const characterPicker = ({ groups, cat, setCat, value, setValue, none, keepPick, anyOpt }) => {
     const sel = groups.find((g) => g.key === cat) || null; // a folder that has since emptied shows everything
     const opt = (a) => <option key={a.id} value={a.id}>{a.name}</option>;
     const stray = keepPick && sel && value && !sel.items.some((a) => a.id === value) ? groups.flatMap((g) => g.items).find((a) => a.id === value) : null;
@@ -16649,7 +16763,7 @@ export default function AssetStudio() {
         <select className="big" value={sel ? sel.key : ""} onChange={(e) => {
           const g = groups.find((x) => x.key === e.target.value);
           setCat(e.target.value);
-          if (!keepPick && g && value && !g.items.some((a) => a.id === value)) setValue("");
+          if (!keepPick && value && (value.startsWith(ENEMY_TAG_PICK) ? !g || value !== ENEMY_TAG_PICK + g.label : g && !g.items.some((a) => a.id === value))) setValue("");
         }}>
           <option value="">📂 All ({groups.reduce((n, g) => n + g.items.length, 0)})</option>
           {groups.map((g) => <option key={g.key} value={g.key}>{g.icon} {g.label} ({g.items.length})</option>)}
@@ -16657,6 +16771,7 @@ export default function AssetStudio() {
       )}
       <select className="big" value={value} onChange={(e) => setValue(e.target.value)}>
         {none}
+        {anyOpt && sel && sel.items.length > 1 && <option value={ENEMY_TAG_PICK + sel.label}>🎲 Any in {sel.label}</option>}
         {stray && opt(stray)}
         {sel ? sel.items.map(opt) : groups.map((g) => <optgroup key={g.key} label={g.icon + " " + g.label}>{g.items.map(opt)}</optgroup>)}
       </select>
@@ -16818,7 +16933,7 @@ export default function AssetStudio() {
       let b = roomState.current[s.key];
       if (!b) { b = { rolls: {}, depleted: new Set(), eHP: {}, ePos: {}, drops: {}, stripped: {}, haz: {}, gear: {} }; roomState.current[s.key] = b; }
       if (!b.gear) b.gear = {};
-      for (const ek of Object.keys(s.level.enemies || {})) { const tag = spawnGearTagOf(s.level.enemies[ek]); if (tag && b.gear[ek] === undefined) b.gear[ek] = rollEnemyGear(allAssets, tag); }
+      for (const ek of Object.keys(s.level.enemies || {})) { const sp = s.level.enemies[ek]; if (spawnRolls(sp) && b.gear[ek] === undefined) b.gear[ek] = rollSpawn(allAssets, sp); }
     }
   };
   // RUN — THE LEVEL AFTER NEXT IS GOT READY WHILE YOU WALK (2026-09-26). At a handoff the level
@@ -16848,10 +16963,10 @@ export default function AssetStudio() {
     if (!b) { b = newLevelBucket(); roomState.current[far.key] = b; }
     if (!b.gear) b.gear = {};
     for (const ek of Object.keys(lvl.enemies || {})) {
-      const spawn = lvl.enemies[ek], tag = spawnGearTagOf(spawn);
-      if (tag && b.gear[ek] === undefined) { b.gear[ek] = rollEnemyGear(allAssets, tag); return true; }
+      const spawn = lvl.enemies[ek];
+      if (spawnRolls(spawn) && b.gear[ek] === undefined) { b.gear[ek] = rollSpawn(allAssets, spawn); return true; }
       const n0 = enemyGearLookCache.current.size;
-      liveEnemyAsset(ek, findA(spawn.enemyId), b.gear);
+      unitAssetAt(ek, spawn, b.gear);
       if (enemyGearLookCache.current.size > n0) return true;
     }
     runWarmDone.current.add(lvl);
@@ -17583,8 +17698,13 @@ export default function AssetStudio() {
     // rifle and the grenade it throws.
     const enemyWeaponChoices = allAssets.filter((a) => a.type === "weapon" && !isThrowable(a.wtype));
     const enemyThrowChoices = allAssets.filter((a) => a.type === "weapon" && isThrowable(a.wtype));
-    const lEnemyAsset = lEnemyId ? findA(lEnemyId) : null;
-    const lEnemyOwnWeapon = lEnemyAsset ? findA(enemyWeaponIdOf(lEnemyAsset)) : null;
+    // "🎲 Any in Trailor" is a folder, not a character: there is no one look to show the weapon it
+    // holds, so "Its own weapon" stays unnamed and the placing ghost is sized off the first of them.
+    const lEnemyTag = lEnemyId.startsWith(ENEMY_TAG_PICK) ? lEnemyId.slice(ENEMY_TAG_PICK.length) : "";
+    const lEnemyTagPool = lEnemyTag ? enemyTagPool(allAssets, lEnemyTag) : null;
+    const lEnemyAsset = lEnemyTag ? (lEnemyTagPool[0] || null) : lEnemyId ? findA(lEnemyId) : null;
+    const lEnemyOwnWeapon = lEnemyAsset && !lEnemyTag ? findA(enemyWeaponIdOf(lEnemyAsset)) : null;
+    const lEnemyGearTags = lEnemyGear.map((t) => t.trim()).filter(Boolean);
     const lvCell = (e) => { const r = lvRef.current.getBoundingClientRect(); return { c: Math.floor((e.clientX - r.left) / LV_CELL), r: Math.floor((e.clientY - r.top) / LV_CELL) }; };
     const inb = (r, c) => r >= 0 && c >= 0 && r < lv.rows && c < lv.cols;
     // Flood fill (paint bucket) — Foreground/Background only, where "quickly fill a gap" actually
@@ -17738,7 +17858,7 @@ export default function AssetStudio() {
         // Every optional field is spread in only when it is SET, so a spawn placed with the
         // defaults is byte-identical to one placed before any of them existed — which is what lets
         // spawnWeaponIdOf treat "no weaponId" as "the look's own" without a migration.
-        if (lTool === "paint") { setLevel((lv2) => ({ ...lv2, enemies: { ...(lv2.enemies || {}), [k]: { enemyId: lEnemyId, facing: lEnemyFace, ...(lEnemyAi !== "asset" ? { ai: lEnemyAi } : {}), ...(lEnemyDlg ? { dialogueId: lEnemyDlg } : {}), ...(lEnemyWeapon ? { weaponId: lEnemyWeapon } : {}), ...(lEnemyThrow ? { throwId: lEnemyThrow, throwCount: lEnemyThrowN } : {}), ...(lEnemyGear.trim() ? { gearTag: lEnemyGear.trim() } : {}) } } })); return; }
+        if (lTool === "paint") { setLevel((lv2) => ({ ...lv2, enemies: { ...(lv2.enemies || {}), [k]: { ...(lEnemyTag ? { enemyTag: lEnemyTag } : { enemyId: lEnemyId }), facing: lEnemyFace,...(lEnemyAi !== "asset" ? { ai: lEnemyAi } : {}), ...(lEnemyDlg ? { dialogueId: lEnemyDlg } : {}), ...(lEnemyWeapon ? { weaponId: lEnemyWeapon } : {}), ...(lEnemyThrow ? { throwId: lEnemyThrow, throwCount: lEnemyThrowN } : {}), ...(lEnemyGearTags.length ? { gearTags: lEnemyGearTags } : {}) } } })); return; }
       }
       if (lTool === "areaCopy") { areaAnchor.current = { r, c }; setAreaDragOn(true); return; }
       if (lTool === "fill") { floodFill(r, c); return; }
@@ -18037,7 +18157,7 @@ export default function AssetStudio() {
             <div className="lgroup">
               <span className="lgrouplabel">👹 Enemy:</span>
               {/* Animals first, then the wardrobe filed by 📂 category — a folder, then who in it. */}
-              {characterPicker({ groups: enemyPickGroups, cat: lEnemyCat, setCat: setLEnemyCat, value: lEnemyId, setValue: (id) => { setLEnemyId(id); if (id) setLTool("paint"); }, none: <option value="">— none —</option> })}
+              {characterPicker({ groups: enemyPickGroups, cat: lEnemyCat, setCat: setLEnemyCat, value: lEnemyId, setValue: (id) => { setLEnemyId(id); if (id) setLTool("paint"); }, none: <option value="">— none —</option>, anyOpt: true })}
               {lEnemyId ? <button className="ltbtn" onClick={() => setLEnemyFace((f) => -f)}>{lEnemyFace === 1 ? "Facing ▶" : "◀ Facing"}</button> : null}
               {lEnemyId ? <select className="ltbtn" value={lEnemyAi} onChange={(e) => setLEnemyAi(e.target.value)}>
                 <option value="guard">🛡 Guard (holds ground)</option>
@@ -18077,10 +18197,19 @@ export default function AssetStudio() {
                   A gun goes in its hand, a grenade goes in the grenade slot, and CLOTHING IS
                   ACTUALLY WORN — the look is re-composed wearing it, so a squad tagged "jacket"
                   walks out in a different coat each, and each drops the one it has on. See
-                  spawnWithRolledGear (what the roll becomes) and liveEnemyAsset (what wears it). */}
-              {lEnemyId ? <input className="catinline" style={{ flex: "0 1 210px" }} list="enemyGearTags" value={lEnemyGear} onChange={(e) => setLEnemyGear(e.target.value)} placeholder="🎲 Random gear tagged…" title="Roll this placement's gear instead of picking it: type an item category (e.g. T1, jacket) and every Playtest hands this enemy one random item carrying that tag — worn if it's clothing, held if it's a weapon, and lootable off the body either way. What it rolls overrides the pickers to the left, so leave this blank for one exact loadout." /> : null}
-              {lEnemyId ? <datalist id="enemyGearTags">{catSuggest.map((c) => <option key={c} value={c} />)}</datalist> : null}
-              {lEnemyId && lEnemyGear.trim() ? (() => { const n = enemyGearTagPool(allAssets, lEnemyGear).length; return <span className="hint2">{n ? "🎲 " + n : "⚠ none tagged"}</span>; })() : null}
+                  spawnWithRolledGear (what the roll becomes) and liveEnemyAsset (what wears it).
+
+                  UP TO THREE, STACKED ONE ABOVE THE OTHER (his words: "stacked on top not side to
+                  side") so the toolbar row does not grow three boxes wide. The next box appears
+                  once the one above it has a tag in it; each is its own roll, and rollEnemyGearSet
+                  keeps two rolls out of one slot. */}
+              {lEnemyId ? <div className="gearTagStack">
+                {lEnemyGear.map((t, i) => (i === 0 || t.trim() || lEnemyGear[i - 1].trim()) ? <div key={i} className="gearTagRow">
+                  <input className="catinline" list="enemyGearTags" value={t} onChange={(e) => { const v = e.target.value; setLEnemyGear((g) => g.map((x, j) => (j === i ? v : x))); }} placeholder="🎲 Random gear tagged…" title="Roll gear for this placement instead of picking it: type an item category (e.g. T1, jacket) and every Playtest hands this enemy one random item carrying that tag — worn if it's clothing, held if it's a weapon, and lootable off the body either way. Each box is one more item, never two for the same slot. What it rolls overrides the pickers to the left." />
+                  {t.trim() ? (() => { const n = enemyGearTagPool(allAssets, t).length; return <span className="hint2">{n ? "🎲 " + n : "⚠ none tagged"}</span>; })() : null}
+                </div> : null)}
+                <datalist id="enemyGearTags">{catSuggest.map((c) => <option key={c} value={c} />)}</datalist>
+              </div> : null}
               {/* ATTACHING A TREE HERE IS ALSO WHAT MAKES THIS ONE PEACEFUL (spawnStartsPeaceful).
                   Stamped per placement, exactly like Facing and the AI behaviour beside it, so the
                   same drawn enemy can be the quiet one by the gate and the pack of hostiles behind
@@ -18351,7 +18480,7 @@ export default function AssetStudio() {
                 (2026-09-27), so the row only carries STATE now: a selection, a copy, a hidden
                 layer, an enemy loaded onto the brush. */}
             {!play && lTool === "move" && !(layerMove && layerMove.levelId === lv.id) && areaSel && areaSel.levelId === lv.id && <p className="statusline">🔀 <b>{areaSel.key !== undefined ? areaSel.name : (areaSel.c1 - areaSel.c0 + 1) + "×" + (areaSel.r1 - areaSel.r0 + 1)}</b> selected <button className="ltbtn" onClick={() => setAreaSel(null)}>✕ Deselect</button></p>}
-            {!play && lTool === "paint" && lEnemyId && !(layerMove && layerMove.levelId === lv.id) && <p className="statusline">👹 Placing <b>{(findA(lEnemyId) || {}).name || "enemy"}</b></p>}
+            {!play && lTool === "paint" && lEnemyId && !(layerMove && layerMove.levelId === lv.id) && <p className="statusline">👹 Placing <b>{lEnemyTag ? "🎲 " + lEnemyTag : (lEnemyAsset || {}).name || "enemy"}</b></p>}
             </div>
             {/* While play is on the CAMERA drives the level: .lscroll stops scrolling and .lgrid is
                 translated by the camera (camRef, written by the loop and read here inside
@@ -18428,7 +18557,7 @@ export default function AssetStudio() {
                 {/* The hover text names what this placement is CARRYING, not what the asset was
                     drawn holding. With one outfit standing in for a whole squad, "which of these is
                     the one with the rifle" is otherwise unanswerable without starting a playtest. */}
-                {!play && lv.enemies && Object.keys(lv.enemies).map((k) => { const [r, c] = k.split(",").map(Number); const sp = lv.enemies[k]; const ea = findA(sp.enemyId); const dId = talkDialogueId(sp); const dName = dId ? ((dlgLib.find((d) => d.id === dId) || {}).name || "a deleted dialogue ⚠") : ""; const spwId = spawnWeaponIdOf(sp, ea); const spw = spwId ? findA(spwId) : null; const spThrow = spawnThrowIdOf(sp) ? findA(spawnThrowIdOf(sp)) : null; return <div key={"en" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { cursor: "pointer" } : {}) }} title={(ea ? ea.name : "missing enemy asset") + " · " + (spw ? "🗡️ " + spw.name : spwId ? "🗡️ a deleted weapon ⚠" : "✊ bare hands") + (spThrow ? " · 💣 " + spThrow.name + " ×" + enemyThrowCarry(sp) : "") + (spawnGearTagOf(sp) ? " · 🎲 rolls gear tagged \"" + spawnGearTagOf(sp) + "\"" : "") + (dId ? " · 💬 talks: \"" + dName + "\" · starts PEACEFUL" : "")} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv2) => { const enemies = { ...(lv2.enemies || {}) }; delete enemies[k]; return { ...lv2, enemies }; }); } : undefined}>{ea ? (dId ? "💬" : "👹") : "❓"}</div>; })}
+                {!play && lv.enemies && Object.keys(lv.enemies).map((k) => { const [r, c] = k.split(",").map(Number); const sp = lv.enemies[k]; const eTag = spawnEnemyTagOf(sp); const eTagN = eTag ? enemyTagPool(allAssets, eTag).length : 0; const ea = eTag ? null : findA(sp.enemyId); const dId = talkDialogueId(sp); const dName = dId ? ((dlgLib.find((d) => d.id === dId) || {}).name || "a deleted dialogue ⚠") : ""; const spwId = spawnWeaponIdOf(sp, ea); const spw = spwId ? findA(spwId) : null; const spThrow = spawnThrowIdOf(sp) ? findA(spawnThrowIdOf(sp)) : null; return <div key={"en" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(lTool === "erase" ? { cursor: "pointer" } : {}) }} title={(eTag ? "🎲 Any in " + eTag + (eTagN ? " (" + eTagN + ")" : " ⚠ nobody in it") : ea ? ea.name : "missing enemy asset") + " · " + (spw ? "🗡️ " + spw.name : spwId ? "🗡️ a deleted weapon ⚠" : eTag && !sp.weaponId ? "🗡️ its own weapon" : "✊ bare hands") + (spThrow ? " · 💣 " + spThrow.name + " ×" + enemyThrowCarry(sp) : "") + (spawnGearTagsOf(sp).length ? " · 🎲 rolls gear tagged " + spawnGearTagsOf(sp).map((t) => "\"" + t + "\"").join(", ") : "") + (dId ? " · 💬 talks: \"" + dName + "\" · starts PEACEFUL" : "")} onPointerDown={lTool === "erase" ? (e) => { e.stopPropagation(); setLevel((lv2) => { const enemies = { ...(lv2.enemies || {}) }; delete enemies[k]; return { ...lv2, enemies }; }); } : undefined}>{ea || eTagN ? (dId ? "💬" : eTag ? "🎲" : "👹") : "❓"}</div>; })}
                 {!play && !lv.isRoom && CONN_KEYS.map((k) => { const pos = CONN_POS[k], cc = lv.conns[k]; return (
                   <button key={k} className={"conn " + (cc.open ? "open" : "blocked") + (lSel === k ? " sel" : "")} style={{ left: pos.x + "%", top: pos.y + "%" }} onClick={(e) => { e.stopPropagation(); setLSel(k); }} title={CONN_LABEL[k] + (cc.open ? " · accepts: " + (cc.accepts || lv.floor) : " · blocked")}>✕</button>
                 ); })}
@@ -18496,7 +18625,7 @@ export default function AssetStudio() {
                   })}</>;
                 })()}
                 {!play && lEnemyId && lTool === "paint" && lHoverCell && (() => {
-                  const ea = findA(lEnemyId);
+                  const ea = lEnemyAsset;
                   if (!ea) return null;
                   const eShape = sideBodyShape(ea);
                   const eRenderW = enemyRenderW(ea, LV_CELL);
@@ -18975,7 +19104,7 @@ export default function AssetStudio() {
                 {play && playUnitSets.map((U) => (runNodeNow ? unitDrawOrder(U.lv.enemies, U.pos) : Object.keys(U.lv.enemies || {})).map((k) => {
                   const [r, c] = k.split(",").map(Number);
                   const eSpawn = liveSpawnAt(k, U.lv.enemies[k], U.gear, U.ns);
-                  const ea = liveEnemyAsset(k, findA(eSpawn.enemyId), U.gear);
+                  const ea = unitAssetAt(k, eSpawn, U.gear);
                   if (!ea) return null;
                   // The bar has to read the ALLY ceiling or a buffed minion shows as permanently
                   // over-full — 20 HP drawn against a 10 HP track.
@@ -21335,7 +21464,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 @keyframes pbLife{0%,78%{opacity:1;transform:translateX(-50%) translateY(0)}100%{opacity:0;transform:translateX(-50%) translateY(-18px)}}
 .pbBurst{position:absolute;left:50%;top:18px;width:300px;height:100px;margin:-50px 0 0 -150px;border-radius:50%;background:radial-gradient(ellipse at center,rgba(206,130,255,.62),rgba(140,60,255,.22) 45%,transparent 70%);animation:pbBurst .75s ease-out forwards}
 @keyframes pbBurst{0%{transform:scale(.2);opacity:1}100%{transform:scale(1.6);opacity:0}}
-.pbName{position:relative;font-family:'Bungee','Arial Black',Impact,sans-serif;font-weight:400;line-height:1.05;letter-spacing:.03em;white-space:nowrap;text-transform:uppercase;animation:pbPop .55s cubic-bezier(.18,1.5,.4,1) both}
+.pbName{position:relative;font-family:'Shrikhand','Arial Black',Impact,sans-serif;font-weight:400;line-height:1.05;letter-spacing:.03em;white-space:nowrap;text-transform:uppercase;animation:pbPop .55s cubic-bezier(.18,1.5,.4,1) both}
 .pbName span{position:relative;background:linear-gradient(180deg,#fdf0ff 0%,#e9b8ff 36%,#b85eff 64%,#7a2cf0 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
 .pbName::before{content:attr(data-text);position:absolute;left:0;top:0;right:0;color:#1c0535;-webkit-text-stroke:.2em #1c0535;text-shadow:0 .12em 0 #1c0535,0 0 .5em rgba(205,125,255,.9),0 0 1.1em rgba(150,60,255,.55)}
 .pbName::after{content:attr(data-text);position:absolute;left:0;top:0;right:0;background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.95) 50%,transparent 60%) no-repeat;background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;animation:pbShine 1.1s .35s ease-in-out both}
@@ -21458,6 +21587,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .lclimb.kind-topdown{background:repeating-linear-gradient(0deg,rgba(108,196,138,.22) 0 4px,transparent 4px 9px);border-color:rgba(108,196,138,.6)}
 .lmarker{position:absolute;display:flex;align-items:center;justify-content:center;font-size:15px;z-index:7000;background:rgba(0,0,0,.3);border:1px dashed #c8a23c;border-radius:4px;box-sizing:border-box;cursor:default}
 .catinline{background:#1d2230;border:1px solid #2c3245;border-radius:8px;padding:7px 10px;color:#e7e9ee;font-size:13px;width:170px}
+.gearTagStack{display:flex;flex-direction:column;gap:3px}.gearTagRow{display:flex;align-items:center;gap:6px}.gearTagRow .catinline{padding:4px 9px}.gearTagRow .hint2{white-space:nowrap}
 .lobj.solid::after{content:"";position:absolute;inset:1px;border:1px dashed rgba(255,90,90,.6);border-radius:3px}
 .conn{position:absolute;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;cursor:pointer;background:rgba(0,0,0,.35);border:2px solid #6bd06b;color:#6bd06b;z-index:6000}
 .conn.blocked{border-color:#c0504f;color:#c0504f;opacity:.85}
@@ -21503,14 +21633,16 @@ html,body{margin:0;padding:0;background:#0f1117}
 .pedestalGem{position:absolute;left:50%;bottom:0;transform:translateX(-50%);font-size:${LV_CELL*0.75}px;line-height:1}
 .pedestalCap{position:absolute;left:50%;top:-4px;transform:translate(-50%,-100%);white-space:nowrap;font-size:11px;font-weight:700}
 /* The anchor is a zero-size point over the player's head (above the HP and reload bars); the
-   callout stands on it, centred, and grows UP one row at a time. z 8500 is the labels' rung: over
-   the player (5000), the HP bar (8000) and Front paint, so a wall never hides the prompt. */
-.takeCallout{position:absolute;width:0;height:0;z-index:8500;pointer-events:none}
+   callout stands on it, centred, and grows UP one row at a time. It is on the labels' rung
+   (SCENE_LABEL_Z.label): over the player, but UNDER Front props and Front paint. It used to sit
+   over the paint too, and Blake called that item text going through the Front layer — behind a
+   Front wall the player is hidden, and now so is what the player is about to pick up. */
+.takeCallout{position:absolute;width:0;height:0;z-index:${SCENE_LABEL_Z.label};pointer-events:none}
 .pedcallout{position:absolute;left:0;bottom:0;width:max-content;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:1px;white-space:nowrap;font-family:'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:12px;font-weight:700;line-height:1.15;letter-spacing:.01em}
 /* 🎁 THE TAKE CALLOUT, AND THE PICKUP BANNER'S ROWS (both drawn by pickupRowsView). One change per
    line, which is what Blake asked for, in Chakra Petch — squared-off, gamey and still easy to read
    at 12px — where it used to be one long run of the default UI face. The key is the only thing in
-   Bungee, the banner's arcade face, so "E" reads as a button and not as a word. Still bare words
+   Shrikhand, the banner's face, so "E" reads as a button and not as a word. Still bare words
    with no plate, like every label in the level: the outline shadow inherits from the shared rule.
    SMALL AND NARROW, both on his word ("make sure the font isn't too large and stack where you can,
    I don't want it too wide"): 12px, and an ability is a centred name with its description
@@ -21518,7 +21650,7 @@ html,body{margin:0;padding:0;background:#0f1117}
    width:max-content on .pedcallout is load-bearing: it hangs off a ZERO-width anchor, so without
    it the box shrinks to its min-content and a gun's description wraps one word per line. */
 .pkHead{display:flex;align-items:center;gap:4px;margin-bottom:1px}
-.pkKey{font-family:'Bungee','Arial Black',Impact,sans-serif;font-size:15px;font-weight:400;line-height:1;color:#fff}
+.pkKey{font-family:'Shrikhand','Arial Black',Impact,sans-serif;font-size:15px;font-weight:400;line-height:1;color:#fff}
 .pkSwap{font-size:15px;line-height:1;font-weight:800;color:#ffd84a}
 .pkStats{display:grid;grid-template-columns:auto auto auto auto;column-gap:5px;align-items:baseline}
 .pkLbl{text-align:left;text-transform:uppercase;letter-spacing:.05em;font-size:.88em;color:#dfe6f5}
@@ -21550,9 +21682,10 @@ html,body{margin:0;padding:0;background:#0f1117}
    context, so its labels were trapped down there with it and the player's head covered the name of
    the thing they were standing on. The labels are lifted out into their own layer instead — the
    same trick .unitStatus already plays for an enemy's HP bar, which was stuck behind scenery for
-   exactly the same reason. 8500 is above the player (5000) and the drops (7000), below the door
-   and talk prompts (9500/9600). */
-.pedLabels{position:absolute;z-index:8500;pointer-events:none;display:flex;align-items:center;justify-content:center}
+   exactly the same reason. SCENE_LABEL_Z.label is above the player and the drops, below the talk
+   prompt, and below Front props and Front paint, so a pedestal behind a Front wall no longer
+   names its item through the wall (2026-09-27). */
+.pedLabels{position:absolute;z-index:${SCENE_LABEL_Z.label};pointer-events:none;display:flex;align-items:center;justify-content:center}
 /* "no match" is a WARNING, not a caption — a pedestal whose filter found nothing in the library.
    It keeps its red (it is the only thing on screen that says a filter is mis-tagged); it just
    loses the box like everything else. After the shared rule because both are one class deep, so
@@ -21564,7 +21697,7 @@ html,body{margin:0;padding:0;background:#0f1117}
    still marks the loot, and on a drop with real art (.art, no gradient or border) it now follows
    the drawn silhouette instead of a square, which is what the glow was always for.
    (No backticks in here: this sheet is a JS template literal and one would end the string.) */
-.enemyDropPlay{position:absolute;z-index:7000;pointer-events:none;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;animation:lootBob .9s ease-in-out infinite alternate}
+.enemyDropPlay{position:absolute;z-index:${SCENE_LABEL_Z.drop};pointer-events:none;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;animation:lootBob .9s ease-in-out infinite alternate}
 .enemyDropOrb{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%,#fff5bf,#c8a23c 55%,#6a4b12);border:1px solid #f3d98a;font-size:15px;filter:drop-shadow(0 0 5px rgba(243,217,138,.7))}
 /* A drop that has real drawn art shows the art itself, not the gold emoji bead — so the gradient,
    the border and the round clip all come off, and the box becomes the positioning context for the
@@ -21578,13 +21711,16 @@ html,body{margin:0;padding:0;background:#0f1117}
 .talkPromptFloat{color:#bfe0ff}
 /* 💬 "PRESS E TO TALK" — the loud version. The door prompt's dim 12px pill was walked straight
    past, so this is bigger, brighter, has the key drawn as a key, and breathes. Same
-   translate(-50%,-100%) anchoring as the door prompt so it sits on a head. */
-.talkCallout{position:absolute;transform:translate(-50%,-100%);display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:14px;font-weight:800;pointer-events:none;z-index:9600;animation:talkpulse 1.25s ease-in-out infinite}
+   translate(-50%,-100%) anchoring as the door prompt so it sits on a head — and on the head's own
+   side of the Front layer (SCENE_LABEL_Z.talk): the Chaplin behind M6's church wall used to be
+   hidden while "E Talk to The Chaplin" hung on the face of the wall. */
+.talkCallout{position:absolute;transform:translate(-50%,-100%);display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:14px;font-weight:800;pointer-events:none;z-index:${SCENE_LABEL_Z.talk};animation:talkpulse 1.25s ease-in-out infinite}
 @keyframes talkpulse{0%,100%{transform:translate(-50%,-100%) scale(1)}50%{transform:translate(-50%,-100%) scale(1.06)}}
 .talkKey{display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;font-family:inherit}
-/* 💬 over a waiting NPC's head, everywhere in the level. Sits in the status layer (z 8000) with
-   the HP bar, which is above the Front tiles, so somebody behind a tree still advertises. Bobs so
-   it reads as an invitation and not as one more status icon. */
+/* 💬 over a waiting NPC's head, everywhere in the level. Sits in the unit's status layer
+   (UNIT_STATUS_Z) with the HP bar, which is UNDER Front props and Front paint, so somebody behind
+   a wall is hidden along with his 💬. Bobs so it reads as an invitation and not as one more
+   status icon. */
 .talkBadge{position:absolute;left:0;right:0;top:-32px;text-align:center;font-size:17px;line-height:1;pointer-events:none;filter:drop-shadow(0 1px 3px rgba(0,0,0,.8));animation:talkbob 1.6s ease-in-out infinite}
 @keyframes talkbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
 /* THE SPEECH BUBBLE. Positioned in LEVEL pixels, inside .lgrid, over whoever is talking — see

@@ -419,6 +419,16 @@ import {
   enemyGearTagPool,
   rollEnemyGear,
   spawnWithRolledGear,
+  spawnGearTagsOf,
+  rollEnemyGearSet,
+  SPAWN_GEAR_TAGS_MAX,
+  ENEMY_FOLDER_LABEL,
+  ENEMY_TAG_PICK,
+  spawnEnemyTagOf,
+  enemyTagPool,
+  spawnRolls,
+  rollSpawn,
+  spawnEnemyIdOf,
   MONEY_CHAR,
   normItemEffect,
   itemEffectSummary,
@@ -455,6 +465,7 @@ import {
   noteUnitHp,
   unitStatusZ,
   UNIT_STATUS_Z,
+  SCENE_LABEL_Z,
   HP_BAR_HOT_MS,
   levelLoadGroups,
   characterPickerGroups,
@@ -545,9 +556,9 @@ describe("enemy gear tags", () => {
     expect(enemyThrowCarry(lobber)).toBe(ENEMY_THROW_CARRY_DEFAULT);
     expect(enemyThrowCarry(spawnWithRolledGear({ ...spawn, throwCount: 5 }, nade))).toBe(5);
     // Clothing rides in its own field: nothing else has anywhere to put it.
-    expect(spawnWithRolledGear(spawn, coat).wearId).toBe("coat");
+    expect(spawnWithRolledGear(spawn, coat).wearIds).toEqual(["coat"]);
     expect(spawnWithRolledGear(spawn, coat).weaponId).toBeUndefined();
-    expect(spawnWithRolledGear(spawn, { id: "x", type: "equipment" }).wearId).toBeUndefined(); // no slot = nowhere to wear it
+    expect(spawnWithRolledGear(spawn, { id: "x", type: "equipment" }).wearIds).toBeUndefined(); // no slot = nowhere to wear it
     // NOTHING ROLLED RETURNS THE PLACEMENT ITSELF, not a copy of it — every level saved before
     // this feature existed has to go through here completely untouched.
     expect(spawnWithRolledGear(spawn, null)).toBe(spawn);
@@ -573,6 +584,107 @@ describe("enemy gear tags", () => {
     expect(spawnGearTagOf({ gearTag: "" })).toBe("");
     expect(spawnGearTagOf({})).toBe("");
     expect(spawnGearTagOf(null)).toBe("");
+  });
+
+  /* UP TO THREE ROLLS (2026-09-27). Each box is one more item, and two rolls never land in one
+     slot — a second gun could only replace the first, and the body would then drop a gun it was
+     never seen carrying. */
+  const hat = { id: "hat", type: "equipment", slot: "hat", categories: ["T1"] };
+  const lib3 = [rifle, bat, nade, coat, hat, tonic, body];
+
+  test("a placement reads up to three tags, and the old single tag as a list of one", () => {
+    expect(spawnGearTagsOf({ gearTags: [" T1 ", "", "jacket", "hat", "fourth"] })).toEqual(["T1", "jacket", "hat"]);
+    expect(SPAWN_GEAR_TAGS_MAX).toBe(3);
+    expect(spawnGearTagsOf({ gearTag: " T1 " })).toEqual(["T1"]);   // every level saved before this
+    expect(spawnGearTagsOf({ gearTags: [], gearTag: "T1" })).toEqual([]); // the list, once written, is the answer
+    expect(spawnGearTagsOf({})).toEqual([]);
+    expect(spawnGearTagsOf(null)).toEqual([]);
+    expect(spawnGearTagOf({ gearTags: ["jacket", "T1"] })).toBe("jacket");
+  });
+
+  test("three rolls fill three different slots, even off one tag", () => {
+    for (const r of [0, 0.3, 0.6, 0.999999]) {
+      const got = rollEnemyGearSet(lib3, ["T1", "T1", "T1"], r);
+      expect(got.length).toBe(3);
+      const slots = got.map((a) => (a.type === "weapon" ? (a.wtype === "throw" ? "throw" : "hand") : a.slot));
+      expect(new Set(slots).size).toBe(3);                         // never two in one slot
+      expect(new Set(got.map((a) => a.id)).size).toBe(3);
+    }
+    // Two guns tagged T1: the second roll cannot take the hand the first already filled.
+    const guns = rollEnemyGearSet([rifle, bat], ["T1", "T1"], 0);
+    expect(guns.map((a) => a.id)).toEqual(["rifle"]);
+    // A tag with nothing left (or nothing at all) just adds nothing.
+    expect(rollEnemyGearSet(lib3, ["jacket", "jacket"], 0).map((a) => a.id)).toEqual(["coat"]);
+    expect(rollEnemyGearSet(lib3, ["nothing"], 0)).toEqual([]);
+    expect(rollEnemyGearSet(lib3, [], 0)).toEqual([]);
+    // Per-tag numbers, for pinning each roll.
+    expect(rollEnemyGearSet(lib3, ["jacket", "T1"], [0, 0]).map((a) => a.id)).toEqual(["coat", "rifle"]);
+  });
+
+  test("all of it is folded in: gun in the hand, grenade in the slot, every garment worn and looted", () => {
+    const rolled = [rifle, nade, coat, hat];
+    const sp = spawnWithRolledGear({ enemyId: "thug" }, rolled);
+    expect(sp.weaponId).toBe("rifle");
+    expect(sp.throwId).toBe("nade");
+    expect(sp.wearIds).toEqual(["coat", "hat"]);
+    const find = (id) => lib3.find((a) => a.id === id) || null;
+    expect(enemyEquippedGear({ id: "dog", type: "enemy" }, find, sp).map((a) => a.id).sort()).toEqual(["coat", "hat", "nade", "rifle"]);
+    // A spawn saved mid-session by the one-garment build still loots its coat.
+    expect(enemyEquippedGear({ id: "dog", type: "enemy" }, find, { wearId: "coat" }).map((a) => a.id)).toEqual(["coat"]);
+    expect(spawnWithRolledGear({ enemyId: "thug" }, [])).toEqual({ enemyId: "thug" });
+  });
+});
+
+/* 🎲 A PLACEMENT THAT IS "ANY ONE OF THIS FOLDER". The folder is the look's 📂 category — the
+   same folders the 👹 Enemy picker lists — and the animals answer to that picker's "Enemies". */
+describe("random enemy by tag", () => {
+  const lib = [
+    { id: "bobby", name: "Bobby", type: "character", category: "Trailor" },
+    { id: "billy", name: "Billy", type: "character", category: " trailor " },
+    { id: "nixon", name: "Nixon", type: "character", category: "Special" },
+    { id: "plain", name: "Plain", type: "character" },
+    { id: "dog", name: "Dog", type: "enemy" },
+    { id: "cat", name: "Cat", type: "enemy", category: "Trailor" },
+    { id: "coat", name: "Coat", type: "equipment", slot: "shirt", category: "Trailor", categories: ["T1"] },
+  ];
+
+  test("the pool is everyone filed under the folder, case and spaces aside", () => {
+    expect(enemyTagPool(lib, "Trailor").map((a) => a.id)).toEqual(["billy", "bobby", "cat"]);
+    expect(enemyTagPool(lib, " TRAILOR ").map((a) => a.id)).toEqual(["billy", "bobby", "cat"]);
+    expect(enemyTagPool(lib, ENEMY_FOLDER_LABEL).map((a) => a.id)).toEqual(["cat", "dog"]);
+    expect(enemyTagPool(lib, "Unknown").map((a) => a.id)).toEqual(["plain"]); // the 📦 folder
+    expect(enemyTagPool(lib, "")).toEqual([]);
+    expect(enemyTagPool(lib, "nobody")).toEqual([]);
+  });
+
+  test("the picker's folder names are the names the pool answers to", () => {
+    const groups = characterPickerGroups(lib, { enemiesFirst: true });
+    for (const g of groups) {
+      const ids = enemyTagPool(lib, g.label).map((a) => a.id);
+      for (const a of g.items) expect(ids).toContain(a.id);
+    }
+    expect(ENEMY_TAG_PICK.length).toBeGreaterThan(0);
+  });
+
+  test("a tag placement rolls once who it is, and is nobody until it has", () => {
+    const sp = { enemyTag: "Trailor", facing: 1, gearTags: ["T1"] };
+    expect(spawnEnemyTagOf(sp)).toBe("Trailor");
+    expect(spawnRolls(sp)).toBe(true);
+    expect(spawnRolls({ enemyId: "bobby" })).toBe(false);          // an ordinary placement never enters the map
+    expect(rollSpawn(lib, { enemyId: "bobby" })).toBeUndefined();
+    const ids = new Set();
+    for (const r of [0, 0.4, 0.999999]) {
+      const roll = rollSpawn(lib, sp, r);
+      ids.add(roll.enemyId);
+      expect(roll.items.map((a) => a.id)).toEqual(["coat"]);
+      expect(spawnEnemyIdOf(sp, roll)).toBe(roll.enemyId);
+    }
+    expect(ids.size).toBe(3);
+    expect(spawnEnemyIdOf(sp, undefined)).toBe(null);
+    expect(rollSpawn(lib, { enemyTag: "nobody" }, 0)).toEqual({ enemyId: null, items: [] });
+    // An ordinary placement is its own look, rolled gear or not.
+    expect(spawnEnemyIdOf({ enemyId: "bobby", gearTags: ["T1"] }, { enemyId: null, items: [] })).toBe("bobby");
+    expect(spawnEnemyIdOf(null)).toBe(null);
   });
 });
 
@@ -6128,6 +6240,29 @@ describe("the Solid checkbox no longer decides what draws on top", () => {
       expect(zOf(sel)).toBeLessThan(FRONT_CELL_Z);
       expect(zOf(sel)).toBeGreaterThan(PLAYER_Z);
     }
+  });
+
+  // "There is item text and dialogue emojis going through front layer" (2026-09-27). A pedestal's
+  // item name, the take callout, a drop and the talk prompt are scene, not HUD: over the units,
+  // bodies and HP bars, under every Front prop and the Front paint — and the stylesheet has to
+  // actually use these numbers, not a bare 8500 that quietly puts one back over the wall.
+  test("floating item and talk labels sit behind the Front layer", () => {
+    const frontFloor = levelObjectZIndex({ lay: "front" }, 0);
+    for (const z of Object.values(SCENE_LABEL_Z)) {
+      expect(z).toBeGreaterThan(PLAYER_Z);
+      expect(z).toBeGreaterThan(CORPSE_Z);
+      expect(z).toBeGreaterThan(UNIT_STATUS_Z + 2);   // over the hottest HP bar
+      expect(z).toBeLessThan(frontFloor);
+      expect(z).toBeLessThan(FRONT_CELL_Z);
+    }
+    expect(SCENE_LABEL_Z.drop).toBeLessThan(SCENE_LABEL_Z.label);
+    expect(SCENE_LABEL_Z.label).toBeLessThan(SCENE_LABEL_Z.talk);
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    const zSrc = (sel) => { const m = src.match(new RegExp("\\n\\" + sel + "\\{[^}]*z-index:([^;]+);")); return m ? m[1] : null; };
+    expect(zSrc(".takeCallout")).toBe("${SCENE_LABEL_Z.label}");
+    expect(zSrc(".pedLabels")).toBe("${SCENE_LABEL_Z.label}");
+    expect(zSrc(".enemyDropPlay")).toBe("${SCENE_LABEL_Z.drop}");
+    expect(zSrc(".talkCallout")).toBe("${SCENE_LABEL_Z.talk}");
   });
 
   test("later in the draw order is always higher, and a runaway count cannot leak into the next rung", () => {

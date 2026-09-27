@@ -945,7 +945,7 @@ and stack where you can as I don't want it too wide." What shipped:
   paragraph and far too long for the level. A test fails if a new ability ships without one.
   Weapon abilities are filtered to the ones its TYPE honours: his Grenade still carries a stale
   `explode: true` a throw never reads, and printing it would promise an explosion.
-* **The callout floats over the PLAYER's head** (`takeCallout`, drawn with the player, z 8500,
+* **The callout floats over the PLAYER's head** (`takeCallout`, drawn with the player, z SCENE_LABEL_Z.label,
   anchored above the HP/reload bars), not on the pedestal — stacked, it grew straight up across
   the body standing in front of the item. The item's NAME stays on the item. Because the camera
   centres a 7-cell body, a tall stack near the top of a level ran off the view, so the top is
@@ -954,7 +954,7 @@ and stack where you can as I don't want it too wide." What shipped:
 * **Narrow on purpose:** 12px Chakra Petch, an ability's description stacked UNDER its name and
   wrapping at 150px. Stat numbers are a 4-column grid so they line up. Every class is `pk`-prefixed
   — a bare `.up` is the app's rounded button style and boxed every stat that went up.
-* **The banner** (`showPickup`, `.pickupBanner`) is the name in Bungee (gold gradient, dark outline,
+* **The banner** (`showPickup`, `.pickupBanner`) is the name in Shrikhand (Bungee until 2026-09-27 — he found it generic; rank gradient, dark outline,
   3-D drop, a shine sweep, a pop-in, a burst) over the top-centre of the VIEW — a sibling of
   `.lgrid` inside `.lscroll.playing` (made `position:relative`), because `.lgrid` moves with the
   camera. 20-32px by name length. It REPLACED the blue toast for pedestal and drop pickups (same
@@ -1241,14 +1241,24 @@ anybody hostile.
   exceptions: the dialogue BUBBLE keeps its panel (black on white — somebody is talking, and it is
   meant to read as a panel), and `.pedestalEmpty` keeps its red after the shared rule, because
   "no match" is a mis-tagged-filter warning rather than a caption.
-* **...AND THEY ALL SIT IN FRONT OF THE PLAYER (`.pedLabels`, z 8500).** A pedestal draws BELOW the
+* **...AND THEY ALL SIT IN FRONT OF THE PLAYER (`.pedLabels`, z SCENE_LABEL_Z.label).** A pedestal draws BELOW the
   player on purpose — you walk in front of the item on its stand — but a z-index on a positioned
   element makes a stacking context, so its labels were trapped down there with it and the player's
   head covered the name of the very thing they were standing on to read. The labels are emitted as
   a SIBLING layer over the same box instead, exactly the trick `.unitStatus` already plays for an
   enemy's HP bar (stuck behind scenery for the same reason). Both are direct children of `.lgrid`,
-  which is the one stacking context, so 8500 vs the player's 5000 is a real comparison. **A new
+  which is the one stacking context, so the label rung vs the player's 5000 is a real comparison. **A new
   in-level label goes in that layer, not inside the thing it labels.**
+* **...BUT BEHIND THE FRONT LAYER (2026-09-27, `SCENE_LABEL_Z`).** They used to be at 7000–9600,
+  over Front paint (6000), and Blake reported "item text and dialogue emojis going through front
+  layer": M3's pedestal named its item through the trailer wall, and in M6 the Chaplin was hidden
+  behind the church wall while "E Talk to The Chaplin" hung on its face. Drops (5063), pedestal
+  labels and the take callout (5070) and the talk prompt (5080) now sit over units, corpses and HP
+  bars but under Front props (5101+) and Front paint — the rung the 💬 over an NPC (UNIT_STATUS_Z)
+  already used. The door prompt (9500) and the conversation bubble (9600) stay on top on purpose:
+  a door is usually IN the Front wall, and once you are talking the bubble is the screen. A test
+  reads the stylesheet back and fails on a bare number. The Level Creator's markers (💬 👹 🎲 💎)
+  still draw over Front paint: they are editing handles, and 👁 Front hides the paint.
 * The gold loot glow moved from `.enemyDropPlay` to `.enemyDropOrb` at the same time. A CSS filter
   applies to the whole subtree, so on the wrapper it put a gold halo around white letters that are
   supposed to be outlined in black. On the orb it still marks the loot, and on a drop with real art
@@ -2119,6 +2129,21 @@ One consequence in `pieceBelongsToAsset`: a **throwable is never drawn on the bo
 not answer the `_isWeapon` question, or looting a grenade off a corpse strips the rifle still lying
 in its hands.
 
+**A PLACEMENT CAN BE "ANY ONE OF THIS FOLDER" (2026-09-27).** Blake: "random spawn by tag … if it
+spawned Trailor it can make the potential enemies spawned more random and allow me to delete dressed
+assets." Pick a folder in the 👹 Enemy picker and the character list offers **🎲 Any in <folder>**
+(value `ENEMY_TAG_PICK` + name, never saved); painting stamps `enemyTag` instead of `enemyId`.
+The folder is the look's 📂 `category` (`enemyTagPool`); the animals answer to the picker's
+"Enemies" folder (`ENEMY_FOLDER_LABEL`). A tag placement names no look, so deleting a look leaves no
+❓ hole — the pool is asked who is in the folder when the level is entered.
+* **Who it is is rolled with its gear, as ONE record** (`rollSpawn` → `{ enemyId, items }`) in
+  the same per-level `gear` map, so `moveRunUnit` carries both across a gate under the unit's one
+  key. `spawnRolls` gates it: a placement with neither tag never enters the map.
+* **Every play-time reader asks `unitAssetAt(k, spawn, gear)` / `spawnEnemyIdAt`**, never
+  `spawn.enemyId` — a tag placement has none. 22 readers were a mechanical
+  `liveEnemyAsset(k, findA(x.enemyId), g)` and became `unitAssetAt(k, x, g)`; `liveSpawnAt` also
+  folds the rolled `enemyId` in, for readers holding the folded spawn.
+
 **AND A PLACEMENT CAN ROLL ITS GEAR OFF A TAG INSTEAD OF BEING HANDED ONE THING** — `gearTag` on
 the spawn, beside the weapon and grenade pickers, running the **same search a 💎 Pedestal runs**
 over the same free-text categories already typed on the items. Six copies of one guard tagged
@@ -2142,6 +2167,12 @@ over the same free-text categories already typed on the items. Six copies of one
   rolled garment over that slot, which also writes it into the recipe so it loots off the body and
   strips off the corpse art. An Enemy-creator asset (an animal, a turret) has no body to dress, so
   it comes back untouched and the coat is loot only, via the `wearId` line in `enemyEquippedGear`.
+* **Up to THREE tags since 2026-09-27** (`gearTags`, `SPAWN_GEAR_TAGS_MAX`; the old single
+  `gearTag` is read as a list of one). Three boxes STACKED in the toolbar, the next appearing when
+  the one above has a tag ("stacked on top not side to side"). Each is its own roll, made from its
+  pool MINUS every slot an earlier roll filled (`gearRollSlot`: hand, throw, one per garment slot),
+  so there is never a second gun that could only replace the first, and "Trailor" typed three
+  times is three different things. Garments ride in `wearIds` (a list); `wearId` is still read.
 * **Consumables are deliberately out of the pool** (`enemyGearTagPool`), which is the one place
   this parts company with a pedestal. A pedestal can hand you a potion because you drink it; an
   enemy is being asked what it CARRIES, and a rifleman holding a health tonic is the pool being
