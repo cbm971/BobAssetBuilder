@@ -971,6 +971,26 @@ Verified in the production build against his real items on a test level with fiv
 (Cat Head, Grenade Launcher, First Aid Kit, a cape, a grenade) plus a drop injected into
 `enemyDrops`: callout text, widths (≤150px), fonts actually loaded, banner position, no toast.
 
+**⭐ ITEM RANK (2026-09-27): Poor / Common / Rare / Legendary.** A `rank` field on the three
+category-carrying types, set by four coloured buttons at the top of the item's side panel. It is
+LOOK ONLY — drops, prices and pedestal searches ignore it. `itemRank(a)` reads it; anything
+missing or garbled is Common (and `newAsset` starts there). His colours: Legendary PURPLE (it
+replaced the banner's gold), Rare blue, Common green, Poor white — `ITEM_RANK_INFO`, which the
+stylesheet interpolates, so change a colour there. "Each font slightly smaller or with slightly
+less effects than the upgrade": `bannerScale` 1 / .92 / .85 / .78, and `.pbRank-*` takes one
+effect off per step (Legendary: breathing glow + shine + burst; Rare: no breathing, smaller burst;
+Common: no burst, no shine, softer pop; Poor: no glow). The same colour goes on `.pedestalCap`,
+`.enemyDropCap` and `.shopName` via `rk-<rank>` (Legendary alone adds a purple glow). An x-rayed
+pedestal's name still turns pale blue — that rule is more specific on purpose.
+**All 75 of his items were ranked by guess** from his own tags (Rare/Common/Weak/T2), value and
+abilities: Legendary = Cat Head, Cyclops Visor, Gorilla Mask, DK Arms, RPG, Grenade Launcher.
+Delivered through library.json with `savedAt = max(now, newest + 1)` where "newest" was the
+newest copy across the repo, his save folder AND the StackBlitz store he was working in at that
+moment — four of the items (Bobs Bra, Flash Shirt, Suit Jacket, Grenade Launcher) had been edited
+there that morning, and ranking the folder copies would have stamped over those edits. New work
+found in that store (the Super Bob Logo prop, Furr Con Sign, Grenade Shell) went into the file
+byte-for-byte; levels were left to the keeper's own three-way sweep.
+
 Verified by seeding a 5-HP character carrying `{type:"extraLives", lives:3}` into
 `asset-data/library.json` with a 30-dps fire pit and sampling every frame through the rAF shim:
 three revives at the same (x,y) on HP 1 with `lifeGrace` 90→0 and the gold filter, then the

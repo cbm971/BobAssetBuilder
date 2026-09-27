@@ -2171,6 +2171,24 @@ export const critChance = (intelligence) => Math.min(0.6, Math.max(0, (intellige
 // filters (0 = match ANY item) combined with AND (item must carry every listed tag) or OR (at
 // least one). Matching is case-insensitive and whitespace-trimmed on both sides.
 export const HAS_CATEGORIES = (a) => !!a && (a.type === "equipment" || a.type === "weapon" || a.type === "item");
+// ⭐ ITEM RANK (2026-09-27) — Poor, Common, Rare, Legendary, set in the item creator on the same
+// three types that carry categories. It decides how the item's NAME looks wherever the game shows
+// it: the pickup banner, the name over a pedestal or a drop, a shop row. Blake's colours: Legendary
+// PURPLE (it replaced the banner's old gold outright), Rare blue, Common green, Poor white — and
+// "each font slightly smaller or with slightly less effects than the upgrade", which is what
+// bannerScale and the per-rank banner CSS (.pbRank-*) step down. The rank is look only: it does
+// not touch the drop roll, the shop price or anything else.
+// A record with no rank (everything saved before this, and hand-written JSON) reads as Common —
+// the middle of the ladder, and what an untouched item most likely is.
+export const ITEM_RANKS = ["poor", "common", "rare", "legendary"];
+export const DEFAULT_ITEM_RANK = "common";
+export const ITEM_RANK_INFO = {
+  poor: { label: "Poor", color: "#f4f4f4", bannerScale: 0.78 },
+  common: { label: "Common", color: "#6fe27c", bannerScale: 0.85 },
+  rare: { label: "Rare", color: "#5ea9ff", bannerScale: 0.92 },
+  legendary: { label: "Legendary", color: "#c67bff", bannerScale: 1 },
+};
+export const itemRank = (a) => (a && ITEM_RANKS.includes(a.rank) ? a.rank : DEFAULT_ITEM_RANK);
 const normCats = (arr) => (arr || []).map((c) => (typeof c === "string" ? c.trim().toLowerCase() : "")).filter(Boolean);
 export const itemMatchesPedestal = (item, cats, logic) => {
   const filters = normCats(cats);
@@ -4249,8 +4267,9 @@ export function newAsset(type, slot, wtype) {
   // 💵 WHAT IT IS WORTH sits beside the categories, on exactly the same three types, because the
   // two are asked together: a shop finds its stock by the tag and prices it by the value. New
   // items start at 0 — free — rather than at some invented price, so an unpriced shelf is
-  // obviously unpriced instead of quietly charging a number nobody chose.
-  if (HAS_CATEGORIES(a)) a.value = 0;
+  // obviously unpriced instead of quietly charging a number nobody chose. A new item is ranked
+  // Common (see ITEM_RANKS), the same thing an unranked old one reads as.
+  if (HAS_CATEGORIES(a)) { a.value = 0; a.rank = DEFAULT_ITEM_RANK; }
   return a;
 }
 const guideAsset = { angles: DEFAULT_BODY, hand: DEFAULT_HAND, shoulder: DEFAULT_SHOULDER };
@@ -9663,17 +9682,19 @@ export default function AssetStudio() {
 
   const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 1600); };
   // 🎁 THE PICKUP BANNER. Taking an item off a pedestal or a body throws its NAME up over the level
-  // in big gold arcade letters, with what it just did to you underneath (pickupChangeRows) — the
-  // Binding-of-Isaac "you got X" moment, asked for as "bold, semi retro, dopamine inducing". It
+  // in big arcade letters, with what it just did to you underneath (pickupChangeRows) — the
+  // Binding-of-Isaac "you got X" moment, asked for as "bold, semi retro, dopamine inducing". The
+  // letters wear the item's ⭐ RANK (itemRank): purple and the full show for Legendary, stepping
+  // down through blue and green to a plain white Poor — see ITEM_RANK_INFO and .pbRank-*. It
   // REPLACES the blue toast those pickups used to fire, not adds to it: the same news twice, once at
   // the top of the view and once at the bottom, is exactly the clutter Blake keeps taking out.
   // `n` keys the element so a second pickup inside the banner's life restarts the pop animation,
   // and it guards the timer so the first pickup's timeout cannot clear the second one's banner.
-  const [pickupBanner, setPickupBanner] = useState(null); // { n, name, rows } | null
+  const [pickupBanner, setPickupBanner] = useState(null); // { n, name, rows, rank } | null
   const pickupSeq = useRef(0);
-  const showPickup = (name, rows) => {
+  const showPickup = (name, rows, rank) => {
     const n = ++pickupSeq.current;
-    setPickupBanner({ n, name: name || "", rows: rows || [] });
+    setPickupBanner({ n, name: name || "", rows: rows || [], rank: ITEM_RANKS.includes(rank) ? rank : DEFAULT_ITEM_RANK });
     setTimeout(() => setPickupBanner((b) => (b && b.n === n ? null : b)), PICKUP_BANNER_MS);
   };
   useEffect(() => { loadGameFonts(); }, []);
@@ -13108,7 +13129,7 @@ export default function AssetStudio() {
             // consumeItemNow is shared with the shop counter, so a potion bought over a counter
             // and the same potion taken off a plinth can never heal different amounts. Quiet here:
             // what it did goes under the pickup banner instead of into a toast.
-            showPickup(item.name, [{ kind: "text", text: consumeItemNow(item, "", true) }]);
+            showPickup(item.name, [{ kind: "text", text: consumeItemNow(item, "", true) }], itemRank(item));
             putBack(null);
           } else if (item.type === "weapon") {
             if (isThrowable(item.wtype)) {
@@ -13118,12 +13139,12 @@ export default function AssetStudio() {
               const prevId = playtestThrowId, prev = prevId ? findA(prevId) : null;
               putBack(prev);
               throwPickup.current = 3;
-              showPickup(item.name + " ×3", pickupChangeRows(item, { held: prev }));
+              showPickup(item.name + " ×3", pickupChangeRows(item, { held: prev }), itemRank(item));
               setPlaytestThrowId(item.id);
             } else {
               const prevId = playtestWeaponId, prev = prevId ? findA(prevId) : null;
               putBack(prev);
-              showPickup(item.name, pickupChangeRows(item, { held: prev }));
+              showPickup(item.name, pickupChangeRows(item, { held: prev }), itemRank(item));
               setPlaytestWeaponId(item.id);
             }
           } else {
@@ -13146,7 +13167,7 @@ export default function AssetStudio() {
             const after = mergeEquip(basePlayerAsset, nextMap, equippedBodyIdFor(basePlayerAsset));
             equipped.current = nextMap;
             putBack(prev);
-            showPickup(item.name, pickupChangeRows(item, { before, after, off: prev }));
+            showPickup(item.name, pickupChangeRows(item, { before, after, off: prev }), itemRank(item));
             playerHP.current = Math.min(playerHP.current, maxPlayerHP(after));
             // The ALLY side of that same line — pay anyone owed a top-up, trim anyone now over the
             // ceiling. Swapping kit is the only way the worn ally bonus moves mid-run, and there
@@ -19214,7 +19235,7 @@ export default function AssetStudio() {
                   const icon = item.type === "weapon" ? "⚔️" : item.type === "equipment" ? "🎒" : "🧪";
                   return <div key={"drop" + k} className="enemyDropPlay" style={{ left: drop.x, top: drop.y }} title={"Dropped " + item.name}>
                     <div className={"enemyDropOrb" + (bb ? " art" : "")} style={bb ? { width: dBox, height: dBox } : undefined}>{bb ? <div style={dPlane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "drop_" + k, keyPrefix: "drop" + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : icon}</div>
-                    <div className="enemyDropCap">{item.name}</div>
+                    <div className={"enemyDropCap rk-" + itemRank(item)}>{item.name}</div>
                   </div>;
                 })}
                 {play && lv.markers && Object.keys(lv.markers).map((k) => {
@@ -19257,7 +19278,7 @@ export default function AssetStudio() {
                       </div>
                       {(rolled || !bb) && (
                         <div className={"pedLabels" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }}>
-                          {rolled && <div className="pedestalCap">{rolled.name}</div>}
+                          {rolled && <div className={"pedestalCap rk-" + itemRank(rolled)}>{rolled.name}</div>}
                           {/* The "no match" warning rides up here with the rest of the words, so a
                               mis-tagged pedestal still says so with the player standing on it. The
                               cap and callout are absolutely positioned and so sit outside the flex
@@ -19360,11 +19381,12 @@ export default function AssetStudio() {
                   positioning box. The name is written three times over (data-text feeds the outline
                   and the shine layers in CSS) because a gradient fill clipped to the letters cannot
                   also carry a text-shadow — the shadow paints through the transparent fill. Long
-                  names step the size down rather than running off the sides of the view. */}
+                  names step the size down rather than running off the sides of the view, and each
+                  rank below Legendary is drawn a step smaller again (ITEM_RANK_INFO.bannerScale). */}
               {play && pickupBanner && (
-                <div key={"pickup" + pickupBanner.n} className="pickupBanner">
+                <div key={"pickup" + pickupBanner.n} className={"pickupBanner pbRank-" + pickupBanner.rank}>
                   <div className="pbBurst" />
-                  <div className="pbName" data-text={pickupBanner.name} style={{ fontSize: pickupBanner.name.length > 22 ? 20 : pickupBanner.name.length > 15 ? 24 : pickupBanner.name.length > 10 ? 28 : 32 }}><span>{pickupBanner.name}</span></div>
+                  <div className="pbName" data-text={pickupBanner.name} style={{ fontSize: Math.round((pickupBanner.name.length > 22 ? 20 : pickupBanner.name.length > 15 ? 24 : pickupBanner.name.length > 10 ? 28 : 32) * ITEM_RANK_INFO[pickupBanner.rank].bannerScale) }}><span>{pickupBanner.name}</span></div>
                   {pickupBanner.rows.length > 0 && <div className="pbRows">{pickupRowsView(pickupBanner.rows)}</div>}
                 </div>
               )}
@@ -19596,7 +19618,7 @@ export default function AssetStudio() {
                             : <span className="shopArtIcon">{(it.name || "?").trim().charAt(0).toUpperCase()}</span>}
                       </div>
                       <div className="shopMeta">
-                        <div className="shopName">{it.name}</div>
+                        <div className={"shopName rk-" + itemRank(it)}>{it.name}</div>
                         <div className="hint2">{what}</div>
                         {/* THE ONE THING THE PRICE ALONE CANNOT TELL YOU: which of your own things
                             walks out of the door to pay for it. Only shown when something actually
@@ -20356,6 +20378,20 @@ export default function AssetStudio() {
               <label className="slider">🎲 Weight<input type="number" min="0" step="1" value={asset.dropWeight ?? DEFAULT_DROP_WEIGHT} onChange={(e) => setAsset((a) => ({ ...a, dropWeight: Math.max(0, +e.target.value || 0) }))} style={{ width: 70 }} /></label>
             </div>
           )}
+          {/* ⭐ RANK — four buttons, each in the colour its name will wear in the game (see
+              ITEM_RANKS). Buttons, not a dropdown: four choices is one click each, and the colours
+              are the point of the control. */}
+          {HAS_CATEGORIES(asset) && !effEdit && (
+            <div className="card">
+              <div className="ct">⭐ Rank</div>
+              <div className="rankRow">
+                {ITEM_RANKS.map((r) => {
+                  const on = itemRank(asset) === r, info = ITEM_RANK_INFO[r];
+                  return <button key={r} className={"rankBtn" + (on ? " on" : "")} style={{ color: info.color, ...(on ? { borderColor: info.color, boxShadow: "0 0 0 1px " + info.color + " inset" } : {}) }} onClick={() => setAsset((a) => ({ ...a, rank: r }))}>{info.label}</button>;
+                })}
+              </div>
+            </div>
+          )}
           {HAS_CATEGORIES(asset) && !effEdit && (
             <div className="card">
               <div className="ct">🏷️ Item categories</div>
@@ -21101,20 +21137,51 @@ html,body{margin:0;padding:0;background:#0f1117}
    .lscroll box made relative just above), top-centre, over the level. z 5 clears the grid (one
    z-auto box, see above) and stays under the modals (30) and the toast (40), so it can never cover
    a dialog. Three layers make the name: ::before is the chunky dark outline, the 3-D drop and the
-   orange glow; the span is the gold gradient clipped to the letters; ::after is a white shine that
+   rank glow; the span is the rank-coloured gradient clipped to the letters; ::after is a white shine that
    sweeps across once. It pops in with an overshoot, holds, then drifts up and fades — pbLife's
-   length is PICKUP_BANNER_MS, which is when the element is removed. A soft gold burst flares behind
+   length is PICKUP_BANNER_MS, which is when the element is removed. A soft burst in the rank colour flares behind
    it on arrival. No backticks in here: this sheet is a JS template literal. */
 .pickupBanner{position:absolute;left:50%;top:14%;z-index:5;max-width:94%;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:7px;transform:translateX(-50%);animation:pbLife 2.6s ease-out forwards}
 @keyframes pbLife{0%,78%{opacity:1;transform:translateX(-50%) translateY(0)}100%{opacity:0;transform:translateX(-50%) translateY(-18px)}}
-.pbBurst{position:absolute;left:50%;top:18px;width:300px;height:100px;margin:-50px 0 0 -150px;border-radius:50%;background:radial-gradient(ellipse at center,rgba(255,214,90,.6),rgba(255,140,0,.2) 45%,transparent 70%);animation:pbBurst .75s ease-out forwards}
+.pbBurst{position:absolute;left:50%;top:18px;width:300px;height:100px;margin:-50px 0 0 -150px;border-radius:50%;background:radial-gradient(ellipse at center,rgba(206,130,255,.62),rgba(140,60,255,.22) 45%,transparent 70%);animation:pbBurst .75s ease-out forwards}
 @keyframes pbBurst{0%{transform:scale(.2);opacity:1}100%{transform:scale(1.6);opacity:0}}
 .pbName{position:relative;font-family:'Bungee','Arial Black',Impact,sans-serif;font-weight:400;line-height:1.05;letter-spacing:.03em;white-space:nowrap;text-transform:uppercase;animation:pbPop .55s cubic-bezier(.18,1.5,.4,1) both}
-.pbName span{position:relative;background:linear-gradient(180deg,#fffbe0 0%,#ffe45c 38%,#ffb31f 62%,#ff7a00 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
-.pbName::before{content:attr(data-text);position:absolute;left:0;top:0;right:0;color:#2b1200;-webkit-text-stroke:.2em #2b1200;text-shadow:0 .12em 0 #2b1200,0 0 .5em rgba(255,170,30,.85),0 0 1.1em rgba(255,110,0,.5)}
+.pbName span{position:relative;background:linear-gradient(180deg,#fdf0ff 0%,#e9b8ff 36%,#b85eff 64%,#7a2cf0 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+.pbName::before{content:attr(data-text);position:absolute;left:0;top:0;right:0;color:#1c0535;-webkit-text-stroke:.2em #1c0535;text-shadow:0 .12em 0 #1c0535,0 0 .5em rgba(205,125,255,.9),0 0 1.1em rgba(150,60,255,.55)}
 .pbName::after{content:attr(data-text);position:absolute;left:0;top:0;right:0;background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.95) 50%,transparent 60%) no-repeat;background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;animation:pbShine 1.1s .35s ease-in-out both}
 @keyframes pbPop{0%{transform:scale(.3) rotate(-4deg);opacity:0}55%{transform:scale(1.14) rotate(1deg);opacity:1}75%{transform:scale(.96) rotate(0)}100%{transform:scale(1) rotate(0)}}
 @keyframes pbShine{from{background-position:100% 0}to{background-position:0 0}}
+/* ⭐ THE RANK LADDER (ITEM_RANKS). The rules above are LEGENDARY: purple, the heaviest outline, the
+   3-D drop, a double glow that keeps breathing while the name holds, the shine sweep and the burst.
+   Each rank below takes one step off, as asked ("each font slightly smaller or with slightly less
+   effects than the upgrade"): the size steps down in ITEM_RANK_INFO.bannerScale, and here
+     RARE    blue  — no breathing glow, a smaller and fainter burst, thinner outline
+     COMMON  green — no burst, no shine, a softer pop, a faint glow
+     POOR    white — no glow at all, the thinnest outline, the gentlest pop. */
+.pbRank-legendary .pbName::before{animation:pbBreathe 1.1s .55s ease-in-out infinite alternate}
+@keyframes pbBreathe{from{text-shadow:0 .12em 0 #1c0535,0 0 .5em rgba(205,125,255,.9),0 0 1.1em rgba(150,60,255,.55)}to{text-shadow:0 .12em 0 #1c0535,0 0 .7em rgba(225,160,255,1),0 0 1.6em rgba(150,60,255,.8)}}
+.pbRank-rare .pbBurst{width:230px;height:76px;margin:-38px 0 0 -115px;background:radial-gradient(ellipse at center,rgba(110,175,255,.45),rgba(40,110,255,.14) 45%,transparent 70%)}
+.pbRank-rare .pbName span{background-image:linear-gradient(180deg,#f0f7ff 0%,#b0d8ff 36%,#4f9fff 64%,#1d5cd6 100%)}
+.pbRank-rare .pbName::before{color:#061634;-webkit-text-stroke:.18em #061634;text-shadow:0 .1em 0 #061634,0 0 .45em rgba(90,160,255,.7)}
+.pbRank-common .pbBurst,.pbRank-poor .pbBurst,.pbRank-common .pbName::after,.pbRank-poor .pbName::after{display:none}
+.pbRank-common .pbName{animation:pbPopSoft .45s cubic-bezier(.2,1.3,.4,1) both}
+.pbRank-common .pbName span{background-image:linear-gradient(180deg,#f2fff3 0%,#b4f5b8 38%,#52cf5e 66%,#22923a 100%)}
+.pbRank-common .pbName::before{color:#06240c;-webkit-text-stroke:.16em #06240c;text-shadow:0 .08em 0 #06240c,0 0 .35em rgba(90,220,110,.4)}
+.pbRank-poor .pbName{animation:pbPopSoft .4s ease-out both}
+.pbRank-poor .pbName span{background-image:linear-gradient(180deg,#ffffff 0%,#f1f1f1 50%,#cacaca 100%)}
+.pbRank-poor .pbName::before{color:#121212;-webkit-text-stroke:.14em #121212;text-shadow:0 .06em 0 #121212}
+@keyframes pbPopSoft{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.05);opacity:1}100%{transform:scale(1)}}
+/* The same four colours on every OTHER place the game prints an item's name: over a pedestal,
+   under a drop, on a shop row. Two classes deep so they beat the shared white-outline rule's
+   color; the outline itself is untouched. Legendary alone adds a purple glow to it. */
+.pedestalCap.rk-poor,.enemyDropCap.rk-poor,.shopName.rk-poor{color:${ITEM_RANK_INFO.poor.color}}
+.pedestalCap.rk-common,.enemyDropCap.rk-common,.shopName.rk-common{color:${ITEM_RANK_INFO.common.color}}
+.pedestalCap.rk-rare,.enemyDropCap.rk-rare,.shopName.rk-rare{color:${ITEM_RANK_INFO.rare.color}}
+.pedestalCap.rk-legendary,.enemyDropCap.rk-legendary,.shopName.rk-legendary{color:${ITEM_RANK_INFO.legendary.color}}
+.pedestalCap.rk-legendary,.enemyDropCap.rk-legendary{text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(190,110,255,.95)}
+.rankRow{display:flex;flex-wrap:wrap;gap:6px}
+.rankBtn{flex:1 1 auto;white-space:nowrap;background:#0f1117;border:1px solid #2c3245;border-radius:9px;padding:8px 9px;font-size:13px;font-weight:700;cursor:pointer}
+.rankBtn.on{background:#1b2133}
 .pbRows{display:flex;flex-direction:column;align-items:center;gap:2px;white-space:nowrap;font-family:'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:13px;font-weight:700;line-height:1.2;color:#fff;animation:pbRowsIn .35s .3s ease-out both}
 @keyframes pbRowsIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .seamStrip{position:absolute;pointer-events:none;background:inherit;background-size:inherit}
