@@ -1458,7 +1458,8 @@ spots in the play loop and the level render. In plain words:
   nothing; per level it is ~300–400 extra cells on his levels (measured 371 + 299 on M1). It is NOT
   the ten-levels-in-one-DOM build he first described — tile count is what has cost frames twice.
 * **The camera.** `cameraTarget` (pure): centre the body, clamp to the level, but let the view run past
-  an edge by the strip's width where a neighbour is drawn. `updateCamera` eases toward it
+  an edge by the strip's width where a neighbour is drawn (SUPERSEDED 2026-09-27: the clamp is the
+  union of the drawn levels — see THE CAMERA HUNG ON THE LEVEL YOU WERE LEAVING below). `updateCamera` eases toward it
   (`CAMERA_EASE`, dt-scaled) into `camRef`; the level render reads `camRef` and emits a
   `translate3d` on `.lgrid` while play is on, inside `commitFrame`, so it lands on the frame it was
   computed for. `.lscroll` gets `overflow:hidden` (`.playing`) and its scroll position is parked at
@@ -1638,6 +1639,43 @@ spots in the play loop and the level render. In plain words:
   `t0/t1`, `L0/L1` — then stripped): swap render+commit **9–27 ms → 1.6–4.8 ms** (a normal render is
   0.8–3), frames around the crossing 27–39 ms → 19–27 against an 18 ms norm. Paint itself is still
   unmeasured (pane hidden); the proxy above is what went to zero.
+* **THE CAMERA HUNG ON THE LEVEL YOU WERE LEAVING (2026-09-27).** Blake: "when playing a run and going
+  from one level to the next the camera sort of hangs on the prior". Four earlier passes treated this
+  as a freeze and measured JS or paint in a 1,243–1,564 px test view. It was the CAMERA CLAMP, and it
+  only exists on a wide view: `cameraTarget` still let the view past a seam by `SEAM_STRIP_CELLS`
+  (40 cells, 1,200 px) — the strip that was drawn before neighbours were drawn whole. **His screen is a
+  3440×1440 ultrawide at 125% scaling (2752 CSS px) and he zooms the game to 75–80%** (Chrome's
+  per-host zoom in his profile), so the level view is ~3,084×871 CSS px; at 100% it is 2,396, 4 px
+  inside the old limit. Half a 3,084 view is past the strip, so the camera stopped ~50 frames before
+  every gate (the body slid 1555 → 1857 px across the screen), and after the handoff the clamp
+  flipped to the other level's strip and the view swung back past him (→ 1344) before settling.
+  Measured on seed 7, M8 → M7, `resize_window` 3440×1230. **Test camera work at HIS view size.**
+  Four fixes, all run-only:
+  - `cameraTarget` clamps to the UNION of the levels drawn (live + neighbours as rectangles from
+    their seam offset and own size), a neighbour counting on one axis only when the centred view
+    overlaps it on the other. At a gate both levels overlap on both axes, so the target is the same
+    world point whichever is live (tests: the before/after pair, a taller neighbour, a sewer).
+    After: screen x 1555 ±0.5 px through M10→M9, M9→M8, M8→M7 and back M7→M8.
+  - **React was MOVING DOM nodes at every handoff.** The tile wrappers and the one object list put the
+    live level first; at the swap the two levels at the gate traded places, and a keyed reorder is an
+    `insertBefore` — the browser drops the moved subtree's style, layout and paint and redoes it.
+    MutationObserver on `.lgrid`, M9 → M8: the whole level being left (414 elements) + 39 in-front
+    objects moved on the swap frame. The earlier "0 tiles move" proxy compared boxes, which a move
+    does not change. Now both are in grid order (`runGridOrder`) and units in seed order
+    (`unitDrawOrder`, by `ep.uid`): **0 nodes moved** on every crossing. Count moves this way
+    (a removed node that is re-added in the same batch) after any change to a keyed list in play.
+  - Neighbours contribute ALL their objects (the cull decides) — the camera can see past 40 cells now.
+  - `seamHandoff` commits in `flushSync` (the swap was a plain setLevel: a held frame, then the
+    render, then the effect re-run each in a later task; a SyncLane commit runs the effect re-run
+    before flushSync returns), and the new loop's first step is the swap frame's own `dtMul`
+    (`seamCarry.dt`) instead of 1 — 1 is 2.75 of his 165 Hz frames, a lurch at every gate.
+  - `runTilesUpTo` mounts a WHOLE cached layer a slice at a time too (`entry.ends`): walking back
+    past a gate re-mounted the level two gates back (414 elements) in the swap frame. Swap frame
+    6.9 → 1.9 ms, forced layout 3.9 → 1.1 ms.
+  **Harness traps this time:** a teleport can land on a 🚶 walkway (`p.topdown`, no gravity — reads
+  as a dead loop; clear it and pick another x); the pane drops a held key on a stray blur, so re-press
+  `d` every frame from the rAF wrapper; and sample the body's SCREEN x (`p.x - camRef.x`) per frame —
+  it is the one number that shows a camera hang, a swing and a lurch at once.
 * **Gates with nothing behind them.** Pressed against an edge at an open gate no level attaches to,
   the loop flashes once every 2.5 s (`gateNag`): "🚧 Bottom Left gate leads nowhere yet … (it accepts
   "Sewer")", "🏁 The run starts here", or "🏁 Floor complete!". Plain Playtest edges stay silent.

@@ -166,7 +166,7 @@ import {
   relocatedObjectKey,
   migrateLevel,
   newLevelBucket, runWorldParts, worldPartAt, worldPartOfCell, unitClampX, unitFloorY, moveRunUnit, adoptRunNeighbours, releaseRunUnits, TALK_BUBBLE_MIN_H,
-  runMountPlan, RUN_MOUNT_ITEMS_PER_FRAME,
+  runMountPlan, RUN_MOUNT_ITEMS_PER_FRAME, runGridOrder, unitDrawOrder,
   runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, buildRun, resolveRunNeighbour, resolveRunSides, runSeams, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
   objTopAt,
   objNudgedLeft,
@@ -9306,6 +9306,55 @@ describe("runs", () => {
     expect(cameraTarget({ x: -3000, y: 10 }, pw, ph, A, { W: {} }, 900, 500, CELL).x).toBe(-SEAM_STRIP_CELLS * CELL);  // but never past the strip
     const room = mk("room", { cols: 40, rows: 24 });
     expect(cameraTarget({ x: 600, y: 300 }, pw, ph, room, {}, 1600, 900, CELL)).toEqual({ x: 0, y: 0 });       // a level smaller than the viewport does not move
+  });
+
+  // Blake's view: a 3440 ultrawide at 125% scaling, the game zoomed to 80% — 3,084 px of level.
+  // Half of that is past the old 40-cell strip, so the camera stopped short of every gate and
+  // swung the other way after it ("hangs on the prior level").
+  test("cameraTarget never stops short of a gate on a wide view: a neighbour is drawn whole", () => {
+    const pw = 58, ph = 210, VW = 3084, VH = 871;
+    const nbE = { E: { level: B, off: { x: 4800, y: 0 } } };
+    // Walking up to A's east gate: the view stays centred on the body all the way to the edge.
+    for (const x of [3000, 4000, 4700, 4770]) expect(cameraTarget({ x, y: 390 }, pw, ph, A, nbE, VW, VH, CELL).x).toBe(x + pw / 2 - VW / 2);
+    // The same body in the same place, a frame later, with B live and A as its west neighbour:
+    // the target is the same point of the world, so the handoff does not move the camera.
+    const before = cameraTarget({ x: 4775, y: 390 }, pw, ph, A, nbE, VW, VH, CELL);
+    const after = cameraTarget({ x: 4775 - 4800, y: 390 }, pw, ph, B, { W: { level: A, off: { x: -4800, y: 0 } } }, VW, VH, CELL);
+    expect(after.x).toBeCloseTo(before.x - 4800, 6); expect(after.y).toBeCloseTo(before.y, 6);
+    // With nothing drawn behind the gate the edge still holds, exactly as before.
+    expect(cameraTarget({ x: 4770, y: 390 }, pw, ph, A, {}, VW, VH, CELL).x).toBe(4800 - VW);
+    // The view never runs past the far side of the neighbour either.
+    expect(cameraTarget({ x: 9500, y: 390 }, pw, ph, A, nbE, VW, VH, CELL).x).toBe(9600 - VW);
+  });
+
+  test("cameraTarget: a neighbour of another height counts for y only once the view reaches it, and the handoff still does not move the camera", () => {
+    const pw = 58, ph = 210, VW = 3084, VH = 871;
+    const tall = mk("tall", { rows: 60 });                       // 1,800 px tall, sitting 300 px lower than A
+    const toTall = { E: { level: tall, off: { x: 4800, y: 300 } } };
+    // In the middle of A, far from the seam, the bottom clamp is A's own (the view cannot see the taller level).
+    expect(cameraTarget({ x: 1000, y: 1170 }, pw, ph, A, toTall, VW, VH, CELL).y).toBe(1380 - VH);
+    // At the gate the view overlaps both, so the clamp is their union — on both sides of the handoff.
+    const before = cameraTarget({ x: 4775, y: 1170 }, pw, ph, A, toTall, VW, VH, CELL);
+    const after = cameraTarget({ x: 4775 - 4800, y: 1170 - 300 }, pw, ph, tall, { W: { level: A, off: { x: -4800, y: -300 } } }, VW, VH, CELL);
+    expect(before.y).toBe(1170 + ph / 2 - VH / 2);             // not clamped to A: the taller level is in view below
+    expect(after.x).toBeCloseTo(before.x - 4800, 6); expect(after.y).toBeCloseTo(before.y - 300, 6);
+    // A sewer under the live level lets the view follow the body down past the floor, toward it.
+    const sewer = mk("sewer", { rows: 24 });
+    expect(cameraTarget({ x: 1400, y: 1300 }, pw, ph, A, { S: { level: sewer, off: { x: 0, y: 1380 } } }, VW, VH, CELL).y).toBe(1300 + ph / 2 - VH / 2);
+  });
+
+  test("runGridOrder / unitDrawOrder: the order levels and units are drawn in survives a handoff", () => {
+    const n = (key, col, row = 0) => ({ key, col, row });
+    const m9 = n("run2", 1), m8 = n("run3", 2), m7 = n("run4", 3), m10 = n("run1", 0);
+    // M9 live with M10 and M8 beside it, then M8 live with M9 and M7: the two at the gate keep their order.
+    const before = [m9, m10, m8].sort(runGridOrder).map((x) => x.key), after = [m8, m9, m7].sort(runGridOrder).map((x) => x.key);
+    expect(before).toEqual(["run1", "run2", "run3"]); expect(after).toEqual(["run2", "run3", "run4"]);
+    expect([n("s", 1, 1), n("m", 1, 0)].sort(runGridOrder).map((x) => x.key)).toEqual(["m", "s"]); // a sewer row after the main row
+    // Books rebuilt at a handoff list the entered level's own units first; the draw order does not change.
+    const pos = { "20,5": { uid: 7 }, "20,170": { uid: 3 }, "19,-4": { uid: 12 } };
+    expect(unitDrawOrder({ "20,5": {}, "20,170": {}, "19,-4": {} }, pos)).toEqual(["20,170", "20,5", "19,-4"]);
+    expect(unitDrawOrder({ "19,-4": {}, "20,170": {}, "20,5": {} }, pos)).toEqual(["20,170", "20,5", "19,-4"]);
+    expect(unitDrawOrder({ "1,1": {}, "20,5": {}, "2,2": {} }, pos)).toEqual(["20,5", "1,1", "2,2"]);  // not yet seeded: after, in book order
   });
 
   test("inSeamStrip / seamStripMap take the neighbour's edge that faces us", () => {

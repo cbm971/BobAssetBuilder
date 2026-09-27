@@ -8226,7 +8226,7 @@ const canAttach = (left, right, side) => { // does `right` attach to `side` of `
 // cost frames twice — see the performance notes in CLAUDE.md). A strip of each neighbour is drawn
 // across an open seam so the far side of a gate is already on screen before you reach it.
 export const RUN_MIDDLE_LEVELS = 8;    // how many middle levels a run chains between Intro and Exit — the one knob
-export const SEAM_STRIP_CELLS = 40;    // how many cells of a neighbouring level are drawn past an open seam (keep >= half a viewport)
+export const SEAM_STRIP_CELLS = 40;    // the old width of the neighbour strip. Neighbours are drawn WHOLE now and the camera and the object list use the whole level (see cameraTarget); this is only inSeamStrip's default and the camera's fallback for a seam with no level to measure
 export const GATE_REACH_CELLS = 10;    // a crossing counts as "through gate X" only within this many cells of X's marked point
 export const CAMERA_EASE = 0.14;       // fraction of the remaining distance the camera closes each frame (at 60fps)
 const CONN_SIDE = { N1: "N", N2: "N", E1: "E", E2: "E", S1: "S", S2: "S", W1: "W", W2: "W" };
@@ -8460,7 +8460,7 @@ const cachedRunTiles = (kind, map, texLib, itemsOf, buildItem) => {
   if (!map) return null;
   const hit = RUN_TILE_CACHE[kind].get(map);
   if (hit && hit.texLib === texLib) return hit;
-  const entry = { texLib, items: itemsOf(map), built: [], n: 0, el: null, buildItem: (it) => buildItem(map, texLib, it) };
+  const entry = { texLib, items: itemsOf(map), built: [], ends: [], n: 0, el: null, buildItem: (it) => buildItem(map, texLib, it) };
   RUN_TILE_CACHE[kind].set(map, entry);
   return entry;
 };
@@ -8468,10 +8468,16 @@ const cachedRunTiles = (kind, map, texLib, itemsOf, buildItem) => {
 // cached whole-layer element once complete, else a fresh wrapper over the elements built so far.
 // The array is appended in place; React only reads it while reconciling, and the elements in it
 // never change, so the already-mounted cells bail out and only the new slice mounts.
+// A level that was mounted before, left behind (its wrapper unmounted two gates back) and then
+// walked back towards is a neighbour NEW to the screen again, but its cache is already whole — and
+// this used to hand back the whole cached layer whatever `upTo` said, so all of it (414 elements
+// on M9) was inserted and laid out on the swap frame of the walk back. `ends` records where each
+// item's elements end in `built`, so a whole cache can still be mounted a slice at a time.
 const runTilesUpTo = (entry, upTo) => {
-  for (; entry.n < upTo && entry.n < entry.items.length; entry.n++) { const out = entry.buildItem(entry.items[entry.n]); if (Array.isArray(out)) { for (const e of out) if (e) entry.built.push(e); } else if (out) entry.built.push(out); }
-  if (entry.n >= entry.items.length) { if (!entry.el) entry.el = <div style={RUN_LAYER_STYLE}>{entry.built}</div>; return entry.el; }
-  return <div style={RUN_LAYER_STYLE}>{entry.built}</div>;
+  for (; entry.n < upTo && entry.n < entry.items.length; entry.n++) { const out = entry.buildItem(entry.items[entry.n]); if (Array.isArray(out)) { for (const e of out) if (e) entry.built.push(e); } else if (out) entry.built.push(out); entry.ends.push(entry.built.length); }
+  if (upTo < entry.items.length) return <div style={RUN_LAYER_STYLE}>{entry.n > upTo ? entry.built.slice(0, upTo > 0 ? entry.ends[upTo - 1] : 0) : entry.built}</div>;
+  if (!entry.el) entry.el = <div style={RUN_LAYER_STYLE}>{entry.built}</div>;
+  return entry.el;
 };
 const RUN_MOUNT_PROGRESS = new WeakMap();   // run node -> how many of its tile items are mounted so far; cleared when its wrapper unmounts
 // The wrapper's ref callback, ONE function per node: an inline arrow would be a new ref every
@@ -8479,6 +8485,29 @@ const RUN_MOUNT_PROGRESS = new WeakMap();   // run node -> how many of its tile 
 // progress each frame and the neighbour would never finish mounting.
 const RUN_WRAPPER_REF = new WeakMap();
 const runWrapperRef = (node) => { let f = RUN_WRAPPER_REF.get(node); if (!f) { f = (el) => { if (!el) RUN_MOUNT_PROGRESS.delete(node); }; RUN_WRAPPER_REF.set(node, f); } return f; };
+// THE LEVELS ARE LISTED IN THE WORLD'S ORDER, NOT "LIVE ONE FIRST" (2026-09-27). The tile wrappers
+// and the one list of objects used to put the live level first and its neighbours after it, so at
+// every handoff the two levels either side of the gate swapped places in the list. Keys kept every
+// element alive, but React keeps them alive by MOVING the DOM node, and the browser treats a moved
+// node as removed and re-inserted: its styles, its layout and every pixel of it are thrown away and
+// redone. Measured with a MutationObserver on his seed-7 run, M9 → M8: on the swap frame the whole
+// level being left (its tile wrapper, 414 elements) and 39 of its in-front objects were moved —
+// half the screen, all SVG-textured, re-rastered on the one frame that had to be cheap. The
+// earlier "0 rebuilt / 0 tiles move" checks compared element boxes, which a move does not change.
+// Sorted by grid slot (row, then column) the list only ever gains the level ahead and loses the
+// one behind; the two at the gate keep their order, so nothing moves. They never overlap, so the
+// order they are drawn in cannot show.
+export const runGridOrder = (a, b) => (a.row - b.row) || (a.col - b.col);
+// ...and units are drawn in the order they were first seeded (ep.uid), not in their book's key
+// order. At a handoff the books are rebuilt (releaseRunUnits, adoptRunNeighbours): the entered
+// level's own units come first and the ones it adopts after, so the units of the two levels at the
+// gate swapped places and React moved the sprites of one of them — ~140 DOM nodes each, compositor
+// layers, all redone. A unit with no live state yet (its first frame) keeps its book position after
+// every seeded one; the sort is stable.
+export const unitDrawOrder = (enemies, pos) => {
+  const ks = Object.keys(enemies || {}), uid = (k) => (pos && pos[k] && pos[k].uid) || Infinity;
+  return ks.sort((a, b) => { const ua = uid(a), ub = uid(b); return ua === ub ? 0 : ua < ub ? -1 : 1; });
+};
 // The three builders are the play-mode halves of lvBgLayer / lvFgLayer / lvFrontLayer, cell for
 // cell (same classes, same runs, same outline/clip code), minus the editor's erase handlers and
 // minus the Front ref, which the run wrapper puts on an outer div instead. Each is one ITEM at a
@@ -8654,13 +8683,45 @@ export const releaseRunUnits = (run, node, buckets, sideOf, cell = LV_CELL) => {
   if (moved) node.level = { ...node.level, enemies: live.enemies };
   return moved;
 };
-// The camera target and clamp, kept pure for the tests: centre the body, clamp to the level, but
-// let the view run past an edge (by the strip's width) wherever a neighbour is drawn across it.
+// The camera target and clamp, kept pure for the tests: centre the body, and keep the view on the
+// levels that are drawn — the live one and every neighbour across a seam, WHOLE.
+//
+// THE CAMERA HUNG ON THE LEVEL YOU WERE LEAVING (2026-09-27). This used to let the view run past
+// an edge by SEAM_STRIP_CELLS (40 cells, 1,200 px) — the width of the strip of the neighbour that
+// was drawn back when only a strip was. Neighbours have been drawn whole since the same evening,
+// but the clamp kept the strip, and its own note said why that was safe: "keep >= half a
+// viewport". Blake plays on a 3440-wide ultrawide at 125% scaling with the game zoomed to 75–80%,
+// so his view is ~3,100 px wide and half of it is ~1,550 — past the strip. Measured at exactly
+// that size on his seed-7 run, M8 → M7: the camera STOPPED ~50 frames before the gate, the body
+// slid 300 px toward the right edge of the screen, and on the far side the clamp flipped to the
+// other level's west strip and the view swung 510 px the other way, overshooting him by 210 px
+// before it settled. "The camera sort of hangs on the prior level." Every earlier measurement of
+// the crossing was taken in a 1,243–1,564 px view, where half a view fits inside the strip and
+// none of this can happen.
+//
+// Now each level is a rectangle in the live level's pixels (a neighbour's comes from its seam
+// offset and its own size), and the clamp is their union — but only of the levels the view
+// actually overlaps on the OTHER axis: a neighbour to the east widens the x range when it is level
+// with the view, and widens the y range only once the view reaches across the seam into it. Right
+// at a gate the view overlaps both levels on both axes, so the clamp is the same union whichever
+// of the two is live, and the target does not jump at the handoff. Levels of the same size
+// (all of his) simply never clamp at a seam. A seam with no level to measure (the tests' bare
+// { E: {} }) still falls back to a strip.
 export const cameraTarget = (p, pw, ph, lv, seams, vw, vh, cell = LV_CELL, strip = SEAM_STRIP_CELLS) => {
   const lvW = lv.cols * cell, lvH = lv.rows * cell, s = strip * cell;
-  const minX = seams.W ? -s : 0, maxX = Math.max(minX, lvW - vw + (seams.E ? s : 0));
-  const minY = seams.N ? -s : 0, maxY = Math.max(minY, lvH - vh + (seams.S ? s : 0));
-  return { x: Math.max(minX, Math.min(maxX, p.x + pw / 2 - vw / 2)), y: Math.max(minY, Math.min(maxY, p.y + ph / 2 - vh / 2)) };
+  const rects = [{ x: 0, y: 0, w: lvW, h: lvH }];
+  for (const side of Object.keys(seams || {})) {
+    const sm = seams[side], nb = sm && sm.level, off = sm && sm.off;
+    if (nb && off) { rects.push({ x: off.x, y: off.y, w: nb.cols * cell, h: nb.rows * cell }); continue; }
+    rects.push(side === "E" ? { x: lvW, y: 0, w: s, h: lvH } : side === "W" ? { x: -s, y: 0, w: s, h: lvH } : side === "S" ? { x: 0, y: lvH, w: lvW, h: s } : { x: 0, y: -s, w: lvW, h: s });
+  }
+  const cx = p.x + pw / 2 - vw / 2, cy = p.y + ph / 2 - vh / 2;
+  // The live level always counts; a neighbour counts on one axis when the centred view overlaps it on the other.
+  const onX = rects.filter((r, i) => i === 0 || (cy < r.y + r.h && cy + vh > r.y));
+  const onY = rects.filter((r, i) => i === 0 || (cx < r.x + r.w && cx + vw > r.x));
+  const minX = Math.min(...onX.map((r) => r.x)), maxX = Math.max(minX, Math.max(...onX.map((r) => r.x + r.w)) - vw);
+  const minY = Math.min(...onY.map((r) => r.y)), maxY = Math.max(minY, Math.max(...onY.map((r) => r.y + r.h)) - vh);
+  return { x: Math.max(minX, Math.min(maxX, cx)), y: Math.max(minY, Math.min(maxY, cy)) };
 };
 
 /* ---- Enemy senses & hill-collision helpers (module-level, exported for tests) ------------- */
@@ -9288,7 +9349,7 @@ export default function AssetStudio() {
   const runOrigin = useRef({ x: 0, y: 0, w: 0, h: 0 });      // RUN — where the live level sits in the run's fixed world frame, and that frame's box (see THE WORLD NEVER MOVES AT A GATE)
   const gateNag = useRef(0);                                // when the "this gate leads nowhere yet" flash last showed, so it does not fire 60 times a second
   const carryKeys = useRef(null);                           // keys still held at a seam handoff — the loop effect re-runs on the level swap and would otherwise drop a held D
-  const seamCarry = useRef(false);                          // this effect re-run IS a seam handoff: keep the clip, the grenades, and what is in the air (see seamHandoff)
+  const seamCarry = useRef(false);                          // this effect re-run IS a seam handoff ({ dt } of the swap frame, else false): keep the clip, the grenades, and what is in the air, and take the swap frame's step first (see seamHandoff)
   const lscrollRef = useRef(null);                          // the level viewport (.lscroll): the camera needs its size, and its editor scroll position is parked during play
   const editorScroll = useRef(null);                        // where the editor had .lscroll scrolled when Playtest started, put back on Stop
   const [runHud, setRunHud] = useState(null);               // the run line over the level during play: { seed, where, name, notes }
@@ -9411,6 +9472,7 @@ export default function AssetStudio() {
     if (!runNodeNow) return null;
     const seams = runSeams(runRef.current, runNodeNow, LV_CELL);
     const shown = [{ node: runNodeNow, off: { x: 0, y: 0 } }, ...Object.keys(seams).map((side) => ({ node: runRef.current.nodes[seams[side].key], off: seams[side].off }))];
+    shown.sort((a, b) => runGridOrder(a.node, b.node)); // the world's order, so a handoff moves no wrapper (see runGridOrder)
     return shown.map(({ node, off }) => {
       const nb = node.level, live = node === runNodeNow;
       const layers = [
@@ -9445,14 +9507,18 @@ export default function AssetStudio() {
   const lvDrawOrder = useMemo(() => level && level.fx ? levelObjectsInDrawOrder(level.fx) : [], [level]);
   // RUN — the objects on screen in a run, the live level's AND each neighbour's, per run node, for
   // the ONE keyed object pass in the level render (see ONE LIST OF OBJECTS there). A neighbour
-  // contributes the objects whose footprint reaches into its seam strip: the camera never sees
-  // further into it than that. Its `ord` is its place in its OWN level's whole draw order, the same
-  // number it has while it is live, so its z-index does not change at the handoff either.
+  // contributes ALL of its objects, like its tiles; the view cull in the pass decides what is drawn.
+  // (It used to be only those reaching into a 40-cell seam strip, "the camera never sees further
+  // into it than that" — but the camera now can, on a wide view: see cameraTarget. A strip-only
+  // list also swapped its objects for the whole level's at the handoff.) Its `ord` is its place in
+  // its OWN level's whole draw order, the same number it has while it is live, so its z-index does
+  // not change at the handoff either. Levels in grid order, not live-first (see runGridOrder).
   const runObjects = useMemo(() => {
     if (!runNodeNow) return null;
-    const out = [{ nk: runNodeNow.key, off: { x: 0, y: 0 }, live: true, items: lvDrawOrder }];
+    const out = [{ nk: runNodeNow.key, node: runNodeNow, off: { x: 0, y: 0 }, live: true, items: lvDrawOrder }];
     const seams = runSeams(runRef.current, runNodeNow, LV_CELL);
-    for (const side of Object.keys(seams)) { const { level: nb, off, key } = seams[side]; out.push({ nk: key, off, live: false, items: levelObjectsInDrawOrder(nb.fx || {}).filter((it) => inSeamStrip(nb, side, it.r, it.c, it.o.size || 1)) }); }
+    for (const side of Object.keys(seams)) { const { level: nb, off, key } = seams[side]; out.push({ nk: key, node: runRef.current.nodes[key], off, live: false, items: levelObjectsInDrawOrder(nb.fx || {}) }); }
+    out.sort((a, b) => runGridOrder(a.node, b.node));
     return out;
   }, [runNodeNow, lvDrawOrder]);
   // Not built in a run, where the one object pass draws these too (the same gate as the tile memos).
@@ -10332,7 +10398,7 @@ export default function AssetStudio() {
     // Every live per-level ref pointed at one level's bucket — here in the effect, and in
     // seamHandoff so the swap render already reads the entered level's books (see there).
     const pointLiveRefsAt = (b) => { pedestalRolls.current = b.rolls; pedestalDepleted.current = b.depleted; enemyHP.current = b.eHP; enemyPos.current = b.ePos; enemyDrops.current = b.drops; corpseStripped.current = b.stripped; hazLife.current = b.haz; enemyGearRolls.current = b.gear; };
-    const seamHandoff = (side, p, pw, leavingGate) => {
+    const seamHandoff = (side, p, pw, leavingGate, dtMul) => {
       const seam = seams[side], nb = runNow.nodes[seam.key];
       // Dying in the level you are walking into puts you back at THIS gate's far side: E1 lands you
       // on the neighbour's W1 (CONN_OPP), which is where neighbourOffset lined the two levels up.
@@ -10368,7 +10434,7 @@ export default function AssetStudio() {
       for (const g of thrown.current) { g.x += rx; g.y += ry; }
       for (const b of booms.current) { b.x += rx; b.y += ry; }
       carryKeys.current = keys.current;
-      seamCarry.current = true;
+      seamCarry.current = { dt: dtMul }; // truthy = "this re-run is a seam swap"; dt = the length of the step the new loop takes first (see lastT)
       resolveRunSides(runNow, nb, runNow.pool || levelLib);
       prepRunNeighbours(runNow, nb); // the level beyond this one gets its gear rolled before it is adopted
       adoptRunNeighbours(runNow, nb, roomState.current, CW);
@@ -10382,9 +10448,18 @@ export default function AssetStudio() {
       const nbB = roomState.current[nb.key];
       if (nbB) { if (!nbB.drops) nbB.drops = {}; if (!nbB.stripped) nbB.stripped = {}; if (!nbB.gear) nbB.gear = {}; if (!nbB.haz) nbB.haz = {}; pointLiveRefsAt(nbB); }
       runNow.curKey = nb.key;
-      setDoorPrompt(null); setPedPrompt(null);
-      setRunHud(runHudFor(runNow, nb));
-      setLevel(nb.level);
+      // THE SWAP IS COMMITTED IN THE FRAME IT WAS COMPUTED FOR. A plain setLevel here only SCHEDULED
+      // the render (the same trap commitFrame exists for): the swap frame's callback returned with
+      // the DOM untouched, so the browser painted the previous frame again, the swap render landed
+      // in a task after it, and this effect's re-run — whose rAF starts the new level's loop — in a
+      // task after that. On his 165 Hz screen that is a held frame at every gate. Inside flushSync
+      // React renders, commits and (a sync commit) runs the effect re-run before this returns, so the
+      // swap is painted on this frame and the new loop's first frame is the very next one.
+      flushSync(() => {
+        setDoorPrompt(null); setPedPrompt(null);
+        setRunHud(runHudFor(runNow, nb));
+        setLevel(nb.level);
+      });
     };
     // CAMERA — centre the body, eased, clamped to the level except across a drawn seam
     // (cameraTarget). Read back at render as a transform on .lgrid inside commitFrame, so the view
@@ -10584,6 +10659,12 @@ export default function AssetStudio() {
     // frame's increments by how much real time actually passed (1.0 at a true 60fps frame),
     // clamped so a huge hitch (tab switch, GC pause) can't teleport the player through walls.
     let lastT = null;
+    // The first frame has no lastT and takes a fixed step. That step was 1 — a 60 fps frame —
+    // which on Blake's 165 Hz screen is 2.75 of his frames: every gate ended in one lurch forward
+    // of body and camera. A seam re-run takes the swap frame's own step instead (seamCarry.dt), so
+    // the first frame in the new level is as long as the last one in the old. Still no catching up
+    // on time the swap itself took (see the seam-hitch notes in CLAUDE.md).
+    const firstDt = fromSeam && fromSeam.dt ? fromSeam.dt : 1;
     // WHY THIS IS flushSync AND NOT A PLAIN setState.
     //
     // The loop computes the frame inside requestAnimationFrame, which is aligned to the display's
@@ -10609,7 +10690,7 @@ export default function AssetStudio() {
       if (myGen !== __ptLoopGen) return; // a newer loop exists — stop; don't touch player or reschedule
       const p = player.current, RK = keys.current;
       const nowT = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-      const dtMul = lastT == null ? 1 : Math.min(3, Math.max(0.25, (nowT - lastT) / (1000 / 60)));
+      const dtMul = lastT == null ? firstDt : Math.min(3, Math.max(0.25, (nowT - lastT) / (1000 / 60)));
       lastT = nowT;
       // A CONVERSATION PAUSES THE WORLD, and it pauses it HERE — one return, above everything —
       // rather than by zeroing the player's input the way a stun does. Freezing only the player
@@ -11203,7 +11284,7 @@ export default function AssetStudio() {
         // where the camera normally moves, so the body walked ~12 px on the swap frame while the view
         // stood still (measured: the player's screen x 653 → 665 at the swap, easing back over the
         // next frames) — a small lurch at every gate, on top of the swap itself.
-        if (leavingGate) { updateCamera(p, pw, ph, dtMul); seamHandoff(side, p, pw, leavingGate); return; }
+        if (leavingGate) { updateCamera(p, pw, ph, dtMul); seamHandoff(side, p, pw, leavingGate, dtMul); return; }
         // ...and a gate with NOTHING behind it: pressed against an edge at an open gate that no saved
         // level attaches to (no sewer built yet, or the far side of the Exit), say so, once every
         // couple of seconds. In a plain Playtest the edges are silent walls exactly as before.
@@ -18733,7 +18814,7 @@ export default function AssetStudio() {
                     gravity like the player, duck into their crouch pose when a shot looks threatening
                     (crouch-capable enemies only), attack the player when in range with a clear line of
                     sight, and show a live HP bar. */}
-                {play && playUnitSets.map((U) => Object.keys(U.lv.enemies || {}).map((k) => {
+                {play && playUnitSets.map((U) => (runNodeNow ? unitDrawOrder(U.lv.enemies, U.pos) : Object.keys(U.lv.enemies || {})).map((k) => {
                   const [r, c] = k.split(",").map(Number);
                   const eSpawn = liveSpawnAt(k, U.lv.enemies[k], U.gear, U.ns);
                   const ea = liveEnemyAsset(k, findA(eSpawn.enemyId), U.gear);
