@@ -391,6 +391,17 @@ import {
   equipKindTags,
   spriteUnsquashY,
   spriteFloorY,
+  spriteArtPlane,
+  unitCrouchFrame,
+  pieceDrawnVSpan,
+  heldLieFlatTurn,
+  layHeldFlat,
+  allyGuards,
+  allyRegrouping,
+  ALLY_GUARD_CELLS,
+  ALLY_GUARD_ROWS,
+  ALLY_LEASH_CELLS,
+  ALLY_REGROUP_CELLS,
   enemyRenderW,
   EQUIP_KIND_TAG_MAX_SLOTS,
   SPAWN_WEAPON_NONE,
@@ -8551,6 +8562,153 @@ describe("a crouching enemy does not get its weapon squashed", () => {
     expect(spriteUnsquashY(0, 100)).toBe(1);
     expect(spriteUnsquashY(100, 0)).toBe(1);
     expect(spriteUnsquashY(undefined, undefined)).toBe(1);
+  });
+});
+
+/* A DUCKING UNIT (2026-09-27): "enemies float when crouched", "an animal's weapon deforms", and
+   "when she dies her jacket over her arm deforms" were one shape of bug — the crouch pose pinned by
+   the Side pose's feet, and art laid out squashed and stretched back (which bends rotated pieces). */
+describe("a ducking unit stands on its own crouch feet and is drawn undistorted", () => {
+  const cell = 30;
+  const W = 200, H = 260;
+  const rect = (x, y, w, h, extra) => ({ id: "p" + x + y, kind: "rect", x, y, w, h, color: "#888", ...extra });
+  // BoB's real numbers: Side art reaches the canvas floor (y 260), the crouch drawing's lowest pixel is
+  // at 227 and its head at 70.
+  const bob = { id: "b", type: "character", angles: {
+    side: [rect(70, 35, 60, 90), rect(75, 125, 50, 135, { limb: "leg" })],
+    crouch: [rect(70, 70, 60, 80), rect(75, 150, 50, 77)],
+  } };
+
+  test("THE BUG: a crouch drawing's feet are not where the Side drawing's are", () => {
+    const f = unitCrouchFrame(bob);
+    expect(f.groundY).toBeCloseTo(227, 9);   // the crouched feet land on the floor, not 33 units of air under them
+    expect(f.topY).toBe(70);
+  });
+
+  test("an animal's Side ground line is kept, moved by how much higher its crouch is drawn", () => {
+    // The Chasing Pit Bull: Side line 148, both drawings reach 150 — its paws sink 2 units, crouched too.
+    const dog = { id: "d", type: "enemy", groundLine: { side: 148 }, angles: { side: [rect(20, 45, 150, 105)], crouch: [rect(20, 45, 150, 105)] } };
+    expect(unitCrouchFrame(dog).groundY).toBe(148);
+    // The Squirrel: no line; Side reaches 146, crouch 136.5 → the crouch drawing's own lowest pixel.
+    const sq = { id: "s", type: "enemy", angles: { side: [rect(30, 42.5, 110, 103.5)], crouch: [rect(30, 42.5, 110, 94)] } };
+    expect(unitCrouchFrame(sq).groundY).toBeCloseTo(136.5, 9);
+  });
+
+  test("a ROTATED piece is measured at its drawn corners, not its unrotated box", () => {
+    // A crouch is mostly bent pieces. Turned a quarter about its centre, a 20x60 box reaches only
+    // 20 tall — its unrotated y+h was 20 units too low, which buried a Squirrel's paws.
+    expect(pieceDrawnVSpan(rect(0, 100, 20, 60))).toEqual({ top: 100, bottom: 160 });
+    const turned = pieceDrawnVSpan(rect(0, 100, 20, 60, { rot: 90 }));
+    expect(turned.top).toBeCloseTo(120, 6);
+    expect(turned.bottom).toBeCloseTo(140, 6);
+    const sq = { id: "s", type: "enemy", angles: { side: [rect(30, 42, 110, 104)], crouch: [rect(30, 42, 110, 60), rect(60, 80, 20, 60, { rot: 90 })] } };
+    expect(unitCrouchFrame(sq).groundY).toBeCloseTo(120, 6); // the turned paw's corner, not its box's 140
+  });
+
+  test("a line drawn on the crouch pose itself wins", () => {
+    expect(unitCrouchFrame({ ...bob, groundLine: { crouch: 220 } }).groundY).toBe(220);
+  });
+
+  test("a baked-in weapon hanging below the boots does not move the feet", () => {
+    const armed = { ...bob, angles: { ...bob.angles, crouch: [...bob.angles.crouch, rect(120, 150, 10, 100, { _isWeapon: true })] } };
+    expect(unitCrouchFrame(armed).groundY).toBeCloseTo(227, 9);
+  });
+
+  test("no crouch drawing: the Side ground, unchanged", () => {
+    expect(unitCrouchFrame({ id: "n", type: "enemy", angles: { side: [rect(10, 10, 50, 200)] } }).groundY).toBeCloseTo(210, 9);
+  });
+
+  test("a standing box needs no plane — no extra element on a standing unit", () => {
+    const ea = { id: "e", type: "enemy" };
+    expect(spriteArtPlane(enemyRenderW(ea, cell), enemyStandH(ea, cell), 0)).toBe(null);
+    expect(spriteArtPlane(enemyRenderW(ea, cell), enemyStandH(ea, cell), 40)).toBe(null);
+  });
+
+  test("the crouch plane has the art's own aspect, so a ROTATED piece keeps its shape", () => {
+    // The old scaleY-of-a-squashed-layout gave upright pieces the right size and a piece turned 90°
+    // its length at 60% and its thickness at 167% — a held rifle went short and fat. On the plane the
+    // px per design unit is one number on both axes, which is what makes any rotation safe.
+    for (const scale of [0.55, 1, 2]) {
+      const ea = { id: "e", type: "enemy", scale };
+      const w = enemyRenderW(ea, cell), h = enemyCrouchH(ea, cell);
+      const plane = spriteArtPlane(w, h, 0.1 * h);
+      expect(plane.height / H).toBeCloseTo(w / W, 9);
+    }
+  });
+
+  test("the plane puts every canvas point exactly where spriteCanvasPointToWorld says it is", () => {
+    // That function is what the AI fires from (a held gun's muzzle), so the drawn barrel and the shot
+    // must agree — and the canvas y standing on the floor must stay on the floor.
+    const ea = { id: "e", type: "enemy" };
+    const w = enemyRenderW(ea, cell), h = enemyCrouchH(ea, cell);
+    const groundY = 227, anchor = ((H - groundY) / H) * h;
+    const plane = spriteArtPlane(w, h, anchor);
+    const box = { left: 100, top: 400, renderW: w, boxH: h, anchor, flip: false };
+    for (const y of [0, 70, 150, groundY, 260]) {
+      const drawn = box.top + anchor + plane.top + (y / H) * plane.height;
+      expect(drawn).toBeCloseTo(spriteCanvasPointToWorld({ x: 50, y }, box).y, 6);
+    }
+    expect(box.top + anchor + plane.top + (groundY / H) * plane.height).toBeCloseTo(box.top + h, 6); // feet on the floor
+  });
+});
+
+/* A BODY THAT FALLS OVER TAKES ITS WEAPON DOWN WITH IT (2026-09-27). Bobette's Bobs Bat, held at its
+   angled rest pose, stuck out of her corpse into the dirt and read as her Army Shirt sleeve deforming. */
+describe("a corpse's weapon lies along the body", () => {
+  const arm = { id: "arm", kind: "rect", x: 90, y: 100, w: 20, h: 60, rot: 0, armPivot: "top", role: "weaponArm", limb: "arm" };
+  // The hand is the bottom-centre of that arm: (100, 160). The bat runs down and FORWARD from it.
+  const bat = [
+    { id: "grip", kind: "rect", x: 100, y: 158, w: 8, h: 8, color: "#3d4a28" },
+    { id: "barrel", kind: "rect", x: 125, y: 185, w: 12, h: 12, color: "#3d4a28" },
+  ];
+  const centre = (p) => [p.x + p.w / 2, p.y + p.h / 2];
+
+  test("THE BUG: at rest the bat points 45° off the body's line", () => {
+    const [bx, by] = centre(bat[1]);
+    expect(Math.atan2(by - 160, bx - 100) * 180 / Math.PI).toBeCloseTo(45, 0);
+    expect(heldLieFlatTurn(bat, arm)).toBeCloseTo(45, 0);
+  });
+
+  test("laid flat, its far end points straight down the body from the hand, rigidly", () => {
+    const flat = layHeldFlat(bat, arm);
+    const [fx, fy] = centre(flat[1]);
+    expect(fx).toBeCloseTo(100, 0);             // right under the hand...
+    expect(fy).toBeGreaterThan(160);             // ...towards the feet
+    const d0 = Math.hypot(...centre(bat[1]).map((v, i) => v - centre(bat[0])[i]));
+    const d1 = Math.hypot(...centre(flat[1]).map((v, i) => v - centre(flat[0])[i]));
+    expect(d1).toBeCloseTo(d0, 6);               // one rigid piece: nothing stretched or scattered
+    expect(flat[1].rot).toBeCloseTo(45, 0);      // and each piece turned with it
+  });
+
+  test("a weapon already lying along the body is left exactly as it is", () => {
+    const straight = [{ id: "s", kind: "rect", x: 96, y: 190, w: 8, h: 40 }];
+    expect(layHeldFlat(straight, arm)).toBe(straight);
+    expect(heldLieFlatTurn([], arm)).toBe(0);
+    expect(heldLieFlatTurn(bat, null)).toBe(0);
+  });
+});
+
+/* ALLIES FIGHT WHAT IS AROUND YOU AND COME BACK (2026-09-27): "the followers were not really
+   following me ... they may be agro on my enemies". A friendly used to go for the nearest hostile
+   anywhere, and a run adopts every neighbouring level's units, so it never ran out of targets. */
+describe("an ally guards you, on a leash", () => {
+  const cell = 30;
+  test("a hostile near you is fair game; one across the level, or a floor away, is not", () => {
+    expect(allyGuards(10 * cell, 0, cell)).toBe(true);
+    expect(allyGuards(-ALLY_GUARD_CELLS * cell, 0, cell)).toBe(true);
+    expect(allyGuards((ALLY_GUARD_CELLS + 1) * cell, 0, cell)).toBe(false);
+    expect(allyGuards(120 * cell, 0, cell)).toBe(false);                          // THE BUG: the fight at the far end
+    expect(allyGuards(5 * cell, (ALLY_GUARD_ROWS + 1) * cell, cell)).toBe(false);  // the floor below
+  });
+  test("past the leash it comes back, and keeps coming until it has regrouped", () => {
+    expect(allyRegrouping(20 * cell, false, cell)).toBe(false);                    // fighting within reach of you
+    expect(allyRegrouping((ALLY_LEASH_CELLS + 1) * cell, false, cell)).toBe(true); // you walked off: come back
+    expect(allyRegrouping(-20 * cell, true, cell)).toBe(true);                     // ...not turning round half way
+    expect(allyRegrouping((ALLY_REGROUP_CELLS - 1) * cell, true, cell)).toBe(false); // back with you
+  });
+  test("the leash is looser than the guard ring, so chasing a foe at its edge never trips it", () => {
+    expect(ALLY_LEASH_CELLS).toBeGreaterThan(ALLY_GUARD_CELLS);
+    expect(ALLY_REGROUP_CELLS).toBeLessThan(ALLY_GUARD_CELLS);
   });
 });
 

@@ -938,6 +938,38 @@ export const attachWeaponBlocks = (weaponPieces, curArm, guideHand, baseArmRot) 
     return { ...pc, limb: undefined, role: undefined, x: newCx - pc.w / 2, y: newCy - pc.h / 2, rot: (pc.rot || 0) + pieceDelta, _isWeapon: true };
   });
 };
+// A BODY THAT FALLS OVER TAKES ITS WEAPON DOWN WITH IT (2026-09-27). Blake, with a screenshot of a
+// dead Bobette: "when she dies her jacket over her arm deforms". The olive-green piece jutting out of
+// her at an angle was not the Army Shirt — it was Bobs Bat, the same olive, still gripped exactly as
+// its REST pose draws it: angled down and forward from the hand. That reads right on someone
+// standing; turned 90° onto the ground it points straight down into the dirt from the middle of the
+// body, which is exactly what a sleeve torn loose looks like. A corpse still holds what it carried
+// (see A CORPSE HOLDS WHAT THE PLACEMENT GAVE IT, in the render) — it just holds it lying down: the
+// weapon is turned about the grip, as one rigid piece, until its far end points straight down the
+// body towards the feet, so once the body is laid flat the weapon lies flat along it.
+// `pieces` are already attached (the body's canvas frame); the arm is the one gripping them.
+export const heldLieFlatTurn = (pieces, arm) => {
+  const rig = armRig(arm);
+  if (!rig) return 0;
+  let far = null, fd = 0;
+  for (const pc of pieces || []) {
+    if (!pc || pc.isHitbox || pc.isMuzzle) continue;
+    const dx = pc.x + pc.w / 2 - rig.hand.x, dy = pc.y + pc.h / 2 - rig.hand.y, d = dx * dx + dy * dy;
+    if (d > fd) { fd = d; far = [dx, dy]; }
+  }
+  if (!far || fd < 1) return 0;
+  let turn = 90 - Math.atan2(far[1], far[0]) * 180 / Math.PI; // 90° = straight down the body
+  while (turn > 180) turn -= 360;
+  while (turn <= -180) turn += 360;
+  return turn;
+};
+// The pieces turned by heldLieFlatTurn about the hand — attachWeaponBlocks with the grip already on
+// the hand is a pure rigid turn (mirrored twins included), which is what it exists to do.
+export const layHeldFlat = (pieces, arm) => {
+  const turn = heldLieFlatTurn(pieces, arm);
+  if (Math.abs(turn) < 0.5) return pieces;
+  return attachWeaponBlocks(pieces, arm, armRig(arm).hand, (arm.rot || 0) - turn);
+};
 // TWO-ARMED WEAPONS — the DK Arms (2026-09-26). A weapon drawn with ⇋ Mirror pieces in a front /
 // back / up / crouch pose gets a twin of each one on the other side of the canvas, and for the DK
 // Arms that twin is the SECOND FOREARM, drawn over the body's other arm. attachWeaponBlocks sweeps
@@ -5131,6 +5163,65 @@ export const unitHitTop = (ea, shape, eph) => {
   const anchor = gY !== null ? ((H - gY) / H) * eph : Math.max(0, 1 - shape.topFrac - shape.heightFrac) * eph;
   return anchor + shape.topFrac * eph;
 };
+// WHERE A DUCKING UNIT'S FEET ARE ON ITS OWN CROUCH DRAWING (2026-09-27). Blake: "Enemies seem to
+// float when crouched." They did, by exactly the difference between two drawings: a ducking unit was
+// drawn in its CROUCH pose but pinned to the floor by its SIDE pose's feet, and nobody draws a crouch
+// with the feet in the same place. Measured on his library: BoB's crouch feet sit at canvas y 227
+// against 260 standing, Bobbett's at 209 against 261, the Elaphant's at 223 against 242, the Squirrels'
+// 7-10 units up. At the unit's real scale that is 27 px of air under a ducking Bob, 42 under Bobbett
+// and 31 under the Elaphant. The player never had it — crouchArtPlane measures the crouch pose itself.
+//
+// So: the crouch pose's own ground line when it has one; else the Side ground (its line, or the feet
+// of the Side art — exactly what the standing sprite uses) moved by how much higher the crouch
+// drawing's lowest pixel is than the Side drawing's. That keeps an animal's deliberate "Side line
+// below the lowest pixel" (the Pit Bulls' paws sink 2 units into the dirt) and puts a lineless
+// body's crouched feet on the floor. Weapon pieces are left out of both measurements: a look's baked
+// rifle can hang lower than its boots, and a gun is not what stands on the ground. Both are measured
+// at each piece's DRAWN corners (turned about its own origin, pieceDrawnVSpan) — a crouch is mostly
+// bent, rotated pieces, and their unrotated boxes left the Squirrel's paws 2 px under the dirt and
+// the Elaphant's 4 px above it. `topY` is the top of the crouch drawing, which the HP bar is placed
+// from (see the render).
+export const pieceDrawnVSpan = (p) => {
+  if (!p.rot) return { top: p.y, bottom: p.y + p.h };
+  const box = { x: p.x, y: p.y, w: p.w, h: p.h, rot: p.rot, o: pieceOriginFrac(p) }; // a mirror flips x only
+  let top = Infinity, bottom = -Infinity;
+  for (const [fx, fy] of [[0, 0], [1, 0], [1, 1], [0, 1]]) { const y = boxPoint(box, fx, fy).y; top = Math.min(top, y); bottom = Math.max(bottom, y); }
+  return { top, bottom };
+};
+export const unitCrouchFrame = (ea) => {
+  const cKey = enemyPoseKey(ea, "crouch"), sKey = enemyPoseKey(ea, "side");
+  const angles = (ea && ea.angles) || {};
+  const art = (list) => (list || []).filter((p) => p && !p.isHitbox && !p.isMuzzle && !p._isWeapon);
+  const low = (list) => { const a = art(list); return a.length ? Math.max(...a.map((p) => pieceDrawnVSpan(p).bottom)) : null; };
+  const cArt = art(angles[cKey]);
+  const topY = cArt.length ? Math.min(...cArt.map((p) => pieceDrawnVSpan(p).top)) : 0;
+  const own = enemyGroundLine(ea, cKey);
+  if (own !== null) return { groundY: own, topY };
+  const shape = sideBodyShape(ea);
+  const sideGround = enemyGroundLine(ea, sKey) ?? Math.min(H, (shape.topFrac + shape.heightFrac) * H);
+  const s = low(angles[sKey]), c = low(angles[cKey]);
+  const groundY = (s === null || c === null) ? sideGround : Math.max(0, Math.min(H, sideGround + (c - s)));
+  return { groundY, topY };
+};
+// A DUCKING SPRITE IS DRAWN ON AN UN-SQUASHED PLANE, NOT SQUASHED AND STRETCHED BACK. Pieces are laid
+// out in percentages of their parent, so a parent renderW wide and a crouch-height tall flattens every
+// piece to 60%. spriteUnsquashY then undid that with a scaleY on the whole group — and that is only
+// right for pieces standing upright. A piece is squashed in its OWN frame before its rotation is
+// applied, and the stretch comes after, in the screen's: a piece turned 90° had its LENGTH squashed
+// to 60% and its THICKNESS stretched to 167%. Every held gun is turned about 90° (weapons are drawn
+// hanging from the hand and swung up to level — an animal holds one at holdAngle 90 all the time), so
+// the rifle of a unit that ducked a shot went short and fat: "sometimes when an animal is holding a
+// weapon the weapon deforms". A jacket sleeve, turned with its arm, came away from it the same way.
+// Fix: lay the art out on a plane that already HAS the art's aspect (renderW x renderW*H/W, the
+// player's crouchArtPlane rule), placed so the canvas y that stood on the floor still does. Every
+// point lands exactly where the unsquash put it (spriteCanvasPointToWorld is unchanged), rotated
+// pieces included. null when the box is already aspect-true — a standing unit gets no extra element.
+export const spriteArtPlane = (renderW, boxH, anchor) => {
+  const k = spriteUnsquashY(renderW, boxH);
+  if (Math.abs(k - 1) < 0.001) return null;
+  const floor = spriteFloorY(boxH, anchor);
+  return { top: floor * (1 - k), height: boxH * k };
+};
 // Where a single piece's box actually reaches, LEFT and RIGHT, once the renderer has had its way
 // with it. shapeStyle mirrors the piece first and then rotates it about pieceOriginFrac — the
 // shoulder for an arm, the hip for a swung leg, the middle of the box for everything else — so for
@@ -8833,6 +8924,29 @@ export const allyFollowIntent = (gapSigned, range, speed, wasFollowing) => {
   const go = wasFollowing ? ad > range * ALLY_FOLLOW_STOP : ad > range;
   return go ? s * speed : 0;
 };
+// AN ALLY FIGHTS WHAT IS AROUND YOU, AND COMES BACK WHEN YOU LEAVE (2026-09-27). Blake: "using the
+// pokeball the followers were not really following me ... they may be agro on my enemies but not
+// following me", and "are player NPCs not seeking? I have some set to chase me". A friendly used to
+// target the nearest hostile ANYWHERE and fall back to following you only when there was none left.
+// In a level with a fight at the far end that meant it walked off to it and never came back — and
+// since a run adopts every neighbouring level's units into the live one (ONE WORLD), there is always
+// a hostile somewhere, so an ally in a run effectively NEVER followed you. The Chaplin, set to 🏃 Seek
+// and talked onto your side, is exactly that ally.
+//
+// Two rules, both measured from YOU, not from the ally:
+// * it takes on a hostile only when that hostile is within ALLY_GUARD_CELLS of you across and
+//   ALLY_GUARD_ROWS up or down — the fight on your screen, a gunman shooting at you from range
+//   included, not one on another floor or 80 cells back;
+// * an ally further than ALLY_LEASH_CELLS from you drops whatever it is doing and comes back, and
+//   keeps coming until it is within ALLY_REGROUP_CELLS (hysteresis, so it does not turn round at the
+//   leash line and walk straight back into the fight it just left).
+// The leash is looser than the guard ring on purpose: chasing a foe at the edge of the ring to melee
+// reach must not trip it, or an ally would fight and break off every few frames.
+export const ALLY_GUARD_CELLS = 30, ALLY_GUARD_ROWS = 12;
+export const ALLY_LEASH_CELLS = 40, ALLY_REGROUP_CELLS = 8;
+export const allyGuards = (foeDx, foeDy, cell) => Math.abs(foeDx) <= ALLY_GUARD_CELLS * cell && Math.abs(foeDy) <= ALLY_GUARD_ROWS * cell;
+export const allyRegrouping = (gapToPlayer, wasRegrouping, cell) =>
+  Math.abs(gapToPlayer) > (wasRegrouping ? ALLY_REGROUP_CELLS : ALLY_LEASH_CELLS) * cell;
 // Storage order controls stacking only within the same player-relative layer. Front/back is a
 // stronger rule: a front object must render over every back object regardless of placement order.
 // Keep the original stack index so editor actions still update/delete the correct saved object.
@@ -9505,7 +9619,17 @@ export default function AssetStudio() {
       // after it appears. Progress lives on the node so it survives the swap that makes the
       // neighbour live, and the wrapper's ref clears it on unmount (a door out of the run and
       // back mounts everything afresh, the way a door always has).
+      // A LEVEL THAT HAS BEEN LIVE IS WHOLE, AND ITS COUNT MUST SAY SO (2026-09-27). Blake: "a little
+      // screen tearing sometimes when crossing one level to another". The live level is drawn whole, but
+      // only a neighbour ever wrote its progress here — so the level a run STARTS in had none, and the
+      // moment you walked out of it, it became a neighbour "new to the screen" and was cut back to its
+      // first slice and re-mounted from nothing: measured on the first gate of a run out of M4, 312 of
+      // its 354 tiles (bg, fg and Front) removed on the swap frame and put back 30 a frame for eleven
+      // frames — the level right behind you, in view at the gate, blinking out and refilling in bands.
+      // A level entered before its staged mount had finished did the same from wherever it had got to
+      // (43 tiles, measured). Recording it whole while it is live makes both a no-op: it stays as it is.
       let mounted = live ? total : (RUN_MOUNT_PROGRESS.get(node) || 0);
+      if (live) RUN_MOUNT_PROGRESS.set(node, total);
       let take = null;
       if (mounted < total) { const plan = runMountPlan(counts, mounted); mounted = plan.done; RUN_MOUNT_PROGRESS.set(node, mounted); if (!plan.complete) take = plan.take; }
       const layer = (i) => !layers[i] ? null : runTilesUpTo(layers[i], take ? take[i] : Infinity);
@@ -11384,6 +11508,11 @@ export default function AssetStudio() {
             // restedDead and stop simulating, so a settled body costs nothing per frame.
             const dep = enemyPos.current[k];
             const dea = liveEnemyAsset(k, findA(lv.enemies[k].enemyId));
+            // Killed mid-duck: stand the body back up to full height about its FEET before it lies
+            // down. A corpse in its crouch-height box was drawn squashed (the deformed sleeve — see
+            // the corpse render), and everything that boxes a corpse — capture, resurrect, loot —
+            // reads ep.y + its height, so keeping the feet where they were moves none of them.
+            if (dep && dea && dep.crouch) { dep.y -= enemyStandH(dea, CW) - enemyCrouchH(dea, CW); dep.crouch = false; dep.crouchT = 0; dep.duckUnder = false; }
             if (dep && dea && !dep.restedDead) {
               const dShape = sideBodyShape(dea);
               const dRenderW = enemyRenderW(dea, CW), dw = dRenderW * dShape.fraction;
@@ -11526,8 +11655,18 @@ export default function AssetStudio() {
             }
             if (!canCrouch) { ep.crouch = false; ep.crouchT = 0; }
           }
+          // DUCKING UNDER SOMETHING (ep.duckUnder — set in the walk below, when crouching is what
+          // gets a unit past a low overhang). It stays down while there is no room to stand, and
+          // that also holds a unit whose DODGE crouch ran out under a ceiling: standing up there
+          // would put its head in the solid, and the landing snap would pop it up on top.
+          if (canCrouch && oldEph === crouchEph && (ep.duckUnder || !ep.crouch)) {
+            const feetNow = ep.y + crouchEph;
+            const roomToStand = !splitHillHitsW(cellsHitW(ep.x, feetNow - standEph, epw, standEph), feetNow).walls.length;
+            if (!roomToStand) { ep.crouch = true; ep.duckUnder = true; }
+            else if (ep.duckUnder) { ep.duckUnder = false; if (!(ep.crouchT > 0)) ep.crouch = false; }
+          } else if (!ep.crouch) ep.duckUnder = false;
           if (stunned) { ep.walking = false; ep.aimHold = 0; ep.stomp = null; } // frozen pose — no walk cycle, no aim tracking, and a raised foot never lands
-          const newEph = ep.crouch ? crouchEph : standEph;
+          let newEph = ep.crouch ? crouchEph : standEph;
           if (newEph !== oldEph) ep.y += (oldEph - newEph); // keep feet planted through the height change, same trick the player's own crouch uses
 
           // AI: Guard holds its spawn point, Seek closes the distance, Avoid keeps away — all
@@ -11560,9 +11699,14 @@ export default function AssetStudio() {
           };
           let targetKind = null, targetKey = null, targetCX = p.x + pw / 2, targetW = pw, targetEp = null, targetEa = null;
           if (friendly) {
-            const near = nearestUnitCX(eCenterXNow, aliveOpposite(false)); // nearest hostile
+            // Nearest hostile NEAR YOU, unless it has strayed past the leash — see allyGuards /
+            // allyRegrouping. Anything else and it tags along.
+            const pCX = p.x + pw / 2, pFeet = p.y + ph;
+            ep.regroup = allyRegrouping(pCX - eCenterXNow, ep.regroup, CW);
+            const guarded = ep.regroup ? [] : aliveOpposite(false).filter((f) => allyGuards(f.cx - pCX, f.ep.y + (f.ep.crouch ? enemyCrouchH(f.ea, CW) : enemyStandH(f.ea, CW)) - pFeet, CW));
+            const near = nearestUnitCX(eCenterXNow, guarded); // nearest hostile
             if (near) { targetKind = "unit"; targetKey = near.key; targetCX = near.cx; targetEp = near.ep; targetEa = near.ea; targetW = enemyRenderW(near.ea, CW) * sideBodyShape(near.ea).fraction; }
-            else { targetKind = "followPlayer"; targetCX = p.x + pw / 2; targetW = pw; } // no enemies left → tag along
+            else { targetKind = "followPlayer"; targetCX = p.x + pw / 2; targetW = pw; } // nothing near you, or too far behind → tag along
           } else if (hostile) {
             const cands = aliveOpposite(true).concat([{ key: null, cx: p.x + pw / 2 }]); // your friendlies + you
             const near = nearestUnitCX(eCenterXNow, cands);
@@ -11679,6 +11823,20 @@ export default function AssetStudio() {
               // easeStep) — the fix that took the "jarring teleport up one block" off the player,
               // which units never had.
               if (rise > 0 && rise <= CH && cellsHitW(nx, stepY, epw, newEph).length === 0) { ep.x = nx; ep.y = stepY; ep.stepEase = Math.min(CH, (ep.stepEase || 0) + rise); }
+              // DUCK UNDER IT (2026-09-27). Blake: "NPCs, player and not, should try to duck to get
+              // under obstacles if that is what is stopping them from getting to their objective —
+              // my elephant may have gotten stuck while seeking an enemy." A unit walking into a low
+              // overhang (a porch roof, a pipe, a trailer's underside) just stood pressed against it
+              // forever. Now, when the wall is at head height and its CROUCH box clears it — same
+              // feet, same step — it ducks and walks under; the check above keeps it down until it
+              // has room to stand. Only a unit with a drawn crouch pose ducks (the dodge's rule), and
+              // only one on its feet: nothing ducks in mid-air.
+              else if (canCrouch && !ep.crouch && (ep.onGround || ep.topdown) && !stunned) {
+                const feetNow = ep.y + newEph, duckY = feetNow - crouchEph;
+                if (!splitHillHitsW(cellsHitW(nx, duckY, epw, crouchEph), feetNow).walls.length) {
+                  ep.crouch = true; ep.duckUnder = true; ep.y = duckY; newEph = crouchEph; ep.x = nx;
+                }
+              }
             }
           }
           ep.stepEase = easeStep(ep.stepEase, dtMul);
@@ -15611,9 +15769,10 @@ export default function AssetStudio() {
     const arm = { ...hold, rot: armAimAbsFacing(hold.armPivot, facesRight) + (facesRight ? 1 : -1) * (tiltDeg || 0) };
     const mp = muzzleLocalPoint(attachWeaponBlocks(facesRight ? muz : mirrorHeldArt(muz, hand.x), arm, hand, 0));
     if (!mp) return null;
-    // The sprite's ground anchor, exactly as the render works it out (eAnchor there).
+    // The sprite's ground anchor, exactly as the render works it out (eAnchor there) — a ducking unit
+    // stands on its crouch drawing's own feet (unitCrouchFrame).
     const shape = sideBodyShape(ea);
-    const gY = enemyGroundLine(ea, poseKey) ?? enemyGroundLine(ea, enemyPoseKey(ea, "side"));
+    const gY = ep.crouch ? unitCrouchFrame(ea).groundY : (enemyGroundLine(ea, poseKey) ?? enemyGroundLine(ea, enemyPoseKey(ea, "side")));
     const anchor = gY !== null ? ((H - gY) / H) * eph : Math.max(0, 1 - shape.topFrac - shape.heightFrac) * eph;
     return spriteCanvasPointToWorld(mp, { left: ep.x, top: ep.y, renderW, boxH: eph, anchor, flip: enemyNeedsFlip(ea, ep.face) });
   };
@@ -18871,6 +19030,7 @@ export default function AssetStudio() {
                        already built goes down the untouched path. */
                     const deadEw = spawnWeaponFor(eSpawn, ea);
                     let deadPose = bake(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"));
+                    const layDown = !hasDeathPose;
                     if (spawnOverridesWeapon(eSpawn)) {
                       deadPose = deadPose.filter((pc) => !pc._isWeapon);
                       const dArm = deadEw ? flaggedArmOf(deadPose) : null;
@@ -18882,14 +19042,23 @@ export default function AssetStudio() {
                         // Tagged _isWeapon AND _src exactly the way the baked copy is, so looting the
                         // gun off the body strips it from the art on the very next frame.
                         const dArt = bake({ ...deadEw, angles: (dfit.states.rest || blankAngles()) }, dPose);
-                        const dPieces = attachWeaponBlocks(enemyArtFacesRight(ea) ? dArt : mirrorHeldArt(dArt, dHand.x), dArm, dHand, dArm.rot || 0)
-                          .filter((pc) => !pc.isHitbox && !pc.isMuzzle)
-                          .map((pc) => ({ ...pc, _isWeapon: true, _src: deadEw.id }));
+                        const dHeld = attachWeaponBlocks(enemyArtFacesRight(ea) ? dArt : mirrorHeldArt(dArt, dHand.x), dArm, dHand, dArm.rot || 0)
+                          .filter((pc) => !pc.isHitbox && !pc.isMuzzle);
+                        // Falling over: the weapon lies down along the body (layHeldFlat).
+                        const dPieces = (layDown ? layHeldFlat(dHeld, dArm) : dHeld).map((pc) => ({ ...pc, _isWeapon: true, _src: deadEw.id }));
                         deadPose = mergeWeaponBlocks(deadPose, dPieces);
+                      }
+                    } else if (layDown) {
+                      // The look's own baked-in weapon lies down with the body the same way, turned about
+                      // the hand of the arm holding it. Nothing else about this path changes.
+                      const held = deadPose.filter((pc) => pc._isWeapon);
+                      const hArm = held.length ? flaggedArmOf(deadPose.filter((pc) => !pc._isWeapon)) : null;
+                      if (hArm) {
+                        const flat = layHeldFlat(held, hArm);
+                        if (flat !== held) { let i = 0; deadPose = deadPose.map((pc) => (pc._isWeapon ? flat[i++] : pc)); }
                       }
                     }
                     const deadBlocks = deadPose.filter((pc) => !stripped.some((it) => pieceBelongsToAsset(pc, it)));
-                    const layDown = !hasDeathPose;
                     // FLOATING CORPSES, the second half of the same bug. Gravity (above) drops the
                     // body onto the terrain correctly, but the body was then DRAWN in a box whose
                     // bottom margin nothing accounted for, so it still hovered — by the height of
@@ -18906,10 +19075,19 @@ export default function AssetStudio() {
                     // the lowest drawn pixel, exactly as before. A body lying down is the case the
                     // line exists for: its lowest pixel is usually a tail or a flung-out paw, not
                     // the part that should be touching the floor.
-                    const deadFootAnchor = poseGroundFrac(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"), deadPose) * eph;
+                    // A BODY IS DRAWN AT FULL SIZE, EVEN IF IT DIED DUCKING. A unit that ducked the
+                    // shot that killed it kept its crouch-height box, so its standing Side pose was
+                    // squashed to 60% tall inside it and then turned on its side — and a piece that
+                    // is itself rotated (a jacket sleeve on a bent arm) squashes along its own axis,
+                    // not the body's, so it came away from the arm. Blake saw it twice on Bobbett:
+                    // "when she dies her jacket over her arm deforms". The loop now stands a corpse
+                    // back up to full height about its feet (the corpse-gravity branch); this is the
+                    // same rule for the one frame between the killing blow and that branch.
+                    const dEph = enemyStandH(ea, LV_CELL), dTop = eTop + eph - dEph;
+                    const deadFootAnchor = poseGroundFrac(ea, hasDeathPose ? "death" : enemyPoseKey(ea, "side"), deadPose) * dEph;
                     const deadFlip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1) " : "";
                     return (
-                      <div key={uKey} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: eTop + deadFootAnchor, width: eRenderW, height: eph, pointerEvents: "none", zIndex: CORPSE_Z, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (eph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
+                      <div key={uKey} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: dTop + deadFootAnchor, width: eRenderW, height: dEph, pointerEvents: "none", zIndex: CORPSE_Z, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (dEph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
                         {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + uKey + "_s" + stripped.length, keyPrefix: "dead" + uKey + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}
                       </div>
                     );
@@ -18934,8 +19112,18 @@ export default function AssetStudio() {
                   // A ground line on the pose being drawn wins; failing that the Side line, because
                   // every other pose is pinned to Side's baseline anyway; failing that eFootAnchor,
                   // the measured empty canvas under the feet, which is what every enemy uses today.
-                  const eGroundY = enemyGroundLine(ea, ePoseKey) ?? enemyGroundLine(ea, enemyPoseKey(ea, "side"));
+                  // ...and a unit DUCKING in its crouch drawing stands on that drawing's own feet
+                  // (unitCrouchFrame) — pinned by Side's, it hovered by the gap between the two.
+                  const eCrouchFrame = ducking && ePoseKey === enemyPoseKey(ea, "crouch") ? unitCrouchFrame(ea) : null;
+                  const eGroundY = eCrouchFrame ? eCrouchFrame.groundY : (enemyGroundLine(ea, ePoseKey) ?? enemyGroundLine(ea, enemyPoseKey(ea, "side")));
                   const eAnchor = eGroundY !== null ? ((H - eGroundY) / H) * eph : eFootAnchor;
+                  // Where the HP bar (and the reload bar and badges above it) sits: standing, on the
+                  // canvas top, which is Side's topFrac above the drawn head. Ducking, the SAME height
+                  // above the crouched head, measured on the un-squashed plane the art is drawn on —
+                  // the bar comes down with the body instead of hovering a head's height above it.
+                  const eStatusTop = eCrouchFrame
+                    ? eTop + eph - ((eCrouchFrame.groundY - eCrouchFrame.topY) / H + eShape.topFrac) * (eRenderW * H / W)
+                    : eTop + eAnchor;
                   let eBlocks = bake(ea, ePoseKey);
                   // Both of these are poses drawn on their own canvas, so both need pinning to the
                   // baseline the SIDE pose stands on, or the body floats or sinks by whatever empty
@@ -19101,7 +19289,7 @@ export default function AssetStudio() {
                           behind a tree had its HP, reload and 💫 swallowed by the leaves, which is
                           the one time you most want to read them. Out here there's also no mirror
                           to undo, so the reload bar just fills left-to-right on its own. */}
-                      <div className="unitStatus" style={{ left: eLeft + hitboxOffset, top: eTop + eAnchor, width: epw, zIndex: unitStatusZ(hpFrac, hpHot) }}>
+                      <div className="unitStatus" style={{ left: eLeft + hitboxOffset, top: eStatusTop, width: epw, zIndex: unitStatusZ(hpFrac, hpHot) }}>
                         {/* NO HP BAR ON SOMEBODY YOU CANNOT HURT. A full green bar over a person
                             your shots pass through is the game promising a fight it will not give
                             you, and it is the only on-screen difference between "immune" and "my
@@ -19135,14 +19323,16 @@ export default function AssetStudio() {
                       <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? " (💬 not fighting you — press E to talk)" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {(() => {
                           const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + uKey, keyPrefix: uKey + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
-                          // Put the art back to a true aspect when the box isn't one (ducking) —
-                          // see spriteUnsquashY. Scaled about the floor line so the feet stay
-                          // planted and the body grows back UP out of the shorter hitbox, the way
-                          // the player's crouch already works. Skipped entirely when the factor is
-                          // 1, so a standing unit renders exactly as it did, with no extra element.
-                          const unsquash = spriteUnsquashY(eRenderW, eph);
-                          if (Math.abs(unsquash - 1) < 0.001) return art;
-                          return <div style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "100%", transform: "scaleY(" + unsquash.toFixed(4) + ")", transformOrigin: "50% " + spriteFloorY(eph, eAnchor).toFixed(2) + "px" }}>{art}</div>;
+                          // Draw the art at its true aspect when the box isn't one (ducking): on a
+                          // plane as tall as the art really is, placed so its floor line stays on the
+                          // floor and the body rises UP out of the shorter hitbox, the way the
+                          // player's crouch works. NOT a scaleY of the squashed layout — that bent
+                          // every rotated piece (a held gun, a sleeve) out of shape: see
+                          // spriteArtPlane. Null when the box is aspect-true, so a standing unit
+                          // renders exactly as it did, with no extra element.
+                          const plane = spriteArtPlane(eRenderW, eph, eAnchor);
+                          if (!plane) return art;
+                          return <div style={{ position: "absolute", left: 0, top: plane.top, width: "100%", height: plane.height }}>{art}</div>;
                         })()}
                       </div>
                     </React.Fragment>

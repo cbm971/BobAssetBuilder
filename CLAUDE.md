@@ -1696,6 +1696,19 @@ spots in the play loop and the level render. In plain words:
   as a dead loop; clear it and pick another x); the pane drops a held key on a stray blur, so re-press
   `d` every frame from the rAF wrapper; and sample the body's SCREEN x (`p.x - camRef.x`) per frame —
   it is the one number that shows a camera hang, a swing and a lurch at once.
+* **THE LEVEL YOU LEFT BLINKED OUT AND REFILLED — "a little screen tearing" (2026-09-27).** The
+  live level is drawn whole, but only a NEIGHBOUR ever wrote `RUN_MOUNT_PROGRESS`. So the level a run
+  starts in had no count, and the frame you walked out of it, it became a neighbour "new to the
+  screen" and was cut back to its first 30-item slice and staged in again from nothing. Measured at
+  his 3,089-px view, first gate out of M4: 312 of its 354 tiles (bg, fg AND Front) removed on the
+  swap frame, back 30 a frame for eleven frames — right behind you, in view. A level entered before its
+  staged mount finished did the same from its stale count (43 tiles, measured). Fix: a live node
+  records itself whole. After: 0 tiles removed at the first gate, forward or walking back; the only
+  swap-frame changes are an off-screen level added (x 9,600) and one dropped. **How it was found:** a
+  MutationObserver on `.lscroll` (childList, subtree) bucketed per frame from the rAF wrapper, with
+  each node's `.seamStrip` and its `left` — the element-rect proxy and the move counter both miss a
+  remove-then-re-add two frames apart. Player screen x, the view rect and the status row were all
+  steady at the swap (±0.3 px), so it was never the camera.
 * **Gates with nothing behind them.** Pressed against an edge at an open gate no level attaches to,
   the loop flashes once every 2.5 s (`gateNag`): "🚧 Bottom Left gate leads nowhere yet … (it accepts
   "Sewer")", "🏁 The run starts here", or "🏁 Floor complete!". Plain Playtest edges stay silent.
@@ -1867,6 +1880,29 @@ permanently side-on. Measured after: 0 backward steps across 425 frames × 7 fol
 of 98–117 frames, and an idle follower matches the player's facing within the 5-frame `holdFacing`
 dwell (80ms) and never longer. Combat stand-off is untouched — an archer still holds you at ITS
 range and still backs off when crowded.
+
+**An ally fights what is around YOU, on a leash (2026-09-27).** Blake: "using the pokeball the
+followers were not really following me … they may be agro on my enemies", and "are player NPCs not
+seeking? I have some set to chase me" (The Chaplin: 🏃 Seek + a dialogue with a "friendly" act). A
+friendly targeted the nearest hostile ANYWHERE and followed you only when none was left — and since a
+run adopts every neighbouring level's units (ONE WORLD), there always was one. Old-code control: an
+ally beside you walked off toward a Pit Bull 180 cells away (x 584 → 3015 and going). Now
+(`allyGuards`, `allyRegrouping`): a hostile counts only within `ALLY_GUARD_CELLS` (30) across and
+`ALLY_GUARD_ROWS` (12) up/down of YOU; an ally more than `ALLY_LEASH_CELLS` (40) from you drops the
+fight and comes back until within `ALLY_REGROUP_CELLS` (8) (`ep.regroup`). Measured: it stays with you
+(x 568 → 386, you at 300), and walking up to the dog with the ally 43 cells back it regrouped
+(4009 → 5060) and then engaged. Hostile Seek units are unchanged; note they only notice you within
+6 body lengths (~42 cells — a third of his screen) and Speed 0 units (Billy, Bobby, Army Bob) never
+walk, by his own rule.
+
+**Units duck under what blocks them (2026-09-27, `ep.duckUnder`).** Blake: "NPCs, player and not,
+should duck to get under obstacles if that is what is stopping them … my elephant may have gotten
+stuck". A walking unit blocked at head height whose CROUCH box clears the wall at the same feet ducks
+and walks under; each frame it stays down while its standing box would hit a wall (that also holds a
+dodge-crouch that runs out under a ceiling). Only units with a drawn crouch pose, only on their feet.
+Old-code control: Viatnamese 3 stood pressed against a 3-row overhang forever (x 1411); now it ducks
+(y 540 → 624, feet unchanged), walks under for 111 frames and stands up clear of it. The Elaphant
+(scale 2) ducks under a 4-row overhang and stays ducked while any of its 323 px body is under it.
 
 **Weapon flags** live flat on the asset (`explode`, `ignoreArmor`, `burst`,
 `burstDelay`, `resurrect`, `stun`, …). Adding one means three places: the `newAsset`
@@ -2246,6 +2282,39 @@ shorter hitbox. It is **exactly 1** when the box is already aspect-true, so a st
 bit-identically and no extra element is emitted at all. Measured in Playtest with the correction
 stripped on the same frame as a control: scaleX 0.8077 / scaleY 0.4846 (aspect 0.600) without it,
 0.8077 / 0.8077 (aspect 1.000) with it, and the lowest drawn edge moves 0.00px either way.
+
+**...AND THE scaleY FIX ABOVE WAS ONLY HALF RIGHT (2026-09-27). The render now uses `spriteArtPlane`.**
+Blake: "sometimes when an animal is holding a weapon the weapon deforms" and "enemies seem to float
+when crouched". A `scaleY` on a group laid out in a squashed box is correct only for UPRIGHT pieces:
+each piece is squashed in its own frame BEFORE its own `rotate()`, and the stretch happens after, in
+the screen's. A piece turned 90° came out with its length at 60% and its thickness at 167% — and every
+held gun is turned about 90° (rest poses hang from the hand; an animal holds at `holdAngle` 90). The
+measurement above checked the group's scale, not a rotated piece, so it could not see it. Old-code
+control in the pane: a ducking Squirrel's M16 broke into stretched, tilted blocks; every piece's
+layout box read 1.67× the canvas aspect under a `scaleY(1.6667)`. Now a ducking sprite's art is laid
+out on a plane as tall as the art really is (`renderW × renderW·H/W`, the player's `crouchArtPlane`
+rule), positioned so the floor canvas-y stays on the floor: aspect 1.00, no stretch, and every point
+lands where `spriteCanvasPointToWorld` (the muzzle) already put it — a test pins that equality.
+
+**The float was a second, separate fault:** a ducking unit drew its CROUCH drawing pinned by its SIDE
+drawing's feet, and no crouch is drawn with the feet in the same place (BoB 227 vs 260, Bobbett 209 vs
+261, Elaphant 223 vs 242). `unitCrouchFrame(ea)` = the crouch pose's own ground line, else the Side
+ground moved by the difference in the two drawings' lowest pixels (weapons excluded; each piece at its
+DRAWN corners, `pieceDrawnVSpan`, since crouches are mostly bent pieces). Render and `enemyHeldMuzzleAt`
+both use it; the HP bar sits the same height above the crouched head as above the standing one.
+Measured, 3440-wide view, old → new: Bobette/Roberta/Viatnamese 3/Elaphant floated 22–25 px → now
+−1.6/−1.6/−0.8/0.0 px, identical to their standing numbers. Only the crouch pose is re-anchored; a
+unit mid-attack-pose while ducking keeps Side's line (that pose is aligned to Side's baseline).
+
+**Corpses (same day).** Blake, with a screenshot: "when she dies [Bobette] her jacket over her arm
+deforms". The olive piece jutting out of the body was **Bobs Bat** (same olive as her Army Shirt), held
+at its angled REST pose, which on a body turned 90° points down into the dirt. A corpse still holds
+its weapon (A CORPSE HOLDS WHAT THE PLACEMENT GAVE IT) — it now holds it LYING DOWN: `layHeldFlat`
+turns the held pieces rigidly about the hand until the far end points down the body toward the feet,
+for a placement's weapon and a look's baked-in one alike, only when the body lays down (no Death pose).
+Separately, a unit killed mid-duck kept its crouch-height box, so its Side pose was squashed into it
+(which also bends rotated sleeves): the corpse-gravity branch stands it back up about its feet, and
+the corpse render always uses the standing box.
 
 **Animals are drawn side-on facing LEFT** (Jumping Pit Bull, Elaphant, Squirrel). No front or
 back art at all; `side` / `up` / `crouch` are the same drawing with their own piece ids, plus
