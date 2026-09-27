@@ -9061,6 +9061,7 @@ export default function AssetStudio() {
   const [emoji, setEmoji] = useState("⚔️");
   const [picker, setPicker] = useState(null);
   const [sheet, setSheet] = useState(false);
+  const [sheetFolder, setSheetFolder] = useState(null); // the Object folder open in Save & Open's list (null = the folders themselves)
   const [text, setText] = useState("");
   const [toast, setToast] = useState("");
   const [hasStore, setHasStore] = useState(false);
@@ -15114,7 +15115,7 @@ export default function AssetStudio() {
   // flushing their live state before save.
   const syncProp = (a) => { if (!a || a.type !== "prop") return a; const frames = [...(a.frames || [blankAngles()])]; frames[propFrame] = a.angles; return { ...a, frames, angles: frames[0], category: (a.category || "").trim() }; };
   const data = () => JSON.stringify(syncProp(syncFit(syncEnemy(syncWeapon(syncEffectAnim(asset))))), null, 2);
-  const openSheet = () => { setText(data()); setSheet(true); };
+  const openSheet = () => { setText(data()); setSheetFolder(null); setSheet(true); };
   const saveAsset = async () => {
     let payload = syncProp(syncFit(syncEnemy(syncWeapon(asset))));
     if (HAS_FIT_VARIANTS(payload)) {
@@ -20537,7 +20538,7 @@ export default function AssetStudio() {
                 <label className="slider">Anim speed<input type="range" min="1" max="20" step="1" value={asset.animFps ?? 6} onChange={(e) => setAsset((a) => ({ ...a, animFps: +e.target.value }))} /><span className="hint2" style={{ marginLeft: 6 }}>{asset.animFps ?? 6} fps</span></label>
               )}
               <label className="chk"><input type="checkbox" checked={!!asset.solidDefault} onChange={(e) => setAsset((a) => ({ ...a, solidDefault: e.target.checked }))} /> Solid by default</label>
-              <div className="ct2">📂 Sub-category</div>
+              <div className="ct2">📂 Folder</div>
               <input className="catItemInput" value={asset.category || ""} onChange={(e) => setAsset((a) => ({ ...a, category: e.target.value }))} placeholder={"e.g. Interior, Trailer Park — blank files under \"" + PROP_UNCAT + "\""} maxLength={28} />
               {propCatSuggest.length > 0 && <div className="catchips">{propCatSuggest.map((c) => <button key={c} onClick={() => setAsset((a) => ({ ...a, category: c }))}>{c}</button>)}</div>}
               <p className="mini">One free-text group, so the Object picker in a level stays findable as this list grows. Blank files it under <b>{PROP_UNCAT}</b> — it never goes missing either way.</p>
@@ -20587,15 +20588,42 @@ export default function AssetStudio() {
             <div className="grp"><span className="gl">Name this asset</span>
               <input className="namefield" value={asset.name} onChange={(e) => setAsset({ ...asset, name: e.target.value })} placeholder={asset.type === "equipment" ? "e.g. Wizard Hat, Iron Boots…" : "e.g. Wizard Bob, Bronze Sword…"} />
             </div>
+            {/* An Object's FOLDER, beside its name — the same `category` the Object settings card
+                edits. Saving is the moment you decide where a thing goes; the only place to set it
+                used to be a card further down the editor, so a new prop was saved into "Unknown". */}
+            {asset.type === "prop" && (
+              <div className="grp"><span className="gl">📂 Folder</span>
+                <input className="namefield" value={asset.category || ""} onChange={(e) => setAsset((a) => ({ ...a, category: e.target.value }))} placeholder="e.g. Interior" maxLength={28} />
+                {propCatSuggest.length > 0 && <div className="catchips" style={{ marginTop: 6 }}>{propCatSuggest.map((c) => <button key={c} className={propCatKey(c) === propCatKey(asset.category) ? "on" : ""} onClick={() => setAsset((a) => ({ ...a, category: c }))}>{c}</button>)}</div>}
+              </div>
+            )}
             <div className="grp"><span className="gl">Keep your work</span>
               <div className="row2">{hasStore && <button onClick={saveAsset}>💾 Save</button>}<button onClick={download}>⬇ Download file</button><label className="up">⬆ Upload file<input type="file" accept=".json,application/json,text/plain" onChange={upload} hidden /></label></div>
             </div>
             <div className="grp"><span className="gl">Open a saved {asset.type === "equipment" ? (SLOTS[asset.slot]?.label || "item") : (TYPES[asset.type]?.label || asset.type)}</span>
               {(() => {
                 const sameCategory = library.filter((a) => a.type === asset.type && (asset.type !== "equipment" || a.slot === asset.slot));
-                return sameCategory.length ? <div className="loadlist">{sameCategory.map((a) => (
-                  <button key={a.id} onClick={() => { openAsset(a); setSheet(false); }}>{a.type === "equipment" ? (SLOTS[a.slot]?.icon || "📦") : (TYPES[a.type]?.icon || "📦")} {a.name}</button>
-                ))}</div> : <p className="mini">Nothing saved in this category yet.</p>;
+                // OBJECTS OPEN THROUGH THEIR FOLDERS HERE TOO. Load and the Level Creator both file
+                // Objects under their folder (groupByCategory), but this list — the one the Object
+                // editor's own 💾 Save & Open shows — was every Object flat, in library order, so 63
+                // props were one long scroll. Blake: "when i go to object/prop then save and open it
+                // does not use the folders." Folders first, then that folder's Objects A→Z, exactly
+                // like Load; with one folder (or none named) there is nothing to pick, so it lists.
+                const folders = asset.type === "prop" ? groupByCategory(sameCategory, "prop") : [];
+                const inFolder = folders.length > 1 ? folders.find((g) => g.key === sheetFolder) || null : null;
+                const folderIcon = (g) => (g.key === propCatKey(PROP_UNCAT) ? "📦" : "📂");
+                if (folders.length > 1 && !inFolder) return (
+                  <div className="loadlist">{folders.map((g) => (
+                    <button key={g.key} onClick={() => setSheetFolder(g.key)}>{folderIcon(g)} {g.label} ({g.props.length})</button>
+                  ))}</div>
+                );
+                const list = inFolder ? inFolder.props : sameCategory;
+                return (<>
+                  {inFolder && <div className="row2"><button className="back" onClick={() => setSheetFolder(null)}>‹ Folders</button> <span>{folderIcon(inFolder)} {inFolder.label}</span></div>}
+                  {list.length ? <div className="loadlist">{list.map((a) => (
+                    <button key={a.id} onClick={() => { openAsset(a); setSheet(false); }}>{a.type === "equipment" ? (SLOTS[a.slot]?.icon || "📦") : (TYPES[a.type]?.icon || "📦")} {a.name}</button>
+                  ))}</div> : <p className="mini">Nothing saved in this category yet.</p>}
+                </>);
               })()}
             </div>
             <div className="grp"><span className="gl">Send to the game or to Claude</span>
