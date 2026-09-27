@@ -138,6 +138,9 @@ Running the dev server **writes the browser's library back into `asset-data/`**,
 * **To SEE a piece of art without a browser, run `node tools/rasterize-pieces.js --asset <id> out.png`** and
   Read the PNG. It reimplements the flat-art renderer (poly, mirror, rot, cutters, outline) and has been
   rebuilt from notes in four sessions before it was committed; extend it rather than writing another.
+  Since 2026-09-27 it also turns arm-flagged pieces about the SHOULDER (`originFrac` = `pieceOriginFrac`) and
+  keeps each cutter inside its own `_src` layer, so weapons and sleeves composed on a body render true —
+  checked against the app's own `attachWeaponBlocks` output for Bobs Bow v2 (the aimed view came out the same both ways).
 * **Building an asset by hand? Read `ASSET_AUTHORING.md` first.** It is the spec Blake hands to a
   chat that has no repo access: the file envelope, both bodies' real head/torso geometry per pose,
   the shape list, and the flat-colour house style (4–8 pieces, no shading — assisted assets that

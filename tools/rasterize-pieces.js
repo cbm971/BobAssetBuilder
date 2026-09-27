@@ -10,9 +10,13 @@
 //   * circle -> ellipse in the box; roundrect -> 22% elliptical corners; stadium -> r = min(w,h)/2
 //   * poly -> p.points (fractions of the box); named kinds -> SHAPE_POINTS; rect -> whole box
 //   * mirror:true -> the exact reflection of the (rotated) original about x=100
-//   * rot -> about the box centre (pieceOriginFrac is [.5,.5] for anything not arm/leg flagged;
-//     arm-flagged pieces pivot at the shoulder and are NOT handled here — this is a prop/flat-art tool)
-//   * a cutter clears pixels of every EARLIER piece that is not noCut (cutterLayerSegments inverted)
+//   * rot -> about originFrac(p), a copy of App.js pieceOriginFrac: the box centre for ordinary
+//     pieces, the SHOULDER (armPivotFrac, top-centre by default) for role:"weaponArm" / limb:"arm".
+//     Every block drawn in the weapon editor is arm-flagged, so without this a bow or a sleeve
+//     renders offset by (I - R(rot))·(centre→edge) — exactly the bug the app itself once had.
+//   * a cutter clears pixels of every EARLIER piece that is not noCut and shares its layer
+//     (`_src || _slot || "__body"`, as the app groups cutter runs) — so a body composed under a
+//     weapon or a garment is not punched through by that item's own cutters
 //   * outline -> the same silhouette ~1.4 units bigger in outlineColor (default #000) under the fill
 //   * fx.bright multiplies the colour; fx.opacity alpha-blends; text/emoji pieces are skipped
 //
@@ -68,14 +72,27 @@ function pointInPoly(x, y, pts) {
   }
   return inside;
 }
-// Canvas point -> is it inside piece p (rotated about its centre, optionally mirrored)?
+// App.js pieceOriginFrac / armPivotFrac, restated: the point a piece turns about, as box fractions.
+const armPivotFrac = (pv) => pv === "left" ? [0, 0.5] : pv === "right" ? [1, 0.5] : pv === "bottom" ? [0.5, 1] : [0.5, 0];
+function originFrac(p) {
+  if (p.role === "weaponArm" || (p.limb === "arm" && !p._isShoe)) return armPivotFrac(p.armPivot);
+  if (p._animPivotTop) return [0.5, 0];
+  return [0.5, 0.5];
+}
+// Where the box centre lands once the piece is turned about its origin (the renderer's bbox needs it).
+function turnedCentre(p) {
+  const o = originFrac(p), ox = p.x + o[0] * p.w, oy = p.y + o[1] * p.h;
+  const vx = p.x + p.w / 2 - ox, vy = p.y + p.h / 2 - oy, r = (p.rot || 0) * Math.PI / 180;
+  return [ox + vx * Math.cos(r) - vy * Math.sin(r), oy + vx * Math.sin(r) + vy * Math.cos(r)];
+}
+// Canvas point -> is it inside piece p (rotated about its origin, optionally mirrored)?
 function hit(p, px, py, grow, mirrored) {
   if (mirrored) px = W - px; // a twin is the exact reflection of the rotated original about x=100
-  const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
-  let lx = px - cx, ly = py - cy;
+  const o = originFrac(p), ox = p.x + o[0] * p.w, oy = p.y + o[1] * p.h;
+  let lx = px - ox, ly = py - oy;
   const r = -(p.rot || 0) * Math.PI / 180;
   if (r) { const c = Math.cos(r), s = Math.sin(r); const nx = lx * c - ly * s, ny = lx * s + ly * c; lx = nx; ly = ny; }
-  return insideLocal(p, lx / p.w + 0.5, ly / p.h + 0.5, grow);
+  return insideLocal(p, lx / p.w + o[0], ly / p.h + o[1], grow);
 }
 function render(pieces, opts) {
   const zoom = opts.zoom || 4, bg = hex(opts.bg || "#6b7b3a");
@@ -90,13 +107,14 @@ function render(pieces, opts) {
   const cutters = list.filter((e) => e.p.isCutter);
   for (const e of drawn) {
     const p = e.p;
-    const cutBy = p.noCut ? [] : cutters.filter((c) => c.idx > e.idx);
+    const layerOf = (q) => q._src || q._slot || "__body";
+    const cutBy = p.noCut ? [] : cutters.filter((c) => c.idx > e.idx && layerOf(c.p) === layerOf(p));
     const fx = p.fx || {};
     const bright = fx.bright === undefined ? 1 : fx.bright, alpha = fx.opacity === undefined ? 1 : fx.opacity;
     const fill = hex(p.color).map((c) => Math.max(0, Math.min(255, c * bright)));
     const oc = p.outline ? hex(p.outlineColor || "#000") : null;
     // bounding box in output pixels (generous: the rotated box's diagonal)
-    const cx = p.x + p.w / 2, cy = p.y + p.h / 2, rad = Math.hypot(p.w, p.h) / 2 + 3;
+    const [cx, cy] = turnedCentre(p), rad = Math.hypot(p.w, p.h) / 2 + 3;
     const bx0 = e.m ? W - cx - rad : cx - rad, bx1 = e.m ? W - cx + rad : cx + rad;
     const x0 = Math.max(0, Math.floor((bx0 - crop[0]) * zoom)), x1 = Math.min(ow - 1, Math.ceil((bx1 - crop[0]) * zoom));
     const y0 = Math.max(0, Math.floor((cy - rad - crop[1]) * zoom)), y1 = Math.min(oh - 1, Math.ceil((cy + rad - crop[1]) * zoom));
@@ -135,7 +153,7 @@ function sheet(renders, gutter, bg) {
   for (const r of renders) { for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) for (let k = 0; k < 3; k++) img[((y) * w + ox + x) * 3 + k] = r.img[(y * r.w + x) * 3 + k]; ox += r.w + g; }
   return { w, h, img };
 }
-module.exports = { render, png, sheet, hit, SHAPE_POINTS };
+module.exports = { render, png, sheet, hit, originFrac, SHAPE_POINTS };
 if (require.main === module) {
   let argv = process.argv.slice(2), pieces;
   if (argv[0] === "--asset") {
