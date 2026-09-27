@@ -653579,6 +653579,4293 @@
    },
    "scale": 1.25,
    "savedAt": 1790529601964
+  },
+  {
+   "id": "schbus6",
+   "name": "1960s School Bus",
+   "type": "prop",
+   "guideId": "default",
+   "size": 30,
+   "animFps": 6,
+   "solidDefault": false,
+   "category": "Trailor Park",
+   "savedAt": 1790538558631,
+   "frames": [
+    {
+     "front": [
+      {
+       "id": "7ot8zfa",
+       "kind": "rect",
+       "x": 33,
+       "y": 157,
+       "w": 157,
+       "h": 3.5,
+       "color": "#33302e",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "kfstazs",
+       "kind": "rect",
+       "x": 3,
+       "y": 154.5,
+       "w": 8,
+       "h": 3,
+       "color": "#33302e",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "nd2p836",
+       "kind": "poly",
+       "x": 35,
+       "y": 110,
+       "w": 162,
+       "h": 48,
+       "color": "#f7b500",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "points": [
+        [
+         0,
+         1
+        ],
+        [
+         0,
+         0.5625
+        ],
+        [
+         0.0123,
+         0.2292
+        ],
+        [
+         0.0129,
+         0.1993
+        ],
+        [
+         0.0144,
+         0.1699
+        ],
+        [
+         0.017,
+         0.1415
+        ],
+        [
+         0.0206,
+         0.1146
+        ],
+        [
+         0.0251,
+         0.0897
+        ],
+        [
+         0.0304,
+         0.0671
+        ],
+        [
+         0.0365,
+         0.0474
+        ],
+        [
+         0.0432,
+         0.0307
+        ],
+        [
+         0.0505,
+         0.0174
+        ],
+        [
+         0.0581,
+         0.0078
+        ],
+        [
+         0.066,
+         0.002
+        ],
+        [
+         0.0741,
+         0
+        ],
+        [
+         0.9444,
+         0
+        ],
+        [
+         0.9531,
+         0.0021
+        ],
+        [
+         0.9616,
+         0.0082
+        ],
+        [
+         0.9697,
+         0.0182
+        ],
+        [
+         0.9771,
+         0.0318
+        ],
+        [
+         0.9837,
+         0.0488
+        ],
+        [
+         0.9894,
+         0.0687
+        ],
+        [
+         0.9939,
+         0.091
+        ],
+        [
+         0.9973,
+         0.1152
+        ],
+        [
+         0.9993,
+         0.1406
+        ],
+        [
+         1,
+         0.1667
+        ],
+        [
+         1,
+         0.9479
+        ],
+        [
+         0.9957,
+         0.9854
+        ],
+        [
+         0.9846,
+         1
+        ]
+       ]
+      },
+      {
+       "id": "xyqe9c2",
+       "kind": "poly",
+       "x": 37.9,
+       "y": 110,
+       "w": 158.9633,
+       "h": 6.6108,
+       "color": "#f7b500",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       },
+       "points": [
+        [
+         0,
+         0.9832
+        ],
+        [
+         0.0056,
+         0.7125
+        ],
+        [
+         0.0111,
+         0.5345
+        ],
+        [
+         0.0173,
+         0.3777
+        ],
+        [
+         0.0244,
+         0.2452
+        ],
+        [
+         0.032,
+         0.1395
+        ],
+        [
+         0.0402,
+         0.0625
+        ],
+        [
+         0.0486,
+         0.0157
+        ],
+        [
+         0.0572,
+         0
+        ],
+        [
+         0.9442,
+         0
+        ],
+        [
+         0.9541,
+         0.0184
+        ],
+        [
+         0.9636,
+         0.073
+        ],
+        [
+         0.9726,
+         0.1621
+        ],
+        [
+         0.9806,
+         0.2831
+        ],
+        [
+         0.9876,
+         0.4323
+        ],
+        [
+         0.9933,
+         0.6051
+        ],
+        [
+         0.9974,
+         0.7962
+        ],
+        [
+         1,
+         1
+        ],
+        [
+         0.9996,
+         0.9832
+        ]
+       ]
+      },
+      {
+       "id": "l23ja9s",
+       "kind": "rect",
+       "x": 38.1,
+       "y": 117.8,
+       "w": 15.6,
+       "h": 14.9,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "q2up4c8",
+       "kind": "rect",
+       "x": 54.8,
+       "y": 117.8,
+       "w": 14.7,
+       "h": 14.9,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "28q4mk8",
+       "kind": "rect",
+       "x": 70.9,
+       "y": 117.8,
+       "w": 14.7,
+       "h": 14.9,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "wvsb1qw",
+       "kind": "rect",
+       "x": 87,
+       "y": 117.8,
+       "w": 14.7,
+       "h": 14.9,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "c2erj34",
+       "kind": "rect",
+       "x": 103.1,
+       "y": 117.8,
+       "w": 14.7,
+       "h": 14.9,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "hykd98c",
+       "kind": "rect",
+       "x": 119.2,
+       "y": 117.8,
+       "w": 14.7,
+       "h": 14.9,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "9cwnqyh",
+       "kind": "rect",
+       "x": 135.3,
+       "y": 117.8,
+       "w": 14.7,
+       "h": 14.9,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "18vxus5",
+       "kind": "rect",
+       "x": 151.4,
+       "y": 117.8,
+       "w": 14.7,
+       "h": 14.9,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "dyuinpv",
+       "kind": "rect",
+       "x": 167.5,
+       "y": 117.8,
+       "w": 14.7,
+       "h": 14.9,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "5gzhstd",
+       "kind": "rect",
+       "x": 38.8,
+       "y": 118.5,
+       "w": 14.2,
+       "h": 13.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      },
+      {
+       "id": "8jsn7ib",
+       "kind": "rect",
+       "x": 55.5,
+       "y": 118.5,
+       "w": 13.3,
+       "h": 13.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      },
+      {
+       "id": "mhrk5tr",
+       "kind": "rect",
+       "x": 71.6,
+       "y": 118.5,
+       "w": 13.3,
+       "h": 13.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      },
+      {
+       "id": "rf4tlj5",
+       "kind": "rect",
+       "x": 87.7,
+       "y": 118.5,
+       "w": 13.3,
+       "h": 13.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      },
+      {
+       "id": "pmu1bes",
+       "kind": "rect",
+       "x": 103.8,
+       "y": 118.5,
+       "w": 13.3,
+       "h": 13.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      },
+      {
+       "id": "7l3c8l1",
+       "kind": "rect",
+       "x": 119.9,
+       "y": 118.5,
+       "w": 13.3,
+       "h": 13.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      },
+      {
+       "id": "dqsr1cz",
+       "kind": "rect",
+       "x": 136,
+       "y": 118.5,
+       "w": 13.3,
+       "h": 13.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      },
+      {
+       "id": "flrslqv",
+       "kind": "rect",
+       "x": 152.1,
+       "y": 118.5,
+       "w": 13.3,
+       "h": 13.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      },
+      {
+       "id": "w8bq9im",
+       "kind": "rect",
+       "x": 168.2,
+       "y": 118.5,
+       "w": 13.3,
+       "h": 13.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      },
+      {
+       "id": "btn9jy3",
+       "kind": "rect",
+       "x": 45.4,
+       "y": 118.5,
+       "w": 1,
+       "h": 13.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "xmmzaq2",
+       "kind": "rect",
+       "x": 55.5,
+       "y": 124.3,
+       "w": 13.3,
+       "h": 1.1,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "byv4sk8",
+       "kind": "rect",
+       "x": 71.6,
+       "y": 124.3,
+       "w": 13.3,
+       "h": 1.1,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "wzcvuvq",
+       "kind": "rect",
+       "x": 87.7,
+       "y": 124.3,
+       "w": 13.3,
+       "h": 1.1,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vsti36j",
+       "kind": "rect",
+       "x": 103.8,
+       "y": 124.3,
+       "w": 13.3,
+       "h": 1.1,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "e9vffer",
+       "kind": "rect",
+       "x": 119.9,
+       "y": 124.3,
+       "w": 13.3,
+       "h": 1.1,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "lphdc6u",
+       "kind": "rect",
+       "x": 136,
+       "y": 124.3,
+       "w": 13.3,
+       "h": 1.1,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "8pyjoaz",
+       "kind": "rect",
+       "x": 152.1,
+       "y": 124.3,
+       "w": 13.3,
+       "h": 1.1,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "x4rl5uw",
+       "kind": "rect",
+       "x": 168.2,
+       "y": 124.3,
+       "w": 13.3,
+       "h": 1.1,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "v03ouh0",
+       "kind": "rect",
+       "x": 53.85,
+       "y": 135.4,
+       "w": 0.5,
+       "h": 22.6,
+       "color": "#f7b500",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.8
+       }
+      },
+      {
+       "id": "79rx1qb",
+       "kind": "rect",
+       "x": 69.95,
+       "y": 135.4,
+       "w": 0.5,
+       "h": 22.6,
+       "color": "#f7b500",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.8
+       }
+      },
+      {
+       "id": "ir44x1l",
+       "kind": "rect",
+       "x": 86.05,
+       "y": 135.4,
+       "w": 0.5,
+       "h": 22.6,
+       "color": "#f7b500",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.8
+       }
+      },
+      {
+       "id": "grrl3db",
+       "kind": "rect",
+       "x": 102.15,
+       "y": 135.4,
+       "w": 0.5,
+       "h": 22.6,
+       "color": "#f7b500",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.8
+       }
+      },
+      {
+       "id": "of6l797",
+       "kind": "rect",
+       "x": 118.25,
+       "y": 135.4,
+       "w": 0.5,
+       "h": 22.6,
+       "color": "#f7b500",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.8
+       }
+      },
+      {
+       "id": "vkwjhnm",
+       "kind": "rect",
+       "x": 134.35,
+       "y": 135.4,
+       "w": 0.5,
+       "h": 22.6,
+       "color": "#f7b500",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.8
+       }
+      },
+      {
+       "id": "gddtd3g",
+       "kind": "rect",
+       "x": 150.45,
+       "y": 135.4,
+       "w": 0.5,
+       "h": 22.6,
+       "color": "#f7b500",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.8
+       }
+      },
+      {
+       "id": "8beldx8",
+       "kind": "rect",
+       "x": 166.55,
+       "y": 135.4,
+       "w": 0.5,
+       "h": 22.6,
+       "color": "#f7b500",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.8
+       }
+      },
+      {
+       "id": "s60yqjh",
+       "kind": "rect",
+       "x": 182.65,
+       "y": 135.4,
+       "w": 0.5,
+       "h": 22.6,
+       "color": "#f7b500",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.8
+       }
+      },
+      {
+       "id": "yeiozgf",
+       "kind": "rect",
+       "x": 35.425,
+       "y": 133.6,
+       "w": 161.575,
+       "h": 1.8,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "i004cot",
+       "kind": "rect",
+       "x": 35,
+       "y": 142,
+       "w": 162,
+       "h": 1.8,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "5p9bwl4",
+       "kind": "rect",
+       "x": 35,
+       "y": 150.6,
+       "w": 162,
+       "h": 1.8,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "18001hh",
+       "kind": "text",
+       "x": 78,
+       "y": 135.6,
+       "w": 84,
+       "h": 6.2,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "text": "COUNTY SCHOOLS",
+       "font": "Impact, 'Arial Narrow', sans-serif"
+      },
+      {
+       "id": "a90j2x9",
+       "kind": "text",
+       "x": 172,
+       "y": 135.6,
+       "w": 12,
+       "h": 6.2,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "text": "7",
+       "font": "Impact, 'Arial Narrow', sans-serif"
+      },
+      {
+       "id": "kmqtuu5",
+       "kind": "rect",
+       "x": 55.4,
+       "y": 138.2,
+       "w": 1.8,
+       "h": 4.6,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "a4mqwnk",
+       "kind": "poly",
+       "x": 56.8,
+       "y": 136.2,
+       "w": 8.6,
+       "h": 8.6,
+       "color": "#f5f5dc",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "points": [
+        [
+         0.2929,
+         0
+        ],
+        [
+         0.7071,
+         0
+        ],
+        [
+         1,
+         0.2929
+        ],
+        [
+         1,
+         0.7071
+        ],
+        [
+         0.7071,
+         1
+        ],
+        [
+         0.2929,
+         1
+        ],
+        [
+         0,
+         0.7071
+        ],
+        [
+         0,
+         0.2929
+        ]
+       ]
+      },
+      {
+       "id": "bzhwn6t",
+       "kind": "poly",
+       "x": 57.45,
+       "y": 136.85,
+       "w": 7.3,
+       "h": 7.3,
+       "color": "#c0392b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "points": [
+        [
+         0.2929,
+         0
+        ],
+        [
+         0.7071,
+         0
+        ],
+        [
+         1,
+         0.2929
+        ],
+        [
+         1,
+         0.7071
+        ],
+        [
+         0.7071,
+         1
+        ],
+        [
+         0.2929,
+         1
+        ],
+        [
+         0,
+         0.7071
+        ],
+        [
+         0,
+         0.2929
+        ]
+       ]
+      },
+      {
+       "id": "885s4y2",
+       "kind": "text",
+       "x": 57.1,
+       "y": 138.6,
+       "w": 8,
+       "h": 3.8,
+       "color": "#f5f5dc",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "text": "STOP",
+       "font": "Impact, 'Arial Narrow', sans-serif"
+      },
+      {
+       "id": "uggzoqs",
+       "kind": "poly",
+       "x": 3.6,
+       "y": 136.5,
+       "w": 33.9,
+       "h": 20,
+       "color": "#f7b500",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "points": [
+        [
+         1,
+         0
+        ],
+        [
+         0.1593,
+         0.09
+        ],
+        [
+         0.0767,
+         0.13
+        ],
+        [
+         0.0236,
+         0.21
+        ],
+        [
+         0,
+         0.325
+        ],
+        [
+         0,
+         0.785
+        ],
+        [
+         0.0472,
+         0.905
+        ],
+        [
+         0.1298,
+         1
+        ],
+        [
+         0.9705,
+         1
+        ],
+        [
+         1,
+         0.965
+        ]
+       ]
+      },
+      {
+       "id": "g7sh228",
+       "kind": "rect",
+       "x": 8.5,
+       "y": 140.9,
+       "w": 17,
+       "h": 0.9,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "82l7vl1",
+       "kind": "roundrect",
+       "x": 21.5,
+       "y": 140.1,
+       "w": 5,
+       "h": 2.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "mxbhkon",
+       "kind": "rect",
+       "x": 2.9,
+       "y": 140.6,
+       "w": 1.5,
+       "h": 11.8,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "t1thyxj",
+       "kind": "roundrect",
+       "x": 1.4,
+       "y": 141.6,
+       "w": 3.4,
+       "h": 5.4,
+       "color": "#8a929c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "0ut7isa",
+       "kind": "rect",
+       "x": 0.9,
+       "y": 142.4,
+       "w": 1.1,
+       "h": 3.8,
+       "color": "#f5f5dc",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "3axat74",
+       "kind": "rect",
+       "x": 33,
+       "y": 120.3,
+       "w": 4.6,
+       "h": 0.8,
+       "color": "#8a929c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "2z95s36",
+       "kind": "rect",
+       "x": 33,
+       "y": 127.4,
+       "w": 4.6,
+       "h": 0.8,
+       "color": "#8a929c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "5f6abk5",
+       "kind": "roundrect",
+       "x": 31.4,
+       "y": 118.8,
+       "w": 2.1,
+       "h": 10.2,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "ezi22oj",
+       "kind": "roundrect",
+       "x": 37.9,
+       "y": 112.4,
+       "w": 3.6,
+       "h": 4.4,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "b6sr6ny",
+       "kind": "roundrect",
+       "x": 36.8,
+       "y": 113.1,
+       "w": 1.6,
+       "h": 3,
+       "color": "#c0392b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "3m5khxq",
+       "kind": "roundrect",
+       "x": 194.3,
+       "y": 112.4,
+       "w": 3.6,
+       "h": 4.4,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "k43blg9",
+       "kind": "roundrect",
+       "x": 197.4,
+       "y": 113.1,
+       "w": 1.6,
+       "h": 3,
+       "color": "#c0392b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "j9altyd",
+       "kind": "roundrect",
+       "x": 41.8,
+       "y": 116.9,
+       "w": 2.4,
+       "h": 1.1,
+       "color": "#e8a33c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "i2sgduj",
+       "kind": "roundrect",
+       "x": 189.6,
+       "y": 116.9,
+       "w": 2.4,
+       "h": 1.1,
+       "color": "#c0392b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "imr1mf7",
+       "kind": "circle",
+       "x": 38.6,
+       "y": 153.4,
+       "w": 2.2,
+       "h": 2.2,
+       "color": "#e8a33c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "49n207p",
+       "kind": "circle",
+       "x": 191.6,
+       "y": 153.4,
+       "w": 2.2,
+       "h": 2.2,
+       "color": "#c0392b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "aviognh",
+       "kind": "roundrect",
+       "x": 196.2,
+       "y": 143.2,
+       "w": 2,
+       "h": 5,
+       "color": "#c0392b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vjtc6y8",
+       "kind": "rect",
+       "x": 0,
+       "y": 152.3,
+       "w": 4.8,
+       "h": 5.2,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "2b4zo9l",
+       "kind": "rect",
+       "x": 195.2,
+       "y": 151.6,
+       "w": 4.8,
+       "h": 5.2,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "umitf6b",
+       "kind": "poly",
+       "x": 7.8425,
+       "y": 147.2,
+       "w": 24.3149,
+       "h": 9.3,
+       "color": "#33302e",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "points": [
+        [
+         0,
+         1
+        ],
+        [
+         0.0212,
+         0.8364
+        ],
+        [
+         0.0512,
+         0.6774
+        ],
+        [
+         0.0889,
+         0.5301
+        ],
+        [
+         0.1336,
+         0.3968
+        ],
+        [
+         0.1845,
+         0.28
+        ],
+        [
+         0.2409,
+         0.1815
+        ],
+        [
+         0.3017,
+         0.1031
+        ],
+        [
+         0.3659,
+         0.0462
+        ],
+        [
+         0.4324,
+         0.0116
+        ],
+        [
+         0.5,
+         0
+        ],
+        [
+         0.5676,
+         0.0116
+        ],
+        [
+         0.6341,
+         0.0462
+        ],
+        [
+         0.6983,
+         0.1031
+        ],
+        [
+         0.7591,
+         0.1815
+        ],
+        [
+         0.8155,
+         0.28
+        ],
+        [
+         0.8664,
+         0.3968
+        ],
+        [
+         0.9111,
+         0.5301
+        ],
+        [
+         0.9488,
+         0.6774
+        ],
+        [
+         0.9788,
+         0.8364
+        ],
+        [
+         1,
+         1
+        ]
+       ]
+      },
+      {
+       "id": "1xzjnm8",
+       "kind": "poly",
+       "x": 114.1387,
+       "y": 147.2,
+       "w": 24.9226,
+       "h": 10.8,
+       "color": "#33302e",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "points": [
+        [
+         0,
+         1
+        ],
+        [
+         0.0117,
+         0.8647
+        ],
+        [
+         0.0329,
+         0.7202
+        ],
+        [
+         0.0622,
+         0.5833
+        ],
+        [
+         0.0989,
+         0.4564
+        ],
+        [
+         0.1425,
+         0.3417
+        ],
+        [
+         0.1922,
+         0.2411
+        ],
+        [
+         0.2472,
+         0.1563
+        ],
+        [
+         0.3065,
+         0.0888
+        ],
+        [
+         0.3692,
+         0.0398
+        ],
+        [
+         0.434,
+         0.01
+        ],
+        [
+         0.5,
+         0
+        ],
+        [
+         0.566,
+         0.01
+        ],
+        [
+         0.6308,
+         0.0398
+        ],
+        [
+         0.6935,
+         0.0888
+        ],
+        [
+         0.7528,
+         0.1563
+        ],
+        [
+         0.8078,
+         0.2411
+        ],
+        [
+         0.8575,
+         0.3417
+        ],
+        [
+         0.9011,
+         0.4564
+        ],
+        [
+         0.9378,
+         0.5833
+        ],
+        [
+         0.9671,
+         0.7202
+        ],
+        [
+         0.9883,
+         0.8647
+        ],
+        [
+         1,
+         1
+        ]
+       ]
+      },
+      {
+       "id": "bqdvio3",
+       "kind": "poly",
+       "x": 9.3,
+       "y": 149.1,
+       "w": 21.4,
+       "h": 20.9,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "points": [
+        [
+         1,
+         0.512
+        ],
+        [
+         0.9957,
+         0.5788
+        ],
+        [
+         0.983,
+         0.6445
+        ],
+        [
+         0.9619,
+         0.7079
+        ],
+        [
+         0.933,
+         0.7679
+        ],
+        [
+         0.8967,
+         0.8236
+        ],
+        [
+         0.8536,
+         0.874
+        ],
+        [
+         0.8044,
+         0.9181
+        ],
+        [
+         0.75,
+         0.9553
+        ],
+        [
+         0.6913,
+         0.985
+        ],
+        [
+         0.648,
+         1
+        ],
+        [
+         0.352,
+         1
+        ],
+        [
+         0.3087,
+         0.985
+        ],
+        [
+         0.25,
+         0.9553
+        ],
+        [
+         0.1956,
+         0.9181
+        ],
+        [
+         0.1464,
+         0.874
+        ],
+        [
+         0.1033,
+         0.8236
+        ],
+        [
+         0.067,
+         0.7679
+        ],
+        [
+         0.0381,
+         0.7079
+        ],
+        [
+         0.017,
+         0.6445
+        ],
+        [
+         0.0043,
+         0.5788
+        ],
+        [
+         0,
+         0.512
+        ],
+        [
+         0.0043,
+         0.4451
+        ],
+        [
+         0.017,
+         0.3795
+        ],
+        [
+         0.0381,
+         0.316
+        ],
+        [
+         0.067,
+         0.256
+        ],
+        [
+         0.1033,
+         0.2003
+        ],
+        [
+         0.1464,
+         0.15
+        ],
+        [
+         0.1956,
+         0.1058
+        ],
+        [
+         0.25,
+         0.0686
+        ],
+        [
+         0.3087,
+         0.039
+        ],
+        [
+         0.3706,
+         0.0174
+        ],
+        [
+         0.4347,
+         0.0044
+        ],
+        [
+         0.5,
+         0
+        ],
+        [
+         0.5653,
+         0.0044
+        ],
+        [
+         0.6294,
+         0.0174
+        ],
+        [
+         0.6913,
+         0.039
+        ],
+        [
+         0.75,
+         0.0686
+        ],
+        [
+         0.8044,
+         0.1058
+        ],
+        [
+         0.8536,
+         0.15
+        ],
+        [
+         0.8967,
+         0.2003
+        ],
+        [
+         0.933,
+         0.256
+        ],
+        [
+         0.9619,
+         0.316
+        ],
+        [
+         0.983,
+         0.3795
+        ],
+        [
+         0.9957,
+         0.4451
+        ]
+       ]
+      },
+      {
+       "id": "8o2kuag",
+       "kind": "poly",
+       "x": 115.9,
+       "y": 149.1,
+       "w": 21.4,
+       "h": 20.9,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "points": [
+        [
+         1,
+         0.512
+        ],
+        [
+         0.9957,
+         0.5788
+        ],
+        [
+         0.983,
+         0.6445
+        ],
+        [
+         0.9619,
+         0.7079
+        ],
+        [
+         0.933,
+         0.7679
+        ],
+        [
+         0.8967,
+         0.8236
+        ],
+        [
+         0.8536,
+         0.874
+        ],
+        [
+         0.8044,
+         0.9181
+        ],
+        [
+         0.75,
+         0.9553
+        ],
+        [
+         0.6913,
+         0.985
+        ],
+        [
+         0.648,
+         1
+        ],
+        [
+         0.352,
+         1
+        ],
+        [
+         0.3087,
+         0.985
+        ],
+        [
+         0.25,
+         0.9553
+        ],
+        [
+         0.1956,
+         0.9181
+        ],
+        [
+         0.1464,
+         0.874
+        ],
+        [
+         0.1033,
+         0.8236
+        ],
+        [
+         0.067,
+         0.7679
+        ],
+        [
+         0.0381,
+         0.7079
+        ],
+        [
+         0.017,
+         0.6445
+        ],
+        [
+         0.0043,
+         0.5788
+        ],
+        [
+         0,
+         0.512
+        ],
+        [
+         0.0043,
+         0.4451
+        ],
+        [
+         0.017,
+         0.3795
+        ],
+        [
+         0.0381,
+         0.316
+        ],
+        [
+         0.067,
+         0.256
+        ],
+        [
+         0.1033,
+         0.2003
+        ],
+        [
+         0.1464,
+         0.15
+        ],
+        [
+         0.1956,
+         0.1058
+        ],
+        [
+         0.25,
+         0.0686
+        ],
+        [
+         0.3087,
+         0.039
+        ],
+        [
+         0.3706,
+         0.0174
+        ],
+        [
+         0.4347,
+         0.0044
+        ],
+        [
+         0.5,
+         0
+        ],
+        [
+         0.5653,
+         0.0044
+        ],
+        [
+         0.6294,
+         0.0174
+        ],
+        [
+         0.6913,
+         0.039
+        ],
+        [
+         0.75,
+         0.0686
+        ],
+        [
+         0.8044,
+         0.1058
+        ],
+        [
+         0.8536,
+         0.15
+        ],
+        [
+         0.8967,
+         0.2003
+        ],
+        [
+         0.933,
+         0.256
+        ],
+        [
+         0.9619,
+         0.316
+        ],
+        [
+         0.983,
+         0.3795
+        ],
+        [
+         0.9957,
+         0.4451
+        ]
+       ]
+      },
+      {
+       "id": "fu72p2a",
+       "kind": "circle",
+       "x": 13.6,
+       "y": 153.4,
+       "w": 12.8,
+       "h": 12.8,
+       "color": "#8a929c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "he0j3to",
+       "kind": "circle",
+       "x": 17.1,
+       "y": 156.9,
+       "w": 5.8,
+       "h": 5.8,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "tfhtgpt",
+       "kind": "circle",
+       "x": 120,
+       "y": 153.2,
+       "w": 13.2,
+       "h": 13.2,
+       "color": "#8a929c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "kmhr60v",
+       "kind": "circle",
+       "x": 122,
+       "y": 155.2,
+       "w": 9.2,
+       "h": 9.2,
+       "color": "#33302e",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "2pt9u7q",
+       "kind": "circle",
+       "x": 123.9,
+       "y": 157.1,
+       "w": 5.4,
+       "h": 5.4,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "udf9r8a",
+       "kind": "rect",
+       "x": 141,
+       "y": 157.2,
+       "w": 2.3,
+       "h": 9,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    }
+   ],
+   "angles": {
+    "front": [
+     {
+      "id": "7ot8zfa",
+      "kind": "rect",
+      "x": 33,
+      "y": 157,
+      "w": 157,
+      "h": 3.5,
+      "color": "#33302e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "kfstazs",
+      "kind": "rect",
+      "x": 3,
+      "y": 154.5,
+      "w": 8,
+      "h": 3,
+      "color": "#33302e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "nd2p836",
+      "kind": "poly",
+      "x": 35,
+      "y": 110,
+      "w": 162,
+      "h": 48,
+      "color": "#f7b500",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "points": [
+       [
+        0,
+        1
+       ],
+       [
+        0,
+        0.5625
+       ],
+       [
+        0.0123,
+        0.2292
+       ],
+       [
+        0.0129,
+        0.1993
+       ],
+       [
+        0.0144,
+        0.1699
+       ],
+       [
+        0.017,
+        0.1415
+       ],
+       [
+        0.0206,
+        0.1146
+       ],
+       [
+        0.0251,
+        0.0897
+       ],
+       [
+        0.0304,
+        0.0671
+       ],
+       [
+        0.0365,
+        0.0474
+       ],
+       [
+        0.0432,
+        0.0307
+       ],
+       [
+        0.0505,
+        0.0174
+       ],
+       [
+        0.0581,
+        0.0078
+       ],
+       [
+        0.066,
+        0.002
+       ],
+       [
+        0.0741,
+        0
+       ],
+       [
+        0.9444,
+        0
+       ],
+       [
+        0.9531,
+        0.0021
+       ],
+       [
+        0.9616,
+        0.0082
+       ],
+       [
+        0.9697,
+        0.0182
+       ],
+       [
+        0.9771,
+        0.0318
+       ],
+       [
+        0.9837,
+        0.0488
+       ],
+       [
+        0.9894,
+        0.0687
+       ],
+       [
+        0.9939,
+        0.091
+       ],
+       [
+        0.9973,
+        0.1152
+       ],
+       [
+        0.9993,
+        0.1406
+       ],
+       [
+        1,
+        0.1667
+       ],
+       [
+        1,
+        0.9479
+       ],
+       [
+        0.9957,
+        0.9854
+       ],
+       [
+        0.9846,
+        1
+       ]
+      ]
+     },
+     {
+      "id": "xyqe9c2",
+      "kind": "poly",
+      "x": 37.9,
+      "y": 110,
+      "w": 158.9633,
+      "h": 6.6108,
+      "color": "#f7b500",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      },
+      "points": [
+       [
+        0,
+        0.9832
+       ],
+       [
+        0.0056,
+        0.7125
+       ],
+       [
+        0.0111,
+        0.5345
+       ],
+       [
+        0.0173,
+        0.3777
+       ],
+       [
+        0.0244,
+        0.2452
+       ],
+       [
+        0.032,
+        0.1395
+       ],
+       [
+        0.0402,
+        0.0625
+       ],
+       [
+        0.0486,
+        0.0157
+       ],
+       [
+        0.0572,
+        0
+       ],
+       [
+        0.9442,
+        0
+       ],
+       [
+        0.9541,
+        0.0184
+       ],
+       [
+        0.9636,
+        0.073
+       ],
+       [
+        0.9726,
+        0.1621
+       ],
+       [
+        0.9806,
+        0.2831
+       ],
+       [
+        0.9876,
+        0.4323
+       ],
+       [
+        0.9933,
+        0.6051
+       ],
+       [
+        0.9974,
+        0.7962
+       ],
+       [
+        1,
+        1
+       ],
+       [
+        0.9996,
+        0.9832
+       ]
+      ]
+     },
+     {
+      "id": "l23ja9s",
+      "kind": "rect",
+      "x": 38.1,
+      "y": 117.8,
+      "w": 15.6,
+      "h": 14.9,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "q2up4c8",
+      "kind": "rect",
+      "x": 54.8,
+      "y": 117.8,
+      "w": 14.7,
+      "h": 14.9,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "28q4mk8",
+      "kind": "rect",
+      "x": 70.9,
+      "y": 117.8,
+      "w": 14.7,
+      "h": 14.9,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "wvsb1qw",
+      "kind": "rect",
+      "x": 87,
+      "y": 117.8,
+      "w": 14.7,
+      "h": 14.9,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "c2erj34",
+      "kind": "rect",
+      "x": 103.1,
+      "y": 117.8,
+      "w": 14.7,
+      "h": 14.9,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "hykd98c",
+      "kind": "rect",
+      "x": 119.2,
+      "y": 117.8,
+      "w": 14.7,
+      "h": 14.9,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "9cwnqyh",
+      "kind": "rect",
+      "x": 135.3,
+      "y": 117.8,
+      "w": 14.7,
+      "h": 14.9,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "18vxus5",
+      "kind": "rect",
+      "x": 151.4,
+      "y": 117.8,
+      "w": 14.7,
+      "h": 14.9,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "dyuinpv",
+      "kind": "rect",
+      "x": 167.5,
+      "y": 117.8,
+      "w": 14.7,
+      "h": 14.9,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "5gzhstd",
+      "kind": "rect",
+      "x": 38.8,
+      "y": 118.5,
+      "w": 14.2,
+      "h": 13.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true
+     },
+     {
+      "id": "8jsn7ib",
+      "kind": "rect",
+      "x": 55.5,
+      "y": 118.5,
+      "w": 13.3,
+      "h": 13.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true
+     },
+     {
+      "id": "mhrk5tr",
+      "kind": "rect",
+      "x": 71.6,
+      "y": 118.5,
+      "w": 13.3,
+      "h": 13.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true
+     },
+     {
+      "id": "rf4tlj5",
+      "kind": "rect",
+      "x": 87.7,
+      "y": 118.5,
+      "w": 13.3,
+      "h": 13.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true
+     },
+     {
+      "id": "pmu1bes",
+      "kind": "rect",
+      "x": 103.8,
+      "y": 118.5,
+      "w": 13.3,
+      "h": 13.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true
+     },
+     {
+      "id": "7l3c8l1",
+      "kind": "rect",
+      "x": 119.9,
+      "y": 118.5,
+      "w": 13.3,
+      "h": 13.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true
+     },
+     {
+      "id": "dqsr1cz",
+      "kind": "rect",
+      "x": 136,
+      "y": 118.5,
+      "w": 13.3,
+      "h": 13.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true
+     },
+     {
+      "id": "flrslqv",
+      "kind": "rect",
+      "x": 152.1,
+      "y": 118.5,
+      "w": 13.3,
+      "h": 13.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true
+     },
+     {
+      "id": "w8bq9im",
+      "kind": "rect",
+      "x": 168.2,
+      "y": 118.5,
+      "w": 13.3,
+      "h": 13.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true
+     },
+     {
+      "id": "btn9jy3",
+      "kind": "rect",
+      "x": 45.4,
+      "y": 118.5,
+      "w": 1,
+      "h": 13.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "xmmzaq2",
+      "kind": "rect",
+      "x": 55.5,
+      "y": 124.3,
+      "w": 13.3,
+      "h": 1.1,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "byv4sk8",
+      "kind": "rect",
+      "x": 71.6,
+      "y": 124.3,
+      "w": 13.3,
+      "h": 1.1,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "wzcvuvq",
+      "kind": "rect",
+      "x": 87.7,
+      "y": 124.3,
+      "w": 13.3,
+      "h": 1.1,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vsti36j",
+      "kind": "rect",
+      "x": 103.8,
+      "y": 124.3,
+      "w": 13.3,
+      "h": 1.1,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "e9vffer",
+      "kind": "rect",
+      "x": 119.9,
+      "y": 124.3,
+      "w": 13.3,
+      "h": 1.1,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "lphdc6u",
+      "kind": "rect",
+      "x": 136,
+      "y": 124.3,
+      "w": 13.3,
+      "h": 1.1,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "8pyjoaz",
+      "kind": "rect",
+      "x": 152.1,
+      "y": 124.3,
+      "w": 13.3,
+      "h": 1.1,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "x4rl5uw",
+      "kind": "rect",
+      "x": 168.2,
+      "y": 124.3,
+      "w": 13.3,
+      "h": 1.1,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "v03ouh0",
+      "kind": "rect",
+      "x": 53.85,
+      "y": 135.4,
+      "w": 0.5,
+      "h": 22.6,
+      "color": "#f7b500",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.8
+      }
+     },
+     {
+      "id": "79rx1qb",
+      "kind": "rect",
+      "x": 69.95,
+      "y": 135.4,
+      "w": 0.5,
+      "h": 22.6,
+      "color": "#f7b500",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.8
+      }
+     },
+     {
+      "id": "ir44x1l",
+      "kind": "rect",
+      "x": 86.05,
+      "y": 135.4,
+      "w": 0.5,
+      "h": 22.6,
+      "color": "#f7b500",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.8
+      }
+     },
+     {
+      "id": "grrl3db",
+      "kind": "rect",
+      "x": 102.15,
+      "y": 135.4,
+      "w": 0.5,
+      "h": 22.6,
+      "color": "#f7b500",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.8
+      }
+     },
+     {
+      "id": "of6l797",
+      "kind": "rect",
+      "x": 118.25,
+      "y": 135.4,
+      "w": 0.5,
+      "h": 22.6,
+      "color": "#f7b500",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.8
+      }
+     },
+     {
+      "id": "vkwjhnm",
+      "kind": "rect",
+      "x": 134.35,
+      "y": 135.4,
+      "w": 0.5,
+      "h": 22.6,
+      "color": "#f7b500",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.8
+      }
+     },
+     {
+      "id": "gddtd3g",
+      "kind": "rect",
+      "x": 150.45,
+      "y": 135.4,
+      "w": 0.5,
+      "h": 22.6,
+      "color": "#f7b500",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.8
+      }
+     },
+     {
+      "id": "8beldx8",
+      "kind": "rect",
+      "x": 166.55,
+      "y": 135.4,
+      "w": 0.5,
+      "h": 22.6,
+      "color": "#f7b500",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.8
+      }
+     },
+     {
+      "id": "s60yqjh",
+      "kind": "rect",
+      "x": 182.65,
+      "y": 135.4,
+      "w": 0.5,
+      "h": 22.6,
+      "color": "#f7b500",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.8
+      }
+     },
+     {
+      "id": "yeiozgf",
+      "kind": "rect",
+      "x": 35.425,
+      "y": 133.6,
+      "w": 161.575,
+      "h": 1.8,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "i004cot",
+      "kind": "rect",
+      "x": 35,
+      "y": 142,
+      "w": 162,
+      "h": 1.8,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "5p9bwl4",
+      "kind": "rect",
+      "x": 35,
+      "y": 150.6,
+      "w": 162,
+      "h": 1.8,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "18001hh",
+      "kind": "text",
+      "x": 78,
+      "y": 135.6,
+      "w": 84,
+      "h": 6.2,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "text": "COUNTY SCHOOLS",
+      "font": "Impact, 'Arial Narrow', sans-serif"
+     },
+     {
+      "id": "a90j2x9",
+      "kind": "text",
+      "x": 172,
+      "y": 135.6,
+      "w": 12,
+      "h": 6.2,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "text": "7",
+      "font": "Impact, 'Arial Narrow', sans-serif"
+     },
+     {
+      "id": "kmqtuu5",
+      "kind": "rect",
+      "x": 55.4,
+      "y": 138.2,
+      "w": 1.8,
+      "h": 4.6,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "a4mqwnk",
+      "kind": "poly",
+      "x": 56.8,
+      "y": 136.2,
+      "w": 8.6,
+      "h": 8.6,
+      "color": "#f5f5dc",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "points": [
+       [
+        0.2929,
+        0
+       ],
+       [
+        0.7071,
+        0
+       ],
+       [
+        1,
+        0.2929
+       ],
+       [
+        1,
+        0.7071
+       ],
+       [
+        0.7071,
+        1
+       ],
+       [
+        0.2929,
+        1
+       ],
+       [
+        0,
+        0.7071
+       ],
+       [
+        0,
+        0.2929
+       ]
+      ]
+     },
+     {
+      "id": "bzhwn6t",
+      "kind": "poly",
+      "x": 57.45,
+      "y": 136.85,
+      "w": 7.3,
+      "h": 7.3,
+      "color": "#c0392b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "points": [
+       [
+        0.2929,
+        0
+       ],
+       [
+        0.7071,
+        0
+       ],
+       [
+        1,
+        0.2929
+       ],
+       [
+        1,
+        0.7071
+       ],
+       [
+        0.7071,
+        1
+       ],
+       [
+        0.2929,
+        1
+       ],
+       [
+        0,
+        0.7071
+       ],
+       [
+        0,
+        0.2929
+       ]
+      ]
+     },
+     {
+      "id": "885s4y2",
+      "kind": "text",
+      "x": 57.1,
+      "y": 138.6,
+      "w": 8,
+      "h": 3.8,
+      "color": "#f5f5dc",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "text": "STOP",
+      "font": "Impact, 'Arial Narrow', sans-serif"
+     },
+     {
+      "id": "uggzoqs",
+      "kind": "poly",
+      "x": 3.6,
+      "y": 136.5,
+      "w": 33.9,
+      "h": 20,
+      "color": "#f7b500",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "points": [
+       [
+        1,
+        0
+       ],
+       [
+        0.1593,
+        0.09
+       ],
+       [
+        0.0767,
+        0.13
+       ],
+       [
+        0.0236,
+        0.21
+       ],
+       [
+        0,
+        0.325
+       ],
+       [
+        0,
+        0.785
+       ],
+       [
+        0.0472,
+        0.905
+       ],
+       [
+        0.1298,
+        1
+       ],
+       [
+        0.9705,
+        1
+       ],
+       [
+        1,
+        0.965
+       ]
+      ]
+     },
+     {
+      "id": "g7sh228",
+      "kind": "rect",
+      "x": 8.5,
+      "y": 140.9,
+      "w": 17,
+      "h": 0.9,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "82l7vl1",
+      "kind": "roundrect",
+      "x": 21.5,
+      "y": 140.1,
+      "w": 5,
+      "h": 2.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "mxbhkon",
+      "kind": "rect",
+      "x": 2.9,
+      "y": 140.6,
+      "w": 1.5,
+      "h": 11.8,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "t1thyxj",
+      "kind": "roundrect",
+      "x": 1.4,
+      "y": 141.6,
+      "w": 3.4,
+      "h": 5.4,
+      "color": "#8a929c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "0ut7isa",
+      "kind": "rect",
+      "x": 0.9,
+      "y": 142.4,
+      "w": 1.1,
+      "h": 3.8,
+      "color": "#f5f5dc",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "3axat74",
+      "kind": "rect",
+      "x": 33,
+      "y": 120.3,
+      "w": 4.6,
+      "h": 0.8,
+      "color": "#8a929c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "2z95s36",
+      "kind": "rect",
+      "x": 33,
+      "y": 127.4,
+      "w": 4.6,
+      "h": 0.8,
+      "color": "#8a929c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "5f6abk5",
+      "kind": "roundrect",
+      "x": 31.4,
+      "y": 118.8,
+      "w": 2.1,
+      "h": 10.2,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "ezi22oj",
+      "kind": "roundrect",
+      "x": 37.9,
+      "y": 112.4,
+      "w": 3.6,
+      "h": 4.4,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "b6sr6ny",
+      "kind": "roundrect",
+      "x": 36.8,
+      "y": 113.1,
+      "w": 1.6,
+      "h": 3,
+      "color": "#c0392b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "3m5khxq",
+      "kind": "roundrect",
+      "x": 194.3,
+      "y": 112.4,
+      "w": 3.6,
+      "h": 4.4,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "k43blg9",
+      "kind": "roundrect",
+      "x": 197.4,
+      "y": 113.1,
+      "w": 1.6,
+      "h": 3,
+      "color": "#c0392b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "j9altyd",
+      "kind": "roundrect",
+      "x": 41.8,
+      "y": 116.9,
+      "w": 2.4,
+      "h": 1.1,
+      "color": "#e8a33c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "i2sgduj",
+      "kind": "roundrect",
+      "x": 189.6,
+      "y": 116.9,
+      "w": 2.4,
+      "h": 1.1,
+      "color": "#c0392b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "imr1mf7",
+      "kind": "circle",
+      "x": 38.6,
+      "y": 153.4,
+      "w": 2.2,
+      "h": 2.2,
+      "color": "#e8a33c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "49n207p",
+      "kind": "circle",
+      "x": 191.6,
+      "y": 153.4,
+      "w": 2.2,
+      "h": 2.2,
+      "color": "#c0392b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "aviognh",
+      "kind": "roundrect",
+      "x": 196.2,
+      "y": 143.2,
+      "w": 2,
+      "h": 5,
+      "color": "#c0392b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vjtc6y8",
+      "kind": "rect",
+      "x": 0,
+      "y": 152.3,
+      "w": 4.8,
+      "h": 5.2,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "2b4zo9l",
+      "kind": "rect",
+      "x": 195.2,
+      "y": 151.6,
+      "w": 4.8,
+      "h": 5.2,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "umitf6b",
+      "kind": "poly",
+      "x": 7.8425,
+      "y": 147.2,
+      "w": 24.3149,
+      "h": 9.3,
+      "color": "#33302e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "points": [
+       [
+        0,
+        1
+       ],
+       [
+        0.0212,
+        0.8364
+       ],
+       [
+        0.0512,
+        0.6774
+       ],
+       [
+        0.0889,
+        0.5301
+       ],
+       [
+        0.1336,
+        0.3968
+       ],
+       [
+        0.1845,
+        0.28
+       ],
+       [
+        0.2409,
+        0.1815
+       ],
+       [
+        0.3017,
+        0.1031
+       ],
+       [
+        0.3659,
+        0.0462
+       ],
+       [
+        0.4324,
+        0.0116
+       ],
+       [
+        0.5,
+        0
+       ],
+       [
+        0.5676,
+        0.0116
+       ],
+       [
+        0.6341,
+        0.0462
+       ],
+       [
+        0.6983,
+        0.1031
+       ],
+       [
+        0.7591,
+        0.1815
+       ],
+       [
+        0.8155,
+        0.28
+       ],
+       [
+        0.8664,
+        0.3968
+       ],
+       [
+        0.9111,
+        0.5301
+       ],
+       [
+        0.9488,
+        0.6774
+       ],
+       [
+        0.9788,
+        0.8364
+       ],
+       [
+        1,
+        1
+       ]
+      ]
+     },
+     {
+      "id": "1xzjnm8",
+      "kind": "poly",
+      "x": 114.1387,
+      "y": 147.2,
+      "w": 24.9226,
+      "h": 10.8,
+      "color": "#33302e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "points": [
+       [
+        0,
+        1
+       ],
+       [
+        0.0117,
+        0.8647
+       ],
+       [
+        0.0329,
+        0.7202
+       ],
+       [
+        0.0622,
+        0.5833
+       ],
+       [
+        0.0989,
+        0.4564
+       ],
+       [
+        0.1425,
+        0.3417
+       ],
+       [
+        0.1922,
+        0.2411
+       ],
+       [
+        0.2472,
+        0.1563
+       ],
+       [
+        0.3065,
+        0.0888
+       ],
+       [
+        0.3692,
+        0.0398
+       ],
+       [
+        0.434,
+        0.01
+       ],
+       [
+        0.5,
+        0
+       ],
+       [
+        0.566,
+        0.01
+       ],
+       [
+        0.6308,
+        0.0398
+       ],
+       [
+        0.6935,
+        0.0888
+       ],
+       [
+        0.7528,
+        0.1563
+       ],
+       [
+        0.8078,
+        0.2411
+       ],
+       [
+        0.8575,
+        0.3417
+       ],
+       [
+        0.9011,
+        0.4564
+       ],
+       [
+        0.9378,
+        0.5833
+       ],
+       [
+        0.9671,
+        0.7202
+       ],
+       [
+        0.9883,
+        0.8647
+       ],
+       [
+        1,
+        1
+       ]
+      ]
+     },
+     {
+      "id": "bqdvio3",
+      "kind": "poly",
+      "x": 9.3,
+      "y": 149.1,
+      "w": 21.4,
+      "h": 20.9,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "points": [
+       [
+        1,
+        0.512
+       ],
+       [
+        0.9957,
+        0.5788
+       ],
+       [
+        0.983,
+        0.6445
+       ],
+       [
+        0.9619,
+        0.7079
+       ],
+       [
+        0.933,
+        0.7679
+       ],
+       [
+        0.8967,
+        0.8236
+       ],
+       [
+        0.8536,
+        0.874
+       ],
+       [
+        0.8044,
+        0.9181
+       ],
+       [
+        0.75,
+        0.9553
+       ],
+       [
+        0.6913,
+        0.985
+       ],
+       [
+        0.648,
+        1
+       ],
+       [
+        0.352,
+        1
+       ],
+       [
+        0.3087,
+        0.985
+       ],
+       [
+        0.25,
+        0.9553
+       ],
+       [
+        0.1956,
+        0.9181
+       ],
+       [
+        0.1464,
+        0.874
+       ],
+       [
+        0.1033,
+        0.8236
+       ],
+       [
+        0.067,
+        0.7679
+       ],
+       [
+        0.0381,
+        0.7079
+       ],
+       [
+        0.017,
+        0.6445
+       ],
+       [
+        0.0043,
+        0.5788
+       ],
+       [
+        0,
+        0.512
+       ],
+       [
+        0.0043,
+        0.4451
+       ],
+       [
+        0.017,
+        0.3795
+       ],
+       [
+        0.0381,
+        0.316
+       ],
+       [
+        0.067,
+        0.256
+       ],
+       [
+        0.1033,
+        0.2003
+       ],
+       [
+        0.1464,
+        0.15
+       ],
+       [
+        0.1956,
+        0.1058
+       ],
+       [
+        0.25,
+        0.0686
+       ],
+       [
+        0.3087,
+        0.039
+       ],
+       [
+        0.3706,
+        0.0174
+       ],
+       [
+        0.4347,
+        0.0044
+       ],
+       [
+        0.5,
+        0
+       ],
+       [
+        0.5653,
+        0.0044
+       ],
+       [
+        0.6294,
+        0.0174
+       ],
+       [
+        0.6913,
+        0.039
+       ],
+       [
+        0.75,
+        0.0686
+       ],
+       [
+        0.8044,
+        0.1058
+       ],
+       [
+        0.8536,
+        0.15
+       ],
+       [
+        0.8967,
+        0.2003
+       ],
+       [
+        0.933,
+        0.256
+       ],
+       [
+        0.9619,
+        0.316
+       ],
+       [
+        0.983,
+        0.3795
+       ],
+       [
+        0.9957,
+        0.4451
+       ]
+      ]
+     },
+     {
+      "id": "8o2kuag",
+      "kind": "poly",
+      "x": 115.9,
+      "y": 149.1,
+      "w": 21.4,
+      "h": 20.9,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "points": [
+       [
+        1,
+        0.512
+       ],
+       [
+        0.9957,
+        0.5788
+       ],
+       [
+        0.983,
+        0.6445
+       ],
+       [
+        0.9619,
+        0.7079
+       ],
+       [
+        0.933,
+        0.7679
+       ],
+       [
+        0.8967,
+        0.8236
+       ],
+       [
+        0.8536,
+        0.874
+       ],
+       [
+        0.8044,
+        0.9181
+       ],
+       [
+        0.75,
+        0.9553
+       ],
+       [
+        0.6913,
+        0.985
+       ],
+       [
+        0.648,
+        1
+       ],
+       [
+        0.352,
+        1
+       ],
+       [
+        0.3087,
+        0.985
+       ],
+       [
+        0.25,
+        0.9553
+       ],
+       [
+        0.1956,
+        0.9181
+       ],
+       [
+        0.1464,
+        0.874
+       ],
+       [
+        0.1033,
+        0.8236
+       ],
+       [
+        0.067,
+        0.7679
+       ],
+       [
+        0.0381,
+        0.7079
+       ],
+       [
+        0.017,
+        0.6445
+       ],
+       [
+        0.0043,
+        0.5788
+       ],
+       [
+        0,
+        0.512
+       ],
+       [
+        0.0043,
+        0.4451
+       ],
+       [
+        0.017,
+        0.3795
+       ],
+       [
+        0.0381,
+        0.316
+       ],
+       [
+        0.067,
+        0.256
+       ],
+       [
+        0.1033,
+        0.2003
+       ],
+       [
+        0.1464,
+        0.15
+       ],
+       [
+        0.1956,
+        0.1058
+       ],
+       [
+        0.25,
+        0.0686
+       ],
+       [
+        0.3087,
+        0.039
+       ],
+       [
+        0.3706,
+        0.0174
+       ],
+       [
+        0.4347,
+        0.0044
+       ],
+       [
+        0.5,
+        0
+       ],
+       [
+        0.5653,
+        0.0044
+       ],
+       [
+        0.6294,
+        0.0174
+       ],
+       [
+        0.6913,
+        0.039
+       ],
+       [
+        0.75,
+        0.0686
+       ],
+       [
+        0.8044,
+        0.1058
+       ],
+       [
+        0.8536,
+        0.15
+       ],
+       [
+        0.8967,
+        0.2003
+       ],
+       [
+        0.933,
+        0.256
+       ],
+       [
+        0.9619,
+        0.316
+       ],
+       [
+        0.983,
+        0.3795
+       ],
+       [
+        0.9957,
+        0.4451
+       ]
+      ]
+     },
+     {
+      "id": "fu72p2a",
+      "kind": "circle",
+      "x": 13.6,
+      "y": 153.4,
+      "w": 12.8,
+      "h": 12.8,
+      "color": "#8a929c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "he0j3to",
+      "kind": "circle",
+      "x": 17.1,
+      "y": 156.9,
+      "w": 5.8,
+      "h": 5.8,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "tfhtgpt",
+      "kind": "circle",
+      "x": 120,
+      "y": 153.2,
+      "w": 13.2,
+      "h": 13.2,
+      "color": "#8a929c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "kmhr60v",
+      "kind": "circle",
+      "x": 122,
+      "y": 155.2,
+      "w": 9.2,
+      "h": 9.2,
+      "color": "#33302e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "2pt9u7q",
+      "kind": "circle",
+      "x": 123.9,
+      "y": 157.1,
+      "w": 5.4,
+      "h": 5.4,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "udf9r8a",
+      "kind": "rect",
+      "x": 141,
+      "y": 157.2,
+      "w": 2.3,
+      "h": 9,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   }
   }
  ],
  "levels": [
@@ -680425,42 +684712,92 @@
     "33,126": {
      "kind": "door",
      "tag": "Trailor Int"
+    },
+    "19,14": {
+     "kind": "pedestal",
+     "cats": [
+      "Heal",
+      ""
+     ],
+     "logic": "or"
     }
    },
    "enemies": {
-    "19,29": {
-     "enemyId": "g8c8w5n",
-     "facing": -1,
-     "ai": "guard",
-     "weaponId": "ulfhepb",
-     "gearTag": "T1"
-    },
-    "19,145": {
-     "enemyId": "cl7et21",
-     "facing": -1,
-     "ai": "guard",
-     "weaponId": "ulfhepb",
-     "gearTag": "T1"
-    },
-    "19,99": {
-     "enemyId": "6o1xi4x",
-     "facing": -1,
-     "ai": "guard",
-     "weaponId": "ulfhepb",
-     "gearTag": "T1"
-    },
     "5,120": {
      "enemyId": "sqrl1x9",
      "facing": -1,
      "ai": "seek",
      "gearTag": "T1"
     },
-    "19,130": {
-     "enemyId": "0k30hfl",
+    "19,67": {
+     "enemyId": "c4tch4p",
      "facing": -1,
      "ai": "seek",
-     "weaponId": "wcwrkni",
-     "gearTag": "T1"
+     "weaponId": "none"
+    },
+    "34,90": {
+     "enemyId": "c4tch4p",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "none",
+     "gearTags": [
+      "Gun"
+     ]
+    },
+    "19,31": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "none",
+     "gearTags": [
+      "Meelee",
+      "T1",
+      "T1"
+     ]
+    },
+    "19,56": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "none",
+     "gearTags": [
+      "Meelee",
+      "T1",
+      "T1"
+     ]
+    },
+    "19,97": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "none",
+     "gearTags": [
+      "Meelee",
+      "T1",
+      "T1"
+     ]
+    },
+    "34,28": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "ulfhepb",
+     "gearTags": [
+      "T1",
+      "T1",
+      "T1"
+     ]
+    },
+    "34,42": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "ulfhepb",
+     "gearTags": [
+      "Meelee",
+      "T1",
+      "T1"
+     ]
     }
    },
    "conns": {
@@ -680497,7 +684834,7 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1790523908160
+   "savedAt": 1790531821967
   },
   {
    "id": "8l3tqki",
@@ -712770,17 +717107,25 @@
      "facing": -1,
      "ai": "guard"
     },
-    "23,123": {
-     "enemyId": "cl7et21",
+    "24,115": {
+     "enemyTag": "Trailor",
      "facing": -1,
      "ai": "guard",
-     "gearTag": "T1"
+     "weaponId": "ulfhepb",
+     "gearTags": [
+      "T1",
+      "T1"
+     ]
     },
-    "21,134": {
-     "enemyId": "6o1xi4x",
+    "22,128": {
+     "enemyTag": "Trailor",
      "facing": -1,
-     "ai": "seek",
-     "gearTag": "T1"
+     "ai": "guard",
+     "weaponId": "ulfhepb",
+     "gearTags": [
+      "T1",
+      "T1"
+     ]
     }
    },
    "conns": {
@@ -712817,7 +717162,7 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790437963754
+   "savedAt": 1790530871076
   },
   {
    "id": "gww324w",
@@ -800183,6 +804528,12 @@
      "enemyId": "sqrl1x9",
      "facing": -1,
      "ai": "seek"
+    },
+    "34,83": {
+     "enemyId": "c4tch4p",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "none"
     }
    },
    "conns": {
@@ -800219,7 +804570,7 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790437963758
+   "savedAt": 1790531030198
   },
   {
    "id": "t6ra6j0",
@@ -820159,19 +824510,25 @@
      "facing": -1,
      "ai": "seek"
     },
-    "25,49": {
-     "enemyId": "n3iibg3",
+    "27,60": {
+     "enemyTag": "Trailor",
      "facing": -1,
      "ai": "guard",
-     "weaponId": "ulfhepb",
-     "gearTag": "Meelee"
+     "gearTags": [
+      "Meelee",
+      "T1",
+      "T1"
+     ]
     },
-    "28,67": {
-     "enemyId": "g8c8w5n",
+    "30,83": {
+     "enemyTag": "Trailor",
      "facing": -1,
      "ai": "guard",
-     "weaponId": "ulfhepb",
-     "gearTag": "Meelee"
+     "gearTags": [
+      "Meelee",
+      "T1",
+      "T1"
+     ]
     }
    },
    "conns": {
@@ -820208,7 +824565,7 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790437963759
+   "savedAt": 1790530700307
   },
   {
    "id": "ypjilr0",
@@ -847890,6 +852247,12 @@
      "facing": -1,
      "ai": "seek",
      "dialogueId": "ifsixqs"
+    },
+    "34,113": {
+     "enemyId": "c4tch4p",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "none"
     }
    },
    "conns": {
@@ -847926,7 +852289,7 @@
      "accepts": ""
     }
    },
-   "savedAt": 1790523961263
+   "savedAt": 1790531291919
   },
   {
    "id": "nj00zi0",
@@ -873759,40 +878122,65 @@
      "ai": "seek",
      "gearTag": "T1"
     },
-    "19,138": {
-     "enemyId": "0k30hfl",
+    "19,97": {
+     "enemyTag": "Trailor",
      "facing": -1,
      "ai": "seek",
      "weaponId": "ulfhepb",
-     "gearTag": "Pokeman"
+     "throwId": "gr3nad3",
+     "throwCount": 2
     },
-    "19,128": {
-     "enemyId": "6o1xi4x",
+    "19,125": {
+     "enemyTag": "Trailor",
      "facing": -1,
      "ai": "seek",
      "weaponId": "ulfhepb",
-     "gearTag": "T1"
+     "gearTags": [
+      "T1",
+      "T1"
+     ]
     },
-    "35,124": {
+    "19,143": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "ulfhepb",
+     "gearTags": [
+      "T1",
+      "T1"
+     ]
+    },
+    "34,85": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "ulfhepb",
+     "gearTags": [
+      "T1",
+      "T1"
+     ]
+    },
+    "34,127": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "ulfhepb",
+     "gearTags": [
+      "T1",
+      "T1"
+     ]
+    },
+    "34,98": {
+     "enemyId": "c4tch4p",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "none"
+    },
+    "34,115": {
      "enemyId": "lu5q4sk",
      "facing": -1,
      "ai": "seek",
-     "weaponId": "ulfhepb",
-     "gearTag": "T1"
-    },
-    "35,131": {
-     "enemyId": "5ey3l1q",
-     "facing": -1,
-     "ai": "seek",
-     "weaponId": "ulfhepb",
-     "gearTag": "T1"
-    },
-    "35,113": {
-     "enemyId": "3ofi0a3",
-     "facing": -1,
-     "ai": "guard",
-     "weaponId": "ulfhepb",
-     "gearTag": "T1"
+     "weaponId": "none"
     }
    },
    "conns": {
@@ -873829,7 +878217,7 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1790450933647
+   "savedAt": 1790532537136
   },
   {
    "id": "rq28a8w",
@@ -899690,41 +904078,74 @@
      "ai": "seek",
      "gearTag": "T1"
     },
-    "19,59": {
-     "enemyId": "c102uyt",
-     "facing": -1,
-     "ai": "guard",
-     "gearTag": "Meelee"
-    },
-    "19,9": {
-     "enemyId": "6o1xi4x",
-     "facing": -1,
-     "ai": "seek",
-     "gearTag": "Meelee"
-    },
     "35,135": {
      "enemyId": "o2w8t4i",
      "facing": -1,
      "ai": "seek",
      "gearTag": "Meelee"
     },
-    "19,48": {
+    "19,54": {
      "enemyId": "lu5q4sk",
      "facing": -1,
-     "ai": "seek"
+     "ai": "seek",
+     "weaponId": "none"
     },
-    "34,46": {
-     "enemyId": "xtlexrc",
+    "19,108": {
+     "enemyId": "lu5q4sk",
      "facing": -1,
      "ai": "seek",
-     "gearTag": "Army"
+     "weaponId": "none"
     },
-    "34,65": {
-     "enemyId": "3ofi0a3",
+    "19,74": {
+     "enemyTag": "Trailor",
      "facing": -1,
      "ai": "seek",
-     "weaponId": "ulfhepb",
-     "gearTag": "T1"
+     "weaponId": "zpvl3oz",
+     "gearTags": [
+      "T1"
+     ]
+    },
+    "19,89": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "zpvl3oz",
+     "gearTags": [
+      "T1"
+     ]
+    },
+    "34,19": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "zpvl3oz",
+     "gearTags": [
+      "T1"
+     ]
+    },
+    "34,73": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "zpvl3oz",
+     "gearTags": [
+      "T1"
+     ]
+    },
+    "34,112": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "zpvl3oz",
+     "gearTags": [
+      "T1"
+     ]
+    },
+    "34,147": {
+     "enemyId": "o2w8t4i",
+     "facing": -1,
+     "ai": "guard",
+     "weaponId": "none"
     }
    },
    "conns": {
@@ -899761,7 +904182,7 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1790457559215
+   "savedAt": 1790533253953
   },
   {
    "id": "trlint5",
@@ -939264,6 +943685,76 @@
      "facing": 1,
      "ai": "seek",
      "gearTag": "T1"
+    },
+    "34,93": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "none",
+     "gearTags": [
+      "Fast",
+      "Meelee"
+     ]
+    },
+    "34,36": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "none",
+     "gearTags": [
+      "T1",
+      "Meelee"
+     ]
+    },
+    "34,70": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "none",
+     "gearTags": [
+      "T1",
+      "Meelee"
+     ]
+    },
+    "19,45": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "none",
+     "gearTags": [
+      "T1",
+      "Meelee"
+     ]
+    },
+    "19,39": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "none",
+     "gearTags": [
+      "T1",
+      "Meelee"
+     ]
+    },
+    "19,93": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "none",
+     "gearTags": [
+      "T1",
+      "Meelee"
+     ]
+    },
+    "19,87": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "guard",
+     "weaponId": "none",
+     "gearTags": [
+      "T1",
+      "Range"
+     ]
     }
    },
    "conns": {
@@ -939300,7 +943791,7 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1790523725241
+   "savedAt": 1790533194560
   },
   {
    "id": "qp0ktjg",
@@ -967950,22 +972441,62 @@
      "weaponId": "ulfhepb",
      "gearTag": "T1"
     },
-    "35,91": {
-     "enemyId": "n3iibg3",
-     "facing": -1,
-     "ai": "guard",
-     "weaponId": "ulfhepb",
-     "gearTag": "T1"
+    "34,65": {
+     "enemyTag": "Trailor",
+     "facing": 1,
+     "ai": "seek",
+     "weaponId": "zpvl3oz",
+     "gearTags": [
+      "T1",
+      "Meelee"
+     ]
     },
-    "19,87": {
+    "19,105": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "zpvl3oz",
+     "gearTags": [
+      "T1",
+      "Meelee"
+     ]
+    },
+    "19,54": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "zpvl3oz",
+     "gearTags": [
+      "T1",
+      "Meelee"
+     ]
+    },
+    "19,88": {
+     "enemyId": "c4tch4p",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "none",
+     "gearTags": [
+      "T1"
+     ]
+    },
+    "19,72": {
      "enemyId": "lu5q4sk",
      "facing": -1,
-     "ai": "avoid"
+     "ai": "seek",
+     "weaponId": "none"
     },
-    "19,73": {
-     "enemyId": "lu5q4sk",
+    "19,84": {
+     "enemyId": "5ey3l1q",
      "facing": -1,
-     "ai": "avoid"
+     "ai": "seek",
+     "weaponId": "none"
+    },
+    "34,108": {
+     "enemyTag": "Trailor",
+     "facing": -1,
+     "ai": "seek",
+     "weaponId": "none"
     }
    },
    "conns": {
@@ -968002,7 +972533,7 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1790513520426
+   "savedAt": 1790533018539
   }
  ],
  "stamps": [

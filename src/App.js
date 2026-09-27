@@ -15264,7 +15264,12 @@ export default function AssetStudio() {
     // small; the editor canvas is big enough that none of this reads as noticeably lighter there.
     const SC = 4;
     const wrap = { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", userSelect: "none", pointerEvents: "none", containerType: "size", overflow: "hidden" };
-    const scaleWrap = { transform: `scale(${1 / SC})`, transformOrigin: "50% 50%", display: "inline-block" };
+    // `_readFlip` (set by propArtInner on a FLIPPED placement) turns the glyphs back round inside
+    // their own box. The placement's ⇄ Flip is a scaleX(-1) on the whole object, which is right for
+    // the art and wrong for lettering: a school bus parked facing the other way came out reading
+    // "SLOOHCS YTNUOC" with a back-to-front 7. Lettering on the far side of a real vehicle or sign
+    // still reads left to right, so only the text un-mirrors; the box stays where the flip put it.
+    const scaleWrap = { transform: p._readFlip ? `scale(${-1 / SC}, ${1 / SC})` : `scale(${1 / SC})`, transformOrigin: "50% 50%", display: "inline-block" };
     const span = { fontSize: (80 * SC) + "cqh", lineHeight: 1, display: "inline-block", whiteSpace: "nowrap", fontFamily: p.font || TEXT_FONTS[0][0], fontWeight: 400, textRendering: "geometricPrecision", letterSpacing: "0.035em" };
     if (outlineOnly) { span.color = "transparent"; span.WebkitTextStroke = "0.022em " + (p.outlineColor || "#000"); }
     else span.color = p.color || "#ffffff";
@@ -15336,7 +15341,7 @@ export default function AssetStudio() {
   // every piece scale together to fit — it never tiles or duplicates, whatever size is chosen. The
   // wrapper is the 200x260 canvas mapped onto the sz-box at TRUE aspect (uniform "contain" scale,
   // centred) — NOT stretched to fill the square, which would shear rotated pieces out of alignment.
-  const propArtInner = (propAsset, widthPx, heightPx, frameIdx, keyBase, tightBox, onPiecePointerDown) => {
+  const propArtInner = (propAsset, widthPx, heightPx, frameIdx, keyBase, tightBox, onPiecePointerDown, readFlip) => {
     const frames = (propAsset && propAsset.frames) || [propAsset && propAsset.angles].filter(Boolean);
     const frame = frames.length ? frames[Math.min(frames.length - 1, Math.max(0, frameIdx || 0))] : null;
     const front = (frame && frame.front) || (propAsset && propAsset.angles && propAsset.angles.front) || [];
@@ -15345,7 +15350,9 @@ export default function AssetStudio() {
     // mask, and it drops them from the drawn set itself, so they still paint nothing. Filtering
     // them out here meant a prop's run never reported hasCutter and the cutter tool silently did
     // nothing on props — no hole was ever cut in a placed object.
-    for (const p of front) { if (p.isHitbox) continue; pieces.push(p); if (pmirror(p, "front")) pieces.push(reflect(p)); }
+    // A flipped placement marks its TEXT pieces so textInner turns the glyphs back round (see there).
+    // A mirror twin is left alone: it is already drawn reversed, so under the flip it reads forwards.
+    for (const p of front) { if (p.isHitbox) continue; pieces.push(readFlip && p.kind === "text" ? { ...p, _readFlip: true } : p); if (pmirror(p, "front")) pieces.push(reflect(p)); }
     if (!pieces.some((p) => !p.isCutter)) return <span style={{ fontSize: Math.max(widthPx, heightPx) * 0.6 + "px", opacity: 0.5, pointerEvents: onPiecePointerDown ? "auto" : undefined, cursor: onPiecePointerDown ? "pointer" : undefined }} onPointerDown={onPiecePointerDown}>🌿</span>;
     if (tightBox) {
       // Render the full design canvas (shapeStyle positions pieces as percentages of it), but
@@ -15367,6 +15374,7 @@ export default function AssetStudio() {
       const frames = (pa.frames && pa.frames.length) ? pa.frames.length : 1;
       const fps = pa.animFps || 6;
       const frameIdx = (play && frames > 1) ? Math.floor(((animT || 0) / 60) * fps) % frames : 0;
+      const readFlip = !!o.flip; // every caller wraps this in objRotStyle(o), which applies o.flip
       // THE SAME ELEMENT BACK, while nothing about the placement has changed. A placed prop is
       // static art (or a frame of it), yet the level render runs once per playtest frame and used
       // to rebuild its ~90 elements every time for React to diff and discard — measured at an
@@ -15379,12 +15387,12 @@ export default function AssetStudio() {
       if (keyBase && !onPiecePointerDown) {
         const bsig = tightBox ? tightBox.minX + "," + tightBox.minY + "," + tightBox.w + "," + tightBox.h : "";
         const hit = propArtCache.current.get(keyBase);
-        if (hit && hit.pa === pa && hit.frameIdx === frameIdx && hit.w === widthPx && hit.h === heightPx && hit.bsig === bsig && hit.texLib === texLib) return hit.el;
-        const el = propArtInner(pa, widthPx, heightPx, frameIdx, keyBase, tightBox, onPiecePointerDown);
-        propArtCache.current.set(keyBase, { pa, frameIdx, w: widthPx, h: heightPx, bsig, texLib, el });
+        if (hit && hit.pa === pa && hit.frameIdx === frameIdx && hit.w === widthPx && hit.h === heightPx && hit.bsig === bsig && hit.texLib === texLib && hit.readFlip === readFlip) return hit.el;
+        const el = propArtInner(pa, widthPx, heightPx, frameIdx, keyBase, tightBox, onPiecePointerDown, readFlip);
+        propArtCache.current.set(keyBase, { pa, frameIdx, w: widthPx, h: heightPx, bsig, texLib, readFlip, el });
         return el;
       }
-      return propArtInner(pa, widthPx, heightPx, frameIdx, keyBase, tightBox, onPiecePointerDown);
+      return propArtInner(pa, widthPx, heightPx, frameIdx, keyBase, tightBox, onPiecePointerDown, readFlip);
     }
     return objInner(o, widthPx);
   };

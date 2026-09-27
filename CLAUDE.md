@@ -640,6 +640,25 @@ feet. Verified in the running app: art bottom = floor top to the pixel, placed b
 prop should do the same: pick a width:height with an integer rows-per-size at the sizes it will be
 used at, and end every ground-touching piece on one y.
 
+**The 1960s School Bus (`schbus6`, 2026-09-27, Trailor Park, size 30) is built from real numbers, not
+eyeballed.** A 48-pupil conventional (the 1968 Dodge S500 is 48 pupils on a 197" wheelbase): ~9.4 m
+long, ~2.8 m tall, so at Blake's ~3.2 cells/m it is drawn exactly **10:3** (x 0..200, y 110..170) —
+size 20/30/40/50 give 6/9/12/15 whole rows, and the two flat-bottomed tyres are the only pieces on
+y=170. Front axle at x=20, rear at 126.6 (the wheelbase), tyres Ø21.4 (~1 m). It shows the DRIVER'S
+side, because a US bus facing left shows its left flank: no entry door (that is on the other side),
+but the folded stop arm, which only ever sat on the driver's side. Period details: National School Bus
+Chrome `#f7b500`, black rub rails and bumpers, split-sash aluminium windows (cutters over a slightly
+larger frame, so a thin ring survives), a West Coast mirror, red roof flashers with visors (no amber —
+that is 1970s), riveted panel seams, dished rear duals with a mud flap, solid wheel wells (the Canned
+Ham idiom), "COUNTY SCHOOLS" and bus number 7 as editable text pieces.
+
+**A flipped placement now keeps its lettering readable.** ⇄ Flip is a scaleX(-1) on the whole object,
+so a flipped bus read "SLOOHCS YTNUOC". `renderObj` passes `o.flip` into `propArtInner`, which marks
+TEXT pieces `_readFlip`, and `textInner` turns the glyphs back round inside their own box (the box
+stays where the flip put it). It is part of the placement cache key. Proof, since the pane could not
+screenshot: Range rects of the first and last letter — forwards with the fix, backwards with the inner
+transform put back (the control).
+
 **Object draw order is `z`, and every render pass must go through
 `levelObjectsInDrawOrder(fx)`.** It used to be `Object.keys(lv.fx)` order, which means
 the order each *cell key* first entered the map — so dropping a prop onto a cell that
