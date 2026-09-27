@@ -2271,3 +2271,16 @@ fix and a feature seem to conflict, narrow the fix until they don't.
   beyond what was asked (e.g. a stat rule that also changes enemy difficulty).
 * Do the whole request. It usually has several parts (a bug fix *and* UI cleanup);
   finishing only the interesting one reads as ignoring him.
+* **No helper text on screen.** He has asked for it to be removed more than once ("I often
+  tell you to remove excess text and excess descriptions"). On 2026-09-27 he circled the
+  multi-select tip and the "Whole group size" paragraph, and a sweep then took out every
+  how-to line in the studio: the level editor's "👉 Clicking the canvas right now will
+  paint…" row and the Adjust/Move walkthroughs, the dialogue editor's intro, the snap, ground-line
+  and folder paragraphs, "(blank = any)"-style placeholder tails, the Value card's "Sells for
+  about…" readout, and the control cheat-sheets in play (💣 "hold G to aim…", the talk box's
+  "Press 1–3 · Esc…", the shop's "Esc to leave"). What stays: a control's value and unit
+  ("2.5 cells", "0.8s"), short ⚠ warnings about something actually wrong, state (what is
+  selected, copied, hidden), and **ability descriptions**. He needs those because they show in
+  the level. The effect card shows the same `effectBrief` line as the pickup callout, not
+  the catalog's long `blurb` (that is now only the ＋ Add button's hover title). Reasoning goes
+  in a code comment or a `title` tooltip, never in the DOM.

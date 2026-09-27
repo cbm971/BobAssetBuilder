@@ -14331,20 +14331,20 @@ export default function AssetStudio() {
               <option value="">＋ Add an ability…</option>
               {addable.map((k) => <option key={k} value={k}>{WEAPON_ABILITIES[k].icon} {WEAPON_ABILITIES[k].label}</option>)}
             </select>
-          ) : <span className="hint2">All {kinds.length} are on this weapon.</span>}
+          ) : null}
           {on.length === 0 && <span className="hint2">None</span>}
         </div>
         {on.map((k) => (
           <div key={k} className="abilrow">
             <div className="abilhead"><b>{WEAPON_ABILITIES[k].icon} {WEAPON_ABILITIES[k].label}</b><button className="ltbtn abilx" onClick={() => setAsset((a) => ({ ...a, ...WEAPON_ABILITIES[k].off }))} title={"Remove " + WEAPON_ABILITIES[k].label}>✕ Remove</button></div>
             {k === "meleeBoost" && (
-              <label className="slider">Punch x<input type="range" min="1.5" max="6" step="0.5" value={asset.meleeBoost || DEFAULT_MELEE_BOOST} onChange={(e) => setAsset((a) => ({ ...a, meleeBoost: +e.target.value }))} /><span className="hint2">{(asset.meleeBoost || DEFAULT_MELEE_BOOST)}x — a 👊 {UNARMED_DAMAGE} becomes {Math.round(UNARMED_DAMAGE * (asset.meleeBoost || DEFAULT_MELEE_BOOST))} at Strength 5</span></label>
+              <label className="slider">Punch x<input type="range" min="1.5" max="6" step="0.5" value={asset.meleeBoost || DEFAULT_MELEE_BOOST} onChange={(e) => setAsset((a) => ({ ...a, meleeBoost: +e.target.value }))} /><span className="hint2">{(asset.meleeBoost || DEFAULT_MELEE_BOOST)}x</span></label>
             )}
             {k === "stun" && (
               <label className="slider">Freeze for<input type="range" min="0.25" max="5" step="0.25" value={asset.stun || DEFAULT_STUN_SECS} onChange={(e) => setAsset((a) => ({ ...a, stun: +e.target.value }))} /><span className="hint2">{(asset.stun || DEFAULT_STUN_SECS)}s</span></label>
             )}
             {k === "burn" && (<>
-              <label className="slider">Burn<input type="range" min="1" max="30" step="1" value={asset.landEffectDps || 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectDps: +e.target.value }))} /><span className="hint2">{(asset.landEffectDps || 6)} HP/sec to anything standing in it</span></label>
+              <label className="slider">Burn<input type="range" min="1" max="30" step="1" value={asset.landEffectDps || 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectDps: +e.target.value }))} /><span className="hint2">{(asset.landEffectDps || 6)} HP/sec</span></label>
               {/* Half-second steps: the Grenade in the library is set to 2.5s, which a step of 1
                   could not express — so much as touching it rounded a deliberate 2.5 to 2 or 3. */}
               <label className="slider">Burns for<input type="range" min="0.5" max="20" step="0.5" value={asset.landEffectLife ?? 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectLife: +e.target.value }))} /><span className="hint2">{asset.landEffectLife ?? 6}s</span></label>
@@ -14354,14 +14354,13 @@ export default function AssetStudio() {
                   was then stuck drawing fire, and turning Burn on to reach the picker set light to
                   the creature it was trying to catch. It sits on the throwable's own card now
                   (⬇ Landing look), where every payload can reach it. */}
-              <p className="mini">Its look is <b>⬇ Landing look</b>, up on the throwable's own settings — it applies whichever payload you pick.</p>
             </>)}
             {k === "cluster" && (<>
               <label className="slider">Bomblets<input type="range" min="1" max="8" step="1" value={asset.clusterCount || 3} onChange={(e) => setAsset((a) => ({ ...a, clusterCount: +e.target.value }))} /><span className="hint2">{(asset.clusterCount || 3)} copies</span></label>
-              <label className="slider">Bomblet size<input type="range" min="0.2" max="0.8" step="0.05" value={asset.clusterScale ?? DEFAULT_CLUSTER_SCALE} onChange={(e) => setAsset((a) => ({ ...a, clusterScale: +e.target.value }))} /><span className="hint2">{Math.round((asset.clusterScale ?? DEFAULT_CLUSTER_SCALE) * 100)}% of full size</span></label>
+              <label className="slider">Bomblet size<input type="range" min="0.2" max="0.8" step="0.05" value={asset.clusterScale ?? DEFAULT_CLUSTER_SCALE} onChange={(e) => setAsset((a) => ({ ...a, clusterScale: +e.target.value }))} /><span className="hint2">{Math.round((asset.clusterScale ?? DEFAULT_CLUSTER_SCALE) * 100)}%</span></label>
             </>)}
             {k === "capture" && (<>
-              <label className="slider">Catch<input type="range" min="1" max="4" step="1" value={asset.captureMax || 1} onChange={(e) => setAsset((a) => ({ ...a, captureMax: Math.max(1, +e.target.value || 1) }))} /><span className="hint2">up to {(asset.captureMax || 1)} defeated creature{(asset.captureMax || 1) > 1 ? "s" : ""} · reaches {throwStunRadiusCells(asset.landRadius ?? DEFAULT_LAND_RADIUS)} cells off the splash</span></label>
+              <label className="slider">Catch<input type="range" min="1" max="4" step="1" value={asset.captureMax || 1} onChange={(e) => setAsset((a) => ({ ...a, captureMax: Math.max(1, +e.target.value || 1) }))} /><span className="hint2">{(asset.captureMax || 1)}</span></label>
               {/* A catch gets up ALIVE, which means it gets up inside whatever this throwable left
                   burning. Measured on the Elaphant: caught at 275 HP, on its feet at 242, down to
                   201 before it walked clear. An Elaphant shrugs that off; a Squirrel has 25 HP
@@ -14369,12 +14368,12 @@ export default function AssetStudio() {
                   working. The rule is right — fire hurts whatever is alive — so say so rather than
                   carving out an exemption, and offer the one tap that fixes it. */}
               {(asset.landEffectDps ?? 0) > 0 && (
-                <p className="tip warn">⚠ 🔥 Burn is also on ({asset.landEffectDps} HP/sec for {asset.landEffectLife ?? 6}s) and your catch stands up <b>in the fire</b> — a small creature can die the instant you take it. <button className="ltbtn" onClick={() => setAsset((a) => ({ ...a, landEffectDps: 0 }))}>Turn Burn off</button></p>
+                <p className="tip warn">⚠ 🔥 Burn is on — the catch stands up in the fire. <button className="ltbtn" onClick={() => setAsset((a) => ({ ...a, landEffectDps: 0 }))}>Turn Burn off</button></p>
               )}
             </>)}
             {k === "burstFire" && (<>
-              <label className="slider">Rounds per burst<input type="range" min="2" max="10" step="1" value={Math.max(2, burstShotCount(asset.burst))} onChange={(e) => setAsset((a) => ({ ...a, burst: +e.target.value }))} /><span className="hint2">{Math.max(2, burstShotCount(asset.burst))} rounds per press</span></label>
-              <label className="slider">Burst spacing<input type="range" min="0.02" max="0.3" step="0.01" value={asset.burstDelay ?? DEFAULT_BURST_DELAY} onChange={(e) => setAsset((a) => ({ ...a, burstDelay: +e.target.value }))} /><span className="hint2">{(asset.burstDelay ?? DEFAULT_BURST_DELAY).toFixed(2)}s apart · salvo {(((Math.max(2, burstShotCount(asset.burst)) - 1) * (asset.burstDelay ?? DEFAULT_BURST_DELAY))).toFixed(2)}s</span></label>
+              <label className="slider">Rounds per burst<input type="range" min="2" max="10" step="1" value={Math.max(2, burstShotCount(asset.burst))} onChange={(e) => setAsset((a) => ({ ...a, burst: +e.target.value }))} /><span className="hint2">{Math.max(2, burstShotCount(asset.burst))}</span></label>
+              <label className="slider">Burst spacing<input type="range" min="0.02" max="0.3" step="0.01" value={asset.burstDelay ?? DEFAULT_BURST_DELAY} onChange={(e) => setAsset((a) => ({ ...a, burstDelay: +e.target.value }))} /><span className="hint2">{(asset.burstDelay ?? DEFAULT_BURST_DELAY).toFixed(2)}s</span></label>
             </>)}
             {k === "explode" && (<>
               <label className="slider">Blast radius<input type="range" min="1" max="5" step="0.5" value={asset.explodeRadius ?? 2} onChange={(e) => setAsset((a) => ({ ...a, explodeRadius: +e.target.value }))} /><span className="hint2">{(asset.explodeRadius ?? 2)} cells</span></label>
@@ -14393,13 +14392,13 @@ export default function AssetStudio() {
               {/* Explode is resolved where a SHOT lands (see detonate). A thrown object's landing is
                   a different code path entirely and reads none of these, so say so on the card
                   rather than letting four controls sit there looking live. */}
-              {isThrowable(asset.wtype) && <p className="tip warn">⚠ These apply to a weapon that SHOOTS. A thrown object pays out where it lands instead — use <b>⬇ Landing look</b> and 🔥 Burn above.</p>}
+              {isThrowable(asset.wtype) && <p className="tip warn">⚠ Thrown weapons don't use these.</p>}
               {/* Boom size is the ART; blast radius is the DAMAGE. They're separate numbers,
                   and the default 3-cell art under a 2-cell radius draws a fireball much
                   smaller than the area that actually hurts — "the fire was smaller than I
                   expected". One tap matches them rather than us silently resizing anyone's art. */}
-              <label className="slider">Boom size<input type="range" min="1" max="8" step="0.5" value={asset.explodeSize ?? 3} onChange={(e) => setAsset((a) => ({ ...a, explodeSize: +e.target.value }))} /><span className="hint2">{(asset.explodeSize ?? 3)} cells of art{(() => { const want = Math.min(8, Math.max(1, Math.round((asset.explodeRadius ?? 2) * 2 * 2) / 2)); return Math.abs((asset.explodeSize ?? 3) - want) > 0.4 ? <> — the blast itself covers about {want}. <button className="ltbtn" onClick={() => setAsset((a) => ({ ...a, explodeSize: want }))}>Match the blast</button></> : " — matches the blast"; })()}</span></label>
-              <label className="slider">Boom time<input type="range" min="0.2" max="2" step="0.1" value={asset.explodeLife ?? 0.5} onChange={(e) => setAsset((a) => ({ ...a, explodeLife: +e.target.value }))} /><span className="hint2">on screen {(asset.explodeLife ?? 0.5)}s{(() => { const pa = asset.explodePropId ? allAssets.find((x) => x.id === asset.explodePropId) : null; return pa && pa.frames && pa.frames.length > 1 ? " — its " + pa.frames.length + " frames play once over that time" : ""; })()}</span></label>
+              <label className="slider">Boom size<input type="range" min="1" max="8" step="0.5" value={asset.explodeSize ?? 3} onChange={(e) => setAsset((a) => ({ ...a, explodeSize: +e.target.value }))} /><span className="hint2">{(asset.explodeSize ?? 3)} cells{(() => { const want = Math.min(8, Math.max(1, Math.round((asset.explodeRadius ?? 2) * 2 * 2) / 2)); return Math.abs((asset.explodeSize ?? 3) - want) > 0.4 ? <> <button className="ltbtn" onClick={() => setAsset((a) => ({ ...a, explodeSize: want }))}>Match the blast</button></> : null; })()}</span></label>
+              <label className="slider">Boom time<input type="range" min="0.2" max="2" step="0.1" value={asset.explodeLife ?? 0.5} onChange={(e) => setAsset((a) => ({ ...a, explodeLife: +e.target.value }))} /><span className="hint2">{(asset.explodeLife ?? 0.5)}s</span></label>
             </>)}
           </div>
         ))}
@@ -16839,11 +16838,9 @@ export default function AssetStudio() {
               {(storeReport.host || storeReport.local || storeReport.idb)
                 ? <span>Records exist but didn't load — that's a bug in reading them, not lost work. Send me these numbers.</span>
                 : <>
-                  <span>Both stores are empty on <b>this address</b>. Browser storage is tied to the page's address, so a preview URL that changed since you last saved has your work sitting under the old one, untouched.</span>
                   {/* The one way through the wall: ask the app running on the old address for its own
                       data. Nothing reaches across origins here — the other copy hands it over. */}
                   <div className="ct2" style={{ marginTop: 12 }}>Pull it back from the previous address</div>
-                  <span className="hint2">Paste the address the studio was on when you last saved — the one in your browser history, ending in <b>.webcontainer.io</b>. This asks the studio running there for its library and copies it here, into the project file this time.</span>
                   <div className="rescueRow">
                     <input className="big" style={{ flex: "1 1 320px" }} value={recoverUrl} placeholder="https://bobassetbuilder-…--3000--….local-credentialless.webcontainer.io/" onChange={(e) => setRecoverUrl(e.target.value)} />
                     <button className="ltbtn" disabled={!recoverUrl.trim() || (recoverState && recoverState.busy)} onClick={() => recoverFromAddress(recoverUrl)}>
@@ -16852,7 +16849,6 @@ export default function AssetStudio() {
                   </div>
                   {recoverState && recoverState.error && <span className="hint2" style={{ color: "#f3a6a6" }}>{recoverState.error}</span>}
                   {recoverState && recoverState.found !== undefined && <span className="hint2" style={{ color: "#a6e3a6" }}>Found {recoverState.found}, imported {recoverState.imported}.</span>}
-                  <span className="hint2">If that address no longer serves anything, an <b>⬇ Export all assets</b> file from any still-open tab is the other way back.</span>
                 </>}
             </div>
           )}
@@ -16879,7 +16875,6 @@ export default function AssetStudio() {
           </div>
           <h2>Load</h2>
           <button className="ltbtn saveRead" disabled={libraryLoading} onClick={() => { setLoadOpen(true); setLoadCategory(null); setLoadSub(null); }}>{libraryLoading ? "⏳ Loading your saves…" : "📂 Load (" + allAssets.length + " saved)"}</button>
-          {libraryLoading && <p className="mini saveLoading">Your saved assets are still being read from this browser. Nothing has been cleared.</p>}
           <label className="openfile">⬆ Open a file<input type="file" accept=".json,application/json,text/plain" onChange={upload} hidden /></label>
           {saveFolder !== "unsupported" && !(keeper && keeper.state === "desktop") && <button className={"ltbtn saveRead saveFolder" + (saveFolder === "ready" ? " on" : "")} disabled={libraryLoading} onClick={() => connectSaveFolder(saveFolder === "ready")} title={saveFolder === "ready" ? "Every save also goes to this folder on your disk. Click to pick a different one." : "Pick a folder on your disk; every save goes there too, and it survives a new preview address."}>{saveFolder === "ready" ? "📁 Save folder ✓ " + diskLibrary.name : saveFolder === "prompt" ? "📁 Reconnect save folder" : "📁 Save folder"}</button>}
           <button className="ltbtn saveRead" disabled={libraryLoading} onClick={exportAllAssets} title="Downloads everything you have made — assets, levels, stored groups, textures and backgrounds — as one backup file. Re-open that file here later to restore it all.">⬇ Export everything{libraryLoading ? " (loading…)" : " (" + library.length + " assets, " + Math.max(levelLib.length, levelCount) + " levels)"}</button>
@@ -16936,7 +16931,7 @@ export default function AssetStudio() {
                         );
                       })}
                     </div>
-                  ) : <p className="muted">{hasStore ? "Nothing saved yet — make something, then Save." : "In-browser saving isn't available here; use Open a file."}</p>}
+                  ) : <p className="muted">{hasStore ? "Nothing saved yet." : "In-browser saving isn't available here; use Open a file."}</p>}
                   <div className="row2"><button onClick={() => setLoadOpen(false)}>Close</button></div>
                 </>
               ) : (() => {
@@ -17128,7 +17123,6 @@ export default function AssetStudio() {
           {/* The tags Blake has already typed onto his items, so a 🛒 shop option is picked from a
               list rather than spelled from memory — a shop tag with a typo in it is an empty shelf. */}
           <datalist id="catsuggest">{catSuggest.map((c) => <option key={c} value={c} />)}</datalist>
-          <p className="statusline">Write what an NPC or a sign says. <b>Every line can offer options, and the player presses its number to pick one.</b> An option can lead to another line, end the talk, and/or <b>do something</b> — the point of the whole thing being that "I'm not moving" can turn a peaceful guard hostile. Attach the finished tree to a 💬 Sign or to an enemy <b>as you place it</b> in the Level Creator.</p>
           {ids.map((nid, ni) => {
             const n = d.nodes[nid];
             const isStart = nid === d.start;
@@ -17136,7 +17130,7 @@ export default function AssetStudio() {
             return (
               <div key={nid} className={"card dlgNode" + (isStart ? " start" : "") + (orphan ? " orphan" : "")}>
                 <div className="ct">
-                  <span>#{ni + 1}{isStart ? " ▶ the talk starts here" : ""}</span>
+                  <span>#{ni + 1}{isStart ? " ▶ start" : ""}</span>
                   <span className="dlgNodeBtns">
                     {!isStart && <button className="ltbtn" onClick={() => put({ ...d, start: nid })} title="Open the conversation on this line instead">▶ Make it the start</button>}
                     {ids.length > 1 && <button className="ltbtn" onClick={() => delNode(nid)} title="Delete this line — anything pointing at it will just end the talk instead">🗑 Delete line</button>}
@@ -17144,12 +17138,11 @@ export default function AssetStudio() {
                 </div>
                 {/* An orphan is a line you wrote that no player can ever reach. It looks identical
                     to a wired one on screen, which is exactly why it needs saying out loud. */}
-                {orphan && <p className="mini dlgWarn">⚠ Nothing leads here — no option in this tree points at line #{ni + 1}, so it will never be seen.</p>}
-                <label className="catfield">Speaker <input value={n.speaker || ""} onChange={(e) => patchNode(nid, { speaker: e.target.value })} placeholder="blank = the NPC's own name" /></label>
+                {orphan && <p className="mini dlgWarn">⚠ Nothing leads here</p>}
+                <label className="catfield">Speaker <input value={n.speaker || ""} onChange={(e) => patchNode(nid, { speaker: e.target.value })} placeholder="NPC's name" /></label>
                 <textarea className="dlgText" rows={2} value={n.text} onChange={(e) => patchNode(nid, { text: e.target.value })} placeholder="What they say on this line…" />
-                <div className="ct2">Options{n.choices.length ? " — the player presses these numbers" : ""}</div>
-                {!n.choices.length && <p className="mini">No options: this line just shows, and pressing <b>1</b> (or Esc) closes it. That is all a plain text box needs.</p>}
-                {n.choices.length > DIALOGUE_MAX_KEYED && <p className="mini dlgWarn">⚠ Only the first {DIALOGUE_MAX_KEYED} can be picked with a number key — the rest have to be clicked.</p>}
+                <div className="ct2">Options</div>
+                {n.choices.length > DIALOGUE_MAX_KEYED && <p className="mini dlgWarn">⚠ Only the first {DIALOGUE_MAX_KEYED} get number keys</p>}
                 {n.choices.map((c, ci) => (
                   <div key={c.id} className="dlgChoice">
                     <span className="talkNum">{ci < DIALOGUE_MAX_KEYED ? ci + 1 : "•"}</span>
@@ -17182,8 +17175,8 @@ export default function AssetStudio() {
                       const n = st ? shopStock(allAssets, st).length : 0;
                       return (
                         <>
-                          <input className="dlgShopTag" list="catsuggest" value={c.shopTag || ""} onChange={(e) => patchChoice(nid, ci, { shopTag: e.target.value })} placeholder="sells which tag? e.g. T1" maxLength={24} title={"He puts " + SHOP_SHELF_SIZE + " items carrying this tag on his shelf, picked at random once per Playtest and priced from each one's own 💵 Value"} />
-                          <span className="hint2">{!st ? "⚠ no tag — his shelf will be empty" : n ? "🛒 " + Math.min(SHOP_SHELF_SIZE, n) + " of " + n + " tagged \"" + st + "\", picked each run" : "⚠ nothing is tagged \"" + st + "\""}</span>
+                          <input className="dlgShopTag" list="catsuggest" value={c.shopTag || ""} onChange={(e) => patchChoice(nid, ci, { shopTag: e.target.value })} placeholder="Shop tag" maxLength={24} title={"He puts " + SHOP_SHELF_SIZE + " items carrying this tag on his shelf, picked at random once per Playtest and priced from each one's own 💵 Value"} />
+                          <span className="hint2">{!st ? "⚠ no tag" : n ? "🛒 " + Math.min(SHOP_SHELF_SIZE, n) + " of " + n : "⚠ none tagged"}</span>
                         </>
                       );
                     })()}
@@ -17192,15 +17185,9 @@ export default function AssetStudio() {
                     <button className="ltbtn" onClick={() => delChoice(nid, ci)} title="Delete this option">🗑</button>
                   </div>
                 ))}
-                {/* Spell out what the consequences on THIS line actually do. The picker shows a
-                    short label; the blurb is where "they join you" turns into "fights for you,
-                    exactly like a raised body", which is the difference between picking the right
-                    one and finding out in Playtest. */}
-                {n.choices.some((c) => c.act) && (
-                  <div className="dlgActs">{[...new Set(n.choices.map((c) => c.act).filter(Boolean))].map((a) => (
-                    <span key={a} className="hint2">{DIALOGUE_ACTS[a].label} — {DIALOGUE_ACTS[a].blurb}</span>
-                  ))}</div>
-                )}
+                {/* What each consequence DOES ("fights for you, exactly like a raised body") is the
+                    act picker's hover title. It used to be spelled out in a row under the options
+                    as well; Blake counts on-screen explanations as clutter (2026-09-27). */}
                 <button className="ltbtn" onClick={() => addChoice(nid)}>✚ Add an option</button>
               </div>
             );
@@ -17219,7 +17206,7 @@ export default function AssetStudio() {
           <div className="modal" onClick={() => setDlgLoadOpen(false)}>
             <div className="dlg" onClick={(e) => e.stopPropagation()}>
               <div className="dt">Load a dialogue</div>
-              {!dlgLib.length && <p className="mini">Nothing saved yet — write one and press Save.</p>}
+              {!dlgLib.length && <p className="mini">Nothing saved yet.</p>}
               <div className="loadlist">{dlgLib.map((x) => (
                 <div key={x.id} className="dlgLoadRow">
                   <button onClick={() => { const open = migrateDialogue(JSON.parse(JSON.stringify(x))); setDlgDoc(open); dlgBaseline.current = JSON.stringify(open); setDlgLoadOpen(false); flash("Opened \"" + x.name + "\" ✓"); }}>💬 {x.name} <span className="hint2">· {Object.keys(x.nodes || {}).length} line{Object.keys(x.nodes || {}).length === 1 ? "" : "s"}</span></button>
@@ -17307,7 +17294,7 @@ export default function AssetStudio() {
                 <option value="">— pick a body —</option>
                 {bodies.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
-              {!bodies.length && <p className="mini">No bodies yet. Make one from the menu (or add a file above).</p>}
+              {!bodies.length && <p className="mini">No bodies yet.</p>}
             </div>
             {/* 📂 Where this look files. Same one-line free-text group an Object carries, read by the
                 same groupByCategory — the chips are the folders already in the wardrobe. No
@@ -17352,12 +17339,11 @@ export default function AssetStudio() {
                 leaving it alone: they open, preview and place exactly as they always did. */}
             {loadout.weaponId ? (
               <div className="card">
-                <div className="ct">Weapon (baked into this saved look)</div>
+                <div className="ct">Weapon</div>
                 <select className="big" value={loadout.weaponId} onChange={(e) => { setLoadout({ ...loadout, weaponId: e.target.value }); setViewDressed(null); }}>
                   <option value="">none</option>
                   {weapons.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
-                <p className="mini">Weapons are picked per placement in the Level Creator now. Set this to <b>none</b> and save to drop the baked-in copy.</p>
               </div>
             ) : null}
           </aside>
@@ -17365,7 +17351,7 @@ export default function AssetStudio() {
         {combo && (
           <div className="modal" onClick={() => setCombo(null)}>
             <div className="dlg" onClick={(e) => e.stopPropagation()}>
-              <div className="dt">Dressed Bob — send to the game or to Claude</div>
+              <div className="dt">Dressed Bob</div>
               <textarea value={combo} readOnly spellCheck={false} />
               <div className="row2"><button onClick={comboCopy}>📋 Copy</button><button onClick={comboDownload}>⬇ Download</button><button onClick={() => setCombo(null)}>Close</button></div>
             </div>
@@ -17914,7 +17900,7 @@ export default function AssetStudio() {
                   spawnWithRolledGear (what the roll becomes) and liveEnemyAsset (what wears it). */}
               {lEnemyId ? <input className="catinline" style={{ flex: "0 1 210px" }} list="enemyGearTags" value={lEnemyGear} onChange={(e) => setLEnemyGear(e.target.value)} placeholder="🎲 Random gear tagged…" title="Roll this placement's gear instead of picking it: type an item category (e.g. T1, jacket) and every Playtest hands this enemy one random item carrying that tag — worn if it's clothing, held if it's a weapon, and lootable off the body either way. What it rolls overrides the pickers to the left, so leave this blank for one exact loadout." /> : null}
               {lEnemyId ? <datalist id="enemyGearTags">{catSuggest.map((c) => <option key={c} value={c} />)}</datalist> : null}
-              {lEnemyId && lEnemyGear.trim() ? (() => { const n = enemyGearTagPool(allAssets, lEnemyGear).length; return <span className="hint2">{n ? "🎲 " + n + " item" + (n === 1 ? "" : "s") + " tagged \"" + lEnemyGear.trim() + "\" — one at random each run" : "⚠ nothing wearable or holdable is tagged \"" + lEnemyGear.trim() + "\" — it keeps its own gear"}</span>; })() : null}
+              {lEnemyId && lEnemyGear.trim() ? (() => { const n = enemyGearTagPool(allAssets, lEnemyGear).length; return <span className="hint2">{n ? "🎲 " + n : "⚠ none tagged"}</span>; })() : null}
               {/* ATTACHING A TREE HERE IS ALSO WHAT MAKES THIS ONE PEACEFUL (spawnStartsPeaceful).
                   Stamped per placement, exactly like Facing and the AI behaviour beside it, so the
                   same drawn enemy can be the quiet one by the gate and the pack of hostiles behind
@@ -17923,7 +17909,6 @@ export default function AssetStudio() {
                 <option value="">🚫 No dialogue (fights on sight)</option>
                 {dlgLib.map((d) => <option key={d.id} value={d.id}>💬 {d.name}</option>)}
               </select> : null}
-              {lEnemyId && lEnemyDlg ? <span className="hint2">Starts peaceful · press E to talk · a choice can turn them hostile</span> : null}
               {lEnemyId && !dlgLib.length ? <button className="ltbtn" onClick={openDialogueEditor} title="No dialogue trees saved yet — write one">✎ Write a dialogue</button> : null}
             </div>
           )}
@@ -18028,7 +18013,6 @@ export default function AssetStudio() {
                 {/* Mirror, on the same strip and with the same dual meaning as Twist: it edits the
                     selected object if there is one, otherwise it arms the next placement. */}
                 <button className={"rotbtn" + ((fxOpen ? fxOpen.flip : lObjFlip) ? " on" : "")} title="Mirror this object left↔right" onClick={() => { if (fxOpen) updateFxAt(lFxSel, fxOpenIdx, { flip: !fxOpen.flip }); else setLObjFlip((v) => !v); }}>⇄</button>
-                <span className="hint2">{fxOpen ? "editing the selected object" : "sets the angle for the next one you place"}</span>
               </span>
             </>
           ) : lLayer === "marker" ? (
@@ -18036,8 +18020,8 @@ export default function AssetStudio() {
               <div className="seg"><button className={lMarkerKind === "door" ? "on" : ""} onClick={() => setLMarkerKind("door")}>🚪 Door</button><button className={lMarkerKind === "pedestal" ? "on" : ""} onClick={() => setLMarkerKind("pedestal")}>💎 Pedestal</button><button className={lMarkerKind === "sign" ? "on" : ""} onClick={() => setLMarkerKind("sign")} title="A text box: walk onto this cell in play and press E to read it. Give it a whole dialogue tree, or just type one line.">💬 Sign</button></div>
               {lMarkerKind === "door" ? (
                 <>
-                  <input className="catinline" value={lMarkerCat} onChange={(e) => setLMarkerCat(e.target.value)} placeholder="opens room tagged… (blank = a way back out)" />
-                  {(() => { const t = (lMarkerCat || "").trim(); const n = roomPool(levelLib, t).length; return <span className="hint2">{t ? n + " room" + (n === 1 ? "" : "s") + " tagged \"" + t + "\"" + (n === 0 ? " ⚠" : "") : "exit door"}</span>; })()}
+                  <input className="catinline" value={lMarkerCat} onChange={(e) => setLMarkerCat(e.target.value)} placeholder="Room tag" />
+                  {(() => { const t = (lMarkerCat || "").trim(); const n = roomPool(levelLib, t).length; return <span className="hint2">{t ? n + " room" + (n === 1 ? "" : "s") + (n === 0 ? " ⚠" : "") : "exit door"}</span>; })()}
                 </>
               ) : lMarkerKind === "sign" ? (
                 /* TWO WAYS TO FILL A SIGN, and they are labelled apart on purpose. A whole tree is
@@ -18050,28 +18034,25 @@ export default function AssetStudio() {
                     <option value="">— just the line below —</option>
                     {dlgLib.map((d) => <option key={d.id} value={d.id}>💬 {d.name}</option>)}
                   </select>
-                  <input className="catinline" style={{ flex: "1 1 260px" }} value={lSignText} onChange={(e) => setLSignText(e.target.value)} placeholder="…or type a one-off line here" disabled={!!lSignDlg} />
+                  <input className="catinline" style={{ flex: "1 1 260px" }} value={lSignText} onChange={(e) => setLSignText(e.target.value)} placeholder="…or type a line" disabled={!!lSignDlg} />
                   <button className="ltbtn" onClick={openDialogueEditor} title="Write or edit dialogue trees">✎ Dialogue editor</button>
-                  <span className="hint2">{lSignDlg
-                    ? "Runs the tree \"" + ((dlgLib.find((d) => d.id === lSignDlg) || {}).name || "?") + "\" — the line box is ignored while a tree is picked."
-                    : (lSignText.trim() ? "Shows that line, then closes." : "⚠ Empty — pick a tree or type a line, or this sign says nothing.")}</span>
+                  {!lSignDlg && !lSignText.trim() && <span className="hint2">⚠ Empty</span>}
                 </>
               ) : (
                 <>
                   <div className="pedcfg">
-                    <input className="catinline" value={lPedCat1} onChange={(e) => setLPedCat1(e.target.value)} placeholder="Category 1 (blank = any)" />
-                    <input className="catinline" value={lPedCat2} onChange={(e) => setLPedCat2(e.target.value)} placeholder="Category 2 (blank = any)" />
-                    <div className="seg"><button className={lPedLogic === "or" ? "on" : ""} onClick={() => setLPedLogic("or")}>OR (either tag)</button><button className={lPedLogic === "and" ? "on" : ""} onClick={() => setLPedLogic("and")}>AND (both tags)</button></div>
+                    <input className="catinline" value={lPedCat1} onChange={(e) => setLPedCat1(e.target.value)} placeholder="Category 1" />
+                    <input className="catinline" value={lPedCat2} onChange={(e) => setLPedCat2(e.target.value)} placeholder="Category 2" />
+                    <div className="seg"><button className={lPedLogic === "or" ? "on" : ""} onClick={() => setLPedLogic("or")}>OR</button><button className={lPedLogic === "and" ? "on" : ""} onClick={() => setLPedLogic("and")}>AND</button></div>
                   </div>
                   {catSuggest.length > 0 && <div className="catchips">{catSuggest.map((c) => <button key={c} onClick={() => { if (!lPedCat1.trim()) setLPedCat1(c); else if (!lPedCat2.trim()) setLPedCat2(c); }}>+ {c}</button>)}</div>}
-                  {(() => { const filters = [lPedCat1, lPedCat2].filter((c) => c.trim()); const n = pedestalItemPool(allAssets, [lPedCat1, lPedCat2], lPedLogic).length; return <span className="hint2">{n + " item" + (n === 1 ? "" : "s") + " match" + (filters.length ? "" : " (no filter)") + (n === 0 ? " ⚠" : "")}</span>; })()}
+                  {(() => { const n = pedestalItemPool(allAssets, [lPedCat1, lPedCat2], lPedLogic).length; return <span className="hint2">{n + " item" + (n === 1 ? "" : "s") + (n === 0 ? " ⚠" : "")}</span>; })()}
                 </>
               )}
             </>
           ) : lLayer === "climb" ? (
             <>
               <div className="seg"><button className={lClimbKind === "ladder" ? "on" : ""} onClick={() => setLClimbKind("ladder")}>🪜 Ladder</button><button className={lClimbKind === "bars" ? "on" : ""} onClick={() => setLClimbKind("bars")}>🙌 Bars</button><button className={lClimbKind === "cliff" ? "on" : ""} onClick={() => setLClimbKind("cliff")}>🧗 Cliff</button><button className={isTopdownKind(lClimbKind) ? "on" : ""} onClick={() => setLClimbKind(CLIMB_KIND_TOPDOWN)} title="A patch of the level played top-down, like a crosswalk intersection: no gravity, W/S walk up and down the screen">🚶 Top-down</button></div>
-              {isTopdownKind(lClimbKind) && <span className="hint2">Paint the whole walkable area (the brush works here). Inside it A/D walk as normal, W/S walk up/down the screen showing the character&apos;s back/front, and there is no gravity while your feet are on it. The arrows still aim, Space hops and lands you back where you were.</span>}
             </>
           ) : lLayer === "hazard" ? (
             <>
@@ -18154,11 +18135,11 @@ export default function AssetStudio() {
               const granted = extraLivesGranted(playerAsset?.effects);
               if (!granted) return null;
               const left = extraLivesLeft(playerAsset?.effects, livesUsed.current);
-              return <p className={"statusline ammoline" + (left <= 0 ? " empty" : "")}>🐱 {left > 0 ? left + (left === 1 ? " extra life" : " extra lives") + " — you get back up where you fell" : "no extra lives left — the next one is for real"}</p>;
+              return <p className={"statusline ammoline" + (left <= 0 ? " empty" : "")}>🐱 {left > 0 ? left + (left === 1 ? " extra life" : " extra lives") : "no extra lives"}</p>;
             })()}
             {play && playtestThrowId && (() => {
               const n = throwCarry.current;
-              return <p className={"statusline ammoline" + (n <= 0 ? " empty" : "")}>💣 {n > 0 ? n + " left — hold G to aim, ↑/↓ to angle the arc, release to throw" : "out of throwables"}</p>;
+              return <p className={"statusline ammoline" + (n <= 0 ? " empty" : "")}>💣 {n > 0 ? n + " left" : "out of throwables"}</p>;
             })()}
             {play && playtestWeapon && isRanged(playtestWeapon.wtype) && (() => {
               // Reads the live ref straight off; the playtest loop re-renders every frame anyway
@@ -18181,19 +18162,16 @@ export default function AssetStudio() {
                 </p>
               );
             })()}
-            {!play && (lHidden.fg || lHidden.front) && <p className="statusline">🙈 Hidden in the editor: <b>{[lHidden.fg ? "Foreground" : null, lHidden.front ? "Front" : null].filter(Boolean).join(" and ")}</b> — still there, still in Playtest. Use the 👁 buttons to show {lHidden.fg && lHidden.front ? "them" : "it"} again.</p>}
-            {!play && lTool === "areaCopy" && <p className="statusline">👉 Drag a rectangle to copy that area ({hasClipboard ? "already have a " + clipboard.current.w + "×" + clipboard.current.h + " copy loaded" : "nothing copied yet"}) — or click anywhere to stamp {hasClipboard ? "it" : "the last copy (once you've made one)"}.</p>}
-            {!play && lTool === "fill" && fillPreview && <p className="statusline">🪣 Clicking here fills <b>{fillPreview.cells.length}{fillPreview.hitCap ? "+" : ""} cell{fillPreview.cells.length === 1 ? "" : "s"}</b> on <b>{lLayer === "fg" ? "Foreground" : lLayer === "bg" ? "Background" : "Front"}</b>{fillPreview.cells.length > 300 ? " — that's a lot; wrong layer tab?" : ""}</p>}
-            {/* Adjust gets its own line because the panel it drives lives off to the right, and
-                "there is no option to make things line up" was the whole complaint — the tool has
-                to say what it does at the moment you turn it on. */}
-            {!play && lTool === "adjust" && <p className="statusline">✥ Click any object to grab it — then <b>drag it</b> (pixel by pixel, no cell snapping) or <b>arrow-key it</b>, and use <b>Snap</b> / <b>Order</b> in the panel on the right to butt it against its neighbour, sit it on the ground, or push it in front. Hold <b>Shift</b> for ten steps at once.</p>}
-            {!play && lTool === "move" && !(layerMove && layerMove.levelId === lv.id) && (areaSel && areaSel.levelId === lv.id
-              ? <p className="statusline">🔀 <b>{areaSel.key !== undefined ? areaSel.name : (areaSel.c1 - areaSel.c0 + 1) + "×" + (areaSel.r1 - areaSel.r0 + 1)}</b> selected — drag it, or use the arrow keys. <button className="ltbtn" onClick={() => setAreaSel(null)}>✕ Deselect</button></p>
-              : <p className="statusline">🔀 Drag a box around what to move, or click an object.</p>)}
-            {!play && lTool !== "areaCopy" && lTool !== "adjust" && lTool !== "move" && !(layerMove && layerMove.levelId === lv.id) && (lEnemyId && lTool === "paint"
-              ? <p className="statusline">👉 Clicking places <b>👹 {(findA(lEnemyId) || {}).name || "enemy"}</b>. Pick <b>— none —</b> to paint normally.</p>
-              : <p className="statusline">👉 Clicking the canvas right now will <b>{lTool === "erase" ? "erase from" : lTool === "select" ? "select on" : lTool === "move" ? "pick up on" : "paint"}</b> the <b>{lLayer === "fg" ? "Foreground" : lLayer === "bg" ? "Background" : lLayer === "front" ? "Front" : lLayer === "obj" ? "Objects" : lLayer === "climb" ? "Climb" : lLayer === "hazard" ? "Fire" : "Markers"}</b> layer.</p>)}
+            {!play && (lHidden.fg || lHidden.front) && <p className="statusline">🙈 Hidden: <b>{[lHidden.fg ? "Foreground" : null, lHidden.front ? "Front" : null].filter(Boolean).join(" and ")}</b></p>}
+            {!play && lTool === "areaCopy" && hasClipboard && <p className="statusline">📋 {clipboard.current.w + "×" + clipboard.current.h} copied</p>}
+            {!play && lTool === "fill" && fillPreview && <p className="statusline">🪣 <b>{fillPreview.cells.length}{fillPreview.hitCap ? "+" : ""}</b> cell{fillPreview.cells.length === 1 ? "" : "s"}</p>}
+            {/* Tool how-tos used to fill this row whenever the editor was open ("👉 Clicking the
+                canvas right now will paint the Foreground layer", the Adjust and Move walkthroughs).
+                The tool and layer buttons already show that, and Blake counts it as clutter
+                (2026-09-27), so the row only carries STATE now: a selection, a copy, a hidden
+                layer, an enemy loaded onto the brush. */}
+            {!play && lTool === "move" && !(layerMove && layerMove.levelId === lv.id) && areaSel && areaSel.levelId === lv.id && <p className="statusline">🔀 <b>{areaSel.key !== undefined ? areaSel.name : (areaSel.c1 - areaSel.c0 + 1) + "×" + (areaSel.r1 - areaSel.r0 + 1)}</b> selected <button className="ltbtn" onClick={() => setAreaSel(null)}>✕ Deselect</button></p>}
+            {!play && lTool === "paint" && lEnemyId && !(layerMove && layerMove.levelId === lv.id) && <p className="statusline">👹 Placing <b>{(findA(lEnemyId) || {}).name || "enemy"}</b></p>}
             </div>
             {/* While play is on the CAMERA drives the level: .lscroll stops scrolling and .lgrid is
                 translated by the camera (camRef, written by the loop and read here inside
@@ -19182,7 +19160,6 @@ export default function AssetStudio() {
                   const node = talk.dlg.nodes[talk.nodeId] || { text: "", choices: [] };
                   const opts = dialogueOptions(node);
                   const who = (node.speaker || "").trim() || talk.name || (talk.kind === "sign" ? "Sign" : "");
-                  const overNine = opts.length > DIALOGUE_MAX_KEYED;
                   // The camera's window, in level pixels, so the bubble stays on SCREEN and not merely
                   // inside the level (see talkBubbleBox): where the view is and how big it is.
                   const viewEl = lscrollRef.current;
@@ -19217,7 +19194,6 @@ export default function AssetStudio() {
                               </button>
                             );
                           })}
-                        <div className="talkHint">Press {opts.length === 1 ? "1" : "1–" + Math.min(opts.length, DIALOGUE_MAX_KEYED)}{overNine ? " (click the rest)" : ""} · Esc to walk away · everything else is paused</div>
                       </div>
                     </div>
                   );
@@ -19422,7 +19398,6 @@ export default function AssetStudio() {
                     <span className="hint2">{Math.round((fxOpen.ox || 0) * LV_CELL) + ", " + Math.round((fxOpen.oy || 0) * LV_CELL) + "px"}</span>
                     <button className="rotbtn" disabled={!(fxOpen.ox || fxOpen.oy)} onClick={() => updateFxAt(lFxSel, fxOpenIdx, { ox: 0, oy: 0 })}>0</button>
                   </span>
-                  <div className="hint2">Arrow keys move it too — hold Shift for ten steps.</div>
                   <div className="seg stepseg">{OBJ_NUDGE_STEPS.map((s, si2) => <button key={s} className={lNudgeStep === s ? "on" : ""} onClick={() => setLNudgeStep(s)} title={"Move " + Math.round(s * LV_CELL) + "px per tap"}>{OBJ_NUDGE_STEP_LABELS[si2]}</button>)}</div>
                   {/* SNAP. The arrows get you close; these land it exactly, and they work off the
                       drawn art's real edges rather than the cell it's filed under, so "sits on the
@@ -19455,7 +19430,6 @@ export default function AssetStudio() {
                     <button className={"rotbtn" + (objectLay(fxOpen) === "fg" ? " on" : "")} title="Level with the blocks you walk on — most props belong here" onClick={() => updateFxAt(lFxSel, fxOpenIdx, { lay: "fg", inFront: false })}>▄ Middle</button>
                     <button className={"rotbtn" + (objectLay(fxOpen) === "front" ? " on" : "")} title="Over everything, including the player — it fades when you walk behind it" onClick={() => updateFxAt(lFxSel, fxOpenIdx, { lay: "front", inFront: true })}>▀ Front</button>
                   </div>
-                  <div className="hint2">Same layer? The one placed last draws on top — use ⤒ Front to make this one the last.</div>
                 </div>
               );
             })()}
@@ -19496,13 +19470,13 @@ export default function AssetStudio() {
                               block left somewhere out on the authoring canvas (propVisibleArtBox
                               unions EVERY frame's art) — and with no number on screen there was no
                               way to tell that from "props just have big borders". */}
-                          {o.kind === "prop" && (() => { const fp = levelObjectFootprint(o, findA(o.propId)); return <div className="hint2 fpread">Box {fp.cols.toFixed(1)} × {fp.rows.toFixed(1)} cells{o.fitArt ? "" : " (square — tight bounds off)"}</div>; })()}
+                          {o.kind === "prop" && (() => { const fp = levelObjectFootprint(o, findA(o.propId)); return <div className="hint2 fpread">Box {fp.cols.toFixed(1)} × {fp.rows.toFixed(1)} cells</div>; })()}
                           {/* Scale by the shared design canvas instead of by this prop's own art
                               crop. The whole point is two props that have to MATCH: at the same
                               size they then render at identical px-per-design-unit, so a line drawn
                               at the same height on both canvases lands at the same height in the
                               level. See levelObjectFootprint. */}
-                          {o.kind === "prop" && o.fitArt && <label className="chk"><input type="checkbox" checked={!!o.canvasScale} onChange={(e) => updateFxAt(lFxSel, i, { canvasScale: e.target.checked })} /> Scale by design canvas (two props at one size then match exactly)</label>}
+                          {o.kind === "prop" && o.fitArt && <label className="chk"><input type="checkbox" checked={!!o.canvasScale} onChange={(e) => updateFxAt(lFxSel, i, { canvasScale: e.target.checked })} /> Scale by design canvas</label>}
                           {/* Twist — the point of it is props that lie ALONG something (a trailer on a
                               hillside) rather than standing upright. Nudges are 5° because slope
                               angles are shallow; the piece editor's 90° steps would be useless here. */}
@@ -19641,7 +19615,6 @@ export default function AssetStudio() {
                   );
                 })}
                 <div className="shopFoot">
-                  <span className="hint2"><b>Esc</b> to leave</span>
                   <button className="ltbtn" onClick={closeShop}>Done</button>
                 </div>
               </div>
@@ -19652,7 +19625,7 @@ export default function AssetStudio() {
           <div className="modal" onClick={() => setLevelLoadOpen(false)}>
             <div className="dlg" onClick={(e) => e.stopPropagation()}>
               <div className="dt">Load a level or room</div>
-              {levelLib.length === 0 && <p className="mini">Nothing saved yet — make a level or room, then Save.</p>}
+              {levelLib.length === 0 && <p className="mini">Nothing saved yet.</p>}
               {levelLoadGroups(levelLib).map(({ key, label, isRoom, items }) => (
                 <div key={key} className="loadgroup">
                   <div className="loadgrouplabel">{isRoom ? "🚪 " + (label || "Rooms") : label ? "🏢 Floor " + label : "No floor set"}</div>
@@ -19680,7 +19653,6 @@ export default function AssetStudio() {
             <div className="dlg" onClick={(e) => e.stopPropagation()}>
               <div className="dt">⚠ Unsaved changes</div>
               <p className="mini">"{level?.name}" has changes that aren't saved. Continuing to {pendingLevelAction.label} will replace it.</p>
-              <p className="mini">(You can still Undo right after, but Save first if you want to keep it for sure.)</p>
               <div className="tiles" style={{ marginTop: 12 }}>
                 <button className="tile" onClick={() => setPendingLevelAction(null)}><span className="ti">✕</span><span className="tl">Cancel</span><span className="tb">Go back and save first</span></button>
                 <button className="tile" onClick={() => { const run = pendingLevelAction.run; setPendingLevelAction(null); run(); }}><span className="ti">⚠</span><span className="tl">Continue anyway</span><span className="tb">Discard the unsaved changes</span></button>
@@ -19872,7 +19844,7 @@ export default function AssetStudio() {
               happened to be a lie below 3 — every value from 1 to 3 threw the same distance. Showing
               the actual block count is how you can tell at a glance that dragging it left did
               something, and it makes two throwables comparable without playtesting both. */}
-          <label className="slider">Weight<input type="range" min="1" max="10" step="1" value={asset.weight ?? DEFAULT_THROW_WEIGHT} onChange={(e) => setAsset((a) => ({ ...a, weight: +e.target.value }))} /><span className="hint2">{asset.weight ?? DEFAULT_THROW_WEIGHT}/10 · {(asset.weight ?? DEFAULT_THROW_WEIGHT) <= 2 ? "light, flies far" : (asset.weight ?? DEFAULT_THROW_WEIGHT) >= 7 ? "heavy, drops short" : "medium"} · ~{Math.round(throwRangeBlocks(5, asset.weight ?? DEFAULT_THROW_WEIGHT))} blocks at Strength 5</span></label>
+          <label className="slider">Weight<input type="range" min="1" max="10" step="1" value={asset.weight ?? DEFAULT_THROW_WEIGHT} onChange={(e) => setAsset((a) => ({ ...a, weight: +e.target.value }))} /><span className="hint2">{asset.weight ?? DEFAULT_THROW_WEIGHT}/10 · ~{Math.round(throwRangeBlocks(5, asset.weight ?? DEFAULT_THROW_WEIGHT))} blocks</span></label>
           {/* Weight, Impact and Splash are what EVERY thrown object has; anything else it might
               do on landing is an ability picked below, the same way a gun picks Burst Fire or a
               blade picks Stun. This card used to carry all of them as sliders at once, so a Rock —
@@ -19885,7 +19857,7 @@ export default function AssetStudio() {
               throwable, it was read by nothing at all. A Rock is the case that exposes it: no fire,
               no splash, so impact is the only damage it has, and it did none. Both are on this card
               now, both say what they mean, and Impact edits the same asset.damage as the box above. */}
-          <label className="slider">Impact<input type="range" min="0" max="50" step="1" value={asset.damage ?? 5} onChange={(e) => setAsset((a) => ({ ...a, damage: Math.max(0, +e.target.value || 0) }))} /><span className="hint2">{(asset.damage ?? 5) === 0 ? "no impact damage" : (asset.damage ?? 5) + " HP to whatever it hits"}</span></label>
+          <label className="slider">Impact<input type="range" min="0" max="50" step="1" value={asset.damage ?? 5} onChange={(e) => setAsset((a) => ({ ...a, damage: Math.max(0, +e.target.value || 0) }))} /><span className="hint2">{asset.damage ?? 5} HP</span></label>
           <label className="slider">Splash<input type="range" min="0" max="3" step="1" value={asset.landRadius ?? DEFAULT_LAND_RADIUS} onChange={(e) => setAsset((a) => ({ ...a, landRadius: +e.target.value }))} /><span className="hint2">{(asset.landRadius ?? DEFAULT_LAND_RADIUS) === 0 ? "1 cell" : (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + "×" + (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + " cells"}</span></label>
           {/* LANDING LOOK — what this throwable leaves on the ground, whatever payload it carries.
               It lived inside the Burn ability, which meant a Pokeball (Capture) had no way to change
@@ -19907,12 +19879,11 @@ export default function AssetStudio() {
               ) : null;
             })()}
           </div>
-          <span className="hint2">{asset.landPropId ? "the Object draws it — the emoji is what shows with no Object picked" : "no Object picked, so it leaves " + (asset.landChar || DEFAULT_LAND_CHAR)}{(asset.landEffectDps ?? 0) > 0 ? " · it also burns (🔥 Burn is on)" : " · it does no damage on its own"}</span>
           {abilityCard()}
         </div>
       )}
       {asset.type === "weapon" && isThrowable(asset.wtype) && !(wState === "rest" ? (asset.angles?.side || []) : (asset.states?.rest?.side || [])).some((p) => !p.isHitbox && !p.isMuzzle) && (
-        <p className="tip warn">⚠ Nothing drawn on the <b>Side</b> pose yet, under <b>Rest</b> (Fire is never shown for a thrown item). It'll fall back to a plain 💣 emoji until Rest → Side has art on it.</p>
+        <p className="tip warn">⚠ Rest → Side has no art yet.</p>
       )}
       {asset.type === "weapon" && isRanged(asset.wtype) && (() => {
         const hasLegacy = !!asset.projectile || (asset.states && !anglesEmpty(asset.states.projectile));
@@ -19929,14 +19900,14 @@ export default function AssetStudio() {
             <label className="slider">Clip size<input type="number" min="0" value={asset.clipSize ?? DEFAULT_CLIP_SIZE} onChange={(e) => setAsset((a) => ({ ...a, clipSize: Math.max(0, +e.target.value || 0) }))} style={{ width: 60 }} /><span className="hint2">0 = unlimited</span></label>
             <label className="slider">Reload<input type="range" min="0.2" max="5" step="0.1" value={asset.reloadTime ?? DEFAULT_RELOAD_TIME} onChange={(e) => setAsset((a) => ({ ...a, reloadTime: +e.target.value }))} /><span className="hint2">{asset.reloadTime ?? DEFAULT_RELOAD_TIME}s</span></label>
             {abilityCard()}
-            <button className="ltbtn" onClick={addMuzzle}><b>🔴</b> Add muzzle (shot spawn point)</button>
+            <button className="ltbtn" onClick={addMuzzle}><b>🔴</b> Add muzzle</button>
             {!ANGLES.some((ang) => ((wState === "rest" ? asset.angles?.[ang] : asset.states?.rest?.[ang]) || []).some((p) => p.isMuzzle)) && (
               <p className="tip warn">⚠ No 🔴 muzzle on the Rest pose.</p>
             )}
             {!asset.projectileId && (
-              <p className="tip warn">⚠ {hasLegacy ? "No Projectile asset assigned yet — still using this weapon's old embedded projectile as a fallback." : "No Projectile picked — this won't fire anything visible in Playtest yet."} Build one from the menu (Weapon → Projectile), or pick a saved one above.{hasLegacy ? " " : ""}</p>
+              <p className="tip warn">⚠ No Projectile picked{hasLegacy ? " — using the old built-in one" : ""}.</p>
             )}
-            {!asset.projectileId && hasLegacy && <button className="ltbtn" onClick={convertLegacyProjectile}>📦 Turn the old embedded projectile into its own saved Projectile asset</button>}
+            {!asset.projectileId && hasLegacy && <button className="ltbtn" onClick={convertLegacyProjectile}>📦 Convert old projectile</button>}
           </div>
         );
       })()}
@@ -20004,7 +19975,7 @@ export default function AssetStudio() {
           {/* A group can be live WITHOUT add-mode (that's what placing a stamp leaves you with),
               so the count and the group buttons key off the group itself. Only the "click blocks
               to add/remove" line is about the mode. */}
-          {(multiSelect || groupIds.length > 0) && <p className="tip">{multiSelect ? "🔲 Multi-select" : "🔗 Group held"} ({groupIds.length} selected).{multiSelect && <span className="gbhint">Tap a held block — on the canvas or in the layer list — to drop it back out; tap it again to put it back in.</span>}{groupIds.length > 0 && <> <button className="ltbtn" onClick={() => { setGroupIds([]); setMultiSelect(false); }}>✕ Clear</button></>}{groupIds.length > 1 && <> <button className="ltbtn" onClick={saveGroup}>💾 Save group</button></>}{hasStore && groupIds.length > 0 && <> <input className="gname" value={stampName} placeholder="stamp name" onChange={(e) => setStampName(e.target.value)} /> <button className="ltbtn" onClick={storeGroup}>📦 Store group</button></>}</p>}
+          {(multiSelect || groupIds.length > 0) && <p className="tip">{multiSelect ? "🔲 Multi-select" : "🔗 Group held"} ({groupIds.length} selected).{groupIds.length > 0 && <> <button className="ltbtn" onClick={() => { setGroupIds([]); setMultiSelect(false); }}>✕ Clear</button></>}{groupIds.length > 1 && <> <button className="ltbtn" onClick={saveGroup}>💾 Save group</button></>}{hasStore && groupIds.length > 0 && <> <input className="gname" value={stampName} placeholder="stamp name" onChange={(e) => setStampName(e.target.value)} /> <button className="ltbtn" onClick={storeGroup}>📦 Store group</button></>}</p>}
           {stamps.length > 0 && <div className="stampShelf"><span>📦 Stored</span><select aria-label="Stored group" value={stampPick} onChange={(e) => { setStampPick(e.target.value); setConfirmStampDel(null); }}><option value="">Choose a group…</option>{stamps.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.pieces.length})</option>)}</select><button className="ltbtn" disabled={!pickedStamp} onClick={() => pickedStamp && placeStamp(pickedStamp)}>Place</button><button className={"ltbtn" + (pickedStamp && confirmStampDel === pickedStamp.id ? " on" : "")} disabled={!pickedStamp} onClick={() => { if (!pickedStamp) return; if (confirmStampDel === pickedStamp.id) { setConfirmStampDel(null); deleteStamp(pickedStamp.id); } else { setConfirmStampDel(pickedStamp.id); flash("Tap Sure? to permanently delete stored group \"" + pickedStamp.name + "\""); } }} title={pickedStamp && confirmStampDel === pickedStamp.id ? "Tap again to permanently delete" : "Delete the selected stored group"}>{pickedStamp && confirmStampDel === pickedStamp.id ? "Sure?" : "✕"}</button></div>}
           {/* 🌿 Object art — the stored-group shelf's twin, reading the props library. Same act
               (drop a copy of blocks drawn elsewhere into this pose), different source — and the
@@ -20026,7 +19997,7 @@ export default function AssetStudio() {
                 half the art, and the whole reason to reach for one here is to lift a single still. */}
             {pickedPropFrames > 1 && <select aria-label="Animation frame" value={Math.min(propStampFrame, pickedPropFrames - 1)} onChange={(e) => setPropStampFrame(+e.target.value)}>{pickedPropStamp.frames.map((f, i) => <option key={i} value={i}>Frame {i + 1}</option>)}</select>}
             <button className="ltbtn" disabled={!pickedPropStamp} title="Copy this object's blocks into the pose you're drawing. The object itself is not changed." onClick={() => pickedPropStamp && placeProp(pickedPropStamp, propStampFrame)}>Place</button>
-            {pickedPropStamp && (() => { const n = propArtBlockCount(propArtPieces(pickedPropStamp, propStampFrame)); return <p className="mini">{n ? "Drops " + n + " block" + (n === 1 ? "" : "s") + " at the size they were drawn, held as one group — ↙ Whole group size shrinks the lot." : "That frame has no art in it."}</p>; })()}
+            {pickedPropStamp && !propArtBlockCount(propArtPieces(pickedPropStamp, propStampFrame)) && <p className="mini">⚠ That frame is empty.</p>}
           </div>}
           {savedGroups.length > 0 && <p className="tip">📁 Saved: {savedGroups.map((g) => <span key={g.id} style={{ marginRight: 6 }}><button className="ltbtn" onClick={() => loadGroup(g)}>{g.name} ({g.ids.length})</button><button className="ltbtn" onClick={() => deleteGroup(g.id)}>✕</button></span>)}</p>}
         </span>
@@ -20184,9 +20155,6 @@ export default function AssetStudio() {
                     {line !== null && (
                       <label className="slider">Floor at<input type="range" min="0" max={H} step="1" value={line} onChange={(e) => setAsset((a) => ({ ...a, groundLine: { ...cleanGround(a.groundLine), [angle]: +e.target.value } }))} /><span className="hint2" style={{ marginLeft: 6 }}>y {line}</span></label>
                     )}
-                    <p className="mini">{line !== null
-                      ? "This line lands on the terrain, so anything drawn below it sits below the floor — that is what makes a body read as lying ON the ground instead of balanced on it."
-                      : "Off: the lowest drawn pixel (y " + auto + ") is treated as the floor, which is how every enemy has always worked. Turn it on for a 💀 Death pose whose lowest pixel is a tail rather than the part touching the ground."}</p>
                   </>
                 );
               })()}
@@ -20267,17 +20235,18 @@ export default function AssetStudio() {
           {asset.type === "equipment" && !effEdit && (
             <div className="card">
               <div className="ct">✨ Effects</div>
-              {(asset.effects || []).length === 0 && <p className="mini">No effects on this item yet.</p>}
               {(asset.effects || []).map((eff) => {
                 const def = EFFECT_TYPES[eff.type];
-                const bodyCount = Object.keys(eff.animByBody || {}).filter((k) => k !== "default" && (eff.animByBody[k] || []).length).length;
                 return (
                   <div key={eff.id} className="outlinefx" style={{ marginBottom: 10 }}>
                     <div className="ct2">{def.icon} {def.label}</div>
-                    {/* Every entry in the catalog carries a blurb saying what it does in play, and
-                        until Extra Lives landed none of them was shown anywhere — the sliders had
-                        to explain themselves. It is the description, so it sits under the name. */}
-                    {def.blurb && <p className="mini">{def.blurb}</p>}
+                    {/* The ability's description sits under its name — and it is the SAME short line
+                        the pickup callout shows in the level (effectBrief), with this item's own
+                        numbers, so it follows the sliders as they move. It used to be the catalog's
+                        `blurb`, a paragraph Blake counts as clutter (2026-09-27: "I need ability
+                        descriptions since those show up in level"); the blurb is still the hover
+                        title on the ＋ Add buttons below. */}
+                    {(() => { const b = effectBrief(eff); return b && b.desc ? <p className="mini">{b.desc}</p> : null; })()}
                     {def.tagParam && (
                       <label className="slider">
                         Tag to boost
@@ -20297,7 +20266,6 @@ export default function AssetStudio() {
                         </label>
                       );
                     })}
-                    <p className="mini">{!def.noAnim && (bodyCount ? " Animated for " + bodyCount + " " + (bodyCount === 1 ? "body" : "bodies") + " so far." : " No custom animation designed yet — plays this item's normal look.")}</p>
                     <div className="btns">
                       {!def.noAnim && <button onClick={() => openEffectAnim(eff.id)}>🎬 Design animation</button>}
                       <button className="danger" onClick={() => removeEffect(eff.id)}>Remove effect</button>
@@ -20310,7 +20278,7 @@ export default function AssetStudio() {
                   one closes it again, putting the effect you just added straight back in view. */}
               {(() => {
                 const addable = Object.keys(EFFECT_TYPES).filter((t) => !(asset.effects || []).some((e) => e.type === t));
-                if (!addable.length) return <p className="mini">Every effect is already on this item.</p>;
+                if (!addable.length) return null;
                 return (
                   <>
                     <button className="ltbtn" onClick={() => setFxPickerOpen((v) => !v)}>
@@ -20392,7 +20360,7 @@ export default function AssetStudio() {
             <div className="card">
               <div className="ct">🏷️ Item categories</div>
               {[0, 1, 2].map((i) => (
-                <input key={i} className="catItemInput" value={(asset.categories || [])[i] || ""} onChange={(e) => setAsset((a) => { const cats = [...(a.categories || ["", "", ""])]; cats[i] = e.target.value; return { ...a, categories: cats }; })} placeholder={"Category " + (i + 1) + (i === 0 ? " — e.g. T1" : i === 1 ? " — e.g. Shirt" : " — e.g. Strong")} maxLength={24} />
+                <input key={i} className="catItemInput" value={(asset.categories || [])[i] || ""} onChange={(e) => setAsset((a) => { const cats = [...(a.categories || ["", "", ""])]; cats[i] = e.target.value; return { ...a, categories: cats }; })} placeholder={"Category " + (i + 1)} maxLength={24} />
               ))}
             </div>
           )}
@@ -20400,20 +20368,15 @@ export default function AssetStudio() {
               thought: a shop finds its stock by the tag and prices it from this. One number per
               item rather than a price list per shopkeeper — re-price a rifle here and every T1
               stall in the game re-prices it, and no shop can quietly disagree with another about
-              what a rifle costs. The two rates below are the whole of the Intelligence stat's
-              effect on a shop, shown live so the number you type has a visible consequence. */}
-          {HAS_CATEGORIES(asset) && !effEdit && (() => {
-            const v = itemValue(asset);
-            return (
-              <div className="card">
-                <div className="ct">{MONEY_CHAR} Value</div>
-                <label className="slider">{MONEY_CHAR} Worth<input type="number" min="0" value={asset.value ?? 0} onChange={(e) => setAsset((a) => ({ ...a, value: Math.max(0, Math.round(+e.target.value || 0)) }))} style={{ width: 80 }} /></label>
-                {v === 0
-                  ? <p className="mini">0 = free.</p>
-                  : <p className="mini">Sells for about <b>{MONEY_CHAR} {shopBuyPrice(asset, 5)}</b>, traded in for about <b>{MONEY_CHAR} {shopTradeInValue(asset, 5)}</b>.</p>}
-              </div>
-            );
-          })()}
+              what a rifle costs. The card is the number and nothing else: a live "Sells for
+              about… traded in for about…" line under it went with the rest of the helper text
+              (2026-09-27) — the shop itself shows the real price. */}
+          {HAS_CATEGORIES(asset) && !effEdit && (
+            <div className="card">
+              <div className="ct">{MONEY_CHAR} Value</div>
+              <label className="slider">{MONEY_CHAR} Worth<input type="number" min="0" value={asset.value ?? 0} onChange={(e) => setAsset((a) => ({ ...a, value: Math.max(0, Math.round(+e.target.value || 0)) }))} style={{ width: 80 }} /></label>
+            </div>
+          )}
           {asset.type === "skin" && !effEdit && (() => {
             const pal = collectAssetColors(asset);
             return (
@@ -20424,7 +20387,7 @@ export default function AssetStudio() {
                   <span className="palmeta"><span className="palhex">Skin tone</span><span className="palcount">{asset.tone ? asset.tone : "body default"}</span></span>
                   <input type="color" value={asset.tone || "#e2b48c"} onChange={(e) => setAsset((a) => ({ ...a, tone: e.target.value }))} onBlur={(e) => addRecent(e.target.value)} />
                 </label>
-                {pal.length === 0 ? <p className="mini">Draw something and its colours show up here.</p> : (
+                {pal.length === 0 ? null : (
                   <div className="palette">
                     {pal.map(({ color, count }) => (
                       <label key={color} className="palchip" title={color + " · " + count + " block" + (count === 1 ? "" : "s") + " · tap to recolour everywhere"}>
@@ -20503,18 +20466,18 @@ export default function AssetStudio() {
               {groupSel && <label className="slider">Whole group size<input type="range" min="20" max="180" value={groupScale}
                 onChange={(e) => { const next = +e.target.value; scaleGroupBy(next / groupScale); setGroupScale(next); }}
                 onPointerUp={() => setGroupScale(100)} onPointerCancel={() => setGroupScale(100)} onKeyUp={() => setGroupScale(100)} /></label>}
-              {groupSel && <p className="mini">Scales all {groupIds.length} held blocks about the group's centre, keeping them arranged. Let go and it re-centres on 100%, so drag it left again to keep going — a prop dropped in at its own size takes two or three pulls to become a badge.</p>}
               {/* "0°" straightens: back to the piece's own default, unrotated orientation — the quick
                   way to make a hand-drawn line flat again. Goes through updSelRot like the ↺/↻
                   buttons, so with a group selected the whole group turns rigidly until the selected
                   piece sits flat, rather than every member independently snapping to 0. */}
-              <label className="slider">Twist / rotate ⟳<input type="range" min="0" max="360" value={sel.rot || 0} onChange={(e) => updSelRot(+e.target.value)} /><button className="rotbtn" onClick={() => updSelRot((((sel.rot || 0) - 90) % 360 + 360) % 360)}>↺</button><button className="rotbtn" onClick={() => updSelRot(((sel.rot || 0) + 90) % 360)}>↻</button><button className="rotbtn" disabled={!(sel.rot || 0)} onClick={() => updSelRot(0)}>0°</button></label>
-              <label className="slider">Flip ⇋<button className="rotbtn" onClick={flipSelH}>⇋ Flip horizontally</button></label>
-              
+              <label className="slider">Rotate ⟳<input type="range" min="0" max="360" value={sel.rot || 0} onChange={(e) => updSelRot(+e.target.value)} /><button className="rotbtn" onClick={() => updSelRot((((sel.rot || 0) - 90) % 360 + 360) % 360)}>↺</button><button className="rotbtn" onClick={() => updSelRot(((sel.rot || 0) + 90) % 360)}>↻</button><button className="rotbtn" disabled={!(sel.rot || 0)} onClick={() => updSelRot(0)}>0°</button></label>
+              {/* The button is just the glyph: .rotbtn is a fixed 30px box, and the old
+                  "⇋ Flip horizontally" label spilled out of it over the Mirror row below. */}
+              <label className="slider">Flip<button className="rotbtn" onClick={flipSelH} title="Flip horizontally">⇋</button></label>
               {/* Every flag from here down is written through updSelAll, so with a group selected
                   it lands on all of them at once — see updSelAll for why flags and geometry take
-                  opposite views of what "the group" means. */}
-              {groupSel && <p className="hint2" style={{ margin: "0 0 6px" }}>🔗 Flags below apply to all {groupIds.length} grouped blocks.</p>}
+                  opposite views of what "the group" means. No line on screen says so: Blake
+                  circled it as clutter (2026-09-27), and the group count is already in the bar. */}
               <label className="chk"><input type="checkbox" checked={!!sel.mirror} onChange={(e) => updSelAll({ mirror: e.target.checked })} /> Mirror this block ⟷</label>
               <label className="chk"><input type="checkbox" checked={!!sel.isCutter} onChange={(e) => updSelAll({ isCutter: e.target.checked })} /> 🕳️ Cutter </label>
               {!sel.isCutter && <label className="chk"><input type="checkbox" checked={!!sel.noCut} onChange={(e) => updSelAll({ noCut: e.target.checked })} /> 🛡️ Ignore cutters</label>}
@@ -20540,7 +20503,7 @@ export default function AssetStudio() {
                   before this still carry the flag in their data, and the pivot reconciliation in
                   attachWeaponBlocks still honours it, so none of that art moves. */}
               {asset.type !== "weapon" && (<>
-                <div className="ct2">Animation flag 🦴{groupSel ? <span className="hint2"> — sets all {groupIds.length}</span> : null}</div>
+                <div className="ct2">Animation flag 🦴</div>
                 <div className="limbtabs">
                   {[["", "None"], ["arm", "💪 Arm"], ["leg", "🦵 Leg"]].map(([v, l]) => (
                     <button key={v || "none"} className={(sel.limb || "") === v ? "on" : ""} onClick={() => updSelAll({ limb: v || null })}>{l}</button>
@@ -20585,7 +20548,6 @@ export default function AssetStudio() {
                 though 🔲 Group select, which it used to sit beside, has moved up to the group bar.
                 Ticked state is remembered across reloads (see the snapEdges pref). */}
             <label className="chk"><input type="checkbox" checked={snapOn} onChange={(e) => setSnapOn(e.target.checked)} /> 🧲 Snap to edges</label>
-            {snapOn && <p className="mini">Aim a block roughly right (within {SNAP_ANGLE}°) and drag it up against a <b>similar-length</b> edge on another block: it jumps flush and takes that edge's exact angle and length. The edge it caught turns green. Sloped and hand-drawn shapes snap by their real outline, not their box. A held group only slides into place — it never turns or resizes.</p>}
           </div>
 
           {shapePicker && (
@@ -20620,9 +20582,8 @@ export default function AssetStudio() {
               )}
               <label className="chk"><input type="checkbox" checked={!!asset.solidDefault} onChange={(e) => setAsset((a) => ({ ...a, solidDefault: e.target.checked }))} /> Solid by default</label>
               <div className="ct2">📂 Folder</div>
-              <input className="catItemInput" value={asset.category || ""} onChange={(e) => setAsset((a) => ({ ...a, category: e.target.value }))} placeholder={"e.g. Interior, Trailer Park — blank files under \"" + PROP_UNCAT + "\""} maxLength={28} />
+              <input className="catItemInput" value={asset.category || ""} onChange={(e) => setAsset((a) => ({ ...a, category: e.target.value }))} placeholder={PROP_UNCAT} maxLength={28} />
               {propCatSuggest.length > 0 && <div className="catchips">{propCatSuggest.map((c) => <button key={c} onClick={() => setAsset((a) => ({ ...a, category: c }))}>{c}</button>)}</div>}
-              <p className="mini">One free-text group, so the Object picker in a level stays findable as this list grows. Blank files it under <b>{PROP_UNCAT}</b> — it never goes missing either way.</p>
             </div>
           )}
 
@@ -20814,7 +20775,6 @@ html,body{margin:0;padding:0;background:#0f1117}
 .groupbar{display:flex;align-items:center;gap:8px;flex:0 1 auto;min-width:0;flex-wrap:wrap;padding-left:12px;border-left:1px solid #2a3040}
 .groupbar .tip{margin:0;max-width:none;text-align:left;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .groupbar .mini{margin:0;max-width:280px}
-.groupbar .gbhint{max-width:300px;font-size:11.5px;line-height:1.25}
 .groupbar .stampShelf{margin:0;width:auto;display:flex;flex-wrap:nowrap;padding:5px 8px}
 .groupbar .stampShelf select{width:auto;min-width:104px;max-width:200px}
 .groupbar .propShelf select{flex:0 1 auto}
@@ -20984,7 +20944,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .shopBuy.gain{background:rgba(44,66,96,.92);border-color:rgba(130,180,240,.75);color:#d5e8ff}
 .shopBuy.gain:hover:not(:disabled){background:rgba(58,88,128,.95);border-color:#9cc8f5}
 .shopBuyVerb{font-size:10px;font-weight:600;opacity:.8;text-transform:uppercase;letter-spacing:.04em}
-.shopFoot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid rgba(122,136,170,.35)}
+.shopFoot{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid rgba(122,136,170,.35)}
 .shopFoot .ltbtn{border-radius:0}
 .emcount{font-weight:400;font-size:12px;color:#7b8398;margin-left:6px}
 .emgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:6px;max-height:55vh;overflow:auto}
@@ -21421,7 +21381,6 @@ html,body{margin:0;padding:0;background:#0f1117}
 .talkOpt.lit .talkNum{background:rgba(0,0,0,.35);border-color:rgba(255,255,255,.5);color:#fff}
 /* Outside both boxes, on the level itself, so it needs its own shadow to stay readable over
    whatever is painted back there. */
-.talkHint{margin-top:8px;font-size:11px;color:#e8ecf5;text-shadow:0 1px 3px rgba(0,0,0,.95),0 0 6px rgba(0,0,0,.8)}
 /* The dialogue tree editor. One column of line-cards; the start line and any unreachable line are
    edged in colour, because "which line does this open on" and "did I forget to wire this up" are
    the only two structural questions a short tree ever raises. */
@@ -21436,7 +21395,6 @@ html,body{margin:0;padding:0;background:#0f1117}
 .dlgChoiceText{flex:1 1 220px;min-width:160px;background:#0d1119;border:1px solid #333c52;border-radius:6px;color:#e8ecf5;padding:6px 8px;font:inherit;font-size:13px}
 .dlgChoice select{background:#0d1119;border:1px solid #333c52;border-radius:6px;color:#cfd8e8;padding:6px;font-size:12px;max-width:220px}
 .dlgShopTag{flex:0 1 190px;min-width:130px;background:#0d1119;border:1px solid #3a6b42;border-radius:6px;color:#cdf5d4;padding:6px 8px;font:inherit;font-size:12px}
-.dlgActs{display:flex;flex-direction:column;gap:2px;margin:6px 0 2px}
 .dlgLoadRow{display:flex;gap:6px;align-items:stretch}
 .dlgLoadRow>button:first-child{flex:1;text-align:left}
 .equipline{color:#cfe0ff;background:#131a29;border-color:#3a5c8c;font-size:12px}
