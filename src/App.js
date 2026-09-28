@@ -7501,6 +7501,41 @@ export const terrainPaintShape = (layer, selectedShape, upsideDown = false, hide
   if (layer === "fg" && hideInPlay) out.hideInPlay = true;
   return Object.keys(out).length ? out : null;
 };
+// WHICH PAINT LAYER AN ERASE STROKE WORKS ON: the one drawn on TOP where it was pressed, not simply
+// whichever layer tab is lit. Front sits over Foreground, which sits over Background, exactly as the
+// editor stacks them. It is decided once, at the press, and the whole drag keeps to it, so a stroke
+// started on a wall goes on erasing walls and never starts eating the sky beside them.
+//
+// Everything else in a level already erased this way. A prop, a ladder, a marker or an enemy
+// takes the 🧽 click on its own element, whatever tab is lit. Painted blocks were the odd one out:
+// they only ever came off the lit tab. That is what made the invisible floor left over on Trailor
+// Park M12 impossible to remove. M12 is a copy of M3, and the floor was the collision under M3's
+// Football Field prop, which had been deleted from the copy. With the Background tab lit, every
+// stroke across those collision-only blocks deleted the sky UNDER them. That was 114 cells, the dark
+// squares in Blake's screenshot, while the blocks being clicked sat on the Foreground untouched.
+// A collision-only block is drawn see-through, so the sky behind it looks like part of the same
+// thing, and nothing on screen says which layer a block lives on. (Fill reaches across layers for
+// the same reason; see layerWithPaintAt.)
+//
+// It never reaches BELOW the lit tab. On the Foreground, a stroke that starts on bare sky still
+// erases Foreground as it drags, which is how ground gets cleared, and it must not become a stroke
+// through the sky just because the sky was what sat under the pointer. So the Background tab can
+// reach everything, Foreground reaches Front and Foreground, and Front only Front. A layer hidden
+// with 👁 See through is not on screen, so it is skipped: hiding Front is still how you get at the
+// paint behind it. Only fg/bg/front come through here. Objects, climb, fire and markers keep their
+// own erase paths.
+export const ERASE_LAYER_STACK = ["front", "fg", "bg"];
+export const eraseTargetLayer = (lv, r, c, activeLayer, hidden) => {
+  const floor = ERASE_LAYER_STACK.indexOf(activeLayer);
+  if (floor < 0 || !lv) return activeLayer;
+  const k = cellKey(r, c);
+  for (const L of ERASE_LAYER_STACK.slice(0, floor + 1)) {
+    if (L !== activeLayer && hidden && hidden[L]) continue;
+    const v = lv[L] ? lv[L][k] : undefined;
+    if (v !== undefined && v !== null) return L;
+  }
+  return activeLayer;
+};
 // Every cell a ramp drawn across this rectangle touches, and what each one has to become.
 //
 // The rectangle IS the ramp: its columns are the run, its rows are the rise, and one straight line
@@ -16663,7 +16698,9 @@ export default function AssetStudio() {
   const fxStack = (lFxSel && level && level.fx && level.fx[lFxSel]) || [];
   const fxOpenIdx = lFxEditIdx == null ? (fxStack.length ? fxStack.length - 1 : null) : lFxEditIdx;
   const fxOpen = fxOpenIdx != null && fxOpenIdx >= 0 ? fxStack[fxOpenIdx] : null;
-  const paintCell = (r, c, erase) => {
+  // `eraseFrom` is the paint layer an Erase stroke was pressed on (eraseTargetLayer). It only ever
+  // redirects erasing on the three paint layers; painting always goes to the lit tab.
+  const paintCell = (r, c, erase, eraseFrom) => {
     const objKey = lLayer === "obj" ? objPaintKey(r, c, erase) : null;
     setLevel((lv) => {
     if (!lv) return lv;
@@ -16686,37 +16723,41 @@ export default function AssetStudio() {
     if (lLayer === "climb") { const climb = { ...lv.climb }; if (erase || lTool === "erase") delete climb[k]; else climb[k] = { kind: lClimbKind }; return { ...lv, climb }; }
     if (lLayer === "hazard") { const hazard = { ...(lv.hazard || {}) }; if (erase || lTool === "erase") delete hazard[k]; else hazard[k] = { kind: "fire", dps: lHazDps, life: lHazLife, ...(lHazHide ? { hideInPlay: true } : {}) }; return { ...lv, hazard }; }
     if (lLayer === "marker") { const markers = { ...lv.markers }; if (erase || lTool === "erase") delete markers[k]; else markers[k] = lMarkerKind === "door" ? { kind: "door", tag: lMarkerCat } : lMarkerKind === "sign" ? { kind: "sign", dialogueId: lSignDlg, text: lSignText } : { kind: "pedestal", cats: [lPedCat1, lPedCat2], logic: lPedLogic }; return { ...lv, markers }; }
+    if (erase || lTool === "erase") {
+      const from = eraseFrom && TERRAIN_SHAPE_LAYERS.includes(eraseFrom) ? eraseFrom : lLayer;
+      if (!lv[from] || lv[from][k] === undefined) return lv;
+      const cleared = { ...lv[from] };
+      delete cleared[k];
+      return { ...lv, [from]: cleared };
+    }
     const layer = { ...lv[lLayer] };
-    if (erase || lTool === "erase") delete layer[k];
     // Foreground and Background cells are normally a plain color string (a full visual block).
     // Painting with a slope shape selected stores { c, slope } instead. Foreground uses it as a
     // walkable ramp (see slopeSurfaceAt); Background renders the same diagonal but stays non-solid.
     // With a texture selected, paintValue() writes { c, tex } instead of a bare color — ramps
     // and textures compose, so a textured ramp is simply both at once. In Outline mode fg/bg/front
     // paints also carry `ol` (see withOutline / cellOutlineStyle) — the outer edge renders in it.
-    else {
-      const ol = (lOutline && (lLayer === "fg" || lLayer === "bg" || lLayer === "front")) ? lOutlineColor : null;
-      const shape = terrainPaintShape(lLayer, lFgShape, lFgUpsideDown, lFgHide);
-      const base = paintValue(lColor, activeTexture, shape);
-      // Foreground ramps stack on what's already in the cell (mergeFgFill) unless ⧉ Replace is on,
-      // which paints the cell outright. Background and Front ramps replace the previous decorative
-      // fill — neither layer carries collision, so there is no stack of solidity to preserve.
-      layer[k] = paintIntoCell(lLayer, layer[k], withOutline(base, ol), lFgReplace);
-    }
+    const ol = (lOutline && (lLayer === "fg" || lLayer === "bg" || lLayer === "front")) ? lOutlineColor : null;
+    const shape = terrainPaintShape(lLayer, lFgShape, lFgUpsideDown, lFgHide);
+    const base = paintValue(lColor, activeTexture, shape);
+    // Foreground ramps stack on what's already in the cell (mergeFgFill) unless ⧉ Replace is on,
+    // which paints the cell outright. Background and Front ramps replace the previous decorative
+    // fill — neither layer carries collision, so there is no stack of solidity to preserve.
+    layer[k] = paintIntoCell(lLayer, layer[k], withOutline(base, ol), lFgReplace);
     return { ...lv, [lLayer]: layer };
     });
   };
   // Stamps paintCell across a brush-size square. Objects/Markers always stay single-cell —
   // stacking or placing N copies per stroke isn't what a "brush" should do for discrete items.
-  const paintBrush = (r, c, erase, inb) => {
-    if (lLayer === "obj" || lLayer === "marker" || (lLayer === "climb" && !isTopdownKind(lClimbKind)) || lBrush <= 1) { paintCell(r, c, erase); return; } // 🚶 Top-down is the one climb kind that IS an area (a whole intersection), so it alone takes the brush
+  const paintBrush = (r, c, erase, inb, eraseFrom) => {
+    if (lLayer === "obj" || lLayer === "marker" || (lLayer === "climb" && !isTopdownKind(lClimbKind)) || lBrush <= 1) { paintCell(r, c, erase, eraseFrom); return; } // 🚶 Top-down is the one climb kind that IS an area (a whole intersection), so it alone takes the brush
     const half = Math.floor((lBrush - 1) / 2);
     // Every footprint cell paints normally; Outline mode rides along on each cell (via paintCell)
     // and the outer edge of the whole painted mass is resolved at render — not per brush stamp.
     for (let dr = -half; dr < lBrush - half; dr++) for (let dc = -half; dc < lBrush - half; dc++) {
       const rr = r + dr, cc = c + dc;
       if (!inb(rr, cc)) continue;
-      paintCell(rr, cc, erase);
+      paintCell(rr, cc, erase, eraseFrom);
     }
   };
   // Select tool: click an object/marker to pick it up (removes it from that cell), click any
@@ -17994,8 +18035,13 @@ export default function AssetStudio() {
       // Object art handles erase directly. Clicking transparent space must do nothing rather than
       // beginning a cell-based erase stroke that guesses which overlapping footprint was meant.
       if (lLayer === "obj" && lTool === "erase") return;
-      lpaint.current = { on: true, last: k, startX: e.clientX, startY: e.clientY, moved: false };
-      paintBrush(r, c, undefined, inb);
+      // 🧽 Erase takes what is ON TOP where you press, not just the lit tab (eraseTargetLayer), and
+      // the stroke keeps that layer for the whole drag. The toast only appears when it differs from
+      // the tab, which is the one time it would not be obvious what just happened.
+      const eraseFrom = lTool === "erase" && ERASE_LAYER_STACK.includes(lLayer) ? eraseTargetLayer(lv, r, c, lLayer, lHidden) : null;
+      if (eraseFrom && eraseFrom !== lLayer) flash("🧽 Erasing on the " + LAYER_LABEL[eraseFrom] + " — that's the layer the block you clicked is on.");
+      lpaint.current = { on: true, last: k, startX: e.clientX, startY: e.clientY, moved: false, eraseFrom };
+      paintBrush(r, c, undefined, inb, eraseFrom);
       // The inspector follows the object that was just placed, which lives at its centred
       // anchor — not at the clicked cell (objPaintKey).
       if (lLayer === "obj") { setLFxSel(objPaintKey(r, c)); setLFxEditIdx(null); }
@@ -18052,7 +18098,7 @@ export default function AssetStudio() {
       }
       const k = cellKey(r, c);
       if (lLayer === "obj" && lpaint.current.last === k) return; // moving within the same cell shouldn't re-stack on every pointer jitter
-      lpaint.current.last = k; paintBrush(r, c, undefined, inb);
+      lpaint.current.last = k; paintBrush(r, c, undefined, inb, lpaint.current.eraseFrom);
       if (lLayer === "obj") { setLFxSel(objPaintKey(r, c)); setLFxEditIdx(null); }
     };
     // 🔀 Move release. A box selects that area; a shift commits (one undo step — the press already

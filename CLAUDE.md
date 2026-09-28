@@ -916,6 +916,24 @@ again (never paint blind), hiding the layer you are on moves you to Background, 
 says what is hidden, and Adjust refuses an object on a hidden layer with a message. Foreground
 cells are bare `.lcell` — the fg rule excludes `.bg`, `.front` and `.moveSel`.
 
+**🧽 ERASE TAKES WHAT IS ON TOP, NOT JUST THE LIT TAB (`eraseTargetLayer`, 2026-09-28).** Blake:
+"On Trailor Park M12 I cannot erase all of these blocks. I believe they are invisible walls." They
+were: M12 is a copy of M3, and its Football Field prop had been deleted from the copy, leaving the
+field's collision-only Foreground floor behind (row 35/36, cols 32–131). The Background tab was
+lit, and paint-layer erase only ever touched the lit tab. So every stroke deleted the sky UNDER
+the walls instead, 114 `#386aff` cells, which are the dark squares in the screenshot, and never
+touched the walls. Props, ladders, markers and enemies already erased by click whatever the tab; painted cells
+were the odd one out. Now the press picks the topmost paint at that cell (Front > Foreground >
+Background), **never below the lit tab** (a Foreground stroke that starts on sky must keep erasing
+Foreground, not turn into a stroke through the sky). It skips 👁-hidden layers and keeps that layer
+for the whole drag (`lpaint.current.eraseFrom`). A toast names the layer only when it differs from
+the tab. Verified in the pane on the real M12, A/B against the stashed old code on the same cells:
+with the old code a Background-tab stroke over walls 35,80–82 erased nothing; with the new code it
+erased exactly those three and left the sky. The 114 sky cells were restored into M12 via
+library.json in the same commit. **Remember when reading editor screenshots: an EMPTY cell is the
+dark grid (`#0e1018`), and Background is drawn at 42% opacity, so a hole in the sky looks like a
+black block.**
+
 **A DROP SETTLES ONTO THE GROUND (`settleDropY`, 2026-09-16).** Blake: "an item dropped and I
 cannot pick it up. I think it slightly dropped underground." It had: the loot pass placed a drop at
 `ep.y + standH` whatever pose the unit died in, and a creature that DUCKED under the fatal shot

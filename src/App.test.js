@@ -81,6 +81,7 @@ import {
   paintValue,
   terrainPaintShape,
   layerTakesRamps,
+  eraseTargetLayer,
   fgClipPath,
   mergeWeaponBlocks,
   normalizeAssetJson,
@@ -6473,6 +6474,64 @@ describe("a throwable does impact damage with the number you typed in", () => {
     expect(blastHitsBox(110, 158, box.x, box.y, box.w, box.h, radPx)).toBe(true);  // at its feet
     expect(blastHitsBox(110, 105, box.x, box.y, box.w, box.h, radPx)).toBe(true);  // to the head
     expect(blastHitsBox(300, 100, box.x, box.y, box.w, box.h, radPx)).toBe(false); // sailing past
+  });
+});
+
+describe("🧽 Erase takes what is on top where you press, not only the lit tab", () => {
+  // Trailor Park M12's shape. M12 is a copy of M3 with its Football Field prop deleted, so the
+  // field's invisible floor was left behind: collision-only Foreground blocks over the sky. With the
+  // Background tab lit, every stroke deleted the sky under them and never touched the blocks.
+  const wall = { c: "#5d6b39", hideInPlay: true };
+  const sky = "#386aff";
+  const lv = {
+    rows: 46, cols: 160,
+    fg: { "35,40": wall, "35,20": "#544d45" },
+    bg: { "35,40": sky, "34,40": sky, "35,20": sky, "10,5": sky },
+    front: { "20,20": "#33302e" },
+  };
+
+  test("the Background tab erases the collision-only wall you pressed on, not the sky under it", () => {
+    expect(eraseTargetLayer(lv, 35, 40, "bg", {})).toBe("fg");
+  });
+
+  test("an ordinary solid block over the sky comes off too", () => {
+    expect(eraseTargetLayer(lv, 35, 20, "bg", {})).toBe("fg");
+  });
+
+  test("bare sky on the Background tab is still the sky", () => {
+    expect(eraseTargetLayer(lv, 34, 40, "bg", {})).toBe("bg");
+  });
+
+  test("Front drawn over it wins, because that is what you can see", () => {
+    const withFront = { ...lv, bg: { ...lv.bg, "20,20": sky } };
+    expect(eraseTargetLayer(withFront, 20, 20, "bg", {})).toBe("front");
+    expect(eraseTargetLayer({ ...lv, fg: { ...lv.fg, "20,20": "#544d45" } }, 20, 20, "fg", {})).toBe("front");
+  });
+
+  test("it never reaches BELOW the lit tab, so clearing ground can't turn into erasing the sky", () => {
+    // A Foreground stroke that starts on bare sky keeps erasing Foreground as it drags.
+    expect(eraseTargetLayer(lv, 34, 40, "fg", {})).toBe("fg");
+    expect(eraseTargetLayer(lv, 10, 5, "fg", {})).toBe("fg");
+    // Front only ever erases Front.
+    expect(eraseTargetLayer(lv, 35, 40, "front", {})).toBe("front");
+    expect(eraseTargetLayer(lv, 35, 20, "front", {})).toBe("front");
+  });
+
+  test("a layer hidden with 👁 See through is skipped, which is how you still reach the paint behind it", () => {
+    expect(eraseTargetLayer(lv, 35, 40, "bg", { fg: true })).toBe("bg");
+    const withFront = { ...lv, fg: { ...lv.fg, "20,20": "#544d45" } };
+    expect(eraseTargetLayer(withFront, 20, 20, "bg", { front: true })).toBe("fg");
+    expect(eraseTargetLayer(withFront, 20, 20, "bg", { front: true, fg: true })).toBe("bg");
+  });
+
+  test("nothing painted there at all falls back to the lit tab", () => {
+    expect(eraseTargetLayer(lv, 0, 0, "bg", {})).toBe("bg");
+    expect(eraseTargetLayer(lv, 0, 0, "fg", {})).toBe("fg");
+  });
+
+  test("tabs that are not paint layers are left alone", () => {
+    for (const tab of ["obj", "climb", "hazard", "marker"]) expect(eraseTargetLayer(lv, 35, 40, tab, {})).toBe(tab);
+    expect(eraseTargetLayer(null, 35, 40, "bg", {})).toBe("bg");
   });
 });
 
