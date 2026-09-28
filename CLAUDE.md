@@ -2087,6 +2087,65 @@ Old-code control: Viatnamese 3 stood pressed against a 3-row overhang forever (x
 (y 540 → 624, feet unchanged), walks under for 111 frames and stands up clear of it. The Elaphant
 (scale 2) ducks under a 4-row overhang and stays ducked while any of its 323 px body is under it.
 
+**Units walk only to a target on their own level (2026-09-28, `unitSharesLevel`).** Blake: "If you
+are walking a level above them enemies they shouldn't follow you, just if you are on the same level
+as them. Some of my newer levels have enemies following walking under." Trailor Park M7–M11 are two
+storeys — a slab at row 20 over a street at row 35, 450 px apart, with a hole at cols 76–81 — and
+nothing that STEERS a unit ever asked how HIGH its target was: `enemyDetects`, `enemyMoveIntent`, the
+tackle charge and the top-down walk all read the gap sideways. (The ATTACK test, `sameLevel` in the
+enemy loop, always did — which is why they only ever shadowed you along the street, never shot up
+through the ceiling.) A Seek unit now walks to a target only when the two pairs of feet are less than
+one body length apart: `unitLevelBandPx` = the player's body length (7 cells, 210 px) or the unit's own
+standing height if that is bigger. A jump (3–6 cells) and every hill inside the 42-cell sense range stay
+inside it (his M1/M2 hills fall 15 rows over ~100 columns, so ≤ 6 rows in range); the two storeys never
+do, whichever way round. Target CHOICE follows: a hostile prefers whoever shares its level (you or your
+allies) and falls back to the nearest as before; an ally only takes on a foe on ITS level, else it tags
+along (`followPlayer` never asks). Untouched on purpose: facing, sensing, aiming and shooting (the gun
+has its own level test), Avoid (a retreat, not a chase), and two bodies BOTH on a 🚶 plane, which share
+a level whatever their depth (depth is that plane's own axis). Measured on his real M7 in the pane, 620
+frames with the player standing on the slab at x 1700: the street unit (34,42) travelled **0 px**; the
+same run with the check switched off (a throwaway `window.__noLevelGate` in `unitSharesLevel`) walked it
+**320 px**, x 1194 → 1514, right in under him. With the player dropped to the street the three slab
+units stayed at 0 while the street units closed 799 px. A hostile Evil Shop Keeper on Int7's carpet
+still walked 207 px + 30 up the plane to the player's line. Not verified: a 15-row hill (none exists
+in range); the unit test pins the band, not a hill.
+
+**A ducking unit's two arms (2026-09-28, `driveUnitArms`).** Blake: "I had an enemy crouch and aim at
+me and their arms disfigured and had one go way below the other. They were crouched and aiming to
+their side." Every dressed look draws its Crouch (and Front/Back) pose with TWO weapon arms — the drawn
+one and a mirrored `_m` twin across the body. The unit's render turned the FIRST and carried everything
+else flagged as an arm rigidly round ITS shoulder (`rigidArmFollow`), including the other weapon arm,
+whose own shoulder is a body-width away: swing a point 90° about a pivot 98 px off and it lands 98 px
+lower. Measured on all 20 looks with a crouch pose (Army Bob, Billy, DK, Bobbi, Roberta…): the far
+shoulder went (51,124) → (149,222) the moment the unit aimed ducking (Bobbi/Roberta/Bobette (64,101) →
+(123,172)). In Side there is one arm and every sleeve sits on its shoulder, so nobody saw it standing.
+The player never had it: its aim branch gives every `role:"weaponArm"` its OWN absolute target about its
+own shoulder (times `armMirrorTwist` for a twin) and only clothing follows, the NEAREST arm
+(`armAnchorFinder`). `driveUnitArms(blocks, primary, armRotOf)` is that rule for units and the enemy
+render now calls it for aim, swing and throw; `armMirrorTwist` moved to module level to be shared.
+For one arm it is byte-identical to the old code (a test pins it against the old lines verbatim).
+Real-app control on his Army Bob / Bobbi / DK / Bobette holding guns, ducking and aiming: old code the
+far arm at `top: 85.38%` (a `left: 70%` twin, hanging by the feet in the screenshot), new code
+`top: 47.69%` `left: 21%` — level with the near arm, rotations −90/90. Standing aim unchanged.
+
+**A block is half a second (2026-09-28).** Blake: "You should halve the time the player spends
+blocking when pressing Q." `BLOCK_FRAMES` 60 → 30 and ONLY that: the arms-down recovery
+(`BLOCK_RECOVER_FRAMES`, 30) is the price of a block and was not what he asked about, so a held button
+now pulses ~0.5 s up / ~0.5 s down (was ~1 s / ~0.5 s) and the held-guard uptime test reads ≥ 0.5.
+Measured: a tap holds `p.blocking.t` from 0 to 29.9, then drops.
+
+**The parry's `detonate` was out of scope (2026-09-28).** "ReferenceError: detonate is not defined
+… at Array.filter … at loop." `detonate` was a `const` inside the projectile block, and the player's
+melee PARRY — which sweeps a swing through incoming shots and detonates an explosive one where it was
+struck — sits in an earlier sibling block and called it. A block-scoped const cannot be seen from a
+sibling, so the first swing that struck an enemy's RPG rocket crashed the game (a unit's shot carries
+its weapon's `explode`, `fireUnitShot`). It is now defined above both callers (its one use of
+`intelligence` reads `pstats.intelligence`). Control on the original file: pushing an `explode`/`foe`
+shot into a bat swing threw exactly that error and the loop died after one frame; fixed, the same swing
+at three distances consumed the shot, spawned a boom and flashed "🗡️ Blocked!" with no error. Lesson: a
+helper that two blocks of the loop both call belongs at loop level, not inside the block that first
+needed it — the projectile block's own five callers are why nobody ever saw this.
+
 **Weapon flags** live flat on the asset (`explode`, `ignoreArmor`, `burst`,
 `burstDelay`, `resurrect`, `stun`, …). Adding one means three places: the `newAsset`
 defaults, a `migrate` default so older saves get it, and the editor control.

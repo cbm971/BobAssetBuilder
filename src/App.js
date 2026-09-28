@@ -3217,9 +3217,14 @@ export const incomingUnitDamage = (raw, ea, ep, attackerX, wearerX, ignoreArmor)
 export const unitCenterX = (ea, ep, cellW) => ((ep && ep.x) || 0) + sideBodyShape(ea).centerFrac * enemyRenderW(ea, cellW);
 // BLOCK — what the melee button (Q/V) does when you're actually HOLDING a melee weapon. Fire
 // already swings a melee weapon, so a second swing button bought you nothing; bracing is the move
-// that was missing. The arm goes straight out with the weapon held across you for one second, and
+// that was missing. The arm goes straight out with the weapon held across you for half a second, and
 // any enemy MELEE blow landing on your guarded front in that window is turned aside for free
 // (before Defense — a block is a block, not damage reduction).
+//
+// HALF A SECOND, NOT A SECOND (2026-09-28, Blake: "You should halve the time the player spends
+// blocking when pressing Q"). BLOCK_FRAMES went 60 -> 30 and ONLY that: the arms-down recovery
+// after it (BLOCK_RECOVER_FRAMES) is the cost of a block and was not what he asked to change, so a
+// held button now pulses ~0.5s up / ~0.5s down instead of ~1s up / ~0.5s down.
 //
 // It deliberately does NOT stop shots. Sweeping a swing through an incoming projectile already
 // knocks it out of the air (the PARRY in the player's melee hit-test) — that's the timed, skilful
@@ -3231,7 +3236,7 @@ export const unitCenterX = (ea, ep, cellW) => ((ep && ep.x) || 0) + sideBodyShap
 //
 // Holding the button is a convenience, not a stronger option: it re-taps for you, raising the arm
 // again the moment the guard's BLOCK_RECOVER_FRAMES of hands-down recovery run out. A held button
-// therefore pulses ~1s up / ~0.5s down, and an enemy swinging into a down beat lands the hit —
+// therefore pulses ~0.5s up / ~0.5s down, and an enemy swinging into a down beat lands the hit —
 // exactly as it would on a player who mistimed a tap.
 //
 // This is the third version, and the recovery gap is the whole difference. v1 expired after
@@ -3256,7 +3261,7 @@ export const pointBoxDistance = (px, py, bx, by, bw, bh) => {
 // exactly backwards. A direct hit is now always caught (distance 0), and the radius finally reads
 // the way the editor words it — how far PAST the body the splash still reaches.
 export const blastHitsBox = (ix, iy, bx, by, bw, bh, radPx) => pointBoxDistance(ix, iy, bx, by, bw, bh) <= radPx;
-export const BLOCK_FRAMES = 60;   // ~1s at 60fps — how long ONE guard lasts, tap or hold alike
+export const BLOCK_FRAMES = 30;   // ~0.5s at 60fps — how long ONE guard lasts, tap or hold alike (was 60, halved 2026-09-28)
 export const BLOCK_RECOVER_FRAMES = 30; // ~0.5s of arms-down recovery owed after every guard, before another can start
 export const BLOCK_STAGGER_SECS = 1; // how long a blocked attacker is left reeling and unable to swing
 // One frame of the guard's state machine, lifted out of the physics loop so the timing itself is
@@ -3557,6 +3562,42 @@ export const rigidArmFollow = (b, arm, armNewRot) => {
   const newRot = (b.rot || 0) + vis * flip;
   const sp = armShoulderPoint(arm), jx = sp.x, jy = sp.y;
   return rigidLimbTransform(b, jx, jy, vis, newRot);
+};
+// A mirrored twin (created for non-side poses — e.g. Back, used while climbing, and Crouch) renders
+// inside scaleX(-1), which visually REVERSES whatever rotation it's given. Every place that turns
+// the arm (or equipment riding along with it) by some delta needs this correction, or a mirrored
+// piece rotates backward relative to its own mirrored orientation. Shared by the player's arm poses
+// and by driveUnitArms below.
+export const armMirrorTwist = (b) => (b && b._m && b.mirrorTwist !== false ? -1 : 1);
+// TURN A UNIT'S WHOLE ARM RIG to a pose — the aim, swing and throw of an enemy or an ally — by the
+// rule the PLAYER's own arm poses use (2026-09-28). Blake: "I had an enemy crouch and aim at me and
+// their arms disfigured and had one go way below the other. They were crouched and aiming to their
+// side." Every dressed look draws its Crouch (and Front/Back) pose with TWO weapon arms, the drawn
+// one and its mirrored twin on the far side of the body. The unit's render turned the first of them
+// and then carried EVERYTHING else flagged as an arm rigidly round that one's shoulder
+// (rigidArmFollow) — including the other weapon arm, whose own shoulder is a whole body-width away.
+// A point swung 90 degrees about a pivot 98px off lands 98px lower: measured on Army Bob, Billy, DK
+// and every look with a crouch, the far shoulder went from (51,124) to (149,222) the instant the unit
+// aimed while ducking. In the Side pose there is one arm and every sleeve sits on its shoulder, which
+// is why nobody ever saw it standing up.
+//
+// The player never had the bug because its aim branch treats the two kinds of piece differently, and
+// this is that rule: every role:"weaponArm" is driven to ITS OWN target (`armRotOf`, in stored rot —
+// times armMirrorTwist for a twin, so both arms turn the same way ON SCREEN) about ITS OWN shoulder;
+// only clothing flagged limb:"arm" (a sleeve, a cuff) follows, and it follows the NEAREST arm
+// (armAnchorFinder), not the first one. With a single arm and sleeves on its shoulder that is exactly
+// what a unit did before, byte for byte. `primary` is the arm the unit's weapon is gripped by; a ✋
+// hold point (`__hold`) is not an arm, so a drawn arm on the same body is left where it was drawn.
+export const driveUnitArms = (blocks, primary, armRotOf) => {
+  const anchorOf = armAnchorFinder(blocks);
+  return blocks.map((b) => {
+    if (b === primary) return { ...b, rot: armRotOf(b) };
+    if (primary.__hold) return b;
+    if (b.role === "weaponArm") return { ...b, rot: armRotOf(b) };
+    if (!(b.limb === "arm" && !b._isShoe)) return b;
+    const a = anchorOf(b) || primary; // a flagged arm always has an anchor; the primary is the belt-and-braces
+    return rigidArmFollow(b, a, armRotOf(a));
+  });
 };
 // Clamps/rounds the art canvas zoom level to a sane range. 1 = the design area (200×260) fills
 // the whole canvas, same as always. Below that, the design area shrinks WITHIN a fixed-size
@@ -9451,6 +9492,22 @@ export const enemyDetects = (distToPlayer, face) => {
   const facing = distToPlayer === 0 || Math.sign(distToPlayer) === (face || 1);
   return Math.abs(distToPlayer) <= PLAYER_BODY_LEN_PX * (facing ? ENEMY_SIGHT_AHEAD_LENGTHS : ENEMY_SIGHT_BEHIND_LENGTHS);
 };
+// SAME LEVEL, FOR A WALK (2026-09-28). Blake: "If you are walking a level above them enemies they
+// shouldn't follow you, just if you are on the same level as them. Some of my newer levels have
+// enemies following walking under." Trailor Park M7-M11 are two storeys — a slab at row 20 over a
+// street at row 35, 450px apart — and a Seek unit on the street trailed along beneath the slab for as
+// long as it could sense you through the floor. Everything that STEERS a unit measures the gap
+// sideways: enemyDetects, enemyMoveIntent and the tackle charge never ask how HIGH the target is.
+// (The ATTACK test always did — `sameLevel` in the enemy loop, feet less than the unit's own height
+// apart — which is why they never shot or struck through the ceiling, only shadowed you under it.)
+//
+// So a unit now WALKS toward a target only when the two share a level: feet less than one body
+// length apart. That is the attack's own rule, except it is never SMALLER than the player's body
+// length — a Squirrel is three cells tall, and on a gentle hill it should still chase you up six
+// of them. A jump (3-6 cells) and any hill inside the sense range stay within it; a floor above or
+// below (a body of headroom plus a slab) never does. Feet, not heads: bodies come in every scale.
+export const unitLevelBandPx = (standH) => Math.max(PLAYER_BODY_LEN_PX, standH || 0);
+export const unitSharesLevel = (myFeetY, targetFeetY, standH) => Math.abs(myFeetY - targetFeetY) < unitLevelBandPx(standH);
 // The direction an enemy should be FACING this frame. An enemy that can sense the player — out
 // to its full forward range in ANY direction, so it reacts to someone who walked up on its blind
 // side — turns to face them. This is deliberately separate from (and evaluated before) the
@@ -12382,22 +12439,41 @@ export default function AssetStudio() {
             }
             return out;
           };
+          // WHO IS ON THIS UNIT'S LEVEL (unitSharesLevel, 2026-09-28: "enemies following walking under").
+          // A target it cannot walk to is not worth choosing over one it can, so a unit prefers
+          // whoever shares its level and only falls back to the nearest of the rest when nobody
+          // does. `feetOf` reads a candidate's feet — the player's box, or that unit's own height —
+          // and two bodies that are BOTH on a 🚶 plane share a level whatever their depth: on a plane
+          // the vertical axis is depth, which topdownStepToward walks, not a storey to be above.
+          const myFeetY = ep.y + newEph;
+          const feetOf = (c) => (c.key ? c.ep.y + (c.ep.crouch ? enemyCrouchH(c.ea, CW) : enemyStandH(c.ea, CW)) : p.y + ph);
+          const onMyLevel = (c) => !!c && ((ep.topdown && (c.key ? c.ep.topdown : p.topdown)) || unitSharesLevel(myFeetY, feetOf(c), standEph));
           let targetKind = null, targetKey = null, targetCX = p.x + pw / 2, targetW = pw, targetEp = null, targetEa = null;
           if (friendly) {
             // Nearest hostile NEAR YOU, unless it has strayed past the leash — see allyGuards /
-            // allyRegrouping. Anything else and it tags along.
+            // allyRegrouping. Anything else and it tags along. A foe on another level than the ally
+            // is not "near": an ally would trail it along the floor above or below, so with only
+            // such foes about it tags along with you instead.
             const pCX = p.x + pw / 2, pFeet = p.y + ph;
             ep.regroup = allyRegrouping(pCX - eCenterXNow, ep.regroup, CW);
             const guarded = ep.regroup ? [] : aliveOpposite(false).filter((f) => allyGuards(f.cx - pCX, f.ep.y + (f.ep.crouch ? enemyCrouchH(f.ea, CW) : enemyStandH(f.ea, CW)) - pFeet, CW));
-            const near = nearestUnitCX(eCenterXNow, guarded); // nearest hostile
+            const near = nearestUnitCX(eCenterXNow, guarded.filter(onMyLevel)); // nearest hostile it can walk to
             if (near) { targetKind = "unit"; targetKey = near.key; targetCX = near.cx; targetEp = near.ep; targetEa = near.ea; targetW = enemyRenderW(near.ea, CW) * sideBodyShape(near.ea).fraction; }
             else { targetKind = "followPlayer"; targetCX = p.x + pw / 2; targetW = pw; } // nothing near you, or too far behind → tag along
           } else if (hostile) {
             const cands = aliveOpposite(true).concat([{ key: null, cx: p.x + pw / 2 }]); // your friendlies + you
-            const near = nearestUnitCX(eCenterXNow, cands);
+            const onLevel = cands.filter(onMyLevel);
+            // Nobody on its level: the nearest, exactly as before — it still faces, senses and aims at
+            // them, it just does not WALK to somebody on another floor (targetOnLevel, below).
+            const near = nearestUnitCX(eCenterXNow, onLevel.length ? onLevel : cands);
             if (near && near.key) { targetKind = "unit"; targetKey = near.key; targetCX = near.cx; targetEp = near.ep; targetEa = near.ea; targetW = enemyRenderW(near.ea, CW) * sideBodyShape(near.ea).fraction; }
             else { targetKind = "player"; targetCX = p.x + pw / 2; targetW = pw; }
           }
+          // Whether the target it ended up with is one it can walk to. A follower tagging along is
+          // not chasing anybody, so the level does not enter into it.
+          const targetOnLevel = targetKind === "followPlayer"
+            || (targetKind === "player" && onMyLevel({ key: null }))
+            || (targetKind === "unit" && !!targetEp && !!targetEa && onMyLevel({ key: targetKey, ea: targetEa, ep: targetEp }));
           // 🦶 STOMP, THE UNITS' HALF (see STOMP_DAMAGE; Blake: "Enemies and allies can stomp").
           // Anything with legs stamps — every body and dressed look, armed or not; a creature bites.
           // A MELEE fighter whose foe is short walks in to stomping distance instead of holding
@@ -12460,7 +12536,7 @@ export default function AssetStudio() {
           if ((ep.tackleCd || 0) > 0) ep.tackleCd = Math.max(0, ep.tackleCd - dtMul);
           if (stunned || eTackleSecs == null || !hostile || targetKind !== "player") ep.charge = 0;
           else if ((ep.charge || 0) > 0) { ep.charge = Math.max(0, ep.charge - dtMul); if (ep.charge <= 0) ep.chargeCd = TACKLE_CHARGE_COOLDOWN_FRAMES; }
-          else if ((ep.chargeCd || 0) <= 0 && (ep.tackleCd || 0) <= 0 && detected && Math.abs(gapSigned) <= TACKLE_CHARGE_RANGE
+          else if ((ep.chargeCd || 0) <= 0 && (ep.tackleCd || 0) <= 0 && detected && targetOnLevel && Math.abs(gapSigned) <= TACKLE_CHARGE_RANGE
                    && Math.random() < perFrameChance(enemyTackleChargeChance(eIntel), dtMul)) {
             ep.charge = TACKLE_CHARGE_FRAMES;
           }
@@ -12473,7 +12549,11 @@ export default function AssetStudio() {
           const dxMove = (stunned || !acts || ep.stomp) ? 0   // a stomp plants its feet, the player's rule
             : charging ? (Math.sign(distToTarget) || ep.face || 1) * chargeSpeed
             : following ? allyFollowIntent(gapSigned, ALLY_FOLLOW_RANGE_CELLS * CW, aiSpeed, ep.following)
-            : enemyMoveIntent(ai, gapSigned, engageRange, aiSpeed, detected);
+            // SEEK WALKS ONLY TO A TARGET ON ITS OWN LEVEL. Sensing you through a floor is fine — it
+            // still turns to face you and its gun still has its own level test — but it must not
+            // trail you along the street under the storey you are walking on. Avoid is a retreat,
+            // not a chase, and is untouched.
+            : enemyMoveIntent(ai, gapSigned, engageRange, aiSpeed, detected && (ai !== "seek" || targetOnLevel));
           if (following) ep.following = dxMove !== 0; else ep.following = false;
           // 🛼 SLIDE ON A UNIT: its feet EASE toward where it means to go at the item's Grip, and it
           // coasts when it stops, instead of snapping to speed and halting dead — the player's own
@@ -12581,7 +12661,7 @@ export default function AssetStudio() {
             // Stepping DOWN stops at solid ground the box is not already in, and stepping UP ignores
             // solids — the player's W/S rule, for the player's reason: the box is seven cells tall,
             // and near the back of a room its top is up among the back wall's blocks.
-            const tLine = (stunned || !acts || ep.stomp || !(charging || (ai === "seek" && detected))) ? null
+            const tLine = (stunned || !acts || ep.stomp || !(charging || (ai === "seek" && detected && targetOnLevel))) ? null
               : (targetKind === "unit" && targetEp && targetEa) ? standingLineY(targetEp, targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW))
               : standingLineY(p, ph);
             if (tLine != null) {
@@ -13172,8 +13252,8 @@ export default function AssetStudio() {
       //   Ranged weapon, or empty hands — a bare-handed swing you can throw WITHOUT holstering the
       //     gun: pistol-whip style. Fist reach, unarmed (Strength) damage, no bonus range.
       //   Melee weapon — a BLOCK instead (see BLOCK_FRAMES). Fire is already the swing for a melee
-      //     weapon, so this button was a duplicate there; now it's the guard: one TAP braces for a
-      //     second and then the arm comes back down, and holding simply re-taps it for you.
+      //     weapon, so this button was a duplicate there; now it's the guard: one TAP braces for half
+      //     a second and then the arm comes back down, and holding simply re-taps it for you.
       // The pistol-whip stays edge-triggered (one tap = one swing) and neither action starts on top
       // of an in-progress shot or swing.
       const wantMelee = K.melee && !p.wasMelee;
@@ -13197,6 +13277,81 @@ export default function AssetStudio() {
       else if (p.blocking) p.blocking.t = guard.t;
       else p.blocking = { t: guard.t };
       p.blockCd = guard.cd;
+      // DEFINED HERE, ABOVE BOTH OF ITS CALLERS — NOT INSIDE THE PROJECTILE BLOCK FURTHER DOWN (2026-09-28).
+      // It used to be a `const` in that block, and the melee PARRY just below calls it as well: a swing
+      // that struck an explosive shot (an enemy's RPG) threw "ReferenceError: detonate is not defined"
+      // and CRA's crash overlay took the whole game. A block-scoped const cannot be seen from a
+      // sibling block, so a function two callers share has to sit where both of them can reach it.
+      // An "explode" shot doesn't just hit one target — on impact it bursts: a wide splash of
+      // damage over a radius, plus a transient explosion drawn in the FRONT layer from whatever
+      // Object/Prop the weapon points at (Blake draws the boom in the prop maker). The boom is a
+      // play-only visual (booms ref) — it never writes into the saved level, and auto-clears when
+      // its short life runs out. Player/friendly shots splash hostiles; a foe's shot splashes the
+      // player + your friendly NPCs. Called at the moment the shot is consumed, at the impact point.
+      const detonate = (pr, ix, iy) => {
+        if (!pr.explode) return;
+        const radPx = Math.max(0.5, pr.explodeRadius ?? 2) * CW;
+        booms.current.push({ x: ix, y: iy, propId: pr.explodePropId || null, char: pr.explodeChar || DEFAULT_BOOM_CHAR, size: pr.explodeSize ?? 3, life: 0, maxLife: Math.max(8, Math.round((pr.explodeLife ?? 0.5) * 60)) });
+        const baseDmg = pr.damage ?? 5;
+        // Every target's blast box, resolved the same way the direct-hit tests do: the VISIBLE
+        // body, not the wider render box. Shared by all three branches below so the player, your
+        // friendlies and the hostiles can't drift apart on what "caught in it" means.
+        const enemyBlastBox = (ea2, ep2) => {
+          const eShape = sideBodyShape(ea2);
+          const eRenderW = enemyRenderW(ea2, CW), epw2 = eRenderW * eShape.fraction;
+          const eph2 = ep2 && ep2.crouch ? enemyCrouchH(ea2, CW) : enemyStandH(ea2, CW);
+          return { x: ep2.x + (eShape.centerFrac * eRenderW - epw2 / 2), y: ep2.y + unitHitTop(ea2, eShape, eph2), w: epw2, h: eShape.heightFrac * eph2 };
+        };
+        if (pr.foe) {
+          if (p.invuln <= 0) {
+            const pcx = p.x + pw / 2;
+            if (blastHitsBox(ix, iy, p.x, p.y, pw, ph, radPx)) {
+              // The shooter's crit, rolled here where it lands — your blast rolls yours the same way.
+              const bCrit = pr.critInt != null && Math.random() < critChance(pr.critInt), bNote = bCrit ? "💥 Critical! " : "";
+              const dmg = incomingPlayerDamage(bCrit ? baseDmg * 2 : baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch);
+              playerHP.current = Math.max(0, playerHP.current - dmg);
+              p.invuln = PLAYER_INVULN_FRAMES;
+              if (playerHP.current <= 0) { playerDefeated(p, "💀 Caught in the blast — back to the start."); }
+              else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(bNote + "💥 Blast hit for " + dmg + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
+              else flash(bNote + "💥 Blast hit for " + dmg + " (" + playerHP.current + " HP left)");
+            }
+          }
+          for (const k of Object.keys(lv.enemies || {})) {
+            const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0) || unitUntouchable(ep)) continue;
+            const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
+            const bx = enemyBlastBox(ea, ep);
+            if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
+              // Armour counts, as it does on you just above; the shooter's crit and the weapon's
+              // stun land on your ally exactly as yours land on a hostile in the branch below.
+              const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
+              enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(aCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2));
+              ep.lastHitByFx = pr.shooterFx || null;
+              if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
+            }
+          }
+        } else {
+          let hits = 0;
+          for (const k of Object.keys(lv.enemies || {})) {
+            const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
+            if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
+            if (enemyHP.current[k] <= 0) continue;
+            const ep = enemyPos.current[k]; if (!ep || ep.friendly || unitTalkImmune(ep) || unitUntouchable(ep)) continue; // an explosion sweeps a room, and a bystander in it is exactly who this must not catch — nor one mid-🐱-revive
+            const bx = enemyBlastBox(ea, ep);
+            if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
+              // Splash is still a SHOT — flat weapon damage plus the same crit roll as a direct
+              // hit, and nothing else off the shooter. Then THEIR armour, as a blast gets yours.
+              const base = playerRangedDamage(baseDmg);
+              // Whoever fired it: your Intelligence for your shot, a friendly unit's for its own.
+              const dmg = incomingUnitDamage((Math.random() < critChance(pr.critInt ?? pstats.intelligence)) ? base * 2 : base, ea, ep, ix, bx.x + bx.w / 2);
+              enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+              ep.lastHitByFx = pr.shooterFx || null;
+              if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
+              hits++;
+            }
+          }
+          flash("💥 Explosion" + (hits ? " — hit " + hits + (hits === 1 ? " enemy" : " enemies") : ""));
+        }
+      };
       if (p.firing) {
         p.firing.t += dtMul;
         // Melee hit-test — reconstructs just enough of the render section's arm-swing/weapon-
@@ -13709,76 +13864,6 @@ export default function AssetStudio() {
         // character contributes is how often that damage doubles. Strength is deliberately not
         // read in this block, and must not be.
         const intelligence = pstats.intelligence;
-        // An "explode" shot doesn't just hit one target — on impact it bursts: a wide splash of
-        // damage over a radius, plus a transient explosion drawn in the FRONT layer from whatever
-        // Object/Prop the weapon points at (Blake draws the boom in the prop maker). The boom is a
-        // play-only visual (booms ref) — it never writes into the saved level, and auto-clears when
-        // its short life runs out. Player/friendly shots splash hostiles; a foe's shot splashes the
-        // player + your friendly NPCs. Called at the moment the shot is consumed, at the impact point.
-        const detonate = (pr, ix, iy) => {
-          if (!pr.explode) return;
-          const radPx = Math.max(0.5, pr.explodeRadius ?? 2) * CW;
-          booms.current.push({ x: ix, y: iy, propId: pr.explodePropId || null, char: pr.explodeChar || DEFAULT_BOOM_CHAR, size: pr.explodeSize ?? 3, life: 0, maxLife: Math.max(8, Math.round((pr.explodeLife ?? 0.5) * 60)) });
-          const baseDmg = pr.damage ?? 5;
-          // Every target's blast box, resolved the same way the direct-hit tests do: the VISIBLE
-          // body, not the wider render box. Shared by all three branches below so the player, your
-          // friendlies and the hostiles can't drift apart on what "caught in it" means.
-          const enemyBlastBox = (ea2, ep2) => {
-            const eShape = sideBodyShape(ea2);
-            const eRenderW = enemyRenderW(ea2, CW), epw2 = eRenderW * eShape.fraction;
-            const eph2 = ep2 && ep2.crouch ? enemyCrouchH(ea2, CW) : enemyStandH(ea2, CW);
-            return { x: ep2.x + (eShape.centerFrac * eRenderW - epw2 / 2), y: ep2.y + unitHitTop(ea2, eShape, eph2), w: epw2, h: eShape.heightFrac * eph2 };
-          };
-          if (pr.foe) {
-            if (p.invuln <= 0) {
-              const pcx = p.x + pw / 2;
-              if (blastHitsBox(ix, iy, p.x, p.y, pw, ph, radPx)) {
-                // The shooter's crit, rolled here where it lands — your blast rolls yours the same way.
-                const bCrit = pr.critInt != null && Math.random() < critChance(pr.critInt), bNote = bCrit ? "💥 Critical! " : "";
-                const dmg = incomingPlayerDamage(bCrit ? baseDmg * 2 : baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch);
-                playerHP.current = Math.max(0, playerHP.current - dmg);
-                p.invuln = PLAYER_INVULN_FRAMES;
-                if (playerHP.current <= 0) { playerDefeated(p, "💀 Caught in the blast — back to the start."); }
-                else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(bNote + "💥 Blast hit for " + dmg + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
-                else flash(bNote + "💥 Blast hit for " + dmg + " (" + playerHP.current + " HP left)");
-              }
-            }
-            for (const k of Object.keys(lv.enemies || {})) {
-              const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0) || unitUntouchable(ep)) continue;
-              const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
-              const bx = enemyBlastBox(ea, ep);
-              if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
-                // Armour counts, as it does on you just above; the shooter's crit and the weapon's
-                // stun land on your ally exactly as yours land on a hostile in the branch below.
-                const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
-                enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(aCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2));
-                ep.lastHitByFx = pr.shooterFx || null;
-                if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
-              }
-            }
-          } else {
-            let hits = 0;
-            for (const k of Object.keys(lv.enemies || {})) {
-              const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
-              if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
-              if (enemyHP.current[k] <= 0) continue;
-              const ep = enemyPos.current[k]; if (!ep || ep.friendly || unitTalkImmune(ep) || unitUntouchable(ep)) continue; // an explosion sweeps a room, and a bystander in it is exactly who this must not catch — nor one mid-🐱-revive
-              const bx = enemyBlastBox(ea, ep);
-              if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
-                // Splash is still a SHOT — flat weapon damage plus the same crit roll as a direct
-                // hit, and nothing else off the shooter. Then THEIR armour, as a blast gets yours.
-                const base = playerRangedDamage(baseDmg);
-                // Whoever fired it: your Intelligence for your shot, a friendly unit's for its own.
-                const dmg = incomingUnitDamage((Math.random() < critChance(pr.critInt ?? intelligence)) ? base * 2 : base, ea, ep, ix, bx.x + bx.w / 2);
-                enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
-                ep.lastHitByFx = pr.shooterFx || null;
-                if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
-                hits++;
-              }
-            }
-            flash("💥 Explosion" + (hits ? " — hit " + hits + (hits === 1 ? " enemy" : " enemies") : ""));
-          }
-        };
         projectiles.current = projectiles.current.filter((pr) => {
           pr.life += dtMul;
           // Distance, not lifetime, is the normal flight limiter. Reconstruct the aimed trajectory
@@ -19460,12 +19545,10 @@ export default function AssetStudio() {
                   // twin, which rides this arm — see attachWeaponBlocksToArms).
                   const baseTwinArm = blocks && twinArmOf(blocks, baseArmPiece);
                   const baseTwinRot = baseTwinArm ? (baseTwinArm.rot || 0) : 0;
-                  // A mirrored twin (created for non-side poses — e.g. Back, used while
-                  // climbing) renders inside scaleX(-1), which visually REVERSES whatever
-                  // rotation it's given. Every place below that turns the arm (or equipment
-                  // riding along with it) by some delta needs this correction, or a mirrored
-                  // piece rotates backward relative to its own mirrored orientation.
-                  const armMirrorTwist = (b) => (b._m && b.mirrorTwist !== false ? -1 : 1);
+                  // armMirrorTwist (module level, shared with the units' arms — see driveUnitArms):
+                  // a mirrored twin renders inside scaleX(-1), which visually REVERSES whatever
+                  // rotation it's given, so every place below that turns the arm (or equipment
+                  // riding along with it) applies it, or a mirrored piece rotates backward.
                   // The shoulder a clothing arm piece should pivot around: the body's own weapon
                   // arm (its top/bottom edge = the shoulder), matched to the same mirror-side. If
                   // the body has no weapon arm at all, fall back to the topmost arm piece on that
@@ -19605,7 +19688,7 @@ export default function AssetStudio() {
                   } else if (blocks && p.blocking) {
                     // BLOCK (Q/V holding a melee weapon): a HELD pose, not an arc. The arm sets to
                     // the same absolute "extended, level" rotation the ranged aim hold uses
-                    // (armAimAbs) and stays there for the ~1s the guard lasts, so the weapon reads
+                    // (armAimAbs) and stays there for the ~0.5s the guard lasts, so the weapon reads
                     // as braced across you rather than swung. The arm dropping when the guard
                     // expires is the POINT, not a glitch — it's the tell that the window has closed
                     // and you have to press again (see advanceBlock). Same rigid sleeve follow as
@@ -20162,18 +20245,22 @@ export default function AssetStudio() {
                     // the direction a swing sweeps (armForwardSign). Plain armAimAbs/armPivotSign are
                     // "forward" for right-facing art only, which is why a left-facing Squirrel aimed
                     // and swung out of its own back. Both are identities on right-facing art.
-                    const rot = (eRanged && !eThrowingNow)
-                      ? armAimAbsFacing(eArm0.armPivot, eFacesRight) + eShotTilt
-                      : eBaseRot + armForwardSign(eArm0.armPivot, eFacesRight) * eSwingA;
+                    // ONE TARGET PER ARM, NOT ONE FOR THE UNIT (2026-09-28, driveUnitArms). A body drawn
+                    // in its Crouch pose has TWO weapon arms, the drawn one and its mirrored twin, and
+                    // this used to turn the first and orbit everything else flagged as an arm round ITS
+                    // shoulder — so a ducking unit that aimed sent its far arm 98px below the near one
+                    // ("their arms disfigured and had one go way below the other"). Each weapon arm
+                    // now turns about its own shoulder to its own target, a twin's sign flipped
+                    // (armMirrorTwist) so both point the same way ON SCREEN; only sleeves follow.
+                    // For a single arm — every Side pose — that is exactly the old result.
+                    // The aim is an ABSOLUTE angle, so a twin's flip multiplies the whole of it; the swing
+                    // is a turn FROM the arm's own drawn rot, so the flip multiplies only the turn.
                     const primary = eArm0;
-                    eBlocks = eBlocks.map((b) => {
-                      if (b === primary) return { ...b, rot };
-                      // A hold point is not an arm: a drawn 💪 arm on the same body stays where it
-                      // was drawn rather than being swung round a tail tip.
-                      if (primary.__hold) return b;
-                      if (b.role !== "weaponArm" && !(b.limb === "arm" && !b._isShoe)) return b;
-                      return rigidArmFollow(b, primary, rot);
-                    });
+                    const armAimingNow = eRanged && !eThrowingNow;
+                    const armRotOf = (a) => armAimingNow
+                      ? (armAimAbsFacing(a.armPivot, eFacesRight) + eShotTilt) * armMirrorTwist(a)
+                      : (a.rot || 0) + armForwardSign(a.armPivot, eFacesRight) * eSwingA * armMirrorTwist(a);
+                    eBlocks = driveUnitArms(eBlocks, primary, armRotOf);
                   }
                   if (ew && !eUseAtkPose && !eThrowingNow) {
                     const curArm = eHeldArmNow();

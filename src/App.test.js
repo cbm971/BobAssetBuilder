@@ -413,6 +413,9 @@ import {
   ALLY_GUARD_ROWS,
   ALLY_LEASH_CELLS,
   ALLY_REGROUP_CELLS,
+  PLAYER_BODY_LEN_PX,
+  unitLevelBandPx,
+  unitSharesLevel,
   enemyRenderW,
   EQUIP_KIND_TAG_MAX_SLOTS,
   SPAWN_WEAPON_NONE,
@@ -502,6 +505,10 @@ import {
   enemyAimArm,
   muzzleLocalPoint,
   armPivotSign,
+  rigidArmFollow,
+  armShoulderPoint,
+  armMirrorTwist,
+  driveUnitArms,
 } from "./App";
 import {
   pickupChangeRows,
@@ -5436,8 +5443,11 @@ describe("melee block (Q/V with a melee weapon in hand)", () => {
     expect(blockStopsHit(guard, 1, 100, 100)).toBe(true);
   });
 
-  test("a tap guarantees about a second of guard", () => {
-    expect(BLOCK_FRAMES).toBe(60);
+  test("a tap guarantees about half a second of guard", () => {
+    // Blake, 2026-09-28: "You should halve the time the player spends blocking when pressing Q."
+    // It was 60 frames (a second). The recovery owed afterwards is a different number and stays.
+    expect(BLOCK_FRAMES).toBe(30);
+    expect(BLOCK_RECOVER_FRAMES).toBe(30);
   });
 
   // advanceBlock — the tap/expire/recover cycle. Runs a whole guard the way the physics loop
@@ -5456,7 +5466,7 @@ describe("melee block (Q/V with a melee weapon in hand)", () => {
     expect(advanceBlock(null, 0, true, true).t).toBe(0);
   });
 
-  test("a tap gives a full second even after the button comes back up", () => {
+  test("a tap gives its whole guard even after the button comes back up", () => {
     // Press for one frame, then release: the guard still runs its whole BLOCK_FRAMES.
     const { up } = runGuard(BLOCK_FRAMES, (i) => i === 0);
     expect(up.every(Boolean)).toBe(true);
@@ -5480,7 +5490,7 @@ describe("melee block (Q/V with a melee weapon in hand)", () => {
     const { up } = runGuard(600, true);
     const uptime = up.filter(Boolean).length / up.length;
     expect(uptime).toBeLessThan(0.75);
-    expect(uptime).toBeGreaterThan(0.5); // but still worth holding — not a punishment
+    expect(uptime).toBeGreaterThanOrEqual(0.5); // but still worth holding — half the time, not a punishment
   });
 
   test("tapping again during the recovery doesn't skip it", () => {
@@ -9196,6 +9206,137 @@ describe("an ally guards you, on a leash", () => {
   test("the leash is looser than the guard ring, so chasing a foe at its edge never trips it", () => {
     expect(ALLY_LEASH_CELLS).toBeGreaterThan(ALLY_GUARD_CELLS);
     expect(ALLY_REGROUP_CELLS).toBeLessThan(ALLY_GUARD_CELLS);
+  });
+});
+
+/* A UNIT WALKS ONLY TO WHO IS ON ITS LEVEL (2026-09-28): "If you are walking a level above them
+   enemies they shouldn't follow you, just if you are on the same level as them. Some of my newer
+   levels have enemies following walking under." Trailor Park M7-M11 are two storeys — a slab at
+   row 20, a street at row 35 — and a Seek unit on the street shadowed you along under the slab,
+   because nothing that steers a unit ever asked how HIGH its target was. */
+describe("a unit walks only to a target on its own level", () => {
+  const cell = 30;
+  const humanH = 7 * cell; // a standing person: 210px
+  const street = 35 * cell, slab = 20 * cell; // M7's two floors, in feet-y pixels: 450px apart
+
+  test("the band is one player body length, and never smaller — even for a small animal", () => {
+    expect(unitLevelBandPx(humanH)).toBe(PLAYER_BODY_LEN_PX);
+    expect(unitLevelBandPx(3 * cell)).toBe(PLAYER_BODY_LEN_PX); // a Squirrel is not held to its own three cells
+    expect(unitLevelBandPx(undefined)).toBe(PLAYER_BODY_LEN_PX);
+  });
+
+  test("a big unit's band grows with it: an Elephant steps over what a person cannot", () => {
+    expect(unitLevelBandPx(12 * cell)).toBe(12 * cell);
+  });
+
+  test("THE BUG: the street under the slab is another level, whichever way round", () => {
+    expect(unitSharesLevel(street, slab, humanH)).toBe(false); // it on the street, you on the storey above
+    expect(unitSharesLevel(slab, street, humanH)).toBe(false); // it up there, you down on the street
+  });
+
+  test("the same floor is one level", () => {
+    expect(unitSharesLevel(street, street, humanH)).toBe(true);
+    expect(unitSharesLevel(street, street - 3, humanH)).toBe(true); // a stair lip
+  });
+
+  test("a jump does not take you off its level — the highest of them is under a body length", () => {
+    // Agility 5 clears 3 cells, Agility 10 about 5.5; a double jump a few more still lands inside.
+    expect(unitSharesLevel(street, street - 3 * cell, humanH)).toBe(true);
+    expect(unitSharesLevel(street, street - 6 * cell, humanH)).toBe(true);
+  });
+
+  test("a hill inside its sense range does not either, so it still chases you up one", () => {
+    // Blake's M1/M2 hills fall 15 rows over ~100 columns; a unit senses 42 columns, so the most
+    // the ground can rise between you and it is ~6 rows.
+    expect(unitSharesLevel(street, street - 6 * cell, 3 * cell)).toBe(true); // even for a three-cell Squirrel
+  });
+
+  test("exactly one body length apart is another level (the attack rule's own strict <)", () => {
+    expect(unitSharesLevel(street, street - humanH, humanH)).toBe(false);
+    expect(unitSharesLevel(street, street - humanH + 1, humanH)).toBe(true);
+  });
+});
+
+/* A DUCKING UNIT'S ARMS (2026-09-28): "I had an enemy crouch and aim at me and their arms
+   disfigured and had one go way below the other." A Crouch pose has TWO weapon arms — the drawn one
+   and its mirrored twin across the body — and the unit's render turned the first and orbited every
+   other arm-flagged piece round ITS shoulder, so the far arm swung down by the width of the body.
+   The fixture is Bob's real crouch (arm 140,124 18x60, twin at 42), a sleeve on each arm. */
+describe("driveUnitArms — each weapon arm turns about its own shoulder", () => {
+  const W = 200;
+  const near = { id: "armR", kind: "rect", x: 140, y: 124, w: 18, h: 60, role: "weaponArm", limb: "arm", armPivot: "top", rot: 0 };
+  const far = { ...near, id: "armL", x: W - (near.x + near.w), _m: true };
+  const sleeveNear = { id: "sR", kind: "rect", x: 138, y: 126, w: 22, h: 30, limb: "arm", _slot: "jacket", rot: 0 };
+  const sleeveFar = { id: "sL", kind: "rect", x: W - (sleeveNear.x + sleeveNear.w), y: 126, w: 22, h: 30, limb: "arm", _slot: "jacket", _m: true, rot: 0 };
+  const torso = { id: "t", kind: "rect", x: 60, y: 118, w: 80, h: 74 };
+  const crouch = [torso, near, far, sleeveNear, sleeveFar];
+  const shoulder = (b) => armShoulderPoint(b);
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  // The aim the unit's render asks for: level and forward, a twin's sign flipped so it points the same way ON SCREEN.
+  const aim = (a) => armAimAbsFacing(a.armPivot, true) * armMirrorTwist(a);
+
+  test("THE BUG, kept as a control: orbiting the far arm round the near shoulder drops it a body-width", () => {
+    // This is exactly what the unit's render used to do to every other arm-flagged piece.
+    const moved = rigidArmFollow(far, near, armAimAbsFacing("top", true));
+    expect(dist(shoulder(moved), shoulder(far))).toBeGreaterThan(90);
+    expect(shoulder(moved).y - shoulder(far).y).toBeGreaterThan(90); // and it is DOWN, not merely elsewhere
+  });
+
+  test("aiming while crouched leaves both shoulders where they were drawn", () => {
+    const out = driveUnitArms(crouch, near, aim);
+    const [, n, f] = out;
+    expect(dist(shoulder(n), shoulder(near))).toBeCloseTo(0, 6);
+    expect(dist(shoulder(f), shoulder(far))).toBeCloseTo(0, 6);
+  });
+
+  test("...and both arms point the same way on screen: the twin's stored turn is the flip of the near arm's", () => {
+    const out = driveUnitArms(crouch, near, aim);
+    expect(out[1].rot).toBe(-90);
+    expect(out[2].rot).toBe(90);
+  });
+
+  test("a sleeve rides the arm it sits on — the far sleeve the far arm, the near sleeve the near one", () => {
+    const out = driveUnitArms(crouch, near, aim);
+    const [, , , sN, sF] = out;
+    // Measured against its own arm's shoulder, before and after: a rigid follower keeps that distance.
+    expect(dist(shoulder(sN), shoulder(out[1]))).toBeCloseTo(dist(shoulder(sleeveNear), shoulder(near)), 6);
+    expect(dist(shoulder(sF), shoulder(out[2]))).toBeCloseTo(dist(shoulder(sleeveFar), shoulder(far)), 6);
+  });
+
+  test("a swing turns each arm from ITS OWN drawn angle", () => {
+    const drawn = { ...crouch[1], rot: 10 }, drawnTwin = { ...crouch[2], rot: 10 };
+    const blocks = [torso, drawn, drawnTwin];
+    const swing = (a) => (a.rot || 0) + armForwardSign(a.armPivot, true) * 60 * armMirrorTwist(a);
+    const out = driveUnitArms(blocks, drawn, swing);
+    expect(out[1].rot).toBe(10 - 60);
+    expect(out[2].rot).toBe(10 + 60);
+    expect(dist(shoulder(out[2]), shoulder(drawnTwin))).toBeCloseTo(0, 6);
+  });
+
+  test("ONE arm — every Side pose — comes out exactly as it did before, sleeve and all", () => {
+    const side = [torso, { ...near, x: 70, y: 96, w: 55, h: 80 }, { ...sleeveNear, x: 68, y: 98 }];
+    const arm = side[1], rot = armAimAbsFacing("top", true) + 12;
+    const before = side.map((b) => {
+      if (b === arm) return { ...b, rot };
+      if (b.role !== "weaponArm" && !(b.limb === "arm" && !b._isShoe)) return b;
+      return rigidArmFollow(b, arm, rot); // the old unit code, verbatim
+    });
+    expect(driveUnitArms(side, arm, (a) => (armAimAbsFacing(a.armPivot, true) + 12) * armMirrorTwist(a))).toEqual(before);
+  });
+
+  test("a ✋ hold point is not an arm: a drawn arm on the same body stays where it was drawn", () => {
+    const hold = { id: "__enemyHoldArm", __synthArm: true, __hold: true, role: "weaponArm", limb: "arm", x: 30, y: 60, w: 0, h: 0, armPivot: "top", rot: 0 };
+    const body = [torso, near, hold];
+    const out = driveUnitArms(body, hold, () => -90);
+    expect(out[1]).toBe(near);
+    expect(out[2].rot).toBe(-90);
+  });
+
+  test("armMirrorTwist flips a mirror twin and nothing else", () => {
+    expect(armMirrorTwist(near)).toBe(1);
+    expect(armMirrorTwist(far)).toBe(-1);
+    expect(armMirrorTwist({ ...far, mirrorTwist: false })).toBe(1); // the opt-out
+    expect(armMirrorTwist(null)).toBe(1);
   });
 });
 
