@@ -2404,6 +2404,17 @@ rule: a Seek Army Bob was measured walking steadily AWAY from its target (x 977 
 one runs at you. Negative now reads as 0: Army Bob, Billy and Bobby (Speed 0) hold their ground.
 The player was never affected — its own speed clamps to 1–10.
 
+**...and since 2026-09-28 ALL of the above is the Enemy-creator ANIMALS' scale only.** A dressed look
+walks by the player's own formula (`unitMoveSpeed` → `playerWalkSpeed`: 7 px/frame at Speed 5, 0.6x
+at ≤1, 1.5x at ≥10, half while crouched). Blake: "Enemies get all of the stats and abilities of their
+dressed Character … Stats should too". On the old scale the same DK walked at a third of his speed
+under your hands, and a Speed-0 look could not move at all. So Army Bob, Billy and Bobby now walk at
+0.6x, as they do when you play them; no look goes negative, because the player's clamp floors at 1.
+Animals keep 2.2 × Speed/5 (up to 20, floor 0), because the Squirrel's 14 is authored on that scale.
+Measured in play: Nixon (Speed 3) Seek walked at 5.61 px/frame, against 5.6 expected (it used to be
+1.32). A tackler's charge no longer sprints at 1.7x for dressed looks, since it now walks at your
+pace and you have no sprint.
+
 **AN ANIMAL HAS NO ARM, AND TWO SYSTEMS ASSUMED EVERYTHING DOES.** Both halves read to Blake
 as one bug — "the squirrel does 0 damage whether it's controlled by me or attacking me" — and
 they are in completely different places, which is the usual shape here (see the throwable
@@ -2479,11 +2490,66 @@ dressed looks, which are the only units that carry Defense.
 * Measured in the running app, DK + DK Arms (20) against Billy (35 HP, 16 Defense): "🎯 Hit Billy for
   8 (27 HP left)", where it used to be 20. With DK Arms, most of his Trailor looks now take 3–6 hits
   instead of 2.
-* **Deliberately left alone, and worth asking him about if balance comes up:** the attack side still
-  differs. `enemyAttackDamage` scales an ARMED unit's weapon by its Strength, ranged included, while
-  your ranged shots are flat (`playerRangedDamage`, the Army Bob fix, done on the player side only).
-  Units never crit ("no unit attack crits"), and Tag Damage gear is only folded into YOUR weapon. So
-  an enemy Army Bob's M16 hits you for 12 while yours hits for 6.
+* The attack side was left alone in that commit and asked about. His answer, the same day: "there
+  shouldn't be any differences". That is the next section.
+
+**EVERY STAT AND ABILITY WORKS ON A UNIT BY THE PLAYER'S RULE (2026-09-28).** Blake: "Like we have
+discussed there shouldn't be any differences. Enemies get all of the stats and abilities of their
+dressed Character. I know 9 lives works. Stats should too." The audit, stat by stat and ability by
+ability, and what each one does on a unit now:
+* **Strength.** `enemyAttackDamage` is the player's math with the unit's numbers. A gun hits for
+  its damage flat (`playerRangedDamage`). A melee weapon uses × Str/5 (`playerMeleeDamage`), and
+  fists do too. It used to scale guns by Strength as well (Army Bob's M16: 12 against your 6). Throw
+  reach and stomps already matched.
+* **Intelligence.** Units CRIT: 2%/point, ×2 before armour, the player's `critChance`.
+  - Swings, bites and stomps roll in `applyHitTo`.
+  - A unit's round carries `critInt` and rolls where it lands: into you, into your ally, or, for a
+    friendly unit's round, into a hostile, which used to roll off YOUR Intelligence.
+  - Blasts do the same.
+  - A crit on you shows "💥 Critical!" in the toast. Reload speed already matched.
+* **Speed.** Covered above: a dressed look walks by `playerWalkSpeed`.
+* **Agility.** Jump height already matched (`enemyJumpVelocity`). The above-5 "hold Jump for
+  height" assist now applies to a unit's hop too, since a dodge-hop is always held;
+  `JUMP_HOLD_BOOST_*` are module-level.
+* **Defense, Back Guard, Crouch Guard:** `incomingUnitDamage` (the section above).
+* **🏹 Tag Damage:** folded into `enemyAttackDamage` for the weapon's tags.
+* **🎯 Long Shot:** × on a unit shot's range (`fireUnitShot`).
+* **🟣 Ally Health.** A unit wearing it raises everyone else on ITS side.
+  - `sideAllyHp` sums the living wearers per side once a frame.
+  - The payment goes through `applyAllyHPBonus` on a channel of its own (`ep.sideHpBonus` /
+    `ep.sideHpGranted`), and `unitMaxHP` adds it.
+  - The wearer does not buff itself. A dead wearer buffs nobody, so killing the leader trims the
+    rest.
+  - Your own ally bonus and the recruit/gear-swap settles keep the side share standing.
+  - Measured: with Roberta (+15) on the field, every other hostile's HP rose by exactly 15.
+* **🍀 Lucky Find.** Every unit hit records `ep.lastHitByFx`: the attacking unit's effects, or null
+  for you. It is set by `applyHitTo`, a round's `shooterFx`, a grenade's `throwerFx` and blasts. The
+  loot roll adds the killer's charm to yours; yours still counts on every body, as it always did.
+* **🪂 Glide.** Gravity × the item's Fall whenever the unit is falling (your glide with Jump held).
+  Measured: Super Bob (Fall 0.8) fell at 0.803× Bobette's speed.
+* **🛼 Slide.** A unit's feet ease through `horizVel` with the item's Grip. `dxMove` stays the
+  intent, and `stepX` is the step it actually takes. The Downhill setting multiplies a ramp pull
+  units do not have.
+* **⤴️ Double Jump.** Used in the dodge: coming back DOWN into a shot, a unit wearing it takes its
+  one extra jump. Height uses `jumpVelocityScale`, the Speed setting its gravity, and it refills on
+  landing.
+* **Weapon abilities.**
+  - BURST FIRE now fires the whole burst (`ep.burstLeft`/`burstT`, `burstShotDue`). Measured:
+    Army Bob with the Experimental Rifle fired 3 rounds of 9 per trigger pull; it used to fire one
+    round of 12.
+  - A foe's round or blast now also STUNS your ally, as yours stun a hostile.
+  - Explode, pierce, Ignore Armor and Magazine Size already matched. Tackle, Pierce, Magazine Size
+    and Extra Lives already worked on units.
+* **Still different, deliberately, and not stats or abilities:**
+  - Only the player gets `PLAYER_INVULN_FRAMES` (40 frames of i-frames after a hit). So only the
+    first round of a unit's burst lands on you, while all of yours land on it. Asked about
+    2026-09-28.
+  - The AI's pacing: the reaction wind-up before each attack, and the 20-frame floor between unit
+    shots.
+  - Units steer in the air.
+  - A unit holding a gun always shoots, never punches with it.
+  - A Capture throwable is player-only.
+  - The cape/jump effect ANIMATIONS do not play on units; the effects themselves do.
 
 **AN ANIMAL HOLDING A GUN: IT FACES LEFT, AND IT HOLDS IT AT A ✋ HOLD POINT** (2026-09-26). A
 placement's weapon picker, or a `gearTag` roll (the T1 Squirrels in Trailor Park M7–M9), can hand

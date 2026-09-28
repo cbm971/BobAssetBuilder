@@ -2648,8 +2648,10 @@ export const applyAllyHPBonus = (curHP, baseMax, bonus, granted) => {
 // A unit's REAL maximum right now: its own, plus the ally bonus if it is fighting for you. Every
 // place that asks "how much HP can this thing hold" has to come through here rather than calling
 // enemyMaxHP directly, or the HP bar and the damage maths end up disagreeing about the ceiling.
+// ...plus what its OWN side's 🟣 Ally Health wearers have raised it by (ep.sideHpBonus, paid in the
+// unit loop), so a hostile made tougher by the hostile beside it shows the taller bar too.
 export const unitMaxHP = (ea, ep, allyBonus) =>
-  Math.max(1, enemyMaxHP(ea) + ((ep && ep.friendly) ? Math.max(0, Math.round(allyBonus || 0)) : 0));
+  Math.max(1, enemyMaxHP(ea) + ((ep && ep.friendly) ? Math.max(0, Math.round(allyBonus || 0)) : 0) + Math.max(0, Math.round((ep && ep.sideHpBonus) || 0)));
 // Still-active temporary buffs summed per stat at time nowMs, as { stat: totalAmount }. Expired
 // entries (until <= nowMs) contribute nothing; two buffs on the same stat stack. Pure.
 export const activeBuffSum = (buffs, nowMs) => {
@@ -3320,9 +3322,11 @@ export const tagDamageMultiplier = (effects, weaponCategories) => {
 // while the item is worn has its flight distance multiplied. Range is also what shapes the
 // trajectory (no drop over the first half of it, quadratic drop over the second — see
 // projectileDropAtDistance), so a boosted shot flies FLATTER as well as farther, which is
-// what "more range" should feel like. Applies to the player's own shots only, never to an
-// enemy's. Mirrors tagDamageMultiplier: several worn range abilities stack multiplicatively,
-// 1 = no boost. Floored so a corrupt save can't multiply a shot's range down to nothing.
+// what "more range" should feel like. Applies to whoever wears it — your shots and, since
+// 2026-09-28 ("Enemies get all of the stats and abilities of their dressed Character"), a unit's
+// too (fireUnitShot); it used to be the player's only. Mirrors tagDamageMultiplier: several worn
+// range abilities stack multiplicatively, 1 = no boost. Floored so a corrupt save can't multiply
+// a shot's range down to nothing.
 export const rangeBoostMultiplier = (effects) => {
   let mult = 1;
   for (const e of (effects || [])) if (e.type === "rangeBoost") mult *= (e.mult ?? 1.5);
@@ -3886,6 +3890,24 @@ export const ENEMY_STANDOFF_FAR = 0.85, ENEMY_STANDOFF_NEAR = 0.45;
 // from the fight, and an Avoid one ran at you. Negative Speed now reads as 0: it holds its ground.
 export const UNIT_WALK_SPEED = 2.2;
 export const unitWalkSpeed = (speed) => UNIT_WALK_SPEED * (Math.max(0, speed ?? 5) / 5);
+// THE PLAYER'S WALK off the Speed stat, px per 60fps frame: 7 standing and 3.5 crouched at Speed 5,
+// linear from 0.6x at Speed 1 to 1.5x at Speed 10, clamped to that range. One function, read by the
+// player's own loop AND by every dressed look walking as a unit (unitMoveSpeed).
+export const playerWalkSpeed = (speed, crouch) => {
+  const s = Math.min(10, Math.max(1, speed ?? 5));
+  return (crouch ? 3.5 : 7) * (0.6 + (s - 1) * 0.1);
+};
+// HOW FAST A UNIT WALKS, and it splits on the line enemyMaxHP draws. A dressed look IS a player
+// character, so it walks by the player's rule (2026-09-28, Blake: "Enemies get all of the stats and
+// abilities of their dressed Character … Stats should too") — it used to walk on unitWalkSpeed's
+// scale, 2.2 at Speed 5 against your 7, so the same DK was a third as fast placed as an enemy as he
+// is under your hands, and a Speed-0 look (Army Bob, Billy, Bobby) could not move at all while the
+// same look walks at 0.6x as you. An Enemy-creator animal keeps unitWalkSpeed: its Speed runs to 20
+// and is authored on that scale (the Squirrel at 14, "faster than the dog"), which the player's
+// 1-10 clamp would flatten.
+export const unitMoveSpeed = (ea, crouch) => isCreatureUnit(ea)
+  ? unitWalkSpeed(ea && ea.stats && ea.stats.speed)
+  : playerWalkSpeed(ea && ea.stats && ea.stats.speed, crouch);
 export const enemyMoveIntent = (ai, dist, range, speed, detected) => {
   if (!detected) return 0;
   const ad = Math.abs(dist), s = Math.sign(dist) || 1;
@@ -3898,6 +3920,15 @@ export const enemyMoveIntent = (ai, dist, range, speed, detected) => {
 // Same block-height jump math the player uses (h = v^2/2g, inverted), so an enemy's hop clears
 // the same obstacles a player of that Agility could.
 export const enemyJumpVelocity = (agility, cellH) => Math.sqrt(2 * 0.175 * (0.5 * Math.min(10, Math.max(1, agility ?? 5)) + 0.5) * cellH);
+// ...AND THE REST OF THE PLAYER'S JUMP (2026-09-28, "no differences"). Above Agility 5 the player
+// gets extra height by HOLDING Jump through the first fifth of a second of the rise. A unit's
+// dodge-hop is always a held one — nobody taps to clear a bullet — so it gets the full assist,
+// off these same two numbers (module-level now, so the two loops cannot drift apart).
+export const JUMP_HOLD_BOOST_FRAMES = 12;   // ~0.2s at 60fps — a short window right at takeoff, not an unlimited hover
+export const JUMP_HOLD_BOOST_ACCEL = 0.022; // extra upward accel per frame, per point of Agility above 5, while held
+// How much taller than the baseline Agility-5 jump this Agility's is (1.0 at 5) — the player's
+// jumpVMulRel, which is what scales a ⤴️ Double Jump item's Height for whoever wears it.
+export const jumpVelocityScale = (agility, cellH) => enemyJumpVelocity(agility, cellH) / Math.sqrt(2 * 0.175 * 3 * cellH);
 // The weapon an enemy ASSET was built holding. A plain Enemy asset carries `weaponId`; a Dress Bob
 // look records its weapon in the recipe it was composed from. This is the DEFAULT only — what a
 // particular placement actually carries is spawnWeaponIdOf, just below.
@@ -4084,18 +4115,27 @@ export const enemyWantsToThrow = (gapPx, maxRangePx, cellW) =>
 // the arm's real reach, so a target further off than it can throw still gets thrown at.
 export const enemyThrowVelocity = (gapPx, maxRangePx, g, face) =>
   throwLaunchVel(Math.max(1, Math.min(maxRangePx, gapPx)), g, face, THROW_NEUTRAL_RAD);
-// Damage one swing/shot from this enemy deals, before the player's Defense is applied. A weapon
-// supplies the base damage, scaled by the enemy's Strength (5 = 1x, same as the player's own
-// formula); bare-handed it's UNARMED_DAMAGE through that same scaling, so an enemy's fists are
-// worth exactly what yours are. This side has to move with the player's or the rule stops being
-// one rule: fists were the raw Strength stat here too, and leaving that behind would have meant a
-// Strength-10 thug punching for 10 while you punched the same thug for 4.
+// Damage one swing/shot from this unit deals, before the target's Defense and before the crit roll
+// (which the hit site makes, off the unit's Intelligence, exactly as yours is made at yours). IT IS
+// THE PLAYER'S RULE, CALLED WITH THE UNIT'S NUMBERS — Blake, 2026-09-28: "there shouldn't be any
+// differences. Enemies get all of the stats and abilities of their dressed Character."
+//   * a GUN: the weapon's damage, flat — playerRangedDamage. Strength does not touch a shot. It
+//     used to here (weapon × Str/5 for every weapon), which is the Army Bob bug playerRangedDamage
+//     documents, fixed on the player's side only: an enemy Army Bob's M16 hit you for 12 while
+//     yours hit for 6.
+//   * a MELEE weapon: the weapon's damage × Strength/5 — playerMeleeDamage.
+//   * both multiplied first by the unit's own worn 🏹 Tag Damage for that weapon's tags, the
+//     multiplier your shot and swing already carry (it did nothing on an enemy before).
+//   * bare-handed: UNARMED_DAMAGE × Strength/5 — an enemy's fists are worth exactly what yours are.
 // A CREATURE'S MELEE IS 2x ITS STRENGTH, and that is the whole rule — see creatureMeleeDamage.
 export const enemyAttackDamage = (ea, weapon) => {
   const str = ea?.stats?.strength ?? 5;
-  if (weapon) return Math.max(1, (weapon.damage ?? 5) * (str / 5)); // armed: the weapon's own number, as always
+  if (weapon) {
+    const base = (weapon.damage ?? 5) * tagDamageMultiplier(ea && ea.effects, weapon.categories);
+    return isRanged(weapon.wtype) ? playerRangedDamage(base) : playerMeleeDamage(base, str);
+  }
   if (isCreatureUnit(ea)) return creatureMeleeDamage(str);          // jaws/claws: Strength IS the damage
-  return Math.max(1, UNARMED_DAMAGE * (str / 5));                   // a PERSON's fists — unchanged, and still yours
+  return playerMeleeDamage(UNARMED_DAMAGE, str);                    // a PERSON's fists — still yours
 };
 // WHAT A CREATURE HITS FOR: twice its Strength, and nothing else feeds in.
 // A drawn creature — anything built in the Enemy creator, so every animal — cannot hold a weapon,
@@ -4250,9 +4290,9 @@ export const EFFECT_TYPES = {
   },
   // Raises the ceiling on everything fighting FOR you — anything captured with a 🔴 Capture
   // throwable or raised with a 🔮 Resurrect staff. The interesting half is not the ceiling, it is
-  // the rule about when HP is actually handed over; see applyAllyHPBonus. Player-side only: an
-  // enemy wearing this does not buff the other enemies, the way Tackle deliberately does work in
-  // both directions. Say so if you want that too — it is a different feature, not a bug here.
+  // the rule about when HP is actually handed over; see applyAllyHPBonus. It was player-side only
+  // until 2026-09-28, when Blake said enemies get every ability their look has: a unit wearing it
+  // now raises everyone else on ITS side (sideAllyHp in the unit loop), by the same rule.
   allyHP: {
     label: "Ally Health", icon: "🟣",
     blurb: "Raises the maximum HP of every ally fighting for you — anything you have captured or raised. Each ally is paid the bonus ONCE, the first time it is worn around them; an ally caught while you are wearing it simply arrives at the bigger maximum. Taking it off drops the ceiling again and trims anyone over it, and putting it back on pays nothing, so a wear/remove cycle can never top an ally up. Bonuses from several worn items stack. No animation of its own.",
@@ -10867,8 +10907,9 @@ export default function AssetStudio() {
         const merged = mergeEquip(base, equipped.current, equippedBodyIdFor(base));
         const bonus = allyMaxHPBonus(merged && merged.effects);
         const ea = unitAssetAt(t.key, level && level.enemies && level.enemies[t.key]);
-        const cur = enemyHP.current[t.key] === undefined ? enemyMaxHP(ea) : enemyHP.current[t.key];
-        const res = applyAllyHPBonus(cur, enemyMaxHP(ea), bonus, ep.allyHpGranted);
+        const ownBase = enemyMaxHP(ea) + Math.max(0, Math.round(ep.sideHpBonus || 0)); // keep what its side's 🟣 wearers already gave it
+        const cur = enemyHP.current[t.key] === undefined ? ownBase : enemyHP.current[t.key];
+        const res = applyAllyHPBonus(cur, ownBase, bonus, ep.allyHpGranted);
         enemyHP.current[t.key] = res.hp; ep.allyHpGranted = res.granted;
         ep.friendly = true; ep.allyKind = "talked"; ep.turned = null; ep.peaceful = false; ep.stun = 0; ep.attackT = 0; ep.swingT = 0; ep.reactT = 0;
       }
@@ -10915,8 +10956,9 @@ export default function AssetStudio() {
     for (const ak of Object.keys(enemies || {})) {
       const aep = enemyPos.current[ak]; if (!aep || !aep.friendly) continue;
       const aea = unitAssetAt(ak, enemies[ak]); if (!aea) continue;
-      const curA = enemyHP.current[ak] === undefined ? enemyMaxHP(aea) : enemyHP.current[ak];
-      const res = applyAllyHPBonus(curA, enemyMaxHP(aea), bonus, aep.allyHpGranted);
+      const baseA = enemyMaxHP(aea) + Math.max(0, Math.round(aep.sideHpBonus || 0)); // its side's 🟣 share stands
+      const curA = enemyHP.current[ak] === undefined ? baseA : enemyHP.current[ak];
+      const res = applyAllyHPBonus(curA, baseA, bonus, aep.allyHpGranted);
       enemyHP.current[ak] = res.hp; aep.allyHpGranted = res.granted;
     }
   };
@@ -11115,8 +11157,8 @@ export default function AssetStudio() {
     // since the climb animation's phase advance is driven directly by how far you actually
     // moved) too fast to see the swing cycle clearly. This single constant governs both.
     const CLIMB_SPEED = 2.5;
-    const JUMP_HOLD_BOOST_FRAMES = 12; // ~0.2s at 60fps — a short window right at takeoff, not an unlimited hover
-    const JUMP_HOLD_BOOST_ACCEL = 0.022; // extra upward accel per frame, per point of Agility above 5, while held
+    // JUMP_HOLD_BOOST_FRAMES / _ACCEL (the Agility-above-5 hold-for-height assist) are module-level
+    // now: a unit's jump gets the same assist (see the unit's gravity step).
     const CROUCH_DODGE_RANGE = 140;   // px — how close an incoming shot has to be for a crouch-capable enemy to try ducking
     const DODGE_LOOKOUT_RANGE = 200;  // px — how far out an enemy notices an incoming shot at all. Wider than the duck-only value above, because a JUMP needs lead time to actually get off the ground before the shot arrives.
     const CROUCH_HOLD_FRAMES = 24;    // how long a dodge-crouch holds once triggered, absent a fresh threat
@@ -11582,9 +11624,8 @@ export default function AssetStudio() {
       // means slow, high stat genuinely means fast — the previous version floored EVERY stat
       // value at 2× base and only went up from there, so even Speed 1 was already faster than
       // an unscaled character, which is what "sends you to the moon" was actually describing.
-      const speedStat = Math.min(10, Math.max(1, pstats.speed));
-      const speedMul = 0.6 + (speedStat - 1) * 0.1;
-      const speed = (crouch ? 3.5 : 7) * speedMul * dtMul; // px per 60fps-frame — dtMul makes this real-time, not per-rendered-frame
+      // (playerWalkSpeed — the same function a dressed look walking as a unit is moved by.)
+      const speed = playerWalkSpeed(pstats.speed, crouch) * dtMul; // px per 60fps-frame — dtMul makes this real-time, not per-rendered-frame
       // Jump height is specified directly in BLOCKS, not as a multiplier: 1 block at Agility 1,
       // rising half a block per point (1.5 at 2, 2 at 3, ... 3 at baseline 5, 5.5 at 10).
       // Converted to launch velocity via h = v²/2g (inverted: v = √(2gh)) so a stated block
@@ -12093,6 +12134,24 @@ export default function AssetStudio() {
       // or wall-avoidance yet — Seek/Avoid move in a straight line toward/away from the player,
       // so terrain can still block or trap them; that's a later pass, same as attacks are.
       if (lv.enemies) {
+        // 🟣 ALLY HEALTH WORN BY A UNIT raises the maximum HP of everything fighting on ITS side, the
+        // way yours raises your allies' (2026-09-28, Blake: "Enemies get all of the stats and
+        // abilities of their dressed Character") — a hostile Roberta or Bobert in the kit makes the
+        // other hostiles tougher, and one fighting for you makes your other allies tougher. What
+        // each LIVING wearer hands out is summed per side here, once a frame; the per-unit pass
+        // below pays it by applyAllyHPBonus, the player's own once-only, no-farming rule, on a
+        // channel of its own (ep.sideHpBonus / ep.sideHpGranted). A wearer never counts its own
+        // item (yours does not raise yours), and a dead one hands out nothing, so killing the
+        // leader trims the others back to their own ceiling, exactly as taking yours off trims
+        // your allies.
+        const sideAllyHp = { hostile: 0, friendly: 0 };
+        for (const k0 of Object.keys(lv.enemies)) {
+          const ep0 = enemyPos.current[k0]; if (!ep0) continue;
+          if (enemyHP.current[k0] !== undefined && enemyHP.current[k0] <= 0) continue;
+          const ea0 = unitAssetAt(k0, lv.enemies[k0]); if (!ea0) continue;
+          const b0 = allyMaxHPBonus(ea0.effects); if (!b0) continue;
+          const s0 = unitSide(ea0, ep0); if (s0 === "hostile" || s0 === "friendly") sideAllyHp[s0] += b0;
+        }
         for (const k of Object.keys(lv.enemies)) {
           if (enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0) {
             // A DEFEATED BODY STILL FALLS. This whole per-enemy block used to be skipped the
@@ -12167,6 +12226,17 @@ export default function AssetStudio() {
             if (unitTalkImmune(ep) && ep.lastHp != null && hpNow < ep.lastHp) enemyHP.current[k] = ep.lastHp;
             else ep.lastHp = hpNow;
           }
+          // ...and what its own side's 🟣 Ally Health wearers owe it (see sideAllyHp above). Only when
+          // the figure changes, and never into a body (a corpse is not topped up — applyAllyHPBonus).
+          {
+            const mySide = unitSide(ea, ep);
+            const want = (mySide === "hostile" || mySide === "friendly") ? Math.max(0, sideAllyHp[mySide] - allyMaxHPBonus(ea.effects)) : 0;
+            if (want !== (ep.sideHpBonus || 0) && !(enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0)) {
+              const ownMax = enemyMaxHP(ea) + ((ep.friendly) ? Math.max(0, Math.round(allyHpBonus || 0)) : 0);
+              const r = applyAllyHPBonus(enemyHP.current[k] === undefined ? ownMax : enemyHP.current[k], ownMax, want, ep.sideHpGranted);
+              enemyHP.current[k] = r.hp; ep.sideHpGranted = r.granted; ep.sideHpBonus = want;
+            }
+          }
           const oldEph = ep.crouch ? crouchEph : standEph;
           // TACKLE (clothing ability): walking into this enemy puts it on the floor for a few
           // seconds and does no damage at all. Resolved at the TOP of the enemy's own update so
@@ -12203,6 +12273,11 @@ export default function AssetStudio() {
           // same tackleSecsOf the player's own lookup uses, so a dressed 👹 Enemy in a football kit
           // gets the ability on exactly the terms Bob does.
           const eTackleSecs = tackleSecsOf(ea);
+          // The movement abilities THIS unit is wearing, picked the way the player's are (the first
+          // of each kind): ⤴️ Double Jump, used in the dodge below, and 🪂 Glide, in its fall.
+          const eDoubleJump = (ea.effects || []).find((e) => e && e.type === "doubleJump") || null;
+          const eGlide = (ea.effects || []).find((e) => e && e.type === "glide") || null;
+          if (ep.onGround || ep.topdown) { ep.extraJumped = false; ep.djGravMul = 1; } // landing hands the extra jump back, as it does yours
           const ew = spawnWeaponFor(spawn, ea); // the weapon THIS PLACEMENT is holding — the level's choice wins over the look's own, and "bare hands" is a choice (spawnWeaponIdOf)
           const rangedEnemy = !!(ew && isRanged(ew.wtype));
           // Enemies use the same clip and reload-time settings as the gun itself (including any
@@ -12248,7 +12323,16 @@ export default function AssetStudio() {
               if (!ep.dodgeRolled) { ep.willDodge = Math.random() < enemyDodgeChance(eIntel); ep.dodgeRolled = true; }
               if (ep.willDodge) {
                 if (threat === "crouch" && canCrouch) { ep.crouch = true; ep.crouchT = CROUCH_HOLD_FRAMES; }
-                else if (threat === "jump" && ep.onGround && !ep.crouch) { if (ep.topdown) ep.tdJumpY = ep.y; ep.vy = -enemyJumpVelocity(ea.stats?.agility, CH); ep.onGround = false; } // hopping off a 🚶 Top-down plane remembers the line it left, so it lands back on it
+                else if (threat === "jump" && ep.onGround && !ep.crouch) { if (ep.topdown) ep.tdJumpY = ep.y; ep.vy = -enemyJumpVelocity(ea.stats?.agility, CH); ep.onGround = false; ep.jumpHoldT = 0; } // hopping off a 🚶 Top-down plane remembers the line it left, so it lands back on it
+                // ⤴️ DOUBLE JUMP ON A UNIT: its one extra mid-air jump, used the way a player would
+                // — the first hop was not enough and it is coming back DOWN into the shot. Same
+                // Height (scaled by its Agility, jumpVelocityScale = your jumpVMulRel) and the same
+                // Speed-on-gravity for that jump only; spent until it lands.
+                else if (threat === "jump" && !ep.onGround && !ep.topdown && ep.vy > 0 && !ep.extraJumped && eDoubleJump) {
+                  ep.vy = -(eDoubleJump.height ?? 9) * jumpVelocityScale(ea.stats?.agility, CH);
+                  ep.extraJumped = true; ep.jumpHoldT = 0;
+                  ep.djGravMul = Math.max(0.4, (eDoubleJump.speed ?? 5) / 5);
+                }
               }
             } else {
               ep.dodgeRolled = false;
@@ -12327,7 +12411,14 @@ export default function AssetStudio() {
             && sideBodyShape(targetEa).heightFrac * (targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW)) <= STOMP_MAX_TARGET_FRAC * standEph;
           if (targetShort && !rangedEnemy) engageRange = Math.min(engageRange, STOMP_REACH_CELLS * CW);
           const distToTarget = targetCX - eCenterXNow;
-          const aiSpeed = unitWalkSpeed(ea.stats?.speed) * dtMul;
+          // A dressed look walks by YOUR rule, crawling at half speed while it ducks, as you do; an
+          // animal keeps its own scale (unitMoveSpeed).
+          const aiSpeed = unitMoveSpeed(ea, ep.crouch) * dtMul;
+          // A tackler's charge used to SPRINT (x1.7) because units walked at a third of your pace and
+          // could never otherwise reach you. A dressed look now walks at yours, and you have no
+          // sprint: you tackle by walking into somebody, so it charges at its walk. (Only dressed
+          // looks can wear Tackle; an animal's gear is loot only.)
+          const chargeSpeed = aiSpeed * (isCreatureUnit(ea) ? TACKLE_CHARGE_SPEED_MUL : 1);
           const ai = friendly ? "seek" : (spawn.ai || ea.ai || "guard"); // friendlies always chase their foe; hostiles keep their set behavior
           // THE FACING THIS UNIT *WANTS*, not the facing it gets. Both rules below used to write
           // straight to ep.face — turn-toward-your-target here, then feet-override-it further down —
@@ -12380,10 +12471,19 @@ export default function AssetStudio() {
           // Following you is not engaging you: it closes or it stands, and it never reverses.
           const following = targetKind === "followPlayer";
           const dxMove = (stunned || !acts || ep.stomp) ? 0   // a stomp plants its feet, the player's rule
-            : charging ? (Math.sign(distToTarget) || ep.face || 1) * aiSpeed * TACKLE_CHARGE_SPEED_MUL
+            : charging ? (Math.sign(distToTarget) || ep.face || 1) * chargeSpeed
             : following ? allyFollowIntent(gapSigned, ALLY_FOLLOW_RANGE_CELLS * CW, aiSpeed, ep.following)
             : enemyMoveIntent(ai, gapSigned, engageRange, aiSpeed, detected);
           if (following) ep.following = dxMove !== 0; else ep.following = false;
+          // 🛼 SLIDE ON A UNIT: its feet EASE toward where it means to go at the item's Grip, and it
+          // coasts when it stops, instead of snapping to speed and halting dead — the player's own
+          // ground rule (horizVel), called with the unit's intent. dxMove stays the INTENT (what
+          // it faces and whether it is following); stepX is where its feet actually go. Off the
+          // ground a unit steers as it always has. (The item's Downhill setting multiplies the pull a
+          // ramp gives the PLAYER; units have no ramp pull to multiply, so there it has nothing to do.)
+          const eSlide = slideState((ea.effects || []).find((e) => e && e.type === "slide") || null);
+          const stepX = (eSlide && (ep.onGround || ep.topdown)) ? horizVel({ left: dxMove < 0, right: dxMove > 0 }, Math.abs(dxMove), true, ep.slideVx || 0, null, eSlide, dtMul) : dxMove;
+          ep.slideVx = stepX;
           // The feet's say, on top of the turn-toward above — then the one and only write, gated by
           // holdFacing so a facing the unit wanted for a single frame never reaches the sprite.
           wantFace = enemyFaceThisFrame(wantFace, dxMove, enemyAttackCommitted(ep));
@@ -12404,8 +12504,8 @@ export default function AssetStudio() {
           // edges, its floor, its ramps and its top-down planes are the ones that apply to it; the
           // solid cells come from the whole world, so a body straddling a seam feels both sides.
           const ePart = worldPartAt(worldParts, ep.x + epw / 2, ep.y + newEph / 2, CW);
-          if (dxMove) {
-            const nx = unitClampX(ePart, ep.x + dxMove, epw, ep.y + newEph / 2, lv, seams, CW);
+          if (stepX) {
+            const nx = unitClampX(ePart, ep.x + stepX, epw, ep.y + newEph / 2, lv, seams, CW);
             // RAMPS ARE WALKED, NOT CLIMBED LIKE STAIRS (2026-09-26 — part of "enemies need to be less
             // teleporty"). A ramp cell is not solid; the hill's backing under it is. So a unit walking
             // up a hill walked INTO that backing a column at a time, and the step-up below lifted it
@@ -12489,14 +12589,27 @@ export default function AssetStudio() {
               const inBox = new Set(cellsHitW(ep.x, ep.y, epw, newEph).map((h) => h.r + "," + h.c));
               const canStand = (feet) => topdownAt(eStand.lv, ep.x - eStand.ox, feet - eStand.oy, epw, CW, CH)
                 && (feet <= feet0 || !cellsHitW(ep.x, feet - newEph, epw, newEph).some((h) => !inBox.has(h.r + "," + h.c)));
-              const feet1 = topdownStepToward(feet0, tLine, charging ? aiSpeed * TACKLE_CHARGE_SPEED_MUL : aiSpeed, canStand);
+              const feet1 = topdownStepToward(feet0, tLine, charging ? chargeSpeed : aiSpeed, canStand);
               eTdStep = Math.abs(feet1 - feet0);
               ep.y = feet1 - newEph;
             }
           } else {
             // Gravity + ground collision — identical rule to the player's own fall, reusing the
             // same generic cell test so enemies land on and are stopped by the same terrain.
-            ep.vy = Math.min(60, ep.vy + 0.175 * dtMul);
+            // ...including what the player's jump gets on top (2026-09-28, "no differences"): the
+            // Agility-above-5 assist through the first fifth of a second of a hop (a unit's hop is
+            // always held — see JUMP_HOLD_BOOST_FRAMES), a ⤴️ double jump's own gravity, and 🪂
+            // Glide — gravity cut to the item's Fall whenever it is dropping, the player's glide with
+            // Jump held (a unit never lets go of it).
+            if (ep.vy < 0 && (ep.jumpHoldT ?? JUMP_HOLD_BOOST_FRAMES) < JUMP_HOLD_BOOST_FRAMES) {
+              const eAgi = Math.min(10, Math.max(1, ea.stats?.agility ?? 5));
+              if (eAgi > 5) ep.vy -= (eAgi - 5) * JUMP_HOLD_BOOST_ACCEL * dtMul;
+              ep.jumpHoldT += dtMul;
+            }
+            const eGlideNow = glideState(eGlide, { jump: true }, false, false, ep.vy);
+            ep.gliding = !!(eGlideNow && eGlideNow.active);
+            const eGravMul = ep.gliding ? eGlideNow.fall : ((ep.extraJumped && ep.djGravMul) ? ep.djGravMul : 1);
+            ep.vy = Math.min(60, ep.vy + 0.175 * dtMul * eGravMul);
             ep.y += ep.vy * dtMul;
             // THE RAMP FIRST, in the player's order (slopeSurfaceForPlayer, then flat landing): the
             // surface nearest the feet within what they could reach this frame — up the few pixels a
@@ -12505,7 +12618,7 @@ export default function AssetStudio() {
             // back onto it. Asked of the unit's own level, in that level's pixels.
             let eOnRamp = false;
             if (ep.vy >= 0) {
-              const sHit = slopeSurfaceForPlayer(eStand.lv, ep.x + epw / 2 - eStand.ox, ep.y - eStand.oy, ep.y + newEph - eStand.oy, ep.vy, dxMove, dtMul, CW, CH);
+              const sHit = slopeSurfaceForPlayer(eStand.lv, ep.x + epw / 2 - eStand.ox, ep.y - eStand.oy, ep.y + newEph - eStand.oy, ep.vy, stepX, dtMul, CW, CH);
               if (sHit) { ep.y = sHit.y + eStand.oy - newEph; ep.vy = 0; ep.onGround = true; eOnRamp = true; }
             }
             if (!eOnRamp) {
@@ -12615,7 +12728,11 @@ export default function AssetStudio() {
           // "simply lose HP" here, which is how a dressed enemy's armour came to do nothing.
           // Parametrised by the body, not by the chosen target, so a swing can land on everybody
           // standing in it.
-          const applyHitTo = (kind, key, bEp, bEa, rawDmg) => {
+          // THE CRIT IS ROLLED HERE, off THIS unit's Intelligence, once per body a blow lands on —
+          // exactly where and how your own swing and stomp roll theirs (critChance, x2 before the
+          // target's armour). Units used to never crit ("no unit attack crits"); Blake, 2026-09-28:
+          // "there shouldn't be any differences … Stats should too."
+          const applyHitTo = (kind, key, bEp, bEa, rawDmg0) => {
             if (kind === "player") {
               if (p.invuln > 0) return false;
               // Guard up (Q/V with a melee weapon): a blow onto your front is turned aside for
@@ -12632,7 +12749,9 @@ export default function AssetStudio() {
                 flash("🛡️ Blocked " + (ea.name || "the hit") + "! — 💫 staggered");
                 return true;
               }
-              const dmg = incomingPlayerDamage(rawDmg, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(ew && ew.ignoreArmor));
+              const crit = Math.random() < critChance(eIntel);
+              const dmg = incomingPlayerDamage(crit ? rawDmg0 * 2 : rawDmg0, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(ew && ew.ignoreArmor));
+              const critNote = crit ? "💥 Critical! " : "";
               playerHP.current = Math.max(0, playerHP.current - dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
               if (playerHP.current <= 0) { playerDefeated(p, "💀 " + ea.name + " defeated you — back to the start."); }
@@ -12644,15 +12763,17 @@ export default function AssetStudio() {
                 // theirs was an ordinary stick. Same 💫 channel, same seconds off the same slider.
                 // Deliberately inside the else and behind the i-frame and block gates above: a hit
                 // that killed you, that never landed, or that you turned aside cannot daze you.
-                if ((ew?.stun ?? 0) > 0) { stunPlayer(p, ew.stun); flash("👹 " + ea.name + " hit you for " + dmg + " — 💫 stunned for " + ew.stun + "s (" + playerHP.current + " HP left)"); }
-                else flash("👹 " + ea.name + " hit you for " + dmg + " (" + playerHP.current + " HP left)");
+                if ((ew?.stun ?? 0) > 0) { stunPlayer(p, ew.stun); flash(critNote + "👹 " + ea.name + " hit you for " + dmg + " — 💫 stunned for " + ew.stun + "s (" + playerHP.current + " HP left)"); }
+                else flash(critNote + "👹 " + ea.name + " hit you for " + dmg + " (" + playerHP.current + " HP left)");
               }
               return true;
             }
             if (kind === "unit" && key) {
               if (unitUntouchable(bEp)) return false; // mid-revive: the swing finds nobody, exactly as the player's i-frames read just above
               const cur = enemyHP.current[key] === undefined ? unitMaxHP(bEa, bEp, allyHpBonus) : enemyHP.current[key];
-              enemyHP.current[key] = Math.max(0, cur - incomingUnitDamage(rawDmg, bEa, bEp, atkCX, unitCenterX(bEa, bEp, CW), !!(ew && ew.ignoreArmor)));
+              const crit = Math.random() < critChance(eIntel);
+              enemyHP.current[key] = Math.max(0, cur - incomingUnitDamage(crit ? rawDmg0 * 2 : rawDmg0, bEa, bEp, atkCX, unitCenterX(bEa, bEp, CW), !!(ew && ew.ignoreArmor)));
+              if (bEp) bEp.lastHitByFx = ea.effects || null; // who struck it, for a 🍀 Lucky Find the striker wears (the loot pass)
               if (enemyHP.current[key] <= 0) flash(friendly ? (allyBadge(ep) + " Your " + ea.name + " defeated " + (bEa.name || "a foe") + "!") : ("💔 Your " + (bEa.name || "ally") + " fell."));
               return true;
             }
@@ -12697,9 +12818,10 @@ export default function AssetStudio() {
             return stompTargets({ x: ep.x + (eShape.centerFrac * eRenderW - epw / 2), w: epw, feetY: ep.y + newEph, standH: standEph, face: ep.face, cellPx: CW, bodies });
           };
           // The stomp's clock, the player's rules exactly: the foot lands on ONE frame, on whatever
-          // is under it at that moment, once per body, for stompDamage off this unit's own Strength
-          // (no crit — no unit attack crits). applyHitTo is the one damage sink every unit hit
-          // already goes through, so the revive window, the death flash and the loot all follow.
+          // is under it at that moment, once per body, for stompDamage off this unit's own Strength,
+          // with the crit your stomp rolls (applyHitTo rolls it off this unit's Intelligence).
+          // applyHitTo is the one damage sink every unit hit already goes through, so the revive
+          // window, the death flash and the loot all follow.
           if (ep.stomp) {
             const prevT = ep.stomp.t;
             ep.stomp.t += dtMul;
@@ -12771,6 +12893,7 @@ export default function AssetStudio() {
                 // fighting. The very same `foe` channel a shot already carries, so ONE flag decides
                 // who every payload of it lands on and the two sides cannot drift apart.
                 foe: hostile,
+                throwerFx: ea.effects || null, // for a 🍀 Lucky Find the thrower wears (the loot pass)
               });
               ep.throwLeft -= 1;
               // Randomised on top of the floor so a line of grenadiers doesn't volley in lockstep.
@@ -12781,6 +12904,67 @@ export default function AssetStudio() {
               flash("💣 " + (ea.name || "An enemy") + " threw " + (eThrowable.name || "a grenade") + (ep.throwLeft ? "" : " — its last one"));
             }
           }
+          // ONE SHOT FROM THIS UNIT'S GUN, aimed at its target as it is THIS frame. A function because a
+          // burst fires the rest of its rounds on later frames (see the burst below), and every round of
+          // it is the same shot as the first.
+          const fireUnitShot = () => {
+            const projAsset = ew.projectileId ? findA(ew.projectileId) : null;
+            let drawnPieces = null, hitboxPiece = null, sizeUnits = 1;
+            if (projAsset) {
+              const front = (projAsset.angles && projAsset.angles.front) || [];
+              drawnPieces = front.filter((pc) => !pc.isHitbox);
+              hitboxPiece = front.find((pc) => pc.isHitbox) || null;
+              sizeUnits = projAsset.size || 1;
+            }
+            const spd = ew.projectileSpeed ?? 12;
+            // A unit holding its gun at a ✋ hold point fires from the barrel (enemyHeldMuzzleAt);
+            // everyone else from the chest, exactly as before. Its line is solved from the
+            // barrel too, and its facing — already turned onto the target just above — is the
+            // direction, since a barrel poking past a close target would otherwise flip it.
+            const eMuzzle0 = enemyHeldMuzzleAt(ea, ew, ep, newEph, eRenderW, 0);
+            const sx = eMuzzle0 ? eMuzzle0.x : eCenterXFinal, sy = eMuzzle0 ? eMuzzle0.y : ep.y + newEph * 0.42;
+            const rangePx = Math.max(1, ew.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW * rangeBoostMultiplier(ea.effects); // 🎯 Long Shot it is wearing, as yours does
+            // THE SAME LOCK-ON THE PLAYER GETS (aimAssistAngle), pointed the other way. A unit
+            // used to fire along the straight line to its target's aim point — a line that
+            // ignores the drop the shot actually takes, so past half its range every shot fell
+            // short of you, and one at a body whose drawn centre isn't where the line was
+            // pointed (a crouching ally, a dog) sailed over. Its "held direction" is that
+            // straight line, expressed in the facing frame the solver works in (dir·cos, sin);
+            // the targets are whoever this side's shot can register on — you and your
+            // friendlies for a hostile, hostiles for a friendly — and the nearest body inside
+            // the cone gets the real arc solved onto its centre. Cover still wins: the path is
+            // probed with the shot's own solid test, so a unit never bends a round into a wall
+            // between you. Nothing in the cone (or nothing reachable) = the straight line it
+            // always fired, unchanged.
+            const dir = eMuzzle0 ? (ep.face || 1) : (Math.sign(tgtAimCX - sx) || ep.face || 1);
+            const lineDeg = Math.atan2(tgtAimCY - sy, Math.abs(tgtAimCX - sx)) * 180 / Math.PI;
+            const eAssist = aimAssistAngle({ sx, sy, groundY: ep.y + newEph, rangePx, face: dir, aimDeg: lineDeg, targets: shotTargetsFor(hostile, false, k), clear: shotPathProbe });
+            const shotDeg = eAssist ? eAssist.deg : lineDeg;
+            const shotRad = shotDeg * Math.PI / 180;
+            const vx = dir * Math.cos(shotRad) * spd, vy = Math.sin(shotRad) * spd;
+            // Facing-frame degrees the shot left the level line by (+ = down). The render
+            // tilts the aim arm by it for the swing frames, the way p.firing.aimTilt does
+            // for the player, so the gun visibly snaps onto whoever it is shooting.
+            ep.shotTilt = shotDeg;
+            // The arm tilts by that much, which swings the barrel round the grip — so the round
+            // leaves the barrel where it is drawn at the tilt, the way the player's re-read does.
+            const eShotAt = (eMuzzle0 && enemyHeldMuzzleAt(ea, ew, ep, newEph, eRenderW, shotDeg)) || { x: sx, y: sy };
+            projectiles.current.push({
+              x: eShotAt.x, y: eShotAt.y, vx, vy,
+              startX: eShotAt.x, startY: eShotAt.y, groundY: ep.y + newEph, rangePx, traveled: 0,
+              char: ew.projectile?.char || "🔥", tint: ew.projectile?.tint || null,
+              pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece,
+              rot: Math.atan2(vy, vx) * 180 / Math.PI, size: sizeUnits,
+              damage: enemyAttackDamage(ea, ew), life: 0, foe: hostile,
+              // Its crit is rolled where it LANDS, off the shooter's Intelligence — your own shot's
+              // rule, which rolls yours at the impact too. shooterFx names the effects it was fired
+              // under, so a 🍀 Lucky Find the shooter wears counts the kill (the loot pass).
+              critInt: eIntel, shooterFx: ea.effects || null,
+              ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: shotPierces(ew, ea.effects),
+              explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeChar: ew.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
+            });
+            ep.weaponAmmo = consumeShot(ep.weaponAmmo, weaponFireCooldownFrames(ew.fireRate));
+          };
           // Ranged units visibly TRACK their target: aimHold keeps the arm raised in the aim pose
           // the whole time the target is in their sights, not just the shot frame.
           if (inSight && rangedEnemy && !ep.reloading) ep.aimHold = 14; else if (ep.aimHold > 0) ep.aimHold -= dtMul;
@@ -12807,58 +12991,11 @@ export default function AssetStudio() {
                   // Shoots at the target, aimed from its own chest. The shot is flagged for the side
                   // it should hurt: a hostile's shot is `foe` (tested against you AND your friendlies),
                   // a friendly's shot is a normal player-side shot (tested against hostiles).
-                  const projAsset = ew.projectileId ? findA(ew.projectileId) : null;
-                  let drawnPieces = null, hitboxPiece = null, sizeUnits = 1;
-                  if (projAsset) {
-                    const front = (projAsset.angles && projAsset.angles.front) || [];
-                    drawnPieces = front.filter((pc) => !pc.isHitbox);
-                    hitboxPiece = front.find((pc) => pc.isHitbox) || null;
-                    sizeUnits = projAsset.size || 1;
-                  }
-                  const spd = ew.projectileSpeed ?? 12;
-                  // A unit holding its gun at a ✋ hold point fires from the barrel (enemyHeldMuzzleAt);
-                  // everyone else from the chest, exactly as before. Its line is solved from the
-                  // barrel too, and its facing — already turned onto the target just above — is the
-                  // direction, since a barrel poking past a close target would otherwise flip it.
-                  const eMuzzle0 = enemyHeldMuzzleAt(ea, ew, ep, newEph, eRenderW, 0);
-                  const sx = eMuzzle0 ? eMuzzle0.x : eCenterXFinal, sy = eMuzzle0 ? eMuzzle0.y : ep.y + newEph * 0.42;
-                  const rangePx = Math.max(1, ew.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW;
-                  // THE SAME LOCK-ON THE PLAYER GETS (aimAssistAngle), pointed the other way. A unit
-                  // used to fire along the straight line to its target's aim point — a line that
-                  // ignores the drop the shot actually takes, so past half its range every shot fell
-                  // short of you, and one at a body whose drawn centre isn't where the line was
-                  // pointed (a crouching ally, a dog) sailed over. Its "held direction" is that
-                  // straight line, expressed in the facing frame the solver works in (dir·cos, sin);
-                  // the targets are whoever this side's shot can register on — you and your
-                  // friendlies for a hostile, hostiles for a friendly — and the nearest body inside
-                  // the cone gets the real arc solved onto its centre. Cover still wins: the path is
-                  // probed with the shot's own solid test, so a unit never bends a round into a wall
-                  // between you. Nothing in the cone (or nothing reachable) = the straight line it
-                  // always fired, unchanged.
-                  const dir = eMuzzle0 ? (ep.face || 1) : (Math.sign(tgtAimCX - sx) || ep.face || 1);
-                  const lineDeg = Math.atan2(tgtAimCY - sy, Math.abs(tgtAimCX - sx)) * 180 / Math.PI;
-                  const eAssist = aimAssistAngle({ sx, sy, groundY: ep.y + newEph, rangePx, face: dir, aimDeg: lineDeg, targets: shotTargetsFor(hostile, false, k), clear: shotPathProbe });
-                  const shotDeg = eAssist ? eAssist.deg : lineDeg;
-                  const shotRad = shotDeg * Math.PI / 180;
-                  const vx = dir * Math.cos(shotRad) * spd, vy = Math.sin(shotRad) * spd;
-                  // Facing-frame degrees the shot left the level line by (+ = down). The render
-                  // tilts the aim arm by it for the swing frames, the way p.firing.aimTilt does
-                  // for the player, so the gun visibly snaps onto whoever it is shooting.
-                  ep.shotTilt = shotDeg;
-                  // The arm tilts by that much, which swings the barrel round the grip — so the round
-                  // leaves the barrel where it is drawn at the tilt, the way the player's re-read does.
-                  const eShotAt = (eMuzzle0 && enemyHeldMuzzleAt(ea, ew, ep, newEph, eRenderW, shotDeg)) || { x: sx, y: sy };
-                  projectiles.current.push({
-                    x: eShotAt.x, y: eShotAt.y, vx, vy,
-                    startX: eShotAt.x, startY: eShotAt.y, groundY: ep.y + newEph, rangePx, traveled: 0,
-                    char: ew.projectile?.char || "🔥", tint: ew.projectile?.tint || null,
-                    pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece,
-                    rot: Math.atan2(vy, vx) * 180 / Math.PI, size: sizeUnits,
-                    damage: enemyAttackDamage(ea, ew), life: 0, foe: hostile,
-                    ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: shotPierces(ew, ea.effects),
-                    explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeChar: ew.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
-                  });
-                  ep.weaponAmmo = consumeShot(ep.weaponAmmo, weaponFireCooldownFrames(ew.fireRate));
+                  fireUnitShot();
+                  // 🔫 BURST FIRE: a burst weapon fires its whole burst, burstDelay apart, the way yours
+                  // does (the rest go out below, one per due frame). Units used to fire one round a pull
+                  // whatever the gun, so the Experimental Rifle was a third of itself in their hands.
+                  ep.burstLeft = weaponBurstShotCount(ew) - 1; ep.burstT = burstDelayFrames(ew.burstDelay);
                 } else if (meleeGeom) {
                   ep.swingHit = {}; // weapon-hitbox melee: committing only STARTS the swing; the hits (one per body in the arc) land in the swing test above
                 } else {
@@ -12867,6 +13004,18 @@ export default function AssetStudio() {
                   applyAttackHit(enemyAttackDamage(ea, ew));
                 }
               }
+            }
+          }
+          // ...the rest of a burst: one round each time burstShotDue says so (the player's own test —
+          // burstDelay apart, the fire-rate cooldown not in the way, stopped by an empty clip or a
+          // reload). Dropped the moment the unit is frozen or loses its target, as your burst is
+          // when you stop being able to fire.
+          if ((ep.burstLeft || 0) > 0) {
+            if (stunned || !rangedEnemy || !inSight || !acts) ep.burstLeft = 0;
+            else {
+              ep.burstT = (ep.burstT || 0) - dtMul;
+              if (burstShotDue(ep.burstLeft, ep.burstT, ep.weaponAmmo)) { fireUnitShot(); ep.burstLeft -= 1; ep.burstT = burstDelayFrames(ew.burstDelay); }
+              else if (ep.weaponAmmo && (ep.weaponAmmo.reloadT > 0 || (ep.weaponAmmo.clip > 0 && ep.weaponAmmo.ammo <= 0))) ep.burstLeft = 0;
             }
           }
         }
@@ -13213,6 +13362,7 @@ export default function AssetStudio() {
                     // ...through the unit's own armour, the way their swing at you goes through yours.
                     const dmg = incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, p.x + pw / 2, eHitLeft + epw / 2, !unarmedSwing && !!(playtestWeapon && playtestWeapon.ignoreArmor));
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+                    if (ep) ep.lastHitByFx = null; // the last blow was yours
                     if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon && (playtestWeapon.stun ?? 0) > 0) { ep.stun = Math.round(playtestWeapon.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
                     // Mark THIS body as struck and carry on: the rest of the arc may still be
                     // through somebody else. (Not p.hitRegistered — that would end the whole swing.)
@@ -13251,6 +13401,7 @@ export default function AssetStudio() {
             const isCrit = Math.random() < critChance(pstats.intelligence);
             const dmg = incomingUnitDamage(stompDamage(pstats.strength) * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, b.x + b.w / 2, false);
             enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+            if (ep) ep.lastHitByFx = null; // the last blow was yours
             p.stomp.hits[k] = true;
             if (!notes.length) puffX = b.x + b.w / 2;
             crit = crit || isCrit;
@@ -13399,6 +13550,7 @@ export default function AssetStudio() {
             // The same treatment the player branch just above gets — a rock in the face is a hit.
             const uDmg = incomingUnitDamage(impactDmg, s.ea, s.ep, g.x, unitCenterX(s.ea, s.ep, CW), !!(g.asset && g.asset.ignoreArmor));
             enemyHP.current[s.k] = Math.max(0, enemyHP.current[s.k] - uDmg);
+            if (s.ep) s.ep.lastHitByFx = g.throwerFx || null;
             impactNote += " · 🪨 hit " + s.ea.name + " for " + uDmg
               + (enemyHP.current[s.k] <= 0 ? " — defeated!" : " (" + enemyHP.current[s.k] + " HP left)");
           }
@@ -13581,19 +13733,28 @@ export default function AssetStudio() {
             if (p.invuln <= 0) {
               const pcx = p.x + pw / 2;
               if (blastHitsBox(ix, iy, p.x, p.y, pw, ph, radPx)) {
-                const dmg = incomingPlayerDamage(baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch);
+                // The shooter's crit, rolled here where it lands — your blast rolls yours the same way.
+                const bCrit = pr.critInt != null && Math.random() < critChance(pr.critInt), bNote = bCrit ? "💥 Critical! " : "";
+                const dmg = incomingPlayerDamage(bCrit ? baseDmg * 2 : baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch);
                 playerHP.current = Math.max(0, playerHP.current - dmg);
                 p.invuln = PLAYER_INVULN_FRAMES;
                 if (playerHP.current <= 0) { playerDefeated(p, "💀 Caught in the blast — back to the start."); }
-                else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash("💥 Blast hit for " + dmg + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
-                else flash("💥 Blast hit for " + dmg + " (" + playerHP.current + " HP left)");
+                else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(bNote + "💥 Blast hit for " + dmg + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
+                else flash(bNote + "💥 Blast hit for " + dmg + " (" + playerHP.current + " HP left)");
               }
             }
             for (const k of Object.keys(lv.enemies || {})) {
               const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0) || unitUntouchable(ep)) continue;
               const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
               const bx = enemyBlastBox(ea, ep);
-              if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(baseDmg, ea, ep, ix, bx.x + bx.w / 2)); // armour counts, as it does on you just above
+              if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
+                // Armour counts, as it does on you just above; the shooter's crit and the weapon's
+                // stun land on your ally exactly as yours land on a hostile in the branch below.
+                const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
+                enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(aCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2));
+                ep.lastHitByFx = pr.shooterFx || null;
+                if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
+              }
             }
           } else {
             let hits = 0;
@@ -13607,8 +13768,10 @@ export default function AssetStudio() {
                 // Splash is still a SHOT — flat weapon damage plus the same crit roll as a direct
                 // hit, and nothing else off the shooter. Then THEIR armour, as a blast gets yours.
                 const base = playerRangedDamage(baseDmg);
-                const dmg = incomingUnitDamage((Math.random() < critChance(intelligence)) ? base * 2 : base, ea, ep, ix, bx.x + bx.w / 2);
+                // Whoever fired it: your Intelligence for your shot, a friendly unit's for its own.
+                const dmg = incomingUnitDamage((Math.random() < critChance(pr.critInt ?? intelligence)) ? base * 2 : base, ea, ep, ix, bx.x + bx.w / 2);
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+                ep.lastHitByFx = pr.shooterFx || null;
                 if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
                 hits++;
               }
@@ -13662,12 +13825,14 @@ export default function AssetStudio() {
                 // relative to the way you're facing — a bullet catching you in the back is one
                 // moving the same way you face while coming from behind you. Using the shot's own
                 // x as the attacker position captures exactly that.
-                const dmg = incomingPlayerDamage(pr.damage ?? 5, playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, pr.ignoreArmor);
+                // The shooter's crit, off its Intelligence, rolled where the round lands — yours is.
+                const sCrit = pr.critInt != null && Math.random() < critChance(pr.critInt), sNote = sCrit ? "💥 Critical! " : "";
+                const dmg = incomingPlayerDamage(sCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, pr.ignoreArmor);
                 playerHP.current = Math.max(0, playerHP.current - dmg);
                 p.invuln = PLAYER_INVULN_FRAMES;
                 if (playerHP.current <= 0) { playerDefeated(p, "💀 Shot down — back to the start."); }
-                else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash("🏹 Hit for " + dmg + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
-                else flash("🏹 Hit for " + dmg + " (" + playerHP.current + " HP left)");
+                else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(sNote + "🏹 Hit for " + dmg + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
+                else flash(sNote + "🏹 Hit for " + dmg + " (" + playerHP.current + " HP left)");
                 if (!pr.pierce) return false; // consumed on impact — a 🪡 piercing shot flies on
               } else if (!pr.pierce) return false; // struck an invulnerable player: still consumed, just does nothing
             }
@@ -13684,7 +13849,11 @@ export default function AssetStudio() {
               if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop && pierceFreshHit(pr, k)) {
                 if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
                 if (unitUntouchable(ep)) { if (!pr.pierce) return false; continue; } // 🐱 mid-revive: consumed, does nothing — the same reading an invulnerable player gets
-                enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(pr.damage ?? 5, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor));
+                // The shooter's crit and its weapon's stun, on your ally as yours land on a hostile.
+                const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
+                enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(aCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor));
+                ep.lastHitByFx = pr.shooterFx || null;
+                if (enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
                 if (enemyHP.current[k] <= 0) flash("💔 Your " + ea.name + " fell.");
                 if (!pr.pierce) return false;
               }
@@ -13748,7 +13917,8 @@ export default function AssetStudio() {
               // takes OFF is then decided by the target's armour, exactly as a foe's round into
               // you is by yours (the foe branch above) — see incomingUnitDamage for why.
               const base = playerRangedDamage(pr.damage);
-              const isCrit = Math.random() < critChance(intelligence);
+              const isCrit = Math.random() < critChance(pr.critInt ?? intelligence); // a friendly unit's round crits off ITS Intelligence
+              if (ep) ep.lastHitByFx = pr.shooterFx || null;
               const dmg = incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor);
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
               if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
@@ -13799,7 +13969,11 @@ export default function AssetStudio() {
         // come from the whole item pool (a potion isn't something it was wearing). A worn 🍀 Lucky
         // Find charm gets its tagged roll in first; the ordinary roll only runs when that misses.
         const ownGear = enemyEquippedGear(ea, findA, liveSpawnAt(k, lv.enemies[k]));
-        const lucky = rollTagLuckDrop(allAssets, ownGear, playerAsset?.effects);
+        // ...and so does the charm of the UNIT that landed the last blow, if it wears one (2026-09-28:
+        // a unit gets every ability its look has). Your own charm still counts on every body, as it
+        // always has; a kill by your ally or a foe in Lucky Find kit adds theirs to the roll.
+        const killerFx = (ep && ep.lastHitByFx) || null;
+        const lucky = rollTagLuckDrop(allAssets, ownGear, killerFx ? [...(playerAsset?.effects || []), ...killerFx] : playerAsset?.effects);
         const item = lucky || rollEnemyItemDrop(allAssets, ownGear);
         if (!item) { enemyDrops.current[k] = null; continue; }
         const shape = ea ? sideBodyShape(ea) : { fraction: 1 }, renderW = ea ? enemyRenderW(ea, CW) : CW;

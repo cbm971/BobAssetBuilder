@@ -523,6 +523,14 @@ import {
   topdownStepToward,
 } from "./App";
 import {
+  playerWalkSpeed,
+  unitMoveSpeed,
+  jumpVelocityScale,
+  enemyJumpVelocity,
+  JUMP_HOLD_BOOST_FRAMES,
+  JUMP_HOLD_BOOST_ACCEL,
+  slideState,
+  glideState,
   incomingUnitDamage,
   guardReduceOf,
   unitCenterX,
@@ -5608,10 +5616,10 @@ describe("what the player hits for", () => {
     expect(enemyAttackDamage({ stats: { strength: 10 } }, null)).toBe(4);
   });
 
-  test("an armed enemy is untouched — only the bare-handed number moved", () => {
+  test("an armed enemy's MELEE weapon rides Strength exactly as yours does", () => {
     expect(enemyAttackDamage({ stats: { strength: 5 } }, { damage: 7 })).toBe(7);
     expect(enemyAttackDamage({ stats: { strength: 10 } }, { damage: 7 })).toBe(14);
-    expect(enemyAttackDamage({ stats: { strength: 1 } }, { damage: 7 })).toBeCloseTo(1.4);
+    expect(enemyAttackDamage({ stats: { strength: 1 } }, { damage: 7 })).toBe(playerMeleeDamage(7, 1)); // rounded, as yours is
     expect(enemyAttackDamage({}, { damage: 7 })).toBe(7);    // no stats block means baseline 5
   });
 
@@ -11058,5 +11066,99 @@ describe("the plain box can fire a gun", () => {
   test("nothing in the play code reads the player's effects without asking whether there is a player", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
     expect(src).not.toMatch(/playerAsset\.effects/);
+  });
+});
+
+/* 👹 = 🧍 — A UNIT HAS EVERY STAT AND ABILITY ITS LOOK HAS, BY YOUR RULES (2026-09-28). Blake: "there
+   shouldn't be any differences. Enemies get all of the stats and abilities of their dressed
+   Character. I know 9 lives works. Stats should too." */
+describe("a unit plays by the player's rules", () => {
+  const look = (stats, effects = []) => ({ type: "character", stats: { hp: 5, speed: 5, agility: 5, intelligence: 5, strength: 5, ...stats }, effects });
+  const gun = { wtype: "ranged", damage: 6, categories: ["T1", "Gun", "Army"] };
+  const bat = { wtype: "melee", damage: 7, categories: ["T1", "Meelee", "Weak"] };
+
+  test("a gun hits for its own number whatever the shooter's Strength — your ranged rule", () => {
+    for (const str of [0, 1, 5, 10]) expect(enemyAttackDamage(look({ strength: str }), gun)).toBe(playerRangedDamage(6));
+    expect(enemyAttackDamage(look({ strength: 10 }), gun)).toBe(6); // Army Bob's M16: was 12
+  });
+
+  test("a melee weapon rides Strength, as yours does", () => {
+    for (const str of [1, 5, 10]) expect(enemyAttackDamage(look({ strength: str }), bat)).toBe(playerMeleeDamage(7, str));
+  });
+
+  test("🏹 Tag Damage worn by the unit multiplies its matching weapon, exactly the multiplier yours gets", () => {
+    const armyHat = [{ type: "tagBoost", tag: "gun", mult: 1.5 }];
+    expect(enemyAttackDamage(look({}, armyHat), gun)).toBe(playerRangedDamage(6 * tagDamageMultiplier(armyHat, gun.categories)));
+    expect(enemyAttackDamage(look({}, armyHat), gun)).toBe(9);
+    expect(enemyAttackDamage(look({}, armyHat), bat)).toBe(7); // a Gun hat does nothing for a bat
+    const meleeMask = [{ type: "tagBoost", tag: "meelee", mult: 1.5 }];
+    expect(enemyAttackDamage(look({ strength: 6 }, meleeMask), bat)).toBe(playerMeleeDamage(7 * 1.5, 6));
+  });
+
+  test("bare hands and a creature's bite are unchanged", () => {
+    expect(enemyAttackDamage(look({ strength: 10 }), null)).toBe(playerMeleeDamage(UNARMED_DAMAGE, 10));
+    expect(enemyAttackDamage({ type: "enemy", stats: { strength: 8 } }, null)).toBe(creatureMeleeDamage(8));
+  });
+
+  test("a dressed look walks at YOUR speed for its Speed stat, crouched at half", () => {
+    for (const sp of [-1, 0, 1, 3, 5, 7, 10, 13]) {
+      expect(unitMoveSpeed(look({ speed: sp }), false)).toBeCloseTo(playerWalkSpeed(sp, false), 9);
+      expect(unitMoveSpeed(look({ speed: sp }), true)).toBeCloseTo(playerWalkSpeed(sp, true), 9);
+    }
+    expect(playerWalkSpeed(5, false)).toBe(7);
+    expect(playerWalkSpeed(5, true)).toBe(3.5);
+    expect(unitMoveSpeed(look({ speed: 0 }), false)).toBeGreaterThan(0); // Army Bob walks, as he does for you
+  });
+
+  test("an animal keeps its own speed scale (the Squirrel is still faster than the dog)", () => {
+    const squirrel = { type: "enemy", stats: { speed: 14 } }, dog = { type: "enemy", stats: { speed: 10 } };
+    expect(unitMoveSpeed(squirrel, false)).toBeCloseTo(unitWalkSpeed(14), 9);
+    expect(unitMoveSpeed(squirrel, false)).toBeGreaterThan(unitMoveSpeed(dog, false));
+  });
+
+  test("the player's own loop walks through the same function", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toContain("const speed = playerWalkSpeed(pstats.speed, crouch) * dtMul;");
+    expect(src).toContain("const aiSpeed = unitMoveSpeed(ea, ep.crouch) * dtMul;");
+  });
+
+  test("a unit's jump is the player's: same height, same Agility scaling for Double Jump", () => {
+    expect(jumpVelocityScale(5, 30)).toBeCloseTo(1, 9);
+    expect(jumpVelocityScale(10, 30)).toBeGreaterThan(1);
+    expect(enemyJumpVelocity(10, 30)).toBeGreaterThan(enemyJumpVelocity(5, 30));
+    expect(JUMP_HOLD_BOOST_FRAMES).toBe(12);
+    expect(JUMP_HOLD_BOOST_ACCEL).toBeCloseTo(0.022, 9);
+  });
+
+  test("🪂 Glide on a unit reads as your glide with Jump held; 🛼 Slide eases its feet the way yours ease", () => {
+    const cape = { type: "glide", fall: 0.35, control: 1 };
+    expect(glideState(cape, { jump: true }, false, false, 2).fall).toBeCloseTo(0.35, 9); // falling: glides
+    expect(glideState(cape, { jump: true }, false, false, -2)).toBe(null);               // rising: not yet
+    const skates = slideState({ grip: 0.15, slope: 2 });
+    const step = horizVel({ left: false, right: true }, 7, true, 0, null, skates, 1);
+    expect(step).toBeGreaterThan(0);
+    expect(step).toBeLessThan(7);                                                       // eases up to speed
+    expect(horizVel({ left: false, right: false }, 7, true, 7, null, skates, 1)).toBeGreaterThan(0); // coasts
+  });
+
+  test("🟣 Ally Health on a unit raises its side's ceiling on a channel of its own", () => {
+    const ea = look({ hp: 5 });
+    expect(unitMaxHP(ea, { sideHpBonus: 10 }, 0)).toBe(enemyMaxHP(ea) + 10);
+    expect(unitMaxHP(ea, { friendly: true, sideHpBonus: 10 }, 5)).toBe(enemyMaxHP(ea) + 15); // both channels
+    expect(unitMaxHP(ea, {}, 0)).toBe(enemyMaxHP(ea));
+    // paid once, trimmed when the wearer goes — the player's own rule, applyAllyHPBonus
+    const paid = applyAllyHPBonus(25, 25, 10, 0);
+    expect(paid).toEqual({ hp: 35, granted: 10, max: 35 });
+    const trimmed = applyAllyHPBonus(35, 25, 0, paid.granted);
+    expect(trimmed.hp).toBe(25);
+    expect(applyAllyHPBonus(25, 25, 10, trimmed.granted).hp).toBe(25); // no second payment
+  });
+
+  test("every unit's shot carries its shooter's Intelligence for the crit, and Long Shot on its range", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toContain("critInt: eIntel, shooterFx: ea.effects || null,");
+    expect(src).toContain("* CW * rangeBoostMultiplier(ea.effects);");
+    expect(src).toContain("const crit = Math.random() < critChance(eIntel);"); // swings, bites and stomps
+    expect(src).toContain("ep.burstLeft = weaponBurstShotCount(ew) - 1;");      // the whole burst
   });
 });
