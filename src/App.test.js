@@ -125,6 +125,15 @@ import {
   pieceTextureStyle,
   textureBaseColor,
   textureDataUri,
+  textureCapUri,
+  cellPaintStyle,
+  cellBand,
+  cellBandAt,
+  textureBandAt,
+  girderGeom,
+  girderTile,
+  GIRDER_MAX_DEPTH,
+  TEX_SWATCH_BAND,
   CLUSTER_POP_VY,
   CLUSTER_SPREAD_VX,
   clusterBombletVelocity,
@@ -2611,6 +2620,209 @@ describe("stained glass texture", () => {
     expect(textureDataUri(base)).toBe(textureDataUri(newTexture("stainedGlass")));
     expect(textureDataUri({ ...base, colors: { ...base.colors, d: "#112233" } })).not.toBe(textureDataUri(base));
     expect(textureDataUri({ ...base, params: { ...base.params, pieces: 1 } })).not.toBe(textureDataUri(base));
+  });
+});
+
+describe("steel girder texture", () => {
+  const girder = { ...newTexture("girder"), id: "gd" };
+  const lib = [girder];
+  const render = (params, depth = 1, colors) =>
+    TEXTURES.girder.svg({ ...girder.colors, ...(colors || {}) }, girderTile(depth), { ...girder.params, ...(params || {}) }, depth);
+  const G = (r, c, extra) => ({ c: "#d8214c", tex: "gd", ...(extra || {}) });
+  const column = (rows, r0 = 3, c = 5) => Object.fromEntries(Array.from({ length: rows }, (_, i) => [(r0 + i) + "," + c, G()]));
+
+  test("is registered, so both the level and the piece pickers offer it", () => {
+    expect(TEXTURE_KEYS).toContain("girder");
+    expect(TEXTURES.girder.label).toBe("Steel girder");
+    expect(newTexture("girder").tex).toBe("girder");
+    expect(Object.keys(girder.colors).sort()).toEqual(["backing", "dark", "light", "rust", "steel"]);
+    expect(textureBaseColor(girder)).toBe(girder.colors.steel);
+  });
+
+  test("each depth is DRAWN for that depth: exactly that many rows tall, a whole number of bays wide", () => {
+    for (let d = 1; d <= GIRDER_MAX_DEPTH; d++) {
+      const g = girderGeom(d);
+      expect(g.H).toBe(30 * d);
+      expect(g.W % g.B).toBe(0);              // the truss runs straight on across every repeat
+      expect(girderTile(d)).toEqual([g.W, g.H]);
+    }
+    expect(TEXTURES.girder.tile).toEqual(girderTile(1));
+    // Bigger triangles, not a stretched one-row girder: the bays grow far faster than the chords.
+    expect(girderGeom(2).B).toBeGreaterThan(girderGeom(1).B * 1.8);
+    expect(girderGeom(4).f).toBeLessThan(girderGeom(1).f * 2.5);
+    // gusset plates only once there is room for them
+    expect(render({}, 1)).not.toBe(render({}, 2));
+    expect((render({ rivets: 0 }, 2).match(/<polygon/g) || []).length).toBeGreaterThan((render({ rivets: 0 }, 1).match(/<polygon/g) || []).length);
+  });
+
+  test("the truss tiles: every strut or plate cut by the tile edge has a twin exactly one tile over", () => {
+    for (const d of [1, 2, 3]) {
+      const W = girderGeom(d).W;
+      const polys = [...render({}, d).matchAll(/<polygon points="([^"]+)" fill="([^"]+)"\/>/g)].map((m) => ({ fill: m[2], pts: m[1].split(" ").map((p) => p.split(",").map(Number)) }));
+      const cut = polys.filter((p) => p.pts.some(([x]) => x < 0 || x > W));
+      expect(cut.length).toBeGreaterThan(3);
+      for (const p of cut) {
+        const sx = p.pts.some(([x]) => x < 0) ? W : -W;
+        // one rounding step of tolerance — each copy rounds its own coordinates to 2dp
+        const twin = polys.some((q) => q.fill === p.fill && q.pts.length === p.pts.length && q.pts.every(([x, y], i) => Math.abs(x - (p.pts[i][0] + sx)) <= 0.011 && Math.abs(y - p.pts[i][1]) <= 0.011));
+        expect(twin).toBe(true);
+      }
+    }
+  });
+
+  test("Backing 0 is see-through: nothing is drawn in the holes and no colour is laid under the tile", () => {
+    expect(render({ backing: 0 })).not.toContain(girder.colors.backing);
+    expect(render({ backing: 1 })).toContain('fill="' + girder.colors.backing + '"');
+    expect(render({ backing: 0.5 })).toContain('opacity="0.5"');
+    expect(cellPaintStyle(G(), 3, 5, lib).backgroundColor).toBe("transparent");
+    // ...on an art piece too, rather than the piece's own colour showing through the holes
+    expect(pieceTextureStyle({ w: 60, h: 30, tex: "gd" }, lib).backgroundColor).toBe("transparent");
+  });
+
+  test("rust only ever lands on metal — clipped to the chords and struts — and Rust 0 draws none", () => {
+    expect(render({ rust: 0 })).not.toContain(girder.colors.rust);
+    for (const d of [1, 2]) {
+      const svg = render({ rust: 1 }, d);
+      const open = svg.indexOf('<g clip-path="url(#m)">'), close = svg.indexOf("</g>", open);
+      expect(open).toBeGreaterThan(-1);
+      expect(svg.slice(open, close)).toContain('fill="' + girder.colors.rust + '"');
+      expect(svg.slice(0, open) + svg.slice(close)).not.toContain(girder.colors.rust);
+      expect(svg.slice(svg.indexOf("<clipPath"), svg.indexOf("</clipPath>"))).toContain("<polygon");   // the struts are in the clip
+    }
+    expect(render({ rust: 0.6 }, 2)).toBe(render({ rust: 0.6 }, 2));   // same patches every time
+  });
+
+  test("Rivets 0 draws none; past the middle there are more of them", () => {
+    const count = (svg) => (svg.match(/<circle /g) || []).length;
+    for (const d of [1, 2]) {
+      expect(count(render({ rivets: 0 }, d))).toBe(0);
+      expect(count(render({ rivets: 1 }, d))).toBeGreaterThan(count(render({ rivets: 0.5 }, d)));
+    }
+  });
+
+  test("a column of girder cells is ONE girder, and a tall stack splits into even ones", () => {
+    expect(textureBandAt(column(1), 3, 5, "gd")).toEqual({ top: 3, depth: 1 });
+    expect(textureBandAt(column(2), 3, 5, "gd")).toEqual({ top: 3, depth: 2 });
+    expect(textureBandAt(column(2), 4, 5, "gd")).toEqual({ top: 3, depth: 2 });
+    const bands = (rows) => { const m = column(rows); return Array.from({ length: rows }, (_, i) => textureBandAt(m, 3 + i, 5, "gd").depth); };
+    expect(bands(4)).toEqual([4, 4, 4, 4]);
+    expect(bands(5)).toEqual([3, 3, 3, 2, 2]);         // 3 + 2, never 4 + a lonely 1
+    expect(bands(8)).toEqual([4, 4, 4, 4, 4, 4, 4, 4]);
+    expect(bands(9)).toEqual([3, 3, 3, 3, 3, 3, 3, 3, 3]);
+    // Another texture above it, or a ramp of the girder below it, is not part of it...
+    const m = { ...column(2), "2,5": { c: "#aaa", tex: "other" }, "5,5": G(5, 5, { slope: 1 }) };
+    expect(textureBandAt(m, 3, 5, "gd")).toEqual({ top: 3, depth: 2 });
+    // ...but a girder painted over another fill still is.
+    const over = { "3,5": G(), "4,5": { ...G(), more: [{ c: "#123456" }] } };
+    expect(textureBandAt(over, 3, 5, "gd")).toEqual({ top: 3, depth: 2 });
+  });
+
+  test("a cell draws its own row's slice of the girder, with end posts only where the girder stops", () => {
+    const map = {};
+    for (const r of [3, 4]) for (const c of [5, 6, 7]) map[r + "," + c] = G();
+    const band = cellBand(map, map["4,5"], 4, 5, lib, 3);   // the whole bottom row as one box
+    expect(band).toEqual({ top: 3, depth: 2, capL: true, capR: true });
+    expect(cellBand(map, map["4,6"], 4, 6, lib, 1)).toEqual({ top: 3, depth: 2, capL: false, capR: false });
+    expect(cellBand(map, map["4,7"], 4, 7, lib, 1)).toEqual({ top: 3, depth: 2, capL: false, capR: true });
+    const g = girderGeom(2), s = cellPaintStyle(map["4,5"], 4, 5, lib, band);
+    expect((s.backgroundImage.match(/url\(/g) || []).length).toBe(3);   // left post, right post, girder
+    expect(s.backgroundImage.endsWith(textureDataUri(girder, 2))).toBe(true);
+    expect(s.backgroundImage.startsWith(textureCapUri(girder, 2, "l"))).toBe(true);
+    expect(s.backgroundSize.split(", ")).toEqual([g.e + "px 60px", g.e + "px 60px", g.W + "px 60px"]);
+    // row 4 is the girder's second row, so the tile is slid up one row; x stays world-anchored
+    expect(s.backgroundPosition.split(", ")).toEqual(["left 0px top -30px", "right 0px top -30px", (-(5 * 30) % g.W) + "px -30px"]);
+    expect(s.backgroundRepeat).toBe("no-repeat, no-repeat, repeat-x");
+    // A different girder beside it is a different girder: both get a post where they meet.
+    const step = { ...map };
+    for (const r of [3, 4, 5]) for (const c of [8, 9]) step[r + "," + c] = G();
+    expect(cellBand(step, step["4,7"], 4, 7, lib, 1).capR).toBe(true);
+    expect(cellBand(step, step["4,8"], 4, 8, lib, 2)).toEqual({ top: 3, depth: 3, capL: true, capR: true });
+    // A ramp is its own shape and keeps the plain one-row look; so does any other texture.
+    expect(cellBand(map, G(4, 5, { slope: 1 }), 4, 5, lib, 1)).toBe(null);
+    expect(cellBand(map, map["4,5"], 4, 5, [], 1)).toBe(null);
+  });
+
+  test("a deep girder must be two columns wide: the blocks under a dragged ramp are stacked beams, not pillars", () => {
+    // The filler rampSpanCells leaves under a 45° slope climbing to the right: one column taller
+    // than the next. Taken column by column that was four different deep girders side by side.
+    const map = {};
+    const cells = rampSpanCells(8, 30, 4, 34, 1).map((x) => [x.r + "," + x.c, x.kind === "ramp" ? G(0, 0, { slope: 1, run: x.run, step: x.step, rise: x.rise, rstep: x.rstep }) : G()]);
+    Object.assign(map, Object.fromEntries(cells));
+    const blocks = cells.filter(([, v]) => !v.slope).map(([k]) => k.split(",").map(Number));
+    expect(blocks.length).toBeGreaterThan(5);
+    for (const [r, c] of blocks) expect(cellBandAt(map, r, c, "gd").depth).toBe(1);
+    // so each row of the filler is one horizontal girder, one box per row
+    const rows = cellRuns(map, lib).filter((x) => x.sig !== null);
+    expect(rows.map((x) => [x.r, x.c, x.span])).toEqual(expect.arrayContaining([[8, 31, 4], [7, 32, 3], [6, 33, 2], [5, 34, 1]]));
+    // A lone column is one-row girders too; a two-wide one stays one deep girder.
+    expect(cellBandAt(column(3), 4, 5, "gd")).toEqual({ top: 4, depth: 1 });
+    const wide = { ...column(3, 3, 5), ...column(3, 3, 6) };
+    expect(cellBandAt(wide, 4, 5, "gd")).toEqual({ top: 3, depth: 3 });
+    expect(cellBandAt(wide, 5, 6, "gd")).toEqual({ top: 3, depth: 3 });
+  });
+
+  test("on a ramp the girder's top chord rides the surface, stepping with it like DK's sloping girders", () => {
+    // A one-row ramp four cells long: the surface stands highest at each cell's right edge, at
+    // 1/4, 2/4, 3/4 and 4/4 of the row, so the girder's top sits 22.5, 15, 7.5 and 0px down.
+    const y = (fill) => cellPaintStyle(fill, 6, 10, lib).backgroundPosition.split(" ")[1];
+    expect([0, 1, 2, 3].map((k) => y(G(6, 10 + k, { slope: 1, run: 4, step: k })))).toEqual(["22.5px", "15px", "7.5px", "0px"]);
+    // falling to the right: the high end is the left one
+    expect([0, 1, 2, 3].map((k) => y(G(6, 10 + k, { slope: -1, run: 4, step: k })))).toEqual(["0px", "7.5px", "15px", "22.5px"]);
+    // an overhang hangs from the ceiling, so its BOTTOM chord follows the underside
+    expect([0, 3].map((k) => y(G(6, 10 + k, { slope: 1, run: 4, step: k, upsideDown: true })))).toEqual(["-22.5px", "0px"]);
+    // a plain 45° ramp is the row's own girder, cut on the diagonal, as before
+    expect(y(G(6, 10, { slope: 1 }))).toBe("0px");
+    // and a level girder is untouched by any of it
+    expect(y(G())).toBe("0px");
+    // A level girder that a slope arrives at — the ramp full height where they meet — carries on
+    // with no end post between them. Beside a slope's LOW end the surface drops away: that girder
+    // really ends, and keeps its post.
+    const map = {
+      "6,8": G(), "6,9": G(), "6,10": G(6, 10, { slope: 1 }), "6,11": G(),
+      "5,19": G(), "5,20": G(5, 20, { slope: 1, run: 4, step: 0 }), "5,23": G(5, 23, { slope: 1, run: 4, step: 3 }), "5,24": G(),
+    };
+    expect(cellBand(map, map["6,11"], 6, 11, lib, 1).capL).toBe(false);   // top of the 45° slope
+    expect(cellBand(map, map["6,8"], 6, 8, lib, 2)).toEqual({ top: 6, depth: 1, capL: true, capR: true });   // its low end
+    expect(cellBand(map, map["5,24"], 5, 24, lib, 1).capL).toBe(false);   // top of the shallow one
+    expect(cellBand(map, map["5,19"], 5, 19, lib, 1).capR).toBe(true);    // its low end
+  });
+
+  test("runs split where a 2-deep girder meets a 3-deep one, and nowhere else", () => {
+    const map = {};
+    for (let c = 0; c < 6; c++) for (let r = 0; r < (c < 3 ? 2 : 3); r++) map[r + "," + c] = G();
+    expect(cellRuns(map, lib).filter((x) => x.r === 0).map((x) => [x.c, x.span])).toEqual([[0, 3], [3, 3]]);
+    expect(cellRuns(map, lib).filter((x) => x.r === 2).map((x) => [x.c, x.span])).toEqual([[3, 3]]);
+    // Without the library a cell cannot know it is a girder: the plain merge, exactly as before.
+    expect(cellRuns(map).filter((x) => x.r === 0).map((x) => x.span)).toEqual([6]);
+    // No other texture ever splits on depth.
+    const brick = { ...newTexture("brick"), id: "br" }, bmap = {};
+    for (const k of Object.keys(map)) bmap[k] = { c: "#8f3b2e", tex: "br" };
+    expect(cellRuns(bmap, [brick]).filter((x) => x.r === 0).map((x) => x.span)).toEqual([6]);
+  });
+
+  test("the band argument changes nothing for any other texture", () => {
+    const brick = { ...newTexture("brick"), id: "br" };
+    const cell = { c: "#8f3b2e", tex: "br" };
+    expect(cellPaintStyle(cell, 2, 3, [brick], TEX_SWATCH_BAND)).toEqual(cellPaintStyle(cell, 2, 3, [brick]));
+    expect(textureDataUri(brick, 3)).toBe(textureDataUri(brick));
+  });
+
+  test("the picker swatch is one two-row girder with both end posts, centred", () => {
+    const s = cellPaintStyle({ c: girder.colors.steel, tex: "gd" }, 0, 0, lib, TEX_SWATCH_BAND);
+    expect((s.backgroundImage.match(/url\(/g) || []).length).toBe(3);
+    expect(s.backgroundPosition.split(", ").every((p) => p.endsWith("50%"))).toBe(true);
+    expect(s.backgroundSize).toContain("60px");
+  });
+
+  test("every colour and slider changes the bytes, and each depth has its own cached tile", () => {
+    expect(textureDataUri(girder)).toBe(textureDataUri({ ...newTexture("girder"), id: "other" }));
+    expect(textureDataUri(girder, 1)).toBe(textureDataUri(girder));
+    expect(textureDataUri(girder, 2)).not.toBe(textureDataUri(girder, 1));
+    expect(textureDataUri(girder, 9)).toBe(textureDataUri(girder, GIRDER_MAX_DEPTH));
+    for (const k of ["rivets", "backing", "rust"]) expect(textureDataUri({ ...girder, params: { ...girder.params, [k]: 0.85 } })).not.toBe(textureDataUri(girder));
+    for (const k of ["steel", "light", "dark"]) expect(textureDataUri({ ...girder, colors: { ...girder.colors, [k]: "#123456" } })).not.toBe(textureDataUri(girder));
+    expect(textureCapUri(girder, 2, "l")).not.toBe(textureCapUri(girder, 2, "r"));
+    expect(textureCapUri(girder, 2, "l")).not.toBe(textureCapUri(girder, 1, "l"));
   });
 });
 

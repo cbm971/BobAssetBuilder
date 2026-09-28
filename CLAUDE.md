@@ -494,6 +494,20 @@ takes: opening the studio on any address pulls the whole library back down.
 `EFFECT_TYPES` (clothing abilities), `TEXTURES` (level textures), `LV_OBJ_SIZES`,
 `PALETTES` (swatch-row colour themes — a new one appears in both pickers for free).
 
+**A texture can be a BAND (2026-09-28: 🏗️ Steel girder, Blake's Donkey Kong girder — the only
+one so far).** Every other `TEXTURES` entry is one tile repeated forever; a band's look depends
+on how much of it is painted. A column of girder cells is ONE girder that many rows deep
+(`textureBandAt`, capped at `GIRDER_MAX_DEPTH` = 4, taller stacks split evenly), drawn from a
+tile made for that depth, with end posts where it stops (`cellBand` → `capL`/`capR`). So the
+renderer needs the map: `cellRuns(map, texLib)` splits a row where the depth changes, and
+`cellOutlineStyle(map, cell, r, c, texLib, span)` needs the run's `span` or the right-hand post
+lands on the run's first cell. A deep girder must be two columns wide (`cellBandAt`) — the filler
+under a dragged ramp came out as a row of pillars otherwise — and on a ramp the top chord rides
+the surface (`rampBandY`), stepping like DK's slopes. `clear: true` means see-through holes: no
+base colour under the tile, on cells and on art pieces. The pickers pass `TEX_SWATCH_BAND` /
+`TEX_CHIP_BAND`; every other texture ignores that argument, so nothing else renders differently.
+Verified in the real editor: 2- and 3-row girders, DK stairs, a brick Background showing through.
+
 **A swatch row has two layers, in this order,** and any new one must keep it:
 `palettePicker(...)`, the palette's own colours, `{swBreak}`, the recents, the `＋`
 picker. `swBreak` is a full-width zero-height `div` that forces a flex wrap, so the

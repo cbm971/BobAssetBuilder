@@ -6612,6 +6612,156 @@ const glassPath = (poly, seed, seeds, i, tw, th, bowAmt, c, inset) => {
 };
 const glassArea = (poly) => { let a = 0; for (let k = 0; k < poly.length; k++) { const p = poly[k], q = poly[(k + 1) % poly.length]; a += p[0] * q[1] - q[0] * p[1]; } return Math.abs(a) / 2; };
 
+// STEEL GIRDER helpers — Blake's Donkey Kong girder (2026-09-28: "reminiscent of this, but bring it
+// to Bob quality"): a top and a bottom chord with a Warren truss of diagonals between them, the
+// chords two-toned the way DK's are (lit top edge, shadowed lower band), and rivets and gusset
+// plates where the members meet.
+//
+// It is the one texture whose look depends on HOW MUCH of it is painted. Every other pattern
+// repeats forever both ways, and a 30px girder that did the same turned his most common platform
+// — two rows thick, 632 of the floating columns in the committed levels against 246 one row thick
+// — into two thin girders stacked on top of each other. So a girder is AS DEEP AS THE PAINT: a
+// column of girder cells is one girder `depth` rows deep, and its tile is DRAWN for that depth
+// (chords a little thicker, triangles much bigger, gusset plates once there is room) rather than
+// scaled up, which would have made a four-row girder's chords four times as fat. A stack taller
+// than GIRDER_MAX_DEPTH splits into girders as even as possible (textureBandAt) — a 23-row wall
+// of one 690px girder is a giant's bridge, not a wall.
+export const GIRDER_MAX_DEPTH = 4;
+export const girderGeom = (depth) => {
+  const d = Math.max(1, Math.min(GIRDER_MAX_DEPTH, Math.round(depth) || 1));
+  const H = LV_CELL * d;
+  const f = Math.round(5 + H * 0.1);           // chord thickness: 8px on a one-row girder, 17 on four
+  const s = Math.round(3 + H * 0.07);          // strut width
+  const web = H - 2 * f;
+  // One bay = one down-pointing and one up-pointing hole. DK's are wide and squat (about 47° on a
+  // one-row girder, sized off his screenshot); a deeper girder's come out nearer the 55-60° a real
+  // Warren truss uses. The tile is a whole number of bays, so the truss runs straight on across
+  // every repeat, at about 128px so the rust has room to not look stamped.
+  const B = Math.round(web * 1.2 + 8);
+  const n = Math.max(1, Math.round(128 / B));
+  return { d, H, f, s, web, B, n, W: B * n, lt: Math.max(1, Math.round(f * 0.2)), db: Math.max(2, Math.round(f * 0.34)), e: s + 3 };
+};
+export const girderTile = (depth) => { const g = girderGeom(depth); return [g.W, g.H]; };
+const svgPoly = (pts, fill) => `<polygon points="${pts.map(([x, y]) => px(x) + "," + px(y)).join(" ")}" fill="${fill}"/>`;
+// A strut's outline between horizontal offsets a..b from its centreline. The centreline runs from
+// the top chord's inner face at xTop to the bottom chord's at xBot and carries on half a chord
+// into each, so the chord drawn over it hides the raw end and no sliver can open at a joint.
+const girderStrut = (g, xTop, xBot, a, b) => {
+  const dy = g.H - 2 * g.f, ex = (xBot - xTop) * (g.f / 2) / dy;
+  const y0 = g.f / 2, y1 = g.H - g.f / 2, x0 = xTop - ex, x1 = xBot + ex;
+  return [[x0 + a, y0], [x0 + b, y0], [x1 + b, y1], [x1 + a, y1]];
+};
+// A rivet is a raised head: a dark shadow down and to the right, the lit head up and to the left.
+// (A dark disc with a light fleck in it — the first try — read as a drilled HOLE at one row deep.)
+const girderRivet = (co, x, y, r) => `<circle cx="${px(x + r * 0.3)}" cy="${px(y + r * 0.3)}" r="${px(r)}" fill="${co.dark}"/><circle cx="${px(x - r * 0.1)}" cy="${px(y - r * 0.1)}" r="${px(r * 0.85)}" fill="${co.light}"/>`;
+const girderSvg = (co, pa, depth) => {
+  const g = girderGeom(depth);
+  const { H, f, s, B, n, W, lt, db } = g;
+  const rivets = Math.max(0, Math.min(1, pa.rivets ?? 0.5));
+  const backing = Math.max(0, Math.min(1, pa.backing ?? 0));
+  const rust = Math.max(0, Math.min(1, pa.rust ?? 0));
+  let out = "";
+  // Backing 0 is see-through: nothing at all is drawn in the holes, and the texture paints no base
+  // colour under itself (`clear`), so the sky or the wall behind shows between the struts — the
+  // way DK's black screen shows through his. Raised, it fills them with its own colour instead.
+  if (backing > 0) out += svgRect(-2, f, W + 4, H - 2 * f, co.backing, backing < 1 ? ` opacity="${px(backing)}"` : "");
+  // Struts, one bay either side of the tile too, so a strut cut by the tile edge is drawn whole on
+  // both sides of the seam. Lit from above: each strut's UNDERSIDE takes a dark edge and its upper
+  // side a lit one, so the down-pointing holes are rimmed in light and the up-pointing ones in
+  // shadow — which is what makes the truss read as bars with thickness rather than a flat zigzag.
+  const dy = H - 2 * f, k1 = Math.hypot(B / 2, dy) / dy;  // horizontal width of one perpendicular px
+  const hw = (s / 2) * k1, sh = Math.min(hw, k1 * (g.d > 1 ? 1.4 : 1)), li = Math.min(hw * 0.6, k1 * (g.d > 1 ? 1.2 : 0.8));
+  let sv = "", clip = "";
+  for (let k = -1; k <= n; k++) {
+    for (const [xt, xb] of [[k * B, k * B + B / 2], [(k + 1) * B, k * B + B / 2]]) {
+      const down = xb > xt;                        // "\" has its underside on the left, "/" on the right
+      clip += svgPoly(girderStrut(g, xt, xb, -hw, hw), "#000");
+      sv += svgPoly(girderStrut(g, xt, xb, -hw, hw), co.steel);
+      sv += svgPoly(down ? girderStrut(g, xt, xb, -hw, -hw + sh) : girderStrut(g, xt, xb, hw - sh, hw), co.dark);
+      sv += svgPoly(down ? girderStrut(g, xt, xb, hw - li, hw) : girderStrut(g, xt, xb, -hw, -hw + li), co.light);
+    }
+  }
+  // Anti-aliased, unlike the rest of the tile: the whole data URI renders crispEdges (it keeps the
+  // chords and every other texture's rects free of seams), and a crisp 45-60° strut is a staircase.
+  out += `<g shape-rendering="geometricPrecision">${sv}`;
+  // Gusset plates where the struts meet the chords, once the girder is deep enough to show them.
+  const gw = s * 1.7, gh = s * 1.25;
+  if (g.d >= 2) {
+    for (let k = -1; k <= n + 1; k++) {
+      const xt = k * B, xb = k * B + B / 2;
+      out += svgPoly([[xt - gw - 1, f], [xt + gw + 1, f], [xt + gw * 0.45 + 0.6, f + gh + 1], [xt - gw * 0.45 - 0.6, f + gh + 1]], co.dark);
+      out += svgPoly([[xt - gw, f], [xt + gw, f], [xt + gw * 0.45, f + gh], [xt - gw * 0.45, f + gh]], co.steel);
+      out += svgPoly([[xb - gw - 1, H - f], [xb + gw + 1, H - f], [xb + gw * 0.45 + 0.6, H - f - gh - 1], [xb - gw * 0.45 - 0.6, H - f - gh - 1]], co.dark);
+      out += svgPoly([[xb - gw, H - f], [xb + gw, H - f], [xb + gw * 0.45, H - f - gh], [xb - gw * 0.45, H - f - gh]], co.steel);
+      out += svgPoly([[xb - gw * 0.45, H - f - gh], [xb + gw * 0.45, H - f - gh], [xb + gw * 0.45 + 0.35, H - f - gh + 1], [xb - gw * 0.45 - 0.35, H - f - gh + 1]], co.light);
+    }
+  }
+  out += "</g>";
+  // The chords, over the strut ends: lit top edge, steel, shadowed lower band.
+  const chord = (y) => svgRect(-2, y, W + 4, f, co.steel) + svgRect(-2, y, W + 4, lt, co.light) + svgRect(-2, y + f - db, W + 4, db, co.dark);
+  out += chord(0) + chord(H - f);
+  // Rust only ever lands on metal. Clipped to the chords and struts, it can never stain a
+  // see-through hole — a brown smudge floating in mid-air would give the whole trick away. Blotches
+  // and streaks are deterministic, so sliding Rust up spreads the same patches.
+  if (rust > 0) {
+    let rv = "";
+    const blobs = Math.round(rust * (5 * n + 4));
+    for (let i = 0; i < blobs; i++) {
+      const cx = trnd(i * 3.9 + 1.7) * W, cy = (trnd(i * 5.3) < 0.5 ? 0 : H - f) + trnd(i * 8.3) * f;
+      const rr = 1 + trnd(i * 12.1) * (1.2 + rust * f * 0.45);
+      for (const ox of [0, cx - rr * 1.5 < 0 ? W : null, cx + rr * 1.5 > W ? -W : null]) {
+        if (ox !== null) rv += `<ellipse cx="${px(cx + ox)}" cy="${px(cy)}" rx="${px(rr * 1.5)}" ry="${px(rr)}" fill="${co.rust}" opacity="${px(0.3 + rust * 0.5)}"/>`;
+      }
+    }
+    const streaks = Math.round(rust * 2 * n);  // rust runs DOWN, off the top chord onto the struts
+    for (let i = 0; i < streaks; i++) rv += svgRect(trnd(i * 7.7 + 0.3) * W, f - db, Math.max(1, s * 0.25), f * (0.6 + trnd(i * 2.2) * 1.8) * (0.5 + rust), co.rust, ` opacity="${px(0.25 + rust * 0.4)}"`);
+    out += `<defs><clipPath id="m">${svgRect(-2, 0, W + 4, f, "#000")}${svgRect(-2, H - f, W + 4, f, "#000")}${clip}</clipPath></defs><g clip-path="url(#m)">${rv}</g>`;
+  }
+  // Rivets at every joint; past the middle of the slider, half way between the joints as well.
+  if (rivets > 0) {
+    const r = Math.max(1.05, f * 0.15), mid = lt + (f - lt - db) / 2;
+    let rv = "";
+    for (let x = -B; x <= W + B; x += rivets > 0.5 ? B / 4 : B / 2) {
+      const jt = Math.abs(((x % B) + B) % B) < 0.01, jb = Math.abs((((x - B / 2) % B) + B) % B) < 0.01;
+      if (rivets > 0.5 || jt) rv += girderRivet(co, x, mid, r);
+      if (rivets > 0.5 || jb) rv += girderRivet(co, x, H - f + mid, r);
+    }
+    if (g.d >= 2) {
+      for (let k = -1; k <= n + 1; k++) {
+        const xt = k * B, xb = k * B + B / 2;
+        for (const sx of [-1, 1]) rv += girderRivet(co, xt + sx * gw * 0.35, f + gh * 0.45, r * 0.9) + girderRivet(co, xb + sx * gw * 0.35, H - f - gh * 0.45, r * 0.9);
+      }
+    }
+    out += `<g shape-rendering="geometricPrecision">${rv}</g>`;
+  }
+  return out;
+};
+// The end post, drawn where a girder STOPS (see cellBand's capL / capR). A texture repeats, so
+// without it a girder ends wherever the cell edge happens to fall — mid-strut, half a hole open to
+// the air — which read as a sawn-off pattern rather than a piece of steel. `side` is "l" or "r".
+const girderCapSvg = (co, pa, depth, side) => {
+  const g = girderGeom(depth);
+  const { H, f, e, lt, db } = g;
+  const rivets = Math.max(0, Math.min(1, pa.rivets ?? 0.5));
+  const rust = Math.max(0, Math.min(1, pa.rust ?? 0));
+  let out = svgRect(0, 0, e, H, co.steel);
+  out += svgRect(side === "l" ? e - 1 : 0, f, 1, H - 2 * f, co.dark);  // its inner face, in shadow
+  out += svgRect(0, 0, e, lt, co.light) + svgRect(0, H - db, e, db, co.dark);
+  if (rust > 0) {
+    for (let i = 0; i < 1 + Math.round(rust * 2 * g.d); i++) {
+      const rr = 1 + trnd(i * 4.3 + 9.1) * (1 + rust * e * 0.35);
+      out += `<ellipse cx="${px(trnd(i * 6.1 + 2.2) * e)}" cy="${px(trnd(i * 2.9 + 5.5) * H)}" rx="${px(rr)}" ry="${px(rr * 1.4)}" fill="${co.rust}" opacity="${px(0.3 + rust * 0.5)}"/>`;
+    }
+  }
+  out += svgRect(side === "l" ? 0 : e - 1.5, 0, 1.5, H, co.dark);       // the outer edge
+  if (rivets > 0) {
+    const r = Math.max(1.05, f * 0.15), cx = e / 2 + (side === "l" ? 0.25 : -0.25);
+    const ys = g.d >= 2 ? [f + (H - 2 * f) * 0.25, H / 2, H - f - (H - 2 * f) * 0.25] : [H / 2];
+    out += `<g shape-rendering="geometricPrecision">${ys.map((y) => girderRivet(co, cx, y, r)).join("")}</g>`;
+  }
+  return out;
+};
+
 export const TEXTURES = {
   brick: {
     label: "Brick", icon: "🧱", tile: [60, 30], base: "a",
@@ -7276,6 +7426,24 @@ export const TEXTURES = {
       return out;
     },
   },
+  // STEEL GIRDER — see girderGeom for the drawing and cellBand for why it is the only texture that
+  // knows how deep it was painted. `clear`: the holes are see-through, so no base colour is laid
+  // under the tile (the cell's `c` still carries Steel for the minimap, eyedropper and Fill).
+  // `band`: how the renderer asks for the tile at a depth, and for the end posts.
+  girder: {
+    label: "Steel girder", icon: "🏗️", tile: girderTile(1), base: "steel", clear: true,
+    band: {
+      max: GIRDER_MAX_DEPTH, tile: girderTile, capW: (d) => girderGeom(d).e,
+      cap: (co, pa, d, side) => { const g = girderGeom(d); return { w: g.e, h: g.H, body: girderCapSvg(co, pa, d, side) }; },
+    },
+    colors: [["steel", "Steel", "#d8214c"], ["light", "Highlight", "#ff7394"], ["dark", "Shadow", "#7e0a22"], ["backing", "Backing", "#16080b"], ["rust", "Rust", "#8a4a24"]],
+    params: [
+      { key: "rivets", label: "Rivets", min: 0, max: 1, step: 0.05, def: 0.5 },
+      { key: "backing", label: "Backing", min: 0, max: 1, step: 0.05, def: 0 },
+      { key: "rust", label: "Rust", min: 0, max: 1, step: 0.05, def: 0 },
+    ],
+    svg: (co, _t, pa, depth) => girderSvg(co, pa, depth),
+  },
   // FLANNEL — a tartan check, for cloth rather than terrain. It's the first texture built with
   // clothing in mind (a flannel jacket), and it's in the same registry as everything else, so it
   // paints level cells too; nothing about it is clothing-only.
@@ -7420,7 +7588,8 @@ export const pieceTextureStyle = (piece, texLib) => {
   const [tw, th] = TEXTURES[t.tex].tile;
   const w = Math.max(1, (piece && piece.w) || 1), h = Math.max(1, (piece && piece.h) || 1);
   return {
-    backgroundColor: textureBaseColor(t),
+    // A see-through pattern (the girder's holes) shows what is behind the PIECE, not its own colour.
+    backgroundColor: TEXTURES[t.tex].clear ? "transparent" : textureBaseColor(t),
     backgroundImage: textureDataUri(t),
     backgroundSize: px(tw / w * 100) + "% " + px(th / h * 100) + "%",
   };
@@ -7438,16 +7607,32 @@ export const newTexture = (texKey) => {
 export const textureSig = (t) => !t ? "" : t.tex + ":" + TEXTURES[t.tex].colors.map(([k]) => t.colors[k]).join(",") + ":" + (TEXTURES[t.tex].params || []).map((p) => t.params[p.key]).join(",");
 export const textureBaseColor = (t) => (t && TEXTURES[t.tex] && t.colors[TEXTURES[t.tex].base]) || "#8a8580";
 const texUriCache = new Map();
-export const textureDataUri = (t) => {
+const svgTileUri = (body, tw, th) => `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${tw}" height="${th}" viewBox="0 0 ${tw} ${th}" shape-rendering="crispEdges">${body}</svg>`)}")`;
+// How many rows deep a band texture's tile is drawn for (see cellBand). Every other texture has
+// one tile whatever it is painted over, so it is always 1 and its cache key never changes.
+const texBandDepth = (def, depth) => def && def.band ? Math.max(1, Math.min(def.band.max, Math.round(depth) || 1)) : 1;
+export const textureDataUri = (t, depth) => {
   const def = t && TEXTURES[t.tex];
   if (!def) return null;
-  const sig = textureSig(t);
+  const d = texBandDepth(def, depth);
+  const sig = textureSig(t) + (d > 1 ? "|" + d : "");
   const hit = texUriCache.get(sig);
   if (hit) return hit;
-  const [tw, th] = def.tile;
-  const body = def.svg(t.colors, def.tile, t.params || {});
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${tw}" height="${th}" viewBox="0 0 ${tw} ${th}" shape-rendering="crispEdges">${body}</svg>`;
-  const uri = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  const tile = d > 1 ? def.band.tile(d) : def.tile;
+  const uri = svgTileUri(def.svg(t.colors, tile, t.params || {}, d), tile[0], tile[1]);
+  texUriCache.set(sig, uri);
+  return uri;
+};
+// A band texture's end post, `side` "l" or "r", drawn at the full height of a `depth`-row girder.
+export const textureCapUri = (t, depth, side) => {
+  const def = t && TEXTURES[t.tex];
+  if (!def || !def.band) return null;
+  const d = texBandDepth(def, depth);
+  const sig = textureSig(t) + "|" + d + "|cap" + side;
+  const hit = texUriCache.get(sig);
+  if (hit) return hit;
+  const cap = def.band.cap(t.colors, t.params || {}, d, side);
+  const uri = svgTileUri(cap.body, cap.w, cap.h);
   texUriCache.set(sig, uri);
   return uri;
 };
@@ -7460,12 +7645,113 @@ export const resolveTexture = (texLib, id) => (id && (texLib || []).find((t) => 
 // bare gravel ramp — otherwise flood-fill would bleed straight through a merged cell.
 export const cellSig = (cell) => (cell === undefined || cell === null) ? ""
   : fgFills(cell).map((f) => fgColor(f) + "|" + fgShapeSig(f) + "|" + (cellTexId(f) || "") + "|" + (fgHiddenInPlay(f) ? "hidden" : "visible")).join("&");
+// ---- Band textures (the girder) -----------------------------------------------------------------
+// A column of girder cells is ONE girder (see girderGeom for why). Any flat fill of that texture
+// counts — a girder painted over another fill is still the girder — but a ramp never does: its
+// wedge is a shape of its own and keeps the one-row look.
+const inTexBand = (cell, texId) => fgFills(cell).some((f) => cellTexId(f) === texId && !fgHasDiagonalShape(f));
+// The girder the cell at (r, c) is part of: its top row and how many rows deep. A run taller than
+// `max` is cut into girders as even as possible, a 5 into 3 + 2 rather than 4 + a lonely 1.
+export const textureBandAt = (map, r, c, texId, max = GIRDER_MAX_DEPTH) => {
+  let top = r, bot = r;
+  while (inTexBand(map[cellKey(top - 1, c)], texId)) top--;
+  while (inTexBand(map[cellKey(bot + 1, c)], texId)) bot++;
+  const rows = bot - top + 1, m = Math.ceil(rows / max), each = Math.floor(rows / m), extra = rows % m;
+  for (let i = 0, t = top; i < m; i++) {
+    const d = each + (i < extra ? 1 : 0);
+    if (r < t + d) return { top: t, depth: d };
+    t += d;
+  }
+  return { top: r, depth: 1 };
+};
+// ...but a deep girder has to be at least TWO columns wide, or it is not drawn as one. A dragged
+// ramp fills the triangle under its slope with plain blocks, one column taller than the next, and
+// taken column by column that made every column its own deep girder: a 30px sliver of a big truss
+// with an end post down each side, so a girder ramp came out as a row of narrow pillars. A column
+// whose neighbours are all different girders is drawn as one-row girders instead, and those join
+// sideways into ordinary horizontal ones — stacked beams under the slope rather than pillars.
+// Two neighbours with the same column band always pass or fail together, so the rows of one girder
+// never disagree about it.
+const sameBand = (a, b) => a.top === b.top && a.depth === b.depth;
+export const cellBandAt = (map, r, c, texId, max = GIRDER_MAX_DEPTH) => {
+  const b = textureBandAt(map, r, c, texId, max);
+  if (b.depth === 1) return b;
+  const joins = (cc) => inTexBand(map[cellKey(r, cc)], texId) && sameBand(textureBandAt(map, r, cc, texId, max), b);
+  return joins(c - 1) || joins(c + 1) ? b : { top: r, depth: 1 };
+};
+// The band texture a fill paints with, or null (not a band texture, deleted, or a ramp).
+const bandTexOf = (fill, texLib) => {
+  const t = !fgHasDiagonalShape(fill) && resolveTexture(texLib, cellTexId(fill));
+  return t && TEXTURES[t.tex] && TEXTURES[t.tex].band ? t : null;
+};
+// Everything the renderer needs to draw one run of a girder: which girder (top, depth), and
+// whether it stops at the run's left or right end, which is where the end posts go. `span` is how
+// many cells the run's box is wide (cellRuns), so capR looks past its LAST cell. A neighbour that is
+// girder too but a different slice (a 2-deep girder meeting a 3-deep one) is a different girder, so
+// each gets its own post. Null for anything that is not a flat fill of a band texture.
+export const cellBand = (map, fill, r, c, texLib, span = 1) => {
+  if (!map) return null;
+  const t = bandTexOf(fill, texLib);
+  if (!t) return null;
+  const id = cellTexId(fill), max = TEXTURES[t.tex].band.max;
+  const b = cellBandAt(map, r, c, id, max);
+  const same = (cc) => {
+    const nb = map[cellKey(r, cc)];
+    if (inTexBand(nb, id)) return sameBand(cellBandAt(map, r, cc, id, max), b);
+    // A ramp of the same girder that is FULL HEIGHT at the edge it shares with this cell (the top of
+    // a slope arriving at this girder, an overhang's deep end) is the same beam carrying on, so no
+    // post goes between them. Where the slope's LOW end touches, the surface drops away and the
+    // girder really does end there.
+    const u = cc < c ? 1 : 0;
+    return b.depth === 1 && fgFills(nb).some((f) => cellTexId(f) === id && fgHasDiagonalShape(f) && fgRampEdge(f, u) >= 1 - 1e-9);
+  };
+  return { top: b.top, depth: b.depth, capL: !same(c - 1), capR: !same(c + span) };
+};
+// What the texture pickers draw a band texture as: one two-row girder across the swatch, posts at
+// both ends, centred — instead of a one-row girder repeated down it, which is a lattice nobody
+// would paint. The 18px chips get a one-row girder through their middle (two end posts would be
+// wider than the chip). Every other texture ignores the argument, so their swatches are unchanged.
+export const TEX_SWATCH_BAND = { top: 0, depth: 2, center: true, capL: true, capR: true };
+export const TEX_CHIP_BAND = { top: 0, depth: 1, center: true };
+// A girder on a RAMP is a one-row girder with its top chord on the ramp's surface where the surface
+// stands highest in this cell — an overhang's bottom chord on its underside — instead of on the row
+// line. Anchored to the row like every other texture, a long shallow ramp cut a level girder along
+// its slope and showed only the girder's BOTTOM chord creeping up out of the floor; anchored to the
+// surface, the chord you walk on follows the slope a cell at a time, which is exactly how DK's
+// sloping girders are built (a level girder nudged up a pixel per tile).
+const rampBandY = (fill) => {
+  const hi = Math.max(0, Math.min(1, Math.max(fgRampEdge(fill, 0), fgRampEdge(fill, 1))));
+  return fill.upsideDown ? (hi - 1) * LV_CELL : (1 - hi) * LV_CELL;
+};
+// A band cell's CSS: the tile for ITS girder's depth, slid up by how far down the girder this row
+// is, with the end posts layered over it. It repeats only sideways; the band already spans the
+// rows. With no `band` (a paint ghost) it is a one-row girder.
+const bandPaintStyle = (t, def, r, c, band) => {
+  const depth = texBandDepth(def, band ? band.depth : 1);
+  const [tw, th] = def.band.tile(depth);
+  const y = !band ? "0px" : band.center ? "50%" : band.y !== undefined ? px(band.y) + "px" : -((r - band.top) * LV_CELL) + "px";
+  const capSize = def.band.capW(depth) + "px " + th + "px";
+  const layers = [];
+  if (band && band.capL) layers.push([textureCapUri(t, depth, "l"), "left 0px top " + y, capSize, "no-repeat"]);
+  if (band && band.capR) layers.push([textureCapUri(t, depth, "r"), "right 0px top " + y, capSize, "no-repeat"]);
+  layers.push([textureDataUri(t, depth), (-(c * LV_CELL) % tw) + "px " + y, tw + "px " + th + "px", "repeat-x"]);
+  return {
+    backgroundColor: def.clear ? "transparent" : textureBaseColor(t),
+    backgroundImage: layers.map((l) => l[0]).join(", "),
+    backgroundPosition: layers.map((l) => l[1]).join(", "),
+    backgroundSize: layers.map((l) => l[2]).join(", "),
+    backgroundRepeat: layers.map((l) => l[3]).join(", "),
+  };
+};
 // The CSS a painted cell renders with. Tiles are anchored to the cell's WORLD position, so a
 // brick pattern runs continuously across every cell of a wall rather than restarting each cell.
-export const cellPaintStyle = (cell, r, c, texLib) => {
+// `band` (cellBand) only matters to a band texture — the girder — and every other texture
+// ignores it.
+export const cellPaintStyle = (cell, r, c, texLib, band) => {
   const base = fgColor(cell);
   const t = resolveTexture(texLib, cellTexId(cell));
   if (!t || !TEXTURES[t.tex]) return { background: base };
+  if (TEXTURES[t.tex].band) return bandPaintStyle(t, TEXTURES[t.tex], r, c, band || (fgHasDiagonalShape(cell) ? { top: r, depth: 1, y: rampBandY(cell) } : null));
   const [tw, th] = TEXTURES[t.tex].tile;
   return {
     backgroundColor: base,
@@ -7684,19 +7970,29 @@ const outlineBoxShadow = (map, r, c, ol) => {
 //   · cells holding several stacked fills — those draw one box per fill
 // Returning null from the signature is what marks those; note a null never matches another null,
 // so two ramps side by side stay two ramps.
-export const cellRunSig = (cell) => {
+//
+// A girder cell also carries WHICH girder it is (top row, depth — cellBand), because its box draws
+// the tile for that depth: the row where a 2-deep platform meets a 3-deep one has to split there,
+// or the whole run would be drawn at the first cell's depth. Needs the map and the texture library
+// to know; called with the cell alone it is the plain signature, as it always was.
+export const cellRunSig = (cell, r, c, map, texLib) => {
   const fills = fgFills(cell);
   if (fills.length !== 1) return null;
   const f = fills[0]; // always an object — fgFillOf promotes a bare colour string to { c }
   // Not fgClipPath(): that returns the STRING "none" for a plain block, which is perfectly
   // truthy and quietly refused to merge anything at all. fgHasDiagonalShape is the real question.
   if (f.ol || fgHasDiagonalShape(f)) return null;
-  return fgColor(f) + "|" + (cellTexId(f) || "") + "|" + (fgHiddenInPlay(f) ? "h" : "");
+  const sig = fgColor(f) + "|" + (cellTexId(f) || "") + "|" + (fgHiddenInPlay(f) ? "h" : "");
+  const bt = map && bandTexOf(f, texLib);
+  if (!bt) return sig;
+  const b = cellBandAt(map, r, c, cellTexId(f), TEXTURES[bt.tex].band.max);
+  return sig + "|" + b.top + ":" + b.depth;
 };
 // Walks a cell map into { key, r, c, span, cell, sig } runs. Runs are emitted row by row, which
 // re-orders the layer's DOM relative to Object.keys order — harmless, because every cell in one
 // layer shares a z-index and no two of them overlap, so DOM order decides nothing visible here.
-export const cellRuns = (map, sigOf = cellRunSig) => {
+// `texLib` is only read for the girder's split (cellRunSig).
+export const cellRuns = (map, texLib) => {
   const rows = new Map();
   for (const k of Object.keys(map || {})) {
     const i = k.indexOf(",");
@@ -7709,7 +8005,7 @@ export const cellRuns = (map, sigOf = cellRunSig) => {
     cols.sort((a, b) => a - b);
     let run = null;
     for (const c of cols) {
-      const key = r + "," + c, cell = map[key], sig = sigOf(cell);
+      const key = r + "," + c, cell = map[key], sig = cellRunSig(cell, r, c, map, texLib);
       if (run && sig !== null && sig === run.sig && c === run.c + run.span) { run.span++; continue; }
       run = { key, r, c, span: 1, cell, sig };
       out.push(run);
@@ -7717,8 +8013,10 @@ export const cellRuns = (map, sigOf = cellRunSig) => {
   }
   return out;
 };
-const cellOutlineStyle = (map, cell, r, c, texLib) => {
-  const base = cellPaintStyle(cell, r, c, texLib);
+// `span` is the width in cells of the box this style lands on (a run from cellRuns), which only a
+// girder's right-hand end post needs to know.
+const cellOutlineStyle = (map, cell, r, c, texLib, span = 1) => {
+  const base = cellPaintStyle(cell, r, c, texLib, cellBand(map, cell, r, c, texLib, span));
   if (!(cell && typeof cell === "object" && cell.ol)) return base;
   const bs = outlineBoxShadow(map, r, c, cell.ol);
   return bs ? { ...base, boxShadow: bs } : base;
@@ -8755,7 +9053,7 @@ const cachedRunTiles = (kind, map, texLib, itemsOf, buildItem) => {
   if (!map) return null;
   const hit = RUN_TILE_CACHE[kind].get(map);
   if (hit && hit.texLib === texLib) return hit;
-  const entry = { texLib, items: itemsOf(map), built: [], ends: [], n: 0, el: null, buildItem: (it) => buildItem(map, texLib, it) };
+  const entry = { texLib, items: itemsOf(map, texLib), built: [], ends: [], n: 0, el: null, buildItem: (it) => buildItem(map, texLib, it) };
   RUN_TILE_CACHE[kind].set(map, entry);
   return entry;
 };
@@ -8809,11 +9107,11 @@ export const unitDrawOrder = (enemies, pos) => {
 // time (a run for bg/fg, a key for front) so the slice-per-frame mount above can build as it goes.
 const buildRunBgTile = (map, texLib, { key, r, c, span, cell }) => {
   const fills = fgFills(cell);
-  if (fills.length <= 1) return <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(map, cell, r, c, texLib), clipPath: fgClipPath(cell), width: span * LV_CELL }} />;
+  if (fills.length <= 1) return <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(map, cell, r, c, texLib, span), clipPath: fgClipPath(cell), width: span * LV_CELL }} />;
   return <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, width: span * LV_CELL }}>{fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(map, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}</div>;
 };
 const buildRunFgTile = (map, texLib, { key, r, c, span, cell, sig }) => {
-  if (sig !== null) { const fill = fgFills(cell)[0]; if (fgHiddenInPlay(fill)) return []; return [<div key={"f" + key + "_0"} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(map, fill, r, c, texLib), width: span * LV_CELL }} />]; }
+  if (sig !== null) { const fill = fgFills(cell)[0]; if (fgHiddenInPlay(fill)) return []; return [<div key={"f" + key + "_0"} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(map, fill, r, c, texLib, span), width: span * LV_CELL }} />]; }
   return fgFills(cell).map((fill, i) => fgHiddenInPlay(fill) ? null : <div key={"f" + key + "_" + i} className="lcell" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(map, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse();
 };
 const buildRunFrontTile = (map, texLib, k) => {
@@ -9746,10 +10044,10 @@ export default function AssetStudio() {
   // to discard them was a measured slice of every seam handoff. A room entered from a run has no
   // runKey, so it still renders through these.
   const runNodeNow = play && runRef.current && level && level.runKey ? runRef.current.nodes[level.runKey] : null;
-  const lvBgLayer = useMemo(() => level && !runNodeNow ? <div style={CELL_LAYER_STYLE}>{cellRuns(level.bg || {}).map(({ key, r, c, span, cell }) => {
+  const lvBgLayer = useMemo(() => level && !runNodeNow ? <div style={CELL_LAYER_STYLE}>{cellRuns(level.bg || {}, texLib).map(({ key, r, c, span, cell }) => {
     const fills = fgFills(cell);
     // One fill — byte-identical to how Background has always drawn, runs included.
-    if (fills.length <= 1) return <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.bg, cell, r, c, texLib), clipPath: fgClipPath(cell), width: span * LV_CELL }} />;
+    if (fills.length <= 1) return <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.bg, cell, r, c, texLib, span), clipPath: fgClipPath(cell), width: span * LV_CELL }} />;
     // fgFills is newest-first, so reverse to put the oldest paint at the bottom of the stack.
     return <div key={"b" + key} className="lcell bg" style={{ left: c * LV_CELL, top: r * LV_CELL, width: span * LV_CELL }}>
       {fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(level.bg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}
@@ -9760,13 +10058,13 @@ export default function AssetStudio() {
   // put the most recent paint on top. Single-material cells (every cell in an older save) come
   // back as a one-item list and render exactly one div, as they always did.
   // (Same z-index for every fill in a cell, so DOM order alone decides what covers what.)
-  const lvFgLayer = useMemo(() => level && !runNodeNow ? <div style={CELL_LAYER_STYLE}>{cellRuns(level.fg || {}).flatMap(({ key, r, c, span, cell, sig }) => {
+  const lvFgLayer = useMemo(() => level && !runNodeNow ? <div style={CELL_LAYER_STYLE}>{cellRuns(level.fg || {}, texLib).flatMap(({ key, r, c, span, cell, sig }) => {
     // A run (plain paint, no ramp, no outline, one fill) draws as a single wide box; anything
     // cellRunSig refused to merge falls through to the original one-box-per-fill path below.
     if (sig !== null) {
       const fill = fgFills(cell)[0], hidden = fgHiddenInPlay(fill);
       if (play && hidden) return [];
-      return [<div key={"f" + key + "_0"} data-fg-hidden={hidden ? "true" : undefined} className={"lcell" + (hidden ? " collisionOnly" : "")} title={hidden ? "Collision only — invisible during play" : undefined} style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, fill, r, c, texLib), width: span * LV_CELL }} />];
+      return [<div key={"f" + key + "_0"} data-fg-hidden={hidden ? "true" : undefined} className={"lcell" + (hidden ? " collisionOnly" : "")} title={hidden ? "Collision only — invisible during play" : undefined} style={{ left: c * LV_CELL, top: r * LV_CELL, ...cellOutlineStyle(level.fg, fill, r, c, texLib, span), width: span * LV_CELL }} />];
     }
     return fgFills(cell).map((fill, i) => {
       const hidden = fgHiddenInPlay(fill);
@@ -17187,7 +17485,7 @@ export default function AssetStudio() {
               {texLib.map((t) => (
                 <div key={t.id} className="texcardwrap">
                   <button className={"texcard" + ((texTarget === "piece" ? (sel && sel.tex) : lTexId) === t.id ? " on" : "")} onClick={() => applyTextureToTarget(t)}>
-                    <span className="texprev" style={cellPaintStyle({ c: textureBaseColor(t), tex: t.id }, 0, 0, texLib)} />
+                    <span className="texprev" style={cellPaintStyle({ c: textureBaseColor(t), tex: t.id }, 0, 0, texLib, TEX_SWATCH_BAND)} />
                     <span className="sn">{t.name}</span>
                     <span className="sty">{TEXTURES[t.tex] ? TEXTURES[t.tex].icon + " " + TEXTURES[t.tex].label : t.tex}</span>
                   </button>
@@ -17199,7 +17497,7 @@ export default function AssetStudio() {
             <div className="texgrid">
               {TEXTURE_KEYS.map((k) => (
                 <button key={k} className="texcard" onClick={() => { setTexEdit(newTexture(k)); setTexPick(false); }}>
-                  <span className="texprev" style={cellPaintStyle({ c: "#000", tex: "__preview_" + k }, 0, 0, [{ id: "__preview_" + k, tex: k, colors: Object.fromEntries(TEXTURES[k].colors.map(([ck, , d]) => [ck, d])), params: Object.fromEntries((TEXTURES[k].params || []).map((p) => [p.key, p.def])) }])} />
+                  <span className="texprev" style={cellPaintStyle({ c: "#000", tex: "__preview_" + k }, 0, 0, [{ id: "__preview_" + k, tex: k, colors: Object.fromEntries(TEXTURES[k].colors.map(([ck, , d]) => [ck, d])), params: Object.fromEntries((TEXTURES[k].params || []).map((p) => [p.key, p.def])) }], TEX_SWATCH_BAND)} />
                   <span className="sn">＋ {TEXTURES[k].label}</span>
                   <span className="sty">{TEXTURES[k].icon} pick its colors</span>
                 </button>
@@ -17225,7 +17523,7 @@ export default function AssetStudio() {
             <div className="dlg wide3" onClick={(e) => e.stopPropagation()}>
               <div className="dt">{def.icon} {saved ? "Edit" : "New"} texture</div>
               <div className="texeditrow">
-                <div className="texbigprev" style={cellPaintStyle({ c: textureBaseColor(texEdit), tex: texEdit.id }, 0, 0, previewLib)} />
+                <div className="texbigprev" style={cellPaintStyle({ c: textureBaseColor(texEdit), tex: texEdit.id }, 0, 0, previewLib, TEX_SWATCH_BAND)} />
                 <div className="texeditcol">
                   <input className="namefield" value={texEdit.name} onChange={(e) => set((t) => ({ ...t, name: e.target.value }))} placeholder={def.label} />
                   <div className="ct2">Pattern</div>
@@ -18531,7 +18829,7 @@ export default function AssetStudio() {
             <>
               <div className="lswatches">{palettePicker(lPalKey, setLPalKey)}{lPal.map((c) => <button key={c} className={lColor === c ? "on" : ""} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}{swBreak}{recent.filter((c) => !lPal.includes(c)).slice(0, 5).map((c) => <button key={"r" + c} className={"rc" + (lColor === c ? " on" : "")} style={{ background: c }} onClick={() => { setLColor(c); setLTexId(null); setLTool("paint"); }} />)}<label className="pick"><input type="color" value={lColor} onChange={(e) => { setLColor(e.target.value); setLTexId(null); setLTool("paint"); }} onBlur={(e) => addRecent(e.target.value)} />＋</label></div>
               <button className={"ltbtn texbtn" + (activeTexture ? " on" : "")} onClick={() => { setTexTarget("level"); setTexPick(true); }}>
-                {activeTexture ? <><span className="texchip" style={cellPaintStyle({ c: textureBaseColor(activeTexture), tex: activeTexture.id }, 0, 0, texLib)} /> {activeTexture.name}</> : <>🧱 Texture</>}
+                {activeTexture ? <><span className="texchip" style={cellPaintStyle({ c: textureBaseColor(activeTexture), tex: activeTexture.id }, 0, 0, texLib, TEX_CHIP_BAND)} /> {activeTexture.name}</> : <>🧱 Texture</>}
               </button>
               {activeTexture && <><button className={"ltbtn" + (lTool === "paint" ? " on" : "")} onClick={() => setLTool("paint")}>🖌 Texture paint</button>{(lLayer === "fg" || lLayer === "bg" || lLayer === "front") && <button className={"ltbtn" + (lTool === "fill" ? " on" : "")} onClick={() => setLTool("fill")}>🪣 Fill matching color</button>}<button className="ltbtn" onClick={() => setLTexId(null)}>✕ Plain color</button></>}
               {layerTakesRamps(lLayer) && (
@@ -18740,7 +19038,11 @@ export default function AssetStudio() {
                   const cells = [];
                   for (let dr = -half; dr < lBrush - half; dr++) for (let dc = -half; dc < lBrush - half; dc++) { const rr = lHoverCell.r + dr, cc = lHoverCell.c + dc; const sd = []; if (!has(rr - 1, cc)) sd.push("inset 0 2px 0 " + lOutlineColor); if (!has(rr + 1, cc)) sd.push("inset 0 -2px 0 " + lOutlineColor); if (!has(rr, cc - 1)) sd.push("inset 2px 0 0 " + lOutlineColor); if (!has(rr, cc + 1)) sd.push("inset -2px 0 0 " + lOutlineColor); cells.push([rr, cc, sd.join(", ")]); }
                   const ghostVal = paintValue(lColor, activeTexture, lLayer === "fg" && lFgHide ? { hideInPlay: true } : null);
-                  return <>{cells.map(([r, c, bs]) => <div key={"blk" + r + "_" + c} className={"blockGhost" + (lLayer === "fg" && lFgHide ? " collisionOnly" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...cellPaintStyle(ghostVal, r, c, texLib), ...(outlinePrev && bs ? { boxShadow: bs } : {}) }} />)}</>;
+                  // A girder ghost is the girder the click will MAKE — the brush square joined to any
+                  // girder already above or below it — not a stack of one-row girders that becomes
+                  // one deep girder the moment the paint lands.
+                  const gmap = activeTexture && TEXTURES[activeTexture.tex] && TEXTURES[activeTexture.tex].band ? { ...pmap, ...Object.fromEntries([...foot].map((k) => [k, ghostVal])) } : null;
+                  return <>{cells.map(([r, c, bs]) => <div key={"blk" + r + "_" + c} className={"blockGhost" + (lLayer === "fg" && lFgHide ? " collisionOnly" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...cellPaintStyle(ghostVal, r, c, texLib, gmap && cellBand(gmap, ghostVal, r, c, texLib)), ...(outlinePrev && bs ? { boxShadow: bs } : {}) }} />)}</>;
                 })()}
                 {!play && lTool === "fill" && fillPreview && fillPreview.cells.length <= 500 && (
                   <>{fillPreview.cells.map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"fp" + k} style={{ position: "absolute", left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, background: "rgba(255,255,255,.3)", outline: "1px solid rgba(255,255,255,.7)", pointerEvents: "none", zIndex: 5000 }} />; })}</>
@@ -20948,7 +21250,7 @@ export default function AssetStudio() {
                     the block looking exactly as it did before it was patterned. */}
                 <div className="piecetex">
                   <button className={"ltbtn" + (sel.tex ? " on" : "")} onClick={() => { setTexTarget("piece"); setTexPick(true); }}>
-                    {(() => { const t = resolveTexture(texLib, sel.tex); return t ? <><span className="texchip" style={cellPaintStyle({ c: textureBaseColor(t), tex: t.id }, 0, 0, texLib)} /> {t.name}</> : <>🧵 Pattern</>; })()}
+                    {(() => { const t = resolveTexture(texLib, sel.tex); return t ? <><span className="texchip" style={cellPaintStyle({ c: textureBaseColor(t), tex: t.id }, 0, 0, texLib, TEX_CHIP_BAND)} /> {t.name}</> : <>🧵 Pattern</>; })()}
                   </button>
                   {sel.tex && <button className="ltbtn" onClick={() => updSel({ tex: null })}>✕ Plain</button>}
                 </div>
