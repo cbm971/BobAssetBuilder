@@ -504,6 +504,13 @@ import {
   ITEM_RANK_INFO,
   itemRank,
 } from "./App";
+import {
+  weaponArtPose,
+  WEAPON_FRONT_STANDIN,
+  armBaseFrom,
+  standingLineY,
+  topdownStepToward,
+} from "./App";
 
 /* 🎲 A GEAR TAG ON A PLACEMENT. The point of the feature is that six copies of one guard are six
    loadouts, so what matters here is (a) the pool is the same pedestal search minus the things an
@@ -3316,6 +3323,29 @@ describe("🚶 Top-down walkway (the fourth climb kind)", () => {
     expect(topdownHolds(true, 4, 403, 400)).toBe(true);    // overshot by a fall step: still taken (the loop snaps it back)
   });
 
+  test("a unit walks the plane toward the line its target stands on (Trailor Int7)", () => {
+    // The line: the feet on a floor or a plane; mid-hop, the line it LEFT; in the air, nothing —
+    // so a chaser never walks up the road after the top of somebody's jump.
+    expect(standingLineY({ y: 166, onGround: false, topdown: true, tdJumpY: null }, 210)).toBe(376);
+    expect(standingLineY({ y: 330, onGround: true, topdown: false }, 210)).toBe(540);
+    expect(standingLineY({ y: 250, onGround: false, topdown: false, tdJumpY: 330 }, 210)).toBe(540);
+    expect(standingLineY({ y: 250, onGround: false, topdown: false, tdJumpY: null }, 210)).toBeNull();
+    expect(standingLineY(null, 210)).toBeNull();
+    // One frame's step: at most `speed`, landing exactly on the line when it is closer than that,
+    // and never moving at Speed 0 (his "Speed 0 never walks").
+    const anywhere = () => true;
+    expect(topdownStepToward(540, 376, 2.2, anywhere)).toBeCloseTo(537.8, 6);   // up the screen
+    expect(topdownStepToward(376, 540, 2.2, anywhere)).toBeCloseTo(378.2, 6);   // down it
+    expect(topdownStepToward(377, 376, 2.2, anywhere)).toBe(376);               // the last bit, exactly
+    expect(topdownStepToward(540, 540, 2.2, anywhere)).toBe(540);
+    expect(topdownStepToward(540, 376, 0, anywhere)).toBe(540);
+    // The painted edge: the full step would leave the plane, so it inches to the last spot that
+    // stands on it and pins there — the player's own W/S rule.
+    const planeFrom = (top) => (feet) => feet >= top;
+    expect(topdownStepToward(391, 300, 5, planeFrom(388))).toBe(388);
+    expect(topdownStepToward(388, 300, 5, planeFrom(388))).toBe(388);
+  });
+
   test("ladders, bars and cliffs never see a top-down cell — it is a floor, not a grip", () => {
     const lv = mk([12, 13, 14, 15, 16, 17, 18, 19]);
     const x = 15 * CW - PW / 2, y = feetOnStreet - PH;
@@ -4519,6 +4549,41 @@ describe("a two-armed weapon's second forearm rides the body's other arm", () =>
     const pumped = attachWeaponBlocksToArms(art, climbed(arm), { ...climbed(twin), y: twin.y - 10 }, HAND, 355, 355);
     expect(pumped[2].y).toBeCloseTo(up[2].y - 10, 6);
     expect(pumped[1].y).toBeCloseTo(up[1].y, 6);
+  });
+});
+
+/* A WEAPON HAS NO FRONT POSE, and walking DOWN a 🚶 Top-down plane is the player's Front pose — so
+   the M16, the bow, the bat and the RPG vanished from Blake's hand whenever he walked toward the
+   camera (measured in his Trailor Int7: the M16 drawn side-on, not one piece of it facing front). What to pin:
+   the stand-in is a pose every weapon type CAN be drawn in, nothing else is redirected, and the Back
+   drawing held by the Front arm turns by the difference between the two arms — "if you track the
+   arms which is all that changes". */
+describe("the Front pose holds a weapon by its Back art", () => {
+  test("every weapon type's stand-in is a pose its editor offers; every drawable pose is its own", () => {
+    for (const wt of ["ranged", "melee", "throw"]) {
+      expect(editablePoses("weapon", wt)).not.toContain("front");
+      expect(editablePoses("weapon", wt)).toContain(weaponArtPose("front"));
+    }
+    expect(WEAPON_FRONT_STANDIN).toBe("back");
+    for (const ang of ["back", "side", "up", "crouch"]) expect(weaponArtPose(ang)).toBe(ang);
+  });
+
+  test("BoB's Back art in his Front hand turns by the 2° between the arms, then with the aim", () => {
+    // BoB's weapon arms as drawn: Back at 355°, Front at 353°, both hung from the shoulder (top).
+    const backArm = { id: "a", role: "weaponArm", limb: "arm", armPivot: "top", x: 139, y: 88, w: 20, h: 82, rot: 355 };
+    const frontArm = { ...backArm, x: 136, y: 86, rot: 353 };
+    const HAND = { x: 150, y: 176 }; // the grip the Back art was drawn around
+    const barrel = { id: "b", kind: "rect", x: 146, y: 176, w: 8, h: 60, rot: 355 }; // hanging along the Back arm
+    const base = armBaseFrom(backArm, frontArm, frontArm.rot);
+    expect(base).toBe(355);
+    // At rest: the barrel lines up with the Front arm, not the Back one.
+    expect(attachWeaponBlocks([barrel], frontArm, HAND, base)[0].rot).toBeCloseTo(353, 6);
+    // Aimed level (armAimAbs("top") = -90): it turns with the arm from there — along the arm.
+    expect(attachWeaponBlocks([barrel], { ...frontArm, rot: -90 }, HAND, base)[0].rot).toBeCloseTo(-90, 6);
+    // No arm in the borrowed pose: the old no-turn baseline, so nothing moves.
+    expect(armBaseFrom(null, frontArm, 353)).toBe(353);
+    // Different pivots compare DIRECTIONS: a bottom-pivot arm at 0° points up, as a top-pivot one does at 180°.
+    expect(armBaseFrom({ rot: 0, armPivot: "bottom" }, { rot: 0, armPivot: "top" }, 0)).toBe(180);
   });
 });
 

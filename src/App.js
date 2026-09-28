@@ -1064,6 +1064,39 @@ export const weaponFireArt = (states, ang) => {
   const fire = (states && states.fire) || blankAngles();
   return (fire[ang] || []).length ? fire : rest;
 };
+// A WEAPON IS NEVER DRAWN FACING THE CAMERA, SO THE FRONT POSE HOLDS IT BY ITS BACK ART (2026-09-28).
+// The weapon editor offers Back, Side, Aim up and Crouch (editablePoses) — the Front tab went when
+// nothing in the game ever showed a weapon from the front. Then the 🚶 Top-down plane made Front the
+// player's pose for walking DOWN the screen, and every weapon was asked for Front art it cannot have:
+// the M16, the bow, the bat and the RPG simply vanished from Blake's hand whenever he walked toward
+// the camera ("my own weapon visually disappears sometimes like if i am walking down and shooting
+// diagonally"). Measured in his Trailor Int7: side-on and walking up, the M16's dark body and grey
+// sight were drawn; walking down, not one piece of it. The "sometimes" was the weapon — the older ones still carry a
+// Front drawing from before the tab went (Bobs Gun, the Machete, the Experimental Rifle) and showed
+// THAT instead, art he can no longer see or edit.
+//
+// Front and Back are the same weapon in the same hanging hand — his words: "both of those are
+// similar if you track the arms which is all that changes". So Front is drawn from the Back art,
+// gripped at the Front hand (the guide body's Back hand is the grip point that art was drawn around)
+// and turned by however far the Front arm differs from the Back one (armBaseFrom, below) — the same
+// delta attachWeaponBlocks already applies for every other arm motion. It covers everything in play
+// that asks where the player's weapon is — the art, the barrel a shot leaves, a melee blade's hit box
+// (a bat swung facing the camera used to hit nothing at all: measured, two swings at a unit a step
+// away, no hit), a grenade in the hand — so what is drawn and what hits stay one thing. Every pose a
+// weapon CAN be drawn in is untouched.
+export const WEAPON_FRONT_STANDIN = "back";
+export const weaponArtPose = (ang) => (ang === "front" ? WEAPON_FRONT_STANDIN : ang);
+// Which way an arm points is its rot PLUS the end it pivots from: a top-pivot arm at 0° hangs down, a
+// bottom-pivot one at 0° points up (armAimAbs and armClimbAbs are this same table, read as "which rot
+// points it level / straight up").
+const ARM_PIVOT_DIR = { top: 0, bottom: 180, left: -90, right: 90 };
+// The rot, in `curArm`'s own terms, that points it the way `drawnArm` pointed — the baseline a weapon
+// drawn against `drawnArm` (another pose's arm) is turned from when `curArm` holds it. Same pivot:
+// simply that arm's rot. Either arm missing: `fallback`, the old no-turn baseline.
+export const armBaseFrom = (drawnArm, curArm, fallback) => {
+  if (!drawnArm || !curArm) return fallback;
+  return (drawnArm.rot || 0) + (ARM_PIVOT_DIR[drawnArm.armPivot || "top"] || 0) - (ARM_PIVOT_DIR[curArm.armPivot || "top"] || 0);
+};
 // When the weapon's Fire pose REPLACES its Rest pose. One rule, shared by the player and by
 // enemies, so the two can never drift apart.
 //   Ranged — the instant the trigger is pulled, for the whole firing window. That's what makes a
@@ -7701,6 +7734,32 @@ export const topdownAt = (lv, x, feetY, pw, CW, CH) => {
 // ground", which is exactly the player's own rule, so it is shared rather than copied.
 export const topdownHolds = (onPlane, vy, y, jumpY) =>
   !!onPlane && (jumpY == null || (vy >= 0 && y >= jumpY - 0.001));
+// ...AND A UNIT WALKS UP AND DOWN THE PLANE TO GET AT YOU (2026-09-28). Until now a unit on a plane
+// held whatever height it stepped on at — enough for a crosswalk painted on the street, where the
+// street IS the line — but a whole room is a plane now (Blake's trailer interiors), and there you
+// walk up to the back wall and down to the front. A Seek unit only ever moved sideways, so it walked
+// to your column and stood there under you, and the melee stand-off even backed it away. Blake:
+// "enemies set to seek need to be able to seek you on top down climbing surfaces". So a unit that
+// is coming for someone walks the plane toward the line that someone is STANDING on:
+//
+// The line a body stands on: its feet — or, mid-hop off a plane, the line it left (tdJumpY) — and
+// null while it is off its feet altogether (a jump, a fall, a ladder), so nothing walks up the road
+// after the top of somebody's jump. `b` is the player or a unit's live state, `h` its height now.
+export const standingLineY = (b, h) => !b ? null : b.tdJumpY != null ? b.tdJumpY + h : ((b.onGround || b.topdown) ? b.y + h : null);
+// One frame of that walk: toward `lineY` by at most `speed`, taken whole when `canStand(feetY)`
+// allows the feet there and otherwise inched a pixel at a time to the last spot that does — the
+// player's own W/S rule, so a unit pins at the painted edge exactly where you would. Takes and
+// returns the FEET line (the plane is found by the feet; the box top follows).
+export const topdownStepToward = (feetY, lineY, speed, canStand) => {
+  const want = lineY - feetY;
+  if (!(speed > 0) || !(Math.abs(want) >= 0.01)) return feetY;
+  const step = Math.abs(want) <= speed ? want : Math.sign(want) * speed;
+  if (canStand(feetY + step)) return feetY + step;
+  const dir = Math.sign(step);
+  let y = feetY;
+  for (let m = 1; m <= Math.abs(step) && canStand(y + dir); m++) y += dir;
+  return y;
+};
 /* ============================== HAZARDS ==================================
    A hazard is a painted cell that hurts whoever stands in it — right now just Fire, but the
    layer is a generic { kind, dps } so more (acid, spikes) drop in the same way later. It's a
@@ -11915,7 +11974,18 @@ export default function AssetStudio() {
             // hands a ramp's own backing near the feet to the ramp-surface pass instead of calling it
             // a wall — and a unit now asks the same question (splitHillHitsW) and is stood on the
             // ramp's surface by the vertical pass below, exactly as you are.
-            const eWallHits = splitHillHitsW(cellsHitW(nx, ep.y, epw, newEph), ep.y + newEph).walls;
+            //
+            // ONLY A WALL THIS STEP WALKS *INTO* STOPS IT — never one it is already standing in (2026-
+            // 09-28), the player's own rule (preWallKeys). Blake's Trailor Int7: a Seek unit placed on
+            // the 🚶 carpet one cell in from the slanted side wall never moved at all, not even toward
+            // him standing on its own line 13 cells away (measured: 41 frames, x 144 → 144). A unit is
+            // seven cells tall and on a top-down floor the top of that box reaches up the screen into
+            // the room's side-wall blocks; every sideways step was measured against cells it was
+            // ALREADY inside, so every step was "blocked" — in both directions, forever. The player
+            // has always been let out of a wall it is embedded in and stopped only by a new one, and
+            // so is a unit now. A wall ahead still stops it exactly as before.
+            const eInside = new Set(cellsHitW(ep.x, ep.y, epw, newEph).map((h) => h.r + "," + h.c));
+            const eWallHits = splitHillHitsW(cellsHitW(nx, ep.y, epw, newEph), ep.y + newEph).walls.filter((h) => !eInside.has(h.r + "," + h.c));
             if (!eWallHits.length) ep.x = nx;
             else {
               const stepY = Math.min(...eWallHits.map((h) => h.r * CH)) - newEph;
@@ -11956,9 +12026,33 @@ export default function AssetStudio() {
           const eStand = worldPartAt(worldParts, ep.x + epw / 2, ep.y + newEph / 2, CW); // after the step: it may just have walked through a gate
           const eTdOverlap = topdownAt(eStand.lv, ep.x - eStand.ox, ep.y + newEph - eStand.oy, epw, CW, CH);
           const eTopdown = topdownHolds(eTdOverlap, ep.vy, ep.y, ep.tdJumpY);
+          let eTdStep = 0; // how far it walked up/down the plane this frame — its legs cycle for that too
           if (eTopdown) {
             if (ep.tdJumpY != null && ep.y - ep.tdJumpY <= Math.abs(ep.vy * dtMul) + 0.01) ep.y = ep.tdJumpY;
             ep.tdJumpY = null; ep.vy = 0; ep.onGround = true;
+            // WALKING THE PLANE TOWARD WHOEVER IT IS COMING FOR (see standingLineY): the unit's
+            // target — you, the foe it is fighting, or you again for an ally tagging along — and only
+            // when its feet would carry it there anyway: Seek (every friendly is Seek) that has
+            // noticed its target, or a tackler's charge. Guard holds its spot and Avoid keeps its old
+            // sideways retreat, so neither moves up or down a road it never used to. Speed 0 still
+            // never walks (his rule), a stomp keeps its feet planted, and the sideways step above is
+            // untouched — the two together are simply a walk on a floor that has depth.
+            //
+            // Stepping DOWN stops at solid ground the box is not already in, and stepping UP ignores
+            // solids — the player's W/S rule, for the player's reason: the box is seven cells tall,
+            // and near the back of a room its top is up among the back wall's blocks.
+            const tLine = (stunned || !acts || ep.stomp || !(charging || (ai === "seek" && detected))) ? null
+              : (targetKind === "unit" && targetEp && targetEa) ? standingLineY(targetEp, targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW))
+              : standingLineY(p, ph);
+            if (tLine != null) {
+              const feet0 = ep.y + newEph;
+              const inBox = new Set(cellsHitW(ep.x, ep.y, epw, newEph).map((h) => h.r + "," + h.c));
+              const canStand = (feet) => topdownAt(eStand.lv, ep.x - eStand.ox, feet - eStand.oy, epw, CW, CH)
+                && (feet <= feet0 || !cellsHitW(ep.x, feet - newEph, epw, newEph).some((h) => !inBox.has(h.r + "," + h.c)));
+              const feet1 = topdownStepToward(feet0, tLine, charging ? aiSpeed * TACKLE_CHARGE_SPEED_MUL : aiSpeed, canStand);
+              eTdStep = Math.abs(feet1 - feet0);
+              ep.y = feet1 - newEph;
+            }
           } else {
             // Gravity + ground collision — identical rule to the player's own fall, reusing the
             // same generic cell test so enemies land on and are stopped by the same terrain.
@@ -11992,7 +12086,7 @@ export default function AssetStudio() {
           // Walk cycle: advance the enemy's stride by how far it actually moved on the ground this
           // frame, exactly like the player's walkPhase. Enemies had no walk phase at all, so their
           // legs stayed frozen mid-chase. Blocked-by-a-wall (no displacement) reads as not walking.
-          const eStep = Math.abs(ep.x - exBefore);
+          const eStep = Math.hypot(ep.x - exBefore, eTdStep); // up/down a 🚶 plane is walking too, or it glides there on frozen legs
           ep.walking = ep.onGround && eStep > 0.05;
           if (ep.walking) ep.walkPhase = (ep.walkPhase || 0) + eStep * 0.03;
 
@@ -12389,6 +12483,7 @@ export default function AssetStudio() {
           // angle so the bullet still leaves the gun and not a spot a few px beside it.
           const angleNow = playerPoseKey({ climbing: p.climbing, climbKind: p.climbKind, climbJumpKind: p.climbJumpKind, aiming: p.aiming, aimDir, crouch: p.crouch, walking: p.walking, topdown: p.topdown, tdView: p.tdView });
           const armPieceM = playerAsset ? armOf(playerAsset.angles[angleNow] || []) : null;
+          const wPoseM = weaponArtPose(angleNow); // walking down a 🚶 plane the gun is held by its Back art — the render's rule, so the shot leaves the barrel that is drawn
           const muzzleSpawn = (tiltDeg) => {
             if (!armPieceM) return null;
             const baseArmRotM = armPieceM.rot || 0;
@@ -12399,9 +12494,10 @@ export default function AssetStudio() {
             const aimingNow = p.aiming && angleNow !== "up";
             const curArmM = { ...armPieceM, rot: aimingNow ? (aimAbsM + aimArmOffsetDeg(aimDir) + tiltDeg) : baseArmRotM };
             const wfitM = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
-            const guideHandM = handForGuideId(wfitM.guideId)[angleNow] || DEFAULT_HAND[angleNow];
-            const muzArt = bake({ ...playtestWeapon, angles: wfitM.states.rest || blankAngles() }, angleNow).filter((pc) => pc.isMuzzle);
-            const mp = muzArt.length ? muzzleLocalPoint(attachWeaponBlocks(muzArt, curArmM, guideHandM, baseArmRotM)) : null;
+            const guideHandM = handForGuideId(wfitM.guideId)[wPoseM] || DEFAULT_HAND[wPoseM];
+            const wBaseM = wPoseM === angleNow ? baseArmRotM : armBaseFrom(armOf(playerAsset.angles[wPoseM] || []), armPieceM, baseArmRotM);
+            const muzArt = bake({ ...playtestWeapon, angles: wfitM.states.rest || blankAngles() }, wPoseM).filter((pc) => pc.isMuzzle);
+            const mp = muzArt.length ? muzzleLocalPoint(attachWeaponBlocks(muzArt, curArmM, guideHandM, wBaseM)) : null;
             if (!mp) return null;
             const renderWM = CW * PLAYER_RENDER_W_CELLS;
             const wrapLeftM = p.x - (bodyShape.centerFrac * renderWM - pw / 2);
@@ -12541,9 +12637,15 @@ export default function AssetStudio() {
             const wfit = armPiece ? weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset)) : null;
             const guideHand = armPiece ? (handForGuideId(wfit.guideId)[angleNow] || DEFAULT_HAND[angleNow]) : null;
             const useFist = unarmedSwing || !playtestWeapon; // bare-handed reach/damage; a real melee weapon (not forced-unarmed) uses its own hitbox
+            // The blade's box comes from the art that is DRAWN, and walking down a 🚶 plane that is
+            // the Back art (weaponArtPose) — the Front pose has no weapon art, so this used to bake
+            // nothing and every swing taken facing the camera hit nobody at all.
+            const wPoseH = weaponArtPose(angleNow);
+            const wHandH = armPiece ? (handForGuideId(wfit.guideId)[wPoseH] || DEFAULT_HAND[wPoseH]) : null;
+            const wBaseH = (!armPiece || wPoseH === angleNow) ? baseArmRot : armBaseFrom(armOf(playerAsset.angles[wPoseH] || []), armPiece, baseArmRot);
             const hbPieces = !armPiece ? []
               : !useFist
-              ? attachWeaponBlocks(weaponHitboxPieces(bake({ ...playtestWeapon, angles: weaponFireArt(wfit.states, angleNow) }, angleNow)), curArm, guideHand, baseArmRot)
+              ? attachWeaponBlocks(weaponHitboxPieces(bake({ ...playtestWeapon, angles: weaponFireArt(wfit.states, wPoseH) }, wPoseH)), curArm, wHandH, wBaseH)
               : attachWeaponBlocks([{ id: "fist", kind: "rect", x: guideHand.x - 20, y: guideHand.y - 20, w: 40, h: 40, isHitbox: true }], curArm, guideHand, baseArmRot);
             if (hbPieces.length || biteBox) {
               const wrapLeft = p.x - (bodyShape.centerFrac * (CW * PLAYER_RENDER_W_CELLS) - pw / 2);
@@ -18919,7 +19021,15 @@ export default function AssetStudio() {
                     const curArm = armOf(blocks);
                     if (curArm) {
                       const wfit = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
-                      const guideHand = handForGuideId(wfit.guideId)[angle] || DEFAULT_HAND[angle];
+                      // Walking DOWN a 🚶 Top-down plane is the Front pose, which no weapon is drawn
+                      // in: it holds its Back art instead, turned from the Back arm's angle to this
+                      // one's (see weaponArtPose). Any other pose is its own art, as it always was.
+                      const wPose = weaponArtPose(angle);
+                      const guideHand = handForGuideId(wfit.guideId)[wPose] || DEFAULT_HAND[wPose];
+                      const drawnArms = wPose === angle ? null : ((playerAsset && playerAsset.angles && playerAsset.angles[wPose]) || []);
+                      const drawnArm = drawnArms && armOf(drawnArms);
+                      const wBaseRot = drawnArms ? armBaseFrom(drawnArm, baseArmPiece, baseArmRot) : baseArmRot;
+                      const wBaseTwinRot = drawnArms ? armBaseFrom(twinArmOf(drawnArms, drawnArm), baseTwinArm, baseTwinRot) : baseTwinRot;
                       const isProjectile = isRanged(playtestWeapon.wtype);
                       // Fire REPLACES Rest (see weaponPoseFired) — the two are never drawn
                       // together, so a Fire pose that redraws the whole weapon is exactly what
@@ -18928,9 +19038,9 @@ export default function AssetStudio() {
                       // weaponFireArt falls back to Rest rather than baking an empty array (which
                       // is what used to make the weapon vanish mid-swing).
                       const firedNow = weaponPoseFired(isProjectile, p.firing, wpn.current);
-                      const wpnAngles = firedNow ? weaponFireArt(wfit.states, angle) : (wfit.states.rest || blankAngles());
-                      const wpnPieces = bake({ ...playtestWeapon, angles: wpnAngles }, angle);
-                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocksToArms(wpnPieces, curArm, twinArmOf(blocks, curArm), guideHand, baseArmRot, baseTwinRot));
+                      const wpnAngles = firedNow ? weaponFireArt(wfit.states, wPose) : (wfit.states.rest || blankAngles());
+                      const wpnPieces = bake({ ...playtestWeapon, angles: wpnAngles }, wPose);
+                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocksToArms(wpnPieces, curArm, twinArmOf(blocks, curArm), guideHand, wBaseRot, wBaseTwinRot));
                     }
                   }
                   // Carried throwable in hand: shown while aiming (G held) or during the brief
@@ -18946,11 +19056,16 @@ export default function AssetStudio() {
                     const curArm = armOf(blocks);
                     if (curArm) {
                       const tfit = weaponFitFor(carriedThrowRender, equippedBodyIdFor(playerAsset));
-                      const guideHand = handForGuideId(tfit.guideId)[angle] || DEFAULT_HAND[angle];
+                      const tPose = weaponArtPose(angle); // a grenade has no Front either — the weapon's rule, above
+                      const guideHand = handForGuideId(tfit.guideId)[tPose] || DEFAULT_HAND[tPose];
+                      const drawnArms = tPose === angle ? null : ((playerAsset && playerAsset.angles && playerAsset.angles[tPose]) || []);
+                      const drawnArm = drawnArms && armOf(drawnArms);
+                      const tBaseRot = drawnArms ? armBaseFrom(drawnArm, baseArmPiece, baseArmRot) : baseArmRot;
+                      const tBaseTwinRot = drawnArms ? armBaseFrom(twinArmOf(drawnArms, drawnArm), baseTwinArm, baseTwinRot) : baseTwinRot;
                       const useFire = p.throwFiring > 0;
-                      const thrAngles = useFire ? weaponFireArt(tfit.states, angle) : (tfit.states.rest || blankAngles());
-                      const thrPieces = bake({ ...carriedThrowRender, angles: thrAngles }, angle).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
-                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocksToArms(thrPieces, curArm, twinArmOf(blocks, curArm), guideHand, baseArmRot, baseTwinRot));
+                      const thrAngles = useFire ? weaponFireArt(tfit.states, tPose) : (tfit.states.rest || blankAngles());
+                      const thrPieces = bake({ ...carriedThrowRender, angles: thrAngles }, tPose).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
+                      blocks = mergeWeaponBlocks(blocks, attachWeaponBlocksToArms(thrPieces, curArm, twinArmOf(blocks, curArm), guideHand, tBaseRot, tBaseTwinRot));
                     }
                   }
                   const doorT = doorAnimProgress(p);

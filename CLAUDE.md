@@ -1077,12 +1077,47 @@ it is deliberately NOT a climb:
   at the current height; a hop off it, `ep.tdJumpY`, is only re-grabbed when falling and back down
   to the line it left). Held, a unit has `vy = 0`, counts as `onGround` (so it keeps walking,
   dodging and fighting) and `ep.topdown` is set for the dodge-jump to read; otherwise the gravity
-  block runs exactly as before. A corpse rests on the plane the same way. Enemies still do not WALK
-  up or down the road — they hold whatever height they had when they stepped on, which for a
-  crossing painted on the street is the street. Verified in the running app against a control build
-  with the hold gated off: a Chasing Pit Bull seeking across a 14-cell column painted down from the
-  kerb fell 300 px to the level floor and stayed there; with the hold on it crossed twice at
-  y 348 to the pixel.
+  block runs exactly as before. A corpse rests on the plane the same way. (Until 2026-09-28 enemies
+  did not WALK up or down the road — see the next bullet.) Verified in the running app against a
+  control build with the hold gated off: a Chasing Pit Bull seeking across a 14-cell column painted
+  down from the kerb fell 300 px to the level floor and stayed there; with the hold on it crossed
+  twice at y 348 to the pixel.
+* **Enemies WALK the plane to get at you (2026-09-28).** Blake: "enemies set to seek need to be able
+  to seek you on top down climbing surfaces", about a 🎲 Trailor / Seek / Meelee placement in his
+  Trailor Int7 (a whole room painted as a plane). Two separate things were wrong:
+  - **It never moved at all** — not even toward him standing on its own line. Its seven-cell box,
+    placed one cell in from the room's slanted side wall, started overlapping the solid wall blocks
+    up the screen, and a unit's sideways step was tested against EVERY wall at the new spot,
+    including the ones it was already inside — so both directions were "blocked" forever (measured
+    on the old code: 41 frames, x 144 → 144). Units now use the player's own rule (`preWallKeys`):
+    only a wall the step walks INTO stops it (`eInside` in the enemy loop). A wall ahead still stops
+    it exactly as before; this is what also frees any unit a spawn or a seam hand-off left embedded.
+  - **It could only move sideways.** On the plane a unit coming for someone — Seek that has noticed
+    its target, every friendly (they are all Seek), a tackler's charge — now walks up/down toward the
+    line that target STANDS on (`standingLineY`: the feet, the line a hop left, or null in the air so
+    nothing chases the top of a jump), one `topdownStepToward` per frame at its walk speed: the whole
+    step when the feet stay on the plane, else inch to the painted edge — the player's W/S rule,
+    including "down stops at new solids, up ignores them". Guard and Avoid never walk the plane,
+    Speed 0 still never walks, a stomp still plants the feet, and the legs cycle for the vertical
+    step too. Measured in his Int7: Blue Football (Speed 7, bat) walked out of the wall (x 180 → 345
+    on his line), followed him up to the back line (feet 540 → 376, his exactly) and landed 4 hits.
+  Harness traps in a room: W on the door marker USES the door (the player snaps back to the spawn
+  line), so walk off it first; Footbob is a tackler and floors you (clear `p.down`/`p.stun` in the
+  sampler); a 🎲 tag rolls Billy/Bobby (Speed 0) 2 times in 9 — re-roll with ■ Stop / ▶ Playtest.
+* **A weapon has no Front, so the Front pose holds its BACK art (2026-09-28, `weaponArtPose`).** The
+  weapon editor offers Back / Side / Aim up / Crouch (`editablePoses`), and walking DOWN a plane is
+  the player's Front pose — so the M16, bow, bat and RPG vanished from his hand facing the camera
+  (Blake: "my own weapon visually disappears sometimes like if i am walking down and shooting
+  diagonally"; measured: the M16 drawn side-on and walking up, not one piece of it facing front; "sometimes" = the older
+  weapons still carry a hidden Front drawing from before the tab went, and showed that). Front and
+  Back are the same weapon in the same hanging hand ("both of those are similar if you track the
+  arms which is all that changes"), so Front bakes the Back art at the guide's Back grip and turns it
+  by the Front arm's difference from the Back arm (`armBaseFrom`, pivot-aware) — at every play site
+  that asks where the weapon is: the render, the throwable in hand, the muzzle spawn and the melee
+  hit box. That last one was a silent bug of its own: a bat swung facing the camera baked no art,
+  had no hit box and hit nothing (control: two swings at a unit a step away, no hit; now "Hit Roberta
+  for 7"). A weapon with no 🔴 muzzle in its Back art fires from the chest there, as walking UP
+  always has (his M16's only muzzles are Side/Crouch/Up).
 
 Verified in the running app on a seeded 60x30 level (a street at row 24, a 10x8 intersection over it
 and a 6-wide road running up to row 8): sideways across the crossing at y 510 the whole way with the
