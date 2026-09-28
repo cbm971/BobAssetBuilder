@@ -522,6 +522,13 @@ import {
   standingLineY,
   topdownStepToward,
 } from "./App";
+import {
+  incomingUnitDamage,
+  guardReduceOf,
+  unitCenterX,
+  enemyLookHP,
+  dialogueIsOnce,
+} from "./App";
 
 /* 🎲 A GEAR TAG ON A PLACEMENT. The point of the feature is that six copies of one guard are six
    loadouts, so what matters here is (a) the pool is the same pedestal search minus the things an
@@ -10945,5 +10952,111 @@ describe("item rank", () => {
     expect(newAsset("item").rank).toBe("common");
     expect(newAsset("equipment", "hat").rank).toBe("common");
     expect(newAsset("prop").rank).toBeUndefined(); // only the three types that carry categories
+  });
+});
+
+/* 🛡️ A UNIT TAKES A HIT BY THE PLAYER'S RULE (2026-09-28). Blake, playing DK: "Why do enemies have
+   less HP than the player? … it would take about 2 projectile hits to kill me but enemies are insta
+   dying." Their HP was the same; their ARMOUR did nothing — every hit on a unit was a bare
+   subtraction while every hit on the player went through Defense, Back Guard and Crouch Guard. */
+describe("a unit's armour counts the way yours does", () => {
+  // DK as saved in his library: a dressed look, HP stat 5, 13 Defense off the kit he wears.
+  const dk = { type: "character", stats: { hp: 5 }, defense: 13, effects: [] };
+
+  test("the same outfit takes the same hit, player or enemy", () => {
+    expect(enemyLookHP(dk)).toBe(maxPlayerHP(dk)); // HP was never the difference…
+    const asPlayer = incomingPlayerDamage(20, dk.defense, 1, 0, 100, null, null, false);
+    const asEnemy = incomingUnitDamage(20, dk, { face: 1, x: 0 }, 0, 100);
+    expect(asEnemy).toBe(asPlayer); // …what it does with a hit was
+    expect(asEnemy).toBe(9);        // 20 × 10/23, where it used to take all 20
+  });
+
+  test("an Enemy-creator animal has no armour, so every number it takes is unchanged", () => {
+    const dog = { type: "enemy", hp: 50, stats: { hp: 5, strength: 8 } };
+    for (const raw of [1, 7, 20, 25]) expect(incomingUnitDamage(raw, dog, { face: -1 }, 0, 100)).toBe(raw);
+  });
+
+  test("Ignore Armor goes straight through a unit's Defense too", () => {
+    expect(incomingUnitDamage(20, dk, { face: 1 }, 0, 100, true)).toBe(20);
+  });
+
+  test("a cape's Back Guard works on the unit wearing it — from behind only", () => {
+    const caped = { ...dk, defense: 0, effects: [{ type: "backGuard", reduce: 0.5 }] };
+    // Facing right (+1) at x 100: a hit from x 0 comes from behind, one from x 200 from the front.
+    expect(incomingUnitDamage(20, caped, { face: 1 }, 0, 100)).toBe(10);
+    expect(incomingUnitDamage(20, caped, { face: 1 }, 200, 100)).toBe(20);
+  });
+
+  test("Crouch Guard only while the unit is ducking", () => {
+    const shield = { ...dk, defense: 0, effects: [{ type: "crouchGuard", reduce: 0.5 }] };
+    expect(incomingUnitDamage(20, shield, { face: 1, crouch: true }, 200, 100)).toBe(10);
+    expect(incomingUnitDamage(20, shield, { face: 1, crouch: false }, 200, 100)).toBe(20);
+  });
+
+  test("a hit always stings: floored at 1 however much armour", () => {
+    expect(incomingUnitDamage(1, { ...dk, defense: 999 }, { face: 1 }, 0, 100)).toBe(1);
+  });
+
+  test("a guard reads the same way off anybody's effects", () => {
+    expect(guardReduceOf([{ type: "backGuard" }], "backGuard")).toBe(0.5); // the player's default
+    expect(guardReduceOf([{ type: "backGuard", reduce: 0.25 }], "backGuard")).toBe(0.25);
+    expect(guardReduceOf([], "backGuard")).toBe(null);
+    expect(guardReduceOf(undefined, "crouchGuard")).toBe(null);
+  });
+
+  test("a body's centre is the middle of the drawn body, not of the wider render box", () => {
+    expect(unitCenterX(dk, { x: 0 }, 30)).toBeGreaterThan(0);
+    expect(unitCenterX(dk, { x: 300 }, 30) - unitCenterX(dk, { x: 0 }, 30)).toBe(300);
+  });
+
+  test("every place a unit is hurt goes through the armour — a new one can't quietly skip it", () => {
+    // Eight places hurt a unit (brawl, swing, stomp, thrown impact, two blasts, a foe's round into
+    // your ally, your round). Fire is the one drain that skips Defense, on both sides. A ninth that
+    // subtracts straight off the HP would bring the bug back for whatever it is.
+    const lines = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8").split(String.fromCharCode(10));
+    const hits = [];
+    lines.forEach((ln, i) => { if (/enemyHP\.current\[[^\]]+\] = Math\.max\(0, /.test(ln)) hits.push(i); });
+    expect(hits.length).toBeGreaterThanOrEqual(9);
+    for (const i of hits) {
+      const ln = lines[i];
+      if (ln.includes("- loss)")) continue; // the fire drain
+      const near = lines.slice(Math.max(0, i - 3), i + 1).join(" ");
+      expect(near).toContain("incomingUnitDamage(");
+    }
+  });
+});
+
+/* 💬 ONE TIME ONLY — a tick box on the dialogue itself (Blake: "sometimes dialogue is meant to be
+   one time use. Others it is not"). */
+describe("a one-time dialogue", () => {
+  const tree = () => ({ id: "d1", name: "Warning", start: "nA", nodes: { nA: { id: "nA", speaker: "", text: "Turn back.", choices: [] } } });
+
+  test("the box survives a save and a reload", () => {
+    const d = migrateDialogue(JSON.parse(JSON.stringify({ ...tree(), once: true })));
+    expect(d.once).toBe(true);
+    expect(dialogueIsOnce(d)).toBe(true);
+  });
+
+  test("a tree saved before the box existed comes back exactly as it was", () => {
+    // Carried only when it is on, so nobody's old trees gain a field the keeper would read as an edit.
+    const d = migrateDialogue(tree());
+    expect("once" in d).toBe(false);
+    expect(dialogueIsOnce(d)).toBe(false);
+    expect(Object.keys(migrateDialogue({ ...tree(), once: false }))).not.toContain("once");
+  });
+
+  test("a new dialogue starts re-enterable, as every tree always was", () => {
+    expect(dialogueIsOnce(newDialogue())).toBe(false);
+    expect(dialogueIsOnce(null)).toBe(false);
+  });
+});
+
+/* ▢ PLAYING AS THE PLAIN BOX, which is the player picker's default. There is no asset behind it, so
+   the play loop's `playerAsset` is null — and three reads of `playerAsset.effects` in the shot and
+   swing code threw on the first trigger pull, which stops the game loop dead with no message. */
+describe("the plain box can fire a gun", () => {
+  test("nothing in the play code reads the player's effects without asking whether there is a player", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).not.toMatch(/playerAsset\.effects/);
   });
 });

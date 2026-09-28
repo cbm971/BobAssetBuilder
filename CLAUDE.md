@@ -126,6 +126,21 @@ broken weapon flag for two round-trips.
 Running the dev server **writes the browser's library back into `asset-data/`**, so
 `git checkout -- asset-data/` before committing or your synthetic test assets ship.
 
+**The Level Creator has TWO `<select>`s listing every character:** the enemy placement picker
+(first option "— none —") and the Playtest player picker (first option "▢ Plain box"). Finding the
+player picker by "has DK in it" picks the placement one, and you play as the plain box without
+noticing. Match on the first option's text. The plain box has no asset, so the loop's `playerAsset`
+is null. Until 2026-09-28, three `playerAsset.effects` reads in the shot and swing code threw on
+the first trigger pull and froze the loop with no message. There is now a test that no unguarded
+`playerAsset.effects` exists.
+
+**Inject the rAF shim as a `<script>` element, not from inside `javascript_tool`.** A tool call
+that throws (even a typo in a probe) tears down that call's context, and a MessageChannel shim
+created there stops delivering frames: the game freezes and it looks like the feature broke. A shim
+living in a page script survives. Put the per-frame driver (`window.__onFrame`, wrapped in
+try/catch) in a page script too. After `location.reload()` the studio reopens on the screen it was
+on, so "click Level Creator" can find nothing.
+
 ## Gotchas that have cost real time
 
 * **`src/App.js` is entirely CRLF.** Node/regex edits with `\n` in the pattern match
@@ -1396,6 +1411,27 @@ anybody hostile.
 Attachment is per PLACEMENT, not per asset: a `sign` marker (`{kind:"sign", dialogueId, text}` —
 the `text` is the five-second version, a one-off line with no tree) and a spawn's `dialogueId`.
 
+**☑ ONE TIME ONLY is a box on the TREE, in the 💬 Dialogue editor header beside the name**
+(2026-09-28, Blake: "sometimes dialogue is meant to be one time use. Others it is not" — and "the
+checkmark should be in the dialogue editor"). The record carries `once: true` ONLY when it is on;
+`migrateDialogue` passes it through, and unticking DELETES the field rather than writing false. That
+keeps every older tree byte-for-byte what it was, so the keeper sees no edit on a tree nobody
+touched. (`migrateDialogue` still drops `savedAt`, as it always has; a fresh save re-stamps it.)
+* **Spent per SPEAKER, when the talk CLOSES** (`closeTalk`). Every way out goes through that line:
+  the last option, Esc, or Stop. The same tree on a sign and on Bobert is two separate one-time
+  talks. An NPC keeps the fact on its `ep` (`ep.talkSpent`), because units are RE-KEYED at run
+  gates (`moveRunUnit`) and a key-based set would forget them. A sign never moves, so it lives in
+  `talkSpentSigns`, keyed `"<lv.runKey || lv.id>|<cell>"`. Only ▶ Playtest clears either one.
+* A spent speaker is SKIPPED by the prompt, not matched and then refused. `signOverlapping` takes a
+  `skip(cellKey)`, so standing on a spent sign offers the person beside it (checked in play: the
+  sign's talk ended and "E Talk to Bobert" came up).
+* **The prompt used to stay hidden after ANY talk until you walked off and back.** `openTalk` hides
+  it, and `lastTalkSig` saw "same person" and never re-showed it. That would have made the new box
+  look like it did nothing, so the paused-world return now clears `lastTalkSig` while a talk is
+  open. A re-enterable NPC re-offers "E Talk" the frame the talk ends; a spent one does not.
+* A spent NPC that is still talk-immune no longer says "press E to talk" (in `talkPhaseNote` and the
+  hover title).
+
 **ATTACHING A TREE TO A SPAWN IS WHAT MAKES IT PEACEFUL** (`spawnStartsPeaceful`). There is no
 second "peaceful?" tickbox — a talkable enemy that opens fire before you can speak is not a thing
 anyone would place. `unitSide` grew two gates in front of the old rule: `ep.turned`
@@ -1433,8 +1469,14 @@ Three things that are easy to get wrong here:
   not at the eight places that can damage a unit. One reader cannot fall out of step with itself.
   Deliberately narrow: only a spawn made peaceful by a dialogue. An asset with 🕊️ "Not hostile"
   ticked still stands there and never fights, exactly as levels already rely on.
-* **An NPC with something still to say STANDS IN ITS FRONT POSE** until `ep.talked`, and is not
-  mirrored while it does (a flip on front-facing art just swaps the character's left and right).
+* **An NPC with something to say STANDS IN ITS FRONT POSE, and KEEPS standing in it after the talk
+  unless the talk ended in a fight** (2026-09-28, Blake: "if the dialogue does not end in combat the
+  NPC should stay facing front"). It used to turn side-on the moment `ep.talked` was set. Now
+  `eFrontPose` holds for any talked unit that is still NEUTRAL. Turned hostile goes to Side, since
+  that is the fight. Joined you also goes to Side: an ally walks, and a Front drawing cannot. The 💬
+  badge (`eTalkWaiting`) still goes away once you have talked. Measured on Bobert: 80 pieces (Front)
+  before and after a peaceful talk, and 47 (Side) once turned hostile. It is not mirrored while
+  front-on (a flip on front-facing art just swaps the character's left and right).
   Art with no Front drawn — every animal — falls back through `enemyPoseKey` to Side and uses the
   turn-to-look rule instead (`TALK_NOTICE_CELLS`), which is the only reason that rule still exists.
   It feeds `wantFace`, **never `ep.face`** — a third direct writer in that loop is the sprite-strobe
@@ -2412,6 +2454,36 @@ own fists still 2. So the Pit Bulls and the Elaphant two-shot an unarmoured play
 Park M1 has five Pit Bulls in it**. Defense still applies on top (10 Defense halves it), and this
 is the intended shape of the change — but if a level suddenly reads as unfair, this is why, and the
 dial to turn is that creature's 💪 Strength, not the constant.
+
+**A UNIT TAKES A HIT BY THE PLAYER'S RULE — ITS ARMOUR COUNTS (2026-09-28, `incomingUnitDamage`).**
+Blake, playing DK: "Why do enemies have less HP than the player? … it would take about 2 projectile
+hits to kill me but enemies are insta dying." Their HP was never the difference: a dressed look
+placed as an enemy has exactly the player's pool (`enemyLookHP` = `maxPlayerHP`). The difference was
+AFTER the HP. Every hit on the player went through `incomingPlayerDamage` (Defense, Back Guard,
+Crouch Guard, floor of 1), and every hit on a unit was a bare subtraction. So the armour a dressed
+👹 Enemy is drawn wearing did nothing. DK's 13 Defense means he takes 43% of a hit, and the same DK
+placed as an enemy took 100%. Army Bob's 22 was worth nothing. Those are his "player enemies": the
+dressed looks, which are the only units that carry Defense.
+* `incomingUnitDamage(raw, ea, ep, attackerX, wearerX, ignoreArmor)` is `incomingPlayerDamage` with
+  the unit's own numbers. It uses the assembled `ea.defense` (a rolled 🎲 garment is folded in by
+  `liveEnemyAsset`), `ep.face` for "from behind", `ep.crouch`, and `guardReduceOf(ea.effects, …)`,
+  which reads the same way as the player's two lines. Ignore Armor skips the Defense step on both sides.
+* **All eight places that hurt a unit go through it:** the brawl (`applyHitTo`), your swing, your
+  stomp, a thrown impact, a foe's blast on your allies, your blast, a foe's round into an ally, and
+  your round. Crits double the raw number BEFORE armour. **Fire is the one exception**, as it is for
+  the player (the burn skips Defense on both sides). A test reads App.js and fails on any
+  `enemyHP.current[…] = Math.max(0, …)` subtraction that is neither the fire drain nor within three
+  lines of an `incomingUnitDamage(` call, so a ninth site cannot quietly skip it.
+* Enemy-creator animals have no Defense and no worn effects, so every number they take is unchanged
+  (checked in play: the Squirrel took the full 20 off a DK Arms barrel).
+* Measured in the running app, DK + DK Arms (20) against Billy (35 HP, 16 Defense): "🎯 Hit Billy for
+  8 (27 HP left)", where it used to be 20. With DK Arms, most of his Trailor looks now take 3–6 hits
+  instead of 2.
+* **Deliberately left alone, and worth asking him about if balance comes up:** the attack side still
+  differs. `enemyAttackDamage` scales an ARMED unit's weapon by its Strength, ranged included, while
+  your ranged shots are flat (`playerRangedDamage`, the Army Bob fix, done on the player side only).
+  Units never crit ("no unit attack crits"), and Tag Damage gear is only folded into YOUR weapon. So
+  an enemy Army Bob's M16 hits you for 12 while yours hits for 6.
 
 **AN ANIMAL HOLDING A GUN: IT FACES LEFT, AND IT HOLDS IT AT A ✋ HOLD POINT** (2026-09-26). A
 placement's weapon picker, or a `gearTag` roll (the T1 Squirrels in Trailor Park M7–M9), can hand

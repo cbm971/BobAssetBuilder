@@ -2784,8 +2784,20 @@ export const migrateDialogue = (raw) => {
     name: (typeof src.name === "string" && src.name.trim()) ? src.name : "Dialogue",
     start: nodes[src.start] ? src.start : ids[0],
     nodes,
+    // "One time only" (see dialogueIsOnce). Carried ONLY when it is on, so every tree saved before
+    // the box existed comes through here byte-for-byte what it was, and the save keeper sees no
+    // change on a record nobody touched.
+    ...(src.once ? { once: true } : {}),
   };
 };
+// ONE TIME ONLY (2026-09-28, Blake: "sometimes dialogue is meant to be one time use. Others it is
+// not"). A tree ticked in the 💬 Dialogue editor can be had ONCE per speaker: the moment the
+// conversation ends — its last line, or Esc — that NPC or sign stops offering "E Talk". Per
+// SPEAKER rather than per tree, because one tree hangs on six market stalls and reading one of them
+// must not silence the other five. Spent for the run, like everything else a run remembers: an NPC
+// carries it on its `ep` (so it survives doors and gates, the way `ep.talked` does), a sign in the
+// session's talkSpentSigns; only ▶ Playtest brings either back.
+export const dialogueIsOnce = (d) => !!(d && d.once);
 // Display order: the START node first, always, then the rest in insertion order. Which node the
 // talk opens on is the one thing you look for when you open somebody else's tree, so it is not
 // left to wherever it happens to sit in the map.
@@ -3176,6 +3188,31 @@ export const incomingPlayerDamage = (raw, def, face, attackerX, wearerX, backGua
   if (crouchGuardReduce != null) d = applyCrouchGuard(d, !!crouching, crouchGuardReduce);
   return Math.max(1, Math.round(d));
 };
+// How much of a hit a worn guard ability eats (Back Guard, Crouch Guard), or null when nothing worn
+// carries it — the same first-match, 0.5-default reading the player's own two lines in the play
+// loop make off the player's effects, so a cape reads identically on whoever has it on.
+export const guardReduceOf = (effects, type) => { const e = (effects || []).find((x) => x && x.type === type); return e ? (e.reduce ?? 0.5) : null; };
+// ...AND A UNIT TAKES A HIT BY THE SAME RULE (2026-09-28). Blake, playing DK: "Why do enemies have
+// less HP than the player? … it would take about 2 projectile hits to kill me but enemies are insta
+// dying." Their HP was never the difference — a dressed look placed as an enemy gets exactly the
+// player's pool (enemyLookHP). What differed was everything AFTER the HP: every hit on the player
+// went through incomingPlayerDamage above, and every hit on a unit was a bare subtraction. So the
+// armour a dressed 👹 Enemy is drawn wearing did nothing at all. DK has 13 Defense — he takes 43%
+// of every hit — and the same DK placed as an enemy took 100%, which is less than half the
+// toughness out of the same outfit; Army Bob's 22 was worth nothing. A cape's Back Guard and a
+// shield's Crouch Guard were dead on an enemy the same way (the abilities-work-both-ways rule).
+//
+// This is the player's pipeline, called with the unit's own numbers: its assembled Defense (worn
+// kit plus any rolled 🎲 garment — liveEnemyAsset re-composes it), its facing for "from behind",
+// its duck for the crouch guard, and the attacker's Ignore Armor. An Enemy-creator animal has no
+// Defense and no worn effects, so every number it takes is unchanged. Fire is not a hit on either
+// side (the player's burn skips Defense too), so the fire drain does not come through here.
+export const incomingUnitDamage = (raw, ea, ep, attackerX, wearerX, ignoreArmor) =>
+  incomingPlayerDamage(raw, (ea && ea.defense) || 0, (ep && ep.face) || 1, attackerX, wearerX,
+    guardReduceOf(ea && ea.effects, "backGuard"), guardReduceOf(ea && ea.effects, "crouchGuard"), !!(ep && ep.crouch), ignoreArmor);
+// Where a unit's body is across the level, for the "from behind" test: the middle of the VISIBLE
+// body, which is where every unit hit box and HP bar already sits (the render box is wider).
+export const unitCenterX = (ea, ep, cellW) => ((ep && ep.x) || 0) + sideBodyShape(ea).centerFrac * enemyRenderW(ea, cellW);
 // BLOCK — what the melee button (Q/V) does when you're actually HOLDING a melee weapon. Fire
 // already swings a melee weapon, so a second swing button bought you nothing; bracing is the move
 // that was missing. The arm goes straight out with the weapon held across you for one second, and
@@ -8812,12 +8849,14 @@ const doorOverlapping = (lv, x, y, w, h, CW, CH) => {
 // ...and the same body-overlap test for a 💬 SIGN. Same shape as the two above rather than one
 // parameterised helper on purpose: each of these is one line long, and the three call sites read
 // as three different questions ("am I at a door", "am I on a pedestal", "am I at a sign").
-const signOverlapping = (lv, x, y, w, h, CW, CH) => {
+// `skip(cellKey)` passes over a sign that has nothing left to say (a spent "One time only" tree),
+// so a second sign under the same body is still found.
+const signOverlapping = (lv, x, y, w, h, CW, CH, skip) => {
   if (!lv.markers) return null;
   const c0 = Math.floor(x / CW), c1 = Math.floor((x + w - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + h - 0.001) / CH);
   for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
     const m = lv.markers[cellKey(r, c)];
-    if (m && m.kind === "sign") return { key: cellKey(r, c), marker: m };
+    if (m && m.kind === "sign" && !(skip && skip(cellKey(r, c)))) return { key: cellKey(r, c), marker: m };
   }
   return null;
 };
@@ -10040,9 +10079,13 @@ export default function AssetStudio() {
   // screen. talkRef shadows it for the physics loop, which runs inside a rAF closure and cannot
   // see React state changes — the loop reads the ref to know it must hold everything still.
   const [talkPrompt, setTalkPrompt] = useState(null);     // { kind: "sign" | "npc", key, name, r, c } | null
-  const [talk, setTalk] = useState(null);                 // { dlg, nodeId, kind, key, name } | null — the open conversation
+  const [talk, setTalk] = useState(null);                 // { dlg, nodeId, kind, key, name, lvKey } | null — the open conversation
   const talkRef = useRef(null);
   useEffect(() => { talkRef.current = talk; }, [talk]);
+  // SIGNS that have had their "One time only" conversation this run, as "<level/run slot>|<cell>".
+  // An NPC keeps the same fact on its own ep (ep.talkSpent) so it rides with the unit through doors
+  // and gates; a sign never moves, so its level slot and cell name it for good. Wiped by ▶ Playtest.
+  const talkSpentSigns = useRef(new Set());
   // 🛒 THE SHOP, opened by a dialogue option carrying the `shop` act. It gets its OWN ref for the
   // same reason talk does — the world has to stay frozen while you are reading a price list, and
   // the loop can only be told that through a ref. It is a separate piece of state from `talk`
@@ -10706,7 +10749,7 @@ export default function AssetStudio() {
   const talkPhaseNote = (ea, ep) => {
     if (!ep || ep.phaseNoted) return;
     ep.phaseNoted = true;
-    flash("💬 " + ((ea && ea.name) || "They") + " isn't fighting you — your hits pass straight through. Press E to talk.");
+    flash("💬 " + ((ea && ea.name) || "They") + " isn't fighting you — your hits pass straight through." + (ep.talkSpent ? "" : " Press E to talk.")); // a spent one-time talk has no E left to press
   };
   const clearTalkTimer = () => { if (talkTimer.current) { clearTimeout(talkTimer.current); talkTimer.current = null; } };
   useEffect(() => () => clearTalkTimer(), []); // unmount mid-conversation must not leave a timer pointing at dead state
@@ -10741,7 +10784,7 @@ export default function AssetStudio() {
     const dlg = resolveTalkTree(t);
     if (!dlg) { flash(t.kind === "sign" ? "💬 This sign has nothing written on it." : "💬 They have nothing to say — their dialogue was deleted."); return; }
     const who = t.name || (t.kind === "sign" ? "Sign" : "");
-    const next = { dlg, nodeId: dlg.start, kind: t.kind, key: t.key, name: who, picked: null, ...talkAnchorFor(t) };
+    const next = { dlg, nodeId: dlg.start, kind: t.kind, key: t.key, lvKey: t.lvKey || "", name: who, picked: null, ...talkAnchorFor(t) };
     // The ref is set HERE, synchronously, as well as by the effect that mirrors `talk`. The loop
     // is mid-frame when this runs and checks the ref at the top of the NEXT one; waiting for React
     // to commit would let one more frame of physics through underneath the text.
@@ -10749,13 +10792,27 @@ export default function AssetStudio() {
     setTalk(next);
     setTalkPrompt(null);
     // TALKED TO ONCE IS "USED" — it stops the NPC turning to face you every time you walk past
-    // afterwards (see the wantFace rule in the enemy loop). Marked on the way IN rather than out,
-    // because walking away mid-sentence is still having heard them.
+    // afterwards (see the wantFace rule in the enemy loop), and takes the 💬 off its head. One drawn
+    // with a Front pose keeps STANDING in it unless the talk turned it hostile (eFrontPose). Marked
+    // on the way IN rather than out, because walking away mid-sentence is still having heard them.
+    // (Whether they can be talked to AGAIN is a separate question — see dialogueIsOnce/closeTalk.)
     if (t.kind === "npc") { const ep = enemyPos.current[t.key]; if (ep) ep.talked = true; }
   };
   // talkH goes back to 0 so the next conversation measures itself rather than inheriting the last
   // one's height and deciding, on its very first frame, that it doesn't fit above somebody's head.
-  const closeTalk = () => { clearTalkTimer(); talkRef.current = null; setTalk(null); setTalkH(0); };
+  //
+  // A "One time only" tree is SPENT here, on the way out — every road out of a conversation comes
+  // through this line (its last option, Esc, Stop), so there is no ending that forgets to spend it.
+  // Out rather than in, because that is what was asked ("not re-enterable after it ends") — and it
+  // makes no difference to what you can do, since the world is paused for the whole conversation.
+  const closeTalk = () => {
+    const t = talkRef.current;
+    if (t && dialogueIsOnce(t.dlg)) {
+      if (t.kind === "npc") { const ep = enemyPos.current[t.key]; if (ep) ep.talkSpent = true; }
+      else talkSpentSigns.current.add(t.lvKey + "|" + t.key);
+    }
+    clearTalkTimer(); talkRef.current = null; setTalk(null); setTalkH(0);
+  };
   // Both written synchronously as well as through setState, for the reason openTalk gives: the
   // loop is mid-frame and reads the ref at the top of the NEXT one, so waiting for React to
   // commit would let a frame of physics through under an open shop.
@@ -11386,7 +11443,12 @@ export default function AssetStudio() {
       // A SHOP PAUSES IT ON THE SAME LINE, for the same reason — reading a price list is reading,
       // and a shelf you have to skim while a Pit Bull eats you is not a shop. It is a separate ref
       // rather than folded into talkRef because the conversation can still be open underneath.
-      if (talkRef.current || shopRef.current) { raf = requestAnimationFrame(loop); return; }
+      // ...and while a conversation is open the talk prompt's memory is cleared, because openTalk
+      // hid the prompt and nothing else would ever bring it back: standing on the same person
+      // afterwards reads as "no change", so the "E Talk" callout stayed gone until you walked off
+      // and back. Now the first frame after the talk asks again — someone who can be talked to
+      // again says so, and a spent "One time only" one does not.
+      if (talkRef.current || shopRef.current) { if (talkRef.current) lastTalkSig = ""; raf = requestAnimationFrame(loop); return; }
       // STATUS FREEZES ON THE PLAYER — 💫 stunned by an enemy's Stun weapon, 😵 flattened by an
       // enemy's Tackle. Ticked here, before anything reads the keys, because a frozen player has no
       // input INTENT at all: mergeInputIntent({}) hands the rest of the loop the same all-false
@@ -12547,9 +12609,12 @@ export default function AssetStudio() {
             tgtBoxLeft = tb.left; tgtBoxTop = tb.top; tgtBoxW = tb.w; tgtBoxH = tb.h; tgtFeetY = tb.feetY; tgtAimCY = tb.aimCY;
           }
           const attacking = (targetKind === "player" || targetKind === "unit"); // has someone to fight (not just following you)
-          // Land a hit on ONE body: the player gets the full incoming-damage treatment (defense,
-          // back-guard, i-frames, respawn); a unit simply loses HP. Parametrised by the body, not
-          // by the chosen target, so a swing can land on everybody standing in it.
+          // Land a hit on ONE body. Both get the same incoming-damage treatment (Defense, Back
+          // Guard, Crouch Guard — incomingUnitDamage is the player's pipeline with the unit's own
+          // numbers); the player also has i-frames, the block and the respawn. A unit used to
+          // "simply lose HP" here, which is how a dressed enemy's armour came to do nothing.
+          // Parametrised by the body, not by the chosen target, so a swing can land on everybody
+          // standing in it.
           const applyHitTo = (kind, key, bEp, bEa, rawDmg) => {
             if (kind === "player") {
               if (p.invuln > 0) return false;
@@ -12587,7 +12652,7 @@ export default function AssetStudio() {
             if (kind === "unit" && key) {
               if (unitUntouchable(bEp)) return false; // mid-revive: the swing finds nobody, exactly as the player's i-frames read just above
               const cur = enemyHP.current[key] === undefined ? unitMaxHP(bEa, bEp, allyHpBonus) : enemyHP.current[key];
-              enemyHP.current[key] = Math.max(0, cur - Math.max(1, Math.round(rawDmg)));
+              enemyHP.current[key] = Math.max(0, cur - incomingUnitDamage(rawDmg, bEa, bEp, atkCX, unitCenterX(bEa, bEp, CW), !!(ew && ew.ignoreArmor)));
               if (enemyHP.current[key] <= 0) flash(friendly ? (allyBadge(ep) + " Your " + ea.name + " defeated " + (bEa.name || "a foe") + "!") : ("💔 Your " + (bEa.name || "ally") + " fell."));
               return true;
             }
@@ -12886,7 +12951,7 @@ export default function AssetStudio() {
             return { x: wrapLeftM + (playerSpriteMirrored(basePlayerAsset, p.face) ? renderWM - lx : lx), y: p.y + (mp.y / H) * ph };
           };
           let spawn = muzzleSpawn(0) || { x: p.x + pw / 2 + p.face * pw * 0.3, y: p.y + ph * 0.35 };
-          const rangePxNow = Math.max(1, playtestWeapon.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW * rangeBoostMultiplier(playerAsset.effects);
+          const rangePxNow = Math.max(1, playtestWeapon.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW * rangeBoostMultiplier(playerAsset?.effects); // ?. — as the ▢ Plain box there is no asset, and this read froze the game on the first shot
           // AIM ASSIST — see aimAssistAngle; the targets come from shotTargetsFor, the same
           // builder a unit's trigger finger uses, so both sides lock onto exactly what their shot
           // can hit and nothing else.
@@ -12933,7 +12998,7 @@ export default function AssetStudio() {
             rangePx: rangePxNow, traveled: 0,
             char: playtestWeapon.projectile?.char || "🔥", tint: playtestWeapon.projectile?.tint || null,
             pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
-            size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
+            size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset?.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
             ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor, pierce: playerShotsPierce,
             explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeChar: playtestWeapon.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
           });
@@ -13140,12 +13205,13 @@ export default function AssetStudio() {
                     // 2x Strength the AI bites you with, because a creature's jaws should not be
                     // worth a different number depending on who is holding the controls.
                     const base = (!unarmedSwing && playtestWeapon)
-                      ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset.effects, playtestWeapon.categories), strength)
+                      ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset?.effects, playtestWeapon.categories), strength)
                       : isCreatureUnit(basePlayerAsset)
                       ? creatureMeleeDamage(strength)
                       : playerMeleeDamage(UNARMED_DAMAGE * meleeBoostOf(playtestWeapon), strength); // 🦍 a Melee-boost gun (DK Arms) punches harder
                     const isCrit = Math.random() < critChance(intelligence);
-                    const dmg = isCrit ? base * 2 : base;
+                    // ...through the unit's own armour, the way their swing at you goes through yours.
+                    const dmg = incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, p.x + pw / 2, eHitLeft + epw / 2, !unarmedSwing && !!(playtestWeapon && playtestWeapon.ignoreArmor));
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
                     if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon && (playtestWeapon.stun ?? 0) > 0) { ep.stun = Math.round(playtestWeapon.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
                     // Mark THIS body as struck and carry on: the rest of the arc may still be
@@ -13183,7 +13249,7 @@ export default function AssetStudio() {
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             if (enemyHP.current[k] <= 0) continue;
             const isCrit = Math.random() < critChance(pstats.intelligence);
-            const dmg = stompDamage(pstats.strength) * (isCrit ? 2 : 1);
+            const dmg = incomingUnitDamage(stompDamage(pstats.strength) * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, b.x + b.w / 2, false);
             enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
             p.stomp.hits[k] = true;
             if (!notes.length) puffX = b.x + b.w / 2;
@@ -13330,8 +13396,10 @@ export default function AssetStudio() {
               continue;
             }
             if (unitUntouchable(s.ep)) continue; // 🐱 mid-revive: it stopped the rock (see the collision note above) and took nothing
-            enemyHP.current[s.k] = Math.max(0, enemyHP.current[s.k] - impactDmg);
-            impactNote += " · 🪨 hit " + s.ea.name + " for " + impactDmg
+            // The same treatment the player branch just above gets — a rock in the face is a hit.
+            const uDmg = incomingUnitDamage(impactDmg, s.ea, s.ep, g.x, unitCenterX(s.ea, s.ep, CW), !!(g.asset && g.asset.ignoreArmor));
+            enemyHP.current[s.k] = Math.max(0, enemyHP.current[s.k] - uDmg);
+            impactNote += " · 🪨 hit " + s.ea.name + " for " + uDmg
               + (enemyHP.current[s.k] <= 0 ? " — defeated!" : " (" + enemyHP.current[s.k] + " HP left)");
           }
           // Impact cell: clamp inside the level. Paint the landing effect there + its splash.
@@ -13525,7 +13593,7 @@ export default function AssetStudio() {
               const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0) || unitUntouchable(ep)) continue;
               const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
               const bx = enemyBlastBox(ea, ep);
-              if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) enemyHP.current[k] = Math.max(0, enemyHP.current[k] - Math.max(1, baseDmg));
+              if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(baseDmg, ea, ep, ix, bx.x + bx.w / 2)); // armour counts, as it does on you just above
             }
           } else {
             let hits = 0;
@@ -13537,9 +13605,9 @@ export default function AssetStudio() {
               const bx = enemyBlastBox(ea, ep);
               if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
                 // Splash is still a SHOT — flat weapon damage plus the same crit roll as a direct
-                // hit, and nothing else off the shooter.
+                // hit, and nothing else off the shooter. Then THEIR armour, as a blast gets yours.
                 const base = playerRangedDamage(baseDmg);
-                const dmg = (Math.random() < critChance(intelligence)) ? base * 2 : base;
+                const dmg = incomingUnitDamage((Math.random() < critChance(intelligence)) ? base * 2 : base, ea, ep, ix, bx.x + bx.w / 2);
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
                 if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
                 hits++;
@@ -13616,7 +13684,7 @@ export default function AssetStudio() {
               if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop && pierceFreshHit(pr, k)) {
                 if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
                 if (unitUntouchable(ep)) { if (!pr.pierce) return false; continue; } // 🐱 mid-revive: consumed, does nothing — the same reading an invulnerable player gets
-                enemyHP.current[k] = Math.max(0, enemyHP.current[k] - Math.max(1, pr.damage ?? 5));
+                enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(pr.damage ?? 5, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor));
                 if (enemyHP.current[k] <= 0) flash("💔 Your " + ea.name + " fell.");
                 if (!pr.pierce) return false;
               }
@@ -13676,10 +13744,12 @@ export default function AssetStudio() {
               // still goes off on it, and the blast pass then reads the same window.
               if (unitUntouchable(ep)) { if (!pr.pierce) return false; continue; }
               // The weapon's Damage number, flat, whoever pulled the trigger — then the one
-              // permitted character difference: an Intelligence crit roll for double.
+              // permitted character difference: an Intelligence crit roll for double. What it
+              // takes OFF is then decided by the target's armour, exactly as a foe's round into
+              // you is by yours (the foe branch above) — see incomingUnitDamage for why.
               const base = playerRangedDamage(pr.damage);
               const isCrit = Math.random() < critChance(intelligence);
-              const dmg = isCrit ? base * 2 : base;
+              const dmg = incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor);
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
               if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
               flash((isCrit ? "💥 Critical! " : "🎯 ") + "Hit " + ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
@@ -13788,9 +13858,13 @@ export default function AssetStudio() {
       // A sign beats an NPC because you are standing ON a sign and merely NEXT TO a person.
       let curTalk = null;
       if (!curDoorKey && !curPedKey && !curDropKey && !p.transitioning) {
-        const signHit = signOverlapping(lv, p.x, p.y, pw, ph, CW, CH);
+        // A sign whose "One time only" talk is spent is not there any more, as far as E is
+        // concerned — skipped rather than matched and refused, so a person standing beside it can
+        // still be talked to.
+        const talkLvKey = lv.runKey || lv.id || "";
+        const signHit = signOverlapping(lv, p.x, p.y, pw, ph, CW, CH, (sk) => talkSpentSigns.current.has(talkLvKey + "|" + sk));
         if (signHit) {
-          curTalk = { kind: "sign", key: signHit.key, name: "", marker: signHit.marker };
+          curTalk = { kind: "sign", key: signHit.key, name: "", marker: signHit.marker, lvKey: talkLvKey };
         } else {
           // Candidates are built here, where findA and the live positions are, so nearestTalkable
           // itself stays pure and testable. A hostile is never a candidate — once someone is
@@ -13800,6 +13874,7 @@ export default function AssetStudio() {
           for (const k2 of Object.keys(lv.enemies || {})) {
             const sp2 = lv.enemies[k2]; const dId = talkDialogueId(sp2); if (!dId) continue;
             const ep2 = enemyPos.current[k2]; if (!ep2) continue;
+            if (ep2.talkSpent) continue; // their "One time only" conversation has been had (closeTalk)
             if (enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) continue; // no chatting with a corpse
             const ea2 = unitAssetAt(k2, sp2); if (!ea2) continue;
             if (unitSide(ea2, ep2) === "hostile") continue;
@@ -13807,7 +13882,7 @@ export default function AssetStudio() {
             cands.push({ key: k2, dialogueId: dId, name: ea2.name, cx: ep2.x + sh2.centerFrac * rw2, cy: ep2.y + enemyStandH(ea2, CW) / 2 });
           }
           const near = nearestTalkable(cands, p.x + pw / 2, p.y + ph / 2, TALK_RANGE_CELLS * CW, TALK_RANGE_ROWS * CH);
-          if (near) curTalk = { kind: "npc", key: near.key, name: near.name, marker: null };
+          if (near) curTalk = { kind: "npc", key: near.key, name: near.name, marker: null, lvKey: talkLvKey };
         }
       }
       // Same "only touch React state when it actually changed" rule the pedestal prompt follows —
@@ -17414,7 +17489,7 @@ export default function AssetStudio() {
     // The run's world frame starts at its first level, and .lgrid keeps that level's box for the
     // whole run — see THE WORLD NEVER MOVES AT A GATE, at the level render.
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
-    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true };
+    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true };
     if (runStart) {
       const startNode = runStart.nodes[runStart.startKey];
       runRef.current = runStart; prepRunNeighbours(runStart, startNode);
@@ -17917,6 +17992,9 @@ export default function AssetStudio() {
         <header className="bar">
           <button className="back" onClick={() => setScreen("menu")}>‹ Menu</button>
           <input className="nm wide2" value={d.name} onChange={(e) => put({ ...d, name: e.target.value })} placeholder="Dialogue name" />
+          {/* A property of the whole conversation, like its name, so it sits beside the name.
+              Off DELETES the field rather than writing false — see migrateDialogue. */}
+          <label className="chk" style={{ marginTop: 0, whiteSpace: "nowrap" }} title="Once this conversation ends, nobody using it can be talked to again until ▶ Playtest"><input type="checkbox" checked={dialogueIsOnce(d)} onChange={(e) => { const next = { ...d, once: true }; if (!e.target.checked) delete next.once; put(next); }} /> One time only</label>
           <span className="badge">💬 Dialogue{dirty ? " ·  unsaved" : ""}</span>
           <button className="ltbtn" onClick={() => { const fresh = newDialogue(); setDlgDoc(fresh); dlgBaseline.current = JSON.stringify(fresh); flash("New blank dialogue"); }}>✚ New</button>
           <button className="ltbtn saveRead" onClick={() => { loadDialogues(); setDlgLoadOpen(true); }}>📂 Load ({dlgLib.length})</button>
@@ -19765,8 +19843,18 @@ export default function AssetStudio() {
                   // enemyPoseKey falls back to Side for art with no Front drawn at all, which is
                   // every animal (the Squirrel, the Pit Bulls) — those keep the turn-to-look rule
                   // in the AI loop instead, which is the whole reason that rule stays.
-                  const eTalkWaiting = !!(ep && !ep.talked && talkDialogueId(U.lv.enemies[k]) && !eUseAtkPose && !ducking && unitSide(ea, ep) !== "hostile");
-                  const eFrontPose = eTalkWaiting && enemyPoseKey(ea, "front") === "front";
+                  //
+                  // ...AND THEY STAY FACING FRONT AFTERWARDS, unless the talk ended in a fight
+                  // (2026-09-28, Blake: "if the dialogue does not end in combat the NPC should stay
+                  // facing front"). They used to turn side-on the moment `ep.talked` was set, which
+                  // read as the NPC losing interest — or as an enemy about to start something.
+                  // Still NEUTRAL after the talk (nothing said, calmed, healed you, sold you
+                  // something) is standing there, so front. Turned HOSTILE is the fight, so Side, as
+                  // before. Joined you is Side too: an ally walks and fights beside you, and a Front
+                  // drawing cannot walk. The 💬 badge (eTalkWaiting) still goes once you have talked.
+                  const eTalker = !!(ep && talkDialogueId(U.lv.enemies[k]) && !eUseAtkPose && !ducking);
+                  const eTalkWaiting = eTalker && !ep.talked && unitSide(ea, ep) !== "hostile";
+                  const eFrontPose = (eTalkWaiting || (eTalker && ep.talked && unitSide(ea, ep) === "neutral")) && enemyPoseKey(ea, "front") === "front";
                   const ePoseKey = eUseAtkPose ? "attack" : eFrontPose ? "front" : enemyPoseKey(ea, ducking ? "crouch" : "side");
                   // A ground line on the pose being drawn wins; failing that the Side line, because
                   // every other pose is pinned to Side's baseline anyway; failing that eFootAnchor,
@@ -20014,7 +20102,7 @@ export default function AssetStudio() {
                             an NPC standing behind a tree still advertises itself. */}
                         {eTalkWaiting && !downed ? <div className="talkBadge">💬</div> : null}
                       </div>
-                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? " (💬 not fighting you — press E to talk)" : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {(() => {
                           const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + uKey, keyPrefix: uKey + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
                           // Draw the art at its true aspect when the box isn't one (ducking): on a
