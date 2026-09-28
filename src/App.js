@@ -8258,7 +8258,7 @@ export const cutterMaskFrameLayout = () => ({
 });
 // Renders one finished (non-editable) piece list. `drawPiece(piece, key, cutters)` supplies the
 // renderer; `cutters` is the list of cutter pieces above that piece in its run, which the
-// renderer cuts into the piece itself (cutterHoleClip). Returns a flat node array for JSX to splat.
+// renderer cuts into the piece itself (cutterHoleClips). Returns a flat node array for JSX to splat.
 // The run is split into contiguous segments according to which later (higher) cutters affect
 // each piece. Uncut segments include both `noCut` pieces and pieces above every cutter. Since
 // all segments stay in original order, the finished stack preserves its exact layer ordering.
@@ -8380,26 +8380,71 @@ const pieceTurn = (q, mirrored) => {
 const turnToCanvas = (f, x, y) => { const dx = x - f.ox, dy = y - f.oy, c = Math.cos(f.rad), s = Math.sin(f.rad); let rx = dx * c - dy * s; const ry = dx * s + dy * c; if (f.mirrored) rx = -rx; return [f.ox + rx, f.oy + ry]; };
 const turnToLocal = (f, x, y) => { let dx = x - f.ox; const dy = y - f.oy; if (f.mirrored) dx = -dx; const c = Math.cos(-f.rad), s = Math.sin(-f.rad); return [f.ox + dx * c - dy * s, f.oy + dx * s + dy * c]; };
 const boundsOf = (pts) => { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const [x, y] of pts) { if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; } return [x0, y0, x1, y1]; };
-// The clip-path for piece `p` (drawn mirrored or not) under `cutters`, or null when no cutter
-// touches it. Only cutters whose turned outline overlaps the piece's turned box are cut in; the
+// The clip-paths for piece `p` (drawn mirrored or not) under `cutters`: null when no cutter reaches
+// it, else an ARRAY of clip-path strings that Static stacks on the piece (cutBox), each cutting its
+// own set of holes. Only cutters whose turned outline reaches the piece's turned box are cut in; the
 // rest of the group is left exactly as it was, which is what keeps this free.
-export const cutterHoleClip = (p, mirrored, cutters) => {
+//
+// OVERLAPPING CUTTERS UN-CUT EACH OTHER UNDER EVENODD (2026-09-28). Blake's Super Shirt: on Bobbett's
+// side pose he trimmed the point of the shield off the front of the chest with five cutters laid
+// over one another, and in Dress Bob a striped half of the point was still there ("The cutter tool
+// is not cutting part. Look how much is not cut in dress Bob"). One evenodd polygon fills a point by
+// the PARITY of how many outlines surround it: inside the box and one hole is two, cut; inside the
+// box and TWO holes is three, drawn again. So wherever two of his cutters overlapped, the art came
+// back. Measured with this function on his shirt: the gold point should be 100% cut and 55% of it
+// showed, the red point 43%, the "B" 17 of the 38% it should lose. Bob's side pose has ONE cutter
+// and was perfect, which is why it looked like something about Bobbett. The mask this replaced
+// (until 2026-09-20) painted every cutter into one mask, a plain union, so stacking cutters had
+// always worked — and his own art relies on it: the Pit-Porion (15 cutters, overlapping in every
+// pose it has) wore its white ruff as a full ring across its face instead of a frill under the
+// chin, and Trailers 1 and 2 had crescents of the body's own grey across both tyres where the three
+// cutters of each wheel well overlap. No fill rule turns a stack of holes into their union (nonzero
+// gives the same answer once the holes run the same way round), so the holes are split into LAYERS
+// whose holes never overlap — a hole joins the first layer none of whose holes its bounds touch —
+// and each layer is its own clip on its own nested box. Nested clips intersect, so what shows is the
+// piece minus EVERY hole. One cutter, or cutters that don't overlap, is still one clip, as before.
+//
+// THE CLIP'S OUTER EDGE IS PADDED PAST THE PIECE'S BOX. It used to be the box itself, which also
+// clipped away everything a piece draws OUTSIDE its box — its outline ring (a box-shadow on a rect or
+// circle, drop-shadows on every other shape) and any glow — the moment a cutter touched it; the mask
+// frame it replaced was padded (CUTTER_MASK_PAD) for exactly that reason. Trailers 5 and 6 showed it:
+// the outline along the top and bottom of the body was half as thick as down its sloped ends. A box
+// edge sitting right under a hole also left a hairline of the art behind (a thread of the Super
+// Shirt's shield past Bob's chest, a white seam down the Dress Shirt's crouch collar). The fill is
+// inside its box either way, so only what spills past the box changes: it survives now everywhere
+// except under a hole, which is what the mask did. The same few units of slack decide which cutters
+// count as reaching the piece, so a cutter butted up against a piece's edge still cuts its ring there.
+export const CUTTER_CLIP_PAD_PCT = 1000;
+const CUTTER_REACH = 6; // canvas units past a piece's box that its outline ring or glow can still paint
+export const cutterHoleClips = (p, mirrored, cutters) => {
   if (!p || !(p.w > 0 && p.h > 0) || !cutters || !cutters.length) return null;
   const pf = pieceTurn(p, mirrored);
   const pb = boundsOf([[p.x, p.y], [p.x + p.w, p.y], [p.x + p.w, p.y + p.h], [p.x, p.y + p.h]].map(([x, y]) => turnToCanvas(pf, x, y)));
-  const pct = (v, size) => +((v / size) * 100).toFixed(3) + "%";
   const holes = [];
   for (const c of cutters) {
     if (!c || !(c.w > 0 && c.h > 0)) continue;
     const cf = pieceTurn(c, !!c._m);
     const pts = cutterShapePoints(c).map(([x, y]) => turnToCanvas(cf, x, y));
     const hb = boundsOf(pts);
-    if (hb[2] < pb[0] || hb[0] > pb[2] || hb[3] < pb[1] || hb[1] > pb[3]) continue;
-    const loc = pts.map(([x, y]) => { const [lx, ly] = turnToLocal(pf, x, y); return pct(lx - p.x, p.w) + " " + pct(ly - p.y, p.h); });
-    holes.push(loc.join(", ") + ", " + loc[0]);
+    if (hb[2] < pb[0] - CUTTER_REACH || hb[0] > pb[2] + CUTTER_REACH || hb[3] < pb[1] - CUTTER_REACH || hb[1] > pb[3] + CUTTER_REACH) continue;
+    const loc = pts.map(([x, y]) => turnToLocal(pf, x, y));
+    holes.push({ loc, b: boundsOf(loc) });
   }
   if (!holes.length) return null;
-  return "polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, " + holes.map((h) => h + ", 0% 0%").join(", ") + ")";
+  const apart = (a, b) => a[2] <= b[0] || b[2] <= a[0] || a[3] <= b[1] || b[3] <= a[1];
+  const layers = [];
+  for (const h of holes) {
+    const into = layers.find((L) => L.every((o) => apart(o.b, h.b)));
+    if (into) into.push(h); else layers.push([h]);
+  }
+  const pct = (v, size) => +((v / size) * 100).toFixed(3) + "%";
+  const lo = -CUTTER_CLIP_PAD_PCT + "%", hi = (100 + CUTTER_CLIP_PAD_PCT) + "%";
+  const corner = lo + " " + lo;
+  const outer = [corner, hi + " " + lo, hi + " " + hi, lo + " " + hi, corner].join(", ");
+  // Each hole is walked round and closed, then joined back to the outer corner by a zero-width
+  // bridge (a CSS polygon has no subpaths; under evenodd a segment walked out and back adds nothing).
+  const holePath = (h) => { const s = h.loc.map(([x, y]) => pct(x - p.x, p.w) + " " + pct(y - p.y, p.h)); return s.join(", ") + ", " + s[0] + ", " + corner; };
+  return layers.map((L) => "polygon(evenodd, " + outer + ", " + L.map(holePath).join(", ") + ")");
 };
 // Flagging a block must never MOVE it. Three flags quietly change which point the renderer turns
 // a piece about — 💪 Arm and 🫱 Shoulder side swap the piece's centre for an edge of its box, and
@@ -15666,7 +15711,7 @@ export default function AssetStudio() {
     return s;
   };
   // The cutter hole used to be a CSS mask-image built here (cutterMaskCss, until 2026-09-20). It is
-  // an evenodd clip on each cut piece now — cutterHoleClip, next to pieceOriginPoint — because the
+  // an evenodd clip on each cut piece now — cutterHoleClips, next to pieceOriginPoint — because the
   // mask cost more than everything else in a playtest frame put together.
   // Curated web-safe fonts — no external loading (network dependency / FOUC risk), just
   // reasonably distinct built-in system fonts covering different vibes: clean sans, bold
@@ -15723,17 +15768,31 @@ export default function AssetStudio() {
   };
   const pieceInner = (p) => p.kind === "emoji" ? emojiInner(p) : p.kind === "text" ? textInner(p, false) : null;
   const pieceShowsOutline = (p) => p.outline && p.kind !== "emoji";
+  // A piece's box `s` (shapeStyle / outlineStyle) around `child`, cut by the cutter clips Static
+  // computed for it (cutterHoleClips — null when nothing cuts it). One layer of holes is one clip on
+  // the box itself, exactly as it has been since 2026-09-20. OVERLAPPING cutters come as several
+  // layers, and those need the box taken apart: position and turn stay on the outer box, the effects
+  // (opacity, glow, brightness — and on the outline layer, the ring's own drop-shadows) move to an
+  // inner one, and every layer's clip sits between the two, so each is applied AFTER the effects the
+  // way the lone clip is. Nested inside the effects instead, a glow or an outline ring would be drawn
+  // round the holes of the inner layers and cut off at the holes of the outer one. Each extra layer is
+  // a full-size box in the same turned frame, so its percentages mean what the first one's do.
+  const cutBox = (s, holes, child) => {
+    if (!holes || !holes.length) return <div style={s}>{child}</div>;
+    if (holes.length === 1) return <div style={{ ...s, clipPath: holes[0] }}>{child}</div>;
+    const { opacity, filter, ...box } = s;
+    let inner = <div style={{ width: "100%", height: "100%", opacity, filter }}>{child}</div>;
+    for (let i = holes.length - 1; i >= 1; i--) inner = <div style={{ width: "100%", height: "100%", clipPath: holes[i] }}>{inner}</div>;
+    return <div style={{ ...box, clipPath: holes[0] }}>{inner}</div>;
+  };
   // Shared by Static/MirrorGhost/Block: renders the outline layer as outer(outlineStyle) +
   // inner(outlineFillStyle), except text, which has no separate fill child (see outlineStyle).
-  // `hole` is the cutter clip Static computed for the piece (cutterHoleClip); the ring sits in the
-  // same box under the same transform, so the same clip cuts the same hole through it.
-  const OutlineLayer = (p, off, mirrored, faded, hole) => {
+  // `holes` are the cutter clips Static computed for the piece (cutterHoleClips); the ring sits in
+  // the same box under the same transform, so the same clips cut the same holes through it.
+  const OutlineLayer = (p, off, mirrored, faded, holes) => {
     if (!pieceShowsOutline(p)) return null;
     const s = outlineStyle(p, off, mirrored, faded);
-    if (hole) s.clipPath = hole;
-    return p.kind === "text"
-      ? <div style={s}>{textInner(p, true)}</div>
-      : <div style={s}><div style={outlineFillStyle(p)} /></div>;
+    return cutBox(s, holes, p.kind === "text" ? textInner(p, true) : <div style={outlineFillStyle(p)} />);
   };
   // Editor selection must trace the painted silhouette, not the piece's rectangular layout box.
   // That box is especially misleading for a half-triangle: half of the old blue rectangle was
@@ -15762,13 +15821,13 @@ export default function AssetStudio() {
     // prop art. Keep that transparent rectangle out of hit-testing. When an interaction is
     // supplied, only the clipped/painted inner shape receives the click.
     s.pointerEvents = "none";
-    // A cutter above this piece in its run is cut into THIS piece's box (cutterHoleClip) — the
-    // silhouette clip on the inner fill then does the rest — instead of a mask over the group.
-    const hole = cutters ? cutterHoleClip(p, flip, cutters) : null;
-    if (hole) s.clipPath = hole;
+    // A cutter above this piece in its run is cut into THIS piece's box (cutterHoleClips, stacked by
+    // cutBox) — the silhouette clip on the inner fill then does the rest — instead of a mask over
+    // the group.
+    const holes = cutters ? cutterHoleClips(p, flip, cutters) : null;
     const fill = shapeFillStyle(p);
     if (onPiecePointerDown) { fill.pointerEvents = "auto"; fill.cursor = "pointer"; }
-    return <React.Fragment key={key}>{OutlineLayer(p, off, flip, faded, hole)}<div style={s}><div style={fill} onPointerDown={onPiecePointerDown}>{pieceInner(p)}</div></div></React.Fragment>;
+    return <React.Fragment key={key}>{OutlineLayer(p, off, flip, faded, holes)}{cutBox(s, holes, <div style={fill} onPointerDown={onPiecePointerDown}>{pieceInner(p)}</div>)}</React.Fragment>;
   };
   // Renders a PROP asset's pixel art scaled to fill its placement box, at animation frame
   // `frameIdx`. The prop's pieces are positioned by percentage of the 200×260 design canvas (that's
@@ -19775,6 +19834,43 @@ export default function AssetStudio() {
                   // The arm the held item attaches to after the swing/aim below has turned it. The
                   // hold arm is appended last, so flaggedArmOf would find a drawn arm first.
                   const eHeldArmNow = () => (eArm0 && eArm0.__hold ? eBlocks.find((b) => b.__hold) : flaggedArmOf(eBlocks));
+                  // ...and the body's OTHER arm as drawn, before anything below turns it: a two-armed
+                  // weapon's second forearm rides it (eHeldView). Only a real drawn arm has a twin — a
+                  // ✋ hold point or a synthesized stand-in never does.
+                  const eRealArm = !!(eArm0 && !eArm0.__hold && !eArm0.__synthArm);
+                  const eBaseTwinArm = eRealArm ? twinArmOf(eBlocks, eArm0) : null;
+                  // WHICH DRAWING OF A HELD ITEM THIS UNIT SHOWS, where it is gripped and what it is
+                  // turned from. Side (or Crouch) is the item's own art at its own grip, as it always
+                  // was. A unit standing in its FRONT pose to be talked to (eFrontPose) holds it by its
+                  // BACK art instead — the player's rule walking down a 🚶 plane (weaponArtPose). No
+                  // weapon is drawn facing the camera, and the talker used to be handed the SIDE
+                  // drawing: a gun side-on across a body that faces you, and for the DK Arms, whose
+                  // Side drawing is ONE forearm, DK standing in Trailor Park M12 with one DK fist and
+                  // one bare arm. Blake: "NPCs with dialogue lose one of the DK arms ... the front
+                  // facing dialogue position should use a weapons rear pose for the weapon." The Back
+                  // art is gripped at the guide's Back hand and turned by however far this Front arm
+                  // sits from the Back one (armBaseFrom), and its mirrored twin — the second forearm —
+                  // rides the body's other arm (attachWeaponBlocksToArms), exactly as the player's
+                  // does. Never mirrored for the unit's facing: a front pose isn't (see flip, below).
+                  // A ✋ hold point is placed on Side and Crouch alone, so it keeps the Side path.
+                  const eHeldView = (fit) => {
+                    const sidePose = enemyPoseKey(ea, ducking ? "crouch" : "side");
+                    if (!(eFrontPose && eRealArm)) return { pose: sidePose, hand: handForGuideId(fit.guideId)[sidePose] || DEFAULT_HAND[sidePose], base: eAttachBase, twin: false };
+                    const pose = weaponArtPose("front");
+                    const drawnArms = (ea.angles && (ea.angles[pose] || []).length) ? bake(ea, pose) : null;
+                    const drawnArm = drawnArms && flaggedArmOf(drawnArms);
+                    return {
+                      pose,
+                      hand: handForGuideId(fit.guideId)[pose] || DEFAULT_HAND[pose],
+                      base: armBaseFrom(drawnArm, eArm0, eAttachBase),
+                      twinBase: armBaseFrom(drawnArm && twinArmOf(drawnArms, drawnArm), eBaseTwinArm, eBaseTwinArm ? (eBaseTwinArm.rot || 0) : 0),
+                      twin: true,
+                    };
+                  };
+                  // One attach for both held things (weapon, grenade) — see eHeldView.
+                  const eAttachHeld = (pieces, hv, curArm) => (hv.twin
+                    ? attachWeaponBlocksToArms(pieces, curArm, twinArmOf(eBlocks, curArm), hv.hand, hv.base, hv.twinBase)
+                    : attachWeaponBlocks(eFacesRight ? pieces : mirrorHeldArt(pieces, hv.hand.x), curArm, hv.hand, hv.base));
                   // Melee attack: swing EVERY 💪-flagged piece through the same windup/strike arc
                   // the player's own swing uses — the primary arm rotates about its shoulder and
                   // the other flagged pieces ride it rigidly (rigidArmFollow), so a multi-piece
@@ -19822,17 +19918,16 @@ export default function AssetStudio() {
                     if (curArm) {
                       const ebid = ea.type === "enemy" ? ea.id : equippedBodyIdFor(ea);
                       const wfit = weaponFitFor(ew, ebid);
-                      const ePose = enemyPoseKey(ea, ducking ? "crouch" : "side");
-                      const guideHand = handForGuideId(wfit.guideId)[ePose] || DEFAULT_HAND[ePose];
+                      const hv = eHeldView(wfit); // Side art, or Back art for a unit facing you to talk
                       // Same rule as the player (weaponPoseFired): Fire replaces Rest — instantly
                       // for a ranged weapon, at the impact angle for a melee one. Its live magazine
                       // goes in too, so an enemy's bow sits un-nocked while it reloads exactly the
                       // way yours does.
                       const eFired = weaponPoseFired(eRanged, ep && ep.swingT > 0 ? { t: ATTACK_SWING_FRAMES - ep.swingT, dur: ATTACK_SWING_FRAMES } : null, ep && ep.weaponAmmo);
-                      const wpnAngles = eFired ? weaponFireArt(wfit.states, ePose) : (wfit.states.rest || blankAngles());
+                      const wpnAngles = eFired ? weaponFireArt(wfit.states, hv.pose) : (wfit.states.rest || blankAngles());
                       // Drawn for a right-facing body, so mirrored about its grip for left-facing art.
-                      const wArt = bake({ ...ew, angles: wpnAngles }, ePose);
-                      eBlocks = mergeWeaponBlocks(eBlocks, attachWeaponBlocks(eFacesRight ? wArt : mirrorHeldArt(wArt, guideHand.x), curArm, guideHand, eAttachBase));
+                      const wArt = bake({ ...ew, angles: wpnAngles }, hv.pose);
+                      eBlocks = mergeWeaponBlocks(eBlocks, eAttachHeld(wArt, hv, curArm));
                     }
                   }
                   // The grenade in its hand while it winds up and lets go — the same idea as the
@@ -19846,10 +19941,9 @@ export default function AssetStudio() {
                     if (eThrownItem && curArm) {
                       const tbid = ea.type === "enemy" ? ea.id : equippedBodyIdFor(ea);
                       const tfit = weaponFitFor(eThrownItem, tbid);
-                      const tPose = enemyPoseKey(ea, ducking ? "crouch" : "side");
-                      const tHand = handForGuideId(tfit.guideId)[tPose] || DEFAULT_HAND[tPose];
-                      const tPieces = bake({ ...eThrownItem, angles: (tfit.states.rest || blankAngles()) }, tPose).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
-                      eBlocks = mergeWeaponBlocks(eBlocks, attachWeaponBlocks(eFacesRight ? tPieces : mirrorHeldArt(tPieces, tHand.x), curArm, tHand, eAttachBase));
+                      const hv = eHeldView(tfit); // a grenade has no Front either — the weapon's rule
+                      const tPieces = bake({ ...eThrownItem, angles: (tfit.states.rest || blankAngles()) }, hv.pose).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
+                      eBlocks = mergeWeaponBlocks(eBlocks, eAttachHeld(tPieces, hv, curArm));
                     }
                   }
                   const hpFrac = Math.max(0, Math.min(1, curHp / maxHp));

@@ -150,7 +150,8 @@ import {
   PED_XRAY_NEAR_CELLS,
   PED_XRAY_FAR_CELLS,
   cutterLayerSegments,
-  cutterHoleClip,
+  cutterHoleClips,
+  CUTTER_CLIP_PAD_PCT,
   renderPieceRuns,
   cutterShapePoints,
   CUTTER_MASK_PAD,
@@ -10323,18 +10324,24 @@ describe("the save folder on his disk (diskLibrary) and the two-backend merge", 
   });
 });
 
-describe("cutter holes as per-piece clips (cutterHoleClip, 2026-09-20)", () => {
-  // Read the hole polygons back out of the clip string, in percent of the piece box.
+describe("cutter holes as per-piece clips (cutterHoleClips, 2026-09-20)", () => {
+  // The clip's outer edge: a rectangle padded well past the piece's own box (see cutterHoleClips).
+  const LO = -CUTTER_CLIP_PAD_PCT, HI = 100 + CUTTER_CLIP_PAD_PCT;
+  const CORNER = LO + "% " + LO + "%";
+  const OUTER = "polygon(evenodd, " + [CORNER, HI + "% " + LO + "%", HI + "% " + HI + "%", LO + "% " + HI + "%", CORNER].join(", ") + ", ";
+  // Read the hole polygons back out of ONE clip string, in percent of the piece box.
   const holesOf = (clip) => {
-    expect(clip.startsWith("polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, ")).toBe(true);
-    const body = clip.slice("polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, ".length, -1);
-    return body.split(", 0% 0%").filter((s) => s.trim()).map((h) => h.split(", ").filter(Boolean).map((pt) => pt.split(" ").map(parseFloat)));
+    expect(clip.startsWith(OUTER)).toBe(true);
+    const body = clip.slice(OUTER.length, -1);
+    return body.split(", " + CORNER).filter((s) => s.trim()).map((h) => h.split(", ").filter(Boolean).map((pt) => pt.split(" ").map(parseFloat)));
   };
+  // ...and of the only clip, when the cutters don't overlap and there is exactly one layer.
+  const onlyClip = (clips) => { expect(clips).toHaveLength(1); return clips[0]; };
   const near = (a, b) => Math.abs(a - b) < 0.02;
   test("a rect cutter inside a rect piece becomes one hole at the cutter's place, closed back on itself", () => {
     const piece = { id: "face", kind: "rect", x: 50, y: 40, w: 100, h: 100 };
     const eye = { id: "eye", kind: "rect", x: 70, y: 60, w: 20, h: 10, isCutter: true };
-    const holes = holesOf(cutterHoleClip(piece, false, [eye]));
+    const holes = holesOf(onlyClip(cutterHoleClips(piece, false, [eye])));
     expect(holes).toHaveLength(1);
     const h = holes[0];
     expect(h).toHaveLength(5); // four corners + back to the first
@@ -10342,18 +10349,18 @@ describe("cutter holes as per-piece clips (cutterHoleClip, 2026-09-20)", () => {
   });
   test("a cutter that never touches the piece leaves it unclipped; one that does is cut, the rest ignored", () => {
     const piece = { id: "p", kind: "rect", x: 0, y: 0, w: 50, h: 50 };
-    expect(cutterHoleClip(piece, false, [{ id: "far", kind: "rect", x: 100, y: 100, w: 10, h: 10, isCutter: true }])).toBeNull();
-    expect(cutterHoleClip(piece, false, [])).toBeNull();
-    expect(cutterHoleClip(piece, false, null)).toBeNull();
-    const clip = cutterHoleClip(piece, false, [{ id: "far", kind: "rect", x: 100, y: 100, w: 10, h: 10 }, { id: "near", kind: "rect", x: 10, y: 10, w: 10, h: 10 }]);
-    expect(holesOf(clip)).toHaveLength(1);
+    expect(cutterHoleClips(piece, false, [{ id: "far", kind: "rect", x: 100, y: 100, w: 10, h: 10, isCutter: true }])).toBeNull();
+    expect(cutterHoleClips(piece, false, [])).toBeNull();
+    expect(cutterHoleClips(piece, false, null)).toBeNull();
+    const clips = cutterHoleClips(piece, false, [{ id: "far", kind: "rect", x: 100, y: 100, w: 10, h: 10 }, { id: "near", kind: "rect", x: 10, y: 10, w: 10, h: 10 }]);
+    expect(holesOf(onlyClip(clips))).toHaveLength(1);
   });
   test("a rotated piece gets the hole in its own unrotated box: the cutter's canvas position turns back with it", () => {
     // piece 100x40 about its centre (100, 100) turned 90°: on the canvas its box is x 80..120, y 50..150.
     const piece = { id: "bar", kind: "rect", x: 50, y: 80, w: 100, h: 40, rot: 90 };
     // a cutter sitting on the canvas at the TOP of the turned bar (x 90..110, y 55..65)
     const cut = { id: "c", kind: "rect", x: 90, y: 55, w: 20, h: 10 };
-    const h = holesOf(cutterHoleClip(piece, false, [cut]))[0];
+    const h = holesOf(onlyClip(cutterHoleClips(piece, false, [cut])))[0];
     // CSS rotate(90deg) is clockwise on screen, so the bar's LEFT end went to the top; turned back the
     // cutter lands on that end: local x 55..65, y 90..110 -> percent of the 100x40 box at (50,80): x 5..15 %, y 25..75 %
     const xs = h.map((p) => p[0]), ys = h.map((p) => p[1]);
@@ -10365,7 +10372,7 @@ describe("cutter holes as per-piece clips (cutterHoleClip, 2026-09-20)", () => {
     const piece = { id: "cheek_m", kind: "rect", x: 200 - (120 + 60), y: 100, w: 60, h: 30, _m: true };
     // a cutter on the canvas over the twin's LEFT part (x 25..35)
     const cut = { id: "c", kind: "rect", x: 25, y: 110, w: 10, h: 10 };
-    const h = holesOf(cutterHoleClip(piece, true, [cut]))[0];
+    const h = holesOf(onlyClip(cutterHoleClips(piece, true, [cut])))[0];
     // the twin's box is x 20..80 (centre 50); mirrored back about that centre, 25..35 becomes 65..75 -> percent 75..91.7
     const xs = h.map((p) => p[0]);
     expect(near(Math.min(...xs), 75) && near(Math.max(...xs), 91.667)).toBe(true);
@@ -10386,6 +10393,99 @@ describe("cutter holes as per-piece clips (cutterHoleClip, 2026-09-20)", () => {
     const drawPiece = (p, key, cutters) => { seen.push([p.id, cutters ? cutters.map((c) => c.id) : null]); return null; };
     renderPieceRuns({ pieces: [{ id: "below" }, { id: "hole", isCutter: true }, { id: "above" }], keyPrefix: "t", drawPiece });
     expect(seen).toEqual([["below", ["hole"]], ["above", null]]);
+  });
+
+  // What the browser does with a stack of clips: a point of the piece's box (in percent) is drawn
+  // only if it is inside EVERY clip, each one filled by the evenodd rule over all its outlines.
+  const pts = (clip) => clip.slice("polygon(evenodd, ".length, -1).split(", ").map((s) => s.split(" ").map(parseFloat));
+  const evenodd = (poly, x, y) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if (((yi > y) !== (yj > y)) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
+  const drawn = (clips, x, y) => !clips || clips.every((c) => evenodd(pts(c), x, y));
+  // A cutter's outline on the canvas, turned about its centre the way CSS rotate() turns it —
+  // written out here rather than borrowed from App.js, so the check does not share the code it checks.
+  const inCutter = (c, x, y) => {
+    const r = -(c.rot || 0) * Math.PI / 180, cx = c.x + c.w / 2, cy = c.y + c.h / 2;
+    const lx = cx + (x - cx) * Math.cos(r) - (y - cy) * Math.sin(r), ly = cy + (x - cx) * Math.sin(r) + (y - cy) * Math.cos(r);
+    return lx > c.x && lx < c.x + c.w && ly > c.y && ly < c.y + c.h;
+  };
+
+  // Blake's Super Shirt (2026-09-28): five cutters stacked over the point of the shield on Bobbett's
+  // side pose, and a striped half of the point still drawn in Dress Bob. One evenodd polygon fills by
+  // the parity of how many outlines surround a point, so wherever two cutters overlapped the art came
+  // back.
+  test("overlapping cutters cut their UNION — the overlap stays cut", () => {
+    const piece = { id: "p", kind: "rect", x: 0, y: 0, w: 100, h: 100 };
+    const a = { id: "a", kind: "rect", x: 10, y: 10, w: 50, h: 50, isCutter: true };
+    const b = { id: "b", kind: "rect", x: 40, y: 40, w: 50, h: 50, isCutter: true };
+    const clips = cutterHoleClips(piece, false, [a, b]);
+    expect(clips).toHaveLength(2); // one layer per overlapping hole
+    expect(drawn(clips, 50, 50)).toBe(false); // in both
+    expect(drawn(clips, 20, 20)).toBe(false); // in a only
+    expect(drawn(clips, 80, 80)).toBe(false); // in b only
+    expect(drawn(clips, 80, 20)).toBe(true);  // in neither
+    // The control — both holes in ONE evenodd polygon, which is what shipped: the overlap is drawn again.
+    const one = pts(clips[0]).concat(pts(clips[1]).slice(5));
+    expect(evenodd(one, 50, 50)).toBe(true);
+    expect(evenodd(one, 20, 20)).toBe(false);
+  });
+
+  test("cutters that do not overlap still share one clip, exactly as before", () => {
+    const piece = { id: "p", kind: "rect", x: 0, y: 0, w: 100, h: 100 };
+    const clips = cutterHoleClips(piece, false, [
+      { id: "l", kind: "rect", x: 10, y: 10, w: 20, h: 20 },
+      { id: "r", kind: "rect", x: 60, y: 10, w: 20, h: 20 },
+      { id: "o", kind: "circle", x: 12, y: 50, w: 20, h: 20 },
+    ]);
+    expect(clips).toHaveLength(1);
+    expect(holesOf(clips[0])).toHaveLength(3);
+  });
+
+  test("his Super Shirt on Bobbett's side pose: nothing under his five cutters is drawn, nothing else is lost", () => {
+    // Three pieces of the shield exactly as his record has them, and the five cutters above them.
+    const goldPoint = { id: "slevz4v", kind: "tri", x: 132.5, y: 92.5, w: 11.328, h: 7.553, rot: 0 };
+    const redPoint = { id: "63e7vax", kind: "tri", x: 134, y: 90, w: 13.986, h: 9.324, rot: 0 };
+    const letter = { id: "hq5oz0z", kind: "text", text: "B", x: 97.5, y: 88, w: 62.25, h: 32.634 };
+    const cutters = [
+      { id: "80g0psi", kind: "rect", x: 129.5, y: 117, w: 10, h: 10, rot: 37, isCutter: true },
+      { id: "cm3jsto", kind: "rect", x: 128, y: 123, w: 10, h: 10, rot: 0, isCutter: true },
+      { id: "o63dbje", kind: "rect", x: 132, y: 107.5, w: 17.5, h: 13.5, rot: 15, isCutter: true },
+      { id: "fvgltd3", kind: "rect", x: 136.5, y: 91.5, w: 14, h: 21, rot: 79, isCutter: true },
+      { id: "70y0xza", kind: "rect", x: 131.5, y: 85.5, w: 28, h: 25.5, rot: 69, isCutter: true },
+    ];
+    for (const p of [goldPoint, redPoint, letter]) {
+      const clips = cutterHoleClips(p, false, cutters);
+      let under = 0, underDrawn = 0, clear = 0, clearLost = 0;
+      const N = 60;
+      for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+        const u = (i + 0.5) / N * 100, v = (j + 0.5) / N * 100; // percent of the piece's box
+        const x = p.x + u / 100 * p.w, y = p.y + v / 100 * p.h;   // the same spot on the canvas
+        const shown = drawn(clips, u, v);
+        if (cutters.some((c) => inCutter(c, x, y))) { under++; if (shown) underDrawn++; } else { clear++; if (!shown) clearLost++; }
+      }
+      expect(under).toBeGreaterThan(0);
+      // A sample within a hair of a cutter's edge can land either side of a 3-decimal percentage.
+      expect(underDrawn).toBeLessThanOrEqual(N / 10);
+      expect(clearLost).toBeLessThanOrEqual(N / 10);
+    }
+  });
+
+  test("the clip reaches past the piece's box, so an outline ring or glow is only cut under a hole", () => {
+    const piece = { id: "p", kind: "rect", x: 50, y: 50, w: 100, h: 100, outline: true };
+    const inside = { id: "in", kind: "rect", x: 90, y: 90, w: 20, h: 20 };
+    const clips = cutterHoleClips(piece, false, [inside]);
+    expect(drawn(clips, -3, 50)).toBe(true);   // just left of the box: where the ring is drawn
+    expect(drawn(clips, 103, 103)).toBe(true); // just past the far corner
+    expect(drawn(clips, 50, 50)).toBe(false);  // the hole
+    // A cutter hanging over the left edge cuts the ring under it too...
+    const edge = { id: "edge", kind: "rect", x: 40, y: 90, w: 20, h: 20 };
+    const edged = cutterHoleClips(piece, false, [edge]);
+    expect(drawn(edged, -3, 50)).toBe(false);
+    expect(drawn(edged, -3, 10)).toBe(true);
+    // ...and so does one butted against it from outside, which never reaches the fill at all.
+    const outside = { id: "out", kind: "rect", x: 44, y: 90, w: 5, h: 20 };
+    const butted = cutterHoleClips(piece, false, [outside]);
+    expect(butted).not.toBeNull();
+    expect(drawn(butted, -3, 50)).toBe(false);
+    expect(drawn(butted, 1, 50)).toBe(true);
   });
 });
 

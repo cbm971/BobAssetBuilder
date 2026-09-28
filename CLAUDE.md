@@ -1441,6 +1441,17 @@ Three things that are easy to get wrong here:
   bug `holdFacing` exists to prevent. Both the Front and Attack poses go through
   `alignPoseFootBaseline` against Side, or the body floats by whatever empty canvas its own drawing
   leaves under it.
+* **...and it HOLDS ITS WEAPON BY THE WEAPON'S BACK ART (2026-09-28, `eHeldView`).** No weapon
+  has Front art (`weaponArtPose`), and a talker used to be handed the Side drawing. For the DK Arms,
+  whose Side drawing is one forearm, that meant DK in Trailor Park M12 stood there with one DK fist
+  and one bare arm. Blake: "the front facing dialogue position should use a weapons rear pose".
+  It now follows the player's walking-down rule:
+  - the Back art, gripped at the guide's Back hand;
+  - turned by the Front arm's difference from the Back arm (`armBaseFrom`);
+  - its mirrored twin, the second forearm, rides the body's other arm (`attachWeaponBlocksToArms`).
+  A grenade in hand follows the same rule. A ✋ hold point keeps the Side path, since it only exists
+  on Side and Crouch. Measured in the running app on his M12: the old code had 8 forearm pieces all
+  on one side of DK; the fix has 6 on each side, mirror images, with the barrel in his hand.
 
 ### What the conversation looks like, and why it is where it is
 
@@ -1474,6 +1485,40 @@ room. `TALK_NOTICE_CELLS` must stay wider than the talk range.
 **Piece rendering.** Cutters (`isCutter`) only punch through pieces in the same
 contiguous same-source run (`cutterRuns` / `pieceSrcKey`). Anything that reorders
 pieces must keep a cutter adjacent to what it cuts — see `groupWeaponBlocksByArm`.
+
+**OVERLAPPING CUTTERS CUT THEIR UNION (2026-09-28).** Since 2026-09-20 a hole is an evenodd
+`clip-path` polygon on each cut piece (it was a mask, which cost more than the rest of a frame).
+Evenodd fills by PARITY, so where two cutters overlapped the art came BACK. Blake's Super Shirt shows
+it: on Bobbett's side pose he trimmed the shield's point off the chest with five overlapping cutters,
+and Dress Bob drew a striped half of the point anyway ("The cutter tool is not cutting part"). Bob's
+side pose has one cutter and was fine. The same bug hit three of his older assets, which he built
+while the mask still did a plain union:
+- the Pit-Porion (15 cutters): its ruff drew as a white ring across its face;
+- Trailers 1 and 2: the wheel wells, three cutters each, drew grey crescents across the tyres.
+
+`cutterHoleClips` now returns an ARRAY of clips. It layers the holes so no two in a layer overlap
+(bounds test, greedy), and `cutBox` stacks one nested full-size box per layer. With several layers,
+position and turn stay on the outer box, the effects move to the innermost one, and every clip sits
+between them, so glow and outline rings are cut the same way under every hole. One layer is still one
+clip on the piece's own box.
+
+The clip's outer edge is also PADDED past the box now (`CUTTER_CLIP_PAD_PCT`), so an outline ring or
+glow outside the box survives except under a hole. Before this:
+- Trailers 5 and 6 drew their top and bottom outline half as thick as the sloped ends;
+- a fully cut piece left a hairline along its box edge (a white seam down the Dress Shirt's crouch
+  collar).
+
+Verified in the running app on his real library. Old code: 956 of 4,326 px under his five cutters were
+painted, reproducing his screenshot. New code: 0 painted, and the part of the shield he kept was
+unchanged (2,493 → 2,489 px). An old/new PNG diff of 13 captures (Dress Bob, props in M2/M4/M12, the
+idle M4 Pit-Porions) showed nothing changed except these fixes.
+
+Recipe:
+- Rasterize the DOM with the foreignObject trick.
+- POST the canvas `toDataURL` to a 10-line node sink on another port (CORS `*`) so PNGs land on disk
+  without passing through tool output.
+- To draw far units idle and uncalled, set `resize_window` to 5200 wide so nothing is view-culled.
+- Keep the viewport the SAME for both runs, or every hash differs.
 
 **...and "the same run" is the whole trap when you are drawing a COSTUME.** `pieceSrcKey` is
 `p._src || p._slot || "__body"`, so every piece of one enemy pose shares one source. A stored group
