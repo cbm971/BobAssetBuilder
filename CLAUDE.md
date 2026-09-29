@@ -1207,6 +1207,47 @@ Lava Lamp `lvlamp1` (animated), Cafe Curtains `cfcrtn1`, Braided Rug `brdrug1`, 
 Foreground ceiling). Each is drawn on an exact whole-cell box (the Canned Ham rule) so it sits on
 its line to the pixel. The whole set is also in `assets/trailer-bedroom-pack.json`.
 
+**FURNITURE IN THE MIDDLE OF A TOP-DOWN ROOM: Trailor Int10, the AA meeting (2026-09-29).** Blake:
+"another trailor int room … a sort of AA meeting … chairs in a half circle facing the camera, a banner
+in the background, still inside of a trailor". He is making a UFO room and a Furry Con 1967 room from
+it himself (rename + 💾 Save forks a copy, `resolveSaveTarget`), so everything in it is an ordinary
+placement he can move, delete or swap — the banner is where his own poster goes.
+* **Built the Int5 way, and ONLY that way.** The first attempt this session drew the whole room as two
+  giant backdrop props (walls, floor and ceiling as one picture, chairs baked into one "circle" prop,
+  hundreds of projected polys) and he rejected it on sight: nothing in it could be edited in the
+  creator or reused, and none of it was asset-builder art. A room is cells plus ordinary props.
+* Int5's shell, shape unchanged: the curved cream ceiling, the side walls with their overhang ramps,
+  the hideInPlay fence columns 5 and 34, the door at the front centre (21,19). Repainted with his own
+  Wood panelling on both layers (the back-wall window went — the banner hangs there), and the floor is
+  a new texture RECORD, `aalino1` Rec Hall Linoleum: his `checkerTile` pattern in cream and sage, no
+  code. His black-and-cream Checker tile read as a harsh chessboard at Background's 42%.
+* **The chairs stand ON the floor, so the plane covers only the front of it** (rows 17..22, cols
+  6..33). There is no y-sorting (Int5's rule), so anything on the plane draws wrong when you walk
+  behind it; with the plane in front of the circle nobody ever can. Every chair's feet are at or
+  above row 16.5 — the plane's top row minus `topdownAt`'s half-cell slop — and W stops you there.
+* The half circle is seven separate placements, all size 3: Folding Chair (front) ×3 along the back
+  (feet 12.5 / 13.2), (3/4) ×2 at 14.5, (side) ×2 at 16.2, the right-hand ones ⇄ Flipped to face in.
+  Two Ashtray Stands behind them and his Braided Rug in the middle. Back wall: One Day at a Time
+  Banner (size 16; the words are an editable text piece) between the Twelve Steps / Twelve Traditions
+  scrolls (size 5). Coffee in the back-right corner: Card Table, then Styrofoam Cups, Doughnut Box and
+  Coffee Urn standing on its top line, ordered by z. Fluorescent Light `lay: "fg"` over the ceiling;
+  Coat Tree `lay: "front"` in the front-left corner, as Int5 does its Snake Plant. No pedestal, no
+  NPCs — he places those.
+* Props are the house style: flat colour (bright 1 on every piece), a main colour plus a dark accent
+  and at most one highlight, 4–33 pieces, the ASSET_AUTHORING shape list plus poly and text. Each is
+  drawn to a whole-cell box at its default size (chairs 3 = 30 in, banner 16×4, scrolls 5, table 4×3,
+  urn 2, cups and doughnuts 1, ashtray 3, coat tree 10, light 8×2), long side 5..255 / 5..195 with the
+  ground on y 255 like Int5's. 📂 Interior, except banner and scrolls in 📂 Decoration. Ids: `aachrf1`
+  `aachrq1` `aachrs1` `aabnr01` `aascr01` `aascr02` `aatbl01` `aaurn01` `aacup01` `aadnt01` `aaash01`
+  `aacot01` `aaflt01`; room `trlnt10`. The side-view chair is drawn heavier than a real tube chair on
+  purpose: at 3 cells a true-thickness tube is a 3 px line and reads as a stick.
+Verified in the running app on his library: spawn on the door; W stops the feet at y 496 (row 16.5),
+just in front of the end chairs; A/D stop on the fences; S reaches y 705 as in Int5. 60 fps at 1× and
+at 4× CPU throttle, the same as Int5 and Int2, with 514 prop DOM nodes against their 449 / 522. The
+pack (`assets/aa-meeting-pack.json`, version 2: 13 props, the level, the texture) restored through
+📂 Load → ⬆ Open a file into a library without it; the room opened identical and all 15 records
+reached the project file.
+
 
 **A FRONT-LAYER OBJECT FADES WHEN YOU WALK BEHIND IT, AND THAT FADE HAS TO BE COMPOSITED.**
 `.lobj.infront` transitions `opacity`, and an un-promoted opacity transition is repainted by the
