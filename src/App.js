@@ -8949,11 +8949,20 @@ const parseCats = (text, own) => { const t = (text || "").trim(); const list = t
 // A connector matches a neighbour if it's open, the neighbour's floor is in
 // what it accepts, AND the neighbour's connector likewise accepts this floor
 // (mutual — like a lock and key, not just one-way).
+// A BLANK gate also welcomes a neighbour that asks for it BY NAME. Blank reads as "my own floor",
+// which is right between two Trailor Park levels — but Blake's first sewer (2026-09-30) had its Top
+// Left gate left blank, i.e. "Sewer only", under Trailor Park bottom gates that accepted "Sewer".
+// The mutual rule turned that down, every bottom gate flashed "no saved level attaches here" with
+// the sewer sitting right there, and nothing on screen said the SEWER's side was the one refusing.
+// One side naming the other's floor while the other side says nothing is plainly a yes; two
+// explicit lists that disagree are still a no.
 const connMatch = (connA, levelA, connB, levelB) => {
   if (!connA || !connB || !connA.open || !connB.open) return false;
   const aAccepts = parseCats(connA.accepts, levelA.floor);
   const bAccepts = parseCats(connB.accepts, levelB.floor);
-  return aAccepts.includes((levelB.floor || "").trim().toLowerCase()) && bAccepts.includes((levelA.floor || "").trim().toLowerCase());
+  const aOk = aAccepts.includes((levelB.floor || "").trim().toLowerCase()), bOk = bAccepts.includes((levelA.floor || "").trim().toLowerCase());
+  const aBlank = !(connA.accepts || "").trim(), bBlank = !(connB.accepts || "").trim();
+  return (aOk && bOk) || (aOk && !aBlank && bBlank) || (bOk && !bBlank && aBlank);
 };
 // A single point-pair "agrees" if both ends are closed (wall meets wall) or both are open + mutually matching.
 const pairAgrees = (connA, levelA, connB, levelB) => !!(connA && connB && ((!connA.open && !connB.open) || connMatch(connA, levelA, connB, levelB)));
@@ -8961,10 +8970,24 @@ const pairAgrees = (connA, levelA, connB, levelB) => !!(connA && connB && ((!con
 // (point 1 with point 1, point 2 with point 2 — never crossed), AND at least
 // one of the two pairs is an actual open+matching passage (two blank walls
 // touching isn't a connection).
+// TOP AND BOTTOM GATES MAY BE STAGGERED. A level under another need not sit square beneath it:
+// Blake's sewer is meant to hang half a level over, a Bottom Right gate dropping into the sewer's
+// Top Left (or Bottom Left into Top Right), so the sewer runs on under the next level along. The
+// strict rule above could never allow that — S2 over N1 leaves S1-over-N2 disagreeing by
+// construction. So up and down, ANY one open, matching gate pair joins the two levels, straight
+// pairs first; `seamGatePair` is the pair the seam is built on and `runSeams` works out which
+// gates actually line up with it (only those lead through — see `gates` there). Side seams keep the
+// strict both-pairs rule: the main chain was built on it and his levels all share one height.
+const vertPairs = (side) => side === "S" ? [["S1", "N1"], ["S2", "N2"], ["S2", "N1"], ["S1", "N2"]] : [["N1", "S1"], ["N2", "S2"], ["N1", "S2"], ["N2", "S1"]];
+export const seamGatePair = (left, right, side) => {
+  if (!left || !right || !left.conns || !right.conns) return null;
+  const pairs = side === "E" ? [["E1", "W1"], ["E2", "W2"]] : side === "W" ? [["W1", "E1"], ["W2", "E2"]] : vertPairs(side);
+  return pairs.find(([la, rb]) => connMatch(left.conns[la], left, right.conns[rb], right)) || null;
+};
 const canAttach = (left, right, side) => { // does `right` attach to `side` of `left`?
   if (!left || !right) return false;
-  const pairs = side === "E" ? [["E1", "W1"], ["E2", "W2"]] : side === "W" ? [["W1", "E1"], ["W2", "E2"]]
-    : side === "S" ? [["S1", "N1"], ["S2", "N2"]] : [["N1", "S1"], ["N2", "S2"]];
+  if (side === "N" || side === "S") return !!seamGatePair(left, right, side);
+  const pairs = side === "E" ? [["E1", "W1"], ["E2", "W2"]] : [["W1", "E1"], ["W2", "E2"]];
   const allAgree = pairs.every(([la, rb]) => pairAgrees(left.conns[la], left, right.conns[rb], right));
   const hasPassage = pairs.some(([la, rb]) => connMatch(left.conns[la], left, right.conns[rb], right));
   return allAgree && hasPassage;
@@ -9009,14 +9032,14 @@ export const seededRng = (seedStr) => {
 // A gate's marked point on its level, in level pixels — CONN_POS is a percentage of the rect.
 export const gatePoint = (lv, k, cell = LV_CELL) => ({ x: (CONN_POS[k].x / 100) * lv.cols * cell, y: (CONN_POS[k].y / 100) * lv.rows * cell });
 // Where a neighbour joined through OUR gate `k` sits in our pixel frame: the offset that lays its
-// opposite gate exactly on ours. E1 meets W1 at the same height and S1 meets N1 at the same x, so
+// opposite gate (or `nk`, the partner of a staggered top/bottom pair — seamGatePair) exactly on ours. E1 meets W1 at the same height and S1 meets N1 at the same x, so
 // a body crossing the seam keeps its place by subtracting this from its position.
 // Rounded to WHOLE CELLS: two levels of different heights put a side gate at a fraction of a cell
 // (35% of 46 rows against 35% of 40), and a neighbour's grid must be the live level's grid shifted
 // by whole cells, or its units could not be filed under live-grid keys nor stand on its terrain
 // (runWorldParts). Half a cell of slack in where two gates meet is invisible; a grid that is off
 // by half a cell is not.
-export const neighbourOffset = (lv, k, nb, cell = LV_CELL) => { const a = gatePoint(lv, k, cell), b = gatePoint(nb, CONN_OPP[k], cell), snap = (v) => Math.round(v / cell) * cell || 0; return { x: snap(a.x - b.x), y: snap(a.y - b.y) }; };
+export const neighbourOffset = (lv, k, nb, cell = LV_CELL, nk = CONN_OPP[k]) => { const a = gatePoint(lv, k, cell), b = gatePoint(nb, nk, cell), snap = (v) => Math.round(v / cell) * cell || 0; return { x: snap(a.x - b.x), y: snap(a.y - b.y) }; };
 // Which OPEN gate on `side` a body centred at (cx, cy) is leaving through: the nearest one along
 // that edge, and only within GATE_REACH_CELLS of its marked point. Past that the edge stays the
 // wall it is today, so a hole in the floor nowhere near a bottom gate still just stops you.
@@ -9118,12 +9141,34 @@ export const runSeams = (run, node, cell = LV_CELL) => {
   for (const side of ["N", "E", "S", "W"]) {
     const key = node.links[side]; if (!key) continue;
     const nb = run.nodes[key]; if (!nb) continue;
-    // Both gates of one side share a coordinate, so the offset is the same through either — take the first open, matching pair.
-    let off = null;
-    for (const k of CONN_KEYS) { if (CONN_SIDE[k] === side && connMatch(node.level.conns[k], node.level, nb.level.conns[CONN_OPP[k]], nb.level)) { off = neighbourOffset(node.level, k, nb.level, cell); break; } }
-    if (off) out[side] = { key, level: nb.level, off };
+    // The seam is laid on its first open, matching pair (straight before staggered). `gates` maps each
+    // of OUR open gates on that side to the neighbour gate that lands on it at that offset and also
+    // matches — only those lead through. Square beneath, both straight pairs can; staggered, the
+    // other gate on each level lands 40% of a level away from anything (a sewer's Top Right under a
+    // drop through its Top Left is out past our right-hand edge), so it stays a wall.
+    const pair = seamGatePair(node.level, nb.level, side);
+    if (!pair) continue;
+    const off = neighbourOffset(node.level, pair[0], nb.level, cell, pair[1]), gates = {};
+    for (const k of CONN_KEYS) {
+      if (CONN_SIDE[k] !== side) continue;
+      const a = gatePoint(node.level, k, cell);
+      for (const nk of CONN_KEYS) {
+        if (CONN_SIDE[nk] !== SIDE_OPP[side] || !connMatch(node.level.conns[k], node.level, nb.level.conns[nk], nb.level)) continue;
+        const b = gatePoint(nb.level, nk, cell);
+        if (Math.abs(b.x + off.x - a.x) <= cell && Math.abs(b.y + off.y - a.y) <= cell) { gates[k] = nk; break; }
+      }
+    }
+    out[side] = { key, level: nb.level, off, gates };
   }
   return out;
+};
+// The gate a body at (cx, cy) is leaving through INTO a neighbour: gateLeavingThrough, but only a
+// gate the seam actually joins (runSeams' `gates`). An open gate on a side whose neighbour sits
+// staggered elsewhere is still an edge.
+export const seamGateLeaving = (lv, seams, side, cx, cy, cell = LV_CELL) => {
+  const seam = seams && seams[side]; if (!seam) return null;
+  const k = gateLeavingThrough(lv, side, cx, cy, cell);
+  return k && seam.gates && seam.gates[k] ? k : null;
 };
 // ONE <canvas> PER LEVEL THUMBNAIL. 🎲 Generate used to draw its thumbnails as a positioned div per
 // cell — every Background cell, every Foreground fill — which on his 160×46 levels is ~9,000 boxes a
@@ -9350,7 +9395,7 @@ export const worldPartOfCell = (parts, r, c) => {
 // the rooftop, and one on the street at the gate follows you through it.
 export const unitClampX = (P, nx, w, cy, lv, seams, cell = LV_CELL) => {
   let lo = P.ox, hi = P.ox + P.lv.cols * cell - w;
-  const open = (side) => !!(seams && seams[side] && gateLeavingThrough(lv, side, nx + w / 2, cy, cell));
+  const open = (side) => !!seamGateLeaving(lv, seams, side, nx + w / 2, cy, cell);
   if (!P.side) { if (open("W")) lo = -Infinity; if (open("E")) hi = Infinity; }
   else if (P.side === "E") { if (open("E")) lo = -Infinity; }   // an east neighbour's west edge IS our east seam
   else if (P.side === "W") { if (open("W")) hi = Infinity; }
@@ -9360,7 +9405,7 @@ export const unitClampX = (P, nx, w, cy, lv, seams, cell = LV_CELL) => {
 // live level's open bottom gate (it drops into the sewer, as you do), or, standing in the level
 // ABOVE the live one, over the live level's open top gate.
 export const unitFloorY = (P, cx, cy, lv, seams, cell = LV_CELL) => {
-  const open = (side) => !!(seams && seams[side] && gateLeavingThrough(lv, side, cx, cy, cell));
+  const open = (side) => !!seamGateLeaving(lv, seams, side, cx, cy, cell);
   if (!P.side && open("S")) return Infinity;
   if (P.side === "N" && open("N")) return Infinity;
   return P.oy + P.lv.rows * cell;
@@ -11227,7 +11272,7 @@ export default function AssetStudio() {
     const runNodeLive = runNow && lv.runKey ? runNow.nodes[lv.runKey] : null;
     const seams = runSeams(runNow, runNodeLive, LV_CELL);
     // An open seam with a level behind it is not a wall — but only near its gate (gateLeavingThrough).
-    const seamAt = (side, p, pw, ph) => !!(seams[side] && gateLeavingThrough(lv, side, p.x + pw / 2, p.y + ph / 2, LV_CELL));
+    const seamAt = (side, p, pw, ph) => !!seamGateLeaving(lv, seams, side, p.x + pw / 2, p.y + ph / 2, LV_CELL);
     let warmWait = RUN_WARM_HOLD_FRAMES; // this effect re-runs at every handoff, so each level starts with the hold
     // The handoff. The body's centre has crossed an edge through an open gate with a level behind
     // it: that level goes live. Position, camera and held keys are re-based into the neighbour's
@@ -11241,8 +11286,9 @@ export default function AssetStudio() {
     const seamHandoff = (side, p, pw, leavingGate, dtMul) => {
       const seam = seams[side], nb = runNow.nodes[seam.key];
       // Dying in the level you are walking into puts you back at THIS gate's far side: E1 lands you
-      // on the neighbour's W1 (CONN_OPP), which is where neighbourOffset lined the two levels up.
-      respawnSpec.current = { at: nb.key, spec: { gate: true, gateKey: CONN_OPP[leavingGate] } };
+      // on the neighbour's W1 (CONN_OPP; a staggered bottom gate lands on its partner, seam.gates), which is
+      // where neighbourOffset lined the two levels up.
+      respawnSpec.current = { at: nb.key, spec: { gate: true, gateKey: (seam.gates && seam.gates[leavingGate]) || CONN_OPP[leavingGate] } };
       // The level being left stays MOUNTED as a neighbour (RUN_TILE_CACHE), so the see-through
       // window's fades and compositor layers on its Front cells must be taken back here, now, while
       // frontCellsRef still points at it — the effect cleanup below runs after the ref has moved.
@@ -12123,7 +12169,7 @@ export default function AssetStudio() {
       if (runNodeLive) {
         const cx = p.x + pw / 2, cy = p.y + ph / 2;
         const side = cx > lv.cols * CW ? "E" : cx < 0 ? "W" : cy > lv.rows * CH ? "S" : cy < 0 ? "N" : null;
-        const leavingGate = side && seams[side] ? gateLeavingThrough(lv, side, cx, cy, LV_CELL) : null;
+        const leavingGate = side ? seamGateLeaving(lv, seams, side, cx, cy, LV_CELL) : null;
         // The camera takes this frame's step FIRST. The handoff returns before the bottom of the loop,
         // where the camera normally moves, so the body walked ~12 px on the swap frame while the view
         // stood still (measured: the player's screen x 653 → 665 at the swap, easing back over the
@@ -12134,9 +12180,9 @@ export default function AssetStudio() {
         // couple of seconds. In a plain Playtest the edges are silent walls exactly as before.
         const atE = dx > 0 && p.x >= lv.cols * CW - pw - 0.5, atW = dx < 0 && p.x <= 0.5, atS = p.onGround && p.y >= lv.rows * CH - ph - 0.5;
         const edge = atE ? "E" : atW ? "W" : atS ? "S" : null;
-        if (edge && !seams[edge] && nowT - gateNag.current > 2500) {
+        if (edge && nowT - gateNag.current > 2500) {
           const gk = gateLeavingThrough(lv, edge, cx, cy, LV_CELL);
-          if (gk) {
+          if (gk && !seamGateLeaving(lv, seams, edge, cx, cy, LV_CELL)) {
             gateNag.current = nowT;
             flash(runNodeLive.key === runNow.exitKey && edge === "E" ? "🏁 Floor complete! The next floor is not built yet — this is where it would start."
               : runNodeLive.key === runNow.startKey && edge === "W" ? "🏁 The run starts here — there is nothing behind you."
@@ -20761,7 +20807,7 @@ export default function AssetStudio() {
                 <div className="ct">Connector: {CONN_LABEL[lSel]}</div>
                 <label className="chk"><input type="checkbox" checked={lv.conns[lSel].open} onChange={() => cycleConn(lSel)} /> Open this connector</label>
                 <div className="ct2">Accepts (floors this point will connect to)</div>
-                <input className="big" value={lv.conns[lSel].accepts} onChange={(e) => setConnAccepts(lSel, e.target.value)} placeholder={"blank = only \"" + lv.floor + "\""} />
+                <input className="big" value={lv.conns[lSel].accepts} onChange={(e) => setConnAccepts(lSel, e.target.value)} placeholder={"blank = \"" + lv.floor + "\", or any gate that asks for it"} />
                 {floorSuggest.length > 0 && <div className="catchips">{floorSuggest.map((f) => <button key={f} onClick={() => addCatSuggest(lSel, f)}>+ {f}</button>)}</div>}
                 {/* Kept: the mutual-matching rule is a real gotcha, not a how-to — an edge silently
                     fails to connect if only one side accepts, and nothing on screen shows why. */}

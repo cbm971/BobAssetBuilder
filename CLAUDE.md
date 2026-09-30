@@ -1631,6 +1631,12 @@ spots in the play loop and the level render. In plain words:
   attach there (Intro/Exit never fill side slots). That is how a bottom gate accepting "Sewer" finds a
   level with floor "Sewer" whose top gate accepts "Trailor Park", how the sewer's east gate leads to
   the slot under the NEXT main level, and why walking back through any gate lands in the SAME level.
+  **Top/bottom seams (2026-09-30, his first sewer):** up and down, ANY one open matching gate pair
+  joins (`seamGatePair`), so they may be STAGGERED — Bottom Right over Top Left puts the sewer 40% of
+  a level to the right. `runSeams` gives each seam `gates` (our gate → the neighbour gate that lands on
+  it); only those lead through (`seamGateLeaving`), the staggered level's other gate is a wall. And a
+  BLANK gate now welcomes a neighbour that names its floor (`connMatch`): his Sewer M1's blank Top Left
+  meant "Sewer only" and turned down both Trailor bottom gates. Side seams keep the strict rule.
   Behind the start and beyond the Exit's right gates the links are pinned to null: the run begins and
   ends there (the far side of the Exit flashes "Floor complete"; the next floor is a stub).
 * **Crossing.** `runSeams` gives the live level its neighbours with each one's origin in this level's
