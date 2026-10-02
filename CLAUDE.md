@@ -1898,6 +1898,40 @@ spots in the play loop and the level render. In plain words:
   each node's `.seamStrip` and its `left` — the element-rect proxy and the move counter both miss a
   remove-then-re-add two frames apart. Player screen x, the view rect and the status row were all
   steady at the swap (±0.3 px), so it was never the camera.
+* **GATES ARE KEYS, NOT DOORWAYS — SIDEWAYS (2026-10-02).** Blake: gates should be "more like keys
+  which just decide what levels can generate/spawn next to another… it does not need an invisible
+  wall… my mobility options are limited". Left/right gates now only choose the neighbour
+  (`canAttach`, unchanged); once a level sits east or west, `seamGateLeaving` opens the WHOLE edge the
+  two share (centre y inside the neighbour's rows; above both tops when the neighbour reaches as high).
+  It hands back the joined gate nearest the crossing, used only for the death respawn. Top/bottom seams
+  keep the gate-reach rule (a hole in a street that is not a sewer gate still stops you). Because the
+  body may now straddle the edge anywhere, the player's `cellsHit` asks `solidAtW` for any cell off its
+  grid, and its four `splitHillHits(lv, …)` calls became `splitHillHitsW` — so it meets the far side's
+  walls and ramps while straddling (before, gates were lined up so the far half met nothing). Units
+  follow automatically (`unitClampX` asks the same function). **Verified on his levels, prod build,
+  seed s15:** crossing M6→M5 mid-air at y −69 swapped levels; the OLD build on the same drive stopped
+  at x 4748 (the wall). A 2-column wall planted in M6's last columns stopped the player at x 0 in M5
+  (no crossing, no embedding); removed, he walked back through.
+* **A SEWER IS PLANNED WITH ITS WAY OUT (2026-10-02).** Blake: "entering the sewer by going down it has
+  to generate both an entrance and exit … you need two levels with gates that go to the sewer", and
+  nothing may "go back before the start". Passages used to be rolled one slot at a time
+  (`resolveRunNeighbour`), so a sewer could open with no climb back out, or run west under the start.
+  Now `buildRun` plans every passage (row +1 sewer, row −1 tree top) while it builds the chain:
+  `planFrom(col, dir)` lists routes (in through that street level's gate, sideways through passage
+  levels up to `RUN_PASSAGE_MAX` = 4, never to a column < 0) and keeps one that comes back up into a
+  DIFFERENT street level — an existing column, or new columns chained east by `fillTo` so the last one
+  fits. Routes whose exit lands exactly where the street puts that level (`seamOffX` sums) are tried
+  first: his M6 → Sewer M1 → Sewer M2 → M5 is straight down/up and flat; M5 → … → M6 is staggered twice
+  and comes up 80% of a level off (each seam still meets — only direct neighbours are drawn — so the
+  lax pass still allows it). `run.planned` makes `resolveRunNeighbour` join only nodes already laid for
+  a top/bottom gate or a passage level's side; the street may still grow east past a chain with no
+  Exit. A gate with no route is a wall in that run. Section words **Sewer / Underground / Tree Top**
+  give `runRole` "side": never a street level (his sewers had been "middle", so a run with no Intro
+  could start in one). 🎲 Generate draws each passage level under (⬇) or over (⬆) its column
+  (`runPassageLevels`). On his 13 street levels, 30 of 40 seeds lay a sewer. Lazy-roll tests pass
+  `{ passages: false }`. The whole loop was driven on seed s15: dropped through M6's Bottom Left, walked
+  east through the tunnel (his sewer's tunnel meets at rows 10–18 while Sewer M1's E1 mark is row 16
+  — fine either way now), climbed Sewer M2's ladder and came up in M5 at the same x.
 * **Gates with nothing behind them.** Pressed against an edge at an open gate no level attaches to,
   the loop flashes once every 2.5 s (`gateNag`): "🚧 Bottom Left gate leads nowhere yet … (it accepts
   "Sewer")", "🏁 The run starts here", or "🏁 Floor complete!". Plain Playtest edges stay silent.

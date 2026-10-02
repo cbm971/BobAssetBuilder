@@ -9018,10 +9018,14 @@ const SIDE_STEP = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] }; // [dcol, dr
 // level. Rooms are never in the chain — they hang off doors, exactly as they do in a Playtest.
 const RUN_INTRO_WORDS = ["intro", "start", "beginning", "begin"];
 const RUN_EXIT_WORDS = ["exit", "end", "ending", "finish"];
+// A level that only ever hangs off the street — under it or over it — and is never one of the
+// chain's own levels. Blake's Sewer M1/M2 (Section "Sewer") were "middle" levels until 2026-10-02,
+// so a run with no Intro could START in the sewer, chained east into the other sewer and dead-ended.
+const RUN_SIDE_WORDS = ["sewer", "sewers", "underground", "tree top", "tree tops", "treetop", "treetops"];
 export const runRole = (lv) => {
   if (!lv || lv.isRoom) return null;
   const s = (lv.section || "").trim().toLowerCase();
-  return RUN_INTRO_WORDS.includes(s) ? "intro" : RUN_EXIT_WORDS.includes(s) ? "exit" : "middle";
+  return RUN_INTRO_WORDS.includes(s) ? "intro" : RUN_EXIT_WORDS.includes(s) ? "exit" : RUN_SIDE_WORDS.includes(s) ? "side" : "middle";
 };
 // A seeded random sequence (mulberry32 over the same FNV hash roomSeed uses), so a run started
 // with seed "12345" replays identically for testing while a blank seed rolls a fresh one.
@@ -9065,32 +9069,121 @@ const addRunNode = (run, level, col, row) => { const key = "run" + run.nextKey++
 // Each step picks at random among the levels that ATTACH on the east (canAttach: both gate pairs
 // on the seam agree and at least one is an open mutual match), preferring ones not used yet, so
 // with six middle levels and eight slots the same level can appear twice.
+//
+// A SEWER IS LAID WITH ITS WAY OUT (2026-10-02). Blake: "entering the sewer by going down it has to
+// generate both an entrance and exit… if the sewer spawns you need two levels with gates that go to
+// the sewer", and "you shouldn't have any that go back before the start". Sewers used to be rolled
+// one slot at a time as you reached them (resolveRunNeighbour), so a sewer could open under a level
+// with nothing anywhere to climb back out, or run west under the start. Now every passage off the
+// street — down into a sewer, or up into a tree top — is planned here with the chain, as a whole
+// route: the level you drop from, the sewer levels walked east or west, and a DIFFERENT street level
+// whose own bottom gate takes you back up. Climbing out east of where you went in means the street
+// levels in between are chosen to fit (fillTo), which is how Trailor Park M5 now brings M6 after it.
+// A bottom gate that cannot get such a route is a wall in that run. Nothing is ever placed west of
+// the start, and a run with sewers planned never grows a passage on its own while you play.
+export const RUN_PASSAGE_MAX = 4;      // the longest sewer (or tree top) a run lays, in levels
+// How many cells east of `a` the level `b` joined on `side` of it starts — the x of runSeams' offset.
+const seamOffX = (a, b, side) => { const pr = seamGatePair(a, b, side); return pr ? neighbourOffset(a, pr[0], b, 1, pr[1]).x : 0; };
 export const buildRun = (levels, seed, opts = {}) => {
   const maxMiddles = opts.maxMiddles !== undefined ? opts.maxMiddles : RUN_MIDDLE_LEVELS;
   const attempts = opts.attempts || 24;
+  const planPassages = opts.passages !== false;
   const rnd = seededRng(seed);
   const pool = (levels || []).filter((l) => l && !l.isRoom && l.conns).map(migrateLevel);
   const intros = pool.filter((l) => runRole(l) === "intro"), exits = pool.filter((l) => runRole(l) === "exit"), middles = pool.filter((l) => runRole(l) === "middle");
+  // What may sit off the street: a sewer/tree-top level, or a middle level whose gates happen to fit.
+  const offStreet = pool.filter((l) => runRole(l) === "side" || runRole(l) === "middle");
   const eastOpen = (l) => l.conns.E1.open || l.conns.E2.open;
+  const shuffle = (a) => { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
   let best = null;
   for (let attempt = 0; attempt < attempts; attempt++) {
-    const chain = [], used = new Set();
+    const chain = [], used = new Set(), passages = [], taken = { S: new Set(), N: new Set() };
+    let middlesLeft = maxMiddles, exitPlaced = false;
     const pick = (cands) => { if (!cands.length) return null; const fresh = cands.filter((c) => !used.has(c.id)); const list = fresh.length ? fresh : cands; return list[Math.floor(rnd() * list.length)]; };
+    const order = (cands) => [...shuffle(cands.filter((c) => !used.has(c.id))), ...shuffle(cands.filter((c) => used.has(c.id)))];
+    // `n` more middle levels chained east of `from`, the last of which `fits` (a way back up out of
+    // the sewer). Depth is at most RUN_PASSAGE_MAX; `dead` remembers a level that cannot finish the
+    // job from that depth, so the search is levels × depth, not levels to the power of depth.
+    // `fits(m, x)` is also told how far east (in cells) of `from` that last level would sit.
+    const fillTo = (from, n, fits) => {
+      const dead = new Set();
+      const go = (prev, k, x) => {
+        const memo = prev.id + "|" + k + "|" + x;
+        if (dead.has(memo)) return null;
+        for (const m of order(middles.filter((c) => canAttach(prev, c, "E")))) {
+          const mx = x + seamOffX(prev, m, "E");
+          if (k === 1) { if (fits(m, mx)) return [m]; continue; }
+          const rest = go(m, k - 1, mx); if (rest) return [m, ...rest];
+        }
+        dead.add(memo); return null;
+      };
+      return n > 0 ? go(from, n, 0) : null;
+    };
+    const commit = (route, c, dir, fill) => {
+      for (const m of fill) { chain.push(m); used.add(m.id); middlesLeft--; }
+      route.path.forEach((s, i) => taken[dir].add(c + i * route.step));
+      passages.push({ dir, col: c, step: route.step, levels: route.path });
+      return true;
+    };
+    // A route under (or over) the street from column `c`: in through c's own gate, then sideways
+    // through the passage levels' east/west gates, and back to the street at another column.
+    const planFrom = (c, dir) => {
+      if (!planPassages || taken[dir].has(c)) return false;
+      const firsts = offStreet.filter((s) => canAttach(chain[c], s, dir));
+      if (!firsts.length) return false;
+      const routes = [];
+      const walk = (step, col, lvl, path) => {
+        if (path.length >= RUN_PASSAGE_MAX) return;
+        const nc = col + step;
+        if (nc < 0 || taken[dir].has(nc)) return;          // never back before the start
+        for (const s of offStreet) {
+          if (!canAttach(lvl, s, step > 0 ? "E" : "W")) continue;
+          const path2 = [...path, s];
+          routes.push({ step, path: path2, end: nc });
+          walk(step, nc, s, path2);
+        }
+      };
+      for (const s0 of firsts) { walk(1, c, s0, [s0]); walk(-1, c, s0, [s0]); }
+      // A ROUTE THAT LINES UP IS TRIED FIRST. Each seam is laid by its own gates (runSeams), so a
+      // sewer dropped into staggered (Bottom Right onto Top Left, 40% over) and left staggered the
+      // same way comes up 80% of a level away from where the street says that level is — every seam
+      // still meets, but the loop is not one flat map. His M6 → Sewer M1 → Sewer M2 → M5 is straight
+      // down and straight up and lines up exactly; M5 → Sewer M1 → Sewer M2 → M6 does not. So the
+      // first pass only takes routes whose way out sits exactly where the street puts it.
+      const sideX = (route) => { let x = seamOffX(chain[c], route.path[0], dir); for (let i = 1; i < route.path.length; i++) x += seamOffX(route.path[i - 1], route.path[i], route.step > 0 ? "E" : "W"); return x; };
+      const streetX = (end) => { let x = 0; for (let i = Math.min(c, end); i < Math.max(c, end); i++) x += seamOffX(chain[i], chain[i + 1], "E"); return end < c ? -x : x; };
+      const shuffled = shuffle(routes);
+      for (const strict of [true, false]) for (const route of shuffled) {
+        const lastSide = route.path[route.path.length - 1], sx = sideX(route);
+        const backUp = (X, streetAt) => canAttach(lastSide, X, SIDE_OPP[dir]) && (!strict || sx + seamOffX(lastSide, X, SIDE_OPP[dir]) === streetAt);
+        if (route.end < chain.length) { if (backUp(chain[route.end], streetX(route.end))) return commit(route, c, dir, []); continue; }
+        const n = route.end - chain.length + 1;
+        if (exitPlaced || n > middlesLeft) continue;
+        const toLast = streetX(chain.length - 1);
+        const fill = fillTo(chain[chain.length - 1], n, (X, x) => backUp(X, toLast + x));
+        if (fill) return commit(route, c, dir, fill);
+      }
+      return false;
+    };
+    let planned = 0;
+    const planUpTo = () => { while (planned < chain.length) { planFrom(planned, "S"); planFrom(planned, "N"); planned++; } };
     const intro = pick(intros); if (intro) { chain.push(intro); used.add(intro.id); }
-    for (let i = 0; i < maxMiddles; i++) {
+    planUpTo();
+    while (middlesLeft > 0) {
       const last = chain[chain.length - 1];
       const m = pick(last ? middles.filter((c) => canAttach(last, c, "E")) : middles.filter(eastOpen));
       if (!m) break;
-      chain.push(m); used.add(m.id);
+      chain.push(m); used.add(m.id); middlesLeft--;
+      planUpTo();
     }
     const last = chain[chain.length - 1];
     const exit = last ? pick(exits.filter((e) => canAttach(last, e, "E"))) : pick(exits);
-    if (exit) chain.push(exit);
+    if (exit) { chain.push(exit); exitPlaced = true; planUpTo(); }
     const score = chain.length + (exit ? 1000 : 0);
-    if (!best || score > best.score) best = { chain, exit: !!exit, intro: !!intro, score };
+    if (!best || score > best.score) best = { chain, passages, exit: !!exit, intro: !!intro, score };
     if (best.exit && best.chain.length >= maxMiddles + 2) break;
   }
-  const run = { seed: String(seed), nodes: {}, nextKey: 1, order: [], startKey: null, curKey: null, hasIntro: !!(best && best.intro), hasExit: !!(best && best.exit), notes: [] };
+  const run = { seed: String(seed), nodes: {}, nextKey: 1, order: [], startKey: null, curKey: null, hasIntro: !!(best && best.intro), hasExit: !!(best && best.exit), notes: [], planned: planPassages };
   if (!intros.length) run.notes.push("no Intro level yet (Section = Intro)");
   if (!exits.length) run.notes.push("no Exit level yet (Section = Exit)");
   else if (!run.hasExit) run.notes.push("no Exit level joins the last middle level's right gate");
@@ -9101,15 +9194,33 @@ export const buildRun = (levels, seed, opts = {}) => {
     if (prev) { prev.links.E = n.key; n.links.W = prev.key; }
     prev = n;
   });
+  const street = run.order.map((k) => run.nodes[k]);
+  const link = (a, side, b) => { a.links[side] = b.key; b.links[SIDE_OPP[side]] = a.key; };
+  for (const ps of (best ? best.passages : [])) {
+    let at = street[ps.col];
+    ps.levels.forEach((s, i) => {
+      const n = addRunNode(run, s, ps.col + i * ps.step, ps.dir === "S" ? 1 : -1);
+      link(at, i === 0 ? ps.dir : ps.step > 0 ? "E" : "W", n);
+      at = n;
+    });
+    link(at, SIDE_OPP[ps.dir], street[ps.col + (ps.levels.length - 1) * ps.step]);
+  }
   run.startKey = run.curKey = run.order[0] || null;
   // The run begins at its first level and ends at the Exit: nothing is ever attached behind the
   // start or beyond the Exit's right-hand gates (those seams stay walls, and the far side of the
-  // Exit says "floor complete" — the next floor is a stub for now). Every other open gate,
-  // bottom gates included, resolves when its level goes live.
+  // Exit says "floor complete" — the next floor is a stub for now). Every other open gate resolves
+  // when its level goes live — in a planned run, a top/bottom gate or a passage level's gate only
+  // ever joins a level already laid next to it (resolveRunNeighbour).
   if (run.startKey) run.nodes[run.startKey].links.W = null;
   run.exitKey = run.hasExit ? run.order[run.order.length - 1] : null;
   if (run.exitKey) run.nodes[run.exitKey].links.E = null;
   return run;
+};
+// The passage levels of a run by street column, for the 🎲 Generate preview: { S: {col: level}, N: {…} }.
+export const runPassageLevels = (run) => {
+  const out = { S: {}, N: {} };
+  for (const n of Object.values(run.nodes)) if (n.row) out[n.row > 0 ? "S" : "N"][n.col] = n.level;
+  return out;
 };
 // What lies on `side` of a node — decided the first time that seam matters (the moment its level
 // goes live) and remembered for the rest of the run, so walking back through a gate always lands
@@ -9124,8 +9235,12 @@ export const resolveRunNeighbour = (run, node, side, levels) => {
   let target = null;
   const existing = Object.values(run.nodes).find((n) => n.col === col && n.row === row);
   if (existing) target = canAttach(node.level, existing.level, side) ? existing : null;
+  // A run that planned its passages (buildRun) never opens a new one on the fly: one rolled here had
+  // no guaranteed way back up. Only the street may still grow east past a chain with no Exit.
+  else if (run.planned && (node.row !== 0 || side === "N" || side === "S")) target = null;
   else {
-    const cands = (levels || []).filter((l) => l && !l.isRoom && l.conns && runRole(l) === "middle").map(migrateLevel).filter((l) => canAttach(node.level, l, side));
+    const roles = run.planned ? ["middle"] : ["middle", "side"];
+    const cands = (levels || []).filter((l) => l && !l.isRoom && l.conns && roles.includes(runRole(l))).map(migrateLevel).filter((l) => canAttach(node.level, l, side));
     if (cands.length) target = addRunNode(run, cands[Math.floor(roomSeed(run.seed + "|" + node.key + "|" + side) * cands.length)], col, row);
   }
   node.links[side] = target ? target.key : null;
@@ -9165,8 +9280,27 @@ export const runSeams = (run, node, cell = LV_CELL) => {
 // The gate a body at (cx, cy) is leaving through INTO a neighbour: gateLeavingThrough, but only a
 // gate the seam actually joins (runSeams' `gates`). An open gate on a side whose neighbour sits
 // staggered elsewhere is still an edge.
+// A SIDE SEAM IS OPEN ALL THE WAY UP (2026-10-02). Blake: gates are "more like keys which just
+// decide what levels can generate next to another… it does not need an invisible wall between two
+// levels… my mobility options are limited with the invisible wall." Left and right, the gates only
+// decide WHICH level sits next door (canAttach); once one does, the whole shared edge is open — a
+// rooftop runs on onto the next rooftop, a jump over the seam lands across it — and the only walls
+// left are the ones painted in either level (the player collides with the neighbour's own cells
+// while straddling, see cellsHit in the loop). Where the two levels do not overlap (a taller level
+// beside a shorter one) there is nothing behind the edge and it stays a wall. Above both tops is open
+// sky when the neighbour reaches at least as high. The gate handed back is the joined gate nearest
+// the crossing, which is only used to put you back at the far side of it if you die over there.
+// Up and down keep the gate rule: a hole in a street floor that is not a sewer gate still just
+// stops you, and he enters sewers and tree tops through their gates anyway.
 export const seamGateLeaving = (lv, seams, side, cx, cy, cell = LV_CELL) => {
   const seam = seams && seams[side]; if (!seam) return null;
+  if (side === "E" || side === "W") {
+    const top = seam.off.y, bottom = top + seam.level.rows * cell;
+    if (cy >= bottom || (cy < top && top > 0)) return null;
+    let best = null, bestD = Infinity;
+    for (const k of Object.keys(seam.gates || {})) { const d = Math.abs(cy - gatePoint(lv, k, cell).y); if (d < bestD) { bestD = d; best = k; } }
+    return best;
+  }
   const k = gateLeavingThrough(lv, side, cx, cy, cell);
   return k && seam.gates && seam.gates[k] ? k : null;
 };
@@ -9390,9 +9524,10 @@ export const worldPartOfCell = (parts, r, c) => {
 };
 // A UNIT MAY LEAVE ITS LEVEL WHERE YOU MAY, AND ONLY THERE. Sideways, a unit standing in `P` is held
 // inside that level's edges exactly as it always was held inside the live level's — except through
-// an open seam near its gate, the player's own rule (seamAt / gateLeavingThrough), asked of the live
-// level because both sides of a seam are one gate. So a Pit Bull on a rooftop at the edge stays on
-// the rooftop, and one on the street at the gate follows you through it.
+// an open seam, the player's own rule (seamAt / seamGateLeaving), asked of the live level because
+// both sides of a seam are one gate. Since 2026-10-02 a side seam is open its whole shared height, so
+// a Pit Bull on a rooftop at the edge runs on across it as you do; only the walls painted in either
+// level stop it.
 export const unitClampX = (P, nx, w, cy, lv, seams, cell = LV_CELL) => {
   let lo = P.ox, hi = P.ox + P.lv.cols * cell - w;
   const open = (side) => !!seamGateLeaving(lv, seams, side, nx + w / 2, cy, cell);
@@ -11271,7 +11406,8 @@ export default function AssetStudio() {
     const runNow = runRef.current;
     const runNodeLive = runNow && lv.runKey ? runNow.nodes[lv.runKey] : null;
     const seams = runSeams(runNow, runNodeLive, LV_CELL);
-    // An open seam with a level behind it is not a wall — but only near its gate (gateLeavingThrough).
+    // An open seam with a level behind it is not a wall: left and right along the whole shared edge, up
+    // and down only near its gate (seamGateLeaving).
     const seamAt = (side, p, pw, ph) => !!seamGateLeaving(lv, seams, side, p.x + pw / 2, p.y + ph / 2, LV_CELL);
     let warmWait = RUN_WARM_HOLD_FRAMES; // this effect re-runs at every handoff, so each level starts with the hold
     // The handoff. The body's centre has crossed an edge through an open gate with a level behind
@@ -11473,12 +11609,18 @@ export default function AssetStudio() {
     // on top of you, which defeats the entire reason to flag it "in front" in the first place.
     const solidFx = []; for (const k of Object.keys(lv.fx || {})) { const [r, c] = k.split(",").map(Number); for (const o of (lv.fx[k] || [])) if (o.solid) { const fp = levelObjectFootprint(o, o.kind === "prop" ? findA(o.propId) : null); solidFx.push({ r, c, rows: fp.rows, cols: fp.cols }); } }
     const fxBlocks = (r, c) => solidFx.some((o) => r >= o.r && r < o.r + o.rows && c >= o.c && c < o.c + o.cols);
-    const cellsHit = (x, y, pw, ph) => { const hits = []; const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH); for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { if (c < 0 || c >= lv.cols || r < 0 || r >= lv.rows) continue; const cell = lv.fg[cellKey(r, c)]; if (fgSolid(cell) || fxBlocks(r, c)) hits.push({ r, c }); } return hits; };
+    // Off this level's grid a cell is asked of the world (solidAtW, below): nothing there in a plain
+    // Playtest or past a closed edge, the neighbour's own cell across an open seam. Side seams are open
+    // their whole height now (seamGateLeaving), so a body straddling the edge must meet the walls and
+    // floors painted on the far side — before, it only ever crossed at a gate, where the two levels
+    // had been lined up to meet, and the far half of the box could get away with touching nothing.
+    const cellsHit = (x, y, pw, ph) => { const hits = []; const c0 = Math.floor(x / CW), c1 = Math.floor((x + pw - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + ph - 0.001) / CH); for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { if (c < 0 || c >= lv.cols || r < 0 || r >= lv.rows) { if (solidAtW(r, c)) hits.push({ r, c }); continue; } const cell = lv.fg[cellKey(r, c)]; if (fgSolid(cell) || fxBlocks(r, c)) hits.push({ r, c }); } return hits; };
     // THE WORLD (see ONE WORLD, above runWorldParts): this level plus every level across its open
     // seams, each a rectangle in this level's pixels carrying its own solid objects. Units, shots and
     // grenades now live in every rectangle, so they ask the world (cellsHitW and friends). The PLAYER
-    // keeps cellsHit: its crossing rules (seamAt, the straddle, the handoff at the centre) were tuned
-    // against the live level alone and are deliberately unchanged. With no seams — a plain Playtest,
+    // keeps cellsHit and its own crossing rules (seamAt, the straddle, the handoff at the centre), but
+    // since side seams opened their whole height (2026-10-02) cellsHit asks the world for any cell off
+    // this grid, so the straddling half of the body meets the neighbour's walls. With no seams — a plain Playtest,
     // a room — the world is this one level and every W helper is the single-level code it wraps.
     const worldParts = runWorldParts(lv, seams, CW);
     for (const P of worldParts) {
@@ -11780,7 +11922,8 @@ export default function AssetStudio() {
       else if (glideEffect && p.vy > 0 && K.jump && !p.climbing) p.vx = dx; // while gliding, the steered velocity BECOMES your momentum, so it carries if you stop steering or the glide ends
       const prevX = p.x;
       p.x += dx;
-      // The level's edges are walls — except an open gate with a level behind it (a RUN seam), where
+      // The level's edges are walls — except an open seam with a level behind it (a RUN seam: a side
+      // seam all along the edge the two levels share, a top/bottom seam at its gate), where
       // the box may straddle the edge, its far half over the neighbour's strip, until its CENTRE
       // crosses and seamHandoff (below the vertical pass) makes that level live.
       if (p.x < 0 && !seamAt("W", p, pw, ph)) p.x = 0; if (p.x > lv.cols * CW - pw && !seamAt("E", p, pw, ph)) p.x = lv.cols * CW - pw;
@@ -11793,7 +11936,7 @@ export default function AssetStudio() {
       // act like stairs (the teleport up each tier), and wall-clamping against it is what made
       // ramps impossible to walk up at all. Cells more than ~2.5 cells above the feet still
       // count as walls, so a real wall next to a ramp still blocks you at chest height.
-      let wallHits = splitHillHits(lv, hits, p.y + ph, CH).walls;
+      let wallHits = splitHillHitsW(hits, p.y + ph).walls;
       // Step-assist: a single-cell-tall lip (a genuine stair) is walked over, not blocked. Snap
       // up to exactly the blocking row's top, capped at one cell, and only if the raised spot is
       // actually clear. Skipped while climbing a ladder. The PHYSICS snap stays instant (so
@@ -12103,7 +12246,7 @@ export default function AssetStudio() {
           // a ~7-cell downward teleport into the floor whose ejection then hurled the player back
           // to the bottom of the ramp. splitHillHits (same idiom as the flat-landing pass) keeps
           // real roofs blocking while the formation's own backing is ignored.
-          const above = splitHillHits(lv, cellsHit(p.x, surfY, pw, headTestH), slopeHit.y, CH).walls;
+          const above = splitHillHitsW(cellsHit(p.x, surfY, pw, headTestH), slopeHit.y).walls;
           if (above.length) {
             const ceilBottom = Math.max(...above.map((h) => (h.r + 1) * CH));
             if (ceilBottom > surfY) { p.y = ceilBottom; p.vy = 0; }
@@ -12122,14 +12265,14 @@ export default function AssetStudio() {
           // valid floor so walking off the top of a ramp doesn't drop you through.
           const centerCol = Math.floor((p.x + pw / 2) / CW);
           const centerHits = hits.filter((h) => h.c === centerCol);
-          const centerSplit = splitHillHits(lv, centerHits, p.y + ph, CH);
+          const centerSplit = splitHillHitsW(centerHits, p.y + ph);
           let landHits = centerSplit.walls;
           if (!landHits.length && centerSplit.hill.length) {
             const hillTop = Math.min(...centerSplit.hill.map((h) => h.r * CH));
             const feetBottom = p.y + ph;
             if (feetBottom >= hillTop - CH && feetBottom <= hillTop + CH * 0.5) landHits = centerSplit.hill;
           }
-          if (!landHits.length) landHits = splitHillHits(lv, hits, p.y + ph, CH).walls;
+          if (!landHits.length) landHits = splitHillHitsW(hits, p.y + ph).walls;
           // A landing may only bring the feet DOWN onto a surface at/below them, never snap them
           // UP. Without this, jumping while your head is inside an overhang (the ramp tops out
           // under the fire platform) let the highest overlapping cell — the platform above your
@@ -17881,7 +18024,7 @@ export default function AssetStudio() {
     const typed = (seedText || "").trim(), seed = typed || newRunSeed();
     const run = buildRun(runPool(), seed);
     if (!typed) setRunSeedText(seed); // a fresh roll shows its seed; a typed one is left exactly as typed
-    setGen({ seed, levels: run.order.map((k) => run.nodes[k].level), notes: run.notes });
+    setGen({ seed, levels: run.order.map((k) => run.nodes[k].level), notes: run.notes, off: runPassageLevels(run) });
   };
   const runGenerate = () => rollGenerate("");
   // 🏁 Play run: the chain is built from every saved level (plus the one open in the editor) by
@@ -20971,7 +21114,11 @@ export default function AssetStudio() {
               <div className="genrow">{gen.levels.map((l, i) => (
                 <React.Fragment key={i}>
                   {i > 0 && <div className="genlink">🔗</div>}
-                  <div className="gencol"><div className="genname">{l.name}</div><LevelThumb level={l} /></div>
+                  <div className="gencol">
+                    {gen.off && gen.off.N[i] && <div className="genside"><div className="genname">⬆ {gen.off.N[i].name}</div><LevelThumb level={gen.off.N[i]} /></div>}
+                    <div className="genname">{l.name}</div><LevelThumb level={l} />
+                    {gen.off && gen.off.S[i] && <div className="genside"><div className="genname">⬇ {gen.off.S[i].name}</div><LevelThumb level={gen.off.S[i]} /></div>}
+                  </div>
                 </React.Fragment>
               ))}</div>
               <div className="row2">
@@ -22573,10 +22720,11 @@ html,body{margin:0;padding:0;background:#0f1117}
 .connrow.open{border-color:#3a6a4a}.connrow.on{border-color:#4f7cf6;background:#1b2030}
 .connrow .ctype{color:#8a93a6;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .minilv{position:relative;background:#0e1018;border:1px solid #232838;border-radius:6px;overflow:hidden}
-.genrow{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:10px 0}
+.genrow{display:flex;align-items:flex-start;gap:8px;overflow-x:auto;padding:10px 0}
 .gencol{flex:0 0 auto;text-align:center}
+.genside{margin:6px 0;opacity:.85}
 .genname{font-size:11px;color:#aab2c6;margin-bottom:4px;white-space:nowrap}
-.genlink{flex:0 0 auto;color:#6bd06b;font-size:18px}
+.genlink{flex:0 0 auto;color:#6bd06b;font-size:18px;padding-top:28px}
 .dlg.wide3{max-width:min(94vw,820px)}
 .catItemInput{width:100%;box-sizing:border-box;background:#0f1117;border:1px solid #2c3245;border-radius:9px;padding:9px 11px;font-size:13px;margin-bottom:7px;color:#e7e9ee}
 .catItemInput:focus{outline:none;border-color:#4f7cf6}

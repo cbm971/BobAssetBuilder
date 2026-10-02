@@ -178,7 +178,7 @@ import {
   migrateLevel,
   newLevelBucket, runWorldParts, worldPartAt, worldPartOfCell, unitClampX, unitFloorY, moveRunUnit, adoptRunNeighbours, releaseRunUnits, TALK_BUBBLE_MIN_H,
   runMountPlan, RUN_MOUNT_ITEMS_PER_FRAME, runGridOrder, unitDrawOrder,
-  runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, seamGatePair, seamGateLeaving, buildRun, resolveRunNeighbour, resolveRunSides, runSeams, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
+  runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, seamGatePair, seamGateLeaving, buildRun, runPassageLevels, RUN_PASSAGE_MAX, resolveRunNeighbour, resolveRunSides, runSeams, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
   objTopAt,
   objNudgedLeft,
   objNudgedTop,
@@ -9969,6 +9969,8 @@ describe("runs", () => {
     expect(runRole(mk("x", { section: "ending" }))).toBe("exit");
     expect(runRole(mk("x", { section: "Middle" }))).toBe("middle");
     expect(runRole(mk("x", { section: "" }))).toBe("middle");
+    expect(runRole(mk("x", { section: "Sewer" }))).toBe("side");             // never a street level; only ever hung off one
+    expect(runRole(mk("x", { section: "Tree Top" }))).toBe("side");
     expect(runRole(ROOM)).toBe(null);
   });
 
@@ -10048,8 +10050,9 @@ describe("runs", () => {
     const pool = [A, B, C, D, SEWER, SEWER2];
     // The start of a run without an Intro is a seeded pick among east-open levels, so take the first
     // seed whose chain begins on C; from C the only fresh level that attaches east is B.
-    const seed = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"].find((s) => buildRun([C, B], s, { maxMiddles: 2 }).order.length === 2);
-    const run = buildRun([C, B], seed, { maxMiddles: 2 });
+    // { passages: false }: the one-slot-at-a-time roll, which a run with planned passages no longer uses.
+    const seed = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"].find((s) => buildRun([C, B], s, { maxMiddles: 2, passages: false }).order.length === 2);
+    const run = buildRun([C, B], seed, { maxMiddles: 2, passages: false });
     expect(run.order.map((k) => run.nodes[k].level.id)).toEqual(["C", "B"]);
     const c = run.nodes[run.order[0]], b = run.nodes[run.order[1]];
     const sKey = resolveRunNeighbour(run, c, "S", pool);
@@ -10084,7 +10087,7 @@ describe("runs", () => {
     const SEW = mk("SEW", { floor: "Sewer", section: "Sewer", open: { N1: "", E1: "" } });
     const M6 = mk("M6", { open: { W2: "", E2: "", S1: "Sewer" } });
     const M5 = mk("M5", { open: { W2: "", E2: "", S2: "Sewer" } });
-    const drop = (top) => { const run = buildRun([top], "t", { maxMiddles: 1 }); const n = run.nodes[run.order[0]]; return { run, n, key: resolveRunNeighbour(run, n, "S", [top, SEW]) }; };
+    const drop = (top) => { const run = buildRun([top], "t", { maxMiddles: 1, passages: false }); const n = run.nodes[run.order[0]]; return { run, n, key: resolveRunNeighbour(run, n, "S", [top, SEW]) }; };
     // straight: M6's Bottom Left over the sewer's Top Left
     const a = drop(M6);
     expect(a.run.nodes[a.key].level.id).toBe("SEW");
@@ -10105,7 +10108,7 @@ describe("runs", () => {
     expect(seamGateLeaving(M5, seams, "S", 0.3 * 4800, 1400, CELL)).toBe(null);
     // a staggered level's OTHER gate lands nowhere under this one, so it stays shut
     const SEW2 = mk("SEW2", { floor: "Sewer", open: { N1: "", N2: "" } });
-    const run2 = buildRun([M5], "t", { maxMiddles: 1 }), n2 = run2.nodes[run2.order[0]];
+    const run2 = buildRun([M5], "t", { maxMiddles: 1, passages: false }), n2 = run2.nodes[run2.order[0]];
     resolveRunNeighbour(run2, n2, "S", [M5, SEW2]);
     const s2 = run2.nodes[n2.links.S];
     expect(runSeams(run2, n2, CELL).S.gates).toEqual({ S2: "N2" });                 // square beneath wins over staggered
@@ -10113,16 +10116,120 @@ describe("runs", () => {
     // two explicit lists that disagree are still a no; blank-to-blank across floors is still a no
     const picky = mk("picky", { floor: "Sewer", open: { N1: "Forest" } });
     expect(drop(mk("m", { open: { E2: "", S1: "Sewer" } })).key).toBeTruthy();
-    const r3 = buildRun([M6], "t", { maxMiddles: 1 }), n3 = r3.nodes[r3.order[0]];
+    const r3 = buildRun([M6], "t", { maxMiddles: 1, passages: false }), n3 = r3.nodes[r3.order[0]];
     expect(resolveRunNeighbour(r3, n3, "S", [M6, picky])).toBe(null);
     const blankTop = mk("blankTop", { open: { E2: "", S1: "" } });
-    const r4 = buildRun([blankTop], "t", { maxMiddles: 1 }), n4 = r4.nodes[r4.order[0]];
+    const r4 = buildRun([blankTop], "t", { maxMiddles: 1, passages: false }), n4 = r4.nodes[r4.order[0]];
     expect(resolveRunNeighbour(r4, n4, "S", [blankTop, SEW])).toBe(null);
+  });
+
+  // His sewer as of 2026-10-02: Trailor Park M5 drops through its Bottom Right, M6 through its Bottom
+  // Left; Sewer M1 is entered by its Top Left and leaves east, Sewer M2 enters from the west and leaves
+  // by its Top Right. Shapes only — never his data.
+  const P5 = mk("P5", { open: { W2: "", E2: "", S2: "Sewer" } });
+  const P6 = mk("P6", { open: { W2: "", E2: "", S1: "Sewer" } });
+  const SA = mk("SA", { floor: "Sewer", section: "Sewer", open: { N1: "", E1: "" } });
+  const SB = mk("SB", { floor: "Sewer", section: "Sewer", open: { W1: "", N2: "" } });
+  // Every passage in a run: its row-±1 nodes joined sideways, and the DISTINCT street levels it opens onto.
+  const passagesOf = (run) => {
+    const seen = new Set(), out = [];
+    for (const n of Object.values(run.nodes)) {
+      if (!n.row || seen.has(n.key)) continue;
+      const group = [], streets = new Set(), todo = [n];
+      while (todo.length) {
+        const m = todo.pop(); if (seen.has(m.key)) continue; seen.add(m.key); group.push(m);
+        for (const side of ["N", "E", "S", "W"]) {
+          const o = m.links[side] && run.nodes[m.links[side]]; if (!o) continue;
+          if (o.row === 0) streets.add(o.key); else todo.push(o);
+        }
+      }
+      out.push({ group, streets });
+    }
+    return out;
+  };
+
+  test("buildRun lays every sewer with a way in AND a different way out, never before the start", () => {
+    const pool = [A, B, D, P5, P6, SA, SB, INTRO];
+    let withSewer = 0;
+    for (let i = 0; i < 40; i++) {
+      const run = buildRun(pool, "sewer" + i);
+      expect(run.planned).toBe(true);
+      for (const n of Object.values(run.nodes)) {
+        expect(n.col).toBeGreaterThanOrEqual(0);                                 // nothing behind the start
+        for (const side of ["N", "E", "S", "W"]) {                               // every link is a real, matching seam both ways
+          const k = n.links[side]; if (!k) continue;
+          expect(run.nodes[k].links[{ N: "S", S: "N", E: "W", W: "E" }[side]]).toBe(n.key);
+          expect(runSeams(run, n, CELL)[side]).toBeTruthy();
+        }
+      }
+      expect(run.order.map((k) => run.nodes[k].level.id)).not.toContain("SA");   // a Sewer-section level is never a street level
+      const ps = passagesOf(run);
+      for (const p of ps) {
+        expect(p.streets.size).toBeGreaterThanOrEqual(2);                         // in through one street level, out through another
+        for (const m of p.group) expect(m.row).toBe(1);
+      }
+      if (ps.length) withSewer++;
+      for (const k of run.order) { const n = run.nodes[k]; if (n.links.S) expect(run.nodes[n.links.S].row).toBe(1); }
+      const shown = runPassageLevels(run);
+      for (const p of ps) for (const m of p.group) expect(shown.S[m.col]).toBe(m.level);  // the 🎲 Generate preview draws it under its column
+    }
+    expect(withSewer).toBeGreaterThan(0);
+  });
+
+  test("a bottom gate with no way back up is a wall in that run, and stays one", () => {
+    const run = buildRun([P5, B, SA], "w", { maxMiddles: 3 });               // SA leaves east, but nothing comes back up
+    expect(Object.values(run.nodes).every((n) => n.row === 0)).toBe(true);
+    const p5 = Object.values(run.nodes).find((n) => n.level.id === "P5");
+    if (p5) {
+      expect(resolveRunNeighbour(run, p5, "S", [P5, B, SA])).toBe(null);     // not rolled later either
+      expect(runSeams(run, p5, CELL).S).toBeUndefined();
+    }
+    // A sewer that only leads WEST under the first street level would go before the start: none is laid.
+    const SW = mk("SW", { floor: "Sewer", section: "Sewer", open: { N1: "", W1: "" } }), SE = mk("SE", { floor: "Sewer", section: "Sewer", open: { E1: "", N1: "" } });
+    for (const seed of ["a", "b", "c", "d", "e", "f"]) {
+      const r = buildRun([P6, SW, SE], seed, { maxMiddles: 1 });                 // one street level: no way out anywhere else
+      expect(Object.keys(r.nodes).length).toBe(1);
+      expect(r.nodes[r.order[0]].links.S).toBeUndefined();
+      expect(resolveRunNeighbour(r, r.nodes[r.order[0]], "S", [P6, SW, SE])).toBe(null);
+    }
+    expect(RUN_PASSAGE_MAX).toBeGreaterThanOrEqual(2);
+  });
+
+  test("a sewer that comes back up where the street says it should is chosen first", () => {
+    // From P6, SA hangs straight under (Bottom Left on Top Left) and SB climbs straight into P5 (Top
+    // Right into Bottom Right): one flat map. Up into another P6 instead would land 40% of a level off.
+    const x = (run, from, side) => runSeams(run, from, CELL)[side].off.x;
+    let checked = 0;
+    for (let i = 0; i < 30; i++) {
+      const run = buildRun([P6, P5, SA, SB], "flat" + i, { maxMiddles: 2 });
+      const first = run.nodes[run.order[0]];
+      if (first.level.id !== "P6" || !first.links.S) continue;
+      checked++;
+      const second = run.nodes[run.order[1]], a = run.nodes[first.links.S], b = run.nodes[a.links.E];
+      expect([second.level.id, a.level.id, b.level.id]).toEqual(["P5", "SA", "SB"]);
+      expect(b.links.N).toBe(second.key);
+      expect(x(run, first, "S") + x(run, a, "E") + x(run, b, "N")).toBe(x(run, first, "E"));  // down, across, up = one step along the street
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  test("a side seam is open its whole shared height; top and bottom seams only at their gates", () => {
+    const run = twoNodeRun(), n1 = run.nodes.run1, seams = runSeams(run, n1, CELL);
+    expect(seamGateLeaving(n1.level, seams, "E", 4801, 0.7 * 46 * CELL, CELL)).toBe("E2");     // at the gate, as before
+    expect(seamGateLeaving(n1.level, seams, "E", 4801, 100, CELL)).toBe("E2");                 // a rooftop 30 rows above it: open too
+    expect(seamGateLeaving(n1.level, seams, "E", 4801, -200, CELL)).toBe("E2");                // over both tops: open sky
+    expect(seamGateLeaving(n1.level, seams, "E", 4801, 46 * CELL + 5, CELL)).toBe(null);       // under both floors: nothing there
+    expect(seamGateLeaving(n1.level, seams, "W", -1, 600, CELL)).toBe(null);                   // no level behind the west edge
+    // a SHORTER neighbour sitting lower: only the height the two share is open
+    const short = { ...seams, E: { ...seams.E, off: { x: 4800, y: 600 }, level: { ...seams.E.level, rows: 20 } } };
+    expect(seamGateLeaving(n1.level, short, "E", 4801, 500, CELL)).toBe(null);
+    expect(seamGateLeaving(n1.level, short, "E", 4801, 700, CELL)).toBe("E2");
+    expect(seamGateLeaving(n1.level, short, "E", 4801, 1250, CELL)).toBe(null);
   });
 
   test("resolveRunSides keeps Intro and Exit levels out of side passages", () => {
     const CE = mk("CE", { open: { E2: "", S1: "Sewer" } });            // no west gate, so nothing (not even itself) attaches on either side
-    const run = buildRun([CE], "s", { maxMiddles: 1 });
+    const run = buildRun([CE], "s", { maxMiddles: 1, passages: false });
     const c = run.nodes[run.order[0]];
     const introSewer = mk("IS", { floor: "Sewer", section: "Intro", open: { N1: "Trailor Park" } });
     resolveRunSides(run, c, [CE, introSewer]);
@@ -10232,13 +10339,14 @@ describe("runs", () => {
     expect(worldPartOfCell(parts, 20, 165).key).toBe("run2");
     expect(worldPartOfCell(parts, 20, 159).key).toBe("run1");
     expect(worldPartOfCell(parts, 20, 400)).toBe(null);
-    // Sideways: through the open lower-right gate (70% of 46 rows = 966 px), and only there.
+    // Sideways: the whole shared edge is open since 2026-10-02 — the gates only chose B as the neighbour.
     const live = parts[0], east = parts[1], atGate = 0.7 * 46 * CELL, farFromGate = 200;
     expect(unitClampX(live, 4790, 60, atGate, n1.level, seams, CELL)).toBe(4790);      // walks on into B
-    expect(unitClampX(live, 4790, 60, farFromGate, n1.level, seams, CELL)).toBe(4740); // a rooftop at the edge is still an edge
+    expect(unitClampX(live, 4790, 60, farFromGate, n1.level, seams, CELL)).toBe(4790); // a rooftop at the edge runs on into B too
     expect(unitClampX(live, -10, 60, atGate, n1.level, seams, CELL)).toBe(0);          // A's west gate is closed
     expect(unitClampX(east, 4790, 60, atGate, n1.level, seams, CELL)).toBe(4790);      // and back the other way from B's side
-    expect(unitClampX(east, 4790, 60, farFromGate, n1.level, seams, CELL)).toBe(4800);
+    expect(unitClampX(east, 4790, 60, farFromGate, n1.level, seams, CELL)).toBe(4790);
+    expect(unitClampX(live, 4790, 60, 46 * CELL + 10, n1.level, seams, CELL)).toBe(4740); // below both levels there is nothing behind the edge
     expect(unitClampX(east, 9700, 60, atGate, n1.level, seams, CELL)).toBe(9600 - 60);  // B's own far edge
     expect(unitFloorY(live, 100, 600, n1.level, seams, CELL)).toBe(1380);
     expect(unitFloorY(east, 4900, 600, n1.level, seams, CELL)).toBe(1380);
