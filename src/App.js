@@ -8885,6 +8885,148 @@ export const resolveClimbKind = (lv, x, y, pw, ph, CW, CH, wantsUp, curKind) => 
   }
   return ladder ? "ladder" : other;
 };
+// UNITS CLIMB TO GET AT YOU (Blake, 2026-10-02: "have NPCs and enemies that are following the
+// player try to utilize climbing surfaces including top down whenever they are following the
+// player"). Until now a unit had no use for the Climb layer at all except the 🚶 plane under its
+// feet: you went up a ladder and your ally stood at its foot, a Seek enemy stood still under the
+// ledge you climbed onto (his own rule — "they shouldn't follow you, just if you are on the same
+// level" — keeps it from trailing you along the floor below, but nothing let it come UP). So a unit
+// coming for someone on another level now looks for a way there on the Climb layer and takes it,
+// by the player's own physics: a LADDER it walks to, grips and climbs (and steps or jumps off the
+// top toward you); MONKEY BARS or a CLIFF ledge it jumps up to, hangs from, shimmies along and
+// jumps off; a 🚶 PLANE it walks onto at the nearest edge cell that leads to the one you are on —
+// or, standing on one, walks to the edge nearest you and off it. When there is no such way, nothing
+// changes: it does exactly what it did before (his "don't follow walking under" still holds).
+//
+// The Climb layer, read once per level into runs: each ladder column's vertical runs, each row's
+// horizontal runs of bars/cliff, and every 🚶 cell's plane (4-connected), so a route costs a short
+// list walk per frame rather than a scan of the grid. Keyed on the climb map itself — the editor
+// replaces it on every paint, so a cached answer can never outlive the cells it was read from.
+const CLIMB_RUNS_CACHE = new WeakMap();
+export const climbRunsOf = (lv) => {
+  const climb = lv && lv.climb;
+  if (!climb) return { ladders: [], hangs: [], planeOf: new Map(), planes: [] };
+  const hit = CLIMB_RUNS_CACHE.get(climb);
+  if (hit) return hit;
+  const ladderCols = new Map(), hangRows = new Map(), planeCells = new Set();
+  for (const key of Object.keys(climb)) {
+    const kind = climbKindOf(climb[key]);
+    if (!kind) continue;
+    const [r, c] = key.split(",").map(Number);
+    if (!(r >= 0 && c >= 0 && r < lv.rows && c < lv.cols)) continue;
+    if (kind === "ladder") { if (!ladderCols.has(c)) ladderCols.set(c, []); ladderCols.get(c).push(r); }
+    else if (isTopdownKind(kind)) planeCells.add(key);
+    else { const rk = r + "|" + kind; if (!hangRows.has(rk)) hangRows.set(rk, { r, kind, cs: [] }); hangRows.get(rk).cs.push(c); }
+  }
+  const runsOf = (nums) => { const s = [...nums].sort((a, b) => a - b), out = []; for (const n of s) { const last = out[out.length - 1]; if (last && n === last[1] + 1) last[1] = n; else if (!last || n > last[1]) out.push([n, n]); } return out; };
+  const ladders = [];
+  for (const [c, rs] of ladderCols) for (const [rTop, rBot] of runsOf(rs)) ladders.push({ c, rTop, rBot });
+  const hangs = [];
+  for (const { r, kind, cs } of hangRows.values()) for (const [c0, c1] of runsOf(cs)) hangs.push({ r, kind, c0, c1 });
+  const planeOf = new Map(), planes = [];
+  for (const start of planeCells) {
+    if (planeOf.has(start)) continue;
+    const id = planes.length, cells = [], stack = [start];
+    planeOf.set(start, id);
+    while (stack.length) {
+      const key = stack.pop(); const [r, c] = key.split(",").map(Number); cells.push({ r, c });
+      for (const n of [cellKey(r - 1, c), cellKey(r + 1, c), cellKey(r, c - 1), cellKey(r, c + 1)]) if (planeCells.has(n) && !planeOf.has(n)) { planeOf.set(n, id); stack.push(n); }
+    }
+    planes.push(cells);
+  }
+  const out = { ladders, hangs, planeOf, planes };
+  CLIMB_RUNS_CACHE.set(climb, out);
+  return out;
+};
+// The plane a body's feet are on (topdownAt's own window), or -1.
+const planeIdAt = (runs, cx, feet, CW, CH) => {
+  const c = Math.floor(cx / CW);
+  for (let r = Math.floor((feet - CH / 2) / CH); r <= Math.floor((feet + CH / 2 - 0.001) / CH); r++) { const id = runs.planeOf.get(cellKey(r, c)); if (id !== undefined) return id; }
+  return -1;
+};
+// THE WAY UP (OR DOWN, OR ONTO THE PLANE) — one waypoint, in the level's own pixels:
+//   me  { cx, feet, h, topdown, fx } the unit: centre x, feet line, standing height, on a plane now,
+//                                  and the x its feet find a plane at (topdownAt's column; cx if absent)
+//   tgt { cx, feet, topdown }      whoever it is coming for, standing on `feet`
+//   jumpPx                         how high this unit's jump carries its feet
+//   floorAt(r, c)                  optional: is there something to stand on in that cell — the walk to
+//                                  a climb has to have ground under it the whole way, or the unit walks
+//                                  off its ledge toward a ladder (or a plane) it can never reach
+// → null (walk as before), or
+//   { kind: "ladder", x, dir }     walk to x, grip, climb dir (-1 up, 1 down)
+//   { kind: "hang", x, r, c0, c1 } walk under x, jump, hang from row r, shimmy toward the target
+//   { kind: "plane", x, feet }     walk to x (feet onto / along the plane), feet = the line to walk to
+// Cheapest by sideways walking: to the climb, then from it to the target.
+export const unitClimbRoute = (lv, me, tgt, jumpPx, CW, CH, floorAt = null) => {
+  if (!lv || !me || !tgt || tgt.feet == null) return null;
+  const runs = climbRunsOf(lv);
+  const dy = tgt.feet - me.feet;
+  const colX = (c) => (c + 0.5) * CW;
+  // Ground (or a plane) under every column between here and there, give or take a step; the
+  // destination column itself may be open — a ladder going down a hole is boarded by dropping in.
+  const walkable = (toX) => {
+    if (!floorAt) return true;
+    const row = Math.floor((me.feet + 1) / CH), dest = Math.floor(toX / CW);
+    const a = Math.floor(Math.min(me.cx, toX) / CW), b = Math.floor(Math.max(me.cx, toX) / CW);
+    for (let c = a; c <= b; c++) {
+      if (c === dest || floorAt(row - 1, c) || floorAt(row, c) || floorAt(row + 1, c) || planeIdAt(runs, colX(c), me.feet, CW, CH) >= 0) continue;
+      return false;
+    }
+    return true;
+  };
+  if (me.topdown && tgt.topdown) return null; // the same floor with depth: topdownStepToward walks it
+  if (tgt.topdown && !me.topdown) {
+    // ONTO the plane the target is on, at its nearest cell the feet can walk onto from here — or,
+    // with none, the ladders and bars below (down to the street the plane starts from, say).
+    const id = planeIdAt(runs, tgt.cx, tgt.feet, CW, CH);
+    let best = null;
+    if (id >= 0) {
+      const r0 = Math.floor((me.feet - CH / 2) / CH), r1 = Math.floor((me.feet + CH / 2 - 0.001) / CH);
+      for (const { r, c } of runs.planes[id]) {
+        if (r < r0 || r > r1 || !walkable(colX(c))) continue;
+        const cost = Math.abs(colX(c) - (me.fx ?? me.cx)) + Math.abs(colX(c) - tgt.cx) * 0.25;
+        if (!best || cost < best.cost) best = { cost, x: colX(c) };
+      }
+    }
+    if (best) return { kind: "plane", x: best.x, feet: null };
+  }
+  if (me.topdown && !tgt.topdown) {
+    // OFF the plane it is standing on, at the cell nearest the target: walk the depth to that cell's
+    // line and sideways to its column, and only then on past the edge toward the target (the loop) —
+    // cutting the corner walks off the plane's side above the street and drops the rest.
+    const id = planeIdAt(runs, me.fx ?? me.cx, me.feet, CW, CH);
+    if (id < 0) return null;
+    let best = null;
+    for (const { r, c } of runs.planes[id]) {
+      const feet = Math.max(r * CH, Math.min((r + 1) * CH, tgt.feet));
+      const cost = Math.abs(colX(c) - tgt.cx) + Math.abs(feet - tgt.feet) * 2;
+      if (!best || cost < best.cost) best = { cost, x: colX(c), feet };
+    }
+    return best && { kind: "plane", x: best.x, feet: best.feet };
+  }
+  if (Math.abs(dy) <= CH * 1.5) return null; // a step or a hill: the ordinary walk gets there
+  let best = null;
+  const consider = (cost, route) => { if (!best || cost < best.cost) best = { cost, route }; };
+  for (const L of runs.ladders) {
+    const yTop = L.rTop * CH, yBot = (L.rBot + 1) * CH, x = colX(L.c);
+    if (me.feet < yTop - CH * 0.5 || me.feet > yBot + CH * 0.5 || !walkable(x)) continue; // cannot get on it from this level
+    if (dy < 0 ? !(yTop < me.feet - CH && tgt.feet >= yTop - jumpPx - CH * 0.5) : !(yBot > me.feet + CH && tgt.feet > yTop)) continue;
+    consider(Math.abs(x - me.cx) + Math.abs(x - tgt.cx), { kind: "ladder", x, dir: dy < 0 ? -1 : 1 });
+  }
+  if (dy < 0) {
+    for (const H of runs.hangs) {
+      const yBar = H.r * CH, hangFeet = yBar + me.h;
+      if (me.feet - me.h - jumpPx >= yBar + CH) continue;  // out of jumping reach
+      if (hangFeet >= me.feet + CH * 0.5) continue;          // hanging from it would not take it up
+      if (tgt.feet < hangFeet - jumpPx - CH) continue;       // and jumping off it still falls short
+      const x0 = colX(H.c0), x1 = colX(H.c1);
+      const x = Math.max(x0, Math.min(x1, me.cx)), xOut = Math.max(x0, Math.min(x1, tgt.cx));
+      if (!walkable(x)) continue;
+      consider(Math.abs(x - me.cx) + Math.abs(xOut - x) + Math.abs(tgt.cx - xOut) + CW, { kind: "hang", x, r: H.r, c0: H.c0, c1: H.c1 });
+    }
+  }
+  return best && best.route;
+};
 // Simulated flight path for the throw-aim preview (hold G): the exact same per-frame integration
 // the thrown grenade itself uses (gravity accumulates into vy, position steps by velocity), so
 // the dots you see are precisely where a release right now would send it. Stops at the first
@@ -12578,7 +12720,7 @@ export default function AssetStudio() {
               const move = dodgeMoveFor(pr.y, standHitTop, standHitH);
               if (move) { threat = move; break; }
             }
-            if (threat && !stunned) {
+            if (threat && !stunned && !ep.climbing) { // nothing dodges with both hands on a ladder
               // Decide once per threat window, not every frame — otherwise a shot in flight for
               // several frames would get "re-rolled" repeatedly and the intended odds would creep
               // toward near-certain over a long enough approach.
@@ -12751,7 +12893,32 @@ export default function AssetStudio() {
           // keeps engageRange exactly as before, so no hostile's behaviour moves.
           // Following you is not engaging you: it closes or it stands, and it never reverses.
           const following = targetKind === "followPlayer";
-          const dxMove = (stunned || !acts || ep.stomp) ? 0   // a stomp plants its feet, the player's rule
+          // 🪜 A TARGET ON ANOTHER LEVEL: THE WAY THERE ON THE CLIMB LAYER (unitClimbRoute). Asked by
+          // anything that is coming for someone — an ally tagging along, Seek that has noticed its
+          // target, a tackler's charge — whenever that someone STANDS (or climbs) more than a step
+          // above or below it, or on a 🚶 plane it is not on. A ranged unit that can already shoot
+          // its target from here (same level by the walk's rule) keeps its stand-off instead of
+          // leaving to climb. No route = the walk below, exactly as before.
+          if ((ep.navDropCd || 0) > 0) ep.navDropCd = Math.max(0, ep.navDropCd - dtMul);
+          if (ep.climbJump && ep.vy >= 0) ep.climbJump = false; // the player's rule: no re-grab on the way up off a climb
+          if ((ep.down || 0) > 0) ep.climbing = null; // flattened: nothing left holding on
+          const navTgt = targetKind === "unit" ? targetEp : p;
+          const navTgtH = targetKind === "unit" ? (targetEp && targetEa ? (targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW)) : 0) : ph;
+          const navTgtFeet = !navTgt ? null : navTgt.climbing ? navTgt.y + navTgtH : standingLineY(navTgt, navTgtH);
+          const navTgtTopdown = !!navTgt && (!!navTgt.topdown || navTgt.tdJumpY != null); // a hop off the plane is still on it
+          const navMeTopdown = !!ep.topdown || ep.tdJumpY != null;
+          const navPursuing = acts && !stunned && !ep.stomp && (following || charging || (ai === "seek" && detected));
+          const navOff = navTgtFeet != null && !(navMeTopdown && navTgtTopdown) && Math.abs(navTgtFeet - myFeetY) > CH * 1.5
+            && (following || !rangedEnemy || !targetOnLevel);
+          const navJumpV = enemyJumpVelocity(ea.stats?.agility, CH), navJumpPx = navJumpV * navJumpV / (2 * 0.175);
+          const navPart = worldPartAt(worldParts, ep.x + epw / 2, ep.y + newEph / 2, CW);
+          const navRouteLv = navPursuing && navOff && !ep.climbing
+            ? unitClimbRoute(navPart.lv, { cx: eCenterXNow - navPart.ox, fx: ep.x + epw / 2 - navPart.ox, feet: myFeetY - navPart.oy, h: standEph, topdown: navMeTopdown }, { cx: targetCX - navPart.ox, feet: navTgtFeet - navPart.oy, topdown: navTgtTopdown }, navJumpPx, CW, CH, (r, c) => !!navPart.lv.fg[cellKey(r, c)] || solidAtW(r + (navPart.dr || 0), c + (navPart.dc || 0)))
+            : null;
+          const navRoute = navRouteLv && { ...navRouteLv, x: navRouteLv.x + navPart.ox, feet: navRouteLv.feet == null ? null : navRouteLv.feet + navPart.oy };
+          const navAirborne = !ep.climbing && !ep.onGround && !ep.topdown;
+          const towardTarget = Math.abs(distToTarget) > CW * 0.5 ? Math.sign(distToTarget) * aiSpeed : 0;
+          let dxMove = (stunned || !acts || ep.stomp) ? 0   // a stomp plants its feet, the player's rule
             : charging ? (Math.sign(distToTarget) || ep.face || 1) * chargeSpeed
             : following ? allyFollowIntent(gapSigned, ALLY_FOLLOW_RANGE_CELLS * CW, aiSpeed, ep.following)
             // SEEK WALKS ONLY TO A TARGET ON ITS OWN LEVEL. Sensing you through a floor is fine — it
@@ -12759,6 +12926,24 @@ export default function AssetStudio() {
             // trail you along the street under the storey you are walking on. Avoid is a retreat,
             // not a chase, and is untouched.
             : enemyMoveIntent(ai, gapSigned, engageRange, aiSpeed, detected && (ai !== "seek" || targetOnLevel));
+          // ...and the route's say over it. On a LADDER it holds the column while it climbs and walks
+          // toward the target once it is within a cell of the target's line (stepping off onto the
+          // ledge); HANGING it shimmies toward the target; pushing off the top of a climb it carries
+          // on toward the target; jumping up at a bar it goes straight up. Otherwise, with a route, it
+          // walks to the route's column — the visible body for a ladder or a bar (that is what has to
+          // be on it), the feet's column for a plane (topdownAt finds the plane there).
+          if (!stunned && acts && !ep.stomp) {
+            if (ep.climbing === "ladder") dxMove = navTgtFeet != null && Math.abs(navTgtFeet - myFeetY) <= CH ? towardTarget : 0;
+            else if (ep.climbing) dxMove = towardTarget;
+            else if (navAirborne && ep.climbJump) dxMove = towardTarget;
+            else if (navAirborne && ep.navHangJump) dxMove = 0;
+            else if (navRoute && navRoute.kind === "plane" && navRoute.feet != null && Math.abs(navRoute.feet - myFeetY) <= 2) dxMove = towardTarget; // at the way off the plane: off it, toward the target
+            else if (navRoute && (!navAirborne || navRoute.kind === "ladder")) { // dropping down a hole onto a ladder steers into it
+              const d = navRoute.x - (navRoute.kind === "plane" ? ep.x + epw / 2 : eCenterXNow);
+              dxMove = Math.abs(d) < 0.5 ? 0 : Math.sign(d) * Math.min(Math.abs(d), charging ? chargeSpeed : aiSpeed);
+            }
+          }
+          if (!navAirborne) ep.navHangJump = false;
           if (following) ep.following = dxMove !== 0; else ep.following = false;
           // 🛼 SLIDE ON A UNIT: its feet EASE toward where it means to go at the item's Grip, and it
           // coasts when it stops, instead of snapping to speed and halting dead — the player's own
@@ -12849,7 +13034,68 @@ export default function AssetStudio() {
           // left (ep.tdJumpY, the player's own gate) so the re-grab lands it back on that line
           // rather than wherever the road happened to be under its feet at the apex.
           const eStand = worldPartAt(worldParts, ep.x + epw / 2, ep.y + newEph / 2, CW); // after the step: it may just have walked through a gate
-          const eTdOverlap = topdownAt(eStand.lv, ep.x - eStand.ox, ep.y + newEph - eStand.oy, epw, CW, CH);
+          // 🪜 GETTING ON, AND CLIMBING (see unitClimbRoute) — the player's climb physics, driven by
+          // where the target stands instead of by keys. Measured with the VISIBLE body's box (the
+          // hitbox offset into the render box), in the unit's own level's pixels: that is the body
+          // that has to be on the ladder, and resolveClimbKind's "centre near the column" window is
+          // asked of it. A ladder is gripped only on the route's own column, a bar or a ledge only
+          // while the route goes there, so nothing changes for a unit simply walking past either.
+          const cbX = ep.x + (eShape.centerFrac * eRenderW - epw / 2) - eStand.ox, cbY = ep.y - eStand.oy;
+          const cbCX = ep.x + eShape.centerFrac * eRenderW;
+          const cbWant = navTgtFeet == null ? 0 : navTgtFeet - (ep.y + newEph); // < 0: the target is above
+          let eClimbMove = 0;
+          if (!ep.climbing && navRoute && !ep.climbJump && !(ep.navDropCd > 0) && !stunned) {
+            const kindNow = resolveClimbKind(eStand.lv, cbX, cbY, epw, newEph, CW, CH, cbWant < 0, null);
+            if (navRoute.kind === "ladder" && kindNow === "ladder" && Math.abs(navRoute.x - cbCX) <= CW * 0.5) ep.climbing = "ladder";
+            else if (navRoute.kind === "hang" && kindNow && kindNow !== "ladder" && canGripClimb(eStand.lv, cbX, cbY, epw, newEph, CW, CH, kindNow)) ep.climbing = kindNow;
+            else if (navRoute.kind === "hang" && (ep.onGround || ep.topdown) && ep.vy >= 0
+                     && cbCX >= navRoute.c0 * CW + eStand.ox && cbCX <= (navRoute.c1 + 1) * CW + eStand.ox) {
+              // Under the bar: jump for it, straight up (navHangJump), and grip it on the way.
+              if (ep.topdown) ep.tdJumpY = ep.y;
+              ep.vy = -navJumpV; ep.onGround = false; ep.jumpHoldT = 0; ep.navHangJump = true;
+            }
+            if (ep.climbing) { ep.vy = 0; ep.tdJumpY = null; }
+          } else if (!ep.climbing && ep.navHangJump && !ep.climbJump && !(ep.navDropCd > 0)) {
+            // Mid-jump at a bar: the grip comes the frame the hands reach it (canGripClimb).
+            const kindNow = resolveClimbKind(eStand.lv, cbX, cbY, epw, newEph, CW, CH, true, null);
+            if (kindNow && kindNow !== "ladder" && canGripClimb(eStand.lv, cbX, cbY, epw, newEph, CW, CH, kindNow)) { ep.climbing = kindNow; ep.vy = 0; ep.tdJumpY = null; ep.navHangJump = false; }
+          }
+          if (ep.climbing) {
+            const kindHere = resolveClimbKind(eStand.lv, cbX, cbY, epw, newEph, CW, CH, cbWant < 0, ep.climbing);
+            const letGo = (cd) => { ep.climbing = null; ep.navDropCd = cd; };
+            // Off the climb (walked off its side or its end), the target gone, or a hang that has
+            // turned into something else under it: let go and fall, as you would.
+            if (!navPursuing || !kindHere || (ep.climbing !== "ladder" && kindHere !== ep.climbing)) letGo(ep.climbing === "ladder" ? 0 : 15);
+            else if (kindHere === "ladder") {
+              ep.climbing = "ladder";
+              const step = CLIMB_SPEED * dtMul;
+              if (cbWant < -CH * 0.5) {
+                // Up, pinned at the ladder's top exactly as the player is; from there a target still
+                // more than a cell above is jumped for — off the top, toward it (climbJump stops the
+                // ladder re-gripping on the way up).
+                if (isOnClimb(eStand.lv, cbX, cbY - step, epw, newEph, CW, CH)) { ep.y -= step; eClimbMove = step; }
+                else { let m = 0; while (m + 1 <= step && isOnClimb(eStand.lv, cbX, ep.y - eStand.oy - 1, epw, newEph, CW, CH)) { ep.y -= 1; m++; } eClimbMove = m; }
+                if (eClimbMove < 0.5 && cbWant < -CH) { letGo(0); ep.climbJump = true; ep.vy = -navJumpV; ep.onGround = false; ep.jumpHoldT = 0; }
+              } else if (cbWant > CH * 0.5) {
+                // Down, stopping on solid ground at the foot (only ground it is not already in — the
+                // walls-it-starts-inside rule) or letting go off a bottom that ends in the air.
+                const inBox = new Set(cellsHitW(ep.x, ep.y, epw, newEph).map((h) => h.r + "," + h.c));
+                if (cellsHitW(ep.x, ep.y + step, epw, newEph).some((h) => !inBox.has(h.r + "," + h.c))) letGo(0);
+                else if (isOnClimb(eStand.lv, cbX, cbY + step, epw, newEph, CW, CH)) { ep.y += step; eClimbMove = step; }
+                else letGo(8);
+              }
+              if (ep.climbing) { ep.vy = 0; ep.onGround = false; }
+            } else {
+              // HANGING from bars or a ledge: jump off toward a target still above — once over it, or
+              // at the end of the run on its side — drop to one below, otherwise shimmy (dxMove).
+              const dir = Math.sign(distToTarget) || 1;
+              const atEnd = climbKindAt(eStand.lv, cbX + dir * CW, cbY, epw, newEph, CW, CH) !== kindHere;
+              if (cbWant < -CH && (Math.abs(distToTarget) <= CW * 2 || atEnd)) { letGo(0); ep.climbJump = true; ep.vy = -navJumpV; ep.onGround = false; ep.jumpHoldT = 0; }
+              else if (cbWant > CH) letGo(15);
+              else { ep.climbing = kindHere; ep.vy = 0; ep.onGround = false; }
+            }
+          }
+          const eTdOverlap = !ep.climbing && topdownAt(eStand.lv, ep.x - eStand.ox, ep.y + newEph - eStand.oy, epw, CW, CH);
           const eTopdown = topdownHolds(eTdOverlap, ep.vy, ep.y, ep.tdJumpY);
           let eTdStep = 0; // how far it walked up/down the plane this frame — its legs cycle for that too
           if (eTopdown) {
@@ -12866,7 +13112,9 @@ export default function AssetStudio() {
             // Stepping DOWN stops at solid ground the box is not already in, and stepping UP ignores
             // solids — the player's W/S rule, for the player's reason: the box is seven cells tall,
             // and near the back of a room its top is up among the back wall's blocks.
-            const tLine = (stunned || !acts || ep.stomp || !(charging || (ai === "seek" && detected && targetOnLevel))) ? null
+            // (A plane route — off this plane toward a target that is not on it — names its own line.)
+            const tLine = (navRoute && navRoute.kind === "plane" && navRoute.feet != null) ? navRoute.feet
+              : (stunned || !acts || ep.stomp || !(charging || (ai === "seek" && detected && targetOnLevel))) ? null
               : (targetKind === "unit" && targetEp && targetEa) ? standingLineY(targetEp, targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW))
               : standingLineY(p, ph);
             if (tLine != null) {
@@ -12878,7 +13126,7 @@ export default function AssetStudio() {
               eTdStep = Math.abs(feet1 - feet0);
               ep.y = feet1 - newEph;
             }
-          } else {
+          } else if (!ep.climbing) { // a unit on a ladder, bars or a ledge is held there (above), not falling
             // Gravity + ground collision — identical rule to the player's own fall, reusing the
             // same generic cell test so enemies land on and are stopped by the same terrain.
             // ...including what the player's jump gets on top (2026-09-28, "no differences"): the
@@ -12924,8 +13172,8 @@ export default function AssetStudio() {
           // Walk cycle: advance the enemy's stride by how far it actually moved on the ground this
           // frame, exactly like the player's walkPhase. Enemies had no walk phase at all, so their
           // legs stayed frozen mid-chase. Blocked-by-a-wall (no displacement) reads as not walking.
-          const eStep = Math.hypot(ep.x - exBefore, eTdStep); // up/down a 🚶 plane is walking too, or it glides there on frozen legs
-          ep.walking = ep.onGround && eStep > 0.05;
+          const eStep = Math.hypot(ep.x - exBefore, eTdStep + eClimbMove); // up/down a 🚶 plane is walking too, or it glides there on frozen legs; so is a climb, which cycles the limbs as yours do
+          ep.walking = (ep.onGround || !!ep.climbing) && eStep > 0.05;
           if (ep.walking) ep.walkPhase = (ep.walkPhase || 0) + eStep * 0.03;
 
           // TACKLE CONTACT — the enemy's half of the ability, and the exact mirror of the player's
@@ -13129,7 +13377,7 @@ export default function AssetStudio() {
           const attackRange = engageRange; // weapon-swept reach for player-based looks, ⚔️ number for monsters
           const eCenterXFinal = ep.x + eShape.centerFrac * eRenderW;
           const gapNow = attacking ? boxGap(tgtAimCX, tgtBoxW, eCenterXFinal, epw) : Infinity;
-          const sameLevel = attacking ? (Math.abs((ep.y + newEph) - tgtFeetY) < newEph) : false;
+          const sameLevel = attacking && !ep.climbing ? (Math.abs((ep.y + newEph) - tgtFeetY) < newEph) : false;
           let inSight = false;
           // A brawl opponent is always "seen" (no stealth between two fighters); only a hostile
           // hunting the PLAYER has to sense them first. Cover still blocks the line either way.
@@ -20317,7 +20565,10 @@ export default function AssetStudio() {
                   const eTalker = !!(ep && talkDialogueId(U.lv.enemies[k]) && !eUseAtkPose && !ducking);
                   const eTalkWaiting = eTalker && !ep.talked && unitSide(ea, ep) !== "hostile";
                   const eFrontPose = (eTalkWaiting || (eTalker && ep.talked && unitSide(ea, ep) === "neutral")) && enemyPoseKey(ea, "front") === "front";
-                  const ePoseKey = eUseAtkPose ? "attack" : eFrontPose ? "front" : enemyPoseKey(ea, ducking ? "crouch" : "side");
+                  // 🪜 A unit CLIMBING shows the player's climbing pose (playerPoseKey): its Back on a
+                  // ladder or a ledge, Side hanging from bars. Art with no Back drawn falls back as ever.
+                  const eClimbBack = !!(ep && ep.climbing && ep.climbing !== "bars" && !eUseAtkPose && !eFrontPose) && enemyPoseKey(ea, "back") === "back";
+                  const ePoseKey = eUseAtkPose ? "attack" : eFrontPose ? "front" : eClimbBack ? "back" : enemyPoseKey(ea, ducking ? "crouch" : "side");
                   // A ground line on the pose being drawn wins; failing that the Side line, because
                   // every other pose is pinned to Side's baseline anyway; failing that eFootAnchor,
                   // the measured empty canvas under the feet, which is what every enemy uses today.
@@ -20337,7 +20588,7 @@ export default function AssetStudio() {
                   // Both of these are poses drawn on their own canvas, so both need pinning to the
                   // baseline the SIDE pose stands on, or the body floats or sinks by whatever empty
                   // canvas its own drawing happens to leave underneath it.
-                  if (eUseAtkPose || eFrontPose) {
+                  if (eUseAtkPose || eFrontPose || eClimbBack) {
                     const eSideKey = enemyPoseKey(ea, "side");
                     eBlocks = alignPoseFootBaseline(bake(ea, eSideKey), eBlocks, enemyGroundLine(ea, eSideKey), enemyGroundLine(ea, ePoseKey));
                   }
@@ -20405,6 +20656,7 @@ export default function AssetStudio() {
                   // A ✋ hold point is placed on Side and Crouch alone, so it keeps the Side path.
                   const eHeldView = (fit) => {
                     const sidePose = enemyPoseKey(ea, ducking ? "crouch" : "side");
+                    if (eClimbBack && eRealArm) { const pose = weaponArtPose("back"); return { pose, hand: handForGuideId(fit.guideId)[pose] || DEFAULT_HAND[pose], base: eAttachBase, twinBase: eBaseTwinArm ? (eBaseTwinArm.rot || 0) : 0, twin: true }; } // climbing: the Back drawing on the Back arms, as yours on a ladder
                     if (!(eFrontPose && eRealArm)) return { pose: sidePose, hand: handForGuideId(fit.guideId)[sidePose] || DEFAULT_HAND[sidePose], base: eAttachBase, twin: false };
                     const pose = weaponArtPose("front");
                     const drawnArms = (ea.angles && (ea.angles[pose] || []).length) ? bake(ea, pose) : null;

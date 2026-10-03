@@ -37,6 +37,8 @@ import {
   LAYER_BAND,
   CORPSE_Z,
   topdownDepthZ,
+  unitClimbRoute,
+  climbRunsOf,
   orderEndLay,
   hazardStillBurning,
   throwImpactDamage,
@@ -11472,5 +11474,44 @@ describe("a unit plays by the player's rules", () => {
     expect(src).toContain("* CW * rangeBoostMultiplier(ea.effects);");
     expect(src).toContain("const crit = Math.random() < critChance(eIntel);"); // swings, bites and stomps
     expect(src).toContain("ep.burstLeft = weaponBurstShotCount(ew) - 1;");      // the whole burst
+  });
+});
+
+// Blake, 2026-10-02: "have NPCs and enemies that are following the player try to utilize climbing
+// surfaces including top down whenever they are following the player". unitClimbRoute is the
+// whole decision — where to walk and what to climb; the loop only plays it out with the player's
+// own climb physics.
+describe("units find a way up, down or onto the plane", () => {
+  const C = 30;
+  const level = (climb) => ({ cols: 20, rows: 20, climb });
+  const cells = (kind, r0, r1, c0, c1) => { const o = {}; for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) o[r + "," + c] = { kind }; return o; };
+  const ladderLv = level(cells("ladder", 8, 15, 10, 10)); // a ladder from the street (feet 480) up to a ledge (feet 240)
+
+  test("a target up on the ledge sends the unit to the ladder, climbing up", () => {
+    expect(unitClimbRoute(ladderLv, { cx: 100, feet: 480, h: 210 }, { cx: 400, feet: 240 }, 90, C, C)).toEqual({ kind: "ladder", x: 315, dir: -1 });
+  });
+  test("and one down on the street brings it back down the same ladder", () => {
+    expect(unitClimbRoute(ladderLv, { cx: 400, feet: 240, h: 210 }, { cx: 100, feet: 480 }, 90, C, C)).toEqual({ kind: "ladder", x: 315, dir: 1 });
+  });
+  test("no route when the target is on its own level, or the ladder does not reach them", () => {
+    expect(unitClimbRoute(ladderLv, { cx: 100, feet: 480, h: 210 }, { cx: 400, feet: 470 }, 90, C, C)).toBeNull();
+    expect(unitClimbRoute(ladderLv, { cx: 100, feet: 480, h: 210 }, { cx: 400, feet: 60 }, 90, C, C)).toBeNull();
+    expect(unitClimbRoute(level({}), { cx: 100, feet: 480, h: 210 }, { cx: 400, feet: 240 }, 90, C, C)).toBeNull();
+    expect(unitClimbRoute(ladderLv, { cx: 100, feet: 480, h: 210 }, { cx: 400, feet: null }, 90, C, C)).toBeNull(); // mid-jump: nothing to aim at
+  });
+  test("monkey bars within jumping reach are a way up too", () => {
+    const bars = level(cells("bars", 5, 5, 3, 8));
+    expect(unitClimbRoute(bars, { cx: 100, feet: 480, h: 210 }, { cx: 400, feet: 300 }, 120, C, C)).toEqual({ kind: "hang", x: 105, r: 5, c0: 3, c1: 8 });
+    expect(unitClimbRoute(bars, { cx: 100, feet: 480, h: 210 }, { cx: 400, feet: 300 }, 60, C, C)).toBeNull(); // a weaker jump cannot reach them
+  });
+  test("a target on a top-down plane sends it to the plane's nearest edge cell, and back off it", () => {
+    const plane = level(cells("topdown", 10, 15, 5, 8));
+    expect(unitClimbRoute(plane, { cx: 60, feet: 480, h: 210 }, { cx: 200, feet: 330, topdown: true }, 90, C, C)).toEqual({ kind: "plane", x: 165, feet: null });
+    expect(unitClimbRoute(plane, { cx: 200, feet: 330, h: 210, topdown: true }, { cx: 500, feet: 480 }, 90, C, C)).toEqual({ kind: "plane", x: 255, feet: 480 }); // the front row's line, at the edge cell nearest them
+    expect(unitClimbRoute(plane, { cx: 200, feet: 330, h: 210, topdown: true }, { cx: 220, feet: 400, topdown: true }, 90, C, C)).toBeNull(); // the same floor: topdownStepToward walks it
+  });
+  test("the climb layer is read once per level", () => {
+    expect(climbRunsOf(ladderLv)).toBe(climbRunsOf(ladderLv));
+    expect(climbRunsOf(ladderLv).ladders).toEqual([{ c: 10, rTop: 8, rBot: 15 }]);
   });
 });

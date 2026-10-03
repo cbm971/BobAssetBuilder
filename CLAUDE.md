@@ -1172,6 +1172,27 @@ side signature unchanged, W up to the pinned y 15 (= row 8's top edge - half a c
 the front pose with no crouch, the hop rising 87px and landing on y 454.8 exactly, and a sideways
 walk-off falling 51 frames to the street.
 
+**UNITS USE THE CLIMB LAYER TO REACH WHOEVER THEY ARE COMING FOR (2026-10-02).** Blake: "have NPCs
+and enemies that are following the player try to utilize climbing surfaces including top down".
+`unitClimbRoute(lv, me, tgt, jumpPx, CW, CH, floorAt)` picks ONE waypoint from `climbRunsOf(lv)`
+(ladder columns, bars/cliff rows, 🚶 plane components; cached per `lv.climb` object): a ladder to
+climb up/down, a bar/ledge to jump to and hang from, a plane edge to walk onto, or the plane edge
+nearest a target that is off the plane. `floorAt` rejects routes whose walk has no ground under it
+(the first drive walked off a ledge toward a road painted at ledge height). The enemy loop asks it
+for an ally tagging along, Seek that has detected its target, or a charge, when the target STANDS
+more than 1.5 cells above/below (or on a plane the unit is not on); a ranged unit already able to
+shoot from its level keeps its stand-off. No route → the old walk, so "don't follow walking under"
+still holds. Physics is the player's: `ep.climbing` ("ladder"/"bars"/"cliff"), CLIMB_SPEED, pinned
+at the ladder top, `ep.climbJump` off the top or off a hang toward the target, `ep.navDropCd` after
+letting go, `ep.navHangJump` for the jump up at a bar. Gravity is skipped while climbing; climbing
+units cannot attack or dodge; they draw their Back pose (Side on bars) with the weapon's Back art.
+Climb tests measure the VISIBLE body box (hitbox offset into the render box); plane tests use the
+feet box `ep.x + epw/2`, as `topdownAt` does — mixing them dropped the plane route mid-walk.
+Verified on a seeded test level (street, ladder to a ledge, bars to a second ledge, a road up the
+screen): Seek and ally both walked to the ladder, climbed 100 frames, stepped off at the top; came
+back down by dropping into the ladder; walked under the bars, jumped, hung, shimmied, jumped onto
+the far ledge; walked onto the road and up it to the player, and back down off it.
+
 **A ROOM CAN BE A TOP-DOWN FLOOR: Trailor Int5, the back bedroom (2026-09-22).** Blake's trailer
 interiors (Int1 kitchen, Int2 living room; Int3/Int4 are copies with an NPC) are one-point-perspective
 dioramas: solid Foreground side walls, a Background back wall and carpet, and a hideInPlay floor row
