@@ -36,6 +36,7 @@ import {
   LAYER_BASE_Z,
   LAYER_BAND,
   CORPSE_Z,
+  topdownDepthZ,
   orderEndLay,
   hazardStillBurning,
   throwImpactDamage,
@@ -6524,6 +6525,25 @@ describe("the Solid checkbox no longer decides what draws on top", () => {
     expect(CORPSE_Z).toBeGreaterThan(PLAYER_Z);
     expect(CORPSE_Z).toBeLessThan(levelObjectZIndex({ lay: "front" }, 0));
     expect(CORPSE_Z).toBeLessThan(FRONT_CELL_Z);
+  });
+
+  // Blake, 2026-10-02: in a top-down room the NPC at the back wall drew over him while he stood
+  // nearer the camera, because every unit shared the player's z and won it on DOM order.
+  test("on a top-down plane a unit with lower feet draws in front of the player, higher behind", () => {
+    const you = 540, cell = 30;
+    expect(topdownDepthZ(you, 600, cell)).toBeGreaterThan(PLAYER_Z);   // nearer the camera
+    expect(topdownDepthZ(you, 376, cell)).toBeLessThan(PLAYER_Z);      // up at the back wall
+    expect(topdownDepthZ(you, you, cell)).toBeLessThan(PLAYER_Z);      // level: you keep the front
+    expect(topdownDepthZ(you, you + 0.5, cell)).toBeGreaterThan(PLAYER_Z);
+    expect(topdownDepthZ(null, 600, cell)).toBeNull();                 // not on a plane together
+    expect(topdownDepthZ(you, null, cell)).toBeNull();
+  });
+  test("units on the plane sort among themselves, and the bands stay inside their gaps", () => {
+    const you = 540, cell = 30;
+    expect(topdownDepthZ(you, 660, cell)).toBeGreaterThan(topdownDepthZ(you, 600, cell));
+    expect(topdownDepthZ(you, 400, cell)).toBeGreaterThan(topdownDepthZ(you, 300, cell));
+    expect(topdownDepthZ(you, 1e6, cell)).toBeLessThan(CORPSE_Z);      // a body still covers the living
+    expect(topdownDepthZ(you, -1e6, cell)).toBeGreaterThan(4000);       // still over pedestals and climb
   });
 
   // The ladder lives in two places — these constants and the .lcell/.lobj rules in the CSS string —

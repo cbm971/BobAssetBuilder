@@ -9845,6 +9845,22 @@ export const LAYER_BAND = 899; // objects per rung before the band would run int
 // down. Pinned to a constant rather than the bare 6000 it used to carry, because that number was
 // only ever "one rung above the player" and silently became "above every Front prop" otherwise.
 export const CORPSE_Z = 5050;
+// ON A 🚶 TOP-DOWN PLANE, LOWER ON THE SCREEN IS NEARER THE CAMERA (Blake, 2026-10-02: "you will be
+// behind the NPC even if you are lower on the screen which in a top down enviornment suggest you
+// are in front"). The player and every unit share z 5000, so the tie went to DOM order — and the
+// units are rendered after the player, so a talker standing at the back wall of Trailor Int3 drew
+// over you while you stood a whole carpet nearer the camera. While BOTH are on a plane, a unit is
+// depth-sorted against the player by the line its feet stand on: lower feet = in front (5001 up),
+// level or higher = behind (4999 down). The offset grows with the distance in quarter cells, so
+// units also sort among THEMSELVES the same way, and both bands stay inside the empty gaps around
+// the player's rung — above pedestals (4000) and below corpses (CORPSE_Z). null = not on a plane
+// together; the sprite keeps the plain rung, so side-view play is exactly as it was.
+export const TOPDOWN_DEPTH_STEPS = 48;
+export const topdownDepthZ = (playerFeet, unitFeet, cell) => {
+  if (playerFeet == null || unitFeet == null) return null;
+  const steps = Math.min(TOPDOWN_DEPTH_STEPS, Math.floor(Math.abs(unitFeet - playerFeet) / (cell / 4)));
+  return unitFeet > playerFeet ? 5001 + steps : 4999 - steps;
+};
 // THE WORDS THAT FLOAT IN THE ROOM GO BEHIND THE FRONT LAYER TOO (Blake, 2026-09-27: "There is
 // item text and dialogue emojis going through front layer"). A pedestal's item name, the
 // E ⇄ take callout, the loot lying on the ground and "E Talk to The Chaplin" all sat at 7000–9600,
@@ -20512,6 +20528,11 @@ export default function AssetStudio() {
                   const wrapTransform = downed
                     ? (flip === "none" ? "" : flip + " ") + "translateY(" + (-layFlatLiftPx(eBlocks, eRenderW, eph)).toFixed(2) + "px) " + LAY_FLAT_ROT_CSS
                     : flip;
+                  // Depth on a shared 🚶 plane (topdownDepthZ): the player's feet line against this
+                  // unit's, both in the live level's frame (U.off moves a neighbour's unit into it).
+                  const tdPl = player.current;
+                  const tdLine = ep && ep.topdown && tdPl && tdPl.topdown ? standingLineY(ep, eph) : null;
+                  const tdZ = tdLine == null ? null : topdownDepthZ(standingLineY(tdPl, LV_CELL * (tdPl.crouch ? PLAYER_CROUCH_H_CELLS : PLAYER_H_CELLS)), U.off.y + tdLine, LV_CELL);
                   return (
                     <React.Fragment key={uKey}>
                       {/* Status readouts live OUTSIDE the sprite wrapper, in their own layer above
@@ -20552,7 +20573,7 @@ export default function AssetStudio() {
                             an NPC standing behind a tree still advertises itself. */}
                         {eTalkWaiting && !downed ? <div className="talkBadge">💬</div> : null}
                       </div>
-                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : {}), ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {(() => {
                           const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + uKey, keyPrefix: uKey + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
                           // Draw the art at its true aspect when the box isn't one (ducking): on a
@@ -22624,6 +22645,7 @@ html,body{margin:0;padding:0;background:#0f1117}
      3000 loose in-play things (a grenade mid-air)
      4000 climb / ghosts / pedestals
      5000 the player, enemies and hazards
+     4951-5049 units sharing a 🚶 top-down plane with the player, depth-sorted around it (topdownDepthZ)
      5050 defeated bodies (CORPSE_Z — over living units, under Front props and paint)
      5101+ objects on the Front layer
      6000 Front cells         — the ONE rung whose cells sit ABOVE their objects; see LAYER_BASE_Z
