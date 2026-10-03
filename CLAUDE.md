@@ -2455,6 +2455,31 @@ not too small but at stomp height", and "the cats attack should sort of paw at w
   floor; the same press beside the Lion punches (150 → 148), and the Lion's legs swing ±17.9° in
   alternating columns on Seek.
 
+**🐄 COW (`c0wmoo1`), 🐊 CROCODILE (`cr0cd1l`), 🐢 TURTLE (`trtl5hl`), 🐀 RAT (`r4tbit3`), 2026-10-03 —
+"can you build these non human Enemies".** Same recipe as the cat and lion (side-on facing left,
+feet on y=150, Side/Up/Crouch one drawing with their own ids, a drawn Attack and Death). The stats
+and scales are my picks, not his: Cow HP 120 / Speed 6 / Str 8 (butts for 16) at scale 1.7, 5.3
+cells tall and NOT stompable; Crocodile 100 / 7 / 10 (bites for 20) at 1.6, 2.3 cells; Turtle
+60 / 3 / 5 (10) at 1, 1.8 cells; Rat 20 / 16 / 3 (6) at 0.8, 1.6 cells — the last three are under
+the stomp budget, and one stomp kills the rat. The record copy is `assets/animal-enemies-pack.json`.
+* **FEET COUNT IN THE 6-UNIT COLUMN FUSE.** The crocodile's first draft had legs 18 apart, but its
+  long feet bridged every gap and `multiLegPivot` made ONE column of all four, so it returned null
+  and the croc would have slid like a block. Measure the gaps over the leg AND foot boxes.
+* **The turtle's Crouch is it hiding in its shell** (feet only, no head). Units duck to dodge a
+  shot, so that is what you see when you fire at one. Its feet stay on the floor (measured 780.0
+  against a floor at 780).
+* **An Attack pose with turned legs carries `groundLine.attack = 150`.** `alignPoseFootBaseline`
+  measures leg pieces by their UNROTATED boxes, which sit below the drawn hooves of a braced leg, so
+  without the line the head-butt would float a unit or two.
+* **Belly-up deaths** (cow legs-up, croc belly-up, turtle on its shell): flip the standing drawing
+  about `(backY + G) / 2` so the back lands on the ground line, then place the head by its TURNED
+  corners. Placing it by the unrotated box left the cow's horn and the croc's jaw poking a few units
+  under the floor line, where the corpse draws over the dirt.
+* Verified in Playtest (BoB, Seek): all four walk on four alternating leg columns (±18°), turn to
+  face him and swap to their Attack pose for each strike (rat 18 → 26 pieces for 10 frames, turtle
+  17 → 18); the rat dies to one stomp and the turtle to two (60 → 30 → 0); every corpse's ground
+  line lands on the floor to the pixel.
+
 **THERE IS NO 👹 ENEMY FLAG ON A DRESSED LOOK ANY MORE, AND IT WAS REMOVED BECAUSE IT MADE
 DUPLICATES.** `isEnemy` used to decide which Dress Bob looks the Level Creator would offer as
 enemies, so wanting the same outfit as a fightable enemy meant saving it twice — and wanting that
