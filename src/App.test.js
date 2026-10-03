@@ -208,6 +208,8 @@ import {
   propVisibleArtBox,
   diskLibrary,
   mergeLibraries,
+  mergeCloudLibrary,
+  CLOUD_SAVES_BASE,
   shapeClipPath,
   NAME_COLLATOR,
   NUMERIC_COLLATOR,
@@ -10614,6 +10616,32 @@ describe("the save folder on his disk (diskLibrary) and the two-backend merge", 
     expect(mergeLibraries(null, b)).toBe(b);
     expect(mergeLibraries(a, null)).toBe(a);
     expect(mergeLibraries(null, null)).toBeNull();
+  });
+
+  // 2026-10-03: a fresh StackBlitz address restored an old committed library and an afternoon of his
+  // edits read as reverted. Every copy now merges the keeper's online snapshot (the saves branch).
+  test("mergeCloudLibrary: the online snapshot's newer saves win, and its deletes block restores but never purge", () => {
+    const seed = { assets: [{ id: "rat", name: "Rat Mask (committed)", savedAt: 100 }, { id: "gone", name: "deleted elsewhere", savedAt: 50 }, { id: "mine", name: "only here", savedAt: 70 }], levels: [{ id: "L", savedAt: 5 }], removed: { assets: ["old"] } };
+    const cloud = { assets: [{ id: "rat", name: "Rat Mask (his edit)", savedAt: 200 }, { id: "boots", name: "Super Boots", savedAt: 150 }, { id: "mine", name: "older online", savedAt: 60 }], levels: [{ id: "L", savedAt: 9, name: "edited" }], removed: { assets: ["gone"] } };
+    const frozen = JSON.stringify(cloud);
+    const m = mergeCloudLibrary(seed, cloud);
+    expect(m.assets.find((r) => r.id === "rat").name).toBe("Rat Mask (his edit)");   // newer online save wins
+    expect(m.assets.find((r) => r.id === "boots").name).toBe("Super Boots");          // a record only online comes in
+    expect(m.assets.find((r) => r.id === "mine").name).toBe("only here");             // an older online copy never wins
+    expect(m.levels[0].name).toBe("edited");
+    // deleted online: no file hands it back to a fresh copy...
+    expect(m.assets.some((r) => r.id === "gone")).toBe(false);
+    // ...but it is NOT a tombstone here, so a copy that holds it (maybe brought back on purpose) keeps it
+    expect(m.removed.assets).toEqual(["old"]);
+    expect(JSON.stringify(cloud)).toBe(frozen);                                         // the cached snapshot is never edited
+    // no snapshot (offline, GitHub down): exactly what the other sources said
+    expect(mergeCloudLibrary(seed, null)).toBe(seed);
+    expect(mergeCloudLibrary(seed, { nope: 1 })).toBe(seed);
+    // nothing else at all (a static build with no seed): the snapshot alone, as a copy, minus its deletes
+    const only = mergeCloudLibrary(null, { assets: [{ id: "a", savedAt: 1 }, { id: "gone", savedAt: 1 }], removed: { assets: ["gone"] } });
+    expect(only.assets.map((r) => r.id)).toEqual(["a"]);
+    expect(only.removed).toEqual({});
+    expect(CLOUD_SAVES_BASE).toBe("https://raw.githubusercontent.com/cbm971/BobAssetBuilder/saves/");
   });
 
   test("with no picker in the browser the folder is 'unsupported' and every call is a quiet no-op", async () => {

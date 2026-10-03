@@ -26,14 +26,26 @@
 //     cell). So a save made in ANY copy ends up in the folder, whichever one he opened.
 //   * Updates itself from GitHub on launch and every 5 minutes (fetch, rebuild only when the
 //     commit changed, ~50 s), always keeping the last good build if anything fails.
+//   * PUBLISHES THE FOLDER ONLINE (2026-10-03): library.json + head.json on the `saves` branch of
+//     the game's repo, whenever the folder changes and at most once a minute. Every copy of the game
+//     reads that when it opens (App.js cloudLibrary), so a StackBlitz address that comes up empty
+//     opens on his newest saves instead of an old committed snapshot. Before this, only the desktop
+//     copy could see the folder, and he plays on StackBlitz.
+//   * STARTS AT SIGN-IN AND IS WATCHED (2026-10-03): `keep` runs from the Windows Startup folder and
+//     restarts the keeper whenever it is not answering. It used to run only after the desktop icon
+//     was clicked, so from 2026-09-27 to 2026-10-03 nothing gathered his saves at all.
 //
 //   node tools/bob-okay.js launch      what the desktop icon runs: update, start the keeper hidden, open the game
 //   node tools/bob-okay.js serve       the keeper itself (foreground)
+//   node tools/bob-okay.js keep        the watchdog the sign-in start runs (detaches, restarts the keeper)
+//   node tools/bob-okay.js install     put the sign-in start in place and start the watchdog now
 //   node tools/bob-okay.js export F    write the save folder as one library.json-shaped file (for agents)
 //   node tools/bob-okay.js status      where everything is
 //
 // Test overrides: BOB_HOME (state/builds dir), BOB_SAVES (save folder), BOB_PORT, BOB_NO_UPDATE=1,
-// BOB_NO_SWEEP=1. Never point BOB_SAVES at his real folder from a test.
+// BOB_NO_SWEEP=1, BOB_NO_CLOUD=1, BOB_CLOUD_REMOTE (a local bare repo instead of GitHub),
+// BOB_CLOUD_BRANCH. Never point BOB_SAVES at his real folder, or a test keeper at the real
+// `saves` branch. The sign-in start is only ever installed from the keeper's own clone (MANAGED).
 "use strict";
 const fs = require("fs");
 const fsp = fs.promises;
@@ -223,6 +235,8 @@ class SaveFolder {
     const rmBefore = JSON.stringify(this.lib.removed || {}), rmAfter = JSON.stringify(next.removed || {});
     if (rmBefore !== rmAfter) await writeAtomic(path.join(this.dir, REMOVED_FILE), JSON.stringify(next.removed || {}, null, 1));
     this.lib = { ...next, removed: next.removed || {} };
+    // Anything that changed the folder is something the online copy has to hear about (cloudKick).
+    if ((wrote || dropped || rmBefore !== rmAfter) && this.onChange) { try { this.onChange(); } catch { /* publishing must never fail a save */ } }
     return { wrote, dropped };
   }
   // A POST from the game: exactly the dev server's rules (setupProxy applyWrite).
@@ -302,13 +316,19 @@ class SaveFolder {
   // record the folder lacks or a strictly newer save comes in. An older committed copy is never an
   // edit (git has its own history), so it is ignored rather than merged.
   seedFromRepo(file) {
-    const repo = readJson(file);
-    if (!repo || !Array.isArray(repo.assets)) return Promise.resolve({ take: 0 });
+    return this.seedFrom(readJson(file), "repo", "repoRemoved");
+  }
+  // The same rule for any library-shaped file: the committed one ("repo"), or the online copy on
+  // the `saves` branch when someone other than this keeper pushed it ("cloud": an agent's recovery,
+  // another PC). `stateKey` remembers that file's deleted list, so only deletes made SINCE the last
+  // look count.
+  seedFrom(repo, source, stateKey) {
+    if (!repo || !Array.isArray(repo.assets)) return Promise.resolve({ take: 0, deleted: 0 });
     return this.run(async () => {
       const next = { ...this.lib, removed: { ...this.lib.removed } };
       for (const k of KINDS) next[k] = [...(this.lib[k] || [])];
       let take = 0, deleted = 0;
-      const prev = state.repoRemoved;              // deletes committed since the last look
+      const prev = state[stateKey];                // deletes made in that file since the last look
       for (const kind of KINDS) {
         const repoGone = (((repo.removed || {})[kind]) || []).filter(Boolean);
         const fresh = prev ? repoGone.filter((id) => !((prev[kind] || []).includes(id))) : repoGone;
@@ -324,8 +344,8 @@ class SaveFolder {
           else if (core.newerRecord(rec, next[kind][i])) { next[kind][i] = rec; take++; }
         }
       }
-      state.repoRemoved = repo.removed || {};
-      const res = await this.commit(next, "repo");
+      state[stateKey] = repo.removed || {};
+      const res = await this.commit(next, source);
       await saveState();
       return { take, deleted, ...res };
     });
@@ -409,6 +429,114 @@ const sweep = async (folder) => {
     }
   } catch (e) { log("sweep failed: " + (e && e.stack || e)); }
   finally { sweeping = false; }
+};
+
+// ---------- THE ONLINE COPY: the folder published to the `saves` branch ----------
+// WHY. The folder held everything and only the desktop copy could read it. A StackBlitz address that
+// comes up empty restores the COMMITTED library.json, which is only as new as an agent's last push,
+// so on 2026-10-03 an afternoon of his edits read as reverted while every byte of them sat on this PC.
+// Every copy of the game can read a public GitHub file (App.js cloudLibrary), and this PC has his git
+// login, so the folder goes there: library.json (core.cloudSnapshot) plus head.json, the tiny file the
+// copies poll. A push sends only a delta, because the snapshot is sorted and stable.
+//
+// RULES. Only this keeper writes the branch in normal running. If anyone else pushed (an agent's
+// recovery, another PC), their file is folded INTO the folder first, newest save winning
+// (seedFrom "cloud"), and the push then goes on top of theirs, never over it. Nothing here force-pushes.
+// A push that fails (offline, GitHub down, an expired login) is logged once and retried on the next
+// change or the 5-minute tick. The folder, with every version in History, is the save either way.
+const CLOUD_REMOTE = process.env.BOB_CLOUD_REMOTE || "https://github.com/cbm971/BobAssetBuilder.git";
+const CLOUD_BRANCH = process.env.BOB_CLOUD_BRANCH || "saves";
+const CLOUD_DIR = path.join(HOME, "cloud");
+const CLOUD_REF = "refs/remotes/origin/" + CLOUD_BRANCH;
+// Async on purpose: a push can take seconds, and the keeper must keep answering saves meanwhile.
+// No prompts: a hidden process that waits on a password box is a keeper that has stopped.
+const gitIn = (cwd, args, timeoutMs) => new Promise((resolve) => {
+  let p;
+  try { p = spawn("git", args, { cwd, windowsHide: true, env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "Never" } }); }
+  catch (e) { resolve({ status: -1, stdout: Buffer.alloc(0), stderr: String(e && e.message) }); return; }
+  const out = [], err = [];
+  p.stdout.on("data", (c) => out.push(c));
+  p.stderr.on("data", (c) => err.push(c));
+  const t = setTimeout(() => { try { p.kill(); } catch { /* gone */ } }, timeoutMs || 5 * 60 * 1000);
+  p.on("error", (e) => { clearTimeout(t); resolve({ status: -1, stdout: Buffer.alloc(0), stderr: String(e && e.message) }); });
+  p.on("close", (code) => { clearTimeout(t); resolve({ status: code, stdout: Buffer.concat(out), stderr: Buffer.concat(err).toString("utf8") }); });
+});
+// The line of git's complaint that says what went wrong ("fatal: ..."), not whichever came last.
+const gitWhy = (err) => { const t = String(err || "").trim(); return ((t.match(/(?:fatal|error): [^\n]*/) || [])[0] || t.split("\n")[0] || "no detail").trim(); };
+let cloudBusy = false, cloudAgain = false, cloudTimer = null, cloudLastPush = 0, cloudLastNote = "";
+const cloudNote = (msg) => { if (msg !== cloudLastNote) log(msg); cloudLastNote = msg; };   // the same failure every minute is logged once
+// Something changed: publish soon, but no more than once a minute (a sweep or a burst of saves
+// becomes one push).
+const cloudKick = (folder, now) => {
+  if (process.env.BOB_NO_CLOUD || cloudTimer) return;
+  const wait = now ? 0 : Math.max(5000, 60 * 1000 - (Date.now() - cloudLastPush));
+  cloudTimer = setTimeout(() => { cloudTimer = null; cloudSync(folder); }, wait);
+  if (cloudTimer.unref) cloudTimer.unref();
+};
+const cloudSync = async (folder) => {
+  if (process.env.BOB_NO_CLOUD || !folder || !folder.ok) return;
+  if (cloudBusy) { cloudAgain = true; return; }
+  cloudBusy = true;
+  try {
+    for (let i = 0; i < 3; i++) if ((await cloudSyncOnce(folder)) !== "retry") break;
+  } catch (e) { cloudNote("online copy: " + (e && e.message)); }
+  finally { cloudBusy = false; if (cloudAgain) { cloudAgain = false; cloudKick(folder); } }
+};
+const cloudSyncOnce = async (folder) => {
+  const g = (args) => gitIn(CLOUD_DIR, args);
+  if (!fs.existsSync(path.join(CLOUD_DIR, ".git"))) {
+    fs.mkdirSync(CLOUD_DIR, { recursive: true });
+    for (const a of [["init", "-q"], ["remote", "add", "origin", CLOUD_REMOTE], ["config", "user.name", "Bob Okay save keeper"], ["config", "user.email", "cbm971@gmail.com"], ["config", "core.autocrlf", "false"]]) await g(a);
+  }
+  const f = await g(["fetch", "-q", "--depth", "1", "origin", "+refs/heads/" + CLOUD_BRANCH + ":" + CLOUD_REF]);
+  let remote = null;
+  if (f.status === 0) remote = (await g(["rev-parse", CLOUD_REF])).stdout.toString().trim() || null;
+  else if (!/couldn't find remote ref/i.test(f.stderr)) { cloudNote("online copy: could not reach GitHub (" + gitWhy(f.stderr) + ") — trying again later; saves are safe in the folder"); return "fail"; }
+  const st = state.cloud || (state.cloud = {});
+  if (remote && remote !== st.sha) {
+    const show = await g(["show", CLOUD_REF + ":library.json"]);
+    let lib = null;
+    try { lib = JSON.parse(show.stdout.toString("utf8")); } catch { lib = null; }
+    if (lib && Array.isArray(lib.assets)) {
+      const s = await folder.seedFrom(lib, "cloud", "cloudRemoved");
+      if (s.take || s.deleted) log("from the online copy: " + s.take + " new or newer, " + s.deleted + " deleted");
+    }
+  }
+  const text = await folder.run(async () => core.cloudSnapshot(folder.lib));   // read between writes, never mid-commit
+  const hash = crypto.createHash("md5").update(text).digest("hex");
+  if (remote && remote === st.sha && hash === st.hash) return "ok";            // nothing new either way
+  if (remote) {
+    let theirs = null;
+    try { theirs = JSON.parse((await g(["show", CLOUD_REF + ":head.json"])).stdout.toString("utf8")); } catch { theirs = null; }
+    if (theirs && theirs.hash === hash) { st.sha = remote; st.hash = hash; await saveState(); return "ok"; }
+    const co = await g(["checkout", "-q", "-f", "-B", CLOUD_BRANCH, CLOUD_REF]);
+    if (co.status !== 0) { cloudNote("online copy: checkout failed: " + co.stderr.trim()); fs.rmSync(CLOUD_DIR, { recursive: true, force: true }); return "fail"; }
+  } else {
+    await g(["checkout", "-q", "-f", "--orphan", CLOUD_BRANCH]);
+    await g(["rm", "-r", "-q", "-f", "--cached", "--ignore-unmatch", "."]);
+  }
+  const records = KINDS.reduce((n, k) => n + ((folder.lib && folder.lib[k]) || []).length, 0);
+  const at = new Date().toISOString();
+  fs.writeFileSync(path.join(CLOUD_DIR, "library.json"), text);
+  fs.writeFileSync(path.join(CLOUD_DIR, "head.json"), JSON.stringify({ hash, savedAt: at, records }, null, 1));
+  await g(["add", "library.json", "head.json"]);
+  const c = await g(["commit", "-q", "-m", "Saves " + at + " (" + records + " things)"]);
+  if (c.status !== 0) { cloudNote("online copy: commit failed: " + (c.stderr || c.stdout.toString()).trim()); return "fail"; }
+  const p = await g(["push", "-q", "origin", CLOUD_BRANCH + ":refs/heads/" + CLOUD_BRANCH]);
+  if (p.status !== 0) {
+    if (/rejected|non-fast-forward|fetch first/i.test(p.stderr)) return "retry";   // someone pushed meanwhile: fold theirs in, go again
+    cloudNote("online copy: push failed (" + gitWhy(p.stderr) + ") — trying again later; saves are safe in the folder");
+    return "fail";
+  }
+  st.sha = (await g(["rev-parse", "HEAD"])).stdout.toString().trim();
+  st.hash = hash; st.at = Date.now(); st.pushes = (st.pushes || 0) + 1;
+  cloudLastPush = Date.now(); cloudLastNote = "";
+  await saveState();
+  log("online copy updated (" + records + " things)");
+  // The local clone gains a snapshot per push. Starting it over now and then keeps it to one commit;
+  // the next sync fetches just that.
+  if (st.pushes % 25 === 0) { try { fs.rmSync(CLOUD_DIR, { recursive: true, force: true }); } catch { /* next time */ } }
+  return "ok";
 };
 
 // ---------- UPDATE: the play branch, built for this PC ----------
@@ -511,8 +639,10 @@ const serve = async () => {
     fs.mkdirSync(where.dir, { recursive: true });
     const { bad } = await folder.load();
     log("save folder " + where.dir + ": " + folder.count() + " records" + (bad ? ", " + bad + " unreadable (History used)" : ""));
+    folder.onChange = () => cloudKick(folder);
     await reseed();
     await sweep(folder);
+    cloudKick(folder, true);   // pick up anyone else's push and publish what the folder holds now
   }
   // THE PROJECT FILE IS READ AGAIN AFTER EVERY UPDATE, not only at start. It used to be read here once,
   // so an asset an agent delivered through library.json sat in the freshly built clone and never
@@ -526,7 +656,7 @@ const serve = async () => {
       if (s.take || s.deleted) log("from the project file: " + s.take + " new or newer, " + s.deleted + " deleted");
     } catch (e) { log("reading the project file failed: " + (e && e.message)); }
   }
-  const info = () => ({ ok: !problem, keeper: true, saveDir: where.dir, problem, records: folder.lib ? folder.count() : 0, commit: (headSha() || "").slice(0, 7) });
+  const info = () => ({ ok: !problem, keeper: true, saveDir: where.dir, problem, records: folder.lib ? folder.count() : 0, commit: (headSha() || "").slice(0, 7), online: state.cloud ? { at: state.cloud.at || null, sha: (state.cloud.sha || "").slice(0, 7), problem: cloudLastNote || null } : null });
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -571,12 +701,15 @@ const serve = async () => {
     if (keeperHash() === STARTED_HASH) return;
     log("keeper code changed — restarting on the new version");
     await folder.q;                                   // let any save in flight finish first
+    for (let i = 0; i < 120 && cloudBusy; i++) await sleep(500);   // and a push to the online copy
     server.close();
     await new Promise((r) => setTimeout(r, 300));
     spawn(process.execPath, [__filename, "serve"], { cwd: ROOT, detached: true, stdio: "ignore", windowsHide: true, env: process.env }).unref();
     process.exit(0);
   };
-  setInterval(() => { update().then(reseed).then(restartIfNewCode); }, 5 * 60 * 1000).unref();
+  // The 5-minute tick also looks at the online copy even when nothing changed here, so a push made
+  // somewhere else (an agent's recovery) reaches the folder without waiting for his next save.
+  setInterval(() => { if (!problem) cloudKick(folder); update().then(reseed).then(restartIfNewCode); }, 5 * 60 * 1000).unref();
   keeperRestart = restartIfNewCode;
   return server;
 };
@@ -591,6 +724,80 @@ const post = (p) => new Promise((resolve) => {
   req.on("error", () => resolve(null)); req.end();
 });
 const openGame = () => { const url = "http://localhost:" + PORT + "/"; spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore", windowsHide: true }).unref(); };
+
+// ---------- KEEP IT RUNNING: started at sign-in, restarted whenever it stops ----------
+// THE KEEPER ONLY PROTECTS HIM WHILE IT RUNS. It used to start only when the desktop icon was
+// clicked. The PC restarted on 2026-09-27, he went on playing on StackBlitz, and for a week nothing
+// gathered his saves. Then on 2026-10-03 a fresh StackBlitz address showed an afternoon of work as
+// reverted. So it now starts at sign-in, from a .cmd in the Windows Startup folder (no admin rights
+// needed, nothing for him to click), and is watched: `keep` asks it every 30 s and starts it again
+// if it is not answering. `keep` holds KEEP_PORT so only one watchdog ever runs.
+const KEEP_PORT = PORT + 1;
+const STARTUP_DIR = path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup");
+const STARTUP_FILE = path.join(STARTUP_DIR, "Bob Okay save keeper.cmd");
+const startupScript = () => [
+  "@echo off",
+  "rem BOB OKAY SAVE KEEPER - starts at sign-in so every save in every copy of the game reaches",
+  "rem Documents\\Bob Okay\\Saves and the online copy every copy opens on. Put here by",
+  "rem tools\\bob-okay.js (install). The window closes by itself after a second.",
+  "set \"GAME=%LOCALAPPDATA%\\BobOkay\\game\"",
+  "if not exist \"%GAME%\\tools\\bob-okay.js\" exit /b 0",
+  "where node >nul 2>nul",
+  "if errorlevel 1 (",
+  "  for /d %%D in (\"%LOCALAPPDATA%\\Microsoft\\WinGet\\Packages\\OpenJS.NodeJS*\") do (",
+  "    for /d %%E in (\"%%D\\node-v*\") do set \"PATH=%%E;%PATH%\"",
+  "  )",
+  ")",
+  "node \"%GAME%\\tools\\bob-okay.js\" keep",
+  "exit /b 0",
+  "",
+].join("\r\n");
+// Only from the keeper's own clone, so an agent's test run can never write his Startup folder.
+const install = () => {
+  if (!MANAGED || process.env.BOB_NO_INSTALL) return null;
+  const text = startupScript();
+  try {
+    if (fs.existsSync(STARTUP_FILE) && fs.readFileSync(STARTUP_FILE, "utf8") === text) return STARTUP_FILE;
+    fs.mkdirSync(STARTUP_DIR, { recursive: true });
+    fs.writeFileSync(STARTUP_FILE, text);
+    log("sign-in start installed: " + STARTUP_FILE);
+    return STARTUP_FILE;
+  } catch (e) { log("could not install the sign-in start: " + e.message); return null; }
+};
+const pingKeep = () => new Promise((resolve) => {
+  const req = http.get({ host: "127.0.0.1", port: KEEP_PORT, path: "/__keep", timeout: 3000 }, (res) => { let d = ""; res.on("data", (c) => (d += c)); res.on("end", () => { try { resolve(JSON.parse(d)); } catch { resolve(null); } }); });
+  req.on("error", () => resolve(null)); req.on("timeout", () => { req.destroy(); resolve(null); });
+});
+// The watchdog, detached from whatever console started it (the sign-in .cmd closes at once).
+const startKeep = () => spawn(process.execPath, [__filename, "keep"], { cwd: ROOT, detached: true, stdio: "ignore", windowsHide: true, env: { ...process.env, BOB_KEEP_CHILD: "1" } }).unref();
+const startServe = () => {
+  const env = { ...process.env };
+  delete env.BOB_KEEP_CHILD;
+  spawn(process.execPath, [__filename, "serve"], { cwd: ROOT, detached: true, stdio: "ignore", windowsHide: true, env }).unref();
+};
+const keep = async () => {
+  if (!process.env.BOB_KEEP_CHILD) { startKeep(); return; }
+  const mutex = http.createServer((req, res) => send(res, 200, { keep: true, pid: process.pid }));
+  let bound = false;
+  for (let i = 0; i < 10 && !bound; i++) {
+    try { await new Promise((resolve, reject) => { mutex.once("error", reject); mutex.listen(KEEP_PORT, "127.0.0.1", resolve); }); bound = true; }
+    catch (e) { if (e && e.code === "EADDRINUSE") { if (await pingKeep()) return process.exit(0); await sleep(1000); } else throw e; }   // one is already watching
+  }
+  if (!bound) return process.exit(0);
+  install();
+  log("watchdog running (pid " + process.pid + ")");
+  let misses = 0, first = true;
+  const tick = async () => {
+    const alive = await ping();
+    if (alive) misses = 0;
+    else if (first || ++misses >= 2) { log("watchdog: the keeper was not running — starting it"); startServe(); misses = 0; }
+    first = false;
+    // New watchdog code arrived with an update: hand over to it.
+    if (keeperHash() !== STARTED_HASH) { log("watchdog: new code — restarting"); mutex.close(); await sleep(500); startKeep(); process.exit(0); }
+  };
+  await tick();
+  setInterval(tick, 30 * 1000);
+};
 const launch = async () => {
   const alive = await ping();
   if (alive) {
@@ -607,6 +814,9 @@ const launch = async () => {
     if (up.problem) say("WARNING: " + up.problem);
     else say("Saves: " + up.saveDir + " (" + up.records + " things saved)");
   }
+  // Whichever way the keeper got started, from here on it starts at sign-in and is watched.
+  install();
+  if (MANAGED && !(await pingKeep())) startKeep();
   openGame();
 };
 
@@ -627,9 +837,11 @@ if (require.main === module) {
   const fail = (e) => { log("fatal: " + (e && e.stack || e)); console.error(e && e.message || e); process.exit(1); };
   if (mode === "serve") serve().catch((e) => { if (e && e.code === "EADDRINUSE") { log("already running"); process.exit(0); } fail(e); });
   else if (mode === "launch" || !mode) launch().catch(fail);
+  else if (mode === "keep") keep().catch(fail);
+  else if (mode === "install") { const f = install(); console.log(f ? "sign-in start: " + f : "not installed (only the keeper's own clone installs it)"); pingKeep().then((k) => { if (!k && MANAGED) startKeep(); console.log(k ? "watchdog already running" : MANAGED ? "watchdog started" : ""); }); }
   else if (mode === "export" && arg) exportTo(arg).catch(fail);
-  else if (mode === "status") { const w = resolveSaveDir(); console.log({ saveDir: w.dir, missing: w.missing, home: HOME, log: LOG_FILE, build: currentBuild(), port: PORT }); }
-  else { console.error("usage: node tools/bob-okay.js [launch|serve|export <file>|status]"); process.exit(2); }
+  else if (mode === "status") { const w = resolveSaveDir(); console.log({ saveDir: w.dir, missing: w.missing, home: HOME, log: LOG_FILE, build: currentBuild(), port: PORT, startup: fs.existsSync(STARTUP_FILE) ? STARTUP_FILE : null, online: state.cloud || null }); }
+  else { console.error("usage: node tools/bob-okay.js [launch|serve|keep|install|export <file>|status]"); process.exit(2); }
 }
 
-module.exports = { SaveFolder, findCopies, update, serve };
+module.exports = { SaveFolder, findCopies, update, serve, cloudSync };

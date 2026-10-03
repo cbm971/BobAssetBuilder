@@ -1,6 +1,6 @@
 // The save keeper's merge rules (src/saveKeeperCore.js). The fixtures are shaped like 2026-09-26:
 // two copies of the game that each edited records from the same committed version.
-const { merge3, decideSweep, libraryFromStore, sameContent } = require("./saveKeeperCore");
+const { merge3, decideSweep, libraryFromStore, sameContent, cloudSnapshot } = require("./saveKeeperCore");
 
 const lvl = (savedAt, extra) => ({ id: "i80q4s6", name: "Trailor Int1", savedAt, section: "", fg: { "1,1": "#111", "2,2": "#222" }, climb: {}, enemies: {}, ...extra });
 
@@ -119,5 +119,29 @@ describe("libraryFromStore", () => {
   it("sameContent ignores only savedAt", () => {
     expect(sameContent({ id: 1, savedAt: 1 }, { id: 1, savedAt: 2 })).toBe(true);
     expect(sameContent({ id: 1, a: 1 }, { id: 1, a: 2 })).toBe(false);
+  });
+});
+
+describe("cloudSnapshot", () => {
+  // The online copy every copy of the game opens on (the saves branch). It must be the same text for
+  // the same folder, whatever order the records were read in, or the keeper would push every minute
+  // and git would store a fresh 20 MB blob each time instead of a small delta.
+  it("is sorted, stable and carries no timestamp", () => {
+    const a = { assets: [{ id: "b", savedAt: 2 }, { id: "a", savedAt: 1 }], levels: [{ id: "L" }], removed: { assets: ["z", "y", "z"] } };
+    const b = { levels: [{ id: "L" }], assets: [{ id: "a", savedAt: 1 }, { id: "b", savedAt: 2 }], removed: { assets: ["y", "z"] } };
+    expect(cloudSnapshot(a)).toBe(cloudSnapshot(b));
+    const out = JSON.parse(cloudSnapshot(a));
+    expect(out.assets.map((r) => r.id)).toEqual(["a", "b"]);
+    expect(out.removed.assets).toEqual(["y", "z"]);
+    expect(out.savedAt).toBeNull();
+    expect(out.stamps).toEqual([]);
+    expect(out.removed.levels).toEqual([]);
+    expect(JSON.parse(cloudSnapshot(null)).assets).toEqual([]);
+  });
+  it("drops records without an id and never edits what it was given", () => {
+    const lib = { assets: [{ id: "a" }, null, { name: "no id" }] };
+    const before = JSON.stringify(lib);
+    expect(JSON.parse(cloudSnapshot(lib)).assets).toEqual([{ id: "a" }]);
+    expect(JSON.stringify(lib)).toBe(before);
   });
 });

@@ -148,4 +148,19 @@ const libraryFromStore = (entries) => {
   return out;
 };
 
-module.exports = { KINDS, PREFIX, newerRecord, sameContent, merge3, decideSweep, libraryFromStore };
+// THE SAVE FOLDER AS THE ONE FILE EVERY COPY OF THE GAME READS: library.json on the `saves` branch
+// (tools/bob-okay.js cloudSync writes it, App.js cloudLibrary reads it). Records are sorted by id and
+// printed one field per line, so a save only changes its own lines and git stores each push as a
+// small delta rather than another 20 MB blob. No timestamp inside: the same folder must always give
+// the same text, or the hash that says "nothing changed" would change every minute. The time a
+// snapshot was made goes in head.json instead.
+const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+const cloudSnapshot = (lib) => {
+  const out = { savedAt: null };
+  for (const k of KINDS) out[k] = (((lib && lib[k]) || []).filter((r) => r && r.id)).slice().sort(byId);
+  out.removed = {};
+  for (const k of KINDS) out.removed[k] = [...new Set(((((lib && lib.removed) || {})[k]) || []).filter(Boolean))].sort();
+  return JSON.stringify(out, null, 1);
+};
+
+module.exports = { KINDS, PREFIX, newerRecord, sameContent, merge3, decideSweep, libraryFromStore, cloudSnapshot };

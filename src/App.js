@@ -528,12 +528,96 @@ export const keeperLink = {
     return keeperLink;
   },
 };
+// ---- HIS SAVES, ONLINE: THE ONE COPY EVERY COPY OF THE GAME READS (2026-10-03) -----------------
+// THE HOLE EVERY EARLIER FIX LEFT OPEN. The save keeper (tools/bob-okay.js) gathers every save made
+// in any copy of the game on his PC into one folder, but the copies never READ that folder (only the
+// desktop one does), and he plays on StackBlitz. On 2026-10-03 its preview came up on a new address.
+// The new address's browser store was empty, so it restored the committed library.json, and an
+// afternoon of edits (Rat, Fly and Turtle Mask, Super Bob, the Super suit) read as reverted. That is
+// the same failure as 09-10, 09-18, 09-20 and 09-26. Nothing was gone; the copy he opened could not
+// see it. Worse, the keeper had not been running since 09-27, because only the desktop icon started it.
+//
+// So the keeper now starts at sign-in and publishes the folder to the `saves` branch of this repo
+// whenever it changes (at most once a minute). EVERY copy (StackBlitz, the Pages copy, the desktop
+// copy, a brand-new address) reads that snapshot when it loads and every two minutes after, and merges
+// it newest-save-wins like every other source. A fresh address therefore opens on his newest saves,
+// not on whatever an agent last committed. raw.githubusercontent.com is public, read-only and sends
+// CORS headers, so no copy needs a login. Only the keeper on his PC (with his git login) writes it.
+//
+// head.json is tiny ({ hash, savedAt, records }) and is what gets polled; library.json is only fetched
+// when that hash changes. The query string is required: raw caches a branch path for five minutes and
+// a new query is a cache miss (checked 2026-10-03). For a test, set localStorage "bobCloudSaves" to
+// another base URL, or to "off".
+export const CLOUD_SAVES_BASE = "https://raw.githubusercontent.com/cbm971/BobAssetBuilder/saves/";
+// The online snapshot merged into what the other sources said. RECORDS: newest save wins, exactly as
+// mergeLibraries. DELETES: an online tombstone stops that id being RESTORED from any file, so a thing
+// he deleted in one copy never walks back into a fresh one. It is NOT added to `removed`, though, so
+// it never purges a record this browser already holds. A tombstone carries no date, and the record
+// here may be one he brought back on purpose after that delete; purging it would be the save system
+// deleting his work, which is the one thing it must never do. The worst this rule allows is a deleted
+// thing lingering in a copy that already had it.
+export const mergeCloudLibrary = (lib, cloud) => {
+  if (!cloud || !Array.isArray(cloud.assets)) return lib || null;
+  // A copy: mergeLibraries(null, b) hands back b itself, and b here is the cached snapshot.
+  const out = { ...mergeLibraries(lib, { ...cloud, removed: {} }) };
+  for (const k of PROJECT_KINDS) {
+    const dead = new Set((((cloud.removed || {})[k]) || []).filter(Boolean));
+    out[k] = (out[k] || []).filter((r) => r && r.id && !dead.has(r.id));
+  }
+  return out;
+};
+const cloudLibrary = {
+  data: null,        // the last good snapshot, kept when a later fetch fails
+  hash: null,        // head.json's hash for `data`
+  checkedAt: 0,
+  inflight: null,
+  failedOnce: false,
+  onFail: null,      // set by the studio: a copy that could not reach the snapshot says so, once
+  base: () => {
+    try { const o = localStorage.getItem("bobCloudSaves"); if (o === "off") return null; if (o) return o.endsWith("/") ? o : o + "/"; } catch { /* no localStorage */ }
+    return CLOUD_SAVES_BASE;
+  },
+  getJson: async (url, ms) => {
+    const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const t = ctl ? setTimeout(() => ctl.abort(), ms) : null;
+    try { const res = await fetch(url, { cache: "no-store", signal: ctl ? ctl.signal : undefined }); return res.ok ? await res.json() : null; }
+    catch { return null; }
+    finally { if (t) clearTimeout(t); }
+  },
+  head: async () => {
+    const b = cloudLibrary.base();
+    if (!b) return null;
+    const h = await cloudLibrary.getJson(b + "head.json?t=" + Date.now(), 10000);
+    return h && typeof h.hash === "string" ? h : null;
+  },
+  // Is there a newer snapshot than the one this copy last merged? Cheap: head.json only.
+  changed: async () => { const h = await cloudLibrary.head(); return !!h && h.hash !== cloudLibrary.hash; },
+  // Every loader calls projectLibrary.load, so this is shared: one fetch in flight, and the same
+  // snapshot reused for a minute.
+  load: () => {
+    if (cloudLibrary.data && Date.now() - cloudLibrary.checkedAt < 60000) return Promise.resolve(cloudLibrary.data);
+    if (cloudLibrary.inflight) return cloudLibrary.inflight;
+    cloudLibrary.inflight = (async () => {
+      const b = cloudLibrary.base();
+      if (!b) return null;
+      const h = await cloudLibrary.head();
+      if (h && cloudLibrary.data && h.hash === cloudLibrary.hash) { cloudLibrary.checkedAt = Date.now(); return cloudLibrary.data; }
+      const d = h ? await cloudLibrary.getJson(b + "library.json?v=" + encodeURIComponent(h.hash), 30000) : null;
+      if (d && Array.isArray(d.assets)) { cloudLibrary.data = d; cloudLibrary.hash = h.hash; cloudLibrary.checkedAt = Date.now(); return d; }
+      if (!cloudLibrary.data && !cloudLibrary.failedOnce) { cloudLibrary.failedOnce = true; if (cloudLibrary.onFail) { try { cloudLibrary.onFail(); } catch { /* a notice must not break a load */ } } }
+      return cloudLibrary.data;
+    })().finally(() => { cloudLibrary.inflight = null; });
+    return cloudLibrary.inflight;
+  },
+};
 const projectLibrary = {
   available: false, // set on the first successful read; a plain static build simply won't have it
   // BOTH backends, merged newest-wins (mergeLibraries): the dev server file, and the save folder on
   // his disk (diskLibrary). Either may be absent — a static build has no server, a fresh address
   // has no folder until it is clicked — and the loaders only ever see the one merged answer.
   load: async () => {
+    // Started first and awaited last, so the online snapshot downloads while the local file is read.
+    const cloudP = cloudLibrary.load().catch(() => null);
     let data = null;
     try {
       const res = await fetch("/__library", { cache: "no-store" });
@@ -555,7 +639,7 @@ const projectLibrary = {
     }
     let disk = null;
     try { disk = await diskLibrary.load(); } catch (e) { console.warn("[Bob] save folder could not be read: " + (e && e.message)); }
-    return mergeLibraries(data, disk);
+    return mergeCloudLibrary(mergeLibraries(data, disk), await cloudP);
   },
   // Assets, levels, stored groups, textures and backgrounds are five separate bodies of work, and
   // any ONE of them is worth a write. This took three positional arrays and bailed out unless the
@@ -11331,6 +11415,32 @@ export default function AssetStudio() {
       }).catch(showOtherTab);                           // another tab took over
     });
     return () => { live = false; keeperLink.onSaveFailed = null; };
+  }, []); // eslint-disable-line
+  // HIS NEWEST SAVES WHILE THIS COPY IS OPEN (see cloudLibrary). The first load already merges the
+  // online snapshot. This picks up what lands there afterwards: a save he made in another copy, or the
+  // last minute of work from an address that died just before this one came up (the keeper sweeps it
+  // off the disk and publishes it a minute later). Every loader adopts only STRICTLY newer records,
+  // so nothing he has saved here is ever replaced, and what is open in an editor is not touched.
+  // Skipped during Playtest (a 20 MB parse mid-fight is a hitch) and while the tab is hidden.
+  const playRef = useRef(false);
+  playRef.current = play;
+  const reloadAllRef = useRef(null);
+  reloadAllRef.current = () => Promise.all([loadLibrary(), loadStamps(), loadLevels(), loadTextures(), loadBgLib(), loadDialogues()]);
+  useEffect(() => {
+    cloudLibrary.onFail = () => flash("⚠ Couldn’t reach your online saves — this copy may be missing your newest work");
+    let busy = false, live = true;
+    const tick = async () => {
+      if (busy || !live || playRef.current || (typeof document !== "undefined" && document.visibilityState === "hidden")) return;
+      busy = true;
+      try {
+        if (await cloudLibrary.changed()) { cloudLibrary.checkedAt = 0; await reloadAllRef.current(); }
+      } catch (e) { console.warn("[Bob] online saves check failed: " + (e && e.message)); }
+      finally { busy = false; }
+    };
+    const iv = setInterval(tick, 2 * 60 * 1000);
+    const onVis = () => { if (document.visibilityState === "visible") tick(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { live = false; clearInterval(iv); document.removeEventListener("visibilitychange", onVis); cloudLibrary.onFail = null; };
   }, []); // eslint-disable-line
   useEffect(() => { setEmojis(buildEmojiList()); }, []);
   // Persist the active paint color + recent-colors history so they survive a reload — previously

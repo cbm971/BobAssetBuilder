@@ -4,6 +4,60 @@ A browser game maker: draw assets out of blocks (bodies, skins, clothes, weapons
 enemies, props), dress a character, paint a level, then playtest it. Create React App
 + React 18. Everything is in **`src/App.js`** (~9400 lines). Tests in `src/App.test.js`.
 
+## EVERY COPY OF THE GAME OPENS ON HIS ONLINE SAVE (2026-10-03) — read this before anything about saving
+
+**What went wrong, for the sixth time:** he plays on **StackBlitz**, not the desktop icon. On
+2026-10-03 its preview came up on a new address. The new store was empty, so it restored the
+committed `asset-data/library.json`, and an afternoon of edits (Rat, Fly and Turtle Mask, Super Bob,
+Super Shirt, Proto Cape, new Super Mask/Boots/Pants) read as reverted. Two holes let it through:
+1. **The keeper was not running.** Only the desktop icon started it, the PC restarted on 09-27,
+   and nothing gathered his saves for a week.
+2. **Even running, it could not have helped.** The keeper gathered every copy into the folder,
+   but only the desktop copy ever READ the folder. A fresh StackBlitz address still started from the
+   committed file.
+
+All of it was still on disk (in the old address's Chrome IndexedDB). It was recovered in f35337d.
+
+**What exists now:**
+- **`saves` branch = his online save.** It holds `library.json` (`saveKeeperCore.cloudSnapshot`:
+  sorted, stable, about 600 bytes of git delta per push) and `head.json` (`{hash, savedAt, records}`).
+  The keeper (`cloudSync` in tools/bob-okay.js) pushes the folder there whenever it changes, at most
+  once a minute. If someone else pushed meanwhile, it folds their file in first, newest save winning
+  (`seedFrom("cloud")`), and pushes on top. It never force-pushes. A failed push is logged once and
+  retried; the folder stays the save regardless.
+- **Every copy reads it** (`cloudLibrary` + `mergeCloudLibrary` in App.js, merged inside
+  `projectLibrary.load`): StackBlitz, Pages, the desktop copy, any brand-new address. It reads
+  `raw.githubusercontent.com/cbm971/BobAssetBuilder/saves/head.json?t=…` and fetches `library.json`
+  only when the hash changes. It checks again every 2 minutes while the tab is visible and not in
+  Playtest, then runs every loader. Loaders adopt only STRICTLY newer records, so nothing saved in
+  that copy is ever replaced. **Online deletes block restores but never purge:** a tombstone has no
+  date, and the copy may hold something he brought back on purpose.
+- **The keeper starts at sign-in and is watched.** `Startup\Bob Okay save keeper.cmd` runs
+  `bob-okay.js keep`. That watchdog detaches, holds port 47018 as a single-instance lock, and restarts
+  `serve` when two pings in a row fail. `launch` (the desktop icon) and `install` both put the
+  Startup file in place, but only from the keeper's own clone (MANAGED), never from an agent's.
+
+**Proof (2026-10-03):**
+- A fresh browser, served the stale pre-recovery seed, opened on every one of his newest versions.
+- The control (`localStorage.bobCloudSaves = "off"`, another fresh origin) showed the exact failure.
+- An already-open stale copy adopted them on the next check.
+- A scratch keeper against a local bare repo pushed a save in 24 s, merged another push instead of
+  overwriting it, and survived an unreachable remote. Its watchdog restarted a killed keeper in 38 s.
+
+**For agents:**
+- **His newest saves are `git fetch origin saves` → `FETCH_HEAD:library.json`**, about a minute
+  behind him while the keeper runs. Still re-read the live Chrome store before stamping his records
+  ([[bab-rank-edits-on-newest-copy]] in memory).
+- Deliver through the play branch's `asset-data/library.json` as before. The keeper reseeds it into
+  the folder and publishes it.
+- Push to `saves` only for a recovery, and only a superset built newest-wins. The keeper folds
+  it in.
+- Test a keeper with `BOB_CLOUD_REMOTE=<local bare repo>` or `BOB_NO_CLOUD=1`. Test the app with
+  `localStorage.bobCloudSaves = "<base url>"` or `"off"`, set from `/asset-manifest.json` on a fresh
+  origin (any other path on the dev server boots the app, which loads before you can set it).
+- Running the dev server rewrites `asset-data/` from the browser. `git checkout -- asset-data/`
+  before committing.
+
 ## HIS SAVES LIVE IN ONE FOLDER ON HIS PC (2026-09-26) — read this first
 
 **`C:\Users\cbm97\OneDrive\Documents\Bob Okay\Saves`** is the save. One file per record
@@ -58,7 +112,10 @@ The log is `%LOCALAPPDATA%\BobOkay\keeper.log`.
 
 ## How Blake plays it
 
-**From the "Bob Okay" icon on his Desktop since 2026-09-26** (above); before that, and still for friends, from a **StackBlitz linked to PR #1**, not `main`. The branch is
+**In practice he still plays on the StackBlitz link** (the 2026-10-03 loss happened there). The "Bob
+Okay" icon on his Desktop (2026-09-26) is the other copy. Since 2026-10-03 the copy he picks no
+longer matters, because every copy opens on the online save (top of this file). Friends use the
+**StackBlitz linked to PR #1**, not `main`. The branch is
 `agent/scaled-hitboxes-projectile-range`. **Pushing to that branch is what reaches
 them** — they reload the link. There is no other delivery path.
 
