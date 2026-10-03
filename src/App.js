@@ -4496,17 +4496,36 @@ export const weaponAbilityBrief = (w, k) => {
   if (!ab || !w) return null;
   return { kind: "ability", icon: ab.icon, label: ab.label, desc: ab.brief ? ab.brief(w) : "" };
 };
+// Only the abilities that WORK on this kind of weapon. A flag can outlive a type switch — his
+// Grenade still carries `explode: true` from when it was built, and a throw never reads it (Burn is
+// what it does) — and the editor lists such a flag only so it can be removed. Printed anywhere a
+// player reads it, it would promise an explosion the grenade does not have.
+export const weaponLiveAbilityKeys = (w) => weaponAbilityKeys(w).filter((k) => (WEAPON_ABILITIES[k].types || []).includes(isRanged(w.wtype) ? "ranged" : isThrowable(w.wtype) ? "throw" : "melee"));
+/* THE SHOP ROW NAMES AN ITEM'S ABILITIES (Blake, 2026-10-03: "add item ability names to shop
+   descriptions"). Before this a row said "Hat · Defense 1" and nothing else, so a hat with Extra
+   Lives and a plain one read the same until you bought it and walked out. Names only, joined into
+   the one line under the price list's item name: the shop panel carries NO emoji (his call), and
+   the full descriptions are what the pickup callout is for once it is yours. The same sources the
+   callout reads (weaponLiveAbilityKeys / EFFECT_TYPES), so the two can never disagree about what an
+   item does. A consumable's one effect is already its whole description, so it gets nothing here. */
+export const itemAbilityNames = (it) => {
+  if (!it || it.type === "item") return [];
+  if (it.type === "weapon") return weaponLiveAbilityKeys(it).map((k) => WEAPON_ABILITIES[k].label);
+  const seen = new Set(), out = [];
+  for (const e of it.effects || []) {
+    const def = e && EFFECT_TYPES[e.type];
+    if (!def || seen.has(e.type)) continue;
+    seen.add(e.type); out.push(def.label);
+  }
+  return out;
+};
 export const pickupChangeRows = (item, ctx) => {
   if (!item) return [];
   const { held = null, before = null, after = null, off = null } = ctx || {};
   if (item.type === "item") return [{ kind: "text", text: itemEffectSummary(item.effect) }];
   const rows = [];
   if (item.type === "weapon") {
-    // Only the abilities that WORK on this kind of weapon. A flag can outlive a type switch — his
-    // Grenade still carries `explode: true` from when it was built, and a throw never reads it
-    // (Burn is what it does) — and the editor lists such a flag only so it can be removed. Printed
-    // here it would promise an explosion the grenade does not have.
-    const liveKeys = (w) => weaponAbilityKeys(w).filter((k) => (WEAPON_ABILITIES[k].types || []).includes(isRanged(w.wtype) ? "ranged" : isThrowable(w.wtype) ? "throw" : "melee"));
+    const liveKeys = weaponLiveAbilityKeys;
     const to = item.damage ?? 5, from = held ? (held.damage ?? 5) : null;
     if (from !== to) rows.push({ kind: "stat", label: "Dmg", from, to });
     const mineW = liveKeys(item);
@@ -11303,8 +11322,7 @@ export default function AssetStudio() {
     const s = { tag, name: name || "", roll: rk };
     shopRef.current = s; setShop(s);
   };
-  const closeShop = () => { shopRef.current = null; setShop(null); };
-  // BRING THE BUBBLE INTO VIEW when a conversation opens. This game has no camera — nothing follows
+  const closeShop = () => { shopRef.current = null; setShop(null); };  // BRING THE BUBBLE INTO VIEW when a conversation opens. This game has no camera — nothing follows
   // the player — so on a 160-column level the person you just walked up to is very often outside
   // the scrolled viewport, and so is what they are saying. Scoped as tightly as it can be: only on
   // opening, only if it is not already fully visible, and `block/inline: nearest` so a bubble that
@@ -21413,6 +21431,7 @@ export default function AssetStudio() {
                       <div className="shopMeta">
                         <div className={"shopName rk-" + itemRank(it)}>{it.name}</div>
                         <div className="hint2">{what}</div>
+                        {(() => { const ab = itemAbilityNames(it); return ab.length ? <div className="shopAbilities">{ab.join(" · ")}</div> : null; })()}
                         {/* THE ONE THING THE PRICE ALONE CANNOT TELL YOU: which of your own things
                             walks out of the door to pay for it. Only shown when something actually
                             goes — a straight purchase says nothing, because there is nothing to
@@ -22770,6 +22789,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .shopMeta{flex:1 1 auto;min-width:0}
 .shopName{font-size:14px;font-weight:600;color:#f2f5fb}
 .shopSwap{margin-top:3px;font-size:12px;color:#f0cd8d}
+.shopAbilities{margin-top:3px;font-size:12px;font-weight:600;color:#a9d4ff}
 .shopBuy{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:96px;background:rgba(46,74,52,.92);border:1px solid rgba(122,196,138,.7);border-radius:0;padding:7px 12px;color:#d8f7de;font-size:15px;font-weight:800;cursor:pointer}
 .shopBuy:hover:not(:disabled){background:rgba(62,102,71,.95);border-color:#8fdda0}
 .shopBuy:disabled{background:rgba(64,42,42,.9);border-color:rgba(180,120,120,.6);color:#dcaaaa;cursor:not-allowed}

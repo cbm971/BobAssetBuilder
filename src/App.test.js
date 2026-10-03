@@ -515,6 +515,7 @@ import {
 } from "./App";
 import {
   pickupChangeRows,
+  itemAbilityNames,
   effectBrief,
   weaponAbilityBrief,
   mergeEquip as mergeEquipForRows,
@@ -11201,6 +11202,22 @@ describe("pickup change rows", () => {
     expect(effectBrief({ type: "extraLives" }).label).toBe("Extra Lives");
     expect(weaponAbilityBrief({ stun: 1.5 }, "stun").desc).toBe("freezes what it hits for 1.5s");
     expect(weaponAbilityBrief({ wtype: "throw", captureMax: 3 }, "capture").desc).toBe("up to 3 defeated creatures fight for you");
+  });
+
+  // The shop row's ability line: names only (the shop panel carries no emoji), the same "does it
+  // actually work on this weapon" filter the callout uses, and one name per ability type.
+  test("the shop names an item's abilities", () => {
+    expect(itemAbilityNames({ type: "equipment", slot: "hat", effects: [{ type: "extraLives", lives: 9 }, { type: "doubleJump" }, { type: "extraLives" }] }))
+      .toEqual(["Extra Lives", "Double Jump"]);
+    expect(itemAbilityNames({ type: "equipment", slot: "hat", effects: [] })).toEqual([]);
+    expect(itemAbilityNames({ type: "equipment", effects: [{ type: "nope" }, null] })).toEqual([]);
+    expect(itemAbilityNames({ type: "weapon", wtype: "ranged", explode: true, explodeRadius: 2, stun: 1 })).toEqual(["Explode", "Stun"]);
+    // His Grenade still carries explode:true from before it was a throwable — a throw never reads it.
+    expect(itemAbilityNames({ type: "weapon", wtype: "throw", explode: true })).not.toContain("Explode");
+    expect(itemAbilityNames({ type: "item", effect: { kind: "heal", amount: 5 } })).toEqual([]);
+    expect(itemAbilityNames(null)).toEqual([]);
+    for (const n of [...Object.values(EFFECT_TYPES), ...Object.values(WEAPON_ABILITIES)].map((d) => d.label))
+      expect(/\p{Extended_Pictographic}/u.test(n) ? "emoji in " + n : n).toBe(n);
   });
 
   test("consumables are their one effect line", () => {
