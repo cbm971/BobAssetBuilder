@@ -904,6 +904,33 @@ crossed (E2 → the neighbour's W2). Being flung above the top of the world uses
 * The effect card in the equipment editor now shows each effect's `blurb` (it never had, for any
   effect), and the ＋ Add buttons carry it as a tooltip.
 
+**🦸 FLY (`EFFECT_TYPES.fly`, 2026-10-02).** Blake: "add a flying ability I can equip to clothes".
+Hold Jump in the air and you climb at the item's **Lift** (blocks/second), steering at its **Air
+speed** (×, may exceed walking pace, so it skips `capAirborneSpeed` like a glide); let go and you
+fall normally. The pure pieces are `flyState` / `flyVy` / `flyRisePx` / `flyFramesLeft`.
+* **It takes over at the TOP of a jump** (`!wasFlying && vy < 0` → not yet). Holding Space from the
+  ground still jumps first, so the Agility hold-assist and a ⤴️ Double Jump keep working; once
+  flying it stays on while Jump is held (`p.flying`). Walk off a ledge and hold Jump and it engages
+  at once. It outranks a 🪂 Glide worn alongside it, and the glide catches you when the time runs out.
+* **Flight time** refills on the ground, a 🚶 plane or a climb grip (`p.flyUsed`, frames). The
+  slider's top stop `FLY_TIME_UNLIMITED` (30) means no limit and is the default. The param's `fmt`
+  shows "∞" / "3s" / "×1.0" — `fmt` on an `EFFECT_TYPES` param is generic now.
+* **The level's top edge is a ceiling for a flyer** unless a top gate with a level above is there.
+  Without it a held flight hit `p.y < -200` and was "flung off the world" back to the entry gate.
+* **The animation** rides the glide's looping `effectAnim` channel, tagged `fx` with the effect type
+  so flying straight into a glide swaps loops.
+* **Units fly too** (the unit loop, `eFlyUp`): a unit coming for a target more than 1.5 cells ABOVE
+  its feet takes off, steers straight at it, and climbs until its feet are level, then falls and
+  repeats, so it hovers around your height. **It measures the target's ACTUAL feet, not
+  `standingLineY`** — that is null for anyone off their feet, and the first cut used it: a unit in
+  Fly gear stood still under a player hanging in the air. The ranged stand-off rule is the climb
+  route's (`following || !rangedEnemy || !targetOnLevel`). A flying unit bumping a roof is stopped
+  (no rising through a storey) and grounded for 3 s (`ep.flyBlockT`) so the climb route can take it
+  up the stairs instead of hovering against the ceiling. Measured in Forest M1 with Fly on the
+  Viatnamese looks and the player pinned 18 cells up: they rose from feet 1140 to ~600 and bobbed at
+  the player's height. Placements whose 🎲 gear roll swapped the jacket lost the jacket's Fly, which
+  is the gear system working.
+
 **`.unitStatus` (a unit's HP bar, reload bar, 💫/😵, 💬) is UNDER the Front layer — z 5060,
 since 2026-09-16.** It sat at 8000 from the start, on the theory that a unit's bars are information
 you need even when it is behind a tree, and the result was an NPC inside a church, behind a painted
@@ -2645,6 +2672,7 @@ ability, and what each one does on a unit now:
 * **🍀 Lucky Find.** Every unit hit records `ep.lastHitByFx`: the attacking unit's effects, or null
   for you. It is set by `applyHitTo`, a round's `shooterFx`, a grenade's `throwerFx` and blasts. The
   loot roll adds the killer's charm to yours; yours still counts on every body, as it always did.
+* **🦸 Fly.** A unit flies up after a target above it (see the FLY section).
 * **🪂 Glide.** Gravity × the item's Fall whenever the unit is falling (your glide with Jump held).
   Measured: Super Bob (Fall 0.8) fell at 0.803× Bobette's speed.
 * **🛼 Slide.** A unit's feet ease through `horizVel` with the item's Grip. `dxMove` stays the

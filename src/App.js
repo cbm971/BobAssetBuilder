@@ -3404,6 +3404,37 @@ export const glideState = (effect, K, onGround, climbing, vy) => {
   if (!effect || onGround || climbing || vy <= 0 || !K.jump) return null;
   return { active: true, fall: Math.max(0.05, Math.min(1, effect.fall ?? 0.35)), control: Math.max(0, Math.min(1, effect.control ?? 1)) };
 };
+// 🦸 FLY (EFFECT_TYPES.fly, 2026-10-02). Blake: "add a flying ability I can equip to clothes". Hold
+// Jump in the air and you climb, steering with the keys at the item's Air speed; let go and you
+// drop like anyone else (and a 🪂 Glide worn alongside catches you, as it always would).
+//
+// It takes over at the TOP of a jump, not on the way up: holding Space from the ground still jumps
+// first — the Agility hold-assist and a ⤴️ Double Jump keep working — and the flight picks up where
+// the jump runs out, so a held jump simply keeps going. Walk off a ledge and hold Jump and it engages
+// at once (already falling). Once flying it stays on for as long as Jump is held (wasFlying), even
+// though the climb has made vy negative again.
+//
+// Flight time is a budget in seconds that refills when you touch the ground (or a ladder/plane), the
+// way Double Jump's one bonus jump does. The slider's top stop, FLY_TIME_UNLIMITED, means no limit —
+// a superhero cape should not need a number. `used` is counted in 60fps-frames like every timer here.
+export const FLY_TIME_UNLIMITED = 30;
+export const FLY_EASE = 0.12; // fraction of the gap to the climb speed closed per 60fps-frame — a lift-off, not a snap
+export const flyFramesLeft = (effect, used) => {
+  if (!effect) return 0;
+  const secs = effect.time ?? FLY_TIME_UNLIMITED;
+  if (secs >= FLY_TIME_UNLIMITED) return Infinity;
+  return Math.max(0, secs * 60 - (used || 0));
+};
+// The climb speed, px per 60fps-frame, from the item's Lift (blocks per second).
+export const flyRisePx = (effect, CH) => Math.max(1, Math.min(30, (effect && effect.lift) ?? 8)) * CH / 60;
+export const flyState = (effect, K, onGround, climbing, vy, wasFlying, used, CH) => {
+  if (!effect || onGround || climbing || !K.jump) return null;
+  if (!wasFlying && vy < 0) return null; // the jump's own rise first — flight takes over at its top
+  if (flyFramesLeft(effect, used) <= 0) return null;
+  return { active: true, rise: flyRisePx(effect, CH), control: Math.max(0.3, Math.min(2, effect.control ?? 1)) };
+};
+// One frame of climbing: vy eases toward -rise (dt-correct, never overshooting).
+export const flyVy = (vy, rise, dtMul) => (vy || 0) + (-rise - (vy || 0)) * Math.min(1, FLY_EASE * (dtMul || 1));
 // Slide (skates / ice): resolves the equipped effect into { grip, slope } clamped to sane ranges.
 // grip is the per-frame fraction of the speed gap ground movement closes (low = slippery, coasts
 // when you let go); slope multiplies the downhill ramp pull. null when no slide item is worn.
@@ -4260,6 +4291,18 @@ export const EFFECT_TYPES = {
     params: [
       { key: "fall", label: "Fall slow", min: 0.1, max: 0.9, step: 0.05, def: 0.35 },
       { key: "control", label: "Air control", min: 0.3, max: 1, step: 0.05, def: 1 },
+    ],
+  },
+  // Hold Jump in the air to fly (see flyState). Animated like Glide: a looping Side animation per
+  // body plays while flying. Worn by a 👹 Enemy it flies up to reach a target standing above it.
+  fly: {
+    label: "Fly", icon: "🦸",
+    blurb: "Hold Jump in the air to fly upward, steering with the movement keys; let go to drop. Lift is how fast you climb, Air speed how fast you move sideways while flying, and Flight time how long you can stay up before touching the ground again (the top of the slider is no limit). Worn by a 👹 Enemy, it flies up after a target above it. Design a Side-view animation for it, per body — a body with none yet just plays this item's normal look while flying.",
+    brief: (p) => "hold Jump in the air to fly" + ((p.time ?? FLY_TIME_UNLIMITED) >= FLY_TIME_UNLIMITED ? "" : " · " + briefNum(p.time) + "s"),
+    params: [
+      { key: "lift", label: "Lift", min: 2, max: 20, step: 1, def: 8 },
+      { key: "control", label: "Air speed", min: 0.5, max: 2, step: 0.1, def: 1, fmt: (v) => "×" + (+v).toFixed(1) },
+      { key: "time", label: "Flight time", min: 0.5, max: FLY_TIME_UNLIMITED, step: 0.5, def: FLY_TIME_UNLIMITED, fmt: (v) => v >= FLY_TIME_UNLIMITED ? "∞" : v + "s" },
     ],
   },
   // Low-grip footwear (skates, rollerblades, ice): you don't stop on a dime — release the keys
@@ -11661,6 +11704,7 @@ export default function AssetStudio() {
     const doubleJumpEffect = (playerAsset?.effects || []).find((e) => e.type === "doubleJump") || null;
     const backGuardEffect = (playerAsset?.effects || []).find((e) => e.type === "backGuard") || null;
     const glideEffect = (playerAsset?.effects || []).find((e) => e.type === "glide") || null;
+    const flyEffect = (playerAsset?.effects || []).find((e) => e.type === "fly") || null;
     const slideEffect = (playerAsset?.effects || []).find((e) => e.type === "slide") || null;
     const slideResolved = slideState(slideEffect);
     const backGuardReduce = backGuardEffect ? (backGuardEffect.reduce ?? 0.5) : null; // null = no cape, skip the behind check entirely
@@ -12047,9 +12091,13 @@ export default function AssetStudio() {
       // Aiming left/right also turns you — so you can stand still and point the other way to
       // shoot without having to walk. Movement keys win if both are held (you face where you go).
       if (!K.left && !K.right) { if (K.aimLeft) p.face = -1; else if (K.aimRight) p.face = 1; }
-      const glideMove = glideState(glideEffect, K, p.onGround, p.climbing || p.topdown, p.vy);
-      dx = horizVel(K, speed, grounded, p.vx, glideMove, slideResolved, dtMul);
-      if (!grounded && !(glideMove && glideMove.active)) dx = capAirborneSpeed(dx, speed);
+      // 🦸 Flying steers the way a glide does (horizVel's air-control branch), at the item's Air
+      // speed, which may run past walking pace — so it is exempt from the airborne cap too.
+      const flyMove = flyState(flyEffect, K, p.onGround, p.climbing || p.topdown, p.vy, p.flying, p.flyUsed, CH);
+      const glideMove = flyMove ? null : glideState(glideEffect, K, p.onGround, p.climbing || p.topdown, p.vy);
+      const airSteer = flyMove || glideMove;
+      dx = horizVel(K, speed, grounded, p.vx, airSteer, slideResolved, dtMul);
+      if (!grounded && !(airSteer && airSteer.active)) dx = capAirborneSpeed(dx, speed);
       // Ramp feel: last frame's slope check set p.onSlope/p.slideVx. Standing on a ramp with
       // nothing held SLIDES you downhill — so dropping or jumping onto a ramp turns into a slide
       // the moment the surface catches you — walking DOWN gets the slide added on top, and
@@ -12077,7 +12125,7 @@ export default function AssetStudio() {
         }
       }
       if (grounded) p.vx = uphillSlideVx !== null ? uphillSlideVx : dx; // remember momentum to carry into the air; air frames keep it, keys don't steer (uphill+slide keeps the PRE-slope velocity — see the walkingUphill comment)
-      else if (glideEffect && p.vy > 0 && K.jump && !p.climbing) p.vx = dx; // while gliding, the steered velocity BECOMES your momentum, so it carries if you stop steering or the glide ends
+      else if (flyMove || (glideEffect && p.vy > 0 && K.jump && !p.climbing)) p.vx = dx; // while flying or gliding, the steered velocity BECOMES your momentum, so it carries if you stop steering or the glide ends
       const prevX = p.x;
       p.x += dx;
       // The level's edges are walls — except an open seam with a level behind it (a RUN seam: a side
@@ -12322,29 +12370,46 @@ export default function AssetStudio() {
         // down (a gentle descent). Resolved fresh here off this frame's live vy so it engages the
         // moment you start falling and drops the instant you let go of Jump or touch down. It
         // never applies during the rise, so it can't turn a jump into a float upward.
-        const glide = glideState(glideEffect, K, p.onGround, climbing, p.vy);
-        const wasGliding = p.gliding;
+        // 🦸 Fly first (flyState): holding Jump past the top of a jump, or while falling, climbs at
+        // the item's Lift instead of falling. It outranks a Glide worn alongside it — both answer
+        // "Jump held in the air", and flying is the stronger ask — and the glide takes over again
+        // the moment the flight time runs out.
+        const fly = flyState(flyEffect, K, p.onGround, climbing, p.vy, p.flying, p.flyUsed, CH);
+        p.flying = !!fly;
+        const glide = fly ? null : glideState(glideEffect, K, p.onGround, climbing, p.vy);
         p.gliding = !!(glide && glide.active);
-        // Play the glide cape's own Side animation while gliding — reusing the same effectAnim
-        // channel Double Jump uses, so the render swap needs no new code. Started when the glide
-        // begins and looped (frameDur small, index wraps in the renderer via modulo below), and
-        // handed back to null the moment gliding stops so the normal look returns. Guarded so it
-        // doesn't stomp an active double-jump animation that's still playing.
-        if (p.gliding && !wasGliding && glideEffect && glideEffect.frames && glideEffect.frames.length && !(p.effectAnim && p.effectAnim.oneShot)) {
-          p.effectAnim = { slot: glideEffect.slot, frames: glideEffect.frames, t: 0, frameDur: 6, loop: true };
-        } else if (!p.gliding && p.effectAnim && p.effectAnim.loop) {
+        // Play the flying / gliding item's own Side animation while it is in use — reusing the same
+        // effectAnim channel Double Jump uses, so the render swap needs no new code. Looped
+        // (frameDur small, index wraps in the renderer via modulo below), tagged with WHICH effect
+        // it belongs to so going from flying straight into a glide swaps one loop for the other,
+        // and handed back to null the moment neither is on so the normal look returns. Never
+        // stomps an active double-jump animation that's still playing.
+        const loopFx = p.flying ? flyEffect : p.gliding ? glideEffect : null;
+        if (loopFx && loopFx.frames && loopFx.frames.length) {
+          if (!(p.effectAnim && (p.effectAnim.oneShot || p.effectAnim.fx === loopFx.type))) p.effectAnim = { slot: loopFx.slot, frames: loopFx.frames, t: 0, frameDur: 6, loop: true, fx: loopFx.type };
+        } else if (p.effectAnim && p.effectAnim.loop) {
           p.effectAnim = null;
         }
-        const gravMul = p.gliding ? glide.fall : (djActive ? p.djGravMul : 1);
-        // Above baseline Agility (5), holding Jump through the rise adds extra height on top —
-        // a separate reward for higher agility beyond the taller base jump it already gets.
-        // Capped in duration (not just by leaving the ground) so it's a short assist right at
-        // takeoff, not an unlimited hover the whole time the key is held.
-        if (p.vy < 0 && K.jump && agilityStat > 5 && (p.jumpHoldT || 0) < JUMP_HOLD_BOOST_FRAMES) {
-          p.vy -= (agilityStat - 5) * JUMP_HOLD_BOOST_ACCEL * dtMul;
-          p.jumpHoldT = (p.jumpHoldT || 0) + dtMul;
+        if (fly) {
+          p.vy = flyVy(p.vy, fly.rise, dtMul); p.flyUsed = (p.flyUsed || 0) + dtMul;
+          p.y += p.vy * dtMul; p.onGround = false;
+          // The sky is a ceiling. Rising past the level's top edge used to be possible only by being
+          // flung there, and `p.y < -200` below treats it as falling out of the world — so a held
+          // flight would have ended in a trip back to the gate. Stop at the top instead, unless a
+          // top gate with a level above is right here (then it carries you through like any seam).
+          if (p.y < 0 && !seamAt("N", p, pw, ph)) { p.y = 0; if (p.vy < 0) p.vy = 0; }
+        } else {
+          const gravMul = p.gliding ? glide.fall : (djActive ? p.djGravMul : 1);
+          // Above baseline Agility (5), holding Jump through the rise adds extra height on top —
+          // a separate reward for higher agility beyond the taller base jump it already gets.
+          // Capped in duration (not just by leaving the ground) so it's a short assist right at
+          // takeoff, not an unlimited hover the whole time the key is held.
+          if (p.vy < 0 && K.jump && agilityStat > 5 && (p.jumpHoldT || 0) < JUMP_HOLD_BOOST_FRAMES) {
+            p.vy -= (agilityStat - 5) * JUMP_HOLD_BOOST_ACCEL * dtMul;
+            p.jumpHoldT = (p.jumpHoldT || 0) + dtMul;
+          }
+          p.vy = Math.min(60, p.vy + 0.175 * dtMul * gravMul); p.y += p.vy * dtMul; p.onGround = false;
         }
-        p.vy = Math.min(60, p.vy + 0.175 * dtMul * gravMul); p.y += p.vy * dtMul; p.onGround = false;
       }
       p.climbing = climbing;
       p.climbKind = climbing ? climbKindHere : null;
@@ -12495,8 +12560,8 @@ export default function AssetStudio() {
       // ground there, and landing back on it from the hop must hand the Double Jump cape its next
       // jump exactly as landing on a street would. tdJumpY only ever outlives the hop when the
       // hop carried you clear of the plane and you came down on real ground instead.
-      if (p.onGround || topdown) { p.extraJumped = false; p.effectAnim = null; p.djGravMul = 1; p.jumpHoldT = 0; p.gliding = false; p.tdJumpY = null; }
-      if (climbing) p.gliding = false;
+      if (p.onGround || topdown) { p.extraJumped = false; p.effectAnim = null; p.djGravMul = 1; p.jumpHoldT = 0; p.gliding = false; p.tdJumpY = null; p.flying = false; p.flyUsed = 0; }
+      if (climbing) { p.gliding = false; p.flying = false; p.flyUsed = 0; } // a grip refills the 🦸 flight time as the ground does
       if (p.y < -200) respawnAtEntry(p); // flung off the top of the world: back to the gate you came in by, like a death
 
       // Fire hazard: continuous damage-over-time while the player's box overlaps a fire cell.
@@ -12912,7 +12977,23 @@ export default function AssetStudio() {
             && (following || !rangedEnemy || !targetOnLevel);
           const navJumpV = enemyJumpVelocity(ea.stats?.agility, CH), navJumpPx = navJumpV * navJumpV / (2 * 0.175);
           const navPart = worldPartAt(worldParts, ep.x + epw / 2, ep.y + newEph / 2, CW);
-          const navRouteLv = navPursuing && navOff && !ep.climbing
+          // 🦸 FLY ON A UNIT — the player's flight, with "Jump held" decided by the chase: a unit
+          // wearing it that is coming for a target more than a step ABOVE it takes off and climbs
+          // toward it, steering at it, instead of hunting for a ladder. It keeps climbing until its
+          // feet are level with the target's — enough to clear a ledge and come down on it — and
+          // spends and refills the item's flight time as you do.
+          // Measured against where the target's feet ARE, not standingLineY: that is null for
+          // anyone off their feet, which is exactly when a flyer needs it most — you flying up out
+          // of reach is the chase a flying enemy exists for (the first cut used it, and a unit in
+          // Fly gear stood still under a player hanging in the air). The ranged stand-off rule is
+          // the climb route's own: a gunman that can already shoot you from here stays and shoots.
+          if (ep.onGround || ep.topdown || ep.climbing) { ep.flyUsed = 0; ep.flying = false; }
+          if ((ep.flyBlockT || 0) > 0) ep.flyBlockT = Math.max(0, ep.flyBlockT - dtMul);
+          const eFlyFx = (ea.effects || []).find((e) => e && e.type === "fly") || null;
+          const flyTgtFeet = navTgt ? navTgt.y + navTgtH : null;
+          const eFlyUp = !!eFlyFx && navPursuing && flyTgtFeet != null && !ep.climbing && !ep.topdown && !((ep.down || 0) > 0) && !((ep.flyBlockT || 0) > 0)
+            && (ep.flying ? flyTgtFeet < myFeetY - CH * 0.25 : (flyTgtFeet < myFeetY - CH * 1.5 && (following || !rangedEnemy || !targetOnLevel)))
+            && flyFramesLeft(eFlyFx, ep.flyUsed) > 0;          const navRouteLv = navPursuing && navOff && !ep.climbing && !eFlyUp
             ? unitClimbRoute(navPart.lv, { cx: eCenterXNow - navPart.ox, fx: ep.x + epw / 2 - navPart.ox, feet: myFeetY - navPart.oy, h: standEph, topdown: navMeTopdown }, { cx: targetCX - navPart.ox, feet: navTgtFeet - navPart.oy, topdown: navTgtTopdown }, navJumpPx, CW, CH, (r, c) => !!navPart.lv.fg[cellKey(r, c)] || solidAtW(r + (navPart.dr || 0), c + (navPart.dc || 0)))
             : null;
           const navRoute = navRouteLv && { ...navRouteLv, x: navRouteLv.x + navPart.ox, feet: navRouteLv.feet == null ? null : navRouteLv.feet + navPart.oy };
@@ -12933,7 +13014,8 @@ export default function AssetStudio() {
           // walks to the route's column — the visible body for a ladder or a bar (that is what has to
           // be on it), the feet's column for a plane (topdownAt finds the plane there).
           if (!stunned && acts && !ep.stomp) {
-            if (ep.climbing === "ladder") dxMove = navTgtFeet != null && Math.abs(navTgtFeet - myFeetY) <= CH ? towardTarget : 0;
+            if (eFlyUp) dxMove = towardTarget * Math.max(0.3, Math.min(2, eFlyFx.control ?? 1)); // flying: straight at it, at the item's Air speed
+            else if (ep.climbing === "ladder") dxMove = navTgtFeet != null && Math.abs(navTgtFeet - myFeetY) <= CH ? towardTarget : 0;
             else if (ep.climbing) dxMove = towardTarget;
             else if (navAirborne && ep.climbJump) dxMove = towardTarget;
             else if (navAirborne && ep.navHangJump) dxMove = 0;
@@ -13139,11 +13221,27 @@ export default function AssetStudio() {
               if (eAgi > 5) ep.vy -= (eAgi - 5) * JUMP_HOLD_BOOST_ACCEL * dtMul;
               ep.jumpHoldT += dtMul;
             }
-            const eGlideNow = glideState(eGlide, { jump: true }, false, false, ep.vy);
+            ep.flying = eFlyUp;
+            const eGlideNow = eFlyUp ? null : glideState(eGlide, { jump: true }, false, false, ep.vy);
             ep.gliding = !!(eGlideNow && eGlideNow.active);
-            const eGravMul = ep.gliding ? eGlideNow.fall : ((ep.extraJumped && ep.djGravMul) ? ep.djGravMul : 1);
-            ep.vy = Math.min(60, ep.vy + 0.175 * dtMul * eGravMul);
-            ep.y += ep.vy * dtMul;
+            if (eFlyUp) {
+              // 🦸 Climbing (see eFlyUp). A flying body is stopped by a roof the way your jump is: a
+              // step that would put its head into solid it was not already in is not taken, so it
+              // cannot rise up THROUGH the storey its target is standing on — it slides along under
+              // it, still steering at the target, until it finds the open air beside it.
+              ep.vy = flyVy(ep.vy, flyRisePx(eFlyFx, CH), dtMul); ep.flyUsed = (ep.flyUsed || 0) + dtMul; ep.onGround = false;
+              const ny = ep.y + ep.vy * dtMul;
+              const inBox = new Set(cellsHitW(ep.x, ep.y, epw, newEph).map((h) => h.r + "," + h.c));
+              // Bumping a roof also grounds the flight for three seconds (flyBlockT), so a target
+              // straight overhead on the floor above is reached by the stairs or a ladder — the climb
+              // route takes over while it waits — instead of by hovering against the ceiling forever.
+              if (cellsHitW(ep.x, ny, epw, newEph).some((h) => !inBox.has(h.r + "," + h.c) && h.r * CH < ny + CH)) { ep.vy = 0; ep.flyBlockT = 180; ep.flying = false; }
+              else ep.y = ny;
+            } else {
+              const eGravMul = ep.gliding ? eGlideNow.fall : ((ep.extraJumped && ep.djGravMul) ? ep.djGravMul : 1);
+              ep.vy = Math.min(60, ep.vy + 0.175 * dtMul * eGravMul);
+              ep.y += ep.vy * dtMul;
+            }
             // THE RAMP FIRST, in the player's order (slopeSurfaceForPlayer, then flat landing): the
             // surface nearest the feet within what they could reach this frame — up the few pixels a
             // walk up the hill buried them, down the few a walk down it left them hanging. Only while
@@ -21983,7 +22081,7 @@ export default function AssetStudio() {
                         <label className="slider" key={p.key}>
                           {p.label}
                           <input type="range" min={p.min} max={p.max} step={p.step} value={val} onChange={(e) => updateEffectParam(eff.id, p.key, +e.target.value)} />
-                          <span className="hint2" style={{ marginLeft: 6 }}>{pct ? Math.round(val * 100) + "%" : val}</span>
+                          <span className="hint2" style={{ marginLeft: 6 }}>{p.fmt ? p.fmt(val) : pct ? Math.round(val * 100) + "%" : val}</span>
                         </label>
                       );
                     })}

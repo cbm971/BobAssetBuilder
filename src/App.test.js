@@ -541,6 +541,11 @@ import {
   JUMP_HOLD_BOOST_ACCEL,
   slideState,
   glideState,
+  flyState,
+  flyVy,
+  flyRisePx,
+  flyFramesLeft,
+  FLY_TIME_UNLIMITED,
   incomingUnitDamage,
   guardReduceOf,
   unitCenterX,
@@ -11453,6 +11458,37 @@ describe("a unit plays by the player's rules", () => {
     expect(step).toBeGreaterThan(0);
     expect(step).toBeLessThan(7);                                                       // eases up to speed
     expect(horizVel({ left: false, right: false }, 7, true, 7, null, skates, 1)).toBeGreaterThan(0); // coasts
+  });
+
+  test("🦸 Fly: hold Jump in the air to climb, from the top of the jump, within the flight time", () => {
+    const cape = { type: "fly", lift: 8, control: 1.5, time: 2 };
+    expect(flyState(cape, { jump: true }, true, false, 0, false, 0, 30)).toBe(null);        // on the ground: jump first
+    expect(flyState(cape, { jump: true }, false, false, -5, false, 0, 30)).toBe(null);      // the jump's own rise
+    const f = flyState(cape, { jump: true }, false, false, 0.5, false, 0, 30);              // past the top: flying
+    expect(f.active).toBe(true);
+    expect(f.rise).toBeCloseTo(8 * 30 / 60, 9);
+    expect(f.control).toBeCloseTo(1.5, 9);
+    expect(flyState(cape, { jump: true }, false, false, -3, true, 0, 30)).not.toBe(null);   // already flying: keeps climbing
+    expect(flyState(cape, { jump: false }, false, false, -3, true, 0, 30)).toBe(null);      // let go: drop
+    expect(flyState(cape, { jump: true }, false, true, 1, false, 0, 30)).toBe(null);        // on a ladder: no
+    expect(flyState(cape, { jump: true }, false, false, 1, true, 120, 30)).toBe(null);      // 2 s spent
+    expect(flyFramesLeft(cape, 60)).toBe(60);
+    expect(flyFramesLeft({ type: "fly" }, 1e6)).toBe(Infinity);                              // default: no limit
+    expect(flyFramesLeft({ type: "fly", time: FLY_TIME_UNLIMITED }, 1e6)).toBe(Infinity);
+    expect(flyRisePx({ lift: 999 }, 30)).toBeCloseTo(30 * 30 / 60, 9);                      // clamped
+    // climbing eases toward the lift speed and never overshoots it, at any frame rate
+    let vy = 3;
+    for (let i = 0; i < 200; i++) vy = flyVy(vy, 4, 1);
+    expect(vy).toBeCloseTo(-4, 6);
+    expect(flyVy(3, 4, 100)).toBeCloseTo(-4, 9);
+    expect(effectBrief({ type: "fly" }).desc).toBe("hold Jump in the air to fly");
+    expect(effectBrief({ type: "fly", time: 3 }).desc).toBe("hold Jump in the air to fly · 3s");
+  });
+
+  test("🦸 Fly reaches both sides: the player loop and the unit loop both fly", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toContain("const fly = flyState(flyEffect, K, p.onGround, climbing, p.vy, p.flying, p.flyUsed, CH);");
+    expect(src).toContain("ep.vy = flyVy(ep.vy, flyRisePx(eFlyFx, CH), dtMul);");
   });
 
   test("🟣 Ally Health on a unit raises its side's ceiling on a channel of its own", () => {
