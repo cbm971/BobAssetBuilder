@@ -702,6 +702,30 @@ facing the other way is ⇄ Flip on each placement; and the stage is drawn exact
 is a step (`rise <= CH`), not a jump, for the player and for enemies alike. Verified in Playtest: a
 character spawned above it settles with its feet on the stage row, not the floor.
 
+**The "Farm" prop folder (2026-10-03, `assets/farm-pack.json`) is the backdrop for the Super Bob fight.**
+It is a 1960s Kansas farm (Super Bob is a Superman parody, so it is the Kent-farm look). Sixteen props:
+- Grain Silo `frmsilo` 40, Farm Windmill `frmwmil` 30, Farmhouse `frmhous` 40.
+- 1960s Tractor `frmtrac` 12, 1960s Pickup `frmpkup` 16.
+- Hay Bale `frmbale` 4 (**solidDefault**: Super Bob stands on it, 2 cells up), Hay Stack `frmhays` 12.
+- Farm Fence `frmfnce` 16, Corn Rows `frmcorn` 16.
+- Scarecrow `frmscro` 7, Water Trough `frmtrgh` 8, Chicken Coop `frmcoop` 8, Milk Cans `frmmilk` 3.
+- Mailbox `frmmail` 4 (text "OKAY", editable), Holstein Cow `frmcow1` 8, Chicken `frmchkn` 2.
+
+What is load-bearing:
+- **Exact ratios.** Every ground prop is drawn at a ratio that gives whole rows at its default size
+  (2:1, 4:1, 3:2, 8:3, 5:4, 8:5, 1:1, or tall). Every ground-touching piece ends on y=250, so all 16
+  footprints were verified to end on the floor row in the running app.
+- **Tiling.** Fence and Corn tile when butted: the fence's end posts are HALF posts, so a joint makes
+  one whole post, and no corn leaf crosses x 0 or 200.
+- **His textures.** The coop walls and the silo's ladder chute use his barn's Red panelling texture
+  (`brchpn5`), so they match his Red Barn. The scarecrow's shirt uses his Flannel texture (`a6htkkb`).
+- **Animation.** The windmill turns (3 frames at 8 fps; 18 blades, so each frame steps 20°/3). The
+  chicken pecks (frames stand, stand, stand, peck at 3 fps).
+- **Vehicles.** Both use solid wheel wells. The pickup's door window is a cutter (walk-behind idiom).
+
+The generator (scratchpad `farm.js`, not committed) builds every diagonal from 4-point polys (`line()`)
+rather than rotated rects, because `worldArtBox` measures unrotated boxes.
+
 **"THE WHEEL ISN'T ATTACHED" IS THE WHEEL-ARCH CUTTER, and the Canned Ham (`cnham60`, 2026-09-22) has
 a solid well instead.** Blake asked for a trailer without "the floating on wheels effect a lot of the
 existing cars and trailers have", and on seeing the first version clarified: "I meant the wheel wells
