@@ -3385,6 +3385,8 @@ export const horizVel = (K, speed, grounded, prevVx, glide, slide, dtMul) => {
   if (glide && glide.active) {
     if (K.left) return -speed * glide.control;
     if (K.right) return speed * glide.control;
+    // 🦸 A flight (flyState hands over `drag`) drifts to a stop instead: hovering is staying put.
+    if (glide.drag) { const v = (prevVx || 0) * Math.pow(1 - glide.drag, dtMul || 1); return Math.abs(v) < 0.05 ? 0 : v; }
     return prevVx || 0;
   }
   return prevVx || 0;
@@ -3404,21 +3406,33 @@ export const glideState = (effect, K, onGround, climbing, vy) => {
   if (!effect || onGround || climbing || vy <= 0 || !K.jump) return null;
   return { active: true, fall: Math.max(0.05, Math.min(1, effect.fall ?? 0.35)), control: Math.max(0, Math.min(1, effect.control ?? 1)) };
 };
-// 🦸 FLY (EFFECT_TYPES.fly, 2026-10-02). Blake: "add a flying ability I can equip to clothes". Hold
-// Jump in the air and you climb, steering with the keys at the item's Air speed; let go and you
-// drop like anyone else (and a 🪂 Glide worn alongside catches you, as it always would).
+// 🦸 FLY (EFFECT_TYPES.fly, 2026-10-02; the controls were redone 2026-10-03). Blake: "add a flying
+// ability I can equip to clothes", and the day after: "What happens if you have fly and glide? How
+// do you activate fly? I like to imagine if you press W in mid air it activates fly".
 //
-// It takes over at the TOP of a jump, not on the way up: holding Space from the ground still jumps
-// first — the Agility hold-assist and a ⤴️ Double Jump keep working — and the flight picks up where
-// the jump runs out, so a held jump simply keeps going. Walk off a ledge and hold Jump and it engages
-// at once (already falling). Once flying it stays on for as long as Jump is held (wasFlying), even
-// though the climb has made vy negative again.
+// So flight lives on W, and Jump is left to the things that already answer Jump in the air:
+//   * PRESS W in mid-air and you take off. A fresh press (`upPress`), not a held key: W already
+//     means "walk up the road" on a 🚶 plane and "climb" on a ladder, and someone hopping along a
+//     street with W held, or jumping off the top of a ladder they were climbing with it, must not
+//     find themselves flying. Next to a ladder, W in mid-air still catches the ladder — the climb is
+//     resolved before any of this — but once you ARE flying, ladders and bars no longer grab you.
+//   * While flying: HOLD W to climb at the item's Lift, HOLD S to come down at the same rate, hold
+//     neither and you HOVER where you are. A/D steer at the item's Air speed, and letting go of them
+//     drifts you to a stop (FLY_DRAG) — hovering means staying put, not the glide's coast.
+//   * It ends when you land (S down onto the floor), when the Flight time runs out, or when you
+//     press JUMP: Space lets go. That is the whole answer to "fly and glide" — W flies, Space glides.
+//     A cape that does both: fly up with W, press Space to let go, keep it held and the 🪂 Glide
+//     carries you down (glideState answers "Jump held while falling", as it always has). A ⤴️ Double
+//     Jump spends its jump on that same press.
+// The first cut was "hold Jump in the air", which made Fly and Glide fight over the one key (Fly won,
+// and a glide worn with it only ever showed once the flight time had run out) and could not hover.
 //
 // Flight time is a budget in seconds that refills when you touch the ground (or a ladder/plane), the
 // way Double Jump's one bonus jump does. The slider's top stop, FLY_TIME_UNLIMITED, means no limit —
 // a superhero cape should not need a number. `used` is counted in 60fps-frames like every timer here.
 export const FLY_TIME_UNLIMITED = 30;
-export const FLY_EASE = 0.12; // fraction of the gap to the climb speed closed per 60fps-frame — a lift-off, not a snap
+export const FLY_EASE = 0.12; // fraction of the gap to the target climb speed closed per 60fps-frame — a lift-off, not a snap
+export const FLY_DRAG = 0.12; // the share of sideways drift lost per 60fps-frame once A/D are let go
 export const flyFramesLeft = (effect, used) => {
   if (!effect) return 0;
   const secs = effect.time ?? FLY_TIME_UNLIMITED;
@@ -3427,14 +3441,38 @@ export const flyFramesLeft = (effect, used) => {
 };
 // The climb speed, px per 60fps-frame, from the item's Lift (blocks per second).
 export const flyRisePx = (effect, CH) => Math.max(1, Math.min(30, (effect && effect.lift) ?? 8)) * CH / 60;
-export const flyState = (effect, K, onGround, climbing, vy, wasFlying, used, CH) => {
-  if (!effect || onGround || climbing || !K.jump) return null;
-  if (!wasFlying && vy < 0) return null; // the jump's own rise first — flight takes over at its top
+// The flight keys, read off the RAW key state — the 🚶 plane's own W/S rule. ↑/↓ are the AIM keys
+// (mergeInputIntent folds them into K.up/K.down for ladders), and aiming a rifle up in mid-air must
+// not launch you into the sky. `prevUp`/`prevJump` are last frame's W and Jump, for the presses.
+export const flyKeys = (RK, jump, prevUp, prevJump, frozen) => ({
+  up: !frozen && !!(RK && RK.up),
+  down: !frozen && !!(RK && RK.down),
+  upPress: !frozen && !!(RK && RK.up) && !prevUp,
+  jumpPress: !!jump && !prevJump,
+});
+export const flyState = (effect, FK, onGround, climbing, wasFlying, used, CH) => {
+  if (!effect || onGround || climbing) return null;
   if (flyFramesLeft(effect, used) <= 0) return null;
-  return { active: true, rise: flyRisePx(effect, CH), control: Math.max(0.3, Math.min(2, effect.control ?? 1)) };
+  if (wasFlying ? FK.jumpPress : !FK.upPress) return null; // W takes off; Space lets go
+  const rise = flyRisePx(effect, CH);
+  const dir = (FK.up ? -1 : 0) + (FK.down ? 1 : 0); // W and S together cancel out: a hover
+  return { active: true, rise, vyTarget: dir * rise, control: Math.max(0.3, Math.min(2, effect.control ?? 1)), drag: FLY_DRAG };
 };
-// One frame of climbing: vy eases toward -rise (dt-correct, never overshooting).
-export const flyVy = (vy, rise, dtMul) => (vy || 0) + (-rise - (vy || 0)) * Math.min(1, FLY_EASE * (dtMul || 1));
+// One frame of flight: vy eases toward the target speed (dt-correct, never overshooting) — -rise
+// climbing, +rise coming down, 0 hovering. flyVy is the climb, which is all a unit ever asks for.
+export const flyEaseVy = (vy, target, dtMul) => (vy || 0) + ((target || 0) - (vy || 0)) * Math.min(1, FLY_EASE * (dtMul || 1));
+export const flyVy = (vy, rise, dtMul) => flyEaseVy(vy, -rise, dtMul);
+// A flying UNIT next to a target that is itself in the AIR holds that target's height instead of
+// climbing past it and dropping back: the speed it wants is proportional to how far its feet are
+// from the target's (`dy` px, + = the target is lower), capped at the item's Lift either way. The
+// first cut climbed to the target's feet, switched off, fell a cell and a half and took off again,
+// a yo-yo that would have flicked between the flying pose and a fall every half second.
+export const FLY_HOVER_GAIN = 0.08;
+export const flyHoverVy = (dy, rise) => Math.max(-rise, Math.min(rise, (dy || 0) * FLY_HOVER_GAIN));
+// The one line the screen says about it (the studio's showFlyHint): "when you pick up or start with a
+// flying item it should say (In subtle font on screen) how to activate flight".
+export const FLY_HINT_TEXT = "Press W in mid-air to fly";
+export const FLY_HINT_MS = 5000;
 // Slide (skates / ice): resolves the equipped effect into { grip, slope } clamped to sane ranges.
 // grip is the per-frame fraction of the speed gap ground movement closes (low = slippery, coasts
 // when you let go); slope multiplies the downhill ramp pull. null when no slide item is worn.
@@ -4293,12 +4331,14 @@ export const EFFECT_TYPES = {
       { key: "control", label: "Air control", min: 0.3, max: 1, step: 0.05, def: 1 },
     ],
   },
-  // Hold Jump in the air to fly (see flyState). Animated like Glide: a looping Side animation per
-  // body plays while flying. Worn by a 👹 Enemy it flies up to reach a target standing above it.
+  // Press W in mid-air to fly (see flyState). NO designed animation (noAnim): every body flies in the
+  // one built-in pose (flyPose) — Blake called the 🎬 designer it shipped with "un wanted". Worn by a
+  // 👹 Enemy it flies up to reach a target above it, and holds the height of one in the air.
   fly: {
     label: "Fly", icon: "🦸",
-    blurb: "Hold Jump in the air to fly upward, steering with the movement keys; let go to drop. Lift is how fast you climb, Air speed how fast you move sideways while flying, and Flight time how long you can stay up before touching the ground again (the top of the slider is no limit). Worn by a 👹 Enemy, it flies up after a target above it. Design a Side-view animation for it, per body — a body with none yet just plays this item's normal look while flying.",
-    brief: (p) => "hold Jump in the air to fly" + ((p.time ?? FLY_TIME_UNLIMITED) >= FLY_TIME_UNLIMITED ? "" : " · " + briefNum(p.time) + "s"),
+    blurb: "Press W in mid-air to take off. Hold W to climb, S to come down, neither to hover, and steer with A/D; press Jump to let go (a Glide worn with it then carries you down). Lift is how fast you climb, Air speed how fast you move sideways while flying, and Flight time how long you can stay up before touching the ground again (the top of the slider is no limit). Worn by a 👹 Enemy, it flies up after a target above it.",
+    brief: (p) => "press W in mid-air to fly" + ((p.time ?? FLY_TIME_UNLIMITED) >= FLY_TIME_UNLIMITED ? "" : " · " + briefNum(p.time) + "s"),
+    noAnim: true,
     params: [
       { key: "lift", label: "Lift", min: 2, max: 20, step: 1, def: 8 },
       { key: "control", label: "Air speed", min: 0.5, max: 2, step: 0.1, def: 1, fmt: (v) => "×" + (+v).toFixed(1) },
@@ -5729,6 +5769,84 @@ export const stompLegBlocks = (blocks, lift, forward = 1) => {
   if (!(lift > 0)) return out;
   out = applyLimbSwing(out, moving, armIds, -forward * STOMP_KNEE_DEG * lift);
   return out.map((b) => (moving.has(b.id) ? { ...b, x: b.x + forward * STOMP_FWD_PX * lift, y: b.y - STOMP_LIFT_PX * lift } : b));
+};
+// 🦸 THE FLYING POSE (2026-10-03). Blake: Fly's 🎬 Design animation menu "is un wanted. Just add in a
+// logical flying animation ... you may need multiple animations." So Fly is `noAnim`, and every body
+// flies in ONE built-in pose that follows what the flight is doing, the way the walk cycle follows the
+// stride — nothing to draw, for any body:
+//   HOVER (nothing held)  upright with a slight lean, arms out in front for balance, the legs treading
+//                         slowly, and the whole body bobbing gently on the spot.
+//   CLIMB (W)             "up, up and away": arms straight up over the head, legs together.
+//   COME DOWN (S)         arms raised out in front to brake, legs a step apart reaching for the floor.
+//   FLY ALONG (A/D)       the superhero dive: the body tips over toward travel, the arms reach ahead
+//                         along it and the legs trail together in a small flutter kick — tipped less
+//                         while climbing, further while diving.
+// `h` is sideways speed as a share of flying speed (0..1), `v` is up/down as a share of the item's Lift
+// (−1 climbing .. +1 coming down), `t` is frames flown. h and v are eased in the loop (advanceFlyPose),
+// so a key press BLENDS from one pose into the next instead of snapping. Out come `tilt` (degrees the
+// whole body tips toward the art's front — the wrapper's rotate), `arm` (degrees raised from hanging:
+// 0 down at the side, 90 level ahead, 180 straight overhead — see armRaiseAbs), `legSwing` (the walk's
+// own ± scissor for the leg pair) and `bob` (px down the screen).
+export const FLY_TILT_DEG = 55;
+export const flyPose = (h, v, t) => {
+  const hh = Math.max(0, Math.min(1, h || 0)), vv = Math.max(-1, Math.min(1, v || 0)), tt = t || 0;
+  const up = Math.max(0, -vv), dn = Math.max(0, vv);
+  const still = (1 - hh) * (1 - Math.abs(vv)); // how much of a pure hover this is
+  return {
+    tilt: hh * (FLY_TILT_DEG + 15 * vv) + (1 - hh) * 4 * (1 - up),
+    arm: (35 + 145 * up + 75 * dn) * (1 - hh) + 170 * hh,
+    legSwing: still * 14 * Math.sin(tt * 0.07) + hh * 6 * Math.sin(tt * 0.3) + dn * (1 - hh) * 12,
+    bob: still * 2.5 * Math.sin(tt * 0.06),
+  };
+};
+// The stored rot that raises an arm `deg` from hanging at the side, through level-and-forward (90,
+// armAimAbs) to straight up (180, armClimbAbs) — the same path for every shoulder side, so the two
+// existing tables are its 90 and 180 (and armPushOffAbs its 135). Mirrored for art drawn facing left
+// exactly as armAimAbsFacing mirrors the level aim.
+export const armRaiseAbs = (pv0, deg) => { const pv = pv0 || "top"; return (pv === "top" ? 0 : pv === "bottom" ? 180 : pv === "left" ? 90 : -90) - deg; };
+export const armRaiseAbsFacing = (pv0, deg, facesRight) => {
+  const a = armRaiseAbs(pv0, deg);
+  if (facesRight) return a;
+  const pv = pv0 || "top";
+  return (pv === "top" || pv === "bottom") ? -a : 180 - a;
+};
+// Eases a flyer's pose inputs one frame toward where the flight is (see flyPose), on the body itself —
+// the player's `p` or a unit's `ep`, so both sides draw the same flight. `aim` is "the arms are busy"
+// (a shot, a swing, a throw, a block): the body straightens up for it, so a gun aimed level at you is
+// level on screen too and the shot leaves the barrel it appears to leave.
+export const FLY_POSE_EASE = 0.15;
+export const advanceFlyPose = (b, h, v, aim, dtMul) => {
+  const k = 1 - Math.pow(1 - FLY_POSE_EASE, dtMul || 1);
+  const ease = (cur, to) => (cur || 0) + (to - (cur || 0)) * k;
+  b.flyH = ease(b.flyH, Math.max(0, Math.min(1, h || 0)));
+  b.flyV = ease(b.flyV, Math.max(-1, Math.min(1, v || 0)));
+  b.flyAim = ease(b.flyAim, aim ? 1 : 0);
+  b.flyT = (b.flyT || 0) + (dtMul || 1);
+};
+export const clearFlyPose = (b) => { b.flyH = 0; b.flyV = 0; b.flyAim = 0; b.flyT = 0; };
+export const flyPoseOf = (b) => flyPose(b && b.flyH, b && b.flyV, b && b.flyT);
+// The body's tip, in degrees about the sprite's centre in the ART's frame: forward is clockwise for
+// art drawn facing right and anticlockwise for art drawn facing left. The facing flip sits ahead of
+// it in the wrapper's transform list, so on screen it always tips toward where the flyer is going.
+export const flyTiltDeg = (b, facesRight) => (facesRight ? 1 : -1) * flyPoseOf(b).tilt * (1 - Math.max(0, Math.min(1, (b && b.flyAim) || 0)));
+// The legs of the flying pose: the walk's own pair — addBackLeg's counter-phase clone and the drawn
+// leg — scissored by legSwing, so every body that walks also flies, shoes and trouser legs included.
+export const flyLegBlocks = (blocks, pose) => {
+  const { legIds, armIds } = identifyLimbs(blocks);
+  return applyLimbSwing(addBackLeg(blocks, legIds, pose.legSwing), legIds, armIds, pose.legSwing);
+};
+// ...and the arms: every weapon arm raised to pose.arm about its own shoulder, a twin's sign flipped so
+// both read the same way on screen, and sleeves riding the nearest arm rigidly — the ladder's rule.
+export const flyArmTarget = (a, pose, facesRight = true) => armRaiseAbsFacing(a.armPivot, pose.arm, facesRight) * armMirrorTwist(a);
+export const flyPoseBlocks = (blocks, pose, facesRight = true) => {
+  const out = flyLegBlocks(blocks, pose);
+  const anchorOf = armAnchorFinder(out);
+  return out.map((b) => {
+    if (b.role === "weaponArm") return { ...b, rot: flyArmTarget(b, pose, facesRight) };
+    if (b.limb !== "arm" || b._isShoe) return b;
+    const a = anchorOf(b);
+    return a ? rigidArmFollow(b, a, flyArmTarget(a, pose, facesRight)) : b;
+  });
 };
 const LV_COLORS = PALETTES.terrain.colors;
 function newLevel() {
@@ -10900,6 +11018,21 @@ export default function AssetStudio() {
     setPickupBanner({ n, name: name || "", rows: rows || [], rank: ITEM_RANKS.includes(rank) ? rank : DEFAULT_ITEM_RANK });
     setTimeout(() => setPickupBanner((b) => (b && b.n === n ? null : b)), PICKUP_BANNER_MS);
   };
+  // 🦸 THE FLIGHT HINT. Blake: "when you pick up or start with a flying item it should say (In subtle
+  // font on screen) how to activate flight". One small, quiet line low in the view (FLY_HINT_TEXT),
+  // faded in and out over FLY_HINT_MS; nothing over the player, nothing in the HUD. Fired by the play
+  // loop the first time it (re)starts with a Fly item worn (hadFly) — the start of play, or the re-run
+  // a pickup or a shop purchase triggers — and not again while the same flight stays on you, so
+  // walking through a gate with the cape on says nothing. `flyHint` is the line's number while it is
+  // up (it keys the element, so a second showing restarts the fade) and 0 when it is not.
+  const [flyHint, setFlyHint] = useState(0);
+  const flyHintSeq = useRef(0);
+  const hadFly = useRef(false);
+  const showFlyHint = () => {
+    const n = ++flyHintSeq.current;
+    setFlyHint(n);
+    setTimeout(() => setFlyHint((h) => (h === n ? 0 : h)), FLY_HINT_MS);
+  };
   useEffect(() => { loadGameFonts(); }, []);
   // saves to Claude's storage when present, otherwise the browser's localStorage
   // ---- Pulling a library out of a PREVIOUS preview address ---------------------------------------
@@ -11723,6 +11856,11 @@ export default function AssetStudio() {
     const backGuardEffect = (playerAsset?.effects || []).find((e) => e.type === "backGuard") || null;
     const glideEffect = (playerAsset?.effects || []).find((e) => e.type === "glide") || null;
     const flyEffect = (playerAsset?.effects || []).find((e) => e.type === "fly") || null;
+    // Say how to fly (showFlyHint) when a Fly item has just come ON: worn at the start of play, or
+    // picked up or bought (both bump equipGen, which re-runs this effect). A gate's re-run with the
+    // same item still on says nothing; taking it off and putting one back on says it again.
+    if (flyEffect && !hadFly.current) showFlyHint();
+    hadFly.current = !!flyEffect;
     const slideEffect = (playerAsset?.effects || []).find((e) => e.type === "slide") || null;
     const slideResolved = slideState(slideEffect);
     const backGuardReduce = backGuardEffect ? (backGuardEffect.reduce ?? 0.5) : null; // null = no cape, skip the behind check entirely
@@ -12110,8 +12248,10 @@ export default function AssetStudio() {
       // shoot without having to walk. Movement keys win if both are held (you face where you go).
       if (!K.left && !K.right) { if (K.aimLeft) p.face = -1; else if (K.aimRight) p.face = 1; }
       // 🦸 Flying steers the way a glide does (horizVel's air-control branch), at the item's Air
-      // speed, which may run past walking pace — so it is exempt from the airborne cap too.
-      const flyMove = flyState(flyEffect, K, p.onGround, p.climbing || p.topdown, p.vy, p.flying, p.flyUsed, CH);
+      // speed, which may run past walking pace — so it is exempt from the airborne cap too. FK is
+      // the flight's own keys (flyKeys): raw W/S, and whether W and Jump were PRESSED this frame.
+      const FK = flyKeys(RK, K.jump, p.wasFlyUp, p.wasJump, frozen);
+      const flyMove = flyState(flyEffect, FK, p.onGround, p.climbing || p.topdown, p.flying, p.flyUsed, CH);
       const glideMove = flyMove ? null : glideState(glideEffect, K, p.onGround, p.climbing || p.topdown, p.vy);
       const airSteer = flyMove || glideMove;
       dx = horizVel(K, speed, grounded, p.vx, airSteer, slideResolved, dtMul);
@@ -12197,7 +12337,9 @@ export default function AssetStudio() {
       // the leap (playerPoseKey). Deliberately not climbJump itself: that also clears the instant
       // you drift clear of the climb cells, so pushing off sideways would snap your back away one
       // or two frames into the jump. This lasts the whole rise and clears at the apex.
-      if (p.climbJumpKind && p.vy >= 0) p.climbJumpKind = null;
+      // ...and the moment you FLY: a climb held on W never reaches an apex, so the back-to-camera
+      // climbing pose would have ridden the whole flight up.
+      if (p.climbJumpKind && (p.vy >= 0 || p.flying)) p.climbJumpKind = null;
       if (p.dropCooldown > 0) p.dropCooldown -= dtMul;
       if (p.invuln > 0) p.invuln -= dtMul;
       if (p.lifeGrace > 0) p.lifeGrace -= dtMul; // the 🐱 Extra Life window — the one fire honours (see reviveInPlace)
@@ -12278,7 +12420,11 @@ export default function AssetStudio() {
       // bug. climbJumpGrab lasts until you land or grab something, and only ever unlocks LADDERS
       // (bars/cliff grabs were always automatic), so nothing else changes.
       const wantsLadder = p.climbing || K.up || K.down || p.climbJumpGrab;
-      let climbing = overlapClimb && !p.climbJump && p.dropCooldown <= 0 && (climbKindHere !== "ladder" || wantsLadder);
+      // 🦸 Nothing catches a FLYER. W is the climb key on a ladder and the climb key in the air, so
+      // flying up past a ladder with W held — or across monkey bars, which grab by themselves — would
+      // otherwise snatch you out of the sky. Before take-off W still catches a ladder (see flyState):
+      // the grab is decided here, ahead of the flight, so a ladder within reach always wins the press.
+      let climbing = !p.flying && overlapClimb && !p.climbJump && p.dropCooldown <= 0 && (climbKindHere !== "ladder" || wantsLadder);
       // Bars/cliff: no grabbing one from above it (see canGripClimb). Falling back down onto the
       // bar re-grabs on the first frame the grip point is level with it again, so this reads as
       // "you can hang, you can drop, you can shimmy — you cannot get on top of it."
@@ -12388,28 +12534,30 @@ export default function AssetStudio() {
         // down (a gentle descent). Resolved fresh here off this frame's live vy so it engages the
         // moment you start falling and drops the instant you let go of Jump or touch down. It
         // never applies during the rise, so it can't turn a jump into a float upward.
-        // 🦸 Fly first (flyState): holding Jump past the top of a jump, or while falling, climbs at
-        // the item's Lift instead of falling. It outranks a Glide worn alongside it — both answer
-        // "Jump held in the air", and flying is the stronger ask — and the glide takes over again
-        // the moment the flight time runs out.
-        const fly = flyState(flyEffect, K, p.onGround, climbing, p.vy, p.flying, p.flyUsed, CH);
+        // 🦸 Fly first (flyState): a press of W in mid-air takes off, and from then on W climbs, S
+        // comes down and neither hovers, until you land, the time runs out or Jump lets go. It no
+        // longer shares a key with Glide (Jump held while falling), so the two never compete: the
+        // glide is simply there the moment the flight ends with Space still held.
+        const fly = flyState(flyEffect, FK, p.onGround, climbing, p.flying, p.flyUsed, CH);
+        if (fly && !p.flying) clearFlyPose(p); // a fresh take-off starts its pose from the hover
         p.flying = !!fly;
         const glide = fly ? null : glideState(glideEffect, K, p.onGround, climbing, p.vy);
         p.gliding = !!(glide && glide.active);
-        // Play the flying / gliding item's own Side animation while it is in use — reusing the same
+        // Play the gliding item's own Side animation while it is in use — reusing the same
         // effectAnim channel Double Jump uses, so the render swap needs no new code. Looped
         // (frameDur small, index wraps in the renderer via modulo below), tagged with WHICH effect
-        // it belongs to so going from flying straight into a glide swaps one loop for the other,
-        // and handed back to null the moment neither is on so the normal look returns. Never
-        // stomps an active double-jump animation that's still playing.
-        const loopFx = p.flying ? flyEffect : p.gliding ? glideEffect : null;
+        // it belongs to, and handed back to null the moment the glide is off so the normal look
+        // returns. Never stomps an active double-jump animation that's still playing. FLYING has no
+        // designed animation any more (EFFECT_TYPES.fly is noAnim — see flyPose): any frames an
+        // older Fly item still carries are ignored, and a glide loop is dropped on take-off.
+        const loopFx = p.gliding ? glideEffect : null;
         if (loopFx && loopFx.frames && loopFx.frames.length) {
           if (!(p.effectAnim && (p.effectAnim.oneShot || p.effectAnim.fx === loopFx.type))) p.effectAnim = { slot: loopFx.slot, frames: loopFx.frames, t: 0, frameDur: 6, loop: true, fx: loopFx.type };
         } else if (p.effectAnim && p.effectAnim.loop) {
           p.effectAnim = null;
         }
         if (fly) {
-          p.vy = flyVy(p.vy, fly.rise, dtMul); p.flyUsed = (p.flyUsed || 0) + dtMul;
+          p.vy = flyEaseVy(p.vy, fly.vyTarget, dtMul); p.flyUsed = (p.flyUsed || 0) + dtMul;
           p.y += p.vy * dtMul; p.onGround = false;
           // The sky is a ceiling. Rising past the level's top edge used to be possible only by being
           // flung there, and `p.y < -200` below treats it as falling out of the world — so a held
@@ -12440,6 +12588,16 @@ export default function AssetStudio() {
       // plain ground jump near a ladder would start grabbing it without you asking.
       if (p.climbJumpGrab && (climbing || p.onGround)) p.climbJumpGrab = false;
       p.wasJump = !!K.jump;
+      p.wasFlyUp = FK.up;
+      // 🦸 Where the flight is, for the flying pose (flyPose): how fast you actually MOVED sideways
+      // as a share of flying speed — moved, not steered, so pressing into a wall stands you back up
+      // rather than leaving you tipped into it — and up/down as a share of the Lift. Arms busy with
+      // a shot, a swing, a throw or a block straighten the body (the shot leaves the barrel it
+      // appears to leave). Last frame's p.aiming, since this frame's is decided further down.
+      if (p.flying) {
+        const flySpeed = Math.max(0.01, speed * Math.max(0.3, Math.min(2, flyEffect.control ?? 1)));
+        advanceFlyPose(p, Math.abs(p.x - prevX) / flySpeed, p.vy / Math.max(0.01, flyRisePx(flyEffect, CH)), !!(p.firing || p.aiming || p.throwAiming || p.throwFiring > 0 || p.blocking), dtMul);
+      }
       if (p.effectAnim) p.effectAnim.t += dtMul;
 
       // Live aim tracking — a projectile weapon lets ↑/↓ preview the shot's angle before you
@@ -13005,13 +13163,20 @@ export default function AssetStudio() {
           // of reach is the chase a flying enemy exists for (the first cut used it, and a unit in
           // Fly gear stood still under a player hanging in the air). The ranged stand-off rule is
           // the climb route's own: a gunman that can already shoot you from here stays and shoots.
+          // A target that is itself IN THE AIR (flying, or mid-jump) is followed, not just climbed
+          // to: the unit stays up while that target is no more than a cell below it and holds its
+          // height (flyHoverVy), so a flying enemy hangs in the sky beside a flying you instead of
+          // climbing, dropping and climbing again — the yo-yo the first cut did, which with a flying
+          // pose on screen would have flicked between flying and falling every half second.
           if (ep.onGround || ep.topdown || ep.climbing) { ep.flyUsed = 0; ep.flying = false; }
           if ((ep.flyBlockT || 0) > 0) ep.flyBlockT = Math.max(0, ep.flyBlockT - dtMul);
           const eFlyFx = (ea.effects || []).find((e) => e && e.type === "fly") || null;
           const flyTgtFeet = navTgt ? navTgt.y + navTgtH : null;
+          const flyTgtAir = !!navTgt && navTgtFeet == null; // off its feet: standingLineY's null
           const eFlyUp = !!eFlyFx && navPursuing && flyTgtFeet != null && !ep.climbing && !ep.topdown && !((ep.down || 0) > 0) && !((ep.flyBlockT || 0) > 0)
-            && (ep.flying ? flyTgtFeet < myFeetY - CH * 0.25 : (flyTgtFeet < myFeetY - CH * 1.5 && (following || !rangedEnemy || !targetOnLevel)))
-            && flyFramesLeft(eFlyFx, ep.flyUsed) > 0;          const navRouteLv = navPursuing && navOff && !ep.climbing && !eFlyUp
+            && (ep.flying ? (flyTgtFeet < myFeetY - CH * 0.25 || (flyTgtAir && flyTgtFeet < myFeetY + CH)) : (flyTgtFeet < myFeetY - CH * 1.5 && (following || !rangedEnemy || !targetOnLevel)))
+            && flyFramesLeft(eFlyFx, ep.flyUsed) > 0;
+          const navRouteLv = navPursuing && navOff && !ep.climbing && !eFlyUp
             ? unitClimbRoute(navPart.lv, { cx: eCenterXNow - navPart.ox, fx: ep.x + epw / 2 - navPart.ox, feet: myFeetY - navPart.oy, h: standEph, topdown: navMeTopdown }, { cx: targetCX - navPart.ox, feet: navTgtFeet - navPart.oy, topdown: navTgtTopdown }, navJumpPx, CW, CH, (r, c) => !!navPart.lv.fg[cellKey(r, c)] || solidAtW(r + (navPart.dr || 0), c + (navPart.dc || 0)))
             : null;
           const navRoute = navRouteLv && { ...navRouteLv, x: navRouteLv.x + navPart.ox, feet: navRouteLv.feet == null ? null : navRouteLv.feet + navPart.oy };
@@ -13239,15 +13404,18 @@ export default function AssetStudio() {
               if (eAgi > 5) ep.vy -= (eAgi - 5) * JUMP_HOLD_BOOST_ACCEL * dtMul;
               ep.jumpHoldT += dtMul;
             }
+            if (eFlyUp && !ep.flying) clearFlyPose(ep); // a fresh take-off starts its pose from the hover
             ep.flying = eFlyUp;
             const eGlideNow = eFlyUp ? null : glideState(eGlide, { jump: true }, false, false, ep.vy);
             ep.gliding = !!(eGlideNow && eGlideNow.active);
             if (eFlyUp) {
-              // 🦸 Climbing (see eFlyUp). A flying body is stopped by a roof the way your jump is: a
+              // 🦸 Climbing (see eFlyUp) — or, beside a target that is in the air, holding its height
+              // (flyHoverVy). A flying body is stopped by a roof the way your jump is: a
               // step that would put its head into solid it was not already in is not taken, so it
               // cannot rise up THROUGH the storey its target is standing on — it slides along under
               // it, still steering at the target, until it finds the open air beside it.
-              ep.vy = flyVy(ep.vy, flyRisePx(eFlyFx, CH), dtMul); ep.flyUsed = (ep.flyUsed || 0) + dtMul; ep.onGround = false;
+              const eRise = flyRisePx(eFlyFx, CH);
+              ep.vy = flyEaseVy(ep.vy, flyTgtAir ? flyHoverVy(flyTgtFeet - (ep.y + newEph), eRise) : -eRise, dtMul); ep.flyUsed = (ep.flyUsed || 0) + dtMul; ep.onGround = false;
               const ny = ep.y + ep.vy * dtMul;
               const inBox = new Set(cellsHitW(ep.x, ep.y, epw, newEph).map((h) => h.r + "," + h.c));
               // Bumping a roof also grounds the flight for three seconds (flyBlockT), so a target
@@ -13255,6 +13423,10 @@ export default function AssetStudio() {
               // route takes over while it waits — instead of by hovering against the ceiling forever.
               if (cellsHitW(ep.x, ny, epw, newEph).some((h) => !inBox.has(h.r + "," + h.c) && h.r * CH < ny + CH)) { ep.vy = 0; ep.flyBlockT = 180; ep.flying = false; }
               else ep.y = ny;
+              // The flying pose's inputs, the player's own (advanceFlyPose): how far it actually
+              // moved sideways as a share of its flying speed, up/down as a share of the Lift, and
+              // whether its arms are busy aiming, swinging or throwing.
+              if (ep.flying) advanceFlyPose(ep, Math.abs(ep.x - exBefore) / Math.max(0.01, aiSpeed * Math.max(0.3, Math.min(2, eFlyFx.control ?? 1))), ep.vy / Math.max(0.01, eRise), (ep.aimHold || 0) > 0 || (ep.swingT || 0) > 0 || (ep.throwT || 0) > 0, dtMul);
             } else {
               const eGravMul = ep.gliding ? eGlideNow.fall : ((ep.extraJumped && ep.djGravMul) ? ep.djGravMul : 1);
               ep.vy = Math.min(60, ep.vy + 0.175 * dtMul * eGravMul);
@@ -18317,7 +18489,7 @@ export default function AssetStudio() {
     // The run's world frame starts at its first level, and .lgrid keeps that level's box for the
     // whole run — see THE WORLD NEVER MOVES AT A GATE, at the level render.
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
-    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true };
+    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true };
     if (runStart) {
       const startNode = runStart.nodes[runStart.startKey];
       runRef.current = runStart; prepRunNeighbours(runStart, startNode);
@@ -20203,6 +20375,12 @@ export default function AssetStudio() {
                     blocks = addBackLeg(blocks, legIds, swing);
                     blocks = applyLimbSwing(blocks, legIds, armIds, swing);
                     blocks = applyWalkArmSwing(blocks, swing); // arms swing opposite the legs; applyLimbSwing never touches them
+                  } else if (blocks && p.flying && angle === "side") {
+                    // 🦸 FLYING: the built-in pose (flyPose) — hover, climb, come down or the
+                    // superhero dive along, blended from where the flight is. Legs and arms here; the
+                    // body's tip is the wrapper's rotate (see `lean`) and the hover's bob is on `top`.
+                    // A shot, swing, throw or block still takes the arm in the branches below.
+                    blocks = flyPoseBlocks(blocks, flyPoseOf(p), playerArtFacesRight(basePlayerAsset));
                   } else if (blocks && airborne && angle === "side" && !p.effectAnim) {
                     // Airborne (a jump/fall) with no custom effect animation: split the legs into a
                     // leap so the feet visibly move instead of freezing in the standing side pose —
@@ -20395,7 +20573,12 @@ export default function AssetStudio() {
                   // facing to keep the on-screen tilt pointing the same way as velocity for both.
                   let lean = "";
                   if (ascendingSlope) lean = "rotate(10deg)";
-                  else if (airborne) {
+                  else if (p.flying) {
+                    // 🦸 Flying tips the whole body toward travel (flyTiltDeg): a few degrees in a
+                    // hover, the superhero dive at speed, upright again while the arms are busy.
+                    const tip = flyTiltDeg(p, playerArtFacesRight(basePlayerAsset));
+                    if (Math.abs(tip) > 0.5) lean = `rotate(${tip.toFixed(1)}deg)`;
+                  } else if (airborne) {
                     const screenLean = Math.max(-16, Math.min(16, (p.vx || 0) * 3));
                     const localLean = p.face < 0 ? -screenLean : screenLean;
                     if (Math.abs(localLean) > 0.5) lean = `rotate(${localLean.toFixed(1)}deg)`;
@@ -20422,7 +20605,8 @@ export default function AssetStudio() {
                   // flattened by an enemy tackler left you hovering ~1.5 cells over the ground.
                   const downLift = downed ? layFlatLiftPx(blocks, renderW, ph) : 0; // every-frame path: don't walk the pieces unless someone is actually on the floor
                   const stompDip = p.stomp ? stompDipPx(p.stomp.t, p.stomp.dur) : 0; // the weight landing on the stamping foot
-                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift + stompDip, width: renderW, height: ph, transform: (downed ? [flip, shrink, "translateY(" + (-downLift).toFixed(2) + "px)", LAY_FLAT_ROT_CSS] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...(downed ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
+                  const flyBob = p.flying ? flyPoseOf(p).bob : 0; // the hover's gentle bob — the sprite only, never the hitbox
+                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift + stompDip + flyBob, width: renderW, height: ph, transform: (downed ? [flip, shrink, "translateY(" + (-downLift).toFixed(2) + "px)", LAY_FLAT_ROT_CSS] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...(downed ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
                   if (p.onFire > 0) style.filter = "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)";
                   // The 🐱 Extra Life window: the same invuln blink as an ordinary hit (set longer by
                   // reviveInPlace), tinted gold so it reads as "you got a life back" rather than
@@ -20722,6 +20906,11 @@ export default function AssetStudio() {
                     const stackedPivot = multiLegPivot(eBlocks, legIds, eSwing);
                     if (stackedPivot) eBlocks = stackedPivot;
                     else { eBlocks = addBackLeg(eBlocks, legIds, eSwing); eBlocks = applyLimbSwing(eBlocks, legIds, armIds, eSwing); }
+                  } else if (ep && ep.flying && !eUseAtkPose && !eFrontPose && !eClimbBack) {
+                    // 🦸 A flying unit flies in YOUR pose (flyPose), off its own eased flight. The legs
+                    // here; the arms further down, once the held weapon's base angle has been read off
+                    // the arm as drawn (they are turned the way an aim is, by driveUnitArms).
+                    eBlocks = flyLegBlocks(eBlocks, flyPoseOf(ep));
                   }
                   // A dressed-look enemy already has a frozen copy of its weapon baked into its
                   // art. Strip it and re-attach the live one, exactly as the player does, so the
@@ -20834,6 +21023,12 @@ export default function AssetStudio() {
                       ? (armAimAbsFacing(a.armPivot, eFacesRight) + eShotTilt) * armMirrorTwist(a)
                       : (a.rot || 0) + armForwardSign(a.armPivot, eFacesRight) * eSwingA * armMirrorTwist(a);
                     eBlocks = driveUnitArms(eBlocks, primary, armRotOf);
+                  } else if (ep && ep.flying && eRealArm && !eUseAtkPose && !eFrontPose && !eClimbBack && !isCreatureUnit(ea)) {
+                    // 🦸 The flying pose's arms (flyArmTarget) — overhead on the climb, ahead in the
+                    // dive, out for balance in a hover — by the same per-arm rule as the aim above, so
+                    // the weapon in the hand rides along. A drawn creature keeps its paws as drawn.
+                    const ePose = flyPoseOf(ep);
+                    eBlocks = driveUnitArms(eBlocks, eArm0, (a) => flyArmTarget(a, ePose, eFacesRight));
                   }
                   if (ew && !eUseAtkPose && !eThrowingNow) {
                     const curArm = eHeldArmNow();
@@ -20893,8 +21088,13 @@ export default function AssetStudio() {
                   // to a floating position" bug. Read off eBlocks — after the weapon is attached
                   // and the walk swing applied — so what lands on the ground is what's on screen.
                   const downed = !!(ep && ep.down > 0);
+                  // 🦸 A flying unit tips toward travel exactly as you do (flyTiltDeg) — after the
+                  // facing flip, so it leans the way it is going. Not a drawn creature: tipping a
+                  // four-legged body over reads as a nose-dive, not as flying.
+                  const eFlyTip = (ep && ep.flying && !downed && !eFrontPose && !isCreatureUnit(ea)) ? flyTiltDeg(ep, enemyArtFacesRight(ea)) : 0;
                   const wrapTransform = downed
                     ? (flip === "none" ? "" : flip + " ") + "translateY(" + (-layFlatLiftPx(eBlocks, eRenderW, eph)).toFixed(2) + "px) " + LAY_FLAT_ROT_CSS
+                    : Math.abs(eFlyTip) > 0.5 ? ((flip === "none" ? "" : flip + " ") + "rotate(" + eFlyTip.toFixed(1) + "deg)")
                     : flip;
                   // Depth on a shared 🚶 plane (topdownDepthZ): the player's feet line against this
                   // unit's, both in the live level's frame (U.off moves a neighbour's unit into it).
@@ -20941,7 +21141,7 @@ export default function AssetStudio() {
                             an NPC standing behind a tree still advertises itself. */}
                         {eTalkWaiting && !downed ? <div className="talkBadge">💬</div> : null}
                       </div>
-                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : {}), ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : {}), ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {(() => {
                           const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + uKey, keyPrefix: uKey + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
                           // Draw the art at its true aspect when the box isn't one (ducking): on a
@@ -21201,6 +21401,8 @@ export default function AssetStudio() {
                   {pickupBanner.rows.length > 0 && <div className="pbRows">{pickupRowsView(pickupBanner.rows)}</div>}
                 </div>
               )}
+              {/* 🦸 THE FLIGHT HINT (see showFlyHint): the view's, like the banner, low and quiet. */}
+              {play && flyHint > 0 && <div key={"flyhint" + flyHint} className="flyHint">{FLY_HINT_TEXT}</div>}
             </div>
           </div>
 
@@ -22958,6 +23160,8 @@ html,body{margin:0;padding:0;background:#0f1117}
    sweeps across once. It pops in with an overshoot, holds, then drifts up and fades — pbLife's
    length is PICKUP_BANNER_MS, which is when the element is removed. A soft burst in the rank colour flares behind
    it on arrival. No backticks in here: this sheet is a JS template literal. */
+.flyHint{position:absolute;left:50%;bottom:11%;z-index:5;transform:translateX(-50%);pointer-events:none;font-size:12px;letter-spacing:.05em;color:rgba(255,255,255,.72);text-shadow:0 1px 3px rgba(0,0,0,.9);white-space:nowrap;animation:flyHintLife 5s ease-in-out forwards}
+@keyframes flyHintLife{0%{opacity:0}10%,80%{opacity:1}100%{opacity:0}}
 .pickupBanner{position:absolute;left:50%;top:14%;z-index:5;max-width:94%;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:7px;transform:translateX(-50%);animation:pbLife 2.6s ease-out forwards}
 @keyframes pbLife{0%,78%{opacity:1;transform:translateX(-50%) translateY(0)}100%{opacity:0;transform:translateX(-50%) translateY(-18px)}}
 .pbBurst{position:absolute;left:50%;top:18px;width:300px;height:100px;margin:-50px 0 0 -150px;border-radius:50%;background:radial-gradient(ellipse at center,rgba(206,130,255,.62),rgba(140,60,255,.22) 45%,transparent 70%);animation:pbBurst .75s ease-out forwards}

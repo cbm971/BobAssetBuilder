@@ -547,6 +547,19 @@ import {
   flyRisePx,
   flyFramesLeft,
   FLY_TIME_UNLIMITED,
+  flyKeys,
+  flyEaseVy,
+  flyHoverVy,
+  FLY_HOVER_GAIN,
+  FLY_HINT_TEXT,
+  flyPose,
+  FLY_TILT_DEG,
+  armRaiseAbs,
+  armRaiseAbsFacing,
+  flyTiltDeg,
+  advanceFlyPose,
+  clearFlyPose,
+  flyPoseBlocks,
   incomingUnitDamage,
   guardReduceOf,
   unitCenterX,
@@ -11477,35 +11490,114 @@ describe("a unit plays by the player's rules", () => {
     expect(horizVel({ left: false, right: false }, 7, true, 7, null, skates, 1)).toBeGreaterThan(0); // coasts
   });
 
-  test("🦸 Fly: hold Jump in the air to climb, from the top of the jump, within the flight time", () => {
+  test("🦸 Fly: press W in mid-air to take off; W climbs, S comes down, neither hovers; Jump lets go", () => {
     const cape = { type: "fly", lift: 8, control: 1.5, time: 2 };
-    expect(flyState(cape, { jump: true }, true, false, 0, false, 0, 30)).toBe(null);        // on the ground: jump first
-    expect(flyState(cape, { jump: true }, false, false, -5, false, 0, 30)).toBe(null);      // the jump's own rise
-    const f = flyState(cape, { jump: true }, false, false, 0.5, false, 0, 30);              // past the top: flying
+    const keys = (o) => ({ up: false, down: false, upPress: false, jumpPress: false, ...o });
+    expect(flyState(cape, keys({ up: true, upPress: true }), true, false, false, 0, 30)).toBe(null);  // on the ground W does nothing
+    expect(flyState(cape, keys({ up: true }), false, false, false, 0, 30)).toBe(null);                // W HELD from before (a road, a ladder): no take-off
+    const f = flyState(cape, keys({ up: true, upPress: true }), false, false, false, 0, 30);          // a fresh press in the air: flying
     expect(f.active).toBe(true);
     expect(f.rise).toBeCloseTo(8 * 30 / 60, 9);
+    expect(f.vyTarget).toBeCloseTo(-f.rise, 9);                                                       // W held: climb
     expect(f.control).toBeCloseTo(1.5, 9);
-    expect(flyState(cape, { jump: true }, false, false, -3, true, 0, 30)).not.toBe(null);   // already flying: keeps climbing
-    expect(flyState(cape, { jump: false }, false, false, -3, true, 0, 30)).toBe(null);      // let go: drop
-    expect(flyState(cape, { jump: true }, false, true, 1, false, 0, 30)).toBe(null);        // on a ladder: no
-    expect(flyState(cape, { jump: true }, false, false, 1, true, 120, 30)).toBe(null);      // 2 s spent
+    expect(flyState(cape, keys(), false, false, true, 0, 30).vyTarget).toBe(0);                       // nothing held: hover
+    expect(flyState(cape, keys({ down: true }), false, false, true, 0, 30).vyTarget).toBeCloseTo(f.rise, 9); // S: come down
+    expect(flyState(cape, keys({ up: true, down: true }), false, false, true, 0, 30).vyTarget).toBe(0); // both: they cancel
+    expect(flyState(cape, keys({ jumpPress: true }), false, false, true, 0, 30)).toBe(null);         // Space lets go (and a Glide takes it)
+    expect(flyState(cape, keys({ jumpPress: true, up: true, upPress: true }), false, false, false, 0, 30)).not.toBe(null); // ...but never stops a take-off
+    expect(flyState(cape, keys({ up: true, upPress: true }), false, true, false, 0, 30)).toBe(null); // on a ladder: no
+    expect(flyState(cape, keys(), false, false, true, 120, 30)).toBe(null);                           // 2 s spent
+    expect(flyState(cape, keys(), true, false, true, 0, 30)).toBe(null);                              // landed
+    // the keys: RAW W/S (never the aim arrows), the presses edge-detected, nothing while frozen
+    expect(flyKeys({ up: true }, false, false, false, false)).toEqual({ up: true, down: false, upPress: true, jumpPress: false });
+    expect(flyKeys({ up: true }, false, true, false, false).upPress).toBe(false);
+    expect(flyKeys({ aimUp: true, aimDown: true }, false, false, false, false)).toEqual({ up: false, down: false, upPress: false, jumpPress: false });
+    expect(flyKeys({ up: true, down: true }, true, false, false, true)).toEqual({ up: false, down: false, upPress: false, jumpPress: true });
+    expect(flyKeys({}, true, false, true, false).jumpPress).toBe(false);
     expect(flyFramesLeft(cape, 60)).toBe(60);
     expect(flyFramesLeft({ type: "fly" }, 1e6)).toBe(Infinity);                              // default: no limit
     expect(flyFramesLeft({ type: "fly", time: FLY_TIME_UNLIMITED }, 1e6)).toBe(Infinity);
     expect(flyRisePx({ lift: 999 }, 30)).toBeCloseTo(30 * 30 / 60, 9);                      // clamped
-    // climbing eases toward the lift speed and never overshoots it, at any frame rate
+    // climbing eases toward the lift speed and never overshoots it, at any frame rate; so does a stop
     let vy = 3;
     for (let i = 0; i < 200; i++) vy = flyVy(vy, 4, 1);
     expect(vy).toBeCloseTo(-4, 6);
     expect(flyVy(3, 4, 100)).toBeCloseTo(-4, 9);
-    expect(effectBrief({ type: "fly" }).desc).toBe("hold Jump in the air to fly");
-    expect(effectBrief({ type: "fly", time: 3 }).desc).toBe("hold Jump in the air to fly · 3s");
+    expect(flyEaseVy(-4, 0, 100)).toBeCloseTo(0, 9);
+    // a flight drifts to a stop when A/D are let go; a glide still coasts; steering runs at Air speed
+    const flying = flyState(cape, keys(), false, false, true, 0, 30);
+    let vx = 6;
+    for (let i = 0; i < 120; i++) vx = horizVel({}, 7, false, vx, flying, null, 1);
+    expect(vx).toBe(0);
+    expect(horizVel({}, 7, false, 6, { active: true, fall: 0.35, control: 1 }, null, 1)).toBe(6);
+    expect(horizVel({ right: true }, 7, false, 0, flying, null, 1)).toBeCloseTo(7 * 1.5, 9);
+    // a unit beside a target in the air holds its height, at no more than the Lift either way
+    expect(flyHoverVy(0, 4)).toBe(0);
+    expect(flyHoverVy(-1000, 4)).toBe(-4);
+    expect(flyHoverVy(1000, 4)).toBe(4);
+    expect(flyHoverVy(10, 4)).toBeCloseTo(10 * FLY_HOVER_GAIN, 9);
+    expect(effectBrief({ type: "fly" }).desc).toBe("press W in mid-air to fly");
+    expect(effectBrief({ type: "fly", time: 3 }).desc).toBe("press W in mid-air to fly · 3s");
+    expect(EFFECT_TYPES.fly.noAnim).toBe(true); // no 🎬 Design animation: the flying pose is built in
+    expect(FLY_HINT_TEXT).toBe("Press W in mid-air to fly");
   });
 
-  test("🦸 Fly reaches both sides: the player loop and the unit loop both fly", () => {
+  test("🦸 The flying pose: hover, climb, come down and the superhero dive, blended", () => {
+    const hover = flyPose(0, 0, 0), climb = flyPose(0, -1, 0), down = flyPose(0, 1, 0), dive = flyPose(1, 0, 0);
+    expect(climb.arm).toBeCloseTo(180, 9);                                    // arms straight up
+    expect(climb.tilt).toBeCloseTo(0, 9);                                     // standing straight
+    expect(hover.arm).toBeGreaterThan(20); expect(hover.arm).toBeLessThan(60); // out a little for balance
+    expect(down.arm).toBeGreaterThan(90); expect(down.arm).toBeLessThan(climb.arm);
+    expect(dive.tilt).toBeCloseTo(FLY_TILT_DEG, 9);
+    expect(dive.arm).toBeGreaterThan(160);                                    // reaching ahead along the body
+    expect(flyPose(1, -1, 0).tilt).toBeLessThan(dive.tilt);                   // tipped less climbing...
+    expect(flyPose(1, 1, 0).tilt).toBeGreaterThan(dive.tilt);                 // ...further diving
+    // only a hover bobs and treads water
+    expect(Math.abs(flyPose(0, 0, 26).bob)).toBeGreaterThan(1);
+    expect(flyPose(1, 0, 26).bob).toBeCloseTo(0, 9);
+    expect(flyPose(0, -1, 26).bob).toBeCloseTo(0, 9);
+    expect(Math.abs(flyPose(0, 0, 22).legSwing)).toBeGreaterThan(Math.abs(flyPose(0, -1, 22).legSwing));
+    // continuous, so easing h and v blends the poses rather than switching them
+    expect(Math.abs(flyPose(0.5, 0.2, 9).tilt - flyPose(0.51, 0.2, 9).tilt)).toBeLessThan(1);
+    expect(Math.abs(flyPose(0.5, 0.2, 9).arm - flyPose(0.5, 0.21, 9).arm)).toBeLessThan(2);
+    // the raise angle runs through the tables the other arm poses use, for every shoulder side
+    const norm = (a) => ((a % 360) + 360) % 360;
+    for (const pv of ["top", "bottom", "left", "right"]) {
+      expect(norm(armRaiseAbs(pv, 90))).toBeCloseTo(norm(armAimAbs(pv)), 9);
+      expect(norm(armRaiseAbs(pv, 180))).toBeCloseTo(norm(armClimbAbs(pv)), 9);
+      expect(norm(armRaiseAbs(pv, 135))).toBeCloseTo(norm(armPushOffAbs(pv)), 9);
+      expect(norm(armRaiseAbsFacing(pv, 90, false))).toBeCloseTo(norm(armAimAbsFacing(pv, false)), 9);
+    }
+    // the tip: toward the art's front either way it was drawn, and upright while the arms are busy
+    const b = { flyH: 1, flyV: 0, flyT: 0, flyAim: 0 };
+    expect(flyTiltDeg(b, true)).toBeCloseTo(FLY_TILT_DEG, 9);
+    expect(flyTiltDeg(b, false)).toBeCloseTo(-FLY_TILT_DEG, 9);
+    expect(flyTiltDeg({ ...b, flyAim: 1 }, true)).toBeCloseTo(0, 9);
+    // the inputs ease, at any frame rate
+    const e = {}; clearFlyPose(e);
+    advanceFlyPose(e, 1, -1, false, 1);
+    expect(e.flyH).toBeGreaterThan(0); expect(e.flyH).toBeLessThan(1);
+    for (let i = 0; i < 100; i++) advanceFlyPose(e, 1, -1, true, 1);
+    expect(e.flyH).toBeCloseTo(1, 3); expect(e.flyV).toBeCloseTo(-1, 3); expect(e.flyAim).toBeCloseTo(1, 3);
+    expect(e.flyT).toBe(101);
+    // on Bob himself: the arm goes overhead on the climb (sleeve-less body, so it is the arm alone)
+    // and the one drawn leg gains the walk's trailing back leg
+    const side = newAsset("body").angles.side;
+    const posed = flyPoseBlocks(side, flyPose(0, -1, 0), true);
+    expect(norm(posed.find((p) => p.role === "weaponArm").rot)).toBeCloseTo(180, 6);
+    expect(posed.length).toBe(side.length + 1);
+    expect(norm(flyPoseBlocks(side, flyPose(0, 0, 0), true).find((p) => p.role === "weaponArm").rot)).toBeCloseTo(norm(-hover.arm), 6);
+  });
+
+  test("🦸 Fly reaches both sides: the player loop and the unit loop both fly, in the same pose", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
-    expect(src).toContain("const fly = flyState(flyEffect, K, p.onGround, climbing, p.vy, p.flying, p.flyUsed, CH);");
-    expect(src).toContain("ep.vy = flyVy(ep.vy, flyRisePx(eFlyFx, CH), dtMul);");
+    expect(src).toContain("const fly = flyState(flyEffect, FK, p.onGround, climbing, p.flying, p.flyUsed, CH);");
+    expect(src).toContain("ep.vy = flyEaseVy(ep.vy, flyTgtAir ? flyHoverVy(flyTgtFeet - (ep.y + newEph), eRise) : -eRise, dtMul);");
+    expect(src).toContain("blocks = flyPoseBlocks(blocks, flyPoseOf(p), playerArtFacesRight(basePlayerAsset));");
+    expect(src).toContain("eBlocks = flyLegBlocks(eBlocks, flyPoseOf(ep));");
+    expect(src).toContain("eBlocks = driveUnitArms(eBlocks, eArm0, (a) => flyArmTarget(a, ePose, eFacesRight));");
+    // ...and a Fly item's old designed frames are never played: only the glide loops an animation
+    expect(src).toContain("const loopFx = p.gliding ? glideEffect : null;");
   });
 
   test("🟣 Ally Health on a unit raises its side's ceiling on a channel of its own", () => {

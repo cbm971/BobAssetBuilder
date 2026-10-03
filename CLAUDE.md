@@ -904,32 +904,59 @@ crossed (E2 → the neighbour's W2). Being flung above the top of the world uses
 * The effect card in the equipment editor now shows each effect's `blurb` (it never had, for any
   effect), and the ＋ Add buttons carry it as a tooltip.
 
-**🦸 FLY (`EFFECT_TYPES.fly`, 2026-10-02).** Blake: "add a flying ability I can equip to clothes".
-Hold Jump in the air and you climb at the item's **Lift** (blocks/second), steering at its **Air
-speed** (×, may exceed walking pace, so it skips `capAirborneSpeed` like a glide); let go and you
-fall normally. The pure pieces are `flyState` / `flyVy` / `flyRisePx` / `flyFramesLeft`.
-* **It takes over at the TOP of a jump** (`!wasFlying && vy < 0` → not yet). Holding Space from the
-  ground still jumps first, so the Agility hold-assist and a ⤴️ Double Jump keep working; once
-  flying it stays on while Jump is held (`p.flying`). Walk off a ledge and hold Jump and it engages
-  at once. It outranks a 🪂 Glide worn alongside it, and the glide catches you when the time runs out.
+**🦸 FLY (`EFFECT_TYPES.fly`, 2026-10-02; controls, pose and hint redone 2026-10-03).** Blake: "add a
+flying ability I can equip to clothes", then: "What happens if you have fly and glide? How do you
+activate fly? I like to imagine if you press W in mid air it activates fly".
+* **Controls (`flyKeys` → `flyState`).** A fresh PRESS of W in mid-air takes off. Then W held climbs
+  at the item's **Lift** (blocks/second), S held comes down at the same rate, neither HOVERS
+  (`vyTarget` 0, eased by `flyEaseVy`), and A/D steer at its **Air speed** (×, may exceed walking
+  pace, so it skips `capAirborneSpeed` like a glide). Letting go of A/D drifts to a stop (`drag`,
+  `FLY_DRAG`) instead of the glide's coast. It ends on landing, when the time runs out, or on a
+  PRESS of Jump — Space lets go.
+* **Raw W/S, never the arrows** (the 🚶 plane's rule): ↑ is aim, and aiming up in mid-air must not
+  launch you. **A press, not a hold** (`p.wasFlyUp`): W is "walk up the road" on a plane and "climb"
+  on a ladder, so W held into a hop or off the top of a ladder does not fly — re-press it. Next to a
+  ladder, W in mid-air still grabs the ladder (the climb is decided first); once FLYING, nothing
+  grabs you (`!p.flying` on `climbing`), or flying up past a ladder with W held would snatch you.
+* **Fly + Glide** no longer share a key. W flies, Space glides: fly up, press Space to let go, keep
+  it held and the glide carries you down (verified on Super Bob's Proto Cape). A ⤴️ Double Jump
+  spends its jump on that same press. The first cut was "hold Jump in the air", so Fly won every
+  time and the glide only appeared once the flight time ran out.
 * **Flight time** refills on the ground, a 🚶 plane or a climb grip (`p.flyUsed`, frames). The
   slider's top stop `FLY_TIME_UNLIMITED` (30) means no limit and is the default. The param's `fmt`
   shows "∞" / "3s" / "×1.0" — `fmt` on an `EFFECT_TYPES` param is generic now.
 * **The level's top edge is a ceiling for a flyer** unless a top gate with a level above is there.
   Without it a held flight hit `p.y < -200` and was "flung off the world" back to the entry gate.
-* **The animation** rides the glide's looping `effectAnim` channel, tagged `fx` with the effect type
-  so flying straight into a glide swaps loops.
+* **NO designed animation — `noAnim: true`.** Blake: the 🎬 Design animation menu Fly shipped with "is
+  un wanted. Just add in a logical flying animation". Every body flies in one built-in pose,
+  `flyPose(h, v, t)`: HOVER (arms out for balance, legs treading, a ±2.5 px bob on the sprite only),
+  CLIMB (fist straight up, legs together), COME DOWN (arms out ahead, legs apart), FLY ALONG (the body
+  tips `FLY_TILT_DEG` 55° toward travel — 40° climbing, 70° diving — arms reaching ahead, legs in a
+  flutter kick). `h`/`v` are eased per frame by `advanceFlyPose` from what the body ACTUALLY did
+  (sideways px moved, not steered — flying into a wall stands you back up), so keys blend the poses.
+  `flyPoseBlocks` = `flyLegBlocks` (the walk's addBackLeg pair) + `flyArmTarget` (`armRaiseAbs`, whose
+  90/135/180 are `armAimAbs`/`armPushOffAbs`/`armClimbAbs`). The tip is the wrapper's `rotate`
+  (`flyTiltDeg`, art-frame sign), zeroed while the arms are busy (`flyAim`: shot, aim, swing, throw,
+  block) so a gun aimed level is level on screen. Old Fly items' designed frames are ignored — only
+  the glide still loops an `effectAnim`.
+* **The hint (`showFlyHint`, `FLY_HINT_TEXT`).** "when you pick up or start with a flying item it
+  should say (In subtle font on screen) how to activate flight": one 12px, 72%-white line low in the
+  view, 5 s, fired when the play effect (re)starts with Fly worn and `hadFly` was false — start of
+  play, a pedestal pickup or a shop buy (both bump `equipGen`). A gate re-run says nothing.
 * **Units fly too** (the unit loop, `eFlyUp`): a unit coming for a target more than 1.5 cells ABOVE
-  its feet takes off, steers straight at it, and climbs until its feet are level, then falls and
-  repeats, so it hovers around your height. **It measures the target's ACTUAL feet, not
+  its feet takes off and steers straight at it. **It measures the target's ACTUAL feet, not
   `standingLineY`** — that is null for anyone off their feet, and the first cut used it: a unit in
-  Fly gear stood still under a player hanging in the air. The ranged stand-off rule is the climb
-  route's (`following || !rangedEnemy || !targetOnLevel`). A flying unit bumping a roof is stopped
-  (no rising through a storey) and grounded for 3 s (`ep.flyBlockT`) so the climb route can take it
-  up the stairs instead of hovering against the ceiling. Measured in Forest M1 with Fly on the
-  Viatnamese looks and the player pinned 18 cells up: they rose from feet 1140 to ~600 and bobbed at
-  the player's height. Placements whose 🎲 gear roll swapped the jacket lost the jacket's Fly, which
-  is the gear system working.
+  Fly gear stood still under a player hanging in the air. Against a target standing on a ledge it
+  climbs until level, then drops onto it. Against a target IN THE AIR (`flyTgtAir`) it stays up while
+  that target is no more than a cell below and holds its height (`flyHoverVy`) — before 2026-10-03 it
+  climbed, dropped a cell and a half and climbed again, a yo-yo that would have flicked between the
+  flying pose and a fall. Measured in Forest M1: six Viatnamese looks held exactly the player's y for
+  160 frames, and tipped ~54° chasing sideways. Units draw the same pose (legs at the walk stage, arms
+  by `driveUnitArms` after the weapon base is read); a drawn creature keeps its paws and does not tip.
+  The ranged stand-off rule is the climb route's (`following || !rangedEnemy || !targetOnLevel`). A
+  flying unit bumping a roof is stopped (no rising through a storey) and grounded for 3 s
+  (`ep.flyBlockT`) so the climb route can take it up the stairs. Placements whose 🎲 gear roll
+  swapped the jacket lost the jacket's Fly, which is the gear system working.
 
 **`.unitStatus` (a unit's HP bar, reload bar, 💫/😵, 💬) is UNDER the Front layer — z 5060,
 since 2026-09-16.** It sat at 8000 from the start, on the theory that a unit's bars are information
@@ -2672,7 +2699,7 @@ ability, and what each one does on a unit now:
 * **🍀 Lucky Find.** Every unit hit records `ep.lastHitByFx`: the attacking unit's effects, or null
   for you. It is set by `applyHitTo`, a round's `shooterFx`, a grenade's `throwerFx` and blasts. The
   loot roll adds the killer's charm to yours; yours still counts on every body, as it always did.
-* **🦸 Fly.** A unit flies up after a target above it (see the FLY section).
+* **🦸 Fly.** A unit flies up after a target above it, holds the height of one in the air, and flies in the player's pose (see the FLY section).
 * **🪂 Glide.** Gravity × the item's Fall whenever the unit is falling (your glide with Jump held).
   Measured: Super Bob (Fall 0.8) fell at 0.803× Bobette's speed.
 * **🛼 Slide.** A unit's feet ease through `horizVel` with the item's Grip. `dxMove` stays the
