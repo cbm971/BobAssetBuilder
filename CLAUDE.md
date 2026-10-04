@@ -1366,6 +1366,35 @@ screen): Seek and ally both walked to the ladder, climbed 100 frames, stepped of
 back down by dropping into the ladder; walked under the bars, jumped, hung, shimmied, jumped onto
 the far ledge; walked onto the road and up it to the player, and back down off it.
 
+**A HOLE IN THE FLOOR IS A WAY DOWN (2026-10-04, route kind `"drop"`).** Blake's Sewer M2 hides
+Rats in two-cell pockets in the tunnel ceiling (hollow behind 🎭 Front paint) to drop on you, and
+they never came. They sensed him (they turned to face him) but stood on the lip of their pockets.
+There were two causes.
+1. **There was no drop route.** Seek walks only to a target on its own level, and the routes offered
+   ladders and bars but never "step into that hole". `unitDropSpot` (called from `unitClimbRoute`
+   when the target is below) returns the nearest gap in the unit's floor that meets three conditions:
+   * The physics box fits through it. It is measured with `me.fx` = `ep.x + epw/2`, the box the
+     landing test uses, not the visible centre; the loop walks that box's centre to it, as for planes.
+   * The box is fully over it within `UNIT_DROP_REACH_CELLS` (3) of where it stands. This keeps his
+     2026-09-28 rule: a slab unit on a two-storey level still does not trek to a far edge to trail you.
+   * The fall lands no lower than 1.5 cells under the target.
+2. **Walls were checked with the full seven-cell box.** A Rat's box is 168 px tall round 48 px of art,
+   so in a two-cell pocket the empty top of the box sat inside the rock above. Its first sideways step
+   into a new column of that rock read as a wall, and it moved 7 px and stopped. A creature
+   (`isCreatureUnit`, not crouched) now meets walls from `unitHitTop` down to its feet. Dressed looks
+   keep the whole box.
+
+**The hole has to be wider than the body.** A Rat is 124 px (4.1 cells) wide with its tail, and his
+holes were 3–4 cells, so it would sit on both lips whatever the AI did. The unit also has to start ON
+a lip: a hole that already contains the whole box drops it the moment the level loads.
+
+A/B in his real level (a `window.__noDrop` switch, since removed), with one hole widened to 5 cells:
+- With the route off, every rat stayed put.
+- With it on, that rat walked 14 px, fell from feet 270 to 570 in 0.8 s and came for him.
+- The rats over the unwidened holes stayed up.
+
+They drop as soon as Seek detects you, the same moment a same-level Seek would start walking.
+
 **A ROOM CAN BE A TOP-DOWN FLOOR: Trailor Int5, the back bedroom (2026-09-22).** Blake's trailer
 interiors (Int1 kitchen, Int2 living room; Int3/Int4 are copies with an NPC) are one-point-perspective
 dioramas: solid Foreground side walls, a Background back wall and carpet, and a hideInPlay floor row

@@ -9329,7 +9329,52 @@ export const unitClimbRoute = (lv, me, tgt, jumpPx, CW, CH, floorAt = null) => {
       consider(Math.abs(x - me.cx) + Math.abs(xOut - x) + Math.abs(tgt.cx - xOut) + CW, { kind: "hang", x, r: H.r, c0: H.c0, c1: H.c1 });
     }
   }
+  if (dy > 0) { const d = unitDropSpot(lv, me, tgt, CW, CH, floorAt); if (d) consider(Math.abs(d.x - (me.fx ?? me.cx)) + Math.abs(d.x - tgt.cx), { kind: "drop", x: d.x }); }
   return best && best.route;
+};
+// 🕳️ A HOLE TO DROP THROUGH (2026-10-04). Blake's Sewer M2 hides rats in pockets in the tunnel
+// ceiling, to drop on you as you walk underneath, and they never came. The rats saw him (they turned
+// to face him) but stood still on the lip of their pockets: Seek walks only to a target on its own
+// level (unitSharesLevel), and the climb routes above offer ladders and bars but never "step into
+// that hole". So a target BELOW can also be reached by walking into a gap in the floor the body
+// FITS through and letting gravity do the rest, on three conditions:
+//   * the gap is RIGHT BESIDE it — the body fully over it within UNIT_DROP_REACH_CELLS of where it
+//     stands. This is stepping off where it is, not trekking to a far edge: a unit on a two-storey
+//     level's slab still does not trail you along the street from above (his 2026-09-28 rule);
+//   * the body fits — a gap narrower than the body box leaves it standing on both lips, which is
+//     exactly what held each Rat (124 px wide with its tail) over a 90-120 px hole;
+//   * the fall lands it on the target's level or above it, never past them into a pit below.
+// Measured with the box the landing test uses — `me.fx` (ep.x + epw/2, the feet box the plane route
+// walks too), not the visible body's centre, which is offset from it by the art's own centring: a
+// gap the visible body "fits" by a pixel a side still holds the physics box on one lip.
+// → { x } (that box's centre to stop at, over the gap), or null.
+export const UNIT_DROP_REACH_CELLS = 3;
+export const unitDropSpot = (lv, me, tgt, CW, CH, floorAt) => {
+  if (!lv || !me || !tgt || tgt.feet == null || !floorAt || !(me.w > 0) || me.topdown) return null;
+  if (tgt.feet - me.feet <= CH * 1.5) return null; // not below it: the walk (or a climb) gets there
+  const cols = lv.cols || 0, rows = lv.rows || 0;
+  const bx = me.fx ?? me.cx;
+  const row = Math.floor((me.feet + 1) / CH);           // the row its feet stand on
+  const open = (c) => c >= 0 && c < cols && !floorAt(row, c) && !floorAt(row + 1, c); // a real drop, not a one-cell dip
+  const reach = UNIT_DROP_REACH_CELLS * CW;
+  const cMe = Math.floor(bx / CW), span = Math.ceil((me.w / 2 + reach) / CW) + 1;
+  let best = null;
+  for (let c = Math.max(0, cMe - span); c <= Math.min(cols - 1, cMe + span); c++) {
+    if (!open(c) || open(c - 1)) continue; // only the first column of each gap
+    let c1 = c; while (open(c1 + 1)) c1++;
+    const lo = c * CW + me.w / 2 + 1, hi = (c1 + 1) * CW - me.w / 2 - 1;
+    if (lo > hi) continue; // too narrow for this body
+    const x = Math.max(lo, Math.min(hi, bx));
+    if (Math.abs(x - bx) > reach) continue;
+    // Where the fall ends: the first floor under the body's whole width, or the level's bottom.
+    const a = Math.floor((x - me.w / 2) / CW), b = Math.floor((x + me.w / 2 - 0.001) / CW);
+    let land = rows * CH;
+    for (let r = row + 2; r < rows && land === rows * CH; r++) for (let cc = a; cc <= b; cc++) if (floorAt(r, cc)) { land = r * CH; break; }
+    if (land > tgt.feet + CH * 1.5) continue; // it would fall past them
+    const cost = Math.abs(x - bx) + Math.abs(x - tgt.cx);
+    if (!best || cost < best.cost) best = { cost, x };
+  }
+  return best && { x: best.x };
 };
 // Simulated flight path for the throw-aim preview (hold G): the exact same per-frame integration
 // the thrown grenade itself uses (gravity accumulates into vy, position steps by velocity), so
@@ -13327,7 +13372,7 @@ export default function AssetStudio() {
             && (ep.flying ? (flyTgtFeet < myFeetY - CH * 0.25 || (flyTgtAir && flyTgtFeet < myFeetY + CH)) : (flyTgtFeet < myFeetY - CH * 1.5 && (following || !rangedEnemy || !targetOnLevel)))
             && flyFramesLeft(eFlyFx, ep.flyUsed) > 0;
           const navRouteLv = navPursuing && navOff && !ep.climbing && !eFlyUp
-            ? unitClimbRoute(navPart.lv, { cx: eCenterXNow - navPart.ox, fx: ep.x + epw / 2 - navPart.ox, feet: myFeetY - navPart.oy, h: standEph, topdown: navMeTopdown }, { cx: targetCX - navPart.ox, feet: navTgtFeet - navPart.oy, topdown: navTgtTopdown }, navJumpPx, CW, CH, (r, c) => !!navPart.lv.fg[cellKey(r, c)] || solidAtW(r + (navPart.dr || 0), c + (navPart.dc || 0)))
+            ? unitClimbRoute(navPart.lv, { cx: eCenterXNow - navPart.ox, fx: ep.x + epw / 2 - navPart.ox, feet: myFeetY - navPart.oy, h: standEph, w: epw, topdown: navMeTopdown }, { cx: targetCX - navPart.ox, feet: navTgtFeet - navPart.oy, topdown: navTgtTopdown }, navJumpPx, CW, CH, (r, c) => !!navPart.lv.fg[cellKey(r, c)] || solidAtW(r + (navPart.dr || 0), c + (navPart.dc || 0)))
             : null;
           const navRoute = navRouteLv && { ...navRouteLv, x: navRouteLv.x + navPart.ox, feet: navRouteLv.feet == null ? null : navRouteLv.feet + navPart.oy };
           const navAirborne = !ep.climbing && !ep.onGround && !ep.topdown;
@@ -13354,7 +13399,7 @@ export default function AssetStudio() {
             else if (navAirborne && ep.navHangJump) dxMove = 0;
             else if (navRoute && navRoute.kind === "plane" && navRoute.feet != null && Math.abs(navRoute.feet - myFeetY) <= 2) dxMove = towardTarget; // at the way off the plane: off it, toward the target
             else if (navRoute && (!navAirborne || navRoute.kind === "ladder")) { // dropping down a hole onto a ladder steers into it
-              const d = navRoute.x - (navRoute.kind === "plane" ? ep.x + epw / 2 : eCenterXNow);
+              const d = navRoute.x - (navRoute.kind === "plane" || navRoute.kind === "drop" ? ep.x + epw / 2 : eCenterXNow); // a drop is fitted to the landing box (unitDropSpot)
               dxMove = Math.abs(d) < 0.5 ? 0 : Math.sign(d) * Math.min(Math.abs(d), charging ? chargeSpeed : aiSpeed);
             }
           }
@@ -13409,8 +13454,19 @@ export default function AssetStudio() {
             // ALREADY inside, so every step was "blocked" — in both directions, forever. The player
             // has always been let out of a wall it is embedded in and stopped only by a new one, and
             // so is a unit now. A wall ahead still stops it exactly as before.
-            const eInside = new Set(cellsHitW(ep.x, ep.y, epw, newEph).map((h) => h.r + "," + h.c));
-            const eWallHits = splitHillHitsW(cellsHitW(nx, ep.y, epw, newEph), ep.y + newEph).walls.filter((h) => !eInside.has(h.r + "," + h.c));
+            //
+            // AN ANIMAL'S WALLS ARE AS TALL AS THE ANIMAL (2026-10-04). Every unit's box is seven cells
+            // times its scale, whatever its art: a Rat is a 168 px box round 48 px of rat. Blake's Sewer
+            // M2 hides rats in two-cell pockets in the tunnel ceiling, so the empty top of each box sat
+            // buried in the rock above, and the first sideways step into a new column of that rock was
+            // a "wall": a rat walking to the hole beside it to drop on him moved 7 px and stopped. A
+            // creature now meets walls with its drawn body, from the art's top (unitHitTop, the same
+            // line its hit box starts at) down to its feet. A dressed look keeps the whole box, so
+            // nothing a person walks into has changed; ducking keeps its own box below.
+            const eWallTop = isCreatureUnit(ea) && !ep.crouch ? Math.max(0, Math.min(newEph - 1, unitHitTop(ea, eShape, newEph))) : 0;
+            const wallBoxHits = (x, y) => cellsHitW(x, y + eWallTop, epw, newEph - eWallTop);
+            const eInside = new Set(wallBoxHits(ep.x, ep.y).map((h) => h.r + "," + h.c));
+            const eWallHits = splitHillHitsW(wallBoxHits(nx, ep.y), ep.y + newEph).walls.filter((h) => !eInside.has(h.r + "," + h.c));
             if (!eWallHits.length) ep.x = nx;
             else {
               const stepY = Math.min(...eWallHits.map((h) => h.r * CH)) - newEph;
@@ -13419,7 +13475,7 @@ export default function AssetStudio() {
               // but is DRAWN easing up over the next few (ep.stepEase, decayed by the player's own
               // easeStep) — the fix that took the "jarring teleport up one block" off the player,
               // which units never had.
-              if (rise > 0 && rise <= CH && cellsHitW(nx, stepY, epw, newEph).length === 0) { ep.x = nx; ep.y = stepY; ep.stepEase = Math.min(CH, (ep.stepEase || 0) + rise); }
+              if (rise > 0 && rise <= CH && wallBoxHits(nx, stepY).length === 0) { ep.x = nx; ep.y = stepY; ep.stepEase = Math.min(CH, (ep.stepEase || 0) + rise); }
               // DUCK UNDER IT (2026-09-27). Blake: "NPCs, player and not, should try to duck to get
               // under obstacles if that is what is stopping them from getting to their objective —
               // my elephant may have gotten stuck while seeking an enemy." A unit walking into a low

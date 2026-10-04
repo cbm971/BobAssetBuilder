@@ -38,6 +38,7 @@ import {
   CORPSE_Z,
   topdownDepthZ,
   unitClimbRoute,
+  unitDropSpot,
   climbRunsOf,
   orderEndLay,
   hazardStillBurning,
@@ -11684,6 +11685,36 @@ describe("units find a way up, down or onto the plane", () => {
     expect(unitClimbRoute(plane, { cx: 60, feet: 480, h: 210 }, { cx: 200, feet: 330, topdown: true }, 90, C, C)).toEqual({ kind: "plane", x: 165, feet: null });
     expect(unitClimbRoute(plane, { cx: 200, feet: 330, h: 210, topdown: true }, { cx: 500, feet: 480 }, 90, C, C)).toEqual({ kind: "plane", x: 255, feet: 480 }); // the front row's line, at the edge cell nearest them
     expect(unitClimbRoute(plane, { cx: 200, feet: 330, h: 210, topdown: true }, { cx: 220, feet: 400, topdown: true }, 90, C, C)).toBeNull(); // the same floor: topdownStepToward walks it
+  });
+  // Blake, 2026-10-04, Sewer M2: rats hidden in pockets in the tunnel ceiling would not drop on him.
+  // A ceiling slab at row 9 (feet 270) over a tunnel floor at row 19 (feet 570), Rat-sized body (124 wide).
+  describe("a unit above its target drops through a hole beside it", () => {
+    const slab = (holeC0, holeC1, extra = {}) => {
+      const fg = {};
+      for (let c = 0; c < 20; c++) { if (c < holeC0 || c > holeC1) fg["9," + c] = "#333"; fg["19," + c] = "#333"; }
+      return { cols: 20, rows: 20, climb: {}, fg: { ...fg, ...extra } };
+    };
+    const floorAt = (lv) => (r, c) => !!lv.fg[r + "," + c];
+    const rat = { cx: 285, feet: 270, h: 168, w: 124 };
+    const route = (lv, me, tgt) => unitClimbRoute(lv, me, tgt, 90, C, C, floorAt(lv));
+    test("a hole the body fits through, right beside it, with the target on the floor it lands on", () => {
+      const lv = slab(6, 10);
+      expect(route(lv, rat, { cx: 400, feet: 570 })).toEqual({ kind: "drop", x: 267 }); // just far enough in that the whole body is over the gap
+      expect(unitDropSpot(lv, rat, { cx: 400, feet: 570 }, C, C, floorAt(lv))).toEqual({ x: 267 });
+    });
+    test("a hole narrower than the body holds it up on both lips, so it is no way down", () => {
+      expect(route(slab(6, 9), rat, { cx: 400, feet: 570 })).toBeNull(); // 120 px under a 124 px rat: what held his rats
+    });
+    test("only a hole within a few cells counts: a far edge is not worth trekking to", () => {
+      expect(route(slab(15, 19), rat, { cx: 400, feet: 570 })).toBeNull();
+    });
+    test("not when the fall would carry it past the target, nor when the target is above, nor into a one-cell dip", () => {
+      const lv = slab(6, 10);
+      expect(route(lv, rat, { cx: 400, feet: 420 })).toBeNull(); // they stand on a floor at 420 elsewhere; this hole falls to 570
+      expect(unitDropSpot(lv, { ...rat, feet: 570 }, { cx: 400, feet: 270 }, C, C, floorAt(lv))).toBeNull();
+      const dip = slab(6, 10, { "10,6": "#333", "10,7": "#333", "10,8": "#333", "10,9": "#333", "10,10": "#333" });
+      expect(route(dip, rat, { cx: 400, feet: 570 })).toBeNull();
+    });
   });
   test("the climb layer is read once per level", () => {
     expect(climbRunsOf(ladderLv)).toBe(climbRunsOf(ladderLv));
