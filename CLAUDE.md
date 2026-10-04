@@ -1393,7 +1393,20 @@ A/B in his real level (a `window.__noDrop` switch, since removed), with one hole
 - With it on, that rat walked 14 px, fell from feet 270 to 570 in 0.8 s and came for him.
 - The rats over the unwidened holes stayed up.
 
-They drop as soon as Seek detects you, the same moment a same-level Seek would start walking.
+**They wait until you are close.** The first cut dropped on detection. Seek sees six body lengths
+(42 cells) ahead, so all four rats fell the instant he entered the tunnel 36 cells away, which made a
+rain of rats rather than an ambush. `UNIT_DROP_TRIGGER_CELLS` (8) now holds each unit until the
+target is that close to its gap, sideways.
+
+**His holes were widened for him (he asked: "You can edit my level").** The edit removed Foreground
+at 9,10, 9,22, 9,27, 9,31 and 9,41, and at 8,27 (rat 3's pocket wall). It added his hole Front
+paint (#29331f / tex 422iwrd) over the opened row-9 cells, so the ceiling still reads solid from below.
+It was built on his live StackBlitz copy (savedAt 1791108716989, which matched his folder cell for
+cell), with only those 11 cell keys changed.
+
+Driven in the delivered level, walking the player along the tunnel: the rats left the ceiling at
+player x 13 / 377 / 647 / 941, each about 6 cells short of its hole, one after another, and all landed
+on the tunnel floor and chased him. The first rat drops at once because you enter right under it.
 
 **A ROOM CAN BE A TOP-DOWN FLOOR: Trailor Int5, the back bedroom (2026-09-22).** Blake's trailer
 interiors (Int1 kitchen, Int2 living room; Int3/Int4 are copies with an NPC) are one-point-perspective

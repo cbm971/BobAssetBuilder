@@ -9347,8 +9347,13 @@ export const unitClimbRoute = (lv, me, tgt, jumpPx, CW, CH, floorAt = null) => {
 // Measured with the box the landing test uses — `me.fx` (ep.x + epw/2, the feet box the plane route
 // walks too), not the visible body's centre, which is offset from it by the art's own centring: a
 // gap the visible body "fits" by a pixel a side still holds the physics box on one lip.
+//   * the target is CLOSE to the gap — UNIT_DROP_TRIGGER_CELLS from it, sideways. Seek sees six body
+//     lengths ahead (42 cells), so on sight alone every rat in his tunnel fell the instant he came in
+//     at the far end: a rain of rats, not the ambush his hidden pockets are built for. Now each one
+//     waits until he is nearly under it.
 // → { x } (that box's centre to stop at, over the gap), or null.
 export const UNIT_DROP_REACH_CELLS = 3;
+export const UNIT_DROP_TRIGGER_CELLS = 8;
 export const unitDropSpot = (lv, me, tgt, CW, CH, floorAt) => {
   if (!lv || !me || !tgt || tgt.feet == null || !floorAt || !(me.w > 0) || me.topdown) return null;
   if (tgt.feet - me.feet <= CH * 1.5) return null; // not below it: the walk (or a climb) gets there
@@ -9365,7 +9370,7 @@ export const unitDropSpot = (lv, me, tgt, CW, CH, floorAt) => {
     const lo = c * CW + me.w / 2 + 1, hi = (c1 + 1) * CW - me.w / 2 - 1;
     if (lo > hi) continue; // too narrow for this body
     const x = Math.max(lo, Math.min(hi, bx));
-    if (Math.abs(x - bx) > reach) continue;
+    if (Math.abs(x - bx) > reach || Math.abs(x - tgt.cx) > UNIT_DROP_TRIGGER_CELLS * CW) continue;
     // Where the fall ends: the first floor under the body's whole width, or the level's bottom.
     const a = Math.floor((x - me.w / 2) / CW), b = Math.floor((x + me.w / 2 - 0.001) / CW);
     let land = rows * CH;

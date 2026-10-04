@@ -11708,6 +11708,11 @@ describe("units find a way up, down or onto the plane", () => {
     test("only a hole within a few cells counts: a far edge is not worth trekking to", () => {
       expect(route(slab(15, 19), rat, { cx: 400, feet: 570 })).toBeNull();
     });
+    test("it waits until the target is nearly under the hole, not as soon as it can see them", () => {
+      const lv = { ...slab(6, 10), cols: 60 }; // a long tunnel, as in his sewer
+      expect(route(lv, rat, { cx: 267 + 8 * C, feet: 570 })).toEqual({ kind: "drop", x: 267 });
+      expect(route(lv, rat, { cx: 267 + 8 * C + 1, feet: 570 })).toBeNull(); // still in sight (6 body lengths), but not close
+    });
     test("not when the fall would carry it past the target, nor when the target is above, nor into a one-cell dip", () => {
       const lv = slab(6, 10);
       expect(route(lv, rat, { cx: 400, feet: 420 })).toBeNull(); // they stand on a floor at 420 elsewhere; this hole falls to 570
