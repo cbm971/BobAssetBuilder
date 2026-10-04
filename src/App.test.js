@@ -572,6 +572,12 @@ import {
   enemyLookHP,
   dialogueIsOnce,
 } from "./App";
+import {
+  isHillFormationCell,
+  splitHillHits,
+  shouldStepAssist,
+  nextOffLedge,
+} from "./App";
 
 /* 🎲 A GEAR TAG ON A PLACEMENT. The point of the feature is that six copies of one guard are six
    loadouts, so what matters here is (a) the pool is the same pedestal search minus the things an
@@ -11783,5 +11789,59 @@ describe("Behind legs tucks under the legs only, and arms go in front of a hat",
     expect(hatsUnderArms(armless)).toBe(armless);
     const once = hatsUnderArms([{ id: "arm", limb: "arm" }, { id: "hat", _slot: "hat" }]);
     expect(hatsUnderArms(once)).toBe(once);
+  });
+});
+// Blake's Sewer M3 (2026-10-04): "when you drop down there you clip through the foreground and fall
+// under the level". See EVERY COLUMN STOPS AT OPEN AIR (isHillFormationCell) and the offLedge half
+// of shouldStepAssist.
+describe("a ramp far above across open air is not this cell's hill", () => {
+  const ramp = (slope) => ({ c: "#3f3e3b", slope, run: 1, step: 0 });
+  // A sewer in miniature: grass ramps along row 1 with rock backing on row 2, tunnel air on rows
+  // 3-6, the street on row 7 with a 4-wide hole at cols 4-7, rock below.
+  const sewer = () => {
+    const fg = {};
+    for (let c = 0; c < 12; c++) { fg["1," + c] = ramp(c % 2 ? -1 : 1); fg["2," + c] = "#3f3e3b"; }
+    for (let r = 7; r < 10; r++) for (let c = 0; c < 12; c++) if (r > 7 || c < 4 || c > 7) fg[r + "," + c] = "#b5b1a7";
+    return { cols: 12, rows: 10, fg };
+  };
+  test("the street at the lips of a hole is a wall and a floor, not ramp flesh", () => {
+    const lv = sewer();
+    expect(isHillFormationCell(lv, 7, 3)).toBe(false);
+    expect(isHillFormationCell(lv, 7, 8)).toBe(false);
+    expect(isHillFormationCell(lv, 9, 6)).toBe(false);
+    // ...so the player's wall pass and the landing fallback both see them (feet at the street top).
+    expect(splitHillHits(lv, [{ r: 7, c: 3 }, { r: 7, c: 8 }], 7 * 30, 30).walls).toHaveLength(2);
+  });
+  test("the cells under a ramp, and the lip beside it, are still hill", () => {
+    const fg = { "5,4": ramp(1), "6,4": "#3f3e3b", "7,4": "#3f3e3b", "5,5": "#3f3e3b", "6,5": "#3f3e3b", "7,5": "#3f3e3b" };
+    const lv = { cols: 10, rows: 10, fg };
+    expect(isHillFormationCell(lv, 7, 4)).toBe(true); // backing under its own ramp
+    expect(isHillFormationCell(lv, 5, 5)).toBe(true); // plateau lip beside the ramp
+    expect(isHillFormationCell(lv, 7, 5)).toBe(true); // backing reached through the neighbour's solid stack
+    // A ramp overhanging air beside the lip still counts: the neighbour's hit row may be empty.
+    const over = { cols: 10, rows: 10, fg: { "4,4": ramp(1), "5,5": "#3f3e3b" } };
+    expect(isHillFormationCell(over, 5, 5)).toBe(true);
+    // Two rows of air between the neighbour's ramp and the hit row: some other hill.
+    const far = { cols: 10, rows: 10, fg: { "3,4": ramp(1), "6,5": "#3f3e3b" } };
+    expect(isHillFormationCell(far, 6, 5)).toBe(false);
+  });
+});
+
+describe("walking off a ledge falls into the hole instead of being caught on its far lip", () => {
+  test("offLedge is set the frame you step off and kept until you land", () => {
+    expect(nextOffLedge(true, false, 0.175, false, false)).toBe(true);
+    expect(nextOffLedge(false, false, 6, false, true)).toBe(true);
+    expect(nextOffLedge(false, true, 0, false, true)).toBe(false);
+  });
+  test("a jump, a double jump, a glide or a flight is not a walk-off", () => {
+    expect(nextOffLedge(true, false, -6, false, false)).toBe(false); // jumped off the ground
+    expect(nextOffLedge(false, false, 3, false, false)).toBe(false); // ...and still not on the way down
+    expect(nextOffLedge(false, false, -5, false, true)).toBe(false); // a double jump during a walk-off
+    expect(nextOffLedge(false, false, 2, true, true)).toBe(false); // gliding or flying steers
+  });
+  test("the step assist still catches a short jump, but not a walk-off", () => {
+    expect(shouldStepAssist(1, 6, false, false, false)).toBe(true);
+    expect(shouldStepAssist(1, 6, false, false, undefined)).toBe(true);
+    expect(shouldStepAssist(1, 6, false, false, true)).toBe(false);
   });
 });

@@ -1437,6 +1437,30 @@ Driven in the delivered level, walking the player along the tunnel: the rats lef
 player x 13 / 377 / 647 / 941, each about 6 cells short of its hole, one after another, and all landed
 on the tunnel floor and chased him. The first rat drops at once because you enter right under it.
 
+**A RAMP ACROSS OPEN AIR IS NOT YOUR HILL (2026-10-04, Sewer M3).** Blake: "when you drop down there
+you clip through the foreground and fall under the level." His sewers have grass ramps along row 7
+and nothing else, and `isHillFormationCell` scanned the two neighbouring columns each side all the
+way to the top of the level. So every ramp up there made the solid cells below it "hill flesh":
+3,700 of Sewer M3's 4,987 solid cells. Hill cells near the feet are not walls and, unless the body's
+centre is over them, not floors. Walking off the street into his 4-wide waterfall hole carried
+Super Bob sideways into the street, and he fell through all the rock to the world floor (y 360 →
+1170). Now every column, the neighbours too, stops at the first empty cell above the hit row. Over all 29 of his levels only
+cells whose ramp was 9+ rows up across air changed (four sewers, Trailor Park M8/M9) plus buried
+Forest M1 ground. Sewer M2's rats still drop and chase.
+
+**The second half was hidden by the first: a walk-off is no longer caught on the far lip.** The step
+assist runs in mid-air (it saves a jump that lands a few px short). At walking speed you fall only
+~30 px while crossing 115 px, so every hole up to 6 cells wide caught you on its far lip and you
+walked over it. `p.offLedge` (`nextOffLedge`) marks an airtime that began by stepping off with
+nothing sending you up; `shouldStepAssist` skips it. A jump, double jump, glide or flight still gets
+the catch. In his library only Sewer M3's holes were 3-5 wide; the street-to-sewer manholes are 6.
+Verified in the real loop: the same mid-air arrival is caught after a jump and falls in after a walk-off.
+
+**His edit, same delivery:** the underground room dropped two rows, columns 4-155, all layers. Rows
+28-29 copy row 27 (walls, waterfalls, back wall), row 30 is the pool (was 28), and row 31 is the floor
+(was 29). The room is now 8 rows, so a 7-cell body walks in standing. Sewer M3 had never been in
+library.json; it was inserted from his folder copy (savedAt 1791119042050) as 1791120038403.
+
 **A ROOM CAN BE A TOP-DOWN FLOOR: Trailor Int5, the back bedroom (2026-09-22).** Blake's trailer
 interiors (Int1 kitchen, Int2 living room; Int3/Int4 are copies with an NPC) are one-point-perspective
 dioramas: solid Foreground side walls, a Background back wall and carpet, and a hideInPlay floor row

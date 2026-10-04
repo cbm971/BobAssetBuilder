@@ -3662,7 +3662,22 @@ export const playerPoseKey = ({ transitioning, climbing, climbKind, climbJumpKin
 // step-assist once, but every frame after that (i.e. all of actual climbing) is correctly exempt.
 // This does NOT touch the separate plain wall-clamp right after it — walking/climbing sideways
 // into a genuine wall still just stops you there, no teleport, exactly as it should.
-export const shouldStepAssist = (hitCount, dx, climbing, onSlope) => hitCount > 0 && dx !== 0 && !climbing && !onSlope;
+//
+// NOR WHILE YOU ARE DROPPING OFF A LEDGE (`offLedge`, see nextOffLedge). The assist also runs in
+// mid-air, where it forgives a jump that comes down a few pixels short of a ledge — keep that. But
+// walking off a ledge into a hole is the same picture from the other side: falling, moving toward
+// a lip, feet a few pixels below its top. Air keeps your walking speed, and you fall only ~30 px in
+// the time it takes to cross 115 px, so every hole up to SIX cells wide caught you on its far lip
+// and you walked straight over it. Blake's Sewer M3 waterfalls are 4 wide (2026-10-04): once the
+// clip-through was fixed (EVERY COLUMN STOPS AT OPEN AIR) there was no way down them at all. Only
+// a jump — or a glide or a flight, both steered — earns the catch now; a walk-off falls in.
+export const shouldStepAssist = (hitCount, dx, climbing, onSlope, offLedge) => hitCount > 0 && dx !== 0 && !climbing && !onSlope && !offLedge;
+// Is this airtime a walk-off — the body left the ground without anything sending it up? Ground (or
+// a ladder, or a top-down plane) ends it; any upward speed (a jump, a double jump, a bounce) or a
+// steered descent (a glide, a flight) means you meant to go somewhere, which is what the step
+// assist's catch is for. Otherwise it is whatever it was: set the frame you step off, kept to the floor.
+export const nextOffLedge = (wasGrounded, groundedNow, vy, steering, prev) =>
+  groundedNow || vy < 0 || steering ? false : wasGrounded ? true : !!prev;
 // A limb-tracking equipment piece (a jacket sleeve, a cuff — anything flagged limb:"arm") turns
 // by the SAME rotational delta its arm is making, added straight onto the piece's own baked rest
 // rotation, so it stays glued to the arm as the arm swings/climbs. It must NOT get a mirror-twist
@@ -10542,17 +10557,33 @@ export const topdownLegsShouldWalk = (dx, vMove, moveHeld) => (!!dx && !!moveHel
 // horizontal tolerance to catch the leading-edge lip beside the diagonal. Column search is
 // unbounded upward (a hill can be any height); horizontal stays tight so a real wall a couple
 // cells over from a ramp is still a wall.
+//
+// EVERY COLUMN STOPS AT OPEN AIR, the neighbours too (2026-10-04, Blake's Sewer M3: "when you drop
+// down there you clip through the foreground and fall under the level"). The neighbouring columns
+// used to be scanned all the way to the top of the level "for the lip case", so ANY ramp anywhere
+// above made the cells under it hill — across a tunnel, across open sky. Every sewer has a row of
+// grass ramps along its surface (row 7), nine rows of tunnel air above the street, and so 3,700 of
+// Sewer M3's 4,987 solid cells read as one ramp's body. Hill cells are neither walls nor (unless the
+// body's centre is over them) floors, so walking off the lip into his waterfall hole carried you
+// sideways INTO the street, the sides of the hole never stopped you, nothing under you was ever a
+// floor, and you fell through the street, the room and all the rock under it to the bottom of the
+// world (measured as Super Bob: y 360 → 1170, the world floor). The real lip sits in the
+// neighbour's own stack — the ramp cell beside it, or the solid backing under that ramp all the way
+// up to it — so the rule that already stopped this column stops theirs: past the first empty cell
+// above the hit row it is open air, and a ramp up there belongs to some other hill. The hit row
+// itself may be empty in a neighbour (a ramp overhanging air beside the lip still counts). Checked
+// over all 29 of his levels: only cells whose ramp was 9+ rows up across air changed (the four
+// sewers, Trailor Park M8/M9), plus Forest M1 ground buried under its own surface.
 export const HILL_NEAR = 2; // horizontal tolerance only (leading-edge lip beside the diagonal)
 export const isHillFormationCell = (lv, r, c) => {
   for (let cc = Math.max(0, c - HILL_NEAR); cc <= Math.min(lv.cols - 1, c + HILL_NEAR); cc++)
     for (let rr = r; rr >= 0; rr--) {
       const cell = lv.fg[cellKey(rr, cc)];
       if (fgSlopeFills(cell).length) return true;
-      // Stop climbing this column once we pass out the TOP of a contiguous solid+ramp stack:
-      // an empty cell far above means we've left the hill and are now scanning open air, so a
-      // slope found even higher up isn't this cell's hill. Only break on the SAME column though
-      // (cc===c); neighbouring columns we always scan fully for the lip case.
-      if (cc === c && rr < r && !cell) break;
+      // Stop climbing a column once we pass out the TOP of a contiguous solid+ramp stack: an
+      // empty cell above means we've left the hill and are now scanning open air, so a slope
+      // found even higher up isn't this cell's hill (see EVERY COLUMN STOPS AT OPEN AIR above).
+      if (rr < r && !cell) break;
     }
   return false;
 };
@@ -12534,7 +12565,7 @@ export default function AssetStudio() {
       // actually clear. Skipped while climbing a ladder. The PHYSICS snap stays instant (so
       // collision is always exact) but the RENDER eases up over a few frames via p.stepEase —
       // the old same-frame visual jump was the "jarring teleport up one block".
-      if (shouldStepAssist(wallHits.length, dx, p.climbing || p.topdown, p.onSlope)) { // a 🚶 Top-down plane owns its own height too: a solid on it is an obstacle, not a stair
+      if (shouldStepAssist(wallHits.length, dx, p.climbing || p.topdown, p.onSlope, p.offLedge)) { // a 🚶 Top-down plane owns its own height too: a solid on it is an obstacle, not a stair; a walk-off falls into the hole it walked into
         const targetY = Math.min(...wallHits.map((h) => h.r * CH)) - ph;
         const rise = p.y - targetY;
         if (rise > 0 && rise <= CH && cellsHit(p.x, targetY, pw, ph).length === 0) { p.y = targetY; p.stepEase = Math.min(CH, (p.stepEase || 0) + rise); wallHits = []; }
@@ -12934,6 +12965,7 @@ export default function AssetStudio() {
         p.slideVx = p.sliding ? downhill * SLOPE_SLIDE_SPEED : 0;
       } else { p.sliding = false; p.slideVx = 0; }
       if (p.y > lv.rows * CH - ph && !seamAt("S", p, pw, ph)) { p.y = lv.rows * CH - ph; p.vy = 0; p.onGround = true; } // the floor of the world — unless a bottom gate with a level under it is right here
+      p.offLedge = nextOffLedge(grounded, p.onGround || climbing || topdown, p.vy, p.flying || p.gliding, p.offLedge); // a walk-off falls into the hole it walked into (see shouldStepAssist)
       // RUN — the seam handoff, once the body's centre is past an edge through an open gate that has
       // a level behind it. Nothing else this frame: the new level's loop takes over from here.
       if (runNodeLive) {
