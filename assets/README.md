@@ -198,56 +198,30 @@ Four assets, merged by id, nothing else touched. Or open `bear-skin-rug.json`, `
 
 # Turtle Shell (sewer gear)
 
-One piece of equipment, not a prop: a giant turtle shell Bob straps to his back. It files
-under 🧥 **Jacket / Cape**, so it wears over a shirt and leaves every other slot free.
+**This one ships inside the app.** It lives at `src/bundled/turtle-shell-jacket.json` and is
+installed into the library on first load — open the app and it's already under
+📂 **Load → Clothes & Armor → 🧥 Jacket / Cape**. Nothing to download, nothing to import.
 
 ![The Turtle Shell on BoB and Bobbett, all five poses](preview-turtle-shell.png)
 
-| Asset | Slot | What it is |
-| --- | --- | --- |
-| **Turtle Shell** | 🧥 Jacket / Cape | A carapace as wide as Bob is, worn on the back. Plates of `#3d4a28` olive over a `#504134` brown disc; a `#c8a23c` plastron and two straps hold it on the front. |
+A giant turtle shell Bob straps to his back — not a real jacket: no sleeves, nothing that
+tracks a limb. Scute plates of `#5d6b39` moss on a `#3d4a28` disc (the gaps between plates
+are the seams), a `#504134` harness and a `#c8a23c` plastron on the front.
 
-## How it's drawn
+- **Back** — the whole carapace, flagged over-arms.
+- **Front / Aim up** — the shell behind the body, so its rim shows past both sides; the straps
+  and plastron are drawn on him, under the arm.
+- **Side** — the hump behind him, over the torso but under the arm; the strap goes over the
+  shoulder, behind the arm, then down the chest.
+- **Crouch** — the harness rides down with the torso, the shell just drops and hangs lower.
 
-It is not a real jacket — no sleeves, no cuffs, nothing that tracks a limb. It's one big shell
-and the harness that carries it, drawn differently per pose because a shell on your back looks
-completely different depending on which way you're facing:
+Fitted for **BoB** and **Bobbett**. Stats are placeholders — Defense 12, Speed −1, Agility −1,
+`T2 / Shell / Sewer`, no effect picked (🛡️ **Back Guard** is the obvious one to add).
 
-- **Back** — the whole carapace, face-on, flagged **over arms**. A shell this size covers the
-  upper arms from behind; the forearms swing clear of its lower edge, and an aimed arm leaves
-  the silhouette entirely.
-- **Front / Aim up** — the shell is flagged **behind body**, so it shows as a wide band of rim
-  and plates past both sides of the torso and over the shoulders. What's drawn *on* Bob is the
-  harness: two shoulder straps with buckles, and the tan **plastron** (a turtle's belly plate)
-  they hold on. Both sit under the arm, so the arm still reads in front of the chest.
-- **Side** — he faces right, so the shell humps out behind him, over the back half of the torso
-  but *under* the arm. The strap comes up out of the shell, over the shoulder, disappears behind
-  the arm and picks up again down the chest — which is exactly where a real strap would pass.
-- **Crouch** — the harness rides down with the shortened torso, but the shell itself doesn't
-  squash; it just drops and hangs lower, the way a shell strapped to a crouching back would.
+## How "ships with the app" works
 
-The carapace is built the way the couch and the rug are: two hex colours and `bright`, no
-translucent overlays. The whole shell is one brown disc — a bright rim, a dark inner field —
-with olive plates laid on top in a honeycomb, so **the gaps between the plates are the seams**.
-The plates run light at the top and dark at the bottom, which is what gives it its dome.
-
-## Fits
-
-Ships fitted for **BoB** and **Bobbett** (and Default, which is BoB's build). Bobbett is
-narrower and a little shorter through the body, so her fit is the same shell re-sized onto
-her torso — nothing to refit before you wear it on either of them.
-
-## Numbers it was given
-
-Placeholders, all of them — set them to whatever the sewer levels need:
-
-- **Defense 12**, **Speed −1**, **Agility −1**. Heavy armour that slows you down.
-- Categories: `T2 / Shell / Sewer`.
-- **No effect picked.** 🛡️ **Back Guard** is the one it's begging for — it blocks part of any
-  hit that lands from behind, which is what wearing a shell means. Add it in the equipment
-  editor and set the block %.
-
-## Import
-
-`turtle-shell-jacket.json` — home screen → **Load** → **⬆ Open a file** → pick it. It opens
-straight into the editor with BoB's fit showing; hit Save to put it in the library.
+`src/bundled/index.js` lists the assets that ride along with the build; `installBundled()` in
+`App.js` writes any of them the library doesn't have yet on boot. It never touches an id that's
+already saved, so editing one and saving keeps your version — and every id it installs is
+remembered, so deleting one deletes it for good instead of having it come back every reload.
+Drop another `.json` beside it and add it to the list to ship the next one the same way.
