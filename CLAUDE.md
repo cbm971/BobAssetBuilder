@@ -224,6 +224,22 @@ on, so "click Level Creator" can find nothing.
   the good top-level art, and the asset imports, saves and opens drawing **nothing at all**.
   Two hats and a jersey were built that way and read as "the upload function is broken".
   `normalizeAssetJson` now unwraps it, but write it correctly in the first place.
+* **Add a record to `asset-data/library.json` by TEXT insertion, not by re-serialising the file.**
+  The 2026-10-04 Turtle Shell commit (d175051) rewrote the whole file with a Python-style writer:
+  every emoji is a `\uXXXX` escape and that record's numbers read `41.0`. `JSON.stringify(lib, null, 1)`
+  no longer reproduces it byte for byte, so a parse-and-rewrite turns a one-record delivery into hundreds
+  of changed lines (that commit shows 724 deletions for one new asset). Splice the new record in before the
+  `\r\n ],` that closes `assets`, then parse both versions and assert every other record and section is
+  identical. The Samurai Robes delivery did it this way and has 0 deleted lines (recipe: Samurai Robes, below).
+  The dev server rewrites the file in its own style the next time it saves; that is harmless.
+* **Samurai Robes (`smrrobe`, 2026-10-04): a jacket built on HIS Priest Cassock's rules** (`c4ss0ck`).
+  The structure is robe top / sash / long skirt to y 245, with sleeves `overArms` + `limb:"arm"`. **Aim up**
+  has every piece `overArms`, so the robe sits over the raised arms' base. **Crouch** has the skirt and sash
+  `overArms`: the crouch reorder tucks plain jacket pieces in behind the bent knees, and without the flag the
+  knees poke through the robe. The V neck is a point-down `tri` cutter, so whatever shirt is worn shows
+  through. The side sleeve is the robe's colour, so only a dark cuff shows where it ends; keep the cuff clear
+  of the sash. Start each sleeve 3 units above the shoulder, or the body arm's outline peeks over it.
+  The generator, scratchpad `samurai.js`, is not committed; the record is in `assets/samurai-robes.json`.
 
 ## Storage — read this before touching anything that saves
 
