@@ -1087,6 +1087,35 @@ badges, and the player's see-through window (frontFadeKeys/behindFade) reveals b
 player's own `.playerHpTrack` stays at 8000. If Blake ever asks for bars over trees again, that is
 the object rung (5101) to slot between, not a return to 8000.
 
+**The z only hides the part of a bar that paint happens to cover. A unit hidden behind Front loses
+its whole status (`unitHiddenByFront`, 2026-10-04).** Blake: "You should hide enemy health bars that
+are behind a front layer you can't see through." The bar floats a head's height above the body. In
+Sewer M2 each Rat waits in a two-cell ceiling pocket hollow behind Front paint, and while the rat was
+hidden its bar hung on the plain Foreground rock 1.5 cells above, marking the ambush.
+
+The test samples 5 x 4 points over the unit's drawn box (hitbox width, `unitHitTop` to the feet), in
+its own level's pixels:
+* A point under a Front cell you cannot see through hides.
+* A point inside painted Foreground counts neither way. It is the box's slack above a short animal;
+  a body is never really inside rock.
+* Any other point means the status stays.
+
+You can see through three kinds of Front cell:
+* the window you carry: `fadedFrontKeys` below `UNIT_FRONT_HIDE_OPACITY` 0.85, live level only;
+* a ramp's half cell;
+* a texture with `clear` (the girder).
+
+The status is `visibility: hidden`, not unmounted, so nothing is rebuilt as a unit walks in and out
+from behind a wall.
+
+Verified in Sewer M2:
+* The three rats still up in their pockets were hidden. The dropped rat, the player and the Turtle
+  Men were shown.
+* A rat held in its pocket was hidden with you at x 1900, 1600 and 1350, shown at 1250 and 1180 as
+  your window faded the pocket's paint, and hidden again back at 1600.
+
+Front OBJECTS (props) still only hide whatever they overlap, by z.
+
 **Inside 5060 the bars sort themselves by who is being hurt (`unitStatusZ`, 2026-09-17).** Blake:
 "whatever HP bars are going down shouldn't stay hidden under the ones that are not". A full bar is
 5060, a bar that has ever fallen is 5061, and one that fell within the last `HP_BAR_HOT_MS` (1.5 s)

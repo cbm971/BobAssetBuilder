@@ -486,6 +486,7 @@ import {
   PROP_UNCAT,
   noteUnitHp,
   unitStatusZ,
+  unitHiddenByFront,
   UNIT_STATUS_Z,
   SCENE_LABEL_Z,
   HP_BAR_HOT_MS,
@@ -10544,6 +10545,31 @@ describe("a draining HP bar rises over the full ones around it", () => {
     // the whole band stays above corpses (5050) and below Front objects (5101)
     expect(untouched).toBeGreaterThan(5050);
     expect(hot).toBeLessThan(5101);
+  });
+
+  // Blake, 2026-10-04: "hide enemy health bars that are behind a front layer you can't see through".
+  // His Sewer M2 Rat: a 124 x 48 body in a ceiling pocket (rows 8, feet 270) painted over in Front,
+  // with plain Foreground rock above it (row 7) that the top of its box pokes into.
+  describe("a unit hidden behind Front loses its status", () => {
+    const C = 30;
+    const sheet = (r0, r1, c0, c1, v = "#3f3e3b") => { const o = {}; for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) o[r + "," + c] = v; return o; };
+    const rat = { x: 223, y: 222, w: 124, h: 48 };
+    test("a body wholly behind Front paint is hidden, even with the top of its box in the rock above", () => {
+      expect(unitHiddenByFront(sheet(8, 9, 6, 12), sheet(0, 7, 0, 20), rat, C, C)).toBe(true);
+    });
+    test("any part of the body where you could see it keeps the status: the edge of the paint, or no paint", () => {
+      expect(unitHiddenByFront(sheet(8, 9, 6, 9), sheet(0, 7, 0, 20), rat, C, C)).toBe(false); // the paint stops under its tail
+      expect(unitHiddenByFront({}, sheet(0, 7, 0, 20), rat, C, C)).toBe(false);
+      expect(unitHiddenByFront(sheet(8, 9, 6, 12), {}, { ...rat, y: 150, h: 120 }, C, C)).toBe(false); // a taller body whose head is in the open
+    });
+    test("Front you can see through does not hide it: the window you carry, a ramp, a see-through texture", () => {
+      const front = sheet(8, 9, 6, 12), rock = sheet(0, 7, 0, 20);
+      expect(unitHiddenByFront(front, rock, rat, C, C, (k) => k === "8,9")).toBe(false);
+      expect(unitHiddenByFront(front, rock, rat, C, C, () => false)).toBe(true);
+    });
+    test("being inside solid ground alone is not being hidden", () => {
+      expect(unitHiddenByFront({}, sheet(0, 20, 0, 20), rat, C, C)).toBe(false);
+    });
   });
 });
 

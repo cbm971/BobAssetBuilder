@@ -10386,6 +10386,34 @@ export const noteUnitHp = (seen, key, hp, nowMs) => {
   return nowMs - s.at < HP_BAR_HOT_MS;
 };
 export const unitStatusZ = (hpFrac, hotNow) => UNIT_STATUS_Z + (hotNow ? 2 : hpFrac < 1 ? 1 : 0);
+// BEHIND FRONT YOU CANNOT SEE THROUGH, NO STATUS AT ALL (2026-10-04). Blake: "You should hide enemy
+// health bars that are behind a front layer you can't see through." Sitting under Front paint in the
+// z ladder (above) only hides the part of a bar that a Front cell happens to cover, and the bar floats
+// a head's height ABOVE the body. His Sewer M2 Rats wait in two-cell pockets in the tunnel ceiling,
+// hollow behind Front paint, and each rat was hidden while its green bar hung on the plain rock 1.5
+// cells above, telling you exactly where the ambush was.
+//
+// So the question is asked of the BODY: 5 x 4 points over its drawn box (the hit box: unitHitTop down
+// to the feet, its hitbox width), in that unit's own level's pixels. A point under a Front cell you
+// cannot see through hides; a point inside painted Foreground is neither (a body is never really
+// inside rock, that is the box's slack above a short animal); any other point is somewhere you could
+// see the body, and the status stays. `seeThrough(key, cell)` names the Front cells you can see
+// through: the window you carry (faded below UNIT_FRONT_HIDE_OPACITY), a ramp's open half, a
+// see-through texture (the girder's holes).
+export const UNIT_FRONT_HIDE_OPACITY = 0.85;
+export const unitHiddenByFront = (front, fg, box, CW, CH, seeThrough) => {
+  if (!front || !box || !(box.w > 0) || !(box.h > 0)) return false;
+  let covered = 0;
+  for (let i = 0; i < 5; i++) for (let j = 0; j < 4; j++) {
+    const x = box.x + box.w * (i + 0.5) / 5, y = box.y + box.h * (j + 0.5) / 4;
+    const k = Math.floor(y / CH) + "," + Math.floor(x / CW);
+    const cell = front[k];
+    if (cell && !(seeThrough && seeThrough(k, cell))) { covered++; continue; }
+    if (fg && fg[k] && !fgHiddenInPlay(fg[k])) continue;
+    return false;
+  }
+  return covered > 0;
+};
 export const levelObjectZIndex = (o, ord) =>
   (LAYER_BASE_Z[objectLay(o)] ?? LAYER_BASE_Z.bg) + 1 + Math.max(0, Math.min(LAYER_BAND - 1, Math.round(ord) || 0));
 export const splitObjectStackByPlayerLayer = (stack) => {
@@ -21347,6 +21375,16 @@ export default function AssetStudio() {
                   const tdPl = player.current;
                   const tdLine = ep && ep.topdown && tdPl && tdPl.topdown ? standingLineY(ep, eph) : null;
                   const tdZ = tdLine == null ? null : topdownDepthZ(standingLineY(tdPl, LV_CELL * (tdPl.crouch ? PLAYER_CROUCH_H_CELLS : PLAYER_H_CELLS)), U.off.y + tdLine, LV_CELL);
+                  // Behind Front you cannot see through, the unit's whole status goes with it: HP,
+                  // reload, 💫, 💬 (unitHiddenByFront). Asked of the unit's own level — a neighbour's
+                  // Front is in that level's pixels, and only the live level carries your window.
+                  const uLive = U.ns === "";
+                  const eHitTopPx = unitHitTop(ea, eShape, eph);
+                  const eHiddenByFront = !!(U.lv && U.lv.front) && unitHiddenByFront(U.lv.front, U.lv.fg,
+                    { x: eLeft - U.off.x + hitboxOffset, y: eTop - U.off.y + eHitTopPx, w: epw, h: Math.max(1, eph - eHitTopPx) }, LV_CELL, LV_CELL,
+                    (fk, cell) => (uLive && (fadedFrontKeys.current.get(fk) ?? 1) < UNIT_FRONT_HIDE_OPACITY) // the window you carry
+                      || fgHasDiagonalShape(cell)                                                        // a ramp covers half its cell
+                      || !!(TEXTURES[(resolveTexture(texLib, cellTexId(cell)) || {}).tex] || {}).clear); // the girder's holes
                   return (
                     <React.Fragment key={uKey}>
                       {/* Status readouts live OUTSIDE the sprite wrapper, in their own layer above
@@ -21356,7 +21394,7 @@ export default function AssetStudio() {
                           behind a tree had its HP, reload and 💫 swallowed by the leaves, which is
                           the one time you most want to read them. Out here there's also no mirror
                           to undo, so the reload bar just fills left-to-right on its own. */}
-                      <div className="unitStatus" style={{ left: eLeft + hitboxOffset, top: eStatusTop, width: epw, zIndex: unitStatusZ(hpFrac, hpHot) }}>
+                      <div className="unitStatus" style={{ left: eLeft + hitboxOffset, top: eStatusTop, width: epw, zIndex: unitStatusZ(hpFrac, hpHot), visibility: eHiddenByFront ? "hidden" : undefined }}>
                         {/* NO HP BAR ON SOMEBODY YOU CANNOT HURT. A full green bar over a person
                             your shots pass through is the game promising a fight it will not give
                             you, and it is the only on-screen difference between "immune" and "my
@@ -21383,8 +21421,8 @@ export default function AssetStudio() {
                             walking over to" is a question you ask from across the room. It bobs so
                             it reads as an invitation rather than as another status icon, and it
                             goes the moment the conversation has been had. In the status layer with
-                            the HP bar (z 8000) on purpose: that layer is above the Front tiles, so
-                            an NPC standing behind a tree still advertises itself. */}
+                            the HP bar, so it hides with the NPC: under Front paint by z, and gone
+                            altogether behind Front you cannot see through (unitHiddenByFront). */}
                         {eTalkWaiting && !downed ? <div className="talkBadge">💬</div> : null}
                       </div>
                       <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : {}), ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
