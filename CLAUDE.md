@@ -240,6 +240,30 @@ on, so "click Level Creator" can find nothing.
   through. The side sleeve is the robe's colour, so only a dark cuff shows where it ends; keep the cuff clear
   of the sash. Start each sleeve 3 units above the shoulder, or the body arm's outline peeks over it.
   The generator, scratchpad `samurai.js`, is not committed; the record is in `assets/samurai-robes.json`.
+* **Alien Mask (`alnmsk1`), Crocodile Mask (`crcmsk1`), Dino Tail Pants (`dinotl1`), 2026-10-04.** Blake asked
+  for a cheap strap-on Halloween alien mask, a croc mask with the face showing through the open mouth, and
+  costume pants with a dinosaur tail "for a crocodile human enemy". The pack is in
+  `assets/croc-costume-and-alien-mask.json`. The masks were fitted the Turtle/Fly/Rat way: designed once on BoB
+  front/side/back, then mapped to every body and pose with per-pose maps fitted from his Gorilla Mask. The pants
+  use his Jeans' own boxes per body and pose, recoloured, with the belt, buckle and pockets dropped. Traps:
+  - **What makes the alien look cheap:** a FACE plate, not a head. `ignoreHideIfHat: true` keeps his hair. Two
+    thin `#1d1b1b` straps are drawn BEFORE the plate, so they show only at the head's sides and across the back
+    of the head. Eye holes are mirrored circle cutters on that body's own iris (BoB `#5d6b39`, Bobbett `#560566`),
+    re-placed per body after the mapping, so the wearer's eyes look out of the alien's.
+  - **The croc's open mouth is a cutter.** A roundrect cutter on the hood shows the face, and the teeth are drawn
+    after it so they are not cut. Side = one head-plus-upper-jaw poly whose underside stops above the eye, plus a
+    lower jaw under the chin. The colours are his Crocodile enemy's. The eyes need a green half-circle LID: a
+    round eye on a bump with no lid reads as a frog.
+  - **The tail is a pants piece.** Front, Up and Crouch tails are `behindBody` and curl out on the floor beside the
+    legs. The Side tail is listed before the pants pieces, so the seat covers its root. The Back tail sits over
+    same-green pants, so it uses `fx.bright` 0.78. It carries no limb flag. `identifyLimbs` only guesses legs
+    when nothing is flagged, and the pants legs carry `limb:"leg"`, so the tail never swings. Collision ignores
+    it too, because `sideBodyShape` measures the body component of a dressed look.
+  - Keep poly point counts small. A 160-sample tail outline added 31k lines to library.json; valley-peak-valley
+    spikes give the same picture at 35 points.
+  - **Hidden-pane proof that worked:** in Dress Bob, set the selects with the native value setter + `change`.
+    Snapshot `.art` per pose through a computed-style-inlined `foreignObject`, and POST the canvas dataURL to a
+    6-line local node receiver on another port.
 
 ## Storage — read this before touching anything that saves
 
