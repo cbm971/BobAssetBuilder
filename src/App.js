@@ -1,5 +1,4 @@
 import React, { useRef, useEffect, useState, useMemo } from "react";
-import { BUNDLED_ASSETS } from "./bundled";
 
 /* ============================================================================
    BOB ASSET STUDIO  — HTML canvas (reliable emoji + easy dragging on mobile)
@@ -2829,11 +2828,7 @@ export default function AssetStudio() {
     // localStorage being full (or blocked) no longer means "no storage" — IndexedDB is the real
     // store now, so the Save buttons stay available as long as one of the two works.
     if (!ok) idbSet("__p", "1").then((r) => { if (r.ok) { idbDel("__p"); setHasStore(true); } });
-    // Install anything that ships with the app BEFORE the library is read, so a brand-new
-    // browser opens straight onto the shipped assets instead of an empty library.
-    setHasStore(ok);
-    installBundled().then((n) => { loadLibrary(); if (n) flash("Added " + n + " asset" + (n === 1 ? " that ships" : "s that ship") + " with the app ✓"); });
-    loadStamps();
+    setHasStore(ok); loadLibrary(); loadStamps();
   }, []); // eslint-disable-line
   useEffect(() => { setEmojis(buildEmojiList()); }, []);
   // Persist the active paint color + recent-colors history so they survive a reload — previously
@@ -4327,32 +4322,6 @@ export default function AssetStudio() {
       for (const it of list) { const r = await sget("asset:" + it.id); if (r) full.push(migrate(JSON.parse(r))); }
       setLibrary(full);
     } catch { setLibrary([]); }
-  };
-  // Assets that SHIP WITH THE APP (src/bundled) — installed straight into the library on
-  // boot instead of having to be downloaded and imported by hand. Two rules keep this from
-  // ever stepping on your own work:
-  //   - an id already in the library is left completely alone, so once you've edited a
-  //     bundled asset and saved it, your version is the one that stays;
-  //   - every id installed is remembered under "bundledSeeded", and an id in there is never
-  //     installed again — so deleting one deletes it for good instead of having it reappear
-  //     on the next reload.
-  // Returns how many were newly installed (0 on a storage failure — it never throws, because
-  // a bundled asset failing to install must not take the whole library load down with it).
-  const installBundled = async () => {
-    try {
-      let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
-      let seeded = []; const sd = await sget("bundledSeeded"); if (sd) try { seeded = JSON.parse(sd); } catch { seeded = []; }
-      const have = new Set(list.map((x) => x && x.id)), once = new Set(seeded);
-      let added = 0;
-      for (const raw of BUNDLED_ASSETS) {
-        if (!raw || !raw.id || have.has(raw.id) || once.has(raw.id)) continue;
-        let a; try { a = normalizeAssetJson(JSON.parse(JSON.stringify(raw))); } catch { continue; }
-        if (!(await sset("asset:" + a.id, JSON.stringify(a)))) continue;
-        list.push({ id: a.id, name: a.name, type: a.type }); once.add(a.id); added++;
-      }
-      if (added) { await sset("assetIndex", JSON.stringify(list)); await sset("bundledSeeded", JSON.stringify([...once])); }
-      return added;
-    } catch { return 0; }
   };
   const loadStamps = async () => {
     try {
