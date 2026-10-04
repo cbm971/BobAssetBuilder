@@ -9595,6 +9595,40 @@ const addRunNode = (run, level, col, row) => { const key = "run" + run.nextKey++
 export const RUN_PASSAGE_MAX = 4;      // the longest sewer (or tree top) a run lays, in levels
 // How many cells east of `a` the level `b` joined on `side` of it starts — the x of runSeams' offset.
 const seamOffX = (a, b, side) => { const pr = seamGatePair(a, b, side); return pr ? neighbourOffset(a, pr[0], b, 1, pr[1]).x : 0; };
+// Which of `a`'s open gates on `side` lead through into `b` when b's origin sits at `off` in a's
+// pixels: our gate → the matching gate of b's that lands on it. Shared by runSeams (what you can walk
+// through) and vertSeamLinesUp (what the run is allowed to lay), so the two can never disagree.
+const seamGates = (a, b, side, off, cell) => {
+  const gates = {};
+  for (const k of CONN_KEYS) {
+    if (CONN_SIDE[k] !== side) continue;
+    const pa = gatePoint(a, k, cell);
+    for (const nk of CONN_KEYS) {
+      if (CONN_SIDE[nk] !== SIDE_OPP[side] || !connMatch(a.conns[k], a, b.conns[nk], b)) continue;
+      const pb = gatePoint(b, nk, cell);
+      if (Math.abs(pb.x + off.x - pa.x) <= cell && Math.abs(pb.y + off.y - pa.y) <= cell) { gates[k] = nk; break; }
+    }
+  }
+  return gates;
+};
+// SEWER ENTRANCES LINE UP, TOP AND BOTTOM (2026-10-04). Blake, seed 90084: Trailor Park M5 →
+// Sewer M1 → Sewer M3 → Sewer M2 → Trailor Park M6, with ANOTHER M6 on the street in between —
+// sitting over Sewer M3, which has no top gate at all. That M6's Bottom Left dropped onto nothing:
+// a wall, and the "leads nowhere yet (it accepts "Sewer")" flash. The planner only ever checked the
+// level you go down from and the one you come back up into; the street levels the sewer runs under
+// were never asked. Over 3,000 seeds on his levels, 558 street gates ended up like that.
+// So every street level stacked on a passage level must line up with it: each open gate facing the
+// other one leads through (a down gate has the sewer's up gate under it, and an up gate in the sewer
+// has a down gate over it), or neither has a gate on that side at all. `top` is the street level and
+// `side` the way to the passage ("S" a sewer, "N" a tree top).
+export const vertSeamLinesUp = (top, bottom, side) => {
+  const facing = (lv, sd) => CONN_KEYS.filter((k) => CONN_SIDE[k] === sd && lv.conns[k] && lv.conns[k].open);
+  const ours = facing(top, side), theirs = facing(bottom, SIDE_OPP[side]);
+  if (!ours.length && !theirs.length) return true;                  // a solid floor over a solid ceiling
+  const pair = seamGatePair(top, bottom, side); if (!pair) return false;
+  const gates = seamGates(top, bottom, side, neighbourOffset(top, pair[0], bottom, 1, pair[1]), 1), landed = Object.values(gates);
+  return ours.every((k) => gates[k]) && theirs.every((nk) => landed.includes(nk));
+};
 export const buildRun = (levels, seed, opts = {}) => {
   const maxMiddles = opts.maxMiddles !== undefined ? opts.maxMiddles : RUN_MIDDLE_LEVELS;
   const attempts = opts.attempts || 24;
@@ -9615,7 +9649,9 @@ export const buildRun = (levels, seed, opts = {}) => {
     // `n` more middle levels chained east of `from`, the last of which `fits` (a way back up out of
     // the sewer). Depth is at most RUN_PASSAGE_MAX; `dead` remembers a level that cannot finish the
     // job from that depth, so the search is levels × depth, not levels to the power of depth.
-    // `fits(m, x)` is also told how far east (in cells) of `from` that last level would sit.
+    // `fits(m, x, k)` is asked of EVERY level laid, not just the last: each one stands over a level of
+    // the passage and has to line up with it (vertSeamLinesUp). `x` is how far east (in cells) of
+    // `from` it would sit and `k` how many are still to lay counting this one, so k === 1 is the last.
     const fillTo = (from, n, fits) => {
       const dead = new Set();
       const go = (prev, k, x) => {
@@ -9623,7 +9659,8 @@ export const buildRun = (levels, seed, opts = {}) => {
         if (dead.has(memo)) return null;
         for (const m of order(middles.filter((c) => canAttach(prev, c, "E")))) {
           const mx = x + seamOffX(prev, m, "E");
-          if (k === 1) { if (fits(m, mx)) return [m]; continue; }
+          if (!fits(m, mx, k)) continue;
+          if (k === 1) return [m];
           const rest = go(m, k - 1, mx); if (rest) return [m, ...rest];
         }
         dead.add(memo); return null;
@@ -9640,7 +9677,7 @@ export const buildRun = (levels, seed, opts = {}) => {
     // through the passage levels' east/west gates, and back to the street at another column.
     const planFrom = (c, dir) => {
       if (!planPassages || taken[dir].has(c)) return false;
-      const firsts = offStreet.filter((s) => canAttach(chain[c], s, dir));
+      const firsts = offStreet.filter((s) => canAttach(chain[c], s, dir) && vertSeamLinesUp(chain[c], s, dir));
       if (!firsts.length) return false;
       const routes = [];
       const walk = (step, col, lvl, path) => {
@@ -9661,17 +9698,31 @@ export const buildRun = (levels, seed, opts = {}) => {
       // still meets, but the loop is not one flat map. His M6 → Sewer M1 → Sewer M2 → M5 is straight
       // down and straight up and lines up exactly; M5 → Sewer M1 → Sewer M2 → M6 does not. So the
       // first pass only takes routes whose way out sits exactly where the street puts it.
-      const sideX = (route) => { let x = seamOffX(chain[c], route.path[0], dir); for (let i = 1; i < route.path.length; i++) x += seamOffX(route.path[i - 1], route.path[i], route.step > 0 ? "E" : "W"); return x; };
+      // `sideXs` is where each passage level starts, in cells east of column c's street level.
+      const sideXs = (route) => { const xs = [seamOffX(chain[c], route.path[0], dir)]; for (let i = 1; i < route.path.length; i++) xs.push(xs[i - 1] + seamOffX(route.path[i - 1], route.path[i], route.step > 0 ? "E" : "W")); return xs; };
       const streetX = (end) => { let x = 0; for (let i = Math.min(c, end); i < Math.max(c, end); i++) x += seamOffX(chain[i], chain[i + 1], "E"); return end < c ? -x : x; };
       const shuffled = shuffle(routes);
       for (const strict of [true, false]) for (const route of shuffled) {
-        const lastSide = route.path[route.path.length - 1], sx = sideX(route);
+        const last = route.path.length - 1, lastSide = route.path[last], xs = sideXs(route), sx = xs[last];
+        const colOf = (i) => c + i * route.step;
         const backUp = (X, streetAt) => canAttach(lastSide, X, SIDE_OPP[dir]) && (!strict || sx + seamOffX(lastSide, X, SIDE_OPP[dir]) === streetAt);
-        if (route.end < chain.length) { if (backUp(chain[route.end], streetX(route.end))) return commit(route, c, dir, []); continue; }
+        // The street level X, standing `x` cells east of column c's, over passage level i. Every one
+        // the passage runs under lines up with it (vertSeamLinesUp) — not only the way down and the
+        // way back up — and the last one IS the way back up. One that joins on the way past is a
+        // third gate into the same sewer, which is fine; the strict pass also wants it to sit
+        // exactly where the street puts it, like the way out.
+        const over = (X, x, i) => {
+          const s = route.path[i];
+          if (!vertSeamLinesUp(X, s, dir)) return false;
+          if (i === last) return backUp(X, x);
+          return !strict || !seamGatePair(X, s, dir) || x + seamOffX(X, s, dir) === xs[i];
+        };
+        if (!route.path.every((s, i) => i === 0 || colOf(i) >= chain.length || over(chain[colOf(i)], streetX(colOf(i)), i))) continue;
+        if (route.end < chain.length) return commit(route, c, dir, []);
         const n = route.end - chain.length + 1;
         if (exitPlaced || n > middlesLeft) continue;
-        const toLast = streetX(chain.length - 1);
-        const fill = fillTo(chain[chain.length - 1], n, (X, x) => backUp(X, toLast + x));
+        const toLast = streetX(chain.length - 1), first = chain.length - c;   // the path index under the first new street level
+        const fill = fillTo(chain[chain.length - 1], n, (X, x, k) => over(X, toLast + x, first + n - k));
         if (fill) return commit(route, c, dir, fill);
       }
       return false;
@@ -9774,17 +9825,8 @@ export const runSeams = (run, node, cell = LV_CELL) => {
     // drop through its Top Left is out past our right-hand edge), so it stays a wall.
     const pair = seamGatePair(node.level, nb.level, side);
     if (!pair) continue;
-    const off = neighbourOffset(node.level, pair[0], nb.level, cell, pair[1]), gates = {};
-    for (const k of CONN_KEYS) {
-      if (CONN_SIDE[k] !== side) continue;
-      const a = gatePoint(node.level, k, cell);
-      for (const nk of CONN_KEYS) {
-        if (CONN_SIDE[nk] !== SIDE_OPP[side] || !connMatch(node.level.conns[k], node.level, nb.level.conns[nk], nb.level)) continue;
-        const b = gatePoint(nb.level, nk, cell);
-        if (Math.abs(b.x + off.x - a.x) <= cell && Math.abs(b.y + off.y - a.y) <= cell) { gates[k] = nk; break; }
-      }
-    }
-    out[side] = { key, level: nb.level, off, gates };
+    const off = neighbourOffset(node.level, pair[0], nb.level, cell, pair[1]);
+    out[side] = { key, level: nb.level, off, gates: seamGates(node.level, nb.level, side, off, cell) };
   }
   return out;
 };

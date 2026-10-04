@@ -2221,6 +2221,20 @@ spots in the play loop and the level render. In plain words:
   `{ passages: false }`. The whole loop was driven on seed s15: dropped through M6's Bottom Left, walked
   east through the tunnel (his sewer's tunnel meets at rows 10–18 while Sewer M1's E1 mark is row 16
   — fine either way now), climbed Sewer M2's ladder and came up in M5 at the same x.
+* **EVERY STREET LEVEL OVER A SEWER LINES UP WITH IT (2026-10-04).** Blake, seed 90084: "a trailor level
+  with a sewer down gate was generated where there was not a sewer upgate… Sewer entrances have to line
+  up on top and bottom." A sewer three levels long (M5 → Sewer M1 → Sewer M3 → Sewer M2 → M6) runs
+  under a street level in the MIDDLE too, and `planFrom` only ever checked the way down and the way up.
+  The middle M6's Bottom Left sat over Sewer M3, which has no top gate, so it was a wall that flashed
+  "leads nowhere yet". Sewer M3 and M4 are both tunnels (W1 + E1 only). Now `vertSeamLinesUp(street,
+  passage, dir)` must hold for EVERY column a passage runs under, entry and exit included: each open
+  gate facing the other level leads through (`seamGates`, the same lined-up test `runSeams` uses), or
+  neither level has a gate on that side. `fillTo` asks `fits(m, x, k)` of every street level it lays,
+  not just the last. Measured on his online save in 🎲 Generate (prod builds, seeds 0–59): old code put
+  M5/M6 over M3/M4 in 15 runs, new code in 0, with the same 38 runs getting a sewer and the same 27
+  using M3/M4 (now under M3/M8/M9/M12, the levels with no bottom gate). The rule is strict on purpose:
+  a street with Bottom Left AND Bottom Right over a sewer with one top gate is refused too, because one
+  of the two would lead nowhere.
 * **Gates with nothing behind them.** Pressed against an edge at an open gate no level attaches to,
   the loop flashes once every 2.5 s (`gateNag`): "🚧 Bottom Left gate leads nowhere yet … (it accepts
   "Sewer")", "🏁 The run starts here", or "🏁 Floor complete!". Plain Playtest edges stay silent.

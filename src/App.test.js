@@ -184,7 +184,7 @@ import {
   migrateLevel,
   newLevelBucket, runWorldParts, worldPartAt, worldPartOfCell, unitClampX, unitFloorY, moveRunUnit, adoptRunNeighbours, releaseRunUnits, TALK_BUBBLE_MIN_H,
   runMountPlan, RUN_MOUNT_ITEMS_PER_FRAME, runGridOrder, unitDrawOrder,
-  runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, seamGatePair, seamGateLeaving, buildRun, runPassageLevels, RUN_PASSAGE_MAX, resolveRunNeighbour, resolveRunSides, runSeams, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
+  runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, seamGatePair, seamGateLeaving, buildRun, runPassageLevels, RUN_PASSAGE_MAX, vertSeamLinesUp, resolveRunNeighbour, resolveRunSides, runSeams, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
   objTopAt,
   objNudgedLeft,
   objNudgedTop,
@@ -10264,6 +10264,46 @@ describe("runs", () => {
       expect(x(run, first, "S") + x(run, a, "E") + x(run, b, "N")).toBe(x(run, first, "E"));  // down, across, up = one step along the street
     }
     expect(checked).toBeGreaterThan(0);
+  });
+
+  // Blake, 2026-10-04, seed 90084: M5 → Sewer M1 → Sewer M3 → Sewer M2 → M6 with another M6 on the
+  // street in between, its Bottom Left over Sewer M3 — which has no top gate. Only the way down and
+  // the way back up were ever checked.
+  const SM = mk("SM", { floor: "Sewer", section: "Sewer", open: { W1: "", E1: "" } });   // like Sewer M3: a tunnel, no way up
+  const Q = mk("Q", { open: { W2: "", E2: "" } });                                       // like Trailor Park M3/M12: no bottom gate
+
+  test("vertSeamLinesUp: every gate between a street level and the passage level under it leads through", () => {
+    expect(vertSeamLinesUp(P6, SA, "S")).toBe(true);    // Bottom Left straight over Top Left
+    expect(vertSeamLinesUp(P5, SA, "S")).toBe(true);    // Bottom Right staggered onto Top Left
+    expect(vertSeamLinesUp(Q, SM, "S")).toBe(true);     // solid floor over a solid ceiling
+    expect(vertSeamLinesUp(P6, SM, "S")).toBe(false);   // his seed: a sewer gate over a tunnel with no way up
+    expect(vertSeamLinesUp(Q, SA, "S")).toBe(false);    // ...and a ladder up into a solid floor
+    const both = mk("both", { open: { W2: "", E2: "", S1: "Sewer", S2: "Sewer" } });
+    expect(vertSeamLinesUp(both, SA, "S")).toBe(false);  // Bottom Right would land on the sewer's roof
+    expect(vertSeamLinesUp(both, mk("two", { floor: "Sewer", open: { N1: "", N2: "" } }), "S")).toBe(true);
+    // Tree tops the other way up: a street's top gate under a tree top's bottom gate.
+    const T = mk("T", { floor: "Tree Top", section: "Tree Top", open: { S1: "Trailor Park" } });
+    expect(vertSeamLinesUp(mk("up", { open: { N1: "Tree Top" } }), T, "N")).toBe(true);
+    expect(vertSeamLinesUp(Q, T, "N")).toBe(false);
+  });
+
+  test("a sewer running under several street levels lines up with every one of them", () => {
+    const pool = [P5, P6, Q, SA, SM, SB];
+    let under = 0;
+    for (let i = 0; i < 60; i++) {
+      const run = buildRun(pool, "line" + i, { maxMiddles: 4 });
+      for (const n of Object.values(run.nodes)) {
+        if (!n.row) continue;
+        const street = run.nodes[run.order[n.col]];
+        expect(vertSeamLinesUp(street.level, n.level, "S")).toBe(true);
+        if (n.level.id === "SM") { under++; expect(street.level.id).toBe("Q"); }
+        // the street's own seam, resolved as the game would, leaves none of its bottom gates unjoined
+        resolveRunNeighbour(run, street, "S", pool);
+        const seam = runSeams(run, street, CELL).S;
+        for (const k of ["S1", "S2"]) if (street.level.conns[k].open) expect(seam && seam.gates[k]).toBeTruthy();
+      }
+    }
+    expect(under).toBeGreaterThan(0);   // the tunnel is still laid — just under a street level with no gate
   });
 
   test("a side seam is open its whole shared height; top and bottom seams only at their gates", () => {
