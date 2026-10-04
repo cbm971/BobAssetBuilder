@@ -562,6 +562,28 @@ takes: opening the studio on any address pulls the whole library back down.
 
 ## Architecture worth knowing
 
+**How a dressed look is stacked (`layerBodyAndOverlays`), and the two rules added 2026-10-03.**
+Back to front: behind-body pieces · body (with "Behind legs" pieces tucked in, see below) · skin
+decor · shoes · undershirt · pants/underwear · shirt/jacket · **hat** · body arm · over-arms
+pieces. Two of Blake's reports set that order:
+- **"Behind legs should just put it behind legs. it shouldn't put it behind body."** It used to
+  drop the piece under the WHOLE body, so his Jean Shorts (every Crouch piece ticked) vanished
+  when you ducked; DK showed his Tidy Whiteys instead. Now `tuckBehindLegs` puts it over the
+  torso and under the legs drawn after the torso. If any pants piece is tucked in a pose, the
+  underwear bottoms are tucked with it, under the pants. BoB's and Bobbett's crouch legs start
+  at the hip, so ticked shorts still show only around the legs; that is the flag doing what he
+  said. Unticking it on a piece brings that piece over the legs.
+- **"Arms went through helmet."** Hats were composed last, over the arms, so the raised arm of the
+  Up pose, a swing windup or a throw went under the helmet. `hatsUnderArms` moves hat pieces to
+  just under the body's arm (and under the held weapon's behind-arm grip). It also runs on the
+  player's blocks and every unit's baked pose at render, so old saved looks get it too.
+- The piece editor previews both: a pants/underwear piece ticked Behind legs draws under the
+  guide's legs, and a hat draws under the guide's arm. It used to draw both over the whole guide,
+  which is how the shorts bug went unseen while he drew them.
+- **Units re-compose their look's DRAWING per run** (`liveEnemyAsset`, the art only; stats,
+  effects and settings stay the saved look's). Before this a layering fix reached the player
+  (`livePlayerBlocks` always re-composes) but never the enemies, whose art was frozen at save.
+
 **Registries drive the UI generically** — one entry gets you the controls free:
 `EFFECT_TYPES` (clothing abilities), `TEXTURES` (level textures), `LV_OBJ_SIZES`,
 `PALETTES` (swatch-row colour themes — a new one appears in both pickers for free).

@@ -87,6 +87,8 @@ import {
   eraseTargetLayer,
   fgClipPath,
   mergeWeaponBlocks,
+  tuckBehindLegs,
+  hatsUnderArms,
   normalizeAssetJson,
   boxesOverlap,
   tackleDownFrames,
@@ -11686,5 +11688,38 @@ describe("units find a way up, down or onto the plane", () => {
   test("the climb layer is read once per level", () => {
     expect(climbRunsOf(ladderLv)).toBe(climbRunsOf(ladderLv));
     expect(climbRunsOf(ladderLv).ladders).toEqual([{ c: 10, rTop: 8, rBot: 15 }]);
+  });
+});
+
+describe("Behind legs tucks under the legs only, and arms go in front of a hat", () => {
+  const isLeg = (p) => p.limb === "leg";
+  test("a Behind-legs piece sits over the torso and under the legs drawn after it", () => {
+    // BoB's crouch: torso, head, legs, then two dots drawn after the legs (in the shorts area).
+    const body = [{ id: "torso" }, { id: "head" }, { id: "legs", limb: "leg" }, { id: "dot" }];
+    expect(tuckBehindLegs(body, isLeg, [{ id: "shorts" }]).map((p) => p.id)).toEqual(["torso", "head", "dot", "shorts", "legs"]);
+  });
+  test("a rear leg drawn before the torso stays at the back", () => {
+    const body = [{ id: "rear", limb: "leg" }, { id: "torso" }, { id: "front", limb: "leg" }];
+    expect(tuckBehindLegs(body, isLeg, [{ id: "shorts" }]).map((p) => p.id)).toEqual(["rear", "torso", "shorts", "front"]);
+  });
+  test("nothing tucked leaves the body exactly as it was", () => {
+    const body = [{ id: "torso" }, { id: "legs", limb: "leg" }, { id: "dot" }];
+    expect(tuckBehindLegs(body, isLeg, [])).toBe(body);
+  });
+  test("a hat goes just under the body's arm, and stays over the shirt", () => {
+    const out = [{ id: "torso", _src: "B" }, { id: "shirt", _slot: "shirt" }, { id: "arm", role: "weaponArm", _src: "B" }, { id: "sleeve", _slot: "jacket", limb: "arm", overArms: true }, { id: "helmet", _slot: "hat" }, { id: "visor", _slot: "hat" }];
+    expect(hatsUnderArms(out, "B").map((p) => p.id)).toEqual(["torso", "shirt", "helmet", "visor", "arm", "sleeve"]);
+  });
+  test("a baked look's held weapon keeps its behind-the-arm grip in front of the hat", () => {
+    const baked = [{ id: "torso" }, { id: "stock", _isWeapon: true, role: "weaponArm" }, { id: "arm", role: "weaponArm" }, { id: "barrel", _isWeapon: true }, { id: "cap", _slot: "hat" }];
+    expect(hatsUnderArms(baked).map((p) => p.id)).toEqual(["torso", "cap", "stock", "arm", "barrel"]);
+  });
+  test("behind-the-body hat pieces, armless art and repeat calls are left alone", () => {
+    const back = [{ id: "hood", _slot: "hat", behindBody: true }, { id: "torso" }, { id: "arm", limb: "arm" }];
+    expect(hatsUnderArms(back)).toBe(back);
+    const armless = [{ id: "blob" }, { id: "hat", _slot: "hat" }];
+    expect(hatsUnderArms(armless)).toBe(armless);
+    const once = hatsUnderArms([{ id: "arm", limb: "arm" }, { id: "hat", _slot: "hat" }]);
+    expect(hatsUnderArms(once)).toBe(once);
   });
 });

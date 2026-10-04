@@ -1409,6 +1409,46 @@ export const mergeWeaponBlocks = (bodyBlocks, weaponBlocks) => {
   if (armIdx === -1 || !behind.length) { const rest = (weaponBlocks || []).filter((p) => !under.includes(p)); return under.concat(body, rest); }
   return under.concat(body.slice(0, armIdx), behind, body.slice(armIdx), front);
 };
+// "BEHIND LEGS" MEANS BEHIND THE LEGS — NOT BEHIND THE WHOLE BODY (2026-10-03, Blake: "Behind legs
+// should just put it behind legs. it shouldn't put it behind body.") The compositor used to put a
+// behindLegs piece at the very bottom of the stack, under the torso too, so a pair of Jean Shorts
+// ticked Behind legs in the Crouch pose vanished the moment you ducked: the crouching torso covered
+// the denim and only the belt and button (left unticked) still showed. The piece editor drew those
+// same pieces OVER the guide body, so nothing looked wrong while they were being drawn.
+// Now a tucked piece sits over every non-leg body piece and under the body's legs. A leg drawn
+// BEFORE the torso (a rear leg tucked behind it) keeps its place at the back; the legs drawn after
+// the torso — the bent crouch knees/shins — are the ones that come in front of the tucked piece.
+// With nothing tucked the body comes back untouched, in its own order.
+export const tuckBehindLegs = (bodyPieces, isLeg, tucked) => {
+  const body = bodyPieces || [];
+  if (!tucked || !tucked.length) return body;
+  const first = body.findIndex((p) => !isLeg(p));
+  if (first === -1) return tucked.concat(body); // a body that is all legs: behind them is behind it
+  const rest = body.slice(first);
+  return body.slice(0, first).concat(rest.filter((p) => !isLeg(p)), tucked, rest.filter(isLeg));
+};
+// ARMS GO IN FRONT OF A HAT (2026-10-03, Blake: "Arms went through helmet instead of being layer in
+// front of helmet"). Hats were the very last thing composed, over the arms, so aiming up (the Up
+// pose draws the arm raised beside the head), a melee windup or a throw slid the arm UNDER the
+// helmet. The arm is already in front of the head; a hat now sits with the head, just under the
+// body's arm — and so under every sleeve that rides the arm — but still over the shirt, the jacket
+// and the face.
+// Works on a fresh composition and on a look baked before this rule existed alike: pieces carry
+// `_slot` (garments) and `_src` (which asset), and the body's own arm is the arm piece with no slot
+// that is not part of the held weapon. The held weapon's behind-the-arm pieces sit directly in front
+// of the arm (mergeWeaponBlocks), so a hat moved there goes under them too — the hand's grip is in
+// front of the head like the arm is. Idempotent: a stack already in this order comes back as it was.
+export const hatsUnderArms = (blocks, bodyId) => {
+  const list = blocks || [];
+  const isBodyArm = (p) => (p.role === "weaponArm" || p.limb === "arm") && !p._slot && !p._isWeapon && (!bodyId || p._src === bodyId);
+  let at = list.findIndex(isBodyArm);
+  if (at === -1) return list;
+  while (at > 0 && list[at - 1]._isWeapon && !list[at - 1].behindBody) at--;
+  const isHat = (p) => p._slot === "hat" && !p.behindBody;
+  const late = list.slice(at).filter(isHat);
+  if (!late.length) return list;
+  return list.slice(0, at).concat(late, list.slice(at).filter((p) => !isHat(p)));
+};
 
 // The one walk both "…everywhere" actions share, threading a PLACE KEY through it: which list a
 // piece sits in, and where in that list.
@@ -16727,7 +16767,7 @@ export default function AssetStudio() {
       const key = (bodyId && a.variants[bodyId]) ? bodyId : (a.lastFit && a.variants[a.lastFit] ? a.lastFit : "default");
       return { ...a, angles: a.variants[key] || a.variants.default || a.angles };
     };
-    const belowLegs = [], back = [], shoesLower = [], underTop = [], lower = [], upperUnder = [], upperOver = [], skinDecor = [], other = [];
+    const belowLegs = [], back = [], shoesLower = [], underTop = [], lower = [], upperUnder = [], upperOver = [], skinDecor = [], other = [], underBottom = [];
     const hatEquipped = overlays.some((a) => a.slot === "hat" && !a.ignoreHideIfHat);
     for (const a0 of overlays) {
       const a = fitFor(a0);
@@ -16738,7 +16778,7 @@ export default function AssetStudio() {
         if (a.slot === "shoes") { p.limb = "leg"; p._isShoe = true; } // shoes always follow the leg — no manual flagging needed, and see the foot-arc handling in the walk/climb animation below
         if (p.behindBody) back.push(p);
         else if (a.slot === "shoes") shoesLower.push(p); // shoes sit UNDER pants/underwear (a pant leg falls over the shoe), but still over the bare leg
-        else if (LOWER_BODY_SLOTS.has(a.slot)) (p.behindLegs ? belowLegs : lower).push(p);
+        else if (LOWER_BODY_SLOTS.has(a.slot)) { (p.behindLegs ? belowLegs : lower).push(p); if (a.slot === "under_bottom") underBottom.push(p); }
         // An UNDERSHIRT goes under the pants, not over them — it's the one upper-body garment
         // that tucks in. A long undershirt was painting straight over the waistband because
         // under_top shared the shirt/jacket bucket, which draws after the lower body. It keeps
@@ -16754,7 +16794,20 @@ export default function AssetStudio() {
     // body and UNDER every piece of clothing automatically. Clothing that isn't flagged
     // behind-body wraps AROUND the body, so it covers skin wherever they overlap (a cape's front
     // piece over the face); the face can never phase through it. No flags needed for any of this.
-    let out = back.concat(belowLegs).concat(bodyNonArm).concat(skinDecor).concat(shoesLower).concat(underTop).concat(lower).concat(upperUnder).concat(bodyArm).concat(upperOver).concat(other);
+    // "Behind legs" pieces go between the torso and the legs (tuckBehindLegs), not under the whole
+    // body as they once did — see there for the Jean Shorts that disappeared when you crouched.
+    const isLegPiece = (p) => p.limb === "leg" || bodyLegIds.has(p.id);
+    // UNDERWEAR STAYS UNDER THE PANTS. Tucking a pair of pants behind the legs while the underwear
+    // was left untucked painted the underwear OVER them: DK crouching showed his Tidy Whiteys where
+    // his Jean Shorts should be. So when this pose tucks any pants piece, the underwear bottoms are
+    // tucked with it, beneath the pants, in their own drawn order.
+    let tucked = belowLegs, lowerOver = lower;
+    if (belowLegs.some((p) => p._slot === "pants") && lower.some((p) => p._slot === "under_bottom")) {
+      const isUnder = (p) => p._slot === "under_bottom";
+      tucked = underBottom.concat(belowLegs.filter((p) => !isUnder(p))); // underBottom: every underwear piece, in the order it was drawn
+      lowerOver = lower.filter((p) => !isUnder(p));
+    }
+    let out = back.concat(tuckBehindLegs(bodyNonArm, isLegPiece, tucked)).concat(skinDecor).concat(shoesLower).concat(underTop).concat(lowerOver).concat(upperUnder).concat(bodyArm).concat(upperOver).concat(other);
     if (ang === "crouch") {
       // Crouching brings a bent knee up in front of the torso — a shirt shouldn't paint over
       // it. Move every shirt/jacket piece to just before the FIRST leg piece, instead of
@@ -16770,7 +16823,6 @@ export default function AssetStudio() {
       const skinSet = new Set(skinDecor);
       const isShirtPiece = (p) => p._slot && UPPER_BODY_SLOTS.has(p._slot) && !p.overArms && !p.behindBody;
       const shirts = out.filter(isShirtPiece);
-      const isLegPiece = (p) => p.limb === "leg" || bodyLegIds.has(p.id);
       if (shirts.length) {
         const rest = out.filter((p) => !isShirtPiece(p) && !skinSet.has(p));
         // Anchor the tuck to the BODY, not to "the first leg in draw order": insert
@@ -16787,7 +16839,7 @@ export default function AssetStudio() {
         else { const firstLegIdx = rest.findIndex(isLegPiece); out = firstLegIdx === -1 ? rest.concat(insert) : rest.slice(0, firstLegIdx).concat(insert).concat(rest.slice(firstLegIdx)); }
       }
     }
-    return out;
+    return hatsUnderArms(out, body && body.id); // the arms in front of the hat, as they are in front of the head
   };
   const fxCss = (p) => { const f = p.fx; if (!f) return {}; const parts = []; if (f.glow > 0) parts.push(`drop-shadow(0 0 ${f.glow}px ${f.glowColor})`); if (f.bright !== 1) parts.push(`brightness(${f.bright})`); const o = {}; if (f.opacity !== 1) o.opacity = f.opacity; if (parts.length) o.filter = parts.join(" "); return o; };
   // Outer wrapper: position, size, transform, opacity, and the piece's own Effects filter
@@ -17748,7 +17800,9 @@ export default function AssetStudio() {
      through them, because a roll that different readers see differently is worse than no roll at
      all: the sprite wears one jacket, the hitbox is measured off another, and the corpse drops a
      third. All three are the IDENTITY function until a tag actually rolls something, so every
-     level built before this existed takes byte-identically the path it always did. ── */
+     level built before this existed takes byte-identically the path it always did — except that a
+     dressed look's DRAWING is re-composed by the current layering rules (liveEnemyAsset, 2026-10-03);
+     its stats, effects and settings are still the saved look's, untouched. ── */
   // `gear` defaults to the LIVE level's rolls. A run's neighbour levels pass their own bucket's map
   // (and a cache namespace, since two levels can both have a spawn at "12,40") so the units standing
   // across a gate are drawn wearing what they will be wearing when you walk through it.
@@ -17784,11 +17838,28 @@ export default function AssetStudio() {
   // untouched and the coat it rolled is loot only — see the wearIds line in enemyEquippedGear.
   // Up to three rolls means up to three garments, each in its own slot (rollEnemyGearSet never
   // rolls two for one slot), all laid on in one composition.
+  //
+  // ...and a dressed look that rolled NOTHING is re-composed too (2026-10-03), once per run per look,
+  // the way the player's own look always is (livePlayerBlocks). A unit used to draw the art frozen
+  // into the look the day it was saved, so a layering fix reached you and never your enemies: DK
+  // ducking as an enemy kept the Jean Shorts hidden under his body after they were fixed on DK the
+  // player. "Enemies play by your rules" — the same compositor, the same picture.
   const liveEnemyAsset = (k, ea, gear) => {
     const worn = (rolledGearAt(k, gear) || []).filter((a) => a.type === "equipment" && a.slot);
-    if (!ea || !worn.length) return ea;
+    if (!ea) return ea;
     const c = ea.components;
     if (ea.type !== "character" || !c || !c.body) return ea;
+    if (!worn.length) {
+      // Only the PICTURE is re-composed here, exactly like livePlayerBlocks: stats, effects, rig and
+      // enemy settings stay the saved look's own, so nothing but the drawing order can differ.
+      const artKey = playRunId.current + "|" + ea.id + "|art";
+      const art = enemyGearLookCache.current.get(artKey);
+      if (art && art.src === ea) return art.out;
+      const look = assembleLook(c.body, c.skin || null, c.weapon || null, c.equipment || {}, { id: ea.id, name: ea.name, type: "character" });
+      const out = { ...ea, angles: look.angles };
+      enemyGearLookCache.current.set(artKey, { src: ea, out });
+      return out;
+    }
     const key = playRunId.current + "|" + ea.id + "|" + worn.map((a) => a.id).join("|");
     const hit = enemyGearLookCache.current.get(key);
     if (hit) return hit;
@@ -20357,7 +20428,8 @@ export default function AssetStudio() {
                   // art plane below — movement must never turn the character toward the camera.
                   const angle = playerPoseKey(p);
                   const airborne = !p.onGround && !p.climbing && !p.transitioning; // a jump or a fall — not standing, climbing, or mid level-transition
-                  let blocks = playerAsset ? livePlayerBlocks(angle) : null;
+                  // hatsUnderArms: a look baked before the arms-over-hat rule still has its hat on top.
+                  let blocks = playerAsset ? hatsUnderArms(livePlayerBlocks(angle)) : null;
                   // A drawn ENEMY used as the player: if it has a hand-drawn Attack pose and is
                   // mid melee swing, show that pose instead — it OVERRIDES the arm-swing animation,
                   // exactly like it does on AI enemies. Ranged/throw don't use it (those lift/aim).
@@ -20994,7 +21066,10 @@ export default function AssetStudio() {
                   const eStatusTop = eCrouchFrame
                     ? eTop + eph - ((eCrouchFrame.groundY - eCrouchFrame.topY) / H + eShape.topFrac) * (eRenderW * H / W)
                     : eTop + eAnchor;
-                  let eBlocks = bake(ea, ePoseKey);
+                  // A unit's look is usually the art baked when it was saved, so the arms-over-hat rule
+                  // (hatsUnderArms) is applied here too — the same raised arm in front of the same
+                  // helmet on an enemy as on you.
+                  let eBlocks = hatsUnderArms(bake(ea, ePoseKey));
                   // Both of these are poses drawn on their own canvas, so both need pinning to the
                   // baseline the SIDE pose stands on, or the body floats or sinks by whatever empty
                   // canvas its own drawing happens to leave underneath it.
@@ -22191,19 +22266,29 @@ export default function AssetStudio() {
             {(() => {
               const isLowerSlot = asset.type === "equipment" && LOWER_BODY_SLOTS.has(asset.slot);
               const isUpperSlot = asset.type === "equipment" && UPPER_BODY_SLOTS.has(asset.slot);
+              const isHatSlot = asset.type === "equipment" && asset.slot === "hat";
               const renderPiece = (p) => pmirror(p, angle) ? [Block(p), MirrorGhost(p, "m" + p.id)] : [Block(p)];
-              if (showGuide && (isLowerSlot || isUpperSlot)) {
+              if (showGuide && (isLowerSlot || isUpperSlot || isHatSlot)) {
                 // Split relative to the guide body's arm, matching how this piece will actually
                 // layer once worn (Dress Bob / in-game) — not just "always on top of everything".
+                // A HAT goes under the arm too (hatsUnderArms): drawn over the arm here, a helmet
+                // looked right in the Up pose and the raised arm then went through it in play.
                 const guidePieces = bake(guideBodyAsset, angle);
                 const isArmG = (gp) => gp.role === "weaponArm" || gp.limb === "arm";
                 const guideNonArm = guidePieces.filter((gp) => !isArmG(gp));
                 const guideArm = guidePieces.filter(isArmG);
-                const belowArm = frontPieces.filter((p) => isLowerSlot || !p.overArms);
+                // "Behind legs" pieces show where the game puts them — over the torso, under the
+                // guide's legs (tuckBehindLegs). They were drawn over the whole guide here while the
+                // game hid them under it, which is how a pair of shorts vanished in a crouch unseen.
+                const guideLegIds = identifyLimbs(guideNonArm).legIds;
+                const tucked = isLowerSlot ? frontPieces.filter((p) => p.behindLegs) : [];
+                const tuckedSet = new Set(tucked);
+                const underArm = tuckBehindLegs(guideNonArm, (gp) => gp.limb === "leg" || guideLegIds.has(gp.id), tucked);
+                const belowArm = frontPieces.filter((p) => !tuckedSet.has(p) && (isLowerSlot || isHatSlot || !p.overArms));
                 const aboveArm = frontPieces.filter((p) => isUpperSlot && p.overArms);
                 return <>
                   {behindPieces.flatMap(renderPiece)}
-                  {guideNonArm.map((p, i) => Static(p, null, true, !!p._m, "gna" + i))}
+                  {underArm.flatMap((p) => tuckedSet.has(p) ? renderPiece(p) : [Static(p, null, true, !!p._m, "gna" + guideNonArm.indexOf(p))])}
                   {belowArm.flatMap(renderPiece)}
                   {guideArm.map((p, i) => Static(p, null, true, !!p._m, "ga" + i))}
                   {aboveArm.flatMap(renderPiece)}
