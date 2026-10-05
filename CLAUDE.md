@@ -275,9 +275,15 @@ on, so "click Level Creator" can find nothing.
   - **A translucent piece can only take an outline if it is a rect, circle, roundrect or stadium.** Those draw the
     outline as a box-shadow ring. Every clip-path shape (tri, poly, star, ...) draws its outline as a SOLID silhouette
     under the fill (`outlineFillStyle`), so a see-through tri or poly with an outline turns dark all over.
-  - **The crown is a ring:** a `circle` with an inset `circle` cutter. Its back arc shows above the head top, its
-    front arc crosses the forehead, and the head shows through the middle. Thorns are `tri`s on the ring's outer
-    normal. `ignoreHideIfHat: true` keeps the hair. A flat band with thorns read as a stick, not a crown.
+  - **The crown is a ring in two halves.** v1 was one `circle` with an inset `circle` cutter, drawn whole over the
+    head. Blake: "The crown needs the back half to be behind the head and hair." Now each pose has two half-ring
+    `poly`s, made from that ring's own ellipses with 12 steps per arc. The BACK (upper) half and every thorn
+    standing on it are `behindBody`, so they go in the compositor's `back` bucket, under the body, the skin's hair
+    and everything else. The FRONT (lower) half and its thorns stay over the forehead, and they reach 6° past each
+    end so the halves overlap with no seam. This is the same in Back and Side: the upper arc is always the far
+    side. Thorns are `tri`s on the ring's outer normal. `ignoreHideIfHat: true` keeps the hair. A flat band with
+    thorns read as a stick, not a crown. **Any headband/ring hat should be split this way**, because a hat piece is
+    otherwise drawn over the hair (hats are last in the stack, under only the arms).
   - **When the Browser pane cannot reach another port** (every cross-port `fetch` said "Failed to fetch" on
     2026-10-05), POST each snapshot to the dev server's own `/__library` as a throwaway record (`{assets:[{id:
     "zzshot-…", type:"prop", png:dataURL}]}`). Read it back out of `asset-data/library.json`, then
