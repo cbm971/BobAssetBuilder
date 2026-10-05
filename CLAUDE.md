@@ -1125,6 +1125,45 @@ activate fly? I like to imagine if you press W in mid air it activates fly".
   (`ep.flyBlockT`) so the climb route can take it up the stairs. Placements whose 🎲 gear roll
   swapped the jacket lost the jacket's Fly, which is the gear system working.
 
+**🦎 TAIL SWING (`EFFECT_TYPES.tailSwing`, 2026-10-05).** Blake: "an ability called tail swing (I will
+put it on the crocodile pants) where turning around next to an enemy does damage to them and pushes
+them backwards two cells. The range … inspired by how far out the Alligator pants extend." He adds it
+to his Dino Tail Pants (`dinotl1`) himself; it was NOT put on that record.
+* **The turn is the swing, and it hits the side you WERE facing.** In Side the tail points behind
+  you; turning flips the sprite, so the tail ends up where you were looking. Face a croc, tap the
+  other way, and it lands. The side you turn TOWARD is not hit. Player: only a turn made with the
+  keys (`faceBeforeKeys` in the loop), never the stomp's turn-to-face or a door's arrival.
+* **Geometry (`tailSwingTargets`).** From the wearer's middle out to Reach past the back of its body,
+  over the lower 40% of its box plus half a cell under the feet (`TAIL_SWING_BAND_TOP` 0.6). Reach's
+  default 1.5 cells is MEASURED: the Side tail tip sits 53–55 canvas units past the back of BoB and
+  Bobbett, and a cell is 260/7 ≈ 37 units. A unit's reach grows with `enemyScale`; the push does not.
+* **Damage** is `playerMeleeDamage(item damage, Strength)` with the Intelligence crit, then the
+  target's armour — a melee weapon's rule, on both sides. **Cooldown** `TAIL_SWING_COOLDOWN_FRAMES`
+  (0.5 s) starts only when a swing LANDS, so turning round in an empty street never eats the next turn.
+* **The push (`knock = {left, dir}`, `knockbackStep`)** is fed into the body's own sideways move, so
+  walls, kerbs and level edges treat it as a step; a wall that stops it ends it. 60 px takes ~12
+  frames, fastest first. While shoved, a unit counts as `stunned` (no walk, turn or strike); on the
+  player the shove replaces the walk for those frames. `placeSpawn` clears `p.knock`, so a killing
+  blow does not shove you at the gate you respawn at.
+* **Units, both halves at once (his rule).** Any turn a unit makes sweeps the same way (`ep.tailFace`
+  is last frame's facing; the check runs after the attack commit). At the commit, a tail-wearer with an
+  opposing body inside its reach IN FRONT turns its back instead of attacking (`eTailFront`): it sets
+  `ep.tailFace` first, because a unit that only just swung round onto you would otherwise net no turn,
+  then holds that back-turned pose with its feet planted for `TAIL_SWING_HOLD_FRAMES` (0.25 s, `ep.tailT`).
+  It turns back during the hold's last `FACE_HOLD_FRAMES`, so it faces you again the frame its feet are
+  free. Without the hold it showed its back for five frames and moonwalked toward you. Hits go through
+  `applyHitTo`, so your i-frames, your guard and the revive window all apply.
+* **Measured in play (dev server, seeded looks):**
+  - Turning away from a 50 HP dummy half a cell off your front: 10 damage, and it slid 834 → 893.8 px,
+    exactly 2 cells.
+  - Turning to FACE it did nothing.
+  - A second turn inside 0.5 s did nothing.
+  - A shove toward the level edge stopped at the unit clamp (1734.6 of 1735).
+  - A croc look (Str 5) walked in, turned its back for 14 frames, hit Viatnamese 3 (Def 3) for 8 and
+    shoved him 60 px, then turned and came again.
+* **A look dressed BEFORE the pants got the ability does not have it** — a look's effects are baked
+  when it is saved (`liveEnemyAsset` re-composes only the picture). Re-open it in Dress Bob and save.
+
 **`.unitStatus` (a unit's HP bar, reload bar, 💫/😵, 💬) is UNDER the Front layer — z 5060,
 since 2026-09-16.** It sat at 8000 from the start, on the theory that a unit's bars are information
 you need even when it is behind a tree, and the result was an NPC inside a church, behind a painted

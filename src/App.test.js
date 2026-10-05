@@ -99,6 +99,12 @@ import {
   stunPlayer,
   knockDownPlayer,
   tackleSecsOf,
+  tailSwingOf,
+  tailSwingTargets,
+  TAIL_SWING_BAND_TOP,
+  TAIL_SWING_FLOOR_TOL_CELLS,
+  knockbackStep,
+  KNOCKBACK_MIN_STEP,
   enemyTackleChargeChance,
   perFrameChance,
   TACKLE_CHARGE_RANGE,
@@ -11286,6 +11292,86 @@ describe("moveLevelArea / moveLevelObject", () => {
     expect(res.level.fx["6,1"].map((o) => o.char)).toEqual(["A"]);
     expect(res.level.fx["4,1"][res.index]).toEqual({ kind: "prop", propId: "trailer", ox: 0.25 });
     expect(res.level.fg).toBe(lv.fg);
+  });
+});
+
+/* 🦎 TAIL SWING. Turn around and the tail lands on the side you were FACING (it ends up pointing
+   there), from your middle out to Reach past your back, low down where the tail is; anyone in it is
+   hit and shoved back by Push. Pin which side, how far, how high, and the shove's shape. */
+describe("tail swing", () => {
+  const CELL = 30;
+  // The wearer: a 66px-wide box (BoB's trimmed side body) 7 cells tall, feet on y=300.
+  const me = { x: 100, y: 300 - 7 * CELL, w: 66, h: 7 * CELL, cellPx: CELL, reachPx: 1.5 * CELL };
+  const body = (x, key, extra = {}) => ({ key, x, y: 300 - 7 * CELL, w: 60, h: 7 * CELL, ...extra });
+  const hit = (bodies, over = {}) => tailSwingTargets({ ...me, swingDir: 1, ...over, bodies }).map((b) => b.key);
+
+  test("read off the wearer's effects, whoever the wearer is, with the catalog defaults", () => {
+    expect(tailSwingOf({ effects: [{ type: "tailSwing" }] })).toEqual({ damage: 10, reach: 1.5, push: 2 });
+    expect(tailSwingOf({ effects: [{ type: "tailSwing", damage: 25, reach: 3, push: 0 }] })).toEqual({ damage: 25, reach: 3, push: 0 });
+    expect(tailSwingOf({ effects: [{ type: "tackle", secs: 2 }] })).toBe(null);
+    expect(tailSwingOf({})).toBe(null);
+    expect(tailSwingOf(null)).toBe(null);
+    // The defaults ARE the catalog's, so the editor's sliders and the game cannot disagree.
+    const defs = Object.fromEntries(EFFECT_TYPES.tailSwing.params.map((p) => [p.key, p.def]));
+    expect(tailSwingOf({ effects: [{ type: "tailSwing" }] })).toEqual(defs);
+    expect(defs.push).toBe(2); // "pushes them backwards two cells"
+  });
+
+  test("it hits the side you were facing, not the side you turned to", () => {
+    // Facing right (+1) and turning left: the tail swings into the right.
+    expect(hit([body(170, "front")])).toEqual(["front"]);                     // just past your front edge
+    expect(hit([body(0, "behind")])).toEqual([]);                              // the side you turned toward
+    expect(hit([body(0, "behind")], { swingDir: -1 })).toEqual(["behind"]);   // and the mirror
+    expect(hit([body(170, "front")], { swingDir: -1 })).toEqual([]);
+    expect(hit([body(170, "x")], { swingDir: 0 })).toEqual([]);                // no turn, no swing
+  });
+
+  test("it reaches Reach past the back of the body, measured off the Dino Tail Pants", () => {
+    const edge = 100 + 66 + 1.5 * CELL;                                        // far edge + 1.5 cells
+    expect(hit([body(edge - 1, "in")])).toEqual(["in"]);
+    expect(hit([body(edge + 1, "out")])).toEqual([]);
+    expect(hit([body(edge + 1, "longer")], { reachPx: 3 * CELL })).toEqual(["longer"]);
+    expect(hit([body(110, "inside")])).toEqual(["inside"]);                    // pressed right up against you
+    expect(hit([body(40, "middle")])).toEqual([]);                             // its box ends before your middle
+  });
+
+  test("low down, where the tail is: a Squirrel at your feet yes, something over your head no", () => {
+    const feet = 300;
+    expect(hit([body(170, "squirrel", { y: feet - 46, h: 46 })])).toEqual(["squirrel"]);
+    expect(hit([body(170, "flyer", { y: feet - 7 * CELL - 60, h: 50 })])).toEqual([]);
+    // Jumped clear: its feet are above the band, which starts TAIL_SWING_BAND_TOP down your box.
+    const bandTop = me.y + me.h * TAIL_SWING_BAND_TOP;
+    expect(hit([body(170, "jumped", { y: bandTop - 7 * CELL - 1 })])).toEqual([]);
+    expect(hit([body(170, "grazed", { y: bandTop - 7 * CELL + 2 })])).toEqual(["grazed"]);
+    // A floor below is out of it, a kerb's worth is not.
+    expect(hit([body(170, "kerb", { y: me.y + me.h + TAIL_SWING_FLOOR_TOL_CELLS * CELL - 1 })])).toEqual(["kerb"]);
+    expect(hit([body(170, "downstairs", { y: feet + 2 * CELL })])).toEqual([]);
+  });
+
+  test("nearest first", () => {
+    expect(hit([body(180, "b"), body(150, "a")])).toEqual(["a", "b"]);
+  });
+
+  test("the shove: fastest first, never past what is left, and two cells is a fifth of a second", () => {
+    expect(knockbackStep(0, 1)).toBe(0);
+    expect(knockbackStep(-5, 1)).toBe(0);
+    expect(knockbackStep(1, 1)).toBe(1);                                       // never more than what is left
+    expect(knockbackStep(60, 1)).toBeCloseTo(15, 9);                           // a quarter of what is left
+    expect(knockbackStep(4, 1)).toBe(KNOCKBACK_MIN_STEP);                      // ...but never a crawl
+    let left = 2 * CELL, frames = 0, prev = Infinity;
+    while (left > 0 && frames < 100) { const s = knockbackStep(left, 1); expect(s).toBeLessThanOrEqual(prev); prev = s; left -= s; frames++; }
+    expect(left).toBeCloseTo(0, 9);
+    expect(frames).toBeGreaterThanOrEqual(8);
+    expect(frames).toBeLessThanOrEqual(16);
+    // Real time: at 30 fps (dtMul 2) the same shove covers the same ground in about half the frames.
+    let left2 = 2 * CELL, frames2 = 0;
+    while (left2 > 0 && frames2 < 100) { left2 -= knockbackStep(left2, 2); frames2++; }
+    expect(frames2).toBeLessThanOrEqual(Math.ceil(frames / 2) + 1);
+  });
+
+  test("the in-level description carries the item's numbers", () => {
+    expect(effectBrief({ type: "tailSwing" }).desc).toBe("turn around to tail-whip for 10 · knocks back 2 cells");
+    expect(effectBrief({ type: "tailSwing", damage: 15, push: 1 }).desc).toBe("turn around to tail-whip for 15 · knocks back 1 cell");
   });
 });
 

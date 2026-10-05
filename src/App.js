@@ -4551,6 +4551,21 @@ export const EFFECT_TYPES = {
       { key: "secs", label: "Down for", min: 0.5, max: 8, step: 0.5, def: 2 },
     ],
   },
+  // Turn around and the tail whips whoever you just turned away from, then shoves them back (see
+  // tailSwingTargets for which side, how far and how high, and why). Works both ways from the start
+  // (Blake's rule: enemies get every ability their look has), and the turn IS the swing, so it has
+  // no animation of its own. Reach's default is measured off his Dino Tail Pants.
+  tailSwing: {
+    label: "Tail Swing", icon: "🦎",
+    blurb: "Turn around next to someone and your tail swings into them: it hits whoever is on the side you were facing (the tail ends up pointing there), and knocks them back. Damage rides your Strength and can crit, like a melee weapon. Reach is how far the tail sticks out past your back; Push is how far it shoves them. Half a second between swings that land. Worn by a 👹 Enemy it works on YOU — it turns its back on you to swing when you get close. No animation of its own: the turn is the swing.",
+    brief: (p) => "turn around to tail-whip for " + briefNum(p.damage) + " · knocks back " + briefNum(p.push) + " " + (p.push === 1 ? "cell" : "cells"),
+    noAnim: true,
+    params: [
+      { key: "damage", label: "Damage", min: 1, max: 50, step: 1, def: 10 },
+      { key: "reach", label: "Reach", min: 0.5, max: 6, step: 0.5, def: 1.5, fmt: (v) => v + " cells" },
+      { key: "push", label: "Push", min: 0, max: 8, step: 0.5, def: 2, fmt: (v) => v + " cells" },
+    ],
+  },
   // Raises the ceiling on everything fighting FOR you — anything captured with a 🔴 Capture
   // throwable or raised with a 🔮 Resurrect staff. The interesting half is not the ceiling, it is
   // the rule about when HP is actually handed over; see applyAllyHPBonus. It was player-side only
@@ -10546,6 +10561,71 @@ export const tackleSecsOf = (a) => {
   const e = ((a && a.effects) || []).find((x) => x && x.type === "tackle");
   return e ? (e.secs ?? 2) : null;
 };
+/* --- 🦎 Tail Swing: turn around and the tail whips whoever you turned away from ------------- */
+// Blake, 2026-10-05: "an ability called tail swing (I will put it on the crocodile pants) where
+// turning around next to an enemy does damage to them and pushes them backwards two cells. The
+// range of the ability should be inspired by how far out the Alligator pants extend."
+//
+// WHICH SIDE IT HITS. In the Side pose the tail points out behind you. Turn round and the sprite
+// flips, so the tail ends up pointing at where you were FACING a moment ago — that is the side it
+// swept into, and the side it hits. Face a croc, tap the other way, and the tail lands on it. The
+// side you turn TOWARD is where the tail just left, so nothing there is hit (the tail moves away
+// from it). One rule for both sides: a 👹 Enemy wearing it turns its back on you to swing when you
+// are close (the commit in the unit loop), and any other turn it makes sweeps the same way.
+//
+// HOW FAR. Measured off his Dino Tail Pants (dinotl1) in the Side pose: the tail tip sits at x 6.5
+// on BoB (whose side body spans 60–141) and x 9 on Bobbett (64–133), i.e. 53–55 canvas units past
+// the back of the body, and a cell is 260/7 ≈ 37 units — so the tail sticks out ~1.45 cells. Reach
+// is therefore measured from the BACK of the body, default 1.5 cells, and the zone runs from the
+// wearer's middle out to there, so a body pressed right up against you is in it too. It scales
+// with a unit's own size (enemyScale), because a scale-2 croc has a tail twice as long. The PUSH
+// does not scale: "two cells" is two cells on the map whoever is doing the pushing.
+//
+// HOW HIGH. The tail is the bottom third of the body (it starts 0.65 of the way down on both
+// bodies), so the zone is the lower 40% of the wearer's box plus half a cell under the feet. A
+// Squirrel at your feet is hit; something flying over your head, or that jumped the swing, is not.
+//
+// HOW OFTEN. Only a swing that LANDS starts the cooldown. Turning round in an empty street must not
+// arm a timer that then eats the turn you make next to a croc, which would read as the ability
+// randomly not working; and once one lands, the push has usually carried them out of reach anyway.
+export const TAIL_SWING_COOLDOWN_FRAMES = 30;     // 0.5s after a swing that hit something
+export const TAIL_SWING_HOLD_FRAMES = 15;         // a unit's committed swing: back turned, feet planted, 0.25s
+export const TAIL_SWING_BAND_TOP = 0.6;           // the zone starts this far down the wearer's box...
+export const TAIL_SWING_FLOOR_TOL_CELLS = 0.5;    // ...and reaches this far below its feet
+export const tailSwingOf = (a) => {
+  const e = ((a && a.effects) || []).find((x) => x && x.type === "tailSwing");
+  if (!e) return null;
+  const num = (v, d) => (Number.isFinite(v) ? v : d);
+  return { damage: Math.max(0, num(e.damage, 10)), reach: Math.max(0, num(e.reach, 1.5)), push: Math.max(0, num(e.push, 2)) };
+};
+// Everybody a swing from this box would hit, nearest first. x/y/w/h is the wearer's own box (the
+// player's physics box, a unit's trimmed body box over its full height); swingDir is the side the
+// tail sweeps into (+1 = right), which is the way the wearer was facing BEFORE the turn; reachPx is
+// how far the tail reaches past the back of the body. `bodies` are hit boxes ({x, y, w, h, ...}).
+export const tailSwingTargets = ({ x, y, w, h, swingDir, reachPx, cellPx, bodies }) => {
+  if (swingDir !== 1 && swingDir !== -1) return [];
+  const mid = x + w / 2;
+  const left = swingDir > 0 ? mid : x - Math.max(0, reachPx || 0);
+  const right = swingDir > 0 ? x + w + Math.max(0, reachPx || 0) : mid;
+  const top = y + h * TAIL_SWING_BAND_TOP, bottom = y + h + TAIL_SWING_FLOOR_TOL_CELLS * (cellPx || 30);
+  return (bodies || [])
+    .filter((b) => b && b.w > 0 && b.h > 0 && b.x < right && b.x + b.w > left && b.y < bottom && b.y + b.h > top)
+    .sort((a, b) => Math.abs(a.x + a.w / 2 - mid) - Math.abs(b.x + b.w / 2 - mid));
+};
+// KNOCKBACK — the push, spread over a few frames so it reads as a shove and not a teleport. A body
+// carries `knock = { left, dir }` (px still to go, which way) and each frame takes this much of
+// it: a quarter of what is left (eased by dtMul so it is real time), never less than
+// KNOCKBACK_MIN_STEP, never more than what is left. 2 cells (60px) is covered in ~12 frames, a
+// fifth of a second, fastest at the start. The step is handed to the body's own sideways move, so
+// walls, level edges and kerbs treat it exactly like walking — a wall stops it (and ends it).
+export const KNOCKBACK_RATE = 0.25;
+export const KNOCKBACK_MIN_STEP = 2;
+export const knockbackStep = (left, dtMul) => {
+  if (!(left > 0)) return 0;
+  const dt = dtMul > 0 ? dtMul : 1;
+  const frac = 1 - Math.pow(1 - KNOCKBACK_RATE, dt);
+  return Math.min(left, Math.max(KNOCKBACK_MIN_STEP * dt, left * frac));
+};
 /* --- Enemy tackle AI: a tackler comes and finds you ----------------------------------------- */
 // Wearing Tackle changed nothing about how an enemy MOVED, so the ability sat inert on that side:
 // a Guard holds its spawn point forever, an Avoid backpedals, and even Seek stops at
@@ -12171,6 +12251,9 @@ export default function AssetStudio() {
     // it isn't worn, so the per-enemy contact test below is skipped outright rather than run 60
     // times a second for every player who owns no football kit.
     const tackleSecs = tackleSecsOf(playerAsset);
+    // 🦎 Tail Swing ({damage, reach, push}), null when nothing worn has it — the same tailSwingOf a
+    // unit's lookup goes through, so the croc pants do the same thing on Bob and on an enemy.
+    const tailSwing = tailSwingOf(playerAsset);
     // The ally ceiling, read the same way every other worn effect is. 0 when nothing grants it,
     // which makes unitMaxHP collapse back to plain enemyMaxHP for every unit in the level.
     const allyHpBonus = allyMaxHPBonus(playerAsset?.effects);
@@ -12320,6 +12403,7 @@ export default function AssetStudio() {
       // small neighbourhood, preferring the same height) so the player can actually move.
       if (cellsHit(p.x, p.y, pw, ph).length) { let best = null, bestD = Infinity; for (let dyc = 0; dyc <= 6; dyc++) for (let dxc = -6; dxc <= 6; dxc++) { const tx = Math.max(0, Math.min(maxX, p.x + dxc * CW)), ty = Math.max(0, Math.min(maxY, p.y - dyc * CH)); if (!cellsHit(tx, ty, pw, ph).length) { const d = dxc * dxc + dyc * dyc * 4; if (d < bestD) { bestD = d; best = { x: tx, y: ty }; } } } if (best) { p.x = best.x; p.y = best.y; } }
       p.vx = 0; p.vy = 0;
+      p.knock = null; // a 🦎 tail swing's shove does not follow you through a door or a respawn
     };
     // A DEATH PUTS YOU BACK AT THE GATE YOU CAME IN BY. It used to be SPAWN — a fixed 60,40 in the
     // top-left corner of whatever level you died in, which on his levels is up in the sky nowhere
@@ -12544,10 +12628,47 @@ export default function AssetStudio() {
       const jumpVMulRel = jumpV / Math.sqrt(2 * 0.175 * 3 * CH); // same relative scaling (1.0× at baseline Agility 5), reused below for the double-jump effect's own configurable height
       let dx = 0;
       const grounded = p.onGround || p.climbing || p.topdown; // a 🚶 Top-down plane is a floor: full ground control, no air-steering cap
+      const faceBeforeKeys = p.face; // for the 🦎 tail swing below: a turn is a change from this
       if (K.left) p.face = -1; if (K.right) p.face = 1; // facing follows movement, even mid-air
       // Aiming left/right also turns you — so you can stand still and point the other way to
       // shoot without having to walk. Movement keys win if both are held (you face where you go).
       if (!K.left && !K.right) { if (K.aimLeft) p.face = -1; else if (K.aimRight) p.face = 1; }
+      // 🦎 TAIL SWING (see tailSwingTargets). Only a turn YOU make with the keys swings: the stomp's
+      // turn-to-face and a door's arrival also set p.face, and neither is "turning around". The tail
+      // sweeps into the side you were facing (faceBeforeKeys), once, on the frame you turn; every
+      // living hostile in it — shotTargetsFor's list, so never an ally or an NPC you have not picked
+      // a fight with — takes the hit and is shoved back. Damage is the item's number × Strength/5
+      // with your Intelligence crit, i.e. a melee weapon's rule; then that unit's own armour.
+      if (tailSwing) {
+        if ((p.tailCd || 0) > 0) p.tailCd = Math.max(0, p.tailCd - dtMul);
+        if ((faceBeforeKeys === 1 || faceBeforeKeys === -1) && p.face !== faceBeforeKeys && !(p.tailCd > 0) && !p.climbing && !p.transitioning) {
+          const swept = tailSwingTargets({ x: p.x, y: p.y, w: pw, h: ph, swingDir: faceBeforeKeys, reachPx: tailSwing.reach * CW, cellPx: CW, bodies: shotTargetsFor(false, false, null) });
+          const notes = [];
+          let crit = false, puffX = null;
+          for (const b of swept) {
+            const k = b.key;
+            const ep = enemyPos.current[k];
+            if (!ep || unitUntouchable(ep)) continue; // 🐱 mid-revive, as the swing and the stomp skip it
+            const ea = unitAssetAt(k, lv.enemies[k]);
+            if (!ea) continue;
+            if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
+            if (enemyHP.current[k] <= 0) continue;
+            const isCrit = Math.random() < critChance(pstats.intelligence);
+            const dmg = incomingUnitDamage(playerMeleeDamage(tailSwing.damage, pstats.strength) * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, b.x + b.w / 2, false);
+            enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+            ep.lastHitByFx = null; // the last blow was yours
+            if (enemyHP.current[k] > 0 && tailSwing.push > 0) ep.knock = { left: tailSwing.push * CW, dir: faceBeforeKeys };
+            if (puffX == null) puffX = b.x + b.w / 2;
+            crit = crit || isCrit;
+            notes.push(ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
+          }
+          if (notes.length) {
+            p.tailCd = TAIL_SWING_COOLDOWN_FRAMES;
+            booms.current.push({ x: puffX, y: p.y + ph - CW * 0.8, propId: null, char: "💥", size: 1.2, life: 0, maxLife: 14 });
+            flash((crit ? "💥 Critical! " : "🦎 ") + "Tail swing hit " + notes.join(", "));
+          }
+        }
+      }
       // 🦸 Flying steers the way a glide does (horizVel's air-control branch), at the item's Air
       // speed, which may run past walking pace — so it is exempt from the airborne cap too. FK is
       // the flight's own keys (flyKeys): raw W/S, and whether W and Jump were PRESSED this frame.
@@ -12585,6 +12706,13 @@ export default function AssetStudio() {
       }
       if (grounded) p.vx = uphillSlideVx !== null ? uphillSlideVx : dx; // remember momentum to carry into the air; air frames keep it, keys don't steer (uphill+slide keeps the PRE-slope velocity — see the walkingUphill comment)
       else if (flyMove || (glideEffect && p.vy > 0 && K.jump && !p.climbing)) p.vx = dx; // while flying or gliding, the steered velocity BECOMES your momentum, so it carries if you stop steering or the glide ends
+      // 🦎 SHOVED BY A TAIL SWING (p.knock, see knockbackStep): for the fifth of a second it lasts the
+      // shove IS your sideways move — walking into it does not cancel it — and it goes through the
+      // same wall, edge and kerb tests as a step. Set after the momentum lines above, so being
+      // shoved through the air does not become your jump's carry.
+      const knockStepPx = p.knock ? knockbackStep(p.knock.left, dtMul) : 0;
+      if (knockStepPx > 0) dx = p.knock.dir * knockStepPx;
+      else if (p.knock) p.knock = null;
       const prevX = p.x;
       p.x += dx;
       // The level's edges are walls — except an open seam with a level behind it (a RUN seam: a side
@@ -12624,6 +12752,9 @@ export default function AssetStudio() {
       const preWallKeys = new Set(cellsHit(prevX, p.y, pw, ph).map((h) => h.r + "," + h.c));
       const newWalls = wallHits.filter((h) => !preWallKeys.has(h.r + "," + h.c));
       if (newWalls.length) { if (dx > 0) { p.x = Math.min(...newWalls.map((h) => h.c * CW)) - pw; p.vx = 0; } else if (dx < 0) { p.x = Math.max(...newWalls.map((h) => (h.c + 1) * CW)); p.vx = 0; } }
+      // ...and the shove is spent by what you actually moved: a wall (or the level's edge) that
+      // stopped it ends it, rather than pinning you against the wall for the rest of its distance.
+      if (p.knock && knockStepPx > 0) { p.knock.left -= knockStepPx; if (p.knock.left <= 0.01 || Math.abs(p.x - prevX) < knockStepPx * 0.5) p.knock = null; }
 
       // "climbJump" suppresses ladder re-grab while ascending after jumping off one —
       // without it, the very next frame would see you still overlapping the climb zone
@@ -13212,7 +13343,9 @@ export default function AssetStudio() {
           // but they stay SEPARATE timers so a stun landing on a downed enemy can't cut the
           // knockdown short (or the other way round), and so the two can show different badges.
           if (ep.down > 0) { ep.down -= dtMul; if (ep.down <= 0) { ep.down = 0; ep.downCd = TACKLE_GETUP_GRACE_FRAMES; } }
-          const stunned = (ep.stun || 0) > 0 || (ep.down || 0) > 0; // hit by a stun weapon, or tackled flat — frozen: the dodge/face/move/attack gates below all skip it while this lasts
+          // ...and the fifth of a second a 🦎 tail swing is SHOVING it back (ep.knock) counts too: a
+          // body being thrown two cells does not walk, turn round or strike on the way.
+          const stunned = (ep.stun || 0) > 0 || (ep.down || 0) > 0 || !!(ep.knock && ep.knock.left > 0); // hit by a stun weapon, tackled flat, or mid-shove — frozen: the dodge/face/move/attack gates below all skip it while this lasts
           if ((ep.stun || 0) > 0) ep.stun -= dtMul;
           if ((ep.lifeGrace || 0) > 0) ep.lifeGrace -= dtMul; // the 🐱 Extra Life window — every damage site asks unitUntouchable(ep) while it runs
           const eIntel = ea.stats?.intelligence ?? 5;
@@ -13220,6 +13353,9 @@ export default function AssetStudio() {
           // same tackleSecsOf the player's own lookup uses, so a dressed 👹 Enemy in a football kit
           // gets the ability on exactly the terms Bob does.
           const eTackleSecs = tackleSecsOf(ea);
+          // ...and its 🦎 Tail Swing, through the same tailSwingOf as yours (the swing itself is after
+          // the attack commit below, which is also where it decides to turn its back on you).
+          const eTail = tailSwingOf(ea);
           // The movement abilities THIS unit is wearing, picked the way the player's are (the first
           // of each kind): ⤴️ Double Jump, used in the dodge below, and 🪂 Glide, in its fall.
           const eDoubleJump = (ea.effects || []).find((e) => e && e.type === "doubleJump") || null;
@@ -13484,7 +13620,7 @@ export default function AssetStudio() {
           const navRoute = navRouteLv && { ...navRouteLv, x: navRouteLv.x + navPart.ox, feet: navRouteLv.feet == null ? null : navRouteLv.feet + navPart.oy };
           const navAirborne = !ep.climbing && !ep.onGround && !ep.topdown;
           const towardTarget = Math.abs(distToTarget) > CW * 0.5 ? Math.sign(distToTarget) * aiSpeed : 0;
-          let dxMove = (stunned || !acts || ep.stomp) ? 0   // a stomp plants its feet, the player's rule
+          let dxMove = (stunned || !acts || ep.stomp || ep.tailT > 0) ? 0   // a stomp plants its feet, the player's rule; so does a 🦎 tail swing (ep.tailT)
             : charging ? (Math.sign(distToTarget) || ep.face || 1) * chargeSpeed
             : following ? allyFollowIntent(gapSigned, ALLY_FOLLOW_RANGE_CELLS * CW, aiSpeed, ep.following)
             // SEEK WALKS ONLY TO A TARGET ON ITS OWN LEVEL. Sensing you through a floor is fine — it
@@ -13498,7 +13634,7 @@ export default function AssetStudio() {
           // on toward the target; jumping up at a bar it goes straight up. Otherwise, with a route, it
           // walks to the route's column — the visible body for a ladder or a bar (that is what has to
           // be on it), the feet's column for a plane (topdownAt finds the plane there).
-          if (!stunned && acts && !ep.stomp) {
+          if (!stunned && acts && !ep.stomp && !(ep.tailT > 0)) {
             if (eFlyUp) dxMove = towardTarget * Math.max(0.3, Math.min(2, eFlyFx.control ?? 1)); // flying: straight at it, at the item's Air speed
             else if (ep.climbing === "ladder") dxMove = navTgtFeet != null && Math.abs(navTgtFeet - myFeetY) <= CH ? towardTarget : 0;
             else if (ep.climbing) dxMove = towardTarget;
@@ -13519,8 +13655,12 @@ export default function AssetStudio() {
           // ground a unit steers as it always has. (The item's Downhill setting multiplies the pull a
           // ramp gives the PLAYER; units have no ramp pull to multiply, so there it has nothing to do.)
           const eSlide = slideState((ea.effects || []).find((e) => e && e.type === "slide") || null);
-          const stepX = (eSlide && (ep.onGround || ep.topdown)) ? horizVel({ left: dxMove < 0, right: dxMove > 0 }, Math.abs(dxMove), true, ep.slideVx || 0, null, eSlide, dtMul) : dxMove;
-          ep.slideVx = stepX;
+          const walkStepX = (eSlide && (ep.onGround || ep.topdown)) ? horizVel({ left: dxMove < 0, right: dxMove > 0 }, Math.abs(dxMove), true, ep.slideVx || 0, null, eSlide, dtMul) : dxMove;
+          ep.slideVx = walkStepX;
+          // 🦎 Shoved by a tail swing (ep.knock): the shove IS its step until it runs out, through the
+          // very wall/kerb/edge tests below — the player's rule. `stunned` already zeroed its walk.
+          const eKnockStep = ep.knock ? knockbackStep(ep.knock.left, dtMul) : 0;
+          const stepX = eKnockStep > 0 ? ep.knock.dir * eKnockStep : walkStepX;
           // The feet's say, on top of the turn-toward above — then the one and only write, gated by
           // holdFacing so a facing the unit wanted for a single frame never reaches the sprite.
           wantFace = enemyFaceThisFrame(wantFace, dxMove, enemyAttackCommitted(ep));
@@ -13530,6 +13670,12 @@ export default function AssetStudio() {
           // the same way you do is what makes it read as walking WITH you.
           if (following && !dxMove && !stunned) wantFace = p.face || wantFace;
           if (ep.stomp) wantFace = ep.face; // mid-stamp it does not turn round: the foot lands where the knee went up
+          // 🦎 ...and a tail swing it committed holds its back to you for TAIL_SWING_HOLD_FRAMES before it
+          // turns round again. Without the hold it showed its back for the five frames holdFacing takes
+          // and walked on toward you meanwhile — a moonwalk, with the swing too brief to read. The turn
+          // back is let through for the hold's last FACE_HOLD_FRAMES, so it is facing you again on the
+          // frame its feet are free (dxMove above), rather than walking backward for those five.
+          if (ep.tailT > FACE_HOLD_FRAMES) wantFace = ep.face;
           const faceHold = holdFacing(ep.face, wantFace, ep.faceFlipT, dtMul);
           ep.face = faceHold.face; ep.faceFlipT = faceHold.pendT;
           // Walls actually stop enemies now — they used to have NO horizontal collision at all:
@@ -13599,6 +13745,8 @@ export default function AssetStudio() {
               }
             }
           }
+          // The shove is spent by what the unit actually moved: a wall that stopped it ends it.
+          if (ep.knock) { ep.knock.left -= eKnockStep; if (!(eKnockStep > 0) || ep.knock.left <= 0.01 || Math.abs(ep.x - exBefore) < eKnockStep * 0.5) ep.knock = null; }
           ep.stepEase = easeStep(ep.stepEase, dtMul);
 
           // 🚶 A TOP-DOWN PLANE IS A FLOOR TO AN ENEMY TOO. Found the way the player finds it — by
@@ -13951,6 +14099,16 @@ export default function AssetStudio() {
             if (hostile) { const b = hitBodyOf("player"); bodies.push({ key: "player", kind: "player", ep: null, ea: null, x: b.left, y: b.top, w: b.w, h: b.h }); }
             return stompTargets({ x: ep.x + (eShape.centerFrac * eRenderW - epw / 2), w: epw, feetY: ep.y + newEph, standH: standEph, face: ep.face, cellPx: CW, bodies });
           };
+          // 🦎 Every opposing body this unit's tail would sweep into on the `dir` side — the player's
+          // tailSwingTargets, from its trimmed body box over its full height, against the same
+          // bodies eStompFrom lists. Its reach grows with its scale; the push (below) does not.
+          const eTailFrom = (dir) => {
+            if (!eTail) return [];
+            const bodies = [];
+            for (const o of aliveOpposite(hostile)) { const b = hitBodyOf("unit", o.ep, o.ea); bodies.push({ key: o.key, kind: "unit", ep: o.ep, ea: o.ea, x: b.left, y: b.top, w: b.w, h: b.h }); }
+            if (hostile) { const b = hitBodyOf("player"); bodies.push({ key: "player", kind: "player", ep: null, ea: null, x: b.left, y: b.top, w: b.w, h: b.h }); }
+            return tailSwingTargets({ x: ep.x + (eShape.centerFrac * eRenderW - epw / 2), y: ep.y, w: epw, h: newEph, swingDir: dir, reachPx: eTail.reach * CW * enemyScale(ea), cellPx: CW, bodies });
+          };
           // The stomp's clock, the player's rules exactly: the foot lands on ONE frame, on whatever
           // is under it at that moment, once per body, for stompDamage off this unit's own Strength,
           // with the crit your stomp rolls (applyHitTo rolls it off this unit's Intelligence).
@@ -13975,6 +14133,7 @@ export default function AssetStudio() {
           }
           if (ep.attackT > 0) ep.attackT -= dtMul;
           if (ep.swingT > 0) ep.swingT -= dtMul;
+          if (ep.tailT > 0) ep.tailT = Math.max(0, ep.tailT - dtMul);
           const attackRange = engageRange; // weapon-swept reach for player-based looks, ⚔️ number for monsters
           const eCenterXFinal = ep.x + eShape.centerFrac * eRenderW;
           const gapNow = attacking ? boxGap(tgtAimCX, tgtBoxW, eCenterXFinal, epw) : Infinity;
@@ -14117,10 +14276,25 @@ export default function AssetStudio() {
                 // 🦶 Something short under its foot: the attack it commits is a STOMP, whatever it
                 // is holding — no swing, no shot, no punch. The hit lands later, in the stomp clock.
                 const eUnder = (eStomper && !ep.stomp) ? eStompFrom() : [];
+                // 🦎 Somebody inside its tail's reach, in FRONT of it (it has just turned to face its
+                // target): the attack it commits is to TURN ITS BACK — the tail swings into them, and
+                // the swing lands in the turn check just below, the same one any other turn goes
+                // through. It turns back to face them by itself a few frames later (holdFacing), and
+                // that second turn finds the cooldown running, so one commit is one swing.
+                const eTailFront = (eTail && !ep.stomp && !(ep.tailCd > 0) && !ep.climbing) ? eTailFrom(ep.face) : [];
                 if (eUnder.length) {
                   ep.swingT = 0; ep.swingHit = null;
                   ep.attackT = Math.max(ATTACK_COOLDOWN_FRAMES, STOMP_FRAMES);
                   ep.stomp = { t: 0, dur: STOMP_FRAMES, hits: {} };
+                } else if (eTailFront.length) {
+                  ep.swingT = 0; ep.swingHit = null; ep.burstLeft = 0;
+                  ep.attackT = ATTACK_COOLDOWN_FRAMES;
+                  // Turned from FACING THEM, whichever way it faced a frame ago: had it only just
+                  // swung round onto a target behind it, the line above plus this flip would net to
+                  // no turn at all and the swing would never happen.
+                  ep.tailFace = ep.face;
+                  ep.face = -ep.face;
+                  ep.tailT = TAIL_SWING_HOLD_FRAMES; // planted, back to them, for a beat you can see
                 } else if (rangedNow) {
                   // Shoots at the target, aimed from its own chest. The shot is flagged for the side
                   // it should hurt: a hostile's shot is `foe` (tested against you AND your friendlies),
@@ -14137,6 +14311,35 @@ export default function AssetStudio() {
                   // respects the player's i-frames, and routes to a unit's HP in a brawl).
                   applyAttackHit(enemyAttackDamage(ea, ew));
                 }
+              }
+            }
+          }
+          // 🦎 TAIL SWING, THE UNITS' HALF — the player's rule: a turn sweeps the tail into the side it
+          // was facing, once, and everybody on the other side in it is hit and shoved back. Any turn
+          // counts (walking past you, turning to face a new target, the deliberate one committed
+          // above); ep.tailFace is the facing it had the last time this ran. applyHitTo is the one
+          // sink every unit blow goes through — your i-frames, your guard, its Intelligence crit,
+          // the target's armour, the revive window — and a blow it refuses shoves nobody.
+          if (eTail) {
+            if ((ep.tailCd || 0) > 0) ep.tailCd = Math.max(0, ep.tailCd - dtMul);
+            const turnedFrom = ep.tailFace;
+            ep.tailFace = ep.face;
+            if ((turnedFrom === 1 || turnedFrom === -1) && ep.face !== turnedFrom && acts && !stunned && !(ep.tailCd > 0) && !ep.climbing) {
+              let puffX = null;
+              for (const b of eTailFrom(turnedFrom)) {
+                const px0 = p.x, py0 = p.y;
+                if (!applyHitTo(b.kind, b.kind === "player" ? null : b.key, b.ep, b.ea, playerMeleeDamage(eTail.damage, ea.stats?.strength))) continue;
+                if (puffX == null) puffX = b.x + b.w / 2;
+                if (eTail.push > 0) {
+                  const knock = { left: eTail.push * CW, dir: turnedFrom };
+                  // A blow that killed you has already put you back at the gate: no shove THERE.
+                  if (b.kind === "player") { if (p.x === px0 && p.y === py0) p.knock = knock; }
+                  else if (b.ep && !(enemyHP.current[b.key] <= 0)) b.ep.knock = knock;
+                }
+              }
+              if (puffX != null) {
+                ep.tailCd = TAIL_SWING_COOLDOWN_FRAMES;
+                booms.current.push({ x: puffX, y: ep.y + newEph - CW * 0.8, propId: null, char: "💥", size: 1.2, life: 0, maxLife: 14 });
               }
             }
           }
