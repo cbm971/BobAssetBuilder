@@ -264,6 +264,24 @@ on, so "click Level Creator" can find nothing.
   - **Hidden-pane proof that worked:** in Dress Bob, set the selects with the native value setter + `change`.
     Snapshot `.art` per pose through a computed-style-inlined `foreignObject`, and POST the canvas dataURL to a
     6-line local node receiver on another port.
+* **Fly Wings (`flywng1`) and Crown of Thorns (`thrncrn`), 2026-10-05.** Blake asked for "a fly wings item, so like a
+  cape" and "a sort of crown of thorns", saying he would give the crown an extra life himself, so its `effects` are
+  left empty. The pack is in `assets/fly-wings-and-crown-of-thorns.json`, and the generator was scratchpad `gen.js`.
+  - **The wings are worn the way his capes are:** jacket slot, category `T1/Cape/Bug` (the Bug tag pairs them with
+    the Fly Mask), and they carry the 🦸 Fly effect at its defaults. Each wing is one `circle` membrane at
+    `fx.opacity` 0.5 with a `#1d1b1b` outline, plus two dark vein rects. Front, Up and Crouch are `behindBody`. Back
+    lies over the back (`overArms`) with a small dark mount where the wings meet. In Side, the far wing is
+    `behindBody` and the near wing is `overArms`, both swept back.
+  - **A translucent piece can only take an outline if it is a rect, circle, roundrect or stadium.** Those draw the
+    outline as a box-shadow ring. Every clip-path shape (tri, poly, star, ...) draws its outline as a SOLID silhouette
+    under the fill (`outlineFillStyle`), so a see-through tri or poly with an outline turns dark all over.
+  - **The crown is a ring:** a `circle` with an inset `circle` cutter. Its back arc shows above the head top, its
+    front arc crosses the forehead, and the head shows through the middle. Thorns are `tri`s on the ring's outer
+    normal. `ignoreHideIfHat: true` keeps the hair. A flat band with thorns read as a stick, not a crown.
+  - **When the Browser pane cannot reach another port** (every cross-port `fetch` said "Failed to fetch" on
+    2026-10-05), POST each snapshot to the dev server's own `/__library` as a throwaway record (`{assets:[{id:
+    "zzshot-…", type:"prop", png:dataURL}]}`). Read it back out of `asset-data/library.json`, then
+    `git checkout -- asset-data/` and re-run the delivery.
 
 ## Storage — read this before touching anything that saves
 
