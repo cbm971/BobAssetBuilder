@@ -3038,12 +3038,18 @@ export const TALK_BUBBLE_GAP = 12;  // px of air between the bubble and the head
 // the top of the SCREEN — with eight options under it, the words themselves were the part that
 // went, and Blake reported it as "you cannot see the original dialogue box message". With `view`
 // (the camera's rectangle in level pixels) the fourth job is: clamp to the view, flip below when
-// there is more room there, and hand back `maxH`, the room in the chosen direction — the bubble is
-// capped to it and its OPTIONS scroll (see .talkOpts), so the line being said is always on screen.
+// there is more room there, and keep the whole panel on screen. Until 2026-10-06 that last part
+// was a cap with the OPTIONS scrolling inside it; now the panel slides instead (see NOTHING
+// SCROLLS below) and the answers are a grid (dialogueOptionGrid), so nine of them are three rows.
 // Without `view` (older callers, the tests) it behaves exactly as before.
-export const TALK_BUBBLE_MIN_H = 120; // px; below this the cap would squash the words themselves, so let it overflow instead
-export const talkBubbleBox = (t, boxH, levelW, view = null) => {
-  const width = Math.min(TALK_BUBBLE_W, Math.max(200, levelW - 16));
+//
+// `wantW` is how wide the panel would LIKE to be (dialogueOptionGrid widens it for long answers laid
+// out across). It is still clamped to the level and, with a view, to the screen — a 600px panel in
+// a narrow window would otherwise hang off both sides of it.
+export const TALK_BUBBLE_MIN_H = 120; // px; a view shorter than this still gets this much panel, overflowing rather than squashing the words
+export const talkBubbleBox = (t, boxH, levelW, view = null, wantW = TALK_BUBBLE_W) => {
+  let width = Math.min(wantW, Math.max(200, levelW - 16));
+  if (view && view.w > 0) width = Math.min(width, Math.max(200, view.w - 16));
   const half = width / 2;
   const wantLeft = (t.ax || 0) - half;
   // Clamped, but only when the level is actually wider than the bubble — otherwise the two clamps
@@ -3054,15 +3060,49 @@ export const talkBubbleBox = (t, boxH, levelW, view = null) => {
   const aboveSpace = headY - TALK_BUBBLE_GAP - (view ? view.y : 0);
   const belowSpace = (view ? view.y + view.h : Infinity) - (headY + (t.ah || 0) + TALK_BUBBLE_GAP);
   // Only drop below once we have actually MEASURED the box (boxH > 0). On the first render the
-  // height is unknown, and guessing "it doesn't fit" there makes the bubble visibly jump. With a
-  // view the measured height is the CAPPED one, so "it is being capped above" (boxH has reached
-  // the room above) is the flip test, and it flips only when there is genuinely more room below.
+  // height is unknown, and guessing "it doesn't fit" there makes the bubble visibly jump. "It does
+  // not fit above" is the flip test, and it flips only when there is genuinely more room below.
   const below = boxH > 0 && (view ? (aboveSpace <= boxH + 8 && belowSpace > aboveSpace) : headY - boxH - TALK_BUBBLE_GAP < 0);
-  const top = below ? headY + (t.ah || 0) + TALK_BUBBLE_GAP : headY - TALK_BUBBLE_GAP;
+  let top = below ? headY + (t.ah || 0) + TALK_BUBBLE_GAP : headY - TALK_BUBBLE_GAP;
+  // NOTHING SCROLLS (2026-10-06). This used to cap the panel to the room on its side of the head
+  // and scroll the answers inside the cap, which is the "kind of ugly scroll down system" Blake
+  // asked to lose. Now a panel taller than that room SLIDES toward the middle of the view, over
+  // the speaker if it has to, until all of it is on screen: covering a head for the length of a
+  // conversation is a far smaller cost than answers you have to scroll to find. The words are at
+  // the panel's top, so the top edge is the one held on screen when even the whole view is too
+  // short. (Above, `top` is the panel's BOTTOM edge — .talkBubble hangs up from it.)
+  if (view && boxH > 0) {
+    if (below) top = Math.max(view.y + 8, Math.min(top, view.y + view.h - 8 - boxH));
+    else top = Math.max(top, view.y + 8 + boxH);
+  }
   // The tail's x is relative to the box, and clamped inside it so it can never detach off an end.
   const tailX = Math.min(Math.max(14, (t.ax || 0) - left), width - 14);
-  const maxH = view ? Math.max(TALK_BUBBLE_MIN_H, (below ? belowSpace : aboveSpace) - 8) : null;
+  // The last resort, for a panel taller than the WHOLE view (a tiny window, a speech of a page):
+  // capped to the view, and only then do the answers scroll (see .talkOpts).
+  const maxH = view ? Math.max(TALK_BUBBLE_MIN_H, view.h - 16) : null;
   return { left, top, width, below, tailX, maxH };
+};
+// YOUR ANSWERS ARE A GRID — rows AND columns (Blake, 2026-10-06: "You should have a lot of options
+// appear in both rows and lines"). One column of stacked buttons is what made the Bridge Troll on
+// Trailor Park M5 ("tell me a joke", answers 1 to 9) taller than the room on screen, so the panel
+// was capped and the list SCROLLED inside it: "a kind of ugly scroll down system". Laid across, nine
+// answers are three rows and nothing has to scroll.
+//   cols    two sit side by side, three across; FOUR are a 2×2, because a 3+1 reads as a row with
+//           one missing; five to nine are three across; past the nine number keys, four across.
+//   compact every answer is a word or a number ("1", "Huh?", "Oh well..."), so the tiles size to
+//           their words — a keypad — rather than stretching three 200px slabs around a "7".
+//   width   the panel widens with the longest answer, so a sentence-long option (The Chaplin's run
+//           to 96 characters) wraps to three lines in a wide column instead of ten in a narrow one.
+export const TALK_COMPACT_CHARS = 10;
+export const TALK_PANEL_MAX_W = 660;
+export const dialogueOptionGrid = (opts) => {
+  const list = opts || [];
+  const n = list.length;
+  const longest = list.reduce((m, o) => Math.max(m, String((o && o.text) || "").trim().length), 0);
+  const cols = n <= 3 ? Math.max(1, n) : n === 4 ? 2 : n <= DIALOGUE_MAX_KEYED ? 3 : 4;
+  const compact = longest <= TALK_COMPACT_CHARS;
+  const width = compact || cols === 1 ? TALK_BUBBLE_W : Math.min(TALK_PANEL_MAX_W, Math.max(TALK_BUBBLE_W, cols * (longest > 40 ? 220 : 170)));
+  return { cols, compact, width };
 };
 export const nearestTalkable = (candidates, px, py, rangeX, rangeY) => {
   let best = null, bd = Infinity;
@@ -4621,13 +4661,37 @@ export const EFFECT_TYPES = {
 // defense, effects resolved to the worn body's animation) but for one-off live pickups instead of
 // a saved dressed look. `equippedMap` is slot -> equipment item; weapons are handled separately
 // via playtestWeaponId. Returns a shallow clone of `base` with merged stats/defense/effects.
+//
+// A DRESSED LOOK'S OWN CLOTHES ARE ALREADY INSIDE `base` — assembleLook baked their boosts into
+// base.stats/defense and their abilities into base.effects when the look was saved. So a slot the
+// pickup layer has TOUCHED (a key present in the map, item or null — see wornEquipMap) must first
+// take the look's own garment back OUT, or it is never taken off at all. That was the bug Blake
+// reported (2026-10-06): "it doesn't always show the stats that are going down". Swapping Bobby's
+// own Leather Jacket (+2 HP) for a plinth jacket printed only what went UP — the +2 HP was still in
+// base on both sides of the compare — and he really did keep the +2 HP for the rest of the run.
+// Armour stacked the same way: in his M5 the Army Jacket callout promised Def 14→19, both jackets'
+// 5 counted at once. Taking the Leather Jacket back off the plinth then counted it TWICE (HP 8→10,
+// base + pickup), which is why switching back and forth seemed to "fix" the rows: by then both
+// sides were pickups. The swap was always right about WHICH garment comes off (wornEquipMap);
+// this is the numbers catching up. Same fix reaches the shop's swap and the stats you play on.
+// An own garment's abilities carry the slot assembleLook packed them under; a legacy look saved
+// before that field existed loses them by type instead, one per ability the garment has.
 export const mergeEquip = (base, equippedMap, bodyId) => {
   if (!base) return base;
   const items = Object.keys(equippedMap || {}).map((sl) => equippedMap[sl]).filter(Boolean);
-  if (!items.length) return base;
+  const own = (base.components && base.components.equipment) || {};
+  const shed = Object.keys(equippedMap || {}).filter((sl) => own[sl]);
+  if (!items.length && !shed.length) return base;
   const stats = { ...(base.stats || {}) };
   let defense = base.defense || 0;
-  const effects = [...(base.effects || [])];
+  let effects = [...(base.effects || [])];
+  for (const sl of shed) {
+    const g = own[sl];
+    if (g.statBoosts) for (const k of Object.keys(g.statBoosts)) stats[k] = (stats[k] ?? 5) - (g.statBoosts[k] || 0);
+    defense -= g.defense || 0;
+    if (effects.some((e) => e && e.slot === sl)) effects = effects.filter((e) => !(e && e.slot === sl));
+    else for (const ge of (g.effects || [])) { const i = effects.findIndex((e) => e && !e.slot && e.type === ge.type); if (i >= 0) effects.splice(i, 1); }
+  }
   for (const eq of items) {
     if (eq.statBoosts) for (const k of Object.keys(eq.statBoosts)) stats[k] = (stats[k] ?? 5) + (eq.statBoosts[k] || 0);
     defense += eq.defense || 0;
@@ -4756,14 +4820,19 @@ export const PICKUP_BANNER_MS = 2600;
 // template literal that other code appends to. Both are asked for up front (document.fonts.load)
 // so the first banner of a run does not flash up in the fallback face and then swap. Offline, every
 // rule that names them falls back to a heavy system face and nothing else changes.
-const GAME_FONTS_HREF = "https://fonts.googleapis.com/css2?family=Shrikhand&family=Chakra+Petch:wght@600;700&display=swap";
+// THE CONVERSATION'S FACE (2026-10-06), for "a somewhat retro font … but not so much that it's
+// hard to read": DotGothic16 — dot-pixel letters in the manner of 16-bit console RPG text, and of
+// six pixel faces set side by side at his real size the plainest to read. It does the name tag and
+// the number keys as well. Pixelify Sans was tried first, for the words and then for the tag and
+// keys alone, and lost both times on its small sizes: "BRIDGE" read "BRIDBE" and a 5 read as an S.
+const GAME_FONTS_HREF = "https://fonts.googleapis.com/css2?family=Shrikhand&family=Chakra+Petch:wght@600;700&family=DotGothic16&display=swap";
 const loadGameFonts = () => {
   if (typeof document === "undefined" || !document.head || document.getElementById("bobGameFonts")) return;
   const l = document.createElement("link");
   l.id = "bobGameFonts"; l.rel = "stylesheet"; l.href = GAME_FONTS_HREF;
   // The sample text matters: each family is split into unicode-range subsets, and load() fetches
   // only the subset covering the text it is given — "A" is the Latin one every name is written in.
-  l.onload = () => { try { if (document.fonts) { document.fonts.load("40px Shrikhand", "A"); document.fonts.load("700 13px 'Chakra Petch'", "A"); } } catch (e) { /* a font that will not load just leaves the fallback */ } };
+  l.onload = () => { try { if (document.fonts) { document.fonts.load("40px Shrikhand", "A"); document.fonts.load("700 13px 'Chakra Petch'", "A"); document.fonts.load("19px DotGothic16", "A"); } } catch (e) { /* a font that will not load just leaves the fallback */ } };
   document.head.appendChild(l);
 };
 // One effect-animation frame — the SAME 5-pose shape normal art uses, so it can be edited with
@@ -21741,7 +21810,8 @@ export default function AssetStudio() {
                     <span>{talkPrompt.kind === "npc" ? "Talk to " + (talkPrompt.name || "them") : "Read this"}</span>
                   </div>
                 )}
-                {/* 💬 THE CONVERSATION, as a speech bubble over whoever is speaking.
+                {/* 💬 THE CONVERSATION, hung over whoever is speaking (a white speech bubble until
+                    2026-10-06; now bare words and a grid of answers, see below).
                     IN the level, alongside the sprites, rather than pinned to the bottom of the
                     window as it first shipped — a bar down there makes you read the words in one
                     place and watch the face in another, and with several NPCs in a room it never
@@ -21757,22 +21827,27 @@ export default function AssetStudio() {
                   // inside the level (see talkBubbleBox): where the view is and how big it is.
                   const viewEl = lscrollRef.current;
                   const view = viewEl ? { x: camRef.current.x, y: camRef.current.y, w: viewEl.clientWidth, h: viewEl.clientHeight } : null;
-                  const box = talkBubbleBox(talk, talkH, lv.cols * LV_CELL, view);
+                  const grid = dialogueOptionGrid(opts);
+                  const box = talkBubbleBox(talk, talkH, lv.cols * LV_CELL, view, grid.width);
                   return (
                     <div key="talkbubble" ref={talkBubbleRef} className={"talkBubble" + (box.below ? " below" : "")}
                       style={{ left: box.left, top: box.top, width: box.width, ...(box.maxH ? { maxHeight: box.maxH } : {}) }}
                       onPointerDown={(e) => e.stopPropagation()}>
-                      {/* THE BUBBLE IS ONLY THE WORDS. What they say is a speech bubble — white,
-                          black outline, tail on the speaker — and what YOU say is a list of buttons
-                          under it, outside the bubble. The two were one dark panel before, which
-                          read as a menu that happened to have a sentence at the top of it rather
-                          than as somebody talking. The tail hangs in the gap between the two. */}
-                      <div className="talkBox">
+                      {/* NO BUBBLE (Blake, 2026-10-06: "I don't think we need the white bubble around
+                          the text"). What they say is bare words over the scene — white, outlined in
+                          black, the same treatment every other label in the level carries — under a
+                          gold name tag, in a 16-bit RPG face (DotGothic16: "somewhat retro … but not so
+                          much that it's hard to read"). What YOU say is the grid of answers under it
+                          (dialogueOptionGrid). The gold pointer at the edge nearest the speaker is
+                          what the bubble's tail did: says which of the people in the room is talking.
+                          The words are keyed by line, so each new line pops in rather than the text
+                          silently changing under the same answers. */}
+                      <div key={talk.nodeId} className="talkBox">
                         {who && <div className="talkWho">{who}</div>}
                         <div className="talkText">{node.text || <span className="talkBlank">(this line is blank)</span>}</div>
-                        <span className="talkTail" style={{ left: box.tailX }} />
                       </div>
-                      <div className="talkOpts">
+                      <span className="talkTail" style={{ left: box.tailX }} />
+                      <div className={"talkOpts" + (grid.compact ? " compact" : "")} style={{ gridTemplateColumns: grid.compact ? `repeat(${grid.cols}, max-content)` : `repeat(${grid.cols}, minmax(0, 1fr))` }}>
                           {opts.map((o, i) => {
                             // The highlight is on the option that was PICKED, and only after it was
                             // picked. Colouring the list up front would hand the player the answer,
@@ -23947,10 +24022,11 @@ html,body{margin:0;padding:0;background:#0f1117}
    with two soft black glows under that. BOTH HALVES ARE LOAD-BEARING — drop the four hard shadows
    and it dies on a light wall, drop the two soft ones and it dies on a busy texture.
 
-   One rule listing every label, so a new one cannot quietly drift back to having a box. The
-   dialogue BUBBLE is deliberately not in here: that one is a speech bubble with black text on
-   white and it is meant to look like a panel, because somebody is talking. */
-.pedcallout,.pedestalCap,.pedestalEmpty,.enemyDropCap,.doorPromptFloat,.talkCallout,.talkCallout .talkKey,.pbRows{
+   One rule listing every label, so a new one cannot quietly drift back to having a box. What a
+   speaker SAYS joined it on 2026-10-06 (.talkWho, .talkText): it used to be the one exception, a
+   white speech bubble with black text, until Blake asked for the bubble to go. The name tag's gold
+   comes from its own rule further down, which wins on order. */
+.pedcallout,.pedestalCap,.pedestalEmpty,.enemyDropCap,.doorPromptFloat,.talkCallout,.talkCallout .talkKey,.pbRows,.talkWho,.talkText{
   color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85)}
 /* ...AND THEY ALL SIT IN FRONT OF THE PLAYER. A pedestal draws BELOW the player on purpose (you
    walk in front of the item on its stand), but z-index on a positioned element makes a stacking
@@ -23998,55 +24074,62 @@ html,body{margin:0;padding:0;background:#0f1117}
    status icon. */
 .talkBadge{position:absolute;left:0;right:0;top:-32px;text-align:center;font-size:17px;line-height:1;pointer-events:none;filter:drop-shadow(0 1px 3px rgba(0,0,0,.8));animation:talkbob 1.6s ease-in-out infinite}
 @keyframes talkbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
-/* THE SPEECH BUBBLE. Positioned in LEVEL pixels, inside .lgrid, over whoever is talking — see
+/* THE CONVERSATION. Positioned in LEVEL pixels, inside .lgrid, over whoever is talking — see
    talkBubbleBox for the anchor, the clamp and the flip-below. z 9600 puts it over the door prompt
    (9500) and every sprite; .lgrid's isolation:isolate keeps that local to the level, which is why
    this cannot and must not be relied on to sit above a modal. */
-.talkBubble{position:absolute;transform:translateY(-100%);z-index:9600;pointer-events:none;display:flex;flex-direction:column}
-/* Capped to the room on screen (talkBubbleBox's maxH): the words keep their full height and the
-   OPTIONS give way and scroll, so a long list can never push the line being said off the top. */
+.talkBubble{position:absolute;transform:translateY(-100%);z-index:9600;pointer-events:none;display:flex;flex-direction:column;align-items:center}
+/* Nothing scrolls in a real conversation any more (2026-10-06): the answers are a grid and a
+   panel that does not fit beside the speaker slides over them instead (talkBubbleBox). Only a
+   panel taller than the WHOLE view is capped (maxH), and then the words keep their full height
+   and the OPTIONS give way and scroll, on a thin gold bar rather than the system's grey one. */
 .talkBubble .talkBox{flex:none}
-.talkBubble .talkOpts{flex:0 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
+.talkBubble .talkOpts{flex:0 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#ffd23f transparent}
 .talkBubble.below{transform:none}
-/* A PLAIN WHITE SPEECH BUBBLE. Semi-transparent so the room behind it still reads (this thing
-   hangs in the middle of the level, over the scenery, not in a HUD bar), but at .93 — far enough
-   up that the text underneath it never has to compete with a bright texture. Black outline, big
-   soft radius, black text: the shape a comic uses, which is the shape that says "someone is
-   speaking" without needing any colour to mean anything. */
-.talkBox{position:relative;pointer-events:auto;width:100%;box-sizing:border-box;background:rgba(255,255,255,.93);border:2px solid #12141a;border-radius:18px;padding:13px 16px;box-shadow:0 6px 22px rgba(0,0,0,.45)}
-/* The tail. Rotated square rather than a border triangle so the bubble's own edge carries through
-   two of its sides and it reads as part of the outline. It hangs off the BUBBLE, not off the
-   panel as a whole — the options sit below it and the tail points down past them at the speaker,
-   which is what makes the white box read as speech and the buttons as your answer to it. */
-.talkTail{position:absolute;bottom:-8px;width:14px;height:14px;margin-left:-7px;background:rgba(255,255,255,.93);border-right:2px solid #12141a;border-bottom:2px solid #12141a;transform:rotate(45deg)}
-.talkBubble.below .talkTail{bottom:auto;top:-8px;border-right:none;border-bottom:none;border-left:2px solid #12141a;border-top:2px solid #12141a}
-/* Who is speaking, in small caps above the line. Grey rather than black so the eye lands on the
-   words first — a name is a label, the sentence is the content. */
-.talkWho{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#5b6272;margin-bottom:5px}
-.talkText{font-size:16px;line-height:1.45;color:#12141a;white-space:pre-wrap}
-.talkBlank{font-size:15px;color:#8a8f9c;font-style:italic}
-/* YOUR OPTIONS, under the bubble and outside it. The gap is what separates the two halves; it is
-   also where the tail lives, so it can't shrink below the tail's own overhang. */
-.talkOpts{pointer-events:auto;display:flex;flex-direction:column;gap:5px;margin-top:14px}
-/* Same white-and-black skin as the bubble, one step quieter — these are buttons, not the thing
-   being said. The border is a hair lighter than the bubble's so the bubble stays the loudest
-   outline on screen, and the hover goes the other way (darker edge, whiter fill) so a moused
-   option lifts toward the bubble rather than away from it. */
-/* Selected through .talkOpts on purpose. The app-wide "[.bb] button, input, textarea, select" rule
-   sets color:inherit at specificity (0,1,1) and a lone
-   .talkOpt is only (0,1,0) — so that rule won the colour and served near-white text on a white
-   button. Invisible, and invisible in a way the markup looks completely correct in.
+/* NO BUBBLE (2026-10-06). The white comic bubble went at Blake's word ("I don't think we need the
+   white bubble around the text"), so what is said is bare words over the scene, carried by the
+   outline every other label in the level uses (the shared bare-words rule above). Centred: with no
+   box there is no left edge to hang a ragged line off, and it reads as a caption over the
+   speaker's head. The retro is in the FACE — DotGothic16, a dot-pixel face in the manner of 16-bit
+   console RPG text that still reads at body size, where the blocky arcade faces have to be decoded
+   ("somewhat retro … but not so much that it's hard to read") — and in the gold name tag and key
+   chips. The line stays large and plain white. Each line pops in (keyed by line). */
+.talkBox{position:relative;pointer-events:auto;width:100%;box-sizing:border-box;text-align:center;padding:0 4px;animation:talkIn .16s ease-out both}
+@keyframes talkIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.talkWho,.talkText,.talkOpts .talkNum{font-family:DotGothic16,'Chakra Petch','Segoe UI',system-ui,sans-serif}
+.talkWho{font-size:14px;font-weight:400;letter-spacing:.14em;text-transform:uppercase;color:#ffd23f;margin-bottom:3px}
+.talkText{font-size:19px;font-weight:400;line-height:1.3;white-space:pre-wrap;overflow-wrap:anywhere}
+.talkBlank{font-size:16px;color:#c3c8d4;font-style:italic}
+/* The pointer: a gold arrowhead on the edge nearest the speaker, over their head wherever the
+   clamp moved the panel to (talkBubbleBox's tailX). It says what the bubble's tail used to say —
+   WHICH of the people in the room is talking — with no bubble left to hang a tail on. */
+.talkTail{position:absolute;bottom:-11px;margin-left:-7px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:9px solid #ffd23f;filter:drop-shadow(0 0 1px #000) drop-shadow(0 1px 1px #000)}
+.talkBubble.below .talkTail{bottom:auto;top:-11px;border-top:none;border-bottom:9px solid #ffd23f}
+/* YOUR ANSWERS: a grid, rows and columns (dialogueOptionGrid sets the column template inline).
+   Sentences share the panel's full width; answers that are all a word or a number are sized to
+   their words and centred, like a keypad. */
+.talkOpts{pointer-events:auto;display:grid;gap:6px;margin-top:12px;width:100%;box-sizing:border-box}
+.talkOpts.compact{width:auto;justify-content:center}
+/* A dark tile with a hard 2px edge and square corners: the retro menu look without going as far
+   as a pixel-art border. Dark rather than white so a tile can never be mistaken for the speech that
+   went away, and so white words on it need no outline of their own. The edge turns gold on hover,
+   the gold of the name tag and the key chips.
+   Selected through .talkOpts on purpose. The app-wide "[.bb] button, input, textarea, select" rule
+   sets font and color to inherit at specificity (0,1,1), and a lone .talkOpt is only (0,1,0), so
+   that rule won once and served near-white text on a white button.
    (And no backticks in here: this whole sheet is one JS template literal.) */
-.talkOpts .talkOpt{display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;background:rgba(255,255,255,.86);border:2px solid #3a3f4b;border-radius:11px;padding:8px 11px;color:#12141a;font-size:14px;font-weight:500;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.3);transition:background .1s,border-color .1s}
-.talkOpts .talkOpt:hover{background:rgba(255,255,255,.99);border-color:#12141a}
+.talkOpts .talkOpt{display:flex;align-items:flex-start;gap:8px;min-width:0;text-align:left;background:rgba(12,14,30,.84);border:2px solid #69739e;border-radius:3px;padding:6px 10px 6px 6px;color:#fff;font-family:DotGothic16,'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:15px;font-weight:400;line-height:1.25;text-shadow:1px 1px 0 #000;cursor:pointer;box-shadow:0 0 0 1px #000,0 3px 0 rgba(0,0,0,.5);transition:background .1s,border-color .1s}
+.talkOpts.compact .talkOpt{min-width:64px;white-space:nowrap}
+.talkOpts .talkOpt:hover{background:rgba(28,32,68,.94);border-color:#ffd23f}
+.talkOpts .talkOpt > span:last-child{min-width:0;overflow-wrap:anywhere;padding-top:1px}
 /* The right/wrong flash. No transition on the way IN — the colour has to land the instant the key
    goes down or it reads as lag rather than as an answer. */
 .talkOpt.lit{transition:none;font-weight:700}
-/* The number key, drawn as a key: dark chip on the pale button, which is the one place a bit of
-   black is doing work rather than decoration — it is what you press. */
-.talkOpts .talkNum{flex:0 0 auto;min-width:21px;height:21px;display:inline-flex;align-items:center;justify-content:center;background:#12141a;border:1px solid #12141a;border-radius:6px;font-size:12px;font-weight:800;color:#fff}
+/* The number key, drawn as a key: a gold chip with a darker lip under it, the one bright thing on
+   the tile — it is what you press. */
+.talkOpts .talkNum{flex:0 0 auto;min-width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;background:#ffd23f;border:none;border-radius:2px;box-shadow:inset 0 -2px 0 #b8860b;font-size:14px;font-weight:400;color:#1b1400;text-shadow:none}
 .talkNum{flex:0 0 auto;min-width:21px;height:21px;display:inline-flex;align-items:center;justify-content:center;background:#12141a;border:1px solid #12141a;border-radius:6px;font-size:12px;font-weight:800;color:#fff}
-.talkOpt.lit .talkNum{background:rgba(0,0,0,.35);border-color:rgba(255,255,255,.5);color:#fff}
+.talkOpt.lit .talkNum{background:rgba(0,0,0,.35);box-shadow:none;border-color:rgba(255,255,255,.5);color:#fff}
 /* Outside both boxes, on the level itself, so it needs its own shadow to stay readable over
    whatever is painted back there. */
 /* The dialogue tree editor. One column of line-cards; the start line and any unreachable line are

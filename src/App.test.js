@@ -399,6 +399,9 @@ import {
   TALK_NOTICE_CELLS,
   talkBubbleBox,
   TALK_BUBBLE_GAP,
+  TALK_BUBBLE_W,
+  TALK_PANEL_MAX_W,
+  dialogueOptionGrid,
   dialogueToneStyle,
   TALK_TONE_NEUTRAL,
   talkFlashMs,
@@ -8249,6 +8252,48 @@ describe("the speech bubble hangs over whoever is talking", () => {
     expect(tiny.left).toBeGreaterThanOrEqual(0);
     expect(tiny.left + tiny.width).toBeLessThanOrEqual(300);
   });
+
+  test("a wider panel (long answers across) is still held to the screen", () => {
+    const wide = talkBubbleBox(speaker(1000, 400), 200, LEVELW, null, TALK_PANEL_MAX_W);
+    expect(wide.width).toBe(TALK_PANEL_MAX_W);
+    expect(wide.left + wide.width / 2).toBe(1000);
+    // A window narrower than the panel: the panel shrinks to it rather than hanging off both sides.
+    const view = { x: 800, y: 0, w: 500, h: 700 };
+    const held = talkBubbleBox(speaker(1000, 400), 200, LEVELW, view, TALK_PANEL_MAX_W);
+    expect(held.width).toBe(500 - 16);
+    expect(held.left).toBeGreaterThanOrEqual(view.x);
+    expect(held.left + held.width).toBeLessThanOrEqual(view.x + view.w);
+  });
+});
+
+// "You should have a lot of options appear in both rows and lines" (2026-10-06). The Bridge Troll
+// on M5 asks for a joke and offers 1 to 9; stacked, that ran off the room and scrolled.
+describe("dialogue answers are laid out as a grid", () => {
+  const opts = (...texts) => texts.map((text) => ({ text }));
+  test("the troll's nine numbers are a 3×3 keypad at the base width", () => {
+    const g = dialogueOptionGrid(opts("1", "2", "3", "4", "5", "6", "7", "8", "9"));
+    expect(g).toEqual({ cols: 3, compact: true, width: TALK_BUBBLE_W });
+  });
+  test("columns follow the count; four are a 2×2, never a 3+1", () => {
+    const cols = (n) => dialogueOptionGrid(Array.from({ length: n }, (_, i) => ({ text: "Option number " + i }))).cols;
+    expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 11].map(cols)).toEqual([1, 2, 3, 2, 3, 3, 3, 3, 3, 4]);
+    expect(dialogueOptionGrid([]).cols).toBe(1);
+  });
+  test("sentence-long answers widen the panel instead of wrapping to a dozen lines", () => {
+    // The Chaplin's real lines run to 96 characters, three across.
+    const chaplin = dialogueOptionGrid(opts(
+      "Okay can we please cut the crap you're clearly just a guy wearing a Cat hat.",
+      "I merely wish to show how grateful I am to be in your presence. Perhaps an exchange of presents?",
+      "I do not require your favor as I am not worthy. It is your Grace that honors me. "));
+    expect(chaplin).toEqual({ cols: 3, compact: false, width: TALK_PANEL_MAX_W });
+    // DK's three short sentences: wider than the base, but nowhere near the cap.
+    const dk = dialogueOptionGrid(opts("Saving the princess", "Delivering Bannanas", "Just passing through"));
+    expect(dk.compact).toBe(false);
+    expect(dk.width).toBeGreaterThan(TALK_BUBBLE_W);
+    expect(dk.width).toBeLessThan(TALK_PANEL_MAX_W);
+    // One answer, however long, is one column at the base width.
+    expect(dialogueOptionGrid(opts("Very well then. Prepare to die!")).width).toBe(TALK_BUBBLE_W);
+  });
 });
 
 describe("pressing an option always says so", () => {
@@ -10546,21 +10591,45 @@ describe("runs", () => {
     // view 1200x450 with the head 300px below the view's top: 288px of room above, 420 - 12 - ... below
     const view = { x: 1800, y: 400, w: 1200, h: 450 };
     const b1 = talkBubbleBox(t, 0, 4800, view);
-    expect(b1.below).toBe(false); expect(b1.maxH).toBe(700 - 12 - 400 - 8);          // capped to the room above
+    expect(b1.below).toBe(false); expect(b1.maxH).toBe(450 - 16);                     // capped only to the WHOLE view
     expect(b1.left).toBe(2190);
-    // measured at the cap: the bubble is being squashed above, and there is LESS room below (850 - 922 < 0) → stays above
+    // too tall for the room above (288), and there is LESS room below (850 - 922 < 0) → stays above
     expect(talkBubbleBox(t, 280, 4800, view).below).toBe(false);
-    // head near the top of the view: flips below, and the cap is the room below
+    // head near the top of the view: flips below
     const t2 = { ax: 2400, ay: 420, ah: 210 };
     const b2 = talkBubbleBox(t2, 20, 4800, view);
-    expect(b2.below).toBe(true); expect(b2.top).toBe(420 + 210 + 12); expect(b2.maxH).toBe(850 - (420 + 210 + 12) - 8);
-    // never squashed under the minimum
-    expect(talkBubbleBox({ ax: 2400, ay: 405, ah: 400 }, 50, 4800, view).maxH).toBe(TALK_BUBBLE_MIN_H);
+    expect(b2.below).toBe(true); expect(b2.top).toBe(420 + 210 + 12);
+    // a view shorter than the minimum still gets the minimum
+    expect(talkBubbleBox(t, 50, 4800, { ...view, h: 100 }).maxH).toBe(TALK_BUBBLE_MIN_H);
     // clamped sideways to the view, not just the level
     expect(talkBubbleBox({ ax: 1810, ay: 700, ah: 210 }, 100, 4800, view).left).toBe(1808);
     expect(talkBubbleBox({ ax: 2990, ay: 700, ah: 210 }, 100, 4800, view).left).toBe(1800 + 1200 - 420 - 8);
-    // a view narrower than the bubble centres it in the view
-    expect(talkBubbleBox(t, 100, 4800, { x: 2300, y: 400, w: 300, h: 450 }).left).toBe(2300 + (300 - 420) / 2);
+    // a view narrower than the bubble SHRINKS it to fit inside the view (2026-10-06 — it used to
+    // stay 420 wide and hang off both sides, cutting the answers off at the edges)...
+    const narrow = talkBubbleBox(t, 100, 4800, { x: 2300, y: 400, w: 300, h: 450 });
+    expect(narrow.width).toBe(300 - 16);
+    expect(narrow.left).toBe(2308);
+    // ...down to a 200px floor, below which it centres in the view as before
+    expect(talkBubbleBox(t, 100, 4800, { x: 2300, y: 400, w: 150, h: 450 }).left).toBe(2300 + (150 - 200) / 2);
+  });
+
+  // "a kind of ugly scroll down system" (2026-10-06): the panel was capped to the room beside the
+  // head and its answers scrolled. Now it SLIDES until all of it is on screen.
+  test("a panel too tall for its side slides onto the screen instead of scrolling", () => {
+    const view = { x: 1800, y: 400, w: 1200, h: 450 };
+    const t = { ax: 2400, ay: 700, ah: 210 };          // 288px of room above the head, none below
+    const b = talkBubbleBox(t, 330, 4800, view);
+    expect(b.below).toBe(false);
+    expect(b.top - 330).toBe(view.y + 8);              // the panel's top edge (its words) sits at the view's top
+    expect(b.top).toBeGreaterThan(700 - TALK_BUBBLE_GAP); // ...which means it hangs lower, over the speaker
+    // one that fits is left exactly where it was
+    expect(talkBubbleBox(t, 200, 4800, view).top).toBe(700 - TALK_BUBBLE_GAP);
+    // below: slides UP until its bottom is on screen, but never past the view's top
+    const t2 = { ax: 2400, ay: 420, ah: 210 };          // 196px of room below the feet
+    const b2 = talkBubbleBox(t2, 260, 4800, view);
+    expect(b2.below).toBe(true);
+    expect(b2.top + 260).toBe(view.y + view.h - 8);
+    expect(talkBubbleBox(t2, 600, 4800, view).top).toBe(view.y + 8); // taller than the view: the words win
   });
 
   test("a run's level copies keep the saved level untouched and migrateLevel leaves runKey alone", () => {
@@ -11464,6 +11533,50 @@ describe("pickup change rows", () => {
     // Extra Lives is on BOTH — it is the new item's, described with ITS count, and not "lost".
     expect(ab.map((r) => r.label + (r.lost ? " (lost)" : ""))).toEqual(["Extra Lives", "Back Guard (lost)"]);
     expect(ab[0].desc).toBe("9 extra lives · get back up where you fall");
+  });
+
+  // THE BUG (2026-10-06, "it doesn't always show the stats that are going down"): a dressed look's
+  // own clothes are baked into its stats, and the merge only ever ADDED pickups — so the garment you
+  // were dressed in never came off. Shaped like his Bobby: Leather Jacket +2 HP, dressed in.
+  test("a dressed look's OWN garment comes off when a pickup replaces it — stats, defense and abilities", () => {
+    const leather = { id: "lj", type: "equipment", slot: "jacket", statBoosts: { hp: 2 }, defense: 3, effects: [{ type: "extraLives", lives: 1 }] };
+    const bobby = {
+      id: "bobby", type: "character", components: { equipment: { jacket: leather } },
+      stats: { hp: 7, speed: 5, agility: 5, intelligence: 5, strength: 5 }, defense: 3,
+      effects: [{ type: "extraLives", lives: 1, frames: [], slot: "jacket" }],
+    };
+    const army = { id: "aj", type: "equipment", slot: "jacket", statBoosts: { strength: 2 }, defense: 1, effects: [] };
+    // Nothing picked up: the look exactly as saved (same object, nothing re-derived).
+    expect(mergeEquipForRows(bobby, {})).toBe(bobby);
+    const before = mergeEquipForRows(bobby, {}), after = mergeEquipForRows(bobby, { jacket: army });
+    expect(after.stats).toMatchObject({ hp: 5, strength: 7 });
+    expect(after.defense).toBe(1);
+    expect(after.effects.map((e) => e.type)).toEqual([]);
+    const rows = pickupChangeRows(army, { before, after, off: leather });
+    expect(rows.filter((r) => r.kind === "stat")).toEqual([
+      { kind: "stat", label: "HP", from: 7, to: 5 },
+      { kind: "stat", label: "Str", from: 5, to: 7 },
+      { kind: "stat", label: "Def", from: 3, to: 1 },
+    ]);
+    expect(rows.filter((r) => r.lost).map((r) => r.label)).toEqual(["Extra Lives"]);
+    // Taking his own jacket back off the plinth lands EXACTLY where he started — it used to count twice.
+    const back = mergeEquipForRows(bobby, { jacket: leather });
+    expect(back.stats).toEqual(bobby.stats);
+    expect(back.defense).toBe(3);
+    expect(back.effects.map((e) => e.type)).toEqual(["extraLives"]);
+    // An EMPTIED slot (it went onto the plinth, nothing came back) has none of it.
+    const bare = mergeEquipForRows(bobby, { jacket: null });
+    expect(bare.stats.hp).toBe(5);
+    expect(bare.defense).toBe(0);
+    expect(bare.effects).toEqual([]);
+    // A slot the pickups never touched keeps the look's own garment.
+    const hat = { id: "h", type: "equipment", slot: "hat", statBoosts: { intelligence: 1 }, defense: 0, effects: [] };
+    const withHat = mergeEquipForRows(bobby, { hat });
+    expect(withHat.stats).toMatchObject({ hp: 7, intelligence: 6 });
+    expect(withHat.effects.map((e) => e.type)).toEqual(["extraLives"]);
+    // A legacy look whose baked abilities carry no slot loses the garment's ability by TYPE, once.
+    const legacy = { ...bobby, effects: [{ type: "extraLives", lives: 1 }, { type: "extraLives", lives: 1 }] };
+    expect(mergeEquipForRows(legacy, { jacket: army }).effects).toHaveLength(1);
   });
 
   test("the banner lasts as long as its CSS life", () => {

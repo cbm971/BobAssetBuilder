@@ -1326,6 +1326,22 @@ Verified in the production build against his real items on a test level with fiv
 (Cat Head, Grenade Launcher, First Aid Kit, a cape, a grenade) plus a drop injected into
 `enemyDrops`: callout text, widths (≤150px), fonts actually loaded, banner position, no toast.
 
+**A DRESSED LOOK'S OWN CLOTHES COME OFF IN THE NUMBERS TOO (2026-10-06, `mergeEquip`).** Blake: "when
+picking up a piece of loot and replacing an existing piece it doesn't always show the stats that are
+going down, after you … switch back and forth it shows all stats". Every character he plays (Bobby,
+Billy, Super Bob, Army Bob …) is a dressed look, and `assembleLook` bakes its own garments' boosts,
+armour and abilities into the look's `stats`/`defense`/`effects`. `mergeEquip` only ever ADDED
+pickups, so a garment the look was dressed in never came off. `wornEquipMap` had already picked the
+right garment to put on the plinth, but the numbers never subtracted it. Measured in his M5 as Bobby
+with his Army Jacket dropped at the feet: the callout had no HP row (Leather Jacket's +2 HP stayed),
+promised Def 14→19 (both jackets' 5), and taking the Leather Jacket back read HP 8→10 (counted
+twice). He also really played on those numbers. Now any slot the pickup map has TOUCHED (an item, or
+null for emptied) first subtracts the look's own garment: its stat boosts and defense, plus its
+abilities by the `slot` that assembleLook packs them under (legacy looks with no slot lose them by
+type, one per ability). The same drive now reads HP 8→6 / Agility 0→−1 / Str 7→9, and the way back
+reads exactly 6→8 / −1→0 / 9→7. With nothing picked up, `mergeEquip` still returns `base` itself.
+This one change also fixes the shop's clothing swap and the live stats.
+
 **⭐ ITEM RANK (2026-09-27): Poor / Common / Rare / Legendary.** A `rank` field on the three
 category-carrying types, set by four coloured buttons at the top of the item's side panel. It is
 LOOK ONLY — drops, prices and pedestal searches ignore it. `itemRank(a)` reads it; anything
@@ -1714,10 +1730,10 @@ anybody hostile.
   middle of the room, so the contrast is carried by the TEXT — white, outlined in black on all four
   sides, with two soft black glows under that. **Both halves are load-bearing:** drop the four hard
   shadows and it dies on a light wall, drop the two soft ones and it dies on a busy texture. They
-  share ONE rule so a new label cannot quietly drift back to having a box. Two deliberate
-  exceptions: the dialogue BUBBLE keeps its panel (black on white — somebody is talking, and it is
-  meant to read as a panel), and `.pedestalEmpty` keeps its red after the shared rule, because
-  "no match" is a mis-tagged-filter warning rather than a caption.
+  share ONE rule so a new label cannot quietly drift back to having a box. What a speaker SAYS is
+  in that rule too since 2026-10-06 (`.talkWho`, `.talkText`): it was the one exception, a white
+  speech bubble, until Blake asked for the bubble to go. `.pedestalEmpty` keeps its red after the
+  shared rule, because "no match" is a mis-tagged-filter warning rather than a caption.
 * **...AND THEY ALL SIT IN FRONT OF THE PLAYER (`.pedLabels`, z SCENE_LABEL_Z.label).** A pedestal draws BELOW the
   player on purpose — you walk in front of the item on its stand — but a z-index on a positioned
   element makes a stacking context, so its labels were trapped down there with it and the player's
@@ -1885,6 +1901,31 @@ to the level's width (a bubble hanging off into nothing at column 2), and it the
 back over the speaker's real head wherever the clamp moved the box to. It needs a measured height,
 so the bubble renders once, measures itself into `talkH`, and settles — height 0 means "not laid
 out yet" and must never be read as "it doesn't fit".
+
+**THE 2026-10-06 REVAMP: no bubble, answers in a grid, a retro face, nothing scrolls.** Blake, after
+the Bridge Troll on Trailor Park M5 (nine answers, "1" to "9"): "a kind of ugly scroll down system
+… I don't think we need the white bubble around the text, You should have a lot of options appear
+in both rows and lines, i'd like a somewhat retro font / styling … but not to much that it's hard to
+read". What shipped:
+* **No white bubble.** The line is bare words in the shared bare-words outline rule, centred, under
+  a gold name tag. The tail is now a small gold arrowhead (`.talkTail`) at `tailX`.
+* **Answers are a grid** (`dialogueOptionGrid`, pure and tested). Up to three go side by side; four
+  make a 2×2; five to nine go three across. When every answer is ≤ 10 characters the tiles size to
+  their words (`compact`, a keypad), so the troll's 1–9 is a 3×3. Long answers widen the panel up to
+  `TALK_PANEL_MAX_W` (660), which `talkBubbleBox` takes as its 5th argument and still clamps to the
+  level and the view. Tiles are dark with a hard 2px edge and square corners, and the number key is
+  a gold chip.
+* **Nothing scrolls.** A panel taller than the room beside the head now SLIDES toward the middle of
+  the view, over the speaker if it must, rather than being capped with the answers scrolling. `maxH`
+  only caps a panel taller than the whole view (the last resort, thin gold scrollbar).
+* **Font: DotGothic16** for everything in the panel (`GAME_FONTS_HREF`). Six pixel faces were set
+  side by side at his real size. Pixelify Sans lost twice: as body text its capital G sits close to
+  a B, and even as the name tag "BRIDGE" read "BRIDBE" and the 5 key read as an S. DotGothic16 ships
+  as ~120 Japanese unicode slices, so `document.fonts.check("19px DotGothic16")` says false (the
+  space glyph sits in an unloaded slice). Check with `"A"`, which reads true once Latin has loaded.
+* **Measuring trap:** the panel measures itself with `getBoundingClientRect`, and the play loop does
+  not re-render while a talk is open. Scaling `#root` for a screenshot and then changing the talk
+  measures it 2× too tall, so it "slides" for no reason. Set the transform AFTER the last talk change.
 
 `scrollIntoView({block:"nearest"})` on open is the one concession to there being **no camera**. It
 is scoped to opening a conversation only. Do not let it grow into a camera.
