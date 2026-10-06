@@ -816,12 +816,36 @@ rather than rotated rects, because `worldArtBox` measures unrotated boxes.
 a solid well instead.** Blake asked for a trailer without "the floating on wheels effect a lot of the
 existing cars and trailers have", and on seeing the first version clarified: "I meant the wheel wells
 … it's as if you have a wheel not attached to the trailer." Trailer 1-5 and the three 1960s cars all
-cut a see-through arch (a cutter circle a few units bigger than the tyre), so a ring of sky or level
+cut a see-through arch (until 2026-10-06, below: a cutter circle a few units bigger than the tyre), so a ring of sky or level
 background shows all round the top of every wheel and the tyre reads as a loose disc beside the body.
 The Canned Ham draws NO arch cutter: a flat dark `#33302e` half-disc well (circle clipped at the chassis
 rail's bottom) goes over the body, and the `#2b2b2b` tyre sits in it, so the wheel tucks up into the
 body with no gap. That is the vehicle wheel idiom he wants from now on — do not copy the cars' arch
 cutter into anything new.
+
+**2026-10-06: EVERY existing vehicle now has a solid well** ("get rid of the floating wheel well thing on
+all trailors"). No vehicle prop in the library has a wheel-arch cutter any more; window cutters stay.
+- **Trailer 5, Trailor 3, Beetle, Mustang, Station Wagon:** each arch cutter was replaced, at the same list
+  index, by a dark `poly` = (the cutter's own shape) ∩ (the union of the pieces it used to cut), sampled
+  per column. So the dark area is exactly the part of the old hole that lay INSIDE the body; outside the
+  body nothing changed, and `propVisibleArtBox` is identical (cutters never counted), so no placement in
+  any level moved or rescaled. His trailers use his own well colour (`#2b2b2b`, bright 1.2, which he
+  picked on Trailer 6); the cars keep `#33302e`.
+- **Trailers 1 and 2 were already his own idiom:** a `noCut` dark rect (`ij6gk1p`) behind the body that
+  shows through the cutter holes. It stopped 3 units above the body's bottom edge, so a sky sliver showed
+  under the wells. It now reaches y 154. Copy this idiom only when you keep the cutters for another reason.
+- **Trailer 6 (`1jqfzdy`)** he had edited that morning trying to fix it himself: a dark rect added at the
+  bottom of the stack (cut by the cutter, so only two stubs poked out under the body), and the cutter
+  moved up, so a 50% grey line now crossed the hole. The fix turned HIS rect (same id and colour) into a
+  clipped-circle well drawn just before the tyre, and removed the cutter. His tyre hung 80% below the body,
+  which still read as "a wheel, then a trailer floating above it". So the tyre, hub and jack wheel moved up
+  4 units and the jack post got 4 shorter. Its art box is now 4 units shorter at the bottom, with the same
+  top, left and width. In his levels the body stays exactly where it was and the wheels end higher (M7 at
+  size 20: the tyre went from half a cell into the gravel to sitting on it, checked in the running app).
+- Verified in the running app on his M1/M4/M7 placements with the foreignObject capture. A Mustang window
+  cutter rendering magenta was the control, proving the capture does show holes. Clone a `.lobj` with its
+  inline styles only: inlining EVERY computed style blanked it, because the logical `inset-*` longhands come
+  after `left` in the list and put it back to its level coordinates.
 
 **Separately, a prop can float for a second reason: fractional footprint rows.** A placed prop's
 footprint top sits on a whole cell and its art is stretched to exactly
