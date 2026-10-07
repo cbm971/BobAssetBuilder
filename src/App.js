@@ -1136,6 +1136,44 @@ export const muzzleLocalPoint = (attachedWeaponPieces) => {
   const p0 = m[0];
   return { x: p0.x + p0.w / 2, y: p0.y + p0.h / 2 };
 };
+// WHERE A SHOT LEAVES THE GUN IN THE HAND — the player's and every unit's, by one rule (2026-10-06).
+// Blake: "when non player enemies get ranged weapons it seems like the projectile fire from a
+// completely different place". Two holes, both closed here:
+//  * Only the drawing of the muzzle at REST was ever read, but a ranged weapon is drawn in its FIRE
+//    art the instant it fires (weaponPoseFired) — and several of his guns only have the 🔴 muzzle in
+//    one of the two (the M16 has none in its Rest crouch, its Fire crouch has one; the Grenade
+//    Launcher's Fire crouch moves the barrel 40px). The drawing on screen wins, the other covers it.
+//  * No muzzle drawn at all (Bobs Bow everywhere, the RPG and the Experimental Rifle on some bodies)
+//    used to mean "from the middle of the chest", which on someone holding a gun out at arm's length
+//    is a body width behind the weapon. Now it is the FAR END OF THE WEAPON along the shot: the piece
+//    that reaches furthest forward, at its own middle line — a barrel's tip, a bow's belly.
+// `fired`/`rest` are the two drawings ALREADY ATTACHED to the arm (attachWeaponBlocks), in the body's
+// 200x260 frame. Forward is the arm's own axis, shoulder to hand — exactly where the aim pose points
+// it — or `fwdIfNoArm` for a ✋ hold point, whose stand-in arm has no length. null = no art at all.
+export const heldShotPoint = (fired, rest, arm, fwdIfNoArm) => {
+  const m = muzzleLocalPoint(fired) || muzzleLocalPoint(rest);
+  if (m) return m;
+  const rig = armRig(arm);
+  let fx = rig ? rig.hand.x - rig.shoulder.x : 0, fy = rig ? rig.hand.y - rig.shoulder.y : 0;
+  if (Math.hypot(fx, fy) < 1e-6 && fwdIfNoArm) { fx = fwdIfNoArm.x; fy = fwdIfNoArm.y; }
+  const len = Math.hypot(fx, fy);
+  if (len < 1e-6) return null;
+  fx /= len; fy /= len;
+  const drawn = (list) => (list || []).filter((p) => !p.isHitbox && !p.isMuzzle && p.w > 0 && p.h > 0);
+  const art = drawn(fired).length ? drawn(fired) : drawn(rest);
+  let best = null, bestReach = -Infinity;
+  for (const p of art) {
+    // The rotation the renderer really applies (a mirrored twin's scaleX(-1) reverses it), so the
+    // box's reach along the shot is measured on the box as drawn.
+    const r = ((p._m && p.mirrorTwist !== false) ? -1 : 1) * (p.rot || 0) * Math.PI / 180;
+    const c = Math.cos(r), s = Math.sin(r);
+    const ext = Math.abs((p.w / 2) * (fx * c + fy * s)) + Math.abs((p.h / 2) * (fy * c - fx * s));
+    const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+    const reach = cx * fx + cy * fy + ext;
+    if (reach > bestReach) { bestReach = reach; best = { x: cx + fx * ext, y: cy + fy * ext }; }
+  }
+  return best;
+};
 // Which pose array a weapon should render at the moment its Fire animation plays. A weapon
 // whose Fire state was never drawn for this pose has an EMPTY fire array — and baking that
 // produced no pieces at all, so the weapon silently disappeared for the few frames between the
@@ -14279,10 +14317,11 @@ export default function AssetStudio() {
               sizeUnits = projAsset.size || 1;
             }
             const spd = ew.projectileSpeed ?? 12;
-            // A unit holding its gun at a ✋ hold point fires from the barrel (enemyHeldMuzzleAt);
-            // everyone else from the chest, exactly as before. Its line is solved from the
-            // barrel too, and its facing — already turned onto the target just above — is the
-            // direction, since a barrel poking past a close target would otherwise flip it.
+            // Every unit with a gun in its hand fires from the gun (enemyHeldMuzzleAt) — a dressed
+            // look, a drawn arm and a ✋ hold point alike; only a unit with nothing to hold it by
+            // keeps the old chest spawn. Its line is solved from the barrel too, and its facing —
+            // already turned onto the target just above — is the direction, since a barrel poking
+            // past a close target would otherwise flip it.
             const eMuzzle0 = enemyHeldMuzzleAt(ea, ew, ep, newEph, eRenderW, 0);
             const sx = eMuzzle0 ? eMuzzle0.x : eCenterXFinal, sy = eMuzzle0 ? eMuzzle0.y : ep.y + newEph * 0.42;
             const rangePx = Math.max(1, ew.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW * rangeBoostMultiplier(ea.effects); // 🎯 Long Shot it is wearing, as yours does
@@ -14494,8 +14533,10 @@ export default function AssetStudio() {
             const wfitM = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
             const guideHandM = handForGuideId(wfitM.guideId)[wPoseM] || DEFAULT_HAND[wPoseM];
             const wBaseM = wPoseM === angleNow ? baseArmRotM : armBaseFrom(armOf(playerAsset.angles[wPoseM] || []), armPieceM, baseArmRotM);
-            const muzArt = bake({ ...playtestWeapon, angles: wfitM.states.rest || blankAngles() }, wPoseM).filter((pc) => pc.isMuzzle);
-            const mp = muzArt.length ? muzzleLocalPoint(attachWeaponBlocks(muzArt, curArmM, guideHandM, wBaseM)) : null;
+            // The drawing on screen as it fires (Fire replaces Rest) and its Rest drawing, both on
+            // the arm — heldShotPoint takes the muzzle from either, else the far end of the gun.
+            const heldM = (angles) => attachWeaponBlocks(bake({ ...playtestWeapon, angles: angles || blankAngles() }, wPoseM), curArmM, guideHandM, wBaseM);
+            const mp = heldShotPoint(heldM(weaponFireArt(wfitM.states, wPoseM)), heldM(wfitM.states.rest), curArmM);
             if (!mp) return null;
             const renderWM = CW * PLAYER_RENDER_W_CELLS;
             const wrapLeftM = p.x - (bodyShape.centerFrac * renderWM - pw / 2);
@@ -18025,32 +18066,48 @@ export default function AssetStudio() {
   // Its grenades. Type-checked rather than trusted: a hand-edited level (or a throwId left behind
   // after the asset was rebuilt as a rifle) must not put a machine gun into the throwing arm.
   const spawnThrowableFor = (spawn) => { const id = spawnThrowIdOf(spawn); const a = id ? findA(id) : null; return a && isThrowable(a.wtype) ? a : null; };
-  // WHERE A UNIT HOLDING ITS GUN AT A ✋ HOLD POINT FIRES FROM: the weapon's 🔴 muzzle, placed by the
-  // same attach the sprite draws (unitHoldArm, the aim angle plus `tiltDeg` of lock-on, mirrored for
-  // left-facing art) and carried into level pixels the way its wrapper draws it. Returns null — and
-  // the caller keeps the old chest-height spawn — for any unit NOT on a hold point (every dressed
-  // look, every enemy with a drawn arm and no point) and for a weapon with no muzzle drawn.
-  // Why it exists: a Squirrel's canvas is mostly empty space above its head, and the old spawn at
-  // 42% of the box put every one of its bullets in the air ABOVE it, a body length from the rifle.
+  // WHERE A UNIT'S SHOT LEAVES ITS GUN: the end of the weapon its sprite is drawn holding as it fires
+  // (heldShotPoint — the 🔴 muzzle, else the far end of the art), attached by the same arm, the same
+  // aim angle plus `tiltDeg` of lock-on and the same fit the sprite draws, then carried into level
+  // pixels the way its wrapper draws it. null only when it has no arm to hold anything by at all —
+  // the caller then keeps the old chest-height spawn.
+  // It began (2026-09-26) for ✋ hold points only: a Squirrel's canvas is mostly empty space above
+  // its head, and the old spawn at 42% of the box put every one of its bullets in the air ABOVE it,
+  // a body length from the rifle. EVERY OTHER UNIT KEPT THAT CHEST SPAWN — every dressed look, every
+  // enemy with a drawn 💪 arm — and the aim pose holds a gun out at arm's length, so their rounds
+  // appeared from the middle of the body, a gun's length behind the barrel. Blake (2026-10-06): "when
+  // non player enemies get ranged weapons it seems like the projectile fire from a completely
+  // different place". The arm is now picked exactly as the render picks it (✋ hold point, else the
+  // drawn arm, else the enemyAimArm stand-in) and turned exactly as its aim branch turns it, and the
+  // weapon's fit is the BODY's fit — this read the look's own id, which no weapon has a fit for, so
+  // a dressed look would have been handed the wrong drawing even on the old path.
   const enemyHeldMuzzleAt = (ea, ew, ep, eph, renderW, tiltDeg) => {
     if (!ea || !ew || !ep) return null;
     const poseKey = enemyPoseKey(ea, ep.crouch ? "crouch" : "side");
-    const hold = unitHoldArm(ea, poseKey, bake(ea, poseKey));
-    if (!hold) return null;
+    const poseArt = bake(ea, poseKey);
+    const hold = unitHoldArm(ea, poseKey, poseArt);
+    const body = poseArt.filter((b) => !b._isWeapon); // the look's frozen copy of a gun is stripped before the arm is found, as the render does
+    const arm0 = hold || flaggedArmOf(body) || enemyAimArm(body);
+    if (!arm0) return null;
     const facesRight = enemyArtFacesRight(ea);
-    const wfit = weaponFitFor(ew, ea.id);
+    const tilt = (playerArtFacesRight(ea) ? 1 : -1) * (tiltDeg || 0); // the render's eShotTilt
+    const arm = { ...arm0, rot: (armAimAbsFacing(arm0.armPivot, facesRight) + tilt) * armMirrorTwist(arm0) };
+    const wfit = weaponFitFor(ew, ea.type === "enemy" ? ea.id : equippedBodyIdFor(ea));
     const hand = handForGuideId(wfit.guideId)[poseKey] || DEFAULT_HAND[poseKey];
-    const muz = bake({ ...ew, angles: wfit.states.rest || blankAngles() }, poseKey).filter((pc) => pc.isMuzzle);
-    if (!muz.length) return null;
-    const arm = { ...hold, rot: armAimAbsFacing(hold.armPivot, facesRight) + (facesRight ? 1 : -1) * (tiltDeg || 0) };
-    const mp = muzzleLocalPoint(attachWeaponBlocks(facesRight ? muz : mirrorHeldArt(muz, hand.x), arm, hand, 0));
+    const base = hold ? 0 : (arm0.rot || 0); // eAttachBase
+    const held = (angles) => {
+      const art = bake({ ...ew, angles: angles || blankAngles() }, poseKey);
+      return attachWeaponBlocks(facesRight ? art : mirrorHeldArt(art, hand.x), arm, hand, base);
+    };
+    const td = (tiltDeg || 0) * Math.PI / 180;
+    const mp = heldShotPoint(held(weaponFireArt(wfit.states, poseKey)), held(wfit.states.rest), arm, { x: (facesRight ? 1 : -1) * Math.cos(td), y: Math.sin(td) });
     if (!mp) return null;
     // The sprite's ground anchor, exactly as the render works it out (eAnchor there) — a ducking unit
     // stands on its crouch drawing's own feet (unitCrouchFrame).
     const shape = sideBodyShape(ea);
     const gY = ep.crouch ? unitCrouchFrame(ea).groundY : (enemyGroundLine(ea, poseKey) ?? enemyGroundLine(ea, enemyPoseKey(ea, "side")));
     const anchor = gY !== null ? ((H - gY) / H) * eph : Math.max(0, 1 - shape.topFrac - shape.heightFrac) * eph;
-    return spriteCanvasPointToWorld(mp, { left: ep.x, top: ep.y, renderW, boxH: eph, anchor, flip: enemyNeedsFlip(ea, ep.face) });
+    return spriteCanvasPointToWorld(mp, { left: ep.x, top: ep.y + (ep.stepEase || 0), renderW, boxH: eph, anchor, flip: enemyNeedsFlip(ea, ep.face) });
   };
   // ---- PLAYER-BASED enemy melee: weapon-hitbox driven, exactly like the player --------------
   // A Dress Bob look placed as an enemy fights the way the player fights: its melee reach IS its

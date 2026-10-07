@@ -1492,8 +1492,9 @@ it is deliberately NOT a climb:
   that asks where the weapon is: the render, the throwable in hand, the muzzle spawn and the melee
   hit box. That last one was a silent bug of its own: a bat swung facing the camera baked no art,
   had no hit box and hit nothing (control: two swings at a unit a step away, no hit; now "Hit Roberta
-  for 7"). A weapon with no 🔴 muzzle in its Back art fires from the chest there, as walking UP
-  always has (his M16's only muzzles are Side/Crouch/Up).
+  for 7"). A weapon with no 🔴 muzzle in its Back art fires from the far end of that art since
+  2026-10-06 (`heldShotPoint`, below); it used to be the chest (his M16's only muzzles are
+  Side/Crouch/Up).
 
 Verified in the running app on a seeded 60x30 level (a street at row 24, a 10x8 intersection over it
 and a 6-wide road running up to row 8): sideways across the crossing at y 510 the whole way with the
@@ -3159,8 +3160,26 @@ underneath his "wrong direction and in a weird place":
   the same `unitHoldArm` + attach the game uses. It lives in editor state and is never saved.
 * **Shots leave the barrel** for a unit on a hold point (`enemyHeldMuzzleAt`, via
   `spriteCanvasPointToWorld`). The old spawn at 42% of the box put every Squirrel bullet in the air
-  above its head. Everyone else (dressed looks, drawn-arm enemies) still fires from the chest,
-  unchanged.
+  above its head. ~~Everyone else still fires from the chest~~ — no longer: see the next bullet.
+* **EVERY unit fires from the gun in its hand (2026-10-06).** Blake: "when non player enemies get
+  ranged weapons it seems like the projectile fire from a completely different place". Dressed
+  looks and drawn-arm enemies had kept the chest spawn, and the aim pose holds the gun out at arm's
+  length, so the round appeared a gun's length behind the barrel. `enemyHeldMuzzleAt` now picks the
+  arm the way the render does (✋ hold point, else `flaggedArmOf`, else `enemyAimArm`), turns it the
+  way the render's aim branch does (`armAimAbsFacing` + eShotTilt, × `armMirrorTwist`), and uses
+  the BODY's weapon fit (`equippedBodyIdFor`) — it used to read the look's own id, which has no fit.
+  Only a unit with no arm at all keeps the chest spawn.
+* **`heldShotPoint` is the one rule for where a shot leaves a held weapon, player and units.** The
+  🔴 muzzle of the FIRE drawing (what is on screen as it fires — `weaponPoseFired`), else Rest's,
+  else the far end of the weapon art along the shot (the forward-most piece, at its middle line).
+  His library needs all three: the M16's Crouch muzzle is only in Fire, the Grenade Launcher's Fire
+  crouch moves the barrel ~40 px, Bobs Bow has no muzzle anywhere, the RPG has none on Bobbett.
+* Measured in Playtest (seeded flat level, Army Bob + M16, Bobette + Bobs Bow, Squirrel + M16, all
+  Guard). The M16's Fire art has a gold flash (`#c8a23c`) at the barrel, so filter the unit's
+  divs by `rgb(200, 162, 60)` to find the DRAWN barrel tip; the bow's wood is `#6b4226`. Fixed:
+  Army Bob's rounds start inside the flash's box on both facings, and Bobette's arrows start at the
+  bow's front edge. Control (stash): Army Bob at (615,478), the body's middle, flash at (497,453);
+  Bobette at 975, 50 px behind the bow. The Squirrel (hold point) is unchanged.
 * Measured in Playtest with the old code as a control: facing left, the old gun sat 412–463 px
   against a body at 380–454, i.e. out of the back. With the fix it sits at 361–408, past the nose.
   Facing right, the fix mirrors correctly. Shots started within 10 px of the drawn barrel tip.

@@ -522,6 +522,7 @@ import {
   spriteCanvasPointToWorld,
   enemyAimArm,
   muzzleLocalPoint,
+  heldShotPoint,
   armPivotSign,
   rigidArmFollow,
   armShoulderPoint,
@@ -11227,6 +11228,70 @@ describe("✋ Enemies hold a weapon the right way round, at a hold point", () =>
     const k = spriteUnsquashY(duck.renderW, duck.boxH);
     const head = spriteCanvasPointToWorld({ x: 0, y: 0 }, duck);
     expect(floorY - head.y).toBeCloseTo((floorY - (duck.top + duck.anchor)) * k, 6);
+  });
+});
+
+describe("🔫 A shot leaves the gun in the hand (heldShotPoint) — dressed looks, drawn arms, hold points", () => {
+  // Blake, 2026-10-06: "when non player enemies get ranged weapons it seems like the projectile fire
+  // from a completely different place". Every unit not on a ✋ hold point fired from its chest.
+  const HAND = { x: 97, y: 177 };
+  const rifle = [
+    { id: "stock", kind: "rect", x: 93, y: 150, w: 8, h: 27 },
+    { id: "barrel", kind: "rect", x: 95, y: 177, w: 4, h: 60 },
+    { id: "mz", kind: "circle", x: 92, y: 232, w: 10, h: 10, isMuzzle: true },
+  ];
+  const noMuzzle = rifle.filter((p) => !p.isMuzzle);
+  // A dressed look's drawn weapon arm: hangs from the shoulder at (97,110) to the hand at (97,180).
+  const arm = { id: "arm", kind: "rect", role: "weaponArm", limb: "arm", x: 92, y: 110, w: 10, h: 70, armPivot: "top", rot: 0 };
+  const aimed = { ...arm, rot: armAimAbs("top") }; // the aim pose: level, forward (+x)
+  const held = (art, a) => attachWeaponBlocks(art, a || aimed, HAND, 0);
+
+  test("CONTROL: the old chest spawn sits a whole gun behind the barrel of a raised rifle", () => {
+    const chestX = 100; // the middle of the body box, where every dressed look's round used to start
+    const mp = heldShotPoint(held(rifle), held(rifle), aimed);
+    expect(mp.x - chestX).toBeGreaterThan(100); // the barrel tip is well over 100 canvas units ahead
+    expect(mp).toEqual(muzzleLocalPoint(held(rifle)));
+  });
+
+  test("the drawing on screen as it fires wins; a Fire drawing with no muzzle uses Rest's", () => {
+    const fireArt = rifle.map((p) => (p.isMuzzle ? { ...p, y: p.y + 20 } : p)); // a longer barrel when fired
+    expect(heldShotPoint(held(fireArt), held(rifle), aimed)).toEqual(muzzleLocalPoint(held(fireArt)));
+    expect(heldShotPoint(held(noMuzzle), held(rifle), aimed)).toEqual(muzzleLocalPoint(held(rifle)));
+    // ...and the Rest drawing alone (M16's Crouch: only the Fire drawing has one) is covered the other way.
+    expect(heldShotPoint(held(rifle), held(noMuzzle), aimed)).toEqual(muzzleLocalPoint(held(rifle)));
+  });
+
+  test("no muzzle drawn at all: the far end of the barrel, on the barrel's own line", () => {
+    const mp = heldShotPoint(held(noMuzzle), held(noMuzzle), aimed);
+    const [, barrel] = held(noMuzzle);
+    expect(mp.x).toBeCloseTo(barrel.x + barrel.w / 2 + barrel.h / 2, 6); // turned level: its length lies along x
+    expect(mp.y).toBeCloseTo(barrel.y + barrel.h / 2, 6);
+    expect(mp.x).toBeGreaterThan(200);
+  });
+
+  test("a bow (no muzzle, drawn across the hand) shoots from its belly at hand height", () => {
+    const bow = [{ id: "limb", kind: "rect", x: 99, y: 150, w: 6, h: 54 }]; // upright, just ahead of the grip
+    const atRest = { ...arm, rot: -90 }; // drawn as it is held, so the attach does not turn it
+    const mp = heldShotPoint(attachWeaponBlocks(bow, atRest, HAND, -90), [], atRest);
+    const [b] = attachWeaponBlocks(bow, atRest, HAND, -90);
+    expect(mp.x).toBeCloseTo(b.x + b.w, 6);
+    expect(mp.y).toBeCloseTo(b.y + b.h / 2, 6);
+  });
+
+  test("a ✋ hold point has no arm to point along: the shot's own direction stands in, mirrored for left-facing art", () => {
+    const pt = { x: 60, y: 80 };
+    const tip = (facesRight) => {
+      const hold = enemyHoldArm(pt, 0);
+      const a = { ...hold, rot: armAimAbsFacing(hold.armPivot, facesRight) };
+      const art = attachWeaponBlocks(facesRight ? noMuzzle : mirrorHeldArt(noMuzzle, HAND.x), a, HAND, 0);
+      return heldShotPoint(art, art, a, { x: facesRight ? 1 : -1, y: 0 });
+    };
+    expect(tip(true).x).toBeGreaterThan(pt.x + 50);
+    expect(tip(false).x).toBeLessThan(pt.x - 50);
+    expect(tip(false).x - pt.x).toBeCloseTo(-(tip(true).x - pt.x), 6);
+    expect(tip(true).y).toBeCloseTo(tip(false).y, 6);
+    expect(heldShotPoint(noMuzzle, noMuzzle, enemyHoldArm(pt, 0))).toBeNull(); // no arm, no direction
+    expect(heldShotPoint([], [], aimed)).toBeNull();                          // nothing drawn
   });
 });
 
