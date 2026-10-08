@@ -10696,6 +10696,34 @@ describe("a draining HP bar rises over the full ones around it", () => {
     test("being inside solid ground alone is not being hidden", () => {
       expect(unitHiddenByFront({}, sheet(0, 20, 0, 20), rat, C, C)).toBe(false);
     });
+    // Blake, 2026-10-07: "I can still see the enemies HP bar when i'm far away but it goes away when I
+    // get close". In a run the live level adopts the next level's units, at live-level pixels past
+    // its own edge, and the test only ever looked in the LIVE level's Front.
+    test("in a run, a unit across a gate is tested against ITS level's Front, under that level's keys", () => {
+      const A = { id: "a", cols: 60, rows: 20, front: {}, fg: {} };
+      const B = { id: "b", cols: 60, rows: 20, front: sheet(8, 9, 6, 12), fg: sheet(0, 7, 0, 20) };
+      const parts = runWorldParts(A, { E: { key: "b", level: B, off: { x: 60 * C, y: 0 } } }, C);
+      const ratInB = { ...rat, x: rat.x + 60 * C };                    // the same rat, drawn in the live level's pixels
+      expect(unitHiddenByFront(A.front, A.fg, ratInB, C, C)).toBe(false);               // the old question: A has no Front there
+      expect(unitHiddenByFront(A.front, A.fg, ratInB, C, C, undefined, parts)).toBe(true); // asked of B
+      // ...and the live level's own units still read the live level, through the same parts.
+      const A2 = { ...A, front: sheet(8, 9, 6, 12), fg: sheet(0, 7, 0, 20) };
+      const parts2 = runWorldParts(A2, { E: { key: "b", level: { ...B, front: {} }, off: { x: 60 * C, y: 0 } } }, C);
+      expect(unitHiddenByFront(A2.front, A2.fg, rat, C, C, undefined, parts2)).toBe(true);
+      expect(unitHiddenByFront(A2.front, A2.fg, ratInB, C, C, undefined, parts2)).toBe(false); // B has no paint
+      // A point off every level is open air, not cover.
+      expect(unitHiddenByFront(A.front, A.fg, { ...rat, x: 200 * C }, C, C, undefined, parts)).toBe(false);
+    });
+    test("in a run, the window you carry is offered only for the live level's cells", () => {
+      const A = { id: "a", cols: 60, rows: 20, front: {}, fg: {} };
+      const B = { id: "b", cols: 60, rows: 20, front: sheet(8, 9, 6, 12), fg: sheet(0, 7, 0, 20) };
+      const parts = runWorldParts(A, { E: { key: "b", level: B, off: { x: 60 * C, y: 0 } } }, C);
+      const seen = [];
+      unitHiddenByFront(A.front, A.fg, { ...rat, x: rat.x + 60 * C }, C, C, (k, cell, P) => { seen.push(k + "@" + P.key + ":" + P.side); return false; }, parts);
+      expect(seen.length).toBeGreaterThan(0);
+      expect(seen.every((s) => /^\d+,\d+@b:E$/.test(s))).toBe(true);   // B's own keys, and the part says it is not the live one
+      expect(seen.some((s) => s.startsWith("8,9@"))).toBe(true);
+    });
   });
 });
 

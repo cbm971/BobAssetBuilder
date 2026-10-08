@@ -10596,16 +10596,33 @@ export const unitStatusZ = (hpFrac, hotNow) => UNIT_STATUS_Z + (hotNow ? 2 : hpF
 // see the body, and the status stays. `seeThrough(key, cell)` names the Front cells you can see
 // through: the window you carry (faded below UNIT_FRONT_HIDE_OPACITY), a ramp's open half, a
 // see-through texture (the girder's holes).
+//
+// IN A RUN, EACH POINT IS ASKED OF THE LEVEL IT IS IN (`parts`, 2026-10-07). Blake: "I can still see
+// the enemies HP bar when i'm far away but it goes away when I get close". Since the live level
+// adopts every neighbour's units (adoptRunNeighbours), a unit across a gate is drawn, simulated and
+// tested as one of the live level's own, at live-level pixels that lie OUTSIDE the live grid. This
+// test then looked those points up in the LIVE level's Front, found nothing there, and kept the
+// bar: every enemy behind Front in the next level along showed its HP bar until you walked into that
+// level and it became the live one. With `parts` (runWorldParts), each point goes to the level whose
+// rectangle holds it (worldPartOfCell) and is looked up in THAT level's Front and Foreground, under
+// that level's own key; a point off every level is open air. `seeThrough` is handed the part so the
+// caller can keep your window to the live level, the only one it fades.
 export const UNIT_FRONT_HIDE_OPACITY = 0.85;
-export const unitHiddenByFront = (front, fg, box, CW, CH, seeThrough) => {
-  if (!front || !box || !(box.w > 0) || !(box.h > 0)) return false;
+export const unitHiddenByFront = (front, fg, box, CW, CH, seeThrough, parts) => {
+  if ((!front && !parts) || !box || !(box.w > 0) || !(box.h > 0)) return false;
   let covered = 0;
   for (let i = 0; i < 5; i++) for (let j = 0; j < 4; j++) {
     const x = box.x + box.w * (i + 0.5) / 5, y = box.y + box.h * (j + 0.5) / 4;
-    const k = Math.floor(y / CH) + "," + Math.floor(x / CW);
-    const cell = front[k];
-    if (cell && !(seeThrough && seeThrough(k, cell))) { covered++; continue; }
-    if (fg && fg[k] && !fgHiddenInPlay(fg[k])) continue;
+    const r = Math.floor(y / CH), c = Math.floor(x / CW);
+    let F = front, G = fg, k = r + "," + c, P = null;
+    if (parts) {
+      P = worldPartOfCell(parts, r, c);
+      if (!P) return false;
+      F = P.lv.front; G = P.lv.fg; k = (r - P.dr) + "," + (c - P.dc);
+    }
+    const cell = F && F[k];
+    if (cell && !(seeThrough && seeThrough(k, cell, P))) { covered++; continue; }
+    if (G && G[k] && !fgHiddenInPlay(G[k])) continue;
     return false;
   }
   return covered > 0;
@@ -20040,9 +20057,12 @@ export default function AssetStudio() {
     // at live-level positions that happen to lie across a gate. The sets are kept because they cost
     // nothing empty and are the one place a neighbour's units would be drawn if anything ever again
     // leaves some in a neighbour's books.
+    const playSeams = play && runNodeNow ? runSeams(runRef.current, runNodeNow, LV_CELL) : null;
     const playUnitSets = !play ? [] : [
-      { lv, pos: enemyPos.current, hp: enemyHP.current, stripped: corpseStripped.current, gear: enemyGearRolls.current, hpSeen: unitHpSeen.current, off: { x: 0, y: 0 }, ns: "" },
-      ...(runNodeNow ? Object.values(runSeams(runRef.current, runNodeNow, LV_CELL)).map((s) => { const b = roomState.current[s.key] || {}; return { lv: s.level, pos: b.ePos || {}, hp: b.eHP || {}, stripped: b.stripped || {}, gear: b.gear || {}, hpSeen: {}, off: s.off, ns: s.key + ":" }; }) : []),
+      // `parts`: the live level and its neighbours as rectangles in the live level's pixels, for the
+      // Front test of a unit adopted from across a gate (unitHiddenByFront). Outside a run it is null.
+      { lv, pos: enemyPos.current, hp: enemyHP.current, stripped: corpseStripped.current, gear: enemyGearRolls.current, hpSeen: unitHpSeen.current, off: { x: 0, y: 0 }, ns: "", parts: playSeams ? runWorldParts(lv, playSeams, LV_CELL) : null },
+      ...(playSeams ? Object.values(playSeams).map((s) => { const b = roomState.current[s.key] || {}; return { lv: s.level, pos: b.ePos || {}, hp: b.eHP || {}, stripped: b.stripped || {}, gear: b.gear || {}, hpSeen: {}, off: s.off, ns: s.key + ":", parts: null }; }) : []),
     ];
     // Anything usable as an enemy: standalone Enemy-type assets (the animals), or ANY Dress Bob
     // look. This used to demand a 👹 flag on the look, which is what forced a duplicate of every
@@ -21876,15 +21896,18 @@ export default function AssetStudio() {
                   const tdLine = ep && ep.topdown && tdPl && tdPl.topdown ? standingLineY(ep, eph) : null;
                   const tdZ = tdLine == null ? null : topdownDepthZ(standingLineY(tdPl, LV_CELL * (tdPl.crouch ? PLAYER_CROUCH_H_CELLS : PLAYER_H_CELLS)), U.off.y + tdLine, LV_CELL);
                   // Behind Front you cannot see through, the unit's whole status goes with it: HP,
-                  // reload, 💫, 💬 (unitHiddenByFront). Asked of the unit's own level — a neighbour's
-                  // Front is in that level's pixels, and only the live level carries your window.
+                  // reload, 💫, 💬 (unitHiddenByFront). Asked of the level the body is IN: in a run
+                  // the live level's units include every neighbour's (adopted), standing across a
+                  // gate, so U.parts sends each point to its own level's Front. Only the live level
+                  // carries your window.
                   const uLive = U.ns === "";
                   const eHitTopPx = unitHitTop(ea, eShape, eph);
-                  const eHiddenByFront = !!(U.lv && U.lv.front) && unitHiddenByFront(U.lv.front, U.lv.fg,
+                  const eHiddenByFront = !!(U.parts || (U.lv && U.lv.front)) && unitHiddenByFront(U.lv.front, U.lv.fg,
                     { x: eLeft - U.off.x + hitboxOffset, y: eTop - U.off.y + eHitTopPx, w: epw, h: Math.max(1, eph - eHitTopPx) }, LV_CELL, LV_CELL,
-                    (fk, cell) => (uLive && (fadedFrontKeys.current.get(fk) ?? 1) < UNIT_FRONT_HIDE_OPACITY) // the window you carry
+                    (fk, cell, P) => (uLive && !(P && P.side) && (fadedFrontKeys.current.get(fk) ?? 1) < UNIT_FRONT_HIDE_OPACITY) // the window you carry, in the live level only
                       || fgHasDiagonalShape(cell)                                                        // a ramp covers half its cell
-                      || !!(TEXTURES[(resolveTexture(texLib, cellTexId(cell)) || {}).tex] || {}).clear); // the girder's holes
+                      || !!(TEXTURES[(resolveTexture(texLib, cellTexId(cell)) || {}).tex] || {}).clear, // the girder's holes
+                    U.parts);
                   return (
                     <React.Fragment key={uKey}>
                       {/* Status readouts live OUTSIDE the sprite wrapper, in their own layer above

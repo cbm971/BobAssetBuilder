@@ -1242,6 +1242,25 @@ Verified in Sewer M2:
 * A rat held in its pocket was hidden with you at x 1900, 1600 and 1350, shown at 1250 and 1180 as
   your window faded the pocket's paint, and hidden again back at 1600.
 
+**In a run, every point is asked of the level it is IN (`parts`, 2026-10-07).** Blake: "I can still
+see the enemies HP bar when i'm far away but it goes away when I get close." Since 2026-09-26 the live
+level ADOPTS every neighbour's units (`adoptRunNeighbours`). A unit across a gate is one of the live
+set's own, at live-level pixels past the live grid's edge. The test looked those points up in the LIVE
+level's Front, found nothing, and kept the bar. Every enemy behind Front in the next level along
+showed its bar until you walked in and that level went live.
+* The live unit set now carries `parts` (`runWorldParts` of the live level and its seams).
+  `unitHiddenByFront(…, parts)` sends each point to `worldPartOfCell` and reads that level's
+  Front/Foreground under that level's own key. A point off every level is open air.
+* `seeThrough(k, cell, P)` gets the part, and the window counts only when `P.side` is null. Your
+  window fades the live level's Front alone, so a neighbour's wall is never see-through.
+* Measured on a two-level test run (A Intro, B Exit, a 10 x 9 Front wall in each, Turtles behind
+  them and one in the open). From A at the gate, B's walled Turtle was `visible` before the fix and
+  is `hidden` now. From B, A's walled Turtle is hidden too (that needs a ~3,400 px wide view to have
+  both on screen, which is his). Everything else was unchanged: own-level walls hidden, the window
+  revealing a Turtle you stand next to, open ground visible.
+* A FOREIGN Front check is the trap here. Any future test of a unit against the scenery has to go
+  through the parts, because the unit's own key and pixels are the live level's, not its own.
+
 Front OBJECTS (props) still only hide whatever they overlap, by z.
 
 **Inside 5060 the bars sort themselves by who is being hurt (`unitStatusZ`, 2026-09-17).** Blake:
