@@ -1187,6 +1187,23 @@ to his Dino Tail Pants (`dinotl1`) himself; it was NOT put on that record.
     shoved him 60 px, then turned and came again.
 * **A look dressed BEFORE the pants got the ability does not have it** — a look's effects are baked
   when it is saved (`liveEnemyAsset` re-composes only the picture). Re-open it in Dress Bob and save.
+* **A MELEE UNIT WITH A TAIL ALTERNATES WEAPON AND TAIL (2026-10-07, `unitTailStepsIn`).** Blake, on
+  his Crocobob (`gcfxvc3`, Seek, a rolled Meelee weapon): "do enemies use tail swing? I maybe saw it
+  once but I feel they should use that ability more often when carrying meelee." It almost never
+  fired, because of DISTANCE. The commit only turns its back on somebody already inside the tail's
+  1.5 cells, but Seek stands off at 45–85% of the WEAPON's reach (`enemyMoveIntent`), which is further.
+  Measured in the control: Crocobob with Bobs Bat held 84 px off DK and swung the bat 5 times, tail 0.
+  - Now `ep.tailNext` alternates. While it is set, `engageRange` narrows to the tail's reach (the
+    stomp's narrowing, the same way), so the unit walks in and the commit is the turn. The tail
+    commit clears it; a weapon swing or a bare-handed hit sets it. Unset counts as set, so it OPENS
+    with the tail.
+  - Seek only (a Guard would stop swinging at you until you stepped right up), never a gunman, not
+    while the tail cools down or the unit climbs.
+  - Measured after: tail, bat, tail, bat, about one attack a second, every tail a 60 px shove.
+* **A unit's stomp and tail are BODY blows: no weapon Stun, no Ignore Armor (2026-10-07).** They went
+  through `applyHitTo`, which applied the held weapon's `stun` and `ignoreArmor` to every hit, so
+  Crocobob's tail dazed you for Bobs Bat's 0.5 s. Your stomp and tail never carried your weapon's.
+  `applyHitTo(…, bodyBlow)` now drops the weapon (`hitEw`) for those two calls.
 
 **`.unitStatus` (a unit's HP bar, reload bar, 💫/😵, 💬) is UNDER the Front layer — z 5060,
 since 2026-09-16.** It sat at 8000 from the start, on the theory that a unit's bars are information
@@ -3092,6 +3109,28 @@ ability, and what each one does on a unit now:
   height" assist now applies to a unit's hop too, since a dodge-hop is always held;
   `JUMP_HOLD_BOOST_*` are module-level.
 * **Defense, Back Guard, Crouch Guard:** `incomingUnitDamage` (the section above).
+* **🧎 Crouch Guard needs the unit to DUCK INTO IT (2026-10-07).** Blake: "does the crouch guard
+  ability work when an enemy NPC has it? I couldn't tell that they where taking less damage when
+  they tried to use it." The maths worked; a hit on the guard almost never happened. A unit crouched
+  only to DODGE a HIGH shot (`dodgeMoveFor`), so the shot it ducked for flew over it. The 24-frame duck
+  was over before anything else arrived, and nothing made it duck for a swing.
+  - Now a wearer with a drawn Crouch pose, on its feet, braces (`ep.crouch`, `CROUCH_HOLD_FRAMES`)
+    whenever a round from the other side would strike it at ANY height. It also braces for a swing
+    from the other side inside `GUARD_SWING_LOOKOUT_CELLS` (`swingComingAt`): yours, or an opposing
+    unit's weapon swing. No Intelligence roll; it is armour, not a reflex.
+  - Your attack is read AFTER the units move, so a point-blank swing landed on its first frame, one
+    frame before the duck. The brace therefore also reacts to the frame you PRESS fire or Q (not Q
+    with a melee weapon, which is the block).
+  - The dodge's projectile test is side-aware now: a unit fighting for you watches the hostiles'
+    rounds instead of yours, which fly through it.
+  - `crouchGuardNote` puts " 🧎" after the number in every hit message whose target's guard took
+    part, on both sides. On a heavily armoured look the difference is a point or two: Crocobob's 31
+    Defense makes a 10 into 2 and the guard can only take that to the floor of 1.
+  - Measured on his Turtle Man (Def 27, Crouch Guard 0.8): DK Arms 7 → "1 🧎"; Bobs Machete
+    point-blank 4 → "1 🧎". The control (original code) showed no duck at all, and 7 and 4. With a gun
+    he braces under M16 fire and still shoots back from the crouch.
+  - Turtle Man wears TWO Crouch Guards (Turtle Shell 0.8, Turtle Mask 0.4); `guardReduceOf` reads
+    the first, on both sides. Nobody has asked for them to stack.
 * **🏹 Tag Damage:** folded into `enemyAttackDamage` for the weapon's tags.
 * **🎯 Long Shot:** × on a unit shot's range (`fireUnitShot`).
 * **🟣 Ally Health.** A unit wearing it raises everyone else on ITS side.

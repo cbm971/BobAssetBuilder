@@ -3396,6 +3396,23 @@ export const incomingPlayerDamage = (raw, def, face, attackerX, wearerX, backGua
 // carries it — the same first-match, 0.5-default reading the player's own two lines in the play
 // loop make off the player's effects, so a cape reads identically on whoever has it on.
 export const guardReduceOf = (effects, type) => { const e = (effects || []).find((x) => x && x.type === type); return e ? (e.reduce ?? 0.5) : null; };
+// 🧎 IS A SWING COMING AT THIS BODY? A Crouch Guard wearer's cue to duck into its guard (the units'
+// half, in the dodge block of the play loop). The attacker's middle is atkCX and it faces atkFace;
+// the defender's middle is defCX. The swing is coming when the defender is on the side the attacker
+// faces and the gap between the two bodies' edges is inside lookoutPx. Behind the attacker is never
+// a threat: a blade does not swing backwards.
+export const GUARD_SWING_LOOKOUT_CELLS = 3;
+export const swingComingAt = (defCX, defHalfW, atkCX, atkHalfW, atkFace, lookoutPx) => {
+  const dx = defCX - atkCX;
+  if (!dx || Math.sign(dx) !== (atkFace === -1 ? -1 : 1)) return false;
+  return Math.abs(dx) - (defHalfW || 0) - (atkHalfW || 0) <= lookoutPx;
+};
+// " 🧎" after a hit's number when a Crouch Guard took part of it, on either side. Blake could not
+// tell a ducking enemy was taking less ("I couldn't tell that they where taking less damage"), and
+// on a heavily armoured look the difference is only a point or two (Crocobob's 31 Defense already
+// turns a 10 into a 2, and the guard turns that into the floor of 1). The mark names WHY the number
+// is small. Read the same way incomingPlayerDamage applies it: worn, and crouched when it landed.
+export const crouchGuardNote = (effects, crouching) => (crouching && guardReduceOf(effects, "crouchGuard") != null ? " 🧎" : "");
 // ...AND A UNIT TAKES A HIT BY THE SAME RULE (2026-09-28). Blake, playing DK: "Why do enemies have
 // less HP than the player? … it would take about 2 projectile hits to kill me but enemies are insta
 // dying." Their HP was never the difference — a dressed look placed as an enemy gets exactly the
@@ -10719,6 +10736,25 @@ export const tailSwingTargets = ({ x, y, w, h, swingDir, reachPx, cellPx, bodies
     .filter((b) => b && b.w > 0 && b.h > 0 && b.x < right && b.x + b.w > left && b.y < bottom && b.y + b.h > top)
     .sort((a, b) => Math.abs(a.x + a.w / 2 - mid) - Math.abs(b.x + b.w / 2 - mid));
 };
+// WHETHER A UNIT WALKS IN TO TAIL DISTANCE FOR ITS NEXT ATTACK (2026-10-07). Blake, on his
+// Crocobob: "do enemies use tail swing? I maybe saw it once but I feel they should use that ability
+// more often when carrying meelee". They almost never did, and the reason was distance. A unit turns
+// its back only on somebody already inside the tail's reach (1.5 cells past its body), but a Seek
+// fighter holding a bat stands off at 45-85% of the BAT's reach (enemyMoveIntent), which is further
+// out than that. So the commit found nobody to swing at, and the tail fired only when you happened
+// to walk right up to it.
+//
+// So a melee tail-wearer now ALTERNATES, the way a fighter mixes up its moves: weapon, then tail,
+// then weapon. While `tailNext` is set its engage range narrows to the tail's reach (the stomp's
+// narrowing, the same way), so it walks in close and the attack it commits is the turn. The tail
+// clears the flag; a weapon swing or a punch sets it again. `undefined` counts as set, so it opens
+// with the tail and the ability shows up the first time you meet it.
+// * Seek only. A Guard holds its spot, so narrowing ITS range would only stop it swinging its
+//   weapon at you until you stepped right up to it. It still tails whoever does.
+// * Never a gunman (it keeps its range and tails only what runs up to it), never while the tail is
+//   cooling down or the unit is on a ladder.
+export const unitTailStepsIn = ({ tail, ranged, ai, tailNext, tailCd, climbing }) =>
+  !!tail && !ranged && ai === "seek" && tailNext !== false && !(tailCd > 0) && !climbing;
 // KNOCKBACK — the push, spread over a few frames so it reads as a shove and not a teleport. A body
 // carries `knock = { left, dir }` (px still to go, which way) and each frame takes this much of
 // it: a quarter of what is left (eased by dtMul so it is real time), never less than
@@ -12767,7 +12803,7 @@ export default function AssetStudio() {
             if (enemyHP.current[k] > 0 && tailSwing.push > 0) ep.knock = { left: tailSwing.push * CW, dir: faceBeforeKeys };
             if (puffX == null) puffX = b.x + b.w / 2;
             crit = crit || isCrit;
-            notes.push(ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
+            notes.push(ea.name + " for " + dmg + crouchGuardNote(ea.effects, ep && ep.crouch) + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
           }
           if (notes.length) {
             p.tailCd = TAIL_SWING_COOLDOWN_FRAMES;
@@ -13498,15 +13534,62 @@ export default function AssetStudio() {
             const feetY = ep.y + (ep.crouch ? crouchEph : standEph);
             const standTop = feetY - standEph;
             const standHitTop = standTop + unitHitTop(ea, eShape, standEph), standHitH = eShape.heightFrac * standEph;
+            // Only the OTHER side's rounds are a threat. A shot is flagged `foe` when a hostile fired
+            // it, so a hostile watches your side's rounds and a unit fighting FOR you watches the
+            // hostiles' (it used to watch yours as well, which fly straight through it).
+            const dodgeSide = unitSide(ea, ep);
             let threat = null;
             for (const pr of projectiles.current) {
-              if (pr.foe) continue; // an enemy never flinches at its own side's shots
+              if (!!pr.foe !== (dodgeSide === "friendly")) continue; // nobody flinches at its own side's shots
               const approaching = (pr.x < eCenterX && pr.vx > 0) || (pr.x > eCenterX && pr.vx < 0);
               if (!approaching || Math.abs(pr.x - eCenterX) > DODGE_LOOKOUT_RANGE) continue;
               const move = dodgeMoveFor(pr.y, standHitTop, standHitH);
               if (move) { threat = move; break; }
             }
-            if (threat && !stunned && !ep.climbing) { // nothing dodges with both hands on a ladder
+            // 🧎 CROUCH GUARD, THE UNITS' HALF (2026-10-07). Blake: "does the crouch guard ability work
+            // when an enemy NPC has it? I couldn't tell that they where taking less damage when they
+            // tried to use it." The maths always worked: incomingUnitDamage reads ep.crouch at every
+            // site. What almost never happened was a hit landing ON the guard. A unit only crouched to
+            // DODGE, under a HIGH shot, so the shot it ducked for flew over it, and its 0.4 s duck was
+            // usually over before anything else arrived. It never ducked for a swing at all.
+            //
+            // A wearer now ducks INTO its guard the way you would hold S:
+            // * whenever a round from the other side is about to strike it, at ANY height (a low one
+            //   used to get a hop, which takes the guard out of play);
+            // * whenever a swing from the other side is coming at it from inside
+            //   GUARD_SWING_LOOKOUT_CELLS (swingComingAt). That is your melee swing or pistol-whip
+            //   when it is hostile, and an opposing unit's weapon swing either way.
+            // No Intelligence roll: a dodge is a reflex that can fail, but the guard is armour it has
+            // on. It stays down CROUCH_HOLD_FRAMES past the last threat, crawls at its crouch speed and
+            // still attacks from the crouch, as you can. It must be on its feet and have a drawn
+            // Crouch pose (canCrouch), which is also what the player's crouch needs.
+            const eGuardBraces = canCrouch && guardReduceOf(ea.effects, "crouchGuard") != null
+              && !stunned && !ep.climbing && (ep.onGround || ep.topdown);
+            const swingAtMe = () => {
+              const myCX = ep.x + eShape.centerFrac * eRenderW, lookPx = GUARD_SWING_LOOKOUT_CELLS * CW;
+              // Your swing in progress, or the frame you PRESS to attack. Your input is read after
+              // every unit has moved, so a swing started right up against it lands on its very first
+              // frame, before any reaction could; measured point-blank with Bobs Machete, the hit came
+              // one frame before the duck. Q with a melee weapon in hand is the block, not a swing.
+              const yourPress = (K.fire && !p.wasFire) || (K.melee && !p.wasMelee && !(playtestWeapon && !isRanged(playtestWeapon.wtype)));
+              const yourSwing = yourPress || (p.firing && (p.firing.unarmed || !playtestWeapon || !isRanged(playtestWeapon.wtype)));
+              if (dodgeSide === "hostile" && yourSwing && swingComingAt(myCX, epw / 2, p.x + pw / 2, pw / 2, p.face, lookPx)) return true;
+              for (const k2 of Object.keys(lv.enemies)) {
+                const ep2 = k2 !== k && enemyPos.current[k2];
+                if (!ep2 || !(ep2.swingT > 0) || !ep2.swingHit || typeof ep2.swingHit !== "object") continue; // a weapon swing in progress (enemyMeleeGeom's)
+                if (enemyHP.current[k2] !== undefined && enemyHP.current[k2] <= 0) continue;
+                const ea2 = unitAssetAt(k2, lv.enemies[k2]); if (!ea2) continue;
+                const s2 = unitSide(ea2, ep2);
+                if (!((dodgeSide === "hostile" && s2 === "friendly") || (dodgeSide === "friendly" && s2 === "hostile"))) continue;
+                const sh2 = sideBodyShape(ea2), rw2 = enemyRenderW(ea2, CW);
+                if (swingComingAt(myCX, epw / 2, ep2.x + sh2.centerFrac * rw2, rw2 * sh2.fraction / 2, ep2.face, lookPx)) return true;
+              }
+              return false;
+            };
+            if (eGuardBraces && (threat || swingAtMe())) {
+              ep.crouch = true; ep.crouchT = CROUCH_HOLD_FRAMES;
+              ep.dodgeRolled = false; // the brace answered this threat; a later one, off its feet, rolls fresh
+            } else if (threat && !stunned && !ep.climbing) { // nothing dodges with both hands on a ladder
               // Decide once per threat window, not every frame — otherwise a shot in flight for
               // several frames would get "re-rolled" repeatedly and the intended odds would creep
               // toward near-certain over a long enough approach.
@@ -13629,6 +13712,11 @@ export default function AssetStudio() {
           // looks can wear Tackle; an animal's gear is loot only.)
           const chargeSpeed = aiSpeed * (isCreatureUnit(ea) ? TACKLE_CHARGE_SPEED_MUL : 1);
           const ai = friendly ? "seek" : (spawn.ai || ea.ai || "guard"); // friendlies always chase their foe; hostiles keep their set behavior
+          // 🦎 ...AND A MELEE FIGHTER WITH A TAIL STEPS IN TO USE IT, every other attack (unitTailStepsIn;
+          // Blake 2026-10-07: "I maybe saw it once but I feel they should use that ability more often
+          // when carrying meelee"). Same narrowing as the stomp's just above, to the tail's own reach.
+          if (unitTailStepsIn({ tail: eTail, ranged: rangedEnemy, ai, tailNext: ep.tailNext, tailCd: ep.tailCd, climbing: ep.climbing }))
+            engageRange = Math.min(engageRange, eTail.reach * CW * enemyScale(ea));
           // THE FACING THIS UNIT *WANTS*, not the facing it gets. Both rules below used to write
           // straight to ep.face — turn-toward-your-target here, then feet-override-it further down —
           // and a unit whose two rules disagree therefore mirrored its whole sprite every single
@@ -14121,7 +14209,13 @@ export default function AssetStudio() {
           // exactly where and how your own swing and stomp roll theirs (critChance, x2 before the
           // target's armour). Units used to never crit ("no unit attack crits"); Blake, 2026-09-28:
           // "there shouldn't be any differences … Stats should too."
-          const applyHitTo = (kind, key, bEp, bEa, rawDmg0) => {
+          // `bodyBlow`: a 🦶 stomp or a 🦎 tail swing. Those are the unit's BODY, not the weapon in its
+          // hand, so the weapon's Stun and Ignore Armor stay out of them, as they stay out of yours
+          // (your stomp and tail pass ignoreArmor false and stun nobody). They used to ride along:
+          // Crocobob's tail dazed you for Bobs Bat's 0.5 s, found 2026-10-07 once it swung every
+          // other attack.
+          const applyHitTo = (kind, key, bEp, bEa, rawDmg0, bodyBlow) => {
+            const hitEw = bodyBlow ? null : ew;
             if (kind === "player") {
               if (p.invuln > 0) return false;
               // Guard up (Q/V with a melee weapon): a blow onto your front is turned aside for
@@ -14139,7 +14233,7 @@ export default function AssetStudio() {
                 return true;
               }
               const crit = Math.random() < critChance(eIntel);
-              const dmg = incomingPlayerDamage(crit ? rawDmg0 * 2 : rawDmg0, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(ew && ew.ignoreArmor));
+              const dmg = incomingPlayerDamage(crit ? rawDmg0 * 2 : rawDmg0, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(hitEw && hitEw.ignoreArmor));
               const critNote = crit ? "💥 Critical! " : "";
               playerHP.current = Math.max(0, playerHP.current - dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
@@ -14152,8 +14246,8 @@ export default function AssetStudio() {
                 // theirs was an ordinary stick. Same 💫 channel, same seconds off the same slider.
                 // Deliberately inside the else and behind the i-frame and block gates above: a hit
                 // that killed you, that never landed, or that you turned aside cannot daze you.
-                if ((ew?.stun ?? 0) > 0) { stunPlayer(p, ew.stun); flash(critNote + "👹 " + ea.name + " hit you for " + dmg + " — 💫 stunned for " + ew.stun + "s (" + playerHP.current + " HP left)"); }
-                else flash(critNote + "👹 " + ea.name + " hit you for " + dmg + " (" + playerHP.current + " HP left)");
+                if ((hitEw?.stun ?? 0) > 0) { stunPlayer(p, hitEw.stun); flash(critNote + "👹 " + ea.name + " hit you for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + hitEw.stun + "s (" + playerHP.current + " HP left)"); }
+                else flash(critNote + "👹 " + ea.name + " hit you for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)");
               }
               return true;
             }
@@ -14161,7 +14255,7 @@ export default function AssetStudio() {
               if (unitUntouchable(bEp)) return false; // mid-revive: the swing finds nobody, exactly as the player's i-frames read just above
               const cur = enemyHP.current[key] === undefined ? unitMaxHP(bEa, bEp, allyHpBonus) : enemyHP.current[key];
               const crit = Math.random() < critChance(eIntel);
-              enemyHP.current[key] = Math.max(0, cur - incomingUnitDamage(crit ? rawDmg0 * 2 : rawDmg0, bEa, bEp, atkCX, unitCenterX(bEa, bEp, CW), !!(ew && ew.ignoreArmor)));
+              enemyHP.current[key] = Math.max(0, cur - incomingUnitDamage(crit ? rawDmg0 * 2 : rawDmg0, bEa, bEp, atkCX, unitCenterX(bEa, bEp, CW), !!(hitEw && hitEw.ignoreArmor)));
               if (bEp) bEp.lastHitByFx = ea.effects || null; // who struck it, for a 🍀 Lucky Find the striker wears (the loot pass)
               if (enemyHP.current[key] <= 0) flash(friendly ? (allyBadge(ep) + " Your " + ea.name + " defeated " + (bEa.name || "a foe") + "!") : ("💔 Your " + (bEa.name || "ally") + " fell."));
               return true;
@@ -14228,7 +14322,7 @@ export default function AssetStudio() {
               let puffX = ep.x + eShape.centerFrac * eRenderW + ep.face * epw * 0.3, stomped = 0;
               for (const b of eStompFrom()) {
                 if (ep.stomp.hits[b.key]) continue;
-                if (applyHitTo(b.kind, b.kind === "player" ? null : b.key, b.ep, b.ea, stompDamage(ea.stats?.strength))) {
+                if (applyHitTo(b.kind, b.kind === "player" ? null : b.key, b.ep, b.ea, stompDamage(ea.stats?.strength), true)) {
                   if (!stomped) puffX = b.x + b.w / 2;
                   stomped++;
                 }
@@ -14403,6 +14497,7 @@ export default function AssetStudio() {
                   ep.tailFace = ep.face;
                   ep.face = -ep.face;
                   ep.tailT = TAIL_SWING_HOLD_FRAMES; // planted, back to them, for a beat you can see
+                  ep.tailNext = false; // the tail has had its turn: the next attack is the weapon (unitTailStepsIn)
                 } else if (rangedNow) {
                   // Shoots at the target, aimed from its own chest. The shot is flagged for the side
                   // it should hurt: a hostile's shot is `foe` (tested against you AND your friendlies),
@@ -14414,10 +14509,12 @@ export default function AssetStudio() {
                   ep.burstLeft = weaponBurstShotCount(ew) - 1; ep.burstT = burstDelayFrames(ew.burstDelay);
                 } else if (meleeGeom) {
                   ep.swingHit = {}; // weapon-hitbox melee: committing only STARTS the swing; the hits (one per body in the arc) land in the swing test above
+                  ep.tailNext = true; // a tail-wearer steps in for the tail next (unitTailStepsIn)
                 } else {
                   // Bare-handed / drawn-monster melee: an instant hit on commit (applyAttackHit
                   // respects the player's i-frames, and routes to a unit's HP in a brawl).
                   applyAttackHit(enemyAttackDamage(ea, ew));
+                  ep.tailNext = true;
                 }
               }
             }
@@ -14436,7 +14533,7 @@ export default function AssetStudio() {
               let puffX = null;
               for (const b of eTailFrom(turnedFrom)) {
                 const px0 = p.x, py0 = p.y;
-                if (!applyHitTo(b.kind, b.kind === "player" ? null : b.key, b.ep, b.ea, playerMeleeDamage(eTail.damage, ea.stats?.strength))) continue;
+                if (!applyHitTo(b.kind, b.kind === "player" ? null : b.key, b.ep, b.ea, playerMeleeDamage(eTail.damage, ea.stats?.strength), true)) continue;
                 if (puffX == null) puffX = b.x + b.w / 2;
                 if (eTail.push > 0) {
                   const knock = { left: eTail.push * CW, dir: turnedFrom };
@@ -14679,8 +14776,8 @@ export default function AssetStudio() {
               playerHP.current = Math.max(0, playerHP.current - dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
               if (playerHP.current <= 0) { playerDefeated(p, "💀 Caught in the blast — back to the start."); }
-              else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(bNote + "💥 Blast hit for " + dmg + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
-              else flash(bNote + "💥 Blast hit for " + dmg + " (" + playerHP.current + " HP left)");
+              else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(bNote + "💥 Blast hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
+              else flash(bNote + "💥 Blast hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)");
             }
           }
           for (const k of Object.keys(lv.enemies || {})) {
@@ -14891,7 +14988,7 @@ export default function AssetStudio() {
                     p.swingHits[k] = true;
                     swingCrit = swingCrit || isCrit;
                     swingArmedNote = (!unarmedSwing && playtestWeapon) ? "⚔️ " : meleeBoostOf(playtestWeapon) > 1 ? "🦍 " : "👊 ";
-                    swingHitNotes.push(ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
+                    swingHitNotes.push(ea.name + " for " + dmg + crouchGuardNote(ea.effects, ep && ep.crouch) + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
                   }
                 }
               }
@@ -14927,7 +15024,7 @@ export default function AssetStudio() {
             p.stomp.hits[k] = true;
             if (!notes.length) puffX = b.x + b.w / 2;
             crit = crit || isCrit;
-            notes.push(ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
+            notes.push(ea.name + " for " + dmg + crouchGuardNote(ea.effects, ep && ep.crouch) + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
           }
           // A small 💥 where the foot came down — the booms list is purely visual (the blast's
           // damage is detonate's job, not the boom's), so this is only the impact reading on screen.
@@ -15065,7 +15162,7 @@ export default function AssetStudio() {
               playerHP.current = Math.max(0, playerHP.current - dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
               if (playerHP.current <= 0) { playerDefeated(p, "💀 Blown off your feet — back to the start."); }
-              else impactNote += " · 🪨 hit you for " + dmg + " (" + playerHP.current + " HP left)";
+              else impactNote += " · 🪨 hit you for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)";
               continue;
             }
             if (unitUntouchable(s.ep)) continue; // 🐱 mid-revive: it stopped the rock (see the collision note above) and took nothing
@@ -15283,8 +15380,8 @@ export default function AssetStudio() {
                 playerHP.current = Math.max(0, playerHP.current - dmg);
                 p.invuln = PLAYER_INVULN_FRAMES;
                 if (playerHP.current <= 0) { playerDefeated(p, "💀 Shot down — back to the start."); }
-                else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(sNote + "🏹 Hit for " + dmg + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
-                else flash(sNote + "🏹 Hit for " + dmg + " (" + playerHP.current + " HP left)");
+                else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(sNote + "🏹 Hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
+                else flash(sNote + "🏹 Hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)");
                 if (!pr.pierce) return false; // consumed on impact — a 🪡 piercing shot flies on
               } else if (!pr.pierce) return false; // struck an invulnerable player: still consumed, just does nothing
             }
@@ -15374,7 +15471,7 @@ export default function AssetStudio() {
               const dmg = incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor);
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
               if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
-              flash((isCrit ? "💥 Critical! " : "🎯 ") + "Hit " + ea.name + " for " + dmg + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
+              flash((isCrit ? "💥 Critical! " : "🎯 ") + "Hit " + ea.name + " for " + dmg + crouchGuardNote(ea.effects, ep && ep.crouch) + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
               if (!pr.pierce) return false; // projectile consumed on impact — a 🪡 piercing one flies on to the next body
             }
           }

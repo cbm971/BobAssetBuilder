@@ -578,6 +578,10 @@ import {
   flyPoseBlocks,
   incomingUnitDamage,
   guardReduceOf,
+  swingComingAt,
+  GUARD_SWING_LOOKOUT_CELLS,
+  crouchGuardNote,
+  unitTailStepsIn,
   unitCenterX,
   enemyLookHP,
   dialogueIsOnce,
@@ -11486,6 +11490,23 @@ describe("tail swing", () => {
     expect(hit([body(180, "b"), body(150, "a")])).toEqual(["a", "b"]);
   });
 
+  test("a melee unit with a tail steps in for it every other attack (unitTailStepsIn)", () => {
+    const base = { tail: { damage: 10, reach: 1.5, push: 2 }, ranged: false, ai: "seek", tailNext: undefined, tailCd: 0, climbing: false };
+    expect(unitTailStepsIn(base)).toBe(true);                            // opens with the tail
+    expect(unitTailStepsIn({ ...base, tailNext: false })).toBe(false);   // just used it: the weapon's turn
+    expect(unitTailStepsIn({ ...base, tailNext: true })).toBe(true);     // swung the weapon: the tail's turn
+    expect(unitTailStepsIn({ ...base, tail: null })).toBe(false);
+    expect(unitTailStepsIn({ ...base, ranged: true })).toBe(false);      // a gunman keeps its range
+    expect(unitTailStepsIn({ ...base, ai: "guard" })).toBe(false);       // a guard holds its spot
+    expect(unitTailStepsIn({ ...base, tailCd: 5 })).toBe(false);
+    expect(unitTailStepsIn({ ...base, climbing: true })).toBe(false);
+    // ...and the attack commit is what flips it: the tail clears it, a weapon swing or a punch sets
+    // it. Read off the source, because the commit lives inside the play loop.
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src.split("ep.tailNext = false").length - 1).toBe(1);
+    expect(src.split("ep.tailNext = true").length - 1).toBe(2);
+  });
+
   test("the shove: fastest first, never past what is left, and two cells is a fifth of a second", () => {
     expect(knockbackStep(0, 1)).toBe(0);
     expect(knockbackStep(-5, 1)).toBe(0);
@@ -11715,6 +11736,32 @@ describe("a unit's armour counts the way yours does", () => {
     const shield = { ...dk, defense: 0, effects: [{ type: "crouchGuard", reduce: 0.5 }] };
     expect(incomingUnitDamage(20, shield, { face: 1, crouch: true }, 200, 100)).toBe(10);
     expect(incomingUnitDamage(20, shield, { face: 1, crouch: false }, 200, 100)).toBe(20);
+  });
+
+  test("🧎 a wearer braces for a swing only from in front of the attacker, inside the lookout", () => {
+    const L = GUARD_SWING_LOOKOUT_CELLS * 30;
+    // The attacker's middle at 100, half-width 30, facing right; the defender's half-width 30.
+    expect(swingComingAt(100 + 60 + L, 30, 100, 30, 1, L)).toBe(true);       // gap exactly the lookout
+    expect(swingComingAt(100 + 60 + L + 1, 30, 100, 30, 1, L)).toBe(false);  // a pixel past it
+    expect(swingComingAt(120, 30, 100, 30, 1, L)).toBe(true);                // overlapping
+    expect(swingComingAt(40, 30, 100, 30, 1, L)).toBe(false);                // behind the attacker
+    expect(swingComingAt(40, 30, 100, 30, -1, L)).toBe(true);                // ...unless it faces that way
+    expect(swingComingAt(100, 30, 100, 30, 1, L)).toBe(false);               // no side to be on
+  });
+
+  test("🧎 the hit message marks a blow the crouch guard took part of — on Crocobob it is 2 against 1", () => {
+    const fx = [{ type: "crouchGuard", reduce: 0.8 }];
+    expect(crouchGuardNote(fx, true)).toBe(" 🧎");
+    expect(crouchGuardNote(fx, false)).toBe("");
+    expect(crouchGuardNote([{ type: "backGuard" }], true)).toBe("");
+    expect(crouchGuardNote(undefined, true)).toBe("");
+    // Why the mark: his Crocobob has 31 Defense, so a 10-damage shot is already a 2 standing, and
+    // the 80% guard can only take it to the floor of 1. Without the mark that reads as "no change".
+    const croc = { ...dk, defense: 31, effects: fx };
+    expect(incomingUnitDamage(10, croc, { face: 1, crouch: false }, 200, 100)).toBe(2);
+    expect(incomingUnitDamage(10, croc, { face: 1, crouch: true }, 200, 100)).toBe(1);
+    expect(incomingUnitDamage(40, croc, { face: 1, crouch: false }, 200, 100)).toBe(10);
+    expect(incomingUnitDamage(40, croc, { face: 1, crouch: true }, 200, 100)).toBe(2);
   });
 
   test("a hit always stings: floored at 1 however much armour", () => {
