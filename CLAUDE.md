@@ -79,8 +79,11 @@ JavaScript, and read the DOM back as the proof.
 - The Level Creator has two character `<select>`s. Find the Playtest player picker by its
   "▢ Plain box" option. Matching it by a look's name gets the enemy picker, and you play as a box.
 - To see art without a browser, run `node tools/rasterize-pieces.js --asset <id> out.png` and read
-  the PNG. Extend that tool; do not write another. In the page, rasterise with an SVG
+  the PNG; `--level <name> out.png [px] [c0 c1 r0 r1] [--lib file] [--play]` draws a whole level
+  (props, spawns, gates). Extend that tool; do not write another. In the page, rasterise with an SVG
   `foreignObject` drawn into a canvas.
+- A script that HOLDS a key in play must re-send its keydown every few frames: a hit (a grenade
+  blast) clears the held keys, and the walk stops dead mid-level as if something blocked it.
 - After changing a keyed list that renders in play, count DOM moves with a MutationObserver (a
   node removed and re-added in the same batch). Comparing boxes misses moves.
 - Some enemies kill a test player in seconds (the church Squirrel, the gang at M1's gate). Top up
@@ -225,7 +228,12 @@ plus traps it does not cover:
 - `solidDefault` sets the Solid box when the prop is picked (still editable). Solid means collision
   and nothing else; the drawing layer is `lay` (bg / fg / front).
 - **Props cannot be climbed.** Climbing comes only from the level's Climb layer (ladder, bars,
-  cliff, 🚶 top-down), painted cell by cell.
+  cliff, 🚶 top-down), painted cell by cell. To let Bob WALK over a prop (the M14 saucer), paint
+  hidden Foreground (`hideInPlay`) blocks under its top with a 45° ramp wherever the height
+  changes, each column at most one row from the next.
+- **Nothing solid taller than one cell across the only way through a level.** Agility -1 to 1
+  jumps ONE cell (Army Bob, Roberta, Crocobob, Bobby, Billy), so a two-cell solid prop traps them
+  for good. Place such props as scenery (Solid off), or give the path a way round.
 
 **Animals (Enemy-creator enemies):**
 - Drawn side-on, **facing LEFT**, with no front or back. `side`, `up` and `crouch` are the same
@@ -328,10 +336,11 @@ plus traps it does not cover:
   means bare hands. Rolls (tag looks, gear) happen once on level entry into that level's
   `roomState`. Only ▶ Playtest re-rolls.
 - **Runs** are the game loop, in the block headed `RUNS — a playable chain of levels`.
-  - `buildRun(runPool(), seed)` is seeded. It picks an Intro (Section "Intro", "Start" or
-    "Beginning"), then up to `RUN_MIDDLE_LEVELS` (8) middles chained by `canAttach`, then an Exit
-    ("Exit", "End" or "Ending").
-  - Sewers and tree tops (Section "Sewer", "Underground" or "Tree Top") are planned as passages
+  - `buildRun(runPool(), seed)` is seeded. It picks an Intro (a level with no open left-hand
+    gate), then up to `RUN_MIDDLE_LEVELS` (8) middles chained by `canAttach`, then an Exit (no open
+    right-hand gate). **A level's role comes from its gates and Floor only (`runRole`).** Blake
+    retired the free-text Section box on 2026-10-09; an old save's `section` is ignored.
+  - Sewers and tree tops (Floor "Sewer", "Underground" or "Tree Top") are planned as passages
     with a way out.
   - One level is live at a time. Neighbours are drawn whole from cached tiles. Their units are
     adopted into the live level (`adoptRunNeighbours` / `releaseRunUnits`), so shots and chases

@@ -10069,28 +10069,33 @@ describe("runs", () => {
     const conns = {};
     for (const k of ["N1", "N2", "E1", "E2", "S1", "S2", "W1", "W2"]) conns[k] = { open: false, accepts: "" };
     for (const k of Object.keys(opts.open || {})) conns[k] = { open: true, accepts: opts.open[k] || "" };
-    return { id, name: id, floor: opts.floor || "Trailor Park", section: opts.section === undefined ? "Middle" : opts.section, cols: opts.cols || 160, rows: opts.rows || 46, fg: {}, bg: {}, front: {}, fx: {}, climb: {}, hazard: {}, markers: {}, enemies: {}, conns, ...(opts.isRoom ? { isRoom: true, roomTag: "x" } : {}) };
+    return { id, name: id, floor: opts.floor || "Trailor Park", cols: opts.cols || 160, rows: opts.rows || 46, fg: {}, bg: {}, front: {}, fx: {}, climb: {}, hazard: {}, markers: {}, enemies: {}, conns, ...(opts.isRoom ? { isRoom: true, roomTag: "x" } : {}) };
   };
   // The shape of his real chain: two right-hand exits (upper or lower), matching left-hand entrances.
   const A = mk("A", { open: { W1: "", E2: "" } });          // like Trailor Park M1
   const B = mk("B", { open: { W2: "", E1: "" } });          // like M2
   const C = mk("C", { open: { W2: "", E2: "", S1: "Sewer" } }); // like M6
   const D = mk("D", { open: { W1: "", E1: "" } });          // like M4
-  const INTRO = mk("INTRO", { section: "Intro", open: { E2: "" } });
-  const EXIT = mk("EXIT", { section: "exit", open: { W1: "" } });
+  const INTRO = mk("INTRO", { open: { E2: "" } });            // right-hand gates only: nothing can come before it
+  const EXIT = mk("EXIT", { open: { W1: "" } });              // left-hand gates only: nothing can come after it
   const SEWER = mk("SEWER", { floor: "Sewer", open: { N1: "Trailor Park", E1: "" } });
   const SEWER2 = mk("SEWER2", { floor: "Sewer", open: { W1: "", N1: "Trailor Park" } });
-  const ROOM = mk("ROOM", { isRoom: true, section: "Intro" });
+  const ROOM = mk("ROOM", { isRoom: true, open: { E2: "" } });
 
-  test("runRole reads the free-text Section case-insensitively and never puts a room in the chain", () => {
-    expect(runRole(mk("x", { section: " Intro " }))).toBe("intro");
-    expect(runRole(mk("x", { section: "START" }))).toBe("intro");
-    expect(runRole(mk("x", { section: "Exit" }))).toBe("exit");
-    expect(runRole(mk("x", { section: "ending" }))).toBe("exit");
-    expect(runRole(mk("x", { section: "Middle" }))).toBe("middle");
-    expect(runRole(mk("x", { section: "" }))).toBe("middle");
-    expect(runRole(mk("x", { section: "Sewer" }))).toBe("side");             // never a street level; only ever hung off one
-    expect(runRole(mk("x", { section: "Tree Top" }))).toBe("side");
+  // Blake retired the Section box on 2026-10-09 ("we can do everything we need with matching
+  // gates/keys and floor"). A run walks west to east, so the gates say where a level can stand.
+  test("runRole reads the gates and the floor, never a Section, and never puts a room in the chain", () => {
+    expect(runRole(INTRO)).toBe("intro");
+    expect(runRole(mk("x", { open: { E1: "", E2: "", S1: "Sewer" } }))).toBe("intro");   // a bottom gate does not make it a middle
+    expect(runRole(EXIT)).toBe("exit");
+    expect(runRole(mk("x", { open: { W1: "", W2: "", N1: "" } }))).toBe("exit");
+    expect(runRole(A)).toBe("middle"); expect(runRole(C)).toBe("middle");
+    expect(runRole(mk("x"))).toBe("middle");                                       // no gates at all: a middle that never joins
+    expect(runRole(SEWER)).toBe("side");                                           // never a street level; only ever hung off one
+    expect(runRole(mk("x", { floor: " sewer ", open: { W1: "", E1: "" } }))).toBe("side");
+    expect(runRole(mk("x", { floor: "Tree Top", open: { S1: "" } }))).toBe("side");
+    expect(runRole({ ...A, section: "Exit" })).toBe("middle");                     // an old save's Section is ignored
+    expect(runRole({ ...SEWER, section: "Intro" })).toBe("side");
     expect(runRole(ROOM)).toBe(null);
   });
 
@@ -10159,7 +10164,7 @@ describe("runs", () => {
     expect(r.order.length).toBeGreaterThanOrEqual(2);
     expect(r.hasIntro).toBe(false); expect(r.hasExit).toBe(false); expect(r.exitKey).toBe(null);
     expect(r.nodes[r.startKey].links.W).toBe(null);
-    expect(r.notes).toEqual(["no Intro level yet (Section = Intro)", "no Exit level yet (Section = Exit)"]);
+    expect(r.notes).toEqual(["no Intro level yet (right gates only)", "no Exit level yet (left gates only)"]);
     const first = r.nodes[r.order[0]].level;
     expect(first.conns.E1.open || first.conns.E2.open).toBe(true); // a run without an Intro starts on a level you can leave to the right
     expect(buildRun([], "7").startKey).toBe(null);
@@ -10196,7 +10201,7 @@ describe("runs", () => {
     const seams = runSeams(run, c, CELL);
     expect(seams.S.key).toBe(sKey); expect(seams.S.off).toEqual({ x: 0, y: 1380 });
     expect(seams.E.key).toBe(b.key); expect(seams.N).toBeUndefined(); expect(seams.W).toBeUndefined();
-    expect(runHudFor(run, s)).toEqual({ seed, where: "under level 1", name: "SEWER", notes: "no Intro level yet (Section = Intro), no Exit level yet (Section = Exit)" });
+    expect(runHudFor(run, s)).toEqual({ seed, where: "under level 1", name: "SEWER", notes: "no Intro level yet (right gates only), no Exit level yet (left gates only)" });
     expect(runHudFor(run, b).where).toBe("level 2 of 2");
   });
 
@@ -10204,7 +10209,7 @@ describe("runs", () => {
     // His first sewer (2026-09-30): Top Left open and left BLANK ("Sewer only"), East open, under two
     // Trailor Park levels whose bottom gates accept "Sewer" — one Bottom Left (like M6), one Bottom
     // Right (like M5). Both used to flash "no saved level attaches here".
-    const SEW = mk("SEW", { floor: "Sewer", section: "Sewer", open: { N1: "", E1: "" } });
+    const SEW = mk("SEW", { floor: "Sewer", open: { N1: "", E1: "" } });
     const M6 = mk("M6", { open: { W2: "", E2: "", S1: "Sewer" } });
     const M5 = mk("M5", { open: { W2: "", E2: "", S2: "Sewer" } });
     const drop = (top) => { const run = buildRun([top], "t", { maxMiddles: 1, passages: false }); const n = run.nodes[run.order[0]]; return { run, n, key: resolveRunNeighbour(run, n, "S", [top, SEW]) }; };
@@ -10248,8 +10253,8 @@ describe("runs", () => {
   // by its Top Right. Shapes only — never his data.
   const P5 = mk("P5", { open: { W2: "", E2: "", S2: "Sewer" } });
   const P6 = mk("P6", { open: { W2: "", E2: "", S1: "Sewer" } });
-  const SA = mk("SA", { floor: "Sewer", section: "Sewer", open: { N1: "", E1: "" } });
-  const SB = mk("SB", { floor: "Sewer", section: "Sewer", open: { W1: "", N2: "" } });
+  const SA = mk("SA", { floor: "Sewer", open: { N1: "", E1: "" } });
+  const SB = mk("SB", { floor: "Sewer", open: { W1: "", N2: "" } });
   // Every passage in a run: its row-±1 nodes joined sideways, and the DISTINCT street levels it opens onto.
   const passagesOf = (run) => {
     const seen = new Set(), out = [];
@@ -10282,7 +10287,7 @@ describe("runs", () => {
           expect(runSeams(run, n, CELL)[side]).toBeTruthy();
         }
       }
-      expect(run.order.map((k) => run.nodes[k].level.id)).not.toContain("SA");   // a Sewer-section level is never a street level
+      expect(run.order.map((k) => run.nodes[k].level.id)).not.toContain("SA");   // a level on the Sewer floor is never a street level
       const ps = passagesOf(run);
       for (const p of ps) {
         expect(p.streets.size).toBeGreaterThanOrEqual(2);                         // in through one street level, out through another
@@ -10305,7 +10310,7 @@ describe("runs", () => {
       expect(runSeams(run, p5, CELL).S).toBeUndefined();
     }
     // A sewer that only leads WEST under the first street level would go before the start: none is laid.
-    const SW = mk("SW", { floor: "Sewer", section: "Sewer", open: { N1: "", W1: "" } }), SE = mk("SE", { floor: "Sewer", section: "Sewer", open: { E1: "", N1: "" } });
+    const SW = mk("SW", { floor: "Sewer", open: { N1: "", W1: "" } }), SE = mk("SE", { floor: "Sewer", open: { E1: "", N1: "" } });
     for (const seed of ["a", "b", "c", "d", "e", "f"]) {
       const r = buildRun([P6, SW, SE], seed, { maxMiddles: 1 });                 // one street level: no way out anywhere else
       expect(Object.keys(r.nodes).length).toBe(1);
@@ -10336,7 +10341,7 @@ describe("runs", () => {
   // Blake, 2026-10-04, seed 90084: M5 → Sewer M1 → Sewer M3 → Sewer M2 → M6 with another M6 on the
   // street in between, its Bottom Left over Sewer M3 — which has no top gate. Only the way down and
   // the way back up were ever checked.
-  const SM = mk("SM", { floor: "Sewer", section: "Sewer", open: { W1: "", E1: "" } });   // like Sewer M3: a tunnel, no way up
+  const SM = mk("SM", { floor: "Sewer", open: { W1: "", E1: "" } });   // like Sewer M3: a tunnel, no way up
   const Q = mk("Q", { open: { W2: "", E2: "" } });                                       // like Trailor Park M3/M12: no bottom gate
 
   test("vertSeamLinesUp: every gate between a street level and the passage level under it leads through", () => {
@@ -10349,7 +10354,7 @@ describe("runs", () => {
     expect(vertSeamLinesUp(both, SA, "S")).toBe(false);  // Bottom Right would land on the sewer's roof
     expect(vertSeamLinesUp(both, mk("two", { floor: "Sewer", open: { N1: "", N2: "" } }), "S")).toBe(true);
     // Tree tops the other way up: a street's top gate under a tree top's bottom gate.
-    const T = mk("T", { floor: "Tree Top", section: "Tree Top", open: { S1: "Trailor Park" } });
+    const T = mk("T", { floor: "Tree Top", open: { S1: "Trailor Park" } });
     expect(vertSeamLinesUp(mk("up", { open: { N1: "Tree Top" } }), T, "N")).toBe(true);
     expect(vertSeamLinesUp(Q, T, "N")).toBe(false);
   });
@@ -10391,8 +10396,8 @@ describe("runs", () => {
     const CE = mk("CE", { open: { E2: "", S1: "Sewer" } });            // no west gate, so nothing (not even itself) attaches on either side
     const run = buildRun([CE], "s", { maxMiddles: 1, passages: false });
     const c = run.nodes[run.order[0]];
-    const introSewer = mk("IS", { floor: "Sewer", section: "Intro", open: { N1: "Trailor Park" } });
-    resolveRunSides(run, c, [CE, introSewer]);
+    const introLike = mk("IS", { open: { N1: "Trailor Park", E1: "" } });     // right gates only: an Intro, so never under the street
+    resolveRunSides(run, c, [CE, introLike]);
     expect(c.links).toEqual({ N: null, E: null, S: null, W: null });
   });
 
@@ -11338,10 +11343,10 @@ describe("🔫 A shot leaves the gun in the hand (heldShotPoint) — dressed loo
   });
 });
 
-/* 📂 THE LOAD DIALOG'S FOLDERS. His rooms, as saved on 2026-09-26: six "Trailor Int" rooms (five
-   carrying only the Room tag, one with a matching Section) and a "Tree" room, all of which used to
-   land in one "🚪 Rooms" pile. */
-describe("levelLoadGroups files rooms by Section, falling back to the room tag", () => {
+/* 📂 THE LOAD DIALOG'S FOLDERS. His rooms, as saved on 2026-09-26: six "Trailor Int" rooms and a
+   "Tree" room, all of which used to land in one "🚪 Rooms" pile. A room's old Section used to win
+   over its tag; the Section box was retired on 2026-10-09, so the tag alone files it now. */
+describe("levelLoadGroups files rooms by their room tag", () => {
   const lv = (name, extra) => ({ id: name, name, isRoom: false, floor: "", section: "", ...extra });
   const levels = [
     lv("Trailor Park M2", { floor: "Trailor Park", section: "Middle" }),
@@ -11355,13 +11360,14 @@ describe("levelLoadGroups files rooms by Section, falling back to the room tag",
   ];
   const groups = levelLoadGroups(levels);
 
-  test("floors first, then one folder per room section/tag, untagged rooms last", () => {
-    expect(groups.map((g) => (g.isRoom ? "room " : "floor ") + g.label)).toEqual(["floor Trailor Park", "floor Vietnam", "room Basement", "room Trailor Int", "room Tree", "room "]);
+  test("floors first, then one folder per room tag, untagged rooms last", () => {
+    expect(groups.map((g) => (g.isRoom ? "room " : "floor ") + g.label)).toEqual(["floor Trailor Park", "floor Vietnam", "room Trailor Int", "room Tree", "room "]);
   });
 
-  test("a Section beats the room tag, and the two spellings of one folder are one folder", () => {
+  test("an old Section on a room is ignored, and the two spellings of one folder are one folder", () => {
     expect(groups.find((g) => g.label === "Trailor Int").items.map((l) => l.name)).toEqual(["Trailor Int1", "Trailor Int3"]);
-    expect(groups.find((g) => g.label === "Basement").items.map((l) => l.name)).toEqual(["Cellar"]);
+    expect(groups.find((g) => g.label === "Tree").items.map((l) => l.name)).toEqual(["Cellar", "Tree Treasure Room 1"]);
+    expect(groups.some((g) => g.label === "Basement")).toBe(false);
   });
 
   test("levels inside a folder sort by name, numbers read as numbers", () => {

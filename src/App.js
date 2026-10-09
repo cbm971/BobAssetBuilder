@@ -4113,15 +4113,15 @@ export const characterPickerGroups = (assets, { bodies = false, enemiesFirst = f
 };
 // THE LOAD DIALOG'S FOLDERS. Levels file under their Floor, as they always have. Rooms all went into
 // ONE "🚪 Rooms" pile — Trailor Int1–6 and the Tree Treasure Room mixed together — even though each
-// room already says what it belongs to: its Section, or failing that its Room tag (every one of his
-// rooms has a tag and only one has a Section, so the tag is what files them today). Same matching
-// rule as every other category here: trimmed, case-insensitive, first spelling seen is the label.
-// Floors sort numerically, room folders A→Z after all the floors, and untagged rooms last.
+// room already says what it belongs to: its Room tag. (A Section used to win over the tag; the box
+// was retired on 2026-10-09, and every room of his that had one carried the same word as its tag.)
+// Same matching rule as every other category here: trimmed, case-insensitive, first spelling seen
+// is the label. Floors sort numerically, room folders A→Z after all the floors, untagged rooms last.
 export const levelLoadGroups = (levels) => {
   const floors = new Map(), rooms = new Map();
   for (const l of levels || []) {
     if (!l) continue;
-    const label = l.isRoom ? ((l.section || "").trim() || (l.roomTag || "").trim()) : (l.floor || "").trim();
+    const label = (l.isRoom ? l.roomTag || "" : l.floor || "").trim();
     const map = l.isRoom ? rooms : floors, key = label.toLowerCase();
     if (!map.has(key)) map.set(key, { key: (l.isRoom ? "room:" : "floor:") + key, label, isRoom: !!l.isRoom, items: [] });
     map.get(key).items.push(l);
@@ -6288,7 +6288,7 @@ const LV_COLORS = PALETTES.terrain.colors;
 function newLevel() {
   const conns = {};
   for (const k of CONN_KEYS) conns[k] = { open: k === "E1" || k === "W1", accepts: "" };
-  return { id: uid(), name: "Level", floor: "1", section: "", cols: 160, rows: 46, fg: {}, bg: {}, front: {}, fx: {}, climb: {}, hazard: {}, markers: {}, enemies: {}, conns };
+  return { id: uid(), name: "Level", floor: "1", cols: 160, rows: 46, fg: {}, bg: {}, front: {}, fx: {}, climb: {}, hazard: {}, markers: {}, enemies: {}, conns };
 }
 // A ROOM is just a small level (isRoom + roomTag), entered through a door in a bigger level. Far
 // smaller than a level (40×24 vs 160×46) and it doesn't use the 8 edge connectors — you reach it
@@ -6296,10 +6296,11 @@ function newLevel() {
 function newRoom() {
   const conns = {};
   for (const k of CONN_KEYS) conns[k] = { open: false, accepts: "" };
-  return { id: uid(), name: "Room", isRoom: true, roomTag: "", floor: "", section: "", cols: 40, rows: 24, fg: {}, bg: {}, front: {}, fx: {}, climb: {}, hazard: {}, markers: {}, enemies: {}, conns };
+  return { id: uid(), name: "Room", isRoom: true, roomTag: "", floor: "", cols: 40, rows: 24, fg: {}, bg: {}, front: {}, fx: {}, climb: {}, hazard: {}, markers: {}, enemies: {}, conns };
 }
-// Backfill older saves: category/field->floor+section (old thematic category becomes the
-// Section label so nothing's silently lost, Floor starts blank for you to fill in), per-connector
+// Backfill older saves: category/field->floor+section (old thematic category is kept in `section`
+// so nothing's silently lost — nothing reads that field since the Section box went, 2026-10-09 —
+// and Floor starts blank for you to fill in), per-connector
 // type->accepts, missing fx/climb/markers layers, and old single-object-per-cell fx entries get
 // wrapped into the new stacked-array format.
 export function migrateLevel(lv) {
@@ -9936,19 +9937,26 @@ export const CAMERA_EASE = 0.14;       // fraction of the remaining distance the
 const CONN_SIDE = { N1: "N", N2: "N", E1: "E", E2: "E", S1: "S", S2: "S", W1: "W", W2: "W" };
 const SIDE_OPP = { N: "S", S: "N", E: "W", W: "E" };
 const SIDE_STEP = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] }; // [dcol, drow] on the run's grid
-// Which part a level plays in a run, from its free-text Section, case-insensitively. A few
-// spellings each so "Start" or "Ending" work as well; anything else (blank included) is a middle
-// level. Rooms are never in the chain — they hang off doors, exactly as they do in a Playtest.
-const RUN_INTRO_WORDS = ["intro", "start", "beginning", "begin"];
-const RUN_EXIT_WORDS = ["exit", "end", "ending", "finish"];
-// A level that only ever hangs off the street — under it or over it — and is never one of the
-// chain's own levels. Blake's Sewer M1/M2 (Section "Sewer") were "middle" levels until 2026-10-02,
+// Which part a level plays in a run — read off its GATES and its FLOOR, nothing else. It used to
+// come from a free-text Section box ("Intro", "Exit", "Sewer"), which Blake retired on 2026-10-09:
+// "We can do everything we need with matching gates/keys and floor so section is pretty useless."
+// The gates already say it. A run walks west to east, so a level with no open left-hand gate can
+// only be where a run STARTS (nothing can come before it), and one with no open right-hand gate
+// can only be where it ENDS. Every street level he had on that date opened both sides, so none of
+// them changed role. Rooms are never in the chain — they hang off doors, exactly as they do in a
+// Playtest.
+// A level on one of these FLOORS only ever hangs off the street — under it or over it — and is
+// never one of the chain's own levels. Blake's Sewer M1/M2 were "middle" levels until 2026-10-02,
 // so a run with no Intro could START in the sewer, chained east into the other sewer and dead-ended.
+// Every sewer he has is on Floor "Sewer" (the same word their gates accept), so the floor is what
+// says it now; the old Section said the same thing a second time.
 const RUN_SIDE_WORDS = ["sewer", "sewers", "underground", "tree top", "tree tops", "treetop", "treetops"];
 export const runRole = (lv) => {
   if (!lv || lv.isRoom) return null;
-  const s = (lv.section || "").trim().toLowerCase();
-  return RUN_INTRO_WORDS.includes(s) ? "intro" : RUN_EXIT_WORDS.includes(s) ? "exit" : RUN_SIDE_WORDS.includes(s) ? "side" : "middle";
+  if (RUN_SIDE_WORDS.includes((lv.floor || "").trim().toLowerCase())) return "side";
+  const open = (k) => !!(lv.conns && lv.conns[k] && lv.conns[k].open);
+  const west = open("W1") || open("W2"), east = open("E1") || open("E2");
+  return east && !west ? "intro" : west && !east ? "exit" : "middle";
 };
 // A seeded random sequence (mulberry32 over the same FNV hash roomSeed uses), so a run started
 // with seed "12345" replays identically for testing while a blank seed rolls a fresh one.
@@ -10158,8 +10166,8 @@ export const buildRun = (levels, seed, opts = {}) => {
     if (best.exit && best.chain.length >= maxMiddles + 2) break;
   }
   const run = { seed: String(seed), nodes: {}, nextKey: 1, order: [], startKey: null, curKey: null, hasIntro: !!(best && best.intro), hasExit: !!(best && best.exit), notes: [], planned: planPassages };
-  if (!intros.length) run.notes.push("no Intro level yet (Section = Intro)");
-  if (!exits.length) run.notes.push("no Exit level yet (Section = Exit)");
+  if (!intros.length) run.notes.push("no Intro level yet (right gates only)");
+  if (!exits.length) run.notes.push("no Exit level yet (left gates only)");
   else if (!run.hasExit) run.notes.push("no Exit level joins the last middle level's right gate");
   let prev = null;
   (best ? best.chain : []).forEach((lv, i) => {
@@ -19910,7 +19918,7 @@ export default function AssetStudio() {
     const seed = (seedText || "").trim() || newRunSeed();
     const pool = runPool();
     const run = buildRun(pool, seed);
-    if (!run.startKey) { flash("No level can start a run yet — save one with an open Right gate (or Section = Intro)."); return; }
+    if (!run.startKey) { flash("No level can start a run yet — save one with an open Right gate."); return; }
     run.editorLevel = level; run.pool = pool;
     resolveRunSides(run, run.nodes[run.startKey], pool);
     setRunSeedText(seed); setGen(null);
@@ -21089,14 +21097,14 @@ export default function AssetStudio() {
           <button className="save" onClick={saveLevel}>💾 Save</button>
         </header>
 
+        {/* No Section box (Blake retired it 2026-10-09): what a level IS in a run comes from its
+            gates and its Floor (runRole), and a room files under its Room tag. An old save's
+            `section` field is left alone on the record; nothing reads it any more. */}
         <div className="catbar">
           {lv.isRoom ? (
             <>
               <label className="catfield">🚪 Room tag
                 <input value={lv.roomTag || ""} onChange={(e) => setLevel({ ...lv, roomTag: e.target.value })} placeholder="e.g. shop, item, secret" />
-              </label>
-              <label className="catfield">Section
-                <input value={lv.section || ""} onChange={(e) => setLevel({ ...lv, section: e.target.value })} placeholder="e.g. Trailor Int, Tree" />
               </label>
             </>
           ) : (
@@ -21105,9 +21113,6 @@ export default function AssetStudio() {
                 <input value={lv.floor} onChange={(e) => setLevel({ ...lv, floor: e.target.value })} placeholder="e.g. 1, 2, B1" />
               </label>
               {floorSuggest.length > 0 && <div className="catchips">{floorSuggest.map((f) => <button key={f} onClick={() => setLevel({ ...lv, floor: f })}>{f}</button>)}</div>}
-              <label className="catfield">Section
-                <input value={lv.section || ""} onChange={(e) => setLevel({ ...lv, section: e.target.value })} placeholder="e.g. Market, Sewers, Boss room" />
-              </label>
             </>
           )}
         </div>
@@ -23109,9 +23114,9 @@ export default function AssetStudio() {
                       opened to LOAD something cannot cost you a level. */}
                   <div className="loadlist">{items.map((l) => (
                     <div key={l.id} className="loadrow">
-                      {/* The room's tag only when it is NOT the folder it is filed in — "Trailor Int ·
-                          tag: Trailor Int" under a "🚪 Trailor Int" heading is the same word three times. */}
-                      <button className="loadopen" onClick={() => openLevel(l)}>{l.isRoom ? "🚪" : "🗺️"} {l.name}{l.isRoom ? ((l.roomTag || "").trim() && (l.roomTag || "").trim().toLowerCase() !== label.toLowerCase() ? <span className="hint2"> · tag: {l.roomTag}</span> : null) : l.section ? <span className="hint2"> · {l.section}</span> : null}</button>
+                      {/* Just the name: a room is filed under its own Room tag (so repeating the tag
+                          is the same word twice), and a level's old Section hint went with the box. */}
+                      <button className="loadopen" onClick={() => openLevel(l)}>{l.isRoom ? "🚪" : "🗺️"} {l.name}</button>
                       <button className={"loaddel" + (confirmLvlDel === l.id ? " arm" : "")}
                         title={confirmLvlDel === l.id ? "Tap again to permanently delete" : "Delete this " + (l.isRoom ? "room" : "level")}
                         onClick={(e) => { e.stopPropagation(); if (confirmLvlDel === l.id) deleteLevel(l); else { setConfirmLvlDel(l.id); flash("Tap 🗑 again to permanently delete \"" + l.name + "\""); } }}>{confirmLvlDel === l.id ? "Sure?" : "🗑"}</button>

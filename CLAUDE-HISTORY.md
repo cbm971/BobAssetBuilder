@@ -3590,3 +3590,58 @@ matched its garments in his live store, so nothing was doubled or stale. The cur
 and since 2026-09-28 armoured ENEMIES have it too. DEFENSE_HALF_AT = 20: Army Bob 48%, Crocobob 39%.
 Measured in play, his Str 10 Crocodile in Sewer M1: Viatnamese 1 (0) took 20, Army Bob 10 (crit 19),
 Crocobob 8 (crit 16; it was 5).
+
+## TRAILOR PARK M14 "CRASH SITE", AND THE SECTION BOX RETIRED (2026-10-09)
+
+Blake handed over his blank M14 ("I have ZERO ideas ... fill and decorate M14 however you think would
+be fit and fun"; a zoo is planned for M15). M14 is two lanes that never meet on purpose: W1/E1 run on
+the slab (rows 20-21, stand on row 20) and W2/E2 on the street (stand on row 35), 13 rows under it.
+
+**What it became.** Upper lane: the Army's cordon round a flying saucer that came down on the hill —
+RESTRICTED AREA signs at both ends, barbed wire, a GATE 3 booth, sandbags, a command tent, crates, two
+searchlights crossing over the wreck, a radar trailer and an M35 truck; six Army Bobs (M16 / Bobs Gun,
+two throwing grenades) and a Men-in-Black "Agent" by the wreck whose tree (Weather Balloon) ends in a
+heal ("*FLASH* You saw a weather balloon") or a fight. The saucer is WALKABLE: hidden Foreground ramps
+(hideInPlay) follow its hull from the dirt mound over the dome to the open hatch, where a pedestal
+(Gun AND Rare: Experimental Rifle or Bobs Gun) sits, and down the far side. Lower lane: the secret lab
+dug into the hill under it — a concrete portal with a hazard stripe (Front), his White Stone brick
+walls over a painted lower wall, his Rec Hall Linoleum floor, a Sidewalk-concrete ceiling slab, his
+fluorescent tubes; a "U.S. DEPT. OF AGRICULTURE WEATHER RESEARCH STATION — NOTHING TO SEE HERE" sign
+outside, the vault door swung open, the guards' break room (his AA-meeting table, urn, doughnuts and
+chair; pedestal Odd AND Mask = his Alien Mask), mainframes and a console, specimen tanks (two holding
+an alien, two burst — the rats and the crocodile are loose), an autopsy table, a lab bench, and his Zoo
+cage holding a Little Green Man whose tree (Phone Home) can free him as an ally. Two Army Bob guards
+carry Shock Batons; one escaped alien has the Experimental Rifle. His tree with the squirrel and the
+little distant trailer stay; his stump went (he said it could), and his trunk now stops at the road
+(its rows 21-23 hung through what is now the lab ceiling).
+
+**New records.** 20 props under category "Crash Site" (ufosacr saucer 30, ufoslit searchlight 20,
+ufosand sandbags 6 [solidDefault], ufotrck truck 16, ufotent tent 12, ufosign sign 8, ufowire wire 8
+[tiles], uforadr radar 10, ufobth1 booth 10, ufocrat crates 4 [solidDefault], ufotnka / ufotnkb tanks
+12, ufocomp mainframe 7, ufocnsl console 6, ufovalt vault door 10, ufoatps autopsy table 8, ufofile
+filing cabinet 4, ufobnch lab bench 6, ufowthr weather-station sign 7, ufoauth wall sign 3); Alien Skin
+`alnskn1` (a green tone, no hair: his Alien Mask is the head); Dark Shades `drkshd1` (his Bobs Glasses,
+lenses black); Silver Pants `slvpnt1` (his Black Pants in his Undershirt's grey). The two looks were
+dressed IN DRESS BOB so the app baked them: Agent `c4ft0d4` (Rob Skin, Dark Shades, Suit Jacket, White
+Dress Shirt, Black Pants, Army Boots) and Little Green Man `xclq3hs` (Alien Skin, Alien Mask,
+Undershirt, Silver Pants). Bare BoB under an alien skin showed the body's own details, which is why
+the suit exists. Dialogues `dlgwthr`, `dlgphon`. Every new asset passes editorReachIssues. Fallback
+bundle: assets/crash-site-pack.json. Generators stayed in that session's scratchpad (ufo.js, m14.js,
+sprof.js for the saucer's walk profile, extras.js, deliver.js).
+
+**Measured in play (his library + these records, a Playtest per lane).** Bobert and Army Bob both walk
+W1→E1 over the saucer (feet at row 10 on the dome) and W2→E2 through the lab with D alone. The first
+build had the sandbags and the lab crates SOLID: Army Bob (Agility -1, a one-cell jump) topped out
+28 px up against the two-cell crates and could never leave the lab. Agility is clamped to 1 for the
+jump (0.5 x Agility + 0.5 cells), so everyone at -1..1 jumps exactly one cell — that is now a rule in
+CLAUDE.md, and in M14 those props are scenery. A walk that "stopped" at column 41 was the harness:
+a grenade blast cleared the held D; re-sending the keydown every few frames fixed the drive.
+
+**The Section box (same message): "We can remove the 'Section' bit in the level creator. We can do
+everything we need with matching gates/keys and floor."** Section did three jobs, and each now has
+its answer elsewhere. runRole: no open left-hand gate = Intro, no open right-hand gate = Exit, Floor
+Sewer/Underground/Tree Top = a side passage, everything else a middle (every street level he had
+opened both sides and every sewer was already on Floor "Sewer", so nothing changed role). The load
+dialog files rooms by Room tag only (every room carrying a Section had the same word as its tag) and
+no longer prints "· Middle" after each level. Both Section inputs are gone; new levels and rooms are
+created without the field; an old record's `section` is left on it and ignored.

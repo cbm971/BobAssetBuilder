@@ -25,7 +25,13 @@
 //       draws frames[0].front (or angles.front) of that asset from asset-data/library.json
 //   node tools/rasterize-pieces.js <pieces.json> out.png [zoom] [bg] [crop...]
 //       draws a raw piece-list file
-//   require("./tools/rasterize-pieces.js") gives { render, png, sheet, hit } for building contact
+//   node tools/rasterize-pieces.js --level <id or name> out.png [pxPerCell=6] [c0 c1 r0 r1] [--lib file] [--play] [--grid]
+//       draws a whole LEVEL: Background cells at the app's 42%, objects on their layer in z order,
+//       Foreground, Front, open gates (cyan), enemy spawns as 2x7 boxes (green = has a dialogue),
+//       pedestals/doors (magenta/white), climb and hazard cells. --play hides hideInPlay cells (the
+//       way Playtest draws), --lib reads another library file (his `saves` branch copy, say), and
+//       the window crops to columns c0..c1, rows r0..r1. Textures draw as their base colour.
+//   require("./tools/rasterize-pieces.js") gives { render, png, sheet, hit, renderLevel } for building contact
 //   sheets (render several, then sheet(renders, gutter, bg)). Always render one of Blake's own
 //   assets first as the control — if Trailer 1 does not come out as a trailer, distrust the rest.
 const fs = require("fs"), zlib = require("zlib");
@@ -153,9 +159,99 @@ function sheet(renders, gutter, bg) {
   for (const r of renders) { for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) for (let k = 0; k < 3; k++) img[((y) * w + ox + x) * 3 + k] = r.img[(y * r.w + x) * 3 + k]; ox += r.w + g; }
   return { w, h, img };
 }
-module.exports = { render, png, sheet, hit, originFrac, SHAPE_POINTS };
+// --- A whole level --------------------------------------------------------------------------
+// Added for Trailor Park M14 (2026-10-09): laying out 40+ props and a lab across a 160x46 level by
+// screenshot alone costs a browser round trip per look, and the pane often cannot paint at all. The
+// rules restated from App.js: a cell is a colour or { c, slope, run, step, rise, rstep, upsideDown,
+// hideInPlay, more } (fgFills / fgRampH / fgRampD); Background draws at opacity .42 over #0e1018
+// (.lcell.bg); objects sit in their lay's rung (objectLay: lay, else inFront → front, solid → fg,
+// else bg) and in z order within it (levelObjectsInDrawOrder); a fitArt prop is cropped to its
+// visible art and scaled so `size` is the longer side (levelObjectFootprint), keyed by its top-left
+// cell plus ox/oy. Translucent prop pieces are recovered by rendering on black and on white.
+const lvFills = (cell) => { if (cell == null) return []; if (typeof cell !== "object") return [{ c: cell }]; const { more, ...f } = cell; return [f, ...(Array.isArray(more) ? more : [])]; };
+const lvDiag = (f) => f.slope === 1 || f.slope === -1;
+const lvCovers = (f, u, v) => {
+  if (!lvDiag(f)) return true;
+  const run = f.run > 0 ? f.run : 1, step = f.step >= 0 ? f.step : 0, rise = f.rise > 0 ? f.rise : 1, rstep = f.rstep >= 0 ? f.rstep : 0;
+  const low = f.slope > 0 ? step + u : run - step - u;
+  return f.upsideDown ? v <= (low / run) * rise - rstep : (1 - v) <= (low / run) * rise - (rise - 1 - rstep);
+};
+const propArtBox = (a) => {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const fr of ((a.frames && a.frames.length) ? a.frames : [a.angles].filter(Boolean))) for (const p of ((fr && fr.front) || [])) {
+    if (p.isHitbox || p.isMuzzle || p.isCutter) continue;
+    for (const x of p.mirror ? [p.x, W - (p.x + p.w)] : [p.x]) { minX = Math.min(minX, x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, x + p.w); maxY = Math.max(maxY, p.y + p.h); }
+  }
+  return minX === Infinity ? { w: 44, h: 44, minX: 78, minY: 108 } : { w: Math.max(6, maxX - minX), h: Math.max(6, maxY - minY), minX, minY };
+};
+const lvLay = (o) => (o && ["bg", "fg", "front"].includes(o.lay)) ? o.lay : (o && o.inFront) ? "front" : (o && o.solid) ? "fg" : "bg";
+function renderLevel(lib, lv, s, win, opts = {}) {
+  const [c0, c1, r0, r1] = win || [0, lv.cols, 0, lv.rows];
+  const w = (c1 - c0) * s, h = (r1 - r0) * s, img = new Float32Array(w * h * 3), base = hex("#0e1018");
+  for (let i = 0; i < w * h; i++) img.set(base, i * 3);
+  const put = (x, y, col, a) => { if (x < 0 || y < 0 || x >= w || y >= h) return; const i = (y * w + x) * 3; for (let k = 0; k < 3; k++) img[i + k] = img[i + k] * (1 - a) + col[k] * a; };
+  const cellXY = (k) => k.split(",").map(Number);
+  const box = (r, c, cw, ch, col, a, hollow) => { for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) if (!hollow || x < 2 || y < 2 || x >= cw - 2 || y >= ch - 2) put((c - c0) * s + x, (r - r0) * s + y, col, a); };
+  const layer = (name, alpha) => {
+    for (const [k, cell] of Object.entries(lv[name] || {})) {
+      const [r, c] = cellXY(k); if (r < r0 || r >= r1 || c < c0 || c >= c1) continue;
+      for (const f of lvFills(cell).reverse()) {
+        if (opts.play && f.hideInPlay) continue;
+        const col = hex(f.c || "#888");
+        for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) if (lvCovers(f, (x + 0.5) / s, (y + 0.5) / s)) put((c - c0) * s + x, (r - r0) * s + y, col, alpha);
+      }
+    }
+  };
+  const assets = new Map((lib.assets || []).map((a) => [a.id, a]));
+  const objs = [];
+  for (const [k, stack] of Object.entries(lv.fx || {})) { const [r, c] = cellXY(k); for (const o of stack) objs.push({ r, c, o, seq: objs.length }); }
+  objs.sort((a, b) => ((typeof a.o.z === "number" ? a.o.z : a.seq) - (typeof b.o.z === "number" ? b.o.z : b.seq)) || a.seq - b.seq);
+  const objects = (lay) => {
+    for (const { r, c, o } of objs) {
+      if (lvLay(o) !== lay) continue;
+      const a = o.kind === "prop" && assets.get(o.propId);
+      if (!a) { box(r, c, (o.size || 1) * s, (o.size || 1) * s, [255, 200, 0], 1, true); continue; }   // emoji / shape: an outline
+      const pb = propArtBox(a), size = Math.max(1, o.size || 1);
+      const k = !o.fitArt ? size / Math.max(W, H) : o.canvasScale ? size / Math.max(W, H) : size / Math.max(pb.w, pb.h);
+      const crop = o.fitArt ? [pb.minX, pb.minY, pb.w, pb.h] : [0, 0, W, H];
+      const pieces = (a.frames && a.frames[0] && a.frames[0].front) || (a.angles && a.angles.front) || [];
+      const zoom = (crop[2] * k * s) / crop[2];
+      const dark = render(pieces, { zoom, bg: "#000000", crop }), light = render(pieces, { zoom, bg: "#ffffff", crop });
+      const left = (c + (o.ox || 0) - c0) * s, top = (r + (o.oy || 0) - r0) * s;
+      for (let y = 0; y < dark.h; y++) for (let x = 0; x < dark.w; x++) {
+        const i = (y * dark.w + x) * 3, al = 1 - (light.img[i] - dark.img[i]) / 255;
+        if (al < 0.02) continue;
+        put(Math.round(left + (o.flip ? dark.w - 1 - x : x)), Math.round(top + y), [dark.img[i] / al, dark.img[i + 1] / al, dark.img[i + 2] / al], Math.min(1, al));
+      }
+    }
+  };
+  layer("bg", 0.42); objects("bg"); layer("fg", 1); objects("fg");
+  for (const [k, v] of Object.entries(lv.climb || {})) { const [r, c] = cellXY(k); box(r, c, s, s, v && v.kind === "topdown" ? [120, 200, 255] : [200, 150, 60], 0.5); }
+  for (const k of Object.keys(lv.hazard || {})) { const [r, c] = cellXY(k); box(r, c, s, s, [255, 80, 0], 0.7); }
+  for (const [k, m] of Object.entries(lv.markers || {})) { const [r, c] = cellXY(k); box(r, c, s, s, m.kind === "door" ? [255, 255, 255] : [255, 0, 255], 0.9); }
+  for (const [k, e] of Object.entries(lv.enemies || {})) { const [r, c] = cellXY(k); box(r - 6, c, 2 * s, 7 * s, e.dialogueId ? [80, 255, 120] : [255, 40, 40], 1, true); }
+  objects("front"); layer("front", 1);
+  const GATE = { N1: [30, 0], N2: [70, 0], S1: [30, 100], S2: [70, 100], W1: [0, 35], W2: [0, 70], E1: [100, 35], E2: [100, 70] };   // App.js CONN_POS
+  for (const [k, g] of Object.entries(lv.conns || {})) { if (!g || !g.open || !GATE[k]) continue; const gx = Math.round(GATE[k][0] / 100 * lv.cols * s - c0 * s), gy = Math.round(GATE[k][1] / 100 * lv.rows * s - r0 * s); for (let y = -4; y <= 4; y++) for (let x = -4; x <= 4; x++) put(gx + x, gy + y, [0, 255, 255], 1); }
+  if (opts.grid) for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) { if (c % 10 === 0) for (let y = 0; y < s; y++) put((c - c0) * s, (r - r0) * s + y, [255, 255, 255], 0.25); if (r % 10 === 0) for (let x = 0; x < s; x++) put((c - c0) * s + x, (r - r0) * s, [255, 255, 255], 0.25); }
+  return { w, h, img };
+}
+module.exports = { render, png, sheet, hit, originFrac, SHAPE_POINTS, renderLevel };
 if (require.main === module) {
   let argv = process.argv.slice(2), pieces;
+  if (argv[0] === "--level") {
+    const flag = (f) => { const i = argv.indexOf(f); if (i < 0) return false; argv.splice(i, 1); return true; };
+    const play = flag("--play"), grid = flag("--grid"), li = argv.indexOf("--lib");
+    const libFile = li >= 0 ? argv.splice(li, 2)[1] : require("path").join(__dirname, "..", "asset-data", "library.json");
+    const lib = JSON.parse(fs.readFileSync(libFile, "utf8"));
+    const lv = (lib.levels || []).find((l) => l.id === argv[1] || l.name === argv[1]);
+    if (!lv) { console.error("no level with id or name " + argv[1]); process.exit(1); }
+    const [outFile, px, ...win] = argv.slice(2);
+    const r = renderLevel(lib, lv, +(px || 6), win.length === 4 ? win.map(Number) : null, { play, grid });
+    fs.writeFileSync(outFile, png(r));
+    console.log("wrote", outFile, r.w + "x" + r.h);
+    process.exit(0);
+  }
   if (argv[0] === "--asset") {
     const lib = JSON.parse(fs.readFileSync(require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
     const a = lib.assets.find((x) => x.id === argv[1]);
