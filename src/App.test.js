@@ -3504,7 +3504,7 @@ describe("Crouch Guard", () => {
   });
 
   test("runs after Defense, not before", () => {
-    expect(incomingPlayerDamage(20, 10, 1, 100, 0, null, 0.5, true)).toBe(5); // defense halves to 10, crouch halves to 5
+    expect(incomingPlayerDamage(20, 10, 1, 100, 0, null, 0.5, true)).toBe(7); // defense 20 x 20/30 = 13.3, crouch halves to 6.7
   });
 
   test("a full block still leaves the one-point floor", () => {
@@ -11743,7 +11743,7 @@ describe("a unit's armour counts the way yours does", () => {
     const asPlayer = incomingPlayerDamage(20, dk.defense, 1, 0, 100, null, null, false);
     const asEnemy = incomingUnitDamage(20, dk, { face: 1, x: 0 }, 0, 100);
     expect(asEnemy).toBe(asPlayer); // …what it does with a hit was
-    expect(asEnemy).toBe(9);        // 20 × 10/23, where it used to take all 20
+    expect(asEnemy).toBe(12);       // 20 × 20/33, where it used to take all 20
   });
 
   test("an Enemy-creator animal has no armour, so every number it takes is unchanged", () => {
@@ -11779,19 +11779,19 @@ describe("a unit's armour counts the way yours does", () => {
     expect(swingComingAt(100, 30, 100, 30, 1, L)).toBe(false);               // no side to be on
   });
 
-  test("🧎 the hit message marks a blow the crouch guard took part of — on Crocobob it is 2 against 1", () => {
+  test("🧎 the hit message marks a blow the crouch guard took part of — on Crocobob it is 4 against 1", () => {
     const fx = [{ type: "crouchGuard", reduce: 0.8 }];
     expect(crouchGuardNote(fx, true)).toBe(" 🧎");
     expect(crouchGuardNote(fx, false)).toBe("");
     expect(crouchGuardNote([{ type: "backGuard" }], true)).toBe("");
     expect(crouchGuardNote(undefined, true)).toBe("");
-    // Why the mark: his Crocobob has 31 Defense, so a 10-damage shot is already a 2 standing, and
+    // Why the mark: his Crocobob has 31 Defense, so a 10-damage shot is already a 4 standing, and
     // the 80% guard can only take it to the floor of 1. Without the mark that reads as "no change".
     const croc = { ...dk, defense: 31, effects: fx };
-    expect(incomingUnitDamage(10, croc, { face: 1, crouch: false }, 200, 100)).toBe(2);
+    expect(incomingUnitDamage(10, croc, { face: 1, crouch: false }, 200, 100)).toBe(4);
     expect(incomingUnitDamage(10, croc, { face: 1, crouch: true }, 200, 100)).toBe(1);
-    expect(incomingUnitDamage(40, croc, { face: 1, crouch: false }, 200, 100)).toBe(10);
-    expect(incomingUnitDamage(40, croc, { face: 1, crouch: true }, 200, 100)).toBe(2);
+    expect(incomingUnitDamage(40, croc, { face: 1, crouch: false }, 200, 100)).toBe(16);
+    expect(incomingUnitDamage(40, croc, { face: 1, crouch: true }, 200, 100)).toBe(3);
   });
 
   test("a hit always stings: floored at 1 however much armour", () => {
@@ -12285,6 +12285,20 @@ describe("enemy-creator Strength past 10", () => {
   test("the bite keeps scaling to 20 and armour divides it the player's way", () => {
     expect(creatureMeleeDamage(20)).toBe(40);
     expect(enemyAttackDamage({ type: "enemy", stats: { strength: 15 } }, null)).toBe(30);
-    expect(incomingPlayerDamage(20, 22)).toBe(6); // measured in play: Str 10 Crocodile on Army Bob (22 Defense)
+    expect(incomingPlayerDamage(20, 22)).toBe(10); // Str 10 Crocodile on Army Bob (22 Defense): 20 x 20/42
+  });
+});
+
+describe("Defense halves a hit at DEFENSE_HALF_AT (20)", () => {
+  const { DEFENSE_HALF_AT, defenseDamageMultiplier } = require("./App");
+  test("his outfits: bare 100%, Army Bob ~48%, Crocobob ~39% (was 31% / 24%)", () => {
+    expect(DEFENSE_HALF_AT).toBe(20);
+    expect(defenseDamageMultiplier(0)).toBe(1);
+    expect(defenseDamageMultiplier(-5)).toBe(1); // negative totals are clamped, never extra damage
+    expect(defenseDamageMultiplier(20)).toBe(0.5);
+    expect(defenseDamageMultiplier(22)).toBeCloseTo(20 / 42);
+    expect(defenseDamageMultiplier(31)).toBeCloseTo(20 / 51);
+    // the ORDER of who is tougher is unchanged: still strictly decreasing
+    for (let d = 0; d < 40; d++) expect(defenseDamageMultiplier(d + 1)).toBeLessThan(defenseDamageMultiplier(d));
   });
 });

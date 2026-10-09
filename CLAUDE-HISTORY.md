@@ -3503,3 +3503,18 @@ box for 20, at Str 1 for 2, at Str 2 (moved in the Enemy creator and saved) for 
 Defense took a 20 bite to 6 (20 x 10/32). Everything was wired. But the Crocodile, Lion and Elaphant
 are authored AT 10, the slider's max, so dragging it right did nothing: the same UI-only ceiling
 Speed had. ENEMY_STRENGTH_STAT_MAX = 20 for type "enemy" only; Str 15 then bit Army Bob for 9.
+
+**THE STRENGTH SLIDER WAS 3PX WIDE; DEFENSE CURVE FLATTENED (2026-10-08).** After 8df43e4 raised the cap,
+Blake sent a screenshot: "Str ●10 · bites for 20", a knob with no track. "The slider is broke. I cannot
+adjust it." The " · bites for 20" note shared the half-width grid cell with the slider and squeezed the
+range input to 3px (Speed/Agility/Int were 58-78px). I had "verified" the slider by setting its value
+from script, which works at any width. Now the note is its own line (.statNote), the input has a 56px
+floor and the grid is top-aligned; a real mouse drag moved it 10 -> 2 -> 20.
+
+Same day: "defense seems to scale too much now ... no defense feel too weak and high defense feels too
+strong." Audit: every hit applies Defense exactly once (16 call sites), and every look's saved Defense
+matched its garments in his live store, so nothing was doubled or stale. The curve itself was the issue:
+10/(10+D) gave Army Bob (22) 31% and Crocobob (31) 24% of every hit, ~4x a bare character's toughness,
+and since 2026-09-28 armoured ENEMIES have it too. DEFENSE_HALF_AT = 20: Army Bob 48%, Crocobob 39%.
+Measured in play, his Str 10 Crocodile in Sewer M1: Viatnamese 1 (0) took 20, Army Bob 10 (crit 19),
+Crocobob 8 (crit 16; it was 5).

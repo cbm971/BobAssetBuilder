@@ -2479,12 +2479,21 @@ export const stompDipPx = (t, dur) => {
   return f < STOMP_IMPACT_FRAC ? 0 : STOMP_DIP_PX * Math.max(0, 1 - (f - STOMP_IMPACT_FRAC) / (1 - STOMP_IMPACT_FRAC));
 };
 // Defense reduces incoming damage with DIMINISHING returns and never fully negates it: the
-// multiplier is 10 / (10 + Defense). So 10 Defense = half damage (the calibration point), 20 =
-// a third, 30 = a quarter — it keeps helping past 10 but the curve flattens and can never reach
-// 0 (and incomingPlayerDamage still floors every hit at 1). Defense below 0 is clamped to 0.
-// Applied to damage an enemy deals to the player (see the enemy attack logic in the playtest
-// physics loop) — armor/equipment defense was always meant to soften exactly this.
-export const defenseDamageMultiplier = (def) => 10 / (10 + Math.max(0, def || 0));
+// multiplier is DEFENSE_HALF_AT / (DEFENSE_HALF_AT + Defense), so DEFENSE_HALF_AT Defense takes
+// exactly half of a hit, and the curve keeps helping past it but flattens and never reaches 0
+// (incomingPlayerDamage still floors every hit at 1). Defense below 0 is clamped to 0. Every hit
+// on the player AND on a unit goes through it (incomingPlayerDamage / incomingUnitDamage).
+//
+// DEFENSE_HALF_AT WAS 10 UNTIL 2026-10-08, and that was too steep for the kit he actually built.
+// A full outfit runs 20-31 (Army Bob 22, Turtle Man 27, Crocobob 31), and at 10 that meant 31% and
+// 24% of every hit: Crocobob had the toughness of four bare characters. Blake: "Characters with no
+// defense feel too weak and high defense feels too strong." Once enemies started wearing their
+// armour too (2026-09-28) the same gap showed up from the other side — an armoured enemy shrugging
+// off what killed a bare one in a hit or two. At 20: 5 Defense takes 80%, 10 takes 67%, Army Bob
+// 48%, Crocobob 39% — the full suit is worth ~2.5 bare characters instead of ~4. The shape (and so
+// the ORDER of who is tougher) is unchanged; only how far apart the ends are. One number to tune.
+export const DEFENSE_HALF_AT = 20;
+export const defenseDamageMultiplier = (def) => DEFENSE_HALF_AT / (DEFENSE_HALF_AT + Math.max(0, def || 0));
 export const applyDefense = (rawDamage, def) => rawDamage * defenseDamageMultiplier(def);
 
 // ── What the PLAYER hits for ────────────────────────────────
@@ -3543,7 +3552,7 @@ export const swingComingAt = (defCX, defHalfW, atkCX, atkHalfW, atkFace, lookout
 // " 🧎" after a hit's number when a Crouch Guard took part of it, on either side. Blake could not
 // tell a ducking enemy was taking less ("I couldn't tell that they where taking less damage"), and
 // on a heavily armoured look the difference is only a point or two (Crocobob's 31 Defense already
-// turns a 10 into a 2, and the guard turns that into the floor of 1). The mark names WHY the number
+// turns a 10 into a 4 — a 2 before DEFENSE_HALF_AT went to 20 — and the guard turns that into the floor of 1). The mark names WHY the number
 // is small. Read the same way incomingPlayerDamage applies it: worn, and crouched when it landed.
 export const crouchGuardNote = (effects, crouching) => (crouching && guardReduceOf(effects, "crouchGuard") != null ? " 🧎" : "");
 // ...AND A UNIT TAKES A HIT BY THE SAME RULE (2026-09-28). Blake, playing DK: "Why do enemies have
@@ -3551,7 +3560,7 @@ export const crouchGuardNote = (effects, crouching) => (crouching && guardReduce
 // dying." Their HP was never the difference — a dressed look placed as an enemy gets exactly the
 // player's pool (enemyLookHP). What differed was everything AFTER the HP: every hit on the player
 // went through incomingPlayerDamage above, and every hit on a unit was a bare subtraction. So the
-// armour a dressed 👹 Enemy is drawn wearing did nothing at all. DK has 13 Defense — he takes 43%
+// armour a dressed 👹 Enemy is drawn wearing did nothing at all. DK has 13 Defense — he took 43% (61% since DEFENSE_HALF_AT is 20)
 // of every hit — and the same DK placed as an enemy took 100%, which is less than half the
 // toughness out of the same outfit; Army Bob's 22 was worth nothing. A cape's Back Guard and a
 // shield's Crouch Guard were dead on an enemy the same way (the abilities-work-both-ways rule).
@@ -23535,7 +23544,13 @@ export default function AssetStudio() {
                       removed as clutter. Show the bite here or the rule is invisible and the slider
                       is back to being a mystery. Not shown once it holds a weapon: the weapon's own
                       damage takes over then, and claiming a bite number would be a lie. */}
-                  <span className="hint2">{asset.stats?.[s] ?? 5}{s === "hp" ? " · " + maxPlayerHP(asset) + " HP" : (s === "strength" && asset.type === "enemy" && !enemyWeaponIdOf(asset)) ? " · bites for " + creatureMeleeDamage(asset.stats?.strength ?? 5) : ""}</span>
+                  {/* The note gets its OWN LINE under the slider (.statNote). Inline beside the number,
+                      "10 · bites for 20" ate the whole half-width grid cell and squeezed the range
+                      input to 3px: a knob with no track, which cannot be dragged at all. Blake: "The
+                      slider is broke. I cannot adjust it." on the Crocodile. */}
+                  <span className="hint2">{asset.stats?.[s] ?? 5}</span>
+                  {s === "hp" ? <span className="hint2 statNote">{maxPlayerHP(asset) + " HP"}</span>
+                    : (s === "strength" && asset.type === "enemy" && !enemyWeaponIdOf(asset)) ? <span className="hint2 statNote">{"bites for " + creatureMeleeDamage(asset.stats?.strength ?? 5)}</span> : null}
                 </label>
               ))}
               </div>
@@ -24248,9 +24263,10 @@ html,body{margin:0;padding:0;background:#0f1117}
 /* Short paired controls (the stat sliders) sit two per row instead of one, so a five-stat panel
    costs two and a half rows of height rather than five. Falls back to one column if the panel is
    ever narrowed. */
-.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:0 12px}
-.statgrid .slider{gap:6px;min-width:0}
-.statgrid .slider input[type=range]{min-width:0;flex:1}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:0 12px;align-items:start}
+.statgrid .slider{gap:0 6px;min-width:0;flex-wrap:wrap}
+.statgrid .slider input[type=range]{min-width:56px;flex:1}
+.statgrid .slider .statNote{flex-basis:100%;margin-top:-2px}
 .slider input[type=range]{flex:1;accent-color:#4f7cf6}
 .slider .gc{width:30px;height:24px;padding:0;border:1px solid #2c3245;border-radius:6px;background:#1f2433;flex:none}
 .rotbtn{flex:none;width:30px;height:26px;border:1px solid #2c3245;border-radius:7px;background:#1f2433;cursor:pointer;font-size:15px;line-height:1}

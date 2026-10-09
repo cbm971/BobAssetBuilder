@@ -365,6 +365,11 @@ plus traps it does not cover:
   no 🐱×N count by HP bars. The shop panel is square and has no emoji. Dialogue has no bubble,
   answers sit in a grid, and the font is DotGothic16. The pickup banner is Shrikhand, coloured by
   rank.
+- **Defense:** a hit times `DEFENSE_HALF_AT / (DEFENSE_HALF_AT + Defense)`, DEFENSE_HALF_AT = 20 (was 10
+  until 2026-10-08: "no defense too weak, high defense too strong"). Applied ONCE per hit, on the player
+  and on units alike. A look's Defense is the sum of its garments; negative totals clamp to 0.
+- **A control must be operable at its real size.** Setting a slider's value from script works at any
+  width, which is how a 3px Strength slider shipped. Check the rendered width and drag it with the mouse.
 - Talk reach is `TALK_RANGE_CELLS` = 6. The Enemy-creator Speed AND Strength sliders go to 20 (the animals' scale; a
   creature's Strength is its bite, 2x, unclamped), a
   dressed look walks by `playerWalkSpeed`, and Speed floors at 0.
