@@ -3496,3 +3496,10 @@ Pants: a climbing unit is `walking` (a climb step counts), so the render took th
 side-on hip rotation plus addBackLeg, drawn on its Back pose. Rotation from behind only splays the
 leg, and a pant twin on the far side counter-rotates against the leg under it. A climbing unit now
 gets the player's ladder step (alternate + legLift) and a hanging one keeps its legs as drawn.
+
+**ENEMY STRENGTH SLIDER PINNED AT 10 (2026-10-08).** Blake: "The strength slider in the enemy builder does
+not work", on the Crocodile. Measured in play with his library: the Crocodile at Str 10 bit a plain
+box for 20, at Str 1 for 2, at Str 2 (moved in the Enemy creator and saved) for 4; Army Bob's 22
+Defense took a 20 bite to 6 (20 x 10/32). Everything was wired. But the Crocodile, Lion and Elaphant
+are authored AT 10, the slider's max, so dragging it right did nothing: the same UI-only ceiling
+Speed had. ENEMY_STRENGTH_STAT_MAX = 20 for type "enemy" only; Str 15 then bit Army Bob for 9.

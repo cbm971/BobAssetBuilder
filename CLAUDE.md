@@ -365,7 +365,8 @@ plus traps it does not cover:
   no 🐱×N count by HP bars. The shop panel is square and has no emoji. Dialogue has no bubble,
   answers sit in a grid, and the font is DotGothic16. The pickup banner is Shrikhand, coloured by
   rank.
-- Talk reach is `TALK_RANGE_CELLS` = 6. The enemy Speed slider goes to 20 (the animals' scale), a
+- Talk reach is `TALK_RANGE_CELLS` = 6. The Enemy-creator Speed AND Strength sliders go to 20 (the animals' scale; a
+  creature's Strength is its bite, 2x, unclamped), a
   dressed look walks by `playerWalkSpeed`, and Speed floors at 0.
 - There is no 👹 enemy flag and no weapon picker in Dress Bob. What a character carries is set per
   placement.

@@ -6997,7 +6997,9 @@ describe("how far a stat slider goes", () => {
   test("an enemy's Speed runs past 10; every other stat stops there", () => {
     expect(statSliderMax("enemy", "speed")).toBe(ENEMY_SPEED_STAT_MAX);
     expect(ENEMY_SPEED_STAT_MAX).toBeGreaterThan(10);
-    for (const s of ["agility", "intelligence", "strength", "hp"]) expect(statSliderMax("enemy", s)).toBe(10);
+    for (const s of ["agility", "intelligence", "hp"]) expect(statSliderMax("enemy", s)).toBe(10);
+    expect(statSliderMax("enemy", "strength")).toBe(20); // a creature's Strength is its bite, unclamped
+    expect(statSliderMax("character", "strength")).toBe(10);
   });
 
   test("a unit's Speed stops going down at 0 — negative never walks it backwards", () => {
@@ -12275,5 +12277,14 @@ describe("climbing unit arms match the player's", () => {
       expect(by.a_m.rot).toBe(armClimbAbs("top"));
       for (const id of ["a", "a_m"]) expect((id === "a" ? arm : twin).y - by[id].y).toBeLessThanOrEqual(LADDER_ARM_REACH_UP + 1e-9);
     }
+  });
+});
+
+describe("enemy-creator Strength past 10", () => {
+  const { creatureMeleeDamage, enemyAttackDamage, incomingPlayerDamage } = require("./App");
+  test("the bite keeps scaling to 20 and armour divides it the player's way", () => {
+    expect(creatureMeleeDamage(20)).toBe(40);
+    expect(enemyAttackDamage({ type: "enemy", stats: { strength: 15 } }, null)).toBe(30);
+    expect(incomingPlayerDamage(20, 22)).toBe(6); // measured in play: Str 10 Crocodile on Army Bob (22 Defense)
   });
 });

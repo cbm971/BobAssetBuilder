@@ -4182,7 +4182,14 @@ const DEFAULT_STATS = () => ({ hp: 5, speed: 5, agility: 5, intelligence: 5, str
 // DO feed clamped formulas (the player's own speed and agility are Math.min(10, …)), and a slider
 // that let you set a value the game then ignores is worse than no slider.
 export const ENEMY_SPEED_STAT_MAX = 20;
-export const statSliderMax = (type, stat) => (type === "enemy" && stat === "speed" ? ENEMY_SPEED_STAT_MAX : 10);
+// ...and an ENEMY-CREATOR asset's Strength, for the same reason (2026-10-08). On a creature Strength
+// IS the bite (creatureMeleeDamage, 2x, no clamp; stompDamage and Str/5 on a held melee weapon do not
+// clamp either), and the Crocodile, Lion and Elaphant were all authored AT 10, so the slider sat
+// pinned at its right end. Blake: "The strength slider in the enemy builder does not work" — on the
+// Crocodile, which already bit for the most the slider could say. Strength 20 bites for 40.
+// A Dress Bob look is not type "enemy" and keeps 1-10: its Strength is the player's own stat.
+export const ENEMY_STRENGTH_STAT_MAX = 20;
+export const statSliderMax = (type, stat) => (type === "enemy" && stat === "speed" ? ENEMY_SPEED_STAT_MAX : type === "enemy" && stat === "strength" ? ENEMY_STRENGTH_STAT_MAX : 10);
 // The player's actual HP pool in Playtest — same baseline-5 convention as every other stat
 // (5 = 1×, unmodified), so a stat-5 character has 25 HP and the 1-10 slider tops out at 50.
 // It used to mirror the default 10 a freshly-created enemy asset
