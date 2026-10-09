@@ -2825,6 +2825,61 @@ the stomp budget, and one stomp kills the rat. The record copy is `assets/animal
   17 → 18); the rat dies to one stomp and the turtle to two (60 → 30 → 0); every corpse's ground
   line lands on the floor to the pixel.
 
+**🦒 GIRAFFE (`g1raff3`) AND THE "Zoo" PROP FOLDER, 2026-10-09 — "make a few Zoo related props as
+well as a Giraff Enemy", then, mid-job, "Make sure you don't cheat when making the asset. You may
+add shapes and tools to the asset maker if you need to ... Just make sure its logical".**
+* **What "cheating" turned out to mean, measured.** The first draft was built like every scripted
+  asset before it: smooth tapered necks and tails as 18-point polygons nobody would click out with
+  🪣 Fill, sizes and positions to three decimals, a 0.78 brightness between slider stops, prop
+  default sizes of 16 and 20 that the 1–12 Default-size slider could not set, bars and mouth lines
+  thinner than the 3-unit corner-drag minimum. His own animals (Elaphant, Pit Bull, Squirrel) use
+  stock shapes only, on the half-unit grid, in whole degrees.
+* **Tools added instead of tricks:** the 〰️ **Curve** tool (three clicks: start, a point the curve
+  passes THROUGH, end, plus Start/End thickness sliders; bakes one ordinary "poly" exactly as Fill
+  does; `curveBandPoints` + `polyBoxFromPoints`), and the Object editor's **Default size** became
+  buttons for `PROP_DEFAULT_SIZES` (every Level Creator size plus the old slider's 9 and 11).
+  `TEXT_FONTS` moved to module level so the checker can read it.
+* **`editorReachIssues(asset)`** lists everything in an asset no control can produce. CALIBRATED on
+  his save folder before trusting it: a strict "half-unit grid, 3-unit minimum, whole degrees" rule
+  flagged 152 of 244 assets including his own hand-drawn weapons, because scaling a GROUP
+  legitimately gives any 3-decimal size down to 0.05 and the Line tool gives tenths of a degree.
+  The shipped rule flags 27 of 244: scripted props/animals with off-stop brightness (Lion, Chap
+  Cat, Crocodile, Rat, Cassock, couch, armchair …), a few weapons with off-stop glow (Shock Baton,
+  Grenade, Experimental Rifle — possibly an older slider), and polys whose outline does not reach
+  its box. None of those were changed. Dress Bob composites (`type: "character"`) skip the geometry
+  checks: Dress Bob, not a hand, fits their pieces. Also learned: Fill and Curve both measure the box
+  FROM the outline, so a drawn poly always touches all four sides of its box.
+* The generators (scratchpad `giraffe.js`, `zoo.js`, `editorrules.js`) snap to the stricter grid
+  anyway (0.5 units, ≥ 3, whole degrees, 0.05 brightness), draw every curve through a copy of the
+  Curve tool that a jest test compares against the real export, and report anything drawn thinner
+  than 3 (60 bars/wires/grooves were redrawn at 3 units).
+* **THE WALL BOX STARTS AT THE CANVAS'S LEFT EDGE.** First layout: the giraffe stood in the right
+  80% of the canvas (x 38–198) to leave room for its head-swing attack. In Playtest it stopped
+  walking left 64 px (2 cells) short of a solid rock: the unit wall box is `[ep.x, ep.x + fraction ×
+  renderW]` (`wallBoxHits`), not offset like the hit box (`hitboxOffset`), and right-facing units are
+  mirrored about the canvas centre, so facing right it would have pushed its nose 2 cells into
+  walls. Every animal of his fills the width (Lion 3–194, Elaphant −6–208). Re-laid nose at x=0,
+  tail swished out to x=199; re-measured: nose stops on the rock's edge.
+* **Attack = necking, foreshortened.** A straight 83-unit neck swung down to Bob's head height
+  leaves the canvas at every angle low enough (searched). Bull giraffes swing the neck SIDEWAYS, so
+  seen side-on it comes toward you and reads shorter: the attack draws an arched, shorter neck
+  (one Curve stroke) with the head nodded horns-first at Bob's height, the body tipped 4° onto front
+  legs splayed just far enough (solved by bisection) that every hoof is on y=250.
+* Giraffe: scale 2.1 (12.1 cells, 2× Bob, taller than the Elaphant), HP 180, Speed 9, Str 10 (hits
+  for 20 — Bob has 25 HP), Agility 4, Int 3, Seek. 44 pieces a pose, four leg columns 7 units apart
+  (`multiLegPivot` ±15.6° alternating), feet on y=250, `groundLine` attack/death 250, belly-up
+  death with the neck along the floor and the dark tongue out. Verified in Playtest: walks to Bob,
+  swaps to the Attack pose for 16 frames per strike, 25 → 5 HP; corpse body bottom 1.7 px into the
+  floor (the drawn G+1), the pool 10 px.
+* Zoo props (`category: "Zoo"`, `assets/zoo-pack.json`): Zoo Entrance `zoogate` 16 (4:3, his grey
+  Stone brick pillars, "ZOO" text), Zoo Railing `zoorail` 16 (4:1, tiles with half posts), Animal
+  Cage `zoocage` 12 (198×132 = 3:2 ON the half grid; no back wall — place it on the Front layer and
+  an animal behind it shows through the bars; verified with the Lion), Ticket Booth `zootkt1` 10,
+  Popcorn Cart `zoosnak` 6, Zoo Signpost `zoosign` 7 (LIONS / GIRAFFES / REPTILES, editable text),
+  Giraffe Feeder `zoofeed` 12 (basket at the giraffe's head height), Acacia Tree `zootree` 20 (1:1),
+  Enclosure Rocks `zoorock` 8 (2:1, **solidDefault**, his Rock texture; Bob stood on it), Flamingo
+  `zooflmg` 4 (dips its head every 2 s). Awnings are Squares + Half circles turned 180°.
+
 **THERE IS NO 👹 ENEMY FLAG ON A DRESSED LOOK ANY MORE, AND IT WAS REMOVED BECAUSE IT MADE
 DUPLICATES.** `isEnemy` used to decide which Dress Bob looks the Level Creator would offer as
 enemies, so wanting the same outfit as a fightable enemy meant saving it twice — and wanting that

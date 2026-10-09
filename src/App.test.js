@@ -592,6 +592,15 @@ import {
   shouldStepAssist,
   nextOffLedge,
 } from "./App";
+import {
+  CURVE_SEGMENTS,
+  curveBandPoints,
+  polyBoxFromPoints,
+  editorReachIssues,
+  EDITOR_PIECE_KINDS,
+  TEXT_FONTS,
+  PROP_DEFAULT_SIZES,
+} from "./App";
 
 /* 🎲 A GEAR TAG ON A PLACEMENT. The point of the feature is that six copies of one guard are six
    loadouts, so what matters here is (a) the pool is the same pedestal search minus the things an
@@ -12300,5 +12309,67 @@ describe("Defense halves a hit at DEFENSE_HALF_AT (20)", () => {
     expect(defenseDamageMultiplier(31)).toBeCloseTo(20 / 51);
     // the ORDER of who is tougher is unchanged: still strictly decreasing
     for (let d = 0; d < 40; d++) expect(defenseDamageMultiplier(d + 1)).toBeLessThan(defenseDamageMultiplier(d));
+  });
+});
+
+// 〰️ The Curve tool (2026-10-09): three clicks + two thicknesses -> one ordinary "poly" piece.
+describe("curveBandPoints / polyBoxFromPoints (the 〰️ Curve tool)", () => {
+  test("a straight curve is a band of the asked thicknesses along the line", () => {
+    const pts = curveBandPoints([10, 100], [60, 100], [110, 100], 10, 4);
+    expect(pts).toHaveLength(2 * (CURVE_SEGMENTS + 1));
+    // the start is 10 thick and the end 4 thick, centred on the line
+    expect(pts[0][1] - pts[pts.length - 1][1]).toBeCloseTo(10);
+    expect(pts[CURVE_SEGMENTS][1] - pts[CURVE_SEGMENTS + 1][1]).toBeCloseTo(4);
+    expect(pts[0][0]).toBeCloseTo(10);
+    expect(pts[CURVE_SEGMENTS][0]).toBeCloseTo(110);
+  });
+  test("the middle click is a point the curve passes THROUGH, not a hidden handle", () => {
+    const pts = curveBandPoints([0, 0], [50, -40], [100, 0], 6, 6, 8);
+    const left = pts[4], right = pts[pts.length - 1 - 4];
+    expect((left[0] + right[0]) / 2).toBeCloseTo(50);
+    expect((left[1] + right[1]) / 2).toBeCloseTo(-40);
+  });
+  test("baked onto the editor's own grid, never below the smallest block", () => {
+    const box = polyBoxFromPoints([[10.3, 20.2], [40.9, 20.2], [40.9, 21.1]]);
+    for (const k of ["x", "y", "w", "h"]) expect(box[k] / PIECE_STEP).toBeCloseTo(Math.round(box[k] / PIECE_STEP));
+    expect(box.h).toBe(MIN_PIECE_SIZE);
+    expect(box.points.every(([u, v]) => u >= 0 && u <= 1 && v >= 0 && v <= 1)).toBe(true);
+  });
+});
+
+// editorReachIssues (2026-10-09): Blake, on agent-built assets, "make sure you don't cheat". Every
+// value in an asset must be one a hand in the editor could set.
+describe("editorReachIssues", () => {
+  const piece = (o) => ({ id: "p1", kind: "rect", x: 10, y: 20.5, w: 30, h: 3, color: "#fff", mirror: false, fx: { opacity: 1, glow: 0, glowColor: "#ffd76b", bright: 0.8 }, ...o });
+  const prop = (pieces, o) => ({ id: "a", type: "prop", size: 16, animFps: 6, frames: [{ front: pieces, back: [], side: [], up: [], crouch: [] }], angles: { front: pieces }, ...o });
+  test("a clean prop has no issues", () => {
+    expect(editorReachIssues(prop([piece(), piece({ id: "p2", kind: "poly", points: [[0, 0], [1, 0], [0.5, 1]] }), piece({ id: "p3", kind: "text", text: "ZOO", font: TEXT_FONTS[2][0] })]))).toEqual([]);
+  });
+  test("each thing no control can produce is named", () => {
+    const issues = editorReachIssues(prop([
+      piece({ w: 0.01 }), piece({ rot: 12.34 }), piece({ fx: { bright: 0.78 } }),
+      piece({ kind: "blob" }), piece({ kind: "text", text: "x", font: "Comic Sans MS" }), piece({ limb: "tail" }),
+      piece({ kind: "poly", points: [[0, 0], [1.2, 0], [0, 1]] }), piece({ kind: "poly", points: [[0.2, 0.2], [0.8, 0.2], [0.5, 0.8]] }),
+    ], { size: 14, animFps: 2.5 }));
+    for (const want of ["smaller than any block", "tenth of a degree", "brightness 0.78", "\"blob\"", "Comic Sans", "flag tail", "outline points", "does not reach the sides", "size 14", "anim speed 2.5"]) expect(issues.join("\n")).toContain(want);
+  });
+  test("an enemy's Size, stats, floor line and hold point must be slider stops", () => {
+    const e = { type: "enemy", scale: 2.15, hp: 180, stats: { hp: 5, speed: 21, agility: 4, intelligence: 3, strength: 10 }, groundLine: { death: 249.5 }, holdPoint: { side: { x: 10.2, y: 82 } }, angles: { side: [piece()] } };
+    const issues = editorReachIssues(e).join("\n");
+    for (const want of ["Size 2.15", "stat speed 21", "floor line death", "hold point side"]) expect(issues).toContain(want);
+    expect(editorReachIssues({ ...e, scale: 2.1, stats: { ...e.stats, speed: 9 }, groundLine: { death: 250 }, holdPoint: { side: { x: 10, y: 82 } } })).toEqual([]);
+  });
+  test("what group scaling, the Line tool and Dress Bob legitimately produce is NOT flagged", () => {
+    // a group scaled by hand: 3-decimal sizes below the 3-unit corner-drag floor; a Line at 0.1°
+    expect(editorReachIssues(prop([piece({ x: 10.123, y: 20.457, w: 1.234, h: 0.6, rot: 33.7 })]))).toEqual([]);
+    // a dressed look: Dress Bob placed and fitted its pieces, so their geometry is not a hand's
+    expect(editorReachIssues({ type: "character", angles: { front: [piece({ x: 1.2345, fx: { bright: 0.858 }, rot: 3.14159 })] } })).toEqual([]);
+  });
+  test("the Default size picker keeps the old slider's 9 and 11 and adds every placement size", () => {
+    for (const n of [...LV_OBJ_SIZES, 9, 11]) expect(PROP_DEFAULT_SIZES).toContain(n);
+    expect([...PROP_DEFAULT_SIZES].sort((a, b) => a - b)).toEqual(PROP_DEFAULT_SIZES);
+  });
+  test("every Shapes… button, Fill/Curve polys, text and emoji are makeable kinds", () => {
+    for (const k of ["rect", "roundrect", "circle", "stadium", "halfcircle", "tri", "tri2", "diamond", "pentagon", "hexagon", "star", "trapezoid", "poly", "text", "emoji"]) expect(EDITOR_PIECE_KINDS.has(k)).toBe(true);
   });
 });

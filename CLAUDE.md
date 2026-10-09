@@ -165,6 +165,12 @@ jacket" was a bat of the same olive. Reproduce his exact placement from his data
 to his screenshot and match piece by piece before deciding what is broken. Then tell him plainly
 what the part really was.
 
+**Build only what his editor can make — anything else is "cheating" (Blake, 2026-10-09).** Run
+`editorReachIssues(asset)` over every asset you deliver; it must return `[]`. A bending, tapering
+piece (tail, neck, branch) is one 〰️ Curve-tool stroke (`curveBandPoints`: start, a point on the
+curve, end, two thicknesses), not a hand-rolled polygon. If you need a shape or control the editor
+lacks, add it to the editor first (he invited that), creation-only like Line / Fill / Curve.
+
 **Clothing, and anything worn: `ASSET_AUTHORING.md` is the spec. Read it first.** It is also what
 he pastes into chats that have no repo access, so keep it in step with the code. The essentials,
 plus traps it does not cover:
@@ -227,6 +233,10 @@ plus traps it does not cover:
   fuses pieces within 6 units of each other, feet included; one column slides as a block.
 - On-screen height is `(artHeight / 260) × 7 × scale` cells. A unit can be stomped only if its Side
   art is ≤ 104 canvas units tall at scale 1.
+- **The Side art must fill the canvas WIDTH** (nose near x=0, tail near x=200). A unit's wall box
+  starts at the canvas's left edge and is as wide as the art, and a right-facing unit is mirrored
+  about the canvas centre. Art drawn in the right part of the canvas stops short of walls facing
+  left and pokes into them facing right. Action poses must fit inside 0–200 too.
 - A creature bites for 2 × Strength. There is no damage field; do not add one.
 - An animal holding a gun is intended. It holds it at a ✋ hold point (`holdPoint[pose]`,
   `holdAngle`).

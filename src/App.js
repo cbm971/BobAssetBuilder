@@ -9359,6 +9359,121 @@ export const SHAPE_LIST = [
   ["rect", "▮", "Square"], ["roundrect", "▣", "Rounded square"], ["circle", "●", "Circle"], ["stadium", "⬭", "Oval"], ["halfcircle", "◓", "Half circle"], ["tri", "▲", "Triangle"], ["tri2", "◺", "Half triangle"],
   ["diamond", "◆", "Diamond"], ["pentagon", "⬠", "Pentagon"], ["hexagon", "⬡", "Hexagon"], ["star", "★", "Star"], ["trapezoid", "⏢", "Trapezoid"],
 ];
+// Curated web-safe fonts for 🔤 Text blocks: no external loading (network dependency / FOUC risk),
+// just reasonably distinct built-in system fonts covering different vibes: clean sans, bold
+// poster, classic serif, and a typewriter/vintage look (handy for period pieces). Module level so
+// editorReachIssues below can ask whether a text block's font is one the picker offers.
+export const TEXT_FONTS = [
+  ["Arial, sans-serif", "Sans (Arial)"],
+  ["Georgia, 'Times New Roman', serif", "Serif (Georgia)"],
+  ["Impact, 'Arial Narrow', sans-serif", "Bold Poster (Impact)"],
+  ["'Courier New', monospace", "Typewriter (Courier)"],
+  ["'Trebuchet MS', sans-serif", "Rounded (Trebuchet)"],
+  ["'Brush Script MT', cursive", "Script (Brush)"],
+];
+// 〰️ THE CURVE TOOL'S SHAPE (2026-10-09). A tail, a neck, a trunk, a branch: a band that bends and
+// tapers. Fill could outline one, but only by clicking twenty points down both edges by hand, so
+// Blake never did (his animals are all stock shapes), and an asset an agent built by script out of
+// smooth tapered polygons was, in his word, cheating: art his own editor had no practical way to
+// make. He asked for the tool instead of the trick ("add shapes and tools to the asset maker ...
+// that would help me and make cheating no longer be cheating").
+//
+// Three clicks (START, a point the curve passes THROUGH, END) plus a thickness at each end, baked
+// into an ordinary "poly" piece exactly as 🪣 Fill bakes its clicks (a box, and the outline as 0–1
+// fractions of it), so drag, resize, rotate, colour, flags and cutters all work on it unchanged.
+// The middle click is a point ON the curve rather than an invisible control handle, because that
+// is what a hand aims at: the quadratic whose midpoint is that click has its control at
+// 2·bend − (start + end)/2. Eight segments keep the point count small (CLAUDE.md: a 160-point tail
+// once added 31k lines to library.json).
+export const CURVE_SEGMENTS = 8;
+export const curveBandPoints = (a, b, c, w0, w1, segs = CURVE_SEGMENTS) => {
+  const k = [2 * b[0] - (a[0] + c[0]) / 2, 2 * b[1] - (a[1] + c[1]) / 2];
+  const mid = [];
+  for (let i = 0; i <= segs; i++) { const t = i / segs, u = 1 - t; mid.push([u * u * a[0] + 2 * u * t * k[0] + t * t * c[0], u * u * a[1] + 2 * u * t * k[1] + t * t * c[1]]); }
+  const left = [], right = [];
+  mid.forEach((p, i) => {
+    const q0 = mid[Math.max(0, i - 1)], q1 = mid[Math.min(segs, i + 1)];
+    const dx = q1[0] - q0[0], dy = q1[1] - q0[1], n = Math.hypot(dx, dy) || 1, hw = (w0 + (w1 - w0) * (i / segs)) / 2;
+    left.push([p[0] - dy / n * hw, p[1] + dx / n * hw]); right.push([p[0] + dy / n * hw, p[1] - dx / n * hw]);
+  });
+  return [...left, ...right.reverse()];
+};
+// An outline in canvas units -> the box + 0–1 points of a "poly" piece, on the editor's own grid
+// (half-unit box, never smaller than MIN_PIECE_SIZE), so a drawn curve lands exactly where a hand
+// could then drag or resize it to.
+export const polyBoxFromPoints = (pts) => {
+  const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  return {
+    x: snapPiece(minX), y: snapPiece(minY),
+    w: Math.max(MIN_PIECE_SIZE, snapPiece(maxX - minX)), h: Math.max(MIN_PIECE_SIZE, snapPiece(maxY - minY)),
+    points: pts.map(([x, y]) => [+((x - minX) / (maxX - minX || 1)).toFixed(4), +((y - minY) / (maxY - minY || 1)).toFixed(4)]),
+  };
+};
+// The sizes the Object editor's "Default size" offers: every size the Level Creator places at
+// (LV_OBJ_SIZES), plus 9 and 11, which the 1–12 slider it replaced could set (never remove a choice).
+export const PROP_DEFAULT_SIZES = [...new Set([...LV_OBJ_SIZES, 9, 11])].sort((a, b) => a - b);
+// WHAT A HAND IN THIS EDITOR CAN MAKE — the check for an asset built by script (2026-10-09). Blake:
+// "make sure you don't cheat when making the asset". JSON written by an agent can hold things no
+// control here produces, and none of them show in the picture: a shape with no button, an outline
+// that does not fill its box, a twist finer than the Line tool's tenth of a degree, a brightness /
+// fade / glow between slider stops, a prop size or enemy Size or stat the controls cannot set. Lists
+// every one (empty = everything in it could have been made by hand). Run it over any asset you
+// build for him before delivering; a new kind of control means a new rule here.
+//
+// It deliberately does NOT demand the half-unit drag grid or the 3-unit corner-drag minimum:
+// scaling a GROUP (scalePieceGroup) legitimately gives any 3-decimal size down to
+// MIN_GROUP_PIECE_SIZE, and rotating one moves members off the grid. Measured on his save folder
+// when this was written: a grid rule flagged 152 of 244 assets, his own hand-drawn weapons among
+// them, and a check that calls his own work cheating would get his art "fixed". What it still
+// flags there is scripted work (off-stop brightness on agent-built props and animals) and Dress Bob
+// composites, which are skipped below because Dress Bob, not a hand, places their pieces.
+const onEditorStep = (v, step) => typeof v === "number" && isFinite(v) && Math.abs(v / step - Math.round(v / step)) < 1e-6;
+export const EDITOR_PIECE_KINDS = new Set([...SHAPE_LIST.map(([k]) => k), "poly", "text", "emoji"]);
+export const editorReachIssues = (asset) => {
+  if (!asset || typeof asset !== "object") return ["not an asset"];
+  const out = [];
+  const composed = asset.type === "character";   // a dressed look: Dress Bob fitted these pieces, not a hand
+  const checkPiece = (p, at) => {
+    if (!p || !EDITOR_PIECE_KINDS.has(p.kind)) { out.push(at + ": no button makes a \"" + (p && p.kind) + "\""); return; }
+    if (p.kind === "text" && p.font && !TEXT_FONTS.some(([css]) => css === p.font)) out.push(at + ": font " + p.font + " is not in the font picker");
+    if (composed) return;
+    for (const k of ["x", "y", "w", "h"]) if (typeof p[k] !== "number" || !isFinite(p[k])) out.push(at + ": " + k + " is not a number");
+    if (p.w < MIN_GROUP_PIECE_SIZE || p.h < MIN_GROUP_PIECE_SIZE) out.push(at + ": " + p.w + "×" + p.h + " is smaller than any block can get");
+    if (p.rot !== undefined && p.rot !== null && !onEditorStep(p.rot, 0.1)) out.push(at + ": rotation " + p.rot + "° is finer than a tenth of a degree");
+    const fx = p.fx || {};
+    if (fx.bright !== undefined && !(onEditorStep(fx.bright, 0.05) && fx.bright >= 0.3 - 1e-9 && fx.bright <= 2 + 1e-9)) out.push(at + ": brightness " + fx.bright + " is not a slider stop");
+    if (fx.opacity !== undefined && !(onEditorStep(fx.opacity, 0.05) && fx.opacity >= 0.1 - 1e-9 && fx.opacity <= 1 + 1e-9)) out.push(at + ": fade " + fx.opacity + " is not a slider stop");
+    if (fx.glow !== undefined && !(onEditorStep(fx.glow, 0.5) && fx.glow >= 0 && fx.glow <= 12)) out.push(at + ": glow " + fx.glow + " is not a slider stop");
+    if (p.kind === "poly" && (!Array.isArray(p.points) || p.points.length < 3 || p.points.some((q) => !Array.isArray(q) || !(q[0] >= 0 && q[0] <= 1 && q[1] >= 0 && q[1] <= 1)))) out.push(at + ": outline points must be 3+ fractions of the box");
+    // 🪣 Fill and 〰️ Curve both measure the box FROM the outline, so a drawn outline always touches
+    // all four sides of its box; dragging or resizing keeps that. An outline floating inside a
+    // bigger box (a sliver centred in a 3-unit box, say) is a box no tool draws.
+    else if (p.kind === "poly") {
+      const us = p.points.map((q) => q[0]), vs = p.points.map((q) => q[1]);
+      if (Math.min(...us) > 1e-3 || Math.max(...us) < 1 - 1e-3 || Math.min(...vs) > 1e-3 || Math.max(...vs) < 1 - 1e-3) out.push(at + ": outline does not reach the sides of its box");
+    }
+    if (p.limb && p.limb !== "arm" && p.limb !== "leg") out.push(at + ": animation flag " + p.limb + " has no button");
+  };
+  // every pose list wherever it lives: angles, a weapon's/enemy's states, a prop's frames, a fit's variants
+  const walk = (node, at) => {
+    if (Array.isArray(node)) { if (node.length && node.every((p) => p && typeof p === "object" && "kind" in p)) node.forEach((p, i) => checkPiece(p, at + "[" + i + "]")); return; }
+    if (node && typeof node === "object") for (const [k, v] of Object.entries(node)) walk(v, at + "." + k);
+  };
+  for (const root of ["angles", "states", "frames", "variants"]) if (asset[root]) walk(asset[root], root);
+  if (asset.type === "prop") {
+    if (!PROP_DEFAULT_SIZES.includes(asset.size)) out.push("size " + asset.size + " is not one the size picker offers");
+    if (asset.animFps !== undefined && !(onEditorStep(asset.animFps, 1) && asset.animFps >= 1 && asset.animFps <= 20)) out.push("anim speed " + asset.animFps + " is not a slider stop");
+  }
+  if (asset.type === "enemy") {
+    if (asset.scale !== undefined && !(onEditorStep(asset.scale, 0.1) && asset.scale >= 0.5 && asset.scale <= 4)) out.push("Size " + asset.scale + "× is not a slider stop");
+    for (const [s, v] of Object.entries(asset.stats || {})) if (!(onEditorStep(v, 1) && v >= 1 && v <= statSliderMax(asset.type, s))) out.push("stat " + s + " " + v + " is not a slider stop");
+    if (asset.hp !== undefined && !(onEditorStep(asset.hp, 1) && asset.hp >= 1)) out.push("HP " + asset.hp + " is not a whole number");
+    for (const [k, v] of Object.entries(asset.groundLine || {})) if (!(onEditorStep(v, 1) && v >= 0 && v <= H)) out.push("floor line " + k + " " + v + " is not a slider stop");
+    for (const [k, v] of Object.entries(asset.holdPoint || {})) if (!(v && onEditorStep(v.x, PIECE_STEP) && onEditorStep(v.y, PIECE_STEP))) out.push("hold point " + k + " is off the " + PIECE_STEP + "-unit grid");
+  }
+  return out;
+};
 export const levelShapeLabel = (shape) => ({
   rect: "square", circle: "circle", tri: "triangle", tri2: "half-triangle",
   topOutline: "top outline", vineWeb: "vine web", vine: "vine", ladder: "ladder", fence: "fence",
@@ -11108,9 +11223,10 @@ export default function AssetStudio() {
   const [eyedrop, setEyedrop] = useState(false); // eyedropper mode: next block clicked donates its color instead of being selected/picked up
   const [shapePicker, setShapePicker] = useState(false); // true while the "Shapes" picker (Square/Circle/Triangle/.../Star/...) is open
   const [artZoom, setArtZoom] = useState(1); // shrinks the design area within the fixed-size .art canvas, revealing space around it — 1 = design area fills the canvas, down to ARTZOOM_MIN
-  const [drawMode, setDrawMode] = useState(null);         // null | "line" | "fill" — which click-to-place tool is active on the .art canvas
+  const [drawMode, setDrawMode] = useState(null);         // null | "line" | "fill" | "curve" — which click-to-place tool is active on the .art canvas
   const [linePt1, setLinePt1] = useState(null);           // first clicked point while placing a line
-  const [fillPts, setFillPts] = useState([]);             // clicked points while outlining a Fill polygon
+  const [fillPts, setFillPts] = useState([]);             // clicked points while outlining a Fill polygon, or a Curve's start/bend/end
+  const [curveW, setCurveW] = useState([8, 3]);           // 〰️ Curve: thickness at the start and at the end, canvas units
   const [confirmDel, setConfirmDel] = useState(null); // asset id armed for deletion — second tap actually deletes
   const [niche, setNiche] = useState(false); // "Niche controls" modal (layer recovery from dressed looks)
   const [loadOpen, setLoadOpen] = useState(false); // Load browser modal open/closed
@@ -17052,6 +17168,13 @@ export default function AssetStudio() {
     setPieces((ps) => [...ps, piece]); selectOnly(piece.id); setFillPts([]); setDrawMode(null);
     flash("Filled shape added — drag/resize/rotate it like any other block.");
   };
+  // 〰️ Curve tool: the third click (END) bakes start / bend / end and the two thicknesses into one
+  // ordinary "poly" piece (curveBandPoints, polyBoxFromPoints). Creation-only, like Line and Fill.
+  const addCurve = (pts) => {
+    const band = curveBandPoints([pts[0].x, pts[0].y], [pts[1].x, pts[1].y], [pts[2].x, pts[2].y], curveW[0], curveW[1]);
+    const piece = { id: uid(), kind: "poly", ...polyBoxFromPoints(band), color: newColor, mirror: false, fx: { ...newFx } };
+    setPieces((ps) => [...ps, piece]); selectOnly(piece.id); setFillPts([]); setDrawMode(null);
+  };
   const cancelDraw = () => { setDrawMode(null); setLinePt1(null); setFillPts([]); };
   // Routes a click on the .art canvas to whichever draw tool is active, instead of the normal
   // "tap empty space to deselect" behavior — only intercepts while Line or Fill is actually on.
@@ -17063,6 +17186,9 @@ export default function AssetStudio() {
       else { addLine(linePt1, m); setLinePt1(null); setDrawMode(null); }
     } else if (drawMode === "fill") {
       setFillPts((pts) => [...pts, m]);
+    } else if (drawMode === "curve") {
+      const next = [...fillPts, m];
+      if (next.length >= 3) addCurve(next); else setFillPts(next);
     }
   };
   const duplicate = () => {
@@ -17784,17 +17910,7 @@ export default function AssetStudio() {
   // The cutter hole used to be a CSS mask-image built here (cutterMaskCss, until 2026-09-20). It is
   // an evenodd clip on each cut piece now — cutterHoleClips, next to pieceOriginPoint — because the
   // mask cost more than everything else in a playtest frame put together.
-  // Curated web-safe fonts — no external loading (network dependency / FOUC risk), just
-  // reasonably distinct built-in system fonts covering different vibes: clean sans, bold
-  // poster, classic serif, and a typewriter/vintage look (handy for period pieces).
-  const TEXT_FONTS = [
-    ["Arial, sans-serif", "Sans (Arial)"],
-    ["Georgia, 'Times New Roman', serif", "Serif (Georgia)"],
-    ["Impact, 'Arial Narrow', sans-serif", "Bold Poster (Impact)"],
-    ["'Courier New', monospace", "Typewriter (Courier)"],
-    ["'Trebuchet MS', sans-serif", "Rounded (Trebuchet)"],
-    ["'Brush Script MT', cursive", "Script (Brush)"],
-  ];
+  // TEXT_FONTS (the 🔤 font picker's list) lives at module level, beside SHAPE_LIST.
   const textInner = (p, outlineOnly) => {
     // Same auto-scaling trick as emojiInner (cqh = 1% of THIS block's own rendered height) —
     // the same piece renders in many differently-sized containers (editor canvas, Dress Bob,
@@ -23444,7 +23560,7 @@ export default function AssetStudio() {
               const hy = cy + dx0 * Math.sin(rot) + dy0 * Math.cos(rot);
               return <div onPointerDown={(e) => grabCorner(e, sel)} style={{ position: "absolute", left: `calc(${hx / W * 100}% - 9px)`, top: `calc(${hy / H * 100}% - 9px)`, width: "18px", height: "18px", background: "#4f7cf6", border: "2px solid #fff", borderRadius: "50%", cursor: "nwse-resize", boxSizing: "border-box", touchAction: "none" }} />;
             })()}
-            {drawMode === "fill" && fillPts.length > 0 && (
+            {(drawMode === "fill" || drawMode === "curve") && fillPts.length > 0 && (
               <svg className="drawpreview" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
                 <polyline points={fillPts.map((p) => `${p.x},${p.y}`).join(" ")} fill="none" stroke="#4f7cf6" strokeWidth="1.5" />
                 {fillPts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#4f7cf6" stroke="#fff" strokeWidth="1" />)}
@@ -23924,6 +24040,7 @@ export default function AssetStudio() {
               <button onClick={() => setShapePicker(true)}><b>🔷</b>Shapes…</button>
               <button className={drawMode === "line" ? "on" : ""} onClick={() => { setDrawMode(drawMode === "line" ? null : "line"); setLinePt1(null); setFillPts([]); }} ><b>📏</b>Line</button>
               <button className={drawMode === "fill" ? "on" : ""} onClick={() => { setDrawMode(drawMode === "fill" ? null : "fill"); setLinePt1(null); setFillPts([]); }}><b>🪣</b>Fill</button>
+              <button className={drawMode === "curve" ? "on" : ""} onClick={() => { setDrawMode(drawMode === "curve" ? null : "curve"); setLinePt1(null); setFillPts([]); }}><b>〰️</b>Curve</button>
               {/* No "Cutter" entry here: it only ever made a circle cutter, while the 🕳️ Cutter
                   checkbox on a selected block turns ANY shape into one. Two doors to the same
                   feature, one of them worse — so the checkbox is the only one. */}
@@ -23931,6 +24048,13 @@ export default function AssetStudio() {
               <button onClick={addText} ><b>🔤</b>Text</button>
             </div>
             {drawMode === "line" && <p className="tip">📏 Line: {linePt1 ? "click the END point." : "click the START point."} <button className="ltbtn" onClick={cancelDraw}>✕ Cancel</button></p>}
+            {drawMode === "curve" && (
+              <div className="tip">
+                <p>〰️ Curve: click the {["START", "BEND", "END"][Math.min(2, fillPts.length)]} point. <button className="ltbtn" onClick={cancelDraw}>✕ Cancel</button></p>
+                <label className="slider">Start<input type="range" min="1" max="40" step="0.5" value={curveW[0]} onChange={(e) => setCurveW([+e.target.value, curveW[1]])} /><span className="hint2" style={{ marginLeft: 6 }}>{curveW[0]}</span></label>
+                <label className="slider">End<input type="range" min="1" max="40" step="0.5" value={curveW[1]} onChange={(e) => setCurveW([curveW[0], +e.target.value])} /><span className="hint2" style={{ marginLeft: 6 }}>{curveW[1]}</span></label>
+              </div>
+            )}
             {drawMode === "fill" && <p className="tip">🪣 Fill: click points to outline the shape ({fillPts.length} so far). <button className="ltbtn" onClick={finishFill} disabled={fillPts.length < 3}>✓ Finish</button> <button className="ltbtn" onClick={cancelDraw}>✕ Cancel</button></p>}
             {/* The palette on the ADD side too, not just on a selected block. Building a scene is
                 dozens of blocks in a handful of period colours, and setting the colour BEFORE the
@@ -23975,7 +24099,12 @@ export default function AssetStudio() {
           {asset.type === "prop" && (
             <div className="card">
               <div className="ct">Object settings</div>
-              <label className="slider">Default size<input type="range" min="1" max="12" step="1" value={asset.size ?? 2} onChange={(e) => setAsset((a) => ({ ...a, size: +e.target.value }))} /><span className="hint2" style={{ marginLeft: 6 }}>{asset.size ?? 2}×{asset.size ?? 2}</span></label>
+              {/* Buttons for PROP_DEFAULT_SIZES: every size the Level Creator places at, plus the old
+                  slider's 9 and 11. This was a 1–12 slider, so the Farm's silo (40), windmill (30)
+                  and fence (16) carried defaults this card could not set — a value only a script
+                  could write (editorReachIssues). */}
+              <div className="ct2">Default size</div>
+              <div className="seg sizeseg">{PROP_DEFAULT_SIZES.map((n) => <button key={n} className={(asset.size ?? 2) === n ? "on" : ""} onClick={() => setAsset((a) => ({ ...a, size: n }))}>{n}×</button>)}</div>
               {(asset.frames || []).length > 1 && (
                 <label className="slider">Anim speed<input type="range" min="1" max="20" step="1" value={asset.animFps ?? 6} onChange={(e) => setAsset((a) => ({ ...a, animFps: +e.target.value }))} /><span className="hint2" style={{ marginLeft: 6 }}>{asset.animFps ?? 6} fps</span></label>
               )}

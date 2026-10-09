@@ -113,6 +113,15 @@ Practical consequences:
 
 Optional: `"rot": 28` (degrees), `"outline": true`.
 
+**Only use what my editor can make. Anything else is cheating.**
+* `kind` from the list above, or `"poly"` (my 🪣 Fill and 〰️ Curve tools) with `"points"` as 0–1
+  fractions of the piece's box. Fill and Curve draw the box FROM the outline, so the points must
+  touch all four sides: some x = 0, some x = 1, some y = 0, some y = 1. Keep polys to a handful of
+  points; a curved tail or neck is one Curve stroke (start, middle, end, two thicknesses).
+* `rot` in tenths of a degree at most. `fx.bright` 0.3–2 in steps of 0.05; `fx.opacity` 0.1–1 in
+  steps of 0.05; `fx.glow` 0–12 in steps of 0.5.
+* Easiest way to stay honest: positions and sizes in half units (68, 68.5), nothing under 3 units.
+
 **`"mirror": true` duplicates the piece reflected about x = 100.** A piece at x=68 w=12 (68–80)
 also appears at 120–132. Use it for anything symmetrical — one piece instead of two, and it stays
 symmetrical if I edit it later. It is useless for a piece already centred on 100.
@@ -176,6 +185,7 @@ the one you copied.
 6. Two or three colours total, no gradient tiers.
 7. Crouch really is shifted down, not a copy of Front at the same y.
 8. It's valid JSON and the top level has `assetBuilderBackup`, `exportedAt` and `assets`.
+9. Every piece is one my editor can make (section 4): no invented kinds, no off-step brightness.
 
 ---
 
