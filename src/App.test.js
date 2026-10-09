@@ -12224,3 +12224,39 @@ describe("walking off a ledge falls into the hole instead of being caught on its
     expect(shouldStepAssist(1, 6, false, false, true)).toBe(false);
   });
 });
+
+describe("ladder climb limbs", () => {
+  const { applyLimbSwing, LADDER_ARM_REACH, LADDER_ARM_REACH_UP } = require("./App");
+  const arm = { id: "a", x: 20, y: 60, w: 16, h: 50, role: "weaponArm" };
+  const twin = { ...arm, id: "a_m", x: 164, _m: true };
+  const legL = { id: "l", x: 70, y: 160, w: 24, h: 80, limb: "leg" };
+  const legR = { id: "r", x: 106, y: 160, w: 24, h: 80, limb: "leg" };
+  const pantL = { id: "pl", x: 66, y: 155, w: 32, h: 60, limb: "leg", _slot: "pants" };
+  const pantR = { id: "pr", x: 102, y: 155, w: 32, h: 60, limb: "leg", _slot: "pants" };
+  const legIds = new Set(["l", "r", "pl", "pr"]);
+
+  test("a ladder hand never rises more than LADDER_ARM_REACH_UP off its shoulder", () => {
+    for (const s of [-1, -0.5, 0.5, 1]) {
+      const out = applyLimbSwing([arm, twin], new Set(), new Set(), 0, { alternate: true, armReach: s * LADDER_ARM_REACH, armReachUp: LADDER_ARM_REACH_UP });
+      for (const b of out) {
+        const orig = b.id === "a" ? arm : twin;
+        expect(orig.y - b.y).toBeLessThanOrEqual(LADDER_ARM_REACH_UP + 1e-9);
+      }
+      // ...and one hand still pumps down each stroke
+      expect(Math.max(...out.map((b) => b.y - (b.id === "a" ? arm : twin).y))).toBeCloseTo(Math.abs(s) * LADDER_ARM_REACH);
+    }
+  });
+
+  test("without armReachUp the pump is symmetric (top-down walk untouched)", () => {
+    const out = applyLimbSwing([arm, twin], new Set(), new Set(), 0, { alternate: true, armReach: 5 });
+    expect(out.map((b) => b.y - arm.y).sort((p, q) => p - q)).toEqual([-5, 5]);
+  });
+
+  test("a climbing unit's pants step with the leg under them, never rotate", () => {
+    const out = applyLimbSwing([legL, legR, pantL, pantR], legIds, new Set(), 0, { alternate: true, legLift: 8 });
+    const by = Object.fromEntries(out.map((b) => [b.id, b]));
+    expect(by.pl.y - pantL.y).toBe(by.l.y - legL.y);
+    expect(by.pr.y - pantR.y).toBe(by.r.y - legR.y);
+    for (const b of out) expect(b.rot || 0).toBe(0);
+  });
+});

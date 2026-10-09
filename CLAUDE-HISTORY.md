@@ -3486,3 +3486,13 @@ off at once on unlock. Every play, heard or not, lands in `bobAudio.trace()`
    `removed.sounds` was set in the file and both local lists. It stayed deleted after a plain reload,
    after the project file was put back with the sound in it and no tombstone, and after localStorage
    and `bobAssetStudio` were wiped with that file still offering it.
+
+**LADDER ARMS FLOATING + CLIMBING UNITS' PANTS (2026-10-08).** Blake: "The players arm on a ladder can go
+too much up and down to look like his arms are floating. Enemy NPC pants does not properly line up."
+Arms: the ladder pumped every arm piece ±10px vertically (armReach) while it pointed straight up
+from the shoulder, so the up stroke lifted the shoulder end 10px clear of the body. Now 6px down and
+at most 1.5px up (armReachUp); the top-down walk still pumps symmetrically, its arms hang down.
+Pants: a climbing unit is `walking` (a climb step counts), so the render took the WALK branch: a
+side-on hip rotation plus addBackLeg, drawn on its Back pose. Rotation from behind only splays the
+leg, and a pant twin on the far side counter-rotates against the leg under it. A climbing unit now
+gets the player's ladder step (alternate + legLift) and a hanging one keeps its legs as drawn.

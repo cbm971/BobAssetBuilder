@@ -5670,6 +5670,9 @@ export const legChain = (legs) => {
   }
   return chain;
 };
+// The ladder's hand pump (applyLimbSwing's armReach/armReachUp): px down, and the most px up.
+export const LADDER_ARM_REACH = 6;
+export const LADDER_ARM_REACH_UP = 1.5;
 export const applyLimbSwing = (blocks, legIds, armIds, swing, opts) => {
   const o = opts || {};
   const trueLegs = blocks.filter((b) => legIds.has(b.id) && !b._isShoe);
@@ -5733,7 +5736,13 @@ export const applyLimbSwing = (blocks, legIds, armIds, swing, opts) => {
     // Climb arm reach (o.armReach): hands pump vertically, alternating sides like rungs —
     // a translation, not a rotation, and it includes the weapon arm (which the climb pose
     // points upward) so the whole reach reads as actually climbing.
-    if (o.armReach && (b.role === "weaponArm" || armIds.has(b.id))) { const a = b.role === "weaponArm" ? b : (nearestArm(b) || b); return { ...b, y: b.y + armSide(a) * o.armReach }; }
+    // o.armReachUp caps how far an arm may rise ABOVE where it's drawn. On a ladder the arms point
+    // straight up from the shoulder, so a downward pump just sinks the shoulder end into the torso
+    // (invisible), but an upward one lifts it clear of the shoulder: at ±10 the raised arm hung
+    // 10px over the body with a gap under it. Blake: "the players arm on a ladder can go too much
+    // up and down to look like his arms are floating." Capped, the pump still alternates (one hand
+    // drops as the other holds) and nothing ever leaves the shoulder.
+    if (o.armReach && (b.role === "weaponArm" || armIds.has(b.id))) { const a = b.role === "weaponArm" ? b : (nearestArm(b) || b); const dy = armSide(a) * o.armReach; return { ...b, y: b.y + (o.armReachUp != null ? Math.max(dy, -o.armReachUp) : dy) }; }
     if (b.role === "weaponArm" || armIds.has(b.id)) return b; // clothing/equipment over the arm: only moves when the arm itself does (see the weaponArm-rotation call sites in the render section, which now also cover armIds)
     if (legIds.has(b.id)) {
       if (stray.has(b.id)) return b; // leg-flagged, but detached from the leg — don't swing torso
@@ -21553,7 +21562,7 @@ export default function AssetStudio() {
                     const swing = Math.sin(p.walkPhase || 0) * 22; // alternate limbs like scaling a ladder
                     // alternate: each piece swings by which SIDE it's on (so pants always match the
                     // leg under them); armReach: arms pump up/down alternately instead of rotating.
-                    blocks = applyLimbSwing(blocks, legIds, armIds, swing, { alternate: true, armReach: Math.sin(p.walkPhase || 0) * 10, legLift: Math.sin(p.walkPhase || 0) * 8 });
+                    blocks = applyLimbSwing(blocks, legIds, armIds, swing, { alternate: true, armReach: Math.sin(p.walkPhase || 0) * LADDER_ARM_REACH, armReachUp: LADDER_ARM_REACH_UP, legLift: Math.sin(p.walkPhase || 0) * 8 });
                   } else if (blocks && p.climbing) {
                     // Monkey bars / cliff ledge: a hang, not a climb — both arms forced straight up
                     // to the grip. The legs get a slow pendulum sway rather than the ladder's
@@ -22145,6 +22154,18 @@ export default function AssetStudio() {
                   // (stompLegBlocks), forward read off which way this art was drawn.
                   if (ep && ep.stomp && !eUseAtkPose) {
                     eBlocks = stompLegBlocks(eBlocks, stompLift(ep.stomp.t, ep.stomp.dur), playerArtFacesRight(ea) ? 1 : -1);
+                  } else if (ep && ep.climbing && !eUseAtkPose) {
+                    // 🪜 A CLIMBING unit's legs move as yours do on the same climb. It is `walking`
+                    // while it climbs (a climb step counts as a step, so the limbs cycle), and that
+                    // used to send it down the walk branch below: a side-on hip swing plus an added
+                    // back leg, drawn on its BACK pose. A rotation from behind only splays the leg,
+                    // and a pant leg on the far side counter-rotates against the leg under it, so the
+                    // pants slid off the legs every rung. Blake: "Enemy NPC pants does not properly
+                    // line up." Now a ladder STEPS (alternate + legLift, the player's ladder branch)
+                    // and bars/a ledge leave the legs hanging as drawn. A step is a translation, so
+                    // every piece over a leg moves by the same amount. Arms are left out (empty set): the arm branches
+                    // below own them.
+                    if (ep.climbing === "ladder") eBlocks = applyLimbSwing(eBlocks, identifyLimbs(eBlocks).legIds, new Set(), 0, { alternate: true, legLift: Math.sin(ep.walkPhase || 0) * 8 });
                   } else if (ep && ep.walking && !ducking && !eUseAtkPose) {
                     const { legIds, armIds } = identifyLimbs(eBlocks);
                     const eSwing = Math.sin(ep.walkPhase || 0) * 28;

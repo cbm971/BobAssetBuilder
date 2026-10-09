@@ -340,6 +340,10 @@ plus traps it does not cover:
     a DOM move.
   - "Stuttery" (frame pacing) and "low FPS" (load) are different bugs; ask which one he means. On
     his machine the frame cost is paint, not script.
+- **Limbs seen from behind (ladder, Back pose) move by TRANSLATION, never rotation.** A hip
+  rotation only splays a leg from behind, and a far-side pant twin counter-rotates off the leg.
+  Units climbing take the player's ladder step (`legLift`), not the walk swing. Raised ladder arms
+  may drop but not rise (`LADDER_ARM_REACH_UP`), or they float off the shoulder.
 - **The CSS sheets are JS template literals.** A backtick in a CSS comment breaks the build at a
   line far from the cause.
 - A helper that two blocks of the play loop both call belongs at loop level. A `const` in one block
