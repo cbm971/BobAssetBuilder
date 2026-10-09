@@ -3361,3 +3361,128 @@ fix and a feature seem to conflict, narrow the fix until they don't.
   the level. The effect card shows the same `effectBrief` line as the pickup callout, not
   the catalog's long `blurb` (that is now only the ＋ Add button's hover title). Reasoning goes
   in a code comment or a `title` tooltip, never in the DOM.
+
+## Sound (2026-10-08) — the audio system, and why the audio is a file
+
+Blake asked for the game's first audio. There was none at all before this: no `new Audio`, no
+AudioContext and no sound files. What shipped:
+- a 🔊 Sounds screen (upload wav/mp3/ogg, ▶ preview, rename, a 📂 folder through `groupByCategory`,
+  🗑);
+- Basic sounds, one per `SOUND_EVENTS` entry: jump, land, punch, hurt, death, pickup, door, menu click;
+- per-asset sounds on the weapon, throwable and enemy editors (`ASSET_SOUND_SLOTS`);
+- one music track that loops during play, with a 🎵 on/off toggle in the play header.
+
+The engine is `src/audio.js`, which has no React and no storage, because the game's own front end
+will play the same data.
+
+**The storage decision, with the numbers measured on 2026-10-08:**
+- The online save (`saves/library.json`) was 26.4 MB raw, 1.67 MB gzipped. Every copy downloads it
+  whole every time head.json changes, which is every save, at most once a minute. The committed
+  library.json was 24.1 MB raw, 1.48 MB gzipped.
+- Audio does not compress. The cost of each sound, inline as base64, added to every one of those
+  downloads:
+
+  | Inline as base64 | Base64 size | Added to every download |
+  |---|---|---|
+  | 8 SFX × 40 KB (mp3/ogg) | 0.41 MB | +0.31 MB |
+  | 8 SFX × 180 KB (1 s stereo WAV) | 1.83 MB | +1.38 MB |
+  | One 3-minute mp3 at 128 kbps | 3.66 MB | +2.76 MB |
+  | One 3-minute mp3 at 192 kbps | 5.49 MB | +4.14 MB |
+
+- Inline audio would also have been copied whole into his save folder's History on every rename,
+  because History keeps every version of a record.
+- So a sound RECORD (~200 B) names a **clip**: `<cyrb53 ×2, 28 hex>.<wav|mp3|ogg>`, the hash of its
+  own bytes. A clip is written once, never changes and never merges, and each copy fetches it once.
+- Cap: 10 MB per file. No re-encoding, so quality is exactly what he uploaded. A minutes-long WAV is
+  refused with "save it as mp3 or ogg".
+- Deleting a sound removes the record. The clip stays where it is (it may be shared, and a sweep may
+  not have seen the delete yet). Nothing reads an orphan, and the same file uploaded again is found
+  already there.
+
+**Where clips live and how they travel:**
+- **Browser:** IndexedDB only, key `clip:<name>`, value base64 STRING (a string because
+  `tools/read-chrome-leveldb.js` reads strings). Never localStorage: 5 MB in all, and `localRemoved`'s
+  synchronous delete list lives there. Never the host store: unknown limits, and audio filling it
+  would push records out of it.
+- **Dev server:** `asset-data/clips/<name>` with `GET /__clip` (list), `GET /__clip/<name>` and
+  `PUT /__clip/<name>`. setupProxy refuses bytes that do not hash to the name.
+- **Keeper:** `Saves\clips\<name>` with the same three routes. The sweep reads `clip:` keys out of
+  every swept copy's store (`libraryFromStore` → `lib.clips`) and writes the files BEFORE folding the
+  records. `reseed` copies `asset-data/clips`. `cloudSync` adds `clips/` to the `saves` branch,
+  takes clips from a foreign push first, and folds the clip list into the head hash only once there
+  is a clip, so this change alone did not make every copy re-download.
+- **Pages:** `publish.js` copies `asset-data/clips` into `build/clips`.
+- **A copy that lacks a clip** asks, in order: IndexedDB → `/__clip/<name>` → the 📁 folder →
+  `<cloud base>clips/<name>` → `<PUBLIC_URL>/clips/<name>`. Every answer is hashed before it is
+  believed (a dev server answers an unknown path with index.html). `clipStore.syncUp` (run by
+  `loadSounds`) pushes clips the server or folder lacks, the same job the bulk sync does for records.
+- **A StackBlitz upload reaches every copy like this:** its preview origin's IDB → the keeper's sweep
+  → `Saves\clips` + `Saves\sounds` → `saves` branch → a fresh copy fetches the clip from
+  raw.githubusercontent the first time it plays it.
+
+**Play-loop wiring.** Moments fire where they happen, through `sndMoment(asset, slot, basic, x, y)`
+and `sndEvent(basic, x, y)`:
+- jumps: 4 player sites, 5 unit sites;
+- the player's punch, swing, fire and throw, and a unit's attack, swing, fire and throw;
+- weapon hits: `pr.snd` on every projectile, `detonate`, and the melee swing tests;
+- thrown landings, doors (the two `p.transitioning` sets), pickups (`showPickup`), and menu clicks
+  (a dialogue answer, a shop buy).
+
+**Hurt, death and landing are a per-frame diff, not hooks.** `soundFrame` runs just before
+`updateCamera`, because a unit can be hurt from fourteen places:
+- **Units** are followed by `uid`, which survives a gate handoff.
+- **HP** never written counts as max HP.
+- **Hurt** has a 350 ms gap per body, so fire ticks are not a drone.
+- **Landing** needs 24 frames in the air: a jump is about 64, a one-cell step about 18.
+- **Player death** plays from `playerDefeated` and clears the HP memory, so the respawn's HP is not a
+  "hurt".
+
+Hearing: `updateCamera` writes the view rectangle into the engine. A sound inside it plays at full
+volume, fading to silence half a view past the edge.
+
+**Noise cap.** At most 3 copies of one sound. **The 4th CUTS the oldest; it is not dropped.** The
+first drive used drop-the-newest, and with one clip on everything the kill shot's three gunshots
+silenced the death. A machine gun with a 1 s gunshot would have lost 7 shots in 10. The same sound
+within 50 ms is merged into one, and there is a 24-voice ceiling. A sound fired before the first
+click or key is NOT started: a source started on a suspended context is queued, and they would all go
+off at once on unlock. Every play, heard or not, lands in `bobAudio.trace()`
+(`window.__bobAudio`).
+
+**Traps hit while building it:**
+- `import { x } from "./saveKeeperCore"` in App.js fails the build ("not exported", then "no
+  default export"): babel adds helper imports to a CommonJS file in src/, which makes webpack treat it
+  as an ES module with no exports. So `clipHash` is duplicated in audio.js, and sound.test.js holds
+  the two equal.
+- jsdom has no `TextEncoder`. Use `Buffer` in test fakes.
+- `indexedDB.deleteDatabase` from the app's own page reports "blocked". Run it from
+  `/asset-manifest.json`, which does not boot the app.
+- The pane's AudioContext was "running" with no real click, so real `AudioBufferSourceNode.start`
+  calls could be counted there. That will not always be true; read `trace().why === "locked"`.
+
+**Verification recipe that worked (2026-10-08):**
+1. Fake `window.storage` (get/set/list, no delete) in `public/index.html` behind `?fakehost=1`.
+   Upload a WAV generated in the page through the real file input (DataTransfer). Assign it to Jump
+   on the board and to the M16's Fire, then 💾 Save the weapon. Play Trailor Park M1 as Army Bob.
+   Wrap `AudioBufferSourceNode.prototype.start` to count real starts. Space → a `jump` row and a
+   0.3 s start; `j` → `fire` rows with asset `yykzkdg`. Teleport next to the M1 gang, top up HP from
+   `__onFrame`, shoot: units' `attack`, `hurt` and `death` rows. A `jump` at x−4000 was not played;
+   one just past the edge played at 0.75.
+2. Fresh origin 127.0.0.2: the sound, its 📂 folder, every board assignment, the music pick and
+   the M16's `sounds.fire` came back, and the clip was fetched from `/__clip` into IDB on first ▶.
+3. A test keeper: `BOB_HOME`/`BOB_SAVES` scratch, `BOB_PORT=47099`, `BOB_NO_SWEEP=1`,
+   `BOB_NO_UPDATE=1`, `BOB_CLOUD_REMOTE=<local bare repo>`. It seeded the clip, then the records,
+   served `/__clip`, and pushed `clips/<name>`, byte-identical, plus library.json to the bare repo.
+   That checkout, served from `public/__cloud/` with `localStorage.bobCloudSaves` pointed at it on
+   origin 127.0.0.3, and with `asset-data/clips` moved away: `/__clip/<name>` 404 →
+   `/__cloud/clips/<name>` → hashed, kept, played.
+4. **The sweep, against a real Chromium store:** headless Edge with a throwaway
+   `--user-data-dir`, driven over CDP by Node's built-in WebSocket
+   (`scratchpad/edge-sweep-test.js`). Upload through the app, close Edge, copy its
+   `IndexedDB/http_127.0.0.1_<port>.indexeddb.{leveldb,blob}`, run `readIdbRecords` +
+   `libraryFromStore`. A 22 KB clip and a 1.3 MB one (stored as a 1,764,081-byte file under
+   `.blob/1/00/`) both came back hashing to their names. The Browser pane keeps no on-disk profile, so
+   it cannot be used for this.
+5. Delete with the fake host store: the host record became `{"__deleted":1}`, IDB was cleared, and
+   `removed.sounds` was set in the file and both local lists. It stayed deleted after a plain reload,
+   after the project file was put back with the sound in it and no tombstone, and after localStorage
+   and `bobAssetStudio` were wiped with that file still offering it.

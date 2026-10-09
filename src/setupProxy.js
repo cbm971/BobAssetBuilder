@@ -24,7 +24,15 @@ const SNAP_KEEP = 5;
 // the merge, the delete and the response all walk this list. The reason it is a list at all: each
 // time a kind was handled by hand, one of them got missed, and the kind that got missed is the one
 // that was lost. `assets` keeps its special "never blank this" guard below; the rest simply merge.
-const KINDS = ["assets", "levels", "stamps", "textures", "backgrounds", "dialogues"];
+const KINDS = ["assets", "levels", "stamps", "textures", "backgrounds", "dialogues", "sounds"];
+// The audio of a sound (a "clip") is a FILE here, not part of library.json: asset-data/clips/<hash>.<ext>.
+// Named by a hash of its bytes (saveKeeperCore.clipHash), so it is written once and never merged.
+// Why it is not inside the record is written up beside clipHash.
+const CLIP_DIR = path.join(DATA_DIR, "clips");
+const CLIP_MAX_BYTES = 10 * 1024 * 1024; // the studio refuses bigger (audio.js CLIP_MAX_BYTES); this is the server's own guard
+const CLIP_TYPES = { wav: "audio/wav", mp3: "audio/mpeg", ogg: "audio/ogg" };
+let clipCore = null;
+try { clipCore = require("./saveKeeperCore"); } catch { /* no clip storage, the records still work */ }
 
 const emptyLibrary = () => {
   const out = { savedAt: null };
@@ -169,7 +177,55 @@ const readJsonBody = (req) => new Promise((resolve) => {
   req.on("error", () => resolve(null));
 });
 
+// The raw bytes of a PUT, capped — a clip is binary, not JSON.
+const readRawBody = (req, max) => new Promise((resolve) => {
+  const chunks = []; let n = 0, over = false;
+  req.on("data", (c) => { n += c.length; if (n > max) { over = true; chunks.length = 0; } else if (!over) chunks.push(c); });
+  req.on("end", () => resolve(over ? null : Buffer.concat(chunks)));
+  req.on("error", () => resolve(null));
+});
+// GET /__clip            -> ["<name>", …] the clips this project holds (the studio pushes up what is missing)
+// GET /__clip/<name>     -> the file, 404 if it is not here
+// PUT /__clip/<name>     -> store it, ONLY if the bytes hash to the name; a file already here is left alone
+const handleClip = async (req, res) => {
+  const name = decodeURIComponent((req.url || "").replace(/^\/+/, "").split("?")[0]);
+  if (!name) {
+    let names = [];
+    try { names = fs.readdirSync(CLIP_DIR).filter((f) => clipCore.clipNameOk(f)); } catch { /* none yet */ }
+    res.setHeader("Content-Type", "application/json");
+    return res.end(JSON.stringify(names));
+  }
+  if (!clipCore.clipNameOk(name)) { res.statusCode = 400; return res.end(); }
+  const file = path.join(CLIP_DIR, name);
+  if (req.method === "GET" || req.method === "HEAD") {
+    if (!fs.existsSync(file)) { res.statusCode = 404; return res.end(); }
+    res.setHeader("Content-Type", CLIP_TYPES[name.split(".").pop()] || "application/octet-stream");
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable"); // a name is its content: it never changes
+    return req.method === "HEAD" ? res.end() : res.end(fs.readFileSync(file));
+  }
+  if (req.method === "PUT" || req.method === "POST") {
+    const bytes = await readRawBody(req, CLIP_MAX_BYTES);
+    res.setHeader("Content-Type", "application/json");
+    if (!bytes || !clipCore.clipMatches(name, bytes)) { res.statusCode = 400; return res.end(JSON.stringify({ ok: false, error: bytes ? "bytes do not match the name" : "too big" })); }
+    if (!fs.existsSync(file)) {
+      fs.mkdirSync(CLIP_DIR, { recursive: true });
+      const tmp = file + ".tmp";
+      fs.writeFileSync(tmp, bytes);
+      fs.renameSync(tmp, file);
+    }
+    return res.end(JSON.stringify({ ok: true }));
+  }
+  res.statusCode = 405; return res.end();
+};
+
 module.exports = function (app) {
+  try {
+    if (clipCore) {
+      app.use("/__clip", async (req, res) => {
+        try { await handleClip(req, res); } catch (e) { try { res.statusCode = 500; res.end(JSON.stringify({ ok: false, error: String(e && e.message) })); } catch { /* socket gone */ } }
+      });
+    }
+  } catch (e) { console.warn("[Bob] sound files disabled (" + (e && e.message) + ")"); }
   try {
     app.use("/__library", async (req, res, next) => {
       try {

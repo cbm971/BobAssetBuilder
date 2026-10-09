@@ -210,6 +210,22 @@ class SaveFolder {
     return { bad };
   }
   count() { return KINDS.reduce((n, k) => n + ((this.lib && this.lib[k]) || []).length, 0); }
+  // SOUND FILES (clips): Saves\clips\<hash>.<ext>, beside the records and never inside one — see
+  // clipHash in saveKeeperCore.js for why. Named by their own bytes, so a clip is written once and
+  // never replaced, merged or versioned: History has nothing to keep for it. A clip no record names
+  // any more (its sound was deleted) is left where it is; it is never read again, and the same file
+  // uploaded later is simply found already here.
+  clipDir() { return path.join(this.dir, "clips"); }
+  clipNames() { try { return fs.readdirSync(this.clipDir()).filter((f) => core.clipNameOk(f)); } catch { return []; } }
+  hasClip(name) { return core.clipNameOk(name) && fs.existsSync(path.join(this.clipDir(), name)); }
+  readClip(name) { try { const b = fs.readFileSync(path.join(this.clipDir(), name)); return core.clipMatches(name, b) ? b : null; } catch { return null; } }
+  // Store one, only if its bytes really are what the name says. Returns true when it was new.
+  async putClip(name, bytes) {
+    if (this.hasClip(name) || !core.clipMatches(name, bytes)) return false;
+    await writeAtomic(path.join(this.clipDir(), name), bytes);
+    if (this.onChange) { try { this.onChange(); } catch { /* publishing must never fail a save */ } }
+    return true;
+  }
   // Make `next` (project-file shape) the folder's content. Only what changed is written; every
   // new current version goes to History first; a record leaving the folder is only ever removed
   // AFTER History holds it.
@@ -418,6 +434,14 @@ const sweep = async (folder) => {
       finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* temp */ } }
       if (!entries) continue;
       const lib = core.libraryFromStore(entries);
+      // Its sound files first, so no record ever reaches the folder (or the online copy) ahead of
+      // the audio it names. Base64 in the store; a file whose bytes do not match its name is skipped.
+      let clipsIn = 0;
+      for (const [name, b64] of Object.entries(lib.clips || {})) {
+        if (folder.hasClip(name)) continue;
+        try { if (await folder.putClip(name, Buffer.from(b64, "base64"))) clipsIn++; } catch (e) { log("sweep: sound file " + name + " from " + c.name + " not kept: " + e.message); }
+      }
+      if (clipsIn) log("sweep " + c.name + ": " + clipsIn + " sound file(s)");
       // Deletes: only ones made in that copy SINCE it was first seen. Its older deletion list may
       // name things he has re-made since; the first look records it as the starting point.
       const tombs = {};
@@ -494,6 +518,17 @@ const cloudSyncOnce = async (folder) => {
   else if (!/couldn't find remote ref/i.test(f.stderr)) { cloudNote("online copy: could not reach GitHub (" + gitWhy(f.stderr) + ") — trying again later; saves are safe in the folder"); return "fail"; }
   const st = state.cloud || (state.cloud = {});
   if (remote && remote !== st.sha) {
+    // Sound files someone else put online (another PC, an agent's recovery) come into the folder
+    // BEFORE the records that name them, the same order the sweep keeps.
+    const ls = await g(["ls-tree", "--name-only", CLOUD_REF, "clips/"]);
+    if (ls.status === 0) {
+      for (const line of ls.stdout.toString("utf8").split("\n")) {
+        const name = path.basename(line.trim());
+        if (!core.clipNameOk(name) || folder.hasClip(name)) continue;
+        const sh = await g(["show", CLOUD_REF + ":clips/" + name]);
+        if (sh.status === 0) { try { await folder.putClip(name, sh.stdout); } catch (e) { log("online copy: sound file " + name + " not kept: " + e.message); } }
+      }
+    }
     const show = await g(["show", CLOUD_REF + ":library.json"]);
     let lib = null;
     try { lib = JSON.parse(show.stdout.toString("utf8")); } catch { lib = null; }
@@ -503,7 +538,11 @@ const cloudSyncOnce = async (folder) => {
     }
   }
   const text = await folder.run(async () => core.cloudSnapshot(folder.lib));   // read between writes, never mid-commit
-  const hash = crypto.createHash("md5").update(text).digest("hex");
+  // The sound files are part of what is published, so a new one is a new snapshot even when no
+  // record changed. Only once there are any: with none, the hash is exactly what it always was, so
+  // this change alone does not make every copy download the library again.
+  const clipList = folder.clipNames().sort();
+  const hash = crypto.createHash("md5").update(clipList.length ? text + "\nclips:" + clipList.join(",") : text).digest("hex");
   if (remote && remote === st.sha && hash === st.hash) return "ok";            // nothing new either way
   if (remote) {
     let theirs = null;
@@ -519,7 +558,19 @@ const cloudSyncOnce = async (folder) => {
   const at = new Date().toISOString();
   fs.writeFileSync(path.join(CLOUD_DIR, "library.json"), text);
   fs.writeFileSync(path.join(CLOUD_DIR, "head.json"), JSON.stringify({ hash, savedAt: at, records }, null, 1));
-  await g(["add", "library.json", "head.json"]);
+  // clips/: every sound file the folder holds that the branch does not. Added, never rewritten (a
+  // name is its content), so a push carries only the new ones and the branch grows by each file once.
+  const cloudClips = path.join(CLOUD_DIR, "clips");
+  for (const name of clipList) {
+    const dst = path.join(cloudClips, name);
+    if (fs.existsSync(dst)) continue;
+    const b = folder.readClip(name);
+    if (!b) continue;
+    fs.mkdirSync(cloudClips, { recursive: true });
+    fs.writeFileSync(dst, b);
+  }
+  // Named only when it exists: `git add` of a missing path fails the WHOLE add, library.json included.
+  await g(["add", "library.json", "head.json", ...(fs.existsSync(cloudClips) ? ["clips"] : [])]);
   const c = await g(["commit", "-q", "-m", "Saves " + at + " (" + records + " things)"]);
   if (c.status !== 0) { cloudNote("online copy: commit failed: " + (c.stderr || c.stdout.toString()).trim()); return "fail"; }
   const p = await g(["push", "-q", "origin", CLOUD_BRANCH + ":refs/heads/" + CLOUD_BRANCH]);
@@ -617,7 +668,14 @@ const update = (tell) => {
 };
 
 // ---------- the server ----------
-const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".txt": "text/plain; charset=utf-8", ".woff2": "font/woff2", ".woff": "font/woff", ".map": "application/json" };
+const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".txt": "text/plain; charset=utf-8", ".woff2": "font/woff2", ".woff": "font/woff", ".map": "application/json", ".wav": "audio/wav", ".mp3": "audio/mpeg", ".ogg": "audio/ogg" };
+// A PUT's raw bytes (a sound file), capped. null when it was too big.
+const readRaw = (req, max) => new Promise((resolve) => {
+  const chunks = []; let n = 0, over = false;
+  req.on("data", (c) => { n += c.length; if (n > max) { over = true; chunks.length = 0; } else if (!over) chunks.push(c); });
+  req.on("end", () => resolve(over ? null : Buffer.concat(chunks)));
+  req.on("error", () => resolve(null));
+});
 const readBody = (req) => new Promise((resolve) => {
   const chunks = []; let n = 0;
   req.on("data", (c) => { n += c.length; if (n > 400 * 1024 * 1024) req.destroy(); else chunks.push(c); });
@@ -651,6 +709,15 @@ const serve = async () => {
   // folder lacks or a strictly newer save, and a repo delete counts once (state.repoRemoved).
   async function reseed() {
     if (problem) return;
+    // A sound an agent delivered comes with its file in asset-data/clips — that first, then the record.
+    try {
+      const repoClips = path.join(ROOT, "asset-data", "clips");
+      let n = 0;
+      for (const name of (fs.existsSync(repoClips) ? fs.readdirSync(repoClips) : [])) {
+        if (core.clipNameOk(name) && !folder.hasClip(name) && await folder.putClip(name, fs.readFileSync(path.join(repoClips, name)))) n++;
+      }
+      if (n) log("from the project file: " + n + " sound file(s)");
+    } catch (e) { log("reading the project's sound files failed: " + (e && e.message)); }
     try {
       const s = await folder.seedFromRepo(path.join(ROOT, "asset-data", "library.json"));
       if (s.take || s.deleted) log("from the project file: " + s.take + " new or newer, " + s.deleted + " deleted");
@@ -665,6 +732,27 @@ const serve = async () => {
       if (p === "/__keeper") {
         if (req.method === "POST" && url.searchParams.get("do") === "update") { const r = await update(); await reseed(); send(res, 200, { ...info(), build: r.build }); if (keeperRestart) setTimeout(() => keeperRestart(), 500); return; }
         return send(res, 200, info());
+      }
+      // Sound files, the dev server's protocol exactly (setupProxy handleClip): GET /__clip lists,
+      // GET /__clip/<name> serves, PUT /__clip/<name> stores one whose bytes match its name.
+      if (p === "/__clip" || p.startsWith("/__clip/")) {
+        if (problem || !folder.lib) return send(res, 503, { ok: false, error: problem || "not ready" });
+        const name = p.slice("/__clip/".length);
+        if (!name) return send(res, 200, folder.clipNames());
+        if (!core.clipNameOk(name)) return send(res, 400, { ok: false });
+        if (req.method === "GET" || req.method === "HEAD") {
+          const b = folder.readClip(name);
+          if (!b) return send(res, 404, { ok: false });
+          res.writeHead(200, { "Content-Type": TYPES["." + name.split(".").pop()] || "application/octet-stream", "Cache-Control": "public, max-age=31536000, immutable" });
+          return res.end(req.method === "HEAD" ? undefined : b);
+        }
+        if (req.method === "PUT" || req.method === "POST") {
+          const bytes = await readRaw(req, 10 * 1024 * 1024);
+          if (!bytes || !core.clipMatches(name, bytes)) return send(res, 400, { ok: false, error: bytes ? "bytes do not match the name" : "too big" });
+          await folder.putClip(name, bytes);
+          return send(res, 200, { ok: true });
+        }
+        return send(res, 405, { ok: false });
       }
       if (p === "/__library") {
         if (problem || !folder.lib) return send(res, 503, { ok: false, error: problem || "not ready" });

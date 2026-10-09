@@ -136,7 +136,8 @@ has never actually been gone; the bytes were always still on disk.** Never clear
 **Rules the code depends on (do not "tidy" them):**
 - **Every saved kind is wired five ways:** save up, restore down, delete up, export, and
   `restoreBackup`. The kinds are one list: `PROJECT_KINDS` (App.js) = `KINDS` (setupProxy.js) =
-  assets, levels, stamps, textures, backgrounds, dialogues. A test keeps the two lists identical.
+  `KINDS` (saveKeeperCore.js) = assets, levels, stamps, textures, backgrounds, dialogues, sounds.
+  Tests keep the lists identical.
 - Deleting is the only operation allowed to shrink the record; everything else merges by id. A
   delete must call `projectLibrary.forget(kind, ids)`. Bulk syncs never pass `revive`; a deliberate
   save does.
@@ -243,6 +244,29 @@ plus traps it does not cover:
   (`heldShotPoint`), for the player and units alike.
 - Weapon flags live flat on the asset. A new one needs a `newAsset` default, a `migrate` default
   and an editor control.
+
+## Sound
+
+- **`src/audio.js` is the game's, not the studio's.** It holds the engine and the rules, with no
+  React and no storage; the studio hands it `loadClip`. The game's own front end will use it as it
+  is, so keep studio code out of it.
+- What plays is `resolveSound`: the asset's own slot (`asset.sounds[slot]`), else the board's basic
+  sound, else silence. A slot naming a deleted sound counts as empty. A new everyday moment is one
+  `SOUND_EVENTS` entry; a new per-asset moment is one `ASSET_SOUND_SLOTS` entry. The UI follows.
+- **Sounds are the seventh saved kind.** A record is `{ id, type:"sound", name, category, clip,
+  bytes, dur }`, and one board record (id `soundboard`) holds the basic sounds and the music pick.
+  **The audio is never in a record.** It is a clip file named by the hash of its bytes
+  (`<28 hex>.<wav|mp3|ogg>`). It lives in `asset-data/clips`, `Saves\clips`, `clips/` on `saves`,
+  and IndexedDB `clip:<name>` (base64; never localStorage or the host store). Every copy downloads
+  the online save on every change, so inline audio would ride every download.
+- The clip hash exists twice: `audio.js` for the bundle (babel strips a CommonJS file's exports)
+  and `saveKeeperCore.js` for Node. A test keeps them equal; change both.
+- Fire sounds where the thing happens in the play loop (`sndMoment` / `sndEvent`), never from the
+  render. Hurt, death and landing come from `soundFrame`'s per-frame diff, for the player and every
+  unit; do not add hurt sounds at damage sites. Units make the same calls the player does.
+- The dev server writes uploads into `asset-data/clips/`. Delete test clips before committing.
+- 10 MB per file; the answer to a bigger one is mp3/ogg, not a bigger cap. The 🎵 toggle is per copy
+  (localStorage `bobMusic`).
 
 ## Architecture — where things are
 
@@ -372,4 +396,6 @@ Grep it for the function or feature name. In order, it covers:
 - playtest performance, facing, following and ducking;
 - weapon flags, Melee Boost, aim assist, the stomp, and the animal recipes;
 - spawns and gear tags, stat sliders, creature damage, unit armour and ability parity;
-- crouch rendering and corpses.
+- crouch rendering and corpses;
+- sound: the storage measurements and why audio is a file, the clip ladder, the keeper's sweep of
+  clips, and the test rigs (fake host store, a test keeper with a local bare repo, headless Edge).

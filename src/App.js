@@ -1,5 +1,10 @@
 import React, { useRef, useEffect, useState, useMemo } from "react";
 import { flushSync } from "react-dom";
+// SOUND (2026-10-08). The engine and the rules for which sound plays live in their own file because
+// the game's own front end will play the same data without the studio — see src/audio.js. The clip
+// hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
+// identical by a test, so all three name a sound file the same way.
+import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches } from "./audio";
 
 /* ============================================================================
    BOB ASSET STUDIO  — HTML canvas (reliable emoji + easy dragging on mobile)
@@ -326,7 +331,7 @@ export const exportLevelCount = (browserIndex, projectLevels) => Math.max(
   Array.isArray(browserIndex) ? browserIndex.length : 0,
   Array.isArray(projectLevels) ? projectLevels.length : 0,
 );
-const PROJECT_KINDS = ["assets", "levels", "stamps", "textures", "backgrounds", "dialogues"];
+const PROJECT_KINDS = ["assets", "levels", "stamps", "textures", "backgrounds", "dialogues", "sounds"];
 // ---- A SAVE FOLDER ON HIS OWN DISK -------------------------------------------------------------
 // THE ONE STORE THAT DOES NOT DIE WITH THE ADDRESS. Everything above this line keeps records in the
 // browser's storage for the page's ORIGIN, and the project file only lives inside the running
@@ -502,6 +507,35 @@ export const diskLibrary = {
     for (const id of revive) have.delete(id);
     cur[kind] = [...have];
     await diskLibrary.writeJson(diskLibrary.handle, DISK_REMOVED_FILE, cur);
+  },
+  // SOUND FILES: clips/<hash>.<ext>, raw bytes — the very layout the keeper's Saves folder uses, so
+  // the two folders stay one format. A clip is named by its own bytes, so it is written once and a
+  // file already there is the same file.
+  putClip: async (name, bytes) => {
+    await diskLibrary.init();
+    if (!diskLibrary.ready() || !clipNameOk(name)) return false;
+    const dir = await diskLibrary.dir("clips", true);
+    if (!dir) return false;
+    try { await dir.getFileHandle(name); return true; } catch { /* not there yet */ }
+    const fh = await dir.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    try { await w.write(bytes); } finally { await w.close(); }
+    return true;
+  },
+  getClip: async (name) => {
+    await diskLibrary.init();
+    if (!diskLibrary.ready() || !clipNameOk(name)) return null;
+    const dir = await diskLibrary.dir("clips", false);
+    if (!dir) return null;
+    try { const f = await (await dir.getFileHandle(name)).getFile(); return new Uint8Array(await f.arrayBuffer()); } catch { return null; }
+  },
+  clipNames: async () => {
+    await diskLibrary.init();
+    if (!diskLibrary.ready()) return null;
+    const dir = await diskLibrary.dir("clips", false);
+    const out = [];
+    if (dir) { try { for await (const [name, entry] of dir.entries()) if (entry.kind === "file" && clipNameOk(name)) out.push(name); } catch { /* unreadable: nothing listed */ } }
+    return out;
   },
 };
 // ---- THE DESKTOP COPY: BOB OKAY ON HIS OWN PC, WITH ONE SAVE FOLDER (tools/bob-okay.js) -------
@@ -703,6 +737,105 @@ const projectLibrary = {
     return serverOk || diskOk;
   },
 };
+// ---- SOUND FILES: WHERE A CLIP'S BYTES COME FROM ------------------------------------------------
+// A sound record names its audio by `clip` ("<hash>.<ext>", clipHash in saveKeeperCore.js); the
+// bytes live BESIDE the records, never inside one. Measured 2026-10-08: the online save is 26.4 MB
+// (1.67 MB gzipped) and every copy downloads it whole on every change; audio does not compress, so
+// one 3-minute mp3 inside a record would have added 2.76 MB to every one of those downloads, and
+// every rename of it would have stored another full copy in his save folder's History. As files,
+// each copy fetches a clip ONCE, checks it against its name, and keeps it.
+//
+// The ladder, first answer wins: this browser (IndexedDB) → the dev server or the keeper
+// (/__clip; on the desktop copy that is his save folder) → the 📁 save folder → the online save
+// (clips/ on the `saves` branch, which is how a sound uploaded on StackBlitz reaches a fresh copy)
+// → the published seed beside the app. Every answer is hashed before it is believed: a dev server
+// hands index.html back for a path it does not know, and that must never be decoded as a jump.
+//
+// IndexedDB ONLY in the browser — never localStorage and never the host store. A clip may be 10 MB
+// and localStorage holds 5 MB in all, and it is where the synchronous delete list lives
+// (localRemoved), which a full localStorage would quietly stop recording. The host store's limits
+// are unknown, and audio filling it would push his RECORDS out to IndexedDB: a change of where his
+// saves live that nobody asked for. A clip lost from this browser is simply fetched again.
+const CLIP_KEY = "clip:";
+const bytesToB64 = (u8) => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+const b64ToBytes = (b64) => { const s = atob(b64); const u8 = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i); return u8; };
+export const clipStore = {
+  mem: new Map(),       // name -> bytes, this session
+  inflight: new Map(),  // name -> Promise, so ten units asking at once fetch once
+  local: async (name) => {
+    if (clipStore.mem.has(name)) return clipStore.mem.get(name);
+    const hit = await idbGet(CLIP_KEY + name);
+    if (hit.ok && typeof hit.value === "string") {
+      try { const b = b64ToBytes(hit.value); if (clipMatches(name, b)) { clipStore.mem.set(name, b); return b; } } catch { /* corrupt: fetch it again */ }
+    }
+    return null;
+  },
+  // Stored as a base64 STRING, not a Blob: the keeper's sweep reads other copies' stores straight
+  // off the disk (tools/read-chrome-leveldb.js), and it reads strings.
+  keep: async (name, bytes) => { clipStore.mem.set(name, bytes); const r = await idbSet(CLIP_KEY + name, bytesToB64(bytes)); return !!(r && r.ok); },
+  fetchFrom: async (url) => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok || /text\/html/i.test(res.headers.get("content-type") || "")) return null;
+      return new Uint8Array(await res.arrayBuffer());
+    } catch { return null; }
+  },
+  get: (name) => {
+    if (!clipNameOk(name)) return Promise.resolve(null);
+    if (clipStore.inflight.has(name)) return clipStore.inflight.get(name);
+    const p = (async () => {
+      const have = await clipStore.local(name);
+      if (have) return have;
+      const sources = [
+        () => clipStore.fetchFrom("/__clip/" + name),
+        async () => { try { return await diskLibrary.getClip(name); } catch { return null; } },
+        () => { const b = cloudLibrary.base(); return b ? clipStore.fetchFrom(b + "clips/" + name) : null; },
+        () => clipStore.fetchFrom((process.env.PUBLIC_URL || "") + "/clips/" + name),
+      ];
+      for (const src of sources) {
+        const b = await src();
+        if (b && clipMatches(name, b)) { await clipStore.keep(name, b); return b; }
+      }
+      return null;
+    })().finally(() => { clipStore.inflight.delete(name); });
+    clipStore.inflight.set(name, p);
+    return p;
+  },
+  push: async (name, bytes) => {
+    try { const res = await fetch("/__clip/" + name, { method: "PUT", headers: { "Content-Type": "application/octet-stream" }, body: bytes }); return res.ok; } catch { return false; }
+  },
+  // A new upload: this browser, the dev server or keeper, and the save folder.
+  put: async (name, bytes) => {
+    const okLocal = await clipStore.keep(name, bytes);
+    const okServer = await clipStore.push(name, bytes);
+    let okDisk = false;
+    try { okDisk = await diskLibrary.putClip(name, bytes); } catch { /* no folder connected */ }
+    return okLocal || okServer || okDisk;
+  },
+  // UP, after a load: every clip the records name that this browser holds and the server (or the
+  // folder) does not — a sound uploaded while the dev server or the keeper was away, or before the
+  // folder was connected. The same job the loaders' bulk sync does for records. One small list
+  // request when there is nothing to send.
+  syncUp: async (names) => {
+    const want = [...new Set((names || []).filter(clipNameOk))];
+    if (!want.length) return;
+    let server = null;
+    try { const res = await fetch("/__clip", { cache: "no-store" }); if (res.ok && /json/i.test(res.headers.get("content-type") || "")) server = new Set(await res.json()); } catch { /* no server */ }
+    let disk = null;
+    try { const n = await diskLibrary.clipNames(); if (n) disk = new Set(n); } catch { /* no folder */ }
+    for (const name of want) {
+      if ((!server || server.has(name)) && (!disk || disk.has(name))) continue;
+      const b = await clipStore.local(name);
+      if (!b) continue;
+      if (server && !server.has(name)) await clipStore.push(name, b);
+      if (disk && !disk.has(name)) { try { await diskLibrary.putClip(name, b); } catch { /* folder went away */ } }
+    }
+  },
+};
+// THE ENGINE, one per page (src/audio.js). Exposed as window.__bobAudio so its `trace()` can be read
+// from the console — that is how a test proves which clip a moment actually played.
+export const bobAudio = createAudioEngine({ loadClip: (name) => clipStore.get(name) });
+if (typeof window !== "undefined") window.__bobAudio = bobAudio;
 // WHICH IDS THE PROJECT FILE REMEMBERS AS DELETED, for one kind. `removed` is the tombstone list
 // setupProxy keeps (rememberRemoved), and reading it on the way IN is the only thing that stops a
 // delete coming back — the server refuses to re-add a remembered id, but that says nothing about
@@ -11041,6 +11174,17 @@ export default function AssetStudio() {
   const [dlgLoadOpen, setDlgLoadOpen] = useState(false);
   const [dlgConfirmDel, setDlgConfirmDel] = useState(null);
   const dlgBaseline = useRef("");                        // JSON of the tree as last saved/opened, so the editor can say when there is unsaved work
+  // 🔊 SOUNDS: the seventh saved kind (loadSounds). Every record of the kind — the sounds AND the one
+  // board record holding the basic sounds and the music pick (SOUND_BOARD_ID) — goes through the
+  // same five wires as every other kind; the screen splits them apart (soundLib / soundBoard).
+  const [soundRecs, setSoundRecs] = useState([]);
+  const [soundUploadCat, setSoundUploadCat] = useState("");          // the 📂 folder new uploads are filed under
+  const [soundConfirmDel, setSoundConfirmDel] = useState(null);      // sound id armed for deletion — tap 🗑 twice, like the asset shelf
+  const [soundBusy, setSoundBusy] = useState(false);
+  // 🎵 The music toggle. A PLAYER preference, like a volume slider in an options menu, so it is
+  // kept per copy of the game (localStorage), not in his saved library; the track itself is game
+  // data and lives on the board. Default on: picking a track is asking to hear it.
+  const [musicOn, setMusicOn] = useState(() => { try { return localStorage.getItem("bobMusic") !== "off"; } catch { return true; } });
   const [levelLoadOpen, setLevelLoadOpen] = useState(false);          // true while the "Load a level" picker modal is open
   const [confirmLvlDel, setConfirmLvlDel] = useState(null);           // level id armed for deletion — the same tap-again-to-confirm the asset shelf uses
   const [confirmBgDel, setConfirmBgDel] = useState(null);             // background id armed for deletion
@@ -11529,6 +11673,7 @@ export default function AssetStudio() {
   const [pickupBanner, setPickupBanner] = useState(null); // { n, name, rows, rank } | null
   const pickupSeq = useRef(0);
   const showPickup = (name, rows, rank) => {
+    bobAudio.event("pickup"); // 🔊 every pickup announces itself through here, so this is the one place it can sound
     const n = ++pickupSeq.current;
     setPickupBanner({ n, name: name || "", rows: rows || [], rank: ITEM_RANKS.includes(rank) ? rank : DEFAULT_ITEM_RANK });
     setTimeout(() => setPickupBanner((b) => (b && b.n === n ? null : b)), PICKUP_BANNER_MS);
@@ -11791,7 +11936,7 @@ export default function AssetStudio() {
     // to the folder FIRST, so the loaders below never read a file for something he deleted and a
     // fresh address can never bring it back out of the folder.
     try { const near = await localRemoved.hydrate(); for (const kind of Object.keys(near || {})) if (Array.isArray(near[kind]) && near[kind].length) await diskLibrary.forget(kind, near[kind]); } catch { /* best effort */ }
-    await Promise.all([loadLibrary(), loadStamps(), loadLevels(), loadTextures(), loadBgLib(), loadDialogues()]);
+    await Promise.all([loadLibrary(), loadStamps(), loadLevels(), loadTextures(), loadBgLib(), loadDialogues(), loadSounds()]);
     readLevelIndexCount().then(setLevelCount);
     flash("📁 Save folder \"" + diskLibrary.name + "\" connected ✓");
   };
@@ -11814,7 +11959,7 @@ export default function AssetStudio() {
     // refusal changes nothing about how the studio works.
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch { /* ignore */ }
     setHasStore(ok);
-    diskLibrary.init().finally(() => { loadLibrary(); loadStamps(); readLevelIndexCount().then(setLevelCount); });
+    diskLibrary.init().finally(() => { loadLibrary(); loadStamps(); loadSounds(); readLevelIndexCount().then(setLevelCount); }); // sounds at once too: a Playtest needs the basic sounds and the board even if 🔊 Sounds was never opened
     return () => { diskLibrary.listeners.delete(onFolder); };
   }, []); // eslint-disable-line
   // WHICH COPY IS THIS, and on the desktop copy, ONE TAB AT A TIME. Two tabs of the same copy share
@@ -11856,7 +12001,7 @@ export default function AssetStudio() {
   const playRef = useRef(false);
   playRef.current = play;
   const reloadAllRef = useRef(null);
-  reloadAllRef.current = () => Promise.all([loadLibrary(), loadStamps(), loadLevels(), loadTextures(), loadBgLib(), loadDialogues()]);
+  reloadAllRef.current = () => Promise.all([loadLibrary(), loadStamps(), loadLevels(), loadTextures(), loadBgLib(), loadDialogues(), loadSounds()]);
   useEffect(() => {
     cloudLibrary.onFail = () => flash("⚠ Couldn’t reach your online saves — this copy may be missing your newest work");
     let busy = false, live = true;
@@ -12155,6 +12300,7 @@ export default function AssetStudio() {
   };
   const buyFromShop = (item) => {
     if (!item) return;
+    bobAudio.event("menuClick"); // 🔊 the shelf button pressed (what you receive then plays its own pickup)
     const q = shopQuote(item);
     // Only a POSITIVE net can be unaffordable. A trade that pays you back is never blocked by an
     // empty wallet, which is the whole point of getting change.
@@ -12200,6 +12346,7 @@ export default function AssetStudio() {
     if (!t || talkTimer.current) return; // mid-highlight: ignore a second press rather than double-advancing
     const step = dialogueAdvance(t.dlg, t.nodeId, i);
     if (!step.ok) return;
+    bobAudio.event("menuClick"); // 🔊 an answer picked
     const opt = dialogueOptions(t.dlg.nodes[t.nodeId])[i];
     const commit = () => {
       clearTalkTimer();
@@ -12388,7 +12535,12 @@ export default function AssetStudio() {
       const k = 1 - Math.pow(1 - CAMERA_EASE, dtMul);
       cam.x += (t.x - cam.x) * k; cam.y += (t.y - cam.y) * k;
       if (Math.abs(t.x - cam.x) < 0.5) cam.x = t.x; if (Math.abs(t.y - cam.y) < 0.5) cam.y = t.y;
+      // What is on screen is what is heard: the engine fades sounds by their distance past this
+      // rectangle (soundGainAt). Mutated in place — one object for the whole session, not one a frame.
+      const sv = sndView; sv.x0 = cam.x; sv.y0 = cam.y; sv.x1 = cam.x + view.clientWidth; sv.y1 = cam.y + view.clientHeight;
+      bobAudio.setView(sv);
     };
+    const sndView = { x0: 0, y0: 0, x1: 0, y1: 0 };
     const basePlayerAsset = findA(playerId);
     const playerAsset = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
     const playtestWeapon = playtestWeaponId ? findA(playtestWeaponId) : null;
@@ -12481,6 +12633,56 @@ export default function AssetStudio() {
     // hasn't hit zero. Shared by the damage sampler and the visual, so they can't disagree.
     const hazardAlive = (key) => hazardStillBurning(hazLife.current, key);
     const SPAWN = { x: 60, y: 40 };
+    // 🔊 SOUNDS FROM THE LOOP (src/audio.js). Fired where a thing HAPPENS — a jump, a shot, a door —
+    // and never from the render, which runs every frame. Each one is placed in the level so the
+    // engine can fade what is off screen, and a unit makes exactly the calls the player makes: an
+    // enemy's jump, swing, shot, throw, hurt and death go through the same three helpers.
+    //   sndMoment(asset, slot, basic, x, y) — the asset's own sound for `slot`, else the basic one
+    //   sndEvent(basic, x, y)               — an everyday moment with no asset behind it
+    const sndMoment = (asset, slot, basic, x, y) => bobAudio.moment({ asset, slot, basic, x, y });
+    const sndEvent = (basic, x, y) => bobAudio.moment({ basic, x, y });
+    const unitSndX = (ep, ea) => ep.x + (ea ? enemyRenderW(ea, CW) : CW) / 2;
+    // HURT, DEATH AND LANDING are read off what CHANGED this frame (soundFrame, last thing before the
+    // camera) rather than written into each of the places that can cause them: a unit can be hurt
+    // from fourteen places (a swing, a shot, a splash, fire, a thrown rock, a stomp, a tail, a brawl…)
+    // and a land is any of a dozen collision branches, so one reader is the only version that cannot
+    // miss one. HP falling is a hurt; HP reaching 0 is a death; standing again after SND_LAND_AIR
+    // frames in the air is a landing (a step down a stair is shorter than that, and a jump is twice
+    // as long). A unit is followed by its uid, which survives the gate handoff that renames its key.
+    const SND_LAND_AIR = 24, SND_HURT_GAP_MS = 350;
+    const sndSeen = { hp: null, air: 0, hurtAt: -1e9, units: new Map() };
+    const soundFrame = (p, pw, ph, dt, nowMs) => {
+      const hp = playerHP.current;
+      if (sndSeen.hp != null && hp < sndSeen.hp && hp > 0 && nowMs - sndSeen.hurtAt >= SND_HURT_GAP_MS) { sndSeen.hurtAt = nowMs; sndMoment(basePlayerAsset, "hurt", "hurt", p.x + pw / 2, p.y + ph / 2); }
+      sndSeen.hp = hp;
+      if (p.onGround && sndSeen.air >= SND_LAND_AIR) sndEvent("land", p.x + pw / 2, p.y + ph);
+      sndSeen.air = (p.onGround || p.climbing || p.topdown) ? 0 : sndSeen.air + dt;
+      for (const k in (lv.enemies || {})) {
+        const ep = enemyPos.current[k];
+        if (!ep || ep.uid == null) continue;
+        const hpU = enemyHP.current[k];
+        const was = sndSeen.units.get(ep.uid);
+        if (!was) { sndSeen.units.set(ep.uid, { hp: hpU, air: 0, hurtAt: -1e9 }); continue; }
+        // Nothing changed — the case for nearly every unit on nearly every frame — costs two reads.
+        // The asset is only looked up for a unit whose HP moved or that has just come down.
+        const landed = ep.onGround && was.air >= SND_LAND_AIR;
+        if (hpU !== was.hp || landed) {
+          const ea = unitAssetAt(k, lv.enemies[k]);
+          // An HP never yet written is full HP (nothing has touched it); a hit site writes the max
+          // first and then takes the damage off, so "was unset" compares against the max.
+          const before = typeof was.hp === "number" ? was.hp : (ea ? unitMaxHP(ea, ep, allyHpBonus) : null);
+          const after = typeof hpU === "number" ? hpU : before;
+          const x = unitSndX(ep, ea), y = ep.y + CH * 2;
+          if (before != null && after != null && after < before) {
+            if (after <= 0 && before > 0) sndMoment(ea, "death", "death", x, y);
+            else if (after > 0 && nowMs - was.hurtAt >= SND_HURT_GAP_MS) { was.hurtAt = nowMs; sndMoment(ea, "hurt", "hurt", x, y); }
+          }
+          if (landed && !(after <= 0)) sndEvent("land", x, y);
+        }
+        was.hp = hpU;
+        was.air = (ep.onGround || ep.climbing || ep.topdown) ? 0 : was.air + dt;
+      }
+    };
     // WHERE EVERY DEATH GOES — all five of them (fire, a melee hit, a thrown rock, a blast, a shot),
     // so what a death costs is decided exactly once. With a 🐱 Extra Life left you get back up
     // where you fell on EXTRA_LIFE_HP, flashing and untouchable for the grace window, and the life
@@ -12491,6 +12693,8 @@ export default function AssetStudio() {
     // worn every time it re-runs (a pedestal pickup bumps equipGen), so a cat head picked up
     // mid-run counts from the moment it is on.
     const playerDefeated = (p, deathMsg) => {
+      sndMoment(basePlayerAsset, "death", "death", p.x, p.y); // the one door every player death goes through
+      sndSeen.hp = null; // ...and the HP it hands back (a respawn, an extra life) is not a hurt
       const left = extraLivesLeft(playerAsset?.effects, livesUsed.current);
       if (left > 0) {
         livesUsed.current += 1;
@@ -12980,6 +13184,7 @@ export default function AssetStudio() {
           spin: (p.face || 1) * 8, asset: carriedThrow, pieces: fly.pieces.length ? fly.pieces : null,
           cwPx: fly.canvasWPx, chPx: fly.canvasHPx, wPx: fly.wPx, hPx: fly.hPx,
         });
+        sndMoment(carriedThrow, "throw", null, p.x + pw / 2, p.y + ph * 0.4); // 🔊 the throwable's Throw
         throwCarry.current -= 1;
         throwCd.current = 18; // ~0.3s between throws so mashing G doesn't dump the whole stash at once
         p.firing = { t: 0, dur: 12 };  // the throwing arm swing — same 3-phase motion as a melee swing
@@ -13021,7 +13226,7 @@ export default function AssetStudio() {
       // bar re-grabs on the first frame the grip point is level with it again, so this reads as
       // "you can hang, you can drop, you can shimmy — you cannot get on top of it."
       if (climbing && !canGripClimb(lv, p.x, p.y, pw, ph, CW, CH, climbKindHere)) climbing = false;
-      if (climbing && K.jump) { p.climbJump = true; p.climbJumpKind = climbKindHere; p.climbJumpGrab = true; climbing = false; p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0; } // jump straight off — same agility-scaled jump height as a ground jump; climbJumpKind keeps the climbing pose on screen through the rise, climbJumpGrab lets the ladder above catch you without holding ↑
+      if (climbing && K.jump) { sndEvent("jump", p.x, p.y); p.climbJump = true; p.climbJumpKind = climbKindHere; p.climbJumpGrab = true; climbing = false; p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0; } // jump straight off — same agility-scaled jump height as a ground jump; climbJumpKind keeps the climbing pose on screen through the rise, climbJumpGrab lets the ladder above catch you without holding ↑
       // 🚶 TOP-DOWN: the feet are on a painted walkable plane and nothing is gripping (a real climb
       // resolved above wins — a ladder standing in the intersection is still a ladder). Automatic,
       // with no opt-in key: there is nothing to grab, you are simply standing on a road, and the
@@ -13071,7 +13276,7 @@ export default function AssetStudio() {
           // The hop off the plane (see tdJumpY above). Taken INSIDE this branch rather than up
           // beside the ladder's jump so the gravity branch below cannot also run this frame and
           // hand a Double Jump cape its bonus jump on the same keypress.
-          p.tdJumpY = p.y; topdown = false; p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0;
+          sndEvent("jump", p.x, p.y); p.tdJumpY = p.y; topdown = false; p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0;
         } else {
           // W/S walk the feet up or down the plane at ordinary WALKING speed — this is a road, not
           // a ladder, so it is not CLIMB_SPEED, and W with S cancel. RAW W/S, not the merged K.up/
@@ -13103,7 +13308,7 @@ export default function AssetStudio() {
           p.vy = 0; p.onGround = false;
         }
       } else {
-        if (K.jump && p.onGround) { p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0; } // Agility-scaled jump HEIGHT, given directly in blocks — see jumpHeightBlocks above
+        if (K.jump && p.onGround) { sndEvent("jump", p.x, p.y); p.vy = -jumpV; p.onGround = false; p.jumpHoldT = 0; } // Agility-scaled jump HEIGHT, given directly in blocks — see jumpHeightBlocks above
         else if (doubleJumpEffect && !p.onGround && !p.extraJumped && K.jump && !p.wasJump) {
           // Double Jump effect: one bonus mid-air jump, available once per airborne period —
           // however you got airborne, not just off an actual jump. Edge-triggered off wasJump so
@@ -13112,7 +13317,7 @@ export default function AssetStudio() {
           // Speed instead scales gravity ONLY for the duration of this specific jump (rise AND
           // fall) — it never touches normal fall/single-jump feel, and reverts the moment
           // extraJumped clears on landing.
-          p.vy = -(doubleJumpEffect.height ?? 9) * jumpVMulRel;
+          sndEvent("jump", p.x, p.y); p.vy = -(doubleJumpEffect.height ?? 9) * jumpVMulRel;
           p.extraJumped = true;
           p.jumpHoldT = 0;
           const djSpeed = doubleJumpEffect.speed ?? 5;
@@ -13613,13 +13818,13 @@ export default function AssetStudio() {
               if (!ep.dodgeRolled) { ep.willDodge = Math.random() < enemyDodgeChance(eIntel); ep.dodgeRolled = true; }
               if (ep.willDodge) {
                 if (threat === "crouch" && canCrouch) { ep.crouch = true; ep.crouchT = CROUCH_HOLD_FRAMES; }
-                else if (threat === "jump" && ep.onGround && !ep.crouch) { if (ep.topdown) ep.tdJumpY = ep.y; ep.vy = -enemyJumpVelocity(ea.stats?.agility, CH); ep.onGround = false; ep.jumpHoldT = 0; } // hopping off a 🚶 Top-down plane remembers the line it left, so it lands back on it
+                else if (threat === "jump" && ep.onGround && !ep.crouch) { sndEvent("jump", unitSndX(ep, ea), ep.y); if (ep.topdown) ep.tdJumpY = ep.y; ep.vy = -enemyJumpVelocity(ea.stats?.agility, CH); ep.onGround = false; ep.jumpHoldT = 0; } // hopping off a 🚶 Top-down plane remembers the line it left, so it lands back on it
                 // ⤴️ DOUBLE JUMP ON A UNIT: its one extra mid-air jump, used the way a player would
                 // — the first hop was not enough and it is coming back DOWN into the shot. Same
                 // Height (scaled by its Agility, jumpVelocityScale = your jumpVMulRel) and the same
                 // Speed-on-gravity for that jump only; spent until it lands.
                 else if (threat === "jump" && !ep.onGround && !ep.topdown && ep.vy > 0 && !ep.extraJumped && eDoubleJump) {
-                  ep.vy = -(eDoubleJump.height ?? 9) * jumpVelocityScale(ea.stats?.agility, CH);
+                  sndEvent("jump", unitSndX(ep, ea), ep.y); ep.vy = -(eDoubleJump.height ?? 9) * jumpVelocityScale(ea.stats?.agility, CH);
                   ep.extraJumped = true; ep.jumpHoldT = 0;
                   ep.djGravMul = Math.max(0.4, (eDoubleJump.speed ?? 5) / 5);
                 }
@@ -13990,7 +14195,7 @@ export default function AssetStudio() {
                      && cbCX >= navRoute.c0 * CW + eStand.ox && cbCX <= (navRoute.c1 + 1) * CW + eStand.ox) {
               // Under the bar: jump for it, straight up (navHangJump), and grip it on the way.
               if (ep.topdown) ep.tdJumpY = ep.y;
-              ep.vy = -navJumpV; ep.onGround = false; ep.jumpHoldT = 0; ep.navHangJump = true;
+              sndEvent("jump", unitSndX(ep, ea), ep.y); ep.vy = -navJumpV; ep.onGround = false; ep.jumpHoldT = 0; ep.navHangJump = true;
             }
             if (ep.climbing) { ep.vy = 0; ep.tdJumpY = null; }
           } else if (!ep.climbing && ep.navHangJump && !ep.climbJump && !(ep.navDropCd > 0)) {
@@ -14013,7 +14218,7 @@ export default function AssetStudio() {
                 // ladder re-gripping on the way up).
                 if (isOnClimb(eStand.lv, cbX, cbY - step, epw, newEph, CW, CH)) { ep.y -= step; eClimbMove = step; }
                 else { let m = 0; while (m + 1 <= step && isOnClimb(eStand.lv, cbX, ep.y - eStand.oy - 1, epw, newEph, CW, CH)) { ep.y -= 1; m++; } eClimbMove = m; }
-                if (eClimbMove < 0.5 && cbWant < -CH) { letGo(0); ep.climbJump = true; ep.vy = -navJumpV; ep.onGround = false; ep.jumpHoldT = 0; }
+                if (eClimbMove < 0.5 && cbWant < -CH) { letGo(0); sndEvent("jump", unitSndX(ep, ea), ep.y); ep.climbJump = true; ep.vy = -navJumpV; ep.onGround = false; ep.jumpHoldT = 0; }
               } else if (cbWant > CH * 0.5) {
                 // Down, stopping on solid ground at the foot (only ground it is not already in — the
                 // walls-it-starts-inside rule) or letting go off a bottom that ends in the air.
@@ -14028,7 +14233,7 @@ export default function AssetStudio() {
               // at the end of the run on its side — drop to one below, otherwise shimmy (dxMove).
               const dir = Math.sign(distToTarget) || 1;
               const atEnd = climbKindAt(eStand.lv, cbX + dir * CW, cbY, epw, newEph, CW, CH) !== kindHere;
-              if (cbWant < -CH && (Math.abs(distToTarget) <= CW * 2 || atEnd)) { letGo(0); ep.climbJump = true; ep.vy = -navJumpV; ep.onGround = false; ep.jumpHoldT = 0; }
+              if (cbWant < -CH && (Math.abs(distToTarget) <= CW * 2 || atEnd)) { letGo(0); sndEvent("jump", unitSndX(ep, ea), ep.y); ep.climbJump = true; ep.vy = -navJumpV; ep.onGround = false; ep.jumpHoldT = 0; }
               else if (cbWant > CH) letGo(15);
               else { ep.climbing = kindHere; ep.vy = 0; ep.onGround = false; }
             }
@@ -14302,7 +14507,8 @@ export default function AssetStudio() {
               const box = hitBodyOf(body.kind, body.ep, body.ea);
               const struck = arc.some((hb) => hb.x < box.left + box.w && hb.x + hb.w > box.left && hb.y < box.top + box.h && hb.y + hb.h > box.top);
               if (!struck) continue;
-              applyHitTo(body.kind, body.key === "player" ? null : body.key, body.ep, body.ea, enemyAttackDamage(ea, ew));
+              // 🔊 Its blade connecting. A blow turned aside by your guard cut swingT to 0, and makes no hit.
+              if (applyHitTo(body.kind, body.key === "player" ? null : body.key, body.ep, body.ea, enemyAttackDamage(ea, ew)) && ew && ep.swingT > 0) sndMoment(ew, "hit", null, box.left + box.w / 2, box.top + box.h / 2);
               ep.swingHit[body.key] = true;
               if (ep.swingT <= 0) break; // the blow was BLOCKED and the stagger cut the swing short: nobody behind the shield gets hit by a stroke that stopped
             }
@@ -14406,6 +14612,7 @@ export default function AssetStudio() {
                 foe: hostile,
                 throwerFx: ea.effects || null, // for a 🍀 Lucky Find the thrower wears (the loot pass)
               });
+              sndMoment(eThrowable, "throw", null, eCenterXFinal, ep.y + newEph * 0.4); // 🔊 its throwable's Throw
               ep.throwLeft -= 1;
               // Randomised on top of the floor so a line of grenadiers doesn't volley in lockstep.
               ep.throwCd = ENEMY_THROW_COOLDOWN_FRAMES + Math.round(Math.random() * 60);
@@ -14471,10 +14678,11 @@ export default function AssetStudio() {
               // Its crit is rolled where it LANDS, off the shooter's Intelligence — your own shot's
               // rule, which rolls yours at the impact too. shooterFx names the effects it was fired
               // under, so a 🍀 Lucky Find the shooter wears counts the kill (the loot pass).
-              critInt: eIntel, shooterFx: ea.effects || null,
+              critInt: eIntel, shooterFx: ea.effects || null, snd: ew, // snd: whose 🔊 Hit plays where it lands
               ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: shotPierces(ew, ea.effects),
               explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeChar: ew.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
             });
+            sndMoment(ew, "fire", null, eShotAt.x, eShotAt.y); // 🔊 its gun's Fire, as yours
             ep.weaponAmmo = consumeShot(ep.weaponAmmo, weaponFireCooldownFrames(ew.fireRate));
           };
           // Ranged units visibly TRACK their target: aimHold keeps the arm raised in the aim pose
@@ -14525,11 +14733,13 @@ export default function AssetStudio() {
                   // whatever the gun, so the Experimental Rifle was a third of itself in their hands.
                   ep.burstLeft = weaponBurstShotCount(ew) - 1; ep.burstT = burstDelayFrames(ew.burstDelay);
                 } else if (meleeGeom) {
+                  sndMoment(ew || ea, ew ? "swing" : "attack", "punch", eCenterXFinal, ep.y + newEph * 0.5); // 🔊 its blade's Swing, or its own Attack
                   ep.swingHit = {}; // weapon-hitbox melee: committing only STARTS the swing; the hits (one per body in the arc) land in the swing test above
                   ep.tailNext = true; // a tail-wearer steps in for the tail next (unitTailStepsIn)
                 } else {
                   // Bare-handed / drawn-monster melee: an instant hit on commit (applyAttackHit
                   // respects the player's i-frames, and routes to a unit's HP in a brawl).
+                  sndMoment(ew || ea, ew ? "swing" : "attack", "punch", eCenterXFinal, ep.y + newEph * 0.5); // 🔊 a bite or a punch: its own Attack
                   applyAttackHit(enemyAttackDamage(ea, ew));
                   ep.tailNext = true;
                 }
@@ -14709,9 +14919,10 @@ export default function AssetStudio() {
             char: playtestWeapon.projectile?.char || "🔥", tint: playtestWeapon.projectile?.tint || null,
             pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
             size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset?.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
-            ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor, pierce: playerShotsPierce,
+            ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor, pierce: playerShotsPierce, snd: playtestWeapon, // snd: whose 🔊 Hit plays where it lands
             explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeChar: playtestWeapon.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
           });
+          sndMoment(playtestWeapon, "fire", null, spawnX, spawnY); // 🔊 the gun's Fire
           wpn.current = consumeShot(wpn.current, fireCdFrames); // spends a round (unless clip 0 = unlimited) and starts the fire-rate cooldown
           // A fresh pull ARMS the rest of the burst; a burst shot spends one of them. Either way the
           // next one is scheduled off burstDelay, not the fire rate.
@@ -14723,6 +14934,7 @@ export default function AssetStudio() {
         } else if (wantFire && !p.stomp) {
           // Something short at your feet: stamp on it instead (startStomp). Otherwise the swing.
           if (!startStomp()) {
+            sndMoment(playtestWeapon || basePlayerAsset, playtestWeapon ? "swing" : "attack", "punch", p.x, p.y); // 🔊 the blade's Swing, or a bare-handed punch
             p.firing = { t: 0, dur: 12 }; // swing duration — same for a real melee weapon or a bare-handed swing (faster than the old sine sweep)
             p.hitRegistered = false; p.swingHits = {}; // a fresh swing can land a fresh hit on every body in its arc
           }
@@ -14745,7 +14957,7 @@ export default function AssetStudio() {
       // blocks it (p.firing.unarmed), as it blocks a second swing.
       if (!meleeInHand && wantMelee && !p.stomp && !(p.firing && p.firing.unarmed) && startStomp()) { /* stamping */ }
       else if (!meleeInHand && wantMelee && !p.firing && !p.stomp) {
-        p.firing = { t: 0, dur: 12, unarmed: true }; p.hitRegistered = false; p.swingHits = {};
+        sndMoment(basePlayerAsset, "attack", "punch", p.x, p.y); p.firing = { t: 0, dur: 12, unarmed: true }; p.hitRegistered = false; p.swingHits = {};
       }
       p.wasMelee = !!K.melee;
       // All of the guard's timing is advanceBlock: the press raises it, BLOCK_FRAMES later the arm
@@ -14772,6 +14984,7 @@ export default function AssetStudio() {
       const detonate = (pr, ix, iy) => {
         if (!pr.explode) return;
         const radPx = Math.max(0.5, pr.explodeRadius ?? 2) * CW;
+        if (pr.snd) sndMoment(pr.snd, "hit", null, ix, iy); // 🔊 an explosive round going off is its weapon's Hit
         booms.current.push({ x: ix, y: iy, propId: pr.explodePropId || null, char: pr.explodeChar || DEFAULT_BOOM_CHAR, size: pr.explodeSize ?? 3, life: 0, maxLife: Math.max(8, Math.round((pr.explodeLife ?? 0.5) * 60)) });
         const baseDmg = pr.damage ?? 5;
         // Every target's blast box, resolved the same way the direct-hit tests do: the VISIBLE
@@ -15009,6 +15222,7 @@ export default function AssetStudio() {
                   }
                 }
               }
+              if (swingHitNotes.length && !unarmedSwing && playtestWeapon) sndMoment(playtestWeapon, "hit", null, p.x + p.face * pw, p.y); // 🔊 the blade connecting, once a stroke
               if (swingHitNotes.length) flash((swingCrit ? "💥 Critical! " : swingArmedNote) + "Hit " + swingHitNotes.join(", "));
             }
           }
@@ -15165,6 +15379,7 @@ export default function AssetStudio() {
           }
           const landed = offLevel || hitSolid || struck.length > 0 || onCatchableBody || g.y >= gFloor - 1;
           if (!landed) { stillFlying.push(g); continue; }
+          if (!offLevel) sndMoment(g.asset, "land", null, g.x, g.y); // 🔊 the throwable's Land, where it came down (a cluster's bomblets each land)
           // Folded into the single landing message below rather than flashed here: the landing
           // flash fires a few lines later and simply overwrote this one, so the hit was invisible
           // — which for a Rock, whose only damage IS the impact, reads as "it did nothing" again.
@@ -15392,6 +15607,7 @@ export default function AssetStudio() {
                 // moving the same way you face while coming from behind you. Using the shot's own
                 // x as the attacker position captures exactly that.
                 // The shooter's crit, off its Intelligence, rolled where the round lands — yours is.
+                if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
                 const sCrit = pr.critInt != null && Math.random() < critChance(pr.critInt), sNote = sCrit ? "💥 Critical! " : "";
                 const dmg = incomingPlayerDamage(sCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, pr.ignoreArmor);
                 playerHP.current = Math.max(0, playerHP.current - dmg);
@@ -15417,6 +15633,7 @@ export default function AssetStudio() {
                 if (unitUntouchable(ep)) { if (!pr.pierce) return false; continue; } // 🐱 mid-revive: consumed, does nothing — the same reading an invulnerable player gets
                 // The shooter's crit and its weapon's stun, on your ally as yours land on a hostile.
                 const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
+                if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(aCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor));
                 ep.lastHitByFx = pr.shooterFx || null;
                 if (enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
@@ -15485,6 +15702,7 @@ export default function AssetStudio() {
               const base = playerRangedDamage(pr.damage);
               const isCrit = Math.random() < critChance(pr.critInt ?? intelligence); // a friendly unit's round crits off ITS Intelligence
               if (ep) ep.lastHitByFx = pr.shooterFx || null;
+              if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
               const dmg = incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor);
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
               if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
@@ -15643,13 +15861,13 @@ export default function AssetStudio() {
       if (K.interact && !p.wasInteract && curTalk && !talkRef.current) openTalk(curTalk);
       // Press E on a door to enter (a matching room) or leave (back to the level you came from).
       if (K.interact && !p.wasInteract && curDoorKey && !p.transitioning) {
-        if (roomReturn.current) { p.transitioning = { mode: "exit", t: 0 }; }
+        if (roomReturn.current) { p.transitioning = { mode: "exit", t: 0 }; sndEvent("door", p.x, p.y); }
         else {
           const tag = doorTagOf(lv.markers[curDoorKey]);
           const cacheKey = (lv.runKey || lv.id) + "|" + curDoorKey;    // per run slot, like the state bucket
           let roomId = sessionRooms.current[cacheKey];              // a door leads to the SAME room all session
           if (!roomId) { const r = pickRoom(levelLib, tag, playRunId.current + "|" + cacheKey + "|" + tag); roomId = r && r.id; if (roomId) sessionRooms.current[cacheKey] = roomId; }
-          if (roomId) { const [dr, dc] = curDoorKey.split(",").map(Number); p.transitioning = { mode: "enter", t: 0, roomId, retX: dc * CW, retY: dr * CH + CH - ph }; }
+          if (roomId) { sndEvent("door", p.x, p.y); const [dr, dc] = curDoorKey.split(",").map(Number); p.transitioning = { mode: "enter", t: 0, roomId, retX: dc * CW, retY: dr * CH + CH - ph }; }
           else flash(tag ? "🚪 No room tagged \"" + tag + "\" yet — make one in the Room Creator." : "🚪 This is an exit door (blank tag) — it only does something from inside a room.");
         }
       }
@@ -15818,6 +16036,7 @@ export default function AssetStudio() {
       // right after a handoff are the ones the crossing still has to keep smooth.
       if (runNodeLive && --warmWait <= 0) { warmWait = RUN_WARM_EVERY_FRAMES; warmRunAhead(runNow, runNodeLive); }
 
+      soundFrame(p, pw, ph, dtMul, nowT); // hurt, death and landing, for you and every unit (see sndSeen)
       updateCamera(p, pw, ph, dtMul);
       commitFrame();
       raf = requestAnimationFrame(loop);
@@ -17995,22 +18214,31 @@ export default function AssetStudio() {
       // that later needed recovering survived on the luck of a sixth file. A backup that is
       // silently missing the work it exists to protect is worse than no backup, so the button
       // now loads everything itself and the counts below are of what was actually written.
-      const [assets, levels, stampsAll, textures, backgrounds, dialogues] = await Promise.all([
-        loadLibrary(), loadLevels(), loadStamps(), loadTextures(), loadBgLib(), loadDialogues(),
+      const [assets, levels, stampsAll, textures, backgrounds, dialogues, sounds] = await Promise.all([
+        loadLibrary(), loadLevels(), loadStamps(), loadTextures(), loadBgLib(), loadDialogues(), loadSounds(),
       ]);
-      const all = { assets: assets || [], levels: levels || [], stamps: stampsAll || [], textures: textures || [], backgrounds: backgrounds || [], dialogues: dialogues || [] };
+      const all = { assets: assets || [], levels: levels || [], stamps: stampsAll || [], textures: textures || [], backgrounds: backgrounds || [], dialogues: dialogues || [], sounds: sounds || [] };
       if (!all.assets.length && !all.levels.length) { flash("Nothing saved yet — nothing to export."); return; }
       const stamp = new Date().toISOString().slice(0, 10);
       // EVERYTHING rides along. Two backup files were taken by hand — 25 Jul and 4 Aug — and
       // neither contained a single level, because this button only ever wrote assets. When the
       // levels went, the backups made to prevent exactly that were no help at all. Levels are
       // where most of the hours go; they are the first thing this has to carry, not an extra.
-      const bundle = { assetBuilderBackup: 2, exportedAt: Date.now(), assets: all.assets, levels: all.levels, stamps: all.stamps, textures: all.textures, backgrounds: all.backgrounds.filter((b) => b && b.bg), dialogues: all.dialogues };
+      // A backup is ONE FILE that brings a studio back on its own, so the sounds' audio rides in it
+      // too (clips, base64 by name) — the one place a clip is ever inside JSON. A clip this copy
+      // cannot reach is left out and the sound still comes back; it fetches its audio when it can.
+      const clips = {};
+      for (const s of all.sounds.filter(isSoundRecord)) {
+        if (!s.clip || clips[s.clip]) continue;
+        const b = await clipStore.get(s.clip);
+        if (b) clips[s.clip] = bytesToB64(b);
+      }
+      const bundle = { assetBuilderBackup: 2, exportedAt: Date.now(), assets: all.assets, levels: all.levels, stamps: all.stamps, textures: all.textures, backgrounds: all.backgrounds.filter((b) => b && b.bg), dialogues: all.dialogues, sounds: all.sounds, clips };
       const payload = JSON.stringify(bundle, null, 1);
       const b = new Blob([payload], { type: "application/json" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "assetbuilder-backup-" + stamp + ".json"; a.click();
       const bits = [all.assets.length + " asset" + (all.assets.length === 1 ? "" : "s")];
-      for (const [n, label] of [[bundle.levels.length, "level"], [bundle.stamps.length, "stored group"], [bundle.textures.length, "texture"], [bundle.backgrounds.length, "background"], [bundle.dialogues.length, "dialogue"]]) {
+      for (const [n, label] of [[bundle.levels.length, "level"], [bundle.stamps.length, "stored group"], [bundle.textures.length, "texture"], [bundle.backgrounds.length, "background"], [bundle.dialogues.length, "dialogue"], [bundle.sounds.filter(isSoundRecord).length, "sound"]]) {
         if (n) bits.push(n + " " + label + (n === 1 ? "" : "s"));
       }
       // Last line of defence: if the index still names levels this export could not load, SAY SO
@@ -18060,14 +18288,26 @@ export default function AssetStudio() {
     // normalizeAssetJson — a tree hand-written outside the app (or written by an older version of
     // it) gets repaired here rather than becoming a record that opens to nothing.
     const dn = await restoreKind((bk.dialogues || []).map((d) => { try { return migrateDialogue(d); } catch { return d; } }), "dialogue:", "dialogueIndex", named);
+    // Sounds: the audio first (every clip in the file whose bytes match its name — into this
+    // browser, the server and the folder), then the records that name it, the way the keeper orders
+    // its sweep, so no sound is ever restored ahead of the audio it plays.
+    for (const [name, b64] of Object.entries((bk.clips && typeof bk.clips === "object") ? bk.clips : {})) {
+      try { const b = b64ToBytes(b64); if (clipMatches(name, b)) await clipStore.put(name, b); } catch { /* one bad clip must not stop the rest */ }
+    }
+    const sdn = await restoreKind((bk.sounds || []).filter((s) => isSoundRecord(s) || isSoundBoard(s)), "sound:", "soundIndex", named);
+    // Restoring a backup is deliberate, so it brings back a sound deleted since (revive) — awaited, so
+    // loadSounds below cannot read the project file before the revive has reached it and purge again.
+    if (sdn) await projectLibrary.save({ sounds: (bk.sounds || []).filter((s) => isSoundRecord(s) || isSoundBoard(s)) }, { revive: true });
     if (sn) loadStamps();
     if (ln) loadLevels();
     if (tn) loadTextures();
     if (gn) loadBgLib();
     if (dn) loadDialogues();
+    if (sdn) loadSounds();
     loadLibrary();
     const bits = [n + " asset" + (n === 1 ? "" : "s")];
-    for (const [c, label] of [[ln, "level"], [sn, "stored group"], [tn, "texture"], [gn, "background"], [dn, "dialogue"]]) {
+    const sndCount = sdn ? (bk.sounds || []).filter(isSoundRecord).length : 0; // the board rides along but is not "a sound"
+    for (const [c, label] of [[ln, "level"], [sn, "stored group"], [tn, "texture"], [gn, "background"], [dn, "dialogue"], [sndCount, "sound"]]) {
       if (c) bits.push(c + " " + label + (c === 1 ? "" : "s"));
     }
     flash("Restored " + bits.join(", ") + " from the backup ✓");
@@ -18846,6 +19086,148 @@ export default function AssetStudio() {
     if (!dlgDoc) { const fresh = newDialogue(); setDlgDoc(fresh); dlgBaseline.current = JSON.stringify(fresh); }
     setScreen("dialogue");
   };
+
+  /* ---- 🔊 sounds: the seventh saved kind ---------------------------------- */
+  // A copy of the dialogue functions above, on purpose, for the reason given there: every kind gets
+  // the same five wires in the same shape — save up (putSoundRecord), restore down (loadSounds),
+  // delete up (deleteSound), in the export (exportAllAssets) and back out of restoreBackup — plus
+  // the tombstoneSet skip in the restore loop, the half that looks done and is not. The RECORDS
+  // are tiny ({ id, type:"sound", name, category, clip, bytes, dur }); the audio is a clip file
+  // beside them (clipStore). The board — basic sounds and the music pick — is one record of this
+  // kind with a fixed id, so it travels to every copy by exactly the same road.
+  const loadSounds = async () => {
+    let list = [];
+    try { const idx = await sget("soundIndex"); list = idx ? JSON.parse(idx) : []; } catch { list = []; }
+    if (!Array.isArray(list)) list = [];
+    const indexed = new Set(list.map((it) => it && it.id).filter(Boolean));
+    const orphans = (await scanStoredIds("sound:")).filter((id) => !indexed.has(id)); // await, always — see loadDialogues
+    if (orphans.length) list = list.concat(orphans.map((id) => ({ id })));
+    const full = [], bad = [];
+    for (const it of list) {
+      try { const r = await sget("sound:" + (it && it.id)); if (isTombstoneRecord(r)) continue; else if (r) full.push(JSON.parse(r)); else bad.push((it && it.name) || (it && it.id)); }
+      catch { bad.push((it && it.name) || (it && it.id)); }
+    }
+    let fromProject = 0;
+    const proj = await projectLibrary.load();
+    const tombedS = await tombstoneSet(proj, "sounds");
+    const keptS = await purgeRemoved(proj, "sounds", "sound:", full, tombedS);
+    const purgedAnyS = keptS.length !== full.length;
+    if (purgedAnyS) { full.length = 0; full.push(...keptS); }
+    const have = new Set(full.map((d) => d && d.id));
+    for (const raw of ((proj && proj.sounds) || [])) {
+      if (!raw || !raw.id || tombedS.has(raw.id)) continue; // the skip: a deleted sound is never restored from any file
+      try {
+        if (have.has(raw.id)) { if (fileIsNewer(raw, await sget("sound:" + raw.id)) && await sset("sound:" + raw.id, JSON.stringify(raw))) { const i = full.findIndex((x) => x && x.id === raw.id); if (i >= 0) full[i] = raw; } continue; }
+        if (await sset("sound:" + raw.id, JSON.stringify(raw))) { full.push(raw); have.add(raw.id); if (isSoundRecord(raw)) fromProject++; }
+      } catch { /* one bad record must never stop the rest coming home */ }
+    }
+    setSoundRecs(full);
+    if (orphans.length || fromProject || purgedAnyS) await sset("soundIndex", JSON.stringify(full.map((d) => ({ id: d.id, name: d.name }))));
+    if (orphans.length) console.warn("[Bob] recovered " + orphans.length + " sound(s) missing from the index:", orphans);
+    if (fromProject) flash("🛟 Restored " + fromProject + " sound" + (fromProject > 1 ? "s" : "") + " from the project file.");
+    if (full.length) projectLibrary.save({ sounds: full });
+    // ...and the audio files they name go up the same way (clipStore.syncUp). Not awaited by the
+    // caller's paint, but awaited here: an un-awaited async helper is the one thing a load must not do.
+    try { await clipStore.syncUp(full.filter(isSoundRecord).map((s) => s.clip)); } catch (e) { console.warn("[Bob] sound files could not be sent up: " + (e && e.message)); }
+    if (bad.length) { console.warn("[Bob] " + bad.length + " sound(s) could not be read and were skipped:", bad); flash("⚠ " + bad.length + " sound" + (bad.length > 1 ? "s" : "") + " couldn't be read — the other " + full.length + " loaded. See console."); }
+    return full; // exportAllAssets needs them NOW, not after the next render
+  };
+  // SAVE ONE RECORD of the kind — a new upload, a rename, a new folder, the board. Always a
+  // deliberate save (revive), and always in place: renaming a sound keeps its id, because every
+  // weapon and the board point at that id and a rename must not leave them pointing at nothing.
+  // (resolveSaveTarget's rename-forks rule is for editors you Save from; this is a library row.)
+  const putSoundRecord = async (rec, msg) => {
+    const payload = { ...rec, savedAt: Date.now() };
+    let list = [];
+    try { const idx = await sget("soundIndex"); list = idx ? JSON.parse(idx) : []; } catch { list = []; }
+    if (!Array.isArray(list)) list = [];
+    const ok1 = await sset("sound:" + payload.id, JSON.stringify(payload));
+    list = list.filter((x) => x && x.id !== payload.id); list.push({ id: payload.id, name: payload.name });
+    const ok2 = await sset("soundIndex", JSON.stringify(list));
+    projectLibrary.save({ sounds: [payload] }, { revive: true });
+    if (ok1 && ok2) { setSoundRecs((rs) => [...rs.filter((r) => r && r.id !== payload.id), payload]); if (msg) flash(msg); return payload; }
+    flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ".");
+    return null;
+  };
+  // UPLOAD: each file is checked (wav/mp3/ogg, under the cap, and it must actually decode), named by
+  // its hash, stored as a clip, and becomes a sound named after the file, filed under the 📂 box.
+  const uploadSounds = async (fileList) => {
+    const files = [...(fileList || [])];
+    if (!files.length) return;
+    setSoundBusy(true);
+    let n = 0;
+    try {
+      for (const f of files) {
+        const ext = clipExtOf(f.name, f.type);
+        if (!ext) { flash("⚠ " + f.name + " isn't a wav, mp3 or ogg"); continue; }
+        if (f.size > CLIP_MAX_BYTES) { flash("⚠ " + f.name + " is " + fmtClipSize(f.size) + " — the limit is " + fmtClipSize(CLIP_MAX_BYTES) + ". Save it as mp3 or ogg."); continue; }
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        const decoded = await bobAudio.decodeBytes(bytes);
+        if (!decoded) { flash("⚠ Couldn't read " + f.name + " as audio"); continue; }
+        const clip = clipHash(bytes) + "." + ext;
+        if (!(await clipStore.put(clip, bytes))) { flash("⚠ Couldn't store " + f.name + " — " + (lastStoreFailure() || "storage unavailable")); continue; }
+        const rec = { id: uid(), type: "sound", name: f.name.replace(/\.[^.]+$/, "").trim() || "Sound", category: soundUploadCat.trim(), clip, bytes: bytes.length, dur: Math.round(decoded.duration * 100) / 100 };
+        if (await putSoundRecord(rec)) n++;
+      }
+    } finally { setSoundBusy(false); }
+    if (n) flash("🔊 Added " + n + " sound" + (n > 1 ? "s" : "") + " ✓");
+  };
+  const deleteSound = async (s) => {
+    const id = s && s.id; if (!id || id === SOUND_BOARD_ID) return;
+    let list = [];
+    try { const idx = await sget("soundIndex"); list = idx ? JSON.parse(idx) : []; } catch { list = []; }
+    if (!Array.isArray(list)) list = [];
+    await sdel("sound:" + id);
+    await sset("soundIndex", JSON.stringify(list.filter((x) => x && x.id !== id)));
+    const forgot = await projectLibrary.forget("sounds", [id]); // or loadSounds restores what was just deleted
+    setSoundConfirmDel(null);
+    await loadSounds();
+    // Weapons and the board that pointed at it are left alone: resolveSound treats a sound that no
+    // longer exists as an empty slot, so the basic sound (or silence) simply takes over.
+    flash(deleteNote("🗑 Deleted sound \"" + (s.name || id) + "\"", forgot));
+  };
+  const soundLib = useMemo(() => soundRecs.filter(isSoundRecord), [soundRecs]);
+  const soundBoard = useMemo(() => soundRecs.find(isSoundBoard) || newSoundBoard(), [soundRecs]);
+  const soundGroups = useMemo(() => groupByCategory(soundLib, "sound"), [soundLib]);
+  const soundIds = useMemo(() => new Set(soundLib.map((s) => s.id)), [soundLib]);
+  const saveSoundBoard = (patch) => putSoundRecord({ ...soundBoard, ...patch, id: SOUND_BOARD_ID, type: "soundBoard" });
+  const openSoundScreen = () => { loadSounds(); setScreen("sounds"); };
+  // A sound <select>'s options: "— basic —" (or "— none —") then the library, in its 📂 folders once
+  // there is more than one. A slot pointing at a deleted sound shows as empty, which is what it is.
+  const soundOptions = (emptyLabel) => [
+    <option key="" value="">{emptyLabel}</option>,
+    ...(soundGroups.length > 1
+      ? soundGroups.map((g) => <optgroup key={g.key} label={"📂 " + g.label}>{g.props.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</optgroup>)
+      : soundLib.slice().sort((a, b) => NAME_COLLATOR.compare(a.name || "", b.name || "")).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)),
+  ];
+  const soundVal = (id) => (id && soundIds.has(id) ? id : "");
+  // The editor's 🔊 slots for the asset open in it (assetSoundSlots: a weapon by its type, an enemy),
+  // one picker and ▶ each. The empty choice says what plays instead: "— basic —" where a basic
+  // sound stands behind the slot, "— none —" where nothing does.
+  const assetSoundSlotsUI = () => assetSoundSlots(asset).map((sl) => {
+    const cur = soundVal(asset && asset.sounds ? asset.sounds[sl.key] : "");
+    return (
+      <span key={sl.key} className="sndRow">
+        <span className="wslab">{sl.label}</span>
+        <select value={cur} onChange={(e) => { const v = e.target.value; setAsset((a) => ({ ...a, sounds: withAssetSound(a.sounds, sl.key, v) })); }}>{soundOptions(sl.basic ? "— basic —" : "— none —")}</select>
+        <button className="ltbtn sndPlay" disabled={!cur} onClick={() => bobAudio.preview(cur)} title="Play">▶</button>
+      </span>
+    );
+  });
+  // The engine always holds the current library and board. The track and the toggle reach it the
+  // same way; whether a run is going is set by the play effect below.
+  useEffect(() => { bobAudio.setLibrary(soundRecs); }, [soundRecs]);
+  useEffect(() => { bobAudio.setMusicOn(musicOn); try { localStorage.setItem("bobMusic", musicOn ? "on" : "off"); } catch { /* per-copy preference only */ } }, [musicOn]);
+  // Music plays while a level or a run is being played, and every sound play can need is decoded as
+  // it starts — the board's basic sounds and every sound any asset names — so the first jump of a
+  // run is heard rather than skipped while its file decodes. Decoded once; the next ▶ costs nothing.
+  useEffect(() => {
+    bobAudio.setPlaying(!!play);
+    if (!play) { bobAudio.setView(null); return; }
+    const ids = new Set(Object.values(soundBoard.basic || {}));
+    for (const a of allAssets) if (a && a.sounds) for (const id of Object.values(a.sounds)) ids.add(id);
+    bobAudio.preload([...ids]);
+  }, [play]); // eslint-disable-line
   // MIRROR THE LEVEL left↔right. Two doors on the same operation because they answer two different
   // questions, and picking the wrong one silently costs you the original:
   //
@@ -19531,6 +19913,7 @@ export default function AssetStudio() {
             {/* Its own tile, next to the level makers, because a tree is written ONCE and then hung
                 on as many signs and NPCs as you like — it is not a property of any one level. */}
             <button className="tile lvl" onClick={openDialogueEditor}><span className="ti">💬</span><span className="tl">Dialogue Trees</span></button>
+            <button className="tile lvl" onClick={openSoundScreen}><span className="ti">🔊</span><span className="tl">Sounds</span></button>
           </div>
           <h2>Make a piece of equipment</h2>
           <div className="slots">
@@ -19727,6 +20110,71 @@ export default function AssetStudio() {
             </div>
           </div>
         )}
+        {toast && <div className="toast">{toast}</div>}
+      </div>
+    );
+  }
+
+  /* ---- 🔊 sounds: the library, the basic sounds, the music ------------------ */
+  // One screen, the way 💬 Dialogue Trees has one: a sound is uploaded and named ONCE here and then
+  // picked by id from anywhere (the basic sounds below, a weapon's or an enemy's own 🔊 card). Each
+  // card is a title and its inputs. Names and folders save when the box loses focus (or on Enter).
+  if (screen === "sounds") {
+    const renameSound = (s, name) => { const v = name.trim(); if (!v || v === s.name) return; putSoundRecord({ ...s, name: v }, "Renamed ✓"); };
+    const refileSound = (s, cat) => { const v = cat.trim(); if (v === (s.category || "").trim()) return; putSoundRecord({ ...s, category: v }, "📂 " + (v || PROP_UNCAT) + " ✓"); };
+    const blurOnEnter = (e) => { if (e.key === "Enter") e.currentTarget.blur(); };
+    return (
+      <div className="bb"><style>{css}</style>
+        <header className="bar">
+          <button className="back" onClick={() => setScreen("menu")}>‹ Menu</button>
+          <div className="logo">🔊 Sounds</div>
+        </header>
+        <div className="sndEdit">
+          <datalist id="soundcats">{soundGroups.map((g) => <option key={g.key} value={g.label} />)}</datalist>
+          <div className="card">
+            <div className="ct">Library</div>
+            <div className="sndRow">
+              <label className={"ltbtn sndUp" + (soundBusy ? " on" : "")}>{soundBusy ? "⏳ Adding…" : "⬆ Upload sounds"}<input type="file" accept=".wav,.mp3,.ogg,audio/wav,audio/x-wav,audio/mpeg,audio/ogg" multiple hidden disabled={soundBusy} onChange={(e) => { const el = e.target; uploadSounds(el.files).finally(() => { el.value = ""; }); }} /></label>
+              <label className="catfield" title="New uploads go in this folder">📂 <input list="soundcats" value={soundUploadCat} onChange={(e) => setSoundUploadCat(e.target.value)} placeholder={PROP_UNCAT} /></label>
+            </div>
+            {soundGroups.map((g) => (
+              <div key={g.key}>
+                <div className="ct2">📂 {g.label}</div>
+                {g.props.map((s) => (
+                  <div key={s.id} className="sndRow">
+                    <button className="ltbtn sndPlay" onClick={() => bobAudio.preview(s.id)} title="Play">▶</button>
+                    {/* Uncontrolled and keyed on savedAt: typing never re-saves per keystroke, and a
+                        save (here or from another copy) resets the box to what was stored. */}
+                    <input className="sndName" key={"n" + s.id + ":" + (s.savedAt || 0)} defaultValue={s.name} onBlur={(e) => renameSound(s, e.target.value)} onKeyDown={blurOnEnter} title="Name" />
+                    <input className="sndCat" list="soundcats" key={"c" + s.id + ":" + (s.savedAt || 0)} defaultValue={s.category || ""} placeholder={PROP_UNCAT} onBlur={(e) => refileSound(s, e.target.value)} onKeyDown={blurOnEnter} title="📂 Folder" />
+                    <span className="hint2">{[fmtClipDur(s.dur), fmtClipSize(s.bytes)].filter(Boolean).join(" · ")}</span>
+                    <button className={"ltbtn" + (soundConfirmDel === s.id ? " arm" : "")} title={soundConfirmDel === s.id ? "Tap again to permanently delete" : "Delete this sound"} onClick={() => { if (soundConfirmDel === s.id) deleteSound(s); else { setSoundConfirmDel(s.id); flash("Tap 🗑 again to permanently delete \"" + s.name + "\""); } }}>{soundConfirmDel === s.id ? "Sure?" : "🗑"}</button>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+          <div className="card">
+            <div className="ct">Basic sounds</div>
+            {SOUND_EVENTS.map((ev) => {
+              const cur = soundVal((soundBoard.basic || {})[ev.key]);
+              return (
+                <div key={ev.key} className="sndRow">
+                  <span className="sndEvt">{ev.icon} {ev.label}</span>
+                  <select value={cur} onChange={(e) => saveSoundBoard({ basic: withAssetSound(soundBoard.basic, ev.key, e.target.value) })}>{soundOptions("— none —")}</select>
+                  <button className="ltbtn sndPlay" disabled={!cur} onClick={() => bobAudio.preview(cur)} title="Play">▶</button>
+                </div>
+              );
+            })}
+          </div>
+          <div className="card">
+            <div className="ct">Music</div>
+            <div className="sndRow">
+              <select value={soundVal(soundBoard.music)} onChange={(e) => saveSoundBoard({ music: e.target.value })}>{soundOptions("— none —")}</select>
+              <button className="ltbtn sndPlay" disabled={!soundVal(soundBoard.music)} onClick={() => bobAudio.preview(soundBoard.music)} title="Play">▶</button>
+            </div>
+          </div>
+        </div>
         {toast && <div className="toast">{toast}</div>}
       </div>
     );
@@ -20476,6 +20924,9 @@ export default function AssetStudio() {
               standing at a counter you need to know what you have BEFORE you press the button.
               Only while playing — it is not a property of the level. */}
           {play && <span className="badge money" title="Money you are carrying this Playtest run. Pick up a 💵 item to earn it, spend it in a shopkeeper's dialogue.">{MONEY_CHAR} {walletUI}</span>}
+          {/* 🎵 Music on/off, in the play view until the game has an options menu. Blurred after the
+              click: a focused button is pressed again by Space, which is jump. */}
+          {play && <button className={"undo musicTgl" + (musicOn ? " on" : "")} onClick={(e) => { setMusicOn((m) => !m); e.currentTarget.blur(); }} title="Music">{musicOn ? "🎵 On" : "🎵 Off"}</button>}
           <button className="undo" disabled={!canUndoLevel} onClick={undoLevel}>↩ Undo</button>
           <button className="undo" disabled={!canRedoLevel} onClick={redoLevel}>↪ Redo</button>
           {/* ONE PLAY BUTTON, SPLIT IN TWO: ▶ this level, or 🏁 a whole run. 🏁 Play run used to be
@@ -22677,6 +23128,15 @@ export default function AssetStudio() {
           <input className="dmgInput" type="number" min="0" value={asset.damage ?? 5} onChange={(e) => setAsset((a) => ({ ...a, damage: Math.max(0, +e.target.value || 0) }))} style={{ width: 60 }} />
         </div>
       )}
+      {/* 🔊 This weapon's own sounds — Fire or Swing by its type, Throw / Land for a throwable, and
+          Hit. Saved with the weapon (asset.sounds), so 💾 Save keeps them like any other setting. An
+          empty slot is the basic sound, or silence (see resolveSound). */}
+      {asset.type === "weapon" && (
+        <div className="wstates">
+          <span className="wslab">🔊 Sounds:</span>
+          {assetSoundSlotsUI()}
+        </div>
+      )}
       {asset.type === "weapon" && (asset.wtype || "melee") === "melee" && (
         <div className="wstates">
           {abilityCard()}
@@ -23174,6 +23634,14 @@ export default function AssetStudio() {
                 {allAssets.filter((a) => a.type === "weapon" && !isThrowable(a.wtype)).map((a) => <option key={a.id} value={a.id}>{a.name} ({isRanged(a.wtype) ? "🏹" : "🗡️"})</option>)}
               </select>
               {asset.weaponId && !ANGLES.some((ang) => (asset.angles[ang] || []).some((p) => p.role === "weaponArm" || p.limb === "arm")) && <p className="tip warn">⚠ No piece is flagged 💪 Arm.</p>}
+            </div>
+          )}
+          {/* 🔊 The enemy's own voice: its attack, hurt and death. Units AND the player playing as
+              this enemy use it (enemies play by the player's rules); empty is the basic sound. */}
+          {asset.type === "enemy" && (
+            <div className="card sndCard">
+              <div className="ct">🔊 Sounds</div>
+              {assetSoundSlotsUI()}
             </div>
           )}
           {asset.type === "item" && !effEdit && (() => {
@@ -23842,6 +24310,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#3558c0;color:#fff;padding:9px 20px;border-radius:22px;font-weight:600;z-index:40;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 .undo{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:9px 12px;cursor:pointer;font-weight:600}
 .undo:hover:not(:disabled){border-color:#4f7cf6}.undo:disabled{opacity:.4;cursor:default}
+.undo.musicTgl{opacity:.7}.undo.musicTgl.on{opacity:1;border-color:#4f7cf6;background:#26304d}
 .tile.lvl{border-color:#3a6a4a;background:#172a1f}
 .wstates{display:flex;align-items:center;gap:8px;padding:9px 14px;background:#1a1320;border-bottom:1px solid #2b2438;flex-wrap:wrap}
 .explodecard{display:flex;flex-direction:column;gap:7px;width:100%;margin-top:4px;padding:9px 11px;background:#20141a;border:1px solid #4a2b2b;border-radius:8px}
@@ -24313,6 +24782,16 @@ html,body{margin:0;padding:0;background:#0f1117}
    edged in colour, because "which line does this open on" and "did I forget to wire this up" are
    the only two structural questions a short tree ever raises. */
 .dlgEdit{padding:16px;display:flex;flex-direction:column;gap:12px;overflow:auto;flex:1}
+.sndEdit{padding:16px;display:flex;flex-direction:column;gap:12px;overflow:auto;flex:1;max-width:980px}
+.sndRow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0}
+.sndRow .sndName{flex:1 1 200px;min-width:140px}
+.sndRow .sndCat{width:140px}
+.sndRow select{min-width:200px;max-width:320px}
+.sndRow .arm{border-color:#c0504d;color:#f3a6a6}
+.sndEvt{width:132px;font-size:13px;color:#cfd6e6}
+.sndPlay{min-width:38px}
+.sndUp{display:inline-flex;align-items:center}
+.sndCard .sndRow select{min-width:0;flex:1 1 140px}
 .dlgNode .ct{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .dlgNodeBtns{display:flex;gap:6px}
 .dlgNode.start{border-color:#5b9bd5}

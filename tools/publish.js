@@ -25,6 +25,9 @@ const run = (cmd, opts) => { console.log("> " + cmd); return execSync(cmd, { cwd
 const env = { ...process.env, PUBLIC_URL: "/BobAssetBuilder", CI: "false", MSYS_NO_PATHCONV: "1" };
 run("npm run build", { env });
 fs.copyFileSync(path.join(root, "asset-data", "library.json"), path.join(root, "build", "library.json"));
+// ...and the committed sound files beside it (clips/<hash>.<ext>), the seed for the sounds the
+// committed library names. His own uploads reach the published copy from the `saves` branch instead.
+if (fs.existsSync(path.join(root, "asset-data", "clips"))) fs.cpSync(path.join(root, "asset-data", "clips"), path.join(root, "build", "clips"), { recursive: true });
 fs.writeFileSync(path.join(root, "build", ".nojekyll"), ""); // Pages must serve files starting with _ or . as they are
 const wt = path.join(root, ".gh-pages-worktree");
 if (fs.existsSync(wt)) { try { run(`git worktree remove --force "${wt}"`); } catch { fs.rmSync(wt, { recursive: true, force: true }); } }

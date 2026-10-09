@@ -15,10 +15,43 @@
  */
 "use strict";
 
-const KINDS = ["assets", "levels", "stamps", "textures", "backgrounds", "dialogues"];
+const KINDS = ["assets", "levels", "stamps", "textures", "backgrounds", "dialogues", "sounds"];
 // The browser store's key prefix for each kind: sset("level:" + id, ...), and so on.
-const PREFIX = { assets: "asset", levels: "level", stamps: "stamp", textures: "texture", backgrounds: "background", dialogues: "dialogue" };
+const PREFIX = { assets: "asset", levels: "level", stamps: "stamp", textures: "texture", backgrounds: "background", dialogues: "dialogue", sounds: "sound" };
 const KIND_OF_PREFIX = Object.fromEntries(Object.entries(PREFIX).map(([k, p]) => [p, k]));
+
+// SOUND FILES ("clips") — the audio of a sound, kept BESIDE the records rather than in one. A
+// sound record is ~200 bytes and names its clip; the clip is a file named by a hash of its own
+// bytes, so it is written once, never changes, and never needs merging: two copies that both have
+// "<hash>.mp3" have the same file. It lives in asset-data/clips (dev server), Saves\clips (the
+// keeper and the 📁 folder), clips/ on the `saves` branch, and IndexedDB as "clip:<name>" (base64).
+// Why not inside the record: the online save is downloaded whole by every copy on every change, and
+// audio does not compress — measured 2026-10-08, one 3-minute mp3 inline added 2.76 MB to every
+// copy's download on every save. See CLAUDE-HISTORY.md, Sound.
+//
+// The hash is cyrb53 run with two seeds (106 bits, 28 hex digits): pure JS, so the studio, the dev
+// server and the keeper compute the identical name with no crypto API (which an http page lacks).
+// The studio's copy is in src/audio.js (the bundle cannot import this CommonJS file); a test keeps
+// the two byte-for-byte equal. Change one, change both.
+// It is a NAME, checked on every read, not a security boundary — a file whose bytes do not hash to
+// its name is treated as missing and fetched again from the next place that has it.
+const cyrb53 = (bytes, seed) => {
+  let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0; i < bytes.length; i++) {
+    const ch = bytes[i];
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(14, "0");
+};
+const clipHash = (bytes) => cyrb53(bytes, 0) + cyrb53(bytes, bytes.length + 1);
+const CLIP_NAME_RE = /^[0-9a-f]{28}\.(wav|mp3|ogg)$/;
+const clipNameOk = (name) => typeof name === "string" && CLIP_NAME_RE.test(name);
+// Do these bytes belong under this name? The one check every reader and writer makes.
+const clipMatches = (name, bytes) => clipNameOk(name) && !!bytes && clipHash(bytes) === name.slice(0, 28);
+const CLIP_PREFIX = "clip:";
 
 // Same as newerRecord in App.js: dated beats undated, strictly greater savedAt wins, undated never wins.
 const newerRecord = (a, b) => {
@@ -128,13 +161,17 @@ const decideSweep = ({ inc, cur, curSource, source, seen, baseFor, deleted, epoc
 
 // A browser store read out of Chrome ([{ key, value }] from tools/read-chrome-leveldb.js) in the
 // library shape. Unparseable values are skipped one by one, never the whole store.
+// Its sound files come back as `clips` ({ name: base64 }), because a sound saved in a StackBlitz copy
+// reaches the save folder by this sweep and by nothing else.
 const libraryFromStore = (entries) => {
   const out = {};
   for (const k of KINDS) out[k] = [];
+  out.clips = {};
   let removed = null;
   for (const e of entries || []) {
     if (!e || typeof e.key !== "string" || typeof e.value !== "string") continue;
     if (e.key === "removedIndex") { try { const r = JSON.parse(e.value); if (isMap(r)) removed = r; } catch { /* skip */ } continue; }
+    if (e.key.startsWith(CLIP_PREFIX)) { const n = e.key.slice(CLIP_PREFIX.length); if (clipNameOk(n) && e.value) out.clips[n] = e.value; continue; }
     const i = e.key.indexOf(":");
     if (i < 0) continue;
     const kind = KIND_OF_PREFIX[e.key.slice(0, i)];
@@ -163,4 +200,4 @@ const cloudSnapshot = (lib) => {
   return JSON.stringify(out, null, 1);
 };
 
-module.exports = { KINDS, PREFIX, newerRecord, sameContent, merge3, decideSweep, libraryFromStore, cloudSnapshot };
+module.exports = { KINDS, PREFIX, newerRecord, sameContent, merge3, decideSweep, libraryFromStore, cloudSnapshot, clipHash, clipNameOk, clipMatches, CLIP_PREFIX };
