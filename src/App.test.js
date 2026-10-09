@@ -589,6 +589,9 @@ import {
 import {
   isHillFormationCell,
   splitHillHits,
+  landingReach,
+  godModeOn,
+  playerHpAfterHit,
   shouldStepAssist,
   nextOffLedge,
 } from "./App";
@@ -12220,6 +12223,85 @@ describe("a ramp far above across open air is not this cell's hill", () => {
     // Two rows of air between the neighbour's ramp and the hit row: some other hill.
     const far = { cols: 10, rows: 10, fg: { "3,4": ramp(1), "6,5": "#3f3e3b" } };
     expect(isHillFormationCell(far, 6, 5)).toBe(false);
+  });
+});
+
+// Blake's Trailor Park M14 (2026-10-09): "around the saucer you can just fall through the map. It
+// brings you from the top bit to the bottom bit." The upper lane is a two-row slab (rows 20-21) over
+// the lab; a fall that moved the feet more than half a cell in one frame skipped both rows.
+describe("a fast fall lands on a thin floor instead of dropping through it", () => {
+  const CH = 30;
+  // The landing filter's shape in the play loop (player walls, units, corpses): fall one frame, keep
+  // the solid rows the box now overlaps whose tops are within `reach` above the feet, land on the
+  // highest. Returns the feet's resting y, or null if it fell past the slab.
+  const fallOnto = (slabRows, feet0, vy0, dt, reachOf) => {
+    let feet = feet0, vy = vy0;
+    for (let f = 0; f < 400; f++) {
+      vy = Math.min(60, vy + 0.175 * dt); feet += vy * dt;
+      const hit = slabRows.filter((r) => feet > r * CH); // rows the box (7 cells tall) reaches into
+      const land = hit.filter((r) => r * CH >= feet - reachOf(vy, dt));
+      if (land.length) return Math.min(...land) * CH;
+      if (hit.length === slabRows.length && feet > (Math.max(...slabRows) + 1) * CH) return null;
+    }
+    return null;
+  };
+  const OLD = () => CH * 0.5;
+  test("reproduces M14: the old half-cell window drops a 25 px/frame fall through two rows", () => {
+    // Feet 23 px into row 20 after the first frame (row 20 refused), 48 px after the second, which is
+    // more than half a cell into row 21 too (refused) — and then there is nothing left under them.
+    expect(fallOnto([20, 21], 598, 25, 1, OLD)).toBeNull();
+    // ...and the same old window at 16 px in merely sinks the feet a row (the long-seen "lands a cell deep").
+    expect(fallOnto([20, 21], 590, 25, 1, OLD)).toBe(630);
+    expect(fallOnto([20, 21], 598, 25, 1, (vy, dt) => landingReach(vy, dt, CH))).toBe(600);
+    expect(fallOnto([20, 21], 590, 25, 1, (vy, dt) => landingReach(vy, dt, CH))).toBe(600);
+  });
+  test("every fall speed and frame time up to the loop's dt clamp lands on the TOP row", () => {
+    for (const dt of [0.36, 1, 1.5, 2, 3]) for (let vy = 0; vy <= 60; vy += 2.5) for (let off = 0; off < 30; off += 3) {
+      expect(fallOnto([20, 21], 570 + off, vy, dt, (v, d) => landingReach(v, d, CH))).toBe(600);
+    }
+  });
+  test("standing still keeps the half-cell window; a fall widens it by exactly what it crossed", () => {
+    expect(landingReach(0, 1, CH)).toBe(15);
+    expect(landingReach(0.175, 1, CH)).toBe(15);
+    expect(landingReach(10, 1, CH)).toBe(15);
+    expect(landingReach(20, 1, CH)).toBe(22);
+    expect(landingReach(20, 2.5, CH)).toBe(52);
+  });
+  test("a platform overhead is still never landed on: the reach stops where the feet started", () => {
+    // Feet at 590 falling 20 px land at 610; a top at 560 (30 px above where they started) is refused.
+    expect(560 >= 610 - landingReach(20, 1, CH)).toBe(false);
+    expect(590 >= 610 - landingReach(20, 1, CH)).toBe(true);
+  });
+  test("the player's, the units' and the corpses' landings all use it", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).not.toMatch(/>= (feetNow|eFeet|dFeet) - CH \* 0\.5/);
+    expect(src).not.toMatch(/feetBottom <= hillTop \+ CH \* 0\.5/);
+    expect((src.match(/landingReach\((p|ep|dep)\.vy, dtMul, CH\)/g) || []).length).toBe(3);
+  });
+});
+
+// Blake (2026-10-09): "an invincible Bob for testing ... i don't even need a button tbh".
+describe("🛡 god mode (a testing switch)", () => {
+  afterEach(() => { delete window.__bobGod; window.localStorage.removeItem("bobGod"); });
+  test("off by default; a hit takes HP and floors at 0", () => {
+    expect(godModeOn()).toBe(false);
+    expect(playerHpAfterHit(25, 10)).toBe(15);
+    expect(playerHpAfterHit(5, 10)).toBe(0);
+  });
+  test("window.__bobGod or localStorage bobGod turns it on, read at each hit", () => {
+    window.__bobGod = true;
+    expect(godModeOn()).toBe(true);
+    expect(playerHpAfterHit(25, 10)).toBe(25);
+    delete window.__bobGod;
+    expect(playerHpAfterHit(25, 10)).toBe(15);
+    window.localStorage.setItem("bobGod", "1");
+    expect(playerHpAfterHit(3, 999)).toBe(3);
+  });
+  test("every player HP loss goes through playerHpAfterHit", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).not.toMatch(/playerHP\.current\s*=\s*Math\.max\(0,\s*playerHP\.current\s*-/);
+    expect(src).not.toMatch(/playerHP\.current\s*-=/);
+    expect((src.match(/playerHP\.current = playerHpAfterHit\(/g) || []).length).toBe(5);
   });
 });
 

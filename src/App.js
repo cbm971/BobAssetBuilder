@@ -3534,6 +3534,26 @@ export const incomingPlayerDamage = (raw, def, face, attackerX, wearerX, backGua
   if (crouchGuardReduce != null) d = applyCrouchGuard(d, !!crouching, crouchGuardReduce);
   return Math.max(1, Math.round(d));
 };
+// 🛡 GOD MODE — a TESTING switch for agents driving playtests, never a game feature, so it has no
+// button and nothing on screen (Blake, 2026-10-09: "an invincible Bob for testing ... I often see
+// you die in testing for whatever reason ... i don't even need a button tbh"). Test drives kept
+// dying to things they were not testing — the church Squirrel, M1's gate gang, a stray grenade —
+// and a respawn at the gate reads exactly like a failed teleport or a broken walk. Every harness
+// used to find the playerHP ref by hook order and top it up every frame.
+// On while ANY of: `window.__bobGod = true` (flip it from a drive script at any moment, it is read
+// at each hit), `?god` in the page address, or localStorage `bobGod` = "1". It only stops HP loss —
+// every hit still lands, flashes, stuns and knocks you about as normal, so only "you cannot die"
+// changes and anything else under test behaves for real. Every player HP loss goes through
+// playerHpAfterHit (a test greps for a bare subtraction), so a new damage site cannot slip past it.
+export const godModeOn = () => {
+  try {
+    if (typeof window === "undefined") return false;
+    if (window.__bobGod) return true;
+    if (/[?&]god(?:=1|=true)?(?:&|$)/.test(window.location.search || "")) return true;
+    return window.localStorage.getItem("bobGod") === "1";
+  } catch (e) { return false; }
+};
+export const playerHpAfterHit = (hp, dmg, god = godModeOn()) => (god ? hp : Math.max(0, hp - dmg));
 // How much of a hit a worn guard ability eats (Back Guard, Crouch Guard), or null when nothing worn
 // carries it — the same first-match, 0.5-default reading the player's own two lines in the play
 // loop make off the player's effects, so a cape reads identically on whoever has it on.
@@ -11159,6 +11179,23 @@ export const splitHillHits = (lv, hits, footY, CH) => {
   for (const h of hits) ((h.r * CH >= footY - CH * 2.5) && isHillFormationCell(lv, h.r, h.c) ? out.hill : out.walls).push(h);
   return out;
 };
+// HOW FAR ABOVE THE FEET A FLOOR'S TOP MAY SIT AND STILL BE LANDED ON THIS FRAME (2026-10-09, Blake's
+// Trailor Park M14: "around the saucer you can just fall through the map. It brings you from the top
+// bit to the bottom bit"). Every flat landing — the player's (walls AND the hill-top window), a unit's
+// and a corpse's — kept only cells whose top was within HALF A CELL above the feet, so a body could
+// never snap UP onto a platform it merely overlapped. Sound, but the half cell was a FIXED number:
+// a frame that moved the feet further than 15 px (a long fall at 60 fps, a shorter one on a slow
+// frame — the loop's dt runs up to 3) carried them more than half a cell into the floor, the top row
+// was thrown out as "above the feet", and only a SECOND solid row underneath could catch them. On
+// thick ground that is the old "lands a cell deep in the ground" sink (seen in test drives since
+// September); M14's upper lane is a two-row slab over the lab, so there it skipped both rows and
+// dropped you onto the street. The saucer is just where it showed: jumping off it is the longest fall
+// on the level. Measured in the real loop as Super Bob, released at y 0 with vy 16: columns 60, 73
+// and 77 all landed on the street at y 840 (row 35) instead of on the slab at 390.
+// The fix is the sweep slopeSurfaceForPlayer already uses for ramps: also accept any top the feet
+// CROSSED this frame (fall speed × dt, +2 for rounding). It never reaches above where the feet were
+// at the start of the frame, so the "never snap up onto an overhead platform" guard is unchanged.
+export const landingReach = (vy, dtMul, CH) => Math.max(CH * 0.5, vy > 0.5 ? vy * (dtMul || 1) + 2 : 0);
 // Step-assist smoothing: when the physics snaps the player up a one-cell stair, the RENDER
 // instead eases up over ~7 frames (p.stepEase holds the remaining visual offset, decaying at
 // STEP_EASE_SPEED px per 60fps-frame). Physics stays exact; only the drawn position eases — so
@@ -13623,10 +13660,11 @@ export default function AssetStudio() {
           const centerHits = hits.filter((h) => h.c === centerCol);
           const centerSplit = splitHillHitsW(centerHits, p.y + ph);
           let landHits = centerSplit.walls;
+          const reach = landingReach(p.vy, dtMul, CH); // a top the feet crossed THIS frame is a floor, however fast they fell (M14's slab)
           if (!landHits.length && centerSplit.hill.length) {
             const hillTop = Math.min(...centerSplit.hill.map((h) => h.r * CH));
             const feetBottom = p.y + ph;
-            if (feetBottom >= hillTop - CH && feetBottom <= hillTop + CH * 0.5) landHits = centerSplit.hill;
+            if (feetBottom >= hillTop - CH && feetBottom <= hillTop + reach) landHits = centerSplit.hill;
           }
           if (!landHits.length) landHits = splitHillHitsW(hits, p.y + ph).walls;
           // A landing may only bring the feet DOWN onto a surface at/below them, never snap them
@@ -13635,7 +13673,7 @@ export default function AssetStudio() {
           // head — become the floor, teleporting you onto its top. Cells whose top sits above the
           // feet are ceilings, not floors; drop them so the platform blocks from below instead.
           const feetNow = p.y + ph;
-          landHits = landHits.filter((h) => h.r * CH >= feetNow - CH * 0.5);
+          landHits = landHits.filter((h) => h.r * CH >= feetNow - reach);
           if (landHits.length) { p.y = Math.min(...landHits.map((h) => h.r * CH)) - ph; p.vy = 0; p.onGround = true; }
         }
         else if (p.vy < 0) {
@@ -13711,7 +13749,7 @@ export default function AssetStudio() {
         p.burnPool = (p.burnPool || 0) + pDps * (dtMul / 60);
         if (p.burnPool >= 1) {
           const loss = Math.floor(p.burnPool); p.burnPool -= loss;
-          playerHP.current = Math.max(0, playerHP.current - loss);
+          playerHP.current = playerHpAfterHit(playerHP.current, loss);
           p.onFire = 12; // frames of the "burning" red flicker on the player sprite
           if (playerHP.current <= 0) { playerDefeated(p, "🔥 Burned to a crisp — back to the start."); p.burnPool = 0; }
         }
@@ -13784,7 +13822,7 @@ export default function AssetStudio() {
               dep.y += dep.vy * dtMul;
               const dFeet = dep.y + dh;
               const dPart = worldPartAt(worldParts, dep.x + dw / 2, dep.y + dh / 2, CW); // the level it lies in (see THE WORLD)
-              const dFloor = cellsHitW(dep.x, dep.y, dw, dh).filter((h) => h.r * CH >= dFeet - CH * 0.5);
+              const dFloor = cellsHitW(dep.x, dep.y, dw, dh).filter((h) => h.r * CH >= dFeet - landingReach(dep.vy, dtMul, CH)); // a body falls the way a live one does (landingReach)
               if (dFloor.length && dep.vy > 0) { dep.y = Math.min(...dFloor.map((h) => h.r * CH)) - dh; dep.vy = 0; dep.restedDead = true; }
               else if (dep.vy > 0 && topdownAt(dPart.lv, dep.x - dPart.ox, dFeet - dPart.oy, dw, CW, CH)) { dep.vy = 0; dep.restedDead = true; } // a 🚶 Top-down plane is a floor to a corpse too: a body killed on the crossing lies where it fell instead of sliding down the road
               const dFloorY = unitFloorY(dPart, dep.x + dw / 2, dep.y + dh / 2, lv, seams, CW);
@@ -14486,7 +14524,7 @@ export default function AssetStudio() {
               // (now possibly tall, scaled) body merely overlaps. Same feet-filter the player's own
               // landing uses; without it a big enemy near forest canopy floats up onto the leaves.
               const eFeet = ep.y + newEph;
-              const eFloor = eHits.filter((h) => h.r * CH >= eFeet - CH * 0.5);
+              const eFloor = eHits.filter((h) => h.r * CH >= eFeet - landingReach(ep.vy, dtMul, CH)); // ...plus any top it fell through this frame (landingReach), or a fast fall drops it through a thin floor
               if (eFloor.length) { if (ep.vy > 0) { ep.y = Math.min(...eFloor.map((h) => h.r * CH)) - newEph; ep.vy = 0; ep.onGround = true; } }
               else { ep.onGround = false; }
             }
@@ -14617,7 +14655,7 @@ export default function AssetStudio() {
               const crit = Math.random() < critChance(eIntel);
               const dmg = incomingPlayerDamage(crit ? rawDmg0 * 2 : rawDmg0, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(hitEw && hitEw.ignoreArmor));
               const critNote = crit ? "💥 Critical! " : "";
-              playerHP.current = Math.max(0, playerHP.current - dmg);
+              playerHP.current = playerHpAfterHit(playerHP.current, dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
               if (playerHP.current <= 0) { playerDefeated(p, "💀 " + ea.name + " defeated you — back to the start."); }
               else {
@@ -15163,7 +15201,7 @@ export default function AssetStudio() {
               // The shooter's crit, rolled here where it lands — your blast rolls yours the same way.
               const bCrit = pr.critInt != null && Math.random() < critChance(pr.critInt), bNote = bCrit ? "💥 Critical! " : "";
               const dmg = incomingPlayerDamage(bCrit ? baseDmg * 2 : baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch);
-              playerHP.current = Math.max(0, playerHP.current - dmg);
+              playerHP.current = playerHpAfterHit(playerHP.current, dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
               if (playerHP.current <= 0) { playerDefeated(p, "💀 Caught in the blast — back to the start."); }
               else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(bNote + "💥 Blast hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
@@ -15551,7 +15589,7 @@ export default function AssetStudio() {
               // case of being hit, so it must not have its own arithmetic.
               if (p.invuln > 0) continue;
               const dmg = incomingPlayerDamage(impactDmg, playerAsset?.defense ?? 0, p.face, g.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(g.asset && g.asset.ignoreArmor));
-              playerHP.current = Math.max(0, playerHP.current - dmg);
+              playerHP.current = playerHpAfterHit(playerHP.current, dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
               if (playerHP.current <= 0) { playerDefeated(p, "💀 Blown off your feet — back to the start."); }
               else impactNote += " · 🪨 hit you for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)";
@@ -15770,7 +15808,7 @@ export default function AssetStudio() {
                 if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
                 const sCrit = pr.critInt != null && Math.random() < critChance(pr.critInt), sNote = sCrit ? "💥 Critical! " : "";
                 const dmg = incomingPlayerDamage(sCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, pr.ignoreArmor);
-                playerHP.current = Math.max(0, playerHP.current - dmg);
+                playerHP.current = playerHpAfterHit(playerHP.current, dmg);
                 p.invuln = PLAYER_INVULN_FRAMES;
                 if (playerHP.current <= 0) { playerDefeated(p, "💀 Shot down — back to the start."); }
                 else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(sNote + "🏹 Hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }

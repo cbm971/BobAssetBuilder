@@ -86,8 +86,10 @@ JavaScript, and read the DOM back as the proof.
   blast) clears the held keys, and the walk stops dead mid-level as if something blocked it.
 - After changing a keyed list that renders in play, count DOM moves with a MutationObserver (a
   node removed and re-added in the same batch). Comparing boxes misses moves.
-- Some enemies kill a test player in seconds (the church Squirrel, the gang at M1's gate). Top up
-  the HP ref from your frame driver, or a respawn looks like a failed teleport.
+- **Drive in god mode unless you are testing damage:** `window.__bobGod = true` (or `?god` in the
+  address, or localStorage `bobGod` = "1"). Hits still land, flash and stun, but HP never drops, so
+  the church Squirrel or M1's gate gang cannot respawn you mid-drive (a respawn looks like a failed
+  teleport). Blake asked for it (2026-10-09); it has no button on purpose.
 - **A test must never pin his data.** Test rules against fixtures you build. Test his file only for
   structural invariants (ids, no gravestones, KINDS match).
 - Test storage code against a fake `window.storage` with get/set/list and NO delete. His host has
@@ -312,6 +314,9 @@ plus traps it does not cover:
   take ramps (`layerTakesRamps`). Fill keeps every field except `PAINT_IDENTITY_KEYS`; never put a
   key allowlist over cell geometry. Anything with a left/right sense must be added to
   `flipLevelHorizontally`.
+- **A flat landing takes any floor top the feet crossed THIS frame** (`landingReach`, used by the
+  player, units and corpses). Never a fixed pixel window: a fast fall or a slow frame steps past it.
+  On thick ground that sank you a cell; on M14's two-row slab it dropped you onto the street.
 - **Objects:** `lv.fx["r,c"]` (the object's top-left cell) is a list of
   `{ kind, solid, lay, z, size, rot, flip, ox, oy, … }`. Render through `levelObjectsInDrawOrder`,
   and new placements take `nextObjectZ`. The layer comes from `lay` (`objectLay`), not from Solid.
@@ -324,7 +329,8 @@ plus traps it does not cover:
   `playerSpriteMirrored`). A unit's facing has ONE gated writer (`wantFace` → `holdFacing`). Never
   add another direct `ep.face` write in the AI loop.
 - **Damage invariants:**
-  - Every player death goes through `playerDefeated(p, msg)`.
+  - Every player death goes through `playerDefeated(p, msg)`, and every player HP loss through
+    `playerHpAfterHit` (god mode lives there; a test greps for a bare subtraction).
   - Every hit on a unit goes through `incomingUnitDamage` (fire excepted) and asks
     `unitUntouchable(ep)`. A test greps for bare HP subtractions.
   - Every unit hit box starts at `unitHitTop`.

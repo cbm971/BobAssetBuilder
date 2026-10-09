@@ -3645,3 +3645,43 @@ opened both sides and every sewer was already on Floor "Sewer", so nothing chang
 dialog files rooms by Room tag only (every room carrying a Section had the same word as its tag) and
 no longer prints "· Middle" after each level. Both Section inputs are gone; new levels and rooms are
 created without the field; an old record's `section` is left on it and ignored.
+
+## FALLING THROUGH M14'S SLAB, AND GOD MODE FOR TEST DRIVES (2026-10-09)
+
+**Blake: "On Trailor park M14 ... there is a bug where normally around the saucer you can just fall
+through the map. ... It brings you from the top bit to the bottom bit."** The upper lane is a two-row
+slab (rows 20-21) with the lab's air under it; the saucer sits on hidden Foreground ramps (rows 10-19).
+
+**Cause: every flat landing used a FIXED half-cell window.** After the vertical move, the player's
+landing (walls, and the hill-top window for ramp-formation cells), a unit's and a corpse's all kept
+only solid rows whose top was at most `CH * 0.5` (15 px) above the feet: the guard that stops a body
+snapping UP onto a platform it overlaps. A frame that moved the feet more than 15 px put them past the
+top row, so that row was refused as "above the feet"; on the next frame the second row was refused
+the same way if the feet were more than 15 px into it. On thick ground that is the long-seen "lands a
+cell deep" sink (a fresh Playtest landing at y 420 instead of 390 was in the harness notes since
+September). On a two-row slab there is nothing after the second row. The step is fall speed × dt, so
+it bites on long falls and on slow or hitching frames (dt runs to 3). Jumping off the saucer top is the
+longest fall on M14, which is why it showed "around the saucer". The slab cells beside the mound are
+also ramp-formation (hill) cells, but that turned out not to matter: plain wall columns 60 and 73 fell
+through exactly like column 77.
+
+**Measured in the real loop (Super Bob, M14 from library.json):**
+- Old code, released at y 0 with vy 16: columns 60, 73 and 77 landed at y 840 (the street, row 35);
+  76, 108 and 109 happened to catch row 20 at 390.
+- Old code, six jumps off the saucer top with a 24 ms busy-wait added to every frame (frames slowed
+  from the frame driver, fps not measured): 3 sank to 420, a full block into the slab. With 14 ms: 2 of 5.
+- Fixed: the same six drops all at 390; a sweep of columns 68-118 at vy 40 with a 30 ms busy-wait
+  landed every column on the slab or the mound; five saucer jumps with 14 ms all at 390.
+
+**Fix: `landingReach(vy, dtMul, CH)` = max(half a cell, vy × dt + 2).** Any top the feet crossed this
+frame is a floor, the same sweep `slopeSurfaceForPlayer` already uses for ramps. It never reaches
+above where the feet started the frame, so the overhead-platform guard is unchanged. Used at all three
+landing sites (player, unit, corpse); a test greps that none of them reverted to `CH * 0.5`.
+
+**God mode (same message): "add the ability for you to have an invincible Bob for testing ... i don't
+even need a button tbh".** `godModeOn()` reads `window.__bobGod`, `?god` in the address, or
+localStorage `bobGod` = "1", at each hit. All five player damage sites (fire, melee, blast, thrown
+impact, shot) now go through `playerHpAfterHit`, which leaves HP alone in god mode; hits still land,
+flash, stun and knock you about. Verified on M14 beside the Army Bobs: 7 hits (melee 13, shots 4) with
+HP held at 25, then god off and the next shots took it 25 → 21 → 17. It replaces the old harness trick
+of finding the playerHP ref by hook order and topping it up every frame.
