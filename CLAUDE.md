@@ -342,7 +342,8 @@ plus traps it does not cover:
     his machine the frame cost is paint, not script.
 - **Limbs seen from behind (ladder, Back pose) move by TRANSLATION, never rotation.** A hip
   rotation only splays a leg from behind, and a far-side pant twin counter-rotates off the leg.
-  Units climbing take the player's ladder step (`legLift`), not the walk swing. Raised ladder arms
+  Units climbing take the player's ladder step (`legLift`), not the walk swing, and raise
+  their arms like yours (`eClimbArms`, ahead of aim/swing; creatures keep paws as drawn). Raised ladder arms
   may drop but not rise (`LADDER_ARM_REACH_UP`), or they float off the shoulder.
 - **The CSS sheets are JS template literals.** A backtick in a CSS comment breaks the build at a
   line far from the cause.

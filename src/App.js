@@ -22259,7 +22259,18 @@ export default function AssetStudio() {
                   // while it runs, the arm swings through the same windup/strike arc a melee swing
                   // uses, gun or no gun.
                   const eAiming = eRanged && ep && !ep.reloading && !eThrowingNow && ((ep.aimHold || 0) > 0 || ep.swingT > 0);
-                  if (ep && eArm0 && !eUseAtkPose && (eAiming || eThrowingNow || (ep.swingT > 0 && !eRanged))) {
+                  // 🪜 A CLIMBING unit's arms go up to the rungs/bar as yours do (2026-10-08). Blake:
+                  // "enemies should match." They used to stay as drawn (hanging at its sides on a
+                  // ladder), while the legs stepped. Ahead of the aim/swing branch for the same
+                  // reason the player's is (armHoldsAimPose): both hands are busy holding on. Straight
+                  // up (armClimbAbs) about each arm's own shoulder, sleeves following (driveUnitArms);
+                  // on a ladder the same capped hand pump as yours, on bars/a ledge held still. A
+                  // drawn creature keeps its paws as drawn, as it does flying.
+                  const eClimbArms = !!(ep && ep.climbing && eRealArm && !eUseAtkPose && !eFrontPose && !isCreatureUnit(ea));
+                  if (eClimbArms) {
+                    eBlocks = driveUnitArms(eBlocks, eArm0, (a) => armClimbAbs(a.armPivot));
+                    if (ep.climbing === "ladder") eBlocks = applyLimbSwing(eBlocks, new Set(), identifyLimbs(eBlocks).armIds, 0, { alternate: true, armReach: Math.sin(ep.walkPhase || 0) * LADDER_ARM_REACH, armReachUp: LADDER_ARM_REACH_UP });
+                  } else if (ep && eArm0 && !eUseAtkPose && (eAiming || eThrowingNow || (ep.swingT > 0 && !eRanged))) {
                     const eSwingA = meleeSwingAngle(ATTACK_SWING_FRAMES - (eThrowingNow ? ep.throwT : ep.swingT), ATTACK_SWING_FRAMES);
                     // A ranged unit's arm follows the shot it just fired (ep.shotTilt, facing-frame
                     // degrees off level, + = down) for the swing frames — the same visible lock-on

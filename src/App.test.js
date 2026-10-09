@@ -12260,3 +12260,20 @@ describe("ladder climb limbs", () => {
     for (const b of out) expect(b.rot || 0).toBe(0);
   });
 });
+
+describe("climbing unit arms match the player's", () => {
+  const { applyLimbSwing, driveUnitArms, identifyLimbs, armClimbAbs, LADDER_ARM_REACH, LADDER_ARM_REACH_UP } = require("./App");
+  const arm = { id: "a", x: 30, y: 70, w: 16, h: 50, rot: 0, role: "weaponArm", armPivot: "top" };
+  const twin = { ...arm, id: "a_m", x: 154, _m: true };
+  const sleeve = { id: "s", x: 28, y: 68, w: 20, h: 24, rot: 0, limb: "arm" };
+  test("both arms point straight up and pump no higher than the cap", () => {
+    for (const s of [-1, 0, 1]) {
+      let out = driveUnitArms([arm, twin, sleeve], arm, (a) => armClimbAbs(a.armPivot));
+      out = applyLimbSwing(out, new Set(), identifyLimbs(out).armIds, 0, { alternate: true, armReach: s * LADDER_ARM_REACH, armReachUp: LADDER_ARM_REACH_UP });
+      const by = Object.fromEntries(out.map((b) => [b.id, b]));
+      expect(by.a.rot).toBe(armClimbAbs("top"));
+      expect(by.a_m.rot).toBe(armClimbAbs("top"));
+      for (const id of ["a", "a_m"]) expect((id === "a" ? arm : twin).y - by[id].y).toBeLessThanOrEqual(LADDER_ARM_REACH_UP + 1e-9);
+    }
+  });
+});
