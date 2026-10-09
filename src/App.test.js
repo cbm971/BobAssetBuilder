@@ -12373,3 +12373,17 @@ describe("editorReachIssues", () => {
     for (const k of ["rect", "roundrect", "circle", "stadium", "halfcircle", "tri", "tri2", "diamond", "pentagon", "hexagon", "star", "trapezoid", "poly", "text", "emoji"]) expect(EDITOR_PIECE_KINDS.has(k)).toBe(true);
   });
 });
+// 2026-10-09: "THERE IS NO SAVE BUTTON ON JACKETS/CAPES". The asset editor shows 💾 Save only when
+// hasStore is true, and hasStore came from ONE test write to localStorage. sset saves to IndexedDB
+// first and only mirrors into localStorage, so localStorage sits at Chrome's 5 MiB cap (every one
+// of his 16 game addresses did, one with a single character free) and the button vanished while
+// saving would have worked. The gate must also ask IndexedDB.
+describe("the 💾 Save gate", () => {
+  test("a full localStorage does not hide Save when IndexedDB opens", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    const at = src.indexOf('localStorage.setItem("__p", "1")');
+    expect(at).toBeGreaterThan(-1);
+    const after = src.slice(at, at + 600);
+    expect(after).toContain("if (!ok) idbOpen().then((db) => { if (db) setHasStore(true); });");
+  });
+});

@@ -12085,8 +12085,19 @@ export default function AssetStudio() {
     ? " — ⚠ the project file did NOT accept it, so it may come back on the next load. Say so and it can be removed at the source."
     : " ✓");
   useEffect(() => {
+    // CAN 💾 SAVE SAVE HERE? Asked of every store sset actually writes to, not just localStorage.
+    // This used to be ONE test write of "__p" to localStorage, and the asset editor's 💾 Save
+    // button hides when it fails. But sset writes IndexedDB first and only MIRRORS into
+    // localStorage, best effort, so localStorage fills to Chrome's 5 MiB per-site cap and stays
+    // there. Measured in Blake's Chrome on 2026-10-09: all 16 of his game addresses sat at
+    // 5,240,201–5,242,879 of 5,242,880 characters. The one he was using had ONE character free,
+    // the 4-character probe threw QuotaExceededError, and "💾 Save" vanished from Save & Open
+    // ("THERE IS NO SAVE BUTTON ON JACKETS/CAPES") while IndexedDB would have saved fine. It
+    // was never about jackets: every asset type shares the sheet, and the copies with a few
+    // hundred characters spare kept the button, which is why it looked random.
     let ok = false;
     try { if (typeof window !== "undefined" && window.storage) ok = true; else { localStorage.setItem("__p", "1"); localStorage.removeItem("__p"); ok = true; } } catch { ok = false; }
+    if (!ok) idbOpen().then((db) => { if (db) setHasStore(true); });
     // Give the deleted-ids list the same storage ladder the records use, BEFORE anything loads —
     // otherwise the first purge of the session runs against localStorage alone, which is the copy
     // that does not survive the address change that hands the records back.

@@ -149,6 +149,10 @@ has never actually been gone; the bytes were always still on disk.** Never clear
   (`mergeById` applies it on the way up), and a dated save beats an undated one.
 - A loader that throws looks exactly like lost work. Never wrap a whole load loop in one try/catch;
   skip and name the bad record. **Never call an async helper without `await`.** A test greps for it.
+- **localStorage is only a mirror, and it is FULL.** `sset` writes IndexedDB first and copies into
+  localStorage best effort, so every copy of his game sits at Chrome's 5 MiB cap. Never gate a
+  feature on a localStorage write succeeding: the asset editor's 💾 Save vanished that way
+  (2026-10-09, one character free). Ask the store that actually saves (`idbOpen`).
 - There is **no save-status indicator** on screen; he rejected one. **Never explain origins,
   preview hostnames or "addresses" to him.**
 - 💾 Save during a run saves `run.editorLevel`, never the run's working copy.

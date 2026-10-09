@@ -2825,6 +2825,23 @@ the stomp budget, and one stomp kills the rat. The record copy is `assets/animal
   17 → 18); the rat dies to one stomp and the turtle to two (60 → 30 → 0); every corpse's ground
   line lands on the floor to the pixel.
 
+**"THERE IS NO SAVE BUTTON ON JACKETS/CAPES" (2026-10-09) WAS A FULL localStorage.** His screenshot of
+Save & Open showed only ⬇ Download / ⬆ Upload. The 💾 Save there renders on `hasStore`, which came from
+one probe write (`localStorage.setItem("__p", "1")`). `sset` saves to IndexedDB and only MIRRORS into
+localStorage, so localStorage fills to Chrome's per-site cap and stays there. Measured with
+`tools/read-chrome-leveldb.js ls` on a copy of his Chrome `Local Storage/leveldb`: all 16 Bob Okay
+addresses (StackBlitz ones, their stackblitz.com-partitioned twins, cbm971.github.io) held
+5,240,201–5,242,879 of 5,242,880 characters, and the one he was on had a single character free, so the
+4-character probe threw QuotaExceededError. Not jacket-specific: every asset type shares the sheet, and
+copies with a few hundred characters spare kept the button, which is why it looked random. My own
+check at 1600 and 3440 px found the button and called it there; it was there in MY browser, whose
+localStorage quota is far larger, so the same test cannot fill it. The fix asks IndexedDB too
+(`idbOpen()` → `setHasStore(true)`). Verified with a page-level simulator (a script ahead of the
+bundle in `public/index.html`, gated on a sessionStorage flag, making `localStorage.setItem` throw
+QuotaExceededError; reverted before commit): the shipped code showed no 💾 Save (the control), the
+fix showed it, and a real click saved the record into IndexedDB and the asset index. A source test
+guards it.
+
 **🦒 GIRAFFE (`g1raff3`) AND THE "Zoo" PROP FOLDER, 2026-10-09 — "make a few Zoo related props as
 well as a Giraff Enemy", then, mid-job, "Make sure you don't cheat when making the asset. You may
 add shapes and tools to the asset maker if you need to ... Just make sure its logical".**
