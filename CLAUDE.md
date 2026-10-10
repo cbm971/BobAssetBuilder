@@ -225,6 +225,9 @@ plus traps it does not cover:
 - **The footprint is cropped tight to the visible art** (`propVisibleArtBox`: unrotated boxes,
   cutters skipped), and `size` is the longer side in cells, from `LV_OBJ_SIZES`. One stray dot
   inflates the whole prop. A rotated piece whose stored box hangs off the canvas widens it too.
+  Placements made since 2026-10-10 carry `turnedBox` and crop to where rotated pieces are DRAWN
+  (`propVisibleArtBox(asset, true)`), but keep the SCALE from the unturned measure so they match
+  the 316 older placements, which stay on the unturned box (40 Sprinklers would shift otherwise).
 - **A ground prop must sit on its row.** Draw it at a ratio that gives whole rows at the sizes it
   will be used at (2:1, 8:1, 10:3 …), and end every ground-touching piece on one y. Fractional rows
   make it float.
@@ -340,6 +343,8 @@ plus traps it does not cover:
 - **Objects:** `lv.fx["r,c"]` (the object's top-left cell) is a list of
   `{ kind, solid, lay, z, size, rot, flip, ox, oy, … }`. Render through `levelObjectsInDrawOrder`,
   and new placements take `nextObjectZ`. The layer comes from `lay` (`objectLay`), not from Solid.
+  ⤒/⤓ go to the level-wide extremes and may change layer; ▲/▼ (`orderStepZ`) step past the next
+  OVERLAPPING object on the same layer and never change layer.
 - **Z ladder** (all inside `.lgrid`, which has `isolation:isolate`): bg cells 1000, fg 2000, climb
   and pedestals 4000, player and units 5000, corpses 5050, unit status 5060–5062, drops 5063,
   labels 5070 / talk prompt 5080 (`SCENE_LABEL_Z`), front objects 5101+, front paint 6000, door

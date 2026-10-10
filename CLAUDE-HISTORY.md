@@ -3859,3 +3859,9 @@ of his speakers.
 (`GAME_ORIGIN` in tools/bob-okay.js), so test edits made in the pane's dev copy never reach his
 saves. In this pane, a CSS rule's width was beaten by a later `.sndEvt` rule of the same
 specificity, so read the rendered width, not the stylesheet.
+
+## Furr Con Sign: the invisible ceiling, and ▲/▼ ordering (2026-10-10)
+
+Blake: his Furr Con Sign would not go at the top of a room, "a massive invisible wall", and he wanted a way to put the sign behind chairs on the same layer. The sign's board is a 53x171 rect twisted -90°. Stored, it spans y -60..110; drawn, about -1..52. `worldArtBox` measures stored boxes, so a third of the footprint was empty space above the board. A placement's top-left cell is clamped to row 0, so that strip hit the ceiling first. Measured on his folder: a turned measure changes 16 props, and Sprinkler (40 placements), Bush, Bear Skin Rug and Church Pew are placed, so the turned box is opt-in per placement (`turnedBox`, set by fresh placement and by a Select/Copy drop, which re-centres on the click anyway). The scale stays on the unturned measure, so a new placement at size N renders at the same px per design unit as an old one at size N. Verified in the dev server: old sign 360x284 px box with art starting 98 px down; after a Select re-drop it was 284x211 at the same scale, art 7 px from the ceiling.
+
+The ordering existed (⤒ Front / ⤓ Back) but ⤓ Back also demotes the layer (orderEndLay) and goes behind everything. ▲/▼ step past the nearest same-layer object whose art rect overlaps, skipping non-overlapping ones, and renumber every z 0..n-1 so tied z values from pasted copies cannot undo the step.

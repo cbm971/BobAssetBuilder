@@ -12667,3 +12667,65 @@ describe("🎯 range items", () => {
     expect(line).toContain("activeRangeMult(itemBuffs.current, nowT)");
   });
 });
+
+import { orderStepZ } from "./App";
+
+describe("rotated prop pieces and the placement crop (Furr Con Sign, 2026-10-10)", () => {
+  // His sign: a tall board twisted -90°, so its STORED box hangs 55 units above the drawn board.
+  const sign = { id: "t", type: "prop", frames: [{ front: [
+    { id: "b", kind: "rect", x: 70.5, y: -60, w: 53, h: 171, rot: -90, color: "#c33" },
+    { id: "t", kind: "text", x: 30, y: -4, w: 132, h: 37, rot: 0, text: "furrcon", color: "#fff" },
+  ] }] };
+  test("the turned box sits on the drawn board, not on the stored one", () => {
+    const flat = propVisibleArtBox(sign), turned = propVisibleArtBox(sign, true);
+    expect(flat.minY).toBe(-60);
+    expect(turned.minY).toBeCloseTo(-4, 5); // the text is now the top edge
+    expect(turned.h).toBeLessThan(flat.h * 0.6);
+  });
+  test("a prop with no twist measures identically either way", () => {
+    const plain = { id: "p", type: "prop", frames: [{ front: [{ id: "a", kind: "rect", x: 10, y: 20, w: 30, h: 40 }] }] };
+    expect(propVisibleArtBox(plain, true)).toEqual(propVisibleArtBox(plain));
+  });
+  test("old placements keep their footprint; turnedBox crops but keeps the scale", () => {
+    const old = levelObjectFootprint({ kind: "prop", size: 6, fitArt: true }, sign);
+    const fresh = levelObjectFootprint({ kind: "prop", size: 6, fitArt: true, turnedBox: true }, sign);
+    expect(old.box).toEqual(propVisibleArtBox(sign));
+    expect(fresh.box).toEqual(propVisibleArtBox(sign, true));
+    expect(fresh.cols / fresh.box.w).toBeCloseTo(old.cols / old.box.w, 9); // same px per design unit
+    expect(fresh.rows).toBeLessThan(old.rows);
+  });
+});
+
+describe("orderStepZ — ▲/▼ through one layer", () => {
+  const rect = (e) => ({ left: e.c, top: e.r, right: e.c + 2, bottom: e.r + 2 });
+  const zs = (fx) => Object.fromEntries(Object.entries(fx).map(([k, s]) => [k, s.map((o) => o.z)]));
+  test("steps behind the overlapping chair and never changes the layer", () => {
+    const fx = {
+      "0,0": [{ kind: "prop", lay: "fg", z: 0, n: "chair" }],
+      "0,1": [{ kind: "prop", lay: "fg", z: 1, n: "sign" }],
+      "9,9": [{ kind: "prop", lay: "bg", z: 2, n: "far" }],
+    };
+    const out = orderStepZ(fx, "0,1", 0, false, rect);
+    expect(out["0,1"][0].lay).toBe("fg");
+    expect(out["0,1"][0].z).toBeLessThan(out["0,0"][0].z);
+  });
+  test("skips objects it does not overlap when one further along does", () => {
+    const fx = {
+      "0,0": [{ lay: "fg", z: 0 }],   // overlaps the sign
+      "50,50": [{ lay: "fg", z: 1 }], // nowhere near
+      "0,1": [{ lay: "fg", z: 2 }],   // the sign
+    };
+    const out = orderStepZ(fx, "0,1", 0, false, rect);
+    expect(levelObjectsInDrawOrder(out).map((e) => e.k)).toEqual(["0,1", "0,0", "50,50"]);
+  });
+  test("ignores other layers and stops at the end of its own", () => {
+    const fx = { "0,0": [{ lay: "bg", z: 0 }], "0,1": [{ lay: "fg", z: 1 }] };
+    expect(orderStepZ(fx, "0,1", 0, false, rect)).toBeNull();
+    expect(orderStepZ(fx, "0,1", 0, true, rect)).toBeNull();
+  });
+  test("a tied z (a pasted copy) still moves", () => {
+    const fx = { "0,0": [{ lay: "fg", z: 3 }], "0,1": [{ lay: "fg", z: 3 }] };
+    const out = orderStepZ(fx, "0,1", 0, false, rect);
+    expect(zs(out)).toEqual({ "0,0": [1], "0,1": [0] });
+  });
+});

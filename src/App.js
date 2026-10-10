@@ -6447,25 +6447,44 @@ const cellKey = (r, c) => r + "," + c;
 // library record is replaced, never edited in place (the editor works on a clone), so the object
 // identity is the record: a re-saved prop is a new object and measures fresh.
 const PROP_ART_BOX_CACHE = new WeakMap();
-export const propVisibleArtBox = (propAsset) => {
+// `turned` measures each rotated piece where it is DRAWN rather than by its stored, unrotated box.
+// Blake's Furr Con Sign (2026-10-10) is a board drawn as a tall rect twisted -90°: stored, that rect
+// runs from y=-60 to y=110, drawn it spans about -1 to 52. The unturned measure therefore hung a
+// third of the sign's footprint as EMPTY space above the board, and since a placement's top-left
+// cell is clamped to row 0, that empty strip met the ceiling first — "a massive invisible wall" at
+// the top of the room. The unturned answer is kept (and stays the default) because 316 placed
+// props already sit by it: 40 Sprinklers would shift if it changed under them. See
+// levelObjectFootprint for which placements take which.
+export const propVisibleArtBox = (propAsset, turned) => {
   if (propAsset && typeof propAsset === "object") {
     const hit = PROP_ART_BOX_CACHE.get(propAsset);
-    if (hit && hit.frames === propAsset.frames && hit.angles === propAsset.angles) return hit.box;
-    const box = propVisibleArtBoxUncached(propAsset);
-    PROP_ART_BOX_CACHE.set(propAsset, { frames: propAsset.frames, angles: propAsset.angles, box });
-    return box;
+    const fresh = hit && hit.frames === propAsset.frames && hit.angles === propAsset.angles ? hit : { frames: propAsset.frames, angles: propAsset.angles };
+    const slot = turned ? "turned" : "box";
+    if (!fresh[slot]) { fresh[slot] = propVisibleArtBoxUncached(propAsset, turned); PROP_ART_BOX_CACHE.set(propAsset, fresh); }
+    return fresh[slot];
   }
-  return propVisibleArtBoxUncached(propAsset);
+  return propVisibleArtBoxUncached(propAsset, turned);
 };
-const propVisibleArtBoxUncached = (propAsset) => {
+// A piece's drawn bounds as a plain unrotated box: its outline (the cutter sampler already knows
+// every shape's) turned about the same origin shapeStyle turns it about. Unrotated pieces come
+// back untouched, so a prop with no twist measures byte-identically either way.
+const pieceTurnedBox = (p) => {
+  if (!(((p.rot || 0) % 360 + 360) % 360)) return p;
+  const f = pieceTurn(p, false);
+  const [x0, y0, x1, y1] = boundsOf(cutterShapePoints(p).map(([x, y]) => turnToCanvas(f, x, y)));
+  return { ...p, x: x0, y: y0, w: x1 - x0, h: y1 - y0, rot: 0 };
+};
+const propVisibleArtBoxUncached = (propAsset, turned) => {
   const frames = (propAsset && propAsset.frames && propAsset.frames.length)
     ? propAsset.frames
     : [propAsset && propAsset.angles].filter(Boolean);
   const visible = [];
   for (const frame of frames) for (const piece of ((frame && frame.front) || [])) {
     if (piece.isHitbox || piece.isMuzzle || piece.isCutter) continue;
-    visible.push(piece);
-    if (piece.mirror) visible.push({ ...piece, x: W - (piece.x + piece.w) });
+    const b = turned ? pieceTurnedBox(piece) : piece;
+    visible.push(b);
+    // A mirror twin is the drawn piece reflected across the canvas, so its drawn box is too.
+    if (piece.mirror) visible.push({ ...b, x: W - (b.x + b.w) });
   }
   return worldArtBox(visible);
 };
@@ -6486,8 +6505,13 @@ const propVisibleArtBoxUncached = (propAsset) => {
 export const levelObjectFootprint = (object, propAsset) => {
   const size = Math.max(1, (object && object.size) || 1);
   if (!object || object.kind !== "prop" || !object.fitArt || !propAsset) return { cols: size, rows: size, box: null };
-  const box = propVisibleArtBox(propAsset);
-  const scale = object.canvasScale ? size / Math.max(W, H) : size / Math.max(box.w, box.h);
+  // `turnedBox` (set on every placement since 2026-10-10) crops to where rotated pieces are DRAWN —
+  // see propVisibleArtBox. The SCALE still comes from the unturned measure on purpose: a new
+  // Sprinkler placed at 6 must come out the same size as the forty already placed at 6, and size
+  // is what he matches props by. Only the crop, and with it the dead space, changes.
+  const box = propVisibleArtBox(propAsset, !!object.turnedBox);
+  const sizeBox = object.turnedBox ? propVisibleArtBox(propAsset) : box;
+  const scale = object.canvasScale ? size / Math.max(W, H) : size / Math.max(sizeBox.w, sizeBox.h);
   return { cols: Math.max(1, box.w * scale), rows: Math.max(1, box.h * scale), box };
 };
 // The box a live explosion (an "explode" shot's boom) draws in, in px, plus the tight art box to
@@ -6625,6 +6649,42 @@ export const orderEndLay = (fx, key, index, toFront) => {
     if (toFront ? LAYER_RUNG[l] > LAYER_RUNG[want] : LAYER_RUNG[l] < LAYER_RUNG[want]) want = l;
   }
   return want;
+};
+// ▲ / ▼: one step through the draw order WITHOUT changing layer (Blake, 2026-10-10: "a way to
+// tell props and objects to go behind other props and objects on the same layer. IE I want this
+// sign behind some chairs in the same room"). ⤓ Back could not be that: it sends the object behind
+// EVERYTHING and, by design (orderEndLay), drops it to the back-most layer any object in the level
+// uses, which puts a wall sign behind the floor paint as well as the chairs.
+//
+// A step goes past the nearest object on the same layer that it actually OVERLAPS (rectOf gives
+// each entry's art rectangle), so one tap changes something you can see instead of silently
+// trading places with a bush at the far end of the level. Nothing overlapping that way, and it
+// steps past the nearest same-layer neighbour. Returns the new fx, or null when it is already at
+// that end of its layer. Every object's z is renumbered 0..n-1 in the new order — z only ever
+// means order, and renumbering is what keeps a pasted copy's tied z from undoing the step.
+export const orderStepZ = (fx, key, index, up, rectOf) => {
+  const order = levelObjectsInDrawOrder(fx);
+  const at = order.findIndex((e) => e.k === key && e.si === index);
+  if (at < 0) return null;
+  const self = order[at], lay = objectLay(self.o);
+  const overlaps = (a, b) => a && b && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const mine = rectOf ? rectOf(self) : null;
+  let target = -1, near = -1;
+  for (let i = at + (up ? 1 : -1); i >= 0 && i < order.length; i += up ? 1 : -1) {
+    if (objectLay(order[i].o) !== lay) continue;
+    if (near < 0) near = i;
+    if (!rectOf || overlaps(mine, rectOf(order[i]))) { target = i; break; }
+  }
+  if (target < 0) target = near;
+  if (target < 0) return null;
+  const rest = order.filter((_, i) => i !== at);
+  const t = rest.indexOf(order[target]);
+  rest.splice(up ? t + 1 : t, 0, self);
+  const z = new Map(rest.map((e, i) => [e, i]));
+  const out = {};
+  for (const k of Object.keys(fx)) out[k] = fx[k].slice();
+  for (const e of order) out[e.k][e.si] = { ...e.o, z: z.get(e) };
+  return out;
 };
 // Stamp the implicit order onto anything that has never carried one. `seq` IS the order those
 // objects already draw in, so this is a no-op visually and a one-way door into being reorderable.
@@ -19689,7 +19749,7 @@ export default function AssetStudio() {
   // One record for the NEXT object. Props opt into art-tight bounds; old saved placements without
   // this flag retain their legacy square geometry until the user converts them in the inspector.
   const nextLevelObject = lObjKind === "prop"
-    ? { kind: "prop", propId: lPropId, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot, flip: lObjFlip, fitArt: true, canvasScale: lCanvasScale }
+    ? { kind: "prop", propId: lPropId, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot, flip: lObjFlip, fitArt: true, turnedBox: true, canvasScale: lCanvasScale }
     : lObjKind === "shape"
       ? { kind: "shape", shape: lObjShape, tint: lTint || "#7aa2d6", solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot, flip: lObjFlip }
       : { kind: "emoji", char: lEmoji, tint: lTint, solid: lSolid, size: lObjSize, inFront: lInFront, rot: lObjRot, flip: lObjFlip };
@@ -19777,7 +19837,12 @@ export default function AssetStudio() {
   const pickUpOrDrop = (r, c) => {
     const k = cellKey(r, c);
     if (moving.current) {
-      const { item, from } = moving.current;
+      const { from } = moving.current;
+      // A prop set down here re-centres on the click, so it can take the drawn-art crop
+      // (turnedBox, see levelObjectFootprint) without jumping: that is how a sign placed before
+      // the crop existed gets rid of the dead strip that kept it off the ceiling. Its size is
+      // unchanged by the flag.
+      const item = from === "fx" && moving.current.item.kind === "prop" && moving.current.item.fitArt ? { ...moving.current.item, turnedBox: true } : moving.current.item;
       setLevel((lv) => {
         // Dropping re-centres on the click too, so a picked-up object lands the same way a
         // freshly placed one does instead of jumping down-right by half its own size.
@@ -19871,6 +19936,14 @@ export default function AssetStudio() {
     stack[i] = { ...stack[i], lay: orderEndLay(lv.fx, k, i, toFront), z: toFront ? nextObjectZ(lv.fx) : bottomObjectZ(lv.fx) };
     return { ...lv, fx: { ...lv.fx, [k]: stack } };
   });
+  // ▲ / ▼ — one step, same layer (orderStepZ). Decided against the level as it is right now, so
+  // the "already at the back" flash is computed from the same fx the step would have used.
+  const stepFx = (k, i, up) => {
+    const fx = orderStepZ(level.fx, k, i, up, (e) => levelObjectRect(e.o, e.r, e.c, e.o.kind === "prop" ? findA(e.o.propId) : null));
+    if (!fx) { flash(up ? "Already in front on this layer." : "Already at the back of this layer."); return; }
+    snapshotLevel();
+    setLevel((lv) => ({ ...lv, fx }));
+  };
   // SNAP. Works out the exact position first (snapTargetFor) so it can say "there's nothing to
   // snap to" instead of quietly doing nothing, then relocates — which may change the object's
   // anchor cell, so the inspector has to follow it to its new key or the panel goes blank on you
@@ -23209,6 +23282,8 @@ export default function AssetStudio() {
                   <div className="objsnap">
                     <b>Order</b>
                     <button className="rotbtn" title="Draw this on top of every other object in the level" onClick={() => sendFxToEnd(lFxSel, fxOpenIdx, true)}>⤒ Front</button>
+                    <button className="rotbtn" title="In front of the next object it overlaps on this layer" onClick={() => stepFx(lFxSel, fxOpenIdx, true)}>▲</button>
+                    <button className="rotbtn" title="Behind the next object it overlaps on this layer" onClick={() => stepFx(lFxSel, fxOpenIdx, false)}>▼</button>
                     <button className="rotbtn" title="Draw this behind every other object in the level" onClick={() => sendFxToEnd(lFxSel, fxOpenIdx, false)}>⤓ Back</button>
                   </div>
                   {/* LAYER. The rung this object draws on, which used to be decided for you by the
