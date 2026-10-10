@@ -4419,14 +4419,23 @@ export const ENEMY_STANDOFF_FAR = 0.85, ENEMY_STANDOFF_NEAR = 0.45;
 // Army Bob is −1 — which made this negative, and every move rule multiplies a direction by it:
 // a Seek Army Bob with its target 291px to its right was measured walking steadily LEFT, away
 // from the fight, and an Avoid one ran at you. Negative Speed now reads as 0: it holds its ground.
-export const UNIT_WALK_SPEED = 2.2;
+// TWO GLOBAL FEEL KNOBS (Blake, 2026-10-10: "characters about 10% faster in general, and jump about
+// 10% higher as well — of course stats scale these things"). They multiply the BASE only, so every
+// Speed / Agility value still lands where it did relative to the others (Speed 5 is just 1.1x of what
+// it was). The player and EVERY unit read them, dressed looks and animals alike, so a fight keeps the
+// pace it had: speeding up only the player would have made every enemy feel a tenth slower.
+// The jump knob is a HEIGHT multiplier (blocks), not a velocity one, and height goes with velocity
+// SQUARED — see enemyJumpVelocity. That is also why a ⤴️ Double Jump comes out 10% higher for free.
+export const MOVE_SPEED_BOOST = 1.1;
+export const JUMP_HEIGHT_BOOST = 1.1;
+export const UNIT_WALK_SPEED = 2.2 * MOVE_SPEED_BOOST;
 export const unitWalkSpeed = (speed) => UNIT_WALK_SPEED * (Math.max(0, speed ?? 5) / 5);
 // THE PLAYER'S WALK off the Speed stat, px per 60fps frame: 7 standing and 3.5 crouched at Speed 5,
 // linear from 0.6x at Speed 1 to 1.5x at Speed 10, clamped to that range. One function, read by the
 // player's own loop AND by every dressed look walking as a unit (unitMoveSpeed).
 export const playerWalkSpeed = (speed, crouch) => {
   const s = Math.min(10, Math.max(1, speed ?? 5));
-  return (crouch ? 3.5 : 7) * (0.6 + (s - 1) * 0.1);
+  return (crouch ? 3.5 : 7) * MOVE_SPEED_BOOST * (0.6 + (s - 1) * 0.1);
 };
 // HOW FAST A UNIT WALKS, and it splits on the line enemyMaxHP draws. A dressed look IS a player
 // character, so it walks by the player's rule (2026-09-28, Blake: "Enemies get all of the stats and
@@ -4450,7 +4459,7 @@ export const enemyMoveIntent = (ai, dist, range, speed, detected) => {
 };
 // Same block-height jump math the player uses (h = v^2/2g, inverted), so an enemy's hop clears
 // the same obstacles a player of that Agility could.
-export const enemyJumpVelocity = (agility, cellH) => Math.sqrt(2 * 0.175 * (0.5 * Math.min(10, Math.max(1, agility ?? 5)) + 0.5) * cellH);
+export const enemyJumpVelocity = (agility, cellH) => Math.sqrt(2 * 0.175 * (0.5 * Math.min(10, Math.max(1, agility ?? 5)) + 0.5) * JUMP_HEIGHT_BOOST * cellH);
 // ...AND THE REST OF THE PLAYER'S JUMP (2026-09-28, "no differences"). Above Agility 5 the player
 // gets extra height by HOLDING Jump through the first fifth of a second of the rise. A unit's
 // dodge-hop is always a held one — nobody taps to clear a bullet — so it gets the full assist,
@@ -13248,7 +13257,7 @@ export default function AssetStudio() {
       // multiplier sounds modest, but height scales with velocity SQUARED, and the unscaled
       // base velocity (18) already produced a ~31-block jump on its own.
       const agilityStat = Math.min(10, Math.max(1, pstats.agility));
-      const jumpHeightBlocks = 0.5 * agilityStat + 0.5;
+      const jumpHeightBlocks = (0.5 * agilityStat + 0.5) * JUMP_HEIGHT_BOOST; // x1.1 global knob — see MOVE_SPEED_BOOST
       const jumpV = Math.sqrt(2 * 0.175 * jumpHeightBlocks * CH);
       const jumpVMulRel = jumpV / Math.sqrt(2 * 0.175 * 3 * CH); // same relative scaling (1.0× at baseline Agility 5), reused below for the double-jump effect's own configurable height
       let dx = 0;

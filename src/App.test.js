@@ -336,6 +336,8 @@ import {
   enemyFaceThisFrame,
   enemyMoveIntent,
   unitWalkSpeed,
+  MOVE_SPEED_BOOST,
+  JUMP_HEIGHT_BOOST,
   UNIT_WALK_SPEED,
   enemyFaceToward,
   armClimbAbs,
@@ -11925,8 +11927,9 @@ describe("a unit plays by the player's rules", () => {
       expect(unitMoveSpeed(look({ speed: sp }), false)).toBeCloseTo(playerWalkSpeed(sp, false), 9);
       expect(unitMoveSpeed(look({ speed: sp }), true)).toBeCloseTo(playerWalkSpeed(sp, true), 9);
     }
-    expect(playerWalkSpeed(5, false)).toBe(7);
-    expect(playerWalkSpeed(5, true)).toBe(3.5);
+    expect(playerWalkSpeed(5, false)).toBeCloseTo(7 * MOVE_SPEED_BOOST, 9);
+    expect(playerWalkSpeed(5, true)).toBeCloseTo(3.5 * MOVE_SPEED_BOOST, 9);
+    expect(MOVE_SPEED_BOOST).toBeCloseTo(1.1, 9);   // Blake 2026-10-10: ~10% faster, in general
     expect(unitMoveSpeed(look({ speed: 0 }), false)).toBeGreaterThan(0); // Army Bob walks, as he does for you
   });
 
@@ -11943,7 +11946,8 @@ describe("a unit plays by the player's rules", () => {
   });
 
   test("a unit's jump is the player's: same height, same Agility scaling for Double Jump", () => {
-    expect(jumpVelocityScale(5, 30)).toBeCloseTo(1, 9);
+    expect(jumpVelocityScale(5, 30)).toBeCloseTo(Math.sqrt(JUMP_HEIGHT_BOOST), 9);   // 10% more HEIGHT = sqrt(1.1) more velocity, Double Jump included
+    expect(JUMP_HEIGHT_BOOST).toBeCloseTo(1.1, 9);
     expect(jumpVelocityScale(10, 30)).toBeGreaterThan(1);
     expect(enemyJumpVelocity(10, 30)).toBeGreaterThan(enemyJumpVelocity(5, 30));
     expect(JUMP_HOLD_BOOST_FRAMES).toBe(12);

@@ -411,6 +411,11 @@ plus traps it does not cover:
 - Talk reach is `TALK_RANGE_CELLS` = 6. The Enemy-creator Speed AND Strength sliders go to 20 (the animals' scale; a
   creature's Strength is its bite, 2x, unclamped), a
   dressed look walks by `playerWalkSpeed`, and Speed floors at 0.
+- **Global feel knobs (2026-10-10):** `MOVE_SPEED_BOOST` and `JUMP_HEIGHT_BOOST` (both 1.1) multiply the BASE walk
+  (`playerWalkSpeed`, `UNIT_WALK_SPEED`) and the BASE jump height (`enemyJumpVelocity` and the player's
+  `jumpHeightBlocks`), so Speed 5 / Agility 5 are 1.1x what they were and every stat still scales from there. They hit
+  the player AND every unit (looks and animals) so a fight keeps its pace; change the constant, never one call site.
+  The jump knob is HEIGHT, so velocity goes by its square root (Double Jump rides along).
 - There is no 👹 enemy flag and no weapon picker in Dress Bob. What a character carries is set per
   placement.
 - Units walk only to targets on their own storey (`unitSharesLevel`), and allies guard the area
