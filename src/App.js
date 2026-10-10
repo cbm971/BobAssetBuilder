@@ -11469,6 +11469,38 @@ export const splitHillHits = (lv, hits, footY, CH) => {
 // CROSSED this frame (fall speed × dt, +2 for rounding). It never reaches above where the feet were
 // at the start of the frame, so the "never snap up onto an overhead platform" guard is unchanged.
 export const landingReach = (vy, dtMul, CH) => Math.max(CH * 0.5, vy > 0.5 ? vy * (dtMul || 1) + 2 : 0);
+// A RAMP'S BACKING ONLY STANDS ASIDE FOR A BODY THAT HAS GROUND UNDER IT (2026-10-10, Blake's Trailor
+// Park M15: "I still fall through the map. You tried to fix that in the past but it's still not
+// fixed"). Not M14's thin-slab fall (landingReach above held: every column of M15 dropped at 60 and
+// 165 fps landed where it should). It is the manhole: his sewer shaft (cols 45-50) has ramps right at
+// both lips, so its walls are hill formation (isHillFormationCell) all the way down. splitHillHits
+// lets hill cells near the feet stop being walls, which is what lets a wide hitbox's leading edge
+// poke into a ramp's backing while its CENTRE walks the ramp surface. But the same pass ran for a
+// body in mid-air over the hole: climb the shaft's ladder, step off toward the street near the top,
+// and the right-hand wall was "hill near the feet", so the body walked into the rock; the flat landing
+// only accepts hill under the body's CENTRE, which was over the empty shaft, so nothing ever held it
+// and it fell through the rock to the bottom of the map (measured as Super Bob: x 1408 → 1555, y 878
+// → 1170, inside cols 51-53; a 3-4 px/frame drift off the left lip did the same). Sewer M3's
+// waterfall drop (92f1217) was the same class through a different door.
+// So the backing stands aside only while the body is ENGAGED with the ground: its centre column has
+// something solid or a ramp between its feet and HILL_GROUND_REACH cells below them (the hill
+// window's own 2.5 cells, so a jump along a slope still counts as on it). Over open air, hill cells
+// are walls like any other: the step-assist still lifts you over a one-cell lip, and a wall you
+// are ALREADY inside never blocks (preWallKeys), so nothing new can trap a body. The player's
+// flat landing asks the same question: over a hole, a ramp's lip under the body's EDGE is a floor,
+// as any ledge is (a unit's landing never split hill out at all). Without that half, a 4-5 px/frame
+// drift was stepped up onto the right-hand lip, refused as a floor there, and sank into it anyway.
+export const HILL_GROUND_REACH = 2.5;
+// `isGround(r, c)` → a solid cell or a ramp there. The play loop passes its world-aware version.
+export const groundUnderFeet = (isGround, c, feetY, CH) => {
+  const r0 = Math.floor((feetY - 1) / CH), r1 = Math.floor((feetY + HILL_GROUND_REACH * CH) / CH);
+  for (let r = r0; r <= r1; r++) if (isGround(r, c)) return true;
+  return false;
+};
+export const fgGroundAt = (lv, r, c) => { const cell = lv.fg[cellKey(r, c)]; return fgSolid(cell) || fgSlopeFills(cell).length > 0; };
+// The walls a SIDEWAYS move meets, from a splitHillHits result: its walls, plus the hill itself when
+// the body has no ground under it.
+export const sideWalls = (split, grounded) => (grounded || !split.hill.length ? split.walls : split.walls.concat(split.hill));
 // Step-assist smoothing: when the physics snaps the player up a one-cell stair, the RENDER
 // instead eases up over ~7 frames (p.stepEase holds the remaining visual offset, decaying at
 // STEP_EASE_SPEED px per 60fps-frame). Physics stays exact; only the drawn position eases — so
@@ -13231,6 +13263,11 @@ export default function AssetStudio() {
     const cellsHitW = worldParts.length === 1 ? cellsHit : (x, y, w, h) => { const hits = []; const c0 = Math.floor(x / CW), c1 = Math.floor((x + w - 0.001) / CW), r0 = Math.floor(y / CH), r1 = Math.floor((y + h - 0.001) / CH); for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) if (solidAtW(r, c)) hits.push({ r, c }); return hits; };
     // A ramp's own solid backing, anywhere in the world — splitHillHits with each cell asked of its own level.
     const splitHillHitsW = (hits, footY) => { const out = { walls: [], hill: [] }; for (const h of hits) { const P = worldPartOfCell(worldParts, h.r, h.c); ((h.r * CH >= footY - CH * 2.5) && !!P && isHillFormationCell(P.lv, h.r - P.dr, h.c - P.dc) ? out.hill : out.walls).push(h); } return out; };
+    // ...and what a SIDEWAYS move meets (sideWalls): that backing is a wall again for a body with no
+    // ground under its centre — the M15 manhole, where stepping off the ladder walked you into the
+    // rock. A 🚶 Top-down plane is ground of its own with no cell under it, so it keeps the old rule.
+    const groundAtW = (r, c) => { if (solidAtW(r, c)) return true; const P = worldPartOfCell(worldParts, r, c); return !!P && fgSlopeFills(P.lv.fg[cellKey(r - P.dr, c - P.dc)]).length > 0; };
+    const sideWallsW = (hits, footY, centreX, onPlane) => { const s = splitHillHitsW(hits, footY); return sideWalls(s, !!onPlane || !s.hill.length || groundUnderFeet(groundAtW, Math.floor(centreX / CW), footY, CH)); };
     // Is a point inside any level of the world (edges included — the old one-level test for a shot).
     const inWorld = (x, y) => worldParts.some((P) => x >= P.ox && x <= P.ox + P.lv.cols * CW && y >= P.oy && y <= P.oy + P.lv.rows * CH);
     const unitBoxW = (ea) => enemyRenderW(ea, CW) * sideBodyShape(ea).fraction;
@@ -13617,7 +13654,9 @@ export default function AssetStudio() {
       // act like stairs (the teleport up each tier), and wall-clamping against it is what made
       // ramps impossible to walk up at all. Cells more than ~2.5 cells above the feet still
       // count as walls, so a real wall next to a ramp still blocks you at chest height.
-      let wallHits = splitHillHitsW(hits, p.y + ph).walls;
+      // Only while you have ground under your centre, though (sideWallsW): in mid-air over a hole
+      // a ramp's backing is a wall like any other, or you walk into it and sink through it (M15).
+      let wallHits = sideWallsW(hits, p.y + ph, p.x + pw / 2, p.topdown);
       // Step-assist: a single-cell-tall lip (a genuine stair) is walked over, not blocked. Snap
       // up to exactly the blocking row's top, capped at one cell, and only if the raised spot is
       // actually clear. Skipped while climbing a ladder. The PHYSICS snap stays instant (so
@@ -13993,7 +14032,11 @@ export default function AssetStudio() {
             const feetBottom = p.y + ph;
             if (feetBottom >= hillTop - CH && feetBottom <= hillTop + reach) landHits = centerSplit.hill;
           }
-          if (!landHits.length) landHits = splitHillHitsW(hits, p.y + ph).walls;
+          // ...and with NOTHING under the centre (it is over a hole), a ramp's lip under the body's
+          // edge holds it the way any other ledge does (sideWallsW) — and the way a unit's landing,
+          // which never split hill out, always has. Refusing it sank you into the lip and down
+          // through the rock under it: M15's manhole, after a step-up onto its right-hand lip.
+          if (!landHits.length) landHits = sideWallsW(hits, p.y + ph, p.x + pw / 2, p.topdown);
           // A landing may only bring the feet DOWN onto a surface at/below them, never snap them
           // UP. Without this, jumping while your head is inside an overhang (the ramp tops out
           // under the fire platform) let the highest overlapping cell — the platform above your
@@ -14662,7 +14705,9 @@ export default function AssetStudio() {
             const eWallTop = isCreatureUnit(ea) && !ep.crouch ? Math.max(0, Math.min(newEph - 1, unitHitTop(ea, eShape, newEph))) : 0;
             const wallBoxHits = (x, y) => cellsHitW(x, y + eWallTop, epw, newEph - eWallTop);
             const eInside = new Set(wallBoxHits(ep.x, ep.y).map((h) => h.r + "," + h.c));
-            const eWallHits = splitHillHitsW(wallBoxHits(nx, ep.y), ep.y + newEph).walls.filter((h) => !eInside.has(h.r + "," + h.c));
+            // A unit in mid-air over a hole meets a ramp's backing as a wall too (sideWallsW, the M15
+            // manhole) — a Lion chasing you down the sewer would otherwise sink through its side.
+            const eWallHits = sideWallsW(wallBoxHits(nx, ep.y), ep.y + newEph, nx + epw / 2, ep.topdown).filter((h) => !eInside.has(h.r + "," + h.c));
             if (!eWallHits.length) ep.x = nx;
             else {
               const stepY = Math.min(...eWallHits.map((h) => h.r * CH)) - newEph;

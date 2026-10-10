@@ -347,6 +347,10 @@ plus traps it does not cover:
 - **A flat landing takes any floor top the feet crossed THIS frame** (`landingReach`, used by the
   player, units and corpses). Never a fixed pixel window: a fast fall or a slow frame steps past it.
   On thick ground that sank you a cell; on M14's two-row slab it dropped you onto the street.
+- **A ramp's backing (hill) stands aside only for a body with ground under its centre** (`sideWalls`,
+  `groundUnderFeet`, `sideWallsW` in the loop). In mid-air over a hole, hill is a wall for a sideways
+  move and a ledge for the player's landing; otherwise a ramp-lipped hole's wall swallows you and you
+  fall through the rock (M15's manhole). Any new sideways or landing pass goes through `sideWallsW`.
 - **Objects:** `lv.fx["r,c"]` (the object's top-left cell) is a list of
   `{ kind, solid, lay, z, size, rot, flip, ox, oy, … }`. Render through `levelObjectsInDrawOrder`,
   and new placements take `nextObjectZ`. The layer comes from `lay` (`objectLay`), not from Solid.

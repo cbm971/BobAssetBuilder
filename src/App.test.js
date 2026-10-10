@@ -599,6 +599,10 @@ import {
   isHillFormationCell,
   splitHillHits,
   landingReach,
+  HILL_GROUND_REACH,
+  groundUnderFeet,
+  fgGroundAt,
+  sideWalls,
   godModeOn,
   playerHpAfterHit,
   shouldStepAssist,
@@ -12476,6 +12480,63 @@ describe("a fast fall lands on a thin floor instead of dropping through it", () 
     expect(src).not.toMatch(/>= (feetNow|eFeet|dFeet) - CH \* 0\.5/);
     expect(src).not.toMatch(/feetBottom <= hillTop \+ CH \* 0\.5/);
     expect((src.match(/landingReach\((p|ep|dep)\.vy, dtMul, CH\)/g) || []).length).toBe(3);
+  });
+});
+
+// Blake's Trailor Park M15 (2026-10-10): "I still fall through the map". His sewer manhole has ramps
+// at both lips, so the shaft's walls are hill formation all the way down. Climb the ladder, step off
+// toward the street near the top, and the body walked into the rock and fell to the bottom of the map.
+describe("a body in mid-air over a hole cannot walk into the hole's ramp-lipped wall", () => {
+  const CW = 30, CH = 30, pw = 64.6;
+  const ramp = (slope) => ({ c: "#7f8479", slope, run: 1, step: 0 });
+  // A manhole in miniature: ground on rows 10-15 with a 6-wide shaft at cols 6-11, and a ramp at
+  // each lip (row 9, cols 4 and 13), so both walls are ramp backing.
+  const manhole = () => {
+    const fg = {};
+    for (let r = 10; r < 16; r++) for (let c = 0; c < 20; c++) if (c < 6 || c > 11) fg[r + "," + c] = "#7f8479";
+    fg["9,4"] = ramp(1); fg["9,13"] = ramp(-1);
+    return { cols: 20, rows: 16, fg };
+  };
+  const isGround = (lv) => (r, c) => fgGroundAt(lv, r, c);
+  test("the shaft's walls are hill, which is why the old rule let a body through them", () => {
+    const lv = manhole();
+    expect(isHillFormationCell(lv, 10, 12)).toBe(true);
+    expect(isHillFormationCell(lv, 11, 12)).toBe(true);
+    // Feet 40 px below the street, the body's right edge 5 px into the right-hand wall.
+    const x = 12 * CW - pw + 5, feet = 10 * CH + 40;
+    const hits = [{ r: 10, c: 12 }, { r: 11, c: 12 }];
+    const split = splitHillHits(lv, hits, feet, CH);
+    expect(split.walls).toEqual([]); // the old sideways pass: nothing in the way
+    // The new one: nothing under the centre (col 11, the shaft), so the hill is a wall.
+    const grounded = groundUnderFeet(isGround(lv), Math.floor((x + pw / 2) / CW), feet, CH);
+    expect(grounded).toBe(false);
+    expect(sideWalls(split, grounded)).toEqual(hits);
+  });
+  test("a body with ground under its centre keeps the ramp rule: the backing stands aside", () => {
+    const lv = manhole();
+    // Walking up the left ramp: centre over the ramp's column, leading edge in the lip's backing.
+    expect(groundUnderFeet(isGround(lv), 4, 9 * CH + 15, CH)).toBe(true);
+    // On flat ground walking toward a ramp (feet exactly on the street's top).
+    expect(groundUnderFeet(isGround(lv), 2, 10 * CH, CH)).toBe(true);
+    const split = { walls: [{ r: 3, c: 5 }], hill: [{ r: 9, c: 5 }] };
+    expect(sideWalls(split, true)).toEqual([{ r: 3, c: 5 }]);
+    // No hill in the way at all: the walls are just the walls, whatever is under you.
+    expect(sideWalls({ walls: [{ r: 3, c: 5 }], hill: [] }, false)).toEqual([{ r: 3, c: 5 }]);
+  });
+  test("ground counts within HILL_GROUND_REACH cells below the feet (a hop along a slope) and no further", () => {
+    const lv = manhole();
+    expect(HILL_GROUND_REACH).toBe(2.5);
+    expect(groundUnderFeet(isGround(lv), 2, 10 * CH - 2 * CH, CH)).toBe(true);  // 2 cells up
+    expect(groundUnderFeet(isGround(lv), 2, 10 * CH - 3 * CH, CH)).toBe(false); // 3 cells up
+    expect(groundUnderFeet(isGround(lv), 4, 9 * CH - 2 * CH, CH)).toBe(true);   // a ramp is ground too
+    expect(groundUnderFeet(isGround(lv), 8, 10 * CH + 40, CH)).toBe(false);     // over the shaft
+  });
+  test("the player's sideways move, the player's landing and a unit's sideways move all ask it", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toMatch(/let wallHits = sideWallsW\(hits, p\.y \+ ph, p\.x \+ pw \/ 2, p\.topdown\);/);
+    expect(src).toMatch(/if \(!landHits\.length\) landHits = sideWallsW\(hits, p\.y \+ ph, p\.x \+ pw \/ 2, p\.topdown\);/);
+    expect(src).toMatch(/const eWallHits = sideWallsW\(wallBoxHits\(nx, ep\.y\), ep\.y \+ newEph, nx \+ epw \/ 2, ep\.topdown\)/);
+    expect(src).not.toMatch(/splitHillHitsW\(hits, p\.y \+ ph\)\.walls/);
   });
 });
 

@@ -3946,3 +3946,44 @@ Footbob's stun bat because I froze Footbob in the same call that armed the trigg
 units and let any stun run out before timing a press. A per-frame trigger in the page script (press
 Q when `ep.reactT < lead`, or the frame `ep.swingT` jumps to 14) is what made the timing exact;
 `?god` keeps you alive, and `p.invuln` going to 40 is the tell that a blow landed.
+
+## FALLING THROUGH M15'S MANHOLE WALL (2026-10-10)
+
+**Blake: "On Trailor park M15 I still fall through the map. You tried to fix that in the past but
+it's still not fixed."** M15 (`h5nuldp`, his zoo level, saved 10-09) has one hole: a 6-wide sewer shaft
+at cols 45-50 (S1 accepts Sewer, a ladder at cols 47-48) with grey ramps at both lips (rows 33-35,
+cols 40-55), hidden fill at cols 43 and 52 and empty slits at cols 42 and 53 under the street.
+
+**Not M14's bug.** `landingReach` held: drop sweeps of all 160 columns (y 0, vy 16, at 60 fps and on
+a 165 Hz fake clock) and walks/jumps end to end landed everywhere they should. Only the shaft lets you
+down, which is by design.
+
+**Cause: hill formation is neither wall nor floor for a body over a hole.** The ramps at the lips make
+the shaft's walls ramp formation (`isHillFormationCell`) all the way down. `splitHillHits` stops hill
+cells within 2.5 cells above the feet from being walls, so a wide hitbox's edge can poke into a ramp's
+backing while its centre walks the surface. The flat landing accepts hill only under the body's
+CENTRE. Over the shaft the centre is over air, so a sideways move walked the body into the wall and
+nothing under its centre ever held it. Measured as Super Bob: climb the ladder to y 878, hold D, and
+the body went x 1408 → 1525 (inside cols 51-53) and fell to y 1170, the bottom of the map. A 3-4
+px/frame drift off the left lip did the same. The left wall is mostly saved by the overhang wedge at
+33,45, which stops the head.
+
+**Fix: `sideWalls(splitHillHits(...), groundUnderFeet(...))`, `sideWallsW` in the loop.** Hill stands
+aside only when the body's centre column has a solid cell or a ramp between the feet and
+`HILL_GROUND_REACH` (2.5) cells below them, or the body is on a 🚶 top-down plane. Used by the player's
+sideways move, the player's flat-landing fallback, and a unit's sideways move. A unit's landing never
+split hill out, so it already held on a lip. The first pass fixed only the sideways move. A 4-5
+px/frame drift was then stepped up onto the right lip by the step-assist, refused as a floor there
+(non-centre hill), and sank into it anyway. That is why the landing half exists.
+
+**After:** all 36 ladder step-offs (heights 800-1140, both sides) end in the shaft or on the street,
+never in rock. The vx 1-10 drift sweep ends in the shaft or standing on the lip. Walking over the
+manhole both ways matches the old trace, and Sewer M3's waterfall still drops you into the room
+(y 720). One deliberate change: a body overlapping a ramp-topped lip by part of its width now stands
+on it, as on every other ledge (drops at cols 46, 50 and 51 land on the lip, not in the shaft).
+
+**Harness notes.** A fake `performance.now` advanced one frame per game frame, running 4-8 game
+frames per MessageChannel tick, sped drives up about 4x and made them deterministic. Capture the real
+`performance.now` BEFORE patching it: a second shim that bound the patched one gated its ticks on a
+frozen clock and deadlocked. The hidden pane barely runs between tool calls, so keep calls going
+(~1.9 s each) while a sweep runs.
