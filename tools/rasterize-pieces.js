@@ -119,7 +119,9 @@ function render(pieces, opts) {
     const layerOf = (q) => q._src || q._slot || "__body";
     const cutBy = p.noCut ? [] : cutters.filter((c) => c.idx > e.idx && layerOf(c.p) === layerOf(p));
     const fx = p.fx || {};
-    const bright = fx.bright === undefined ? 1 : fx.bright, alpha = fx.opacity === undefined ? 1 : fx.opacity;
+    // × the piece's own 👻 Translucent (App.js pieceAlpha). Outline and fill take the same alpha here,
+    // and the outline is only drawn where the fill is not, which is the app's fade-as-one-shape.
+    const bright = fx.bright === undefined ? 1 : fx.bright, alpha = (fx.opacity === undefined ? 1 : fx.opacity) * assetAlpha(p);
     const fill = hex(p.color).map((c) => Math.max(0, Math.min(255, c * bright)));
     const oc = p.outline ? hex(p.outlineColor || "#000") : null;
     // bounding box in output pixels (generous: the rotated box's diagonal)
@@ -146,8 +148,10 @@ function render(pieces, opts) {
   if (ga < 1) for (let i = 0; i < ow * oh; i++) for (let k = 0; k < 3; k++) img[i * 3 + k] = bg[k] * (1 - ga) + img[i * 3 + k] * ga;
   return { w: ow, h: oh, img };
 }
-// App.js assetAlpha, restated: 1 - translucency, translucency clamped to 0..0.9.
-const assetAlpha = (a) => 1 - Math.max(0, Math.min(0.9, (a && typeof a.translucency === "number" && isFinite(a.translucency)) ? a.translucency : 0));
+// App.js assetAlpha / pieceAlpha, restated: 1 - translucency, clamped to 0..0.9. Takes an asset or a
+// piece; both carry the same `translucency` field.
+function assetAlpha(a) { return alphaOfTranslucency(a); }
+const alphaOfTranslucency = (a) => 1 - Math.max(0, Math.min(0.9, (a && typeof a.translucency === "number" && isFinite(a.translucency)) ? a.translucency : 0));
 // --- PNG encoder -----------------------------------------------------------------------
 const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
 const crc32 = (buf) => { let c = 0xffffffff; for (const b of buf) c = CRC[(c ^ b) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };

@@ -9168,10 +9168,19 @@ export const cutterMaskFrameLayout = () => ({
 // and cannot be found again in a level.
 export const TRANSLUCENCY_MAX = 0.9;
 export const TRANSLUCENCY_STEP = 0.05;
-export const assetAlpha = (a) => {
-  const t = a && typeof a.translucency === "number" && isFinite(a.translucency) ? a.translucency : 0;
-  return 1 - Math.max(0, Math.min(TRANSLUCENCY_MAX, t));
-};
+const translucentAlpha = (t) => 1 - Math.max(0, Math.min(TRANSLUCENCY_MAX, typeof t === "number" && isFinite(t) ? t : 0));
+export const assetAlpha = (a) => translucentAlpha(a && a.translucency);
+// 👻 ONE SHAPE, SEE-THROUGH (same day, Blake: "When i try to make something translucent it tries to
+// make everything translucent not just the shape I am editing. That is a bug"). What he wanted was
+// the block he is editing, so the 👻 Translucent slider lives in the block's own card and writes
+// `translucency` on that piece (or every piece of a selected group); the whole-asset card above is
+// now titled "Whole asset" so the two cannot be mistaken for each other. Same 0–90% scale. It is
+// NOT the existing ✨ Fade: Fade fades only the fill, and an outlined triangle or poly then shows
+// its solid outline silhouette straight through it (the outline is drawn as a solid shape under the
+// fill). This fades the fill AND its outline together as one picture (Static / Block / MirrorGhost
+// wrap the pair in a fadeGroup), so a translucent shape keeps its edge and actually reads as glass.
+// Fade is left exactly as it was: 1,602 pieces in his saves use it.
+export const pieceAlpha = (p) => translucentAlpha(p && p.translucency);
 // One box the size of the art's own frame (the same 0–100% every piece positions against), with the
 // opacity on it, so its children composite together first and fade as one. pointer-events:none so
 // the editor's own click-through still reaches the pieces' inner fills, which opt back in.
@@ -9648,6 +9657,7 @@ export const editorReachIssues = (asset) => {
     if (fx.bright !== undefined && !(onEditorStep(fx.bright, 0.05) && fx.bright >= 0.3 - 1e-9 && fx.bright <= 2 + 1e-9)) out.push(at + ": brightness " + fx.bright + " is not a slider stop");
     if (fx.opacity !== undefined && !(onEditorStep(fx.opacity, 0.05) && fx.opacity >= 0.1 - 1e-9 && fx.opacity <= 1 + 1e-9)) out.push(at + ": fade " + fx.opacity + " is not a slider stop");
     if (fx.glow !== undefined && !(onEditorStep(fx.glow, 0.5) && fx.glow >= 0 && fx.glow <= 12)) out.push(at + ": glow " + fx.glow + " is not a slider stop");
+    if (p.translucency !== undefined && !(onEditorStep(p.translucency, TRANSLUCENCY_STEP) && p.translucency >= 0 && p.translucency <= TRANSLUCENCY_MAX + 1e-9)) out.push(at + ": translucent " + p.translucency + " is not a slider stop");
     if (p.kind === "poly" && (!Array.isArray(p.points) || p.points.length < 3 || p.points.some((q) => !Array.isArray(q) || !(q[0] >= 0 && q[0] <= 1 && q[1] >= 0 && q[1] <= 1)))) out.push(at + ": outline points must be 3+ fractions of the box");
     // 🪣 Fill and 〰️ Curve both measure the box FROM the outline, so a drawn outline always touches
     // all four sides of its box; dragging or resizing keeps that. An outline floating inside a
@@ -18281,7 +18291,11 @@ export default function AssetStudio() {
     const holes = cutters ? cutterHoleClips(p, flip, cutters) : null;
     const fill = shapeFillStyle(p);
     if (onPiecePointerDown) { fill.pointerEvents = "auto"; fill.cursor = "pointer"; }
-    return <React.Fragment key={key}>{OutlineLayer(p, off, flip, faded, holes)}{cutBox(s, holes, <div style={fill} onPointerDown={onPiecePointerDown}>{pieceInner(p)}</div>)}</React.Fragment>;
+    const outline = OutlineLayer(p, off, flip, faded, holes), body = cutBox(s, holes, <div style={fill} onPointerDown={onPiecePointerDown}>{pieceInner(p)}</div>);
+    // 👻 A translucent shape: its outline and fill composite first, then fade as one (pieceAlpha).
+    const pa = pieceAlpha(p);
+    if (pa < 1) return <React.Fragment key={key}>{fadeGroup("t", pa, <>{outline}{body}</>)}</React.Fragment>;
+    return <React.Fragment key={key}>{outline}{body}</React.Fragment>;
   };
   // Renders a PROP asset's pixel art scaled to fill its placement box, at animation frame
   // `frameIdx`. The prop's pieces are positioned by percentage of the 200×260 design canvas (that's
@@ -18364,7 +18378,9 @@ export default function AssetStudio() {
       fillS.opacity = 0.55;
     }
     const selectionColor = groupIds.includes(p.id) ? "#ffb84f" : p.id === selId ? "#4f7cf6" : null;
-    return <React.Fragment key={key}>{OutlineLayer(mirrored, null, true, false)}<div style={s}><div style={fillS}>{pieceInner(mirrored)}</div></div>{selectionColor && SelectionOutline(mirrored, true, selectionColor)}</React.Fragment>;
+    const art = <>{OutlineLayer(mirrored, null, true, false)}<div style={s}><div style={fillS}>{pieceInner(mirrored)}</div></div></>, pa = pieceAlpha(p);
+    // The selection dash stays OUTSIDE the 👻 fade, so a 90% see-through block is still easy to find.
+    return <React.Fragment key={key}>{pa < 1 ? fadeGroup("t", pa, art) : art}{selectionColor && SelectionOutline(mirrored, true, selectionColor)}</React.Fragment>;
   };
   // A cutter piece paints nothing of its own in shapeFillStyle (its hole is a container-level
   // mask applied at final-render sites — see cutterMaskCss) — but while EDITING it still needs to
@@ -18382,7 +18398,9 @@ export default function AssetStudio() {
     fillS.cursor = "grab";
     if (p.isCutter) { fillS.background = "repeating-conic-gradient(#5b6478 0% 25%, #232838 0% 50%) 0 0/10px 10px"; fillS.border = "2px dashed #cfd6e6"; }
     const selectionColor = groupIds.includes(p.id) ? "#ffb84f" : p.id === selId ? "#4f7cf6" : null;
-    return <React.Fragment key={p.id}>{OutlineLayer(p, null, false, false)}<div style={s}><div style={fillS} onPointerDown={(e) => grabPiece(e, p)}>{pieceInner(p)}</div></div>{selectionColor && SelectionOutline(p, false, selectionColor)}</React.Fragment>;
+    const art = <>{OutlineLayer(p, null, false, false)}<div style={s}><div style={fillS} onPointerDown={(e) => grabPiece(e, p)}>{pieceInner(p)}</div></div></>, pa = pieceAlpha(p);
+    // 👻 outline + fill fade together; the selection dash stays outside the fade (see MirrorGhost).
+    return <React.Fragment key={p.id}>{pa < 1 ? fadeGroup("t", pa, art) : art}{selectionColor && SelectionOutline(p, false, selectionColor)}</React.Fragment>;
   };
   const pctBox = (q) => ({ left: (q.x / W * 100) + "%", top: (q.y / H * 100) + "%", width: (q.w / W * 100) + "%", height: (q.h / H * 100) + "%" });
 
@@ -24373,6 +24391,11 @@ export default function AssetStudio() {
                   <label className="slider">Brightness<input type="range" min="0.3" max="2" step="0.05" value={sel.outlineFx?.bright ?? 1} onChange={(e) => updSel({ outlineFx: { ...(sel.outlineFx || defaultFx()), bright: +e.target.value } })} /></label>
                 </div>
               )}
+              {/* 👻 THIS SHAPE, SEE-THROUGH (pieceAlpha) — the block you are editing, or every block of
+                  a selected group (updSelAll), and nothing else: never the colour-everywhere toggle,
+                  which is how a whole asset went translucent when he meant one shape. Outline and
+                  fill fade together. 0 removes the key, so an untouched block stays byte-identical. */}
+              <label className="slider">👻 Translucent<input type="range" min="0" max={TRANSLUCENCY_MAX} step={TRANSLUCENCY_STEP} value={sel.translucency ?? 0} onChange={(e) => { const v = +e.target.value; updSelAll({ translucency: v > 0 ? v : undefined }); }} /><span className="hint2" style={{ marginLeft: 6 }}>{Math.round((sel.translucency ?? 0) * 100)}%</span></label>
               {sel.kind === "text" && (
                 <div className="textedit">
                   <label className="pick" style={{ marginBottom: 8 }}>Text<input type="text" value={sel.text || ""} onChange={(e) => updSel({ text: e.target.value })} placeholder="Type here…" maxLength={40} /></label>
@@ -24543,10 +24566,13 @@ export default function AssetStudio() {
           {/* 👻 THE WHOLE ASSET, SEE-THROUGH (assetAlpha). Every kind of asset gets it — an item, a
               prop, a garment, a gun, a body — and it shows wherever that asset is drawn: this canvas,
               Dress Bob, a plinth, a drop, the shop, a shot in flight, and worn or held in play. Not
-              shown while editing an ability's animation frames, which are not the asset's art. */}
+              shown while editing an ability's animation frames, which are not the asset's art.
+              Titled "Whole asset" since he took the first version, titled "Translucent", for the
+              one-shape control and every block faded at once; that one is 👻 Translucent in the
+              selected block's own card (pieceAlpha). */}
           {!effEdit && (
             <div className="card">
-              <div className="ct">👻 Translucent</div>
+              <div className="ct">👻 Whole asset</div>
               <label className="slider">See-through<input type="range" min="0" max={TRANSLUCENCY_MAX} step={TRANSLUCENCY_STEP} value={asset.translucency ?? 0} onChange={(e) => { const v = +e.target.value; setAsset((a) => { const { translucency, ...rest } = a; return v > 0 ? { ...rest, translucency: v } : rest; }); }} /><span className="hint2" style={{ marginLeft: 6 }}>{Math.round((asset.translucency ?? 0) * 100)}%</span></label>
             </div>
           )}
