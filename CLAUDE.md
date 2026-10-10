@@ -158,6 +158,11 @@ has never actually been gone; the bytes were always still on disk.** Never clear
   localStorage best effort, so every copy of his game sits at Chrome's 5 MiB cap. Never gate a
   feature on a localStorage write succeeding: the asset editor's 💾 Save vanished that way
   (2026-10-09, one character free). Ask the store that actually saves (`idbOpen`).
+- **Never write a whole list read from localStorage over the durable copy.** The full localStorage
+  copy is FROZEN. `localRemoved` changes the durable delete list by read-modify-write (`persist`:
+  an add adds its ids, a revive removes its ids), and keeps its own copy in memory once a
+  localStorage write fails. Pushing the frozen list wiped every delete made since the cap
+  (2026-10-10, "deleted sounds come back"). Test delete code with `setItem` throwing.
 - There is **no save-status indicator** on screen; he rejected one. **Never explain origins,
   preview hostnames or "addresses" to him.**
 - 💾 Save during a run saves `run.editorLevel`, never the run's working copy.

@@ -3740,3 +3740,56 @@ until }` onto `itemBuffs` (expiry, doors and fresh playtests behave like a stat 
 and melee are untouched, like Long Shot. Units do not drink items, so there is nothing for them to
 mirror. Verified: E on the pedestal showed "Range ×2 for 30s" (callout and banner); the next M16 shot
 had `rangePx` 1620 = 27 × 30 × 2; with the buff cleared the control shot was 810.
+
+## Deleted sounds came back: a full localStorage froze the delete list (2026-10-10)
+
+He reported: "It won't let me delete audio files. They immediately come back."
+
+**What his copy held, read off the disk.** I read his StackBlitz copy
+(`hzer--3000--2ed8f36d`) out of Chrome's profile with `tools/read-chrome-leveldb.js`, read-only, on
+a copy of the folder.
+- **localStorage** for that origin held about 5.24 M characters, at the 5 MB cap. Every one of his
+  copies is there, because `sset` mirrors every record into localStorage.
+- **Its `removedIndex`**, in localStorage AND in IndexedDB, listed 28 assets and 4 levels and **no
+  sounds**.
+- **Yet the keeper's log** had swept two sound deletes out of that same store one and two minutes
+  earlier ("1 deleted" at 10:42 and 10:43).
+- **`sound:x5jnxpb`**, deleted and already on the online save's `removed.sounds`, was back in the
+  copy's store and its index.
+
+**The mechanism.**
+- `localRemoved.add` and `revive` read the list from localStorage, changed it, and then:
+  - `write` back to localStorage, which fails when full, so the copy is frozen;
+  - `push` the WHOLE list to the durable copy (`sset` → IndexedDB).
+- With localStorage full, every change pushed "the frozen list + one id" over the durable list. That
+  erased every delete made since the cap was reached. Any later add did it: a loader filing the
+  project file's deletes (`tombstoneSet`), or another delete.
+- The next load's restore loop then found the sound unlisted. The online save, or a rebuilt
+  container's project file, still offered the record, so it came back.
+- This is not sound-specific. Any kind's delete could be lost this way, though assets were usually
+  held out by the dev server's `removed` list.
+
+**The fix (App.js `localRemoved`). It removes no tier, and a writable localStorage behaves exactly
+as before:**
+- **`persist(change)`:** the durable copy is changed by a queued read-modify-write. An add unions
+  its own ids onto what IndexedDB holds; a revive filters its own ids out. `hydrate` waits for the
+  queue. No whole list from elsewhere is ever written over it again.
+- **`removedMem`:** when a localStorage write fails, the page keeps the list in memory and reads
+  that instead of the frozen copy. A later successful write clears it.
+- **revive** now also takes the id off the durable copy when this page's list does not name it.
+  Before, a re-created record could be purged again by hydrate's union.
+
+**Verified.**
+- **Unit test** (App.test.js, "the browser's own tombstone list"): his sequence with `setItem`
+  throwing, which is a frozen list, a sound delete, another add, then hydrate. **Control: the same
+  test on the old code loses the sound (`Received: undefined`).**
+- **In the app** on a fresh origin, with every localStorage write throwing (`?lsfull=1` rig in
+  `public/index.html`, not committed; the pane itself has no 5 MB cap, as it took 20 MB):
+  1. Delete two uploads.
+  2. Put back a project file offering both, with no tombstones.
+  3. Reload, delete a third sound, and reload again.
+  4. All three stayed deleted, and IndexedDB's `removedIndex.sounds` held all three.
+
+**Left for him.** Sounds already resurrected in his copy before this fix (`x5jnxpb`) have no local
+tombstone. An online tombstone blocks restores but never purges a copy that holds the record, by
+design (see `mergeCloudLibrary`). He deletes them once more, and that delete now sticks.

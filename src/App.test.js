@@ -8562,6 +8562,50 @@ describe("the browser's own tombstone list", () => {
     localStorage.setItem("removedIndex", "{not json");
     expect(localRemoved.ids("assets").size).toBe(0);
   });
+
+  // 2026-10-10: "it won't let me delete audio files, they immediately come back." Every copy of his
+  // studio has localStorage at its 5 MB cap. The localStorage list froze, and every later change
+  // pushed that frozen list over the durable one, wiping each delete made since the cap was hit.
+  // This is his copy's state: 28 assets and 4 levels frozen, then a sound deleted, then a loader
+  // filing one more asset delete, then a reload.
+  test("with localStorage FULL, a delete survives later changes and a reload", async () => {
+    const frozen = { assets: ["a1", "a2"], levels: ["l1"] };
+    localStorage.setItem("removedIndex", JSON.stringify(frozen));
+    const durable = new Map([["removedIndex", JSON.stringify(frozen)]]);
+    localRemoved.attach({ get: async (k) => durable.get(k) || null, set: async (k, v) => { durable.set(k, v); return true; } });
+    const full = jest.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("QuotaExceededError"); });
+    try {
+      localRemoved.add("sounds", ["snd1"]);                 // he deletes a sound
+      localRemoved.add("assets", ["a9"]);                   // a loader files a delete the project file knew about
+      const back = await localRemoved.hydrate();            // the next load
+      expect(back.sounds).toEqual(["snd1"]);
+      expect(back.assets.sort()).toEqual(["a1", "a2", "a9"]);
+      expect(localRemoved.ids("sounds").has("snd1")).toBe(true);
+      // ...and the durable copy itself holds it, which is what a NEW page load (and the keeper's
+      // sweep of this copy) reads. The frozen localStorage copy still lacks it, and that no longer matters.
+      expect(JSON.parse(durable.get("removedIndex")).sounds).toEqual(["snd1"]);
+      expect(JSON.parse(localStorage.getItem("removedIndex")).sounds).toBeUndefined();
+      // a deliberate re-save takes it back off both
+      localRemoved.revive("sounds", ["snd1"]);
+      await localRemoved.hydrate();
+      expect(localRemoved.ids("sounds").size).toBe(0);
+      expect(JSON.parse(durable.get("removedIndex")).sounds).toEqual([]);
+    } finally {
+      full.mockRestore();
+      localRemoved.attach(null);
+      localRemoved.write({});                               // localStorage writable again: it is the truth again
+    }
+  });
+
+  test("a re-save takes the id off the durable copy even when this page's list never had it", async () => {
+    const durable = new Map([["removedIndex", JSON.stringify({ sounds: ["old"] })]]);
+    localRemoved.attach({ get: async (k) => durable.get(k) || null, set: async (k, v) => { durable.set(k, v); return true; } });
+    try {
+      localRemoved.revive("sounds", ["old"]);
+      const back = await localRemoved.hydrate();
+      expect(back.sounds).toEqual([]);                      // not unioned back to purge what was just re-created
+    } finally { localRemoved.attach(null); }
+  });
 });
 
 // THE GRAVESTONE. Deleting is optional in a host storage API — the one in use answers to no

@@ -225,31 +225,84 @@ const LOCAL_REMOVED_KEY = "removedIndex";
 // that handed the record back. `attach` lets the app plug in sget/sset (host store first, then
 // IndexedDB, then localStorage), so the list travels with whichever store outlives the address.
 // The synchronous localStorage copy stays as the fast path every reader can use without awaiting.
+//
+// WHEN localStorage IS FULL (2026-10-10, "it won't let me delete audio files, they immediately come
+// back"). Every copy of his studio sits at the browser's 5 MB localStorage cap, so `write` fails
+// and the localStorage copy freezes at whatever it held when it filled up. The old add/revive read
+// THAT frozen copy, added one id, and pushed the whole list over the durable copy in IndexedDB. So
+// every later change (a loader filing the project file's deletes, any other delete) overwrote the
+// durable list with the frozen one, and every delete made since the cap was hit was wiped. His
+// copy's lists, read off the disk, held 28 assets and 4 levels and no sounds at all, minutes after
+// the keeper had seen two sound deletes in them. The next load found the sound unlisted and
+// restored it from the online save. Two changes, neither of which removes a tier:
+//   * the durable copy is changed by READ-MODIFY-WRITE (`persist`): an add puts ITS ids onto what
+//     the durable copy holds, a revive takes ITS ids off. Nothing ever writes a whole list read from
+//     somewhere else over it again. Changes run one at a time, and hydrate waits for them.
+//   * when a localStorage write fails, this page keeps the list in memory (`removedMem`) and reads
+//     that from then on, instead of the frozen copy. A writable localStorage stays the truth exactly
+//     as before.
 let removedPersist = null;
+let removedMem = null;            // this page's list while localStorage refuses writes; null = localStorage is the truth
+let removedChain = Promise.resolve();
+const unionRemoved = (a, b) => {
+  const out = {};
+  for (const k of new Set([...Object.keys(a || {}), ...Object.keys(b || {})])) {
+    out[k] = [...new Set([...(Array.isArray(a && a[k]) ? a[k] : []), ...(Array.isArray(b && b[k]) ? b[k] : [])].filter(Boolean))];
+  }
+  return out;
+};
 export const localRemoved = {
   attach: (io) => { removedPersist = io; },
   // Pull the durable copy in and merge it over the synchronous one. Called by the loaders before
-  // they purge, so a browser whose localStorage was wiped still knows what was deleted.
+  // they purge, so a browser whose localStorage was wiped (or is full) still knows what was deleted.
   hydrate: async () => {
     if (!removedPersist) return localRemoved.read();
+    await removedChain; // a change still on its way to the durable copy must land before it is read
     let far = {};
     try { const raw = await removedPersist.get(LOCAL_REMOVED_KEY); const o = raw ? JSON.parse(raw) : null; if (o && typeof o === "object") far = o; } catch { /* unreadable is just empty */ }
-    const near = localRemoved.read();
-    const merged = {};
-    for (const k of new Set([...Object.keys(near), ...Object.keys(far)])) {
-      merged[k] = [...new Set([...(Array.isArray(near[k]) ? near[k] : []), ...(Array.isArray(far[k]) ? far[k] : [])].filter(Boolean))];
-    }
+    const merged = unionRemoved(localRemoved.read(), far);
     localRemoved.write(merged);
     return merged;
   },
-  // Both copies, always. The async one is fire-and-forget: a delete must not wait on it, and a
-  // store that refuses it still leaves the synchronous copy and the project file's own list.
-  push: (o) => { if (removedPersist) { try { Promise.resolve(removedPersist.set(LOCAL_REMOVED_KEY, JSON.stringify(o))).catch(() => {}); } catch { /* best effort */ } } },
-  read: () => { try { const raw = localStorage.getItem(LOCAL_REMOVED_KEY); const o = raw ? JSON.parse(raw) : null; return (o && typeof o === "object") ? o : {}; } catch { return {}; } },
-  write: (o) => { try { localStorage.setItem(LOCAL_REMOVED_KEY, JSON.stringify(o)); return true; } catch { return false; } },
+  // One change to the durable copy, applied on top of what it holds NOW. Fire-and-forget for the
+  // caller (a delete must not wait on it), queued so two changes never read the same old list.
+  persist: (change) => {
+    if (!removedPersist) return removedChain;
+    removedChain = removedChain.then(async () => {
+      let far = {};
+      try { const raw = await removedPersist.get(LOCAL_REMOVED_KEY); const o = raw ? JSON.parse(raw) : null; if (o && typeof o === "object") far = o; } catch { /* unreadable is just empty */ }
+      const next = change(far);
+      if (JSON.stringify(next) !== JSON.stringify(far)) await removedPersist.set(LOCAL_REMOVED_KEY, JSON.stringify(next));
+    }).catch(() => { /* a store that refuses it still leaves the page's copy and the project file's list */ });
+    return removedChain;
+  },
+  read: () => {
+    if (removedMem) return JSON.parse(JSON.stringify(removedMem));
+    try { const raw = localStorage.getItem(LOCAL_REMOVED_KEY); const o = raw ? JSON.parse(raw) : null; return (o && typeof o === "object") ? o : {}; } catch { return {}; }
+  },
+  write: (o) => {
+    try { localStorage.setItem(LOCAL_REMOVED_KEY, JSON.stringify(o)); removedMem = null; return true; }
+    catch { removedMem = JSON.parse(JSON.stringify(o || {})); return false; } // full: hold it here rather than read the frozen copy back
+  },
   ids: (kind) => new Set((localRemoved.read()[kind] || []).filter(Boolean)),
-  add: (kind, ids) => { const o = localRemoved.read(); o[kind] = [...new Set([...(Array.isArray(o[kind]) ? o[kind] : []), ...(ids || [])].filter(Boolean))]; localRemoved.push(o); return localRemoved.write(o); },
-  revive: (kind, ids) => { const o = localRemoved.read(); if (!Array.isArray(o[kind]) || !o[kind].length) return false; const back = new Set((ids || []).filter(Boolean)); o[kind] = o[kind].filter((id) => !back.has(id)); localRemoved.push(o); return localRemoved.write(o); },
+  add: (kind, ids) => {
+    const add = (ids || []).filter(Boolean);
+    const o = localRemoved.read(); o[kind] = [...new Set([...(Array.isArray(o[kind]) ? o[kind] : []), ...add])];
+    localRemoved.persist((far) => unionRemoved(far, { [kind]: add }));
+    return localRemoved.write(o);
+  },
+  revive: (kind, ids) => {
+    const back = new Set((ids || []).filter(Boolean));
+    if (!back.size) return false;
+    // The durable copy is asked even when this page's list does not name the id: it may (a delete
+    // made on another visit to this address), and left there, hydrate would union it straight back
+    // and purge the thing that was just re-created.
+    localRemoved.persist((far) => (Array.isArray(far[kind]) && far[kind].some((id) => back.has(id)) ? { ...far, [kind]: far[kind].filter((id) => !back.has(id)) } : far));
+    const o = localRemoved.read();
+    if (!Array.isArray(o[kind]) || !o[kind].some((id) => back.has(id))) return false;
+    o[kind] = o[kind].filter((id) => !back.has(id));
+    return localRemoved.write(o);
+  },
 };
 // Ask a host-provided storage object for every key it holds.
 //
