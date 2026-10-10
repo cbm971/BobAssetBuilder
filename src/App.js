@@ -9172,9 +9172,10 @@ const translucentAlpha = (t) => 1 - Math.max(0, Math.min(TRANSLUCENCY_MAX, typeo
 export const assetAlpha = (a) => translucentAlpha(a && a.translucency);
 // 👻 ONE SHAPE, SEE-THROUGH (same day, Blake: "When i try to make something translucent it tries to
 // make everything translucent not just the shape I am editing. That is a bug"). What he wanted was
-// the block he is editing, so the 👻 Translucent slider lives in the block's own card and writes
-// `translucency` on that piece (or every piece of a selected group); the whole-asset card above is
-// now titled "Whole asset" so the two cannot be mistaken for each other. Same 0–90% scale. It is
+// the block he is editing. There is ONE 👻 Translucent slider, and it fades what is selected: a block
+// (`translucency` on that piece), a selected group (every piece in it), or, with nothing selected,
+// the whole asset (assetAlpha above). Two sliders, one per level, was a trap: he reached for the
+// whole-asset one with a block selected and it faded his whole pill. Same 0–90% scale. It is
 // NOT the existing ✨ Fade: Fade fades only the fill, and an outlined triangle or poly then shows
 // its solid outline silhouette straight through it (the outline is drawn as a solid shape under the
 // fill). This fades the fill AND its outline together as one picture (Static / Block / MirrorGhost
@@ -24391,11 +24392,6 @@ export default function AssetStudio() {
                   <label className="slider">Brightness<input type="range" min="0.3" max="2" step="0.05" value={sel.outlineFx?.bright ?? 1} onChange={(e) => updSel({ outlineFx: { ...(sel.outlineFx || defaultFx()), bright: +e.target.value } })} /></label>
                 </div>
               )}
-              {/* 👻 THIS SHAPE, SEE-THROUGH (pieceAlpha) — ONLY the selected block, like Fade (updSel, not
-                  updSelAll): a held group (Select all, a stored group, Copy block) must not be faded
-                  with it, and never the colour-everywhere toggle either, which is how it went wrong. Outline and
-                  fill fade together. 0 removes the key, so an untouched block stays byte-identical. */}
-              <label className="slider">👻 Translucent<input type="range" min="0" max={TRANSLUCENCY_MAX} step={TRANSLUCENCY_STEP} value={sel.translucency ?? 0} onChange={(e) => { const v = +e.target.value; updSel({ translucency: v > 0 ? v : undefined }); }} /><span className="hint2" style={{ marginLeft: 6 }}>{Math.round((sel.translucency ?? 0) * 100)}%</span></label>
               {sel.kind === "text" && (
                 <div className="textedit">
                   <label className="pick" style={{ marginBottom: 8 }}>Text<input type="text" value={sel.text || ""} onChange={(e) => updSel({ text: e.target.value })} placeholder="Type here…" maxLength={40} /></label>
@@ -24563,19 +24559,29 @@ export default function AssetStudio() {
             </div>
           )}
 
-          {/* 👻 THE WHOLE ASSET, SEE-THROUGH (assetAlpha). Every kind of asset gets it — an item, a
-              prop, a garment, a gun, a body — and it shows wherever that asset is drawn: this canvas,
-              Dress Bob, a plinth, a drop, the shop, a shot in flight, and worn or held in play. Not
-              shown while editing an ability's animation frames, which are not the asset's art.
-              Titled "Whole asset" since he took the first version, titled "Translucent", for the
-              one-shape control and every block faded at once; that one is 👻 Translucent in the
-              selected block's own card (pieceAlpha). */}
-          {!effEdit && (
-            <div className="card">
-              <div className="ct">👻 Whole asset</div>
-              <label className="slider">See-through<input type="range" min="0" max={TRANSLUCENCY_MAX} step={TRANSLUCENCY_STEP} value={asset.translucency ?? 0} onChange={(e) => { const v = +e.target.value; setAsset((a) => { const { translucency, ...rest } = a; return v > 0 ? { ...rest, translucency: v } : rest; }); }} /><span className="hint2" style={{ marginLeft: 6 }}>{Math.round((asset.translucency ?? 0) * 100)}%</span></label>
-            </div>
-          )}
+          {/* 👻 ONE TRANSLUCENT SLIDER, AND IT FADES WHAT YOU HAVE SELECTED (2026-10-10). Blake, three
+              times: the slider "makes everything see through" while he had ONE block of his Extended
+              Range Pill selected. There were two sliders by then, one in the block's card and this
+              one for the whole asset further down, and this is the one he reached for — it faded
+              the entire pill, because it ignored the selection. Never two sliders again. This one:
+                · a block selected → that block (pieceAlpha; outline and fill fade together)
+                · a GROUP selected → every block in it ("if a group was selected the group should
+                  become translucent"), through updSelAll
+                · nothing selected → the whole asset (assetAlpha), drawn as one picture
+              The title names which, so it can never quietly mean something else. 0 removes the key. */}
+          {!effEdit && (() => {
+            const n = sel ? selOrGroupIds().size : 0;
+            const cur = sel ? (sel.translucency ?? 0) : (asset.translucency ?? 0);
+            const setT = (v) => sel
+              ? updSelAll({ translucency: v > 0 ? v : undefined })
+              : setAsset((a) => { const { translucency, ...rest } = a; return v > 0 ? { ...rest, translucency: v } : rest; });
+            return (
+              <div className="card">
+                <div className="ct">👻 Translucent · {!sel ? "everything" : n > 1 ? "group of " + n : "this block"}</div>
+                <label className="slider">See-through<input type="range" min="0" max={TRANSLUCENCY_MAX} step={TRANSLUCENCY_STEP} value={cur} onChange={(e) => setT(+e.target.value)} /><span className="hint2" style={{ marginLeft: 6 }}>{Math.round(cur * 100)}%</span></label>
+              </div>
+            );
+          })()}
 
           {pieces.length > 0 && (
             <div className="card"><div className="ct">Layers — top is front</div>

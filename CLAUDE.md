@@ -211,12 +211,13 @@ plus traps it does not cover:
   under the arms (`hatsUnderArms`).
 - A translucent piece can carry an outline only as a rect, circle, roundrect or stadium. Any other
   shape draws its outline as a solid silhouette under the fill.
-- **One SHAPE is see-through by `piece.translucency`** (👻 Translucent in the selected block's own card,
-  `pieceAlpha`; outline and fill fade together). Blake wanted this one: the whole-asset slider below
-  faded everything when he reached for it ("it tries to make everything translucent ... a bug"), so
-  the two cards are named apart and a piece slider must never go through the colour-everywhere path.
-- **A whole asset is see-through by `asset.translucency`** (0–0.9, the 👻 Translucent card in every
-  asset editor; `assetAlpha`). It fades the finished picture as ONE group (`fadeGroup`), unlike the
+- **ONE 👻 Translucent slider, and it fades what is SELECTED** (its title says which): a block →
+  `piece.translucency` (`pieceAlpha`, outline and fill fade together); a selected group → every block
+  in it (`updSelAll`); nothing selected → the whole asset. Never add a second see-through slider: with
+  two (one per block, one per asset) Blake reached for the asset one with ONE block selected and it
+  faded his whole pill, three reports running. Never route it through the colour-everywhere path.
+- **A whole asset is see-through by `asset.translucency`** (0–0.9, that slider with nothing selected;
+  `assetAlpha`). It fades the finished picture as ONE group (`fadeGroup`), unlike the
   per-piece ✨ Fade. Every `renderPieceRuns` call passes `alpha` (one asset: prop, plinth, drop, shop,
   shot) or `alphaOf` (a composed sprite, per `_src` run via `spriteAlphaOf`); a test fails if a call
   passes neither. Never fade a single asset by `_src`: garments still carry the `_src` of the asset

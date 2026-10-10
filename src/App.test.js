@@ -12636,16 +12636,24 @@ describe("👻 translucent assets", () => {
   });
 });
 
-// "the slider makes everything see through" (Blake, 2026-10-10): a held group (Select all, a stored
-// group, Copy block) is NOT what the block's 👻 slider fades. Same rule as Fade: the selected block.
-describe("👻 the per-block slider fades one block", () => {
-  test("it writes through updSel (selected block), never updSelAll (the held group) or the colour group", () => {
-    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
-    const line = src.split("\n").find((l) => l.includes("👻 Translucent<input"));
-    expect(line).toBeTruthy();
-    expect(line).toContain("updSel({ translucency");
-    expect(line).not.toContain("updSelAll");
-    expect(line).not.toContain("updFx");
+// "the slider makes everything see through" (Blake, 2026-10-10, three times, with ONE block of his
+// Extended Range Pill selected). There were two see-through sliders and he reached for the
+// whole-asset one. Now there is one, and it fades what is selected: the block, the selected group,
+// or, with nothing selected, everything.
+describe("👻 one see-through slider, and it follows the selection", () => {
+  const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+  test("there is exactly one see-through slider in the editor", () => {
+    expect(src.split("See-through<input").length - 1).toBe(1);
+    expect(src).not.toContain("👻 Translucent<input");
+    expect(src).not.toContain("👻 Whole asset");
+  });
+  test("with a selection it writes the selection (block or group); only with none does it touch the asset", () => {
+    const at = src.indexOf("const setT = (v) => sel");
+    expect(at).toBeGreaterThan(-1);
+    const body = src.slice(at, at + 300);
+    expect(body).toMatch(/sel\s*\?\s*updSelAll\(\{ translucency/);   // a block, or every block of a selected group
+    expect(body).toContain("setAsset((a) =>");                         // nothing selected: the whole asset
+    expect(body).not.toContain("updFx");                               // never the colour-everywhere path
   });
 });
 
