@@ -211,6 +211,10 @@ plus traps it does not cover:
   under the arms (`hatsUnderArms`).
 - A translucent piece can carry an outline only as a rect, circle, roundrect or stadium. Any other
   shape draws its outline as a solid silhouette under the fill.
+- **One SHAPE is see-through by `piece.translucency`** (👻 Translucent in the selected block's own card,
+  `pieceAlpha`; outline and fill fade together). Blake wanted this one: the whole-asset slider below
+  faded everything when he reached for it ("it tries to make everything translucent ... a bug"), so
+  the two cards are named apart and a piece slider must never go through the colour-everywhere path.
 - **A whole asset is see-through by `asset.translucency`** (0–0.9, the 👻 Translucent card in every
   asset editor; `assetAlpha`). It fades the finished picture as ONE group (`fadeGroup`), unlike the
   per-piece ✨ Fade. Every `renderPieceRuns` call passes `alpha` (one asset: prop, plinth, drop, shop,

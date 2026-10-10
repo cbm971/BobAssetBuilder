@@ -3730,6 +3730,20 @@ the rest of Bob solid. Both pedestals and the bullet in flight drew at 0.5 / 0.4
 units matched the player exactly (×30 while firing = the Fire drawing), a corpse kept both groups,
 and Dress Bob showed the jacket at 0.6.
 
+**Follow-up, same day: it faded EVERYTHING.** Blake: "When i try to make something translucent it
+tries to make everything translucent not just the shape I am editing. That is a bug". I had built
+the slider for the whole asset because he said "make items translucent", and the card sat in the
+sidebar where the selected block's Fade lives, so reaching for it faded the entire asset. He meant the
+shape. Fix (6ce9d29): `piece.translucency` (`pieceAlpha`), a 👻 Translucent slider in the block's own
+card, written through `updSelAll` (the selection or its group, never `recolorAll`); Static / Block /
+MirrorGhost wrap outline + fill in one `fadeGroup`, with the selection dash kept outside the fade. The
+whole-asset card is kept (never remove a feature) but titled "👻 Whole asset". Not the existing ✨
+Fade: that fades the fill only, so an outlined poly shows its solid outline silhouette through it, and
+1,602 pieces in his saves use Fade, so it is untouched. Verified in the app on ENERGY DRINK (11
+blocks): at 60% exactly one fade group, opacity 0.4, covering 1 block; the Whole asset slider stayed
+0; back to 0 removed the group. Lesson: when he asks to make "items" translucent in a drawing tool,
+ask which level it acts on, or put the control where the thing he is editing is.
+
 **🎯 Range item.** "Range" already meant how far a gun or bow shot flies (weapon Range in blocks, the
 🎯 Long Shot clothing ability), so the item is Long Shot's multiplier on a timer:
 `{ kind: "range", mult, duration }` (`normItemEffect`; floored at ×1 so it can never SHORTEN shots;

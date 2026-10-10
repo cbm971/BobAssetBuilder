@@ -120,6 +120,9 @@ Optional: `"rot": 28` (degrees), `"outline": true`.
   points; a curved tail or neck is one Curve stroke (start, middle, end, two thicknesses).
 * `rot` in tenths of a degree at most. `fx.bright` 0.3–2 in steps of 0.05; `fx.opacity` 0.1–1 in
   steps of 0.05; `fx.glow` 0–12 in steps of 0.5.
+* **To make ONE piece see-through**, put `"translucency": 0.5` on that piece (0 = solid, leave it
+  out; up to 0.9, steps of 0.05). Its outline and fill fade together, which `fx.opacity` (fill only)
+  does not do.
 * **To make the WHOLE asset see-through** (a glass bottle, a ghost's sheet, a visor), put
   `"translucency": 0.5` on the asset itself, not on its pieces: 0 is solid (leave it out), up to
   0.9, in steps of 0.05. It fades the finished picture as one, so overlapping pieces do not show
