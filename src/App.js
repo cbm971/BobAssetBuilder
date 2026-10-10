@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 // the game's own front end will play the same data without the studio — see src/audio.js. The clip
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
-import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches } from "./audio";
+import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId } from "./audio";
 
 /* ============================================================================
    BOB ASSET STUDIO  — HTML canvas (reliable emoji + easy dragging on mobile)
@@ -3165,6 +3165,11 @@ export const migrateDialogue = (raw) => {
     // the box existed comes through here byte-for-byte what it was, and the save keeper sees no
     // change on a record nobody touched.
     ...(src.once ? { once: true } : {}),
+    // 🔊 The sound looped while its lines are said (audio.js talkSeconds), set on the Sounds
+    // screen. Carried only when set, for the same byte-for-byte reason as `once` — and carried at
+    // all because every load comes through here: dropping it would quietly un-assign the sound
+    // the next time the library loaded.
+    ...(typeof src.sound === "string" && src.sound ? { sound: src.sound } : {}),
   };
 };
 // ONE TIME ONLY (2026-09-28, Blake: "sometimes dialogue is meant to be one time use. Others it is
@@ -11485,6 +11490,10 @@ export default function AssetStudio() {
   const [soundUploadCat, setSoundUploadCat] = useState("");          // the 📂 folder new uploads are filed under
   const [soundConfirmDel, setSoundConfirmDel] = useState(null);      // sound id armed for deletion — tap 🗑 twice, like the asset shelf
   const [soundBusy, setSoundBusy] = useState(false);
+  // Which 📂 folders are open on the Sounds screen (the Library's, and the Weapons box's kinds,
+  // keyed "lib:<folder>" / "wpn:<kind>"). Starts EMPTY: everything folded, so the library is one
+  // line per folder until you open the one you want (Blake, 2026-10-10: "take up less space").
+  const [soundOpen, setSoundOpen] = useState(() => new Set());
   // 🎵 The music toggle. A PLAYER preference, like a volume slider in an options menu, so it is
   // kept per copy of the game (localStorage), not in his saved library; the track itself is game
   // data and lives on the board. Default on: picking a track is asking to hear it.
@@ -12411,6 +12420,15 @@ export default function AssetStudio() {
     }
     return { ax: c * LV_CELL + LV_CELL / 2, ay: r * LV_CELL, ah: LV_CELL };
   };
+  // 🔊 THE LINE BEING SAID talks with its dialogue's own sound (dialogueSoundId — set per dialogue
+  // on the Sounds screen), looped for as long as the line takes to say (talkSeconds). Called at the
+  // three places the line on screen CHANGES — a conversation opening, an answer moving it on, and
+  // closeTalk (null) — the way every other sound fires where its thing happens, not from the render.
+  const talkSoundFor = (t) => {
+    if (!t) { bobAudio.talk(null); return; }
+    const node = t.dlg && t.dlg.nodes ? t.dlg.nodes[t.nodeId] : null;
+    bobAudio.talk(dialogueSoundId(t.dlg, bobAudio.has), talkSeconds(node && node.text));
+  };
   const openTalk = (t) => {
     const dlg = resolveTalkTree(t);
     if (!dlg) { flash(t.kind === "sign" ? "💬 This sign has nothing written on it." : "💬 They have nothing to say — their dialogue was deleted."); return; }
@@ -12422,6 +12440,7 @@ export default function AssetStudio() {
     talkRef.current = next;
     setTalk(next);
     setTalkPrompt(null);
+    talkSoundFor(next);
     // TALKED TO ONCE IS "USED" — it stops the NPC turning to face you every time you walk past
     // afterwards (see the wantFace rule in the enemy loop), and takes the 💬 off its head. One drawn
     // with a Front pose keeps STANDING in it unless the talk turned it hostile (eFrontPose). Marked
@@ -12443,6 +12462,7 @@ export default function AssetStudio() {
       else talkSpentSigns.current.add(t.lvKey + "|" + t.key);
     }
     clearTalkTimer(); talkRef.current = null; setTalk(null); setTalkH(0);
+    talkSoundFor(null); // walking away mid-sentence stops them talking
   };
   // Both written synchronously as well as through setState, for the reason openTalk gives: the
   // loop is mid-frame and reads the ref at the top of the NEXT one, so waiting for React to
@@ -12674,7 +12694,7 @@ export default function AssetStudio() {
     const commit = () => {
       clearTalkTimer();
       applyTalkAct(step.act, t, step);
-      if (step.nextId) { const next = { ...t, nodeId: step.nextId, picked: null }; talkRef.current = next; setTalk(next); }
+      if (step.nextId) { const next = { ...t, nodeId: step.nextId, picked: null }; talkRef.current = next; setTalk(next); talkSoundFor(next); }
       else closeTalk();
     };
     // EVERY PICK FLASHES. A tagged option lights green or red and holds long enough to read it;
@@ -19506,7 +19526,50 @@ export default function AssetStudio() {
         if (await putSoundRecord(rec)) n++;
       }
     } finally { setSoundBusy(false); }
-    if (n) flash("🔊 Added " + n + " sound" + (n > 1 ? "s" : "") + " ✓");
+    if (n) {
+      flash("🔊 Added " + n + " sound" + (n > 1 ? "s" : "") + " ✓");
+      // The Library starts folded, so the folder the new sound went into opens — otherwise an
+      // upload lands inside a closed folder and looks like it did nothing.
+      setSoundOpen((o) => new Set(o).add("lib:" + propCatKey(propCat({ category: soundUploadCat }))));
+    }
+  };
+  // 🔊 A WEAPON'S SOUNDS, SET FROM THE SOUNDS SCREEN'S Weapons box. Saved IN the weapon
+  // (asset.sounds), exactly where the weapon editor's own 🔊 card puts them, so each place shows
+  // what the other chose. In place and narrow: the STORED record is read back and only `sounds`
+  // (and savedAt) change, so a screen that never opened the weapon cannot rewrite anything else
+  // about it. Same id, so every placement and pickup of that weapon hears the new sound.
+  // A weapon open in the editor takes the same change, or its next 💾 Save would put the old
+  // sounds straight back.
+  const saveWeaponSound = async (w, slot, soundId) => {
+    if (!w || !w.id) return;
+    let rec = null;
+    try { const raw = await sget("asset:" + w.id); if (raw && !isTombstoneRecord(raw)) rec = JSON.parse(raw); } catch { rec = null; }
+    if (!rec) { flash("Couldn't save — \"" + (w.name || w.id) + "\" isn't in storage."); return; }
+    const sounds = withAssetSound(rec.sounds, slot, soundId);
+    const payload = { ...rec, sounds, savedAt: Date.now() };
+    if (!(await sset("asset:" + payload.id, JSON.stringify(payload)))) { flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + "."); return; }
+    projectLibrary.save({ assets: [payload] }, { revive: true });
+    setLibrary((lib) => lib.map((a) => (a && a.id === payload.id ? { ...a, sounds, savedAt: payload.savedAt } : a)));
+    setAsset((a) => (a && a.id === payload.id ? { ...a, sounds } : a));
+  };
+  // 🔊 A DIALOGUE'S TALK SOUND (dlg.sound, looped while its lines are said — talkSoundFor). The
+  // same in-place rule as above, on the dialogue's own record; and the tree open in the 💬 editor,
+  // baseline included, takes the change too, so it neither saves the old sound back nor reads as
+  // unsaved work it never had.
+  const saveDialogueSound = async (d, soundId) => {
+    if (!d || !d.id) return;
+    let rec = null;
+    try { const raw = await sget("dialogue:" + d.id); if (raw && !isTombstoneRecord(raw)) rec = JSON.parse(raw); } catch { rec = null; }
+    if (!rec) { flash("Couldn't save — \"" + (d.name || d.id) + "\" isn't in storage."); return; }
+    const withSound = (x) => { const n = { ...x }; if (soundId) n.sound = soundId; else delete n.sound; return n; };
+    const payload = { ...withSound(rec), savedAt: Date.now() };
+    if (!(await sset("dialogue:" + payload.id, JSON.stringify(payload)))) { flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + "."); return; }
+    projectLibrary.save({ dialogues: [payload] }, { revive: true });
+    setDlgLib((lib) => lib.map((x) => (x && x.id === payload.id ? withSound(x) : x)));
+    if (dlgDoc && dlgDoc.id === payload.id) {
+      setDlgDoc((x) => (x && x.id === payload.id ? withSound(x) : x));
+      try { dlgBaseline.current = JSON.stringify(withSound(JSON.parse(dlgBaseline.current))); } catch { /* no saved baseline yet */ }
+    }
   };
   const deleteSound = async (s) => {
     const id = s && s.id; if (!id || id === SOUND_BOARD_ID) return;
@@ -19527,7 +19590,16 @@ export default function AssetStudio() {
   const soundGroups = useMemo(() => groupByCategory(soundLib, "sound"), [soundLib]);
   const soundIds = useMemo(() => new Set(soundLib.map((s) => s.id)), [soundLib]);
   const saveSoundBoard = (patch) => putSoundRecord({ ...soundBoard, ...patch, id: SOUND_BOARD_ID, type: "soundBoard" });
-  const openSoundScreen = () => { loadSounds(); setScreen("sounds"); };
+  const openSoundScreen = () => { loadSounds(); loadDialogues(); setScreen("sounds"); }; // dialogues for the 💬 Dialogue card
+  // The Weapons box: every saved weapon, by kind (which is what decides its slots — assetSoundSlots).
+  const soundWeaponGroups = useMemo(() => {
+    const kinds = [{ key: "ranged", label: "Ranged" }, { key: "melee", label: "Melee" }, { key: "throw", label: "Throwable" }];
+    const kindOf = (w) => (w.wtype === "ranged" ? "ranged" : w.wtype === "throw" ? "throw" : "melee");
+    const byName = (x, y) => NAME_COLLATOR.compare(x.name || "", y.name || "");
+    const weapons = library.filter((a) => a && a.type === "weapon");
+    return kinds.map((k) => ({ ...k, items: weapons.filter((w) => kindOf(w) === k.key).sort(byName) })).filter((k) => k.items.length);
+  }, [library]);
+  const soundDialogues = useMemo(() => dlgLib.filter((d) => d && d.id).slice().sort((x, y) => NAME_COLLATOR.compare(x.name || "", y.name || "")), [dlgLib]);
   // A sound <select>'s options: "— basic —" (or "— none —") then the library, in its 📂 folders once
   // there is more than one. A slot pointing at a deleted sound shows as empty, which is what it is.
   const soundOptions = (emptyLabel) => [
@@ -19562,6 +19634,7 @@ export default function AssetStudio() {
     if (!play) { bobAudio.setView(null); return; }
     const ids = new Set(Object.values(soundBoard.basic || {}));
     for (const a of allAssets) if (a && a.sounds) for (const id of Object.values(a.sounds)) ids.add(id);
+    for (const d of dlgLib) if (d && d.sound) ids.add(d.sound); // the talk loops too
     bobAudio.preload([...ids]);
   }, [play]); // eslint-disable-line
   // MIRROR THE LEVEL left↔right. Two doors on the same operation because they answer two different
@@ -20451,14 +20524,30 @@ export default function AssetStudio() {
     );
   }
 
-  /* ---- 🔊 sounds: the library, the basic sounds, the music ------------------ */
+  /* ---- 🔊 sounds: the library, the basic sounds, the music, dialogue, weapons ---- */
   // One screen, the way 💬 Dialogue Trees has one: a sound is uploaded and named ONCE here and then
   // picked by id from anywhere (the basic sounds below, a weapon's or an enemy's own 🔊 card). Each
   // card is a title and its inputs. Names and folders save when the box loses focus (or on Enter).
+  //
+  // TWO COLUMNS (Blake, 2026-10-10): what PLAYS on the left — basic sounds, music, and each
+  // dialogue's talk loop — and on the right what you PICK FROM — the library, folded into its 📂
+  // folders (all shut to start), and every weapon by kind, so a gun's Fire is set here without
+  // opening the gun. A weapon's pick saves IN the weapon (saveWeaponSound), a dialogue's in the
+  // dialogue (saveDialogueSound).
   if (screen === "sounds") {
     const renameSound = (s, name) => { const v = name.trim(); if (!v || v === s.name) return; putSoundRecord({ ...s, name: v }, "Renamed ✓"); };
-    const refileSound = (s, cat) => { const v = cat.trim(); if (v === (s.category || "").trim()) return; putSoundRecord({ ...s, category: v }, "📂 " + (v || PROP_UNCAT) + " ✓"); };
+    // Refiling moves the row into another folder, which may be shut — open it, so the sound you
+    // just moved is still in front of you rather than appearing to vanish.
+    const refileSound = (s, cat) => { const v = cat.trim(); if (v === (s.category || "").trim()) return; setSoundOpen((o) => new Set(o).add("lib:" + propCatKey(v || PROP_UNCAT))); putSoundRecord({ ...s, category: v }, "📂 " + (v || PROP_UNCAT) + " ✓"); };
     const blurOnEnter = (e) => { if (e.key === "Enter") e.currentTarget.blur(); };
+    const toggleOpen = (k) => setSoundOpen((o) => { const n = new Set(o); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+    const foldHead = (k, label, count) => (
+      <button className={"sndFold" + (soundOpen.has(k) ? " open" : "")} onClick={() => toggleOpen(k)}>
+        <span className="sndCaret">{soundOpen.has(k) ? "▾" : "▸"}</span>{label}<span className="sndCount">{count}</span>
+      </button>
+    );
+    const playBtn = (id) => <button className="ltbtn sndPlay" disabled={!id} onClick={() => bobAudio.preview(id)} title="Play">▶</button>;
+    const WPN_ICON = { ranged: "🏹", melee: "🗡️", throw: "💣" };
     return (
       <div className="bb"><style>{css}</style>
         <header className="bar">
@@ -20467,47 +20556,96 @@ export default function AssetStudio() {
         </header>
         <div className="sndEdit">
           <datalist id="soundcats">{soundGroups.map((g) => <option key={g.key} value={g.label} />)}</datalist>
-          <div className="card">
-            <div className="ct">Library</div>
-            <div className="sndRow">
-              <label className={"ltbtn sndUp" + (soundBusy ? " on" : "")}>{soundBusy ? "⏳ Adding…" : "⬆ Upload sounds"}<input type="file" accept=".wav,.mp3,.ogg,audio/wav,audio/x-wav,audio/mpeg,audio/ogg" multiple hidden disabled={soundBusy} onChange={(e) => { const el = e.target; uploadSounds(el.files).finally(() => { el.value = ""; }); }} /></label>
-              <label className="catfield" title="New uploads go in this folder">📂 <input list="soundcats" value={soundUploadCat} onChange={(e) => setSoundUploadCat(e.target.value)} placeholder={PROP_UNCAT} /></label>
-            </div>
-            {soundGroups.map((g) => (
-              <div key={g.key}>
-                <div className="ct2">📂 {g.label}</div>
-                {g.props.map((s) => (
-                  <div key={s.id} className="sndRow">
-                    <button className="ltbtn sndPlay" onClick={() => bobAudio.preview(s.id)} title="Play">▶</button>
-                    {/* Uncontrolled and keyed on savedAt: typing never re-saves per keystroke, and a
-                        save (here or from another copy) resets the box to what was stored. */}
-                    <input className="sndName" key={"n" + s.id + ":" + (s.savedAt || 0)} defaultValue={s.name} onBlur={(e) => renameSound(s, e.target.value)} onKeyDown={blurOnEnter} title="Name" />
-                    <input className="sndCat" list="soundcats" key={"c" + s.id + ":" + (s.savedAt || 0)} defaultValue={s.category || ""} placeholder={PROP_UNCAT} onBlur={(e) => refileSound(s, e.target.value)} onKeyDown={blurOnEnter} title="📂 Folder" />
-                    <span className="hint2">{[fmtClipDur(s.dur), fmtClipSize(s.bytes)].filter(Boolean).join(" · ")}</span>
-                    <button className={"ltbtn" + (soundConfirmDel === s.id ? " arm" : "")} title={soundConfirmDel === s.id ? "Tap again to permanently delete" : "Delete this sound"} onClick={() => { if (soundConfirmDel === s.id) deleteSound(s); else { setSoundConfirmDel(s.id); flash("Tap 🗑 again to permanently delete \"" + s.name + "\""); } }}>{soundConfirmDel === s.id ? "Sure?" : "🗑"}</button>
+          <div className="sndCol">
+            <div className="card">
+              <div className="ct">Basic sounds</div>
+              {SOUND_EVENTS.map((ev) => {
+                const cur = soundVal((soundBoard.basic || {})[ev.key]);
+                return (
+                  <div key={ev.key} className="sndRow">
+                    <span className="sndEvt">{ev.icon} {ev.label}</span>
+                    <select value={cur} onChange={(e) => saveSoundBoard({ basic: withAssetSound(soundBoard.basic, ev.key, e.target.value) })}>{soundOptions("— none —")}</select>
+                    {playBtn(cur)}
                   </div>
-                ))}
+                );
+              })}
+            </div>
+            <div className="card">
+              <div className="ct">Music</div>
+              <div className="sndRow">
+                <select value={soundVal(soundBoard.music)} onChange={(e) => saveSoundBoard({ music: e.target.value })}>{soundOptions("— none —")}</select>
+                {playBtn(soundVal(soundBoard.music))}
               </div>
-            ))}
+            </div>
+            <div className="card">
+              <div className="ct">Dialogue</div>
+              {soundDialogues.map((d) => {
+                const cur = soundVal(d.sound);
+                return (
+                  <div key={d.id} className="sndRow">
+                    <span className="sndEvt sndDlg" title={d.name}>💬 {d.name}</span>
+                    <select value={cur} onChange={(e) => saveDialogueSound(d, e.target.value)}>{soundOptions("— none —")}</select>
+                    {playBtn(cur)}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div className="card">
-            <div className="ct">Basic sounds</div>
-            {SOUND_EVENTS.map((ev) => {
-              const cur = soundVal((soundBoard.basic || {})[ev.key]);
-              return (
-                <div key={ev.key} className="sndRow">
-                  <span className="sndEvt">{ev.icon} {ev.label}</span>
-                  <select value={cur} onChange={(e) => saveSoundBoard({ basic: withAssetSound(soundBoard.basic, ev.key, e.target.value) })}>{soundOptions("— none —")}</select>
-                  <button className="ltbtn sndPlay" disabled={!cur} onClick={() => bobAudio.preview(cur)} title="Play">▶</button>
+          <div className="sndCol">
+            <div className="card">
+              <div className="ct">Library</div>
+              <div className="sndRow">
+                <label className={"ltbtn sndUp" + (soundBusy ? " on" : "")}>{soundBusy ? "⏳ Adding…" : "⬆ Upload sounds"}<input type="file" accept=".wav,.mp3,.ogg,audio/wav,audio/x-wav,audio/mpeg,audio/ogg" multiple hidden disabled={soundBusy} onChange={(e) => { const el = e.target; uploadSounds(el.files).finally(() => { el.value = ""; }); }} /></label>
+                <label className="catfield" title="New uploads go in this folder">📂 <input list="soundcats" value={soundUploadCat} onChange={(e) => setSoundUploadCat(e.target.value)} placeholder={PROP_UNCAT} /></label>
+              </div>
+              {soundGroups.map((g) => (
+                <div key={g.key}>
+                  {foldHead("lib:" + g.key, "📂 " + g.label, g.props.length)}
+                  {soundOpen.has("lib:" + g.key) && (
+                    <div className="sndFolder">
+                      {g.props.map((s) => (
+                        <div key={s.id} className="sndRow">
+                          <button className="ltbtn sndPlay" onClick={() => bobAudio.preview(s.id)} title="Play">▶</button>
+                          {/* Uncontrolled and keyed on savedAt: typing never re-saves per keystroke, and a
+                              save (here or from another copy) resets the box to what was stored. */}
+                          <input className="sndName" key={"n" + s.id + ":" + (s.savedAt || 0)} defaultValue={s.name} onBlur={(e) => renameSound(s, e.target.value)} onKeyDown={blurOnEnter} title="Name" />
+                          <input className="sndCat" list="soundcats" key={"c" + s.id + ":" + (s.savedAt || 0)} defaultValue={s.category || ""} placeholder={PROP_UNCAT} onBlur={(e) => refileSound(s, e.target.value)} onKeyDown={blurOnEnter} title="📂 Folder" />
+                          <span className="hint2">{[fmtClipDur(s.dur), fmtClipSize(s.bytes)].filter(Boolean).join(" · ")}</span>
+                          <button className={"ltbtn" + (soundConfirmDel === s.id ? " arm" : "")} title={soundConfirmDel === s.id ? "Tap again to permanently delete" : "Delete this sound"} onClick={() => { if (soundConfirmDel === s.id) deleteSound(s); else { setSoundConfirmDel(s.id); flash("Tap 🗑 again to permanently delete \"" + s.name + "\""); } }}>{soundConfirmDel === s.id ? "Sure?" : "🗑"}</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              );
-            })}
-          </div>
-          <div className="card">
-            <div className="ct">Music</div>
-            <div className="sndRow">
-              <select value={soundVal(soundBoard.music)} onChange={(e) => saveSoundBoard({ music: e.target.value })}>{soundOptions("— none —")}</select>
-              <button className="ltbtn sndPlay" disabled={!soundVal(soundBoard.music)} onClick={() => bobAudio.preview(soundBoard.music)} title="Play">▶</button>
+              ))}
+            </div>
+            <div className="card">
+              <div className="ct">Weapons</div>
+              {soundWeaponGroups.map((k) => (
+                <div key={k.key}>
+                  {foldHead("wpn:" + k.key, WPN_ICON[k.key] + " " + k.label, k.items.length)}
+                  {soundOpen.has("wpn:" + k.key) && (
+                    <div className="sndFolder">
+                      {k.items.map((w) => (
+                        <div key={w.id} className="sndWpn">
+                          <span className="sndWpnName" title={w.name}>{w.name}</span>
+                          {/* The same slots and the same "— basic —" / "— none —" the weapon editor's 🔊 card shows. */}
+                          {assetSoundSlots(w).map((sl) => {
+                            const cur = soundVal(w.sounds ? w.sounds[sl.key] : "");
+                            return (
+                              <span key={sl.key} className="sndSlot">
+                                <span className="wslab">{sl.label}</span>
+                                <select value={cur} onChange={(e) => saveWeaponSound(w, sl.key, e.target.value)}>{soundOptions(sl.basic ? "— basic —" : "— none —")}</select>
+                                {playBtn(cur)}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -25182,9 +25320,24 @@ html,body{margin:0;padding:0;background:#0f1117}
    edged in colour, because "which line does this open on" and "did I forget to wire this up" are
    the only two structural questions a short tree ever raises. */
 .dlgEdit{padding:16px;display:flex;flex-direction:column;gap:12px;overflow:auto;flex:1}
-.sndEdit{padding:16px;display:flex;flex-direction:column;gap:12px;overflow:auto;flex:1;max-width:980px}
+/* The Sounds screen: two columns, the left half and the right half of the window (what plays |
+   what you pick from), stacking only when the window is too narrow for both. */
+.sndEdit{padding:16px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start;overflow:auto;flex:1}
+@media (max-width:900px){.sndEdit{grid-template-columns:minmax(0,1fr)}}
+.sndCol{display:flex;flex-direction:column;gap:12px;min-width:0}
+.sndFold{display:flex;align-items:center;gap:6px;width:100%;background:none;border:0;border-top:1px solid #242a3a;color:#cfd6e6;font:inherit;font-size:13px;font-weight:600;padding:7px 2px;cursor:pointer;text-align:left}
+.sndFold:hover,.sndFold.open{color:#fff}
+.sndCaret{width:12px;color:#8a93a8;flex:none}
+.sndCount{margin-left:auto;font-size:11px;color:#8a93a8;font-weight:600}
+.sndFolder{padding:0 0 6px 18px}
+.sndWpn{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;margin:4px 0}
+.sndWpnName{width:150px;font-size:13px;color:#cfd6e6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sndSlot{display:inline-flex;align-items:center;gap:5px}
+.sndSlot .wslab{font-size:12px;color:#aab2c6}
+.sndSlot select{width:180px}
+.sndEvt.sndDlg{width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sndRow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0}
-.sndRow .sndName{flex:1 1 200px;min-width:140px}
+.sndRow .sndName{flex:1 1 200px;min-width:140px;max-width:360px}
 .sndRow .sndCat{width:140px}
 .sndRow select{min-width:200px;max-width:320px}
 .sndRow .arm{border-color:#c0504d;color:#f3a6a6}

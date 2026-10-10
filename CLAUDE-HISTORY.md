@@ -3793,3 +3793,69 @@ as before:**
 **Left for him.** Sounds already resurrected in his copy before this fix (`x5jnxpb`) have no local
 tombstone. An online tombstone blocks restores but never purges a copy that holds the record, by
 design (see `mergeCloudLibrary`). He deletes them once more, and that delete now sticks.
+
+## Sounds a fraction of a second late, the two-column Sounds screen, weapon and dialogue sounds (2026-10-10)
+
+He asked: "all of the audio I have plays a fraction of a second too late … I have tried my best to
+trim the beginning in Audacity", plus a Sounds screen rework (library on the right, folded folders
+starting closed, a Weapons box under it, and a Dialogue card under Music that loops a sound while
+someone talks: "a cat might meow but most people I will add a Gibberish noises type thing").
+
+**Where the lateness was.** The play loop was never late: every sound fires on the frame its thing
+happens (jump, swing, shot). Measured in the app (a probe on `AudioBufferSourceNode.start`), the jump
+sound started 11 ms after the keydown and the bow 10 ms, which is one frame. The rest was:
+- **Quiet at the head of his files**, decoded with OfflineAudioContext and scanned. Time until the
+  clip first rises above -40 dB / 2% of its own peak: Jump (zapsplat whoosh) 50-55 ms, Landing Edit
+  14-16 ms, Arrow Edit 0 ms (his Audacity trim worked on that one). A run of near-silence that quiet
+  is invisible in Audacity's waveform.
+- **The output itself**: `baseLatency` 10 ms + `outputLatency` 40 ms on this PC (44.1 kHz). The
+  "interactive" hint is already the smallest; "balanced" and 0 measured the same, "playback" worse.
+  Nothing in a page can go under that.
+- **Bluetooth headphones** would add roughly 150-250 ms that no game can remove. Not checked; worth
+  asking if he still hears it late.
+
+**The fix.**
+- `leadingSilence(channels, sampleRate)` (audio.js): the first sample louder than max(-50 dB,
+  2% of the clip's peak), less 3 ms of pre-roll. Measured once per clip at decode (`starts`), and
+  every buffer play does `src.start(0, skip)` with a 3 ms gain ramp so the cut never clicks. The
+  file is not touched. On his clips: Jump skips 52 ms, Landing 13 ms, Arrow 0.
+- `syncAwake`: while `setPlaying(true)`, a ConstantSourceNode at 1e-6 feeds `ctx.destination`
+  directly. Chrome's silent-sink suspender parks a Web Audio output after ~30 s of exact zeros, and
+  the first sound after that waits for the output to reopen. This is a precaution: the hidden pane
+  showed no change in `outputLatency` or `getOutputTimestamp` over 88 s of silence, so the parking
+  could not be measured here. Only during play, because an open audio stream also blocks Windows
+  sleep.
+
+**The Sounds screen.** Two grid columns (the left and right halves of the window, stacking under
+900 px): Basic sounds, Music, Dialogue | Library, Weapons. Folders fold (`soundOpen`, keys
+`lib:<folder>` / `wpn:<kind>`), all closed on every visit. An upload opens the folder it went into,
+and so does refiling a sound, or the row seems to vanish. Weapons are grouped by kind (Ranged, Melee,
+Throwable) because the kind decides the slots (`assetSoundSlots`).
+
+**Saving picks made on that screen.** `saveWeaponSound` and `saveDialogueSound` read the STORED
+record, change only `sounds` / `sound` plus `savedAt`, write it, `projectLibrary.save(..., { revive:
+true })`, and patch the in-memory lists. A weapon open in the asset editor (`setAsset`) and a tree
+open in the 💬 editor (`setDlgDoc` and `dlgBaseline`) take the same change. Without that the
+editor's next 💾 Save would write the old sound back, and the dialogue editor would show "unsaved"
+for a change it never made. Verified on his real library in the dev copy: Bobs Gun's record after
+the pick differed from his saved weapon in `sounds` and `savedAt` only, and both picks survived a
+reload. The weapon editor's 🔊 card showed the same pick. Saving the troll from the Dialogue editor
+kept its sound, including after the sound was changed on the Sounds screen while the tree was open.
+
+**Talking.** `dlg.sound`, carried by `migrateDialogue` only when set. Every load goes through it, so
+without the pass-through the assignment would vanish on the next load. Lines appear whole (no
+typing-out), so "while they are talking" is `talkSeconds(text)`: 18 characters a second, between
+0.6 s and 10 s. `engine.talk(id, secs)` loops the clip from its trimmed start, and its end and an
+80 ms fade are scheduled on the audio clock. `talk(null)` fades out in 40 ms. `talkSoundFor` is
+called in openTalk, in the answer's commit (next line), and in closeTalk, which every exit goes
+through. `setPlaying(false)` also stops it. No default sound: a dialogue nobody gave a sound to
+stays silent, because "Don't add anything I didn't list" still stands. Verified in Playtest on
+Trailor Park M5's Bridge Troll: the 31-character first line looped from 0.0522 s with its stop at
++1.722 s; answering started the 112-character line with its stop at +6.222 s; Esc stopped it 50 ms
+later. The audio context was muted with a `destination` override in the page so nothing played out
+of his speakers.
+
+**Harness notes.** The keeper sweeps only Chrome/Edge profiles for StackBlitz and Pages origins
+(`GAME_ORIGIN` in tools/bob-okay.js), so test edits made in the pane's dev copy never reach his
+saves. In this pane, a CSS rule's width was beaten by a later `.sndEvt` rule of the same
+specificity, so read the rendered width, not the stylesheet.

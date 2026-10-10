@@ -11925,6 +11925,41 @@ describe("a one-time dialogue", () => {
   });
 });
 
+/* 🔊 A DIALOGUE'S TALK SOUND (2026-10-10) rides on the tree, set from the Sounds screen. Every load
+   comes through migrateDialogue, so a field it dropped would be un-assigned on the next load. */
+describe("a dialogue's talk sound", () => {
+  const tree = () => ({ id: "d1", name: "Cat", start: "nA", nodes: { nA: { id: "nA", speaker: "", text: "Mrow.", choices: [] } } });
+
+  test("survives a save and a reload", () => {
+    expect(migrateDialogue(JSON.parse(JSON.stringify({ ...tree(), sound: "meow1" }))).sound).toBe("meow1");
+  });
+
+  test("a tree with no sound comes back with no field at all", () => {
+    expect("sound" in migrateDialogue(tree())).toBe(false);
+    expect("sound" in migrateDialogue({ ...tree(), sound: "" })).toBe(false);
+    expect("sound" in migrateDialogue({ ...tree(), sound: 42 })).toBe(false);
+  });
+
+  test("the Sounds screen saves it in place, and the open editor and the play loop both see it", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    const fn = src.slice(src.indexOf("const saveDialogueSound = async"), src.indexOf("const deleteSound = async"));
+    expect(fn).toContain("sget(\"dialogue:\" + d.id)");           // the stored record, not the list's copy
+    expect(fn).toContain("projectLibrary.save({ dialogues: [payload] }, { revive: true })");
+    expect(fn).toContain("setDlgDoc(");                            // the tree open in the editor too
+    expect(fn).toContain("dlgBaseline.current");
+    // ...and a weapon's, in the weapon, the editor's open copy included.
+    const wf = src.slice(src.indexOf("const saveWeaponSound = async"), src.indexOf("const saveDialogueSound = async"));
+    expect(wf).toContain("sget(\"asset:\" + w.id)");
+    expect(wf).toContain("withAssetSound(rec.sounds, slot, soundId)");
+    expect(wf).toContain("projectLibrary.save({ assets: [payload] }, { revive: true })");
+    expect(wf).toContain("setAsset(");
+    // Every place the line on screen changes calls talkSoundFor, closeTalk included.
+    expect(src.slice(src.indexOf("const closeTalk = () =>"), src.indexOf("const openShop = ")).includes("talkSoundFor(null)")).toBe(true);
+    expect(src.slice(src.indexOf("const openTalk = (t) =>"), src.indexOf("const closeTalk = () =>")).includes("talkSoundFor(next)")).toBe(true);
+    expect(src.slice(src.indexOf("const chooseTalkOption = (i) =>"), src.indexOf("const chooseTalkOption = (i) =>") + 1200).includes("talkSoundFor(next)")).toBe(true);
+  });
+});
+
 /* ▢ PLAYING AS THE PLAIN BOX, which is the player picker's default. There is no asset behind it, so
    the play loop's `playerAsset` is null — and three reads of `playerAsset.effects` in the shot and
    swing code threw on the first trigger pull, which stops the game loop dead with no message. */

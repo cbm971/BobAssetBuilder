@@ -6,6 +6,7 @@ import {
   SOUND_EVENTS, SOUND_EVENT_KEYS, ASSET_SOUND_SLOTS, assetSoundSlots, withAssetSound, resolveSound,
   soundGainAt, voicePlan, MAX_COPIES, MAX_VOICES, RETRIGGER_MS, clipExtOf, clipMime, CLIP_MAX_BYTES,
   clipHash, clipNameOk, clipMatches, createAudioEngine, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard,
+  leadingSilence, ONSET_FLOOR, ONSET_OF_PEAK, ONSET_PREROLL_S, talkSeconds, TALK_CHARS_PER_S, TALK_MIN_S, TALK_MAX_S, dialogueSoundId,
 } from "./audio";
 import { groupByCategory, mergeLibraries, mergeCloudLibrary, diskLibrary } from "./App";
 
@@ -226,6 +227,149 @@ describe("the engine, against a stand-in Web Audio", () => {
     expect(started).toHaveLength(0);
     expect(e.event("jump", 1100, 200)).toBe(true);
     expect(e.trace().slice(-1)[0].gain).toBeLessThan(1);
+  });
+});
+
+/* "ALL OF MY AUDIO PLAYS A FRACTION OF A SECOND TOO LATE" (2026-10-10). The play loop fires on the
+   frame; the lateness was quiet at the head of the files (his Jump: 55 ms before it is really
+   sound). Each clip now starts where its sound starts. */
+describe("a sound starts where the sound starts, not where the file does", () => {
+  const SR = 1000;
+  const clip = (n, at, level, before) => { const d = new Float32Array(n); for (let i = 0; i < n; i++) d[i] = i < at ? (before || 0) : level; return d; };
+
+  test("quiet at the head is skipped, less a hair of pre-roll", () => {
+    expect(leadingSilence([clip(1000, 100, 0.5)], SR)).toBeCloseTo(0.1 - ONSET_PREROLL_S, 6);
+  });
+
+  test("a clip that starts loud, or is silent, or is nothing, is left alone", () => {
+    expect(leadingSilence([clip(1000, 0, 0.5)], SR)).toBe(0);
+    expect(leadingSilence([clip(1000, 1000, 0.5)], SR)).toBe(0);           // all silence
+    expect(leadingSilence([clip(1000, 100, ONSET_FLOOR / 2)], SR)).toBe(0); // nothing rises above the floor
+    expect(leadingSilence([], SR)).toBe(0);
+    expect(leadingSilence(null, SR)).toBe(0);
+    expect(leadingSilence([clip(10, 5, 0.5)], 0)).toBe(0);
+  });
+
+  test("hiss under the floor and a fade-in far under the clip's own peak both count as quiet", () => {
+    expect(leadingSilence([clip(1000, 200, 0.8, ONSET_FLOOR * 0.5)], SR)).toBeCloseTo(0.2 - ONSET_PREROLL_S, 6);
+    expect(leadingSilence([clip(1000, 200, 0.8, 0.8 * ONSET_OF_PEAK * 0.5)], SR)).toBeCloseTo(0.2 - ONSET_PREROLL_S, 6);
+    // ...but a quiet clip is judged against ITSELF: its own soft start is not thrown away.
+    expect(leadingSilence([clip(1000, 200, 0.01, 0.004)], SR)).toBe(0);
+  });
+
+  test("stereo: whichever side makes a sound first", () => {
+    expect(leadingSilence([clip(1000, 300, 0.5), clip(1000, 120, 0.5)], SR)).toBeCloseTo(0.12 - ONSET_PREROLL_S, 6);
+  });
+});
+
+describe("dialogue talks while the line is being said", () => {
+  test("how long a line takes to say", () => {
+    expect(talkSeconds("")).toBe(0);
+    expect(talkSeconds("   ")).toBe(0);
+    expect(talkSeconds(null)).toBe(0);
+    expect(talkSeconds("Hi.")).toBe(TALK_MIN_S);
+    expect(talkSeconds("x".repeat(TALK_CHARS_PER_S * 2))).toBeCloseTo(2, 6);
+    expect(talkSeconds("x".repeat(2000))).toBe(TALK_MAX_S);
+  });
+
+  test("a dialogue talks with its own sound, if that sound still exists, and otherwise not at all", () => {
+    const has = (id) => id === "meow";
+    expect(dialogueSoundId({ sound: "meow" }, has)).toBe("meow");
+    expect(dialogueSoundId({ sound: "deleted" }, has)).toBe(null);
+    expect(dialogueSoundId({}, has)).toBe(null);
+    expect(dialogueSoundId(null, has)).toBe(null);
+  });
+});
+
+describe("the engine trims, talks and keeps the card awake, against a stand-in Web Audio", () => {
+  // A stand-in whose decoded buffers carry real samples: the first byte of a clip is how many
+  // samples of silence it starts with (at 1000 samples a second), then it is loud to the end.
+  const install = (state) => {
+    const log = { started: [], consts: [] };
+    class FakeCtx {
+      constructor() { this.state = state || "running"; this.destination = {}; this.currentTime = 5; }
+      resume() { this.state = "running"; return Promise.resolve(); }
+      createGain() {
+        const ev = [];
+        return { ev, gain: { value: 1, setValueAtTime: (v, t) => ev.push(["set", v, t]), linearRampToValueAtTime: (v, t) => ev.push(["ramp", v, t]), cancelScheduledValues: () => {} }, connect: () => {}, disconnect: () => {} };
+      }
+      createBufferSource() { const s = { buffer: null, loop: false, connect: (n) => { s.out = n; return n; }, start: (when, off) => { s.off = off; log.started.push(s); }, stop: (t) => { s.stopAt = t; }, onended: null }; return s; }
+      createConstantSource() { const c = { offset: { value: 1 }, connect: (n) => { c.to = n; }, start: () => { c.on = true; log.consts.push(c); }, stop: () => { c.on = false; }, disconnect: () => {} }; return c; }
+      decodeAudioData(ab, ok) {
+        const lead = new Uint8Array(ab)[0], d = new Float32Array(1000);
+        for (let i = lead; i < 1000; i++) d[i] = 0.5;
+        const p = Promise.resolve({ duration: 1, sampleRate: 1000, numberOfChannels: 1, getChannelData: () => d });
+        p.then(ok); return p;
+      }
+    }
+    window.AudioContext = FakeCtx;
+    return log;
+  };
+  afterEach(() => { delete window.AudioContext; });
+  const clipA = "a".repeat(28) + ".mp3", clipB = "b".repeat(28) + ".mp3";
+  const files = { [clipA]: new Uint8Array([100]), [clipB]: new Uint8Array([0]) };
+  const make = () => {
+    const e = createAudioEngine({ loadClip: async (n) => files[n] || null });
+    e.setLibrary([snd("whoosh", "Whoosh", "Bob", clipA), snd("gab", "Gibberish", "Talk", clipB), board({ jump: "whoosh" })]);
+    return e;
+  };
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+
+  test("a jump starts 97 ms into a clip with 100 ms of quiet, ramped in, and the trace says how much was skipped", async () => {
+    const log = install();
+    const e = make();
+    e.preload(["whoosh", "gab"]); await settle(); await settle();
+    expect(e.state().skips[clipA]).toBeCloseTo(0.097, 6);
+    expect(e.state().skips[clipB]).toBe(0);
+    expect(e.event("jump")).toBe(true);
+    expect(log.started[0].off).toBeCloseTo(0.097, 6);
+    const [set, ramp] = log.started[0].out.ev;                   // in from silence over 3 ms: no click at the cut
+    expect(set).toEqual(["set", 0, 5]);
+    expect(ramp[0]).toBe("ramp"); expect(ramp[1]).toBe(1); expect(ramp[2]).toBeCloseTo(5.003, 9);
+    expect(e.trace().slice(-1)[0].skip).toBeCloseTo(0.097, 6);
+  });
+
+  test("a line loops its dialogue's sound for as long as it takes to say, and stops when the line does", async () => {
+    const log = install();
+    const e = make();
+    e.preload(["gab"]); await settle(); await settle();
+    expect(e.talk("gab", 2)).toBe(true);
+    const src = log.started[0];
+    expect(src.loop).toBe(true);
+    expect(src.stopAt).toBe(7);                                  // its end is on the audio clock: now + 2 s
+    expect(e.state().talking).toBe(true);
+    e.talk(null);                                                // answered / walked away
+    expect(src.stopAt).toBeCloseTo(5.05, 6);
+    expect(e.state().talking).toBe(false);
+    expect(e.talk("gab", 0)).toBe(false);                        // a blank line says nothing
+    expect(e.talk("nope", 2)).toBe(false);                       // a deleted sound says nothing
+  });
+
+  test("a talk sound still decoding starts when it is ready, unless the line has moved on", async () => {
+    const log = install();
+    const e = make();
+    e.talk("gab", 2); await settle(); await settle(); await settle();
+    expect(log.started).toHaveLength(1);
+    const e2 = make();
+    e2.talk("whoosh", 2); e2.talk(null); await settle(); await settle(); await settle();
+    expect(log.started).toHaveLength(1);                         // the second never started
+  });
+
+  test("the card is kept awake while a run is going and let sleep the moment it stops", async () => {
+    const log = install();
+    const e = make();
+    e.preload(["gab"]); await settle(); await settle();          // the context exists now
+    expect(log.consts).toHaveLength(0);
+    e.setPlaying(true);
+    expect(log.consts).toHaveLength(1);
+    expect(log.consts[0].on).toBe(true);
+    expect(log.consts[0].offset.value).toBeLessThanOrEqual(1e-6); // -120 dB: nothing anyone can hear
+    expect(e.state().awake).toBe(true);
+    e.talk("gab", 3);
+    e.setPlaying(false);
+    expect(log.consts[0].on).toBe(false);
+    expect(e.state().awake).toBe(false);
+    expect(e.state().talking).toBe(false);                       // and nobody is left talking
   });
 });
 

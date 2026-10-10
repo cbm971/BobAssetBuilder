@@ -11,6 +11,7 @@
  *   a sound   { id, type: "sound", name, category, clip: "<hash>.<ext>", bytes, dur, savedAt }
  *   the board { id: SOUND_BOARD_ID, type: "soundBoard", basic: { jump: soundId, … }, music: soundId }
  *   an asset  asset.sounds = { fire: soundId, hit: soundId, … }   (only the slots it has; see ASSET_SOUND_SLOTS)
+ *   a dialogue  dlg.sound = soundId   (looped while a line is said; see talkSeconds)
  * The audio itself is NOT in any record. A clip is a file named by a hash of its bytes, kept
  * beside the records (the reasons, with the measurements, are in CLAUDE-HISTORY.md under Sound).
  *
@@ -157,6 +158,57 @@ export const voicePlan = (voices, id, now) => {
   return { play: true, steal: null };
 };
 
+// ── THE QUIET BEFORE THE SOUND. "All of my audio plays a fraction of a second too late" (Blake,
+// 2026-10-10). The play loop fires on the very frame the thing happens, so the late part was IN THE
+// FILES: measured on his own clips, the Jump whoosh does not rise above a whisper until 55 ms in,
+// the Landing 16 ms — and trimming by ear in Audacity cannot see a run of near-silence that quiet.
+// So every clip is trimmed AS IT PLAYS: it starts a hair before the first sample that is really
+// sound, whatever the file holds before that. The file is never changed, so nothing is lost and a
+// clip trimmed by hand (his Arrow, 0 ms) plays exactly as it did.
+//
+// "Really sound" is the louder of an absolute floor (about -50 dB, under any room hiss worth
+// hearing) and a share of the clip's OWN peak (34 dB under it), so a quiet clip is judged against
+// itself and a loud one does not keep its fade-in. The pre-roll keeps the attack whole instead of
+// starting mid-wave; the engine also ramps the first 3 ms in, so the cut can never click.
+export const ONSET_FLOOR = 0.003;
+export const ONSET_OF_PEAK = 0.02;
+export const ONSET_PREROLL_S = 0.003;
+// channels: the decoded Float32Arrays (an AudioBuffer's getChannelData for each channel). Returns
+// the seconds to skip; 0 for a clip that starts loud, is silent throughout, or is not there at all.
+export const leadingSilence = (channels, sampleRate) => {
+  const chs = (channels || []).filter((d) => d && d.length);
+  if (!chs.length || !(sampleRate > 0)) return 0;
+  let peak = 0;
+  for (const d of chs) for (let i = 0; i < d.length; i++) { const v = d[i] < 0 ? -d[i] : d[i]; if (v > peak) peak = v; }
+  const th = Math.max(ONSET_FLOOR, peak * ONSET_OF_PEAK);
+  if (peak <= th) return 0; // nothing in it rises above the floor: leave it alone
+  let first = Infinity;
+  for (const d of chs) for (let i = 0; i < d.length && i < first; i++) if ((d[i] < 0 ? -d[i] : d[i]) > th) { first = i; break; }
+  if (first === Infinity) return 0;
+  return Math.max(0, first / sampleRate - ONSET_PREROLL_S);
+};
+
+// ── DIALOGUE. A conversation can carry a sound (`dlg.sound`, set per dialogue on the 🔊 Sounds
+// screen) — a meow for the cat, gibberish for most people — that LOOPS while the line is being
+// said. Lines appear whole, there is no typing-out, so "while they are talking" is how long the
+// line takes to say: about 18 characters a second (a brisk speaking pace), never under 0.6 s
+// ("Hi." is still somebody saying something) and never over 10 s (a paragraph is read, not
+// listened to). It also stops the moment the line changes or the conversation ends.
+export const TALK_CHARS_PER_S = 18;
+export const TALK_MIN_S = 0.6;
+export const TALK_MAX_S = 10;
+export const talkSeconds = (text) => {
+  const n = typeof text === "string" ? text.trim().length : 0;
+  if (!n) return 0;
+  return Math.min(TALK_MAX_S, Math.max(TALK_MIN_S, n / TALK_CHARS_PER_S));
+};
+// The sound a conversation talks with: its own, when that sound still exists. There is no
+// fallback — a dialogue nobody gave a sound to is silent, the way it always was.
+export const dialogueSoundId = (dlg, has) => {
+  const id = dlg && typeof dlg.sound === "string" ? dlg.sound : "";
+  return id && (typeof has !== "function" || has(id)) ? id : null;
+};
+
 // Seconds and bytes the way the library shows them.
 export const fmtClipSize = (bytes) => (bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round((bytes || 0) / 1024)) + " KB");
 export const fmtClipDur = (s) => (typeof s === "number" && s > 0 ? (s < 10 ? s.toFixed(1) : String(Math.round(s))) + " s" : "");
@@ -179,6 +231,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
   const sounds = new Map();      // id -> sound record
   let board = null;
   const buffers = new Map();     // clip -> AudioBuffer, decoded once
+  const starts = new Map();      // clip -> seconds of quiet to skip (leadingSilence), measured once at decode
   const pending = new Map();     // clip -> Promise<AudioBuffer|null>
   const failed = new Set();      // clips that would not load or decode — not asked for again this session
   let voices = [];               // [{ id, at, src }]
@@ -189,12 +242,41 @@ export const createAudioEngine = ({ loadClip } = {}) => {
   const LONG_PREVIEW_S = 20;
   const now = () => (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now());
 
+  // latencyHint "interactive" is the default, written out so nobody "tunes" it: it is the smallest
+  // output buffer the device allows (measured on Blake's PC: 10 ms base + 40 ms out). "playback"
+  // or "balanced" would trade that away for battery.
   const ensureCtx = () => {
     if (ctx || !W) return ctx;
     const AC = W.AudioContext || W.webkitAudioContext;
     if (!AC) return null;
-    try { ctx = new AC(); master = ctx.createGain(); master.connect(ctx.destination); } catch { ctx = null; }
+    try { ctx = new AC({ latencyHint: "interactive" }); master = ctx.createGain(); master.connect(ctx.destination); } catch { ctx = null; }
+    if (ctx) syncAwake();
     return ctx;
+  };
+  // KEEP THE SOUND CARD AWAKE WHILE A RUN IS GOING. Chrome parks a Web Audio context's output after
+  // about half a minute of pure silence (to save power), and the first sound after that has to wait
+  // for the output to be opened again — so a jump after a quiet stretch of walking is the one heard
+  // late. During play the context is fed a constant one part in a million (-120 dB: below anything
+  // a speaker can reproduce, and DC besides), which is not silence as far as Chrome is concerned.
+  // ONLY during play: an open audio stream also keeps Windows from sleeping, which is exactly what
+  // the parking is for when nobody is playing.
+  let awake = null;
+  const AWAKE_LEVEL = 1e-6;
+  const syncAwake = () => {
+    const want = !!(ctx && music.playing);
+    if (want && !awake) {
+      try {
+        if (typeof ctx.createConstantSource !== "function") return;
+        const src = ctx.createConstantSource();
+        src.offset.value = AWAKE_LEVEL;
+        src.connect(ctx.destination); // not through `master`: nothing should ever turn this up
+        src.start();
+        awake = src;
+      } catch { awake = null; }
+    } else if (!want && awake) {
+      try { awake.stop(); awake.disconnect(); } catch { /* already gone */ }
+      awake = null;
+    }
   };
   const unlock = () => {
     const c = ensureCtx();
@@ -217,6 +299,9 @@ export const createAudioEngine = ({ loadClip } = {}) => {
         // the caller's bytes stay usable.
         const ab = bytes instanceof ArrayBuffer ? bytes.slice(0) : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
         const buf = await new Promise((res, rej) => { const r = c.decodeAudioData(ab, res, rej); if (r && r.then) r.then(res, rej); });
+        let skip = 0;
+        try { const chs = []; for (let i = 0; i < buf.numberOfChannels; i++) chs.push(buf.getChannelData(i)); skip = leadingSilence(chs, buf.sampleRate); } catch { skip = 0; }
+        starts.set(clip, skip);
         buffers.set(clip, buf);
         return buf;
       } catch (e) {
@@ -259,15 +344,53 @@ export const createAudioEngine = ({ loadClip } = {}) => {
       const src = c.createBufferSource();
       src.buffer = buf;
       const g = c.createGain();
-      g.gain.value = gain;
+      // Start where the sound starts (leadingSilence), with a 3 ms ramp in so the cut is never a click.
+      const skip = Math.min(starts.get(s.clip) || 0, Math.max(0, buf.duration - 0.01));
+      if (skip > 0) { g.gain.setValueAtTime(0, c.currentTime); g.gain.linearRampToValueAtTime(gain, c.currentTime + 0.003); }
+      else g.gain.value = gain;
       src.connect(g); g.connect(master);
-      const v = { id, at: t, until: t + buf.duration * 1000 + 30, done: false, src };
+      const v = { id, at: t, until: t + (buf.duration - skip) * 1000 + 30, done: false, src };
       src.onended = () => { v.done = true; try { g.disconnect(); } catch { /* gone */ } };
-      src.start();
+      src.start(0, skip);
       voices.push(v);
-      note({ at: t, id, clip: s.clip, gain, heard: true, cut: !!plan.steal, ...info });
+      note({ at: t, id, clip: s.clip, gain, heard: true, cut: !!plan.steal, skip, ...info });
       return true;
     } catch { return false; }
+  };
+  // THE TALK LOOP (see talkSeconds): one voice of its own, outside the copy cap — it is a single
+  // line being said, not a moment that can stack. It loops the clip from where the sound starts,
+  // and its end is scheduled on the audio clock with an 80 ms fade, so nothing has to come back
+  // and stop it; a new line or the end of the conversation stops it early (talk(null)).
+  const talkVoice = { src: null, g: null, token: 0 };
+  const stopTalk = () => {
+    talkVoice.token++;
+    const { src, g } = talkVoice;
+    talkVoice.src = null; talkVoice.g = null;
+    if (!src) return;
+    try {
+      const t0 = ctx.currentTime;
+      g.gain.cancelScheduledValues(t0); g.gain.setValueAtTime(g.gain.value, t0); g.gain.linearRampToValueAtTime(0, t0 + 0.04);
+      src.stop(t0 + 0.05);
+    } catch { try { src.stop(); } catch { /* already stopped */ } }
+  };
+  const startTalk = (id, secs, token) => {
+    const s = sounds.get(id);
+    const buf = s && buffers.get(s.clip);
+    const c = ctx;
+    if (!buf || !c || c.state !== "running" || token !== talkVoice.token || !(secs > 0)) return false;
+    const skip = Math.min(starts.get(s.clip) || 0, Math.max(0, buf.duration - 0.01));
+    const src = c.createBufferSource();
+    src.buffer = buf; src.loop = true; src.loopStart = skip; src.loopEnd = buf.duration;
+    const g = c.createGain();
+    const t0 = c.currentTime, end = t0 + secs, fade = Math.min(0.08, secs / 4);
+    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(1, t0 + 0.003);
+    g.gain.setValueAtTime(1, end - fade); g.gain.linearRampToValueAtTime(0, end);
+    src.connect(g); g.connect(master);
+    src.onended = () => { try { g.disconnect(); } catch { /* gone */ } if (talkVoice.src === src) { talkVoice.src = null; talkVoice.g = null; } };
+    src.start(0, skip); src.stop(end);
+    talkVoice.src = src; talkVoice.g = g;
+    note({ at: now(), id, clip: s.clip, gain: 1, heard: true, talk: true, secs, skip });
+    return true;
   };
 
   const engine = {
@@ -329,7 +452,19 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     // the board's `music`. Any change to the three goes through syncMusic, which is the only thing
     // that starts, swaps or stops the element.
     setMusicOn: (on) => { music.on = !!on; engine.syncMusic(); },
-    setPlaying: (playing) => { music.playing = !!playing; engine.syncMusic(); },
+    setPlaying: (playing) => { music.playing = !!playing; if (!playing) stopTalk(); syncAwake(); engine.syncMusic(); },
+    // A LINE OF DIALOGUE BEING SAID: loop sound `id` for `secs` (talkSeconds), replacing whatever
+    // line was talking. talk(null) stops it. A sound not decoded yet starts when it is, provided
+    // the same line is still up — a talk loop a beat late is fine, unlike a jump.
+    talk: (id, secs) => {
+      stopTalk();
+      if (!id || !(secs > 0) || !sounds.has(id)) return false;
+      const token = talkVoice.token;
+      const s = sounds.get(id);
+      if (buffers.has(s.clip)) return startTalk(id, secs, token);
+      decode(s.clip).then(() => startTalk(id, secs, token));
+      return false;
+    },
     syncMusic: async () => {
       const s = board && board.music ? sounds.get(board.music) : null;
       const want = music.on && music.playing && s && s.clip ? s.clip : null;
@@ -355,7 +490,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     // What has played, newest last: [{ at, id, clip, gain, slot, basic, asset }]. Read by tests and
     // by anyone checking that a moment fired the clip it should.
     trace: () => trace.slice(),
-    state: () => ({ context: ctx ? ctx.state : "none", decoded: [...buffers.keys()], voices: voices.filter((v) => !v.done).length }),
+    state: () => ({ context: ctx ? ctx.state : "none", decoded: [...buffers.keys()], voices: voices.filter((v) => !v.done).length, skips: Object.fromEntries(starts), awake: !!awake, talking: !!talkVoice.src }),
   };
   return engine;
 };

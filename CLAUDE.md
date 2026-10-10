@@ -302,6 +302,15 @@ plus traps it does not cover:
 - The dev server writes uploads into `asset-data/clips/`. Delete test clips before committing.
 - 10 MB per file; the answer to a bigger one is mp3/ogg, not a bigger cap. The 🎵 toggle is per copy
   (localStorage `bobMusic`).
+- **Every clip starts where its sound starts** (`leadingSilence`, measured once at decode, applied by
+  every buffer play: moments, the studio ▶, the talk loop). His "plays a fraction of a second late"
+  was quiet at the head of the files, not the loop. Never edit the file to fix timing.
+- During play the engine feeds the output a -120 dB constant (`syncAwake`) so Chrome never parks it;
+  only during play, because an open stream also keeps Windows awake.
+- A dialogue's talk sound is `dlg.sound` (migrateDialogue carries it only when set). It loops for
+  `talkSeconds(text)` and is started/stopped by `talkSoundFor` where the line changes (openTalk, an
+  answer, closeTalk). The Sounds screen saves weapon and dialogue picks IN PLACE: read the stored
+  record, change only that field, and patch the editor's open copy (and the dialogue baseline).
 
 ## Architecture — where things are
 
