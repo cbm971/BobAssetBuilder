@@ -317,6 +317,13 @@ import {
   scalePieceGroup,
   removePieceSelection,
   playerMeleeDamage,
+  strengthMultiplier,
+  STRENGTH_BASE,
+  effectiveStrength,
+  meleeClash,
+  clashKnocks,
+  CLASH_PUSH_CELLS,
+  CLASH_WINDUP_FRAMES,
   playerRangedDamage,
   UNARMED_DAMAGE,
   enemyAttackDamage,
@@ -2023,13 +2030,27 @@ describe("stomp", () => {
   const short = (x, key, extra = {}) => ({ key, x, y: 300 - 46, w: 60, h: 46, ...extra });
   const under = (bodies, over = {}) => stompTargets({ ...me, ...over, bodies }).map((b) => b.key);
 
-  test("really high damage: 30 at Strength 5, riding Strength like every melee hit", () => {
-    expect(STOMP_DAMAGE).toBe(30);
-    expect(stompDamage(5)).toBe(30);
-    expect(stompDamage(10)).toBe(60);                         // Army Bob
-    expect(stompDamage(1)).toBe(6);
-    expect(stompDamage(undefined)).toBe(30);
+  test("really high damage: 45 at Strength 5, riding Strength like every melee hit", () => {
+    expect(STOMP_DAMAGE).toBe(45);
+    expect(stompDamage(5)).toBe(45);
+    expect(stompDamage(10)).toBe(90);                         // Army Bob
+    expect(stompDamage(undefined)).toBe(45);
     expect(stompDamage(5)).toBeGreaterThanOrEqual(25);        // one stomp is a dead 25 HP Squirrel
+  });
+
+  // 2026-10-10, Blake: "stomp is supposed to feel powerful but it can feel weak on a low str
+  // character". His roster sits at Str 0-4; at Str 2 the old stomp did 12.
+  test("a low-Strength stomp still kills the little ones in one, and the big ones still take two", () => {
+    const rat = 15, squirrel = 25, pika = 30, chapCat = 30, turtle = 60, croc = 100;
+    expect(stompDamage(0)).toBe(23);                          // Ash: was 1
+    expect(stompDamage(0)).toBeGreaterThanOrEqual(rat);
+    expect(stompDamage(1)).toBe(27);                          // Readitor, Ratman, Little Green Man: was 6
+    expect(stompDamage(1)).toBeGreaterThanOrEqual(squirrel);
+    expect(stompDamage(2)).toBe(32);                          // Chaplin, Bobette, Nixon: was 12
+    expect(stompDamage(2)).toBeGreaterThanOrEqual(Math.max(pika, chapCat));
+    expect(stompDamage(5)).toBeLessThan(turtle);
+    expect(stompDamage(10)).toBeLessThan(croc);               // even Army Bob needs two on the Crocodile
+    expect(stompDamage(-3)).toBe(stompDamage(0));             // a -Str garment bottoms out at Str 0
   });
 
   test("a short body right at your feet, and nothing else", () => {
@@ -3527,7 +3548,7 @@ describe("Crouch Guard", () => {
   });
 
   test("runs after Defense, not before", () => {
-    expect(incomingPlayerDamage(20, 10, 1, 100, 0, null, 0.5, true)).toBe(7); // defense 20 x 20/30 = 13.3, crouch halves to 6.7
+    expect(incomingPlayerDamage(20, 10, 1, 100, 0, null, 0.5, true)).toBe(8); // defense 20 x 35/45 = 15.6, crouch halves to 7.8
   });
 
   test("a full block still leaves the one-point floor", () => {
@@ -5613,6 +5634,62 @@ describe("melee block (Q/V with a melee weapon in hand)", () => {
   });
 });
 
+// ⚔️ 2026-10-10, Blake: "If you are holding a ranged weapon and you meelee attack at the same time as
+// the enemy your attacks will bounce off each other pushing both you and the enemy back".
+describe("melee clash: a pistol-whip meeting a blow coming the other way", () => {
+  // You at x=100 (80 wide) facing right; the enemy at x=200 (60 wide).
+  test("face to face, the two blows meet", () => {
+    expect(meleeClash(1, 100, 80, -1, 200, 60)).toBe(true);
+    expect(meleeClash(-1, 200, 80, 1, 100, 60)).toBe(true);   // mirrored
+  });
+
+  test("a blow from behind you is not a clash, whatever you are swinging at", () => {
+    expect(meleeClash(-1, 100, 80, -1, 200, 60)).toBe(false); // you swing left, it hits your back
+  });
+
+  test("swinging at something that is facing away is not a clash either", () => {
+    expect(meleeClash(1, 100, 80, 1, 200, 60)).toBe(false);
+  });
+
+  test("toe to toe still counts as face to face (the block's own tolerance)", () => {
+    expect(meleeClash(1, 100, 80, -1, 90, 60)).toBe(true);    // its centre has drifted just past yours
+  });
+
+  test("both are shoved apart by the same small distance, each away from the other", () => {
+    const k = clashKnocks(100, 200, 1, 30);
+    expect(k.a).toEqual({ left: CLASH_PUSH_CELLS * 30, dir: -1 }); // you go back left
+    expect(k.b).toEqual({ left: CLASH_PUSH_CELLS * 30, dir: 1 });  // it goes back right
+    expect(clashKnocks(300, 200, -1, 30).a.dir).toBe(1);
+    expect(clashKnocks(300, 200, -1, 30).b.dir).toBe(-1);
+    expect(CLASH_PUSH_CELLS).toBeGreaterThan(0);
+    expect(CLASH_PUSH_CELLS).toBeLessThan(2);                      // "a little", under a tail swing's 2
+  });
+
+  test("two bodies at the same spot part along your facing: you go back the way you came", () => {
+    expect(clashKnocks(150, 150, 1, 30).a.dir).toBe(-1);
+    expect(clashKnocks(150, 150, -1, 30).a.dir).toBe(1);
+    expect(clashKnocks(150, 150, 1, 30).b.dir).toBe(1);
+  });
+
+  // The play loop's wiring, read off the source: both halves must ask the rule, the unit's half
+  // must not fire on a stomp or a tail, and the shared helpers must sit at loop level.
+  test("both sides of the fight are wired to it", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toMatch(/if \(!bodyBlow && whipLiveOn\(k\) && meleeClash\(/);
+    expect(src).toMatch(/if \(unarmedSwing && whipLiveOn\(k\) && unitBlowLive\(ep\) && meleeClash\(/);
+    expect(src).toMatch(/const whipLiveOn = \(k\) => wpnIsRanged && /);
+    // A bite lands the frame it commits, so the last moments of a melee wind-up count as thrown
+    // (measured in play: point blank, the whip landed one frame ahead of the bite and they traded).
+    expect(src).toMatch(/ep\.reactT > 0 && ep\.reactT <= CLASH_WINDUP_FRAMES/);
+    expect(src).toMatch(/ep\.meleeNext = !rangedEnemy;/);
+    expect(CLASH_WINDUP_FRAMES).toBeGreaterThan(0);
+    expect(CLASH_WINDUP_FRAMES).toBeLessThanOrEqual(10); // a tolerance, not a free parry of every wind-up
+    const helpers = src.indexOf("const clashApart = ");
+    expect(helpers).toBeGreaterThan(0);
+    expect(helpers).toBeLessThan(src.indexOf("const applyHitTo = ")); // defined before either caller runs
+  });
+});
+
 describe("what the player hits for", () => {
   // The regression these exist for: one 7-damage M16 did 14 damage in the hands of a Strength-10
   // character and 1 in the hands of a Strength-1 character, because both ranged hit-tests ran the
@@ -5631,7 +5708,7 @@ describe("what the player hits for", () => {
     const meleeSpread = everyStrength.map((s) => playerMeleeDamage(M16, s));
     expect(new Set(meleeSpread).size).toBeGreaterThan(1);
     expect(Math.max(...meleeSpread)).toBe(14); // Strength 10
-    expect(Math.min(...meleeSpread)).toBe(1);  // Strength 1, rounded down and floored
+    expect(Math.min(...meleeSpread)).toBe(4);  // Strength 1: 7 x 0.6 (the Strength base; it was 1)
   });
 
   test("the exact Army Bob vs Bobette case from the bug report", () => {
@@ -5642,21 +5719,39 @@ describe("what the player hits for", () => {
     const bobette = shotsToKill(playerRangedDamage(M16));
     expect(armyBob).toBe(bobette);
     expect(armyBob).toBe(2);
-    // What it used to be, and why the report read the way it did: a one-shot versus a full ten.
+    // Why the report read the way it did: the melee formula it borrowed spreads by Strength. That
+    // was a one-shot versus a full ten; since the Strength floor (2026-10-10) it is one versus three.
     expect(shotsToKill(playerMeleeDamage(M16, 10))).toBe(1);
-    expect(shotsToKill(playerMeleeDamage(M16, 1))).toBe(10);
+    expect(shotsToKill(playerMeleeDamage(M16, 1))).toBe(3);
   });
 
-  test("melee still rides Strength — 5 neutral, 1 a fifth, 10 double", () => {
+  test("melee still rides Strength — 5 neutral, 10 double, 1 six tenths, 0 half", () => {
     expect(playerMeleeDamage(10, 5)).toBe(10);
-    expect(playerMeleeDamage(10, 1)).toBe(2);
+    expect(playerMeleeDamage(10, 1)).toBe(6);
+    expect(playerMeleeDamage(10, 0)).toBe(5);
     expect(playerMeleeDamage(10, 10)).toBe(20);
   });
 
+  // 2026-10-10, Blake: "some type of small added base str so str 0 characters do not feel so
+  // worthless". Str/5 all the way down floored every Str-0 swing at 1.
+  test("Strength keeps a base below 5, and nothing from 5 up moved", () => {
+    expect(STRENGTH_BASE).toBe(2.5);
+    expect([0, 1, 2, 3, 4, 5, 10].map(effectiveStrength)).toEqual([2.5, 3, 3.5, 4, 4.5, 5, 10]);
+    expect([0, 1, 2, 3, 4, 5].map(strengthMultiplier)).toEqual([0.5, 0.6, 0.7, 0.8, 0.9, 1]);
+    for (const s of [5, 6, 7, 8, 9, 10, 15, 20]) expect(strengthMultiplier(s)).toBeCloseTo(s / 5, 10);
+    expect(strengthMultiplier(-4)).toBe(0.5);                // a -Str garment bottoms out at Str 0
+    expect(strengthMultiplier(undefined)).toBe(1);
+    for (let s = 0; s < 10; s++) expect(strengthMultiplier(s + 1)).toBeGreaterThan(strengthMultiplier(s)); // every point still counts
+    // Bobs Machete (12) in his roster's hands: Str 0 was 1, Str 2 was 5.
+    expect(playerMeleeDamage(12, 0)).toBe(6);
+    expect(playerMeleeDamage(12, 2)).toBe(8);
+    expect(playerMeleeDamage(12, 10)).toBe(24);              // Army Bob, unchanged
+  });
+
   test("neither kind can round or scale a hit down to nothing", () => {
-    // 7 x (1/5) = 1.4 rounds to 1: the floor is what stopped that being a 0-damage weapon, and it
-    // is also what made the Strength-1 case land on exactly a tenth of a 10 HP enemy.
-    expect(playerMeleeDamage(7, 1)).toBe(1);
+    // 1 x 0.5 = 0.5 and 0 x 0.5 = 0: the floor is what stops either being a 0-damage swing.
+    expect(playerMeleeDamage(1, 0)).toBe(1);
+    expect(playerMeleeDamage(0, 0)).toBe(1);
     expect(playerMeleeDamage(1, 1)).toBe(1);
     expect(playerRangedDamage(0)).toBe(1);
     expect(playerRangedDamage(0.4)).toBe(1);
@@ -5672,7 +5767,7 @@ describe("what the player hits for", () => {
     expect(UNARMED_DAMAGE).toBe(2);
     expect(playerMeleeDamage(UNARMED_DAMAGE, 5)).toBe(2);    // neutral Strength
     expect(playerMeleeDamage(UNARMED_DAMAGE, 10)).toBe(4);   // double, like every other melee weapon
-    expect(playerMeleeDamage(UNARMED_DAMAGE, 1)).toBe(1);    // 0.4 rounds to 0, floored back to 1
+    expect(playerMeleeDamage(UNARMED_DAMAGE, 1)).toBe(1);    // 2 x 0.6 = 1.2 rounds to 1
   });
 
   test("punching is never better than swinging something — the old fists cliff is gone", () => {
@@ -11816,7 +11911,7 @@ describe("a unit's armour counts the way yours does", () => {
     const asPlayer = incomingPlayerDamage(20, dk.defense, 1, 0, 100, null, null, false);
     const asEnemy = incomingUnitDamage(20, dk, { face: 1, x: 0 }, 0, 100);
     expect(asEnemy).toBe(asPlayer); // …what it does with a hit was
-    expect(asEnemy).toBe(12);       // 20 × 20/33, where it used to take all 20
+    expect(asEnemy).toBe(15);       // 20 × 35/48, where it used to take all 20
   });
 
   test("an Enemy-creator animal has no armour, so every number it takes is unchanged", () => {
@@ -11852,19 +11947,19 @@ describe("a unit's armour counts the way yours does", () => {
     expect(swingComingAt(100, 30, 100, 30, 1, L)).toBe(false);               // no side to be on
   });
 
-  test("🧎 the hit message marks a blow the crouch guard took part of — on Crocobob it is 4 against 1", () => {
+  test("🧎 the hit message marks a blow the crouch guard took part of — on Crocobob it is 5 against 1", () => {
     const fx = [{ type: "crouchGuard", reduce: 0.8 }];
     expect(crouchGuardNote(fx, true)).toBe(" 🧎");
     expect(crouchGuardNote(fx, false)).toBe("");
     expect(crouchGuardNote([{ type: "backGuard" }], true)).toBe("");
     expect(crouchGuardNote(undefined, true)).toBe("");
-    // Why the mark: his Crocobob has 31 Defense, so a 10-damage shot is already a 4 standing, and
+    // Why the mark: his Crocobob has 31 Defense, so a 10-damage shot is already a 5 standing, and
     // the 80% guard can only take it to the floor of 1. Without the mark that reads as "no change".
     const croc = { ...dk, defense: 31, effects: fx };
-    expect(incomingUnitDamage(10, croc, { face: 1, crouch: false }, 200, 100)).toBe(4);
+    expect(incomingUnitDamage(10, croc, { face: 1, crouch: false }, 200, 100)).toBe(5);
     expect(incomingUnitDamage(10, croc, { face: 1, crouch: true }, 200, 100)).toBe(1);
-    expect(incomingUnitDamage(40, croc, { face: 1, crouch: false }, 200, 100)).toBe(16);
-    expect(incomingUnitDamage(40, croc, { face: 1, crouch: true }, 200, 100)).toBe(3);
+    expect(incomingUnitDamage(40, croc, { face: 1, crouch: false }, 200, 100)).toBe(21);
+    expect(incomingUnitDamage(40, croc, { face: 1, crouch: true }, 200, 100)).toBe(4);
   });
 
   test("a hit always stings: floored at 1 however much armour", () => {
@@ -12474,21 +12569,36 @@ describe("enemy-creator Strength past 10", () => {
   test("the bite keeps scaling to 20 and armour divides it the player's way", () => {
     expect(creatureMeleeDamage(20)).toBe(40);
     expect(enemyAttackDamage({ type: "enemy", stats: { strength: 15 } }, null)).toBe(30);
-    expect(incomingPlayerDamage(20, 22)).toBe(10); // Str 10 Crocodile on Army Bob (22 Defense): 20 x 20/42
+    expect(incomingPlayerDamage(20, 22)).toBe(12); // Str 10 Crocodile on Army Bob (22 Defense): 20 x 35/57
   });
 });
 
-describe("Defense halves a hit at DEFENSE_HALF_AT (20)", () => {
-  const { DEFENSE_HALF_AT, defenseDamageMultiplier } = require("./App");
-  test("his outfits: bare 100%, Army Bob ~48%, Crocobob ~39% (was 31% / 24%)", () => {
-    expect(DEFENSE_HALF_AT).toBe(20);
+describe("Defense halves a hit at DEFENSE_HALF_AT (35)", () => {
+  const { DEFENSE_HALF_AT, defenseDamageMultiplier, incomingPlayerDamage } = require("./App");
+  test("his outfits: bare 100%, Army Bob ~61%, Crocobob ~53% (20: 48% / 39%, 10: 31% / 24%)", () => {
+    expect(DEFENSE_HALF_AT).toBe(35);
     expect(defenseDamageMultiplier(0)).toBe(1);
     expect(defenseDamageMultiplier(-5)).toBe(1); // negative totals are clamped, never extra damage
-    expect(defenseDamageMultiplier(20)).toBe(0.5);
-    expect(defenseDamageMultiplier(22)).toBeCloseTo(20 / 42);
-    expect(defenseDamageMultiplier(31)).toBeCloseTo(20 / 51);
+    expect(defenseDamageMultiplier(35)).toBe(0.5);
+    expect(defenseDamageMultiplier(22)).toBeCloseTo(35 / 57);
+    expect(defenseDamageMultiplier(31)).toBeCloseTo(35 / 66);
     // the ORDER of who is tougher is unchanged: still strictly decreasing
     for (let d = 0; d < 40; d++) expect(defenseDamageMultiplier(d + 1)).toBeLessThan(defenseDamageMultiplier(d));
+  });
+
+  // 2026-10-10, Blake: "High armor characters are a tad too bullet spongy. IE the football players."
+  // Rounds to kill on the 25 HP a Str-5 look gets. Each hit is ROUNDED, so on a 7-damage gun the
+  // curve only shows once a hit rounds up to 5 — which is why the constant is 35, not 30.
+  test("the football players take fewer rounds, and armour still counts", () => {
+    const rounds = (dmg, def) => Math.ceil(25 / incomingPlayerDamage(dmg, def));
+    const blueFootball = 17, footbob = 19, armyBob = 22, crocobob = 31;
+    for (const def of [blueFootball, footbob]) {
+      expect(rounds(7, def)).toBe(5);    // M16 / Experimental Rifle: was 7
+      expect(rounds(12, def)).toBe(4);   // Bobs Bow: was 5
+      expect(rounds(7, def)).toBeGreaterThan(rounds(7, 0)); // still tougher than bare (4)
+    }
+    expect(rounds(7, armyBob)).toBe(7);  // was 9
+    expect(rounds(7, crocobob)).toBe(7); // was 9
   });
 });
 

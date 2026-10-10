@@ -2491,11 +2491,21 @@ export const meleeHasFired = (t, dur) => (t / dur) >= (MELEE_WINDUP_FRAC + MELEE
 // (feet within a cell of yours) and overlapping your own footprint or up to STOMP_REACH_CELLS in
 // front of it — "super close".
 //
-// Damage is its own number, STOMP_DAMAGE at Strength 5, riding Strength and the Intelligence crit
-// exactly like every other melee hit (muscle, not gear: no weapon damage, no Tag Damage, no Melee
-// Boost — it is a foot). 30 one-shots a 25 HP Squirrel and a 30 HP Pika at Strength 5; fists are 2,
-// the Machete 10. It lands once per body per stomp on everything under the foot at the impact frame.
-export const STOMP_DAMAGE = 30;
+// Damage is its own number, STOMP_DAMAGE at Strength 5, riding Strength (effectiveStrength) and the
+// Intelligence crit exactly like every other melee hit (muscle, not gear: no weapon damage, no Tag
+// Damage, no Melee Boost — it is a foot). It lands once per body per stomp on everything under the
+// foot at the impact frame.
+//
+// 30 -> 45 ON 2026-10-10, together with the Strength floor. Blake: "stomp is supposed to feel
+// powerful but it can feel weak on a low str character". 30 was tuned to one-shot the Squirrel at
+// Strength 5, but almost nobody he built HAS 5: his skins are Str 1-3 and most looks sit at 1-4
+// (Readitor, Ratman and Little Green Man 1; Chaplin, Bobette, Nixon and the Viatnamese 2; Ash 0).
+// At Str 2 the old stomp did 12 and the Squirrel took three of them; at Str 0 it did 1. Now, with
+// effectiveStrength's base: Str 0 = 23 (a Rat in one), Str 1 = 27 (a 25 HP Squirrel in one),
+// Str 2 = 32 (the 30 HP Pika and Chap Cat in one), Str 5 = 45, Str 10 = 90. The big stompables
+// still take more than one: the 60 HP Turtle twice at Str 5, the 100 HP Crocodile twice even for
+// Army Bob (50 would have one-shot it at Str 10, which is why this is not 50).
+export const STOMP_DAMAGE = 45;
 export const STOMP_FRAMES = 24;               // 0.4s: knee up, slam, planted
 export const STOMP_RAISE_END = 0.5;           // the knee comes up over the first half...
 export const STOMP_IMPACT_FRAC = 0.62;        // ...slams down by here — the hit lands on this frame...
@@ -2503,7 +2513,7 @@ export const STOMP_IMPACT_FRAC = 0.62;        // ...slams down by here — the h
 export const STOMP_MAX_TARGET_FRAC = 0.4;
 export const STOMP_REACH_CELLS = 1;           // a biting Squirrel stands within 30px (its ⚔️ range); a foot does not travel further
 export const STOMP_FLOOR_TOL_CELLS = 1;
-export const stompDamage = (strength) => Math.max(1, Math.round(STOMP_DAMAGE * ((strength ?? 5) / 5)));
+export const stompDamage = (strength) => Math.max(1, Math.round(STOMP_DAMAGE * effectiveStrength(strength) / 5));
 // Every body a stomp from here would land on, nearest first. `bodies` are hit boxes ({x, y, w, h,
 // key}) — for the player the list shotTargetsFor already builds (living hostiles, no allies, no NPC
 // you haven't picked a fight with); x/w/feetY are the stomper's own box.
@@ -2545,7 +2555,20 @@ export const stompDipPx = (t, dur) => {
 // off what killed a bare one in a hit or two. At 20: 5 Defense takes 80%, 10 takes 67%, Army Bob
 // 48%, Crocobob 39% — the full suit is worth ~2.5 bare characters instead of ~4. The shape (and so
 // the ORDER of who is tougher) is unchanged; only how far apart the ends are. One number to tune.
-export const DEFENSE_HALF_AT = 20;
+//
+// ...AND 20 -> 35 ON 2026-10-10. Blake: "High armor characters are a tad too bullet spongy. IE the
+// football players." Blue Football (17) and Footbob (19) took 54% / 51% of a hit at 20, so on the
+// 25 HP pool they soaked nearly as much as two bare characters. At 35 they take 67% / 65%, Army Bob
+// 61%, Turtle Man 56%, Crocobob 53% (35 Defense now takes exactly half), and DK's 5 takes 88%:
+// a football player is ~1.5 bare characters, not ~1.9.
+// WHY 35 AND NOT A ROUNDER 30: incomingPlayerDamage rounds every hit, so on the small guns the
+// ROUNDING decides how many rounds a kill takes, not the curve. The 7-damage M16 and Experimental
+// Rifle landed 4 on a football player and needed 7 rounds; a hit only rounds up to 5 (5 rounds)
+// once they take 64.3%, which for Footbob's 19 needs 34.2 here. At 30 the M16 was unchanged and he
+// would have seen no difference with it. With 35: M16 7 -> 5 rounds on them, Bobs Bow 5 -> 4,
+// Bobs Bat (Str 5) 7 -> 5 swings; Bobs Gun stays 5 (6 a hit, was 5). Army Bob and Crocobob take 7 M16
+// rounds instead of 9. Change this number, never the call sites.
+export const DEFENSE_HALF_AT = 35;
 export const defenseDamageMultiplier = (def) => DEFENSE_HALF_AT / (DEFENSE_HALF_AT + Math.max(0, def || 0));
 export const applyDefense = (rawDamage, def) => rawDamage * defenseDamageMultiplier(def);
 
@@ -2556,8 +2579,8 @@ export const applyDefense = (rawDamage, def) => rawDamage * defenseDamageMultipl
 // projectile spawns), and taking the hat off takes the boost with it. Intelligence rolls a crit
 // for double. That is the complete list.
 //
-// MELEE is muscle on top of all that: the weapon's damage also rides the wielder's Strength —
-// 5 neutral, 1 a fifth, 10 double.
+// MELEE is muscle on top of all that: the weapon's damage also rides the wielder's Strength
+// (strengthMultiplier) — 5 neutral, 10 double, 0 half.
 //
 // The body/gear distinction is the entire lesson here. Gear is a CHOICE the player makes and can
 // undo; a body stat is not. Army Bob's rifle hitting 1.5x harder than Bobette's because of his
@@ -2569,7 +2592,30 @@ export const applyDefense = (rawDamage, def) => rawDamage * defenseDamageMultipl
 // 1.4, rounded to 1) — a fourteen-fold spread off the body alone. That is why Army Bob one-shot
 // what Bobette needed ten hits for. Removing Strength fixed it. Removing the gear multiplier as
 // well would NOT have been a further fix, it would have deleted a working feature.
-export const playerMeleeDamage = (weaponDamage, strength) => Math.max(1, Math.round((weaponDamage ?? 5) * ((strength ?? 5) / 5)));
+//
+// WHAT STRENGTH MULTIPLIES MUSCLE BY: effectiveStrength / 5. From 5 up the effective Strength IS
+// the stat, exactly as it always was (10 double). Below 5 a character keeps a BASE of its own:
+// it hits as if it had STRENGTH_BASE + Str/2, so Str 0 counts as 2.5 (half a Str-5 hit) and each
+// point adds a tenth (1 = 0.6, 2 = 0.7, 3 = 0.8, 4 = 0.9), a boost that shrinks to nothing at 5.
+// Below 0 (a -Str garment) counts as 0. The damage functions multiply by the effective Strength
+// and divide by 5 LAST: 45 x 0.7 is 31.4999… in floating point and rounded a Str-2 stomp to 31,
+// where 45 x 3.5 / 5 is exactly 31.5 and rounds to 32.
+// It used to be Str/5 all the way down (Blake, 2026-10-10: "some type of small added base str so
+// str 0 characters do not feel so worthless"). That took 80% off Str 1 and everything off Str 0,
+// where every swing and stomp floored at 1 damage, and it hurt more than it looks because 5 is
+// not the middle of his roster: his skins are Str 1-3 and most looks sit at 1-4. Bobs Machete
+// (12) at Str 2 went 5 -> 8, at Str 0 1 -> 6. Nothing at Str 5 or above changed, so his Str-6 to
+// Str-10 looks (Army Bob, Crocobob, the football players) hit exactly as hard as before.
+// ONE curve for every muscle hit, on both sides: weapon swings, fists, the pistol-whip, the stomp
+// and the tail. A creature's bite is NOT on it (creatureMeleeDamage: 2x Strength, its own rule),
+// and neither is throw range (throwRangeBlocks already starts from a base of 7 blocks).
+export const STRENGTH_BASE = 2.5; // the Strength a Str-0 character hits with
+export const effectiveStrength = (strength) => {
+  const s = Math.max(0, strength ?? 5);
+  return s >= 5 ? s : STRENGTH_BASE + s * (5 - STRENGTH_BASE) / 5;
+};
+export const strengthMultiplier = (strength) => effectiveStrength(strength) / 5;
+export const playerMeleeDamage = (weaponDamage, strength) => Math.max(1, Math.round((weaponDamage ?? 5) * effectiveStrength(strength) / 5));
 // BARE HANDS are a 2-damage weapon — same formula as everything else, just a small base number.
 // They used to be the Strength stat used AS the damage (str 10 = 10 damage, no scaling step), and
 // that produced a cliff: since armed melee is damage x str/5, bare hands exactly matched a
@@ -3756,6 +3802,39 @@ export const blockStopsHit = (blocking, face, attackerX, wearerX, wearerW) => {
   if (Math.abs(attackerX - wearerX) <= tol) return true; // practically inside each other — that's the front
   return !isHitFromBehind(face, attackerX, wearerX);
 };
+// ⚔️ MELEE CLASH (2026-10-10). Blake: "If you are holding a ranged weapon and you meelee attack at
+// the same time as the enemy your attacks will bounce off each other pushing both you and the
+// enemy back a little away from each other." The pistol-whip (Q/V with a gun) had no answer to a
+// blow coming the other way: both landed and you simply traded. Now, when the two are in the air
+// TOGETHER, neither lands. Both bodies are shoved CLASH_PUSH_CELLS apart through the 🦎 tail
+// swing's knockback channel (`knock`), so walls stop it and a unit is frozen while it slides.
+//
+// "At the same time" means one blow arrives while the other is still swinging and has not yet
+// landed on that body:
+// * A unit's blow reaching you while your whip is mid-swing and has not hit it. That covers a
+//   weapon or fist swing reaching you, and a creature's bite or a punch on the frame it commits.
+// * Your whip reaching a unit whose weapon or fist swing is mid-air and has not struck you yet.
+// * Your whip reaching a melee unit in the last CLASH_WINDUP_FRAMES of its wind-up. A bite lands
+//   the frame it commits, and point blank your fist lands on its first frame, so without this a
+//   whip and a bite thrown together always traded (measured: the whip one frame ahead).
+// Otherwise a blow that already landed is a hit, not a clash: whichever lands first still hurts.
+// Not stomps or tail swings (the body, not a swing), not shots (the parry's job), and not a melee
+// weapon in hand (Q is the block there).
+//
+// FACE TO FACE is the gate: each must have the other in front of it. That is the block's own
+// front rule (blockStopsHit, with its tolerance for two sprites overlapping at melee range), asked
+// once from each side, so a whip swung at one man never bounces off a blow from behind.
+export const CLASH_PUSH_CELLS = 1.5;
+export const CLASH_WINDUP_FRAMES = 6; // 0.1 s: a blow this close to leaving counts as already thrown
+export const meleeClash =(aFace, aX, aW, bFace, bX, bW) =>
+  blockStopsHit(true, aFace, bX, aX, aW) && blockStopsHit(true, bFace, aX, bX, bW);
+// The two shoves, in opposite directions, each away from the other body. Two bodies at the same
+// x part along A's facing: A goes back the way it came.
+export const clashKnocks = (aX, bX, aFace, cellPx) => {
+  const dir = aX < bX ? -1 : aX > bX ? 1 : (aFace === -1 ? 1 : -1);
+  const left = CLASH_PUSH_CELLS * (cellPx || 30);
+  return { a: { left, dir }, b: { left, dir: -dir } };
+};
 // A clothing "Tag Damage" ability empowers a KIND of weapon: any equipped weapon whose
 // category tags include the tag the ability is set to (e.g. "bow") deals multiplied damage
 // while the item is worn. Given the wearer's resolved effects (post-mergeEquip) and the
@@ -4288,7 +4367,7 @@ const DEFAULT_STATS = () => ({ hp: 5, speed: 5, agility: 5, intelligence: 5, str
 // that let you set a value the game then ignores is worse than no slider.
 export const ENEMY_SPEED_STAT_MAX = 20;
 // ...and an ENEMY-CREATOR asset's Strength, for the same reason (2026-10-08). On a creature Strength
-// IS the bite (creatureMeleeDamage, 2x, no clamp; stompDamage and Str/5 on a held melee weapon do not
+// IS the bite (creatureMeleeDamage, 2x, no clamp; stompDamage and strengthMultiplier on a held melee weapon do not
 // clamp either), and the Crocodile, Lion and Elaphant were all authored AT 10, so the slider sat
 // pinned at its right end. Blake: "The strength slider in the enemy builder does not work" — on the
 // Crocodile, which already bit for the most the slider could say. Strength 20 bites for 40.
@@ -4721,10 +4800,10 @@ export const enemyThrowVelocity = (gapPx, maxRangePx, g, face) =>
 //     used to here (weapon × Str/5 for every weapon), which is the Army Bob bug playerRangedDamage
 //     documents, fixed on the player's side only: an enemy Army Bob's M16 hit you for 12 while
 //     yours hit for 6.
-//   * a MELEE weapon: the weapon's damage × Strength/5 — playerMeleeDamage.
+//   * a MELEE weapon: the weapon's damage × strengthMultiplier(Str) — playerMeleeDamage.
 //   * both multiplied first by the unit's own worn 🏹 Tag Damage for that weapon's tags, the
 //     multiplier your shot and swing already carry (it did nothing on an enemy before).
-//   * bare-handed: UNARMED_DAMAGE × Strength/5 — an enemy's fists are worth exactly what yours are.
+//   * bare-handed: UNARMED_DAMAGE × strengthMultiplier(Str) — an enemy's fists are worth exactly what yours are.
 // A CREATURE'S MELEE IS 2x ITS STRENGTH, and that is the whole rule — see creatureMeleeDamage.
 export const enemyAttackDamage = (ea, weapon) => {
   const str = ea?.stats?.strength ?? 5;
@@ -13374,6 +13453,37 @@ export default function AssetStudio() {
         }
         return out;
       };
+      // ⚔️ MELEE CLASH (see meleeClash). Up here at loop level because BOTH halves call it: a unit's
+      // blow reaching you in the unit loop, and your whip reaching a unit in your own hit test
+      // further down. A const inside either block is invisible to the other (the parry crash).
+      // whipLiveOn: your Q/V pistol-whip with a GUN in hand is mid-swing and has not struck unit k.
+      // unitBlowLive: a unit's melee blow is in the air and has not struck you, or is about to leave.
+      // * In the air: only the weapon-hitbox swing has that window (ep.swingHit maps who it struck).
+      // * About to leave: the last CLASH_WINDUP_FRAMES of its wind-up (reactT), for any melee
+      //   attacker (ep.meleeNext). A bite or a punch lands on the frame it commits. Point blank, your
+      //   fist reaches the dog on its FIRST frame, so a whip thrown as the dog lunged always landed
+      //   one frame ahead of the bite and the two traded (measured in play). That is the same
+      //   moment to a hand on a keyboard, so it clashes. A whip thrown earlier in the wind-up is
+      //   simply faster: it lands, and the bite still comes.
+      const whipLiveOn = (k) => wpnIsRanged && !!(p.firing && p.firing.unarmed) && !p.hitRegistered && !(p.swingHits && p.swingHits[k]);
+      const unitBlowLive = (ep) => !!ep && !!ep.meleeNext && !((ep.stun || 0) > 0) && !((ep.down || 0) > 0)
+        && ((ep.swingT > 0 && !!ep.swingHit && typeof ep.swingHit === "object" && !ep.swingHit.player)
+          || (ep.reactT > 0 && ep.reactT <= CLASH_WINDUP_FRAMES));
+      // Both blows are spent, nobody is hurt, and the two bodies are shoved apart. The unit's swing
+      // is cut short exactly as a block cuts it (swingT 0) and a wind-up is abandoned (reactT 0), so
+      // the rest of its arc hits nobody and nothing commits; your stroke is spent (hitRegistered) but
+      // plays out, as a thrown or raising swing does. It owes a full attack cooldown either way, so it
+      // does not swing again the moment the shove ends.
+      const clashApart = (ep, ea, unitCX) => {
+        const kn = clashKnocks(p.x + pw / 2, unitCX, p.face, CW);
+        p.knock = kn.a; ep.knock = kn.b;
+        p.hitRegistered = true;
+        ep.swingT = 0; ep.reactT = 0;
+        ep.attackT = Math.max(ep.attackT || 0, ATTACK_COOLDOWN_FRAMES);
+        if (ep.swingHit && typeof ep.swingHit === "object") ep.swingHit.player = true;
+        booms.current.push({ x: (p.x + pw / 2 + unitCX) / 2, y: p.y + ph * 0.4, propId: null, char: "💥", size: 1.2, life: 0, maxLife: 14 });
+        flash("⚔️ Clash with " + ((ea && ea.name) || "them") + "!");
+      };
       const shotPathProbe = (x, y) => cellsHitW(x, y, 2, 2).length === 0; // the flying shot's own solid test, for shotPathClear — the world's, since a target can stand across a gate
       // One-shot spawn placement (start of test, or the moment a room/level loads). Uses the real
       // player size so nothing clips. Gate = enter through a connector (top-left first); roomDoor =
@@ -13415,7 +13525,7 @@ export default function AssetStudio() {
       // turn-to-face and a door's arrival also set p.face, and neither is "turning around". The tail
       // sweeps into the side you were facing (faceBeforeKeys), once, on the frame you turn; every
       // living hostile in it — shotTargetsFor's list, so never an ally or an NPC you have not picked
-      // a fight with — takes the hit and is shoved back. Damage is the item's number × Strength/5
+      // a fight with — takes the hit and is shoved back. Damage is the item's number × strengthMultiplier
       // with your Intelligence crit, i.e. a melee weapon's rule; then that unit's own armour.
       if (tailSwing) {
         if ((p.tailCd || 0) > 0) p.tailCd = Math.max(0, p.tailCd - dtMul);
@@ -14143,6 +14253,7 @@ export default function AssetStudio() {
           if (ep.onGround || ep.topdown) { ep.extraJumped = false; ep.djGravMul = 1; } // landing hands the extra jump back, as it does yours
           const ew = spawnWeaponFor(spawn, ea); // the weapon THIS PLACEMENT is holding — the level's choice wins over the look's own, and "bare hands" is a choice (spawnWeaponIdOf)
           const rangedEnemy = !!(ew && isRanged(ew.wtype));
+          ep.meleeNext = !rangedEnemy; // its next blow is a swing, punch or bite: your whip can clash with it (unitBlowLive)
           // Enemies use the same clip and reload-time settings as the gun itself (including any
           // Magazine Size clothing on a dressed enemy). Keep the ammo record on this spawn's live
           // state so leaving/re-entering a room preserves an in-progress reload just like its HP.
@@ -14869,6 +14980,11 @@ export default function AssetStudio() {
                 flash("🛡️ Blocked " + (ea.name || "the hit") + "! — 💫 staggered");
                 return true;
               }
+              // ⚔️ CLASH, ITS SIDE (see meleeClash): this blow arrives while your pistol-whip is
+              // mid-swing at it, face to face. Neither lands, and both of you are shoved apart.
+              // A 🦶 stomp or 🦎 tail is the body, not a swing (bodyBlow), so it never clashes.
+              // Returns true like the block does: one swing, one clash.
+              if (!bodyBlow && whipLiveOn(k) && meleeClash(p.face, p.x + pw / 2, pw, ep.face, atkCX, epw)) { clashApart(ep, ea, atkCX); return true; }
               const crit = Math.random() < critChance(eIntel);
               const dmg = incomingPlayerDamage(crit ? rawDmg0 * 2 : rawDmg0, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(hitEw && hitEw.ignoreArmor));
               const critNote = crit ? "💥 Critical! " : "";
@@ -15612,12 +15728,16 @@ export default function AssetStudio() {
                     // not a break: the arc carries on looking for somebody it can actually hit, and
                     // hitRegistered is untouched, so swinging through an NPC does not eat your swing.
                     if (unitTalkImmune(ep)) { talkPhaseNote(ea, ep); continue; }
-                    // One formula for both: damage x Strength/5. Armed, the damage is the weapon's
+                    // ⚔️ CLASH, YOUR SIDE (see meleeClash): your pistol-whip meets its swing coming
+                    // the other way, mid-air and face to face. Neither lands, both of you are shoved
+                    // apart, and the rest of this stroke is spent.
+                    if (unarmedSwing && whipLiveOn(k) && unitBlowLive(ep) && meleeClash(p.face, p.x + pw / 2, pw, ep.face, eHitLeft + epw / 2, epw)) { clashApart(ep, ea, eHitLeft + epw / 2); break hitLoop; }
+                    // One formula for both: damage x strengthMultiplier(Str). Armed, the damage is the weapon's
                     // own (times any Tag Damage gear that matches its categories); bare-handed it's
                     // UNARMED_DAMAGE. Fists carry no categories, so no gear multiplier applies to
                     // them — a Tag Damage hat boosts the weapon it's tagged for, not your knuckles.
                     // Bare-handed splits by what you ARE. A body or a dressed look punches for
-                    // UNARMED_DAMAGE x Strength/5, exactly as it always has — Bob's fists are
+                    // UNARMED_DAMAGE x strengthMultiplier(Str), exactly as it always has — Bob's fists are
                     // untouched by any of this. An animal you are playing as BITES, at the same
                     // 2x Strength the AI bites you with, because a creature's jaws should not be
                     // worth a different number depending on who is holding the controls.

@@ -3879,3 +3879,64 @@ specificity, so read the rendered width, not the stylesheet.
 Blake: his Furr Con Sign would not go at the top of a room, "a massive invisible wall", and he wanted a way to put the sign behind chairs on the same layer. The sign's board is a 53x171 rect twisted -90°. Stored, it spans y -60..110; drawn, about -1..52. `worldArtBox` measures stored boxes, so a third of the footprint was empty space above the board. A placement's top-left cell is clamped to row 0, so that strip hit the ceiling first. Measured on his folder: a turned measure changes 16 props, and Sprinkler (40 placements), Bush, Bear Skin Rug and Church Pew are placed, so the turned box is opt-in per placement (`turnedBox`, set by fresh placement and by a Select/Copy drop, which re-centres on the click anyway). The scale stays on the unturned measure, so a new placement at size N renders at the same px per design unit as an old one at size N. Verified in the dev server: old sign 360x284 px box with art starting 98 px down; after a Select re-drop it was 284x211 at the same scale, art 7 px from the ceiling.
 
 The ordering existed (⤒ Front / ⤓ Back) but ⤓ Back also demotes the layer (orderEndLay) and goes behind everything. ▲/▼ step past the nearest same-layer object whose art rect overlaps, skipping non-overlapping ones, and renumber every z 0..n-1 so tied z values from pasted copies cannot undo the step.
+
+## Strength base, stomp 45, Defense 35, and the ⚔️ melee clash (2026-10-10)
+
+Blake asked for three things in one message: "some type of small added base str so str 0 characters
+do not feel so worthless, IE stomp is supposed to feel powerful but it can feel weak on a low str
+character. Make sure the balance makes sense. Likely increase stomp damage." Then "The armor curve
+needs to be a little weaker. High armor character are a tad too bullet spongy. IE the football
+players." And: "If you are holding a ranged weapon and you meelee attack at the same time as the
+enemy your attacks will bounce off each other pushing both you and the enemy back a little away
+from each other".
+
+**Strength.** Muscle was Str/5 all the way down, so Str 1 kept a fifth and Str 0 floored every
+swing and stomp at 1. Read off his saves branch: skins are Str 1-3 and most looks sit at 1-4 (Ash
+0; Readitor, Ratman, Little Green Man 1; Chaplin, Bobette, Nixon, the Viatnamese 2). Str 5 was
+above most of the roster, so "5 neutral" undersold how much the low end hurt. `effectiveStrength`
+keeps the stat from 5 up (nothing at Str 5+ changed: Army Bob, Crocobob and the football players
+hit exactly as before) and gives 2.5 + Str/2 below it: 0 = 0.5x, 1 = 0.6x, 2 = 0.7x. Bobs Machete
+at Str 2 went 5 -> 8, at Str 0 1 -> 6. The damage functions multiply by the effective Strength and
+divide by 5 LAST: `45 * 0.7` is 31.4999… and rounded a Str-2 stomp to 31; `45 * 3.5 / 5` is 31.5.
+Creature bites (2x Strength) and throw range (already a 7-block base) are not on the curve.
+
+**Stomp.** Stompable creatures in his library (Side art x scale <= 104): Rat 15 HP, Squirrel 25,
+Pika-Squirrel 30, Chap Cat 30, Turtle 60, Crocodile 100 (53 tall x 1.6). At 30 a Str-2 stomp did
+12. 45 with the base: Str 0 = 23 (Rat), Str 1 = 27 (Squirrel), Str 2 = 32 (Pika, Chap Cat), Str 5
+= 45, Str 10 = 90. 50 would have let Army Bob one-stomp the Crocodile; 45 keeps the Turtle and the
+Crocodile at two. Measured in play as Readitor (Str 1): "🦶 Stomped Squirrel for 27" (the Squirrel's
+HP raised to 100 so the toast survived; at 25 HP its loot toast replaced the stomp toast in the
+same frame).
+
+**Defense 20 -> 35.** Blue Football 17 and Footbob 19 Defense on a 25 HP pool. The curve alone
+misleads here because every hit is rounded: the 7-damage M16 and Experimental Rifle land 4 on them
+until the multiplier reaches 0.643, then 5, and 25 HP takes 7 rounds at 4 but 5 at 5 (there is no
+6). For Footbob that needs DEFENSE_HALF_AT >= 34.2. At 30 the M16 and Bobs Gun were both unchanged
+on them, and those are most of his guns. At 35: M16 7 -> 5 rounds, Bow 5 -> 4, Bat (Str 5) 7 -> 5
+swings, Bobs Gun stays 5 (6 a hit, was 5); Army Bob and Crocobob take 7 M16 rounds, was 9; DK's 5
+Defense takes 88% (was 80%). Measured in play: "🎯 Hit Footbob for 5", and Footbob's Str-6 bat hit
+Readitor (4 Def) for 9, the Pit Bull's bite for 14.
+
+**The clash.** The pistol-whip is `p.firing.unarmed` with a ranged weapon in hand. A unit's melee
+is either a weapon-hitbox swing (`ep.swingT` with the `ep.swingHit` map, hits land mid-sweep) or an
+instant bite/punch on the commit frame. Two hooks, one rule (`meleeClash`: each has the other in
+front, the block's own front test): in `applyHitTo` (a unit blow reaching you while your whip is
+live and has not struck it) and in your melee hit loop (your whip reaching a unit whose blow is in
+the air, `unitBlowLive`). `clashApart` shoves both through the tail swing's `knock` channel (walls
+stop it, a unit is frozen while it slides), cuts the unit's swing like a block, spends your stroke,
+and gives the unit a full attack cooldown. The helpers sit at loop level because both blocks call
+them (the parry crash).
+
+First drive found the gap the wind-up window closes: point blank, the fist box overlaps the dog on
+the whip's FIRST frame, so a whip thrown as the Pit Bull lunged always landed one frame before the
+bite and the two traded ("👊 Hit for 1", then "hit you for 14"). That is the same instant to a hand
+on a keyboard. `CLASH_WINDUP_FRAMES` (6) counts the last 0.1 s of a melee unit's wind-up (`reactT`,
+`ep.meleeNext`) as thrown. After it: 4 of 4 timed drives on the dog clashed, Footbob's bat clashed
+both ways round (whip first and bat first), and a whip thrown 13 frames before the bite still hit
+and the bite still landed.
+
+**Harness traps.** Two presses did not start a whip at all: the player was still 💫 dazed by
+Footbob's stun bat because I froze Footbob in the same call that armed the trigger. Freeze the other
+units and let any stun run out before timing a press. A per-frame trigger in the page script (press
+Q when `ep.reactT < lead`, or the frame `ep.swingT` jumps to 14) is what made the timing exact;
+`?god` keeps you alive, and `p.invuln` going to 40 is the tell that a blow landed.

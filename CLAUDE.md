@@ -424,9 +424,20 @@ plus traps it does not cover:
   no 🐱×N count by HP bars. The shop panel is square and has no emoji. Dialogue has no bubble,
   answers sit in a grid, and the font is DotGothic16. The pickup banner is Shrikhand, coloured by
   rank.
-- **Defense:** a hit times `DEFENSE_HALF_AT / (DEFENSE_HALF_AT + Defense)`, DEFENSE_HALF_AT = 20 (was 10
-  until 2026-10-08: "no defense too weak, high defense too strong"). Applied ONCE per hit, on the player
-  and on units alike. A look's Defense is the sum of its garments; negative totals clamp to 0.
+- **Defense:** a hit times `DEFENSE_HALF_AT / (DEFENSE_HALF_AT + Defense)`, DEFENSE_HALF_AT = 35 (10 until
+  2026-10-08, 20 until 2026-10-10: "a tad too bullet spongy. IE the football players"). Applied ONCE per
+  hit, on the player and on units alike. A look's Defense is the sum of its garments; negative totals
+  clamp to 0. Each hit is ROUNDED, so on small guns judge a change by rounds-to-kill: the 7-damage M16
+  only moved on the football players (17/19) once a hit rounded up to 5, which needed ~35, not 30.
+- **Strength** multiplies muscle (swings, fists, pistol-whip, stomp, tail) by `effectiveStrength / 5`:
+  the stat itself from 5 up, `STRENGTH_BASE` (2.5) + Str/2 below it, so Str 0 hits at half a Str-5 hit
+  ("so str 0 characters do not feel so worthless"). His roster is mostly Str 0-4, not 5. Creature
+  bites (2x Str) and throw range are not on it. Stomp is `STOMP_DAMAGE` 45 at Str 5: one stomp kills
+  a Squirrel from Str 1 and a Pika from Str 2; the Turtle and the Crocodile still take two.
+- **⚔️ Melee clash:** a Q/V pistol-whip WITH A GUN IN HAND and a unit's melee blow in the air together
+  (`meleeClash`, face to face) both miss and both bodies are shoved `CLASH_PUSH_CELLS` apart. A bite
+  lands the frame it commits, so the last `CLASH_WINDUP_FRAMES` of a melee wind-up count as thrown.
+  A blow that already landed still hurts. Not stomps, tails, shots, or a melee weapon (Q blocks there).
 - **A control must be operable at its real size.** Setting a slider's value from script works at any
   width, which is how a 3px Strength slider shipped. Check the rendered width and drag it with the mouse.
 - "Range" means how far a gun or bow shot flies (the weapon's Range, 🎯 Long Shot, the 🎯 Range
