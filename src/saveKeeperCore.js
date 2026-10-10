@@ -83,7 +83,8 @@ const merge3 = (base, ours, theirs) => {
   const conflicts = [];
   const keys = new Set([...Object.keys(base || {}), ...Object.keys(ours || {}), ...Object.keys(theirs || {})]);
   for (const k of keys) {
-    if (k === "savedAt") continue;
+    // editedFrom names ONE copy's parent; a combined record has two, so it claims neither.
+    if (k === "savedAt" || k === "editedFrom") continue;
     const b = base ? base[k] : undefined, o = ours ? ours[k] : undefined, t = theirs ? theirs[k] : undefined;
     const oCh = J(o) !== J(b), tCh = J(t) !== J(b);
     let v;
@@ -123,6 +124,9 @@ const merge3 = (base, ours, theirs) => {
 //                StackBlitz copy starts from the committed file). Never another copy's edit —
 //                using the desktop's own earlier save as the base would read the desktop's
 //                changes as things the other copy "undid".
+//   baseAt(at) — the History version of this id saved at exactly `at`, from any copy (or null).
+//                Used with inc.editedFrom, which every save since 2026-10-10 carries (App.js
+//                stampSave): the version the edit REALLY started from, so nothing is guessed.
 //   deleted    — the id is on the folder's deleted list
 //   epoch      — when the keeper first ran. A version older than that which History has never
 //                seen is an ANCESTOR (the old copies in the profile are full of them), not an
@@ -133,7 +137,7 @@ const merge3 = (base, ours, theirs) => {
 //   "take"    inc becomes current
 //   "combine" record = both copies' edits merged; becomes current
 //   "keep"    inc is a version never seen before but cannot be placed; it goes to History only
-const decideSweep = ({ inc, cur, curSource, source, seen, baseFor, deleted, epoch = 0 }) => {
+const decideSweep = ({ inc, cur, curSource, source, seen, baseFor, baseAt = () => null, deleted, epoch = 0 }) => {
   if (!inc || !inc.id) return { action: "none" };
   if (!cur) return deleted ? { action: "keep" } : { action: "take" };
   if (sameContent(inc, cur)) return { action: "none" };
@@ -144,6 +148,24 @@ const decideSweep = ({ inc, cur, curSource, source, seen, baseFor, deleted, epoc
   const incNewer = newerRecord(inc, cur);
   const incAt = typeof inc.savedAt === "number" ? inc.savedAt : 0;
   if (incAt < epoch && !incNewer) return { action: "keep" };
+  // THE COPY SAID WHAT IT EDITED (inc.editedFrom). Edited from the folder's current version: it
+  // already holds everything the folder has, so it replaces it — a cell it deleted stays deleted.
+  // Edited from an older version History holds: merge against exactly that.
+  // Before this, the base below was a guess (this copy's own last save, else the committed file).
+  // Every copy loads the online save, so the guess was usually older than what the copy started
+  // from: a cell the guess lacked but the folder had read as "added by the other copy", and a
+  // deletion in this copy read as "no change". Sewer M1/M2, 2026-10-10: a Front pillar Blake
+  // deleted came back on every save, three times, while his new curve beside it was kept.
+  const from = typeof inc.editedFrom === "number" ? inc.editedFrom : null;
+  if (from !== null && incNewer) {
+    if (typeof cur.savedAt === "number" && from === cur.savedAt) return { action: "take" };
+    const exact = baseAt(from);
+    if (exact) {
+      const m = merge3(exact, cur, inc);
+      if (sameContent(m.record, cur)) return { action: "keep" };
+      return { action: "combine", record: m.record, conflicts: m.conflicts };
+    }
+  }
   // A copy continuing its own work, or a copy that started from the committed file the folder
   // was seeded with: inc was made FROM cur, so it simply replaces it.
   if (incNewer && (curSource === source || curSource === "repo")) return { action: "take" };

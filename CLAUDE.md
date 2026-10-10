@@ -116,6 +116,11 @@ has never actually been gone; the bytes were always still on disk.** Never clear
    `node tools/bob-okay.js export <file>` writes the folder in library.json shape. **Never point a
    test keeper at his folder.** Use `BOB_SAVES`, `BOB_HOME`, `BOB_PORT`, `BOB_NO_SWEEP=1`, and
    `BOB_NO_CLOUD=1` or `BOB_CLOUD_REMOTE=<local bare repo>`.
+   **Every save carries `editedFrom`** (App.js `stampSave`): the savedAt of the version the editor was
+   holding. The sweep's three-way merge uses EXACTLY that version as the base, or simply takes the
+   save when `editedFrom` is the folder's current version. Never stamp `savedAt: Date.now()` by
+   hand on a save path; a guessed base turns his deletions into "no change" and the merge puts
+   them back (2026-10-10, see History "DELETED THINGS CAME BACK").
 3. **Browser storage** (`asset:<id>` / `assetIndex`, and one key family per kind, mirrored into
    IndexedDB) is a cache tied to the page's address.
 4. **`asset-data/library.json`** is the committed project file. It is the agents' **delivery

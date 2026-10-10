@@ -4028,3 +4028,30 @@ stands on a HIDDEN ramp mound I built in 9848c72 (cols 78-107, rows 10-19) on th
   room, and Forest M1's boulder at x 1075 blocks Super Bob on the old code too (it is 6 cells, his
   jump about 3), so it is not a regression.
 - Units keep their landing (it never split hill out); only their sideways move got the on-feet rule.
+
+## DELETED THINGS CAME BACK: the keeper's guessed merge base (2026-10-10)
+
+Blake: on Sewer M1 and M2 he deleted Front blocks (a pillar), reloaded, and they were back, while a
+curve he painted where a block used to be was kept. Then the same with an Elaphant he deleted.
+
+**Cause.** The keeper's sweep merges two copies' edits three-way (`merge3`). With no record of what
+an edit started from, `decideSweep` guessed the base: the copy's own last save, else the committed
+file. But every copy loads the online save, so the copy had really started from the folder's
+current version. The guess was older and lacked the pillar; the folder had it ("ours changed"), his
+save lacked it ("theirs unchanged" vs the guess), so the merge kept it. His second deletion was then
+filed as "keep" and changed nothing. Additions survive this; deletions do not, which is exactly
+what he saw.
+
+**What it hit (scan of every `combined` version in History vs the save that triggered it):** Sewer
+M1 front col 44 (26 cells, three times), Sewer M2 front col 108 (26 cells), Trailor Park M9 enemy
+34,147 (the Elaphant, twice), Trailor Park M13 fx 13,42 + 12,39 (Farm corn, 10-04; that save kept
+19 of the other copy's 21 objects, so he saw them and deleted two). Every asset combine equalled
+his newest save. Repaired by POSTing just those four levels to the keeper (`assets: []` keeps the
+assets), each equal to his own newest save, with savedAt newer than everything.
+
+**Fix.** `stampSave(rec, from)` stamps `editedFrom = from.savedAt` on level, asset, texture,
+dialogue and sound saves (a fork to a new id carries none; saveAsset now also updates the editor's
+savedAt so the NEXT save names this one). `decideSweep` takes the save outright when `editedFrom`
+is the folder's current savedAt, merges against that exact History version (`baseAt`, any source)
+when it is older, and only falls back to the guess for saves made by older code. `merge3` never
+copies `editedFrom` into a combined record.

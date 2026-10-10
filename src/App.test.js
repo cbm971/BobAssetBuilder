@@ -418,6 +418,7 @@ import {
   TALK_PICK_FLASH_PLAIN_MS,
   removedIds,
   newerRecord,
+  stampSave,
   hostDelete,
   isTombstoneRecord,
   TOMBSTONE_VALUE,
@@ -10186,6 +10187,24 @@ describe("the project file keeps the newer-dated copy of a record", () => {
   test("ids only on one side are kept, and nothing stored is ever dropped", () => {
     const out = mergeById([{ id: "a", savedAt: 1 }, { id: "b", savedAt: 1 }], [{ id: "c", savedAt: 1 }]);
     expect(out.map((x) => x.id).sort()).toEqual(["a", "b", "c"]);
+  });
+});
+
+// EVERY SAVE NAMES THE VERSION IT WAS EDITED FROM (Sewer M1/M2, 2026-10-10: without it the keeper
+// guessed an old base and a deleted Front pillar came back on every save).
+describe("stampSave", () => {
+  test("names the version on screen, and stamps a newer savedAt", () => {
+    const s = stampSave({ id: "ikupopa", savedAt: 5, front: {} }, { id: "ikupopa", savedAt: 5 });
+    expect(s.editedFrom).toBe(5);
+    expect(s.savedAt).toBeGreaterThan(5);
+  });
+  test("a fork to a new id, or a record never saved, has no parent", () => {
+    expect(stampSave({ id: "new1", savedAt: 5, editedFrom: 3 }, { id: "old1", savedAt: 5 }).editedFrom).toBeUndefined();
+    expect(stampSave({ id: "x" }, { id: "x" }).editedFrom).toBeUndefined();
+    expect(stampSave({ id: "x" }).editedFrom).toBeUndefined();
+  });
+  test("never carries an old editedFrom forward", () => {
+    expect(stampSave({ id: "x", savedAt: 9, editedFrom: 2 }, { id: "x", savedAt: 9 }).editedFrom).toBe(9);
   });
 });
 

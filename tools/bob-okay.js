@@ -168,6 +168,12 @@ class SaveFolder {
     if (!h) return null;
     try { return JSON.parse(zlib.gunzipSync(fs.readFileSync(h.file)).toString("utf8")); } catch { return null; }
   }
+  // The History version saved at exactly `at`, whichever copy wrote it (see decideSweep's baseAt).
+  baseExact(kind, id, at) {
+    const h = this.history(kind, id).find((x) => x.at === at);
+    if (!h) return null;
+    try { return JSON.parse(zlib.gunzipSync(fs.readFileSync(h.file)).toString("utf8")); } catch { return null; }
+  }
   // Put one version in History. Keyed by savedAt: a version already there is not written twice.
   async remember(kind, rec, source) {
     if (!rec || !rec.id) return;
@@ -292,7 +298,8 @@ class SaveFolder {
           const cur = i >= 0 ? next[kind][i] : null;
           const d = core.decideSweep({
             inc, cur, source, curSource: this.sourceOf(kind, cur), deleted: dead.has(inc.id),
-            seen: (at) => this.seen(kind, inc.id, at), baseFor: (at) => this.baseFrom(kind, inc.id, at, [safeName(source), "repo"]), epoch: state.epoch,
+            seen: (at) => this.seen(kind, inc.id, at), baseFor: (at) => this.baseFrom(kind, inc.id, at, [safeName(source), "repo"]),
+            baseAt: (at) => this.baseExact(kind, inc.id, at), epoch: state.epoch,
           });
           if (d.action === "none") continue;
           tally[d.action]++;

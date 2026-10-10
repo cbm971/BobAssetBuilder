@@ -98,6 +98,45 @@ describe("decideSweep", () => {
     expect(decideSweep({ inc: lvl(9, { section: "y" }), cur, curSource: "desktop", source: "A", ...history([[cur, "desktop"]], "A") }).action).toBe("take");
     expect(decideSweep({ inc: lvl(3, { section: "y" }), cur, curSource: "desktop", source: "A", ...history([[cur, "desktop"]], "A") }).action).toBe("keep");
   });
+
+  // Sewer M1, 2026-10-10, from his real History: the committed version had no Front at all, a
+  // second copy painted a pillar (folder = "combined"), then his new StackBlitz address loaded that
+  // from the online save, deleted the pillar and painted a curve. The guessed base (the committed
+  // file) had no pillar, so the deletion read as "no change" and the pillar came back — every save.
+  const sewer = () => {
+    const repo = lvl(1, { front: {} });
+    const cur = lvl(5, { front: { "10,44": "#555", "11,44": "#555", "3,3": "#777" } });
+    const mine = lvl(9, { front: { "3,3": "#777", "20,50": { c: "#555", slope: "tl" } }, editedFrom: 5 });
+    const hist = [[repo, "repo"], [cur, "combined"]];
+    return { repo, cur, mine, hist, at: (t) => (hist.find(([v]) => v.savedAt === t) || [null])[0] };
+  };
+  it("the guessed base brings a deleted cell back (why editedFrom exists)", () => {
+    const { cur, mine, hist } = sewer();
+    const { editedFrom, ...old } = mine;   // a save from before editedFrom: the guess is all there is
+    const d = decideSweep({ inc: old, cur, curSource: "combined", source: "B", ...history(hist, "B") });
+    expect(d.action).toBe("combine");
+    expect(d.record.front["10,44"]).toBe("#555");
+  });
+  it("a save edited FROM the folder's current version simply replaces it: deleted stays deleted", () => {
+    const { cur, mine, hist, at } = sewer();
+    const d = decideSweep({ inc: mine, cur, curSource: "combined", source: "B", ...history(hist, "B"), baseAt: at });
+    expect(d.action).toBe("take");
+  });
+  it("a save edited from an OLDER version merges against exactly that version", () => {
+    const { cur, mine, hist, at } = sewer();
+    // Another copy saved over cur (adding an enemy) while his copy was still editing version 5.
+    const other = lvl(7, { front: cur.front, enemies: { "4,4": { enemyId: "rat" } } });
+    const d = decideSweep({ inc: mine, cur: other, curSource: "C", source: "B", ...history([...hist, [other, "C"]], "B"), baseAt: at });
+    expect(d.action).toBe("combine");
+    expect(d.record.front).toEqual({ "3,3": "#777", "20,50": { c: "#555", slope: "tl" } });   // his deletion AND his curve
+    expect(d.record.enemies).toEqual({ "4,4": { enemyId: "rat" } });                         // the other copy's enemy
+    expect(d.record.editedFrom).toBeUndefined();
+  });
+  it("falls back to the old guess when History does not hold the version it names", () => {
+    const { cur, mine, hist } = sewer();
+    const d = decideSweep({ inc: { ...mine, editedFrom: 4 }, cur, curSource: "combined", source: "B", ...history(hist, "B"), baseAt: () => null });
+    expect(d.action).toBe("combine");
+  });
 });
 
 describe("libraryFromStore", () => {

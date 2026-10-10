@@ -910,7 +910,24 @@ export const newerRecord = (a, b) => {
   if (!b || typeof b.savedAt !== "number") return true;
   return a.savedAt > b.savedAt;
 };
-export const removedIds = (proj, kind) => new Set(((((proj && proj.removed) || {})[kind]) || []).filter(Boolean));
+// STAMP A SAVE, AND SAY WHICH VERSION IT WAS EDITED FROM. `from` is the record the editor was
+// holding (the version this edit started from); its savedAt goes in as `editedFrom`.
+// Why: the save keeper merges two copies' edits three-way (saveKeeperCore merge3), and a three-way
+// merge is only as good as its base. With no record of where an edit started, the keeper GUESSED
+// the base — the copy's own last save, or else the committed file — and since every copy loads the
+// online save, that guess was usually far older than what the copy really started from. Any cell
+// the guessed base lacked but the folder had looked like "the other copy added this", so DELETING
+// it in your copy read as "unchanged" and the merge put it back. Sewer M1/M2, 2026-10-10: a
+// deleted Front pillar came back on every save while the curve painted beside it was kept. With
+// editedFrom the keeper uses the exact version as the base, or simply takes the save when it was
+// edited from what the folder holds now. A fork to a new id has no parent, so it carries none.
+export const stampSave = (rec, from) => {
+  const out = { ...rec, savedAt: Date.now() };
+  if (from && from.id === out.id && typeof from.savedAt === "number") out.editedFrom = from.savedAt;
+  else delete out.editedFrom;
+  return out;
+};
+export const removedIds =(proj, kind) => new Set(((((proj && proj.removed) || {})[kind]) || []).filter(Boolean));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const rect = (x, y, w, h, color = SKIN) => ({ id: uid(), kind: "rect", x, y, w, h, color, mirror: true });
 const arm = (x, y, w, h, pivot = "top") => ({ ...rect(x, y, w, h), locked: true, role: "weaponArm", limb: "arm", armPivot: pivot });   // the arm the game swings — can't be deleted; pivots at the shoulder end
@@ -18682,12 +18699,12 @@ export default function AssetStudio() {
       payload = { ...payload, confirmedFits: [...confirmed] };
       dirtyGuides.current = new Set();
     }
-    payload = { ...payload, savedAt: Date.now() };
+    payload = stampSave(payload, asset);
     let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     // Same-name saves update the loaded id. A changed name is Save As: resolveSaveTarget assigns a
     // fresh id so the original saved asset remains exactly as it was.
     const target = resolveSaveTarget(list, payload);
-    if (target.id !== payload.id) payload = { ...payload, id: target.id };
+    if (target.id !== payload.id) { payload = { ...payload, id: target.id }; delete payload.editedFrom; } // a fork has no parent
     const ok1 = await sset("asset:" + payload.id, JSON.stringify(payload));
     list = list.filter((x) => x.id !== payload.id); list.push({ id: payload.id, name: payload.name, type: payload.type });
     const ok2 = await writeAssetIndex(list);
@@ -18710,7 +18727,8 @@ export default function AssetStudio() {
       }
     }
     if (ok1 && ok2) {
-      if (payload.id !== asset.id) setAsset((a) => ({ ...a, id: payload.id }));
+      // The new savedAt too: the NEXT save's editedFrom must name this version, not the one opened.
+      setAsset((a) => ({ ...a, id: payload.id, savedAt: payload.savedAt }));
       const worn = refreshed ? " — updated " + refreshed + " dressed look" + (refreshed === 1 ? "" : "s") : "";
       flash(target.mode === "rename" ? "Saved as a new \"" + payload.name + "\" ✓ — the original was kept"
         : "Saved to this device ✓" + worn);
@@ -19424,7 +19442,7 @@ export default function AssetStudio() {
   // way — one library, one storage entry, usable from both screens.
   const saveTexture = async (t, applyTo) => {
     if (!TEXTURES[t.tex]) { flash("Unknown texture pattern."); return null; }
-    const clean = { ...t, name: (t.name || "").trim() || TEXTURES[t.tex].label, savedAt: Date.now() }; // stamped, same reason as saveLevel
+    const clean = stampSave({ ...t, name: (t.name || "").trim() || TEXTURES[t.tex].label }, t); // stamped, same reason as saveLevel
     let list = []; const idx = await sget("textureIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     const ok1 = await sset("texture:" + clean.id, JSON.stringify(clean));
     list = list.filter((x) => x.id !== clean.id); list.push({ id: clean.id, name: clean.name });
@@ -19627,7 +19645,9 @@ export default function AssetStudio() {
     const target = resolveSaveTarget(list, toSave);
     // STAMPED. A level never carried savedAt, which is why no merge could ever tell a stale copy
     // of one from a fresh one — see fileIsNewer. Assets have always had this; now everything does.
-    const payload = { ...(target.id !== toSave.id ? { ...toSave, id: target.id } : toSave), savedAt: Date.now() };
+    // editedFrom (stampSave) = the version on screen, so the keeper merges against what this edit
+    // really started from and a deleted cell stays deleted.
+    const payload = stampSave(target.id !== toSave.id ? { ...toSave, id: target.id } : toSave, toSave);
     const ok1 = await sset("level:" + payload.id, JSON.stringify(payload));
     list = list.filter((x) => x.id !== payload.id); list.push({ id: payload.id, name: payload.name });
     const ok2 = await sset("levelIndex", JSON.stringify(list));
@@ -19705,7 +19725,7 @@ export default function AssetStudio() {
     // resolveSaveTarget. Without it, opening "Guard" and renaming it "Guard (angry)" would write
     // straight over the original and the tree you started from would simply cease to exist.
     const target = resolveSaveTarget(list, dlgDoc);
-    const payload = { ...(target.id !== dlgDoc.id ? { ...dlgDoc, id: target.id } : dlgDoc), savedAt: Date.now() }; // stamped, same reason as saveLevel
+    const payload = stampSave(target.id !== dlgDoc.id ? { ...dlgDoc, id: target.id } : dlgDoc, dlgDoc); // stamped, same reason as saveLevel
     const ok1 = await sset("dialogue:" + payload.id, JSON.stringify(payload));
     list = list.filter((x) => x && x.id !== payload.id); list.push({ id: payload.id, name: payload.name });
     const ok2 = await sset("dialogueIndex", JSON.stringify(list));
@@ -19787,7 +19807,7 @@ export default function AssetStudio() {
   // weapon and the board point at that id and a rename must not leave them pointing at nothing.
   // (resolveSaveTarget's rename-forks rule is for editors you Save from; this is a library row.)
   const putSoundRecord = async (rec, msg) => {
-    const payload = { ...rec, savedAt: Date.now() };
+    const payload = stampSave(rec, rec);
     let list = [];
     try { const idx = await sget("soundIndex"); list = idx ? JSON.parse(idx) : []; } catch { list = []; }
     if (!Array.isArray(list)) list = [];
@@ -19840,7 +19860,7 @@ export default function AssetStudio() {
     try { const raw = await sget("asset:" + w.id); if (raw && !isTombstoneRecord(raw)) rec = JSON.parse(raw); } catch { rec = null; }
     if (!rec) { flash("Couldn't save — \"" + (w.name || w.id) + "\" isn't in storage."); return; }
     const sounds = withAssetSound(rec.sounds, slot, soundId);
-    const payload = { ...rec, sounds, savedAt: Date.now() };
+    const payload = stampSave({ ...rec, sounds }, rec);
     if (!(await sset("asset:" + payload.id, JSON.stringify(payload)))) { flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + "."); return; }
     projectLibrary.save({ assets: [payload] }, { revive: true });
     setLibrary((lib) => lib.map((a) => (a && a.id === payload.id ? { ...a, sounds, savedAt: payload.savedAt } : a)));
@@ -19856,7 +19876,7 @@ export default function AssetStudio() {
     try { const raw = await sget("dialogue:" + d.id); if (raw && !isTombstoneRecord(raw)) rec = JSON.parse(raw); } catch { rec = null; }
     if (!rec) { flash("Couldn't save — \"" + (d.name || d.id) + "\" isn't in storage."); return; }
     const withSound = (x) => { const n = { ...x }; if (soundId) n.sound = soundId; else delete n.sound; return n; };
-    const payload = { ...withSound(rec), savedAt: Date.now() };
+    const payload = stampSave(withSound(rec), rec);
     if (!(await sset("dialogue:" + payload.id, JSON.stringify(payload)))) { flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + "."); return; }
     projectLibrary.save({ dialogues: [payload] }, { revive: true });
     setDlgLib((lib) => lib.map((x) => (x && x.id === payload.id ? withSound(x) : x)));
