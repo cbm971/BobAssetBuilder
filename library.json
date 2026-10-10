@@ -748027,7 +748027,7 @@
       {
        "id": "o9jtbzi",
        "kind": "rect",
-       "x": 159,
+       "x": 158,
        "y": 229.5,
        "w": 20.5,
        "h": 5.5,
@@ -748081,10 +748081,10 @@
       {
        "id": "gxvbi6f",
        "kind": "rect",
-       "x": 150,
-       "y": 194,
-       "w": 24,
-       "h": 11.5,
+       "x": 148.5,
+       "y": 195.5,
+       "w": 25,
+       "h": 10.5,
        "color": "#386aff",
        "mirror": false,
        "fx": {
@@ -748251,6 +748251,40 @@
        },
        "rot": 355,
        "isMuzzle": true
+      },
+      {
+       "id": "yxgy34t",
+       "kind": "stadium",
+       "x": 139,
+       "y": 236.5,
+       "w": 23,
+       "h": 5,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 13
+      },
+      {
+       "id": "z6hucij",
+       "kind": "stadium",
+       "x": 157.5,
+       "y": 237,
+       "w": 8.5,
+       "h": 3,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 103
       }
      ],
      "side": [
@@ -748756,6 +748790,40 @@
        },
        "rot": 0,
        "isMuzzle": true
+      },
+      {
+       "id": "9kmx87d",
+       "kind": "stadium",
+       "x": 52.5,
+       "y": 228,
+       "w": 24.5,
+       "h": 8.5,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 38
+      },
+      {
+       "id": "fb24tds",
+       "kind": "stadium",
+       "x": 69,
+       "y": 234,
+       "w": 12.5,
+       "h": 4.5,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 128
       }
      ],
      "up": [
@@ -750411,7 +750479,7 @@
      {
       "id": "o9jtbzi",
       "kind": "rect",
-      "x": 159,
+      "x": 158,
       "y": 229.5,
       "w": 20.5,
       "h": 5.5,
@@ -750465,10 +750533,10 @@
      {
       "id": "gxvbi6f",
       "kind": "rect",
-      "x": 150,
-      "y": 194,
-      "w": 24,
-      "h": 11.5,
+      "x": 148.5,
+      "y": 195.5,
+      "w": 25,
+      "h": 10.5,
       "color": "#386aff",
       "mirror": false,
       "fx": {
@@ -750635,6 +750703,40 @@
       },
       "rot": 355,
       "isMuzzle": true
+     },
+     {
+      "id": "yxgy34t",
+      "kind": "stadium",
+      "x": 139,
+      "y": 236.5,
+      "w": 23,
+      "h": 5,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 13
+     },
+     {
+      "id": "z6hucij",
+      "kind": "stadium",
+      "x": 157.5,
+      "y": 237,
+      "w": 8.5,
+      "h": 3,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 103
      }
     ],
     "side": [
@@ -751140,6 +751242,40 @@
       },
       "rot": 0,
       "isMuzzle": true
+     },
+     {
+      "id": "9kmx87d",
+      "kind": "stadium",
+      "x": 52.5,
+      "y": 228,
+      "w": 24.5,
+      "h": 8.5,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 38
+     },
+     {
+      "id": "fb24tds",
+      "kind": "stadium",
+      "x": 69,
+      "y": 234,
+      "w": 12.5,
+      "h": 4.5,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 128
      }
     ],
     "up": [
@@ -753607,7 +753743,7 @@
         {
          "id": "o9jtbzi",
          "kind": "rect",
-         "x": 159,
+         "x": 158,
          "y": 229.5,
          "w": 20.5,
          "h": 5.5,
@@ -753661,10 +753797,10 @@
         {
          "id": "gxvbi6f",
          "kind": "rect",
-         "x": 150,
-         "y": 194,
-         "w": 24,
-         "h": 11.5,
+         "x": 148.5,
+         "y": 195.5,
+         "w": 25,
+         "h": 10.5,
          "color": "#386aff",
          "mirror": false,
          "fx": {
@@ -753831,6 +753967,40 @@
          },
          "rot": 355,
          "isMuzzle": true
+        },
+        {
+         "id": "yxgy34t",
+         "kind": "stadium",
+         "x": 139,
+         "y": 236.5,
+         "w": 23,
+         "h": 5,
+         "color": "#c8a23c",
+         "mirror": false,
+         "fx": {
+          "opacity": 1,
+          "glow": 0,
+          "glowColor": "#ffd76b",
+          "bright": 1
+         },
+         "rot": 13
+        },
+        {
+         "id": "z6hucij",
+         "kind": "stadium",
+         "x": 157.5,
+         "y": 237,
+         "w": 8.5,
+         "h": 3,
+         "color": "#c8a23c",
+         "mirror": false,
+         "fx": {
+          "opacity": 1,
+          "glow": 0,
+          "glowColor": "#ffd76b",
+          "bright": 1
+         },
+         "rot": 103
         }
        ],
        "side": [
@@ -754336,6 +754506,40 @@
          },
          "rot": 0,
          "isMuzzle": true
+        },
+        {
+         "id": "9kmx87d",
+         "kind": "stadium",
+         "x": 52.5,
+         "y": 228,
+         "w": 24.5,
+         "h": 8.5,
+         "color": "#c8a23c",
+         "mirror": false,
+         "fx": {
+          "opacity": 1,
+          "glow": 0,
+          "glowColor": "#ffd76b",
+          "bright": 1
+         },
+         "rot": 38
+        },
+        {
+         "id": "fb24tds",
+         "kind": "stadium",
+         "x": 69,
+         "y": 234,
+         "w": 12.5,
+         "h": 4.5,
+         "color": "#c8a23c",
+         "mirror": false,
+         "fx": {
+          "opacity": 1,
+          "glow": 0,
+          "glowColor": "#ffd76b",
+          "bright": 1
+         },
+         "rot": 128
         }
        ],
        "up": [
@@ -758321,7 +758525,7 @@
     "Furry"
    ],
    "value": 30,
-   "savedAt": 1791663427031,
+   "savedAt": 1791663544889,
    "rank": "legendary",
    "sounds": {
     "hit": "6hh0w94",
