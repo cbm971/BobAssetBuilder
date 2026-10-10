@@ -3987,3 +3987,44 @@ frames per MessageChannel tick, sped drives up about 4x and made them determinis
 `performance.now` BEFORE patching it: a second shim that bound the patched one gated its ticks on a
 frozen clock and deadlocked. The hidden pane barely runs between tool calls, so keep calls going
 (~1.9 s each) while a sweep runs.
+
+## FALLING UNDER M14'S SAUCER, FOR REAL THIS TIME (2026-10-10)
+
+**Blake, after the M15 fix: "Wait it's M14 that's bugged. I didn't know of a M15 bug I misspoke ...
+M14 beside the UFO is the bugged level where you fall under."** The M15 fix stays (the manhole bug was
+real). The 10-09 `landingReach` fix was real too, but it was one instance. M14's saucer (`ufosacr`)
+stands on a HIDDEN ramp mound I built in 9848c72 (cols 78-107, rows 10-19) on the two-row slab
+(rows 20-21) over the lab. The whole slab under and beside it is hill formation.
+
+**Two ways in, one way through.**
+- **Walking into the right side.** That side's lowest ramp is at row 18 over a solid lip at (19,107),
+  one cell above the slab, while the left side ramps all the way down. Hill near the feet stands aside
+  for a walker, so the lip was no stair: the body walked into it, its centre reached col 107 with the
+  ramp surface 34 px above the feet (`slopeSurfaceForPlayer` snaps up 31 px at most), and nothing
+  lifted it. Control on 16927fc: walking left from x 3400, the body entered at 3215 and fell, y 390 →
+  520 and on into the lab. Probably what he kept hitting.
+- **A running jump from either foot.** Rising bodies are never snapped onto ramps (vy < 0), the
+  mound's cells near the feet were "hill", and there was ground under the centre (the mound), so the
+  M15 rule let it in. At the apex the feet were 40 px inside the mound (x 2264 → 2514, y 310, then
+  straight down to y 840, the street). 3 of 16 take-off cells on the left foot, 4 of 15 on the right.
+- **Through:** the centre-column hill window was measured from the TOPMOST hill cell in that column.
+  For a body inside the mound that top is above the feet, so every row under the feet was refused,
+  the slab included.
+
+**Fix.**
+- `hillStandsAside`: hill stands aside for a sideways move only for a body on its feet (`grounded`;
+  units `onGround || climbing`) with ground under its centre, or on a top-down plane. In the air it is
+  a wall; the step-assist still lifts a jump over one cell.
+- `centreHillLanding`: a body inside the hill that is on its feet with the top at most a cell up
+  steps onto it (eased with `stepEase`, if its head has room), so the right side is now walked up.
+  Anything else lands on the row its feet crossed, so nothing falls through.
+
+**After (same harness, Super Bob, his M14):**
+- Walking left over the whole saucer climbs the right side and comes down the left.
+- All 36 running jumps (cols 64-80 right, 106-124 left) land on the saucer or the slab.
+- A drop sweep of cols 56-129 with every fourth frame at dt 3 is clean.
+- Bodies started inside the mound settle 10 px and climb out.
+- M15's ladder step-offs and manhole walk are unchanged, Sewer M3's waterfall still drops into the
+  room, and Forest M1's boulder at x 1075 blocks Super Bob on the old code too (it is 6 cells, his
+  jump about 3), so it is not a regression.
+- Units keep their landing (it never split hill out); only their sideways move got the on-feet rule.

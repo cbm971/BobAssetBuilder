@@ -603,6 +603,9 @@ import {
   groundUnderFeet,
   fgGroundAt,
   sideWalls,
+  hillStandsAside,
+  centreHillLanding,
+  HILL_STEP_TOLERANCE,
   godModeOn,
   playerHpAfterHit,
   shouldStepAssist,
@@ -12533,10 +12536,77 @@ describe("a body in mid-air over a hole cannot walk into the hole's ramp-lipped 
   });
   test("the player's sideways move, the player's landing and a unit's sideways move all ask it", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
-    expect(src).toMatch(/let wallHits = sideWallsW\(hits, p\.y \+ ph, p\.x \+ pw \/ 2, p\.topdown\);/);
+    // Sideways: on its feet or not (M14), as well as ground under it (M15).
+    expect(src).toMatch(/let wallHits = sideWallsW\(hits, p\.y \+ ph, p\.x \+ pw \/ 2, p\.topdown, grounded\);/);
+    expect(src).toMatch(/const eWallHits = sideWallsW\(wallBoxHits\(nx, ep\.y\), ep\.y \+ newEph, nx \+ epw \/ 2, ep\.topdown, !!\(ep\.onGround \|\| ep\.climbing\)\)/);
+    // The landing's edge question is only "is there ground under the centre".
     expect(src).toMatch(/if \(!landHits\.length\) landHits = sideWallsW\(hits, p\.y \+ ph, p\.x \+ pw \/ 2, p\.topdown\);/);
-    expect(src).toMatch(/const eWallHits = sideWallsW\(wallBoxHits\(nx, ep\.y\), ep\.y \+ newEph, nx \+ epw \/ 2, ep\.topdown\)/);
     expect(src).not.toMatch(/splitHillHitsW\(hits, p\.y \+ ph\)\.walls/);
+  });
+});
+
+// Blake (2026-10-10, the real report — M15 above was a slip of the tongue): "M14 beside the UFO is
+// the bugged level where you fall under". The saucer stands on a hidden ramp mound on a two-row slab
+// over the lab. Walking into its right side (a ramp that starts one cell up, over a solid lip), or a
+// running jump that rose into either flank, left the body INSIDE the mound, and the centre-column
+// hill window, measured from the mound's top above the feet, refused every row under them.
+describe("a body inside M14's saucer mound neither falls through it nor sticks in it", () => {
+  const CW = 30, CH = 30;
+  const ramp = (slope) => ({ c: "#7f8479", slope, run: 1, step: 0, hideInPlay: true });
+  const solid = { c: "#7f8479", hideInPlay: true };
+  // A mound in miniature on a two-row slab (rows 10-11, the lab under it). Left side ramps down to
+  // the slab; the right side's lowest ramp sits on a solid lip at (9,7), one cell above the slab.
+  const saucer = () => {
+    const fg = {};
+    for (let c = 0; c < 20; c++) { fg["10," + c] = "#555"; fg["11," + c] = "#555"; }
+    fg["9,4"] = ramp(1); fg["8,5"] = ramp(1); fg["9,5"] = solid;
+    fg["8,6"] = solid; fg["9,6"] = solid;
+    fg["8,7"] = ramp(-1); fg["9,7"] = solid;
+    return { cols: 20, rows: 20, fg };
+  };
+  const isGround = (lv) => (r, c) => fgGroundAt(lv, r, c);
+  test("the lip and the slab under the mound are hill, so they never counted as plain floor", () => {
+    const lv = saucer();
+    expect(isHillFormationCell(lv, 9, 7)).toBe(true);
+    expect(isHillFormationCell(lv, 10, 7)).toBe(true);
+  });
+  test("a body in the air meets the mound's side as a wall; one on its feet walks into it as before", () => {
+    const lv = saucer();
+    // Centre over the mound, feet inside it: there is ground under the centre either way.
+    expect(hillStandsAside(isGround(lv), 6, 9 * CH + 10, CH, false, false)).toBe(false); // a jump rising into the flank
+    expect(hillStandsAside(isGround(lv), 6, 9 * CH + 10, CH, false, true)).toBe(true);   // walking up the mound
+    expect(hillStandsAside(isGround(lv), 6, 9 * CH + 10, CH, true, false)).toBe(true);   // a 🚶 plane is its own ground
+    expect(hillStandsAside(isGround(lv), 15, 4 * CH, CH, false, true)).toBe(false);      // nothing under the centre (M15)
+  });
+  test("walking into the lip: the old window refused every row; now it steps up onto the lip", () => {
+    const feet = 10 * CH + 0.5;                         // on the slab, a frame of gravity in
+    const hill = [{ r: 9, c: 7 }, { r: 10, c: 7 }];      // the centre column: the lip, then the slab
+    const out = centreHillLanding(hill, feet, CH * 0.5, CH, true);
+    expect(out.stepTop).toBe(9 * CH);                    // stood on the lip, a cell up
+    expect(out.land).toEqual([{ r: 10, c: 7 }]);         // ...or, with no headroom, on the slab
+  });
+  test("inside the mound in the air, or deeper than a cell: it lands on the row its feet crossed", () => {
+    // A jump's apex left the feet 40 px into the mound; falling 5 px a frame they cross the slab.
+    const hill = [{ r: 8, c: 6 }, { r: 9, c: 6 }, { r: 10, c: 6 }];
+    const air = centreHillLanding(hill, 10 * CH + 4, 9, CH, false);
+    expect(air.stepTop).toBeNull();
+    expect(air.land).toEqual([{ r: 10, c: 6 }]);
+    // Two cells of mound over the feet is no step, even on its feet.
+    expect(centreHillLanding(hill, 10 * CH + 4, 9, CH, true).stepTop).toBeNull();
+    // ...and between rows it lands on nothing yet, so it keeps falling to the next one it crosses.
+    expect(centreHillLanding(hill, 10 * CH + 20, 9, CH, false).land).toEqual([]);
+  });
+  test("a body just reaching the hill's top lands there exactly as before", () => {
+    const hill = [{ r: 9, c: 6 }, { r: 10, c: 6 }];
+    expect(centreHillLanding(hill, 9 * CH + 3, 15, CH, false)).toEqual({ land: hill, stepTop: null });
+    expect(centreHillLanding([], 300, 15, CH, true)).toEqual({ land: [], stepTop: null });
+    expect(HILL_STEP_TOLERANCE).toBeLessThan(5);
+  });
+  test("the player's landing uses it, and a step up eases like a stair", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toMatch(/centreHillLanding\(centerSplit\.hill, p\.y \+ ph, reach, CH, grounded\)/);
+    expect(src).toMatch(/p\.stepEase = Math\.min\(CH, \(p\.stepEase \|\| 0\) \+ lift\); stepped = true;/);
+    expect(src).not.toMatch(/feetBottom <= hillTop \+ reach\) landHits = centerSplit\.hill/);
   });
 });
 
