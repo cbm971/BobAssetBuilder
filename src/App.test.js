@@ -12636,6 +12636,19 @@ describe("👻 translucent assets", () => {
   });
 });
 
+// "the slider makes everything see through" (Blake, 2026-10-10): a held group (Select all, a stored
+// group, Copy block) is NOT what the block's 👻 slider fades. Same rule as Fade: the selected block.
+describe("👻 the per-block slider fades one block", () => {
+  test("it writes through updSel (selected block), never updSelAll (the held group) or the colour group", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    const line = src.split("\n").find((l) => l.includes("👻 Translucent<input"));
+    expect(line).toBeTruthy();
+    expect(line).toContain("updSel({ translucency");
+    expect(line).not.toContain("updSelAll");
+    expect(line).not.toContain("updFx");
+  });
+});
+
 // 🎯 2026-10-10, Blake: "for items can you add one that increases range for X duration". The
 // Long Shot multiplier, on a timer.
 describe("🎯 range items", () => {

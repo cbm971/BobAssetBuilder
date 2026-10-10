@@ -24391,11 +24391,11 @@ export default function AssetStudio() {
                   <label className="slider">Brightness<input type="range" min="0.3" max="2" step="0.05" value={sel.outlineFx?.bright ?? 1} onChange={(e) => updSel({ outlineFx: { ...(sel.outlineFx || defaultFx()), bright: +e.target.value } })} /></label>
                 </div>
               )}
-              {/* 👻 THIS SHAPE, SEE-THROUGH (pieceAlpha) — the block you are editing, or every block of
-                  a selected group (updSelAll), and nothing else: never the colour-everywhere toggle,
-                  which is how a whole asset went translucent when he meant one shape. Outline and
+              {/* 👻 THIS SHAPE, SEE-THROUGH (pieceAlpha) — ONLY the selected block, like Fade (updSel, not
+                  updSelAll): a held group (Select all, a stored group, Copy block) must not be faded
+                  with it, and never the colour-everywhere toggle either, which is how it went wrong. Outline and
                   fill fade together. 0 removes the key, so an untouched block stays byte-identical. */}
-              <label className="slider">👻 Translucent<input type="range" min="0" max={TRANSLUCENCY_MAX} step={TRANSLUCENCY_STEP} value={sel.translucency ?? 0} onChange={(e) => { const v = +e.target.value; updSelAll({ translucency: v > 0 ? v : undefined }); }} /><span className="hint2" style={{ marginLeft: 6 }}>{Math.round((sel.translucency ?? 0) * 100)}%</span></label>
+              <label className="slider">👻 Translucent<input type="range" min="0" max={TRANSLUCENCY_MAX} step={TRANSLUCENCY_STEP} value={sel.translucency ?? 0} onChange={(e) => { const v = +e.target.value; updSel({ translucency: v > 0 ? v : undefined }); }} /><span className="hint2" style={{ marginLeft: 6 }}>{Math.round((sel.translucency ?? 0) * 100)}%</span></label>
               {sel.kind === "text" && (
                 <div className="textedit">
                   <label className="pick" style={{ marginBottom: 8 }}>Text<input type="text" value={sel.text || ""} onChange={(e) => updSel({ text: e.target.value })} placeholder="Type here…" maxLength={40} /></label>
