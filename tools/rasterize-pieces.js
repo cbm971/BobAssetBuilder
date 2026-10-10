@@ -19,6 +19,9 @@
 //     weapon or a garment is not punched through by that item's own cutters
 //   * outline -> the same silhouette ~1.4 units bigger in outlineColor (default #000) under the fill
 //   * fx.bright multiplies the colour; fx.opacity alpha-blends; text/emoji pieces are skipped
+//   * opts.alpha is the WHOLE asset's 👻 Translucent (App.js assetAlpha): the finished picture is
+//     blended back toward the background as one, the way the app fades a fadeGroup. --asset and
+//     --level read it off the asset.
 //
 // Usage:
 //   node tools/rasterize-pieces.js --asset <id> out.png [zoom=4] [bg=#6b7b3a] [cropX cropY cropW cropH]
@@ -137,8 +140,14 @@ function render(pieces, opts) {
       img[i] = img[i] * (1 - alpha) + col[0] * alpha; img[i + 1] = img[i + 1] * (1 - alpha) + col[1] * alpha; img[i + 2] = img[i + 2] * (1 - alpha) + col[2] * alpha;
     }
   }
+  // The canvas started as flat background, so fading the finished picture as one is a blend of
+  // every pixel back toward it.
+  const ga = opts.alpha === undefined ? 1 : opts.alpha;
+  if (ga < 1) for (let i = 0; i < ow * oh; i++) for (let k = 0; k < 3; k++) img[i * 3 + k] = bg[k] * (1 - ga) + img[i * 3 + k] * ga;
   return { w: ow, h: oh, img };
 }
+// App.js assetAlpha, restated: 1 - translucency, translucency clamped to 0..0.9.
+const assetAlpha = (a) => 1 - Math.max(0, Math.min(0.9, (a && typeof a.translucency === "number" && isFinite(a.translucency)) ? a.translucency : 0));
 // --- PNG encoder -----------------------------------------------------------------------
 const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
 const crc32 = (buf) => { let c = 0xffffffff; for (const b of buf) c = CRC[(c ^ b) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
@@ -216,7 +225,7 @@ function renderLevel(lib, lv, s, win, opts = {}) {
       const crop = o.fitArt ? [pb.minX, pb.minY, pb.w, pb.h] : [0, 0, W, H];
       const pieces = (a.frames && a.frames[0] && a.frames[0].front) || (a.angles && a.angles.front) || [];
       const zoom = (crop[2] * k * s) / crop[2];
-      const dark = render(pieces, { zoom, bg: "#000000", crop }), light = render(pieces, { zoom, bg: "#ffffff", crop });
+      const dark = render(pieces, { zoom, bg: "#000000", crop, alpha: assetAlpha(a) }), light = render(pieces, { zoom, bg: "#ffffff", crop, alpha: assetAlpha(a) });
       const left = (c + (o.ox || 0) - c0) * s, top = (r + (o.oy || 0) - r0) * s;
       for (let y = 0; y < dark.h; y++) for (let x = 0; x < dark.w; x++) {
         const i = (y * dark.w + x) * 3, al = 1 - (light.img[i] - dark.img[i]) / 255;
@@ -236,9 +245,9 @@ function renderLevel(lib, lv, s, win, opts = {}) {
   if (opts.grid) for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) { if (c % 10 === 0) for (let y = 0; y < s; y++) put((c - c0) * s, (r - r0) * s + y, [255, 255, 255], 0.25); if (r % 10 === 0) for (let x = 0; x < s; x++) put((c - c0) * s + x, (r - r0) * s, [255, 255, 255], 0.25); }
   return { w, h, img };
 }
-module.exports = { render, png, sheet, hit, originFrac, SHAPE_POINTS, renderLevel };
+module.exports = { render, png, sheet, hit, originFrac, SHAPE_POINTS, renderLevel, assetAlpha };
 if (require.main === module) {
-  let argv = process.argv.slice(2), pieces;
+  let argv = process.argv.slice(2), pieces, alpha = 1;
   if (argv[0] === "--level") {
     const flag = (f) => { const i = argv.indexOf(f); if (i < 0) return false; argv.splice(i, 1); return true; };
     const play = flag("--play"), grid = flag("--grid"), li = argv.indexOf("--lib");
@@ -257,10 +266,11 @@ if (require.main === module) {
     const a = lib.assets.find((x) => x.id === argv[1]);
     if (!a) { console.error("no asset with id " + argv[1]); process.exit(1); }
     pieces = (a.frames && a.frames[0] && a.frames[0].front) || (a.angles && a.angles.front) || [];
+    alpha = assetAlpha(a);
     argv = argv.slice(2);
   } else { pieces = JSON.parse(fs.readFileSync(argv[0], "utf8")); argv = argv.slice(1); }
   const [outFile, zoom, bg, cx, cy, cw, ch] = argv;
   const crop = cx !== undefined ? [+cx, +cy, +cw, +ch] : undefined;
-  fs.writeFileSync(outFile, png(render(pieces, { zoom: +(zoom || 4), bg, crop })));
+  fs.writeFileSync(outFile, png(render(pieces, { zoom: +(zoom || 4), bg, crop, alpha })));
   console.log("wrote", outFile);
 }

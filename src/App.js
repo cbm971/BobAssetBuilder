@@ -2796,6 +2796,7 @@ export const pedestalSummary = (m) => { const cs = ((m && m.cats) || []).map((c)
 //   { kind: "heal", amount }                  — instantly restores `amount` HP (clamped to your max)
 //   { kind: "stat", stat, amount, duration }  — adds `amount` to a stat for `duration` seconds
 //   { kind: "money", amount }                 — pays `amount` into your wallet (a dollar bill, a coin)
+//   { kind: "range", mult, duration }         — your shots fly `mult`× as far for `duration` seconds
 // It carries `categories` like gear so the SAME pedestal search finds it. Only the stats the player
 // actually reads in play are offered: Speed (move), Agility (jump), Strength (melee+throw damage),
 // Intelligence (crit chance, melee and ranged) — every one has a live effect.
@@ -2817,6 +2818,13 @@ export const normItemEffect = (e) => {
   // Rounded and floored at 1: a wallet is whole units, and a note worth nothing is a pickup that
   // flashes "+0" and reads as broken.
   if (e.kind === "money") return { kind: "money", amount: Math.max(1, Math.round(Number.isFinite(e.amount) ? e.amount : 10)) };
+  // 🎯 A TIMED LONG SHOT (2026-10-10, Blake: "for items can you add one that increases range for X
+  // duration"). "Range" here is what it already means everywhere in the game: how far a gun or bow
+  // shot flies (the weapon's Range in blocks, the 🎯 Long Shot clothing ability). So it is Long
+  // Shot's multiplier on a timer, stacking with it the same way — and like Long Shot it leaves a
+  // throw (Strength vs weight) and a melee swing alone. Floored at ×1: below that it would SHORTEN
+  // your range, which is not what an item called a range boost is for.
+  if (e.kind === "range") return { kind: "range", mult: Number.isFinite(e.mult) ? Math.max(1, e.mult) : 1.5, duration: Number.isFinite(e.duration) ? e.duration : 8 };
   return { kind: "heal", amount: Number.isFinite(e.amount) ? e.amount : 5 };
 };
 // One-line human summary for the pedestal callout / pickup flash.
@@ -2824,6 +2832,7 @@ export const itemEffectSummary = (e) => {
   const x = normItemEffect(e);
   return x.kind === "heal" ? "Heal " + x.amount + " HP"
     : x.kind === "money" ? MONEY_CHAR + " +" + x.amount
+    : x.kind === "range" ? "Range ×" + x.mult + " for " + x.duration + "s"
     : "+" + x.amount + " " + (ITEM_STAT_LABEL[x.stat] || x.stat) + " for " + x.duration + "s";
 };
 export const isMoneyItem = (a) => !!a && a.type === "item" && normItemEffect(a.effect).kind === "money";
@@ -2958,10 +2967,19 @@ export const unitMaxHP = (ea, ep, allyBonus) =>
   Math.max(1, enemyMaxHP(ea) + ((ep && ep.friendly) ? Math.max(0, Math.round(allyBonus || 0)) : 0) + Math.max(0, Math.round((ep && ep.sideHpBonus) || 0)));
 // Still-active temporary buffs summed per stat at time nowMs, as { stat: totalAmount }. Expired
 // entries (until <= nowMs) contribute nothing; two buffs on the same stat stack. Pure.
+// A 🎯 range buff has no `stat` (it is a multiplier, read by activeRangeMult) and is skipped here.
 export const activeBuffSum = (buffs, nowMs) => {
   const out = {};
-  for (const b of (buffs || [])) { if (b && b.until > nowMs) out[b.stat] = (out[b.stat] || 0) + (b.amount || 0); }
+  for (const b of (buffs || [])) { if (b && b.stat && b.until > nowMs) out[b.stat] = (out[b.stat] || 0) + (b.amount || 0); }
   return out;
+};
+// The 🎯 range item's share of how far a shot flies right now: every still-running range buff's
+// multiplier, multiplied together (two ×1.5 potions = ×2.25), 1 when none is running. Multiplies
+// rather than adds for the same reason rangeBoostMultiplier does, and the shot multiplies the two.
+export const activeRangeMult = (buffs, nowMs) => {
+  let mult = 1;
+  for (const b of (buffs || [])) if (b && b.kind === "range" && b.until > nowMs) mult *= Math.max(1, b.mult || 1);
+  return mult;
 };
 // Drop buffs whose timer has elapsed (called every frame so the list can't grow unbounded).
 export const pruneBuffs = (buffs, nowMs) => (buffs || []).filter((b) => b && b.until > nowMs);
@@ -9011,6 +9029,27 @@ export const cutterMaskFrameLayout = () => ({
   },
   viewBox: { x: -CUTTER_MASK_PAD, y: -CUTTER_MASK_PAD, width: W + CUTTER_MASK_PAD * 2, height: H + CUTTER_MASK_PAD * 2 },
 });
+// 👻 A WHOLE ASSET CAN BE TRANSLUCENT (2026-10-10, Blake: "add the ability to make items
+// translucent, with a scale"). `translucency` lives flat on the asset, 0 = solid (and what every
+// asset saved before this reads as) up to TRANSLUCENCY_MAX, set by the 👻 Translucent slider every
+// asset editor shows. The per-block ✨ Fade slider already existed and is a different thing: it fades
+// ONE piece by itself, so where two faded pieces overlap you see the lower one through the upper
+// (a dark-edge piece under a fill shows through it as a murky band, and an outlined triangle's
+// solid outline silhouette shows through its own fill). This fades the asset as ONE picture — it is
+// drawn whole and then the result is made see-through (fadeGroup) — so a glass bottle reads as
+// glass. Capped short of 1 so a slider dragged to the end never makes a thing that is invisible
+// and cannot be found again in a level.
+export const TRANSLUCENCY_MAX = 0.9;
+export const TRANSLUCENCY_STEP = 0.05;
+export const assetAlpha = (a) => {
+  const t = a && typeof a.translucency === "number" && isFinite(a.translucency) ? a.translucency : 0;
+  return 1 - Math.max(0, Math.min(TRANSLUCENCY_MAX, t));
+};
+// One box the size of the art's own frame (the same 0–100% every piece positions against), with the
+// opacity on it, so its children composite together first and fade as one. pointer-events:none so
+// the editor's own click-through still reaches the pieces' inner fills, which opt back in.
+export const fadeGroup = (key, alpha, children) =>
+  <div key={key} style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "100%", pointerEvents: "none", opacity: alpha }}>{children}</div>;
 // Renders one finished (non-editable) piece list. `drawPiece(piece, key, cutters)` supplies the
 // renderer; `cutters` is the list of cutter pieces above that piece in its run, which the
 // renderer cuts into the piece itself (cutterHoleClips). Returns a flat node array for JSX to splat.
@@ -9020,11 +9059,27 @@ export const cutterMaskFrameLayout = () => ({
 // Until 2026-09-20 every cut segment was wrapped in a padded frame carrying an SVG mask-image
 // (cutterMaskCss); see cutterShapePoints for why that could not stay. `cacheKey` is accepted so
 // no call site had to change; nothing reads it now.
-export const renderPieceRuns = ({ pieces, cacheKey, keyPrefix, drawPiece }) =>
-  cutterRuns(pieces).map((r, gi) => {
-    if (!r.hasCutter) return r.drawn.map((p, n) => drawPiece(p, keyPrefix + gi + "_" + n));
-    return cutterLayerSegments(r.pieces).map((s) => s.items.map(([p, n]) => drawPiece(p, keyPrefix + gi + "_" + n, s.cutters.length ? s.cutters : undefined)));
+//
+// 👻 Translucency comes in two ways, and a list uses one or the other:
+//   `alpha`   — the list is ONE asset (a prop, an item on a plinth, a shot in flight): the whole
+//               list fades as one picture. Not by `_src`: a garment's stored pieces can still carry
+//               the `_src` of the asset they were copied from (17 in his library on 2026-10-10,
+//               the Super Shirt's from another shirt), so a run key there would fade half of it.
+//   `alphaOf` — the list is a COMPOSED sprite (a dressed look, a unit holding a gun): each run is a
+//               different asset and fades by its own (alphaOf(run key)), so a glass helmet is
+//               see-through on a solid Bob. Composition re-tags every garment's pieces with the
+//               garment's own id (layerBodyAndOverlays), so the keys are right there.
+// A list with nothing translucent in it renders exactly the elements it always did.
+export const renderPieceRuns = ({ pieces, cacheKey, keyPrefix, drawPiece, alpha = 1, alphaOf = null }) => {
+  const runs = cutterRuns(pieces).map((r, gi) => {
+    const nodes = !r.hasCutter
+      ? r.drawn.map((p, n) => drawPiece(p, keyPrefix + gi + "_" + n))
+      : cutterLayerSegments(r.pieces).map((s) => s.items.map(([p, n]) => drawPiece(p, keyPrefix + gi + "_" + n, s.cutters.length ? s.cutters : undefined)));
+    const ra = alphaOf ? alphaOf(r.key) : 1;
+    return ra < 1 ? fadeGroup(keyPrefix + "a" + gi, ra, nodes) : nodes;
   });
+  return alpha < 1 ? [fadeGroup(keyPrefix + "a", alpha, runs)] : runs;
+};
 export const shapePolyPoints = (p) => (p && p.kind === "poly" && p.points) ? p.points : (p && SHAPE_POINTS[p.kind]) || (typeof p === "string" ? SHAPE_POINTS[p] : null);
 // The polygon string is cached PER POINTS ARRAY. Every drawn piece asks for it every frame (a
 // sprite of ~100 pieces, several sprites on screen, 60 times a second), and a semicircle is 32
@@ -9482,6 +9537,7 @@ export const editorReachIssues = (asset) => {
     if (node && typeof node === "object") for (const [k, v] of Object.entries(node)) walk(v, at + "." + k);
   };
   for (const root of ["angles", "states", "frames", "variants"]) if (asset[root]) walk(asset[root], root);
+  if (asset.translucency !== undefined && !(onEditorStep(asset.translucency, TRANSLUCENCY_STEP) && asset.translucency >= 0 && asset.translucency <= TRANSLUCENCY_MAX + 1e-9)) out.push("translucent " + asset.translucency + " is not a slider stop");
   if (asset.type === "prop") {
     if (!PROP_DEFAULT_SIZES.includes(asset.size)) out.push("size " + asset.size + " is not one the size picker offers");
     if (asset.animFps !== undefined && !(onEditorStep(asset.animFps, 1) && asset.animFps >= 1 && asset.animFps <= 20)) out.push("anim speed " + asset.animFps + " is not a slider stop");
@@ -12459,6 +12515,14 @@ export default function AssetStudio() {
       setWallet(wallet.current + eff.amount);
       line = MONEY_CHAR + " +" + eff.amount;
       if (!quiet) flash(MONEY_CHAR + " " + item.name + " · +" + eff.amount + " (" + wallet.current + " total)" + tail);
+    } else if (eff.kind === "range") {
+      // Rides the same timed list as a stat boost, so it expires, survives a door and a gate, and is
+      // cleared on a fresh playtest exactly as one does; activeRangeMult reads it at the trigger.
+      const nowMs = playNowMs();
+      itemBuffs.current = pruneBuffs(itemBuffs.current, nowMs);
+      itemBuffs.current.push({ kind: "range", mult: eff.mult, until: nowMs + eff.duration * 1000 });
+      line = itemEffectSummary(eff);
+      if (!quiet) flash("🎯 " + item.name + " · " + line + tail);
     } else {
       const nowMs = playNowMs();
       itemBuffs.current = pruneBuffs(itemBuffs.current, nowMs);
@@ -14871,6 +14935,7 @@ export default function AssetStudio() {
               startX: eShotAt.x, startY: eShotAt.y, groundY: ep.y + newEph, rangePx, traveled: 0,
               char: ew.projectile?.char || "🔥", tint: ew.projectile?.tint || null,
               pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece,
+              alpha: assetAlpha(projAsset), // 👻 the Projectile asset's own Translucent
               rot: Math.atan2(vy, vx) * 180 / Math.PI, size: sizeUnits,
               damage: enemyAttackDamage(ea, ew), life: 0, foe: hostile,
               // Its crit is rolled where it LANDS, off the shooter's Intelligence — your own shot's
@@ -15069,7 +15134,9 @@ export default function AssetStudio() {
             return { x: wrapLeftM + (playerSpriteMirrored(basePlayerAsset, p.face) ? renderWM - lx : lx), y: p.y + (mp.y / H) * ph };
           };
           let spawn = muzzleSpawn(0) || { x: p.x + pw / 2 + p.face * pw * 0.3, y: p.y + ph * 0.35 };
-          const rangePxNow = Math.max(1, playtestWeapon.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW * rangeBoostMultiplier(playerAsset?.effects); // ?. — as the ▢ Plain box there is no asset, and this read froze the game on the first shot
+          // × a 🎯 range item still running (activeRangeMult) — the same number shapes the arc and the
+          // aim assist's reach, so a boosted shot both flies farther and locks on from farther.
+          const rangePxNow = Math.max(1, playtestWeapon.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW * rangeBoostMultiplier(playerAsset?.effects) * activeRangeMult(itemBuffs.current, nowT); // ?. — as the ▢ Plain box there is no asset, and this read froze the game on the first shot
           // AIM ASSIST — see aimAssistAngle; the targets come from shotTargetsFor, the same
           // builder a unit's trigger finger uses, so both sides lock onto exactly what their shot
           // can hit and nothing else.
@@ -15116,6 +15183,7 @@ export default function AssetStudio() {
             rangePx: rangePxNow, traveled: 0,
             char: playtestWeapon.projectile?.char || "🔥", tint: playtestWeapon.projectile?.tint || null,
             pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
+            alpha: assetAlpha(projAsset || playtestWeapon), // 👻 the Projectile asset's Translucent (an old gun drew its round itself, so then the gun's)
             size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset?.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
             ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor, pierce: playerShotsPierce, snd: playtestWeapon, // snd: whose 🔊 Hit plays where it lands
             explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeChar: playtestWeapon.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
@@ -18097,10 +18165,10 @@ export default function AssetStudio() {
       // translate that canvas so the measured visible-art box begins at the placement's 0,0.
       // This crops empty authoring-canvas space without stretching or relocating any piece.
       const scale = Math.min(widthPx / tightBox.w, heightPx / tightBox.h);
-      return <div style={{ position: "absolute", left: -tightBox.minX * scale, top: -tightBox.minY * scale, width: W * scale, height: H * scale, pointerEvents: "none" }}>{renderPieceRuns({ pieces, cacheKey: keyBase || "prop", keyPrefix: (keyBase || "prop") + "_", drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, onPiecePointerDown, cut) })}</div>;
+      return <div style={{ position: "absolute", left: -tightBox.minX * scale, top: -tightBox.minY * scale, width: W * scale, height: H * scale, pointerEvents: "none" }}>{renderPieceRuns({ pieces, cacheKey: keyBase || "prop", keyPrefix: (keyBase || "prop") + "_", alpha: assetAlpha(propAsset), drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, onPiecePointerDown, cut) })}</div>;
     }
     const sz = Math.max(widthPx, heightPx);
-    const _k = Math.min(sz / W, sz / H), _bw = W * _k, _bh = H * _k; return <div style={{ position: "absolute", left: (sz - _bw) / 2, top: (sz - _bh) / 2, width: _bw, height: _bh, pointerEvents: "none" }}>{renderPieceRuns({ pieces, cacheKey: keyBase || "prop", keyPrefix: (keyBase || "prop") + "_", drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, onPiecePointerDown, cut) })}</div>;
+    const _k = Math.min(sz / W, sz / H), _bw = W * _k, _bh = H * _k; return <div style={{ position: "absolute", left: (sz - _bw) / 2, top: (sz - _bh) / 2, width: _bw, height: _bh, pointerEvents: "none" }}>{renderPieceRuns({ pieces, cacheKey: keyBase || "prop", keyPrefix: (keyBase || "prop") + "_", alpha: assetAlpha(propAsset), drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, onPiecePointerDown, cut) })}</div>;
   };
   // One place that turns a placed level object into its inner JSX — emoji/shape via objInner,
   // or a prop via propArtInner (looking the asset up + choosing its current animation frame).
@@ -18533,6 +18601,14 @@ export default function AssetStudio() {
   // scratch (including a nested O(n*m) filter) on every render before this fix.
   const assetById = useMemo(() => { const m = new Map(); for (const a of allAssets) m.set(a.id, a); return m; }, [allAssets]);
   const findA = (id) => assetById.get(id) || null;
+  // 👻 How see-through each run of a COMPOSED sprite draws (renderPieceRuns' alphaOf). A run tagged
+  // with an asset's id fades by that asset — a garment, a skin, the body, a gun Dress Bob or a corpse
+  // tagged. "__weapon" is held art baked live in play, which carries no _src, so it fades by what is
+  // in the hand (`held`). Anything else is the sprite's own untagged art and fades by `root`.
+  const spriteAlphaOf = (root, held) => (key) => {
+    if (key === "__weapon") return assetAlpha(held);
+    return assetAlpha(root && key === root.id ? root : (assetById.get(key) || root));
+  };
   // Baked ground art is cached by item id (see groundArt), so it has to be dropped whenever the
   // library changes underneath it — otherwise redrawing a rifle in the Asset Studio and coming
   // back would leave the old one lying on the pedestal.
@@ -20598,7 +20674,7 @@ export default function AssetStudio() {
             })()}
             <div ref={artRef} className="art">
               {!body && !viewDressed && <div className="emptyart">pick a body →</div>}
-              {renderPieceRuns({ pieces: dressArtPieces, cacheKey: "dressbob", keyPrefix: "d", drawPiece: (p, k, cut) => Static(p, null, false, !!p._m, k, undefined, cut) })}
+              {renderPieceRuns({ pieces: dressArtPieces, cacheKey: "dressbob", keyPrefix: "d", alphaOf: spriteAlphaOf(viewDressed, weapon), drawPiece: (p, k, cut) => Static(p, null, false, !!p._m, k, undefined, cut) })}
             </div>
           </div>
           <aside className="side">
@@ -22088,7 +22164,7 @@ export default function AssetStudio() {
                       })()}
                       <div className={blocks ? "playerWrap" : "player"} style={style}>
                         {blocks ? (() => {
-                          const art = renderPieceRuns({ pieces: blocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "player", keyPrefix: "pl", drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, undefined, cut) });
+                          const art = renderPieceRuns({ pieces: blocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "player", keyPrefix: "pl", alphaOf: spriteAlphaOf(playerAsset, showThrowInHand ? carriedThrowRender : playtestWeapon), drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, undefined, cut) });
                           const crouchWalk = p.crouch && p.walking;
                           return crouchPlane ? <div style={{ position: "absolute", left: 0, top: crouchPlane.top, width: renderW, height: crouchPlane.height, transform: crouchWalk ? `scaleY(${crouchPlane.walkScaleY})` : undefined, transformOrigin: crouchWalk ? `50% ${crouchPlane.originY}px` : undefined }}>{art}</div> : art;
                         })() : <><div className="peye" /><div className="pbody" /></>}
@@ -22272,7 +22348,7 @@ export default function AssetStudio() {
                     const deadFlip = enemyNeedsFlip(ea, ep && ep.face) ? "scaleX(-1) " : "";
                     return (
                       <div key={uKey} className="playerWrap enemySpawn enemyDead" style={{ left: eLeft, top: dTop + deadFootAnchor, width: eRenderW, height: dEph, pointerEvents: "none", zIndex: CORPSE_Z, transform: deadFlip + (layDown ? "rotate(90deg)" : ""), transformOrigin: layDown ? "50% " + (dEph - deadFootAnchor) + "px" : "50% 50%" }} title={"💀 " + ea.name + " — defeated"}>
-                        {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + uKey + "_s" + stripped.length, keyPrefix: "dead" + uKey + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}
+                        {renderPieceRuns({ pieces: deadBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "dead_" + uKey + "_s" + stripped.length, keyPrefix: "dead" + uKey + "_", alphaOf: spriteAlphaOf(ea, null), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}
                       </div>
                     );
                   }
@@ -22619,7 +22695,7 @@ export default function AssetStudio() {
                       </div>
                       <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : {}), ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {(() => {
-                          const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + uKey, keyPrefix: uKey + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
+                          const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + uKey, keyPrefix: uKey + "_", alphaOf: spriteAlphaOf(ea, eThrowingNow ? spawnThrowableFor(eSpawn) : ew), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
                           // Draw the art at its true aspect when the box isn't one (ducking): on a
                           // plane as tall as the art really is, placed so its floor line stays on the
                           // floor and the body rises UP out of the shorter hitbox, the way the
@@ -22727,7 +22803,7 @@ export default function AssetStudio() {
                   if (bb) { const sc = Math.min(dBox / bb.w, dBox / bb.h) * 0.86; dPlane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${dBox / 2 - sc * (bb.x + bb.w / 2)}px,${dBox / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})` }; }
                   const icon = item.type === "weapon" ? "⚔️" : item.type === "equipment" ? "🎒" : "🧪";
                   return <div key={"drop" + k} className="enemyDropPlay" style={{ left: drop.x, top: drop.y }} title={"Dropped " + item.name}>
-                    <div className={"enemyDropOrb" + (bb ? " art" : "")} style={bb ? { width: dBox, height: dBox } : undefined}>{bb ? <div style={dPlane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "drop_" + k, keyPrefix: "drop" + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : icon}</div>
+                    <div className={"enemyDropOrb" + (bb ? " art" : "")} style={bb ? { width: dBox, height: dBox } : undefined}>{bb ? <div style={dPlane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "drop_" + k, keyPrefix: "drop" + k + "_", alpha: assetAlpha(item), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : icon}</div>
                     <div className={"enemyDropCap rk-" + itemRank(item)}>{item.name}</div>
                   </div>;
                 })}
@@ -22767,7 +22843,7 @@ export default function AssetStudio() {
                     // they were standing on to read it. Same box, same coordinates, own layer.
                     <React.Fragment key={"ped" + k}>
                       <div className={"pedestalPlay" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
-                        <div className="pedestalArt" style={artStyle}>{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + k, keyPrefix: "ped" + k + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : null}</div>
+                        <div className="pedestalArt" style={artStyle}>{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + k, keyPrefix: "ped" + k + "_", alpha: assetAlpha(rolled), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : null}</div>
                       </div>
                       {(rolled || !bb) && (
                         <div className={"pedLabels" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }}>
@@ -22794,7 +22870,7 @@ export default function AssetStudio() {
                   if (pr.pieces) {
                     return (
                       <div key={"proj" + i} className="lobj" style={{ left: pr.x - sz / 2, top: pr.y - sz / 2, width: sz, height: sz, transform: pr.rot ? `rotate(${pr.rot}deg)` : "none" }}>
-                        {renderPieceRuns({ pieces: pr.pieces, cacheKey: "proj_" + i, keyPrefix: "proj" + i + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}
+                        {renderPieceRuns({ pieces: pr.pieces, cacheKey: "proj_" + i, keyPrefix: "proj" + i + "_", alpha: pr.alpha ?? 1, drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}
                       </div>
                     );
                   }
@@ -22812,7 +22888,7 @@ export default function AssetStudio() {
                   return (
                     <div key={"thr" + i} className="lobj" style={{ left: g.x - cwPx / 2, top: g.y - chPx / 2, width: cwPx, height: chPx, transform: `rotate(${g.rot}deg)`, zIndex: 8000 }}>
                       {g.pieces
-                        ? renderPieceRuns({ pieces: g.pieces, cacheKey: "thr_" + i, keyPrefix: "thr" + i + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })
+                        ? renderPieceRuns({ pieces: g.pieces, cacheKey: "thr_" + i, keyPrefix: "thr" + i + "_", alpha: assetAlpha(g.asset), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })
                         : <span style={{ fontSize: emojiSz * 0.85 + "px", lineHeight: 1 }}>💣</span>}
                     </div>
                   );
@@ -23109,7 +23185,7 @@ export default function AssetStudio() {
                   return (
                     <div key={it.id} className={"shopRow" + (broke ? " broke" : "")}>
                       <div className="shopArt" style={{ width: box, height: box }}>
-                        {bb ? <div style={plane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "shop_" + it.id, keyPrefix: "shop" + it.id + "_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>
+                        {bb ? <div style={plane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "shop_" + it.id, keyPrefix: "shop" + it.id + "_", alpha: assetAlpha(it), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>
                             : <span className="shopArtIcon">{(it.name || "?").trim().charAt(0).toUpperCase()}</span>}
                       </div>
                       <div className="shopMeta">
@@ -23574,6 +23650,11 @@ export default function AssetStudio() {
               const isUpperSlot = asset.type === "equipment" && UPPER_BODY_SLOTS.has(asset.slot);
               const isHatSlot = asset.type === "equipment" && asset.slot === "hat";
               const renderPiece = (p) => pmirror(p, angle) ? [Block(p), MirrorGhost(p, "m" + p.id)] : [Block(p)];
+              // 👻 The asset's own blocks fade as one picture, the way the game draws it (see
+              // assetAlpha) — the guide body stays as it was. One group per stretch of its own
+              // blocks between guide pieces, which is how the game splits a worn garment into runs.
+              const ownAlpha = effEdit ? 1 : assetAlpha(asset);
+              const own = (key, nodes) => ownAlpha < 1 ? fadeGroup(key, ownAlpha, nodes) : nodes;
               if (showGuide && (isLowerSlot || isUpperSlot || isHatSlot)) {
                 // Split relative to the guide body's arm, matching how this piece will actually
                 // layer once worn (Dress Bob / in-game) — not just "always on top of everything".
@@ -23593,17 +23674,17 @@ export default function AssetStudio() {
                 const belowArm = frontPieces.filter((p) => !tuckedSet.has(p) && (isLowerSlot || isHatSlot || !p.overArms));
                 const aboveArm = frontPieces.filter((p) => isUpperSlot && p.overArms);
                 return <>
-                  {behindPieces.flatMap(renderPiece)}
-                  {underArm.flatMap((p) => tuckedSet.has(p) ? renderPiece(p) : [Static(p, null, true, !!p._m, "gna" + guideNonArm.indexOf(p))])}
-                  {belowArm.flatMap(renderPiece)}
+                  {own("ownB", behindPieces.flatMap(renderPiece))}
+                  {underArm.flatMap((p) => tuckedSet.has(p) ? [own("ownT" + p.id, renderPiece(p))] : [Static(p, null, true, !!p._m, "gna" + guideNonArm.indexOf(p))])}
+                  {own("ownU", belowArm.flatMap(renderPiece))}
                   {guideArm.map((p, i) => Static(p, null, true, !!p._m, "ga" + i))}
-                  {aboveArm.flatMap(renderPiece)}
+                  {own("ownO", aboveArm.flatMap(renderPiece))}
                 </>;
               }
               return <>
-                {behindPieces.flatMap(renderPiece)}
+                {own("ownB", behindPieces.flatMap(renderPiece))}
                 {showGuide && bake(guideBodyAsset, angle).map((p, i) => Static(p, null, true, !!p._m, "g" + i))}
-                {frontPieces.flatMap(renderPiece)}
+                {own("ownF", frontPieces.flatMap(renderPiece))}
               </>;
             })()}
             {sel && (() => {
@@ -23642,7 +23723,7 @@ export default function AssetStudio() {
             {asset.type === "skin"
               ? <div onPointerDown={grabHand} className="handmk" style={{ left: (hand.x / W * 100) + "%", top: (hand.y / H * 100) + "%", cursor: "grab" }}>✋</div>
               : (asset.type !== "enemy" || showArmRig) && <div className="handmk guide" style={{ left: (hand.x / W * 100) + "%", top: (hand.y / H * 100) + "%" }}>✋</div>}
-            {holdPreviewPieces && <div className="holdPreview">{renderPieceRuns({ pieces: holdPreviewPieces, cacheKey: "holdpv", keyPrefix: "hpv_", drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>}
+            {holdPreviewPieces && <div className="holdPreview">{renderPieceRuns({ pieces: holdPreviewPieces, cacheKey: "holdpv", keyPrefix: "hpv_", alpha: assetAlpha(holdPreview), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>}
             {holdMark && <div onPointerDown={grabHold} className="handmk hold" style={{ left: (holdMark.x / W * 100) + "%", top: (holdMark.y / H * 100) + "%", cursor: "grab" }} title="Weapon hold point">✋</div>}
           </div>
           </div>
@@ -23878,12 +23959,20 @@ export default function AssetStudio() {
                   <button className={eff.kind === "heal" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "heal" ? cur : { kind: "heal", amount: 5 } }; })}>❤️ Heal</button>
                   <button className={eff.kind === "stat" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "stat" ? cur : { kind: "stat", stat: "speed", amount: 2, duration: 8 } }; })}>📊 Boost a stat</button>
                   <button className={eff.kind === "money" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "money" ? cur : { kind: "money", amount: 10 } }; })}>{MONEY_CHAR} Money</button>
+                  <button className={eff.kind === "range" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "range" ? cur : { kind: "range", mult: 1.5, duration: 8 } }; })}>🎯 Range</button>
                 </div>
                 {eff.kind === "heal" ? (
                   <label className="slider">❤️ Heal amount<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>HP</span></label>
                 ) : eff.kind === "money" ? (
                   <>
                     <label className="slider">{MONEY_CHAR} Worth<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 70 }} /></label>
+                  </>
+                ) : eff.kind === "range" ? (
+                  <>
+                    {/* The 🎯 Long Shot clothing ability's own scale (×1 to ×4 in quarters), so a
+                        potion and a pair of goggles that both say ×1.5 mean the same shot. */}
+                    <label className="slider">🎯 Range ×<input type="range" min="1.25" max="4" step="0.25" value={eff.mult} onChange={(e) => setEff({ mult: +e.target.value })} /><span className="hint2" style={{ marginLeft: 6 }}>×{eff.mult}</span></label>
+                    <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
                   </>
                 ) : (
                   <>
@@ -24173,6 +24262,17 @@ export default function AssetStudio() {
             <div className="card">
               <div className="ct">Size</div>
               <label className="slider">Scale<input type="range" min="0.5" max="3" step="0.1" value={asset.size ?? 1} onChange={(e) => setAsset((a) => ({ ...a, size: +e.target.value }))} /></label>
+            </div>
+          )}
+
+          {/* 👻 THE WHOLE ASSET, SEE-THROUGH (assetAlpha). Every kind of asset gets it — an item, a
+              prop, a garment, a gun, a body — and it shows wherever that asset is drawn: this canvas,
+              Dress Bob, a plinth, a drop, the shop, a shot in flight, and worn or held in play. Not
+              shown while editing an ability's animation frames, which are not the asset's art. */}
+          {!effEdit && (
+            <div className="card">
+              <div className="ct">👻 Translucent</div>
+              <label className="slider">See-through<input type="range" min="0" max={TRANSLUCENCY_MAX} step={TRANSLUCENCY_STEP} value={asset.translucency ?? 0} onChange={(e) => { const v = +e.target.value; setAsset((a) => { const { translucency, ...rest } = a; return v > 0 ? { ...rest, translucency: v } : rest; }); }} /><span className="hint2" style={{ marginLeft: 6 }}>{Math.round((asset.translucency ?? 0) * 100)}%</span></label>
             </div>
           )}
 

@@ -3685,3 +3685,58 @@ impact, shot) now go through `playerHpAfterHit`, which leaves HP alone in god mo
 flash, stun and knock you about. Verified on M14 beside the Army Bobs: 7 hits (melee 13, shots 4) with
 HP held at 25, then god off and the next shots took it 25 → 21 → 17. It replaces the old harness trick
 of finding the playerHP ref by hook order and topping it up every frame.
+
+## 👻 TRANSLUCENT ASSETS AND THE 🎯 RANGE ITEM (2026-10-10)
+
+**Blake: "On Bob in the asset creators (Including for items) can you add the ability to make items
+translucent, with a scale ideally"**, then **"Also for items can you add one that increases range for
+X duration"**.
+
+**Translucency is per ASSET, not per piece.** Every piece already had a ✨ Fade slider (`fx.opacity`),
+but that fades each piece on its own, so overlapping pieces show through each other: a dark-edge
+piece under a fill reads as a murky band, and an outlined triangle's solid outline silhouette shows
+through its own fill. `asset.translucency` (0–0.9, step 0.05; absent = solid, and the slider removes
+the key at 0 so old records stay byte-identical) is one value the 👻 Translucent card sets in every
+asset editor. `assetAlpha` turns it into an opacity, and `fadeGroup` wraps the drawn asset in one
+full-frame box carrying it, so the asset composites first and fades as one picture.
+
+**Two ways a piece list fades (`renderPieceRuns`):**
+- `alpha`: the list is ONE asset (a prop via `propArtInner`, an item on a plinth, a drop, a shop row,
+  a shot or a throw in flight, the weapon-hold preview). The whole list is one group.
+- `alphaOf(runKey)`: the list is a COMPOSED sprite (the player, units, corpses, Dress Bob). Each
+  `_src` run fades by its own asset (`spriteAlphaOf(root, held)`), so a glass helmet is see-through on
+  a solid Bob. Held art baked live in play has no `_src` (key `"__weapon"`), so it fades by what is in
+  the hand; untagged art fades by the root.
+
+**Why a single asset is never faded by `_src`:** `layerBodyAndOverlays` writes `_src` onto the
+garment's own piece objects (it mutates what `bake` returns), so that tag gets saved into assets and
+travels with copied pieces. On 2026-10-10 his saves branch had 17 garments and 4 skins carrying
+pieces tagged with ANOTHER asset's id (the Super Shirt's from shirt jfwt8r4). Faded by run key, half
+of such a shirt would come out solid. Composition re-tags with the garment's real id, so `alphaOf` is
+right for composed sprites.
+
+The editor canvas wraps each stretch of the asset's own blocks in a group (`own(...)`) between guide
+pieces, the way play splits a worn garment into runs. Selection outlines inside fade with it; the
+resize handle does not. A test greps every `renderPieceRuns({` call for `alpha:` / `alphaOf:`.
+`editorReachIssues` flags an off-stop `translucency`. `tools/rasterize-pieces.js` honours it
+(`opts.alpha`, read off the asset by `--asset` and `--level`).
+
+**Verified in the running app** with a seed (Army Jacket 0.4, M16 0.3, its bullet 6ufkkia 0.6, the
+One Day at a Time banner 0.5, a range potion 0.5): the editor canvas put all 11 potion blocks in one
+0.5 group, and the slider went 0% → 90% by mouse drag (162 px wide). In the Level Creator only the
+banner of 19 objects was faded. In Playtest the player's sprite had jacket groups 0.6 ×4 ×4 (4 mirrored
+side pieces) and M16 groups 0.7 ×2 (behind-arm) ×13 (17 minus muzzle, cutter and the 2 behind), with
+the rest of Bob solid. Both pedestals and the bullet in flight drew at 0.5 / 0.4. On M14 two Army Bob
+units matched the player exactly (×30 while firing = the Fire drawing), a corpse kept both groups,
+and Dress Bob showed the jacket at 0.6.
+
+**🎯 Range item.** "Range" already meant how far a gun or bow shot flies (weapon Range in blocks, the
+🎯 Long Shot clothing ability), so the item is Long Shot's multiplier on a timer:
+`{ kind: "range", mult, duration }` (`normItemEffect`; floored at ×1 so it can never SHORTEN shots;
+editor slider ×1.25–4 in quarters, Long Shot's scale). Consuming it pushes `{ kind: "range", mult,
+until }` onto `itemBuffs` (expiry, doors and fresh playtests behave like a stat boost).
+`activeBuffSum` skips it (no `stat`), and `activeRangeMult` multiplies the running ones into
+`rangePxNow` with `rangeBoostMultiplier`, so the arc and the aim assist's reach both stretch. Throws
+and melee are untouched, like Long Shot. Units do not drink items, so there is nothing for them to
+mirror. Verified: E on the pedestal showed "Range ×2 for 30s" (callout and banner); the next M16 shot
+had `rangePx` 1620 = 27 × 30 × 2; with the buff cleared the control shot was 810.

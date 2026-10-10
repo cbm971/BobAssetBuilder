@@ -206,6 +206,12 @@ plus traps it does not cover:
   under the arms (`hatsUnderArms`).
 - A translucent piece can carry an outline only as a rect, circle, roundrect or stadium. Any other
   shape draws its outline as a solid silhouette under the fill.
+- **A whole asset is see-through by `asset.translucency`** (0–0.9, the 👻 Translucent card in every
+  asset editor; `assetAlpha`). It fades the finished picture as ONE group (`fadeGroup`), unlike the
+  per-piece ✨ Fade. Every `renderPieceRuns` call passes `alpha` (one asset: prop, plinth, drop, shop,
+  shot) or `alphaOf` (a composed sprite, per `_src` run via `spriteAlphaOf`); a test fails if a call
+  passes neither. Never fade a single asset by `_src`: garments still carry the `_src` of the asset
+  they were copied from.
 - Keep poly point counts small. A 160-point tail added 31k lines to library.json.
 
 **Props** (scenery; his own run 20–33 pieces, so the 4–8 rule is for clothing only):
@@ -399,6 +405,9 @@ plus traps it does not cover:
   and on units alike. A look's Defense is the sum of its garments; negative totals clamp to 0.
 - **A control must be operable at its real size.** Setting a slider's value from script works at any
   width, which is how a 3px Strength slider shipped. Check the rendered width and drag it with the mouse.
+- "Range" means how far a gun or bow shot flies (the weapon's Range, 🎯 Long Shot, the 🎯 Range
+  item). An item's range boost multiplies with Long Shot at the trigger (`activeRangeMult`); throws
+  and melee are untouched.
 - Talk reach is `TALK_RANGE_CELLS` = 6. The Enemy-creator Speed AND Strength sliders go to 20 (the animals' scale; a
   creature's Strength is its bite, 2x, unclamped), a
   dressed look walks by `playerWalkSpeed`, and Speed floors at 0.

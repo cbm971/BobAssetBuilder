@@ -604,6 +604,15 @@ import {
   TEXT_FONTS,
   PROP_DEFAULT_SIZES,
 } from "./App";
+import {
+  assetAlpha,
+  fadeGroup,
+  TRANSLUCENCY_MAX,
+  TRANSLUCENCY_STEP,
+  activeBuffSum,
+  activeRangeMult,
+  pruneBuffs,
+} from "./App";
 
 /* 🎲 A GEAR TAG ON A PLACEMENT. The point of the feature is that six copies of one guard are six
    loadouts, so what matters here is (a) the pool is the same pedestal search minus the things an
@@ -12473,5 +12482,105 @@ describe("the 💾 Save gate", () => {
     expect(at).toBeGreaterThan(-1);
     const after = src.slice(at, at + 600);
     expect(after).toContain("if (!ok) idbOpen().then((db) => { if (db) setHasStore(true); });");
+  });
+});
+
+// 👻 2026-10-10, Blake: "On Bob in the asset creators (Including for items) can you add the ability
+// to make items translucent, with a scale ideally". One `translucency` per asset, faded as one
+// picture (a fadeGroup), wherever that asset is drawn.
+describe("👻 translucent assets", () => {
+  test("an asset saved before this is solid, and the slider can never make one invisible", () => {
+    expect(assetAlpha({})).toBe(1);
+    expect(assetAlpha(null)).toBe(1);
+    expect(assetAlpha({ translucency: 0.35 })).toBeCloseTo(0.65);
+    expect(assetAlpha({ translucency: 5 })).toBeCloseTo(1 - TRANSLUCENCY_MAX);   // past the end of the slider
+    expect(assetAlpha({ translucency: -1 })).toBe(1);
+    expect(assetAlpha({ translucency: NaN })).toBe(1);
+    expect(assetAlpha({ translucency: "0.5" })).toBe(1);                           // not a number, not a fade
+    expect(1 - TRANSLUCENCY_MAX).toBeGreaterThan(0);
+  });
+
+  const drawPiece = (p, key) => ({ type: "piece", key, id: p.id });
+  test("a solid list renders exactly the elements it always did", () => {
+    const pieces = [{ id: "a" }, { id: "b" }];
+    const plain = renderPieceRuns({ pieces, keyPrefix: "t", drawPiece });
+    expect(renderPieceRuns({ pieces, keyPrefix: "t", drawPiece, alpha: 1, alphaOf: () => 1 })).toEqual(plain);
+  });
+
+  test("one asset fades as ONE picture, whatever stale _src its pieces still carry", () => {
+    // The Super Shirt's pieces still name the shirt they were copied from (jfwt8r4). Faded by run
+    // key, that half would come out solid; the whole list is one group instead.
+    const pieces = [{ id: "a", _src: "jfwt8r4" }, { id: "b" }];
+    const out = renderPieceRuns({ pieces, keyPrefix: "t", drawPiece, alpha: 0.4 });
+    expect(out).toHaveLength(1);
+    expect(out[0].props.style.opacity).toBe(0.4);
+    expect(out[0].props.style).toMatchObject({ position: "absolute", left: 0, top: 0, width: "100%", height: "100%", pointerEvents: "none" });
+    expect(JSON.stringify(out[0].props.children)).toContain('"id":"a"');
+    expect(JSON.stringify(out[0].props.children)).toContain('"id":"b"');
+  });
+
+  test("a dressed sprite fades each worn asset by its own slider", () => {
+    const pieces = [{ id: "leg", _src: "body" }, { id: "helmet", _src: "glass" }, { id: "arm", _src: "body" }];
+    const alphaOf = (k) => (k === "glass" ? 0.5 : 1);
+    const out = renderPieceRuns({ pieces, keyPrefix: "t", drawPiece, alphaOf });
+    expect(out).toHaveLength(3);
+    expect(Array.isArray(out[0])).toBe(true);                     // the body run, untouched
+    expect(out[1].props.style.opacity).toBe(0.5);                 // the helmet run, faded
+    expect(out[1].props.children[0].id).toBe("helmet");
+    expect(Array.isArray(out[2])).toBe(true);
+  });
+
+  test("a group's own frame is the art's frame, so nothing inside it moves", () => {
+    const g = fadeGroup("k", 0.3, null);
+    expect(g.key).toBe("k");
+    expect(g.props.style).toMatchObject({ left: 0, top: 0, width: "100%", height: "100%", opacity: 0.3 });
+  });
+
+  test("the slider's stops are what editorReachIssues accepts", () => {
+    const a = { type: "item", angles: { front: [{ id: "p", kind: "rect", x: 0, y: 0, w: 10, h: 10 }] } };
+    for (let t = 0; t <= TRANSLUCENCY_MAX + 1e-9; t += TRANSLUCENCY_STEP) expect(editorReachIssues({ ...a, translucency: +t.toFixed(2) })).toEqual([]);
+    expect(editorReachIssues({ ...a, translucency: 0.33 }).join("\n")).toContain("translucent 0.33");
+    expect(editorReachIssues({ ...a, translucency: 0.95 }).join("\n")).toContain("translucent 0.95");
+  });
+
+  // Every place that draws finished art has to say how it fades, or a new one silently draws a
+  // see-through asset solid — which is how per-feature render sites have drifted before.
+  test("every finished-art render site passes alpha or alphaOf", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    const calls = src.split("\n").filter((l) => l.includes("renderPieceRuns({"));
+    expect(calls.length).toBeGreaterThanOrEqual(12);
+    for (const l of calls) expect(/\balpha(Of)?: /.test(l) ? "ok" : l.trim().slice(0, 120)).toBe("ok");
+  });
+});
+
+// 🎯 2026-10-10, Blake: "for items can you add one that increases range for X duration". The
+// Long Shot multiplier, on a timer.
+describe("🎯 range items", () => {
+  test("a range effect survives the normalizer, with Long Shot's default", () => {
+    expect(normItemEffect({ kind: "range", mult: 2, duration: 12 })).toEqual({ kind: "range", mult: 2, duration: 12 });
+    expect(normItemEffect({ kind: "range" })).toEqual({ kind: "range", mult: 1.5, duration: 8 });
+    expect(normItemEffect({ kind: "range", mult: 0.5 }).mult).toBe(1);   // never SHORTENS your shots
+  });
+  test("the pickup line says what it does", () => {
+    expect(itemEffectSummary({ kind: "range", mult: 1.5, duration: 8 })).toBe("Range ×1.5 for 8s");
+    expect(itemEffectSummary({ kind: "stat", stat: "speed", amount: 2, duration: 8 })).toBe("+2 Speed for 8s"); // unchanged
+  });
+  test("running range buffs multiply, and stop when their timer does", () => {
+    const buffs = [{ kind: "range", mult: 1.5, until: 1000 }, { kind: "range", mult: 2, until: 5000 }, { stat: "speed", amount: 3, until: 5000 }];
+    expect(activeRangeMult(buffs, 500)).toBeCloseTo(3);
+    expect(activeRangeMult(buffs, 2000)).toBe(2);
+    expect(activeRangeMult(buffs, 6000)).toBe(1);
+    expect(activeRangeMult([], 0)).toBe(1);
+    expect(activeRangeMult(undefined, 0)).toBe(1);
+  });
+  test("a range buff is not a stat, and expires with the rest", () => {
+    const buffs = [{ kind: "range", mult: 2, until: 5000 }, { stat: "speed", amount: 3, until: 5000 }];
+    expect(activeBuffSum(buffs, 0)).toEqual({ speed: 3 });
+    expect(pruneBuffs(buffs, 6000)).toEqual([]);
+  });
+  test("the shot's range reads the item buff at the trigger", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    const line = src.split("\n").find((l) => l.includes("const rangePxNow ="));
+    expect(line).toContain("activeRangeMult(itemBuffs.current, nowT)");
   });
 });
