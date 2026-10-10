@@ -11640,8 +11640,8 @@ export default function AssetStudio() {
   const [soundUploadCat, setSoundUploadCat] = useState("");          // the 📂 folder new uploads are filed under
   const [soundConfirmDel, setSoundConfirmDel] = useState(null);      // sound id armed for deletion — tap 🗑 twice, like the asset shelf
   const [soundBusy, setSoundBusy] = useState(false);
-  // Which 📂 folders are open on the Sounds screen (the Library's, and the Weapons box's kinds,
-  // keyed "lib:<folder>" / "wpn:<kind>"). Starts EMPTY: everything folded, so the library is one
+  // Which 📂 folders are open on the Sounds screen (the Library's, the Weapons box's kinds and the
+  // Enemies box, keyed "lib:<folder>" / "wpn:<kind>" / "enm"). Starts EMPTY: everything folded, so the library is one
   // line per folder until you open the one you want (Blake, 2026-10-10: "take up less space").
   const [soundOpen, setSoundOpen] = useState(() => new Set());
   // 🎵 The music toggle. A PLAYER preference, like a volume slider in an options menu, so it is
@@ -19732,14 +19732,14 @@ export default function AssetStudio() {
       setSoundOpen((o) => new Set(o).add("lib:" + propCatKey(propCat({ category: soundUploadCat }))));
     }
   };
-  // 🔊 A WEAPON'S SOUNDS, SET FROM THE SOUNDS SCREEN'S Weapons box. Saved IN the weapon
-  // (asset.sounds), exactly where the weapon editor's own 🔊 card puts them, so each place shows
-  // what the other chose. In place and narrow: the STORED record is read back and only `sounds`
-  // (and savedAt) change, so a screen that never opened the weapon cannot rewrite anything else
-  // about it. Same id, so every placement and pickup of that weapon hears the new sound.
-  // A weapon open in the editor takes the same change, or its next 💾 Save would put the old
-  // sounds straight back.
-  const saveWeaponSound = async (w, slot, soundId) => {
+  // 🔊 A WEAPON'S OR AN ENEMY'S SOUNDS, SET FROM THE SOUNDS SCREEN'S Weapons and Enemies boxes.
+  // Saved IN the asset (asset.sounds), exactly where the weapon or enemy editor's own 🔊 card puts
+  // them, so each place shows what the other chose. In place and narrow: the STORED record is read
+  // back and only `sounds` (and savedAt) change, so a screen that never opened the asset cannot
+  // rewrite anything else about it. Same id, so every placement and pickup of that weapon, and every
+  // unit of that enemy, hears the new sound. An asset open in the editor takes the same change, or
+  // its next 💾 Save would put the old sounds straight back.
+  const saveAssetSound = async (w, slot, soundId) => {
     if (!w || !w.id) return;
     let rec = null;
     try { const raw = await sget("asset:" + w.id); if (raw && !isTombstoneRecord(raw)) rec = JSON.parse(raw); } catch { rec = null; }
@@ -19798,6 +19798,10 @@ export default function AssetStudio() {
     const weapons = library.filter((a) => a && a.type === "weapon");
     return kinds.map((k) => ({ ...k, items: weapons.filter((w) => kindOf(w) === k.key).sort(byName) })).filter((k) => k.items.length);
   }, [library]);
+  // The Enemies box (Blake, 2026-10-10: "so I can more easily assign and organize it"): every
+  // Enemy-creator enemy A→Z, with the same Attack / Hurt / Death its editor's 🔊 card has. The
+  // dressed looks are not here because they have no sounds of their own (assetSoundSlots).
+  const soundEnemies = useMemo(() => library.filter((a) => a && a.type === "enemy").sort((x, y) => NAME_COLLATOR.compare(x.name || "", y.name || "")), [library]);
   const soundDialogues = useMemo(() => dlgLib.filter((d) => d && d.id).slice().sort((x, y) => NAME_COLLATOR.compare(x.name || "", y.name || "")), [dlgLib]);
   // A sound <select>'s options: "— basic —" (or "— none —") then the library, in its 📂 folders once
   // there is more than one. A slot pointing at a deleted sound shows as empty, which is what it is.
@@ -20743,9 +20747,10 @@ export default function AssetStudio() {
   //
   // TWO COLUMNS (Blake, 2026-10-10): what PLAYS on the left — basic sounds, music, and each
   // dialogue's talk loop — and on the right what you PICK FROM — the library, folded into its 📂
-  // folders (all shut to start), and every weapon by kind, so a gun's Fire is set here without
-  // opening the gun. A weapon's pick saves IN the weapon (saveWeaponSound), a dialogue's in the
-  // dialogue (saveDialogueSound).
+  // folders (all shut to start), every weapon by kind, so a gun's Fire is set here without
+  // opening the gun, and every enemy's Attack / Hurt / Death under one 👹 fold. A weapon's or
+  // enemy's pick saves IN that asset (saveAssetSound), a dialogue's in the dialogue
+  // (saveDialogueSound).
   if (screen === "sounds") {
     const renameSound = (s, name) => { const v = name.trim(); if (!v || v === s.name) return; putSoundRecord({ ...s, name: v }, "Renamed ✓"); };
     // Refiling moves the row into another folder, which may be shut — open it, so the sound you
@@ -20760,6 +20765,23 @@ export default function AssetStudio() {
     );
     const playBtn = (id) => <button className="ltbtn sndPlay" disabled={!id} onClick={() => bobAudio.preview(id)} title="Play">▶</button>;
     const WPN_ICON = { ranged: "🏹", melee: "🗡️", throw: "💣" };
+    // One weapon's or enemy's row: its name, then the same slots and the same "— basic —" /
+    // "— none —" its editor's 🔊 card shows (assetSoundSlots decides which).
+    const assetSoundRow = (w) => (
+      <div key={w.id} className="sndWpn">
+        <span className="sndWpnName" title={w.name}>{w.name}</span>
+        {assetSoundSlots(w).map((sl) => {
+          const cur = soundVal(w.sounds ? w.sounds[sl.key] : "");
+          return (
+            <span key={sl.key} className="sndSlot">
+              <span className="wslab">{sl.label}</span>
+              <select value={cur} onChange={(e) => saveAssetSound(w, sl.key, e.target.value)}>{soundOptions(sl.basic ? "— basic —" : "— none —")}</select>
+              {playBtn(cur)}
+            </span>
+          );
+        })}
+      </div>
+    );
     return (
       <div className="bb"><style>{css}</style>
         <header className="bar">
@@ -20837,27 +20859,15 @@ export default function AssetStudio() {
                 <div key={k.key}>
                   {foldHead("wpn:" + k.key, WPN_ICON[k.key] + " " + k.label, k.items.length)}
                   {soundOpen.has("wpn:" + k.key) && (
-                    <div className="sndFolder">
-                      {k.items.map((w) => (
-                        <div key={w.id} className="sndWpn">
-                          <span className="sndWpnName" title={w.name}>{w.name}</span>
-                          {/* The same slots and the same "— basic —" / "— none —" the weapon editor's 🔊 card shows. */}
-                          {assetSoundSlots(w).map((sl) => {
-                            const cur = soundVal(w.sounds ? w.sounds[sl.key] : "");
-                            return (
-                              <span key={sl.key} className="sndSlot">
-                                <span className="wslab">{sl.label}</span>
-                                <select value={cur} onChange={(e) => saveWeaponSound(w, sl.key, e.target.value)}>{soundOptions(sl.basic ? "— basic —" : "— none —")}</select>
-                                {playBtn(cur)}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      ))}
-                    </div>
+                    <div className="sndFolder">{k.items.map(assetSoundRow)}</div>
                   )}
                 </div>
               ))}
+            </div>
+            <div className="card">
+              <div className="ct">Enemies</div>
+              {soundEnemies.length > 0 && foldHead("enm", "👹 " + ENEMY_FOLDER_LABEL, soundEnemies.length)}
+              {soundOpen.has("enm") && <div className="sndFolder">{soundEnemies.map(assetSoundRow)}</div>}
             </div>
           </div>
         </div>

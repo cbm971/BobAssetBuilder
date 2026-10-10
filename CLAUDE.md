@@ -317,8 +317,10 @@ plus traps it does not cover:
   only during play, because an open stream also keeps Windows awake.
 - A dialogue's talk sound is `dlg.sound` (migrateDialogue carries it only when set). It loops for
   `talkSeconds(text)` and is started/stopped by `talkSoundFor` where the line changes (openTalk, an
-  answer, closeTalk). The Sounds screen saves weapon and dialogue picks IN PLACE: read the stored
-  record, change only that field, and patch the editor's open copy (and the dialogue baseline).
+  answer, closeTalk). The Sounds screen saves weapon, enemy and dialogue picks IN PLACE
+  (`saveAssetSound`, `saveDialogueSound`): read the stored record, change only that field, and
+  patch the editor's open copy (and the dialogue baseline). Its right column is Library, Weapons,
+  Enemies; a weapon or enemy row is `assetSoundRow`, the same slots as the editor's 🔊 card.
 
 ## Architecture — where things are
 

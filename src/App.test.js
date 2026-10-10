@@ -12042,8 +12042,8 @@ describe("a dialogue's talk sound", () => {
     expect(fn).toContain("projectLibrary.save({ dialogues: [payload] }, { revive: true })");
     expect(fn).toContain("setDlgDoc(");                            // the tree open in the editor too
     expect(fn).toContain("dlgBaseline.current");
-    // ...and a weapon's, in the weapon, the editor's open copy included.
-    const wf = src.slice(src.indexOf("const saveWeaponSound = async"), src.indexOf("const saveDialogueSound = async"));
+    // ...and a weapon's or an enemy's, in that asset, the editor's open copy included.
+    const wf = src.slice(src.indexOf("const saveAssetSound = async"), src.indexOf("const saveDialogueSound = async"));
     expect(wf).toContain("sget(\"asset:\" + w.id)");
     expect(wf).toContain("withAssetSound(rec.sounds, slot, soundId)");
     expect(wf).toContain("projectLibrary.save({ assets: [payload] }, { revive: true })");
@@ -12052,6 +12052,18 @@ describe("a dialogue's talk sound", () => {
     expect(src.slice(src.indexOf("const closeTalk = () =>"), src.indexOf("const openShop = ")).includes("talkSoundFor(null)")).toBe(true);
     expect(src.slice(src.indexOf("const openTalk = (t) =>"), src.indexOf("const closeTalk = () =>")).includes("talkSoundFor(next)")).toBe(true);
     expect(src.slice(src.indexOf("const chooseTalkOption = (i) =>"), src.indexOf("const chooseTalkOption = (i) =>") + 1200).includes("talkSoundFor(next)")).toBe(true);
+  });
+
+  // The Enemies box (2026-10-10) shows an enemy the slots its editor's 🔊 card shows, and its rows
+  // save through the same in-place writer as the Weapons box.
+  test("an enemy on the Sounds screen gets Attack, Hurt and Death, saved in the enemy", () => {
+    const { assetSoundSlots } = require("./audio");
+    expect(assetSoundSlots({ type: "enemy" }).map((s) => s.key)).toEqual(["attack", "hurt", "death"]);
+    expect(assetSoundSlots({ type: "character" })).toEqual([]);
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    const screen = src.slice(src.indexOf("if (screen === \"sounds\") {"), src.indexOf("if (screen === \"dialogue\") {"));
+    expect(screen).toContain("soundEnemies.map(assetSoundRow)");
+    expect(screen).toContain("saveAssetSound(w, sl.key, e.target.value)");
   });
 });
 

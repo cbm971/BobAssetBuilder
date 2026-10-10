@@ -3874,6 +3874,12 @@ of his speakers.
 saves. In this pane, a CSS rule's width was beaten by a later `.sndEvt` rule of the same
 specificity, so read the rendered width, not the stylesheet.
 
+## The Enemies box on the Sounds screen (2026-10-10)
+
+Blake: "add the non player enemy audio boxes to the audio tab so i can more easily assign and organize it? Put it on the right side". The right column is now Library, Weapons, Enemies. The box lists every Enemy-creator enemy A to Z under one `👹 Enemies` fold (key `enm`, shut on every visit like the others), each row the same Attack / Hurt / Death the enemy editor's 🔊 card shows. Dressed looks are not in it: `assetSoundSlots` gives a look no slots, so a look unit falls back to the basic sounds. Enemies have no 📂 folder of their own (no editor field), so there is one fold, named as the 👹 Enemy picker names them.
+
+`saveWeaponSound` became `saveAssetSound`: nothing in it was weapon-specific, and a weapon row and an enemy row are now one `assetSoundRow`. Verified in the dev copy at 1600 px: 13 rows, Chap Cat Hurt set from the box, and the folder record differed from the committed one in `sounds` and `savedAt` only. After a reload the box still showed it, and Chap Cat's editor 🔊 card showed the same pick. At a 778 px column the Death slot wraps under the name; on his ~3,084 px view a row is one line.
+
 ## Furr Con Sign: the invisible ceiling, and ▲/▼ ordering (2026-10-10)
 
 Blake: his Furr Con Sign would not go at the top of a room, "a massive invisible wall", and he wanted a way to put the sign behind chairs on the same layer. The sign's board is a 53x171 rect twisted -90°. Stored, it spans y -60..110; drawn, about -1..52. `worldArtBox` measures stored boxes, so a third of the footprint was empty space above the board. A placement's top-left cell is clamped to row 0, so that strip hit the ceiling first. Measured on his folder: a turned measure changes 16 props, and Sprinkler (40 placements), Bush, Bear Skin Rug and Church Pew are placed, so the turned box is opt-in per placement (`turnedBox`, set by fresh placement and by a Select/Copy drop, which re-centres on the click anyway). The scale stays on the unturned measure, so a new placement at size N renders at the same px per design unit as an old one at size N. Verified in the dev server: old sign 360x284 px box with art starting 98 px down; after a Select re-drop it was 284x211 at the same scale, art 7 px from the ceiling.
