@@ -1603283,7 +1603283,9 @@
    },
    "once": true,
    "sound": "y7leppl",
-   "savedAt": 1791641775022
+   "soundVol": 0.05,
+   "savedAt": 1791753243991,
+   "editedFrom": 1791753238175
   },
   {
    "id": "95e2gzd",
@@ -1603583,8 +1603585,10 @@
      ]
     }
    },
-   "savedAt": 1791641753844,
-   "sound": "n5wassx"
+   "sound": "n5wassx",
+   "soundVol": 2,
+   "savedAt": 1791753253489,
+   "editedFrom": 1791753250809
   },
   {
    "id": "g9g3g3z",
@@ -1604159,10 +1604163,12 @@
     "swing": "qd117xl"
    },
    "music": "",
-   "savedAt": 1791753131283,
-   "editedFrom": 1791753129416,
+   "savedAt": 1791753215586,
+   "editedFrom": 1791753213776,
    "basicVol": {
-    "punch": 0.1
+    "punch": 0.1,
+    "pickup": 0.8,
+    "land": 0.25
    }
   },
   {
