@@ -352213,8 +352213,8 @@
    "wtype": "melee",
    "projectileId": null,
    "projectileSpeed": 12,
-   "damage": 12,
-   "savedAt": 1790512135800,
+   "damage": 13,
+   "savedAt": 1791753098906,
    "groups": {
     "side": [
      {
@@ -355460,7 +355460,8 @@
    "explodeChar": "💥",
    "landChar": "🔥",
    "value": 8,
-   "rank": "rare"
+   "rank": "rare",
+   "editedFrom": 1790512135800
   },
   {
    "id": "cr0cd1l",
@@ -1604158,8 +1604159,11 @@
     "swing": "qd117xl"
    },
    "music": "",
-   "savedAt": 1791748983861,
-   "editedFrom": 1791716266737
+   "savedAt": 1791753131283,
+   "editedFrom": 1791753129416,
+   "basicVol": {
+    "punch": 0.1
+   }
   },
   {
    "id": "u2f4b15",
