@@ -485,6 +485,7 @@ import {
   shopStockSorted,
   shopPriceOrder,
   rollShopStock,
+  shopUnowned,
   SHOP_SHELF_SIZE,
   SHOP_BUY_MARKUP_AT_0,
   SHOP_BUY_MARKUP_AT_10,
@@ -605,6 +606,9 @@ import {
   fgGroundAt,
   sideWalls,
   hillStandsAside,
+  ceilingGrazeFree,
+  unitArtSig,
+  RUN_FILL_BELOW_ROWS,
   centreHillLanding,
   HILL_STEP_TOLERANCE,
   godModeOn,
@@ -9161,6 +9165,25 @@ describe("a shopkeeper puts three things out, not his whole warehouse", () => {
     expect(rollShopStock([], "T1", "s")).toEqual([]);
   });
 
+  test("the shelf never offers what you already have", () => {
+    // Blake, 2026-10-11: his shopkeeper sold him the rifle in his hands, paying money to get the
+    // same rifle back. Owned rows are hidden, so a three-item shelf reads two.
+    const rifle = { id: "rifle", type: "weapon", wtype: "ranged", name: "Rifle" };
+    const nade = { id: "nade", type: "weapon", wtype: "throw", name: "Grenade" };
+    const hat = { id: "hat", type: "equipment", slot: "hat", name: "Hat" };
+    const tonic = { id: "tonic", type: "item", name: "Tonic", effect: { kind: "heal", amount: 5 } };
+    const shelf = [rifle, nade, hat, tonic];
+    const ids = (o) => shopUnowned(shelf, o).map((x) => x.id);
+    expect(ids({})).toEqual(["rifle", "nade", "hat", "tonic"]);
+    expect(ids({ weaponId: "rifle" })).toEqual(["nade", "hat", "tonic"]);
+    expect(ids({ wornIds: ["hat", null] })).toEqual(["rifle", "nade", "tonic"]);
+    // A full ×3 of the grenade is "had"; one left is not, since buying it refills to 3.
+    expect(ids({ throwId: "nade", throwLeft: 3 })).toEqual(["rifle", "hat", "tonic"]);
+    expect(ids({ throwId: "nade", throwLeft: 1 })).toEqual(["rifle", "nade", "hat", "tonic"]);
+    // A consumable is drunk, never owned.
+    expect(ids({ weaponId: "rifle", wornIds: ["hat"], throwId: "nade", throwLeft: 3 })).toEqual(["tonic"]);
+  });
+
   test("everything it rolls is really on sale", () => {
     // The roll goes through shopStock, so the money exclusion and the tag match hold here too —
     // a shelf is never a second, looser search.
@@ -10322,7 +10345,10 @@ describe("runs", () => {
     expect(r1.nodes[r1.exitKey].links.E).toBe(null);                        // and beyond the Exit: the floor ends there
     expect(resolveRunNeighbour(r1, r1.nodes[r1.exitKey], "E", pool)).toBe(null); // asking again does not re-open it
     expect(ids).not.toContain("ROOM");
-    expect(ids.length).toBe(RUN_LEVELS_PER_FLOOR);                          // eight in all, the start and the end counted (Blake, 2026-10-11)
+    expect(new Set(ids).size).toBe(ids.length);                             // no level twice on a seed (Blake, 2026-10-11)
+    expect(ids.length).toBeLessThanOrEqual(6);                              // four middles: the chain is shorter, never a repeat
+    const wide = [A, B, C, D, { ...A, id: "A2" }, { ...B, id: "B2" }, { ...C, id: "C2" }, { ...D, id: "D2" }, { ...D, id: "D3" }, INTRO, EXIT];
+    for (const sd of ["seed-1", "q", "r"]) { const w = buildRun(wide, sd), wi = w.order.map((k) => w.nodes[k].level.id); expect(wi.length).toBe(RUN_LEVELS_PER_FLOOR); expect(new Set(wi).size).toBe(wi.length); }
     expect(RUN_LEVELS_PER_FLOOR).toBe(8);
     const noEnds = buildRun([A, B, C, D], "seed-1");                         // no Intro or Exit made yet: eight middles
     expect(noEnds.order.length).toBeLessThanOrEqual(RUN_MIDDLE_LEVELS);
@@ -10334,7 +10360,7 @@ describe("runs", () => {
       expect(n.level.runKey).toBe(n.key); expect(n.row).toBe(0); expect(n.col).toBe(i);
     }
     // a different seed is allowed to differ (and does, over a few tries)
-    const seeds = ["a", "b", "c", "d", "e", "f"].map((s) => { const r = buildRun(pool, s); return r.order.map((k) => r.nodes[k].level.id).join(">"); });
+    const seeds = ["a", "b", "c", "d", "e", "f"].map((s) => { const r = buildRun(wide, s); return r.order.map((k) => r.nodes[k].level.id).join(">"); });
     expect(new Set(seeds).size).toBeGreaterThan(1);
     // the knob
     expect(buildRun(pool, "x", { maxMiddles: 2 }).order.length).toBeLessThanOrEqual(4);
@@ -10744,6 +10770,33 @@ describe("runs", () => {
         }
       }
       expect(sewers).toBeGreaterThan(20); expect(fills).toBeGreaterThan(0);
+    });
+
+    // Blake, same day: "janky camera movement and then a blank area", walking from a street level with
+    // nothing under it onto one with a sewer under it. The clamp opened downward at the gate, the view
+    // eased down, and under the level just left there was nothing drawn: black.
+    test("every street level has its ground under it, and the camera frames you the same on all of them", () => {
+      const floor = (lv) => { const fg = { ...lv.fg }; for (let c = 0; c < lv.cols; c++) fg["45," + c] = { c: "#3f3e3b", tex: "rock" }; return { ...lv, fg }; };
+      const pool2 = [floor(P5), floor(P6), floor(Q), ground(SA), ground(SM), ground(SB)];
+      const TALL = 1100;                                                               // taller than his view, so the old clamp would bite
+      let streets = 0, bare = 0;
+      for (let i = 0; i < 40; i++) {
+        const run = buildRun(pool2, "below" + i, { maxMiddles: 4 });
+        for (const n of Object.values(run.nodes)) resolveRunSides(run, n, pool2);
+        for (const L of Object.values(run.nodes)) {
+          if (L.row !== 0) continue;
+          streets++;
+          const drawn = [{ lv: L.level, off: { x: 0, y: 0 } }, ...Object.values(runSeams(run, L, CELL)).map((sm) => ({ lv: sm.level, off: sm.off })), ...runSceneryNodes(run, L, CELL).map((sc) => ({ lv: sc.node.level, off: sc.off }))];
+          const inLevel = (x, y) => drawn.some(({ lv, off }) => x >= off.x && x < off.x + lv.cols * CELL && y >= off.y && y < off.y + lv.rows * CELL);
+          const filled = new Set();
+          for (const { node, off } of runFills(run, L, CELL)) for (const k of Object.keys(node.level.fg)) { const [r, c] = k.split(",").map(Number); filled.add((off.x + c * CELL) + "," + (off.y + r * CELL)); }
+          if (!inLevel(80 * CELL, H)) bare++;                                           // nothing drawn under this one
+          for (let c = 0; c < 160; c++) for (let r = 0; r < RUN_FILL_BELOW_ROWS; r++) { const x = c * CELL, y = H + r * CELL; expect(inLevel(x, y) || filled.has(x + "," + y)).toBe(true); }
+          const y = 35 * CELL - ph;                                                    // standing on his usual street row
+          for (const x of [20 * CELL, 80 * CELL, 140 * CELL]) expect(cameraTarget({ x, y }, pw, ph, L.level, parts(run, L), VW, TALL, CELL).y).toBe(y + ph / 2 - TALL / 2);
+        }
+      }
+      expect(streets).toBeGreaterThan(20); expect(bare).toBeGreaterThan(0);
     });
   });
 
@@ -12726,6 +12779,26 @@ describe("a body inside M14's saucer mound neither falls through it nor sticks i
     expect(hillStandsAside(isGround(lv), 6, 9 * CH + 10, CH, false, true)).toBe(true);   // walking up the mound
     expect(hillStandsAside(isGround(lv), 6, 9 * CH + 10, CH, true, false)).toBe(true);   // a 🚶 plane is its own ground
     expect(hillStandsAside(isGround(lv), 15, 4 * CH, CH, false, true)).toBe(false);      // nothing under the centre (M15)
+  });
+  // Blake, 2026-10-11: "the rats in Sewer M2 are no longer dropping down". A rat's head sits 6 px into
+  // the tunnel roof over its pocket; walking to the hole, the next roof cell stopped it.
+  test("a roof the head already grazes runs on; a wall that fills the rows below still stops it", () => {
+    const top = 7 * CH + 24;                                    // the box top, 6 px into row 7
+    const inside = new Set(["7,19", "7,20", "8,21"]);
+    expect(ceilingGrazeFree([{ r: 7, c: 18 }], inside, top, CH)).toEqual([]);                       // the roof running on
+    expect(ceilingGrazeFree([{ r: 7, c: 18 }, { r: 8, c: 18 }], inside, top, CH)).toEqual([{ r: 8, c: 18 }]); // a real wall
+    expect(ceilingGrazeFree([{ r: 7, c: 18 }], new Set(["8,21"]), top, CH)).toEqual([{ r: 7, c: 18 }]); // not grazing that row yet
+    expect(ceilingGrazeFree([{ r: 7, c: 18 }], inside, 7 * CH + 5, CH)).toEqual([{ r: 7, c: 18 }]); // 25 px deep is not a graze
+  });
+  test("unitArtSig: where a unit stands never changes its key; anything else it carries does", () => {
+    const ep = { uid: 3, x: 10, y: 20, vy: 0, face: -1, walking: false, walkPhase: 0, swingT: 0, weaponAmmo: { mag: 6 } };
+    const sig = unitArtSig(ep);
+    expect(unitArtSig({ ...ep, x: 400, y: 9, vy: 3, uid: 9, stepEase: 4, slideVx: 1 })).toBe(sig);
+    for (const change of [{ walkPhase: 0.5 }, { swingT: 4 }, { face: 1 }, { weaponAmmo: { mag: 5 } }, { crouch: true }, { newTimer: 1 }])
+      expect(unitArtSig({ ...ep, ...change })).not.toBe(sig);
+    const loop = { ...ep }; loop.self = loop;
+    expect(unitArtSig(loop)).toBe(null);                        // cannot be written out: draw it fresh
+    expect(unitArtSig(undefined)).toBe("");
   });
   test("walking into the lip: the old window refused every row; now it steps up onto the lip", () => {
     const feet = 10 * CH + 0.5;                         // on the slab, a frame of gravity in

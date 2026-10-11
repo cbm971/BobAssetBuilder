@@ -3040,6 +3040,29 @@ export const rollShopStock = (assets, tag, seedStr, size) => {
   }
   return out;
 };
+// NOTHING ON THE SHELF THAT YOU ALREADY HAVE (Blake, 2026-10-11). His shopkeeper offered the very
+// rifle in his hands, and pressing it charged him the price minus his own rifle's trade-in to get
+// the same rifle back: money for nothing. The roll stays as it was (it is the stall's stock for the
+// run, see rollShopStock); this filters what is SHOWN, so the shelf reads two items instead of
+// three while you hold the third, and it comes back if you trade that one away later.
+//   * a gun or melee weapon: the one in your hands;
+//   * a throwable: only while you carry a FULL ×3 of it. Bought again it refills to 3
+//     (throwPickup), so with one grenade left it is still a real purchase;
+//   * a garment: any worn slot holding that id (wornEquipMap, so the look's own clothes count);
+//   * a consumable is never "had": you drink it.
+export const shopUnowned = (items, owned) => {
+  const o = owned || {};
+  const worn = new Set((o.wornIds || []).filter(Boolean));
+  return (items || []).filter((it) => {
+    if (!it) return false;
+    if (it.type === "item") return true;
+    if (it.type === "weapon") {
+      if (isThrowable(it.wtype)) return !(o.throwId === it.id && (o.throwLeft || 0) >= 3);
+      return o.weaponId !== it.id;
+    }
+    return !worn.has(it.id);
+  });
+};
 // Heal is clamped to [0, max] and never lowers HP (a negative amount is treated as 0). Pure.
 export const applyHeal = (curHP, maxHP, amount) => Math.max(0, Math.min(maxHP, curHP + Math.max(0, amount || 0)));
 // How much extra maximum HP the worn kit gives everything fighting for you. Several items stack,
@@ -10313,8 +10336,9 @@ export const gateLeavingThrough = (lv, side, cx, cy, cell = LV_CELL, reach = GAT
   return best;
 };
 // One slot in a run. `level` is that slot's own (shallow, migrated) copy carrying `runKey`: a level
-// can appear twice in one run, and the play loop keys its per-level state bucket (enemies killed,
-// fires burning, pedestals taken) on runKey rather than the level id, so each visit is its own
+// could once appear twice in one run (buildRun no longer lays one twice), and the play loop keys
+// its per-level state bucket (enemies killed, fires burning, pedestals taken) on runKey rather than
+// the level id, so each visit is its own
 // place. `links` is what lies on each side: a node key, null for "nothing — that seam is a wall",
 // or absent for "not decided yet".
 const runNode = (level, key, col, row) => ({ key, col, row, level: { ...migrateLevel(level), runKey: key }, links: {} });
@@ -10322,8 +10346,8 @@ const addRunNode = (run, level, col, row) => { const key = "run" + run.nextKey++
 // The main chain, built up front so intro → exit is guaranteed before play starts. Several seeded
 // attempts, keeping the best — an Exit that actually joins beats a longer chain that dead-ends.
 // Each step picks at random among the levels that ATTACH on the east (canAttach: both gate pairs
-// on the seam agree and at least one is an open mutual match), preferring ones not used yet, so
-// with six middle levels and eight slots the same level can appear twice.
+// on the seam agree and at least one is an open mutual match), never one already used: with six
+// middle levels and eight slots the chain is simply shorter (2026-10-11, no level twice on a seed).
 //
 // A SEWER IS LAID WITH ITS WAY OUT (2026-10-02). Blake: "entering the sewer by going down it has to
 // generate both an entrance and exit… if the sewer spawns you need two levels with gates that go to
@@ -10388,8 +10412,13 @@ export const buildRun = (levels, seed, opts = {}) => {
   for (let attempt = 0; attempt < attempts; attempt++) {
     const chain = [], used = new Set(), passages = [], taken = { S: new Set(), N: new Set() };
     let middlesLeft = maxMiddles, exitPlaced = false;
-    const pick = (cands) => { if (!cands.length) return null; const fresh = cands.filter((c) => !used.has(c.id)); const list = fresh.length ? fresh : cands; return list[Math.floor(rnd() * list.length)]; };
-    const order = (cands) => [...shuffle(cands.filter((c) => !used.has(c.id))), ...shuffle(cands.filter((c) => used.has(c.id)))];
+    // NO LEVEL TWICE IN ONE RUN (Blake, 2026-10-11: "make sure it doesn't generate the same level
+    // twice on a seed"). Used levels were only a second choice here, so a short pool walked the same
+    // street (or sewer) again. Now a used level is never a candidate anywhere in the plan — street,
+    // passage, or the street levels laid to climb back out — and a pool that runs dry ends the chain
+    // short instead; the attempts loop still keeps the best chain it finds.
+    const pick = (cands) => { const fresh = cands.filter((c) => !used.has(c.id)); return fresh.length ? fresh[Math.floor(rnd() * fresh.length)] : null; };
+    const order = (cands, also) => shuffle(cands.filter((c) => !used.has(c.id) && !(also && also.has(c.id))));
     // `n` more middle levels chained east of `from`, the last of which `fits` (a way back up out of
     // the sewer). Depth is at most RUN_PASSAGE_MAX; `dead` remembers a level that cannot finish the
     // job from that depth, so the search is levels × depth, not levels to the power of depth.
@@ -10398,21 +10427,24 @@ export const buildRun = (levels, seed, opts = {}) => {
     // `from` it would sit and `k` how many are still to lay counting this one, so k === 1 is the last.
     const fillTo = (from, n, fits) => {
       const dead = new Set();
-      const go = (prev, k, x) => {
-        const memo = prev.id + "|" + k + "|" + x;
+      // `laid` is this fill so far: a level it already used is out for the rest of it too, and is in
+      // the memo key, since what is still free decides whether a depth can be finished.
+      const go = (prev, k, x, laid) => {
+        const memo = prev.id + "|" + k + "|" + x + "|" + [...laid].sort().join(",");
         if (dead.has(memo)) return null;
-        for (const m of order(middles.filter((c) => canAttach(prev, c, "E")))) {
+        for (const m of order(middles.filter((c) => canAttach(prev, c, "E")), laid)) {
           const mx = x + seamOffX(prev, m, "E");
           if (!fits(m, mx, k)) continue;
           if (k === 1) return [m];
-          const rest = go(m, k - 1, mx); if (rest) return [m, ...rest];
+          const rest = go(m, k - 1, mx, new Set([...laid, m.id])); if (rest) return [m, ...rest];
         }
         dead.add(memo); return null;
       };
-      return n > 0 ? go(from, n, 0) : null;
+      return n > 0 ? go(from, n, 0, new Set()) : null;
     };
     const commit = (route, c, dir, fill) => {
       for (const m of fill) { chain.push(m); used.add(m.id); middlesLeft--; }
+      for (const s of route.path) used.add(s.id);   // a sewer walked once is never laid again this run
       route.path.forEach((s, i) => taken[dir].add(c + i * route.step));
       passages.push({ dir, col: c, step: route.step, levels: route.path });
       return true;
@@ -10421,7 +10453,7 @@ export const buildRun = (levels, seed, opts = {}) => {
     // through the passage levels' east/west gates, and back to the street at another column.
     const planFrom = (c, dir) => {
       if (!planPassages || taken[dir].has(c)) return false;
-      const firsts = offStreet.filter((s) => canAttach(chain[c], s, dir) && vertSeamLinesUp(chain[c], s, dir));
+      const firsts = offStreet.filter((s) => !used.has(s.id) && canAttach(chain[c], s, dir) && vertSeamLinesUp(chain[c], s, dir));
       if (!firsts.length) return false;
       const routes = [];
       const walk = (step, col, lvl, path) => {
@@ -10429,6 +10461,7 @@ export const buildRun = (levels, seed, opts = {}) => {
         const nc = col + step;
         if (nc < 0 || taken[dir].has(nc)) return;          // never back before the start
         for (const s of offStreet) {
+          if (used.has(s.id) || path.some((q) => q.id === s.id)) continue;
           if (!canAttach(lvl, s, step > 0 ? "E" : "W")) continue;
           const path2 = [...path, s];
           routes.push({ step, path: path2, end: nc });
@@ -10483,7 +10516,22 @@ export const buildRun = (levels, seed, opts = {}) => {
       planUpTo();
     }
     const last = chain[chain.length - 1];
-    const exit = last ? pick(exits.filter((e) => canAttach(last, e, "E"))) : pick(exits);
+    let exit = last ? pick(exits.filter((e) => canAttach(last, e, "E"))) : pick(exits);
+    // With no repeats the chain runs until the pool is spent, and the level it stopped on often has
+    // the wrong right-hand gate for any Exit. So step back to the last level an Exit DOES join and
+    // end the street there, dropping any passage that reached past it (the levels cut off are free
+    // again, but nothing is laid after the Exit anyway).
+    for (let i = chain.length - 2; !exit && last && i >= 0; i--) {
+      const e = pick(exits.filter((x) => canAttach(chain[i], x, "E")));
+      if (!e) continue;
+      chain.length = i + 1;
+      const keep = passages.filter((ps) => Math.max(ps.col, ps.col + (ps.levels.length - 1) * ps.step) <= i);
+      passages.length = 0; passages.push(...keep);
+      taken.S.clear(); taken.N.clear();
+      for (const ps of keep) ps.levels.forEach((s, j) => taken[ps.dir].add(ps.col + j * ps.step));
+      planned = Math.min(planned, chain.length);
+      exit = e;
+    }
     if (exit) { chain.push(exit); exitPlaced = true; planUpTo(); }
     const score = chain.length + (exit ? 1000 : 0);
     if (!best || score > best.score) best = { chain, passages, exit: !!exit, intro: !!intro, score };
@@ -10546,7 +10594,9 @@ export const resolveRunNeighbour = (run, node, side, levels) => {
   else if (run.planned && (node.row !== 0 || side === "N" || side === "S")) target = null;
   else {
     const roles = run.planned ? ["middle"] : ["middle", "side"];
-    const cands = (levels || []).filter((l) => l && !l.isRoom && l.conns && roles.includes(runRole(l))).map(migrateLevel).filter((l) => canAttach(node.level, l, side));
+    // Never a level the run already holds (no level twice on a seed — see buildRun's pick).
+    const inRun = new Set(Object.values(run.nodes).map((n) => n.level.id));
+    const cands = (levels || []).filter((l) => l && !l.isRoom && l.conns && !inRun.has(l.id) && roles.includes(runRole(l))).map(migrateLevel).filter((l) => canAttach(node.level, l, side));
     if (cands.length) target = addRunNode(run, cands[Math.floor(roomSeed(run.seed + "|" + node.key + "|" + side) * cands.length)], col, row);
   }
   node.links[side] = target ? target.key : null;
@@ -10665,6 +10715,16 @@ export const runSceneryNodes = (run, node, cell = LV_CELL) => {
 // drawn from here (live, seams, scenery) covers it, so it can never paint over a level.
 // The same band from two views is the same pseudo node (`run.fillPool`, by content), so a fill that
 // does not change keeps its wrapper across a handoff; one whose content changes is a new node.
+// THE GROUND UNDER A STREET LEVEL, TOO (same day, the next report). Over a sewer the camera may rise
+// a level (yOnly), but under a street it could sink only where a sewer happened to be drawn: walking
+// from a street level with nothing under it onto one with a sewer under it, the clamp opened
+// downward, the view eased down 30-60 px, and under the level just left there was nothing: black.
+// Blake: "janky camera movement and then a blank area". Every street level now has its own bottom
+// row repeated RUN_FILL_BELOW_ROWS down wherever no level is drawn there, and the camera may always
+// go that deep under the street (runCameraParts), sewer or not, so it frames you the same on every
+// street level and never moves at a gate. 24 rows (720 px) is more than half the tallest view plus a
+// body (the view centres on you, and you never stand below the bottom row), so it is never seen past.
+export const RUN_FILL_BELOW_ROWS = 24;
 const RUN_FILLS_CACHE = new WeakMap();     // live node -> { run, sig, cell, list }
 export const runFills = (run, live, cell = LV_CELL) => {
   if (!run || !live) return [];
@@ -10674,13 +10734,17 @@ export const runFills = (run, live, cell = LV_CELL) => {
   const pool = run.fillPool || (run.fillPool = new Map());
   const list = [];
   for (const { node: X, off } of drawn) {
-    if (!(X.row > 0)) continue;
-    const lv = X.level, rows = lv.rows, top = off.y - rows * cell;
+    // Over a sewer: its own top row repeated up a level's height. Under a street level: its bottom
+    // row repeated down RUN_FILL_BELOW_ROWS (see there). A tree top's sky stays sky.
+    const below = X.row === 0;
+    if (!(X.row > 0) && !below) continue;
+    const lv = X.level, rows = below ? RUN_FILL_BELOW_ROWS : lv.rows, top = below ? off.y + lv.rows * cell : off.y - rows * cell;
+    const srcRow = below ? lv.rows - 1 : 0;
     const fg = {}, bg = {}, parts = [];
     for (let c = 0; c < lv.cols; c++) {
-      const f = lv.fg && lv.fg["0," + c], b = lv.bg && lv.bg["0," + c]; if (!f && !b) continue;
+      const f = lv.fg && lv.fg[srcRow + "," + c], b = lv.bg && lv.bg[srcRow + "," + c]; if (!f && !b) continue;
       const x0 = off.x + c * cell, x1 = x0 + cell;
-      const cover = drawn.filter((d) => d.node !== X && d.off.x < x1 && d.off.x + d.node.level.cols * cell > x0 && d.off.y < off.y && d.off.y + d.node.level.rows * cell > top);
+      const cover = drawn.filter((d) => d.node !== X && d.off.x < x1 && d.off.x + d.node.level.cols * cell > x0 && d.off.y < top + rows * cell && d.off.y + d.node.level.rows * cell > top);
       let from = -1;
       for (let r = 0; r <= rows; r++) {
         const y = top + r * cell, open = r < rows && !cover.some((d) => y + cell > d.off.y && y < d.off.y + d.node.level.rows * cell);
@@ -10691,7 +10755,7 @@ export const runFills = (run, live, cell = LV_CELL) => {
     if (!parts.length) continue;
     const id = X.key + "|" + parts.join(",");
     let fill = pool.get(id);
-    if (!fill) { fill = { key: "fill:" + X.key + ":" + pool.size, fill: true, col: X.col, row: X.row - 0.5, level: { id: "fill:" + X.key, rows, cols: lv.cols, fg, bg, front: {}, fx: {} } }; pool.set(id, fill); }
+    if (!fill) { fill = { key: "fill:" + X.key + ":" + pool.size, fill: true, col: X.col, row: X.row + (below ? 0.5 : -0.5), level: { id: "fill:" + X.key, rows, cols: lv.cols, fg, bg, front: {}, fx: {} } }; pool.set(id, fill); }
     list.push({ node: fill, off: { x: off.x, y: top } });
   }
   RUN_FILLS_CACHE.set(live, { run, sig, cell, list });
@@ -10704,6 +10768,9 @@ export const runCameraParts = (run, node, seams, cell = LV_CELL) => {
   const out = { ...(seams || {}) };
   for (const s of runSceneryNodes(run, node, cell)) if (s.stacked) out["scenery:" + s.key] = { level: s.node.level, off: s.off, yOnly: true };
   if (node && node.row > 0) out["above:" + node.key] = { level: node.level, off: { x: 0, y: -node.level.rows * cell }, yOnly: true };
+  // ...and under every street level its ground (runFills), the same depth everywhere, so the view sits
+  // at the same height on a street level whether a sewer is under it or not (RUN_FILL_BELOW_ROWS).
+  if (node && node.row === 0) out["below:" + node.key] = { level: { cols: node.level.cols, rows: RUN_FILL_BELOW_ROWS }, off: { x: 0, y: node.level.rows * cell }, yOnly: true };
   return out;
 };
 // The gate a body at (cx, cy) is leaving through INTO a neighbour: gateLeavingThrough, but only a
@@ -10870,6 +10937,26 @@ export const runGridOrder = (a, b) => (a.row - b.row) || (a.col - b.col);
 // gate swapped places and React moved the sprites of one of them — ~140 DOM nodes each, compositor
 // layers, all redone. A unit with no live state yet (its first frame) keeps its book position after
 // every seeded one; the sort is stable.
+// WHAT A UNIT IS DRAWN FROM, besides its asset, weapon and placement: its live state (`ep`). Every
+// field goes in except where it stands (x, y, the fall speed, the slide, the eased step-up: they move
+// the wrapper, never the art) and its id. Every field, not a list of the ones the drawing reads
+// today, so a new pose or timer can never leave a stale picture: it only changes the key. Measured on
+// Trailor Park M15 (2026-10-11): an idle unit's state does not change at all between frames, so it
+// hits every frame; a walking one changes walkPhase and misses, as before. null (a field that cannot
+// be written out) means draw it fresh.
+export const UNIT_ART_SIG_SKIP = new Set(["x", "y", "vy", "slideVx", "stepEase", "uid"]);
+export const unitArtSig = (ep) => {
+  if (!ep) return "";
+  let s = "";
+  try {
+    for (const f in ep) {
+      if (UNIT_ART_SIG_SKIP.has(f)) continue;
+      const v = ep[f];
+      s += f + "=" + (v !== null && typeof v === "object" ? JSON.stringify(v) : String(v)) + ";";
+    }
+  } catch { return null; }
+  return s;
+};
 export const unitDrawOrder = (enemies, pos) => {
   const ks = Object.keys(enemies || {}), uid = (k) => (pos && pos[k] && pos[k].uid) || Infinity;
   return ks.sort((a, b) => { const ua = uid(a), ub = uid(b); return ua === ub ? 0 : ua < ub ? -1 : 1; });
@@ -11685,6 +11772,24 @@ export const sideWalls = (split, grounded) => (grounded || !split.hill.length ? 
 // ladder) AND with ground under its centre (groundUnderFeet). A body in the air meets it as a wall.
 export const hillStandsAside = (isGround, centreCol, feetY, CH, onPlane, onFeet) =>
   !!onPlane || (!!onFeet && groundUnderFeet(isGround, centreCol, feetY, CH));
+// A CEILING THE HEAD ALREADY GRAZES RUNS ON (2026-10-11, Blake: "the rats in Sewer M2 are no longer
+// dropping down"). Each rat waits in a pocket in the tunnel roof with 30 px of air over its lip, and
+// a rat is 36 px tall, so its head sits 6 px into the roof (row 7, a row of ramps). Walking to the
+// hole, its next step met the next roof cell of that same row. A unit is let out of cells it is
+// already in, but a NEW cell is a wall, and the roof's ramps were only let through as hill while the
+// rat had ground under its middle. Since the M14/M15 fix (hillStandsAside, 2026-10-10) the middle
+// over the hole means "in the air", the ramps are walls, and every rat stopped one step short of
+// its drop. A plain solid roof would have stopped it the same way. So a hit in the box's TOP row,
+// in a row the box already pokes into by at most half a cell, is the same roof running on: the body
+// keeps walking under it at the depth it already has. A real wall also fills the rows below the
+// head and still stops it.
+export const ceilingGrazeFree = (hits, insideKeys, boxTop, CH) => {
+  const topRow = Math.floor(boxTop / CH);
+  if ((topRow + 1) * CH - boxTop > CH / 2) return hits;
+  let grazing = false;
+  for (const k of insideKeys) if (+k.slice(0, k.indexOf(",")) === topRow) { grazing = true; break; }
+  return grazing ? hits.filter((h) => h.r !== topRow) : hits;
+};
 // The player's flat landing on hill under its CENTRE → { land, stepTop }. A body whose feet just
 // reached the top of the column's hill lands on it (the hill-top window). A body whose centre column
 // holds hill ABOVE its feet is inside the hill, and used to get nothing at all, because the window
@@ -12013,6 +12118,8 @@ export default function AssetStudio() {
   const livesUsed = useRef(0);                            // 🐱 Extra Lives SPENT this Playtest run — run-wide like playerHP and the wallet, wiped only by the ▶ button (never by a door or a re-run); what is LEFT is extraLivesLeft(worn effects, this), so swapping the item off and on cannot restock
   const pedestalRolls = useRef({});
   const enemyGearRolls = useRef({});                       // spawnKey -> the item that placement's gear tag rolled this session (null = the tag matched nothing). Rolled once per level entry, exactly like pedestalRolls, and kept in the same per-level bucket — re-rolling per reader would arm the unit with one gun and drop another.
+  // uKey -> the unit sprite drawn last frame and everything it was drawn from (storeUnitArt, unitArtSig).
+  const unitArtCache = useRef(new Map());
   const enemyGearLookCache = useRef(new Map());            // "run|lookId|rolledId" -> that look re-composed WEARING what it rolled. assembleLook is not free and the render asks every frame.
   const liveSpawnCache = useRef(new Map());                // spawnKey -> { raw, rolled, out } — keeps the gear-folded placement IDENTITY-stable, so a per-frame reader isn't handed a brand-new object 60 times a second
   const pedestalDepleted = useRef(new Set());              // pedestal keys the player emptied (took the item, had nothing to swap back) — these vanish rather than showing "no match"
@@ -14939,10 +15046,12 @@ export default function AssetStudio() {
             // A unit in mid-air meets a ramp's backing as a wall too (sideWallsW): over the M15 manhole
             // a Lion chasing you down the sewer would sink through its side, and a dodge-hop into M14's
             // saucer would rise into the mound.
+            // ...and the ceiling its head already grazes runs on (ceilingGrazeFree): Sewer M2's rats.
             const eWallHits = sideWallsW(wallBoxHits(nx, ep.y), ep.y + newEph, nx + epw / 2, ep.topdown, !!(ep.onGround || ep.climbing)).filter((h) => !eInside.has(h.r + "," + h.c));
-            if (!eWallHits.length) ep.x = nx;
+            const eMoveHits = ceilingGrazeFree(eWallHits, eInside, ep.y + eWallTop, CH);
+            if (!eMoveHits.length) ep.x = nx;
             else {
-              const stepY = Math.min(...eWallHits.map((h) => h.r * CH)) - newEph;
+              const stepY = Math.min(...eMoveHits.map((h) => h.r * CH)) - newEph;
               const rise = ep.y - stepY;
               // A genuine one-cell lip (a kerb, a stair) still steps up in one frame for the physics,
               // but is DRAWN easing up over the next few (ep.stepEase, decayed by the player's own
@@ -19568,6 +19677,12 @@ export default function AssetStudio() {
     enemyGearLookCache.current.set(key, out);
     return out;
   };
+  // Remember the sprite a unit was just drawn as, keyed on everything it was drawn from, so the next
+  // frame hands React the SAME element and it skips the whole subtree (see eArtHit in the unit pass).
+  const storeUnitArt = (uKey, sig, ea, ew, sp, w, h, anchor, blocks, el) => {
+    if (sig !== null) unitArtCache.current.set(uKey, { sig, run: playRunId.current, ea, ew, sp, w, h, anchor, tex: texLib, blocks, el });
+    return el;
+  };
   const exportLook = () => { const l = composeLook(); if (!l) { flash("Pick a body first."); return; } setCombo(JSON.stringify(l, null, 2)); };
   const saveDressedBob = async () => {
     const body = findA(loadout.bodyId);
@@ -23143,7 +23258,18 @@ export default function AssetStudio() {
                   // A unit's look is usually the art baked when it was saved, so the arms-over-hat rule
                   // (hatsUnderArms) is applied here too — the same raised arm in front of the same
                   // helmet on an enemy as on you.
-                  let eBlocks = hatsUnderArms(bake(ea, ePoseKey));
+                  // THE DRAWING IS REUSED WHILE NOTHING IT IS DRAWN FROM HAS CHANGED (unitArtSig). Built
+                  // every frame, a unit standing still cost ~0.23 ms of piece work and a fresh tree for
+                  // React to compare, for an identical picture.
+                  const eThrowingNow = !!(ep && (ep.throwT || 0) > 0);
+                  const eArtSig = unitArtSig(ep);
+                  const eArtHit = (() => {
+                    const c = unitArtCache.current.get(uKey);
+                    return c && eArtSig !== null && c.sig === eArtSig && c.run === playRunId.current && c.ea === ea && c.ew === ew && c.sp === eSpawn
+                      && c.w === eRenderW && c.h === eph && c.anchor === eAnchor && c.tex === texLib ? c : null;
+                  })();
+                  let eBlocks = eArtHit ? eArtHit.blocks : hatsUnderArms(bake(ea, ePoseKey));
+                  if (!eArtHit) {
                   // Both of these are poses drawn on their own canvas, so both need pinning to the
                   // baseline the SIDE pose stands on, or the body floats or sinks by whatever empty
                   // canvas its own drawing happens to leave underneath it.
@@ -23198,7 +23324,6 @@ export default function AssetStudio() {
                   // ✋ An Enemy-creator asset holds its weapon (and a grenade mid-throw) at its HOLD
                   // POINT — see unitHoldArm. Read off the pose's own un-swung art, so the default
                   // point stays put while the legs walk.
-                  const eThrowingNow = !!(ep && (ep.throwT || 0) > 0);
                   const eFacesRight = enemyArtFacesRight(ea);
                   const eHoldArm = (ew || (eThrowingNow && spawnThrowableFor(eSpawn))) ? unitHoldArm(ea, enemyPoseKey(ea, ducking ? "crouch" : "side"), bake(ea, enemyPoseKey(ea, ducking ? "crouch" : "side"))) : null;
                   if (eHoldArm) { eBlocks = [...eBlocks, eHoldArm]; eArm0 = eHoldArm; }
@@ -23345,6 +23470,7 @@ export default function AssetStudio() {
                       eBlocks = mergeWeaponBlocks(eBlocks, eAttachHeld(tPieces, hv, curArm));
                     }
                   }
+                  } // end of the drawing that eArtHit skips
                   const hpFrac = Math.max(0, Math.min(1, curHp / maxHp));
                   // The bar of whoever is being hurt RIGHT NOW draws over the rest of the crowd (unitStatusZ).
                   const hpHot = noteUnitHp(U.hpSeen, uKey, curHp, performance.now());
@@ -23437,7 +23563,7 @@ export default function AssetStudio() {
                         {eTalkWaiting && !downed ? <div className="talkBadge">💬</div> : null}
                       </div>
                       <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : {}), ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
-                        {(() => {
+                        {eArtHit ? eArtHit.el : storeUnitArt(uKey, eArtSig, ea, ew, eSpawn, eRenderW, eph, eAnchor, eBlocks, (() => {
                           const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + uKey, keyPrefix: uKey + "_", alphaOf: spriteAlphaOf(ea, eThrowingNow ? spawnThrowableFor(eSpawn) : ew), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
                           // Draw the art at its true aspect when the box isn't one (ducking): on a
                           // plane as tall as the art really is, placed so its floor line stays on the
@@ -23449,7 +23575,7 @@ export default function AssetStudio() {
                           const plane = spriteArtPlane(eRenderW, eph, eAnchor);
                           if (!plane) return art;
                           return <div style={{ position: "absolute", left: 0, top: plane.top, width: "100%", height: plane.height }}>{art}</div>;
-                        })()}
+                        })())}
                       </div>
                     </React.Fragment>
                   );
@@ -23904,7 +24030,11 @@ export default function AssetStudio() {
         {play && shop && (() => {
           const intel = shopperIntelligence();
           const rolled = (shopRolls.current[shop.roll] || []).map(findA).filter(Boolean);
-          const stock = shopPriceOrder(rolled, intel);
+          const wornNow = wornEquipMap(findA(playerId), equipped.current);
+          const stock = shopPriceOrder(shopUnowned(rolled, {
+            weaponId: playtestWeaponId, throwId: playtestThrowId, throwLeft: throwCarry.current,
+            wornIds: Object.values(wornNow || {}).map((g) => g && g.id),
+          }), intel);
           return (
             <div className="modal" onClick={closeShop}>
               <div className="dlg shopDlg" onClick={(e) => e.stopPropagation()}>
@@ -23914,7 +24044,8 @@ export default function AssetStudio() {
                     the "Wallet" chip is what anchors them as money. */}
                 <div className="dt">{(shop.name || "Shop").trim()}</div>
                 <div className="shopHead"><span className="shopWallet">Wallet {walletUI}</span></div>
-                {!stock.length && <p className="mini">He has nothing to sell — nothing in your library is tagged <b>{shop.tag}</b>.</p>}
+                {!rolled.length && <p className="mini">He has nothing to sell — nothing in your library is tagged <b>{shop.tag}</b>.</p>}
+                {!!rolled.length && !stock.length && <p className="mini">You already have everything he sells.</p>}
                 {stock.map((it) => {
                   const q = shopQuote(it);
                   const { pieces: artPieces, bb } = groundArt(it);

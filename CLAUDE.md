@@ -363,7 +363,8 @@ plus traps it does not cover:
   for the player's landing. Otherwise a jump rises into a mound and falls through it (M14's saucer), or
   a ramp-lipped hole's wall swallows you (M15's manhole). A body already INSIDE hill steps up at most a
   cell or lands on the row its feet cross (`centreHillLanding`); it must never fall through. Any new
-  sideways or landing pass goes through these.
+  sideways or landing pass goes through these. A unit whose head already grazes a roof row walks on
+  under it (`ceilingGrazeFree`), or Sewer M2's rats stop a step short of their holes.
 - **Objects:** `lv.fx["r,c"]` (the object's top-left cell) is a list of
   `{ kind, solid, lay, z, size, rot, flip, ox, oy, … }`. Render through `levelObjectsInDrawOrder`,
   and new placements take `nextObjectZ`. The layer comes from `lay` (`objectLay`), not from Solid.
@@ -394,7 +395,8 @@ plus traps it does not cover:
   - `buildRun(runPool(), seed)` is seeded. It picks an Intro (a level with no open left-hand
     gate), then middles chained by `canAttach`, then an Exit (no open right-hand gate). **A floor
     is `RUN_LEVELS_PER_FLOOR` (8) street levels IN ALL, start and end counted** (his rule; sewers
-    are extra). A run starts at the Intro's Lower Left gate even though it is closed (`spawnGateFor`). **A level's role comes from its gates and Floor only (`runRole`).** Blake
+    are extra). **No level twice on a seed** (his rule): buildRun never re-picks a used street or sewer
+    level, and a chain that runs dry ends at the last level an Exit joins. A run starts at the Intro's Lower Left gate even though it is closed (`spawnGateFor`). **A level's role comes from its gates and Floor only (`runRole`).** Blake
     retired the free-text Section box on 2026-10-09; an old save's `section` is ignored.
   - Sewers and tree tops (Floor "Sewer", "Underground" or "Tree Top") are planned as passages
     with a way out.
@@ -413,6 +415,8 @@ plus traps it does not cover:
   `camRef`, and becomes a `translate3d` on `.lgrid` inside `commitFrame`. Nothing scrolls during
   play. A level above or below (top/bottom seam, scenery, the sewer fill) widens it up and down
   only (`yOnly`), never sideways, or a risen view slides off the end of a sewer into nothing.
+  Under every street level its bottom row is repeated `RUN_FILL_BELOW_ROWS` down (`runFills`) and the
+  camera may always go that deep (`below:` part), so the view never moves at a gate, sewer or not.
 - **Dialogue trees** are the sixth saved kind: `{ id, name, start, once?, nodes: { nId: { speaker,
   text, choices: [{ text, to, act, tone, shopTag? }] } } }`. `to` and `act` are independent. Keys
   1–9 pick options. A tree on a spawn makes it peaceful, and a conversation pauses the WORLD. A shop
@@ -427,6 +431,8 @@ plus traps it does not cover:
     a DOM move.
   - "Stuttery" (frame pacing) and "low FPS" (load) are different bugs; ask which one he means. On
     his machine the frame cost is paint, not script.
+  - A unit's sprite element is reused while `unitArtSig(ep)`, its asset, weapon, placement and size
+    are unchanged (`unitArtCache`). New art input that is not on `ep` must join that check.
 - **Limbs seen from behind (ladder, Back pose) move by TRANSLATION, never rotation.** A hip
   rotation only splays a leg from behind, and a far-side pant twin counter-rotates off the leg.
   Units climbing take the player's ladder step (`legLift`), not the walk swing, and raise
@@ -451,7 +457,7 @@ plus traps it does not cover:
 - Floating labels are bare words (white, with a black outline and glow) and never boxes. There is
   no 🐱×N count by HP bars. The shop panel is square and has no emoji. Dialogue has no bubble,
   answers sit in a grid, and the font is DotGothic16. The pickup banner is Shrikhand, coloured by
-  rank.
+  rank. A shop never shows what you already hold or wear (`shopUnowned`).
 - **Defense:** a hit times `DEFENSE_HALF_AT / (DEFENSE_HALF_AT + Defense)`, DEFENSE_HALF_AT = 35 (10 until
   2026-10-08, 20 until 2026-10-10: "a tad too bullet spongy. IE the football players"). Applied ONCE per
   hit, on the player and on units alike. A look's Defense is the sum of its garments; negative totals

@@ -4136,3 +4136,74 @@ keep the open-gate rule (Sewer M1 still enters at its top). In the app: x 0 on S
 **The keeper was dead again** (no node on 47017/47018, last log 2026-10-10 22:32). His S1/E1 and an M3
 edit were only in the StackBlitz store `hzer--3000--2ed8f36d`. Starting the Startup .cmd hidden swept 9
 newer records and updated the online save in ten seconds.
+
+## OWNED SHOP ROWS, THE "SHIRTLESS" NPC, GROUND UNDER EVERY STREET, NO REPEATS, THE RATS AND THE IDLE-UNIT REDRAW (2026-10-11, evening)
+
+**"If you already have an object the shop is selling the shop shouldn't be selling that."** The shelf
+is still rolled once per stall per run (`rollShopStock`); what is SHOWN now goes through `shopUnowned`:
+the gun or melee weapon in your hands, a throwable only while you carry a full ×3 (buying it again
+refills to 3, so with one left it is a real purchase), and any worn garment id (`wornEquipMap`, so the
+look's own clothes count). Consumables always show. A shelf of three shows two while you hold the
+third, and the row comes back if you trade that item away.
+
+**"This NPC spawned without a shirt … they have a black shirt such as Hardy shirt and their skin layer
+is just higher" (Trailor Park M2).** Not a bug, and nothing changed. The placement is a 🎲 Trailor tag
+with two T1 gear rolls. It rolled Bobbi (brown skin, tone #5f4935, wearing the Hardy Shirt), plus the
+Hipster Hat and the Hipster Jacket. The jacket's torso piece is #aa7d55 at bright 0.55 = #5d452f,
+almost exactly her skin, and it is outlined, so on screen it reads as a bare outlined torso. The
+compositor was checked anyway: every Trailor look × every T1 garment through `liveEnemyAsset` in the
+app, and no combination drops or re-orders the look's own top. Same lesson as the bat that "deformed
+the jacket": render HIS placement and match colours before calling it a layering bug.
+
+**"Janky camera movement and then a blank area when I went from a level with no sewer to a level with
+a sewer under it"** (Trailor Park M1 → M15, the trailer and fence on the left of his screenshot).
+`runCameraParts` let the view below a street level only where a sewer was drawn under it. On M1 the
+clamp held the view at M1's bottom (at his 871-913 px tall view, 22-60 px above where centring would
+put it); once a sewer under M15 came into the clamp the view eased down that far, and under M1 nothing
+was drawn: black. **Fix:** `runFills` also repeats every street level's bottom row `RUN_FILL_BELOW_ROWS`
+(24) rows down wherever no drawn level covers it, and `runCameraParts` always adds a `below:` yOnly
+part of that depth for a street level. So the vertical clamp is the same on every street level and
+the view simply centres you. Measured on seed 328533 at a 3083×913 view: camera y 489 on M1 and on M15
+through the gate (it would have been held at 467 on M1), and the screenshot shows grass under M1.
+
+**"Make sure it doesn't generate the same level twice on a seed."** buildRun's `pick`/`order`
+preferred unused levels but fell back to used ones, and passage routes could walk a sewer twice. Now a
+used level is never a candidate: street picks, `fillTo` (which also excludes what the fill itself has
+laid; that set is in its memo key), passage `firsts` and `walk`, and `commit` marks passage levels used.
+With no repeats the chain runs until the pool is dry and often stops on a level no Exit joins, so it
+steps back to the last level an Exit does join and ends the street there (dropping passages past it).
+`resolveRunNeighbour`'s on-the-fly growth also skips levels already in the run. His levels, 300 seeds:
+0 repeats, 300 of 300 runs 8 long with an Exit, 216 with sewers.
+
+**"The rats in Sewer M2 are no longer dropping down."** Regression from the M14/M15 fix (2026-10-10,
+`hillStandsAside`). Each rat's pocket has 30 px of air over its lip (row 8 open, row 7 a row of ramps
+with a solid fill behind), and a rat is 36 px tall, so its head is 6 px into row 7. Walking to its
+hole, the next row-7 cell was a NEW cell (a unit is only let out of cells it is already in). Before
+10-10 the ramps were let through as hill because the rat was on its feet; since then, with its centre
+over the hole, there is no ground under the centre, so the hill is a wall, and every rat moved 22 px
+and stopped. Logged in the live loop: the only wall hit was `{r:7, c:18}`. **Fix:** `ceilingGrazeFree`
+drops hits in the box's TOP row when the box already pokes into that row by at most half a cell: the
+same roof running on. A real wall fills the rows below the head and still stops it. In the app (dev
+and production builds): all four rats drop to the floor (y 444) as he approaches.
+
+**"Maximum frame stability. Sometimes at random it feels a little slower."** Standing still by M15's
+shaft, the dev build showed a ~45 ms frame every 22-23 frames with no DOM change, no shots and no route
+planning. It was garbage collection: ~1.7 MB allocated per frame in the PRODUCTION build (heap read off
+`performance.memory` every frame; a collection every ~8 frames). Timing marks in the loop and the
+render (production build, Blake-sized view): 5.7 ms of script per frame, of which React's render was
+4.4 ms and the unit pass 1.7 ms. The 7 visible units, all standing still, cost ~0.23 ms each to rebuild
+(bake, limb swing, weapon attach, renderPieceRuns) into a picture identical to the last frame's, and
+then React compared the whole tree. Off-screen units were already culled. **Fix:** `unitArtCache`.
+The unit pass keys a unit's sprite element on `unitArtSig(ep)` (every field of its live state except
+x, y, vy, slideVx, stepEase and uid, objects JSON-written; null if one cannot be written, meaning draw
+fresh) plus asset, weapon, placement, render size, anchor, texture library and run id, and hands React
+the SAME element when nothing changed, so the subtree is skipped. After: 1.9 ms of script per frame
+(render 1.0, units 0.1), allocation 1.0 MB/frame, collections ~14 per 5 s instead of ~35. Verified
+that animation still redraws: walking rats changed art on 35 of 39 moving frames (the other 4 were
+mid-fall), and bites redrew while standing. The warm-ahead steps (`warmRunAhead`) were timed too and
+are all ≤ 5 ms even in the dev build; they were not the hitch.
+
+**Harness notes.** Production builds served by a scratch `serve.js` (static files + `/__library` from
+the `saves` branch's library.json) are where per-frame numbers mean something; the dev build inflated
+the same frame 2-3×. A temporary `window.__TMPHOOK` (refs + liveEnemyAsset/findA/bake) made the
+compositor sweep and the rat probe one call each. Strip every hook and mark before committing.
