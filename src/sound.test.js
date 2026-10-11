@@ -7,7 +7,7 @@ import {
   soundGainAt, voicePlan, MAX_COPIES, MAX_VOICES, RETRIGGER_MS, clipExtOf, clipMime, CLIP_MAX_BYTES,
   clipHash, clipNameOk, clipMatches, createAudioEngine, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard,
   leadingSilence, ONSET_FLOOR, ONSET_OF_PEAK, ONSET_PREROLL_S, talkSeconds, TALK_CHARS_PER_S, TALK_MIN_S, TALK_MAX_S, dialogueSoundId,
-  soundVolume, SOUND_VOL_MAX,
+  soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, resolveSoundVol,
 } from "./audio";
 import { groupByCategory, mergeLibraries, mergeCloudLibrary, diskLibrary } from "./App";
 
@@ -124,6 +124,42 @@ describe("each sound has its own volume", () => {
     expect(soundVolume({ ...snd("a", "A"), vol: -1 })).toBe(0);
     expect(soundVolume({ ...snd("a", "A"), vol: NaN })).toBe(1);
     expect(soundVolume(null)).toBe(1);
+  });
+
+  // Blake, 2026-10-11, third time of asking: a slider beside EVERY pick, not only on Library rows.
+  test("slotVolume / withSlotVolume: absent is 100%, 100% is stored as absent", () => {
+    expect(slotVolume(undefined, "jump")).toBe(1);
+    expect(slotVolume({ jump: 0.3 }, "jump")).toBe(0.3);
+    expect(slotVolume({ jump: 7 }, "jump")).toBe(SOUND_VOL_MAX);
+    expect(withSlotVolume({ jump: 0.3 }, "jump", 1)).toEqual({});
+    expect(withSlotVolume(undefined, "fire", 1.5)).toEqual({ fire: 1.5 });
+    expect(oneVolume(undefined)).toBe(1);
+    expect(oneVolume(0.25)).toBe(0.25);
+  });
+  test("resolveSoundVol follows the same choice resolveSound makes", () => {
+    const has = () => true;
+    const b = { ...board({ punch: "whoosh" }), basicVol: { punch: 0.5 } };
+    const bat = { id: "bat", sounds: { hit: "thud" }, soundVol: { hit: 1.8 } };
+    const plain = { id: "plain", soundVol: { hit: 0.1 } }; // its own slot is empty: the Punch plays, at the Punch's volume
+    expect(resolveSoundVol({ asset: bat, slot: "hit", basic: "punch", board: b, has })).toBe(1.8);
+    expect(resolveSoundVol({ asset: plain, slot: "hit", basic: "punch", board: b, has })).toBe(0.5);
+    expect(resolveSoundVol({ basic: "jump", board: b, has })).toBe(1);
+  });
+  test("the engine plays a moment at sound volume x slot volume", () => {
+    const e = createAudioEngine({});
+    e.setLibrary([{ ...snd("w", "W"), vol: 0.5 }, { ...board({ punch: "w" }), basicVol: { punch: 0.4 } }]);
+    e.event("punch");
+    const row = e.trace().pop();
+    expect(row && row.gain).toBeCloseTo(0.2);
+  });
+  test("every pick on the Sounds screen and in the editor's 🔊 card has a slider beside it", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    const count = (needle) => src.split(needle).length - 1;
+    expect(count('{volSlider("b" + ev.key')).toBe(1);   // Basic sounds
+    expect(count('{volSlider("music"')).toBe(1);        // Music
+    expect(count('{volSlider("d" + d.id')).toBe(1);     // Dialogue
+    expect(count('{volSlider(w.id + sl.key')).toBe(1);  // Weapons and Enemies rows
+    expect(count('{volSlider("a" + sl.key')).toBe(1);   // the weapon / enemy editor's own card
   });
 });
 

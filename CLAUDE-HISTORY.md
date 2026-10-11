@@ -4207,3 +4207,12 @@ are all ≤ 5 ms even in the dev build; they were not the hitch.
 the `saves` branch's library.json) are where per-frame numbers mean something; the dev build inflated
 the same frame 2-3×. A temporary `window.__TMPHOOK` (refs + liveEnemyAsset/findA/bake) made the
 compositor sweep and the rat probe one call each. Strip every hook and mark before committing.
+
+
+## A volume slider beside every sound pick (2026-10-11, evening)
+
+Blake, after asking about three times: "EACH SOUND SHOULD HAVE A VOLUME SLIDER NEXT TO IT. THERE ARE 0!" and then "It has volume where its saved. I wanted it where its placed." The morning's slider (04cd1b3) was only on Library rows, which sit inside 📂 folders that start shut. The screen he works from (Basic sounds, Music, Dialogue, Weapons, Enemies) and the editor's 🔊 card had none.
+
+Now every one of those picks has its own slider, stored next to the pick and multiplied with the clip's Library volume. The same clip can be quiet as the Punch and loud as a gun's Fire. A weapon slot left on "— basic —" plays at the basic sound's slider (`resolveSoundVol` makes the same choice `resolveSound` makes). ▶ plays at that slider's volume. The talk loop takes the dialogue's `soundVol`, and music takes `board.musicVol`. The Sounds screen's pick rows no longer wrap the slider onto a second line.
+
+Verified on a prod build with his library: 9/9 basic, 1/1 music, 14/14 dialogue, 32/32 weapon slots and 39/39 enemy slots have a slider. Jump moved to 40% and still read 40% after a reload. The engine test shows a 50% clip on a 40% Punch slot plays at 0.2 gain.

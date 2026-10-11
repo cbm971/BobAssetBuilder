@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 // the game's own front end will play the same data without the studio — see src/audio.js. The clip
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
-import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX } from "./audio";
+import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume } from "./audio";
 
 /* ============================================================================
    BOB ASSET STUDIO  — HTML canvas (reliable emoji + easy dragging on mobile)
@@ -12932,7 +12932,7 @@ export default function AssetStudio() {
   const talkSoundFor = (t) => {
     if (!t) { bobAudio.talk(null); return; }
     const node = t.dlg && t.dlg.nodes ? t.dlg.nodes[t.nodeId] : null;
-    bobAudio.talk(dialogueSoundId(t.dlg, bobAudio.has), talkSeconds(node && node.text));
+    bobAudio.talk(dialogueSoundId(t.dlg, bobAudio.has), talkSeconds(node && node.text), t.dlg && t.dlg.soundVol); // its slider on the Sounds screen
   };
   const openTalk = (t) => {
     const dlg = resolveTalkTree(t);
@@ -20149,28 +20149,34 @@ export default function AssetStudio() {
   // rewrite anything else about it. Same id, so every placement and pickup of that weapon, and every
   // unit of that enemy, hears the new sound. An asset open in the editor takes the same change, or
   // its next 💾 Save would put the old sounds straight back.
-  const saveAssetSound = async (w, slot, soundId) => {
+  // `edit(rec)` returns the fields that change — `sounds` (a pick) or `soundVol` (a slot's slider).
+  const saveAssetSoundFields = async (w, edit) => {
     if (!w || !w.id) return;
     let rec = null;
     try { const raw = await sget("asset:" + w.id); if (raw && !isTombstoneRecord(raw)) rec = JSON.parse(raw); } catch { rec = null; }
     if (!rec) { flash("Couldn't save — \"" + (w.name || w.id) + "\" isn't in storage."); return; }
-    const sounds = withAssetSound(rec.sounds, slot, soundId);
-    const payload = stampSave({ ...rec, sounds }, rec);
+    const fields = edit(rec);
+    const payload = stampSave({ ...rec, ...fields }, rec);
     if (!(await sset("asset:" + payload.id, JSON.stringify(payload)))) { flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + "."); return; }
     projectLibrary.save({ assets: [payload] }, { revive: true });
-    setLibrary((lib) => lib.map((a) => (a && a.id === payload.id ? { ...a, sounds, savedAt: payload.savedAt } : a)));
-    setAsset((a) => (a && a.id === payload.id ? { ...a, sounds } : a));
+    setLibrary((lib) => lib.map((a) => (a && a.id === payload.id ? { ...a, ...fields, savedAt: payload.savedAt } : a)));
+    setAsset((a) => (a && a.id === payload.id ? { ...a, ...fields } : a));
   };
+  const saveAssetSound = (w, slot, soundId) => saveAssetSoundFields(w, (rec) => ({ sounds: withAssetSound(rec.sounds, slot, soundId) }));
+  const saveAssetSoundVol = (w, slot, vol) => saveAssetSoundFields(w, (rec) => ({ soundVol: withSlotVolume(rec.soundVol, slot, vol) }));
   // 🔊 A DIALOGUE'S TALK SOUND (dlg.sound, looped while its lines are said — talkSoundFor). The
   // same in-place rule as above, on the dialogue's own record; and the tree open in the 💬 editor,
   // baseline included, takes the change too, so it neither saves the old sound back nor reads as
   // unsaved work it never had.
-  const saveDialogueSound = async (d, soundId) => {
+  // `vol` given: the dialogue's slider (soundVol) changes instead of its pick.
+  const saveDialogueSound = async (d, soundId, vol) => {
     if (!d || !d.id) return;
     let rec = null;
     try { const raw = await sget("dialogue:" + d.id); if (raw && !isTombstoneRecord(raw)) rec = JSON.parse(raw); } catch { rec = null; }
     if (!rec) { flash("Couldn't save — \"" + (d.name || d.id) + "\" isn't in storage."); return; }
-    const withSound = (x) => { const n = { ...x }; if (soundId) n.sound = soundId; else delete n.sound; return n; };
+    const withSound = vol !== undefined
+      ? (x) => { const n = { ...x }; const v = oneVolume(vol); if (Math.abs(v - 1) < 0.001) delete n.soundVol; else n.soundVol = v; return n; }
+      : (x) => { const n = { ...x }; if (soundId) n.sound = soundId; else delete n.sound; return n; };
     const payload = stampSave(withSound(rec), rec);
     if (!(await sset("dialogue:" + payload.id, JSON.stringify(payload)))) { flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + "."); return; }
     projectLibrary.save({ dialogues: [payload] }, { revive: true });
@@ -20222,16 +20228,34 @@ export default function AssetStudio() {
       : soundLib.slice().sort((a, b) => NAME_COLLATOR.compare(a.name || "", b.name || "")).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)),
   ];
   const soundVal = (id) => (id && soundIds.has(id) ? id : "");
+  // 🔊 THE SLIDER BESIDE EVERY SOUND PICK (slotVolume). `vol` is 0..SOUND_VOL_MAX, `onSave(vol)`
+  // stores it. Uncontrolled like the Library's: dragging only moves the % beside it (re-rendering
+  // the studio sixty times a second for a label would be the whole cost of the drag), letting go
+  // saves, and it is keyed on the stored value so a save from anywhere resets it to what was kept.
+  const volSlider = (key, vol, onSave) => {
+    const pct = Math.round(vol * 100);
+    const save = (e) => { const v = Math.round(Number(e.currentTarget.value)) / 100; if (isFinite(v) && Math.abs(v - vol) >= 0.001) onSave(v); };
+    return (
+      <span className="sndVol" title="Volume">
+        🔊<input type="range" min="0" max={SOUND_VOL_MAX * 100} step="5" key={"v" + key + ":" + pct} defaultValue={pct}
+          onChange={(e) => { const pctEl = e.currentTarget.nextSibling; if (pctEl) pctEl.textContent = e.currentTarget.value + "%"; }}
+          onPointerUp={save} onKeyUp={save} onBlur={save} />
+        <span key={"vp" + key + ":" + pct} className="sndVolPct">{pct}%</span>
+      </span>
+    );
+  };
   // The editor's 🔊 slots for the asset open in it (assetSoundSlots: a weapon by its type, an enemy),
-  // one picker and ▶ each. The empty choice says what plays instead: "— basic —" where a basic
-  // sound stands behind the slot, "— none —" where nothing does.
+  // one picker, ▶ and volume each. The empty choice says what plays instead: "— basic —" where a
+  // basic sound stands behind the slot, "— none —" where nothing does.
   const assetSoundSlotsUI = () => assetSoundSlots(asset).map((sl) => {
     const cur = soundVal(asset && asset.sounds ? asset.sounds[sl.key] : "");
+    const vol = slotVolume(asset && asset.soundVol, sl.key);
     return (
       <span key={sl.key} className="sndRow">
         <span className="wslab">{sl.label}</span>
         <select value={cur} onChange={(e) => { const v = e.target.value; setAsset((a) => ({ ...a, sounds: withAssetSound(a.sounds, sl.key, v) })); }}>{soundOptions(sl.basic ? "— basic —" : "— none —")}</select>
-        <button className="ltbtn sndPlay" disabled={!cur} onClick={() => bobAudio.preview(cur)} title="Play">▶</button>
+        <button className="ltbtn sndPlay" disabled={!cur} onClick={() => bobAudio.preview(cur, vol)} title="Play">▶</button>
+        {volSlider("a" + sl.key, vol, (v) => setAsset((a) => ({ ...a, soundVol: withSlotVolume(a.soundVol, sl.key, v) })))}
       </span>
     );
   });
@@ -21190,7 +21214,7 @@ export default function AssetStudio() {
         <span className="sndCaret">{soundOpen.has(k) ? "▾" : "▸"}</span>{label}<span className="sndCount">{count}</span>
       </button>
     );
-    const playBtn = (id) => <button className="ltbtn sndPlay" disabled={!id} onClick={() => bobAudio.preview(id)} title="Play">▶</button>;
+    const playBtn = (id, vol = 1) => <button className="ltbtn sndPlay" disabled={!id} onClick={() => bobAudio.preview(id, vol)} title="Play">▶</button>;
     const WPN_ICON = { ranged: "🏹", melee: "🗡️", throw: "💣" };
     // One weapon's or enemy's row: its name, then the same slots and the same "— basic —" /
     // "— none —" its editor's 🔊 card shows (assetSoundSlots decides which).
@@ -21199,11 +21223,13 @@ export default function AssetStudio() {
         <span className="sndWpnName" title={w.name}>{w.name}</span>
         {assetSoundSlots(w).map((sl) => {
           const cur = soundVal(w.sounds ? w.sounds[sl.key] : "");
+          const vol = slotVolume(w.soundVol, sl.key);
           return (
             <span key={sl.key} className="sndSlot">
               <span className="wslab">{sl.label}</span>
               <select value={cur} onChange={(e) => saveAssetSound(w, sl.key, e.target.value)}>{soundOptions(sl.basic ? "— basic —" : "— none —")}</select>
-              {playBtn(cur)}
+              {playBtn(cur, vol)}
+              {volSlider(w.id + sl.key, vol, (v) => saveAssetSoundVol(w, sl.key, v))}
             </span>
           );
         })}
@@ -21222,11 +21248,13 @@ export default function AssetStudio() {
               <div className="ct">Basic sounds</div>
               {SOUND_EVENTS.map((ev) => {
                 const cur = soundVal((soundBoard.basic || {})[ev.key]);
+                const vol = slotVolume(soundBoard.basicVol, ev.key);
                 return (
                   <div key={ev.key} className="sndRow">
                     <span className="sndEvt">{ev.icon} {ev.label}</span>
                     <select value={cur} onChange={(e) => saveSoundBoard({ basic: withAssetSound(soundBoard.basic, ev.key, e.target.value) })}>{soundOptions("— none —")}</select>
-                    {playBtn(cur)}
+                    {playBtn(cur, vol)}
+                    {volSlider("b" + ev.key, vol, (v) => saveSoundBoard({ basicVol: withSlotVolume(soundBoard.basicVol, ev.key, v) }))}
                   </div>
                 );
               })}
@@ -21235,18 +21263,21 @@ export default function AssetStudio() {
               <div className="ct">Music</div>
               <div className="sndRow">
                 <select value={soundVal(soundBoard.music)} onChange={(e) => saveSoundBoard({ music: e.target.value })}>{soundOptions("— none —")}</select>
-                {playBtn(soundVal(soundBoard.music))}
+                {playBtn(soundVal(soundBoard.music), oneVolume(soundBoard.musicVol))}
+                {volSlider("music", oneVolume(soundBoard.musicVol), (v) => saveSoundBoard({ musicVol: v }))}
               </div>
             </div>
             <div className="card">
               <div className="ct">Dialogue</div>
               {soundDialogues.map((d) => {
                 const cur = soundVal(d.sound);
+                const vol = oneVolume(d.soundVol);
                 return (
                   <div key={d.id} className="sndRow">
                     <span className="sndEvt sndDlg" title={d.name}>💬 {d.name}</span>
                     <select value={cur} onChange={(e) => saveDialogueSound(d, e.target.value)}>{soundOptions("— none —")}</select>
-                    {playBtn(cur)}
+                    {playBtn(cur, vol)}
+                    {volSlider("d" + d.id, vol, (v) => saveDialogueSound(d, null, v))}
                   </div>
                 );
               })}
@@ -26035,6 +26066,10 @@ html,body{margin:0;padding:0;background:#0f1117}
 .sndVol{display:inline-flex;align-items:center;gap:4px;font-size:12px}
 .sndVol input[type=range]{width:110px}
 .sndVolPct{width:38px;font-size:12px;color:#9aa3b8;text-align:right}
+/* the Sounds screen's picks keep their ▶ and 🔊 on the row (the editor's narrow card may wrap) */
+.sndEdit .sndRow:has(> select){flex-wrap:nowrap}
+.sndEdit .sndRow:has(> select) select{min-width:0;flex:0 1 320px}
+.sndEdit .sndRow:has(> select) .sndVol,.sndEdit .sndRow:has(> select) .sndPlay{flex:none}
 .sndUp{display:inline-flex;align-items:center}
 .sndCard .sndRow select{min-width:0;flex:1 1 140px}
 .dlgNode .ct{display:flex;justify-content:space-between;align-items:center;gap:10px}

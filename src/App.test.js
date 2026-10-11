@@ -12252,7 +12252,7 @@ describe("a dialogue's talk sound", () => {
     expect(fn).toContain("setDlgDoc(");                            // the tree open in the editor too
     expect(fn).toContain("dlgBaseline.current");
     // ...and a weapon's or an enemy's, in that asset, the editor's open copy included.
-    const wf = src.slice(src.indexOf("const saveAssetSound = async"), src.indexOf("const saveDialogueSound = async"));
+    const wf = src.slice(src.indexOf("const saveAssetSoundFields = async"), src.indexOf("const saveDialogueSound = async"));
     expect(wf).toContain("sget(\"asset:\" + w.id)");
     expect(wf).toContain("withAssetSound(rec.sounds, slot, soundId)");
     expect(wf).toContain("projectLibrary.save({ assets: [payload] }, { revive: true })");

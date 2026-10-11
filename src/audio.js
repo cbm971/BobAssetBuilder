@@ -84,6 +84,27 @@ export const soundVolume = (s) => {
   return Math.min(SOUND_VOL_MAX, Math.max(0, v));
 };
 
+// ── A SLOT'S OWN VOLUME (Blake, 2026-10-11, the third time of asking: "EACH SOUND SHOULD HAVE A
+// VOLUME SLIDER NEXT TO IT. THERE ARE 0!"). The slider above lived only on the Library rows, inside
+// folders that start shut, so on the screen he works from — Basic sounds, Music, Dialogue, Weapons,
+// Enemies — there were none. Each of those pickers now has its own slider, saved NEXT TO THE PICK:
+// `board.basicVol[key]`, `board.musicVol`, a dialogue's `soundVol`, an asset's `soundVol[slot]`.
+// It multiplies the sound's own Library volume, so the same clip can be loud as a gunshot and
+// quiet as the Punch. Absent is 100%, and 100% is stored as absent (withSlotVolume), so a slider
+// never touched leaves the record exactly as it was.
+export const slotVolume = (map, key) => {
+  const v = map && typeof map === "object" && key != null ? map[key] : undefined;
+  return typeof v === "number" && isFinite(v) ? Math.min(SOUND_VOL_MAX, Math.max(0, v)) : 1;
+};
+export const withSlotVolume = (map, key, vol) => {
+  const out = { ...(map && typeof map === "object" ? map : {}) };
+  const v = Math.min(SOUND_VOL_MAX, Math.max(0, Number(vol)));
+  if (!isFinite(v) || Math.abs(v - 1) < 0.001) delete out[key]; else out[key] = v;
+  return out;
+};
+// One number (a dialogue's, the music's) the same way: undefined means 100%.
+export const oneVolume = (v) => (typeof v === "number" && isFinite(v) ? Math.min(SOUND_VOL_MAX, Math.max(0, v)) : 1);
+
 // THE FALLBACK RULE. `asset` + `slot`: the asset's own sound for this moment; `basic`: the
 // everyday moment it falls back to; `board`: the basic sounds; `has(id)`: does that sound still
 // exist? A slot pointing at a sound that was deleted falls through as though it were empty —
@@ -95,6 +116,17 @@ export const resolveSound = ({ asset, slot, basic, board, has } = {}) => {
   const b = basic && board && board.basic ? board.basic[basic] : null;
   if (ok(b)) return b;
   return null;
+};
+// The slot volume for the SAME choice resolveSound makes: the asset's own slider when its own sound
+// plays, the basic sound's slider when the moment falls back to it. A weapon left on "— basic —"
+// therefore plays at the basic Punch's volume, which is what its row says it plays.
+export const resolveSoundVol = ({ asset, slot, basic, board, has } = {}) => {
+  const ok = (id) => !!id && (typeof has !== "function" || has(id));
+  const own = asset && slot && asset.sounds && typeof asset.sounds === "object" ? asset.sounds[slot] : null;
+  if (ok(own)) return slotVolume(asset.soundVol, slot);
+  const b = basic && board && board.basic ? board.basic[basic] : null;
+  if (ok(b)) return slotVolume(board.basicVol, basic);
+  return 1;
 };
 
 // ── A clip's NAME is a hash of its bytes (cyrb53 run with two seeds, 28 hex digits) plus its
@@ -396,7 +428,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
       src.stop(t0 + 0.05);
     } catch { try { src.stop(); } catch { /* already stopped */ } }
   };
-  const startTalk = (id, secs, token) => {
+  const startTalk = (id, secs, token, slotVol = 1) => {
     const s = sounds.get(id);
     const buf = s && buffers.get(s.clip);
     const c = ctx;
@@ -405,7 +437,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     const src = c.createBufferSource();
     src.buffer = buf; src.loop = true; src.loopStart = skip; src.loopEnd = buf.duration;
     const g = c.createGain();
-    const t0 = c.currentTime, end = t0 + secs, fade = Math.min(0.08, secs / 4), vol = soundVolume(s);
+    const t0 = c.currentTime, end = t0 + secs, fade = Math.min(0.08, secs / 4), vol = soundVolume(s) * oneVolume(slotVol);
     g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + 0.003);
     g.gain.setValueAtTime(vol, end - fade); g.gain.linearRampToValueAtTime(0, end);
     src.connect(g); g.connect(master);
@@ -437,14 +469,17 @@ export const createAudioEngine = ({ loadClip } = {}) => {
       if (!id) return false;
       const gain = soundGainAt(x, y, view);
       if (gain <= 0.02) return false;
-      return startVoice(id, gain, { slot: slot || null, basic: basic || null, asset: asset ? asset.id || null : null });
+      // Times the slider beside the pick that chose this sound (resolveSoundVol).
+      const sv = resolveSoundVol({ asset, slot, basic, board, has: engine.has });
+      return startVoice(id, gain * sv, { slot: slot || null, basic: basic || null, asset: asset ? asset.id || null : null });
     },
     // An everyday moment with no asset behind it (a door, a pickup, a menu click).
     event: (key, x, y) => engine.moment({ basic: key, x, y }),
     // The studio's ▶: one sound, full volume, decoded first if it has to be. A LONG one (a music
     // track) is streamed through its own element instead — decoding it would keep tens of MB in
     // memory for the rest of the session just to hear it once — and pressing ▶ on it again stops it.
-    preview: async (id) => {
+    // `vol`: the slider beside the ▶ (a slot's volume), so ▶ sounds the way the game will play it.
+    preview: async (id, vol = 1) => {
       const s = sounds.get(id);
       if (!s) return false;
       unlock();
@@ -456,14 +491,14 @@ export const createAudioEngine = ({ loadClip } = {}) => {
         if (prev.url) { try { URL.revokeObjectURL(prev.url); } catch { /* gone */ } }
         prev.url = URL.createObjectURL(new Blob([bytes], { type: clipMime(s.clip) }));
         prev.el.src = prev.url; prev.id = id;
-        prev.el.volume = Math.min(1, soundVolume(s)); // an element stops at 1 (see SOUND_VOL_MAX)
+        prev.el.volume = Math.min(1, soundVolume(s) * oneVolume(vol)); // an element stops at 1 (see SOUND_VOL_MAX)
         try { await prev.el.play(); } catch { return false; }
         note({ at: now(), id, clip: s.clip, gain: 1, heard: true, preview: true, streamed: true });
         return true;
       }
       await decode(s.clip);
       if (ctx && ctx.state === "suspended") { try { await ctx.resume(); } catch { /* still locked */ } }
-      return startVoice(id, 1, { preview: true });
+      return startVoice(id, oneVolume(vol), { preview: true });
     },
     // Play raw bytes once (the uploader's check that a file is really audio), without keeping them.
     decodeBytes: async (bytes) => {
@@ -480,13 +515,13 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     // A LINE OF DIALOGUE BEING SAID: loop sound `id` for `secs` (talkSeconds), replacing whatever
     // line was talking. talk(null) stops it. A sound not decoded yet starts when it is, provided
     // the same line is still up — a talk loop a beat late is fine, unlike a jump.
-    talk: (id, secs) => {
+    talk: (id, secs, vol = 1) => {
       stopTalk();
       if (!id || !(secs > 0) || !sounds.has(id)) return false;
       const token = talkVoice.token;
       const s = sounds.get(id);
-      if (buffers.has(s.clip)) return startTalk(id, secs, token);
-      decode(s.clip).then(() => startTalk(id, secs, token));
+      if (buffers.has(s.clip)) return startTalk(id, secs, token, vol);
+      decode(s.clip).then(() => startTalk(id, secs, token, vol));
       return false;
     },
     syncMusic: async () => {
@@ -497,7 +532,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
       if (!music.el) { music.el = new W.Audio(); music.el.loop = true; music.el.preload = "auto"; }
       // Every sync, not only on a new track: setLibrary calls this when the slider saves, so the
       // track playing now follows the slider without restarting.
-      music.el.volume = Math.min(1, soundVolume(s));
+      music.el.volume = Math.min(1, soundVolume(s) * oneVolume(board.musicVol));
       if (music.clip !== want) {
         const bytes = loadClip ? await loadClip(want) : null;
         if (!bytes) return;

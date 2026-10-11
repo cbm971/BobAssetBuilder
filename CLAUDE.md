@@ -318,6 +318,11 @@ plus traps it does not cover:
   else the basic Punch. Never fire Punch/Hit/Attack where a swing starts.
 - Each sound has its own `vol` (0-2, absent = 1; `soundVolume`), set by the 🔊 slider on its
   Library row and applied by every play. Music caps at 1 (an `<audio>` element cannot go higher).
+- **A 🔊 slider sits beside EVERY sound pick** (he asked three times; the Library-only slider read
+  as "THERE ARE 0"). Stored beside the pick: `board.basicVol[key]`, `board.musicVol`, a dialogue's
+  `soundVol`, an asset's `soundVol[slot]` (absent = 100%, `slotVolume`/`withSlotVolume`), and it
+  multiplies the sound's own `vol`. `resolveSoundVol` follows resolveSound's choice. Any new place
+  a sound is picked gets `volSlider` beside it, and its ▶ passes that volume.
 - The dev server writes uploads into `asset-data/clips/`. Delete test clips before committing.
 - 10 MB per file; the answer to a bigger one is mp3/ogg, not a bigger cap. The 🎵 toggle is per copy
   (localStorage `bobMusic`).
