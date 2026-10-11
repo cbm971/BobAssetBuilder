@@ -190,7 +190,7 @@ import {
   migrateLevel,
   newLevelBucket, runWorldParts, worldPartAt, worldPartOfCell, unitClampX, unitFloorY, moveRunUnit, adoptRunNeighbours, releaseRunUnits, TALK_BUBBLE_MIN_H,
   runMountPlan, RUN_MOUNT_ITEMS_PER_FRAME, runGridOrder, unitDrawOrder,
-  runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, seamGatePair, seamGateLeaving, buildRun, runPassageLevels, RUN_PASSAGE_MAX, vertSeamLinesUp, resolveRunNeighbour, resolveRunSides, runSeams, runSceneryNodes, runCameraParts, runPlacements, runFillAbove, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
+  runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, seamGatePair, seamGateLeaving, buildRun, runPassageLevels, RUN_PASSAGE_MAX, vertSeamLinesUp, resolveRunNeighbour, resolveRunSides, runSeams, runSceneryNodes, runCameraParts, runPlacements, runFills, spawnGateFor, RUN_LEVELS_PER_FLOOR, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
   objTopAt,
   objNudgedLeft,
   objNudgedTop,
@@ -10322,7 +10322,10 @@ describe("runs", () => {
     expect(r1.nodes[r1.exitKey].links.E).toBe(null);                        // and beyond the Exit: the floor ends there
     expect(resolveRunNeighbour(r1, r1.nodes[r1.exitKey], "E", pool)).toBe(null); // asking again does not re-open it
     expect(ids).not.toContain("ROOM");
-    expect(ids.length).toBeLessThanOrEqual(RUN_MIDDLE_LEVELS + 2);
+    expect(ids.length).toBe(RUN_LEVELS_PER_FLOOR);                          // eight in all, the start and the end counted (Blake, 2026-10-11)
+    expect(RUN_LEVELS_PER_FLOOR).toBe(8);
+    const noEnds = buildRun([A, B, C, D], "seed-1");                         // no Intro or Exit made yet: eight middles
+    expect(noEnds.order.length).toBeLessThanOrEqual(RUN_MIDDLE_LEVELS);
     // every consecutive pair joins east→west through an open, mutual gate pair (runSeams uses connMatch)
     for (let i = 0; i < r1.order.length; i++) {
       const n = r1.nodes[r1.order[i]], seams = runSeams(r1, n, CELL);
@@ -10660,7 +10663,7 @@ describe("runs", () => {
         expect(above).toEqual({ key: street.key, node: street, off: { x: 0, y: -H }, stacked: true });
         const nw = sc.find((s) => s.key === westStreet.key);
         expect(nw.off).toEqual({ x: -W, y: -H }); expect(nw.stacked).toBe(false);       // a diagonal: drawn, never clamps
-        expect(runFillAbove(run, tunnel, CELL)).toBe(null);                             // nothing left to fill
+        expect(runFills(run, tunnel, CELL)).toEqual([]);                                // nothing left to fill
         expect(runSceneryNodes(run, tunnel, CELL)).toBe(sc);                            // cached until a link changes
         // Body high in the tunnel by its west gate, the same point of the world either side of the
         // handoff: before, the street over the entry sewer is a seam; after, it is scenery.
@@ -10689,11 +10692,10 @@ describe("runs", () => {
           if (!at.get(street.key).amb) continue;
           checked++;
           expect(runSceneryNodes(run, n, CELL).map((s) => s.key)).not.toContain(street.key);
-          const fill = runFillAbove(run, n, CELL);
-          expect(fill).toBeTruthy();
-          expect(fill.off).toEqual({ x: 0, y: -H });
-          const c = Number(Object.keys(fill.level.fg)[0].split(",")[1]);
-          for (const r of [0, 20, 45]) expect(fill.level.fg[r + "," + c]).toBe(n.level.fg["0," + c]);   // the sewer's own top row, all the way up
+          const own = runFills(run, n, CELL).find((fl) => fl.off.x === 0 && fl.off.y === -H);
+          expect(own).toBeTruthy();
+          const fl = own.node.level, k0 = Object.keys(fl.fg).find((k) => k.startsWith("0,")), c = Number(k0.split(",")[1]);
+          for (const r of [0, 20, 45]) expect(fl.fg[r + "," + c]).toBe(n.level.fg["0," + c]);   // the sewer's own top row, all the way up
           expect(cameraTarget({ x: 80 * CELL, y: 6 * CELL }, pw, ph, n.level, parts(run, n), VW, VH, CELL).y).toBe(6 * CELL + ph / 2 - VH / 2);
         }
       }
@@ -10715,18 +10717,23 @@ describe("runs", () => {
       expect(checked).toBeGreaterThan(0);
     });
 
-    test("every sewer is covered all the way across, and no level is drawn in two places by two neighbours", () => {
-      let sewers = 0;
+    // Blake, same day: olive ground over Trailor Park M3's sky while he walked M5. The fill over a
+    // staggered sewer had been worked out from the sewer's view and landed on the next street level.
+    test("the fill never covers a level drawn from where you stand, and leaves nothing over a sewer uncovered", () => {
+      let sewers = 0, fills = 0;
       for (const run of runs) {
         for (const L of Object.values(run.nodes)) {
+          const drawn = [{ lv: L.level, off: { x: 0, y: 0 } }, ...Object.values(runSeams(run, L, CELL)).map((s) => ({ lv: s.level, off: s.off })), ...runSceneryNodes(run, L, CELL).map((s) => ({ lv: s.node.level, off: s.off }))];
+          const inLevel = (x, y) => drawn.some(({ lv, off }) => x >= off.x && x < off.x + lv.cols * CELL && y >= off.y && y < off.y + lv.rows * CELL);
+          const filled = new Set();
+          for (const { node, off } of runFills(run, L, CELL)) {
+            fills++;
+            expect(node.fill).toBe(true);
+            for (const k of Object.keys(node.level.fg)) { const [r, c] = k.split(",").map(Number), x = off.x + c * CELL, y = off.y + r * CELL; expect(inLevel(x, y)).toBe(false); filled.add(x + "," + y); }
+          }
           if (L.row === 1) {
             sewers++;
-            const covered = new Array(160).fill(false), fill = runFillAbove(run, L, CELL);
-            const mark = (off, lv) => { if (off.y + lv.rows * CELL !== 0) return; for (let c = 0; c < 160; c++) if (off.x <= c * CELL && off.x + lv.cols * CELL >= (c + 1) * CELL) covered[c] = true; };
-            for (const s of Object.values(runSeams(run, L, CELL))) mark(s.off, s.level);
-            for (const s of runSceneryNodes(run, L, CELL)) if (s.stacked) mark(s.off, s.node.level);
-            if (fill) for (const k of Object.keys(fill.level.fg)) if (k.startsWith("0,")) covered[+k.slice(2)] = true;
-            expect(covered.every(Boolean)).toBe(true);
+            for (let c = 0; c < 160; c++) for (let r = 1; r <= 46; r++) { const x = c * CELL, y = -r * CELL; expect(inLevel(x, y) || filled.has(x + "," + y)).toBe(true); }
           }
           // A level drawn from both sides of a gate sits at the same point of the world: nothing leaps at a handoff.
           const mine = drawnFrom(run, L);
@@ -10736,8 +10743,18 @@ describe("runs", () => {
           }
         }
       }
-      expect(sewers).toBeGreaterThan(20);
+      expect(sewers).toBeGreaterThan(20); expect(fills).toBeGreaterThan(0);
     });
+  });
+
+  test("spawnGateFor: a start level puts you at its left, every other level at its first open gate", () => {
+    // Blake, 2026-10-11: his Trailor Park S1 (only Lower Right open) put him "on the far right of the
+    // starting level instead of the left near the closed gates".
+    expect(spawnGateFor(INTRO)).toBe("W2");
+    expect(spawnGateFor(mk("S1", { open: { E2: "Trailor Park" } }))).toBe("W2");
+    expect(spawnGateFor(A)).toBe("W1");                                    // a middle level: unchanged
+    expect(spawnGateFor(EXIT)).toBe("W1");
+    expect(spawnGateFor(SEWER)).toBe("N1");                                // a sewer: in at its top gate, as before
   });
 
   test("runGridOrder / unitDrawOrder: the order levels and units are drawn in survives a handoff", () => {

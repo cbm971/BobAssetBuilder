@@ -392,8 +392,9 @@ plus traps it does not cover:
   `roomState`. Only ▶ Playtest re-rolls.
 - **Runs** are the game loop, in the block headed `RUNS — a playable chain of levels`.
   - `buildRun(runPool(), seed)` is seeded. It picks an Intro (a level with no open left-hand
-    gate), then up to `RUN_MIDDLE_LEVELS` (8) middles chained by `canAttach`, then an Exit (no open
-    right-hand gate). **A level's role comes from its gates and Floor only (`runRole`).** Blake
+    gate), then middles chained by `canAttach`, then an Exit (no open right-hand gate). **A floor
+    is `RUN_LEVELS_PER_FLOOR` (8) street levels IN ALL, start and end counted** (his rule; sewers
+    are extra). A run starts at the Intro's Lower Left gate even though it is closed (`spawnGateFor`). **A level's role comes from its gates and Floor only (`runRole`).** Blake
     retired the free-text Section box on 2026-10-09; an old save's `section` is ignored.
   - Sewers and tree tops (Floor "Sewer", "Underground" or "Tree Top") are planned as passages
     with a way out.
@@ -403,9 +404,9 @@ plus traps it does not cover:
   - **The levels above, below and diagonal are drawn too, gate or no gate** (`runSceneryNodes`;
     scenery only, units not drawn). A level two routes of seams put in two places (a staggered
     sewer) is never drawn (`runPlacements`), or it leaps at the next gate. What is still uncovered
-    over a sewer gets the sewer's own top row repeated up (`runFillAbove`). Nothing over a sewer
-    may be black: that black band and the camera sinking at the gate into a tunnel was his
-    2026-10-11 report.
+    over a sewer gets the sewer's own top row repeated up (`runFills`), worked out from the LIVE
+    level's view so it never paints over a drawn level (from the sewer's view it landed on the
+    next street's sky). Nothing over a sewer may be black (his 2026-10-11 reports).
   - Crossing a gate is `seamHandoff`. Side gates are keys, and the whole shared edge opens.
     Top/bottom gates must line up.
 - **Camera:** `cameraTarget` clamps to the union of the drawn levels (`runCameraParts`), feeds

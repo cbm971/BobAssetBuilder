@@ -4106,3 +4106,33 @@ M6/Sewer M1 then M3/Sewer M4) holds the camera at -40 through the gate and acros
 drawn on the grid; the old build sinks -37 → 0 with three. Seed 20 (staggered) holds -37 into Sewer M3
 with fills. Handoffs moved no wrapper (MutationObserver: 1 removed, 2 added, 0 moved). Seeds in a fresh
 copy follow his saves branch's level order, so his own seed numbers reproduce there.
+
+## THE FILL PAINTED OVER THE STADIUM, 8 LEVELS A FLOOR, AND THE START GATE (2026-10-11, later)
+
+**Blake, screenshot on Trailor Park M5 with olive ground over the next level's sky and its stone tower
+on top: "It looks like you've created a new bug when walking over that level with the football stadium.
+I wonder if the issue is that the prop extends past the level?"** It was not the prop. The sewer fill
+(previous entry) was worked out from each SEWER's view. M5's Bottom Right drops onto Sewer M1's Top
+Left, 40% along, so M5 only covers Sewer M1's left 60%; from the sewer's view the next street level is
+ambiguous (two routes, two places) and so "uncovered", and the fill went into its right 40%. From M5's
+view that band is exactly where Trailor Park M3 is drawn as M5's east neighbour. Its fg cells (z 2000)
+covered M3's sky (bg, z 1000) and M3's props drew on top. Offline over 300 seeds of his levels: 486
+fill cells inside drawn levels; in the app (old build, seed 65): a 46-cell wrapper at x 6720 overlapping
+M5 and M3 (1,920 px of M3). **Fix:** `runFills(run, live)` works the fill out from the LIVE level's view,
+cell by cell, only where no level drawn from there is. Same content from two views is the same pseudo
+node (`run.fillPool`), and a fill mounts whole, not a slice a frame. After: 0 fill cells inside a drawn
+level and 0 of 894 sewers with a gap (300 seeds); seed 13 in the app draws M3 whole next to M5.
+
+**"It is supposed to be 8 levels total per floor."** `RUN_MIDDLE_LEVELS` (8) was middles only, so with
+his new Trailor Park S1 (start) and E1 (end) a run was 10. Now `RUN_LEVELS_PER_FLOOR` = 8 street levels
+in all; buildRun takes 8 minus the ends the pool has. 300 of 300 seeds: 8 long, S1 first, E1 last.
+
+**"Spawning the player on the far right of the starting level instead of the left near the closed
+gates."** A run's first level is entered with `{ gate: true }`, and `preferredOpenGate` picks the
+first OPEN gate: on S1 (only Lower Right open) that is the way out. `spawnGateFor`: an Intro-role level
+puts you at its Lower Left gate (closed, so only the arrival point moves). Sewers and every other level
+keep the open-gate rule (Sewer M1 still enters at its top). In the app: x 0 on S1, on the ground.
+
+**The keeper was dead again** (no node on 47017/47018, last log 2026-10-10 22:32). His S1/E1 and an M3
+edit were only in the StackBlitz store `hzer--3000--2ed8f36d`. Starting the Startup .cmd hidden swept 9
+newer records and updated the online save in ten seconds.
