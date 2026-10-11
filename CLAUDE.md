@@ -394,10 +394,18 @@ plus traps it does not cover:
   - One level is live at a time. Neighbours are drawn whole from cached tiles. Their units are
     adopted into the live level (`adoptRunNeighbours` / `releaseRunUnits`), so shots and chases
     cross gates.
+  - **The levels above, below and diagonal are drawn too, gate or no gate** (`runSceneryNodes`;
+    scenery only, units not drawn). A level two routes of seams put in two places (a staggered
+    sewer) is never drawn (`runPlacements`), or it leaps at the next gate. What is still uncovered
+    over a sewer gets the sewer's own top row repeated up (`runFillAbove`). Nothing over a sewer
+    may be black: that black band and the camera sinking at the gate into a tunnel was his
+    2026-10-11 report.
   - Crossing a gate is `seamHandoff`. Side gates are keys, and the whole shared edge opens.
     Top/bottom gates must line up.
-- **Camera:** `cameraTarget` clamps to the union of the drawn levels, feeds `camRef`, and becomes a
-  `translate3d` on `.lgrid` inside `commitFrame`. Nothing scrolls during play.
+- **Camera:** `cameraTarget` clamps to the union of the drawn levels (`runCameraParts`), feeds
+  `camRef`, and becomes a `translate3d` on `.lgrid` inside `commitFrame`. Nothing scrolls during
+  play. A level above or below (top/bottom seam, scenery, the sewer fill) widens it up and down
+  only (`yOnly`), never sideways, or a risen view slides off the end of a sewer into nothing.
 - **Dialogue trees** are the sixth saved kind: `{ id, name, start, once?, nodes: { nId: { speaker,
   text, choices: [{ text, to, act, tone, shopTag? }] } } }`. `to` and `act` are independent. Keys
   1–9 pick options. A tree on a spawn makes it peaceful, and a conversation pauses the WORLD. A shop

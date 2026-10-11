@@ -4055,3 +4055,44 @@ savedAt so the NEXT save names this one). `decideSweep` takes the save outright 
 is the folder's current savedAt, merges against that exact History version (`baseAt`, any source)
 when it is older, and only falls back to the guess for saves made by older code. `merge3` never
 copies `editedFrom` into a combined record.
+
+## THE LEVEL ABOVE A SEWER IS ALWAYS DRAWN (2026-10-11)
+
+**Blake, with a screenshot of a black band over the sewer under the trailers: "I believe this is
+because where i am playing there is a level spawned and in the black there is not ... going to the next
+level the camera lowers as there is nothing above. I don't like that lowering behavior. Id prefer it
+stay smooth."** He offered two fixes: repeat the top rows of terrain up into the dead zone, or load the
+level above, "since there will always be levels above. That may be easier and better." Both shipped:
+the real level wherever it can be placed, his top-row idea where it cannot.
+
+**Cause.** Only levels joined to the live one by a GATE were drawn (`runSeams`), and `cameraTarget`
+clamps to what is drawn. Sewer M1 joins the street through its Top Left, so the street over it was
+drawn and a view risen on a jump (~40 px at his 3,084×871 view) showed it. Sewer M3/M4 are tunnels with
+no top gate, so the same street over them was not drawn: black above, and at the gate into the tunnel
+the clamp dropped from -37 to 0 and the camera sank (measured on the old build, seed 10, his levels).
+
+**Fix.**
+- `runSceneryNodes`: every run node in the 3×3 grid slots around the live one that no gate joins is
+  drawn whole (tiles + objects), placed by walking the joined seams. Not simulated; its units are not
+  drawn (a frozen unit is worse than none) and wake when their level is joined, as always.
+- `runPlacements`: in a STAGGERED passage (M5's Bottom Right onto Sewer M1's Top Left, 40% along; the
+  way back up lands 80% off the street) the world is not one flat map, and a street level sits in two
+  places depending on which way round the loop you walk. A level two routes disagree about is NOT
+  drawn, so nothing ever leaps sideways at a gate. Over 400 seeds of his levels: 0 of 8,508 levels
+  drawn from both sides of a gate sat in two places.
+- `runFillAbove`: what is still uncovered over a sewer gets the sewer's own top row repeated up a
+  level's height, a pseudo node drawn through the run tile cache. His sewers' top rows and his streets'
+  bottom rows are the same olive ground (`qnfjme1`), so it reads as the street's ground. Decided from
+  the sewer's own view, so it moves with the sewer.
+- `runCameraParts`: under the street the view may always rise a level's height. Levels above or below
+  (scenery, the fill, and top/bottom seams too) count for the up/down clamp only (`yOnly`). The
+  top/bottom seam part fixed an older bug found on the way: in seed 20, the street over the last sewer
+  (Sewer M2) hangs 1,920 px past its end, and a jump let the view slide off the end of the sewer into
+  nothing (camera x 3,229 in a 4,800 level, 3,084 view; now held at 1,716).
+
+**Measured on his levels (400 seeds):** sewers with a level fully over them 532 → 803 of 1,108, and
+1,108 of 1,108 with the fill. **In the app** (prod builds, perfserve, view 3,084×891): seed 10 (flat,
+M6/Sewer M1 then M3/Sewer M4) holds the camera at -40 through the gate and across M4 with six levels
+drawn on the grid; the old build sinks -37 → 0 with three. Seed 20 (staggered) holds -37 into Sewer M3
+with fills. Handoffs moved no wrapper (MutationObserver: 1 removed, 2 added, 0 moved). Seeds in a fresh
+copy follow his saves branch's level order, so his own seed numbers reproduce there.

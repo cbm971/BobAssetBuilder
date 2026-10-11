@@ -10560,6 +10560,124 @@ export const runSeams = (run, node, cell = LV_CELL) => {
   }
   return out;
 };
+// THE LEVEL ABOVE IS ALWAYS THERE (2026-10-11). Blake, in the sewer under the trailers: a black band
+// over the level he was playing, and "going to the next level the camera lowers as there is nothing
+// above". Only levels joined to the live one through a GATE were drawn (runSeams). Sewer M1 is
+// entered through its Top Left, so the street above it was drawn and the camera could rise into it;
+// the next sewer along (M3/M4, tunnels with no top gate) has the same street level over it on the
+// run's grid but no gate into it, so nothing was drawn there: black above, and the camera, clamped to
+// what is drawn (cameraTarget), sank by however far it had risen. The street runs over the whole
+// passage — buildRun lays a sewer only under street levels that line up with it — so it is drawn as
+// what it is: the level above. The same holds the other way up (the sewer under a street level with
+// no bottom gate) and on the diagonals (the next street over, seen from a sewer near its seam).
+//
+// These are the run's nodes in the 3×3 block of grid slots around the live one that NO gate joins it
+// to, each placed where the joined seams put it: walked from the live level through gate after gate
+// (runSeams' own offsets), so it lands exactly where it is drawn when it IS the neighbour. Scenery
+// only: drawn whole (tiles and objects), never simulated. Its units are not drawn — a unit nothing
+// simulates stands frozen, the "deaf, blind and bulletproof" neighbours ONE WORLD replaced — and they
+// come alive the moment their level is joined to the live one, as always.
+//
+// A LEVEL TWO ROUTES PUT IN TWO PLACES IS NOT DRAWN. When no sewer lines up, buildRun falls back to a
+// staggered one (Trailor Park M5 drops through its Bottom Right onto Sewer M1's Top Left, 40% of a
+// level along), and its way back up lands 80% of a level from where the street says that level is.
+// Every seam still meets, but the world is no longer one flat map: walked one way round the loop a
+// street level is in one place, walked the other way it is 1,920 px from there. Over 400 seeds of his
+// levels, 77 of 287 runs with a sewer had one. Drawn where one route puts it, that level would leap
+// sideways at the next gate, when the shorter route goes the other way round. So a level is drawn only
+// when EVERY route to it agrees (runPlacements), and that also makes it sit in the same place whichever
+// of two neighbouring levels is live. What is left uncovered over a sewer is filled (runFillAbove).
+// `stacked` marks a level above or below that overlaps the live one's columns. The camera counts
+// those for its up/down range only (runCameraParts). A level that is only diagonal never widens the
+// clamp, and none of them widens it sideways: past the last sewer's east edge there is nothing under
+// the next street level, and the camera must not pan out into that.
+const RUN_SCENERY_CACHE = new WeakMap();   // node -> { run, sig, cell, list }
+const RUN_FILL_CACHE = new WeakMap();      // node -> { run, sig, cell, fill }
+// Links are only ever SET (undefined -> null or a key), never cleared, so this sum changes whenever
+// any link of the run is decided and a cached placing is stale.
+const runLinkSig = (run) => { let s = 0, n = 0; for (const k in run.nodes) { n++; const l = run.nodes[k].links; for (const side in l) s += l[side] ? 3 : 1; } return n * 1e6 + s; };
+// Where every level of the run sits in `root`'s pixels, over EVERY simple route of joined seams from
+// it: `amb` is set on a level two routes put more than a cell apart (rounding in neighbourOffset can
+// differ by a cell between levels of different sizes; that is not a second place). The run graph is
+// the street chain plus a loop per sewer, so the routes are few; past the step cap everything counts
+// as ambiguous.
+const RUN_PLACE_STEPS = 20000;
+export const runPlacements = (run, root, cell = LV_CELL) => {
+  const seamsOf = new Map(), S = (n) => { let s = seamsOf.get(n.key); if (!s) { s = runSeams(run, n, cell); seamsOf.set(n.key, s); } return s; };
+  const pos = new Map([[root.key, { x: 0, y: 0, amb: false }]]), on = new Set([root.key]);
+  let steps = 0;
+  const go = (n, x, y) => {
+    const ss = S(n);
+    for (const side of Object.keys(ss)) {
+      if (++steps > RUN_PLACE_STEPS) return;
+      const s = ss[side], m = run.nodes[s.key]; if (!m || on.has(m.key)) continue;
+      const mx = x + s.off.x, my = y + s.off.y, p = pos.get(m.key);
+      if (!p) pos.set(m.key, { x: mx, y: my, amb: false });
+      else if (Math.abs(p.x - mx) > cell || Math.abs(p.y - my) > cell) p.amb = true;
+      on.add(m.key); go(m, mx, my); on.delete(m.key);
+    }
+  };
+  go(root, 0, 0);
+  if (steps > RUN_PLACE_STEPS) for (const p of pos.values()) p.amb = true;
+  return pos;
+};
+export const runSceneryNodes = (run, node, cell = LV_CELL) => {
+  if (!run || !node) return [];
+  const sig = runLinkSig(run), hit = RUN_SCENERY_CACHE.get(node);
+  if (hit && hit.run === run && hit.sig === sig && hit.cell === cell) return hit.list;
+  const seams = runSeams(run, node, cell), joined = new Set([node.key, ...Object.values(seams).map((s) => s.key)]);
+  const want = Object.values(run.nodes).filter((n) => !joined.has(n.key) && Math.abs(n.col - node.col) <= 1 && Math.abs(n.row - node.row) <= 1);
+  const list = [];
+  if (want.length) {
+    const at = runPlacements(run, node, cell), w = node.level.cols * cell;
+    for (const n of want) { const p = at.get(n.key); if (p && !p.amb) list.push({ key: n.key, node: n, off: { x: p.x, y: p.y }, stacked: n.row !== node.row && p.x < w && p.x + n.level.cols * cell > 0 }); }
+  }
+  RUN_SCENERY_CACHE.set(node, { run, sig, cell, list });
+  return list;
+};
+// THE GROUND OVER A SEWER, WHERE NO LEVEL CAN BE DRAWN (2026-10-11). Blake's first idea for the black
+// band: "the top rows terrain should be visually replicated above the dead zone". Where no level is
+// drawn straight over a sewer (none joined by a gate, none drawn as scenery: a staggered sewer's
+// streets, above), the sewer's own top row is repeated up a whole level's height. His sewers' top
+// rows are the same olive ground (qnfjme1) as his street levels' bottom rows, so it reads as the
+// street's ground. It belongs to the sewer, in the sewer's own pixels, decided from the sewer's own
+// view (its gate up and its own scenery), so it is the same wherever that sewer is drawn from and
+// moves with it. A pseudo node: drawn through the same cached-tile path as a level, keyed and
+// ordered just above its sewer (row - 0.5), never simulated, and null when nothing is uncovered.
+// Only under the street (row > 0): above a tree top is sky, not ground.
+export const runFillAbove = (run, node, cell = LV_CELL) => {
+  if (!run || !node || !(node.row > 0)) return null;
+  const sig = runLinkSig(run), hit = RUN_FILL_CACHE.get(node);
+  if (hit && hit.run === run && hit.sig === sig && hit.cell === cell) return hit.fill;
+  const lv = node.level, cols = lv.cols, rows = lv.rows;
+  const over = Object.values(runSeams(run, node, cell)).filter((s) => s.off.y < 0).map((s) => ({ off: s.off, lv: s.level }))
+    .concat(runSceneryNodes(run, node, cell).filter((s) => s.stacked && s.off.y < 0).map((s) => ({ off: s.off, lv: s.node.level })));
+  const open = [];
+  for (let c = 0; c < cols; c++) {
+    const x0 = c * cell, x1 = x0 + cell;
+    if (!over.some(({ off, lv: o }) => off.y + o.rows * cell === 0 && off.x <= x0 && off.x + o.cols * cell >= x1)) open.push(c);
+  }
+  let fill = null;
+  if (open.length) {
+    const fg = {}, bg = {};
+    for (const c of open) {
+      const f = lv.fg && lv.fg["0," + c], b = lv.bg && lv.bg["0," + c];
+      for (let r = 0; r < rows; r++) { if (f) fg[r + "," + c] = f; if (b) bg[r + "," + c] = b; }
+    }
+    fill = { key: "fill:" + node.key, col: node.col, row: node.row - 0.5, open: open.length, level: { id: "fill:" + node.key, rows, cols, fg, bg, front: {}, fx: {} }, off: { x: 0, y: -rows * cell } };
+  }
+  RUN_FILL_CACHE.set(node, { run, sig, cell, fill });
+  return fill;
+};
+// The seams plus the levels above and below, for cameraTarget (which reads only `level`, `off` and
+// `yOnly` of each entry). Under the street the whole width above is drawn (a level or the fill), so
+// the camera may always rise a level's height there, the same over every sewer of a passage.
+export const runCameraParts = (run, node, seams, cell = LV_CELL) => {
+  const out = { ...(seams || {}) };
+  for (const s of runSceneryNodes(run, node, cell)) if (s.stacked) out["scenery:" + s.key] = { level: s.node.level, off: s.off, yOnly: true };
+  if (node && node.row > 0) out["above:" + node.key] = { level: node.level, off: { x: 0, y: -node.level.rows * cell }, yOnly: true };
+  return out;
+};
 // The gate a body at (cx, cy) is leaving through INTO a neighbour: gateLeavingThrough, but only a
 // gate the seam actually joins (runSeams' `gates`). An open gate on a side whose neighbour sits
 // staggered elsewhere is still an edge.
@@ -10933,12 +11051,17 @@ export const cameraTarget = (p, pw, ph, lv, seams, vw, vh, cell = LV_CELL, strip
   const rects = [{ x: 0, y: 0, w: lvW, h: lvH }];
   for (const side of Object.keys(seams || {})) {
     const sm = seams[side], nb = sm && sm.level, off = sm && sm.off;
-    if (nb && off) { rects.push({ x: off.x, y: off.y, w: nb.cols * cell, h: nb.rows * cell }); continue; }
+    // A level above or below (a top/bottom seam, or one drawn there with no gate, runCameraParts) only
+    // ever widens the view up and down. A staggered sewer's street hangs 1,920 px past the sewer's end,
+    // and counted sideways it let the view, risen on a jump, slide off the end of the last sewer into
+    // nothing under that overhang (seed 20 on his levels, Sewer M2).
+    if (nb && off) { rects.push({ x: off.x, y: off.y, w: nb.cols * cell, h: nb.rows * cell, yOnly: !!sm.yOnly || side === "N" || side === "S" }); continue; }
     rects.push(side === "E" ? { x: lvW, y: 0, w: s, h: lvH } : side === "W" ? { x: -s, y: 0, w: s, h: lvH } : side === "S" ? { x: 0, y: lvH, w: lvW, h: s } : { x: 0, y: -s, w: lvW, h: s });
   }
   const cx = p.x + pw / 2 - vw / 2, cy = p.y + ph / 2 - vh / 2;
   // The live level always counts; a neighbour counts on one axis when the centred view overlaps it on the other.
-  const onX = rects.filter((r, i) => i === 0 || (cy < r.y + r.h && cy + vh > r.y));
+  // A level above or below (yOnly) only ever counts up and down.
+  const onX = rects.filter((r, i) => i === 0 || (!r.yOnly && cy < r.y + r.h && cy + vh > r.y));
   const onY = rects.filter((r, i) => i === 0 || (cx < r.x + r.w && cx + vw > r.x));
   const minX = Math.min(...onX.map((r) => r.x)), maxX = Math.max(minX, Math.max(...onX.map((r) => r.x + r.w)) - vw);
   const minY = Math.min(...onY.map((r) => r.y)), maxY = Math.max(minY, Math.max(...onY.map((r) => r.y + r.h)) - vh);
@@ -12010,7 +12133,13 @@ export default function AssetStudio() {
   const runTiles = (() => {
     if (!runNodeNow) return null;
     const seams = runSeams(runRef.current, runNodeNow, LV_CELL);
-    const shown = [{ node: runNodeNow, off: { x: 0, y: 0 } }, ...Object.keys(seams).map((side) => ({ node: runRef.current.nodes[seams[side].key], off: seams[side].off }))];
+    // ...and the levels above, below and on the diagonals that no gate joins (runSceneryNodes): the
+    // street over a sewer is there even where the sewer has no way up into it.
+    // Each sewer among them brings the ground drawn over it where no level is (runFillAbove), as a
+    // pseudo node of its own sorted just above it.
+    const levelsShown = [{ node: runNodeNow, off: { x: 0, y: 0 } }, ...Object.keys(seams).map((side) => ({ node: runRef.current.nodes[seams[side].key], off: seams[side].off })), ...runSceneryNodes(runRef.current, runNodeNow, LV_CELL).map(({ node, off }) => ({ node, off }))];
+    const shown = levelsShown.slice();
+    for (const { node, off } of levelsShown) { const fill = runFillAbove(runRef.current, node, LV_CELL); if (fill) shown.push({ node: fill, off: { x: off.x + fill.off.x, y: off.y + fill.off.y } }); }
     shown.sort((a, b) => runGridOrder(a.node, b.node)); // the world's order, so a handoff moves no wrapper (see runGridOrder)
     return shown.map(({ node, off }) => {
       const nb = node.level, live = node === runNodeNow;
@@ -12067,6 +12196,7 @@ export default function AssetStudio() {
     const out = [{ nk: runNodeNow.key, node: runNodeNow, off: { x: 0, y: 0 }, live: true, items: lvDrawOrder }];
     const seams = runSeams(runRef.current, runNodeNow, LV_CELL);
     for (const side of Object.keys(seams)) { const { level: nb, off, key } = seams[side]; out.push({ nk: key, node: runRef.current.nodes[key], off, live: false, items: levelObjectsInDrawOrder(nb.fx || {}) }); }
+    for (const { key, node, off } of runSceneryNodes(runRef.current, runNodeNow, LV_CELL)) out.push({ nk: key, node, off, live: false, items: levelObjectsInDrawOrder(node.level.fx || {}) });
     out.sort((a, b) => runGridOrder(a.node, b.node));
     return out;
   }, [runNodeNow, lvDrawOrder]);
@@ -13026,6 +13156,9 @@ export default function AssetStudio() {
     const runNow = runRef.current;
     const runNodeLive = runNow && lv.runKey ? runNow.nodes[lv.runKey] : null;
     const seams = runSeams(runNow, runNodeLive, LV_CELL);
+    // What the camera may show: the seams plus the level drawn straight above or below with no gate
+    // between (runSceneryNodes) — in a sewer, the street over it, so the view never sinks at a seam.
+    const camParts = runCameraParts(runNow, runNodeLive, seams, LV_CELL);
     // An open seam with a level behind it is not a wall: left and right along the whole shared edge, up
     // and down only near its gate (seamGateLeaving).
     const seamAt = (side, p, pw, ph) => !!seamGateLeaving(lv, seams, side, p.x + pw / 2, p.y + ph / 2, LV_CELL);
@@ -13109,7 +13242,7 @@ export default function AssetStudio() {
     // too; the editor never does (the transform is only emitted while play is on).
     const updateCamera = (p, pw, ph, dtMul) => {
       const view = lscrollRef.current; if (!view) return;
-      const t = cameraTarget(p, pw, ph, lv, seams, view.clientWidth, view.clientHeight, LV_CELL);
+      const t = cameraTarget(p, pw, ph, lv, camParts, view.clientWidth, view.clientHeight, LV_CELL);
       const cam = camRef.current;
       if (!cam.init) { cam.x = t.x; cam.y = t.y; cam.init = true; return; }
       const k = 1 - Math.pow(1 - CAMERA_EASE, dtMul);
@@ -20473,6 +20606,18 @@ export default function AssetStudio() {
         const fk = links[side]; if (!fk || near.has(fk) || !run.nodes[fk]) continue;
         if (warmRunNode(run.nodes[fk])) return;
       }
+    }
+    // The levels each neighbour will draw as scenery once it is live (the street over the next sewer),
+    // and the ground filled in over any sewer among them (runFillAbove): tile runs only, one layer a step.
+    const warmFill = (n) => {
+      const fill = runFillAbove(run, n, LV_CELL); if (!fill) return false;
+      for (const [kind, map] of [["bg", fill.level.bg], ["fg", fill.level.fg]]) { const hit = RUN_TILE_CACHE[kind].get(map); if (!hit || hit.texLib !== texLib) { cachedRunTiles(kind, map, texLib, cellRuns, kind === "bg" ? buildRunBgTile : buildRunFgTile); return true; } }
+      return false;
+    };
+    for (const s of Object.values(seams)) {
+      const nb = run.nodes[s.key]; if (!nb) continue;
+      if (warmFill(nb)) return;
+      for (const sc of runSceneryNodes(run, nb, LV_CELL)) { if (!near.has(sc.key) && warmRunNode(sc.node)) return; if (warmFill(sc.node)) return; }
     }
   };
   const newRunSeed = () => String(Math.floor(Math.random() * 1000000));

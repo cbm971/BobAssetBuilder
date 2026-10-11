@@ -190,7 +190,7 @@ import {
   migrateLevel,
   newLevelBucket, runWorldParts, worldPartAt, worldPartOfCell, unitClampX, unitFloorY, moveRunUnit, adoptRunNeighbours, releaseRunUnits, TALK_BUBBLE_MIN_H,
   runMountPlan, RUN_MOUNT_ITEMS_PER_FRAME, runGridOrder, unitDrawOrder,
-  runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, seamGatePair, seamGateLeaving, buildRun, runPassageLevels, RUN_PASSAGE_MAX, vertSeamLinesUp, resolveRunNeighbour, resolveRunSides, runSeams, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
+  runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, seamGatePair, seamGateLeaving, buildRun, runPassageLevels, RUN_PASSAGE_MAX, vertSeamLinesUp, resolveRunNeighbour, resolveRunSides, runSeams, runSceneryNodes, runCameraParts, runPlacements, runFillAbove, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
   objTopAt,
   objNudgedLeft,
   objNudgedTop,
@@ -10625,6 +10625,119 @@ describe("runs", () => {
     // A sewer under the live level lets the view follow the body down past the floor, toward it.
     const sewer = mk("sewer", { rows: 24 });
     expect(cameraTarget({ x: 1400, y: 1300 }, pw, ph, A, { S: { level: sewer, off: { x: 0, y: 1380 } } }, VW, VH, CELL).y).toBe(1300 + ph / 2 - VH / 2);
+  });
+
+  // Blake, 2026-10-11, in the sewer under the trailers: black over the tunnel, and the camera sank at
+  // the gate into it. Sewer M1 had the street drawn above it (its Top Left joins it); the tunnel next
+  // to it (like Sewer M3/M4: no top gate) had nothing drawn above, though the same street runs over it.
+  describe("the level above a sewer", () => {
+    const ground = (lv) => { const fg = {}; for (let c = 0; c < lv.cols; c++) fg["0," + c] = { c: "#2d3710", tex: "olive" }; return { ...lv, fg }; };
+    const pool = [P5, P6, Q, ground(SA), ground(SM), ground(SB)];
+    const W = 160 * CELL, H = 46 * CELL, pw = 58, ph = 210, VW = 3084, VH = 871;
+    const resolved = (seed) => { const run = buildRun(pool, seed, { maxMiddles: 4 }); for (const n of Object.values(run.nodes)) resolveRunSides(run, n, pool); return run; };
+    const parts = (run, n) => runCameraParts(run, n, runSeams(run, n, CELL), CELL);
+    // Where `node` draws every level it draws (its seams and its scenery), in its own pixels.
+    const drawnFrom = (run, node) => {
+      const out = new Map();
+      for (const s of Object.values(runSeams(run, node, CELL))) out.set(s.key, s.off);
+      for (const s of runSceneryNodes(run, node, CELL)) out.set(s.key, s.off);
+      return out;
+    };
+    const runs = []; for (let i = 0; i < 80; i++) runs.push(resolved("scenery" + i));
+
+    test("a tunnel with no way up gets the street over it, placed where the gates put it", () => {
+      let checked = 0;
+      for (const run of runs) {
+        const tunnel = Object.values(run.nodes).find((n) => n.row === 1 && n.level.id === "SM" && n.links.W && run.nodes[n.links.W].links.N);
+        if (!tunnel) continue;
+        const entry = run.nodes[tunnel.links.W], westStreet = run.nodes[entry.links.N], street = run.nodes[run.order[tunnel.col]];
+        const toEntry = runSeams(run, tunnel, CELL).W.off, up = runSeams(run, entry, CELL).N.off, east = runSeams(run, westStreet, CELL).E.off;
+        if (toEntry.x + up.x + east.x !== 0) continue;                                  // a flat passage (the staggered one is below)
+        checked++;
+        expect(runSeams(run, tunnel, CELL).N).toBeUndefined();                          // no gate up: not a seam
+        const sc = runSceneryNodes(run, tunnel, CELL);
+        const above = sc.find((s) => s.key === street.key);
+        expect(above).toEqual({ key: street.key, node: street, off: { x: 0, y: -H }, stacked: true });
+        const nw = sc.find((s) => s.key === westStreet.key);
+        expect(nw.off).toEqual({ x: -W, y: -H }); expect(nw.stacked).toBe(false);       // a diagonal: drawn, never clamps
+        expect(runFillAbove(run, tunnel, CELL)).toBe(null);                             // nothing left to fill
+        expect(runSceneryNodes(run, tunnel, CELL)).toBe(sc);                            // cached until a link changes
+        // Body high in the tunnel by its west gate, the same point of the world either side of the
+        // handoff: before, the street over the entry sewer is a seam; after, it is scenery.
+        const y = 6 * CELL;
+        const before = cameraTarget({ x: W - 40, y }, pw, ph, entry.level, parts(run, entry), VW, VH, CELL);
+        const after = cameraTarget({ x: -40, y }, pw, ph, tunnel.level, parts(run, tunnel), VW, VH, CELL);
+        expect(before.y).toBeLessThan(0);                                                // the view rises into the street
+        expect(after.y).toBeCloseTo(before.y, 6); expect(after.x).toBeCloseTo(before.x - W, 6);
+        // Anywhere along the tunnel the view rises with the body (it used to be pinned at the tunnel's top)...
+        for (const x of [40 * CELL, 80 * CELL, 150 * CELL]) {
+          expect(cameraTarget({ x, y }, pw, ph, tunnel.level, parts(run, tunnel), VW, VH, CELL).y).toBe(y + ph / 2 - VH / 2);
+          expect(cameraTarget({ x, y }, pw, ph, tunnel.level, runSeams(run, tunnel, CELL), VW, VH, CELL).y).toBe(0);
+        }
+        // ...and what is drawn above never lets it pan sideways past the passage's own ends.
+        if (!tunnel.links.E) expect(cameraTarget({ x: W - 40, y }, pw, ph, tunnel.level, parts(run, tunnel), VW, VH, CELL).x).toBe(W - VW);
+      }
+      expect(checked).toBeGreaterThan(0);
+    });
+
+    test("a staggered sewer's streets are not drawn where routes disagree; its own top row fills the gap and the camera still rises", () => {
+      let checked = 0;
+      for (const run of runs) {
+        for (const n of Object.values(run.nodes)) {
+          if (n.row !== 1) continue;
+          const at = runPlacements(run, n, CELL), street = run.nodes[run.order[n.col]];
+          if (!at.get(street.key).amb) continue;
+          checked++;
+          expect(runSceneryNodes(run, n, CELL).map((s) => s.key)).not.toContain(street.key);
+          const fill = runFillAbove(run, n, CELL);
+          expect(fill).toBeTruthy();
+          expect(fill.off).toEqual({ x: 0, y: -H });
+          const c = Number(Object.keys(fill.level.fg)[0].split(",")[1]);
+          for (const r of [0, 20, 45]) expect(fill.level.fg[r + "," + c]).toBe(n.level.fg["0," + c]);   // the sewer's own top row, all the way up
+          expect(cameraTarget({ x: 80 * CELL, y: 6 * CELL }, pw, ph, n.level, parts(run, n), VW, VH, CELL).y).toBe(6 * CELL + ph / 2 - VH / 2);
+        }
+      }
+      expect(checked).toBeGreaterThan(0);
+    });
+
+    test("a street hanging past the end of the last sewer never lets the view slide sideways off it", () => {
+      let checked = 0;
+      for (const run of runs) {
+        for (const n of Object.values(run.nodes)) {
+          const up = n.row === 1 && !n.links.E && runSeams(run, n, CELL).N;
+          if (!up || up.off.x <= 0) continue;                                            // the street overhangs the sewer's east end
+          checked++;
+          const t = cameraTarget({ x: W - 60, y: 6 * CELL }, pw, ph, n.level, parts(run, n), VW, VH, CELL);
+          expect(t.y).toBeLessThan(0);                                                   // risen into the street on a jump...
+          expect(t.x).toBe(W - VW);                                                      // ...but held at the sewer's end
+        }
+      }
+      expect(checked).toBeGreaterThan(0);
+    });
+
+    test("every sewer is covered all the way across, and no level is drawn in two places by two neighbours", () => {
+      let sewers = 0;
+      for (const run of runs) {
+        for (const L of Object.values(run.nodes)) {
+          if (L.row === 1) {
+            sewers++;
+            const covered = new Array(160).fill(false), fill = runFillAbove(run, L, CELL);
+            const mark = (off, lv) => { if (off.y + lv.rows * CELL !== 0) return; for (let c = 0; c < 160; c++) if (off.x <= c * CELL && off.x + lv.cols * CELL >= (c + 1) * CELL) covered[c] = true; };
+            for (const s of Object.values(runSeams(run, L, CELL))) mark(s.off, s.level);
+            for (const s of runSceneryNodes(run, L, CELL)) if (s.stacked) mark(s.off, s.node.level);
+            if (fill) for (const k of Object.keys(fill.level.fg)) if (k.startsWith("0,")) covered[+k.slice(2)] = true;
+            expect(covered.every(Boolean)).toBe(true);
+          }
+          // A level drawn from both sides of a gate sits at the same point of the world: nothing leaps at a handoff.
+          const mine = drawnFrom(run, L);
+          for (const s of Object.values(runSeams(run, L, CELL))) {
+            const theirs = drawnFrom(run, run.nodes[s.key]);
+            for (const [k, off] of theirs) if (mine.has(k)) { expect(mine.get(k).x).toBe(s.off.x + off.x); expect(mine.get(k).y).toBe(s.off.y + off.y); }
+          }
+        }
+      }
+      expect(sewers).toBeGreaterThan(20);
+    });
   });
 
   test("runGridOrder / unitDrawOrder: the order levels and units are drawn in survives a handoff", () => {
