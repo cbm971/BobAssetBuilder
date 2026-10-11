@@ -312,6 +312,12 @@ plus traps it does not cover:
 - Fire sounds where the thing happens in the play loop (`sndMoment` / `sndEvent`), never from the
   render. Hurt, death and landing come from `soundFrame`'s per-frame diff, for the player and every
   unit; do not add hurt sounds at damage sites. Units make the same calls the player does.
+- **Melee is two sounds: Swing as the stroke starts, the blow only on CONTACT** (his rule,
+  2026-10-11). Start: the weapon's Swing, else the basic Swing (fists and bites too). Contact (a
+  body struck, a shot parried, a clash, a guard hit): the weapon's Hit, else the body's Attack,
+  else the basic Punch. Never fire Punch/Hit/Attack where a swing starts.
+- Each sound has its own `vol` (0-2, absent = 1; `soundVolume`), set by the 🔊 slider on its
+  Library row and applied by every play. Music caps at 1 (an `<audio>` element cannot go higher).
 - The dev server writes uploads into `asset-data/clips/`. Delete test clips before committing.
 - 10 MB per file; the answer to a bigger one is mp3/ogg, not a bigger cap. The 🎵 toggle is per copy
   (localStorage `bobMusic`).

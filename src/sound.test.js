@@ -7,6 +7,7 @@ import {
   soundGainAt, voicePlan, MAX_COPIES, MAX_VOICES, RETRIGGER_MS, clipExtOf, clipMime, CLIP_MAX_BYTES,
   clipHash, clipNameOk, clipMatches, createAudioEngine, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard,
   leadingSilence, ONSET_FLOOR, ONSET_OF_PEAK, ONSET_PREROLL_S, talkSeconds, TALK_CHARS_PER_S, TALK_MIN_S, TALK_MAX_S, dialogueSoundId,
+  soundVolume, SOUND_VOL_MAX,
 } from "./audio";
 import { groupByCategory, mergeLibraries, mergeCloudLibrary, diskLibrary } from "./App";
 
@@ -68,8 +69,61 @@ describe("which sound plays: the asset's own, else the basic one, else silence",
   });
 
   test("the basic-sound registry: every moment he asked for, each one a row", () => {
-    expect(SOUND_EVENT_KEYS).toEqual(["jump", "land", "punch", "hurt", "death", "pickup", "door", "menuClick"]);
+    expect(SOUND_EVENT_KEYS).toEqual(["jump", "land", "swing", "punch", "hurt", "death", "pickup", "door", "menuClick"]);
     for (const e of SOUND_EVENTS) { expect(typeof e.label).toBe("string"); expect(e.label.length).toBeGreaterThan(0); }
+  });
+});
+
+/* "THERE SHOULD BE A GENERAL SWING AUDIO, and if the weapons have a swing audio that should over
+   write … the punch and weapon Audio (Not swing) should only fire when the weapon or punch makes
+   contact" (Blake, 2026-10-11). The stroke starting is Swing; the blow landing is Hit / Attack / Punch. */
+describe("a swing is the swing, the punch is the blow landing", () => {
+  const lib = new Set(["whoosh", "smack", "clang", "chomp"]);
+  const has = (id) => lib.has(id);
+  const b = board({ swing: "whoosh", punch: "smack" });
+  const slot = (kind, key) => ASSET_SOUND_SLOTS[kind].find((s) => s.key === key);
+
+  test("a melee weapon's Swing overrides the basic Swing, and falls back to it", () => {
+    expect(slot("melee", "swing").basic).toBe("swing");
+    const plain = { id: "p", type: "weapon", wtype: "melee" };
+    const sword = { id: "s", type: "weapon", wtype: "melee", sounds: { swing: "clang" } };
+    expect(resolveSound({ asset: plain, slot: "swing", basic: "swing", board: b, has })).toBe("whoosh");
+    expect(resolveSound({ asset: sword, slot: "swing", basic: "swing", board: b, has })).toBe("clang");
+    expect(resolveSound({ asset: null, slot: "swing", basic: "swing", board: b, has })).toBe("whoosh"); // bare hands
+  });
+
+  test("the contact sounds: a blade's Hit else the Punch, a body's Attack else the Punch", () => {
+    expect(slot("melee", "hit").basic).toBe("punch");
+    expect(slot("enemy", "attack").basic).toBe("punch");
+    expect(slot("ranged", "hit").basic).toBeNull(); // a bullet landing is not a punch
+    const plain = { id: "p", type: "weapon", wtype: "melee" };
+    expect(resolveSound({ asset: plain, slot: "hit", basic: "punch", board: b, has })).toBe("smack");
+    const dog = { id: "d", type: "enemy", sounds: { attack: "chomp" } };
+    expect(resolveSound({ asset: dog, slot: "attack", basic: "punch", board: b, has })).toBe("chomp");
+  });
+
+  // The play loop is one giant effect and cannot be driven from here, so the WIRING is pinned by
+  // reading the source: no stroke start may fire the Punch or an Attack any more.
+  test("no stroke START fires the Punch; every contact site does", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    const count = (needle) => src.split(needle).length - 1;
+    expect(count('"swing" : "attack", "punch"')).toBe(0);
+    expect(count('sndMoment(basePlayerAsset, "attack", "punch", p.x, p.y)')).toBe(0);
+    expect(count('sndMoment(playtestWeapon, "swing", "swing", p.x, p.y)')).toBe(1);
+    expect(count('sndEvent("swing", p.x, p.y)')).toBe(1);
+    expect(count("if (swingHitNotes.length || swingParried)")).toBe(1);
+    expect(count('ew ? "hit" : "attack", "punch"')).toBe(2); // a unit's arc test and its instant blow
+  });
+});
+
+describe("each sound has its own volume", () => {
+  test("soundVolume: absent is 100%, clamped to 0..SOUND_VOL_MAX", () => {
+    expect(soundVolume(snd("a", "A"))).toBe(1);
+    expect(soundVolume({ ...snd("a", "A"), vol: 0.4 })).toBe(0.4);
+    expect(soundVolume({ ...snd("a", "A"), vol: 9 })).toBe(SOUND_VOL_MAX);
+    expect(soundVolume({ ...snd("a", "A"), vol: -1 })).toBe(0);
+    expect(soundVolume({ ...snd("a", "A"), vol: NaN })).toBe(1);
+    expect(soundVolume(null)).toBe(1);
   });
 });
 
@@ -227,6 +281,17 @@ describe("the engine, against a stand-in Web Audio", () => {
     expect(started).toHaveLength(0);
     expect(e.event("jump", 1100, 200)).toBe(true);
     expect(e.trace().slice(-1)[0].gain).toBeLessThan(1);
+  });
+
+  test("a sound's volume scales every play of it, and 0% plays nothing", async () => {
+    install("running");
+    const e = createAudioEngine({ loadClip: async (n) => files[n] || null });
+    e.setLibrary([{ ...snd("jumpS", "Boing", "Bob", clipA), vol: 0.5 }, { ...snd("gunS", "Bang", "Weapons", clipB), vol: 0 }, board({ jump: "jumpS", punch: "gunS" })]);
+    e.preload(["jumpS", "gunS"]); await settle(); await settle();
+    expect(e.event("jump")).toBe(true);
+    expect(e.trace().slice(-1)[0]).toMatchObject({ id: "jumpS", gain: 0.5, heard: true });
+    expect(e.event("punch")).toBe(false);
+    expect(e.trace().slice(-1)[0]).toMatchObject({ id: "gunS", heard: false, why: "volume 0" });
   });
 });
 

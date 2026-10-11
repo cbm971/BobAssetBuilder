@@ -24,6 +24,11 @@
 export const SOUND_EVENTS = [
   { key: "jump", label: "Jump", icon: "⤴️" },
   { key: "land", label: "Land", icon: "⤵️" },
+  // Swing is the arm going round, Punch is the blow LANDING (Blake, 2026-10-11: "the punch and
+  // weapon Audio (Not swing) should only fire when the weapon or punch makes contact"). Every melee
+  // stroke — a fist, a bite, a blade with no Swing of its own — plays Swing as it starts, and
+  // Punch only if it connects with something.
+  { key: "swing", label: "Swing", icon: "💨" },
   { key: "punch", label: "Punch", icon: "👊" },
   { key: "hurt", label: "Hurt", icon: "🤕" },
   { key: "death", label: "Death", icon: "💀" },
@@ -36,10 +41,12 @@ export const SOUND_EVENT_KEYS = SOUND_EVENTS.map((e) => e.key);
 // ── The moments an ASSET can carry its own sound for, by what the asset is. `basic` is the
 // SOUND_EVENTS key that plays when the asset leaves the slot empty (null: nothing does, because
 // there is no everyday moment it stands in for — a gunshot is not a punch). A melee weapon's
-// swing falls back to the punch, and an enemy's attack, hurt and death to the everyday ones, so
-// a new enemy sounds like everyone else until it is given its own voice.
+// Swing falls back to the basic Swing and its Hit (the blade connecting) to the Punch, and an
+// enemy's attack, hurt and death to the everyday ones, so a new enemy sounds like everyone else
+// until it is given its own voice. An enemy's Attack is its blow LANDING (the bite, the thump),
+// so it plays on contact like the Punch it stands in for; its stroke starting is the basic Swing.
 export const ASSET_SOUND_SLOTS = {
-  melee: [{ key: "swing", label: "Swing", basic: "punch" }, { key: "hit", label: "Hit", basic: null }],
+  melee: [{ key: "swing", label: "Swing", basic: "swing" }, { key: "hit", label: "Hit", basic: "punch" }],
   ranged: [{ key: "fire", label: "Fire", basic: null }, { key: "hit", label: "Hit", basic: null }],
   throw: [{ key: "throw", label: "Throw", basic: null }, { key: "land", label: "Land", basic: null }],
   enemy: [{ key: "attack", label: "Attack", basic: "punch" }, { key: "hurt", label: "Hurt", basic: "hurt" }, { key: "death", label: "Death", basic: "death" }],
@@ -64,6 +71,18 @@ export const SOUND_BOARD_ID = "soundboard";
 export const newSoundBoard = () => ({ id: SOUND_BOARD_ID, type: "soundBoard", name: "Basic sounds", basic: {}, music: "" });
 export const isSoundRecord = (r) => !!r && r.type === "sound" && !!r.id;
 export const isSoundBoard = (r) => !!r && r.id === SOUND_BOARD_ID;
+
+// ── A SOUND'S OWN VOLUME (Blake, 2026-10-11: "a volume slider in AUDIO so I can adjust that").
+// `vol` lives on the sound record, so one slider on its Library row sets it everywhere the sound
+// plays — as a basic sound, in a weapon's or enemy's slot, as a talk loop, as the music. 1 is the
+// file as it is; absent (every sound uploaded before this) is 1. Up to 2x, so a clip recorded
+// quiet can be brought up to sit with the rest without re-exporting it. Music plays through an
+// <audio> element, whose volume stops at 1, so a track turned past 100% plays at 100%.
+export const SOUND_VOL_MAX = 2;
+export const soundVolume = (s) => {
+  const v = s && typeof s.vol === "number" && isFinite(s.vol) ? s.vol : 1;
+  return Math.min(SOUND_VOL_MAX, Math.max(0, v));
+};
 
 // THE FALLBACK RULE. `asset` + `slot`: the asset's own sound for this moment; `basic`: the
 // everyday moment it falls back to; `board`: the basic sounds; `has(id)`: does that sound still
@@ -315,10 +334,14 @@ export const createAudioEngine = ({ loadClip } = {}) => {
   };
 
   const note = (row) => { trace.push(row); if (trace.length > 200) trace.shift(); };
-  const startVoice = (id, gain, info) => {
+  const startVoice = (id, gain0, info) => {
     const s = sounds.get(id);
     if (!s || !s.clip) return false;
     const t = now();
+    // The sound's own volume (soundVolume) on top of where it is (soundGainAt). Turned all the way
+    // down it takes no voice at all, rather than holding a copy slot with silence.
+    const gain = gain0 * soundVolume(s);
+    if (gain <= 0) { note({ at: t, id, clip: s.clip, gain, heard: false, why: "volume 0", ...info }); return false; }
     // A voice is over when its buffer has run out, read off the clock as well as onended: a
     // source that never reports back (a context that stalled) must not hold its slot for ever,
     // or the copy cap would silence that sound for the rest of the session.
@@ -382,14 +405,14 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     const src = c.createBufferSource();
     src.buffer = buf; src.loop = true; src.loopStart = skip; src.loopEnd = buf.duration;
     const g = c.createGain();
-    const t0 = c.currentTime, end = t0 + secs, fade = Math.min(0.08, secs / 4);
-    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(1, t0 + 0.003);
-    g.gain.setValueAtTime(1, end - fade); g.gain.linearRampToValueAtTime(0, end);
+    const t0 = c.currentTime, end = t0 + secs, fade = Math.min(0.08, secs / 4), vol = soundVolume(s);
+    g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + 0.003);
+    g.gain.setValueAtTime(vol, end - fade); g.gain.linearRampToValueAtTime(0, end);
     src.connect(g); g.connect(master);
     src.onended = () => { try { g.disconnect(); } catch { /* gone */ } if (talkVoice.src === src) { talkVoice.src = null; talkVoice.g = null; } };
     src.start(0, skip); src.stop(end);
     talkVoice.src = src; talkVoice.g = g;
-    note({ at: now(), id, clip: s.clip, gain: 1, heard: true, talk: true, secs, skip });
+    note({ at: now(), id, clip: s.clip, gain: vol, heard: true, talk: true, secs, skip });
     return true;
   };
 
@@ -433,6 +456,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
         if (prev.url) { try { URL.revokeObjectURL(prev.url); } catch { /* gone */ } }
         prev.url = URL.createObjectURL(new Blob([bytes], { type: clipMime(s.clip) }));
         prev.el.src = prev.url; prev.id = id;
+        prev.el.volume = Math.min(1, soundVolume(s)); // an element stops at 1 (see SOUND_VOL_MAX)
         try { await prev.el.play(); } catch { return false; }
         note({ at: now(), id, clip: s.clip, gain: 1, heard: true, preview: true, streamed: true });
         return true;
@@ -471,6 +495,9 @@ export const createAudioEngine = ({ loadClip } = {}) => {
       if (!want) { if (music.el && !music.el.paused) { try { music.el.pause(); } catch { /* gone */ } } return; }
       if (!W || typeof W.Audio !== "function") return;
       if (!music.el) { music.el = new W.Audio(); music.el.loop = true; music.el.preload = "auto"; }
+      // Every sync, not only on a new track: setLibrary calls this when the slider saves, so the
+      // track playing now follows the slider without restarting.
+      music.el.volume = Math.min(1, soundVolume(s));
       if (music.clip !== want) {
         const bytes = loadClip ? await loadClip(want) : null;
         if (!bytes) return;

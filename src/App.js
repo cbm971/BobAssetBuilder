@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 // the game's own front end will play the same data without the studio — see src/audio.js. The clip
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
-import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId } from "./audio";
+import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX } from "./audio";
 
 /* ============================================================================
    BOB ASSET STUDIO  — HTML canvas (reliable emoji + easy dragging on mobile)
@@ -13709,6 +13709,7 @@ export default function AssetStudio() {
         ep.attackT = Math.max(ep.attackT || 0, ATTACK_COOLDOWN_FRAMES);
         if (ep.swingHit && typeof ep.swingHit === "object") ep.swingHit.player = true;
         booms.current.push({ x: (p.x + pw / 2 + unitCX) / 2, y: p.y + ph * 0.4, propId: null, char: "💥", size: 1.2, life: 0, maxLife: 14 });
+        sndEvent("punch", (p.x + pw / 2 + unitCX) / 2, p.y + ph * 0.4); // 🔊 two blows meeting is contact (your pistol-whip is always a fist)
         flash("⚔️ Clash with " + ((ea && ea.name) || "them") + "!");
       };
       const shotPathProbe = (x, y) => cellsHitW(x, y, 2, 2).length === 0; // the flying shot's own solid test, for shotPathClear — the world's, since a target can stand across a gate
@@ -15283,8 +15284,10 @@ export default function AssetStudio() {
               const box = hitBodyOf(body.kind, body.ep, body.ea);
               const struck = arc.some((hb) => hb.x < box.left + box.w && hb.x + hb.w > box.left && hb.y < box.top + box.h && hb.y + hb.h > box.top);
               if (!struck) continue;
-              // 🔊 Its blade connecting. A blow turned aside by your guard cut swingT to 0, and makes no hit.
-              if (applyHitTo(body.kind, body.key === "player" ? null : body.key, body.ep, body.ea, enemyAttackDamage(ea, ew)) && ew && ep.swingT > 0) sndMoment(ew, "hit", null, box.left + box.w / 2, box.top + box.h / 2);
+              // 🔊 Its blow connecting — with you, a unit, or your raised guard (a blade on a shield is
+              // still contact): its blade's Hit, else the Punch; bare-handed, its own Attack, else the
+              // Punch. The same rule as your swing. (i-frames return false: it passed through nobody.)
+              if (applyHitTo(body.kind, body.key === "player" ? null : body.key, body.ep, body.ea, enemyAttackDamage(ea, ew))) sndMoment(ew || ea, ew ? "hit" : "attack", "punch", box.left + box.w / 2, box.top + box.h / 2);
               ep.swingHit[body.key] = true;
               if (ep.swingT <= 0) break; // the blow was BLOCKED and the stagger cut the swing short: nobody behind the shield gets hit by a stroke that stopped
             }
@@ -15510,14 +15513,16 @@ export default function AssetStudio() {
                   // whatever the gun, so the Experimental Rifle was a third of itself in their hands.
                   ep.burstLeft = weaponBurstShotCount(ew) - 1; ep.burstT = burstDelayFrames(ew.burstDelay);
                 } else if (meleeGeom) {
-                  sndMoment(ew || ea, ew ? "swing" : "attack", "punch", eCenterXFinal, ep.y + newEph * 0.5); // 🔊 its blade's Swing, or its own Attack
+                  sndMoment(ew, "swing", "swing", eCenterXFinal, ep.y + newEph * 0.5); // 🔊 its blade's Swing, else the basic Swing — the blow landing plays from the swing test above
                   ep.swingHit = {}; // weapon-hitbox melee: committing only STARTS the swing; the hits (one per body in the arc) land in the swing test above
                   ep.tailNext = true; // a tail-wearer steps in for the tail next (unitTailStepsIn)
                 } else {
                   // Bare-handed / drawn-monster melee: an instant hit on commit (applyAttackHit
                   // respects the player's i-frames, and routes to a unit's HP in a brawl).
-                  sndMoment(ew || ea, ew ? "swing" : "attack", "punch", eCenterXFinal, ep.y + newEph * 0.5); // 🔊 a bite or a punch: its own Attack
-                  applyAttackHit(enemyAttackDamage(ea, ew));
+                  // 🔊 The lunge is the Swing; the bite or punch (its own Attack, else the Punch, or its
+                  // blade's Hit) only if the hit lands — i-frames return false and it is silent.
+                  sndMoment(ew, "swing", "swing", eCenterXFinal, ep.y + newEph * 0.5);
+                  if (applyAttackHit(enemyAttackDamage(ea, ew))) sndMoment(ew || ea, ew ? "hit" : "attack", "punch", tgtBoxLeft + tgtBoxW / 2, tgtBoxTop + tgtBoxH / 2);
                   ep.tailNext = true;
                 }
               }
@@ -15714,7 +15719,9 @@ export default function AssetStudio() {
         } else if (wantFire && !p.stomp) {
           // Something short at your feet: stamp on it instead (startStomp). Otherwise the swing.
           if (!startStomp()) {
-            sndMoment(playtestWeapon || basePlayerAsset, playtestWeapon ? "swing" : "attack", "punch", p.x, p.y); // 🔊 the blade's Swing, or a bare-handed punch
+            // 🔊 The stroke starting: the blade's own Swing, else the basic Swing (bare hands too).
+            // The Punch / Hit is the blow LANDING and plays from the hit test, never here.
+            sndMoment(playtestWeapon, "swing", "swing", p.x, p.y);
             p.firing = { t: 0, dur: 12 }; // swing duration — same for a real melee weapon or a bare-handed swing (faster than the old sine sweep)
             p.hitRegistered = false; p.swingHits = {}; // a fresh swing can land a fresh hit on every body in its arc
           }
@@ -15737,7 +15744,7 @@ export default function AssetStudio() {
       // blocks it (p.firing.unarmed), as it blocks a second swing.
       if (!meleeInHand && wantMelee && !p.stomp && !(p.firing && p.firing.unarmed) && startStomp()) { /* stamping */ }
       else if (!meleeInHand && wantMelee && !p.firing && !p.stomp) {
-        sndMoment(basePlayerAsset, "attack", "punch", p.x, p.y); p.firing = { t: 0, dur: 12, unarmed: true }; p.hitRegistered = false; p.swingHits = {};
+        sndEvent("swing", p.x, p.y); p.firing = { t: 0, dur: 12, unarmed: true }; // 🔊 a fist going round; the Punch waits for contact p.hitRegistered = false; p.swingHits = {};
       }
       p.wasMelee = !!K.melee;
       // All of the guard's timing is advanceBlock: the press raises it, BLOCK_FRAMES later the arm
@@ -15890,6 +15897,7 @@ export default function AssetStudio() {
               // still clear several shots) and it never consumes the swing, so the same stroke can
               // parry and then land on the enemy behind it. An explosive shot still detonates where
               // it was struck — parrying it away from your face is the reward, not immunity.
+              let swingParried = false; // batting a shot down is contact too (the 🔊 below)
               if (projectiles.current.length) {
                 projectiles.current = projectiles.current.filter((pr) => {
                   const psz = LV_CELL * (pr.size || 1);
@@ -15897,6 +15905,7 @@ export default function AssetStudio() {
                   const struck = swingBoxes.some((b) => pl < b.x + b.w && pl + psz > b.x && pt < b.y + b.h && pt + psz > b.y);
                   if (!struck) return true;
                   if (pr.explode) detonate(pr, pr.x, pr.y);
+                  swingParried = true;
                   flash("🗡️ Blocked!");
                   return false;
                 });
@@ -16006,7 +16015,14 @@ export default function AssetStudio() {
                   }
                 }
               }
-              if (swingHitNotes.length && !unarmedSwing && playtestWeapon) sndMoment(playtestWeapon, "hit", null, p.x + p.face * pw, p.y); // 🔊 the blade connecting, once a stroke
+              // 🔊 THE BLOW LANDING — only here, on contact (a body struck or a shot batted down),
+              // never as the stroke starts: the blade's own Hit, else the basic Punch; bare hands
+              // (or a bite, playing as an animal) are your body's own Attack, else the Punch. Once a
+              // frame at most, and the engine merges a repeat inside RETRIGGER_MS.
+              if (swingHitNotes.length || swingParried) {
+                if (!unarmedSwing && playtestWeapon) sndMoment(playtestWeapon, "hit", "punch", p.x + p.face * pw, p.y);
+                else sndMoment(basePlayerAsset, "attack", "punch", p.x + p.face * pw, p.y);
+              }
               if (swingHitNotes.length) flash((swingCrit ? "💥 Critical! " : swingArmedNote) + "Hit " + swingHitNotes.join(", "));
             }
           }
@@ -21013,6 +21029,12 @@ export default function AssetStudio() {
   // (saveDialogueSound).
   if (screen === "sounds") {
     const renameSound = (s, name) => { const v = name.trim(); if (!v || v === s.name) return; putSoundRecord({ ...s, name: v }, "Renamed ✓"); };
+    // The slider saves on release (pointer up, a key, leaving it) and only when it moved.
+    const setSoundVol = (s, pct) => {
+      const v = Math.min(SOUND_VOL_MAX, Math.max(0, Math.round(Number(pct)) / 100));
+      if (!isFinite(v) || Math.abs(v - soundVolume(s)) < 0.001) return;
+      putSoundRecord({ ...s, vol: v }, "🔊 " + s.name + " " + Math.round(v * 100) + "%");
+    };
     // Refiling moves the row into another folder, which may be shut — open it, so the sound you
     // just moved is still in front of you rather than appearing to vanish.
     const refileSound = (s, cat) => { const v = cat.trim(); if (v === (s.category || "").trim()) return; setSoundOpen((o) => new Set(o).add("lib:" + propCatKey(v || PROP_UNCAT))); putSoundRecord({ ...s, category: v }, "📂 " + (v || PROP_UNCAT) + " ✓"); };
@@ -21105,6 +21127,15 @@ export default function AssetStudio() {
                           <input className="sndName" key={"n" + s.id + ":" + (s.savedAt || 0)} defaultValue={s.name} onBlur={(e) => renameSound(s, e.target.value)} onKeyDown={blurOnEnter} title="Name" />
                           <input className="sndCat" list="soundcats" key={"c" + s.id + ":" + (s.savedAt || 0)} defaultValue={s.category || ""} placeholder={PROP_UNCAT} onBlur={(e) => refileSound(s, e.target.value)} onKeyDown={blurOnEnter} title="📂 Folder" />
                           <span className="hint2">{[fmtClipDur(s.dur), fmtClipSize(s.bytes)].filter(Boolean).join(" · ")}</span>
+                          {/* 🔊 This sound's volume, wherever it plays (soundVolume). Uncontrolled like the
+                              name: dragging only moves the % beside it (re-rendering the studio sixty times
+                              a second for a label would be the whole cost of the drag); letting go saves. */}
+                          <span className="sndVol" title="Volume">
+                            🔊<input type="range" min="0" max={SOUND_VOL_MAX * 100} step="5" key={"v" + s.id + ":" + (s.savedAt || 0)} defaultValue={Math.round(soundVolume(s) * 100)}
+                              onChange={(e) => { const pctEl = e.currentTarget.nextSibling; if (pctEl) pctEl.textContent = e.currentTarget.value + "%"; }}
+                              onPointerUp={(e) => setSoundVol(s, e.currentTarget.value)} onKeyUp={(e) => setSoundVol(s, e.currentTarget.value)} onBlur={(e) => setSoundVol(s, e.currentTarget.value)} />
+                            <span key={"vp" + s.id + ":" + (s.savedAt || 0)} className="sndVolPct">{Math.round(soundVolume(s) * 100)}%</span>
+                          </span>
                           <button className={"ltbtn" + (soundConfirmDel === s.id ? " arm" : "")} title={soundConfirmDel === s.id ? "Tap again to permanently delete" : "Delete this sound"} onClick={() => { if (soundConfirmDel === s.id) deleteSound(s); else { setSoundConfirmDel(s.id); flash("Tap 🗑 again to permanently delete \"" + s.name + "\""); } }}>{soundConfirmDel === s.id ? "Sure?" : "🗑"}</button>
                         </div>
                       ))}
@@ -25840,6 +25871,9 @@ html,body{margin:0;padding:0;background:#0f1117}
 .sndRow .arm{border-color:#c0504d;color:#f3a6a6}
 .sndEvt{width:132px;font-size:13px;color:#cfd6e6}
 .sndPlay{min-width:38px}
+.sndVol{display:inline-flex;align-items:center;gap:4px;font-size:12px}
+.sndVol input[type=range]{width:110px}
+.sndVolPct{width:38px;font-size:12px;color:#9aa3b8;text-align:right}
 .sndUp{display:inline-flex;align-items:center}
 .sndCard .sndRow select{min-width:0;flex:1 1 140px}
 .dlgNode .ct{display:flex;justify-content:space-between;align-items:center;gap:10px}
