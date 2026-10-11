@@ -404,7 +404,9 @@ plus traps it does not cover:
     level, and a chain that runs dry ends at the last level an Exit joins. A run starts at the Intro's Lower Left gate even though it is closed (`spawnGateFor`). **A level's role comes from its gates and Floor only (`runRole`).** Blake
     retired the free-text Section box on 2026-10-09; an old save's `section` is ignored.
   - Sewers and tree tops (Floor "Sewer", "Underground" or "Tree Top") are planned as passages
-    with a way out.
+    with a way out. **No street level is laid with a top/bottom gate that leads nowhere** (his rule,
+    2026-10-11: "an impossible seed"): `tryLay` takes a level back when its passage cannot be
+    planned (`vertDead`), the Exit included, and the step back to an Exit never cuts a passage.
   - One level is live at a time. Neighbours are drawn whole from cached tiles. Their units are
     adopted into the live level (`adoptRunNeighbours` / `releaseRunUnits`), so shots and chases
     cross gates.

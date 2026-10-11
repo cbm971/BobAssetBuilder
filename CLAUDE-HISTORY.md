@@ -4216,3 +4216,14 @@ Blake, after asking about three times: "EACH SOUND SHOULD HAVE A VOLUME SLIDER N
 Now every one of those picks has its own slider, stored next to the pick and multiplied with the clip's Library volume. The same clip can be quiet as the Punch and loud as a gun's Fire. A weapon slot left on "— basic —" plays at the basic sound's slider (`resolveSoundVol` makes the same choice `resolveSound` makes). ▶ plays at that slider's volume. The talk loop takes the dialogue's `soundVol`, and music takes `board.musicVol`. The Sounds screen's pick rows no longer wrap the slider onto a second line.
 
 Verified on a prod build with his library: 9/9 basic, 1/1 music, 14/14 dialogue, 32/32 weapon slots and 39/39 enemy slots have a slider. Jump moved to 40% and still read 40% after a reload. The engine test shows a 50% clip on a 40% Punch slot plays at 0.2 gain.
+
+
+## No sewer gate that leads nowhere (2026-10-11, evening)
+
+Blake: "I had a seed generate with a sewer entance on Level 7 and say nothing connect. There will not be a level 8 sewer exit so this is a impossible seed and shouldn't have generated".
+
+buildRun laid a street level first and planned its passage after. When no route could be planned, the gate was simply left a wall. Level 7 is the last level before the Exit, and his Exit (Trailor Park E1) has no sewer gate. His sewers only let you climb back out east of where you went in (Sewer M1 runs east to M3/M4, then up through Sewer M2's Top Right), so a drop from level 7 had nowhere to come up. Over 1,000 seeds on his saves (`saves` branch library.json): 310 dead gates, 246 of them on level 7, the rest on levels 4-6 where the sewers left were already used.
+
+Now `tryLay` lays each street level (the Exit too), plans its passages, and if any level it laid has an open top/bottom gate with no passage under it (`vertDead`), it puts everything back and tries the next candidate. The seeded pick is tried first, so seeds that never had a dead gate lay what they did. A gate no level in the pool could ever join is not held against the level. If no candidate fits, the seeded pick is laid anyway and the attempt scores lower than any clean one. The step back to a level an Exit joins is skipped when it would cut a planned passage in two.
+
+After: 0 dead gates in 1,000 seeds, all 8 levels long, all ending at the Exit, sewers laid 2,249 times (was 2,089), same speed. The test fixture P6 (a sewer with no P5 to climb into) fails on the old code ("INTRO, Q, Q3, P6, EXIT2").

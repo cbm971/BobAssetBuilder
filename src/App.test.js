@@ -10586,6 +10586,34 @@ describe("runs", () => {
     expect(under).toBeGreaterThan(0);   // the tunnel is still laid — just under a street level with no gate
   });
 
+  // Blake, 2026-10-11: "a sewer entrance on Level 7 and nothing connect. There will not be a level 8
+  // sewer exit so this is a impossible seed and shouldn't have generated". His Exit has no sewer gate,
+  // so a sewer dropped into from the level before it had nowhere to come back up, and was left a wall.
+  test("no street level is laid with a sewer gate that leads nowhere", () => {
+    const EXIT2 = mk("EXIT2", { open: { W2: "" } });   // like Trailor Park E1: no sewer gate
+    const Q2 = mk("Q2", { open: { W2: "", E2: "" } }), Q3 = mk("Q3", { open: { W2: "", E2: "" } });
+    // P6 drops into SA, which runs east into SB, which climbs into a Bottom Right — and there is no P5
+    // to climb into. Its sewer gate can never lead anywhere, so it is never laid; the street is full anyway.
+    for (let i = 0; i < 40; i++) {
+      const run = buildRun([INTRO, EXIT2, P6, Q, Q2, Q3, SA, SB], "never" + i, { maxMiddles: 3 });
+      expect(run.order.map((k) => run.nodes[k].level.id)).not.toContain("P6");
+      expect(run.order).toHaveLength(5);
+      expect(run.hasExit).toBe(true);
+    }
+    const pool = [INTRO, EXIT2, P5, P6, Q, Q2, Q3, SA, SB, SM];
+    let sewers = 0;
+    for (let i = 0; i < 80; i++) {
+      const run = buildRun(pool, "dead" + i, { maxMiddles: 5 });
+      expect(run.hasExit).toBe(true);
+      const at = new Set(Object.values(run.nodes).map((n) => n.col + "," + n.row));
+      for (const k of run.order) {
+        const n = run.nodes[k];
+        if (n.level.conns.S1.open || n.level.conns.S2.open) { expect(at.has(n.col + ",1")).toBe(true); sewers++; }
+      }
+    }
+    expect(sewers).toBeGreaterThan(0);   // sewers are still laid, only never half of one
+  });
+
   test("a side seam is open its whole shared height; top and bottom seams only at their gates", () => {
     const run = twoNodeRun(), n1 = run.nodes.run1, seams = runSeams(run, n1, CELL);
     expect(seamGateLeaving(n1.level, seams, "E", 4801, 0.7 * 46 * CELL, CELL)).toBe("E2");     // at the gate, as before

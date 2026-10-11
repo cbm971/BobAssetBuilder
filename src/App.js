@@ -10506,36 +10506,81 @@ export const buildRun = (levels, seed, opts = {}) => {
     };
     let planned = 0;
     const planUpTo = () => { while (planned < chain.length) { planFrom(planned, "S"); planFrom(planned, "N"); planned++; } };
+    // NO SEWER GATE THAT LEADS NOWHERE (Blake, 2026-10-11: "a sewer entrance on Level 7 and nothing
+    // connect. There will not be a level 8 sewer exit so this is a impossible seed and shouldn't have
+    // generated"). A street level was laid first and its passage planned after; when no route could
+    // be planned the gate was simply left a wall. Level 7 is the last before the Exit, and his Exit has
+    // no sewer gate, so a sewer dropped into there had nowhere to come back up: 310 dead gates in
+    // 1,000 seeds, 246 of them on level 7. Now a street level whose open top/bottom gate gets no
+    // passage under it (and that some level in the pool COULD join, so a gate nothing fits is not
+    // held against it) is taken back, and the next candidate tried. `vertDead(c)` asks it of column c.
+    const vertDead = (c) => planPassages && ["S", "N"].some((dir) => {
+      const lv = chain[c];
+      if (!lv || taken[dir].has(c) || !CONN_KEYS.some((k) => CONN_SIDE[k] === dir && lv.conns[k] && lv.conns[k].open)) return false;
+      return offStreet.some((s) => s.id !== lv.id && canAttach(lv, s, dir));
+    });
+    // Lay `m` as the next street level (with whatever passages that plans) — or, if that leaves a
+    // dead gate on it or on any level its passage laid, put everything back exactly as it was.
+    const tryLay = (m, isExit, force) => {
+      const snap = { len: chain.length, used: [...used], pl: passages.length, S: [...taken.S], N: [...taken.N], middlesLeft, planned, exitPlaced };
+      chain.push(m); used.add(m.id); if (isExit) exitPlaced = true; else middlesLeft--;
+      planUpTo();
+      let ok = true;
+      if (force) return true;
+      for (let c = snap.len; c < chain.length; c++) if (vertDead(c)) { ok = false; break; }
+      if (ok) return true;
+      chain.length = snap.len; used.clear(); snap.used.forEach((id) => used.add(id)); passages.length = snap.pl;
+      taken.S = new Set(snap.S); taken.N = new Set(snap.N); middlesLeft = snap.middlesLeft; planned = snap.planned; exitPlaced = snap.exitPlaced;
+      return false;
+    };
+    // The seeded pick first (so a seed that never had a dead gate lays exactly what it did), then the
+    // rest in shuffled order. When NONE fits, the seeded pick is laid anyway: a pool whose every
+    // level has a sewer gate with no way back still gets a run, and the score below makes any attempt
+    // that came out clean win over it.
+    const layOne = (cands, isExit) => {
+      const first = pick(cands);
+      if (!first) return null;
+      if (tryLay(first, isExit)) return first;
+      for (const m of order(cands.filter((x) => x !== first))) if (tryLay(m, isExit)) return m;
+      tryLay(first, isExit, true);
+      return first;
+    };
     const intro = pick(intros); if (intro) { chain.push(intro); used.add(intro.id); }
     planUpTo();
     while (middlesLeft > 0) {
       const last = chain[chain.length - 1];
-      const m = pick(last ? middles.filter((c) => canAttach(last, c, "E")) : middles.filter(eastOpen));
-      if (!m) break;
-      chain.push(m); used.add(m.id); middlesLeft--;
-      planUpTo();
+      if (!layOne(last ? middles.filter((c) => canAttach(last, c, "E")) : middles.filter(eastOpen), false)) break;
     }
     const last = chain[chain.length - 1];
-    let exit = last ? pick(exits.filter((e) => canAttach(last, e, "E"))) : pick(exits);
+    // The Exit goes through tryLay like every other street level, so an Exit with a sewer gate of
+    // its own gets a way down too, or another Exit is tried.
+    let exit = layOne(last ? exits.filter((e) => canAttach(last, e, "E")) : exits, true);
     // With no repeats the chain runs until the pool is spent, and the level it stopped on often has
     // the wrong right-hand gate for any Exit. So step back to the last level an Exit DOES join and
     // end the street there, dropping any passage that reached past it (the levels cut off are free
-    // again, but nothing is laid after the Exit anyway).
+    // again, but nothing is laid after the Exit anyway) — but never a step back that cuts a passage
+    // in two: the level you dropped from would keep its sewer gate with nothing under it.
+    const hasVert = (lv, dir) => CONN_KEYS.some((k) => CONN_SIDE[k] === dir && lv.conns[k] && lv.conns[k].open);
     for (let i = chain.length - 2; !exit && last && i >= 0; i--) {
-      const e = pick(exits.filter((x) => canAttach(chain[i], x, "E")));
-      if (!e) continue;
-      chain.length = i + 1;
+      const cands = exits.filter((x) => canAttach(chain[i], x, "E"));
+      if (!cands.some((x) => !used.has(x.id))) continue;
       const keep = passages.filter((ps) => Math.max(ps.col, ps.col + (ps.levels.length - 1) * ps.step) <= i);
+      const tk = { S: new Set(), N: new Set() };
+      for (const ps of keep) ps.levels.forEach((s, j) => tk[ps.dir].add(ps.col + j * ps.step));
+      let cuts = false;
+      for (let c = 0; c <= i && !cuts; c++) for (const dir of ["S", "N"]) if (taken[dir].has(c) && !tk[dir].has(c) && hasVert(chain[c], dir)) cuts = true;
+      if (cuts) continue;
+      chain.length = i + 1;
       passages.length = 0; passages.push(...keep);
-      taken.S.clear(); taken.N.clear();
-      for (const ps of keep) ps.levels.forEach((s, j) => taken[ps.dir].add(ps.col + j * ps.step));
+      taken.S = tk.S; taken.N = tk.N;
       planned = Math.min(planned, chain.length);
-      exit = e;
+      exit = layOne(cands, true);
     }
-    if (exit) { chain.push(exit); exitPlaced = true; planUpTo(); }
-    const score = chain.length + (exit ? 1000 : 0);
-    if (!best || score > best.score) best = { chain, passages, exit: !!exit, intro: !!intro, score };
-    if (best.exit && best.chain.length >= maxMiddles + 2) break;
+    // A dead gate left anyway (only the Intro is laid without tryLay) costs more than any length.
+    const dead = chain.filter((lv, c) => vertDead(c)).length;
+    const score = chain.length + (exit ? 1000 : 0) + (dead ? 0 : 500);
+    if (!best || score > best.score) best = { chain, passages, exit: !!exit, intro: !!intro, score, dead };
+    if (best.exit && !best.dead && best.chain.length >= maxMiddles + 2) break;
   }
   const run = { seed: String(seed), nodes: {}, nextKey: 1, order: [], startKey: null, curKey: null, hasIntro: !!(best && best.intro), hasExit: !!(best && best.exit), notes: [], planned: planPassages };
   if (!intros.length) run.notes.push("no Intro level yet (right gates only)");
