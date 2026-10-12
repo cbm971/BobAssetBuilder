@@ -13253,3 +13253,54 @@ describe("orderStepZ — ▲/▼ through one layer", () => {
     expect(zs(out)).toEqual({ "0,0": [1], "0,1": [0] });
   });
 });
+import { animActorHip, animActorBlocks, ANIM_SIT_SHORTEN, flipLevelHorizontally as flipLevelForAnim } from "./App";
+// 🎬 The actor of an animation: Bob's own side and front pieces (telfv37), twins as bake makes them.
+describe("🎬 animation actor — hip, sit, legs, arms", () => {
+  const leg = { id: "leg", kind: "rect", x: 77, y: 188, w: 44, h: 72, limb: "leg" };
+  const side = () => [
+    { ...leg }, { ...leg, id: "leg_m", x: 79, _m: true },
+    { id: "torso", kind: "rect", x: 60, y: 88, w: 80, h: 102 },
+    { id: "arm", kind: "rect", x: 84, y: 96, w: 25, h: 81, limb: "arm", role: "weaponArm", armPivot: "top" },
+    { id: "arm_m", kind: "rect", x: 91, y: 96, w: 25, h: 81, limb: "arm", role: "weaponArm", armPivot: "top", _m: true },
+    { id: "gun", kind: "rect", x: 120, y: 150, w: 40, h: 10, _isWeapon: true },
+  ];
+  test("the hip is the top-centre of the legs, across both of a front pose's", () => {
+    expect(animActorHip(side())).toEqual({ x: 100, y: 188 });
+    const front = [{ id: "fl", kind: "rect", x: 102, y: 188, w: 28, h: 72, limb: "leg" }, { id: "fl_m", kind: "rect", x: 70, y: 188, w: 28, h: 72, limb: "leg", _m: true }, { id: "t", kind: "rect", x: 60, y: 88, w: 80, h: 102 }];
+    expect(animActorHip(front)).toEqual({ x: 100, y: 188 });
+  });
+  test("a drawing with nothing flagged falls back to its lowest pieces, and an empty one to Bob's hip", () => {
+    const crouch = [{ id: "t", kind: "rect", x: 60, y: 118, w: 80, h: 74 }, { id: "l", kind: "rect", x: 105, y: 171, w: 31, h: 56 }, { id: "l_m", kind: "rect", x: 64, y: 171, w: 31, h: 56, _m: true }];
+    expect(animActorHip(crouch)).toEqual({ x: 100, y: 171 });
+    expect(animActorHip([])).toEqual({ x: 100, y: 188 });
+  });
+  test("no weapon on the actor, and nothing else changes at rest", () => {
+    const out = animActorBlocks(side(), { legs: 0, arms: 0, sit: 0 });
+    expect(out.map((b) => b.id)).toEqual(["leg", "leg_m", "torso", "arm", "arm_m"]);
+    expect(out.find((b) => b.id === "leg")).toMatchObject({ x: 77, y: 188, w: 44, h: 72 });
+  });
+  test("sit shortens the legs toward the hip; the hip stays put", () => {
+    const out = animActorBlocks(side(), { sit: 1 });
+    const l = out.find((b) => b.id === "leg");
+    expect(l.y).toBe(188);
+    expect(l.h).toBeCloseTo(72 * (1 - ANIM_SIT_SHORTEN), 5);
+    expect(out.find((b) => b.id === "torso")).toMatchObject({ y: 88, h: 102 });
+  });
+  test("legs swing forward about the hip — the twin turned the mirrored way so both show the same", () => {
+    const out = animActorBlocks(side(), { legs: 90 });
+    expect(out.find((b) => b.id === "leg").rot).toBe(-90);
+    expect(out.find((b) => b.id === "leg_m").rot).toBe(90);
+    expect(out.find((b) => b.id === "torso").rot).toBeUndefined();
+  });
+  test("arms swing forward about the shoulder the way a melee swing does", () => {
+    const out = animActorBlocks(side(), { arms: 90 });
+    expect(out.find((b) => b.id === "arm").rot).toBe(-90);
+    expect(out.find((b) => b.id === "arm_m").rot).toBe(90);
+  });
+  test("mirroring a level carries a 🎬 marker to the other end of its stage; other markers mirror by cell", () => {
+    const lv = { cols: 160, rows: 46, fg: {}, bg: {}, front: {}, fx: {}, climb: {}, hazard: {}, enemies: {}, conns: {}, markers: { "34,20": { kind: "anim", animId: "wakebed", w: 17 }, "34,5": { kind: "door", tag: "x" } } };
+    const out = flipLevelForAnim(lv);
+    expect(out.markers).toEqual({ "34,123": { kind: "anim", animId: "wakebed", w: 17, flip: true }, "34,154": { kind: "door", tag: "x" } });
+    expect(flipLevelForAnim(out).markers).toEqual({ "34,20": { kind: "anim", animId: "wakebed", w: 17, flip: false }, "34,5": { kind: "door", tag: "x" } });
+  });
+});

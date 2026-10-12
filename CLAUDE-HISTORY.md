@@ -4227,3 +4227,61 @@ buildRun laid a street level first and planned its passage after. When no route 
 Now `tryLay` lays each street level (the Exit too), plans its passages, and if any level it laid has an open top/bottom gate with no passage under it (`vertDead`), it puts everything back and tries the next candidate. The seeded pick is tried first, so seeds that never had a dead gate lay what they did. A gate no level in the pool could ever join is not held against the level. If no candidate fits, the seeded pick is laid anyway and the attempt scores lower than any clean one. The step back to a level an Exit joins is skipped when it would cut a planned passage in two.
 
 After: 0 dead gates in 1,000 seeds, all 8 levels long, all ending at the Exit, sewers laid 2,249 times (was 2,089), same speed. The test fixture P6 (a sewer with no P5 to climb into) fails on the old code ("INTRO, Q, Q3, P6, EXIT2").
+
+## 🎬 ANIMATIONS: the opening and closing cutscenes (2026-10-12)
+
+Blake: the Trailor Park floor opens on a black screen fading in, Bob asleep in bed under a blanket
+with an alarm clock going off, and "Press E to wake up"; it closes with Bob leaving on a helicopter
+rope. About two per floor, a beginning and an ending. He asked how to add these to levels, then for
+"an animation editor ... where I select an animation you made, and maybe it has a few states", with
+the bed in it: the body under the covers at state 1, then on E the covers come off and he goes
+"laying down, sit up, sit on side of bed, standing up" in one motion.
+
+**What it is.** An animation is an ASSET (type "anim"), so it saves, syncs, exports and restores on
+the existing asset wires; a new saved kind would have needed the five-way wiring in three files for
+no gain. `src/anim.js` holds the rules (values at a moment, the state machine, the fade, editing),
+with no React, storage or body code, because the game's own front end will play the same records.
+Layers are props drawn the way placed props are (boomLayout + propArtInner, so the tight art box and
+the size meaning are the same) and ONE actor, which in play is the player's live drawing
+(livePlayerBlocks) and in the editor a look picked to preview with.
+
+**Why the actor is keyed by its hip.** Lying, sitting up and standing all turn about the hip. A
+sit-up interpolates the body's turn from -90 to 0 while the legs swing forward from 0 to 90 about
+the same point, so the legs stay flat on the mattress the whole way (the turn and the swing ease by
+the same curve, so their sum stays at a quarter turn). `legs` reuses applyLimbSwing (the walk's hip rotation),
+`arms` the melee swing's rule with sleeves riding rigidly, and `sit` shortens the leg pieces toward
+the hip (thighs toward the camera) for sitting on the edge facing front. No weapon on the actor.
+
+**Traps found while building it.**
+- A looping waiting state ("Asleep", 1.2 s) with a 2 s fade-in faded by the LOOPED time, so the
+  screen went back to black every lap. The playhead now carries `el` (time in the state, unwrapped)
+  beside `t`; the fade-in and the prompt go by `el`. Measured after: 0.86, 0.69, 0.54, 0.39 across
+  the wrap.
+- Play queues a gate spawn (spawnReq) on its first frame, and the cutscene returns before the loop
+  reaches it, so the first frame after the handoff teleported you to the gate. cutFrame clears it
+  and records the bed as the respawn point.
+- Placed animations redraw every frame like everything in the level render. A finished bed is a
+  still frame of ~100 pieces; the stage element is cached on (record, state, time, each running
+  prop's frame, position). Measured: 0 DOM mutations in a second once the scene is over, 93 in
+  0.6 s while it plays.
+- His first look at the blanket: it "cuts straight down over his feet" and sat "too close where his
+  skin peaks through". Measured where the lying body lands (hip 8.67,6.0 turned -90: torso x
+  5.98..8.72 y 4.92..7.08, head to 6.06, legs to 10.61): the blanket started 0.2 cells short of the
+  shoulders and its top at the fold was BELOW the torso's top, so a block of shoulder showed above
+  and below the head. Redrawn in stage cells against those numbers: tucked under the chin, ~0.3
+  cells of slack, a toe bump that drapes down in a curve past the feet, and a scalloped hem over the
+  mattress edge like bed60s1's own quilt (which also hides anything a look hangs below the mattress).
+  Checked on BoB, Bobbett, Army Bob and Super Bob (his cape still trails out under the hem).
+- editorReachIssues refuses a prop record whose `size` is not a picker stop. A record's size is
+  only where a placement starts; the animation gives each layer its own size (the editor's Size
+  slider steps 0.05).
+
+**Delivered:** `wakebed` "Wake Up (Bed)" (stage 17x9; Asleep: fade in 2 s, clock rattling, Zzz,
+waits for E, loops; Get up: 3.1 s), with new props `blnkt01` Blanket, `blnkhp1` Blanket Heap,
+`alrmclk` Alarm Clock (2 frames, ringing at 10 fps), `zzzfx01` Zzz (3 frames), reusing his
+`bed60s1` 1960s Bed (mirrored, pillow left) and `nstlmp1` Nightstand Lamp. Verified in the running
+app: ▶ in the editor (fade, prompt, E, end), Playtest of a level with the marker (camera on the bed,
+player hidden, prompt in the label style, E, handoff with the hip on the actor's last hip and feet on
+the stage floor, walking away), and a throwaway "Walk up + E" / "Leave the floor" animation (prompt
+over your head, E, fade to black, the floor-complete message, play stops). No alarm sound: his
+library has none; a state's 🔊 is where one goes.

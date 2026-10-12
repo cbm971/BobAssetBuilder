@@ -4,6 +4,7 @@ import { flushSync } from "react-dom";
 // the game's own front end will play the same data without the studio — see src/audio.js. The clip
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
+import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animPromptLift, animLayerAt, animFrame, animMirrorValues, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animDeleteKey, animMoveKey, animSetState, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped } from "./anim";
 import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume } from "./audio";
 
 /* ============================================================================
@@ -6516,6 +6517,71 @@ export const flyPoseBlocks = (blocks, pose, facesRight = true) => {
     return a ? rigidArmFollow(b, a, flyArmTarget(a, pose, facesRight)) : b;
   });
 };
+// 🎬 THE ACTOR in an animation (src/anim.js): the player's own drawing, posed by a key's values.
+// These two live here and not in anim.js because they are about how a BODY is drawn — legs found
+// by identifyLimbs, swung by applyLimbSwing, arms carried by rigidArmFollow, the same three every
+// walk, climb and swing goes through — and anim.js must not know any of that.
+//
+// The actor turns about its HIP, so the hip is where a key puts it. The hip is the top-centre of
+// the body's own connected leg (legChain, preferring the body's leg over a pant leg, as
+// applyLimbSwing does), across both legs where a pose draws two. A drawing with no leg to find
+// falls back to Bob's: 188 of 260 down, in the middle.
+export const ANIM_HIP_FALLBACK = { x: W / 2, y: 188 };
+export const animActorHip = (blocks) => {
+  const list = (blocks || []).filter((b) => b && !b.isHitbox && !b.isMuzzle);
+  if (!list.length) return { ...ANIM_HIP_FALLBACK };
+  const { legIds } = identifyLimbs(list);
+  const legs = list.filter((b) => legIds.has(b.id) && !b._isShoe);
+  const bodyLegs = legs.filter((b) => !b._slot);
+  const chain = legChain(bodyLegs.length ? bodyLegs : legs);
+  if (!chain.length) return { ...ANIM_HIP_FALLBACK };
+  const top = Math.min(...chain.map((b) => b.y));
+  // Both legs of a front or back pose share a top; the twin's own copy is in `legs`, not the chain.
+  const atHip = legs.filter((b) => Math.abs(b.y - top) <= LEG_LINK_GAP);
+  const x0 = Math.min(...atHip.map((b) => b.x)), x1 = Math.max(...atHip.map((b) => b.x + b.w));
+  return { x: (x0 + x1) / 2, y: top };
+};
+// How much of the leg `sit` 1 takes away: half, which is a thigh pointing at you with the shin
+// hanging under it. Pieces are scaled toward the hip line (pant legs with them); a shoe keeps its
+// size and rides the end of the shortened leg.
+export const ANIM_SIT_SHORTEN = 0.5;
+// The posed drawing. No weapon: the baked copy in a dressed look (_isWeapon) is left out, because
+// a man getting out of bed is not holding his rifle, and a held one would not follow these limbs.
+// Order matters: the legs shorten, then swing (so a seated swing is a short leg's swing), then
+// the arms turn about their shoulders — the melee swing's rule, sleeves riding rigidly.
+export const animActorBlocks = (blocks, v) => {
+  let out = (blocks || []).filter((b) => b && !b.isHitbox && !b.isMuzzle && !b._isWeapon);
+  if (!out.length || !v) return out;
+  const sit = Math.max(0, Math.min(1, +v.sit || 0));
+  if (sit > 0) {
+    const hip = animActorHip(out);
+    const { legIds } = identifyLimbs(out);
+    const k = 1 - ANIM_SIT_SHORTEN * sit;
+    out = out.map((b) => {
+      if (!legIds.has(b.id)) return b;
+      if (b._isShoe) { const bottom = hip.y + (b.y + b.h - hip.y) * k; return { ...b, y: bottom - b.h }; }
+      return { ...b, y: hip.y + (b.y - hip.y) * k, h: b.h * k };
+    });
+  }
+  const legs = +v.legs || 0;
+  if (legs) {
+    // Forward is a NEGATIVE stored turn for art facing right (CSS +rot is clockwise) — the stomp's rule.
+    const { legIds, armIds } = identifyLimbs(out);
+    out = applyLimbSwing(out, legIds, armIds, -legs);
+  }
+  const arms = +v.arms || 0;
+  if (arms) {
+    const anchorOf = armAnchorFinder(out);
+    const armRot = (a) => (a.rot || 0) + armPivotSign(a.armPivot) * arms * armMirrorTwist(a);
+    out = out.map((b) => {
+      if (b.role !== "weaponArm" && b.limb !== "arm") return b;
+      if (b.role === "weaponArm") return { ...b, rot: armRot(b) };
+      const a = anchorOf(b);
+      return a ? rigidArmFollow(b, a, armRot(a)) : { ...b, rot: armRot(b) };
+    });
+  }
+  return out;
+};
 const LV_COLORS = PALETTES.terrain.colors;
 function newLevel() {
   const conns = {};
@@ -7106,6 +7172,19 @@ export const flipConns = (conns) => {
   for (const k of CONN_KEYS) { const c = (conns || {})[k]; if (c) out[CONN_FLIP_H[k]] = { ...c }; }
   return out;
 };
+// Markers mirror cell for cell, except a 🎬 animation's: its cell is the stage's bottom-LEFT
+// corner, so after the flip it has to move to the other end of the stage it stands for, and the
+// stage turns round (animMarkerFlipped).
+export const flipMarkerLayer = (markers, cols) => {
+  const out = {};
+  for (const k of Object.keys(markers || {})) {
+    const m = markers[k];
+    const [r, c] = k.split(",").map(Number);
+    if (m && m.kind === "anim") { const f = animMarkerFlipped(r, c, m, cols); out[f.key] = f.marker; }
+    else out[cellKey(r, cols - 1 - c)] = (m && typeof m === "object") ? { ...m } : m;
+  }
+  return out;
+};
 export const flipLevelHorizontally = (lv, findAsset) => {
   if (!lv) return lv;
   const cols = Math.max(1, lv.cols || 1);
@@ -7129,7 +7208,7 @@ export const flipLevelHorizontally = (lv, findAsset) => {
     fx,
     climb: flipPlainLayer(lv.climb, cols),
     hazard: flipPlainLayer(lv.hazard, cols),
-    markers: flipPlainLayer(lv.markers, cols),
+    markers: flipMarkerLayer(lv.markers, cols),
     enemies: flipEnemyLayer(lv.enemies, cols),
     conns: flipConns(lv.conns),
   };
@@ -11438,6 +11517,10 @@ export const topdownDepthZ = (playerFeet, unitFeet, cell) => {
 // door prompt keeps its 9500 (a door is usually IN the Front wall), and the conversation bubble
 // its 9600 (once you are talking, the conversation is the screen).
 export const SCENE_LABEL_Z = { drop: 5063, label: 5070, talk: 5080 };
+// 🎬 A placed animation's stage: one rung under the player and the units (5000), over climb
+// (4000), so a bed is drawn under the man walking past it, and the actor on it — who IS the player
+// while it plays — sits on the same side of Front paint and Front objects as the player does.
+export const ANIM_STAGE_Z = 4990;
 // A UNIT'S HP BAR RISES WHILE IT IS TAKING DAMAGE. Every .unitStatus used to sit on one z (5060),
 // so in a crowd the bars stacked in spawn order and the one actually draining was as likely as
 // not to be hidden under a full green bar belonging to somebody behind it — Blake: "whatever HP
@@ -12113,7 +12196,30 @@ export default function AssetStudio() {
   const moving = useRef(null);                          // { key, item, from: "fx" | "markers" } — the actual picked-up data
   const [lFxSel, setLFxSel] = useState(null);           // cell key currently showing its object stack in the side panel
   const [lFxEditIdx, setLFxEditIdx] = useState(null);   // index within that cell's stack currently expanded for tweaking
-  const [lMarkerKind, setLMarkerKind] = useState("door"); // door | pedestal | sign
+  const [lMarkerKind, setLMarkerKind] = useState("door"); // door | pedestal | sign | anim
+  const [lAnimId, setLAnimId] = useState("");             // the 🎬 marker's animation
+  // 🎬 THE ANIMATIONS SCREEN (screen "anim"). animDoc is the record open in it, animBaseline the
+  // JSON it was opened or last saved as (so "unsaved" is a plain compare, as the dialogue editor does).
+  const [animDoc, setAnimDoc] = useState(null);
+  const animBaseline = useRef("");
+  const [animSi, setAnimSi] = useState(0);        // the state being edited
+  const [animT, setAnimT] = useState(0);          // the playhead, seconds into that state
+  const [animSel, setAnimSel] = useState(null);   // the layer being edited
+  const [animPrev, setAnimPrev] = useState(null); // ▶ in the editor: { si, t } while it runs
+  const [animLook, setAnimLook] = useState("");   // which look plays the actor in the editor
+  const [animDelArm, setAnimDelArm] = useState(false);
+  const animDrag = useRef(null);
+  const animPressE = useRef(false);               // an E press for the editor's ▶, taken by its next frame
+  // 🎬 IN PLAY. animInst: every placed animation's playhead this session, by "<level slot>|<cell>"
+  // ({ si, t, done }), so a bed you got out of stays made-up-as-you-left-it when you come back.
+  // cutRef: the one animation that has the player right now (the world is paused under it, the way
+  // a conversation pauses it). animPrompt: a "Walk up + E" animation's prompt, over your head.
+  const animInst = useRef({});
+  const cutRef = useRef(null);
+  const [animPrompt, setAnimPrompt] = useState(null);
+  const animLeaveRef = useRef(null);
+  // A placed stage's element, by its key, handed back while nothing it draws has changed (animStageEl).
+  const animStageCache = useRef(new Map());
   const [lMarkerCat, setLMarkerCat] = useState("");      // door's accepted destination category (free text)
   const [lSignDlg, setLSignDlg] = useState("");         // dialogue tree a newly-placed 💬 Sign runs (blank = use the one-off line below instead)
   const [lSignText, setLSignText] = useState("");       // a 💬 Sign's one-off line, for a text box that doesn't need a whole tree written for it
@@ -13497,7 +13603,21 @@ export default function AssetStudio() {
     if (!_bkt.drops) _bkt.drops = {}; // migrate a bucket created earlier in this same hot-reloaded play session
     if (!_bkt.stripped) _bkt.stripped = {}; // same migration for looted-corpse art
     if (!_bkt.gear) _bkt.gear = {};    // and for gear-tag rolls
-    pointLiveRefsAt(_bkt);
+    pointLiveRefsAt(_bkt);    // 🎬 A "Level start" ANIMATION takes the player the first time its level comes up this session
+    // (the run's first level as the run starts, ▶ Playtest of that level, or the first time you
+    // arrive). animInst remembers it was played, so a door out and back, a gate, or this effect
+    // re-running because a grenade painted fire into the level never plays it twice.
+    if (!cutRef.current) {
+      for (const mk of Object.keys(lv.markers || {})) {
+        const m = lv.markers[mk];
+        if (!m || m.kind !== "anim") continue;
+        const an = findAnim(m.animId);
+        if (!an || an.trigger !== "start" || animInst.current[animInstKey(lv, mk)]) continue;
+        beginCut(lv, mk, m, an, 0);
+        break;
+      }
+    }
+
     // Seed each finite-life fire cell's countdown. Permanent cells (life 0) deliberately never
     // enter the ref, so alive() below treats them as always burning.
     // IMPORTANT: this effect re-runs mid-play whenever `level` changes — and it changes every
@@ -13689,6 +13809,51 @@ export default function AssetStudio() {
     let lastPedestalKey = null;
     let lastDoorKey = null;
     let lastTalkSig = "";   // "npc:12,40" / "sign:8,3" / "" — so the 💬 prompt only hits React state when it CHANGES
+    let lastAnimSig = "";   // the 🎬 "Walk up + E" stage you stand in ("" none), on the same rule
+    // 🎬 ONE FRAME OF A CUTSCENE (the loop calls this and returns: the world is paused under it). The
+    // animation's clock runs, E moves a waiting state on, and the hidden body is kept on the actor so
+    // the camera frames the scene. At the end you are put where the actor stands, in your own standing
+    // drawing with its hip on the actor's hip ("You take over"), or the screen stays black and the
+    // floor is done ("Leave the floor").
+    const cutFrame = (p, RK, dtMul) => {
+      const c = cutRef.current;
+      const pressed = !!RK.interact && !p.wasInteract;
+      p.wasInteract = !!RK.interact;
+      if (c.ended) return;
+      const nx = animStep(c.anim, c, dtMul / 60, pressed);
+      if (nx.si !== c.si) animStateSound(c.anim, nx.si);
+      c.si = nx.si; c.t = nx.t; c.el = nx.el;
+      animInst.current[c.ik] = { si: c.si, t: c.t, done: !!nx.done };
+      const actorL = c.anim.layers.find((l) => l.kind === "actor");
+      const [mr, mc] = c.mk.split(",").map(Number);
+      const box = animStageBox(mr, mc, c.anim, CW);
+      let v = actorL ? animLayerAt(c.anim, c.anim.states[c.si], actorL, c.t) : null;
+      if (v && c.m.flip) v = animMirrorValues(v, c.anim.w);
+      const pwC = CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, phC = CH * PLAYER_H_CELLS;
+      if (v) { p.x = box.x + v.x * CW - pwC / 2; p.y = box.y + v.y * CH - phC * (ANIM_HIP_FALLBACK.y / H); }
+      p.vx = 0; p.vy = 0;
+      if (!nx.done) return;
+      bobAudio.talk(null);
+      if (c.anim.ending === "leave") {
+        c.ended = true;
+        flash("🏁 Floor complete! The next floor is not built yet — this is where it would start.");
+        setTimeout(() => { if (animLeaveRef.current) animLeaveRef.current(); }, 1800);
+        return;
+      }
+      if (v) {
+        const hip = animActorHip(livePlayerBlocks("side") || []);
+        const renderW = CW * PLAYER_RENDER_W_CELLS;
+        p.face = (!!v.flip) === playerArtFacesRight(basePlayerAsset) ? -1 : 1; // the way the actor faced
+        const mirrored = playerSpriteMirrored(basePlayerAsset, p.face);
+        const wrapLeft = box.x + v.x * CW - ((mirrored ? W - hip.x : hip.x) / W) * renderW;
+        p.x = wrapLeft + (bodyShape.centerFrac * renderW - pwC / 2);
+        p.y = box.y + v.y * CH - (hip.y / H) * phC;
+      }
+      p.onGround = false; p.walking = false; p.crouch = false; p.wasInteract = true;
+      spawnReq.current = null; // the gate spawn queued at the start of play is not where you are
+      respawnSpec.current = { at: lv.runKey || lv.id, spec: { x: p.x, y: p.y } };
+      cutRef.current = null;
+    };
     let raf;
     // Frame-rate independence: every increment below was originally a fixed amount PER RENDERED
     // FRAME, tuned assuming 60fps — so whenever the browser throttled requestAnimationFrame
@@ -13746,6 +13911,10 @@ export default function AssetStudio() {
       // and back. Now the first frame after the talk asks again — someone who can be talked to
       // again says so, and a spent "One time only" one does not.
       if (talkRef.current || shopRef.current) { if (talkRef.current) lastTalkSig = ""; raf = requestAnimationFrame(loop); return; }
+      // 🎬 A CUTSCENE PAUSES IT ON THE SAME TERMS: one return, above everything, so nobody walks up
+      // and shoots a sleeping man. Only the animation's clock runs (cutFrame), and the camera keeps
+      // following the hidden body, which cutFrame keeps on the actor.
+      if (cutRef.current) { cutFrame(p, RK, dtMul); updateCamera(p, CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, CH * PLAYER_H_CELLS, dtMul); commitFrame(); raf = requestAnimationFrame(loop); return; }
       // STATUS FREEZES ON THE PLAYER — 💫 stunned by an enemy's Stun weapon, 😵 flattened by an
       // enemy's Tackle. Ticked here, before anything reads the keys, because a frozen player has no
       // input INTENT at all: mergeInputIntent({}) hands the rest of the loop the same all-false
@@ -16841,6 +17010,26 @@ export default function AssetStudio() {
           setTalkPrompt({ kind: curTalk.kind, key: curTalk.key, name: curTalk.name, ...talkAnchorFor(curTalk) });
         }
       }
+      // 🎬 A "Walk up + E" ANIMATION: stand inside its stage and E hands you to it, from its second
+      // state on (its first is the scenery it loops while you walk up — the copter hovering). Last
+      // in the E chain, after doors, pedestals, loot and people, and once played never again.
+      let reachCut = null;
+      if (!curDoorKey && !curPedKey && !curDropKey && !curTalk && !p.transitioning && lv.markers) {
+        for (const mk in lv.markers) {
+          const m = lv.markers[mk];
+          if (!m || m.kind !== "anim") continue;
+          const an = findAnim(m.animId);
+          if (!an || an.trigger !== "reach") continue;
+          const inst = animInst.current[animInstKey(lv, mk)];
+          if (inst && inst.done) continue;
+          const [mr, mc] = mk.split(",").map(Number);
+          const b = animStageBox(mr, mc, an, CW);
+          if (p.x + pw > b.x && p.x < b.x + b.w && p.y + ph > b.y && p.y < b.y + b.h) { reachCut = { mk, m, an }; break; }
+        }
+      }
+      const animSig = reachCut ? reachCut.mk : "";
+      if (animSig !== lastAnimSig) { lastAnimSig = animSig; setAnimPrompt(reachCut ? { text: (reachCut.an.states[0] && reachCut.an.states[0].prompt) || "E" } : null); }
+      if (reachCut && K.interact && !p.wasInteract) { beginCut(lv, reachCut.mk, reachCut.m, reachCut.an, reachCut.an.states.length > 1 ? 1 : 0); lastAnimSig = ""; }
       // Press E to start talking. openTalk resolves which tree (a saved one by id, or the sign's
       // own typed line) and is shared with nothing else, so there is exactly one way in.
       if (K.interact && !p.wasInteract && curTalk && !talkRef.current) openTalk(curTalk);
@@ -19337,6 +19526,157 @@ export default function AssetStudio() {
     if (key === "__weapon") return assetAlpha(held);
     return assetAlpha(root && key === root.id ? root : (assetById.get(key) || root));
   };
+  // 🎬 ANIMATIONS — the saved ones (asset type "anim", see src/anim.js), normalised, A→Z.
+  const animLib = useMemo(() => allAssets.filter((a) => a && a.type === "anim").map((a) => migrateAnim(a, uid)).sort((x, y) => NAME_COLLATOR.compare(x.name || "", y.name || "")), [allAssets]);
+  const findAnim = (id) => (id ? animLib.find((a) => a.id === id) || null : null);
+  // The actor's drawing for one pose. In play it is YOU, exactly as Playtest draws you
+  // (livePlayerBlocks: the look plus whatever you have picked up); in the 🎬 editor it is the look
+  // picked to preview with. hatsUnderArms for the same reason the player render calls it.
+  const animEditorActor = (lookId) => (pose) => {
+    const a = findA(lookId);
+    if (!a) return null;
+    return hatsUnderArms(bake(a, pose));
+  };
+  const animPlayerActor = (pose) => { const b = livePlayerBlocks(pose); return b ? hatsUnderArms(b) : null; };
+  // ONE STAGE: every layer of `anim` as it is at (si, t), in a box the stage's size. Used by the
+  // editor, by the Level Creator to show where a 🎬 marker's stage stands, and in play. The turn is
+  // outermost and the mirror inside it (rotate then scaleX), the way a placed object draws, so a
+  // key's Turn is the angle you see whichever way the layer faces.
+  // o: { key, left, top, z, flip (the whole stage mirrored), actor (pose -> drawing), alphaRoot,
+  //      clock (seconds, for props' own frames), showActor, editor, sel, onLayerDown, placed }
+  const animStageEl = (anim, si, t, cellPx, o) => {
+    const vals = animFrame(anim, si, t);
+    // THE SAME ELEMENT BACK while the picture is unchanged (o.cache, in play, never while the actor
+    // is on it): a bed you got out of is a still frame of ~100 pieces, and the level render runs
+    // every frame — renderObj does the same for placed props, for the same measured reason. What it
+    // draws is the record (replaced on save, never mutated), the moment, each running prop's frame,
+    // and where.
+    let sig = null;
+    if (o.cache) {
+      const fr = anim.layers.map((l) => { if (l.kind !== "prop" || !vals[l.id].play) return 0; const pa = findA(l.propId); const n = pa && pa.frames ? pa.frames.length : 1; return n > 1 ? Math.floor((o.clock || 0) * (pa.animFps || 6)) % n : 0; }).join(",");
+      sig = si + "|" + t.toFixed(3) + "|" + fr + "|" + (o.flip ? 1 : 0) + "|" + (o.left || 0) + "|" + (o.top || 0) + "|" + cellPx;
+      const hit = o.cache.get(o.key);
+      if (hit && hit.anim === anim && hit.sig === sig) return hit.el;
+    }
+    const showActor = o.showActor !== false && animActorShown(anim, si);
+    const kids = [];
+    for (const l of anim.layers) {
+      let v = vals[l.id];
+      if (o.flip) v = animMirrorValues(v, anim.w);
+      const sel = !!o.editor && o.sel === l.id;
+      const op = Math.max(0, Math.min(1, +v.show || 0));
+      if (op <= 0.001 && !sel) continue;
+      const opacity = op <= 0.001 ? 0.25 : op; // a hidden layer you have selected still shows faintly, or you could not find it to drag
+      const tf = "rotate(" + (+v.rot || 0).toFixed(2) + "deg)" + (v.flip ? " scaleX(-1)" : "");
+      const down = o.onLayerDown ? (e) => o.onLayerDown(e, l) : undefined;
+      const cls = "animLayer" + (sel ? " sel" : "");
+      if (l.kind === "actor") {
+        if (!showActor) continue;
+        const art = o.actor ? o.actor(ANIM_POSES.includes(v.pose) ? v.pose : "side") : null;
+        const rw = cellPx * PLAYER_RENDER_W_CELLS, rh = cellPx * PLAYER_H_CELLS;
+        if (!art || !art.length) { kids.push(<div key={l.id} className={cls + " animNoActor"} style={{ left: v.x * cellPx - rw * 0.2, top: v.y * cellPx - rh * (188 / H), width: rw * 0.4, height: rh, transformOrigin: (rw * 0.2) + "px " + (rh * 188 / H) + "px", transform: tf, opacity }} onPointerDown={down} />); continue; }
+        const hip = animActorHip(art);
+        const posed = animActorBlocks(art, v);
+        const hx = (hip.x / W) * rw, hy = (hip.y / H) * rh;
+        kids.push(<div key={l.id} className={cls} style={{ left: v.x * cellPx - hx, top: v.y * cellPx - hy, width: rw, height: rh, transformOrigin: hx + "px " + hy + "px", transform: tf, opacity }} onPointerDown={down}>
+          {renderPieceRuns({ pieces: posed, cacheKey: o.key + "a", keyPrefix: o.key + "a", alphaOf: spriteAlphaOf(o.alphaRoot || null, null), drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, undefined, cut) })}
+        </div>);
+      } else {
+        const pa = l.propId ? findA(l.propId) : null;
+        if (!pa) { if (o.editor) kids.push(<div key={l.id} className={cls + " animMissing"} style={{ left: v.x * cellPx - cellPx, top: v.y * cellPx - 2 * cellPx, width: 2 * cellPx, height: 2 * cellPx }} onPointerDown={down}>🌿</div>); continue; }
+        const lay = boomLayout(pa, l.size || 3, cellPx);
+        const n = pa.frames && pa.frames.length ? pa.frames.length : 1;
+        const fi = v.play && n > 1 ? Math.floor((o.clock || 0) * (pa.animFps || 6)) % n : 0;
+        kids.push(<div key={l.id} className={cls} style={{ left: v.x * cellPx - lay.width / 2, top: v.y * cellPx - lay.height, width: lay.width, height: lay.height, transform: tf, opacity }} onPointerDown={down}>
+          {propArtInner(pa, lay.width, lay.height, fi, o.key + l.id, lay.box, undefined, !!v.flip)}
+        </div>);
+      }
+    }
+    const el = <div key={o.key} className={"animStage" + (o.editor ? " ed" : "") + (o.placed ? " placed" : "")} style={{ left: o.left || 0, top: o.top || 0, width: anim.w * cellPx, height: anim.h * cellPx, ...(o.z !== undefined ? { zIndex: o.z } : {}) }}>{kids}</div>;
+    if (o.cache) o.cache.set(o.key, { anim, sig, el });
+    return el;
+  };
+  // 🎬 A STATE'S SOUND plays from the moment the state starts, looped for as long as the state
+  // lasts (a waiting state: until E). It rides the talk voice — one looping voice the engine stops
+  // on the next call — because a cutscene and a conversation can never be on screen together.
+  const animStateSound = (anim, si) => {
+    const st = anim && anim.states && anim.states[si];
+    if (!st || !st.sound || !bobAudio.has(st.sound)) { bobAudio.talk(null); return; }
+    bobAudio.talk(st.sound, st.wait ? 600 : animStateDur(st), st.soundVol);
+  };
+  const animInstKey = (lv, mk) => (lv.runKey || lv.id || "") + "|" + mk;
+  // Hand the player to a placed animation, at state `si`. Shared by "Level start" (the play effect)
+  // and "Walk up + E" (the loop), so there is exactly one way into a cutscene.
+  const beginCut = (lv, mk, m, anim, si) => {
+    const ik = animInstKey(lv, mk);
+    animInst.current[ik] = { si, t: 0, done: false };
+    cutRef.current = { ik, mk, m, anim, si, t: 0, el: 0, ended: false };
+    setAnimPrompt(null);
+    animStateSound(anim, si);
+  };
+  // 💾 Save the animation open in the editor. The asset path, narrowed: stamped (editedFrom), Save
+  // As on a rename (resolveSaveTarget, his rule), the index row, the project file. Nothing wears an
+  // animation, so there are no dressed looks to refresh.
+  const saveAnim = async () => {
+    if (!animDoc) return;
+    let payload = stampSave(migrateAnim(animDoc, uid), animDoc);
+    let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    const target = resolveSaveTarget(list, payload);
+    if (target.id !== payload.id) { payload = { ...payload, id: target.id }; delete payload.editedFrom; }
+    const ok1 = await sset("asset:" + payload.id, JSON.stringify(payload));
+    list = list.filter((x) => x.id !== payload.id); list.push({ id: payload.id, name: payload.name, type: payload.type });
+    const ok2 = await writeAssetIndex(list);
+    projectLibrary.save({ assets: [payload] }, { revive: true });
+    if (ok1 && ok2) {
+      const kept = { ...animDoc, id: payload.id, savedAt: payload.savedAt };
+      setAnimDoc(kept); animBaseline.current = JSON.stringify(kept);
+      flash(target.mode === "rename" ? "Saved as a new \"" + payload.name + "\" ✓ — the original was kept" : "Saved ✓");
+      loadLibrary();
+    } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ".");
+  };
+  const openAnimDoc = (a) => {
+    const doc = a ? migrateAnim(JSON.parse(JSON.stringify(a)), uid) : { ...newAnim(uid), id: uid() };
+    setAnimDoc(doc); animBaseline.current = a ? JSON.stringify(doc) : "";
+    setAnimSi(0); setAnimT(0); setAnimSel(doc.layers[0] ? doc.layers[0].id : null); setAnimPrev(null); setAnimDelArm(false);
+  };
+  const openAnimEditor = () => {
+    loadTextures();
+    if (!animDoc) openAnimDoc(animLib[0] || null);
+    if (!animLook) setAnimLook(playerId || ((allAssets.find((a) => a.type === "body") || {}).id || ""));
+    setScreen("anim");
+  };
+  // ▶ IN THE 🎬 EDITOR: the same animStep the game runs, so a waiting state waits here too — for E,
+  // or a click on its prompt. The playhead lives in a ref (one frame's step reads the last one's)
+  // and is copied into state to draw; the sound fires where the state changes, as in play.
+  const animPrevRef = useRef(null);
+  const animPlayStart = (si) => { if (!animDoc) return; animPressE.current = false; animPrevRef.current = { si, t: 0, el: 0 }; setAnimPrev({ si, t: 0, el: 0 }); animStateSound(animDoc, si); };
+  const animPlayStop = () => { animPrevRef.current = null; setAnimPrev(null); bobAudio.talk(null); };
+  useEffect(() => {
+    if (screen !== "anim" || !animPrev || !animDoc) return undefined;
+    let raf = 0, last = null;
+    const tick = (now) => {
+      const pv = animPrevRef.current;
+      if (!pv) return;
+      const dt = last == null ? 0 : Math.min(0.1, (now - last) / 1000); last = now;
+      const pressed = animPressE.current; animPressE.current = false;
+      const nx = animStep(animDoc, pv, dt, pressed);
+      if (nx.si !== pv.si) animStateSound(animDoc, nx.si);
+      if (nx.done) { animPrevRef.current = null; setAnimPrev(null); bobAudio.talk(null); setAnimSi(nx.si); setAnimT(nx.t); return; }
+      animPrevRef.current = { si: nx.si, t: nx.t, el: nx.el }; setAnimPrev({ si: nx.si, t: nx.t, el: nx.el });
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const kd = (e) => { const tag = e.target && e.target.tagName; if ((e.key === "e" || e.key === "E") && tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT") animPressE.current = true; };
+    window.addEventListener("keydown", kd);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("keydown", kd); };
+  }, [screen, !!animPrev, animDoc]); // eslint-disable-line
+  // A prompt's words with its key drawn as a key: "Press E to wake up" → Press [E] to wake up.
+  const animPromptWords = (txt) => {
+    const s = (txt || "").trim();
+    const i = s.search(/\bE\b/);
+    if (i < 0) return <span>{s}</span>;
+    return <>{s.slice(0, i).trim() && <span>{s.slice(0, i).trim()}</span>}<kbd className="talkKey">E</kbd>{s.slice(i + 1).trim() && <span>{s.slice(i + 1).trim()}</span>}</>;
+  };
   // Baked ground art is cached by item id (see groundArt), so it has to be dropped whenever the
   // library changes underneath it — otherwise redrawing a rifle in the Asset Studio and coming
   // back would leave the old one lying on the pedestal.
@@ -20414,7 +20754,7 @@ export default function AssetStudio() {
     }
     if (lLayer === "climb") { const climb = { ...lv.climb }; if (erase || lTool === "erase") delete climb[k]; else climb[k] = { kind: lClimbKind }; return { ...lv, climb }; }
     if (lLayer === "hazard") { const hazard = { ...(lv.hazard || {}) }; if (erase || lTool === "erase") delete hazard[k]; else hazard[k] = { kind: "fire", dps: lHazDps, life: lHazLife, ...(lHazHide ? { hideInPlay: true } : {}) }; return { ...lv, hazard }; }
-    if (lLayer === "marker") { const markers = { ...lv.markers }; if (erase || lTool === "erase") delete markers[k]; else markers[k] = lMarkerKind === "door" ? { kind: "door", tag: lMarkerCat } : lMarkerKind === "sign" ? { kind: "sign", dialogueId: lSignDlg, text: lSignText } : { kind: "pedestal", cats: [lPedCat1, lPedCat2], logic: lPedLogic }; return { ...lv, markers }; }
+    if (lLayer === "marker") { const markers = { ...lv.markers }; if (erase || lTool === "erase") delete markers[k]; else if (lMarkerKind === "anim") { const an = findAnim(lAnimId); if (!an) return lv; markers[k] = { kind: "anim", animId: an.id, w: an.w }; } else markers[k] = lMarkerKind === "door" ? { kind: "door", tag: lMarkerCat } : lMarkerKind === "sign" ? { kind: "sign", dialogueId: lSignDlg, text: lSignText } : { kind: "pedestal", cats: [lPedCat1, lPedCat2], logic: lPedLogic }; return { ...lv, markers }; }
     if (erase || lTool === "erase") {
       const from = eraseFrom && TERRAIN_SHAPE_LAYERS.includes(eraseFrom) ? eraseFrom : lLayer;
       if (!lv[from] || lv[from][k] === undefined) return lv;
@@ -20762,7 +21102,7 @@ export default function AssetStudio() {
     // The run's world frame starts at its first level, and .lgrid keeps that level's box for the
     // whole run — see THE WORLD NEVER MOVES AT A GATE, at the level render.
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
-    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true };
+    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     if (runStart) {
       const startNode = runStart.nodes[runStart.startKey];
       runRef.current = runStart; prepRunNeighbours(runStart, startNode);
@@ -20773,6 +21113,9 @@ export default function AssetStudio() {
     }
     setPlay((v) => !v);
   };
+  // 🎬 "Leave the floor": the black screen after a leaving animation ends play, where the next
+  // floor would begin. Re-pointed every render so it stops the play that is actually running.
+  animLeaveRef.current = () => { if (play) togglePlaytest(); };
   // The pool a run is built from is every SAVED level, with the editor's live copy standing in for
   // its saved one so unsaved edits count — but a level that was never saved (the blank one the
   // creator opens on, floor "1", both upper gates open) stays out, or it fills every slot of the
@@ -21029,6 +21372,7 @@ export default function AssetStudio() {
                 on as many signs and NPCs as you like — it is not a property of any one level. */}
             <button className="tile lvl" onClick={openDialogueEditor}><span className="ti">💬</span><span className="tl">Dialogue Trees</span></button>
             <button className="tile lvl" onClick={openSoundScreen}><span className="ti">🔊</span><span className="tl">Sounds</span></button>
+            <button className="tile lvl" onClick={openAnimEditor}><span className="ti">🎬</span><span className="tl">Animations</span></button>
           </div>
           <h2>Make a piece of equipment</h2>
           <div className="slots">
@@ -21393,6 +21737,207 @@ export default function AssetStudio() {
   // written inside a level would belong to the one sign you were standing on, and hanging the same
   // conversation on a second NPC would mean writing it twice. Here it is a named saved thing, and
   // the level editor only ever refers to it by id.
+  /* ---- 🎬 animations: the cutscenes a level opens and closes with (src/anim.js) ---- */
+  // One screen like 💬 Dialogue Trees: an animation is built ONCE here, then placed in a level with
+  // a 🎬 marker. The stage is drawn the way play draws it. Dragging a layer, or any value in the
+  // layer card, sets a KEY at the playhead — on a key it changes that key, between keys it makes
+  // one there — the rule every animation editor has.
+  if (screen === "anim") {
+    const d = animDoc || migrateAnim({ ...newAnim(uid), id: "new" }, uid);
+    const dirty = JSON.stringify(d) !== animBaseline.current;
+    const put = (next) => { setAnimDoc(next); setAnimDelArm(false); };
+    const si = Math.max(0, Math.min(animSi, d.states.length - 1));
+    const st = d.states[si];
+    const dur = animStateDur(st);
+    const playing = !!animPrev;
+    const viewSi = playing ? animPrev.si : si;
+    const viewT = playing ? animPrev.t : Math.min(animT, dur);
+    const sel = d.layers.find((l) => l.id === animSel) || d.layers[0];
+    const selV = animLayerAt(d, st, sel, Math.min(animT, dur));
+    const keyIdx = animKeyIndexAt(st, animT);
+    const onKey = keyIdx >= 0;
+    const setV = (patch) => put(animSetValues(d, si, Math.min(animT, dur), sel.id, patch, uid));
+    const cellPx = Math.max(10, Math.min(56, Math.floor(860 / d.w), Math.floor(540 / d.h)));
+    const stored = findAnim(d.id);
+    const goState = (i) => { animPlayStop(); setAnimSi(i); setAnimT(0); };
+    const keyTimes = st.keys.map((k) => k.t);
+    const prevKey = keyTimes.filter((t) => t < animT - 0.001).pop();
+    const nextKey = keyTimes.find((t) => t > animT + 0.001);
+    const r2 = (v) => Math.round(v * 100) / 100;
+    // Drag on the stage: move the layer (a key at the playhead), in cells, to a twentieth of one.
+    const onLayerDown = (e, l) => {
+      e.stopPropagation(); e.preventDefault();
+      setAnimSel(l.id);
+      if (playing) return;
+      const v = animLayerAt(d, st, l, Math.min(animT, dur));
+      animDrag.current = { id: l.id, sx: e.clientX, sy: e.clientY, x0: v.x, y0: v.y, si, t: Math.min(animT, dur) };
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* capture is a nicety: without it a fast drag can slip off the layer */ }
+    };
+    const onStageMove = (e) => {
+      const g = animDrag.current; if (!g) return;
+      const snap = (v) => Math.round(v * 20) / 20;
+      const x = snap(g.x0 + (e.clientX - g.sx) / cellPx), y = snap(g.y0 + (e.clientY - g.sy) / cellPx);
+      setAnimDoc((cur) => (cur ? animSetValues(cur, g.si, g.t, g.id, { x, y }, uid) : cur));
+    };
+    const onStageUp = () => { animDrag.current = null; };
+    // The timeline: click or drag anywhere on it to move the playhead (to a twentieth of a second).
+    const scrub = (e) => {
+      if (e.type === "pointermove" && !(e.buttons & 1)) return;
+      const rc = e.currentTarget.getBoundingClientRect();
+      const t = Math.max(0, Math.min(dur, ((e.clientX - rc.left) / Math.max(1, rc.width)) * dur));
+      animPlayStop(); setAnimT(Math.round(t * 20) / 20);
+    };
+    const looks = allAssets.filter((a) => a.type === "body" || a.type === "character").sort((x, y) => NAME_COLLATOR.compare(x.name || "", y.name || ""));
+    const actorOf = animEditorActor(animLook);
+    const viewEl = playing ? animPrev.el : viewT;
+    const promptUp = animPromptUp(d, viewSi, viewEl);
+    const fade = playing ? animFadeAt(d, viewSi, viewT, viewEl) : 0; // a still frame is shown as drawn, not under its fade
+    // Where the prompt preview sits: over the actor's head while it is on stage, else the top middle.
+    const actorL = d.layers.find((l) => l.kind === "actor");
+    const actorV = actorL ? animLayerAt(d, d.states[viewSi], actorL, viewT) : null;
+    const promptAt = actorV && animActorShown(d, viewSi) ? { x: actorV.x * cellPx, y: Math.max(cellPx, (actorV.y - animPromptLift(actorV)) * cellPx) } : { x: (d.w / 2) * cellPx, y: cellPx * 1.5 };
+    const numIn = (val, onSet, step = 0.1, w = 64) => <input type="number" className="animNum" style={{ width: w }} step={step} value={r2(val)} onChange={(e) => { const v = parseFloat(e.target.value); if (isFinite(v)) onSet(v); }} />;
+    const sliderRow = (label, val, min, max, step, unit, onSet) => (
+      <label className="slider animRow">{label}<input type="range" min={min} max={max} step={step} value={val} onChange={(e) => onSet(+e.target.value)} /><span className="hint2">{Math.round(val * 100) / 100}{unit}</span></label>
+    );
+    return (
+      <div className="bb"><style>{css}</style>
+        <header className="bar">
+          <button className="back" onClick={() => { animPlayStop(); setScreen("menu"); }}>‹ Menu</button>
+          <input className="nm wide2" value={d.name} onChange={(e) => put({ ...d, name: e.target.value })} placeholder="Animation name" />
+          <span className="badge">🎬 Animation{dirty ? " ·  unsaved" : ""}</span>
+          <select className="animOpen" value={stored ? d.id : ""} onChange={(e) => { animPlayStop(); openAnimDoc(findAnim(e.target.value)); }} title="Open a saved animation">
+            <option value="">{stored ? "—" : "📂 Open…"}</option>
+            {animLib.map((a) => <option key={a.id} value={a.id}>🎬 {a.name}</option>)}
+          </select>
+          <button className="ltbtn" onClick={() => { animPlayStop(); openAnimDoc(null); }}>✚ New</button>
+          {playing ? <button className="ltbtn" onClick={animPlayStop}>⏹ Stop</button> : <button className="ltbtn" onClick={() => animPlayStart(si)} title="Plays from this state to the end. E (or a click on the prompt) moves a waiting state on.">▶ Play</button>}
+          {stored && <button className={"ltbtn" + (animDelArm ? " danger" : "")} onClick={() => { if (!animDelArm) { setAnimDelArm(true); return; } setAnimDelArm(false); animPlayStop(); deleteAsset(stored); openAnimDoc(null); }}>{animDelArm ? "Sure?" : "🗑"}</button>}
+          <button className="save" onClick={saveAnim}>💾 Save</button>
+        </header>
+        <div className="animEdit">
+          <div className="animMain">
+            <div className="animStageWrap" style={{ width: d.w * cellPx, height: d.h * cellPx, backgroundSize: cellPx + "px " + cellPx + "px" }} onPointerMove={onStageMove} onPointerUp={onStageUp} onPointerCancel={onStageUp}>
+              {animStageEl(d, viewSi, viewT, cellPx, { key: "aed", editor: true, sel: sel && sel.id, actor: actorOf, alphaRoot: findA(animLook), clock: playing ? viewT + viewSi * 7 : 0, onLayerDown })}
+              {fade > 0 && <div className="animFade inStage" style={{ opacity: fade }} />}
+              {promptUp && <button className="talkCallout animPromptBtn" style={{ left: promptAt.x, top: promptAt.y }} onClick={() => { animPressE.current = true; }}>{animPromptWords(d.states[viewSi].prompt)}</button>}
+            </div>
+            <div className="card animStates">
+              <div className="animStateTabs">
+                {d.states.map((s, i) => <button key={s.id} className={"ltbtn" + (i === si ? " on" : "") + (playing && i === viewSi ? " live" : "")} onClick={() => goState(i)}>{i + 1}. {s.name || "State"}{s.wait ? " ⏸" : ""}</button>)}
+                <button className="ltbtn" onClick={() => { put(animAddState(d, si, uid)); goState(si + 1); }}>＋ State</button>
+              </div>
+              <div className="animTimeline">
+                <button className="rotbtn" disabled={prevKey === undefined} onClick={() => { animPlayStop(); setAnimT(prevKey); }}>◀</button>
+                <div className="animTrack" onPointerDown={scrub} onPointerMove={scrub}>
+                  {st.keys.map((k, i) => <span key={k.id} className={"animKey" + (i === keyIdx ? " on" : "")} style={{ left: (k.t / dur) * 100 + "%" }} title={k.t.toFixed(2) + " s"} />)}
+                  {(!playing || viewSi === si) && <span className="animHead" style={{ left: (viewT / dur) * 100 + "%" }} />}
+                </div>
+                <button className="rotbtn" disabled={nextKey === undefined} onClick={() => { animPlayStop(); setAnimT(nextKey); }}>▶</button>
+                <span className="hint2 animTime">{viewT.toFixed(2)} / {animStateDur(d.states[viewSi]).toFixed(2)} s</span>
+                {onKey
+                  ? <>
+                    <label className="catfield">Key at {numIn(st.keys[keyIdx].t, (v) => { const k = st.keys[keyIdx]; put(animMoveKey(d, si, k.id, v)); setAnimT(Math.max(0, Math.min(dur, v))); }, 0.05, 70)} s</label>
+                    <button className="ltbtn" disabled={st.keys.length <= 1} onClick={() => put(animDeleteKey(d, si, st.keys[keyIdx].id))}>🗑 Key</button>
+                  </>
+                  : <button className="ltbtn" onClick={() => put(animAddKey(d, si, Math.min(animT, dur), uid).anim)}>＋ Key</button>}
+              </div>
+              <div className="animStateRow">
+                <label className="catfield">Name <input value={st.name} onChange={(e) => put(animSetState(d, si, { name: e.target.value }))} /></label>
+                <label className="catfield">Length {numIn(st.dur, (v) => put(animSetState(d, si, { dur: Math.max(0.1, Math.min(60, v)) })), 0.1)} s</label>
+                <label className="chk"><input type="checkbox" checked={!!st.wait} onChange={(e) => put(animSetState(d, si, { wait: e.target.checked }))} /> ⏸ Wait for E</label>
+                {st.wait && <input className="catinline" style={{ flex: "1 1 200px" }} value={st.prompt} onChange={(e) => put(animSetState(d, si, { prompt: e.target.value }))} placeholder="Press E to …" />}
+                {st.wait && <label className="chk"><input type="checkbox" checked={!!st.loop} onChange={(e) => put(animSetState(d, si, { loop: e.target.checked }))} /> 🔁 Loop</label>}
+              </div>
+              <div className="animStateRow">
+                <label className="catfield">Fade in {numIn(st.fadeIn, (v) => put(animSetState(d, si, { fadeIn: Math.max(0, Math.min(10, v)) })), 0.1, 56)} s</label>
+                {!st.wait && <label className="catfield">Fade out {numIn(st.fadeOut, (v) => put(animSetState(d, si, { fadeOut: Math.max(0, Math.min(10, v)) })), 0.1, 56)} s</label>}
+                <span className="sndRow">
+                  <span className="wslab">🔊</span>
+                  <select value={soundVal(st.sound)} onChange={(e) => put(animSetState(d, si, { sound: e.target.value }))}>{soundOptions("— none —")}</select>
+                  <button className="ltbtn sndPlay" disabled={!soundVal(st.sound)} onClick={() => bobAudio.preview(st.sound, st.soundVol)} title="Play">▶</button>
+                  {volSlider("anim" + st.id, st.soundVol ?? 1, (v) => put(animSetState(d, si, { soundVol: v })))}
+                </span>
+                <span className="animStateBtns">
+                  <button className="rotbtn" disabled={si === 0} onClick={() => { put(animMoveState(d, si, -1)); setAnimSi(si - 1); }} title="Earlier">◀</button>
+                  <button className="rotbtn" disabled={si >= d.states.length - 1} onClick={() => { put(animMoveState(d, si, 1)); setAnimSi(si + 1); }} title="Later">▶</button>
+                  <button className="ltbtn" disabled={d.states.length <= 1} onClick={() => { put(animDeleteState(d, si)); goState(Math.max(0, si - 1)); }}>🗑 State</button>
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="animSide">
+            <div className="card">
+              <div className="ct">Animation</div>
+              <div className="animRowF"><span className="wslab">Starts</span><div className="seg">{ANIM_TRIGGERS.map((t) => <button key={t.key} className={d.trigger === t.key ? "on" : ""} onClick={() => put({ ...d, trigger: t.key })}>{t.label}</button>)}</div></div>
+              <div className="animRowF"><span className="wslab">Ends</span><div className="seg">{ANIM_ENDINGS.map((t) => <button key={t.key} className={d.ending === t.key ? "on" : ""} onClick={() => put({ ...d, ending: t.key })}>{t.label}</button>)}</div></div>
+              <div className="animRowF">
+                <label className="catfield">Stage {numIn(d.w, (v) => put({ ...d, w: Math.max(2, Math.min(80, Math.round(v))) }), 1, 54)} × {numIn(d.h, (v) => put({ ...d, h: Math.max(2, Math.min(46, Math.round(v))) }), 1, 54)} cells</label>
+              </div>
+              <div className="animRowF">
+                <span className="wslab">Actor</span>
+                <select value={animLook} onChange={(e) => setAnimLook(e.target.value)} title="Who plays the actor here. In the game it is always you.">
+                  <option value="">—</option>
+                  {looks.map((a) => <option key={a.id} value={a.id}>{a.type === "body" ? "🧍 " : "🧩 "}{a.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="card">
+              <div className="ct">Layers</div>
+              <div className="animLayers">
+                {d.layers.slice().reverse().map((l) => (
+                  <div key={l.id} className={"animLayerRow" + (sel && l.id === sel.id ? " on" : "")} onClick={() => setAnimSel(l.id)}>
+                    <span className="animLayerName">{l.kind === "actor" ? "🧍 " : "🌿 "}{l.name}</span>
+                    <button className="rotbtn" title="Forward" onClick={(e) => { e.stopPropagation(); put(animMoveLayer(d, l.id, 1)); }}>▲</button>
+                    <button className="rotbtn" title="Back" onClick={(e) => { e.stopPropagation(); put(animMoveLayer(d, l.id, -1)); }}>▼</button>
+                    {l.kind !== "actor" && <button className="rotbtn" title="Remove" onClick={(e) => { e.stopPropagation(); put(animRemoveLayer(d, l.id)); }}>🗑</button>}
+                  </div>
+                ))}
+              </div>
+              <select className="big" value="" onChange={(e) => { const pa = findA(e.target.value); if (!pa) return; const l = { id: uid(), kind: "prop", name: pa.name, propId: pa.id, size: pa.size || 3 }; put(animAddLayer(d, l)); setAnimSel(l.id); }}>
+                <option value="">＋ Prop layer…</option>
+                {propGroupsAll.map((g) => <optgroup key={g.key} label={"📂 " + g.label}>{g.props.map((a) => <option key={a.id} value={a.id}>🌿 {a.name}</option>)}</optgroup>)}
+              </select>
+            </div>
+            {sel && (
+              <div className="card">
+                <div className="ct">{sel.kind === "actor" ? "🧍" : "🌿"} {sel.name} · {onKey ? "key " + (keyIdx + 1) : "＋ key at " + Math.min(animT, dur).toFixed(2) + " s"}</div>
+                <label className="catfield">Name <input value={sel.name} onChange={(e) => put(animSetLayer(d, sel.id, { name: e.target.value }))} /></label>
+                {sel.kind === "prop" && <>
+                  <div className="animRowF">
+                    <select value={sel.propId} onChange={(e) => put(animSetLayer(d, sel.id, { propId: e.target.value }))}>
+                      {!findA(sel.propId) && <option value={sel.propId}>❓ missing prop</option>}
+                      {propGroupsAll.map((g) => <optgroup key={g.key} label={"📂 " + g.label}>{g.props.map((a) => <option key={a.id} value={a.id}>🌿 {a.name}</option>)}</optgroup>)}
+                    </select>
+                  </div>
+                  {sliderRow("Size", sel.size || 3, 0.5, 30, 0.05, " cells", (v) => put(animSetLayer(d, sel.id, { size: v })))}
+                </>}
+                <div className="animRowF">
+                  <label className="catfield">X {numIn(selV.x, (v) => setV({ x: v }))}</label>
+                  <label className="catfield">Y {numIn(selV.y, (v) => setV({ y: v }))}</label>
+                  <button className={"rotbtn" + (selV.flip ? " on" : "")} title="Mirror" onClick={() => setV({ flip: !selV.flip })}>⇄</button>
+                </div>
+                {sliderRow("Turn", Math.round(selV.rot || 0), -180, 180, 1, "°", (v) => setV({ rot: v }))}
+                {sliderRow("Show", Math.round((selV.show ?? 1) * 100), 0, 100, 5, "%", (v) => setV({ show: v / 100 }))}
+                {sel.kind === "actor" ? <>
+                  <div className="animRowF"><div className="seg">{ANIM_POSES.map((p) => <button key={p} className={selV.pose === p ? "on" : ""} onClick={() => setV({ pose: p })}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div></div>
+                  {sliderRow("Legs", Math.round(selV.legs || 0), 0, 135, 1, "°", (v) => setV({ legs: v }))}
+                  {sliderRow("Arms", Math.round(selV.arms || 0), 0, 180, 1, "°", (v) => setV({ arms: v }))}
+                  {sliderRow("Sit", Math.round((selV.sit || 0) * 100), 0, 100, 5, "%", (v) => setV({ sit: v / 100 }))}
+                </> : (() => {
+                  const pa = findA(sel.propId);
+                  const n = pa && pa.frames ? pa.frames.length : 1;
+                  return n > 1 ? <label className="chk"><input type="checkbox" checked={!!selV.play} onChange={(e) => setV({ play: e.target.checked })} /> ▶ Its own frames</label> : null;
+                })()}
+              </div>
+            )}
+          </div>
+        </div>
+        {toast && <div className="toast">{toast}</div>}
+      </div>
+    );
+  }
+
   if (screen === "dialogue") {
     const d = dlgDoc || newDialogue();
     const ids = dialogueNodeIds(d);
@@ -22363,11 +22908,20 @@ export default function AssetStudio() {
             </>
           ) : lLayer === "marker" ? (
             <>
-              <div className="seg"><button className={lMarkerKind === "door" ? "on" : ""} onClick={() => setLMarkerKind("door")}>🚪 Door</button><button className={lMarkerKind === "pedestal" ? "on" : ""} onClick={() => setLMarkerKind("pedestal")}>💎 Pedestal</button><button className={lMarkerKind === "sign" ? "on" : ""} onClick={() => setLMarkerKind("sign")} title="A text box: walk onto this cell in play and press E to read it. Give it a whole dialogue tree, or just type one line.">💬 Sign</button></div>
+              <div className="seg"><button className={lMarkerKind === "door" ? "on" : ""} onClick={() => setLMarkerKind("door")}>🚪 Door</button><button className={lMarkerKind === "pedestal" ? "on" : ""} onClick={() => setLMarkerKind("pedestal")}>💎 Pedestal</button><button className={lMarkerKind === "sign" ? "on" : ""} onClick={() => setLMarkerKind("sign")} title="A text box: walk onto this cell in play and press E to read it. Give it a whole dialogue tree, or just type one line.">💬 Sign</button><button className={lMarkerKind === "anim" ? "on" : ""} onClick={() => setLMarkerKind("anim")} title="An animation from 🎬 Animations. The cell you click is the bottom-left corner of its stage.">🎬 Animation</button></div>
               {lMarkerKind === "door" ? (
                 <>
                   <input className="catinline" value={lMarkerCat} onChange={(e) => setLMarkerCat(e.target.value)} placeholder="Room tag" />
                   {(() => { const t = (lMarkerCat || "").trim(); const n = roomPool(levelLib, t).length; return <span className="hint2">{t ? n + " room" + (n === 1 ? "" : "s") + (n === 0 ? " ⚠" : "") : "exit door"}</span>; })()}
+                </>
+              ) : lMarkerKind === "anim" ? (
+                <>
+                  <select className="big" value={lAnimId} onChange={(e) => setLAnimId(e.target.value)} title="Which animation this marker plays">
+                    <option value="">— pick an animation —</option>
+                    {animLib.map((a) => <option key={a.id} value={a.id}>🎬 {a.name} · {a.w}×{a.h}</option>)}
+                  </select>
+                  <button className="ltbtn" onClick={openAnimEditor}>✎ Animations</button>
+                  {!lAnimId && <span className="hint2">⚠ None picked</span>}
                 </>
               ) : lMarkerKind === "sign" ? (
                 /* TWO WAYS TO FILL A SIGN, and they are labelled apart on purpose. A whole tree is
@@ -22524,6 +23078,9 @@ export default function AssetStudio() {
                 commitFrame, so it lands on the frame it was computed for). In the editor no transform
                 is emitted at all and the viewport scrolls exactly as it always has. */}
             <div ref={lscrollRef} className={"lscroll layer-" + lLayer + (play ? " playing" : "")}>
+              {/* 🎬 A cutscene's fade to and from black, over the whole view (outside the camera). */}
+              {play && cutRef.current && (() => { const c = cutRef.current; const f = c.ended ? 1 : animFadeAt(c.anim, c.si, c.t, c.el); return f > 0.001 ? <div className="animFade" style={{ opacity: f }} /> : null; })()}
+
               {/* THE WORLD NEVER MOVES AT A GATE (2026-09-26). A run used to draw every level in the
                   LIVE level's pixels: the live one at 0,0, its neighbours at their seam offsets, and
                   .lgrid as big as the live level. So the handoff rewrote every wrapper's left/top by
@@ -22587,7 +23144,7 @@ export default function AssetStudio() {
                 })()}
                 {!play && lvClimbLayer}
                 {lvHazardLayer}
-                {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : m.kind === "sign" ? "💬 Sign · " + signSummary(m, dlgLib) + " · invisible in play until you stand on it · Erase tool: click to delete" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : m.kind === "sign" ? "💬" : "💎"}</div>; })}
+                {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : m.kind === "sign" ? "💬 Sign · " + signSummary(m, dlgLib) + " · invisible in play until you stand on it · Erase tool: click to delete" : m.kind === "anim" ? "🎬 " + ((findAnim(m.animId) || {}).name || "missing animation") + " · bottom-left corner of its stage · Erase tool: click to delete" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : m.kind === "sign" ? "💬" : m.kind === "anim" ? "🎬" : "💎"}</div>; })}
                 {/* A spawn carrying a tree shows 💬 rather than 👹 — which of the six identical
                     guards along this wall is the one you can talk to is otherwise invisible until
                     Playtest, and the answer is the whole reason it was placed there. */}
@@ -22682,8 +23239,48 @@ export default function AssetStudio() {
                   const c0 = Math.min(areaAnchor.current.c, lHoverCell.c), c1 = Math.max(areaAnchor.current.c, lHoverCell.c);
                   return <div className="areaGhost" style={{ left: c0 * LV_CELL, top: r0 * LV_CELL, width: (c1 - c0 + 1) * LV_CELL, height: (r1 - r0 + 1) * LV_CELL }} />;
                 })()}
+                {/* 🎬 THE ANIMATIONS PLACED HERE — and in a run, in every level on screen, at that
+                    level's offset like its objects. Before the player in the DOM and one rung under
+                    him (ANIM_STAGE_Z), so you walk in front of the bed you got out of. In play the
+                    actor is drawn only while that animation has you (cutRef); otherwise a stage shows
+                    where its playhead is: the last frame once played, its first state's loop before.
+                    In the editor it shows its opening frame, actor and all, with its stage outlined. */}
+                {(() => {
+                  const lvls = runObjects ? runObjects.map(({ nk, node, off }) => ({ L: node.level, off, nk })) : (lv ? [{ L: lv, off: { x: 0, y: 0 }, nk: "live" }] : []);
+                  const clock = (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now()) / 1000;
+                  const cut = play ? cutRef.current : null;
+                  const out = [];
+                  for (const { L, off, nk } of lvls) {
+                    for (const mk of Object.keys(L.markers || {})) {
+                      const m = L.markers[mk];
+                      if (!m || m.kind !== "anim") continue;
+                      const an = findAnim(m.animId);
+                      if (!an) continue;
+                      const [mr, mc] = mk.split(",").map(Number);
+                      const box = animStageBox(mr, mc, an, LV_CELL);
+                      let si = 0, t = 0, actor = !play;
+                      if (play) {
+                        const ik = animInstKey(L, mk), inst = animInst.current[ik];
+                        if (cut && cut.ik === ik) { si = cut.si; t = cut.t; actor = true; }
+                        else if (inst) { si = inst.si; t = inst.t; }
+                        else { const st0 = an.states[0]; t = st0 && st0.wait && st0.loop ? clock % animStateDur(st0) : 0; }
+                      }
+                      out.push(animStageEl(an, si, t, LV_CELL, { key: "anim" + nk + "_" + mk, left: off.x + box.x, top: off.y + box.y, z: ANIM_STAGE_Z, flip: !!m.flip, actor: actor ? (play ? animPlayerActor : animEditorActor(playerId)) : null, showActor: actor, alphaRoot: findA(playerId), clock, placed: !play, cache: play && !actor ? animStageCache.current : null }));
+                      // The waiting state's prompt, over the actor's head, in the shared label layer.
+                      if (cut && cut.ik === animInstKey(L, mk) && animPromptUp(an, si, cut.el)) {
+                        const al = an.layers.find((l) => l.kind === "actor");
+                        let av = al ? animLayerAt(an, an.states[si], al, t) : null;
+                        if (av && m.flip) av = animMirrorValues(av, an.w);
+                        const px = off.x + box.x + (av ? av.x : an.w / 2) * LV_CELL, py = off.y + box.y + (av ? av.y - animPromptLift(av) : 1) * LV_CELL;
+                        out.push(<div key={"animprompt" + mk} className="talkCallout" style={{ left: px, top: py }}>{animPromptWords(an.states[si].prompt)}</div>);
+                      }
+                    }
+                  }
+                  return out;
+                })()}
                 {play && (() => {
                   const p = player.current;
+                  if (cutRef.current) return null; // 🎬 a cutscene has you: the actor on its stage is you
                   const bodyShape = sideBodyShape(playerAsset);
                   const pw = LV_CELL * PLAYER_RENDER_W_CELLS * bodyShape.fraction; // matches the physics hitbox exactly
                   const renderW = LV_CELL * PLAYER_RENDER_W_CELLS; // wider, aspect-correct — keeps the body undistorted
@@ -23084,6 +23681,8 @@ export default function AssetStudio() {
                       {((p.down || 0) > 0 || (p.stun || 0) > 0) && (
                         <div className="playerStun" style={{ left: p.x, top: p.y - 34 + (p.stepEase || 0) - climbLift, width: pw }}>{(p.down || 0) > 0 ? "😵" : "💫"}</div>
                       )}
+                      {/* 🎬 A "Walk up + E" animation you are standing in: its prompt, over your head. */}
+                      {animPrompt && <div className="talkCallout" style={{ left: p.x + pw / 2, top: p.y - 44 + (p.stepEase || 0) - climbLift }}>{animPromptWords(animPrompt.text)}</div>}
                       {/* 🎁 "E ⇄" and what taking the thing under you would change, OVER YOUR HEAD,
                           above the HP and reload bars. It used to hang off the pedestal (or the drop)
                           just above the item's name, which was fine as one line; as a stack of one
@@ -26084,6 +26683,44 @@ html,body{margin:0;padding:0;background:#0f1117}
 /* The dialogue tree editor. One column of line-cards; the start line and any unreachable line are
    edged in colour, because "which line does this open on" and "did I forget to wire this up" are
    the only two structural questions a short tree ever raises. */
+/* 🎬 ANIMATIONS. A stage is a box of absolutely placed layers; it never takes pointer events in a
+   level (painting goes straight through it), only in the editor, where a layer is grabbed to move. */
+.animStage{position:absolute;pointer-events:none}
+.animStage.placed{outline:1px dashed rgba(255,210,63,.55);outline-offset:-1px}
+.animLayer{position:absolute}
+.animStage.ed .animLayer{pointer-events:auto;cursor:grab}
+.animStage.ed .animLayer.sel{outline:1px dashed #ffd23f;outline-offset:2px}
+.animNoActor{background:rgba(160,170,190,.35);border:1px dashed #aab2c6;border-radius:8px}
+.animMissing{display:flex;align-items:center;justify-content:center;border:1px dashed #aab2c6;font-size:20px;opacity:.6}
+.animEdit{flex:1;display:flex;gap:14px;padding:14px;overflow:auto;align-items:flex-start}
+.animMain{display:flex;flex-direction:column;gap:12px;min-width:0}
+.animSide{display:flex;flex-direction:column;gap:12px;width:330px;flex:none}
+.animStageWrap{position:relative;overflow:hidden;border:2px solid #2c3245;border-radius:6px;background-color:#1a1f2c;background-image:linear-gradient(to right,rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,.05) 1px,transparent 1px);box-shadow:inset 0 -3px 0 #6b4423;touch-action:none;user-select:none}
+.animFade{position:absolute;inset:0;background:#000;pointer-events:none;z-index:50}
+.animFade.inStage{z-index:5}
+.animPromptBtn{background:none;border:0;cursor:pointer;z-index:6}
+.animStates{display:flex;flex-direction:column;gap:10px}
+.animStateTabs{display:flex;flex-wrap:wrap;gap:6px}
+.animStateTabs .live{box-shadow:0 0 0 2px #6bd06b inset}
+.animTimeline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.animTrack{position:relative;flex:1 1 320px;min-width:220px;height:26px;background:#1d2230;border:1px solid #2c3245;border-radius:7px;cursor:pointer;touch-action:none}
+.animKey{position:absolute;top:50%;width:11px;height:11px;margin:-6px 0 0 -6px;background:#aab2c6;transform:rotate(45deg);pointer-events:none}
+.animKey.on{background:#ffd23f}
+.animHead{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:#ff6b6b;pointer-events:none}
+.animTime{min-width:96px}
+.animStateRow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.animStateRow .chk{margin-top:0}
+.animStateBtns{display:flex;gap:6px;margin-left:auto}
+.animRowF{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
+.animRow{margin-top:6px}
+.animRow input[type=range]{flex:1}
+.animNum{background:#1d2230;border:1px solid #2c3245;border-radius:7px;padding:5px 7px;color:#e7e9ee;font-size:13px}
+.animOpen{background:#1f2433;border:1px solid #2c3245;border-radius:8px;padding:6px 9px;max-width:220px}
+.animLayers{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
+.animLayerRow{display:flex;align-items:center;gap:6px;padding:5px 7px;border:1px solid #242a3a;border-radius:8px;cursor:pointer}
+.animLayerRow.on{border-color:#4f7cf6;background:#1f2740}
+.animLayerName{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ltbtn.danger{border-color:#5a2e36;color:#ff9b9b}
 .dlgEdit{padding:16px;display:flex;flex-direction:column;gap:12px;overflow:auto;flex:1}
 /* The Sounds screen: two columns, the left half and the right half of the window (what plays |
    what you pick from), stacking only when the window is too narrow for both. */

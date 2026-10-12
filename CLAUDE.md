@@ -376,7 +376,7 @@ plus traps it does not cover:
   ⤒/⤓ go to the level-wide extremes and may change layer; ▲/▼ (`orderStepZ`) step past the next
   OVERLAPPING object on the same layer and never change layer.
 - **Z ladder** (all inside `.lgrid`, which has `isolation:isolate`): bg cells 1000, fg 2000, climb
-  and pedestals 4000, player and units 5000, corpses 5050, unit status 5060–5062, drops 5063,
+  and pedestals 4000, 🎬 animation stages 4990, player and units 5000, corpses 5050, unit status 5060–5062, drops 5063,
   labels 5070 / talk prompt 5080 (`SCENE_LABEL_Z`), front objects 5101+, front paint 6000, door
   prompt 9500, conversation 9600. A z-index only counts inside one stacking context, so a new
   in-level label goes in the shared label layer, never inside the thing it labels.
@@ -428,6 +428,16 @@ plus traps it does not cover:
   text, choices: [{ text, to, act, tone, shopTag? }] } } }`. `to` and `act` are independent. Keys
   1–9 pick options. A tree on a spawn makes it peaceful, and a conversation pauses the WORLD. A shop
   is an `act`. Money is an item (`{kind:"money"}`), and the wallet is run-wide.
+- **🎬 Animations (cutscenes)** are assets of type `"anim"` (no new saved kind); the rules are in
+  `src/anim.js`, which is the game's like `audio.js`. Built on the 🎬 Animations screen, placed with
+  a 🎬 marker whose cell is the stage's BOTTOM-LEFT (`animStageBox`; `flipMarkerLayer` moves it on
+  a mirror). Layers are props plus one actor: the player's own look, keyed by its HIP and turned
+  about it (`animActorHip`, `animActorBlocks`). Number values ease between keys; pose/flip/play
+  switch AT a key. A waiting state holds for E; its fade-in and prompt go by elapsed `el`, never
+  the looped `t`. "Level start" begins in the play effect, "Walk up + E" last in the E chain, both
+  through `beginCut`; a cutscene pauses the world like a conversation (`cutFrame`, one return at
+  the top of the loop). "You take over" puts your standing hip on the actor's last hip and clears
+  the queued gate spawn. A finished stage hands back its cached element (`animStageCache`).
 - **Performance.** The component re-renders every frame (`setPframe` through `commitFrame`), so
   everything in the render body runs 60+ times a second.
   - Nothing in the render body reads the library bare; `useMemo` it.
