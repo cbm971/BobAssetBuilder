@@ -895007,23 +895007,16 @@
      "size": 10
     },
     {
-     "id": "lyHep",
-     "kind": "prop",
-     "name": "Blanket Heap",
-     "propId": "blnkhp1",
-     "size": 2.2
-    },
-    {
      "id": "lyBob",
      "kind": "actor",
      "name": "Bob"
     },
     {
-     "id": "lyBlk",
-     "kind": "prop",
+     "id": "lyCloth",
+     "kind": "cloth",
      "name": "Blanket",
-     "propId": "blnkt01",
-     "size": 5.65
+     "len": 6.25,
+     "bed": 7.05
     },
     {
      "id": "lyZzz",
@@ -895087,14 +895080,6 @@
          "arms": 0,
          "sit": 0
         },
-        "lyBlk": {
-         "x": 8.725000000000001,
-         "y": 7.75,
-         "rot": 0,
-         "show": 1,
-         "flip": false,
-         "play": false
-        },
         "lyZzz": {
          "x": 5.6,
          "y": 4.9,
@@ -895103,13 +895088,13 @@
          "flip": false,
          "play": true
         },
-        "lyHep": {
-         "x": 11.7,
-         "y": 7.25,
-         "rot": 0,
-         "show": 0,
-         "flip": false,
-         "play": false
+        "lyCloth": {
+         "x": 5.9,
+         "fx": 11.55,
+         "y": 7.75,
+         "cover": 2.8,
+         "lift": 0,
+         "show": 1
         }
        }
       },
@@ -895288,14 +895273,6 @@
          "arms": 0,
          "sit": 0
         },
-        "lyBlk": {
-         "x": 8.725000000000001,
-         "y": 7.75,
-         "rot": 0,
-         "show": 1,
-         "flip": false,
-         "play": false
-        },
         "lyZzz": {
          "x": 5.6,
          "y": 4.9,
@@ -895304,13 +895281,13 @@
          "flip": false,
          "play": true
         },
-        "lyHep": {
-         "x": 11.7,
-         "y": 7.25,
-         "rot": 0,
-         "show": 0,
-         "flip": false,
-         "play": false
+        "lyCloth": {
+         "x": 5.9,
+         "fx": 11.55,
+         "y": 7.75,
+         "cover": 2.8,
+         "lift": 0,
+         "show": 1
         }
        }
       },
@@ -895328,14 +895305,6 @@
          "legs": 0,
          "arms": 176,
          "sit": 0
-        },
-        "lyBlk": {
-         "x": 8.725,
-         "y": 7.75,
-         "rot": 0,
-         "show": 1,
-         "sx": 1,
-         "sy": 1
         }
        }
       }
@@ -895394,14 +895363,6 @@
          "arms": 176,
          "sit": 0
         },
-        "lyBlk": {
-         "x": 8.725,
-         "y": 7.75,
-         "rot": 0,
-         "show": 1,
-         "sx": 1,
-         "sy": 1
-        },
         "lyZzz": {
          "x": 5.6,
          "y": 4.9,
@@ -895410,13 +895371,13 @@
          "flip": false,
          "play": true
         },
-        "lyHep": {
-         "x": 11.7,
-         "y": 7.25,
-         "rot": 0,
-         "show": 0,
-         "flip": false,
-         "play": false
+        "lyCloth": {
+         "x": 5.9,
+         "fx": 11.55,
+         "y": 7.75,
+         "cover": 2.8,
+         "lift": 0,
+         "show": 1
         }
        }
       },
@@ -895438,14 +895399,6 @@
          "legs": 0,
          "arms": 120,
          "sit": 0
-        },
-        "lyBlk": {
-         "x": 8.725,
-         "y": 7.75,
-         "rot": 0,
-         "show": 1,
-         "sx": 1,
-         "sy": 1
         }
        }
       },
@@ -895463,14 +895416,6 @@
          "legs": 0,
          "arms": 0,
          "sit": 0
-        },
-        "lyBlk": {
-         "x": 8.725,
-         "y": 7.75,
-         "rot": 0,
-         "show": 1,
-         "sx": 1,
-         "sy": 1
         }
        }
       },
@@ -895489,16 +895434,13 @@
          "arms": 0,
          "sit": 0
         },
-        "lyBlk": {
-         "x": 8.725,
+        "lyCloth": {
+         "x": 5.9,
+         "fx": 11.55,
          "y": 7.75,
-         "rot": 0,
-         "show": 1,
-         "sx": 1,
-         "sy": 1
-        },
-        "lyHep": {
-         "show": 0
+         "cover": 2.8,
+         "lift": 0,
+         "show": 1
         }
        }
       },
@@ -895517,13 +895459,13 @@
          "arms": 0,
          "sit": 0
         },
-        "lyBlk": {
-         "x": 9.475,
+        "lyCloth": {
+         "x": 5.9,
+         "fx": 11.55,
          "y": 7.75,
-         "rot": 0,
-         "show": 1,
-         "sx": 0.735,
-         "sy": 0.8
+         "cover": 0.5,
+         "lift": 0,
+         "show": 1
         }
        }
       },
@@ -895542,13 +895484,13 @@
          "arms": 170,
          "sit": 0
         },
-        "lyBlk": {
-         "x": 11.6,
-         "y": 6.1,
-         "rot": 12,
-         "show": 1,
-         "sx": 0.62,
-         "sy": 0.55
+        "lyCloth": {
+         "x": 9.2,
+         "fx": 12.3,
+         "y": 7.75,
+         "cover": 0.5,
+         "lift": 1.5,
+         "show": 1
         }
        }
       },
@@ -895567,43 +895509,12 @@
          "arms": 0,
          "sit": 0
         },
-        "lyBlk": {
-         "x": 11.7,
-         "y": 7.25,
-         "rot": 0,
-         "show": 1,
-         "sx": 0.389,
-         "sy": 0.249
-        },
-        "lyHep": {
-         "show": 0
-        }
-       }
-      },
-      {
-       "id": "kgf",
-       "t": 2.18,
-       "v": {
-        "lyBob": {
-         "x": 8.67,
-         "y": 6.45,
-         "rot": 0,
-         "show": 1,
-         "flip": false,
-         "pose": "side",
-         "legs": 90,
-         "arms": 0,
-         "sit": 0
-        },
-        "lyBlk": {
-         "x": 11.7,
-         "y": 7.25,
-         "rot": 0,
-         "show": 0,
-         "sx": 0.389,
-         "sy": 0.249
-        },
-        "lyHep": {
+        "lyCloth": {
+         "x": 11,
+         "fx": 12.65,
+         "y": 7.75,
+         "cover": 0.5,
+         "lift": 0,
          "show": 1
         }
        }
@@ -895696,8 +895607,8 @@
      ]
     }
    ],
-   "savedAt": 1791891529334,
-   "editedFrom": 1791889830689
+   "savedAt": 1791931198015,
+   "editedFrom": 1791891529334
   },
   {
    "id": "wcwrkni",
