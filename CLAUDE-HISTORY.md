@@ -4341,3 +4341,42 @@ It should only Say "E - Get up.""
   Heap fades in; he sits up after, uncovered. "Blanket (behind)" is gone again. The lesson: two
   layers can only swap where nothing moves between them; anything that moves faster than a layer
   covering it will be seen passing through it.
+
+- (2026-10-12, night) Blake: "the blanket ... fades away too early. I kept telling you to fix this ...
+  It should just slide up with the player and then fade away after they do there arm lifting push
+  away blanket animation." Two things were still wrong. In the Slap, Bob slides 1.32 cells toward the
+  clock but the blanket slid 0.6, so his shoulders came up out of it (and it read as the blanket
+  going). And the fade ran DURING the shove's sweep (0.7 to 1.05 s), not after it. Now the blanket
+  keeps its resting 0.055-cell offset from the hip through the slide there and back (Slap ks1, Get up
+  kg0/kgs1 at x 7.405), stays fully on through the lift and the sweep, and fades 1.05 to 1.4 s,
+  drifting toward the foot while the heap fades in; kp3 moved to 1.4 and every later key +0.2 s, so
+  he sits up only once it is gone (Get up 3.85 → 4.05 s). Measured in Playtest at his view size:
+  actor and blanket left edges moved 39.6 px together, opacity 1.00 until 1.31 s after E, 0 by 1.67,
+  the sit-up began at 1.7.
+
+## 🏠 Trailor Park S1: the bedroom's ceiling and closet door (2026-10-12)
+
+Blake's S1 opens on a cutaway bedroom at the left end of a street level: a Background back wall of
+his Light Atomic wallpaper (rows 19-34, with a one-row bump on row 18), a 7-row Foreground wood floor
+in front of it (rows 35-41) whose left edge slants out via paired steep ramps (col 4 rise 3, col 3
+rise 4), and a thin Foreground side wall (cols 3-4) that stopped at row 23. He asked for "a ceiling
+looking thing that's sort of 2.5D" and a closet door where he drew one.
+
+- **Where the ceiling goes is set by the camera, not the art.** Play centres the body, so on his
+  871 px view a body standing on row 35 sees from row 17 down. A ceiling above his 16-row wall
+  (rows 12-18) would have shown two rows in play. It meets the back wall at row 23 (where his side wall
+  already stopped) and runs to row 16, the mirror of his 7-row floor about the wall's middle, so play
+  shows 6 of its 7 rows and the cutscene all of it. It is painted OVER his wallpaper rows 18-22 as
+  solid Foreground; nothing of his was erased, and taking the ceiling off shows his wall again.
+- **The corner is his floor's ramps mirrored**: col 4 rows 20-22 (rise 3) and col 3 rows 16-19
+  (rise 4) hold an upside-down ceiling ramp (slope +1, deeper to the right) plus a side-wall ramp
+  (slope -1, high on the left) in `more`, so the line runs (5,23) → (4,20) → (3,16). The side wall
+  continues up to it with his own wall cells.
+- **Ceiling Tile** (`clgtl01`) is a checkerTile record with both tile colours the same cream, darker
+  grout and heavy fleck: acoustic tiles, not a checkerboard. A grid of squares is what reads as a
+  ceiling; plain cream read as a blank band.
+- **Closet Door** (`clsdr01`, 📂 Interior, size 8) is his Wooden Door (`n0h690d`) with its five pieces
+  untouched, drawn over a cream casing 8 units wider on each side and on top. At size 8 it is 8 rows
+  tall and 5.2 wide, placed at "27,25" on the Background layer, so its bottom is the floor's top and
+  Bob walks in front of it.
+- The room stays open on the right (the floor, wall and ceiling all end at col 42), as he built it.

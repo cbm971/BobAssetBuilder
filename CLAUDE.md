@@ -424,6 +424,8 @@ plus traps it does not cover:
   only (`yOnly`), never sideways, or a risen view slides off the end of a sewer into nothing.
   Under every street level its bottom row is repeated `RUN_FILL_BELOW_ROWS` down (`runFills`) and the
   camera may always go that deep (`below:` part), so the view never moves at a gate, sewer or not.
+  So on his 871 px view play shows only ~14.5 rows above the body's middle (floor row 35 → row 17
+  and down). A 2.5D room in a street level (Trailor Park S1) puts its ceiling inside that band.
 - **Dialogue trees** are the sixth saved kind: `{ id, name, start, once?, nodes: { nId: { speaker,
   text, choices: [{ text, to, act, tone, shopTag? }] } } }`. `to` and `act` are independent. Keys
   1–9 pick options. A tree on a spawn makes it peaceful, and a conversation pauses the WORLD. A shop
@@ -437,8 +439,9 @@ plus traps it does not cover:
   the looped `t`. Its prompt hangs by a chosen layer (`promptLayer`, raised `promptLift`), and a
   state's sound loops for exactly that state, so a sound that must stop on a HIT (the alarm) gets
   a short state of its own. Draw order is per LAYER, never per key, and an actor moving under a
-  covering layer that moves slower shows through it: take the cover away with a motion of his
-  (the Bed: an arm shove fades the blanket into the heap) before he moves out. An actor's prompt
+  covering layer that moves slower shows through it: a cover moves exactly WITH him (same offset,
+  same keys) and goes away only AFTER a motion of his (the Bed: fully on through the arm shove,
+  then it fades into the heap, then he sits up; his rule, asked four times). An actor's prompt
   centres on the BODY (`animActorPromptSpot`), not the hip.
   "Level start" begins in the play effect, "Walk up + E" last in the E chain, both
   through `beginCut`; a cutscene pauses the world like a conversation (`cutFrame`, one return at
