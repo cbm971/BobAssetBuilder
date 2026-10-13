@@ -717270,6 +717270,1649 @@
    "rank": "common"
   },
   {
+   "id": "qfexzka",
+   "name": "Oddidas Shoes",
+   "type": "equipment",
+   "angles": {
+    "front": [
+     {
+      "id": "7axryy4",
+      "kind": "roundrect",
+      "x": 102,
+      "y": 254,
+      "w": 36.5,
+      "h": 8.5,
+      "color": "#24488a",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "noCut": true,
+      "_src": "qdrru27",
+      "_slot": "shoes",
+      "limb": "leg",
+      "_isShoe": true
+     },
+     {
+      "id": "q1yhbtq",
+      "kind": "rect",
+      "x": 61,
+      "y": 246,
+      "w": 37,
+      "h": 12.5,
+      "color": "#efe6e6",
+      "mirror": true,
+      "limb": "leg",
+      "_slot": "shoes",
+      "_isShoe": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.9
+      },
+      "noCut": true,
+      "_src": "qdrru27"
+     },
+     {
+      "id": "w4c9ug6",
+      "kind": "rect",
+      "x": 70,
+      "y": 239,
+      "w": 27.5,
+      "h": 7.5,
+      "color": "#efe6e6",
+      "mirror": true,
+      "_slot": "shoes",
+      "limb": "leg",
+      "_isShoe": true,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "noCut": true,
+      "_src": "qdrru27"
+     },
+     {
+      "id": "hfj0ebq",
+      "kind": "stadium",
+      "x": 105.5,
+      "y": 243.5,
+      "w": 26.213,
+      "h": 7.262,
+      "color": "#df2626",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.35
+      },
+      "rot": 17,
+      "_src": "qdrru27",
+      "_slot": "shoes",
+      "limb": "leg",
+      "_isShoe": true
+     },
+     {
+      "id": "kus7pgv",
+      "kind": "stadium",
+      "x": 101.5,
+      "y": 239.5,
+      "w": 27.813,
+      "h": 7.385,
+      "color": "#df2626",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.35
+      },
+      "rot": 14,
+      "isCutter": true,
+      "_src": "qdrru27",
+      "_slot": "shoes",
+      "limb": "leg",
+      "_isShoe": true
+     }
+    ],
+    "back": [
+     {
+      "id": "ossdp9o",
+      "kind": "roundrect",
+      "x": 102.5,
+      "y": 251,
+      "w": 35,
+      "h": 9,
+      "color": "#24488a",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "noCut": true
+     },
+     {
+      "id": "kpuo2yn",
+      "kind": "rect",
+      "x": 60.5,
+      "y": 246,
+      "w": 37,
+      "h": 12,
+      "color": "#efe6e6",
+      "mirror": true,
+      "limb": "leg",
+      "_slot": "shoes",
+      "_isShoe": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.9
+      },
+      "noCut": true
+     },
+     {
+      "id": "kqbu477",
+      "kind": "rect",
+      "x": 69.5,
+      "y": 239,
+      "w": 27.5,
+      "h": 7.5,
+      "color": "#efe6e6",
+      "mirror": true,
+      "_slot": "shoes",
+      "limb": "leg",
+      "_isShoe": true,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "noCut": true
+     },
+     {
+      "id": "qu1to9c",
+      "kind": "stadium",
+      "x": 105,
+      "y": 243.5,
+      "w": 26.213,
+      "h": 7.262,
+      "color": "#df2626",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.35
+      },
+      "rot": 17
+     },
+     {
+      "id": "87v7mxy",
+      "kind": "stadium",
+      "x": 101,
+      "y": 239.5,
+      "w": 27.813,
+      "h": 7.385,
+      "color": "#df2626",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.35
+      },
+      "rot": 14,
+      "isCutter": true
+     }
+    ],
+    "side": [
+     {
+      "id": "6zk8v8k",
+      "kind": "roundrect",
+      "x": 78.5,
+      "y": 258.5,
+      "w": 49.5,
+      "h": 8,
+      "color": "#24488a",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "noCut": true
+     },
+     {
+      "id": "p1zagzi",
+      "kind": "rect",
+      "x": 77.5,
+      "y": 250,
+      "w": 50,
+      "h": 12,
+      "color": "#efe6e6",
+      "mirror": true,
+      "limb": "leg",
+      "_slot": "shoes",
+      "_isShoe": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.9
+      },
+      "noCut": true
+     },
+     {
+      "id": "9aski0r",
+      "kind": "rect",
+      "x": 78,
+      "y": 243.5,
+      "w": 43,
+      "h": 7.5,
+      "color": "#efe6e6",
+      "mirror": true,
+      "_slot": "shoes",
+      "limb": "leg",
+      "_isShoe": true,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "noCut": true
+     },
+     {
+      "id": "n315fsq",
+      "kind": "stadium",
+      "x": 84.537,
+      "y": 247.389,
+      "w": 38.61,
+      "h": 10.695,
+      "color": "#df2626",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.35
+      },
+      "rot": 16
+     },
+     {
+      "id": "ecfobtv",
+      "kind": "stadium",
+      "x": 78.904,
+      "y": 241.756,
+      "w": 40.966,
+      "h": 10.876,
+      "color": "#df2626",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.35
+      },
+      "rot": 13,
+      "isCutter": true
+     }
+    ],
+    "up": [
+     {
+      "id": "jfgftjx",
+      "kind": "roundrect",
+      "x": 103,
+      "y": 252,
+      "w": 35,
+      "h": 9,
+      "color": "#24488a",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "noCut": true
+     },
+     {
+      "id": "zj40y0n",
+      "kind": "rect",
+      "x": 60.5,
+      "y": 246,
+      "w": 37,
+      "h": 12,
+      "color": "#efe6e6",
+      "mirror": true,
+      "limb": "leg",
+      "_slot": "shoes",
+      "_isShoe": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.9
+      },
+      "noCut": true
+     },
+     {
+      "id": "csypdoq",
+      "kind": "rect",
+      "x": 69.5,
+      "y": 239,
+      "w": 27.5,
+      "h": 7.5,
+      "color": "#efe6e6",
+      "mirror": true,
+      "_slot": "shoes",
+      "limb": "leg",
+      "_isShoe": true,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "noCut": true
+     },
+     {
+      "id": "egupg9t",
+      "kind": "stadium",
+      "x": 105,
+      "y": 243.5,
+      "w": 26.213,
+      "h": 7.262,
+      "color": "#df2626",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.35
+      },
+      "rot": 17
+     },
+     {
+      "id": "6jqv6wr",
+      "kind": "stadium",
+      "x": 101,
+      "y": 239.5,
+      "w": 27.813,
+      "h": 7.385,
+      "color": "#df2626",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.35
+      },
+      "rot": 14,
+      "isCutter": true
+     }
+    ],
+    "crouch": [
+     {
+      "id": "9ce6gss",
+      "kind": "roundrect",
+      "x": 104.5,
+      "y": 219.5,
+      "w": 36,
+      "h": 8.5,
+      "color": "#24488a",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "noCut": true
+     },
+     {
+      "id": "m9z7031",
+      "kind": "rect",
+      "x": 59,
+      "y": 212.5,
+      "w": 37,
+      "h": 12,
+      "color": "#efe6e6",
+      "mirror": true,
+      "limb": "leg",
+      "_slot": "shoes",
+      "_isShoe": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.9
+      },
+      "noCut": true
+     },
+     {
+      "id": "3yphno1",
+      "kind": "rect",
+      "x": 64,
+      "y": 204.5,
+      "w": 31.5,
+      "h": 7.5,
+      "color": "#efe6e6",
+      "mirror": true,
+      "_slot": "shoes",
+      "limb": "leg",
+      "_isShoe": true,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "noCut": true
+     },
+     {
+      "id": "eq90uiw",
+      "kind": "stadium",
+      "x": 109,
+      "y": 208.5,
+      "w": 31.095,
+      "h": 8.614,
+      "color": "#df2626",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.35
+      },
+      "rot": 27
+     },
+     {
+      "id": "mjfpo8i",
+      "kind": "stadium",
+      "x": 105.5,
+      "y": 203.5,
+      "w": 32.994,
+      "h": 8.759,
+      "color": "#df2626",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.35
+      },
+      "rot": 24,
+      "isCutter": true
+     }
+    ]
+   },
+   "guideId": "telfv37",
+   "slot": "shoes",
+   "variants": {
+    "default": {
+     "front": [
+      {
+       "id": "q1yhbtq",
+       "kind": "rect",
+       "x": 61,
+       "y": 251,
+       "w": 37,
+       "h": 12,
+       "color": "#efe6e6",
+       "mirror": true,
+       "limb": "leg",
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.9
+       }
+      },
+      {
+       "id": "w4c9ug6",
+       "kind": "rect",
+       "x": 70,
+       "y": 244,
+       "w": 28,
+       "h": 10,
+       "color": "#efe6e6",
+       "mirror": true
+      }
+     ],
+     "back": [
+      {
+       "id": "ejik1jd",
+       "kind": "rect",
+       "x": 61,
+       "y": 251,
+       "w": 37,
+       "h": 12,
+       "color": "#efe6e6",
+       "mirror": true,
+       "limb": "leg",
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.9
+       }
+      },
+      {
+       "id": "hgkbgrd",
+       "kind": "rect",
+       "x": 70,
+       "y": 244,
+       "w": 28,
+       "h": 10,
+       "color": "#efe6e6",
+       "mirror": true
+      }
+     ],
+     "side": [
+      {
+       "id": "yyywp6x",
+       "kind": "rect",
+       "x": 76,
+       "y": 249,
+       "w": 55,
+       "h": 12,
+       "color": "#efe6e6",
+       "mirror": true,
+       "limb": "leg",
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.9
+       }
+      },
+      {
+       "id": "w6n9rba",
+       "kind": "rect",
+       "x": 76,
+       "y": 244,
+       "w": 46,
+       "h": 11,
+       "color": "#efe6e6",
+       "mirror": true
+      }
+     ],
+     "up": [
+      {
+       "id": "yew5qp1",
+       "kind": "rect",
+       "x": 61,
+       "y": 251,
+       "w": 37,
+       "h": 12,
+       "color": "#efe6e6",
+       "mirror": true,
+       "limb": "leg",
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.9
+       }
+      },
+      {
+       "id": "5zjlyjv",
+       "kind": "rect",
+       "x": 70,
+       "y": 244,
+       "w": 28,
+       "h": 10,
+       "color": "#efe6e6",
+       "mirror": true
+      }
+     ],
+     "crouch": [
+      {
+       "id": "5zaip36",
+       "kind": "rect",
+       "x": 57,
+       "y": 220,
+       "w": 37,
+       "h": 12,
+       "color": "#efe6e6",
+       "mirror": true,
+       "limb": "leg",
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.9
+       }
+      },
+      {
+       "id": "8qymn6p",
+       "kind": "rect",
+       "x": 63,
+       "y": 213,
+       "w": 31,
+       "h": 11,
+       "color": "#efe6e6",
+       "mirror": true
+      }
+     ]
+    },
+    "telfv37": {
+     "front": [
+      {
+       "id": "7axryy4",
+       "kind": "roundrect",
+       "x": 102,
+       "y": 254,
+       "w": 36.5,
+       "h": 8.5,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true,
+       "_src": "qdrru27",
+       "_slot": "shoes",
+       "limb": "leg",
+       "_isShoe": true
+      },
+      {
+       "id": "q1yhbtq",
+       "kind": "rect",
+       "x": 61,
+       "y": 246,
+       "w": 37,
+       "h": 12.5,
+       "color": "#efe6e6",
+       "mirror": true,
+       "limb": "leg",
+       "_slot": "shoes",
+       "_isShoe": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.9
+       },
+       "noCut": true,
+       "_src": "qdrru27"
+      },
+      {
+       "id": "w4c9ug6",
+       "kind": "rect",
+       "x": 70,
+       "y": 239,
+       "w": 27.5,
+       "h": 7.5,
+       "color": "#efe6e6",
+       "mirror": true,
+       "_slot": "shoes",
+       "limb": "leg",
+       "_isShoe": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true,
+       "_src": "qdrru27"
+      },
+      {
+       "id": "hfj0ebq",
+       "kind": "stadium",
+       "x": 105.5,
+       "y": 243.5,
+       "w": 26.213,
+       "h": 7.262,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 17,
+       "_src": "qdrru27",
+       "_slot": "shoes",
+       "limb": "leg",
+       "_isShoe": true
+      },
+      {
+       "id": "kus7pgv",
+       "kind": "stadium",
+       "x": 101.5,
+       "y": 239.5,
+       "w": 27.813,
+       "h": 7.385,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 14,
+       "isCutter": true,
+       "_src": "qdrru27",
+       "_slot": "shoes",
+       "limb": "leg",
+       "_isShoe": true
+      }
+     ],
+     "back": [
+      {
+       "id": "ossdp9o",
+       "kind": "roundrect",
+       "x": 102.5,
+       "y": 251,
+       "w": 35,
+       "h": 9,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "kpuo2yn",
+       "kind": "rect",
+       "x": 60.5,
+       "y": 246,
+       "w": 37,
+       "h": 12,
+       "color": "#efe6e6",
+       "mirror": true,
+       "limb": "leg",
+       "_slot": "shoes",
+       "_isShoe": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.9
+       },
+       "noCut": true
+      },
+      {
+       "id": "kqbu477",
+       "kind": "rect",
+       "x": 69.5,
+       "y": 239,
+       "w": 27.5,
+       "h": 7.5,
+       "color": "#efe6e6",
+       "mirror": true,
+       "_slot": "shoes",
+       "limb": "leg",
+       "_isShoe": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "qu1to9c",
+       "kind": "stadium",
+       "x": 105,
+       "y": 243.5,
+       "w": 26.213,
+       "h": 7.262,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 17
+      },
+      {
+       "id": "87v7mxy",
+       "kind": "stadium",
+       "x": 101,
+       "y": 239.5,
+       "w": 27.813,
+       "h": 7.385,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 14,
+       "isCutter": true
+      }
+     ],
+     "side": [
+      {
+       "id": "6zk8v8k",
+       "kind": "roundrect",
+       "x": 78.5,
+       "y": 258.5,
+       "w": 49.5,
+       "h": 8,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "p1zagzi",
+       "kind": "rect",
+       "x": 77.5,
+       "y": 250,
+       "w": 50,
+       "h": 12,
+       "color": "#efe6e6",
+       "mirror": true,
+       "limb": "leg",
+       "_slot": "shoes",
+       "_isShoe": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.9
+       },
+       "noCut": true
+      },
+      {
+       "id": "9aski0r",
+       "kind": "rect",
+       "x": 78,
+       "y": 243.5,
+       "w": 43,
+       "h": 7.5,
+       "color": "#efe6e6",
+       "mirror": true,
+       "_slot": "shoes",
+       "limb": "leg",
+       "_isShoe": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "n315fsq",
+       "kind": "stadium",
+       "x": 84.537,
+       "y": 247.389,
+       "w": 38.61,
+       "h": 10.695,
+       "color": "#df2626",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 16
+      },
+      {
+       "id": "ecfobtv",
+       "kind": "stadium",
+       "x": 78.904,
+       "y": 241.756,
+       "w": 40.966,
+       "h": 10.876,
+       "color": "#df2626",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 13,
+       "isCutter": true
+      }
+     ],
+     "up": [
+      {
+       "id": "jfgftjx",
+       "kind": "roundrect",
+       "x": 103,
+       "y": 252,
+       "w": 35,
+       "h": 9,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "zj40y0n",
+       "kind": "rect",
+       "x": 60.5,
+       "y": 246,
+       "w": 37,
+       "h": 12,
+       "color": "#efe6e6",
+       "mirror": true,
+       "limb": "leg",
+       "_slot": "shoes",
+       "_isShoe": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.9
+       },
+       "noCut": true
+      },
+      {
+       "id": "csypdoq",
+       "kind": "rect",
+       "x": 69.5,
+       "y": 239,
+       "w": 27.5,
+       "h": 7.5,
+       "color": "#efe6e6",
+       "mirror": true,
+       "_slot": "shoes",
+       "limb": "leg",
+       "_isShoe": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "egupg9t",
+       "kind": "stadium",
+       "x": 105,
+       "y": 243.5,
+       "w": 26.213,
+       "h": 7.262,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 17
+      },
+      {
+       "id": "6jqv6wr",
+       "kind": "stadium",
+       "x": 101,
+       "y": 239.5,
+       "w": 27.813,
+       "h": 7.385,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 14,
+       "isCutter": true
+      }
+     ],
+     "crouch": [
+      {
+       "id": "9ce6gss",
+       "kind": "roundrect",
+       "x": 104.5,
+       "y": 219.5,
+       "w": 36,
+       "h": 8.5,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "m9z7031",
+       "kind": "rect",
+       "x": 59,
+       "y": 212.5,
+       "w": 37,
+       "h": 12,
+       "color": "#efe6e6",
+       "mirror": true,
+       "limb": "leg",
+       "_slot": "shoes",
+       "_isShoe": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.9
+       },
+       "noCut": true
+      },
+      {
+       "id": "3yphno1",
+       "kind": "rect",
+       "x": 64,
+       "y": 204.5,
+       "w": 31.5,
+       "h": 7.5,
+       "color": "#efe6e6",
+       "mirror": true,
+       "_slot": "shoes",
+       "limb": "leg",
+       "_isShoe": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "eq90uiw",
+       "kind": "stadium",
+       "x": 109,
+       "y": 208.5,
+       "w": 31.095,
+       "h": 8.614,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 27
+      },
+      {
+       "id": "mjfpo8i",
+       "kind": "stadium",
+       "x": 105.5,
+       "y": 203.5,
+       "w": 32.994,
+       "h": 8.759,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 24,
+       "isCutter": true
+      }
+     ]
+    },
+    "oipvf3l": {
+     "front": [
+      {
+       "id": "7axryy4",
+       "kind": "roundrect",
+       "x": 103,
+       "y": 253.5,
+       "w": 35,
+       "h": 9,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "q1yhbtq",
+       "kind": "rect",
+       "x": 60.5,
+       "y": 246,
+       "w": 37,
+       "h": 12,
+       "color": "#efe6e6",
+       "mirror": true,
+       "limb": "leg",
+       "_slot": "shoes",
+       "_isShoe": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.9
+       },
+       "noCut": true
+      },
+      {
+       "id": "w4c9ug6",
+       "kind": "rect",
+       "x": 69.5,
+       "y": 239,
+       "w": 27.5,
+       "h": 7.5,
+       "color": "#efe6e6",
+       "mirror": true,
+       "_slot": "shoes",
+       "limb": "leg",
+       "_isShoe": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "hfj0ebq",
+       "kind": "stadium",
+       "x": 105,
+       "y": 243.5,
+       "w": 26.213,
+       "h": 7.262,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 17
+      },
+      {
+       "id": "kus7pgv",
+       "kind": "stadium",
+       "x": 101,
+       "y": 239.5,
+       "w": 27.813,
+       "h": 7.385,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 14,
+       "isCutter": true
+      }
+     ],
+     "back": [
+      {
+       "id": "ossdp9o",
+       "kind": "roundrect",
+       "x": 102.5,
+       "y": 251.5,
+       "w": 35,
+       "h": 9,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "kpuo2yn",
+       "kind": "rect",
+       "x": 60.5,
+       "y": 246,
+       "w": 37,
+       "h": 12,
+       "color": "#efe6e6",
+       "mirror": true,
+       "limb": "leg",
+       "_slot": "shoes",
+       "_isShoe": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.9
+       },
+       "noCut": true
+      },
+      {
+       "id": "kqbu477",
+       "kind": "rect",
+       "x": 69.5,
+       "y": 239,
+       "w": 27.5,
+       "h": 7.5,
+       "color": "#efe6e6",
+       "mirror": true,
+       "_slot": "shoes",
+       "limb": "leg",
+       "_isShoe": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "qu1to9c",
+       "kind": "stadium",
+       "x": 105,
+       "y": 243.5,
+       "w": 26.213,
+       "h": 7.262,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 17
+      },
+      {
+       "id": "87v7mxy",
+       "kind": "stadium",
+       "x": 101,
+       "y": 239.5,
+       "w": 27.813,
+       "h": 7.385,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 14,
+       "isCutter": true
+      }
+     ],
+     "side": [
+      {
+       "id": "6zk8v8k",
+       "kind": "roundrect",
+       "x": 85,
+       "y": 255.5,
+       "w": 42.5,
+       "h": 8,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "p1zagzi",
+       "kind": "rect",
+       "x": 84.5,
+       "y": 249,
+       "w": 43.5,
+       "h": 12,
+       "color": "#efe6e6",
+       "mirror": true,
+       "limb": "leg",
+       "_slot": "shoes",
+       "_isShoe": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.9
+       },
+       "noCut": true
+      },
+      {
+       "id": "9aski0r",
+       "kind": "rect",
+       "x": 85.5,
+       "y": 244,
+       "w": 32.5,
+       "h": 7.5,
+       "color": "#efe6e6",
+       "mirror": true,
+       "_slot": "shoes",
+       "limb": "leg",
+       "_isShoe": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "pihuxr2",
+       "kind": "stadium",
+       "x": 91,
+       "y": 247,
+       "w": 33.132,
+       "h": 9.178,
+       "color": "#df2626",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 13
+      },
+      {
+       "id": "c1vucm6",
+       "kind": "stadium",
+       "x": 85.5,
+       "y": 242.5,
+       "w": 35.154,
+       "h": 9.333,
+       "color": "#df2626",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 10,
+       "isCutter": true
+      }
+     ],
+     "up": [
+      {
+       "id": "jfgftjx",
+       "kind": "roundrect",
+       "x": 102.5,
+       "y": 251,
+       "w": 35,
+       "h": 9,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "zj40y0n",
+       "kind": "rect",
+       "x": 60.5,
+       "y": 246,
+       "w": 37,
+       "h": 12,
+       "color": "#efe6e6",
+       "mirror": true,
+       "limb": "leg",
+       "_slot": "shoes",
+       "_isShoe": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.9
+       },
+       "noCut": true
+      },
+      {
+       "id": "csypdoq",
+       "kind": "rect",
+       "x": 69.5,
+       "y": 239,
+       "w": 27.5,
+       "h": 7.5,
+       "color": "#efe6e6",
+       "mirror": true,
+       "_slot": "shoes",
+       "limb": "leg",
+       "_isShoe": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "egupg9t",
+       "kind": "stadium",
+       "x": 105,
+       "y": 243.5,
+       "w": 26.213,
+       "h": 7.262,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 17
+      },
+      {
+       "id": "6jqv6wr",
+       "kind": "stadium",
+       "x": 101,
+       "y": 239.5,
+       "w": 27.813,
+       "h": 7.385,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 14,
+       "isCutter": true
+      }
+     ],
+     "crouch": [
+      {
+       "id": "9ce6gss",
+       "kind": "roundrect",
+       "x": 104.5,
+       "y": 217,
+       "w": 35,
+       "h": 9,
+       "color": "#24488a",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "m9z7031",
+       "kind": "rect",
+       "x": 59,
+       "y": 211.5,
+       "w": 37,
+       "h": 12,
+       "color": "#efe6e6",
+       "mirror": true,
+       "limb": "leg",
+       "_slot": "shoes",
+       "_isShoe": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.9
+       },
+       "noCut": true
+      },
+      {
+       "id": "3yphno1",
+       "kind": "rect",
+       "x": 68,
+       "y": 204,
+       "w": 27.5,
+       "h": 7.5,
+       "color": "#efe6e6",
+       "mirror": true,
+       "_slot": "shoes",
+       "limb": "leg",
+       "_isShoe": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "noCut": true
+      },
+      {
+       "id": "eq90uiw",
+       "kind": "stadium",
+       "x": 109,
+       "y": 208.5,
+       "w": 31.095,
+       "h": 8.614,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 27
+      },
+      {
+       "id": "mjfpo8i",
+       "kind": "stadium",
+       "x": 105.5,
+       "y": 203.5,
+       "w": 32.994,
+       "h": 8.759,
+       "color": "#df2626",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.35
+       },
+       "rot": 24,
+       "isCutter": true
+      }
+     ]
+    }
+   },
+   "lastFit": "telfv37",
+   "confirmedFits": [
+    "oipvf3l",
+    "telfv37"
+   ],
+   "savedAt": 1791932717058,
+   "statBoosts": {
+    "speed": 3,
+    "agility": 3,
+    "intelligence": 0,
+    "strength": 0,
+    "hp": -1
+   },
+   "effects": [],
+   "defense": 0,
+   "categories": [
+    "T1",
+    "Shoes",
+    "Common"
+   ],
+   "groups": {
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "value": 10,
+   "rank": "common"
+  },
+  {
    "id": "qfm7xn6",
    "name": "Pit-Porion",
    "type": "enemy",
