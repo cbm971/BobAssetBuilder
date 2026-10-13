@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 // the game's own front end will play the same data without the studio — see src/audio.js. The clip
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
-import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animDeleteKey, animMoveKey, animSetState, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped } from "./anim";
+import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animDeleteKey, animMoveKey, animSetState, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped } from "./anim";
 import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume } from "./audio";
 
 /* ============================================================================
@@ -19587,7 +19587,7 @@ export default function AssetStudio() {
         const lay = boomLayout(pa, l.size || 3, cellPx);
         const n = pa.frames && pa.frames.length ? pa.frames.length : 1;
         const fi = v.play && n > 1 ? Math.floor((o.clock || 0) * (pa.animFps || 6)) % n : 0;
-        kids.push(<div key={l.id} className={cls} style={{ left: v.x * cellPx - lay.width / 2, top: v.y * cellPx - lay.height, width: lay.width, height: lay.height, transform: tf, opacity }} onPointerDown={down}>
+        kids.push(<div key={l.id} className={cls} style={{ left: v.x * cellPx - lay.width / 2, top: v.y * cellPx - lay.height, width: lay.width, height: lay.height, transform: animPropTransform(v, lay.height), opacity }} onPointerDown={down}>
           {propArtInner(pa, lay.width, lay.height, fi, o.key + l.id, lay.box, undefined, !!v.flip)}
         </div>);
       }
@@ -21948,7 +21948,13 @@ export default function AssetStudio() {
                 </> : (() => {
                   const pa = findA(sel.propId);
                   const n = pa && pa.frames ? pa.frames.length : 1;
-                  return n > 1 ? <label className="chk"><input type="checkbox" checked={!!selV.play} onChange={(e) => setV({ play: e.target.checked })} /> ▶ Its own frames</label> : null;
+                  // Width/Height squash the prop at this key (about its bottom-centre, see animPropTransform):
+                  // Size is the whole layer for the whole animation, these ease between keys.
+                  return <>
+                    {sliderRow("Width", Math.round((selV.sx ?? 1) * 100), 10, 200, 5, "%", (v) => setV({ sx: v / 100 }))}
+                    {sliderRow("Height", Math.round((selV.sy ?? 1) * 100), 10, 200, 5, "%", (v) => setV({ sy: v / 100 }))}
+                    {n > 1 ? <label className="chk"><input type="checkbox" checked={!!selV.play} onChange={(e) => setV({ play: e.target.checked })} /> ▶ Its own frames</label> : null}
+                  </>;
                 })()}
               </div>
             )}

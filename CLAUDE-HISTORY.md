@@ -4368,6 +4368,29 @@ It should only Say "E - Get up.""
   Frames were checked by rasterising `.animStageWrap` (foreignObject, computed styles inlined) and
   POSTing the PNG to a loopback receiver, because pane screenshots are 800 px wide.
 
+- (2026-10-13, later) Blake on that: the blanket "seems to track the player too much" going left in
+  the slap; "the character sits up and phases through the blanket while they are sitting up"; he
+  "throws there arms to throw the blanket to the edge and then a fraction of a second later the top of
+  the blanket fades". "I want it to be perfect, no phasing and in sync. Maybe the blanket needs to
+  compact somehow before the player sits up."
+  - **Compacting needed a new animation field.** A layer could only move, turn and fade, and a rigid
+    quilt sized for a lying body is always where a rising torso goes. `sx`/`sy` (ANIM_NUM_FIELDS, prop
+    defaults 1) squash a prop about its bottom-centre (`animPropTransform`: the turn stays outermost
+    and about the middle, so an unsquashed layer draws the exact string it always did). Editor:
+    Width/Height sliders, 10-200 % in 5s, on a prop layer's card. Checked by mouse drag at real size.
+  - **Where it bunches decides whether he phases.** His upright torso reaches ~1.1 cells in front of
+    the hip (x 9.8 on this stage), and a lap bunch (sx 0.5-0.6) still had his rising hips pass behind
+    its cream fold. Bunched onto his SHINS (x 11.2, sx 0.45, sy 0.75, left edge 9.93) nothing ever
+    overlaps the rising torso; his thighs show, which is what kicked-down covers look like.
+  - **Every key is an ease-in/ease-out point for every layer**, so a blanket key in the middle of the
+    arm's sweep would stall the arm. The throw therefore uses the arm's own keys: kg3 (1.8, arm up)
+    to kg4 (2.15, arm down) squashes it to the heap's footprint (sx 0.45, sy 0.35 at x 11.4, y 7.3),
+    fully drawn; kgf (2.25) swaps it for the heap in place in 0.1 s; legs swing from 2.25.
+  - Slap drag 0.3 cells (he slides 1.32). Get up 3.65 s.
+  Measured in Playtest on S1 (Army Bob): blanket 8.72 → 8.43 in the slap, bunched 0.70-1.16 s after
+  E during his stir, unmoved through the sit-up (1.16-1.79) and the arm lift, squashing 2.05-2.40
+  with the arm, heap at 2.50, legs from 2.5.
+
 ## 🏠 Trailor Park S1: the bedroom's ceiling and closet door (2026-10-12)
 
 Blake's S1 opens on a cutaway bedroom at the left end of a street level: a Background back wall of

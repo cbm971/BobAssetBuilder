@@ -439,11 +439,13 @@ plus traps it does not cover:
   the looped `t`. Its prompt hangs by a chosen layer (`promptLayer`, raised `promptLift`), and a
   state's sound loops for exactly that state, so a sound that must stop on a HIT (the alarm) gets
   a short state of its own. Draw order is per LAYER, never per key, and an actor moving under a
-  covering layer that moves slower shows through it: a cover moves exactly WITH him (same offset,
-  same keys) and goes away only AFTER a motion of his. The Bed: on through the slap, the sit-up and
-  his SEATED arm lift-and-push (kg3/kg4), then it fades into the heap, then his legs swing off (asked
-  five times; "the arm animation" is that seated one, and a shove I added lying down made it worse).
-  Never invent a motion he did not ask for to hang a fix on. An actor's prompt
+  covering layer that moves slower shows through it. A prop can be squashed per key (`sx`/`sy`,
+  Width/Height in the editor, about its bottom-centre, `animPropTransform`). The Bed (asked six
+  times, his words are the spec): the blanket drags a little with the slap, BUNCHES onto his shins
+  before he sits up so nothing overlaps the rising torso, holds still through the sit-up, squashes
+  into the heap on the SAME keys as his seated arm throw (kg3 → kg4), becomes the heap in place, and
+  only then do his legs swing off. Never invent a motion he did not ask for to hang a fix on, and
+  never move or fade a cover while a body moves under it. An actor's prompt
   centres on the BODY (`animActorPromptSpot`), not the hip.
   "Level start" begins in the play effect, "Walk up + E" last in the E chain, both
   through `beginCut`; a cutscene pauses the world like a conversation (`cutFrame`, one return at

@@ -1,4 +1,4 @@
-import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animDeleteKey, animMoveKey, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS } from "./anim";
+import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animDeleteKey, animMoveKey, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS, animPropTransform } from "./anim";
 
 let seq = 0;
 const mkId = () => "id" + (++seq);
@@ -80,6 +80,27 @@ describe("🎬 animations — values at a moment", () => {
   });
   test("mirroring the stage moves x across it, toggles flip, turns the other way", () => {
     expect(animMirrorValues({ x: 3, rot: 20, flip: false, y: 2 }, 10)).toEqual({ x: 7, rot: -20, flip: true, y: 2 });
+    expect(animMirrorValues({ x: 3, sx: 0.5, sy: 1.2 }, 10)).toMatchObject({ sx: 0.5, sy: 1.2 }); // a squash about the bottom-centre is the same either way round
+  });
+});
+
+describe("🎬 animations — squashing a prop (sx/sy)", () => {
+  test("a prop's width and height default to as placed, and ease between keys like any number", () => {
+    const { anim, prop } = fixture();
+    expect(animLayerAt(anim, anim.states[0], prop, 0)).toMatchObject({ sx: 1, sy: 1 });   // the fixture's keys never mention them
+    const st = { ...anim.states[1], keys: [{ id: "g0", t: 0, v: { prop1: { sx: 1, sy: 1 } } }, { id: "g1", t: 1, v: { prop1: { sx: 0.5, sy: 0.8 } } }] };
+    expect(animLayerAt(anim, st, prop, 0.5).sx).toBeCloseTo(0.75, 5);
+    expect(animLayerAt(anim, st, prop, 0.5).sy).toBeCloseTo(0.9, 5);
+    expect(animLayerAt(anim, st, prop, 3)).toMatchObject({ sx: 0.5, sy: 0.8 });
+  });
+  test("unsquashed, the transform is exactly the string every older animation drew", () => {
+    expect(animPropTransform({ rot: 10 }, 90)).toBe("rotate(10.00deg)");
+    expect(animPropTransform({ rot: -9, flip: true, sx: 1, sy: 1 }, 90)).toBe("rotate(-9.00deg) scaleX(-1)");
+  });
+  test("squashed, it scales about the bottom-centre: half the height down, scale, back up", () => {
+    expect(animPropTransform({ rot: 0, sx: 0.5, sy: 0.8 }, 90)).toBe("rotate(0.00deg) translateY(45.00px) scale(0.5000,0.8000) translateY(-45.00px)");
+    // the box's bottom-centre (0, +45 from the middle) stays put: 45 -> 0 -> 0 -> 45
+    expect(animPropTransform({ rot: 5, sx: 0.6, sy: 1, flip: true }, 40)).toMatch(/^rotate\(5\.00deg\) translateY\(20\.00px\) scale\(0\.6000,1\.0000\) translateY\(-20\.00px\) scaleX\(-1\)$/);
   });
 });
 

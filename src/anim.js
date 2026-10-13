@@ -22,6 +22,12 @@
  *   rot    on-screen degrees (the turn is outermost, like a placed object's — see objRotStyle)
  *   show   0..1, faded in between keys, so "the blanket goes" is a fade and not a blink
  *   flip   mirrored left↔right
+ *   sx,sy  a prop's width and height as a fraction of its size (1 = as placed), squashed about its
+ *          bottom-centre so it keeps standing on y. Eased like any number, so a blanket can BUNCH
+ *          down onto his legs before he sits up instead of being sat up through (Blake, 2026-10-13:
+ *          "maybe the blanket needs to compact somehow before the player sits up"). A move, turn and
+ *          fade could not do it: a rigid quilt sized for a lying body is always where a rising
+ *          torso has to go.
  *   pose   side | front | back | crouch (the actor only)
  *   legs   degrees the legs swing forward about the hip (90 = straight out, sitting up in bed)
  *   arms   degrees the arms swing forward about the shoulder (180 = straight up, a stretch)
@@ -40,7 +46,7 @@
 export const ANIM_POSES = ["side", "front", "back", "crouch"];
 export const ANIM_TRIGGERS = [{ key: "start", label: "Level start" }, { key: "reach", label: "Walk up + E" }];
 export const ANIM_ENDINGS = [{ key: "play", label: "You take over" }, { key: "leave", label: "Leave the floor" }];
-export const ANIM_NUM_FIELDS = ["x", "y", "rot", "show", "legs", "arms", "sit"];
+export const ANIM_NUM_FIELDS = ["x", "y", "rot", "show", "sx", "sy", "legs", "arms", "sit"];
 export const ANIM_STEP_FIELDS = ["flip", "pose", "play"];
 // A key "at" the playhead: within this many seconds. Two keys closer than this would be one key
 // the editor could never select apart.
@@ -60,7 +66,20 @@ const round3 = (v) => Math.round(v * 1000) / 1000;
 export const animLayerDefaults = (anim, layer) => {
   const w = num(anim && anim.w, 14), h = num(anim && anim.h, 9);
   if (layer && layer.kind === "actor") return { x: w / 2, y: h - ANIM_STAND_HIP_CELLS, rot: 0, show: 1, flip: false, pose: "side", legs: 0, arms: 0, sit: 0 };
-  return { x: w / 2, y: h, rot: 0, show: 1, flip: false, play: true };
+  return { x: w / 2, y: h, rot: 0, show: 1, sx: 1, sy: 1, flip: false, play: true };
+};
+// A prop layer's CSS transform for its box `hPx` tall. The turn stays about the box's middle and
+// outermost, exactly as before sx/sy existed, so every animation saved without them draws the same
+// string to the character. The squash is about the bottom-centre (the layer's own x,y anchor):
+// with the transform origin in the middle, that is a half-height shift down, the scale, and back.
+export const animPropTransform = (v, hPx) => {
+  const sx = num(v && v.sx, 1), sy = num(v && v.sy, 1);
+  let tf = "rotate(" + (+(v && v.rot) || 0).toFixed(2) + "deg)";
+  if (Math.abs(sx - 1) > 1e-4 || Math.abs(sy - 1) > 1e-4) {
+    const half = (num(hPx, 0) / 2).toFixed(2);
+    tf += " translateY(" + half + "px) scale(" + Math.max(0.01, sx).toFixed(4) + "," + Math.max(0.01, sy).toFixed(4) + ") translateY(-" + half + "px)";
+  }
+  return tf + (v && v.flip ? " scaleX(-1)" : "");
 };
 
 export const newAnimState = (mkId, name) => ({ id: mkId(), name: name || "State", dur: 2, wait: false, loop: false, prompt: "", promptLayer: "", promptLift: 0, fadeIn: 0, fadeOut: 0, sound: "", soundVol: 1, keys: [{ id: mkId(), t: 0, v: {} }] });
