@@ -703073,6 +703073,640 @@
    "savedAt": 1789244991629
   },
   {
+   "id": "ojbos1r",
+   "name": "Stompers",
+   "type": "equipment",
+   "angles": {
+    "front": [
+     {
+      "id": "q1yhbtq",
+      "kind": "rect",
+      "x": 61,
+      "y": 251,
+      "w": 37,
+      "h": 12,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "limb": "leg",
+      "_slot": "shoes",
+      "_isShoe": true,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "w4c9ug6",
+      "kind": "rect",
+      "x": 70,
+      "y": 244,
+      "w": 28,
+      "h": 10,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "_slot": "shoes",
+      "limb": "leg",
+      "_isShoe": true,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [
+     {
+      "id": "ejik1jd",
+      "kind": "rect",
+      "x": 61,
+      "y": 251,
+      "w": 37,
+      "h": 12,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "limb": "leg"
+     },
+     {
+      "id": "hgkbgrd",
+      "kind": "rect",
+      "x": 70,
+      "y": 244,
+      "w": 28,
+      "h": 10,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "side": [
+     {
+      "id": "yyywp6x",
+      "kind": "rect",
+      "x": 84,
+      "y": 251,
+      "w": 45,
+      "h": 11,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "limb": "leg"
+     },
+     {
+      "id": "w6n9rba",
+      "kind": "rect",
+      "x": 84,
+      "y": 244,
+      "w": 35,
+      "h": 9,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "up": [
+     {
+      "id": "yew5qp1",
+      "kind": "rect",
+      "x": 61,
+      "y": 251,
+      "w": 37,
+      "h": 12,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "limb": "leg"
+     },
+     {
+      "id": "5zjlyjv",
+      "kind": "rect",
+      "x": 70,
+      "y": 244,
+      "w": 28,
+      "h": 10,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "crouch": [
+     {
+      "id": "5zaip36",
+      "kind": "rect",
+      "x": 57,
+      "y": 217,
+      "w": 37,
+      "h": 12,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "limb": "leg"
+     },
+     {
+      "id": "8qymn6p",
+      "kind": "rect",
+      "x": 64,
+      "y": 207,
+      "w": 31,
+      "h": 11,
+      "color": "#2b2b2b",
+      "mirror": true,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ]
+   },
+   "guideId": "oipvf3l",
+   "slot": "shoes",
+   "variants": {
+    "default": {
+     "front": [
+      {
+       "id": "q1yhbtq",
+       "kind": "rect",
+       "x": 61,
+       "y": 251,
+       "w": 37,
+       "h": 12,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "limb": "leg"
+      },
+      {
+       "id": "w4c9ug6",
+       "kind": "rect",
+       "x": 70,
+       "y": 244,
+       "w": 28,
+       "h": 10,
+       "color": "#2b2b2b",
+       "mirror": true
+      }
+     ],
+     "back": [
+      {
+       "id": "ejik1jd",
+       "kind": "rect",
+       "x": 61,
+       "y": 251,
+       "w": 37,
+       "h": 12,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "limb": "leg"
+      },
+      {
+       "id": "hgkbgrd",
+       "kind": "rect",
+       "x": 70,
+       "y": 244,
+       "w": 28,
+       "h": 10,
+       "color": "#2b2b2b",
+       "mirror": true
+      }
+     ],
+     "side": [
+      {
+       "id": "yyywp6x",
+       "kind": "rect",
+       "x": 76,
+       "y": 249,
+       "w": 55,
+       "h": 12,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "limb": "leg"
+      },
+      {
+       "id": "w6n9rba",
+       "kind": "rect",
+       "x": 76,
+       "y": 244,
+       "w": 46,
+       "h": 11,
+       "color": "#2b2b2b",
+       "mirror": true
+      }
+     ],
+     "up": [
+      {
+       "id": "yew5qp1",
+       "kind": "rect",
+       "x": 61,
+       "y": 251,
+       "w": 37,
+       "h": 12,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "limb": "leg"
+      },
+      {
+       "id": "5zjlyjv",
+       "kind": "rect",
+       "x": 70,
+       "y": 244,
+       "w": 28,
+       "h": 10,
+       "color": "#2b2b2b",
+       "mirror": true
+      }
+     ],
+     "crouch": [
+      {
+       "id": "5zaip36",
+       "kind": "rect",
+       "x": 57,
+       "y": 220,
+       "w": 37,
+       "h": 12,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "limb": "leg"
+      },
+      {
+       "id": "8qymn6p",
+       "kind": "rect",
+       "x": 63,
+       "y": 213,
+       "w": 31,
+       "h": 11,
+       "color": "#2b2b2b",
+       "mirror": true
+      }
+     ]
+    },
+    "telfv37": {
+     "front": [
+      {
+       "id": "q1yhbtq",
+       "kind": "rect",
+       "x": 61,
+       "y": 251,
+       "w": 37,
+       "h": 12,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "limb": "leg",
+       "_src": "6o7im4q",
+       "_slot": "shoes",
+       "_isShoe": true
+      },
+      {
+       "id": "w4c9ug6",
+       "kind": "rect",
+       "x": 70,
+       "y": 244,
+       "w": 28,
+       "h": 10,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_src": "6o7im4q",
+       "_slot": "shoes",
+       "limb": "leg",
+       "_isShoe": true
+      }
+     ],
+     "back": [
+      {
+       "id": "ejik1jd",
+       "kind": "rect",
+       "x": 61,
+       "y": 251,
+       "w": 37,
+       "h": 12,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "limb": "leg"
+      },
+      {
+       "id": "hgkbgrd",
+       "kind": "rect",
+       "x": 70,
+       "y": 244,
+       "w": 28,
+       "h": 10,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "side": [
+      {
+       "id": "yyywp6x",
+       "kind": "rect",
+       "x": 76,
+       "y": 249,
+       "w": 55,
+       "h": 12,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "limb": "leg"
+      },
+      {
+       "id": "w6n9rba",
+       "kind": "rect",
+       "x": 76,
+       "y": 244,
+       "w": 46,
+       "h": 11,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "up": [
+      {
+       "id": "yew5qp1",
+       "kind": "rect",
+       "x": 61,
+       "y": 251,
+       "w": 37,
+       "h": 12,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "limb": "leg"
+      },
+      {
+       "id": "5zjlyjv",
+       "kind": "rect",
+       "x": 70,
+       "y": 244,
+       "w": 28,
+       "h": 10,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "crouch": [
+      {
+       "id": "5zaip36",
+       "kind": "rect",
+       "x": 57,
+       "y": 220,
+       "w": 37,
+       "h": 12,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "limb": "leg"
+      },
+      {
+       "id": "8qymn6p",
+       "kind": "rect",
+       "x": 63,
+       "y": 213,
+       "w": 31,
+       "h": 11,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ]
+    },
+    "oipvf3l": {
+     "front": [
+      {
+       "id": "q1yhbtq",
+       "kind": "rect",
+       "x": 61,
+       "y": 251,
+       "w": 37,
+       "h": 12,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "limb": "leg",
+       "_slot": "shoes",
+       "_isShoe": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "w4c9ug6",
+       "kind": "rect",
+       "x": 70,
+       "y": 244,
+       "w": 28,
+       "h": 10,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "_slot": "shoes",
+       "limb": "leg",
+       "_isShoe": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "back": [
+      {
+       "id": "ejik1jd",
+       "kind": "rect",
+       "x": 61,
+       "y": 251,
+       "w": 37,
+       "h": 12,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "limb": "leg"
+      },
+      {
+       "id": "hgkbgrd",
+       "kind": "rect",
+       "x": 70,
+       "y": 244,
+       "w": 28,
+       "h": 10,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "side": [
+      {
+       "id": "yyywp6x",
+       "kind": "rect",
+       "x": 84,
+       "y": 251,
+       "w": 45,
+       "h": 11,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "limb": "leg"
+      },
+      {
+       "id": "w6n9rba",
+       "kind": "rect",
+       "x": 84,
+       "y": 244,
+       "w": 35,
+       "h": 9,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "up": [
+      {
+       "id": "yew5qp1",
+       "kind": "rect",
+       "x": 61,
+       "y": 251,
+       "w": 37,
+       "h": 12,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "limb": "leg"
+      },
+      {
+       "id": "5zjlyjv",
+       "kind": "rect",
+       "x": 70,
+       "y": 244,
+       "w": 28,
+       "h": 10,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "crouch": [
+      {
+       "id": "5zaip36",
+       "kind": "rect",
+       "x": 57,
+       "y": 217,
+       "w": 37,
+       "h": 12,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "limb": "leg"
+      },
+      {
+       "id": "8qymn6p",
+       "kind": "rect",
+       "x": 64,
+       "y": 207,
+       "w": 31,
+       "h": 11,
+       "color": "#2b2b2b",
+       "mirror": true,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ]
+    }
+   },
+   "lastFit": "oipvf3l",
+   "confirmedFits": [
+    "oipvf3l",
+    "telfv37"
+   ],
+   "savedAt": 1791933179038,
+   "statBoosts": {
+    "speed": 0,
+    "agility": -1,
+    "intelligence": 0,
+    "strength": 2
+   },
+   "effects": [],
+   "defense": 5,
+   "categories": [
+    "T1",
+    "Shoes",
+    "Army"
+   ],
+   "value": 6,
+   "rank": "common"
+  },
+  {
    "id": "ota4h4c",
    "name": "Blue Football Pants",
    "type": "equipment",
