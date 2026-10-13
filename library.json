@@ -899265,6 +899265,71 @@
        }
       },
       {
+       "id": "zc0j930",
+       "t": 1.45,
+       "v": {
+        "lyNst": {
+         "x": 1.65,
+         "y": 9,
+         "rot": 0,
+         "show": 1,
+         "sx": 1,
+         "sy": 1,
+         "flip": false,
+         "play": false
+        },
+        "lyClk": {
+         "x": 2.7,
+         "y": 6.87,
+         "rot": 0,
+         "show": 1,
+         "sx": 1,
+         "sy": 1,
+         "flip": false,
+         "play": false
+        },
+        "lyBed": {
+         "x": 8.3,
+         "y": 9,
+         "rot": 0,
+         "show": 1,
+         "sx": 1,
+         "sy": 1,
+         "flip": true,
+         "play": false
+        },
+        "lyBob": {
+         "x": 8.67,
+         "y": 6.442,
+         "rot": -1.448,
+         "show": 1,
+         "flip": false,
+         "pose": "side",
+         "legs": 88.484,
+         "arms": 0,
+         "sit": 0
+        },
+        "lyCloth": {
+         "x": 9.75,
+         "fx": 12.65,
+         "y": 7.6,
+         "cover": 0.539,
+         "lift": 0,
+         "show": 1
+        },
+        "lyZzz": {
+         "x": 5.6,
+         "y": 4.9,
+         "rot": 0,
+         "show": 0,
+         "sx": 1,
+         "sy": 1,
+         "flip": false,
+         "play": true
+        }
+       }
+      },
+      {
        "id": "kg2",
        "t": 1.5,
        "v": {
@@ -899280,12 +899345,77 @@
          "sit": 0
         },
         "lyCloth": {
-         "x": 5.9,
-         "fx": 11.55,
-         "y": 7.75,
+         "x": 9.95,
+         "fx": 12.45,
+         "y": 7.45,
          "cover": 0.5,
          "lift": 0,
          "show": 1
+        }
+       }
+      },
+      {
+       "id": "7py6fga",
+       "t": 1.55,
+       "v": {
+        "lyNst": {
+         "x": 1.65,
+         "y": 9,
+         "rot": 0,
+         "show": 1,
+         "sx": 1,
+         "sy": 1,
+         "flip": false,
+         "play": false
+        },
+        "lyClk": {
+         "x": 2.7,
+         "y": 6.87,
+         "rot": 0,
+         "show": 1,
+         "sx": 1,
+         "sy": 1,
+         "flip": false,
+         "play": false
+        },
+        "lyBed": {
+         "x": 8.3,
+         "y": 9,
+         "rot": 0,
+         "show": 1,
+         "sx": 1,
+         "sy": 1,
+         "flip": true,
+         "play": false
+        },
+        "lyBob": {
+         "x": 8.67,
+         "y": 6.45,
+         "rot": -0.296,
+         "show": 1,
+         "flip": false,
+         "pose": "side",
+         "legs": 90,
+         "arms": 12.593,
+         "sit": 0
+        },
+        "lyCloth": {
+         "x": 10.15,
+         "fx": 12.55,
+         "y": 7.8,
+         "cover": 0.5,
+         "lift": 0.111,
+         "show": 1
+        },
+        "lyZzz": {
+         "x": 5.6,
+         "y": 4.9,
+         "rot": 0,
+         "show": 0,
+         "sx": 1,
+         "sy": 1,
+         "flip": false,
+         "play": true
         }
        }
       },
@@ -899427,8 +899557,8 @@
      ]
     }
    ],
-   "savedAt": 1791931198015,
-   "editedFrom": 1791891529334
+   "savedAt": 1791935413722,
+   "editedFrom": 1791931198015
   },
   {
    "id": "wcwrkni",
