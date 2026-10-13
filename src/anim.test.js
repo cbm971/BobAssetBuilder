@@ -1,4 +1,4 @@
-import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animDeleteKey, animMoveKey, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS, animPropTransform } from "./anim";
+import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animDeleteKey, animMoveKey, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS, animPropTransform, animClothShape, CLOTH } from "./anim";
 
 let seq = 0;
 const mkId = () => "id" + (++seq);
@@ -216,5 +216,82 @@ describe("🎬 animations — in a level", () => {
     expect(f.key).toBe("34,123"); // the stage covered 20..36; mirrored it covers 123..139
     expect(f.marker.flip).toBe(true);
     expect(animMarkerFlipped(34, 123, f.marker, 160)).toEqual({ key: "34,20", marker: { kind: "anim", animId: "a", w: 17, flip: false } });
+  });
+});
+describe("🛏 a blanket (cloth layer)", () => {
+  const BED = 7, HEM = 7.75;
+  const layer = (len) => ({ id: "c1", kind: "cloth", name: "Blanket", len, bed: BED });
+  const box = (x0, y0, x1, y1, arm) => ({ pts: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], arm: !!arm });
+  // The blanket's top at x: the highest outline point over that spot (the outline is the top line, then
+  // the foot end, then the hem back).
+  const topAt = (g, x) => Math.min(...g.body.filter((p, i) => i < g.body.length / 2 && Math.abs(p[0] - x) < 0.03).map((p) => p[1]));
+  const V = { x: 2, fx: 8, y: HEM, cover: 2.8, lift: 0, show: 1 };
+  test("is a layer kind of its own: kept by migrate, eased like any number, mirrored at both ends", () => {
+    const a = migrateAnim({ ...newAnim(mkId), id: "a", layers: [{ id: "b", kind: "actor" }, { id: "c", kind: "cloth" }] }, mkId);
+    expect(a.layers[1]).toMatchObject({ kind: "cloth", name: "Blanket", len: 6, bed: 7 });
+    const st = { keys: [{ id: "k0", t: 0, v: { c: { cover: 2.8, lift: 0, fx: 10 } } }, { id: "k1", t: 1, v: { c: { cover: 0.5, lift: 2, fx: 12 } } }] };
+    expect(animLayerAt(a, st, a.layers[1], 0.5)).toMatchObject({ cover: 1.65, lift: 1, fx: 11 });
+    expect(animMirrorValues({ x: 2, fx: 8, y: 7 }, 17)).toMatchObject({ x: 15, fx: 9 });
+  });
+  test("on an empty bed it lies flat its own thickness up, hanging to its hem, sheet at the head end", () => {
+    const g = animClothShape(V, layer(6), null);
+    for (const x of [2.5, 4, 6, 7.5]) expect(topAt(g, x)).toBeCloseTo(BED - CLOTH.thick, 5);
+    expect(Math.max(...g.body.map((p) => p[1]))).toBeCloseTo(HEM, 5);
+    expect(g.band[0][0]).toBeCloseTo(2, 5);
+    expect(g.spare).toBeCloseTo(0, 5);
+    expect(g.dots.length).toBeGreaterThan(5);
+    for (const [x, y] of g.dots) { expect(x).toBeGreaterThan(2 + CLOTH.band); expect(y).toBeLessThan(HEM); }
+    expect(g.scallops.every(([, y]) => Math.abs(y - (HEM - 0.02)) < 1e-9)).toBe(true);
+  });
+  test("lies OVER what is under it, never through it", () => {
+    const body = { x: 5, y: 7, rot: 0, flip: false, parts: [box(-1, -1.5, 1, 0)] }; // a box 1.5 tall on the mattress
+    const g = animClothShape({ ...V, cover: 5 }, layer(6), body);
+    for (const x of [4.2, 5, 5.8]) expect(topAt(g, x)).toBeLessThanOrEqual(5.5 - CLOTH.thick + 0.02);
+    expect(topAt(g, 7.95)).toBeCloseTo(BED - CLOTH.thick, 2); // bare mattress well away from it
+  });
+  test("reaches only `cover` up the body, measured along the body, so it turns with him", () => {
+    const tall = box(-1, -3, 1, 0); // a torso 3 tall above the hip
+    const up = animClothShape({ ...V, cover: 0.5 }, layer(4.2), { x: 5, y: 7, rot: 0, parts: [tall] });
+    expect(topAt(up, 5)).toBeCloseTo(6.5 - CLOTH.thick, 1); // stops at his waist, not his head
+    // Lying down (turned -90°, head to the left) the same torso runs from the hip to 3 cells left of it.
+    const lying = animClothShape({ ...V, x: 1, cover: 5 }, layer(6.2), { x: 5, y: 7, rot: -90, parts: [box(-0.5, -3, 0.5, 0)] });
+    expect(topAt(lying, 3.5)).toBeCloseTo(6.5 - CLOTH.thick, 1);
+    expect(lying.band[0][0]).toBeCloseTo(2, 2);
+  });
+  test("starts at him, not on the bare mattress behind him, when nothing of him is under its head end", () => {
+    const g = animClothShape({ ...V, x: 1, cover: 0.5 }, layer(6), { x: 5, y: 7, rot: 0, parts: [box(-1, -3, 1, 0)] });
+    expect(g.band[0][0]).toBeCloseTo(4, 2);
+  });
+  test("an arm coming out past its head end carries the edge up; nothing else does", () => {
+    const raised = (arm) => ({ x: 5, y: 7, rot: 0, parts: [box(-0.2, -3, 0.2, 0, arm), box(0.5, -0.5, 2, 0)] });
+    const v = { ...V, x: 5.5, cover: 5 };
+    const flat = animClothShape(v, layer(2.6), raised(false));
+    const lifted = animClothShape(v, layer(2.6), raised(true));
+    expect(topAt(flat, 5.5)).toBeGreaterThan(6.2);
+    expect(topAt(lifted, 5.5)).toBeLessThan(5);
+  });
+  test("cloth left over bunches up at the head end into rolls and folds; a big heap shows its sheet", () => {
+    const g = animClothShape(V, layer(9), null);
+    expect(g.spare).toBeCloseTo(3, 5);
+    expect(topAt(g, 3)).toBeLessThan(BED - CLOTH.thick - 0.3);
+    expect(topAt(g, 7.5)).toBeCloseTo(BED - CLOTH.thick, 2);
+    expect(g.folds.length).toBe(2);
+    expect(g.patch).not.toBeNull();
+    expect(animClothShape(V, layer(6.5), null).patch).toBeNull();
+  });
+  test("lift raises the head end whole, hem and all, and leaves the foot end on the bed", () => {
+    const g = animClothShape({ ...V, lift: 2 }, layer(6), null);
+    const bottomAt = (x) => Math.max(...g.body.filter((p, i) => i >= g.body.length / 2 && Math.abs(p[0] - x) < 0.03).map((p) => p[1]));
+    expect(topAt(g, 2.05)).toBeLessThan(BED - CLOTH.thick - 1.5);
+    expect(bottomAt(2.05)).toBeLessThan(HEM - 2);
+    expect(bottomAt(7.95)).toBeCloseTo(HEM, 2);
+  });
+  test("a mirrored stage draws the same blanket turned round", () => {
+    const body = { x: 5, y: 7, rot: -90, flip: false, parts: [box(-0.5, -3, 0.5, 0), box(0, -2.4, 1.5, -2, true)] };
+    const g = animClothShape({ ...V, x: 1 }, layer(6.5), body);
+    const m = animClothShape(animMirrorValues({ ...V, x: 1 }, 17), layer(6.5), { ...animMirrorValues(body, 17), parts: body.parts });
+    for (const x of [2.2, 3, 4, 5, 6, 7, 7.8]) expect(topAt(m, 17 - x)).toBeCloseTo(topAt(g, x), 1);
+    expect(m.band[0][0]).toBeCloseTo(17 - g.band[0][0], 5);
+    expect(m.dots.length).toBe(g.dots.length);
   });
 });

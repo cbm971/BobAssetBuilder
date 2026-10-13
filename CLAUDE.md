@@ -440,15 +440,18 @@ plus traps it does not cover:
   state's sound loops for exactly that state, so a sound that must stop on a HIT (the alarm) gets
   a short state of its own. Draw order is per LAYER, never per key, and an actor moving under a
   covering layer that moves slower shows through it. A prop can be squashed per key (`sx`/`sy`,
-  Width/Height in the editor, about its bottom-centre, `animPropTransform`). The Bed (asked seven
-  times, his words are the spec): the blanket does NOT move in the slap or the stir (any drag read
-  as "a clothing item"); it slides down off his chest into his lap on the sit-up's OWN keys (kg1 →
-  kg2), foot end fixed, left edge at the back of his torso, low enough to clear his jacket; it lifts
-  off his legs on the arm RAISE (kg2 → kg3) and lands at the foot, right of his toes, as the arm
-  comes down (kg3 → kg4), becoming the heap in 0.03 s; only then do his legs swing off. A cover
-  moves only on the body's own keys, never before or after them (bunching it to his shins before
-  the sit-up read as "phases through the feet" and left the throw "at nothing"). Never invent a
-  motion he did not ask for to hang a fix on. An actor's prompt
+  Width/Height in the editor, about its bottom-centre, `animPropTransform`). A BLANKET is its own
+  layer kind, `"cloth"` (🛏 in the editor): `animClothShape` works its shape out fresh every frame
+  from the actor's outline (`animActorParts`) — it lies over whatever of him is under it, up to
+  `cover` cells along his body from the hip, an arm coming out past its head end lifts the edge,
+  spare cloth (`len`) bunches into rolls and folds, and `lift` raises its head end hem and all.
+  A stiff drawing moved, turned or squashed under a moving body was rejected eight times ("cheap,
+  ugly and unnatural"); never cover a moving body with a prop again. The Bed: the blanket's keys
+  are only on the body's own keys — stays put in the slap (his arm lifts its edge by itself),
+  cover 2.8 → 0.5 on the sit-up (kg1 → kg2: it rides up his chest and slides into his lap),
+  lifts off his legs on the arm RAISE (kg2 → kg3) and lands as the heap at the foot, clear of his
+  hand when he stands, as the arm comes down (kg3 → kg4). Never invent a motion he did not ask for
+  to hang a fix on. An actor's prompt
   centres on the BODY (`animActorPromptSpot`), not the hip.
   "Level start" begins in the play effect, "Walk up + E" last in the E chain, both
   through `beginCut`; a cutscene pauses the world like a conversation (`cutFrame`, one return at

@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 // the game's own front end will play the same data without the studio — see src/audio.js. The clip
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
-import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animDeleteKey, animMoveKey, animSetState, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped } from "./anim";
+import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animKeyIndexAt, animAddKey, animSetValues, animDeleteKey, animMoveKey, animSetState, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped } from "./anim";
 import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume } from "./audio";
 
 /* ============================================================================
@@ -6675,6 +6675,24 @@ export const animActorBlocks = (blocks, v) => {
       const a = anchorOf(b);
       return a ? rigidArmFollow(b, a, armRot(a)) : { ...b, rot: armRot(b) };
     });
+  }
+  return out;
+};
+// 🛏 ...and that posed drawing as outlines, for a blanket to lie on (animClothShape): every painted
+// piece's box as four corners, turned the way Static turns it (about pieceOriginFrac, mirrored after
+// the turn), relative to the hip, in cells. Arms are marked — an arm coming out from under a blanket
+// lifts its edge.
+export const animActorParts = (posed, hip) => {
+  const out = [];
+  for (const p of posed || []) {
+    if (!p || p.isCutter || p.isHitbox || p.isMuzzle || !(p.w > 0) || !(p.h > 0)) continue;
+    const [fx, fy] = pieceOriginFrac(p), ox = p.x + fx * p.w, oy = p.y + fy * p.h, mir = !!p._m;
+    const r = ((mir && p.mirrorTwist === false ? -(p.rot || 0) : (p.rot || 0)) * Math.PI) / 180, c = Math.cos(r), sn = Math.sin(r);
+    const pts = [[p.x, p.y], [p.x + p.w, p.y], [p.x + p.w, p.y + p.h], [p.x, p.y + p.h]].map(([x, y]) => {
+      const dx = x - ox, dy = y - oy, rx = (dx * c - dy * sn) * (mir ? -1 : 1), ry = dx * sn + dy * c;
+      return [((ox + rx - hip.x) / W) * PLAYER_RENDER_W_CELLS, ((oy + ry - hip.y) / H) * PLAYER_H_CELLS];
+    });
+    out.push({ pts, arm: p.role === "weaponArm" || (p.limb === "arm" && !p._isShoe) });
   }
   return out;
 };
@@ -19765,6 +19783,18 @@ export default function AssetStudio() {
       if (hit && hit.anim === anim && hit.sig === sig) return hit.el;
     }
     const showActor = o.showActor !== false && animActorShown(anim, si);
+    // 🛏 What a blanket lies on: the actor as it is drawn this frame (animActorParts), if it is on stage.
+    const clothBody = (() => {
+      if (!anim.layers.some((l) => l.kind === "cloth")) return null;
+      const al = anim.layers.find((l) => l.kind === "actor");
+      if (!al || !showActor || !o.actor) return null;
+      let av = vals[al.id];
+      if (o.flip) av = animMirrorValues(av, anim.w);
+      if (!((+av.show || 0) > 0.001)) return null;
+      const art = o.actor(ANIM_POSES.includes(av.pose) ? av.pose : "side");
+      if (!art || !art.length) return null;
+      return { x: av.x, y: av.y, rot: av.rot, flip: av.flip, parts: animActorParts(animActorBlocks(art, av), animActorHip(art)) };
+    })();
     const kids = [];
     for (const l of anim.layers) {
       let v = vals[l.id];
@@ -19787,6 +19817,23 @@ export default function AssetStudio() {
         kids.push(<div key={l.id} className={cls} style={{ left: v.x * cellPx - hx, top: v.y * cellPx - hy, width: rw, height: rh, transformOrigin: hx + "px " + hy + "px", transform: tf, opacity }} onPointerDown={down}>
           {renderPieceRuns({ pieces: posed, cacheKey: o.key + "a", keyPrefix: o.key + "a", alphaOf: spriteAlphaOf(o.alphaRoot || null, null), drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, undefined, cut) })}
         </div>);
+      } else if (l.kind === "cloth") {
+        // 🛏 A blanket is drawn in stage cells over the whole stage; only the cloth itself takes a click.
+        const g = animClothShape(v, l, clothBody);
+        if (!g) continue;
+        const d = (pts) => "M" + pts.map((q) => q[0].toFixed(3) + " " + q[1].toFixed(3)).join("L") + "Z";
+        const L = CLOTH_LOOK;
+        kids.push(<svg key={l.id} className={cls + " animCloth"} viewBox={"0 0 " + anim.w + " " + anim.h} style={{ left: 0, top: 0, width: anim.w * cellPx, height: anim.h * cellPx, opacity }}>
+          <g className="clothHit" onPointerDown={down}>
+            {g.scallops.map((q, i) => <circle key={"s" + i} cx={q[0].toFixed(3)} cy={q[1].toFixed(3)} r={q[2]} fill={L.fill} />)}
+            <path d={d(g.body)} fill={L.fill} stroke={sel ? "#ffd23f" : "none"} strokeWidth={sel ? 0.04 : 0} strokeDasharray={sel ? "0.12 0.08" : undefined} />
+            {g.dots.map((q, i) => <circle key={"d" + i} cx={q[0].toFixed(3)} cy={q[1].toFixed(3)} r={q[2]} fill={L.dot} />)}
+            {g.band && <path d={d(g.band)} fill={L.sheet} />}
+            {g.seam && <line x1={g.seam[0][0].toFixed(3)} y1={g.seam[0][1].toFixed(3)} x2={g.seam[1][0].toFixed(3)} y2={g.seam[1][1].toFixed(3)} stroke={L.seam} strokeWidth={CLOTH.seam} />}
+            {g.folds.map((f, i) => <polyline key={"f" + i} points={f.map((q) => q[0].toFixed(3) + "," + q[1].toFixed(3)).join(" ")} fill="none" stroke={L.seam} strokeWidth={0.06} strokeLinecap="round" strokeLinejoin="round" />)}
+            {g.patch && <path d={d(g.patch)} fill={L.sheet} />}
+          </g>
+        </svg>);
       } else {
         const pa = l.propId ? findA(l.propId) : null;
         if (!pa) { if (o.editor) kids.push(<div key={l.id} className={cls + " animMissing"} style={{ left: v.x * cellPx - cellPx, top: v.y * cellPx - 2 * cellPx, width: 2 * cellPx, height: 2 * cellPx }} onPointerDown={down}>🌿</div>); continue; }
@@ -21991,14 +22038,16 @@ export default function AssetStudio() {
       setAnimSel(l.id);
       if (playing) return;
       const v = animLayerAt(d, st, l, Math.min(animT, dur));
-      animDrag.current = { id: l.id, sx: e.clientX, sy: e.clientY, x0: v.x, y0: v.y, si, t: Math.min(animT, dur) };
+      animDrag.current = { id: l.id, sx: e.clientX, sy: e.clientY, x0: v.x, y0: v.y, fx0: l.kind === "cloth" ? v.fx : undefined, si, t: Math.min(animT, dur) };
       try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* capture is a nicety: without it a fast drag can slip off the layer */ }
     };
     const onStageMove = (e) => {
       const g = animDrag.current; if (!g) return;
       const snap = (v) => Math.round(v * 20) / 20;
       const x = snap(g.x0 + (e.clientX - g.sx) / cellPx), y = snap(g.y0 + (e.clientY - g.sy) / cellPx);
-      setAnimDoc((cur) => (cur ? animSetValues(cur, g.si, g.t, g.id, { x, y }, uid) : cur));
+      // A blanket moves whole: both its ends go with the drag.
+      const patch = g.fx0 !== undefined ? { x, y, fx: snap(g.fx0 + (x - g.x0)) } : { x, y };
+      setAnimDoc((cur) => (cur ? animSetValues(cur, g.si, g.t, g.id, patch, uid) : cur));
     };
     const onStageUp = () => { animDrag.current = null; };
     // The timeline: click or drag anywhere on it to move the playhead (to a twentieth of a second).
@@ -22114,7 +22163,7 @@ export default function AssetStudio() {
               <div className="animLayers">
                 {d.layers.slice().reverse().map((l) => (
                   <div key={l.id} className={"animLayerRow" + (sel && l.id === sel.id ? " on" : "")} onClick={() => setAnimSel(l.id)}>
-                    <span className="animLayerName">{l.kind === "actor" ? "🧍 " : "🌿 "}{l.name}</span>
+                    <span className="animLayerName">{l.kind === "actor" ? "🧍 " : l.kind === "cloth" ? "🛏 " : "🌿 "}{l.name}</span>
                     <button className="rotbtn" title="Forward" onClick={(e) => { e.stopPropagation(); put(animMoveLayer(d, l.id, 1)); }}>▲</button>
                     <button className="rotbtn" title="Back" onClick={(e) => { e.stopPropagation(); put(animMoveLayer(d, l.id, -1)); }}>▼</button>
                     {l.kind !== "actor" && <button className="rotbtn" title="Remove" onClick={(e) => { e.stopPropagation(); put(animRemoveLayer(d, l.id)); }}>🗑</button>}
@@ -22125,10 +22174,11 @@ export default function AssetStudio() {
                 <option value="">＋ Prop layer…</option>
                 {propGroupsAll.map((g) => <optgroup key={g.key} label={"📂 " + g.label}>{g.props.map((a) => <option key={a.id} value={a.id}>🌿 {a.name}</option>)}</optgroup>)}
               </select>
+              <button className="ltbtn" onClick={() => { const l = { id: uid(), kind: "cloth", name: "Blanket", len: 6, bed: Math.max(0, d.h - 2) }; put(animAddLayer(d, l)); setAnimSel(l.id); }}>＋ 🛏 Blanket</button>
             </div>
             {sel && (
               <div className="card">
-                <div className="ct">{sel.kind === "actor" ? "🧍" : "🌿"} {sel.name} · {onKey ? "key " + (keyIdx + 1) : "＋ key at " + Math.min(animT, dur).toFixed(2) + " s"}</div>
+                <div className="ct">{sel.kind === "actor" ? "🧍" : sel.kind === "cloth" ? "🛏" : "🌿"} {sel.name} · {onKey ? "key " + (keyIdx + 1) : "＋ key at " + Math.min(animT, dur).toFixed(2) + " s"}</div>
                 <label className="catfield">Name <input value={sel.name} onChange={(e) => put(animSetLayer(d, sel.id, { name: e.target.value }))} /></label>
                 {sel.kind === "prop" && <>
                   <div className="animRowF">
@@ -22139,6 +22189,18 @@ export default function AssetStudio() {
                   </div>
                   {sliderRow("Size", sel.size || 3, 0.5, 30, 0.05, " cells", (v) => put(animSetLayer(d, sel.id, { size: v })))}
                 </>}
+                {sel.kind === "cloth" ? <>
+                  {sliderRow("Length", sel.len || 6, 0.5, 30, 0.05, " cells", (v) => put(animSetLayer(d, sel.id, { len: v })))}
+                  {sliderRow("Mattress", sel.bed ?? d.h - 2, 0, d.h, 0.05, "", (v) => put(animSetLayer(d, sel.id, { bed: v })))}
+                  <div className="animRowF">
+                    <label className="catfield">Head {numIn(selV.x, (v) => setV({ x: v }))}</label>
+                    <label className="catfield">Foot {numIn(selV.fx, (v) => setV({ fx: v }))}</label>
+                    <label className="catfield">Hem {numIn(selV.y, (v) => setV({ y: v }))}</label>
+                  </div>
+                  {sliderRow("Cover", selV.cover ?? 2.8, 0, 5, 0.05, " cells", (v) => setV({ cover: v }))}
+                  {sliderRow("Lift", selV.lift || 0, 0, 4, 0.05, " cells", (v) => setV({ lift: v }))}
+                  {sliderRow("Show", Math.round((selV.show ?? 1) * 100), 0, 100, 5, "%", (v) => setV({ show: v / 100 }))}
+                </> : <>
                 <div className="animRowF">
                   <label className="catfield">X {numIn(selV.x, (v) => setV({ x: v }))}</label>
                   <label className="catfield">Y {numIn(selV.y, (v) => setV({ y: v }))}</label>
@@ -22146,7 +22208,8 @@ export default function AssetStudio() {
                 </div>
                 {sliderRow("Turn", Math.round(selV.rot || 0), -180, 180, 1, "°", (v) => setV({ rot: v }))}
                 {sliderRow("Show", Math.round((selV.show ?? 1) * 100), 0, 100, 5, "%", (v) => setV({ show: v / 100 }))}
-                {sel.kind === "actor" ? <>
+                </>}
+                {sel.kind === "cloth" ? null : sel.kind === "actor" ? <>
                   <div className="animRowF"><div className="seg">{ANIM_POSES.map((p) => <button key={p} className={selV.pose === p ? "on" : ""} onClick={() => setV({ pose: p })}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div></div>
                   {sliderRow("Legs", Math.round(selV.legs || 0), 0, 135, 1, "°", (v) => setV({ legs: v }))}
                   {sliderRow("Arms", Math.round(selV.arms || 0), 0, 180, 1, "°", (v) => setV({ arms: v }))}
@@ -26951,6 +27014,8 @@ html,body{margin:0;padding:0;background:#0f1117}
 .animLayer{position:absolute}
 .animStage.ed .animLayer{pointer-events:auto;cursor:grab}
 .animStage.ed .animLayer.sel{outline:1px dashed #ffd23f;outline-offset:2px}
+.animStage .animLayer.animCloth{pointer-events:none;overflow:visible;outline:none}
+.animStage.ed .animCloth .clothHit{pointer-events:visiblePainted;cursor:grab}
 .animNoActor{background:rgba(160,170,190,.35);border:1px dashed #aab2c6;border-radius:8px}
 .animMissing{display:flex;align-items:center;justify-content:center;border:1px dashed #aab2c6;font-size:20px;opacity:.6}
 .animEdit{flex:1;display:flex;gap:14px;padding:14px;overflow:auto;align-items:flex-start}

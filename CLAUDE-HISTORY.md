@@ -4412,6 +4412,36 @@ It should only Say "E - Get up.""
   1.20-1.77 on the same frames his turn goes -86 → 0; lifting 1.77-2.08 with the arm raise (turn to
   12°), landing 2.08-2.40 with the arm coming down; heap at 2.46; legs from 2.46. Frames checked with
   BoB and Army Bob.
+- (2026-10-13, take 6) Blake: "That one still looks bad. The blanket should likely rise when the player
+  reaches back for the alarm, and all you are doing is shrinking it in the phases. It still looks cheap,
+  ugly and unnatural." He was right about the cause: every take had moved, turned, faded or squashed ONE
+  stiff drawing, and no timing makes a stiff drawing behave like cloth over a moving body.
+  - **A new layer kind, `"cloth"`.** `animClothShape` (anim.js) is a side-view drape worked out fresh
+    every frame from the actor's outline: App.js hands it every painted piece's box as four corners
+    relative to the hip (`animActorParts`, turned the way Static turns pieces, arms marked). The top
+    line rests on the parts toward the foot from the head end and no further up the body than `cover`
+    (cells from the hip, along the body, so it turns with him), on an arm just past the head end (by
+    less the further past), and on the bare mattress (`bed`); it sits `CLOTH.thick` up, never falls
+    away steeper than `CLOTH.slope` (a raised arm makes a tent), hollows are filled and corners
+    rounded. It starts at him when nothing of him is under its head end (sat up, it is in his lap, not
+    lying flat behind him). Its length (`len`) minus the top line's length bunches at the head end as
+    rolls with fold creases (in his lap; a heap with the sheet showing at the foot). `lift` raises the
+    head end hem and all, the hanging side further (`CLOTH.fly`), so a thrown blanket is a sheet with
+    his legs showing under it. Drawn as one SVG over the stage in blnkt01's colours (pattern measured
+    from the foot end along the top so it rides the cloth); only the cloth takes a click.
+  - Stateless on purpose: a scrubbed timeline and a played one draw the same blanket.
+  - Editor: "＋ 🛏 Blanket", card = Length, Mattress, Head/Foot/Hem, Cover, Lift, Show; dragging it moves
+    both ends. Width/Height on props stay (they are a prop feature now unused by the Bed).
+  - Wake Up (Bed): lyBlk + lyHep (blnkt01 + blnkhp1 props) replaced by lyCloth (len 6.25 = its rest
+    top line + 0.1, bed 7.05). Keys only on the body's own keys: rest everywhere until kg1, cover 0.5 at
+    kg2, head 9.2 / foot 12.3 / lift 1.5 at kg3 (arm up), head 11.0 / foot 12.65 / lift 0 at kg4 (the
+    heap ends right of his hand once he stands; at 10.75 it touched it). kgf (the swap) is gone.
+  - A sample count of `ceil(span / step)` came out one different for a mirrored stage (120.00000000000001)
+    and a box edge exactly on a sample was in on one side and out on the other: both now take 1e-9.
+  Measured in Playtest on S1 (Army Bob), from E: edge lifted to 3.90 at 0.12 s as the arm comes out and
+  again at 0.55 as it goes back under; sit-up 1.19-1.75 (rides up to 3.95, settles to 5.38 in his lap)
+  on the frames his turn goes -86 → 0; hem up to 5.20 by 2.09 with the arm raise; heap at 2.46 with
+  the arm down; the heap stays after you take over. Frames checked with BoB and Army Bob.
 
 ## 🏠 Trailor Park S1: the bedroom's ceiling and closet door (2026-10-12)
 
