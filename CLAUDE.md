@@ -440,12 +440,15 @@ plus traps it does not cover:
   state's sound loops for exactly that state, so a sound that must stop on a HIT (the alarm) gets
   a short state of its own. Draw order is per LAYER, never per key, and an actor moving under a
   covering layer that moves slower shows through it. A prop can be squashed per key (`sx`/`sy`,
-  Width/Height in the editor, about its bottom-centre, `animPropTransform`). The Bed (asked six
-  times, his words are the spec): the blanket drags a little with the slap, BUNCHES onto his shins
-  before he sits up so nothing overlaps the rising torso, holds still through the sit-up, squashes
-  into the heap on the SAME keys as his seated arm throw (kg3 → kg4), becomes the heap in place, and
-  only then do his legs swing off. Never invent a motion he did not ask for to hang a fix on, and
-  never move or fade a cover while a body moves under it. An actor's prompt
+  Width/Height in the editor, about its bottom-centre, `animPropTransform`). The Bed (asked seven
+  times, his words are the spec): the blanket does NOT move in the slap or the stir (any drag read
+  as "a clothing item"); it slides down off his chest into his lap on the sit-up's OWN keys (kg1 →
+  kg2), foot end fixed, left edge at the back of his torso, low enough to clear his jacket; it lifts
+  off his legs on the arm RAISE (kg2 → kg3) and lands at the foot, right of his toes, as the arm
+  comes down (kg3 → kg4), becoming the heap in 0.03 s; only then do his legs swing off. A cover
+  moves only on the body's own keys, never before or after them (bunching it to his shins before
+  the sit-up read as "phases through the feet" and left the throw "at nothing"). Never invent a
+  motion he did not ask for to hang a fix on. An actor's prompt
   centres on the BODY (`animActorPromptSpot`), not the hip.
   "Level start" begins in the play effect, "Walk up + E" last in the E chain, both
   through `beginCut`; a cutscene pauses the world like a conversation (`cutFrame`, one return at

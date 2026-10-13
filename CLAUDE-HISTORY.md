@@ -4390,6 +4390,28 @@ It should only Say "E - Get up.""
   Measured in Playtest on S1 (Army Bob): blanket 8.72 → 8.43 in the slap, bunched 0.70-1.16 s after
   E during his stir, unmoved through the sit-up (1.16-1.79) and the arm lift, squashing 2.05-2.40
   with the arm, heap at 2.50, legs from 2.5.
+- (2026-10-13, take 5) Blake on that: "the blanket unrealistically follows the player slightly towards
+  the alarm clock like its a clothing item, then immediately shrinks, phases through the feet and
+  appears at the players ankles, then the player does the arm raise animation that's supposed to fully
+  throw the blanket off, at nothing, but the blanket then fades out." Three readings were wrong:
+  - **Any drag in the slap is "clothing".** The blanket now stays exactly where it lies until he sits
+    up; his shoulders coming out from under it as he reaches for the clock is what a real cover does.
+  - **"Compact before he sits up" meant "don't let him rise through it", not "move it early".** Moved
+    while he lay still, it read as shrinking for no reason, and on his shins it left nothing for the
+    throw. It now slides down off his chest into his lap on the sit-up's own keys (kg1 → kg2): foot end
+    fixed at 11.55, left edge 5.9 → 7.4 (the back of his upright torso), sy 0.8 so it clears his jacket
+    while its dip still covers his legs (sx 0.735). Take 3 had slid it at full height and buried him
+    to the shoulders; the left edge always being inside his torso is what keeps it from standing where
+    his chest was.
+  - **The throw is the arm RAISE.** It lifts off his legs, tilting, on kg2 → kg3 (in the air over the
+    foot when the arm is straight up), and lands on the foot of the bed as the arm comes down
+    (kg3 → kg4), squashed to the heap's footprint; kgf at kg4 + 0.03 swaps it for the heap while the
+    arm is already at rest, so the swap stalls nothing. The heap moved right of his toes (x 11.7,
+    layer size 2.2, toes at 10.7, footboard at 12.75) so it never sits where his feet are.
+  Measured in Playtest on S1 (Army Bob), from E: blanket unmoved 0-1.15 s; sliding into his lap
+  1.20-1.77 on the same frames his turn goes -86 → 0; lifting 1.77-2.08 with the arm raise (turn to
+  12°), landing 2.08-2.40 with the arm coming down; heap at 2.46; legs from 2.46. Frames checked with
+  BoB and Army Bob.
 
 ## 🏠 Trailor Park S1: the bedroom's ceiling and closet door (2026-10-12)
 
