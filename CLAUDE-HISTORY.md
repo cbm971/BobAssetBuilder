@@ -4354,6 +4354,20 @@ It should only Say "E - Get up.""
   actor and blanket left edges moved 39.6 px together, opacity 1.00 until 1.31 s after E, 0 by 1.67,
   the sit-up began at 1.7.
 
+- (2026-10-13) Blake: "It still fades away too early for the animation. You are still failing." His
+  copy held that exact version (read from his Chrome store), so it was the reading, not delivery.
+  "Their arm lifting push away blanket animation" was never the lying-down shove added in 0dd3a58: it is
+  the SEATED arm lift (kg3 arms 170 at 1.8 s, kg4 arms 0 at 2.15 s), in the scene since b67de96 and the
+  "second arm animation" after the slap in his 0dd3a58 message. Every version from 0dd3a58 on faded the
+  blanket before he had even sat up. "Slide up with the player" is the sit-up: the blanket stays on
+  him and slides 1.15 cells toward the foot as he rises (its tall chest end lands over his lap, the top
+  at his chest). Now: the lying-down shove is gone (timing back to 1574e1e/633d204 for Bob), the
+  blanket is fully on through the slap, the sit-up, the arm lift and the push, fades 2.15-2.5 s while
+  drifting into the heap, and the legs swing off after (kg5 on, +0.35 s; Get up 3.9 s). Measured in
+  Playtest on S1 with Army Bob: opacity 1.00 until 2.42 s after E, 0 by 2.75, legs moved from 2.84.
+  Frames were checked by rasterising `.animStageWrap` (foreignObject, computed styles inlined) and
+  POSTing the PNG to a loopback receiver, because pane screenshots are 800 px wide.
+
 ## 🏠 Trailor Park S1: the bedroom's ceiling and closet door (2026-10-12)
 
 Blake's S1 opens on a cutaway bedroom at the left end of a street level: a Background back wall of

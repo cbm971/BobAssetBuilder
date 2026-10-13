@@ -440,8 +440,10 @@ plus traps it does not cover:
   state's sound loops for exactly that state, so a sound that must stop on a HIT (the alarm) gets
   a short state of its own. Draw order is per LAYER, never per key, and an actor moving under a
   covering layer that moves slower shows through it: a cover moves exactly WITH him (same offset,
-  same keys) and goes away only AFTER a motion of his (the Bed: fully on through the arm shove,
-  then it fades into the heap, then he sits up; his rule, asked four times). An actor's prompt
+  same keys) and goes away only AFTER a motion of his. The Bed: on through the slap, the sit-up and
+  his SEATED arm lift-and-push (kg3/kg4), then it fades into the heap, then his legs swing off (asked
+  five times; "the arm animation" is that seated one, and a shove I added lying down made it worse).
+  Never invent a motion he did not ask for to hang a fix on. An actor's prompt
   centres on the BODY (`animActorPromptSpot`), not the hip.
   "Level start" begins in the play effect, "Walk up + E" last in the E chain, both
   through `beginCut`; a cutscene pauses the world like a conversation (`cutFrame`, one return at
