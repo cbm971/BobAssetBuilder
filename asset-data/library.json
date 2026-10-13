@@ -898725,11 +898725,11 @@
      "size": 10
     },
     {
-     "id": "lyHep",
+     "id": "lyBlB",
      "kind": "prop",
-     "name": "Blanket Heap",
-     "propId": "blnkhp1",
-     "size": 2.6
+     "name": "Blanket (behind)",
+     "propId": "blnkt01",
+     "size": 5.65
     },
     {
      "id": "lyBob",
@@ -898758,9 +898758,9 @@
      "dur": 1.2,
      "wait": true,
      "loop": true,
-     "prompt": "Press E to turn off the alarm",
-     "promptLayer": "lyClk",
-     "promptLift": 1.5,
+     "prompt": "E - Get up.",
+     "promptLayer": "",
+     "promptLift": 0,
      "fadeIn": 2,
      "fadeOut": 0,
      "sound": "alrmsnd",
@@ -898794,14 +898794,6 @@
          "flip": false,
          "play": true
         },
-        "lyHep": {
-         "x": 11.4,
-         "y": 7.25,
-         "rot": 0,
-         "show": 0,
-         "flip": false,
-         "play": false
-        },
         "lyBob": {
          "x": 8.67,
          "y": 6,
@@ -898828,6 +898820,14 @@
          "show": 1,
          "flip": false,
          "play": true
+        },
+        "lyBlB": {
+         "x": 8.725000000000001,
+         "y": 7.75,
+         "rot": 0,
+         "show": 0,
+         "flip": false,
+         "play": false
         }
        }
       },
@@ -898995,14 +898995,6 @@
          "flip": false,
          "play": true
         },
-        "lyHep": {
-         "x": 11.4,
-         "y": 7.25,
-         "rot": 0,
-         "show": 0,
-         "flip": false,
-         "play": false
-        },
         "lyBob": {
          "x": 8.67,
          "y": 6,
@@ -899029,6 +899021,14 @@
          "show": 0,
          "flip": false,
          "play": true
+        },
+        "lyBlB": {
+         "x": 8.725000000000001,
+         "y": 7.75,
+         "rot": 0,
+         "show": 0,
+         "flip": false,
+         "play": false
         }
        }
       },
@@ -899099,14 +899099,6 @@
          "flip": false,
          "play": false
         },
-        "lyHep": {
-         "x": 11.4,
-         "y": 7.25,
-         "rot": 0,
-         "show": 0,
-         "flip": false,
-         "play": false
-        },
         "lyBob": {
          "x": 7.35,
          "y": 6,
@@ -899131,6 +899123,14 @@
          "show": 0,
          "flip": false,
          "play": true
+        },
+        "lyBlB": {
+         "x": 8.725000000000001,
+         "y": 7.75,
+         "rot": 0,
+         "show": 0,
+         "flip": false,
+         "play": false
         }
        }
       },
@@ -899188,15 +899188,6 @@
        "id": "kg1",
        "t": 0.85,
        "v": {
-        "lyBlk": {
-         "x": 10,
-         "y": 8.05,
-         "rot": 8,
-         "show": 0
-        },
-        "lyHep": {
-         "show": 1
-        },
         "lyBob": {
          "x": 8.67,
          "y": 6,
@@ -899207,6 +899198,12 @@
          "legs": 0,
          "arms": 0,
          "sit": 0
+        },
+        "lyBlk": {
+         "x": 8.725,
+         "y": 7.75,
+         "rot": 0,
+         "show": 1
         }
        }
       },
@@ -899224,6 +899221,12 @@
          "legs": 90,
          "arms": 0,
          "sit": 0
+        },
+        "lyBlk": {
+         "x": 9.875,
+         "y": 8.35,
+         "rot": 0,
+         "show": 1
         }
        }
       },
@@ -899279,6 +899282,23 @@
        }
       },
       {
+       "id": "kgsw",
+       "t": 2.53,
+       "v": {
+        "lyBlk": {
+         "x": 9.875,
+         "y": 8.35,
+         "rot": 0,
+         "show": 1
+        },
+        "lyBlB": {
+         "x": 9.875,
+         "y": 8.35,
+         "show": 0
+        }
+       }
+      },
+      {
        "id": "kg6",
        "t": 2.55,
        "v": {
@@ -899292,6 +899312,12 @@
          "legs": 0,
          "arms": 0,
          "sit": 0.6
+        },
+        "lyBlk": {
+         "show": 0
+        },
+        "lyBlB": {
+         "show": 1
         }
        }
       },
@@ -899349,8 +899375,8 @@
      ]
     }
    ],
-   "savedAt": 1791849938689,
-   "editedFrom": 1791846393007
+   "savedAt": 1791850905268,
+   "editedFrom": 1791849938689
   }
  ],
  "levels": [

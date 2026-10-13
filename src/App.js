@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 // the game's own front end will play the same data without the studio — see src/audio.js. The clip
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
-import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animPromptLift, animLayerAt, animFrame, animMirrorValues, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animDeleteKey, animMoveKey, animSetState, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped } from "./anim";
+import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animDeleteKey, animMoveKey, animSetState, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped } from "./anim";
 import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume } from "./audio";
 
 /* ============================================================================
@@ -19608,7 +19608,8 @@ export default function AssetStudio() {
     if (flip) v = animMirrorValues(v, anim.w);
     const lift = (st && +st.promptLift) || 0; // the state's ↑, to clear what stands behind that layer (the bed's lamp)
     if (l.kind === "prop") { const pa = findA(l.propId); const h = pa ? boomLayout(pa, l.size || 3, 1).height : 2; return { x: v.x, y: v.y - h - 0.25 - lift }; }
-    return { x: v.x, y: v.y - animPromptLift(v) - lift };
+    const sp = animActorPromptSpot(v);
+    return { x: sp.x, y: sp.y - lift };
   };
   // 🎬 A STATE'S SOUND plays from the moment the state starts, looped for as long as the state
   // lasts (a waiting state: until E). It rides the talk voice — one looping voice the engine stops

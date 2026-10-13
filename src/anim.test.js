@@ -1,4 +1,4 @@
-import { newAnim, migrateAnim, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animDeleteKey, animMoveKey, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS } from "./anim";
+import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animDeleteKey, animMoveKey, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS } from "./anim";
 
 let seq = 0;
 const mkId = () => "id" + (++seq);
@@ -114,6 +114,15 @@ describe("🎬 animations — playing", () => {
     expect(animFadeAt(anim, 0, 0.5, 1.5)).toBeCloseTo(0.25, 5); // same t, a lap later: lighter, not black again
     expect(animFadeAt(anim, 1, 1, 1)).toBe(0);
     expect(animFadeAt(anim, 1, 1.75, 1.75)).toBeCloseTo(0.5, 5);
+  });
+  test("the actor's prompt is centred on the body: over the hip standing, toward the head lying", () => {
+    const up = animActorPromptSpot({ x: 8, y: 7, rot: 0 });
+    expect(up.x).toBeCloseTo(8, 5);
+    expect(up.y).toBeCloseTo(7 - 4.4, 5);
+    const lying = animActorPromptSpot({ x: 8.67, y: 6, rot: -90 });
+    expect(lying.x).toBeCloseTo(8.67 - ANIM_BODY_MID_CELLS, 5); // the head is to the left
+    expect(lying.y).toBeCloseTo(6 - 2.2, 5);
+    expect(animActorPromptSpot({ x: 8.67, y: 6, rot: -90, flip: true }).x).toBeCloseTo(lying.x, 5);
   });
   test("the prompt shows only on a waiting state, after its fade-in", () => {
     const { anim } = fixture();

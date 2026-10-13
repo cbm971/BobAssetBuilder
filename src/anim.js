@@ -201,9 +201,19 @@ export const animPromptUp = (anim, si, el) => {
   const st = anim && anim.states && anim.states[si];
   return !!(st && st.wait && (st.prompt || "").trim() && el >= (st.fadeIn || 0));
 };
-// How far over the actor's hip its prompt hangs, in cells: over the head of a man standing (3.6),
-// lower over one lying down, who is only his own thickness tall (2.2), and in between as he turns.
-export const animPromptLift = (v) => 3.6 - 1.4 * Math.abs(Math.sin(((+(v && v.rot) || 0) * Math.PI) / 180));
+// WHERE THE ACTOR'S PROMPT HANGS, in stage cells: centred on the BODY, not the hip (Blake: "centered
+// over Bob"). Lying down the hip is near his feet, so the middle of him is ANIM_BODY_MID_CELLS up
+// the body from it (Bob's art runs from canvas y 35 to 260 and his hip is at 188: the middle is
+// 40.5 units, 1.09 cells, toward the head), turned with him. Height: just over the head of a man
+// standing (4.4 over the hip; his head top is 4.12), just over a man lying down, who is only his own
+// thickness tall (2.2), and in between as he turns. A turn is drawn outside the mirror, so flip
+// does not change which way the head points.
+export const ANIM_BODY_MID_CELLS = 7 * (40.5 / 260);
+export const animPromptLift = (v) => 4.4 - 2.2 * Math.abs(Math.sin(((+(v && v.rot) || 0) * Math.PI) / 180));
+export const animActorPromptSpot = (v) => {
+  const r = ((+(v && v.rot) || 0) * Math.PI) / 180;
+  return { x: v.x + Math.sin(r) * ANIM_BODY_MID_CELLS, y: v.y - animPromptLift(v) };
+};
 // A "Walk up + E" animation plays its first state as scenery while YOU are still playing (the
 // copter hovering, the rope swaying), so its actor is not drawn there — you are.
 export const animActorShown = (anim, si) => !(anim && anim.trigger === "reach" && si === 0);

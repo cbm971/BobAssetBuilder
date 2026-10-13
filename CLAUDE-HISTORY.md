@@ -4310,3 +4310,25 @@ clock to turn it off", with the prompt in a font "closer to the weapon pick up f
   (opacity 1.00 to Get up 0.45 s, then off by 0.85 s) and ride 0.6 cells toward the clock with him.
   Bob slides 1.32 cells and turns -96° to reach: the nightstand stands left of the headboard and
   his arm is 2.18 cells, so from the pillow the hand fell a cell short.
+
+## 🎬 The blanket stays; the prompt is over Bob (2026-10-12, latest)
+
+Blake: "The blanket still disappears too early. The text should be centered over Bob not the alarm.
+It should only Say "E - Get up.""
+
+- The covers never vanish now. They slid off and faded from 0.45 s into Get up (once the arm was
+  back, which is what his previous note asked for), and he still read it as too early: a blanket
+  that fades is a blanket that disappears. Now they stay over him while he stirs, slide 1.15 cells
+  toward the foot (to the footboard) and drop 0.6 as he sits up, so the tall chest end of the quilt
+  lands at his waist rather than his chin, and they are left on the bed when he gets out. Getting
+  out from UNDER them needs the blanket drawn BEHIND him, and a layer's draw order cannot change
+  between keys, so "Blanket (behind)" is the same prop on a layer under the actor, and the two swap
+  `show` across 0.02 s exactly when he turns from Side to Front on the edge (kg6), where the pose
+  change hides the swap. Measured: exactly one blanket drawn in every sampled frame of the cutscene,
+  and it is still drawn after the handoff. The Blanket Heap layer left the scene; the prop stays in
+  his library.
+- The prompt is "E - Get up." and hangs by the actor again (promptLayer ""), centred on the BODY:
+  `animActorPromptSpot` moves it ANIM_BODY_MID_CELLS (1.09) up the body from the hip, turned with
+  him, because lying down the hip is near his feet. Height is 4.4 cells over the hip standing (the
+  old 3.6 sat inside his head; his head top is 4.12) and 2.2 lying. In Playtest it lands at stage x
+  7.58, the middle of him from his head on the pillow to his feet under the covers.
