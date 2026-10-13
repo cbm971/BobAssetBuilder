@@ -17028,7 +17028,7 @@ export default function AssetStudio() {
         }
       }
       const animSig = reachCut ? reachCut.mk : "";
-      if (animSig !== lastAnimSig) { lastAnimSig = animSig; setAnimPrompt(reachCut ? { text: (reachCut.an.states[0] && reachCut.an.states[0].prompt) || "E" } : null); }
+      if (animSig !== lastAnimSig) { lastAnimSig = animSig; setAnimPrompt(reachCut ? { text: (reachCut.an.states[0] && reachCut.an.states[0].prompt) || "E", ik: animInstKey(lv, reachCut.mk), layer: !!(reachCut.an.states[0] && reachCut.an.states[0].promptLayer) } : null); }
       if (reachCut && K.interact && !p.wasInteract) { beginCut(lv, reachCut.mk, reachCut.m, reachCut.an, reachCut.an.states.length > 1 ? 1 : 0); lastAnimSig = ""; }
       // Press E to start talking. openTalk resolves which tree (a saved one by id, or the sign's
       // own typed line) and is shared with nothing else, so there is exactly one way in.
@@ -19596,6 +19596,20 @@ export default function AssetStudio() {
     if (o.cache) o.cache.set(o.key, { anim, sig, el });
     return el;
   };
+  // Where a waiting state's prompt hangs, in stage cells: just over the layer it names (the state's
+  // promptLayer — "press E beside the alarm clock", Blake), else over the actor's head. A prop's
+  // height is its drawn box (boomLayout, the size rule every prop layer is drawn by).
+  const animPromptSpot = (anim, si, t, flip) => {
+    const st = anim.states[si];
+    const named = st && st.promptLayer ? anim.layers.find((l) => l.id === st.promptLayer) : null;
+    const l = named || anim.layers.find((x) => x.kind === "actor");
+    if (!l) return { x: anim.w / 2, y: 1 };
+    let v = animLayerAt(anim, st, l, t);
+    if (flip) v = animMirrorValues(v, anim.w);
+    const lift = (st && +st.promptLift) || 0; // the state's ↑, to clear what stands behind that layer (the bed's lamp)
+    if (l.kind === "prop") { const pa = findA(l.propId); const h = pa ? boomLayout(pa, l.size || 3, 1).height : 2; return { x: v.x, y: v.y - h - 0.25 - lift }; }
+    return { x: v.x, y: v.y - animPromptLift(v) - lift };
+  };
   // 🎬 A STATE'S SOUND plays from the moment the state starts, looped for as long as the state
   // lasts (a waiting state: until E). It rides the talk voice — one looping voice the engine stops
   // on the next call — because a cutscene and a conversation can never be on screen together.
@@ -21790,12 +21804,13 @@ export default function AssetStudio() {
     const looks = allAssets.filter((a) => a.type === "body" || a.type === "character").sort((x, y) => NAME_COLLATOR.compare(x.name || "", y.name || ""));
     const actorOf = animEditorActor(animLook);
     const viewEl = playing ? animPrev.el : viewT;
-    const promptUp = animPromptUp(d, viewSi, viewEl);
+    // Playing: exactly when the game shows it. Stopped on a waiting state: always, so it can be placed.
+    const promptUp = playing ? animPromptUp(d, viewSi, viewEl) : !!(st.wait && (st.prompt || "").trim());
     const fade = playing ? animFadeAt(d, viewSi, viewT, viewEl) : 0; // a still frame is shown as drawn, not under its fade
     // Where the prompt preview sits: over the actor's head while it is on stage, else the top middle.
-    const actorL = d.layers.find((l) => l.kind === "actor");
-    const actorV = actorL ? animLayerAt(d, d.states[viewSi], actorL, viewT) : null;
-    const promptAt = actorV && animActorShown(d, viewSi) ? { x: actorV.x * cellPx, y: Math.max(cellPx, (actorV.y - animPromptLift(actorV)) * cellPx) } : { x: (d.w / 2) * cellPx, y: cellPx * 1.5 };
+    const viewSt = d.states[viewSi];
+    const spot = animPromptSpot(d, viewSi, viewT, false);
+    const promptAt = (viewSt && viewSt.promptLayer) || animActorShown(d, viewSi) ? { x: spot.x * cellPx, y: Math.max(cellPx, spot.y * cellPx) } : { x: (d.w / 2) * cellPx, y: cellPx * 1.5 };
     const numIn = (val, onSet, step = 0.1, w = 64) => <input type="number" className="animNum" style={{ width: w }} step={step} value={r2(val)} onChange={(e) => { const v = parseFloat(e.target.value); if (isFinite(v)) onSet(v); }} />;
     const sliderRow = (label, val, min, max, step, unit, onSet) => (
       <label className="slider animRow">{label}<input type="range" min={min} max={max} step={step} value={val} onChange={(e) => onSet(+e.target.value)} /><span className="hint2">{Math.round(val * 100) / 100}{unit}</span></label>
@@ -21820,7 +21835,7 @@ export default function AssetStudio() {
             <div className="animStageWrap" style={{ width: d.w * cellPx, height: d.h * cellPx, backgroundSize: cellPx + "px " + cellPx + "px" }} onPointerMove={onStageMove} onPointerUp={onStageUp} onPointerCancel={onStageUp}>
               {animStageEl(d, viewSi, viewT, cellPx, { key: "aed", editor: true, sel: sel && sel.id, actor: actorOf, alphaRoot: findA(animLook), clock: playing ? viewT + viewSi * 7 : 0, onLayerDown })}
               {fade > 0 && <div className="animFade inStage" style={{ opacity: fade }} />}
-              {promptUp && <button className="talkCallout animPromptBtn" style={{ left: promptAt.x, top: promptAt.y }} onClick={() => { animPressE.current = true; }}>{animPromptWords(d.states[viewSi].prompt)}</button>}
+              {promptUp && <button className="talkCallout animPrompt animPromptBtn" style={{ left: promptAt.x, top: promptAt.y }} onClick={() => { animPressE.current = true; }}>{animPromptWords(d.states[viewSi].prompt)}</button>}
             </div>
             <div className="card animStates">
               <div className="animStateTabs">
@@ -21847,6 +21862,11 @@ export default function AssetStudio() {
                 <label className="catfield">Length {numIn(st.dur, (v) => put(animSetState(d, si, { dur: Math.max(0.1, Math.min(60, v)) })), 0.1)} s</label>
                 <label className="chk"><input type="checkbox" checked={!!st.wait} onChange={(e) => put(animSetState(d, si, { wait: e.target.checked }))} /> ⏸ Wait for E</label>
                 {st.wait && <input className="catinline" style={{ flex: "1 1 200px" }} value={st.prompt} onChange={(e) => put(animSetState(d, si, { prompt: e.target.value }))} placeholder="Press E to …" />}
+                {st.wait && <label className="catfield">by <select value={st.promptLayer || ""} onChange={(e) => put(animSetState(d, si, { promptLayer: e.target.value }))}>
+                  <option value="">🧍 {(d.layers.find((l) => l.kind === "actor") || {}).name || "Actor"}</option>
+                  {d.layers.filter((l) => l.kind === "prop").map((l) => <option key={l.id} value={l.id}>🌿 {l.name}</option>)}
+                </select></label>}
+                {st.wait && <label className="catfield">↑ {numIn(st.promptLift || 0, (v) => put(animSetState(d, si, { promptLift: Math.max(-10, Math.min(20, v)) })), 0.25, 56)} cells</label>}
                 {st.wait && <label className="chk"><input type="checkbox" checked={!!st.loop} onChange={(e) => put(animSetState(d, si, { loop: e.target.checked }))} /> 🔁 Loop</label>}
               </div>
               <div className="animStateRow">
@@ -23268,11 +23288,14 @@ export default function AssetStudio() {
                       out.push(animStageEl(an, si, t, LV_CELL, { key: "anim" + nk + "_" + mk, left: off.x + box.x, top: off.y + box.y, z: ANIM_STAGE_Z, flip: !!m.flip, actor: actor ? (play ? animPlayerActor : animEditorActor(playerId)) : null, showActor: actor, alphaRoot: findA(playerId), clock, placed: !play, cache: play && !actor ? animStageCache.current : null }));
                       // The waiting state's prompt, over the actor's head, in the shared label layer.
                       if (cut && cut.ik === animInstKey(L, mk) && animPromptUp(an, si, cut.el)) {
-                        const al = an.layers.find((l) => l.kind === "actor");
-                        let av = al ? animLayerAt(an, an.states[si], al, t) : null;
-                        if (av && m.flip) av = animMirrorValues(av, an.w);
-                        const px = off.x + box.x + (av ? av.x : an.w / 2) * LV_CELL, py = off.y + box.y + (av ? av.y - animPromptLift(av) : 1) * LV_CELL;
-                        out.push(<div key={"animprompt" + mk} className="talkCallout" style={{ left: px, top: py }}>{animPromptWords(an.states[si].prompt)}</div>);
+                        const sp = animPromptSpot(an, si, t, !!m.flip);
+                        out.push(<div key={"animprompt" + mk} className="talkCallout animPrompt" style={{ left: off.x + box.x + sp.x * LV_CELL, top: off.y + box.y + sp.y * LV_CELL }}>{animPromptWords(an.states[si].prompt)}</div>);
+                      }
+                      // A "Walk up + E" prompt hung beside a layer of the stage you are standing in
+                      // (one with no layer named goes over your head, in the player's own render).
+                      if (!cut && animPrompt && animPrompt.layer && animPrompt.ik === animInstKey(L, mk)) {
+                        const sp = animPromptSpot(an, si, t, !!m.flip);
+                        out.push(<div key={"animprompt" + mk} className="talkCallout animPrompt" style={{ left: off.x + box.x + sp.x * LV_CELL, top: off.y + box.y + sp.y * LV_CELL }}>{animPromptWords(animPrompt.text)}</div>);
                       }
                     }
                   }
@@ -23682,7 +23705,7 @@ export default function AssetStudio() {
                         <div className="playerStun" style={{ left: p.x, top: p.y - 34 + (p.stepEase || 0) - climbLift, width: pw }}>{(p.down || 0) > 0 ? "😵" : "💫"}</div>
                       )}
                       {/* 🎬 A "Walk up + E" animation you are standing in: its prompt, over your head. */}
-                      {animPrompt && <div className="talkCallout" style={{ left: p.x + pw / 2, top: p.y - 44 + (p.stepEase || 0) - climbLift }}>{animPromptWords(animPrompt.text)}</div>}
+                      {animPrompt && !animPrompt.layer && <div className="talkCallout animPrompt" style={{ left: p.x + pw / 2, top: p.y - 44 + (p.stepEase || 0) - climbLift }}>{animPromptWords(animPrompt.text)}</div>}
                       {/* 🎁 "E ⇄" and what taking the thing under you would change, OVER YOUR HEAD,
                           above the HP and reload bars. It used to hang off the pedestal (or the drop)
                           just above the item's name, which was fine as one line; as a stack of one
@@ -26699,6 +26722,11 @@ html,body{margin:0;padding:0;background:#0f1117}
 .animFade{position:absolute;inset:0;background:#000;pointer-events:none;z-index:50}
 .animFade.inStage{z-index:5}
 .animPromptBtn{background:none;border:0;cursor:pointer;z-index:6}
+/* A cutscene's prompt is set in the pickup banner's face (Shrikhand, Blake 2026-10-12: "closer to
+   the weapon pick up fonts"), bigger than a talk prompt because it is the only thing to do, with
+   the key in the take callout's gold so it reads as the button. Outline from the shared label rule. */
+.talkCallout.animPrompt{font-family:'Shrikhand','Arial Black',Impact,sans-serif;font-size:21px;font-weight:400;letter-spacing:.02em;gap:8px}
+.talkCallout.animPrompt .talkKey{font-family:'Shrikhand','Arial Black',Impact,sans-serif;font-size:24px;font-weight:400;color:#ffd84a}
 .animStates{display:flex;flex-direction:column;gap:10px}
 .animStateTabs{display:flex;flex-wrap:wrap;gap:6px}
 .animStateTabs .live{box-shadow:0 0 0 2px #6bd06b inset}

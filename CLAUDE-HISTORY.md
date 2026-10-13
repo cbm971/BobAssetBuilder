@@ -4285,3 +4285,28 @@ player hidden, prompt in the label style, E, handoff with the hip on the actor's
 the stage floor, walking away), and a throwaway "Walk up + E" / "Leave the floor" animation (prompt
 over your head, E, fade to black, the floor-complete message, play stops). No alarm sound: his
 library has none; a state's 🔊 is where one goes.
+
+## 🎬 The alarm: a sound, a prompt by the clock, a slap (2026-10-12, later)
+
+Blake asked to "tag audio to the animation (an alarm clock noise)" and to "press E beside the alarm
+clock to turn it off", with the prompt in a font "closer to the weapon pick up fonts", and, mid-task,
+"make sure the blanket doesn't vanish before the arm hit away animation".
+
+- Each state already had a 🔊 pick; his library had no alarm. `alrmsnd` "Alarm Clock Ring" is
+  synthesised (scratch generator: two steel bells a little under a fifth apart, 24 hammer strikes a
+  second, inharmonic partials, rendered into a circular buffer so the 2 s clip loops without a
+  seam: the loop-point jump measured 0.038 against ordinary sample steps up to 0.45). Committed as
+  `asset-data/clips/18ad98f3….wav` beside the project file's first `sounds` entry. Not listened to
+  by me; he should judge it and can swap the pick for a recording.
+- A waiting state's prompt can hang by any layer (`promptLayer`) and be raised (`promptLift`):
+  over the clock at its own height it ran across the nightstand's lamp, so the bed lifts it 1.5
+  cells. The editor shows the prompt while a waiting state is being edited, so it can be placed.
+- The prompt is Shrikhand (the pickup banner's face) at 21px, its key in the take callout's gold.
+- A state's sound plays for exactly that state, and E ends "Asleep" at once, but the hand lands a
+  beat later. So "Slap" is its own 0.25 s state with the same ring: measured in Playtest, E stops the
+  Asleep loop, Slap restarts the clip and schedules its end 0.25 s out, which is the frame the hand
+  is on the clock, and "Get up" plays nothing.
+- The covers are pinned by explicit keys through the reach, the hit and the arm coming back
+  (opacity 1.00 to Get up 0.45 s, then off by 0.85 s) and ride 0.6 cells toward the clock with him.
+  Bob slides 1.32 cells and turns -96° to reach: the nightstand stands left of the headboard and
+  his arm is 2.18 cells, so from the pillow the hand fell a cell short.

@@ -36,6 +36,11 @@ describe("🎬 animations — migrateAnim", () => {
     expect(a.states[0].keys.map((k) => k.id)).toEqual(["k1", "k2"]);
     expect(a.states[0].keys[1].v.gone).toBeUndefined();
   });
+  test("a state's prompt can hang by a layer that exists, lifted a clamped amount", () => {
+    const a = migrateAnim({ id: "x", layers: [{ id: "A", kind: "actor" }, { id: "clock", kind: "prop", propId: "p" }], states: [{ wait: true, promptLayer: "clock", promptLift: 99, keys: [] }, { promptLayer: "gone", keys: [] }] }, mkId);
+    expect(a.states[0]).toMatchObject({ promptLayer: "clock", promptLift: 20 });
+    expect(a.states[1]).toMatchObject({ promptLayer: "", promptLift: 0 });
+  });
   test("out-of-range fields are clamped, unknown trigger and ending fall back", () => {
     const a = migrateAnim({ id: "x", w: 500, h: 0, trigger: "huh", ending: "?", states: [{ dur: 999, fadeIn: -3, soundVol: 7, keys: [] }] }, mkId);
     expect(a.w).toBe(80); expect(a.h).toBe(2);

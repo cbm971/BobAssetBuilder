@@ -434,7 +434,9 @@ plus traps it does not cover:
   a mirror). Layers are props plus one actor: the player's own look, keyed by its HIP and turned
   about it (`animActorHip`, `animActorBlocks`). Number values ease between keys; pose/flip/play
   switch AT a key. A waiting state holds for E; its fade-in and prompt go by elapsed `el`, never
-  the looped `t`. "Level start" begins in the play effect, "Walk up + E" last in the E chain, both
+  the looped `t`. Its prompt hangs by a chosen layer (`promptLayer`, raised `promptLift`), and a
+  state's sound loops for exactly that state, so a sound that must stop on a HIT (the alarm) gets
+  a short state of its own. "Level start" begins in the play effect, "Walk up + E" last in the E chain, both
   through `beginCut`; a cutscene pauses the world like a conversation (`cutFrame`, one return at
   the top of the loop). "You take over" puts your standing hip on the actor's last hip and clears
   the queued gate spawn. A finished stage hands back its cached element (`animStageCache`).

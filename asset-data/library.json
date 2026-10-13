@@ -898758,11 +898758,13 @@
      "dur": 1.2,
      "wait": true,
      "loop": true,
-     "prompt": "Press E to wake up",
+     "prompt": "Press E to turn off the alarm",
+     "promptLayer": "lyClk",
+     "promptLift": 1.5,
      "fadeIn": 2,
      "fadeOut": 0,
-     "sound": "",
-     "soundVol": 1,
+     "sound": "alrmsnd",
+     "soundVol": 0.7,
      "keys": [
       {
        "id": "ka0",
@@ -898952,19 +898954,21 @@
      ]
     },
     {
-     "id": "stGetUp",
-     "name": "Get up",
-     "dur": 3.1,
+     "id": "stSlap",
+     "name": "Slap",
+     "dur": 0.25,
      "wait": false,
      "loop": false,
      "prompt": "",
+     "promptLayer": "",
+     "promptLift": 0,
      "fadeIn": 0,
      "fadeOut": 0,
-     "sound": "",
-     "soundVol": 1,
+     "sound": "alrmsnd",
+     "soundVol": 0.7,
      "keys": [
       {
-       "id": "kg0",
+       "id": "ks0",
        "t": 0,
        "v": {
         "lyNst": {
@@ -898989,7 +898993,7 @@
          "rot": 0,
          "show": 1,
          "flip": false,
-         "play": false
+         "play": true
         },
         "lyHep": {
          "x": 11.4,
@@ -899029,8 +899033,160 @@
        }
       },
       {
+       "id": "ks1",
+       "t": 0.22,
+       "v": {
+        "lyBob": {
+         "x": 7.35,
+         "y": 6,
+         "rot": -96,
+         "show": 1,
+         "flip": false,
+         "pose": "side",
+         "legs": 0,
+         "arms": 176,
+         "sit": 0
+        },
+        "lyBlk": {
+         "x": 8.125,
+         "y": 7.75,
+         "rot": 0,
+         "show": 1
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": "stGetUp",
+     "name": "Get up",
+     "dur": 3.55,
+     "wait": false,
+     "loop": false,
+     "prompt": "",
+     "promptLayer": "",
+     "promptLift": 0,
+     "fadeIn": 0,
+     "fadeOut": 0,
+     "sound": "",
+     "soundVol": 1,
+     "keys": [
+      {
+       "id": "kg0",
+       "t": 0,
+       "v": {
+        "lyNst": {
+         "x": 1.65,
+         "y": 9,
+         "rot": 0,
+         "show": 1,
+         "flip": false,
+         "play": false
+        },
+        "lyBed": {
+         "x": 8.3,
+         "y": 9,
+         "rot": 0,
+         "show": 1,
+         "flip": true,
+         "play": false
+        },
+        "lyClk": {
+         "x": 2.7,
+         "y": 6.72,
+         "rot": -16,
+         "show": 1,
+         "flip": false,
+         "play": false
+        },
+        "lyHep": {
+         "x": 11.4,
+         "y": 7.25,
+         "rot": 0,
+         "show": 0,
+         "flip": false,
+         "play": false
+        },
+        "lyBob": {
+         "x": 7.35,
+         "y": 6,
+         "rot": -96,
+         "show": 1,
+         "flip": false,
+         "pose": "side",
+         "legs": 0,
+         "arms": 176,
+         "sit": 0
+        },
+        "lyBlk": {
+         "x": 8.125,
+         "y": 7.75,
+         "rot": 0,
+         "show": 1
+        },
+        "lyZzz": {
+         "x": 5.6,
+         "y": 4.9,
+         "rot": 0,
+         "show": 0,
+         "flip": false,
+         "play": true
+        }
+       }
+      },
+      {
+       "id": "kgs1",
+       "t": 0.18,
+       "v": {
+        "lyClk": {
+         "rot": 0,
+         "y": 6.87
+        },
+        "lyBob": {
+         "x": 7.35,
+         "y": 6,
+         "rot": -96,
+         "show": 1,
+         "flip": false,
+         "pose": "side",
+         "legs": 0,
+         "arms": 120,
+         "sit": 0
+        },
+        "lyBlk": {
+         "x": 8.125,
+         "y": 7.75,
+         "rot": 0,
+         "show": 1
+        }
+       }
+      },
+      {
+       "id": "kgs2",
+       "t": 0.45,
+       "v": {
+        "lyBob": {
+         "x": 8.67,
+         "y": 6,
+         "rot": -90,
+         "show": 1,
+         "flip": false,
+         "pose": "side",
+         "legs": 0,
+         "arms": 0,
+         "sit": 0
+        },
+        "lyBlk": {
+         "x": 8.725,
+         "y": 7.75,
+         "rot": 0,
+         "show": 1
+        }
+       }
+      },
+      {
        "id": "kg1",
-       "t": 0.4,
+       "t": 0.85,
        "v": {
         "lyBlk": {
          "x": 10,
@@ -899056,7 +899212,7 @@
       },
       {
        "id": "kg2",
-       "t": 1.05,
+       "t": 1.5,
        "v": {
         "lyBob": {
          "x": 8.67,
@@ -899073,7 +899229,7 @@
       },
       {
        "id": "kg3",
-       "t": 1.35,
+       "t": 1.8,
        "v": {
         "lyBob": {
          "x": 8.67,
@@ -899090,7 +899246,7 @@
       },
       {
        "id": "kg4",
-       "t": 1.7,
+       "t": 2.15,
        "v": {
         "lyBob": {
          "x": 8.67,
@@ -899107,7 +899263,7 @@
       },
       {
        "id": "kg5",
-       "t": 2,
+       "t": 2.45,
        "v": {
         "lyBob": {
          "x": 8.95,
@@ -899124,7 +899280,7 @@
       },
       {
        "id": "kg6",
-       "t": 2.1,
+       "t": 2.55,
        "v": {
         "lyBob": {
          "x": 9.05,
@@ -899141,7 +899297,7 @@
       },
       {
        "id": "kg7",
-       "t": 2.4,
+       "t": 2.85,
        "v": {
         "lyBob": {
          "x": 9.05,
@@ -899158,7 +899314,7 @@
       },
       {
        "id": "kg8",
-       "t": 2.75,
+       "t": 3.2,
        "v": {
         "lyBob": {
          "x": 9.15,
@@ -899175,7 +899331,7 @@
       },
       {
        "id": "kg9",
-       "t": 3,
+       "t": 3.45,
        "v": {
         "lyBob": {
          "x": 9.3,
@@ -899193,7 +899349,8 @@
      ]
     }
    ],
-   "savedAt": 1791846393007
+   "savedAt": 1791849938689,
+   "editedFrom": 1791846393007
   }
  ],
  "levels": [
@@ -1425787,6 +1425944,18 @@
     }
    },
    "savedAt": 1791546697759
+  }
+ ],
+ "sounds": [
+  {
+   "id": "alrmsnd",
+   "type": "sound",
+   "name": "Alarm Clock Ring",
+   "category": "Effects",
+   "clip": "18ad98f33cefdf02dde73cf0bebf.wav",
+   "bytes": 176444,
+   "dur": 2,
+   "savedAt": 1791849938689
   }
  ],
  "removed": {

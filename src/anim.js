@@ -12,7 +12,7 @@
  *     trigger: "start" | "reach",                    plays as the level starts / when you walk up and press E
  *     ending: "play" | "leave",                      you take over where the actor ends / the floor is done
  *     layers: [{ id, name, kind: "actor" } | { id, name, kind: "prop", propId, size }],   back to front
- *     states: [{ id, name, dur, wait, loop, prompt, fadeIn, fadeOut, sound, soundVol,
+ *     states: [{ id, name, dur, wait, loop, prompt, promptLayer, promptLift, fadeIn, fadeOut, sound, soundVol,
  *                keys: [{ id, t, v: { <layerId>: { x, y, rot, show, flip, pose, legs, arms, sit, play } } }] }] }
  *
  * A LAYER'S VALUES, in stage cells from the stage's top-left:
@@ -63,7 +63,7 @@ export const animLayerDefaults = (anim, layer) => {
   return { x: w / 2, y: h, rot: 0, show: 1, flip: false, play: true };
 };
 
-export const newAnimState = (mkId, name) => ({ id: mkId(), name: name || "State", dur: 2, wait: false, loop: false, prompt: "", fadeIn: 0, fadeOut: 0, sound: "", soundVol: 1, keys: [{ id: mkId(), t: 0, v: {} }] });
+export const newAnimState = (mkId, name) => ({ id: mkId(), name: name || "State", dur: 2, wait: false, loop: false, prompt: "", promptLayer: "", promptLift: 0, fadeIn: 0, fadeOut: 0, sound: "", soundVol: 1, keys: [{ id: mkId(), t: 0, v: {} }] });
 export const newAnim = (mkId) => ({
   type: "anim", name: "Animation", category: "", w: 14, h: 9, trigger: "start", ending: "play",
   // Never drawn. Every asset carries an `angles` map, and the studio's asset-wide code walks it.
@@ -107,6 +107,10 @@ export const migrateAnim = (a0, mkId) => {
       dur: clamp(num(s.dur, 2), ANIM_MIN_DUR, ANIM_MAX_DUR),
       wait: !!s.wait, loop: !!s.loop,
       prompt: typeof s.prompt === "string" ? s.prompt : "",
+      // Which layer the prompt hangs beside ("" = the actor's head). A layer since deleted falls back.
+      promptLayer: typeof s.promptLayer === "string" && ids.has(s.promptLayer) ? s.promptLayer : "",
+      // ...and how much higher than its spot, in cells, to clear whatever stands behind that layer.
+      promptLift: clamp(num(s.promptLift, 0), -10, 20),
       fadeIn: clamp(num(s.fadeIn, 0), 0, 10), fadeOut: clamp(num(s.fadeOut, 0), 0, 10),
       sound: typeof s.sound === "string" ? s.sound : "",
       soundVol: clamp(num(s.soundVol, 1), 0, 2),
