@@ -898725,11 +898725,11 @@
      "size": 10
     },
     {
-     "id": "lyBlB",
+     "id": "lyHep",
      "kind": "prop",
-     "name": "Blanket (behind)",
-     "propId": "blnkt01",
-     "size": 5.65
+     "name": "Blanket Heap",
+     "propId": "blnkhp1",
+     "size": 2.6
     },
     {
      "id": "lyBob",
@@ -898821,9 +898821,9 @@
          "flip": false,
          "play": true
         },
-        "lyBlB": {
-         "x": 8.725000000000001,
-         "y": 7.75,
+        "lyHep": {
+         "x": 11.4,
+         "y": 7.25,
          "rot": 0,
          "show": 0,
          "flip": false,
@@ -899022,9 +899022,9 @@
          "flip": false,
          "play": true
         },
-        "lyBlB": {
-         "x": 8.725000000000001,
-         "y": 7.75,
+        "lyHep": {
+         "x": 11.4,
+         "y": 7.25,
          "rot": 0,
          "show": 0,
          "flip": false,
@@ -899060,7 +899060,7 @@
     {
      "id": "stGetUp",
      "name": "Get up",
-     "dur": 3.55,
+     "dur": 3.85,
      "wait": false,
      "loop": false,
      "prompt": "",
@@ -899124,9 +899124,9 @@
          "flip": false,
          "play": true
         },
-        "lyBlB": {
-         "x": 8.725000000000001,
-         "y": 7.75,
+        "lyHep": {
+         "x": 11.4,
+         "y": 7.25,
          "rot": 0,
          "show": 0,
          "flip": false,
@@ -899185,18 +899185,18 @@
        }
       },
       {
-       "id": "kg1",
-       "t": 0.85,
+       "id": "kp1",
+       "t": 0.7,
        "v": {
         "lyBob": {
          "x": 8.67,
          "y": 6,
-         "rot": -86,
+         "rot": -90,
          "show": 1,
          "flip": false,
          "pose": "side",
          "legs": 0,
-         "arms": 0,
+         "arms": 115,
          "sit": 0
         },
         "lyBlk": {
@@ -899204,12 +899204,58 @@
          "y": 7.75,
          "rot": 0,
          "show": 1
+        },
+        "lyHep": {
+         "show": 0
+        }
+       }
+      },
+      {
+       "id": "kp2",
+       "t": 1.05,
+       "v": {
+        "lyBob": {
+         "x": 8.67,
+         "y": 6,
+         "rot": -88,
+         "show": 1,
+         "flip": false,
+         "pose": "side",
+         "legs": 0,
+         "arms": 20,
+         "sit": 0
+        },
+        "lyBlk": {
+         "x": 10.125,
+         "y": 8.05,
+         "rot": 8,
+         "show": 0
+        },
+        "lyHep": {
+         "show": 1
+        }
+       }
+      },
+      {
+       "id": "kp3",
+       "t": 1.2,
+       "v": {
+        "lyBob": {
+         "x": 8.67,
+         "y": 6,
+         "rot": -88,
+         "show": 1,
+         "flip": false,
+         "pose": "side",
+         "legs": 0,
+         "arms": 0,
+         "sit": 0
         }
        }
       },
       {
        "id": "kg2",
-       "t": 1.5,
+       "t": 1.8,
        "v": {
         "lyBob": {
          "x": 8.67,
@@ -899221,18 +899267,12 @@
          "legs": 90,
          "arms": 0,
          "sit": 0
-        },
-        "lyBlk": {
-         "x": 9.875,
-         "y": 8.35,
-         "rot": 0,
-         "show": 1
         }
        }
       },
       {
        "id": "kg3",
-       "t": 1.8,
+       "t": 2.1,
        "v": {
         "lyBob": {
          "x": 8.67,
@@ -899249,7 +899289,7 @@
       },
       {
        "id": "kg4",
-       "t": 2.15,
+       "t": 2.45,
        "v": {
         "lyBob": {
          "x": 8.67,
@@ -899266,7 +899306,7 @@
       },
       {
        "id": "kg5",
-       "t": 2.45,
+       "t": 2.75,
        "v": {
         "lyBob": {
          "x": 8.95,
@@ -899282,47 +899322,7 @@
        }
       },
       {
-       "id": "kgsw",
-       "t": 2.53,
-       "v": {
-        "lyBlk": {
-         "x": 9.875,
-         "y": 8.35,
-         "rot": 0,
-         "show": 1
-        },
-        "lyBlB": {
-         "x": 9.875,
-         "y": 8.35,
-         "show": 0
-        }
-       }
-      },
-      {
        "id": "kg6",
-       "t": 2.55,
-       "v": {
-        "lyBob": {
-         "x": 9.05,
-         "y": 7.15,
-         "rot": 0,
-         "show": 1,
-         "flip": false,
-         "pose": "front",
-         "legs": 0,
-         "arms": 0,
-         "sit": 0.6
-        },
-        "lyBlk": {
-         "show": 0
-        },
-        "lyBlB": {
-         "show": 1
-        }
-       }
-      },
-      {
-       "id": "kg7",
        "t": 2.85,
        "v": {
         "lyBob": {
@@ -899339,8 +899339,25 @@
        }
       },
       {
+       "id": "kg7",
+       "t": 3.15,
+       "v": {
+        "lyBob": {
+         "x": 9.05,
+         "y": 7.15,
+         "rot": 0,
+         "show": 1,
+         "flip": false,
+         "pose": "front",
+         "legs": 0,
+         "arms": 0,
+         "sit": 0.6
+        }
+       }
+      },
+      {
        "id": "kg8",
-       "t": 3.2,
+       "t": 3.5,
        "v": {
         "lyBob": {
          "x": 9.15,
@@ -899357,7 +899374,7 @@
       },
       {
        "id": "kg9",
-       "t": 3.45,
+       "t": 3.75,
        "v": {
         "lyBob": {
          "x": 9.3,
@@ -899375,8 +899392,8 @@
      ]
     }
    ],
-   "savedAt": 1791850905268,
-   "editedFrom": 1791849938689
+   "savedAt": 1791851739338,
+   "editedFrom": 1791850905268
   }
  ],
  "levels": [

@@ -436,9 +436,10 @@ plus traps it does not cover:
   switch AT a key. A waiting state holds for E; its fade-in and prompt go by elapsed `el`, never
   the looped `t`. Its prompt hangs by a chosen layer (`promptLayer`, raised `promptLift`), and a
   state's sound loops for exactly that state, so a sound that must stop on a HIT (the alarm) gets
-  a short state of its own. Draw order is per LAYER, never per key: to get out from under something,
-  use a second copy behind the actor and swap `show` on a frame where the pose changes (the Bed's
-  blanket). An actor's prompt centres on the BODY (`animActorPromptSpot`), not the hip.
+  a short state of its own. Draw order is per LAYER, never per key, and an actor moving under a
+  covering layer that moves slower shows through it: take the cover away with a motion of his
+  (the Bed: an arm shove fades the blanket into the heap) before he moves out. An actor's prompt
+  centres on the BODY (`animActorPromptSpot`), not the hip.
   "Level start" begins in the play effect, "Walk up + E" last in the E chain, both
   through `beginCut`; a cutscene pauses the world like a conversation (`cutFrame`, one return at
   the top of the loop). "You take over" puts your standing hip on the actor's last hip and clears

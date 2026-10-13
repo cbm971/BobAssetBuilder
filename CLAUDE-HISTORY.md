@@ -4332,3 +4332,12 @@ It should only Say "E - Get up.""
   him, because lying down the hip is near his feet. Height is 4.4 cells over the hip standing (the
   old 3.6 sat inside his head; his head top is 4.12) and 2.2 lying. In Playtest it lands at stage x
   7.58, the middle of him from his head on the pillow to his feet under the covers.
+
+- (Later still) Slid along with him, the blanket fell behind his body as he sat up and he passed
+  through it. Blake: it "can phase like it did before it just needs to phase when the player does the
+  second arm animation to shove a blanket away. It can then phase into the clump". So after the slap
+  the arm comes up out of the covers (arms 115) and sweeps down toward his feet (20), and the blanket
+  slides toward the foot and fades during that sweep only (0.7 to 1.05 s into Get up) while the Blanket
+  Heap fades in; he sits up after, uncovered. "Blanket (behind)" is gone again. The lesson: two
+  layers can only swap where nothing moves between them; anything that moves faster than a layer
+  covering it will be seen passing through it.
