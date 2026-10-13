@@ -598,6 +598,23 @@ import {
   dialogueIsOnce,
 } from "./App";
 import {
+  HEAD_STOMP_MIN_VY,
+  HEAD_STOMP_WALKOFF_DROP_CELLS,
+  HEAD_STOMP_HELD_BOUNCE,
+  HEAD_STOMP_LEAP_REACH_CELLS,
+  HEAD_STOMP_ARM_DEG,
+  headStompAirStep,
+  headStompArmed,
+  headStompLands,
+  headStompBounceVy,
+  headStompLeapFrames,
+  headStompLeapPlan,
+  headStompPose,
+  headStompStretch,
+  headStompScaleCss,
+  flyLegBlocks,
+} from "./App";
+import {
   isHillFormationCell,
   splitHillHits,
   landingReach,
@@ -13302,5 +13319,124 @@ describe("🎬 animation actor — hip, sit, legs, arms", () => {
     const out = flipLevelForAnim(lv);
     expect(out.markers).toEqual({ "34,123": { kind: "anim", animId: "wakebed", w: 17, flip: true }, "34,154": { kind: "door", tag: "x" } });
     expect(flipLevelForAnim(out).markers).toEqual({ "34,20": { kind: "anim", animId: "wakebed", w: 17, flip: false }, "34,5": { kind: "door", tag: "x" } });
+  });
+});
+
+/* 👢 STOMP (EFFECT_TYPES.headStomp) — Blake: "if you land on top of an enemy that take a ton of damage
+   ... think of it like in Mario ... if you have the stomp ability and are falling (not gliding or
+   flying) you have a sort of special animation", and "if enemies have the ability (and I'll give the
+   item high agi) that they will try to jump into the player too". Not the 🦶 foot-stamp. */
+describe("👢 Stomp: land on a head from above", () => {
+  const CH = 30;
+  const norm = (d) => ((d % 360) + 540) % 360 - 180;
+
+  test("it is a clothing ability with its own numbers, and no 🎬 designer (the pose is built in)", () => {
+    const def = EFFECT_TYPES.headStomp;
+    expect(def.label).toBe("Stomp");
+    expect(def.noAnim).toBe(true);
+    expect(Object.fromEntries(def.params.map((p) => [p.key, p.def]))).toEqual({ damage: 60, bounce: 3 });
+    expect(effectBrief({ type: "headStomp" }).desc).toBe("land on heads for 60 damage");
+    expect(effectBrief({ type: "headStomp", damage: 120 }).desc).toBe("land on heads for 120 damage");
+    // worn, its numbers reach the play loop the way every ability's do
+    const worn = mergeEquipForRows({ stats: {}, effects: [] }, { shoes: { effects: [{ type: "headStomp", damage: 80 }] } }, null);
+    expect(worn.effects).toEqual([expect.objectContaining({ type: "headStomp", damage: 80, bounce: 3 })]);
+  });
+
+  test("armed only while falling: past the top of a jump at once, after a real drop off an edge", () => {
+    const fx = { type: "headStomp" };
+    expect(headStompAirStep({ rose: true, fromY: 0 }, true, 100, 0)).toBeNull(); // on the ground: no record
+    // a jump: going up, then down
+    let air = headStompAirStep(null, false, 100, -6);
+    expect(air).toEqual({ rose: true, fromY: 100 });
+    expect(headStompArmed(fx, air, 60, -2, CH, false)).toBe(false);                 // still rising
+    expect(headStompArmed(fx, air, 60, HEAD_STOMP_MIN_VY, CH, false)).toBe(false);  // the top of the jump
+    expect(headStompArmed(fx, air, 60, HEAD_STOMP_MIN_VY + 0.5, CH, false)).toBe(true);
+    expect(headStompArmed(null, air, 60, 5, CH, false)).toBe(false);                // not wearing it
+    expect(headStompArmed(fx, air, 60, 5, CH, true)).toBe(false);                   // gliding (or flying, climbing, a plane)
+    expect(headStompArmed(fx, null, 60, 5, CH, false)).toBe(false);                 // on the ground
+    // walked off an edge: a kerb or a stair (one cell) never arms it, a real drop does
+    air = headStompAirStep(null, false, 100, 0.175);
+    expect(air).toEqual({ rose: false, fromY: 100 });
+    expect(headStompAirStep(air, false, 130, 3)).toBe(air); // nothing changed: the same record (a unit's sprite cache keys on it)
+    expect(headStompArmed(fx, air, 100 + CH, 3, CH, false)).toBe(false);
+    expect(headStompArmed(fx, air, 100 + HEAD_STOMP_WALKOFF_DROP_CELLS * CH, 3.6, CH, false)).toBe(true);
+    // anything that goes up on the way counts as a jump: a hop, a bounce, a flight let go
+    expect(headStompAirStep(air, false, 90, -1).rose).toBe(true);
+    expect(headStompAirStep(null, false, 50, 0, true).rose).toBe(true);
+  });
+
+  test("it lands when the feet cross the TOP of a body this frame — a fast fall included, a drop beside it not", () => {
+    const box = { x: 0, y: 100, w: 50, h: 60 };
+    expect(headStompLands(90, 105, 10, 40, box)).toBe(true);
+    expect(headStompLands(90, 99, 10, 40, box)).toBe(false);          // not down to it yet
+    expect(headStompLands(0, 400, 10, 40, box)).toBe(true);           // one big frame straight through: still the head
+    expect(headStompLands(100 + 60 * 0.35, 130, 10, 40, box)).toBe(true);
+    expect(headStompLands(100 + 60 * 0.35 + 1, 130, 10, 40, box)).toBe(false); // already down its side
+    expect(headStompLands(90, 105, 50, 10, box)).toBe(false);         // beside it, not over it
+    expect(headStompLands(90, 105, -9, 10, box)).toBe(true);          // a toe over the edge is enough
+    expect(headStompLands(90, 105, 10, 40, null)).toBe(false);
+  });
+
+  test("the bounce is the item's height in cells, higher with Jump held", () => {
+    const h = (vy) => (vy * vy) / (2 * 0.175);
+    expect(headStompBounceVy({ bounce: 3 }, false, CH)).toBeLessThan(0);
+    expect(h(headStompBounceVy({ bounce: 3 }, false, CH))).toBeCloseTo(3 * CH, 6);
+    expect(h(headStompBounceVy({ bounce: 3 }, true, CH))).toBeCloseTo(3 * CH * HEAD_STOMP_HELD_BOUNCE, 6);
+    expect(h(headStompBounceVy({}, false, CH))).toBeCloseTo(3 * CH, 6); // an item saved before the param
+    expect(h(headStompBounceVy({ bounce: 6 }, false, CH))).toBeCloseTo(6 * CH, 6);
+  });
+
+  test("a unit leaps only when its own jump clears the head — Agility 10 for a 7-cell Bob, anybody for a Squirrel", () => {
+    const bob = 7 * CH;
+    expect(headStompLeapFrames(enemyJumpVelocity(10, CH), 10, bob, CH)).not.toBeNull();
+    expect(headStompLeapFrames(enemyJumpVelocity(9, CH), 9, bob, CH)).toBeNull();
+    expect(headStompLeapFrames(enemyJumpVelocity(5, CH), 5, bob, CH)).toBeNull();
+    expect(headStompLeapFrames(enemyJumpVelocity(5, CH), 5, 45, CH)).not.toBeNull();
+    // the frames are the way DOWN through that height: a lower head is reached later
+    const hi = headStompLeapFrames(enemyJumpVelocity(10, CH), 10, bob, CH), lo = headStompLeapFrames(enemyJumpVelocity(10, CH), 10, 45, CH);
+    expect(lo).toBeGreaterThan(hi);
+    // ...and they are what the unit loop's own fall does: fly the same jump frame by frame
+    let vy = -enemyJumpVelocity(10, CH), y = 0, hold = 0, t = 0;
+    while (t < 600) { t++; if (vy < 0 && hold < JUMP_HOLD_BOOST_FRAMES) { vy -= 5 * JUMP_HOLD_BOOST_ACCEL; hold++; } vy = Math.min(60, vy + 0.175); y += vy; if (vy > 0 && -y <= bob) break; }
+    expect(hi).toBe(t);
+    // reach: within HEAD_STOMP_LEAP_REACH_CELLS, and a gap its walking pace can cover inside the leap
+    const plan = (dx, speed, agi = 10, rise = bob) => headStompLeapPlan({ v0: enemyJumpVelocity(agi, CH), agility: agi, rise, dx, speed, cellPx: CH });
+    expect(plan(3 * CH, unitMoveSpeed({ type: "character", stats: {} }, false))).toEqual({ frames: hi });
+    expect(plan(-3 * CH, 7)).toEqual({ frames: hi });
+    expect(plan(HEAD_STOMP_LEAP_REACH_CELLS * CH + 1, 99)).toBeNull();
+    expect(plan(3 * CH, 0)).toBeNull();
+    expect(plan(0, 0)).toEqual({ frames: hi });  // straight up and down onto the head beside it
+    expect(plan(3 * CH, 7, 9)).toBeNull();
+  });
+
+  test("the falling pose: arms flung up overhead, legs locked together, upright; stretched by the speed", () => {
+    for (const t of [0, 7, 30]) {
+      const pose = headStompPose(t);
+      expect(pose.tilt).toBe(0); expect(pose.legSwing).toBe(0); expect(pose.bob).toBe(0);
+      expect(Math.abs(pose.arm - HEAD_STOMP_ARM_DEG)).toBeLessThanOrEqual(8);
+    }
+    const side = newAsset("body").angles.side;
+    const posed = flyPoseBlocks(side, headStompPose(0), true);
+    expect(norm(posed.find((p) => p.role === "weaponArm").rot)).toBeCloseTo(-HEAD_STOMP_ARM_DEG, 6);
+    // the leg pair stands together: the walk's added back leg sits exactly on the drawn one
+    const legs = flyLegBlocks(side, headStompPose(0)).filter((p) => p.limb === "leg");
+    expect(legs.length).toBe(2);
+    expect(legs[0].x).toBeCloseTo(legs[1].x, 9); expect(legs[0].y).toBeCloseTo(legs[1].y, 9); expect(norm(legs[0].rot || 0)).toBeCloseTo(norm(legs[1].rot || 0), 9);
+    expect(headStompStretch(0)).toBe(1);
+    expect(headStompStretch(HEAD_STOMP_MIN_VY)).toBe(1);
+    expect(headStompStretch(5)).toBeGreaterThan(1);
+    expect(headStompStretch(60)).toBeCloseTo(1.07, 9);
+    expect(headStompScaleCss(60)).toBe("scale(0.965,1.070)");
+  });
+
+  test("both sides stomp: the player loop and the unit loop arm, land, hurt and leap by the same rules", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toContain("p.hsFall = headStompArmed(headStompEffect, p.hsAir, p.y, p.vy, CH, p.gliding);");
+    expect(src).toContain("eHsArmed = headStompArmed(eHeadStomp, ep.hsAir, ep.y, ep.vy, CH, ep.gliding);");
+    expect(src).toContain("for (const b of shotTargetsFor(false, false, null)) {");
+    expect(src).toContain("applyHitTo(under.kind, under.kind === \"player\" ? null : under.key, under.ep, under.ea, playerMeleeDamage(eHeadStomp.damage, ea.stats?.strength), true);");
+    expect(src).toContain("headStompLeapPlan({ v0: enemyJumpVelocity(ea.stats?.agility, CH), agility: ea.stats?.agility, rise: (ep.y + newEph) - tgtBoxTop,");
+    expect(src).toContain("blocks = (p.firing || p.aiming || p.throwAiming || p.throwFiring > 0 || p.blocking) ? flyLegBlocks(blocks, hsPose) : flyPoseBlocks(blocks, hsPose, playerArtFacesRight(basePlayerAsset));");
+    expect(src).toContain("eBlocks = flyLegBlocks(eBlocks, headStompPose(ep.hsFallT));");
   });
 });

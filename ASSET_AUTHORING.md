@@ -66,7 +66,9 @@ each one comes with its own sliders. If one must be authored in the file, an ent
 Type keys: `doubleJump`, `backGuard`, `crouchGuard`, `glide`, `slide`, `tagBoost`, `tagLuck`,
 `rangeBoost`, `tackle`, `allyHP`, `magazineSize`, `extraLives` (🐱 get back up where you fell on
 1 HP instead of dying, `lives` 1–9), `pierce` (🪡 every shot flies through everyone in its path,
-with any ranged weapon — no params). One of each type per item.
+with any ranged weapon — no params), `headStomp` (👢 Stomp: land on an enemy's head from above,
+Mario-style, for `damage` 5–200 riding Strength, and bounce `bounce` 0.5–8 cells; worn by an enemy it
+leaps at you, and needs Agility 10 to clear a Bob). One of each type per item.
 
 ---
 

@@ -501,6 +501,13 @@ plus traps it does not cover:
   ("so str 0 characters do not feel so worthless"). His roster is mostly Str 0-4, not 5. Creature
   bites (2x Str) and throw range are not on it. Stomp is `STOMP_DAMAGE` 45 at Str 5: one stomp kills
   a Squirrel from Str 1 and a Pika from Str 2; the Turtle and the Crocodile still take two.
+- **👢 Stomp (`EFFECT_TYPES.headStomp`, 2026-10-13) is NOT the 🦶 stomp.** The 🦶 one is everybody's
+  foot-stamp on something short (`STOMP_DAMAGE`, `p.stomp`). 👢 is worn: fall onto a head for the
+  item's Damage (`playerMeleeDamage`, so Strength rides it) and bounce off. It is armed only while
+  falling, not gliding, flying, climbing or on a plane (`headStompArmed`), and the built-in pose
+  (`headStompPose`, Fly's rig, no designer) shows exactly then. A wearing unit leaps at its target at
+  an attack commit (`headStompLeapPlan`) only if its jump clears the head: Agility 10 clears a 7-cell
+  Bob, 9 does not. Keep the `hs*` names; `stomp*` is taken.
 - **⚔️ Melee clash:** a Q/V pistol-whip WITH A GUN IN HAND and a unit's melee blow in the air together
   (`meleeClash`, face to face) both miss and both bodies are shoved `CLASH_PUSH_CELLS` apart. A bite
   lands the frame it commits, so the last `CLASH_WINDUP_FRAMES` of a melee wind-up count as thrown.
@@ -554,4 +561,5 @@ Grep it for the function or feature name. In order, it covers:
 - spawns and gear tags, stat sliders, creature damage, unit armour and ability parity;
 - crouch rendering and corpses;
 - sound: the storage measurements and why audio is a file, the clip ladder, the keeper's sweep of
-  clips, and the test rigs (fake host store, a test keeper with a local bare repo, headless Edge).
+  clips, and the test rigs (fake host store, a test keeper with a local bare repo, headless Edge);
+- and, last, the 👢 Stomp clothing ability (`headStomp`), with how it was driven in a real build.

@@ -4961,6 +4961,21 @@ export const EFFECT_TYPES = {
       { key: "time", label: "Flight time", min: 0.5, max: FLY_TIME_UNLIMITED, step: 0.5, def: FLY_TIME_UNLIMITED, fmt: (v) => v >= FLY_TIME_UNLIMITED ? "∞" : v + "s" },
     ],
   },
+  // 👢 Come down on somebody's head and they take the item's Damage, and you bounce off it — Mario's
+  // stomp (see headStompArmed). NOT the 🦶 stomp (STOMP_DAMAGE), which is everybody's foot-stamp on
+  // something short at their feet; this one is worn, and it is a FALL. No designed animation
+  // (noAnim): falling with it on is one built-in pose, headStompPose, Fly's rule. Worn by a 👹 Enemy
+  // it leaps at you to land on yours (headStompLeapPlan) — it takes Agility 10 to clear a 7-cell head.
+  headStomp: {
+    label: "Stomp", icon: "👢",
+    blurb: "Land on top of an enemy to stomp it, like Mario: it takes the Damage you set (riding your Strength, and it can crit) and you bounce off its head — hold Jump as you land to bounce higher. Only while you are falling: not gliding, flying or climbing. Falling with it on has its own pose. Worn by a 👹 Enemy it jumps at YOU to land on your head; give the item Agility so it can clear you (it takes 10 to jump over a Bob).",
+    brief: (p) => "land on heads for " + briefNum(p.damage) + " damage",
+    noAnim: true,
+    params: [
+      { key: "damage", label: "Damage", min: 5, max: 200, step: 5, def: 60 },
+      { key: "bounce", label: "Bounce", min: 0.5, max: 8, step: 0.5, def: 3, fmt: (v) => v + " cells" },
+    ],
+  },
   // Low-grip footwear (skates, rollerblades, ice): you don't stop on a dime — release the keys
   // and you COAST on your momentum, and downhill ramps pull you faster (up to a terminal glide).
   // No animation of its own; it just changes how the ground feels underfoot.
@@ -6517,6 +6532,87 @@ export const flyPoseBlocks = (blocks, pose, facesRight = true) => {
     return a ? rigidArmFollow(b, a, flyArmTarget(a, pose, facesRight)) : b;
   });
 };
+// 👢 HEAD STOMP (EFFECT_TYPES.headStomp, 2026-10-13). Blake: "an ability that I can give to shoes or
+// clothing where if you land on top of an enemy that take a ton of damage? Call it stomp, think of it
+// like in Mario. Have it where if you have the stomp ability and are falling (not gliding or flying)
+// you have a sort of special animation." And then: "make sure that if enemies have the ability (and
+// I'll give the item high agi) that they will try to jump into the player too."
+// Not the 🦶 stomp (STOMP_DAMAGE, a foot-stamp on something short at your feet, everybody's). This one
+// is worn, and it is a fall, on both sides by the same rules:
+//   ARMED (headStompArmed) in the air, falling faster than HEAD_STOMP_MIN_VY, and not gliding, flying,
+//     climbing or on a 🚶 plane. That is when the pose shows, and only then can it land, so what you
+//     see is what will happen. A body that went UP first (a jump, a bounce, a flight let go) arms at
+//     once on the way down; one that simply walked off an edge arms only after dropping
+//     HEAD_STOMP_WALKOFF_DROP_CELLS, so stepping down a kerb or a stair never flashes the pose.
+//   LANDS (headStompLands) when the feet cross the TOP of an opposing body this frame — swept, so a
+//     fast fall cannot step past a head — from no deeper than HEAD_STOMP_TOP_BAND into it last frame,
+//     so dropping down beside somebody is not a stomp. The highest head under you is the one hit.
+//   DAMAGE is the item's, riding Strength (playerMeleeDamage, the tail's rule), with the
+//     Intelligence crit, then the target's armour. One stomp per body per time in the air (`hits`),
+//     so a bounce cannot juggle one head; landing clears it.
+//   BOUNCE (headStompBounceVy) is the item's height in cells; Jump held as you land bounces
+//     HEAD_STOMP_HELD_BOUNCE times as high, and a unit always holds it (its glide's rule).
+// The `air` record is how the body got into the air: { rose, fromY } — whether it has gone up since it
+// left the ground, and the y it left at. Kept off the per-frame position on purpose: a unit's sprite
+// is cached on its state (unitArtSig), and this only changes the frame it takes off.
+export const HEAD_STOMP_MIN_VY = 1;                 // px/frame downward: a few frames past the top of a jump
+export const HEAD_STOMP_WALKOFF_DROP_CELLS = 1.25;  // a kerb or a stair is one cell
+export const HEAD_STOMP_TOP_BAND = 0.35;            // share of the target's height the feet may already be into it
+export const HEAD_STOMP_HELD_BOUNCE = 1.6;
+export const HEAD_STOMP_PUFF_SIZE = 1.6;            // the 💥 on the head, in cells (the foot-stamp's is 1.2)
+export const headStompAirStep = (air, onGround, y, vy, launched) => {
+  if (onGround) return null;
+  const up = !!launched || vy < 0;
+  if (!air) return { rose: up, fromY: y };
+  return up && !air.rose ? { ...air, rose: true } : air;
+};
+export const headStompArmed = (effect, air, y, vy, cellPx, busy) => !!effect && !!air && !busy && vy > HEAD_STOMP_MIN_VY
+  && (air.rose || y - air.fromY >= HEAD_STOMP_WALKOFF_DROP_CELLS * cellPx);
+// feet0/feet1: the stomper's feet before and after this frame's fall; x/w its body box; box the target's ({x, y, w, h}).
+export const headStompLands = (feet0, feet1, x, w, box) => !!box && feet1 >= box.y && feet0 <= box.y + box.h * HEAD_STOMP_TOP_BAND
+  && x < box.x + box.w && x + w > box.x;
+export const headStompBounceVy = (effect, held, cellPx) => -Math.sqrt(2 * 0.175 * Math.max(0, (effect && effect.bounce) ?? 3) * (held ? HEAD_STOMP_HELD_BOUNCE : 1) * cellPx);
+// THE UNITS LEAP AT YOU (Blake: "they will try to jump into the player"). At an attack commit a wearer
+// on its feet with its target inside HEAD_STOMP_LEAP_REACH_CELLS jumps instead of swinging or
+// shooting — but only if its own jump can carry its feet over the target's head. headStompLeapFrames
+// flies that jump the way the unit loop does (enemyJumpVelocity, plus Agility's held-jump boost, which
+// a unit always gets) and says how many frames until the feet come back DOWN through the head's
+// height — null if they peak short of it. Measured: Agility 9 peaks at 6.8 cells and Agility 10 at 7.8,
+// so only 10 clears a 7-cell Bob from the same floor; a Squirrel's head is in reach of anybody. In the
+// air it steers at the target at its walking pace, which a leap of that many frames must be able to
+// cover, and it does not try again until HEAD_STOMP_LEAP_COOLDOWN_FRAMES after it lands.
+export const HEAD_STOMP_LEAP_REACH_CELLS = 5;
+export const HEAD_STOMP_LEAP_CLEARANCE_CELLS = 0.25; // over the head by this much, not grazing it
+export const HEAD_STOMP_LEAP_COOLDOWN_FRAMES = 120;
+export const headStompLeapFrames = (v0, agility, rise, cellPx) => {
+  const agi = Math.min(10, Math.max(1, agility ?? 5)), need = rise + HEAD_STOMP_LEAP_CLEARANCE_CELLS * cellPx;
+  let vy = -v0, h = 0, hold = 0, apex = 0;
+  for (let t = 1; t <= 600; t++) {
+    if (vy < 0 && hold < JUMP_HOLD_BOOST_FRAMES) { if (agi > 5) vy -= (agi - 5) * JUMP_HOLD_BOOST_ACCEL; hold++; }
+    vy = Math.min(60, vy + 0.175);
+    h -= vy;
+    if (h > apex) apex = h;
+    if (vy > 0 && apex < need) return null;
+    if (vy > 0 && h <= rise) return t;
+  }
+  return null;
+};
+// rise: how far the target's top is above the leaper's feet (px, + = above); dx: centre to centre;
+// speed: its walking pace, px per 60fps-frame.
+export const headStompLeapPlan = ({ v0, agility, rise, dx, speed, cellPx }) => {
+  if (!(Math.abs(dx) <= HEAD_STOMP_LEAP_REACH_CELLS * cellPx)) return null;
+  const frames = headStompLeapFrames(v0, agility, rise, cellPx);
+  if (frames == null || Math.abs(dx) > (speed || 0) * frames) return null;
+  return { frames };
+};
+// THE STOMPING POSE: Fly's rig (flyPoseBlocks) set to a plunge — arms flung up overhead and fluttering
+// in the rush of air, legs locked together under you, upright (no lean). `t` is frames spent falling.
+// The body stretches a little with the speed of the fall (headStompStretch, the wrapper's scale), and
+// streaks trail up off the head (.stompStreaks).
+export const HEAD_STOMP_ARM_DEG = 155;
+export const headStompPose = (t) => ({ tilt: 0, arm: HEAD_STOMP_ARM_DEG + 8 * Math.sin((t || 0) * 0.45), legSwing: 0, bob: 0 });
+export const headStompStretch = (vy) => 1 + Math.min(0.07, Math.max(0, (vy || 0) - HEAD_STOMP_MIN_VY) * 0.008);
+export const headStompScaleCss = (vy) => { const s = headStompStretch(vy); return "scale(" + (1 - (s - 1) * 0.5).toFixed(3) + "," + s.toFixed(3) + ")"; };
 // 🎬 THE ACTOR in an animation (src/anim.js): the player's own drawing, posed by a key's values.
 // These two live here and not in anim.js because they are about how a BODY is drawn — legs found
 // by identifyLimbs, swung by applyLimbSwing, arms carried by rigidArmFollow, the same three every
@@ -13551,6 +13647,7 @@ export default function AssetStudio() {
     const backGuardEffect = (playerAsset?.effects || []).find((e) => e.type === "backGuard") || null;
     const glideEffect = (playerAsset?.effects || []).find((e) => e.type === "glide") || null;
     const flyEffect = (playerAsset?.effects || []).find((e) => e.type === "fly") || null;
+    const headStompEffect = (playerAsset?.effects || []).find((e) => e.type === "headStomp") || null;
     // Say how to fly (showFlyHint) when a Fly item has just come ON: worn at the start of play, or
     // picked up or bought (both bump equipGen, which re-runs this effect). A gate's re-run with the
     // same item still on says nothing; taking it off and putting one back on says it again.
@@ -13791,6 +13888,7 @@ export default function AssetStudio() {
       if (cellsHit(p.x, p.y, pw, ph).length) { let best = null, bestD = Infinity; for (let dyc = 0; dyc <= 6; dyc++) for (let dxc = -6; dxc <= 6; dxc++) { const tx = Math.max(0, Math.min(maxX, p.x + dxc * CW)), ty = Math.max(0, Math.min(maxY, p.y - dyc * CH)); if (!cellsHit(tx, ty, pw, ph).length) { const d = dxc * dxc + dyc * dyc * 4; if (d < bestD) { bestD = d; best = { x: tx, y: ty }; } } } if (best) { p.x = best.x; p.y = best.y; } }
       p.vx = 0; p.vy = 0;
       p.knock = null; // a 🦎 tail swing's shove does not follow you through a door or a respawn
+      p.hsAir = null; p.hsHits = null; p.hsFall = false; // ...nor does a 👢 Stomp's fall
     };
     // A DEATH PUTS YOU BACK AT THE GATE YOU CAME IN BY. It used to be SPAWN — a fixed 60,40 in the
     // top-left corner of whatever level you died in, which on his levels is up in the sky nowhere
@@ -14350,6 +14448,7 @@ export default function AssetStudio() {
       let topdown = topdownHolds(tdOverlap, p.vy, p.y, p.tdJumpY);
       if (topdown && p.tdJumpY != null) { if (p.y - p.tdJumpY <= Math.abs(p.vy * dtMul) + 0.01) p.y = p.tdJumpY; p.tdJumpY = null; }
       let climbMove = 0, tdMove = 0;
+      p.hsFall = false; // 👢 re-armed below by a fall that qualifies (headStompArmed); a climb, a plane or a flight never does
       if (climbing && climbKindHere === "ladder") {
         if (K.up) {
           // Climbing above the top of the climb zone used to exit it, flip to the falling
@@ -14468,6 +14567,7 @@ export default function AssetStudio() {
           // flight would have ended in a trip back to the gate. Stop at the top instead, unless a
           // top gate with a level above is right here (then it carries you through like any seam).
           if (p.y < 0 && !seamAt("N", p, pw, ph)) { p.y = 0; if (p.vy < 0) p.vy = 0; }
+          p.hsAir = headStompAirStep(p.hsAir, false, p.y, p.vy, true); // a flight is going up: let go of it and a 👢 Stomp is armed on the way down
         } else {
           const gravMul = p.gliding ? glide.fall : (djActive ? p.djGravMul : 1);
           // Above baseline Agility (5), holding Jump through the rise adds extra height on top —
@@ -14478,7 +14578,10 @@ export default function AssetStudio() {
             p.vy -= (agilityStat - 5) * JUMP_HOLD_BOOST_ACCEL * dtMul;
             p.jumpHoldT = (p.jumpHoldT || 0) + dtMul;
           }
+          p.hsFeet0 = p.y + ph; // 👢 the feet before this frame's fall, for the swept head test (headStompLands)
           p.vy = Math.min(60, p.vy + 0.175 * dtMul * gravMul); p.y += p.vy * dtMul; p.onGround = false;
+          p.hsAir = headStompAirStep(p.hsAir, false, p.y, p.vy, false);
+          p.hsFall = headStompArmed(headStompEffect, p.hsAir, p.y, p.vy, CH, p.gliding);
         }
       }
       p.climbing = climbing;
@@ -14654,8 +14757,41 @@ export default function AssetStudio() {
       // ground there, and landing back on it from the hop must hand the Double Jump cape its next
       // jump exactly as landing on a street would. tdJumpY only ever outlives the hop when the
       // hop carried you clear of the plane and you came down on real ground instead.
+      // 👢 HEAD STOMP, YOURS (see headStompArmed): this frame's fall carried your feet down onto the top
+      // of a hostile's body. shotTargetsFor is the list of living hostiles your hits can land on, boxed
+      // the way every hit test boxes them, so an ally, a corpse or somebody you have not picked a fight
+      // with is never stomped. After the landing pass on purpose — a fall fast enough to reach the
+      // floor this frame still crossed the head on the way, and puts you back up on it — and before
+      // the landing resets just below, which a bounce off a head is not.
+      if (p.hsFall && headStompEffect) {
+        let under = null;
+        for (const b of shotTargetsFor(false, false, null)) {
+          if (p.hsHits && p.hsHits[b.key]) continue;
+          if (headStompLands(p.hsFeet0, p.y + ph, p.x, pw, b) && (!under || b.y < under.y)) under = b; // the highest head is the one the feet met first
+        }
+        if (under) {
+          const k = under.key, ep = enemyPos.current[k], ea = unitAssetAt(k, lv.enemies[k]);
+          p.hsHits = { ...(p.hsHits || {}), [k]: true };
+          if (ea && !unitUntouchable(ep)) { // 🐱 mid-revive it is not there to hurt, as the swing and the foot-stamp skip it
+            if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
+            const isCrit = Math.random() < critChance(pstats.intelligence);
+            const dmg = incomingUnitDamage(playerMeleeDamage(headStompEffect.damage, pstats.strength) * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, under.x + under.w / 2, false);
+            enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+            if (ep) ep.lastHitByFx = null; // the last blow was yours
+            flash((isCrit ? "💥 Critical! " : "👢 ") + "Stomped " + ea.name + " for " + dmg + crouchGuardNote(ea.effects, ep && ep.crouch) + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
+          }
+          // ...and off the head you go, hurt or not: you landed on it. No Agility hold boost on top —
+          // the item's Bounce is the height, Jump held is the only way to add to it.
+          p.y = under.y - ph; p.vy = headStompBounceVy(headStompEffect, !!K.jump, CH); p.onGround = false; p.jumpHoldT = JUMP_HOLD_BOOST_FRAMES;
+          p.hsAir = { rose: true, fromY: p.y }; p.hsFall = false;
+          sndEvent("jump", p.x, p.y);
+          booms.current.push({ x: under.x + under.w / 2, y: under.y, propId: null, char: "💥", size: HEAD_STOMP_PUFF_SIZE, life: 0, maxLife: 16 });
+        }
+      }
       if (p.onGround || topdown) { p.extraJumped = false; p.effectAnim = null; p.djGravMul = 1; p.jumpHoldT = 0; p.gliding = false; p.tdJumpY = null; p.flying = false; p.flyUsed = 0; }
       if (climbing) { p.gliding = false; p.flying = false; p.flyUsed = 0; } // a grip refills the 🦸 flight time as the ground does
+      if (p.onGround || topdown || climbing) { p.hsAir = null; p.hsHits = null; p.hsFall = false; p.hsFallT = 0; } // 👢 back on something: the next time in the air starts its own record
+      else if (p.hsFall) p.hsFallT = (p.hsFallT || 0) + dtMul; // the pose's arm flutter
       if (p.y < -200) respawnAtEntry(p); // flung off the top of the world: back to the gate you came in by, like a death
 
       // Fire hazard: continuous damage-over-time while the player's box overlaps a fire cell.
@@ -14845,6 +14981,10 @@ export default function AssetStudio() {
           // of each kind): ⤴️ Double Jump, used in the dodge below, and 🪂 Glide, in its fall.
           const eDoubleJump = (ea.effects || []).find((e) => e && e.type === "doubleJump") || null;
           const eGlide = (ea.effects || []).find((e) => e && e.type === "glide") || null;
+          // ...and 👢 Stomp: it lands on heads when it falls (the stomp test after the attack sink,
+          // applyHitTo) and leaps at its target to do it (the attack commit, headStompLeapPlan).
+          const eHeadStomp = (ea.effects || []).find((e) => e && e.type === "headStomp") || null;
+          if ((ep.hsLeapCd || 0) > 0) ep.hsLeapCd = Math.max(0, ep.hsLeapCd - dtMul);
           if (ep.onGround || ep.topdown) { ep.extraJumped = false; ep.djGravMul = 1; } // landing hands the extra jump back, as it does yours
           const ew = spawnWeaponFor(spawn, ea); // the weapon THIS PLACEMENT is holding — the level's choice wins over the look's own, and "bare hands" is a choice (spawnWeaponIdOf)
           const rangedEnemy = !!(ew && isRanged(ew.wtype));
@@ -15173,7 +15313,10 @@ export default function AssetStudio() {
           // walks to the route's column — the visible body for a ladder or a bar (that is what has to
           // be on it), the feet's column for a plane (topdownAt finds the plane there).
           if (!stunned && acts && !ep.stomp && !(ep.tailT > 0)) {
-            if (eFlyUp) dxMove = towardTarget * Math.max(0.3, Math.min(2, eFlyFx.control ?? 1)); // flying: straight at it, at the item's Air speed
+            // 👢 Mid-leap at a head (headStompLeapPlan): over the target's middle, at its walking pace, and
+            // held there — the plan already checked that pace covers the gap inside the leap.
+            if (ep.hsLeap && navAirborne && !eFlyUp) dxMove = Math.abs(distToTarget) < 0.5 ? 0 : Math.sign(distToTarget) * Math.min(Math.abs(distToTarget), aiSpeed);
+            else if (eFlyUp) dxMove = towardTarget * Math.max(0.3, Math.min(2, eFlyFx.control ?? 1)); // flying: straight at it, at the item's Air speed
             else if (ep.climbing === "ladder") dxMove = navTgtFeet != null && Math.abs(navTgtFeet - myFeetY) <= CH ? towardTarget : 0;
             else if (ep.climbing) dxMove = towardTarget;
             else if (navAirborne && ep.climbJump) dxMove = towardTarget;
@@ -15367,6 +15510,7 @@ export default function AssetStudio() {
           const eTdOverlap = !ep.climbing && topdownAt(eStand.lv, ep.x - eStand.ox, ep.y + newEph - eStand.oy, epw, CW, CH);
           const eTopdown = topdownHolds(eTdOverlap, ep.vy, ep.y, ep.tdJumpY);
           let eTdStep = 0; // how far it walked up/down the plane this frame — its legs cycle for that too
+          let eHsArmed = false, eHsFeet0 = 0; // 👢 a Stomp armed for this frame's fall, and the feet before it (headStompArmed / headStompLands)
           if (eTopdown) {
             if (ep.tdJumpY != null && ep.y - ep.tdJumpY <= Math.abs(ep.vy * dtMul) + 0.01) ep.y = ep.tdJumpY;
             ep.tdJumpY = null; ep.vy = 0; ep.onGround = true;
@@ -15431,10 +15575,16 @@ export default function AssetStudio() {
               // moved sideways as a share of its flying speed, up/down as a share of the Lift, and
               // whether its arms are busy aiming, swinging or throwing.
               if (ep.flying) advanceFlyPose(ep, Math.abs(ep.x - exBefore) / Math.max(0.01, aiSpeed * Math.max(0.3, Math.min(2, eFlyFx.control ?? 1))), ep.vy / Math.max(0.01, eRise), (ep.aimHold || 0) > 0 || (ep.swingT || 0) > 0 || (ep.throwT || 0) > 0, dtMul);
+              if (eHeadStomp) ep.hsAir = headStompAirStep(ep.hsAir, false, ep.y, ep.vy, true); // a flight went up: the fall after it is armed at once, as yours is
             } else {
               const eGravMul = ep.gliding ? eGlideNow.fall : ((ep.extraJumped && ep.djGravMul) ? ep.djGravMul : 1);
+              eHsFeet0 = ep.y + newEph;
               ep.vy = Math.min(60, ep.vy + 0.175 * dtMul * eGravMul);
               ep.y += ep.vy * dtMul;
+              if (eHeadStomp) {
+                ep.hsAir = headStompAirStep(ep.hsAir, false, ep.y, ep.vy, false);
+                eHsArmed = headStompArmed(eHeadStomp, ep.hsAir, ep.y, ep.vy, CH, ep.gliding);
+              }
             }
             // THE RAMP FIRST, in the player's order (slopeSurfaceForPlayer, then flat landing): the
             // surface nearest the feet within what they could reach this frame — up the few pixels a
@@ -15688,6 +15838,47 @@ export default function AssetStudio() {
             }
             if (ep.stomp && ep.stomp.t >= ep.stomp.dur) ep.stomp = null;
           }
+          // 👢 HEAD STOMP, THE UNITS' HALF — the player's rule exactly (headStompArmed/headStompLands):
+          // this unit's fall came down on top of somebody on the other side — you (for a hostile) or a
+          // unit, boxed as hitBodyOf boxes everybody — and they take the item's Damage off this unit's
+          // Strength. applyHitTo is the one sink every unit blow goes through (your i-frames and guard,
+          // its Intelligence crit, the target's armour, the revive window); bodyBlow, since a foot is
+          // not the weapon in its hand. It bounces off the head either way — Jump held, as a unit's
+          // always is — and stops steering at the target, so it does not simply drop back onto the
+          // same head (`hsHits` would refuse it until it lands anyway). Down here and not at its fall
+          // because applyHitTo is defined here; nothing in between moves it.
+          if (eHeadStomp) {
+            if (eHsArmed && acts) { // a neutral NPC fights nobody, so its fall lands on nobody either
+              const hsX = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
+              const hsBodies = [];
+              for (const o of aliveOpposite(hostile)) hsBodies.push({ kind: "unit", key: o.key, ep: o.ep, ea: o.ea, box: hitBodyOf("unit", o.ep, o.ea) });
+              if (hostile) hsBodies.push({ kind: "player", key: "player", ep: null, ea: null, box: hitBodyOf("player") });
+              let under = null;
+              for (const b of hsBodies) {
+                if (ep.hsHits && ep.hsHits[b.key]) continue;
+                const bx = { x: b.box.left, y: b.box.top, w: b.box.w, h: b.box.h };
+                if (headStompLands(eHsFeet0, ep.y + newEph, hsX, epw, bx) && (!under || bx.y < under.bx.y)) under = { ...b, bx };
+              }
+              if (under) {
+                ep.hsHits = { ...(ep.hsHits || {}), [under.key]: true };
+                applyHitTo(under.kind, under.kind === "player" ? null : under.key, under.ep, under.ea, playerMeleeDamage(eHeadStomp.damage, ea.stats?.strength), true);
+                ep.y = under.bx.y - newEph; ep.vy = headStompBounceVy(eHeadStomp, true, CH); ep.onGround = false; ep.jumpHoldT = JUMP_HOLD_BOOST_FRAMES;
+                ep.hsAir = { rose: true, fromY: ep.y }; ep.hsLeap = false; eHsArmed = false;
+                sndEvent("jump", unitSndX(ep, ea), ep.y);
+                booms.current.push({ x: under.bx.x + under.bx.w / 2, y: under.bx.y, propId: null, char: "💥", size: HEAD_STOMP_PUFF_SIZE, life: 0, maxLife: 16 });
+              }
+            }
+            // Back on something: the leap is over (its cooldown starts now) and the next time in the
+            // air keeps its own record.
+            if (ep.onGround || ep.topdown || ep.climbing) {
+              if (ep.hsLeap) { ep.hsLeap = false; ep.hsLeapCd = HEAD_STOMP_LEAP_COOLDOWN_FRAMES; }
+              if (ep.hsAir) ep.hsAir = null;
+              if (ep.hsHits) ep.hsHits = null;
+              eHsArmed = false;
+            }
+            if (ep.hsFall !== eHsArmed) ep.hsFall = eHsArmed; // the pose (headStompPose), drawn off these two
+            ep.hsFallT = eHsArmed ? (ep.hsFallT || 0) + dtMul : 0;
+          }
           if (ep.attackT > 0) ep.attackT -= dtMul;
           if (ep.swingT > 0) ep.swingT -= dtMul;
           if (ep.tailT > 0) ep.tailT = Math.max(0, ep.tailT - dtMul);
@@ -15843,10 +16034,25 @@ export default function AssetStudio() {
                 // through. It turns back to face them by itself a few frames later (holdFacing), and
                 // that second turn finds the cooldown running, so one commit is one swing.
                 const eTailFront = (eTail && !ep.stomp && !(ep.tailCd > 0) && !ep.climbing) ? eTailFrom(ep.face) : [];
+                // 👢 Wearing a Stomp, on its feet, and its own jump carries it over the target's head
+                // from here (headStompLeapPlan — the plan flies the jump, Agility and all): the attack
+                // it commits is a LEAP at them. Then not again until HEAD_STOMP_LEAP_COOLDOWN_FRAMES
+                // after it lands, so between leaps it fights with what it is holding.
+                const eLeap = (!eUnder.length && eHeadStomp && !(ep.hsLeapCd > 0) && !ep.hsLeap && ep.onGround && !ep.climbing && !ep.topdown && !ep.crouch && !ep.flying)
+                  ? headStompLeapPlan({ v0: enemyJumpVelocity(ea.stats?.agility, CH), agility: ea.stats?.agility, rise: (ep.y + newEph) - tgtBoxTop, dx: tgtAimCX - eCenterXFinal, speed: unitMoveSpeed(ea, false), cellPx: CW })
+                  : null;
                 if (eUnder.length) {
                   ep.swingT = 0; ep.swingHit = null;
                   ep.attackT = Math.max(ATTACK_COOLDOWN_FRAMES, STOMP_FRAMES);
                   ep.stomp = { t: 0, dur: STOMP_FRAMES, hits: {} };
+                } else if (eLeap) {
+                  // Its own jump, exactly as a hop takes it (the hold boost included, jumpHoldT 0); in
+                  // the air it steers onto the head (the dxMove rule), and the stomp lands in the head
+                  // test when it comes down. No swing or shot rides along, and none is taken mid-leap.
+                  ep.swingT = 0; ep.swingHit = null; ep.burstLeft = 0;
+                  ep.attackT = Math.max(ATTACK_COOLDOWN_FRAMES, eLeap.frames);
+                  sndEvent("jump", unitSndX(ep, ea), ep.y); ep.vy = -enemyJumpVelocity(ea.stats?.agility, CH); ep.onGround = false; ep.jumpHoldT = 0;
+                  ep.hsLeap = true;
                 } else if (eTailFront.length) {
                   ep.swingT = 0; ep.swingHit = null; ep.burstLeft = 0;
                   ep.attackT = ATTACK_COOLDOWN_FRAMES;
@@ -23455,6 +23661,13 @@ export default function AssetStudio() {
                     // body's tip is the wrapper's rotate (see `lean`) and the hover's bob is on `top`.
                     // A shot, swing, throw or block still takes the arm in the branches below.
                     blocks = flyPoseBlocks(blocks, flyPoseOf(p), playerArtFacesRight(basePlayerAsset));
+                  } else if (blocks && p.hsFall && angle === "side") {
+                    // 👢 STOMPING (headStompPose): falling with a Stomp armed, arms flung up and legs
+                    // locked together under you — instead of the jump's leg split below, so the pose
+                    // says "this lands on a head" exactly while it would. Arms busy with a shot, a
+                    // swing, a throw or a block keep to those branches; only the legs plunge then.
+                    const hsPose = headStompPose(p.hsFallT);
+                    blocks = (p.firing || p.aiming || p.throwAiming || p.throwFiring > 0 || p.blocking) ? flyLegBlocks(blocks, hsPose) : flyPoseBlocks(blocks, hsPose, playerArtFacesRight(basePlayerAsset));
                   } else if (blocks && airborne && angle === "side" && !p.effectAnim) {
                     // Airborne (a jump/fall) with no custom effect animation: split the legs into a
                     // leap so the feet visibly move instead of freezing in the standing side pose —
@@ -23652,6 +23865,8 @@ export default function AssetStudio() {
                     // hover, the superhero dive at speed, upright again while the arms are busy.
                     const tip = flyTiltDeg(p, playerArtFacesRight(basePlayerAsset));
                     if (Math.abs(tip) > 0.5) lean = `rotate(${tip.toFixed(1)}deg)`;
+                  } else if (p.hsFall) {
+                    lean = headStompScaleCss(p.vy); // 👢 a stomp drops straight: no lean, stretched by the speed of the fall (about the feet — see transformOrigin)
                   } else if (airborne) {
                     const screenLean = Math.max(-16, Math.min(16, (p.vx || 0) * 3));
                     const localLean = p.face < 0 ? -screenLean : screenLean;
@@ -23680,7 +23895,7 @@ export default function AssetStudio() {
                   const downLift = downed ? layFlatLiftPx(blocks, renderW, ph) : 0; // every-frame path: don't walk the pieces unless someone is actually on the floor
                   const stompDip = p.stomp ? stompDipPx(p.stomp.t, p.stomp.dur) : 0; // the weight landing on the stamping foot
                   const flyBob = p.flying ? flyPoseOf(p).bob : 0; // the hover's gentle bob — the sprite only, never the hitbox
-                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift + stompDip + flyBob, width: renderW, height: ph, transform: (downed ? [flip, shrink, "translateY(" + (-downLift).toFixed(2) + "px)", LAY_FLAT_ROT_CSS] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...(downed ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
+                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift + stompDip + flyBob, width: renderW, height: ph, transform: (downed ? [flip, shrink, "translateY(" + (-downLift).toFixed(2) + "px)", LAY_FLAT_ROT_CSS] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...((downed || p.hsFall) ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
                   if (p.onFire > 0) style.filter = "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)";
                   // The 🐱 Extra Life window: the same invuln blink as an ordinary hit (set longer by
                   // reviveInPlace), tinted gold so it reads as "you got a life back" rather than
@@ -23731,6 +23946,7 @@ export default function AssetStudio() {
                           const crouchWalk = p.crouch && p.walking;
                           return crouchPlane ? <div style={{ position: "absolute", left: 0, top: crouchPlane.top, width: renderW, height: crouchPlane.height, transform: crouchWalk ? `scaleY(${crouchPlane.walkScaleY})` : undefined, transformOrigin: crouchWalk ? `50% ${crouchPlane.originY}px` : undefined }}>{art}</div> : art;
                         })() : <><div className="peye" /><div className="pbody" /></>}
+                        {p.hsFall && (() => { const hsH = Math.min(3 * LV_CELL, 12 + (p.vy || 0) * 6); return <div className="stompStreaks" style={{ left: bodyShape.centerFrac * renderW - pw * 0.35, width: pw * 0.7, top: bodyShape.topFrac * ph - hsH, height: hsH, opacity: Math.min(0.8, 0.3 + (p.vy || 0) * 0.06) }} />; })()}
                       </div>
                     </>
                   );
@@ -24013,6 +24229,10 @@ export default function AssetStudio() {
                     // here; the arms further down, once the held weapon's base angle has been read off
                     // the arm as drawn (they are turned the way an aim is, by driveUnitArms).
                     eBlocks = flyLegBlocks(eBlocks, flyPoseOf(ep));
+                  } else if (ep && ep.hsFall && !eUseAtkPose && !eFrontPose && !eClimbBack && !isCreatureUnit(ea)) {
+                    // 👢 A Stomp's fall, in YOUR pose (headStompPose): legs locked together here, arms
+                    // flung up further down, where the flying arms go.
+                    eBlocks = flyLegBlocks(eBlocks, headStompPose(ep.hsFallT));
                   }
                   // A dressed-look enemy already has a frozen copy of its weapon baked into its
                   // art. Strip it and re-attach the live one, exactly as the player does, so the
@@ -24141,6 +24361,10 @@ export default function AssetStudio() {
                     // the weapon in the hand rides along. A drawn creature keeps its paws as drawn.
                     const ePose = flyPoseOf(ep);
                     eBlocks = driveUnitArms(eBlocks, eArm0, (a) => flyArmTarget(a, ePose, eFacesRight));
+                  } else if (ep && ep.hsFall && eRealArm && !eUseAtkPose && !eFrontPose && !eClimbBack && !isCreatureUnit(ea)) {
+                    // 👢 ...and the Stomp fall's arms, overhead, by the flying arms' rule; an aim, a swing or a throw (above) outranks it.
+                    const hsPose = headStompPose(ep.hsFallT);
+                    eBlocks = driveUnitArms(eBlocks, eArm0, (a) => flyArmTarget(a, hsPose, eFacesRight));
                   }
                   if (ew && !eUseAtkPose && !eThrowingNow) {
                     const curArm = eHeldArmNow();
@@ -24205,9 +24429,12 @@ export default function AssetStudio() {
                   // facing flip, so it leans the way it is going. Not a drawn creature: tipping a
                   // four-legged body over reads as a nose-dive, not as flying.
                   const eFlyTip = (ep && ep.flying && !downed && !eFrontPose && !isCreatureUnit(ea)) ? flyTiltDeg(ep, enemyArtFacesRight(ea)) : 0;
+                  // 👢 ...and a Stomp's fall stretches it about its feet with the speed of the fall, as yours does.
+                  const eHsFall = !!(ep && ep.hsFall && !downed && !eFrontPose && !isCreatureUnit(ea));
                   const wrapTransform = downed
                     ? (flip === "none" ? "" : flip + " ") + "translateY(" + (-layFlatLiftPx(eBlocks, eRenderW, eph)).toFixed(2) + "px) " + LAY_FLAT_ROT_CSS
                     : Math.abs(eFlyTip) > 0.5 ? ((flip === "none" ? "" : flip + " ") + "rotate(" + eFlyTip.toFixed(1) + "deg)")
+                    : eHsFall ? ((flip === "none" ? "" : flip + " ") + headStompScaleCss(ep.vy))
                     : flip;
                   // Depth on a shared 🚶 plane (topdownDepthZ): the player's feet line against this
                   // unit's, both in the live level's frame (U.off moves a neighbour's unit into it).
@@ -24267,7 +24494,7 @@ export default function AssetStudio() {
                             altogether behind Front you cannot see through (unitHiddenByFront). */}
                         {eTalkWaiting && !downed ? <div className="talkBadge">💬</div> : null}
                       </div>
-                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : {}), ...(downed ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : {}), ...((downed || eHsFall) ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {eArtHit ? eArtHit.el : storeUnitArt(uKey, eArtSig, ea, ew, eSpawn, eRenderW, eph, eAnchor, eBlocks, (() => {
                           const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + uKey, keyPrefix: uKey + "_", alphaOf: spriteAlphaOf(ea, eThrowingNow ? spawnThrowableFor(eSpawn) : ew), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
                           // Draw the art at its true aspect when the box isn't one (ducking): on a
@@ -24281,6 +24508,7 @@ export default function AssetStudio() {
                           if (!plane) return art;
                           return <div style={{ position: "absolute", left: 0, top: plane.top, width: "100%", height: plane.height }}>{art}</div>;
                         })())}
+                        {eHsFall && (() => { const hsH = Math.min(3 * LV_CELL, 12 + (ep.vy || 0) * 6); return <div className="stompStreaks" style={{ left: hitboxOffset + epw * 0.15, width: epw * 0.7, top: eHitTopPx - eAnchor - hsH, height: hsH, opacity: Math.min(0.8, 0.3 + (ep.vy || 0) * 0.06) }} />; })()}
                       </div>
                     </React.Fragment>
                   );
@@ -26522,6 +26750,9 @@ html,body{margin:0;padding:0;background:#0f1117}
 .player{position:absolute;background:#7aa2d6;border-radius:5px;z-index:5000;box-shadow:0 2px 6px rgba(0,0,0,.5);overflow:visible}
 /* will-change: every unit sprite and its HP bar composite on their own layer. Without it a sprite paints INTO the level's layer, and each step re-rasters the SVG-textured cells under it: measured on Blake's machine walking M7 at 36-50 fps with 50-100 ms hitches, 65-100 fps and no hitches with this alone (2026-09-20). Props (.lobj) and Front cells are NOT promoted — tried, and more layers made it slower. */
 .playerWrap{position:absolute;z-index:5000;overflow:visible;isolation:isolate;will-change:transform}
+/* 👢 A Stomp's fall (headStompPose): speed streaks trailing up off the head, fading out at the top. Static
+   stripes, no animation: they ride the sprite, which is already moving down the screen. */
+.stompStreaks{position:absolute;pointer-events:none;background:repeating-linear-gradient(90deg,transparent 0 12%,rgba(255,255,255,.9) 12% 17%,transparent 17% 33%);-webkit-mask-image:linear-gradient(to top,#000,transparent);mask-image:linear-gradient(to top,#000,transparent)}
 .lcell.collisionOnly,.blockGhost.collisionOnly,.rampGhost.collisionOnly{opacity:.48;outline:2px dashed #62d9ff;outline-offset:-2px;filter:saturate(.55)}
 .player .pbody{position:absolute;inset:0;background:#7aa2d6;border-radius:5px}
 .player .peye{position:absolute;right:3px;top:5px;width:4px;height:4px;border-radius:50%;background:#0a0c12;z-index:2}

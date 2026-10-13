@@ -4439,3 +4439,65 @@ looking thing that's sort of 2.5D" and a closet door where he drew one.
   tall and 5.2 wide, placed at "27,25" on the Background layer, so its bottom is the floor's top and
   Bob walks in front of it.
 - The room stays open on the right (the floor, wall and ceiling all end at col 42), as he built it.
+
+## 👢 STOMP: land on a head from above, both ways (2026-10-13)
+
+**Blake: "add an ability that I can give to shoes or clothing where if you land on top of an enemy that
+take a ton of damage? Call it stomp, think of it like in Mario. Have it where if you have the stomp
+ability and are falling (not gliding or flying) you have a sort of special animation."** Then: **"make
+sure that if enemies have the ability (and I'll give the item high agi) that they will try to jump into
+the player too"**, and: "That is a stomp mechanic while this is an entirely different stomp ability."
+The 🦶 foot-stamp (`STOMP_DAMAGE`, below) is untouched. The new one is `EFFECT_TYPES.headStomp`,
+labelled "Stomp" (👢), and its code is all `headStomp*` / `HEAD_STOMP_*` / `p.hs*` / `ep.hs*`.
+* **Armed (`headStompArmed`)** in the air, falling faster than `HEAD_STOMP_MIN_VY` (1 px/frame), not
+  gliding, flying, climbing or on a 🚶 plane. Flying never reaches the gravity branch, so it never arms;
+  Glide passes `p.gliding`. The `air` record (`headStompAirStep`: `{ rose, fromY }`) tells a jump from a
+  walk-off. Anything that went up (a jump, a bounce, a flight let go) arms on the way down at once. A
+  walk-off arms only after `HEAD_STOMP_WALKOFF_DROP_CELLS` (1.25), so a kerb or a stair (one cell)
+  never flashes the pose. The record changes only at take-off, because a unit's sprite is cached on
+  its state (`unitArtSig`).
+* **Lands (`headStompLands`)** when the feet cross the TOP of an opposing body this frame (swept, so a
+  fast fall cannot step past a head), from no deeper than `HEAD_STOMP_TOP_BAND` (35%) into it the frame
+  before, so dropping down beside somebody is not a stomp. The highest head under you is the one hit.
+  The player's test runs AFTER the landing pass (a fall that reached the floor this frame still
+  crossed the head, and is put back on it) and BEFORE the landing resets (a bounce is not a landing).
+  The unit's runs after `applyHitTo` is defined, because a `const` used above its line is a TDZ crash.
+  Its fall stores `eHsArmed`/`eHsFeet0` for it, and nothing moves the unit in between.
+* **Damage** is the item's Damage (default 60) through `playerMeleeDamage`, so Strength rides it, as
+  the tail's does, with the Intelligence crit and then the target's armour. The player's goes through
+  `incomingUnitDamage`; a unit's through `applyHitTo(..., bodyBlow true)`, so your i-frames, your guard
+  and the revive window all apply. One stomp per body per time in the air (`hsHits`), so a bounce
+  cannot juggle the same head; landing clears it.
+* **Bounce (`headStompBounceVy`)** is the item's height in cells (default 3). Jump held as you land
+  bounces `HEAD_STOMP_HELD_BOUNCE` (1.6) times as high, and a unit always holds it, as for its glide.
+  There is no Agility hold boost on top (`jumpHoldT` set full). The bounce plays the jump sound, and a
+  💥 (`HEAD_STOMP_PUFF_SIZE` 1.6) sits on the head.
+* **The pose (`headStompPose`)** is Fly's rig: `flyPoseBlocks` for the player, and `flyLegBlocks` +
+  `driveUnitArms`/`flyArmTarget` for units. Arms are raised 155° (up and a little forward) with a ±8°
+  flutter, the legs are locked together (legSwing 0), and the body stays upright with no lean. The
+  wrapper stretches about the feet with the fall speed (`headStompScaleCss`, up to 1.07). `.stompStreaks`
+  draws speed lines trailing up off the head. Arms busy with a shot, swing, throw or block keep to
+  those branches. It is `noAnim` (no 🎬 designer), Fly's rule.
+* **Units leap at you (`headStompLeapPlan`).** The leap happens at an attack commit, after the
+  foot-stamp's check and before the tail and the weapon. A wearer on its feet, with its target within
+  `HEAD_STOMP_LEAP_REACH_CELLS` (5), leaps INSTEAD of swinging or shooting, but only if
+  `headStompLeapFrames` says its own jump clears the head by `HEAD_STOMP_LEAP_CLEARANCE_CELLS`. That
+  check flies the unit loop's own jump (`enemyJumpVelocity` plus Agility's held boost, which a unit
+  always gets). Measured peaks: Agility 9 is 6.8 cells and Agility 10 is 7.8, so only 10 clears a 7-cell
+  Bob from the same floor, while a Squirrel's head is in reach of anybody. Mid-leap it steers at the
+  target's middle at its walking pace (`ep.hsLeap`, the first dxMove rule). After landing it waits
+  `HEAD_STOMP_LEAP_COOLDOWN_FRAMES` (2 s) and fights with what it holds meanwhile. A neutral NPC's fall
+  lands on nobody (`acts`).
+* **Measured in the real build** (static build serving a library.json of his saves records plus scratch
+  levels, Chromium via Playwright, god mode):
+  - Bobert (Str 4) wearing it walked over a Guard Squirrel and jumped straight up. 51 frames of the
+    pose on the way down, feet stopped 46 px over the floor (the Squirrel's head), and a 87 px
+    (≈3-cell) bounce. "💀 Squirrel — defeated". The "👢 Stomped" toast was replaced the same frame by
+    the loot drop's toast, which every killing blow with a drop already does.
+  - Bobbi (Agility 10, Str 3, Seek, bare hands) wearing it came for a standing player. It leapt 239 px
+    (8.0 cells), came down with its feet exactly on the player's head line, and hit for 47 (48 raw,
+    then Bobert's armour). It bounced 140 px (the held 4.8 cells), landed beside him, and leapt again
+    after the cooldown, about every 3.3 s. 199 frames of the pose on Bobbi.
+  - Super Bob (Fly + Double Jump + Glide, Stomp added): 109 frames flying or hovering and 78 frames of
+    letting go plus gliding with Space held showed the pose on NO frame. Releasing Space into a plain
+    fall showed it on 73 of 75 frames, the stretch easing up to scale(0.965, 1.07).
