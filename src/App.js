@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 // the game's own front end will play the same data without the studio — see src/audio.js. The clip
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
-import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animKeyIndexAt, animAddKey, animSetValues, animDeleteKey, animMoveKey, animSetState, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped } from "./anim";
+import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped } from "./anim";
 import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume } from "./audio";
 
 /* ============================================================================
@@ -6678,6 +6678,12 @@ export const animActorBlocks = (blocks, v) => {
   }
   return out;
 };
+// 🎬 editor undo: changes closer together than this (ms) are one ↩ step — a slider sends dozens a
+// second while it is dragged, and one ↩ per pixel of it would be no undo at all.
+export const ANIM_UNDO_GAP = 600;
+// ...and how far (px) the pointer must travel on the stage before a press is a DRAG. Under it, it
+// is a click that only picks a layer: a press that wobbled a pixel used to set a key.
+export const ANIM_DRAG_SLOP = 4;
 // 🛏 ...and that posed drawing as outlines, for a blanket to lie on (animClothShape): every painted
 // piece's box as four corners, turned the way Static turns it (about pieceOriginFrac, mirrored after
 // the turn), relative to the hip, in cells. Arms are marked — an arm coming out from under a blanket
@@ -12323,6 +12329,17 @@ export default function AssetStudio() {
   const [animLook, setAnimLook] = useState("");   // which look plays the actor in the editor
   const [animDelArm, setAnimDelArm] = useState(false);
   const animDrag = useRef(null);
+  // ↩ UNDO in the 🎬 editor, as the Level Creator does it: the record as it was before each change
+  // (JSON), newest last. Blake, 2026-10-13: "I could not undo". A drag is one step, and so is a burst
+  // of changes (a slider dragged, a number typed, arrows held) — see animRemember.
+  const animUndo = useRef([]);
+  const animRedo = useRef([]);
+  const animLastPut = useRef(0);
+  const [animHist, setAnimHist] = useState({ u: 0, r: 0 }); // how many steps each way, for the buttons
+  // Move: This key | All keys. A drag, an arrow nudge or a typed X/Y changes the key at the playhead,
+  // or (All keys) every key of that layer in every state, by the same amount (animShiftLayer).
+  const [animAll, setAnimAll] = useState(false);
+  const animKeysRef = useRef(null); // the editor's keyboard actions, refreshed every render (see the anim screen)
   const animPressE = useRef(false);               // an E press for the editor's ▶, taken by its next frame
   // 🎬 IN PLAY. animInst: every placed animation's playhead this session, by "<level slot>|<cell>"
   // ({ si, t, done }), so a bed you got out of stays made-up-as-you-left-it when you come back.
@@ -19767,7 +19784,7 @@ export default function AssetStudio() {
   // outermost and the mirror inside it (rotate then scaleX), the way a placed object draws, so a
   // key's Turn is the angle you see whichever way the layer faces.
   // o: { key, left, top, z, flip (the whole stage mirrored), actor (pose -> drawing), alphaRoot,
-  //      clock (seconds, for props' own frames), showActor, editor, sel, onLayerDown, placed }
+  //      clock (seconds, for props' own frames), showActor, editor, sel, placed }
   const animStageEl = (anim, si, t, cellPx, o) => {
     const vals = animFrame(anim, si, t);
     // THE SAME ELEMENT BACK while the picture is unchanged (o.cache, in play, never while the actor
@@ -19804,17 +19821,19 @@ export default function AssetStudio() {
       if (op <= 0.001 && !sel) continue;
       const opacity = op <= 0.001 ? 0.25 : op; // a hidden layer you have selected still shows faintly, or you could not find it to drag
       const tf = "rotate(" + (+v.rot || 0).toFixed(2) + "deg)" + (v.flip ? " scaleX(-1)" : "");
-      const down = o.onLayerDown ? (e) => o.onLayerDown(e, l) : undefined;
+      // In the editor every layer names itself, so a click on the stage can tell whose drawn piece
+      // it landed on (the editor's onStageDown, document.elementsFromPoint).
+      const ly = o.editor ? l.id : undefined;
       const cls = "animLayer" + (sel ? " sel" : "");
       if (l.kind === "actor") {
         if (!showActor) continue;
         const art = o.actor ? o.actor(ANIM_POSES.includes(v.pose) ? v.pose : "side") : null;
         const rw = cellPx * PLAYER_RENDER_W_CELLS, rh = cellPx * PLAYER_H_CELLS;
-        if (!art || !art.length) { kids.push(<div key={l.id} className={cls + " animNoActor"} style={{ left: v.x * cellPx - rw * 0.2, top: v.y * cellPx - rh * (188 / H), width: rw * 0.4, height: rh, transformOrigin: (rw * 0.2) + "px " + (rh * 188 / H) + "px", transform: tf, opacity }} onPointerDown={down} />); continue; }
+        if (!art || !art.length) { kids.push(<div key={l.id} className={cls + " animNoActor"} style={{ left: v.x * cellPx - rw * 0.2, top: v.y * cellPx - rh * (188 / H), width: rw * 0.4, height: rh, transformOrigin: (rw * 0.2) + "px " + (rh * 188 / H) + "px", transform: tf, opacity }} data-ly={ly} />); continue; }
         const hip = animActorHip(art);
         const posed = animActorBlocks(art, v);
         const hx = (hip.x / W) * rw, hy = (hip.y / H) * rh;
-        kids.push(<div key={l.id} className={cls} style={{ left: v.x * cellPx - hx, top: v.y * cellPx - hy, width: rw, height: rh, transformOrigin: hx + "px " + hy + "px", transform: tf, opacity }} onPointerDown={down}>
+        kids.push(<div key={l.id} className={cls} style={{ left: v.x * cellPx - hx, top: v.y * cellPx - hy, width: rw, height: rh, transformOrigin: hx + "px " + hy + "px", transform: tf, opacity }} data-ly={ly}>
           {renderPieceRuns({ pieces: posed, cacheKey: o.key + "a", keyPrefix: o.key + "a", alphaOf: spriteAlphaOf(o.alphaRoot || null, null), drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, undefined, cut) })}
         </div>);
       } else if (l.kind === "cloth") {
@@ -19824,7 +19843,7 @@ export default function AssetStudio() {
         const d = (pts) => "M" + pts.map((q) => q[0].toFixed(3) + " " + q[1].toFixed(3)).join("L") + "Z";
         const L = CLOTH_LOOK;
         kids.push(<svg key={l.id} className={cls + " animCloth"} viewBox={"0 0 " + anim.w + " " + anim.h} style={{ left: 0, top: 0, width: anim.w * cellPx, height: anim.h * cellPx, opacity }}>
-          <g className="clothHit" onPointerDown={down}>
+          <g className="clothHit" data-ly={ly}>
             {g.scallops.map((q, i) => <circle key={"s" + i} cx={q[0].toFixed(3)} cy={q[1].toFixed(3)} r={q[2]} fill={L.fill} />)}
             <path d={d(g.body)} fill={L.fill} stroke={sel ? "#ffd23f" : "none"} strokeWidth={sel ? 0.04 : 0} strokeDasharray={sel ? "0.12 0.08" : undefined} />
             {g.dots.map((q, i) => <circle key={"d" + i} cx={q[0].toFixed(3)} cy={q[1].toFixed(3)} r={q[2]} fill={L.dot} />)}
@@ -19836,11 +19855,11 @@ export default function AssetStudio() {
         </svg>);
       } else {
         const pa = l.propId ? findA(l.propId) : null;
-        if (!pa) { if (o.editor) kids.push(<div key={l.id} className={cls + " animMissing"} style={{ left: v.x * cellPx - cellPx, top: v.y * cellPx - 2 * cellPx, width: 2 * cellPx, height: 2 * cellPx }} onPointerDown={down}>🌿</div>); continue; }
+        if (!pa) { if (o.editor) kids.push(<div key={l.id} className={cls + " animMissing"} style={{ left: v.x * cellPx - cellPx, top: v.y * cellPx - 2 * cellPx, width: 2 * cellPx, height: 2 * cellPx }} data-ly={ly}>🌿</div>); continue; }
         const lay = boomLayout(pa, l.size || 3, cellPx);
         const n = pa.frames && pa.frames.length ? pa.frames.length : 1;
         const fi = v.play && n > 1 ? Math.floor((o.clock || 0) * (pa.animFps || 6)) % n : 0;
-        kids.push(<div key={l.id} className={cls} style={{ left: v.x * cellPx - lay.width / 2, top: v.y * cellPx - lay.height, width: lay.width, height: lay.height, transform: animPropTransform(v, lay.height), opacity }} onPointerDown={down}>
+        kids.push(<div key={l.id} className={cls} style={{ left: v.x * cellPx - lay.width / 2, top: v.y * cellPx - lay.height, width: lay.width, height: lay.height, transform: animPropTransform(v, lay.height), opacity }} data-ly={ly}>
           {propArtInner(pa, lay.width, lay.height, fi, o.key + l.id, lay.box, undefined, !!v.flip)}
         </div>);
       }
@@ -19902,11 +19921,72 @@ export default function AssetStudio() {
       loadLibrary();
     } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ".");
   };
-  const openAnimDoc = (a) => {
+  // `keepView`: stay on the same state, moment and layer (↺ Last save puts back what you were
+  // looking at, it does not throw you to the start). Opening the SAME animation again is an undo
+  // step, so a reload you did not mean is one ↩ away; opening another one starts a fresh history.
+  const openAnimDoc = (a, keepView) => {
     const doc = a ? migrateAnim(JSON.parse(JSON.stringify(a)), uid) : { ...newAnim(uid), id: uid() };
+    if (a && animDoc && animDoc.id === doc.id) { if (JSON.stringify(animDoc) !== JSON.stringify(doc)) animRemember(animDoc, true); }
+    else { animUndo.current = []; animRedo.current = []; setAnimHist({ u: 0, r: 0 }); }
+    animLastPut.current = 0;
     setAnimDoc(doc); animBaseline.current = a ? JSON.stringify(doc) : "";
-    setAnimSi(0); setAnimT(0); setAnimSel(doc.layers[0] ? doc.layers[0].id : null); setAnimPrev(null); setAnimDelArm(false);
+    if (!keepView) { setAnimSi(0); setAnimT(0); setAnimSel(doc.layers[0] ? doc.layers[0].id : null); }
+    setAnimPrev(null); setAnimDelArm(false);
   };
+  // One undo step: the record BEFORE a change. Changes landing within ANIM_UNDO_GAP of the one
+  // before are the same step (a slider sends dozens while it is dragged); `force` always starts one.
+  const animRemember = (prev, force) => {
+    const now = Date.now();
+    if (prev && (force || now - animLastPut.current > ANIM_UNDO_GAP)) {
+      const s = JSON.stringify(prev), u = animUndo.current;
+      if (u[u.length - 1] !== s) { u.push(s); if (u.length > 100) u.shift(); }
+      animRedo.current = [];
+      setAnimHist({ u: u.length, r: 0 });
+    }
+    animLastPut.current = now;
+  };
+  // Back to a remembered record. It goes back in what it DRAWS, never in which record it is or
+  // which save it was edited from: an older savedAt would make the next 💾 claim an older base
+  // (stampSave's editedFrom), and the save folder merges by that.
+  const animRestore = (json) => {
+    let snap; try { snap = JSON.parse(json); } catch { return; }
+    const next = { ...snap, id: animDoc.id };
+    if (typeof animDoc.savedAt === "number") next.savedAt = animDoc.savedAt; else delete next.savedAt;
+    if (typeof animDoc.editedFrom === "number") next.editedFrom = animDoc.editedFrom; else delete next.editedFrom;
+    animPlayStop(); setAnimDoc(next); setAnimDelArm(false);
+    animDrag.current = null; animLastPut.current = 0;
+  };
+  const animUndoStep = () => {
+    if (!animDoc) return;
+    const u = animUndo.current, cur = JSON.stringify(animDoc);
+    while (u.length && u[u.length - 1] === cur) u.pop();
+    if (u.length) { animRedo.current.push(cur); animRestore(u.pop()); }
+    setAnimHist({ u: u.length, r: animRedo.current.length });
+  };
+  const animRedoStep = () => {
+    if (!animDoc || !animRedo.current.length) return;
+    animUndo.current.push(JSON.stringify(animDoc));
+    animRestore(animRedo.current.pop());
+    setAnimHist({ u: animUndo.current.length, r: animRedo.current.length });
+  };
+  // The 🎬 editor's keys: Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) undo and redo; the arrows nudge the
+  // selected layer a twentieth of a cell (Shift: half a cell). Never while you are typing in a box,
+  // and the arrows leave a focused slider to move itself.
+  useEffect(() => {
+    if (screen !== "anim") return undefined;
+    const kd = (e) => {
+      const el = e.target, tag = el && el.tagName, ty = tag === "INPUT" ? String(el.type || "text") : "";
+      if (tag === "TEXTAREA" || tag === "SELECT" || (tag === "INPUT" && ty !== "range" && ty !== "checkbox")) return;
+      const act = animKeysRef.current; if (!act) return;
+      const k = e.key, mod = e.ctrlKey || e.metaKey;
+      if (mod && (k === "z" || k === "Z")) { e.preventDefault(); if (e.shiftKey) act.redo(); else act.undo(); return; }
+      if (mod && (k === "y" || k === "Y")) { e.preventDefault(); act.redo(); return; }
+      const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[k];
+      if (dir && !mod && !e.altKey && ty !== "range") { e.preventDefault(); act.nudge(dir[0], dir[1], e.shiftKey ? 0.5 : 0.05); }
+    };
+    window.addEventListener("keydown", kd);
+    return () => window.removeEventListener("keydown", kd);
+  }, [screen]);
   const openAnimEditor = () => {
     loadTextures();
     if (!animDoc) openAnimDoc(animLib[0] || null);
@@ -22013,7 +22093,8 @@ export default function AssetStudio() {
   if (screen === "anim") {
     const d = animDoc || migrateAnim({ ...newAnim(uid), id: "new" }, uid);
     const dirty = JSON.stringify(d) !== animBaseline.current;
-    const put = (next) => { setAnimDoc(next); setAnimDelArm(false); };
+    // Every change to the record goes through here, so every change can be undone (animRemember).
+    const put = (next) => { if (next === d) return; animRemember(d); setAnimDoc(next); setAnimDelArm(false); };
     const si = Math.max(0, Math.min(animSi, d.states.length - 1));
     const st = d.states[si];
     const dur = animStateDur(st);
@@ -22032,24 +22113,97 @@ export default function AssetStudio() {
     const prevKey = keyTimes.filter((t) => t < animT - 0.001).pop();
     const nextKey = keyTimes.find((t) => t > animT + 0.001);
     const r2 = (v) => Math.round(v * 100) / 100;
-    // Drag on the stage: move the layer (a key at the playhead), in cells, to a twentieth of one.
-    const onLayerDown = (e, l) => {
+    const snap20 = (v) => Math.round(v * 20) / 20;
+    const tNow = Math.min(animT, dur);
+    // A MOVE of one layer by (dx, dy) cells, from the record `base`: the key at the playhead (made
+    // there if the playhead is between keys), or with Move: All keys every key it has (animShiftLayer).
+    // A blanket moves whole — both its ends go with it. `only` limits it to one end ("x" or "fx").
+    const moved = (base, lid, dx, dy, only) => {
+      const l = base.layers.find((q) => q.id === lid); if (!l) return base;
+      const v = animLayerAt(base, base.states[si], l, tNow);
+      const fields = only ? [only] : l.kind === "cloth" ? ["x", "fx", "y"] : ["x", "y"];
+      const by = (f) => (f === "y" ? dy : dx);
+      if (animAll) { const delta = {}; for (const f of fields) delta[f] = by(f); return animShiftLayer(base, lid, delta); }
+      const patch = {}; for (const f of fields) patch[f] = snap20(v[f] + by(f));
+      return animSetValues(base, si, tNow, lid, patch, uid);
+    };
+    // A typed position (X, Y, Head, Foot, Hem): the same move, so All keys moves every key by it too.
+    const moveTo = (f, val) => { if (!isFinite(val)) return; put(animAll ? animShiftLayer(d, sel.id, { [f]: val - (+selV[f] || 0) }) : animSetValues(d, si, tNow, sel.id, { [f]: val }, uid)); };
+    // ✥ ON THE STAGE (Blake, 2026-10-13: "I could not easily move a block"). Three things made it hard:
+    //  - Every layer took a click anywhere in its BOX, so the actor's box (lying down it covers half
+    //    the bed) and the Zzz's caught clicks meant for the bed and the nightstand. Now only DRAWN
+    //    pieces take a click (the css: .animStage.ed rules) and this asks the page what is drawn
+    //    under the pointer, topmost first.
+    //  - A layer under another could not be dragged at all. Now a drag that starts on any drawn
+    //    piece of the SELECTED layer moves it, whatever is drawn over it (pick it in Layers first);
+    //    a plain click still selects whatever is on top there.
+    //  - A click with the faintest wobble set a key at the playhead and quietly changed the motion.
+    //    Nothing changes now until the pointer has moved ANIM_DRAG_SLOP px.
+    const layersAt = (x, y) => {
+      const out = [];
+      for (const el of document.elementsFromPoint(x, y)) { const h = el.closest && el.closest(".animStage.ed [data-ly]"); const id = h && h.getAttribute("data-ly"); if (id && !out.includes(id)) out.push(id); }
+      return out;
+    };
+    const onStageDown = (e) => {
+      if (e.button !== undefined && e.button !== 0) return;
+      if (e.target.closest && e.target.closest(".animPromptBtn")) return;
+      // Off any box you were typing in, so the arrow keys nudge what you picked, not that box.
+      const ae = document.activeElement; if (ae && ae !== document.body && ae.blur) ae.blur();
+      const hits = layersAt(e.clientX, e.clientY);
+      animDrag.current = { mode: "move", pending: true, top: hits[0] || null, id: sel && hits.includes(sel.id) ? sel.id : hits[0] || null, sx: e.clientX, sy: e.clientY, base: d };
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* capture is a nicety: without it a fast drag can slip off the stage */ }
+    };
+    // ⤡ The handles of the selected layer (see animHandles below): a prop's corner sets its Size
+    // (the whole animation, about the point it stands on), a blanket's ends set its Head and Foot.
+    const onHandleDown = (e, h) => {
       e.stopPropagation(); e.preventDefault();
-      setAnimSel(l.id);
-      if (playing) return;
-      const v = animLayerAt(d, st, l, Math.min(animT, dur));
-      animDrag.current = { id: l.id, sx: e.clientX, sy: e.clientY, x0: v.x, y0: v.y, fx0: l.kind === "cloth" ? v.fx : undefined, si, t: Math.min(animT, dur) };
-      try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* capture is a nicety: without it a fast drag can slip off the layer */ }
+      if (playing || !sel) return;
+      const box = e.currentTarget.parentNode.getBoundingClientRect();
+      animDrag.current = { mode: h.mode, pending: true, id: sel.id, sx: e.clientX, sy: e.clientY, base: d, ax: box.left + h.ax * cellPx, ay: box.top + h.ay * cellPx, size0: sel.size || 3 };
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* as above */ }
     };
     const onStageMove = (e) => {
       const g = animDrag.current; if (!g) return;
-      const snap = (v) => Math.round(v * 20) / 20;
-      const x = snap(g.x0 + (e.clientX - g.sx) / cellPx), y = snap(g.y0 + (e.clientY - g.sy) / cellPx);
-      // A blanket moves whole: both its ends go with the drag.
-      const patch = g.fx0 !== undefined ? { x, y, fx: snap(g.fx0 + (x - g.x0)) } : { x, y };
-      setAnimDoc((cur) => (cur ? animSetValues(cur, g.si, g.t, g.id, patch, uid) : cur));
+      if (g.pending) {
+        if (playing || !g.id || Math.hypot(e.clientX - g.sx, e.clientY - g.sy) < ANIM_DRAG_SLOP) return;
+        g.pending = false; animRemember(g.base, true); setAnimSel(g.id); setAnimDelArm(false);
+      }
+      const dx = snap20((e.clientX - g.sx) / cellPx), dy = snap20((e.clientY - g.sy) / cellPx);
+      let next = g.base;
+      if (g.mode === "move") next = moved(g.base, g.id, dx, dy);
+      else if (g.mode === "head" || g.mode === "foot") next = moved(g.base, g.id, dx, 0, g.mode === "head" ? "x" : "fx");
+      else if (g.mode === "size") {
+        // How far out along the line from the point it stands on to where the corner was grabbed.
+        const ux = g.sx - g.ax, uy = g.sy - g.ay, len2 = Math.max(1, ux * ux + uy * uy);
+        const k = ((e.clientX - g.ax) * ux + (e.clientY - g.ay) * uy) / len2;
+        next = animSetLayer(g.base, g.id, { size: Math.max(0.5, Math.min(30, snap20(g.size0 * k))) });
+      }
+      setAnimDoc(next);
     };
-    const onStageUp = () => { animDrag.current = null; };
+    const onStageUp = () => {
+      const g = animDrag.current; animDrag.current = null;
+      if (!g) return;
+      if (g.pending) { if (g.mode === "move" && g.top) setAnimSel(g.top); } // a click: pick what is drawn on top there
+      else animLastPut.current = 0; // the drag was its own step; whatever comes next is another
+    };
+    // The selected layer's handles, in stage cells: { mode, x, y, ax, ay } (ax/ay: the point a
+    // corner scales about). Drawn over every layer, so a covered prop can still be resized.
+    const animHandles = (() => {
+      if (playing || !sel) return [];
+      if (sel.kind === "cloth") return [{ mode: "head", x: selV.x, y: selV.y }, { mode: "foot", x: selV.fx, y: selV.y }];
+      if (sel.kind !== "prop") return [];
+      const pa = findA(sel.propId); if (!pa) return [];
+      const lay = boomLayout(pa, sel.size || 3, 1);
+      const sx = selV.sx ?? 1, sy = selV.sy ?? 1, r = ((+selV.rot || 0) * Math.PI) / 180;
+      // animPropTransform: turned about the box's middle, squashed about its bottom-centre.
+      const cx = selV.x, cy = selV.y - lay.height / 2, lx = (lay.width * sx) / 2, lyy = lay.height / 2 - lay.height * sy;
+      return [{ mode: "size", x: cx + lx * Math.cos(r) - lyy * Math.sin(r), y: cy + lx * Math.sin(r) + lyy * Math.cos(r), ax: selV.x, ay: selV.y }];
+    })();
+    // The keyboard (see the effect by openAnimDoc): undo, redo, and the arrows nudging the selected layer.
+    animKeysRef.current = {
+      undo: animUndoStep, redo: animRedoStep,
+      nudge: (ux, uy, step) => { if (playing || !sel) return; put(moved(d, sel.id, ux * step, uy * step)); },
+    };
     // The timeline: click or drag anywhere on it to move the playhead (to a twentieth of a second).
     const scrub = (e) => {
       if (e.type === "pointermove" && !(e.buttons & 1)) return;
@@ -22076,11 +22230,19 @@ export default function AssetStudio() {
         <header className="bar">
           <button className="back" onClick={() => { animPlayStop(); setScreen("menu"); }}>‹ Menu</button>
           <input className="nm wide2" value={d.name} onChange={(e) => put({ ...d, name: e.target.value })} placeholder="Animation name" />
+          {/* Before the badge, which grows by "· unsaved": after it, ↩ Undo slid sideways the moment
+              an undo got back to the saved copy, and the next click landed on something else. */}
+          <button className="undo" disabled={!animHist.u} onClick={animUndoStep}>↩ Undo</button>
+          <button className="undo" disabled={!animHist.r} onClick={animRedoStep}>↪ Redo</button>
           <span className="badge">🎬 Animation{dirty ? " ·  unsaved" : ""}</span>
-          <select className="animOpen" value={stored ? d.id : ""} onChange={(e) => { animPlayStop(); openAnimDoc(findAnim(e.target.value)); }} title="Open a saved animation">
-            <option value="">{stored ? "—" : "📂 Open…"}</option>
+          {/* The picker always sits on its first line, so picking the animation that is open
+              reloads it as saved — it used to show that one picked, and picking it again did nothing
+              ("I could not load a un messed up version"). */}
+          <select className="animOpen" value="" onChange={(e) => { const a = findAnim(e.target.value); if (!a) return; animPlayStop(); openAnimDoc(a); }} title="Open a saved animation">
+            <option value="">{stored ? "🎬 " + stored.name : "📂 Open…"}</option>
             {animLib.map((a) => <option key={a.id} value={a.id}>🎬 {a.name}</option>)}
           </select>
+          {stored && <button className="ltbtn" disabled={!dirty} onClick={() => { animPlayStop(); openAnimDoc(stored, true); }}>↺ Last save</button>}
           <button className="ltbtn" onClick={() => { animPlayStop(); openAnimDoc(null); }}>✚ New</button>
           {playing ? <button className="ltbtn" onClick={animPlayStop}>⏹ Stop</button> : <button className="ltbtn" onClick={() => animPlayStart(si)} title="Plays from this state to the end. E (or a click on the prompt) moves a waiting state on.">▶ Play</button>}
           {stored && <button className={"ltbtn" + (animDelArm ? " danger" : "")} onClick={() => { if (!animDelArm) { setAnimDelArm(true); return; } setAnimDelArm(false); animPlayStop(); deleteAsset(stored); openAnimDoc(null); }}>{animDelArm ? "Sure?" : "🗑"}</button>}
@@ -22088,8 +22250,11 @@ export default function AssetStudio() {
         </header>
         <div className="animEdit">
           <div className="animMain">
-            <div className="animStageWrap" style={{ width: d.w * cellPx, height: d.h * cellPx, backgroundSize: cellPx + "px " + cellPx + "px" }} onPointerMove={onStageMove} onPointerUp={onStageUp} onPointerCancel={onStageUp}>
-              {animStageEl(d, viewSi, viewT, cellPx, { key: "aed", editor: true, sel: sel && sel.id, actor: actorOf, alphaRoot: findA(animLook), clock: playing ? viewT + viewSi * 7 : 0, onLayerDown })}
+            <div className="animStageWrap" style={{ width: d.w * cellPx, height: d.h * cellPx, backgroundSize: cellPx + "px " + cellPx + "px" }} onPointerDown={onStageDown} onPointerMove={onStageMove} onPointerUp={onStageUp} onPointerCancel={onStageUp}>
+              {animStageEl(d, viewSi, viewT, cellPx, { key: "aed", editor: true, sel: sel && sel.id, actor: actorOf, alphaRoot: findA(animLook), clock: playing ? viewT + viewSi * 7 : 0 })}
+              {animHandles.length > 0 && <div className="animHandles">
+                {animHandles.map((h) => <div key={h.mode} className={"animHandle " + h.mode} style={{ left: h.x * cellPx, top: h.y * cellPx }} onPointerDown={(e) => onHandleDown(e, h)} />)}
+              </div>}
               {fade > 0 && <div className="animFade inStage" style={{ opacity: fade }} />}
               {promptUp && <button className="talkCallout animPrompt animPromptBtn" style={{ left: promptAt.x, top: promptAt.y }} onClick={() => { animPressE.current = true; }}>{animPromptWords(d.states[viewSi].prompt)}</button>}
             </div>
@@ -22180,6 +22345,7 @@ export default function AssetStudio() {
               <div className="card">
                 <div className="ct">{sel.kind === "actor" ? "🧍" : sel.kind === "cloth" ? "🛏" : "🌿"} {sel.name} · {onKey ? "key " + (keyIdx + 1) : "＋ key at " + Math.min(animT, dur).toFixed(2) + " s"}</div>
                 <label className="catfield">Name <input value={sel.name} onChange={(e) => put(animSetLayer(d, sel.id, { name: e.target.value }))} /></label>
+                <div className="animRowF"><span className="wslab">Move</span><div className="seg"><button className={animAll ? "" : "on"} onClick={() => setAnimAll(false)}>This key</button><button className={animAll ? "on" : ""} onClick={() => setAnimAll(true)}>All keys</button></div></div>
                 {sel.kind === "prop" && <>
                   <div className="animRowF">
                     <select value={sel.propId} onChange={(e) => put(animSetLayer(d, sel.id, { propId: e.target.value }))}>
@@ -22193,17 +22359,17 @@ export default function AssetStudio() {
                   {sliderRow("Length", sel.len || 6, 0.5, 30, 0.05, " cells", (v) => put(animSetLayer(d, sel.id, { len: v })))}
                   {sliderRow("Mattress", sel.bed ?? d.h - 2, 0, d.h, 0.05, "", (v) => put(animSetLayer(d, sel.id, { bed: v })))}
                   <div className="animRowF">
-                    <label className="catfield">Head {numIn(selV.x, (v) => setV({ x: v }))}</label>
-                    <label className="catfield">Foot {numIn(selV.fx, (v) => setV({ fx: v }))}</label>
-                    <label className="catfield">Hem {numIn(selV.y, (v) => setV({ y: v }))}</label>
+                    <label className="catfield">Head {numIn(selV.x, (v) => moveTo("x", v))}</label>
+                    <label className="catfield">Foot {numIn(selV.fx, (v) => moveTo("fx", v))}</label>
+                    <label className="catfield">Hem {numIn(selV.y, (v) => moveTo("y", v))}</label>
                   </div>
                   {sliderRow("Cover", selV.cover ?? 2.8, 0, 5, 0.05, " cells", (v) => setV({ cover: v }))}
                   {sliderRow("Lift", selV.lift || 0, 0, 4, 0.05, " cells", (v) => setV({ lift: v }))}
                   {sliderRow("Show", Math.round((selV.show ?? 1) * 100), 0, 100, 5, "%", (v) => setV({ show: v / 100 }))}
                 </> : <>
                 <div className="animRowF">
-                  <label className="catfield">X {numIn(selV.x, (v) => setV({ x: v }))}</label>
-                  <label className="catfield">Y {numIn(selV.y, (v) => setV({ y: v }))}</label>
+                  <label className="catfield">X {numIn(selV.x, (v) => moveTo("x", v))}</label>
+                  <label className="catfield">Y {numIn(selV.y, (v) => moveTo("y", v))}</label>
                   <button className={"rotbtn" + (selV.flip ? " on" : "")} title="Mirror" onClick={() => setV({ flip: !selV.flip })}>⇄</button>
                 </div>
                 {sliderRow("Turn", Math.round(selV.rot || 0), -180, 180, 1, "°", (v) => setV({ rot: v }))}
@@ -27012,7 +27178,12 @@ html,body{margin:0;padding:0;background:#0f1117}
 .animStage{position:absolute;pointer-events:none}
 .animStage.placed{outline:1px dashed rgba(255,210,63,.55);outline-offset:-1px}
 .animLayer{position:absolute}
-.animStage.ed .animLayer{pointer-events:auto;cursor:grab}
+.animStage.ed .animLayer{pointer-events:none;cursor:grab}
+.animStage.ed .animLayer div:empty,.animStage.ed .animLayer.animNoActor,.animStage.ed .animLayer.animMissing{pointer-events:auto}
+.animStage.ed .animLayer svg{pointer-events:none}.animStage.ed .animLayer svg *{pointer-events:visiblePainted}
+.animHandles{position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none}
+.animHandle{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;background:#4f7cf6;border:2px solid #fff;border-radius:50%;box-sizing:border-box;pointer-events:auto;touch-action:none;box-shadow:0 1px 3px rgba(0,0,0,.5)}
+.animHandle.size{cursor:nesw-resize}.animHandle.head,.animHandle.foot{cursor:ew-resize}
 .animStage.ed .animLayer.sel{outline:1px dashed #ffd23f;outline-offset:2px}
 .animStage .animLayer.animCloth{pointer-events:none;overflow:visible;outline:none}
 .animStage.ed .animCloth .clothHit{pointer-events:visiblePainted;cursor:grab}

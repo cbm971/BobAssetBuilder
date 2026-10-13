@@ -345,13 +345,27 @@ export const animClothShape = (v, layer, body) => {
       S[0] = Math.min(S[0], bed - (bed - t) * w);
     }
   }
+  // WHEN IT STARTS ON HIM, ITS HEAD END LIES ACROSS HIM. Sitting up, nothing of him reaches back to
+  // the blanket's own head end: it starts at his back, where `cover` cuts across his body, and that
+  // cut climbs steeply to his front as he rises (at 74° it rises 3.6 cells for every one across).
+  // The slope limit below — there so a raised arm makes a tent, not a spike — tented over that climb
+  // from his front, and the hollow-filling blur did the same, so the head end stood up to two cells
+  // above the cut: a wall with the sheet down its face that his shoulders and back slid behind
+  // (Blake, 2026-10-13: "the edge of the blanket sort of clipping through the player as they are
+  // sitting up"). So the stretch where it climbs from that start is kept to what is under it, plus
+  // its own thickness. Lying down it starts at its own head end (x0 === xh), and nothing changes.
+  const S0 = S.slice();
+  let hug = -1;
+  if (x0 > xh + 1e-6 && S0[0] < bed - 1e-6) { hug = 0; while (hug + 1 < n && S0[hug + 1] <= S0[hug] + 1e-9) hug++; }
   const k = C.slope * dx;
   for (let i = 1; i < n; i++) S[i] = Math.min(S[i], S[i - 1] + k);
   for (let i = n - 2; i >= 0; i--) S[i] = Math.min(S[i], S[i + 1] + k);
+  for (let i = 0; i <= hug; i++) S[i] = S0[i];
   const blur = (arr, r, passes) => { let b = arr; for (let p = 0; p < passes; p++) b = b.map((_, i) => { let s = 0, c = 0; for (let j = Math.max(0, i - r); j <= Math.min(n - 1, i + r); j++) { s += b[j]; c++; } return s / c; }); return b; };
   // Hollows filled in (cloth bridges them) but never pulled down into him; then its corners rounded.
   const H = blur(S, 4, 2);
   const T = blur(S.map((s, i) => Math.min(s, H[i]) - C.thick), 2, 2);
+  for (let i = 0; i <= hug; i++) T[i] = Math.max(T[i], S0[i] - C.thick);
   // What is left once it reaches from its head end to its foot end bunches up at the head end.
   let A = 0;
   for (let i = 1; i < n; i++) A += Math.hypot(dx, T[i] - T[i - 1]);
@@ -441,6 +455,30 @@ export const animSetValues = (anim, si, t, layerId, patch, mkId) => {
     const cur = k.v[layerId] || (layer ? animLayerAt(a1, st0, layer, k.t) : {});
     return { ...k, v: { ...k.v, [layerId]: { ...cur, ...patch } } };
   }) }));
+};
+// The same change at EVERY key of one layer, in every state — the editor's "Move: All keys". Each
+// state's first key holds its own copy of where everything is (animAddState snapshots it), so a bed
+// moved at one key jumped back at the next state's first key, and moving a prop that never moves
+// meant one drag per state lined up by eye. `delta` is added to number fields ({ x: 0.5, fx: 0.5 });
+// a key that leaves a field out carries the shifted one over, and a state that never says where
+// the layer is gets the shifted default at its first key.
+export const animShiftLayer = (anim, layerId, delta) => {
+  const layer = anim.layers.find((l) => l.id === layerId);
+  const fields = Object.keys(delta || {}).filter((f) => ANIM_NUM_FIELDS.includes(f) && num(delta[f], 0) !== 0);
+  if (!layer || !fields.length) return anim;
+  return { ...anim, states: anim.states.map((st) => {
+    if (!st.keys.length) return st;
+    const keys = st.keys.map((k) => ({ ...k, v: { ...k.v } }));
+    for (const f of fields) {
+      let said = false;
+      for (const k of keys) {
+        const lv = k.v[layerId];
+        if (lv && typeof lv[f] === "number") { k.v[layerId] = { ...lv, [f]: round3(lv[f] + delta[f]) }; said = true; }
+      }
+      if (!said) keys[0].v[layerId] = { ...(keys[0].v[layerId] || {}), [f]: round3(num(animLayerAt(anim, st, layer, keys[0].t)[f], 0) + delta[f]) };
+    }
+    return { ...st, keys };
+  }) };
 };
 export const animDeleteKey = (anim, si, keyId) => withState(anim, si, (s) => (s.keys.length <= 1 ? s : { ...s, keys: s.keys.filter((k) => k.id !== keyId) }));
 export const animMoveKey = (anim, si, keyId, t) => withState(anim, si, (s) => ({ ...s, keys: s.keys.map((k) => (k.id === keyId ? { ...k, t: round3(clamp(t, 0, animStateDur(s))) } : k)).sort((x, y) => x.t - y.t) }));

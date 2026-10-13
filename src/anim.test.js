@@ -1,4 +1,4 @@
-import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animDeleteKey, animMoveKey, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS, animPropTransform, animClothShape, CLOTH } from "./anim";
+import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS, animPropTransform, animClothShape, CLOTH } from "./anim";
 
 let seq = 0;
 const mkId = () => "id" + (++seq);
@@ -197,6 +197,22 @@ describe("🎬 animations — editing", () => {
     expect(animDeleteState(a2, 2).states).toHaveLength(2);
     expect(animMoveState(a2, 2, -1).states[1].id).toBe(a2.states[2].id);
   });
+  test("Move: All keys moves a layer by the same amount at every key of every state", () => {
+    const { anim, actor, prop } = fixture();
+    const a2 = animShiftLayer(anim, prop.id, { x: 1.5, y: -0.5 });
+    // State 1 said where the bed was; its second key (only a turn) carries the moved spot over.
+    expect(a2.states[0].keys[0].v.prop1).toMatchObject({ x: 8.5, y: 8.5, play: true });
+    expect(animLayerAt(a2, a2.states[0], prop, 0.5)).toMatchObject({ x: 8.5, y: 8.5, rot: 10 });
+    // State 2 never mentioned it (it stood at the default, 7,9): it is moved there too, at its first key.
+    expect(animLayerAt(a2, a2.states[1], prop, 1)).toMatchObject({ x: 8.5, y: 8.5 });
+    // A moving layer keeps its motion, shifted: every key that says where the actor is moves.
+    const a3 = animShiftLayer(anim, actor.id, { x: 2 });
+    expect(a3.states[1].keys.map((k) => k.v[actor.id].x)).toEqual([7, 7]);
+    expect(a3.states[1].keys[1].v[actor.id].y).toBe(6.5);
+    // Nothing else changes, and a zero move is no change at all.
+    expect(a3.states[0].keys[0].v.prop1).toEqual(anim.states[0].keys[0].v.prop1);
+    expect(animShiftLayer(anim, prop.id, { x: 0 })).toBe(anim);
+  });
   test("layers: the actor cannot be removed; a removed prop leaves no values behind; order moves", () => {
     const { anim, actor, prop } = fixture();
     expect(animRemoveLayer(anim, actor.id).layers).toHaveLength(2);
@@ -261,6 +277,20 @@ describe("🛏 a blanket (cloth layer)", () => {
   test("starts at him, not on the bare mattress behind him, when nothing of him is under its head end", () => {
     const g = animClothShape({ ...V, x: 1, cover: 0.5 }, layer(6), { x: 5, y: 7, rot: 0, parts: [box(-1, -3, 1, 0)] });
     expect(g.band[0][0]).toBeCloseTo(4, 2);
+  });
+  test("sitting up, its head end lies across him: no wall climbing his back above the cut", () => {
+    // A torso 2 wide and 3 tall, part way up (turned -60°, head to the upper left), covered 1.5
+    // up the body. The cut across him rises 1.73 for every 1 across, steeper than the slope a tent
+    // may fall at, which is what used to stand the head end up as a wall in front of his back.
+    const body = { x: 6, y: 6.5, rot: -60, flip: false, parts: [box(-1, -3, 1, 0)] };
+    const g = animClothShape({ ...V, x: 1, fx: 9, cover: 1.5 }, layer(5), body); // no cloth to spare, so no rolls
+    const back = [6 - 0.5 - 1.5 * Math.sin(Math.PI / 3), 6.5 + Math.sin(Math.PI / 3) - 0.75]; // the cut's back corner
+    expect(g.body[0][0]).toBeCloseTo(back[0], 1);
+    // Just past it the top is the cut itself, its own thickness up — not 1.1 cells higher.
+    const cutAt = (x) => back[1] - Math.tan(Math.PI / 3) * (x - back[0]);
+    for (const dx of [0.05, 0.3, 0.6]) expect(topAt(g, back[0] + dx)).toBeGreaterThan(cutAt(back[0] + dx) - CLOTH.thick - 0.06);
+    // Lying with its head end over him it starts at its own head end, as before.
+    expect(animClothShape({ ...V, x: 3, cover: 5 }, layer(6.2), { x: 5, y: 7, rot: -90, parts: [box(-0.5, -3, 0.5, 0)] }).body[0][0]).toBeCloseTo(3, 5);
   });
   test("an arm coming out past its head end carries the edge up; nothing else does", () => {
     const raised = (arm) => ({ x: 5, y: 7, rot: 0, parts: [box(-0.2, -3, 0.2, 0, arm), box(0.5, -0.5, 2, 0)] });

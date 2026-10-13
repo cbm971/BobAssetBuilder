@@ -447,12 +447,16 @@ plus traps it does not cover:
   spare cloth (`len`) bunches into rolls and folds, and `lift` raises its head end hem and all.
   A stiff drawing moved, turned or squashed under a moving body was rejected eight times ("cheap,
   ugly and unnatural"); never cover a moving body with a prop again. The Bed: the blanket's keys
-  are only on the body's own keys — stays put in the slap (his arm lifts its edge by itself),
-  cover 2.8 → 0.5 on the sit-up (kg1 → kg2: it rides up his chest and slides into his lap),
-  lifts off his legs on the arm RAISE (kg2 → kg3) and lands as the heap at the foot, clear of his
-  hand when he stands, as the arm comes down (kg3 → kg4). Never invent a motion he did not ask for
-  to hang a fix on. An actor's prompt
-  centres on the BODY (`animActorPromptSpot`), not the hip.
+  are only on the body's own keys (cover 2.8 → 0.5 on the sit-up, thrown on the arm raise, heap as
+  it comes down; CLAUDE-HISTORY.md has every key). When it starts AT him (sat up, x0 past its head
+  end) its outline climbs his body only as high as the cut plus its thickness (`hug`) — the slope
+  tent stood a wall in front of his shoulders. Never invent a motion he did not ask for to hang a
+  fix on. An actor's prompt centres on the BODY (`animActorPromptSpot`), not the hip.
+  The 🎬 editor: only DRAWN pieces take a click (`.animStage.ed` css, `elementsFromPoint` over
+  `data-ly`); a drag on the SELECTED layer's pieces moves it even under another; nothing changes
+  before ANIM_DRAG_SLOP; prop corner = Size, blanket ends = Head/Foot; arrows nudge; Move: All keys
+  is `animShiftLayer`. ↩/↪ (Ctrl+Z/Y) step through `animRemember` and never restore an older
+  id/savedAt; picking the open animation in 📂, or ↺ Last save, reloads the saved copy.
   "Level start" begins in the play effect, "Walk up + E" last in the E chain, both
   through `beginCut`; a cutscene pauses the world like a conversation (`cutFrame`, one return at
   the top of the loop). "You take over" puts your standing hip on the actor's last hip and clears

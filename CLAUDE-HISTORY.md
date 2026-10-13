@@ -4442,6 +4442,47 @@ It should only Say "E - Get up.""
   again at 0.55 as it goes back under; sit-up 1.19-1.75 (rides up to 3.95, settles to 5.38 in his lap)
   on the frames his turn goes -86 → 0; hem up to 5.20 by 2.09 with the arm raise; heap at 2.46 with
   the arm down; the heap stays after you take over. Frames checked with BoB and Army Bob.
+- (2026-10-13, take 7) Blake: "very close to being ready other than the the edge of the blanket sort
+  of clipping through the player as they are sitting up". Measured: sitting up, nothing of him reaches
+  back to the blanket's own head end (5.9), so it starts at his back where `cover` cuts across him, and
+  that cut climbs steeply toward his front (at turn -74 it rises 3.6 cells per cell across). The slope
+  limit (a tent may fall at most 1.1 per cell) tented over that climb from his front, and the hollow
+  fill did the same, so the head end stood up to 2 cells above the cut: a wall with the cream sheet down
+  its face, and his shoulders and back slid behind it (at 1.1 s the top at the back corner was 5.12
+  against a cut at 6.14). Now, when the blanket starts at him (x0 > its head end), the stretch where the
+  outline climbs from that start keeps to what is under it plus its thickness (`hug` in
+  `animClothShape`): the edge lies across him along the cut. Lying down it starts at its own head end
+  and nothing changes; across the whole scene only Get up 1.0-1.65 s draws differently (swept at 0.05 s).
+  Control: the new test reads 5.58 on the old code against > 6.27.
+- (same day) **The 🎬 editor, for tweaking by hand.** He tried to fix it himself and "could not easily
+  resize a block ... could not easily move a block, I could not undo and I could not load a un messed up
+  version". His save showed the shipped record, so nothing of his was lost: the edits were never saved.
+  What was wrong, found by driving it with the mouse:
+  - Every layer took a click anywhere in its BOX. Lying down, the actor's box covers half the bed, so a
+    click on the headboard picked Bob. Now only drawn pieces take a click (`.animStage.ed .animLayer`
+    is `pointer-events:none`, its `div:empty` leaves and SVG shapes are not) and the stage asks
+    `document.elementsFromPoint` what is drawn there, topmost first (`data-ly` on each layer).
+  - Nothing under another layer could be dragged. A drag that starts on any drawn piece of the
+    SELECTED layer now moves it whatever is over it (pick it in Layers, drag on the blanket over him);
+    a plain click still picks whatever is on top.
+  - A click that wobbled a pixel set a key at the playhead. Nothing changes until ANIM_DRAG_SLOP (4 px).
+  - Resize: a prop's corner handle sets its Size (the whole animation, about the point it stands on);
+    the blanket has a handle at each end (Head, Foot). Arrows nudge 0.05 cells, Shift 0.5.
+  - **Move: This key | All keys.** Each state's first key holds its own copy of where everything is, so
+    a bed moved in one state jumped back in the next. All keys (`animShiftLayer`) moves every key of the
+    layer in every state by the same amount; drags, arrows and the typed X/Y/Head/Foot/Hem all obey it.
+  - ↩ Undo / ↪ Redo (and Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z): the record before each change, a burst closer
+    than ANIM_UNDO_GAP (600 ms) being one step, a drag always its own. A restore keeps the CURRENT id,
+    savedAt and editedFrom: an older savedAt would make the next save claim an older base. The buttons
+    sit before the "· unsaved" badge: after it, Undo slid sideways the moment an undo reached the saved
+    copy, and a second click landed on something else (caught by clicking it by hand).
+  - "I could not load a un messed up version": the 📂 picker showed the open animation as picked, and
+    picking it again fired nothing. It now always sits on its first line (the open one's name), so
+    picking it reloads the saved copy, and ↺ Last save does the same in place (same state, moment and
+    layer). Reloading the same animation is one undo step; opening another starts a fresh history.
+  All driven by hand with `computer` clicks and drags in the pane (bed 8.3 → 9.3 → undo → 8.3; All keys
+  9.3 in all three states; corner Size 10 → 12; Ctrl+Z; Last save back to 8.3 everywhere; Bob dragged
+  from under the blanket 7.35 → 8.35; foot handle 11.55 → 10.55; a still click between keys added none).
 
 ## 🏠 Trailor Park S1: the bedroom's ceiling and closet door (2026-10-12)
 
