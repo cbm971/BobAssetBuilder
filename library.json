@@ -348380,22 +348380,6 @@
    "angles": {
     "front": [
      {
-      "id": "csng0a1",
-      "kind": "rect",
-      "x": 47.5,
-      "y": 42.5,
-      "w": 116.5,
-      "h": 179,
-      "color": "#efe4c8",
-      "mirror": false,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      }
-     },
-     {
       "id": "pvemvjk",
       "kind": "rect",
       "x": 55.5,
@@ -348497,22 +348481,6 @@
     {
      "front": [
       {
-       "id": "csng0a1",
-       "kind": "rect",
-       "x": 47.5,
-       "y": 42.5,
-       "w": 116.5,
-       "h": 179,
-       "color": "#efe4c8",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       }
-      },
-      {
        "id": "pvemvjk",
        "kind": "rect",
        "x": 55.5,
@@ -348612,7 +348580,8 @@
    "animFps": 6,
    "solidDefault": false,
    "category": "Interior",
-   "savedAt": 1791853662243
+   "savedAt": 1791942344956,
+   "editedFrom": 1791853662243
   },
   {
    "id": "cncstd1",
@@ -835079,6 +835048,337 @@
    "value": 16,
    "rank": "rare",
    "savedAt": 1791542660795
+  },
+  {
+   "id": "ttbl6uy",
+   "name": "Interior Door",
+   "type": "prop",
+   "angles": {
+    "front": [
+     {
+      "id": "4cmpki4",
+      "kind": "rect",
+      "x": 45.5,
+      "y": 18,
+      "w": 114.5,
+      "h": 220,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "3b91l9v",
+      "kind": "rect",
+      "x": 35.5,
+      "y": 58.5,
+      "w": 65.5,
+      "h": 12.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      },
+      "rot": 90
+     },
+     {
+      "id": "9fuak5u",
+      "kind": "rect",
+      "x": 68.5,
+      "y": 59,
+      "w": 65.5,
+      "h": 12.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      },
+      "rot": 90
+     },
+     {
+      "id": "er9z48b",
+      "kind": "rect",
+      "x": 101,
+      "y": 59,
+      "w": 65.5,
+      "h": 12.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      },
+      "rot": 90
+     },
+     {
+      "id": "4drfqjs",
+      "kind": "rect",
+      "x": 10,
+      "y": 162,
+      "w": 116,
+      "h": 12.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      },
+      "rot": 90
+     },
+     {
+      "id": "jne9qsr",
+      "kind": "rect",
+      "x": 44,
+      "y": 163,
+      "w": 116,
+      "h": 12.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      },
+      "rot": 90
+     },
+     {
+      "id": "n2drje3",
+      "kind": "rect",
+      "x": 74,
+      "y": 164,
+      "w": 116,
+      "h": 12.5,
+      "color": "#c9cdd2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.95
+      },
+      "rot": 90
+     },
+     {
+      "id": "74sorlw",
+      "kind": "circle",
+      "x": 47,
+      "y": 101.5,
+      "w": 19,
+      "h": 10,
+      "color": "#33302e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.1
+      }
+     },
+     {
+      "id": "j5w1gjd",
+      "kind": "halfcircle",
+      "x": 51.5,
+      "y": 106,
+      "w": 29.5,
+      "h": 3.5,
+      "color": "#33302e",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.1
+      },
+      "rot": 180
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "guideId": "default",
+   "size": 2,
+   "frames": [
+    {
+     "front": [
+      {
+       "id": "4cmpki4",
+       "kind": "rect",
+       "x": 45.5,
+       "y": 18,
+       "w": 114.5,
+       "h": 220,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "3b91l9v",
+       "kind": "rect",
+       "x": 35.5,
+       "y": 58.5,
+       "w": 65.5,
+       "h": 12.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       },
+       "rot": 90
+      },
+      {
+       "id": "9fuak5u",
+       "kind": "rect",
+       "x": 68.5,
+       "y": 59,
+       "w": 65.5,
+       "h": 12.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       },
+       "rot": 90
+      },
+      {
+       "id": "er9z48b",
+       "kind": "rect",
+       "x": 101,
+       "y": 59,
+       "w": 65.5,
+       "h": 12.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       },
+       "rot": 90
+      },
+      {
+       "id": "4drfqjs",
+       "kind": "rect",
+       "x": 10,
+       "y": 162,
+       "w": 116,
+       "h": 12.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       },
+       "rot": 90
+      },
+      {
+       "id": "jne9qsr",
+       "kind": "rect",
+       "x": 44,
+       "y": 163,
+       "w": 116,
+       "h": 12.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       },
+       "rot": 90
+      },
+      {
+       "id": "n2drje3",
+       "kind": "rect",
+       "x": 74,
+       "y": 164,
+       "w": 116,
+       "h": 12.5,
+       "color": "#c9cdd2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.95
+       },
+       "rot": 90
+      },
+      {
+       "id": "74sorlw",
+       "kind": "circle",
+       "x": 47,
+       "y": 101.5,
+       "w": 19,
+       "h": 10,
+       "color": "#33302e",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.1
+       }
+      },
+      {
+       "id": "j5w1gjd",
+       "kind": "halfcircle",
+       "x": 51.5,
+       "y": 106,
+       "w": 29.5,
+       "h": 3.5,
+       "color": "#33302e",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.1
+       },
+       "rot": 180
+      }
+     ],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    }
+   ],
+   "animFps": 6,
+   "solidDefault": false,
+   "category": "Interior",
+   "savedAt": 1791942297196
   },
   {
    "id": "u23o5an",
