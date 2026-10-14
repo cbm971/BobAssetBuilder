@@ -1053801,7 +1053801,13 @@
    "fx": {},
    "climb": {},
    "hazard": {},
-   "markers": {},
+   "markers": {
+    "34,81": {
+     "kind": "anim",
+     "animId": "cptrend",
+     "w": 64
+    }
+   },
    "enemies": {},
    "conns": {
     "N1": {
@@ -1053837,7 +1053843,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1791718326826
+   "savedAt": 1791976198324,
+   "editedFrom": 1791718326826
   },
   {
    "id": "6ktwvoo",
