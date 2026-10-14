@@ -899154,7 +899154,7 @@
      "dur": 1.2,
      "wait": true,
      "loop": true,
-     "prompt": "E - Get up.",
+     "prompt": "E Get up.",
      "promptLayer": "",
      "promptLift": 0,
      "fadeIn": 2,
@@ -899858,8 +899858,8 @@
      ]
     }
    ],
-   "savedAt": 1791942457176,
-   "editedFrom": 1791935558381
+   "savedAt": 1791942494020,
+   "editedFrom": 1791942457176
   },
   {
    "id": "wcwrkni",
