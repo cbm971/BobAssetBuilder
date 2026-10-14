@@ -835176,8 +835176,8 @@
      {
       "id": "74sorlw",
       "kind": "circle",
-      "x": 47,
-      "y": 101.5,
+      "x": 47.5,
+      "y": 119,
       "w": 19,
       "h": 10,
       "color": "#33302e",
@@ -835192,8 +835192,8 @@
      {
       "id": "j5w1gjd",
       "kind": "halfcircle",
-      "x": 51.5,
-      "y": 106,
+      "x": 49.5,
+      "y": 126,
       "w": 29.5,
       "h": 3.5,
       "color": "#33302e",
@@ -835202,7 +835202,7 @@
        "opacity": 1,
        "glow": 0,
        "glowColor": "#ffd76b",
-       "bright": 1.1
+       "bright": 1.2
       },
       "rot": 180
      }
@@ -835338,8 +835338,8 @@
       {
        "id": "74sorlw",
        "kind": "circle",
-       "x": 47,
-       "y": 101.5,
+       "x": 47.5,
+       "y": 119,
        "w": 19,
        "h": 10,
        "color": "#33302e",
@@ -835354,8 +835354,8 @@
       {
        "id": "j5w1gjd",
        "kind": "halfcircle",
-       "x": 51.5,
-       "y": 106,
+       "x": 49.5,
+       "y": 126,
        "w": 29.5,
        "h": 3.5,
        "color": "#33302e",
@@ -835364,7 +835364,7 @@
         "opacity": 1,
         "glow": 0,
         "glowColor": "#ffd76b",
-        "bright": 1.1
+        "bright": 1.2
        },
        "rot": 180
       }
@@ -835378,7 +835378,8 @@
    "animFps": 6,
    "solidDefault": false,
    "category": "Interior",
-   "savedAt": 1791942297196
+   "savedAt": 1791942382853,
+   "editedFrom": 1791942297196
   },
   {
    "id": "u23o5an",
