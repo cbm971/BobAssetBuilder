@@ -452,6 +452,14 @@ plus traps it does not cover:
   end) its outline climbs his body only as high as the cut plus its thickness (`hug`) — the slope
   tent stood a wall in front of his shoulders. Never invent a motion he did not ask for to hang a
   fix on. An actor's prompt centres on the BODY (`animActorPromptSpot`), not the hip.
+  A ROPE is a layer kind too (`"rope"`, 🪢): it hangs from a point of a prop layer (`from`,
+  hookX/hookY; `animPropPoint` is animPropTransform's math) and, with `hold`, runs to the actor's
+  raised hands (`animHandsAt`), so only the ship and the actor need keys. "Walk up + E": the states
+  before `eState` are scenery (actor hidden); state 0 loops until you walk into the stage, then the
+  rest play by themselves and the last holds with its prompt (`animSceneryStep`); E only within
+  `ANIM_REACH_CELLS` of where the actor starts, and the actor starts from where you stood
+  (`animEntryOffset`). Every key is a stop for EVERY layer (smoothstep per span), so a flight is
+  one key span. Front paint and Front objects draw over a playing stage.
   The 🎬 editor: only DRAWN pieces take a click (`.animStage.ed` css, `elementsFromPoint` over
   `data-ly`); a drag on the SELECTED layer's pieces moves it even under another; nothing changes
   before ANIM_DRAG_SLOP; prop corner = Size, blanket ends = Head/Foot; arrows nudge; Move: All keys
@@ -569,4 +577,5 @@ Grep it for the function or feature name. In order, it covers:
 - crouch rendering and corpses;
 - sound: the storage measurements and why audio is a file, the clip ladder, the keeper's sweep of
   clips, and the test rigs (fake host store, a test keeper with a local bare repo, headless Edge);
-- and, last, the 👢 Stomp clothing ability (`headStomp`), with how it was driven in a real build.
+- the 👢 Stomp clothing ability (`headStomp`), with how it was driven in a real build;
+- and, last, the 🚁 helicopter rope ending: the Chinook, the rope layer, the walk-in scenery states.

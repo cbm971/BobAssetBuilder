@@ -11,8 +11,9 @@
  *   { id, type: "anim", name, w, h,                  the stage, in level cells
  *     trigger: "start" | "reach",                    plays as the level starts / when you walk up and press E
  *     ending: "play" | "leave",                      you take over where the actor ends / the floor is done
+ *     eState: <state id>,                            "Walk up + E": the state E starts (see animReachAt)
  *     layers: [{ id, name, kind: "actor" } | { id, name, kind: "prop", propId, size }
- *              | { id, name, kind: "cloth", len, bed }],   back to front
+ *              | { id, name, kind: "cloth", len, bed } | { id, name, kind: "rope", from, hookX, hookY }],   back to front
  *     states: [{ id, name, dur, wait, loop, prompt, promptLayer, promptLift, fadeIn, fadeOut, sound, soundVol,
  *                keys: [{ id, t, v: { <layerId>: { x, y, rot, show, flip, pose, legs, arms, sit, play } } }] }] }
  *
@@ -41,6 +42,13 @@
  *          the bare mattress top. A blanket made of one stiff drawing could only move, turn and
  *          squash, and Blake called every version of that "cheap, ugly and unnatural" (2026-10-13):
  *          it has to rise when his arm comes out from under it and bunch when he sits up.
+ *   rope   a ROPE (animRopeShape), worked out every frame like the blanket: it hangs from a point on
+ *          a prop layer (the layer's `from`, at hookX/hookY across and down its drawn box), so it
+ *          goes wherever that prop flies, turns or bobs; with no `from` it hangs from its own x,y.
+ *          drop = how much rope is out (cells; 0 → 9 is it being let down), swing = how far a free
+ *          end sways (degrees), hold = its end is in the actor's raised hands. Drawn as one stiff
+ *          prop, a rope lowered from a moving helicopter to a moving man had to be keyed three
+ *          times over and still came apart between keys — the blanket's lesson (2026-10-13).
  *
  * KEYS. A state is a few keys along its own timeline. Numbers ease from one key to the next; the
  * rest (flip, pose, play) switch AT the key. A key that leaves a layer out carries that layer's
@@ -54,8 +62,12 @@
 export const ANIM_POSES = ["side", "front", "back", "crouch"];
 export const ANIM_TRIGGERS = [{ key: "start", label: "Level start" }, { key: "reach", label: "Walk up + E" }];
 export const ANIM_ENDINGS = [{ key: "play", label: "You take over" }, { key: "leave", label: "Leave the floor" }];
-export const ANIM_NUM_FIELDS = ["x", "y", "rot", "show", "sx", "sy", "legs", "arms", "sit", "fx", "cover", "lift"];
-export const ANIM_STEP_FIELDS = ["flip", "pose", "play"];
+export const ANIM_NUM_FIELDS = ["x", "y", "rot", "show", "sx", "sy", "legs", "arms", "sit", "fx", "cover", "lift", "drop", "swing"];
+export const ANIM_STEP_FIELDS = ["flip", "pose", "play", "hold"];
+// A prop layer's Size (cells, its longer side). Past the 1–30 the editor first offered: a Chinook's
+// rotors are 30 m tip to tip, and at the ~55% scale that keeps the whole helicopter on screen over a
+// man who can reach its rope, that is 54 cells.
+export const ANIM_PROP_SIZE_MAX = 80;
 // A key "at" the playhead: within this many seconds. Two keys closer than this would be one key
 // the editor could never select apart.
 export const ANIM_KEY_EPS = 0.02;
@@ -75,6 +87,7 @@ export const animLayerDefaults = (anim, layer) => {
   const w = num(anim && anim.w, 14), h = num(anim && anim.h, 9);
   if (layer && layer.kind === "actor") return { x: w / 2, y: h - ANIM_STAND_HIP_CELLS, rot: 0, show: 1, flip: false, pose: "side", legs: 0, arms: 0, sit: 0 };
   if (layer && layer.kind === "cloth") return { x: w / 2 - 3, fx: w / 2 + 3, y: h - 1, cover: 2.8, lift: 0, show: 1 };
+  if (layer && layer.kind === "rope") return { x: w / 2, y: 1, drop: Math.max(1, h - 3), swing: 0, hold: false, show: 1 };
   return { x: w / 2, y: h, rot: 0, show: 1, sx: 1, sy: 1, flip: false, play: true };
 };
 // A prop layer's CSS transform for its box `hPx` tall. The turn stays about the box's middle and
@@ -113,12 +126,16 @@ export const migrateAnim = (a0, mkId) => {
   if (!ANIM_TRIGGERS.some((t) => t.key === a.trigger)) a.trigger = "start";
   if (!ANIM_ENDINGS.some((t) => t.key === a.ending)) a.ending = "play";
   if (!a.angles || typeof a.angles !== "object") a.angles = { front: [], back: [], side: [], up: [], crouch: [] };
-  let layers = (Array.isArray(a.layers) ? a.layers : []).filter((l) => l && l.id && (l.kind === "actor" || l.kind === "prop" || l.kind === "cloth"));
+  let layers = (Array.isArray(a.layers) ? a.layers : []).filter((l) => l && l.id && (l.kind === "actor" || l.kind === "prop" || l.kind === "cloth" || l.kind === "rope"));
   const actors = layers.filter((l) => l.kind === "actor");
   if (actors.length > 1) layers = layers.filter((l) => l.kind !== "actor" || l === actors[0]);
   if (!actors.length) layers = [{ id: mkId ? mkId() : "actor", kind: "actor", name: "Bob" }, ...layers];
-  a.layers = layers.map((l) => (l.kind === "prop" ? { ...l, name: l.name || "Prop", propId: l.propId || "", size: clamp(num(l.size, 3), 0.5, 40) }
+  // A rope hangs only from a PROP layer that is still there (a deleted helicopter leaves it hanging
+  // from its own spot rather than from nothing).
+  const propIds = new Set(layers.filter((l) => l.kind === "prop").map((l) => l.id));
+  a.layers = layers.map((l) => (l.kind === "prop" ? { ...l, name: l.name || "Prop", propId: l.propId || "", size: clamp(num(l.size, 3), 0.5, ANIM_PROP_SIZE_MAX) }
     : l.kind === "cloth" ? { ...l, name: l.name || "Blanket", len: clamp(num(l.len, 6), 0.5, 80), bed: clamp(num(l.bed, a.h - 2), 0, a.h) }
+    : l.kind === "rope" ? { ...l, name: l.name || "Rope", from: typeof l.from === "string" && propIds.has(l.from) ? l.from : "", hookX: clamp(num(l.hookX, 0.5), 0, 1), hookY: clamp(num(l.hookY, 1), 0, 1) }
     : { ...l, name: l.name || "Bob" }));
   const ids = new Set(a.layers.map((l) => l.id));
   const states = (Array.isArray(a.states) ? a.states : []).filter(Boolean);
@@ -147,6 +164,9 @@ export const migrateAnim = (a0, mkId) => {
       keys,
     };
   });
+  // Which state E starts in a "Walk up + E" animation — kept by id, so reordering or deleting
+  // states never points it at the wrong one ("" = the second state, as it always was).
+  a.eState = typeof a.eState === "string" && a.states.some((s, i) => i > 0 && s.id === a.eState) ? a.eState : "";
   return a;
 };
 
@@ -244,9 +264,100 @@ export const animActorPromptSpot = (v) => {
   const r = ((+(v && v.rot) || 0) * Math.PI) / 180;
   return { x: v.x + Math.sin(r) * ANIM_BODY_MID_CELLS, y: v.y - animPromptLift(v) };
 };
-// A "Walk up + E" animation plays its first state as scenery while YOU are still playing (the
-// copter hovering, the rope swaying), so its actor is not drawn there — you are.
-export const animActorShown = (anim, si) => !(anim && anim.trigger === "reach" && si === 0);
+// ── "WALK UP + E". Its states before the one E starts are SCENERY: they play while YOU are still
+// playing, so the actor is not drawn in them — you are. The first loops from the moment the level
+// is up (the helicopter hovering); walking into the stage plays the rest by themselves, the last of
+// them holding (looping if it loops) with its prompt up until E (the rope let down, then swaying).
+// Blake's ending (2026-10-13): "it is dropping down a rope, and you grab the rope and fly off" —
+// the drop is the helicopter's, so it happens as you get there, and the grab is yours.
+// With E on the second state (eState "", every animation made before this) the walk-in is nothing,
+// exactly as before.
+export const animReachAt = (anim) => {
+  const states = (anim && anim.states) || [];
+  if (states.length < 2) return 0;
+  const i = anim.eState ? states.findIndex((s) => s.id === anim.eState) : -1;
+  return i >= 1 ? i : 1;
+};
+// The state whose prompt (and prompt layer) shows while you stand there: the last scenery one.
+export const animReachPromptState = (anim) => ((anim && anim.states) || [])[Math.max(0, animReachAt(anim) - 1)] || null;
+export const animActorShown = (anim, si) => !(anim && anim.trigger === "reach" && (si === 0 || si < animReachAt(anim)));
+// One step of the walk-in, from { si: 1, t: 0, el: 0 }: the scenery states play through, and the
+// last one holds as if it waited for E (it does — but E is taken by the loop, never by this).
+// `ready` once that last one is reached: the rope is down, the prompt can go up.
+export const animSceneryStep = (anim, pos, dt) => {
+  const at = animReachAt(anim), last = at - 1;
+  if (last < 1) return null;
+  const states = anim.states.slice(0, at).map((s, i) => (i === last ? { ...s, wait: true, fadeIn: 0 } : s));
+  const nx = animStep({ ...anim, states }, pos, dt, false);
+  return { si: nx.si, t: nx.t, el: nx.el, ready: nx.si === last };
+};
+// How near (cells, across) to where the actor STARTS you must stand for E. The stage is wherever its
+// layers go — a helicopter's is 60 cells wide — so "inside the stage" would let E grab a rope from
+// thirty cells off. And the actor starts where you stood, easing from there to its own first spot
+// over ANIM_ENTRY_SECONDS, so the cut is a reach for the rope, not a jump.
+export const ANIM_REACH_CELLS = 2.5;
+export const ANIM_ENTRY_SECONDS = 0.35;
+export const animEntryOffset = (off, el) => {
+  if (!off) return { x: 0, y: 0 };
+  const k = 1 - ease(clamp(num(el, 0) / ANIM_ENTRY_SECONDS, 0, 1));
+  return { x: num(off.x, 0) * k, y: num(off.y, 0) * k };
+};
+
+// ── 🪢 A ROPE. Where a point of a PROP layer is drawn, in stage cells: the point (fx, fy) as
+// fractions across and down its unturned box (w × h cells), through the very transform
+// animPropTransform hands the browser — mirrored about the box's middle, squashed about its
+// bottom-centre, turned about its middle — so a rope tied to it stays on it whatever it does.
+export const animPropPoint = (v, w, h, fx, fy) => {
+  const sx = num(v && v.sx, 1), sy = num(v && v.sy, 1), r = ((+(v && v.rot) || 0) * Math.PI) / 180;
+  let qx = (num(fx, 0.5) - 0.5) * w;
+  const qy = (num(fy, 1) - 0.5) * h;
+  if (v && v.flip) qx = -qx;
+  const X = qx * sx, Y = sy * (qy - h / 2) + h / 2;
+  return [num(v && v.x, 0) + X * Math.cos(r) - Y * Math.sin(r), num(v && v.y, 0) - h / 2 + X * Math.sin(r) + Y * Math.cos(r)];
+};
+// Where the actor's raised hands are, in stage cells (`body` as animClothShape takes it): the tip of
+// whichever arm reaches highest up the body — the far edge of an arm turned up about its shoulder.
+// null when nothing on it is an arm.
+export const animHandsAt = (body) => {
+  if (!body || !Array.isArray(body.parts)) return null;
+  let best = null;
+  for (const p of body.parts) {
+    if (!p || !p.arm || !Array.isArray(p.pts) || p.pts.length < 2) continue;
+    const s = p.pts.slice().sort((a, b) => a[1] - b[1]);
+    const tip = [(s[0][0] + s[1][0]) / 2, (s[0][1] + s[1][1]) / 2];
+    if (!best || tip[1] < best[1]) best = tip;
+  }
+  if (!best) return null;
+  const r = ((+body.rot || 0) * Math.PI) / 180, c = Math.cos(r), s = Math.sin(r), lx = best[0] * (body.flip ? -1 : 1), ly = best[1];
+  return [num(body.x, 0) + lx * c - ly * s, num(body.y, 0) + lx * s + ly * c];
+};
+export const ROPE = { w: 0.15, edge: 0.05, knot: 0.14, period: 2.6, bend: 0.55, segs: 12 };
+// Manila rope with the house dark edge.
+export const ROPE_LOOK = { fill: "#c8a165", edge: "#1d1b1b" };
+// The rope at one moment: { pts (a line, stage cells), knot ([x, y] | null) }, or null when none is
+// out. `top` is where it hangs from, `hands` the actor's (animHandsAt) when it is held, `clock`
+// seconds (a free end sways on it, like a prop's own frames run on it, so the sway never jumps at a
+// state change). Held, it runs straight from the top to the hands — he hangs on it — and whatever
+// is left over hangs straight down from his hands. Free, it hangs `drop` long, swinging `swing`°
+// either way, its lower half swinging further than its upper (a rope bends, a stick does not).
+export const animRopeShape = (v, top, hands, clock) => {
+  const drop = Math.max(0, num(v && v.drop, 0));
+  if (!top || drop < 0.02) return null;
+  const [tx, ty] = top;
+  if (v && v.hold && hands) {
+    const [hx, hy] = hands, d = Math.hypot(hx - tx, hy - ty), tail = Math.max(0, drop - d);
+    const pts = [[tx, ty], [hx, hy]];
+    if (tail > 0.02) pts.push([hx, hy + tail]);
+    return { pts, knot: tail > 0.02 ? [hx, hy + tail] : null };
+  }
+  const a = ((num(v && v.swing, 0) * Math.PI) / 180) * Math.sin((2 * Math.PI * num(clock, 0)) / ROPE.period);
+  const end = [tx + drop * Math.sin(a), ty + drop * Math.cos(a)];
+  const mid = [tx + 0.5 * drop * Math.sin(a * ROPE.bend), ty + 0.5 * drop * Math.cos(a * ROPE.bend)];
+  // The quadratic through the middle point (the Curve tool's rule, curveBandPoints).
+  const k = [2 * mid[0] - (tx + end[0]) / 2, 2 * mid[1] - (ty + end[1]) / 2], pts = [];
+  for (let i = 0; i <= ROPE.segs; i++) { const u = i / ROPE.segs, w = 1 - u; pts.push([w * w * tx + 2 * w * u * k[0] + u * u * end[0], w * w * ty + 2 * w * u * k[1] + u * u * end[1]]); }
+  return { pts, knot: end };
+};
 
 // ── 🛏 A BLANKET (a "cloth" layer), worked out fresh every frame from what lies under it.
 //

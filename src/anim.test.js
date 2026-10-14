@@ -1,4 +1,4 @@
-import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS, animPropTransform, animClothShape, CLOTH } from "./anim";
+import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS, animPropTransform, animClothShape, CLOTH, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, ANIM_ENTRY_SECONDS, ANIM_PROP_SIZE_MAX, animPropPoint, animHandsAt, animRopeShape } from "./anim";
 
 let seq = 0;
 const mkId = () => "id" + (++seq);
@@ -323,5 +323,109 @@ describe("🛏 a blanket (cloth layer)", () => {
     for (const x of [2.2, 3, 4, 5, 6, 7, 7.8]) expect(topAt(m, 17 - x)).toBeCloseTo(topAt(g, x), 1);
     expect(m.band[0][0]).toBeCloseTo(17 - g.band[0][0], 5);
     expect(m.dots.length).toBe(g.dots.length);
+  });
+});
+
+describe("🚁 Walk up + E: scenery before E, and the actor starting where you stood", () => {
+  // Hover (loops, before you arrive) → Rope (let down as you walk in) → Waiting (loops, E) → Grab → Fly.
+  const five = (eState) => migrateAnim({ ...newAnim(mkId), id: "h", trigger: "reach", eState, states: [
+    { id: "s0", name: "Hover", dur: 1.6, wait: true, loop: true, keys: [{ id: "a", t: 0, v: {} }] },
+    { id: "s1", name: "Rope", dur: 1.2, keys: [{ id: "b", t: 0, v: {} }] },
+    { id: "s2", name: "Waiting", dur: 1, wait: true, loop: true, prompt: "E - Grab the rope.", keys: [{ id: "c", t: 0, v: {} }] },
+    { id: "s3", name: "Grab", dur: 0.5, keys: [{ id: "d", t: 0, v: {} }] },
+    { id: "s4", name: "Fly", dur: 3, keys: [{ id: "e", t: 0, v: {} }] },
+  ] }, mkId);
+  test("E starts the second state unless the animation names a later one; the name survives only if it is a later state", () => {
+    expect(animReachAt(five(""))).toBe(1);
+    expect(animReachAt(five("s3"))).toBe(3);
+    expect(five("s0").eState).toBe(""); // the first state is the one you walk up to, never E's
+    expect(five("gone").eState).toBe("");
+    expect(animReachAt(migrateAnim({ id: "one", trigger: "reach" }, mkId))).toBe(0);
+  });
+  test("the actor is hidden in every state before E — you are the one playing then", () => {
+    const a = five("s3");
+    expect([0, 1, 2, 3, 4].map((i) => animActorShown(a, i))).toEqual([false, false, false, true, true]);
+    expect([0, 1, 2].map((i) => animActorShown(five(""), i))).toEqual([false, true, true]); // as it always was
+  });
+  test("the prompt is the last scenery state's", () => {
+    expect(animReachPromptState(five("s3")).id).toBe("s2");
+    expect(animReachPromptState(five("")).id).toBe("s0");
+  });
+  test("walking in plays the scenery through and holds on its last state, never on into E's", () => {
+    const a = five("s3");
+    let pos = animSceneryStep(a, { si: 1, t: 0, el: 0 }, 0);
+    expect(pos).toMatchObject({ si: 1, ready: false });
+    pos = animSceneryStep(a, pos, 1.0);
+    expect(pos).toMatchObject({ si: 1, ready: false });
+    pos = animSceneryStep(a, pos, 0.5);
+    expect(pos.si).toBe(2); expect(pos.ready).toBe(true); expect(pos.t).toBeCloseTo(0.3, 6);
+    for (let i = 0; i < 20; i++) pos = animSceneryStep(a, pos, 0.25);
+    expect(pos.si).toBe(2); // ten seconds on, still waiting for E
+    expect(pos.t).toBeGreaterThanOrEqual(0); expect(pos.t).toBeLessThan(1); // and looping
+    // A last scenery state that does not wait or loop still holds at its end.
+    const b = { ...a, states: a.states.map((s, i) => (i === 2 ? { ...s, wait: false, loop: false } : s)) };
+    expect(animSceneryStep(b, { si: 2, t: 0, el: 0 }, 9)).toMatchObject({ si: 2, t: 1, ready: true });
+    expect(animSceneryStep(five(""), { si: 1, t: 0, el: 0 }, 0.1)).toBe(null); // no scenery after the first
+  });
+  test("the actor starts where you stood and eases to its own first spot", () => {
+    const off = { x: 2, y: -0.5 };
+    expect(animEntryOffset(off, 0)).toEqual({ x: 2, y: -0.5 });
+    const mid = animEntryOffset(off, ANIM_ENTRY_SECONDS / 2);
+    expect(mid.x).toBeGreaterThan(0); expect(mid.x).toBeLessThan(2);
+    const end = animEntryOffset(off, ANIM_ENTRY_SECONDS);
+    expect(end.x).toBeCloseTo(0, 9); expect(end.y).toBeCloseTo(0, 9);
+    expect(animEntryOffset(null, 0)).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe("🪢 a rope (rope layer)", () => {
+  test("is a layer kind of its own; it hangs only from a prop layer that is there", () => {
+    const a = migrateAnim({ id: "r", layers: [{ id: "b", kind: "actor" }, { id: "p", kind: "prop", propId: "x", size: 54 }, { id: "r1", kind: "rope", from: "p", hookX: 1.4 }, { id: "r2", kind: "rope", from: "b" }] }, mkId);
+    expect(a.layers[1].size).toBe(54); // past the old 40 cap
+    expect(a.layers[2]).toMatchObject({ kind: "rope", name: "Rope", from: "p", hookX: 1, hookY: 1 });
+    expect(a.layers[3].from).toBe(""); // an actor is not something to tie a rope to
+    expect(migrateAnim({ id: "q", layers: [{ id: "p", kind: "prop", size: 500 }] }, mkId).layers.find((l) => l.id === "p").size).toBe(ANIM_PROP_SIZE_MAX);
+    const st = { keys: [{ id: "k0", t: 0, v: { r1: { drop: 0, swing: 0, hold: false } } }, { id: "k1", t: 1, v: { r1: { drop: 8, swing: 6, hold: true } } }] };
+    expect(animLayerAt(a, st, a.layers[2], 0.5)).toMatchObject({ drop: 4, swing: 3, hold: false }); // hold switches AT the key
+    expect(animLayerAt(a, st, a.layers[2], 1)).toMatchObject({ drop: 8, hold: true });
+  });
+  test("a prop's point goes where the browser draws it: mirrored, squashed about the bottom-centre, turned about the middle", () => {
+    const v = { x: 10, y: 8, rot: 0, sx: 1, sy: 1, flip: false };
+    expect(animPropPoint(v, 4, 2, 0.5, 1)).toEqual([10, 8]);       // bottom-centre = the layer's own x,y
+    expect(animPropPoint(v, 4, 2, 0, 0)).toEqual([8, 6]);          // top-left
+    expect(animPropPoint({ ...v, flip: true }, 4, 2, 0, 0)).toEqual([12, 6]);
+    const sq = animPropPoint({ ...v, sx: 0.5, sy: 0.5 }, 4, 2, 0, 0);
+    expect(sq[0]).toBeCloseTo(9, 9); expect(sq[1]).toBeCloseTo(7, 9); // the bottom stays put
+    const r = animPropPoint({ ...v, rot: 90 }, 4, 2, 0.5, 0);        // the top-centre, turned a quarter clockwise about (10, 7)
+    expect(r[0]).toBeCloseTo(11, 9); expect(r[1]).toBeCloseTo(7, 9);
+  });
+  test("a mirrored stage hangs the rope from the mirrored hook", () => {
+    const v = { x: 32, y: 12.5, rot: 7, sx: 1, sy: 1, flip: true };
+    const p = animPropPoint(v, 52, 10, 0.29, 0.49), q = animPropPoint(animMirrorValues(v, 64), 52, 10, 0.29, 0.49);
+    expect(q[0]).toBeCloseTo(64 - p[0], 9); expect(q[1]).toBeCloseTo(p[1], 9);
+  });
+  const arm = (pts) => ({ arm: true, pts });
+  test("his hands are the tip of the arm that reaches highest, turned and mirrored with him", () => {
+    const parts = [{ arm: false, pts: [[-0.5, -4], [0.5, -4], [0.5, 2], [-0.5, 2]] }, arm([[0.1, -4.7], [0.5, -4.7], [0.5, -2.5], [0.1, -2.5]])];
+    const h0 = animHandsAt({ x: 5, y: 10, rot: 0, flip: false, parts }), h1 = animHandsAt({ x: 5, y: 10, rot: 0, flip: true, parts });
+    expect(h0[0]).toBeCloseTo(5.3, 9); expect(h0[1]).toBeCloseTo(5.3, 9); expect(h1[0]).toBeCloseTo(4.7, 9); expect(h1[1]).toBeCloseTo(5.3, 9);
+    const t = animHandsAt({ x: 5, y: 10, rot: 90, flip: false, parts });
+    expect(t[0]).toBeCloseTo(9.7, 9); expect(t[1]).toBeCloseTo(10.3, 9);
+    expect(animHandsAt({ x: 0, y: 0, parts: [parts[0]] })).toBe(null);
+  });
+  test("free, it hangs `drop` straight down from its top, its knot at the end, and sways on the clock", () => {
+    expect(animRopeShape({ drop: 0 }, [3, 2], null, 0)).toBe(null);
+    const g = animRopeShape({ drop: 6, swing: 0 }, [3, 2], null, 1.3);
+    expect(g.pts[0]).toEqual([3, 2]); expect(g.knot[0]).toBeCloseTo(3, 9); expect(g.knot[1]).toBeCloseTo(8, 9);
+    const sw = animRopeShape({ drop: 6, swing: 10 }, [3, 2], null, 0.65); // a quarter of its swing period: all the way over
+    expect(Math.abs(sw.knot[0] - 3)).toBeCloseTo(6 * Math.sin((10 * Math.PI) / 180), 6);
+    expect(Math.hypot(sw.knot[0] - 3, sw.knot[1] - 2)).toBeCloseTo(6, 6);
+  });
+  test("in his hands it runs straight from its top to them, and what is left hangs straight down from them", () => {
+    const g = animRopeShape({ drop: 8, hold: true }, [3, 2], [4, 7], 0);
+    expect(g.pts[0]).toEqual([3, 2]); expect(g.pts[1]).toEqual([4, 7]);
+    expect(g.pts[2][0]).toBe(4); expect(g.pts[2][1]).toBeCloseTo(7 + 8 - Math.hypot(1, 5), 9);
+    expect(animRopeShape({ drop: 3, hold: true }, [3, 2], [4, 7], 0).pts).toHaveLength(2); // pulled tight: no tail
+    expect(animRopeShape({ drop: 6, hold: true }, [3, 2], null, 0).knot[1]).toBeCloseTo(8, 9); // no hands on stage: it hangs free
   });
 });

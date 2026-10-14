@@ -4572,3 +4572,75 @@ labelled "Stomp" (👢), and its code is all `headStomp*` / `HEAD_STOMP_*` / `p.
   - Super Bob (Fly + Double Jump + Glide, Stomp added): 109 frames flying or hovering and 78 frames of
     letting go plus gliding with Space held showed the pose on NO frame. Releasing Space into a plain
     fall showed it on 73 of 75 frames, the stretch easing up to scale(0.965, 1.07).
+
+## 🚁 The helicopter rope: the floor's closing cutscene (2026-10-13)
+
+Blake: "start working on the next animation. It is of a large army helicopter, I am imagining the
+duel blade one but the game does take place in the 60s, and it is dropping down a rope, and you grab
+the rope and fly off, and that ends the floor."
+
+**The ship.** The tandem-rotor one is the CH-47 Chinook, and the CH-47A entered Army service in 1962
+(Vietnam from 1965), so it is period. `chnk47a` "CH-47 Chinook" (category Army, size 50, 4 frames at
+20 fps, 37-39 pieces each) is drawn side-on facing LEFT at real proportions: rotor Ø 18 m, hubs
+11.94 m apart, so tip to tip is the whole 200-unit canvas (6.68 units/m) and the tight box is
+200 x 38.5. Fuselage, forward hump and tall aft pylon are Fill polys; sponson, engine pod, gear,
+cockpit glass, five cabin windows, the open front door with the hoist bar over it, a white star and
+"U.S. ARMY" (Impact, readable when flipped). The rotors are the frames: three Line-tool blades a
+rotor, the fore and aft rotors turning opposite ways, 30° a frame (a quarter of the 120° a 3-blade
+rotor repeats over), each blade reaching R·cosφ along the ship and 2.5 units up for the near half
+(seen from a little below), over a faint 80%-translucent disc. Generator: scratchpad `copter.js`;
+`editorReachIssues` is `[]`.
+
+**Its size is set by the camera.** Play centres the body, so on his 871 px view a man standing on
+the floor sees ~18 rows above it. A real-scale Chinook (3.2 cells/m) is 18 cells tall and could not
+hover above a man's reach and still show its rotors. The layer is 52 cells (about 55% of world
+scale: fuselage ~27 cells, ~10 tall with rotors), gear 7.5 cells over the floor, top at 17.5. Prop
+layer Size now goes to 80 (`ANIM_PROP_SIZE_MAX`; the slider stopped at 30, migrate at 40).
+Measured in Playtest at 1444 x 867: the aft rotor line is a few px inside the top edge.
+
+**The rope is a layer kind (`"rope"`), for the blanket's reason.** A rope drawn as a prop would need
+the ship, the rope and Bob keyed three times over in lockstep, and any edit to the flight path
+would leave it hanging off nothing. `animRopeShape` works it out every frame: from the point of its
+`from` prop layer at hookX/hookY (`animPropPoint`, the same mirror / bottom-centre squash / turn
+about the middle that animPropTransform hands the browser; a test checks a mirrored stage), `drop`
+cells of it (0 → 8.2 is it being let down), a free end swinging `swing`° on the clock (its lower
+half further than its upper, the Curve tool's quadratic), and with `hold` it runs straight to the
+actor's raised hands (`animHandsAt`: the tip of the arm reaching highest up the body) with the rest
+hanging straight down from them. It is drawn BEHIND the actor, so the tail disappears behind him and
+his fist closes over it. Manila `#c8a165` with the house `#1d1b1b` edge.
+
+**Walk up + E grew scenery states.** "It is dropping down a rope" is the helicopter's move and "you
+grab the rope" is yours, so the drop happens as you arrive. `eState` (picked by the Animation card's
+E select, kept by id) names the state E starts; every state before it is scenery (actor hidden, you
+still playing). State 0 loops from the moment the level is up; walking into the stage starts the rest
+AS STATE 0'S LOOP COMES ROUND (`walkAt`, or the hovering ship jumped to where state 1 begins), they
+play by themselves (`animSceneryStep`), and the last holds/loops with its prompt. With eState ""
+(everything before this) nothing changes. E is taken only within `ANIM_REACH_CELLS` (2.5) of where
+the actor starts: a 64-cell stage would otherwise let you grab a rope 30 cells away. The actor
+starts from where YOU stood (the hip worked out from your feet, cutFrame's rule backwards) and eases
+to its own first spot over `ANIM_ENTRY_SECONDS` (`animEntryOffset`), in cutFrame (so the camera
+follows) and in the stage render alike.
+
+**Every key is a stop for every layer.** Numbers ease by smoothstep per key span, so a key in the
+middle of a flight stalls the ship there. The fly-off is ONE span (3 s, x 32 → 104, up 9.5, nose
+down 10°, Bob swinging back 18°), its slow end hidden under the 1.2 s fade-out; the lift before it
+is its own span, and the beat between them reads as the ship climbing then nosing over.
+
+**`cptrend` "Helicopter Rope"**, stage 64 x 20 (marker = bottom-left, on the floor row): Hover
+(1.6 s, waits/loops, a 0.1-cell bob, no rope) → Rope (1.6 s, let down, overshoots, starts to swing)
+→ Waiting (1.6 s loop, "E - Grab the rope.", his "E - Get up." wording) → Grab (0.55 s: arms to 180,
+a 0.4-cell hop, hold switches on at 0.3 s with the swing at 0) → Lift (1.4 s, up 3.3 with him on the
+end) → Fly off (3 s, fade out 1.2). Ending "Leave the floor". Keys generated by scratchpad
+`scene.js` from BoB's measured raised hands (-0.067, -4.658 cells from the hip, the same on Army
+Bob); at every held key the hands are exactly 5.62 cells from the hook.
+
+**Verified in Playtest** (a copy of Trailor Park M6 with the marker at 34,56, Army Bob, god mode,
+the gated MessageChannel shim): walking in started the drop on the loop's wrap; the prompt came up
+only near the rope; E handed over with a 0.18-cell entry offset; frames held mid-reach, mid-lift
+and mid-flight (a `<script>` rAF wrapper with `__holdWhen` that stops the loop on a condition
+read from cutRef, then `__release`); the screen went fully black and "🏁 Floor complete!" showed;
+Wake Up (Bed) still draws its 55-piece actor and blanket. **M6's church is Front paint, and it
+covered the ship as it flew off**: a playing stage sits under Front paint and Front objects like
+the player does, and the see-through window does not run during a cutscene. Place the marker where
+the flight path to the right is open sky. Not done: no rotor sound (a state's 🔊 plays only in the
+cutscene states, not the scenery ones); not placed in any of his levels.
