@@ -899160,7 +899160,7 @@
      "fadeIn": 2,
      "fadeOut": 0,
      "sound": "alrmsnd",
-     "soundVol": 0.65,
+     "soundVol": 0.45,
      "keys": [
       {
        "id": "ka0",
@@ -899858,8 +899858,8 @@
      ]
     }
    ],
-   "savedAt": 1791942494020,
-   "editedFrom": 1791942457176
+   "savedAt": 1791942575330,
+   "editedFrom": 1791942494020
   },
   {
    "id": "wcwrkni",
