@@ -393730,7 +393730,7 @@
     "oipvf3l"
    ],
    "statBoosts": {
-    "hp": 0,
+    "hp": 1,
     "speed": 0,
     "agility": 0,
     "intelligence": 0,
@@ -393754,8 +393754,9 @@
    ],
    "ignoreHideIfHat": false,
    "value": 25,
-   "savedAt": 1790512135800,
-   "rank": "legendary"
+   "savedAt": 1791976576288,
+   "rank": "legendary",
+   "editedFrom": 1790512135800
   },
   {
    "id": "drkshd1",
