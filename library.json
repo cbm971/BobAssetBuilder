@@ -1053802,7 +1053802,7 @@
    "climb": {},
    "hazard": {},
    "markers": {
-    "34,81": {
+    "34,106": {
      "kind": "anim",
      "animId": "cptrend",
      "w": 64
@@ -1053843,8 +1053843,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1791976198324,
-   "editedFrom": 1791718326826
+   "savedAt": 1791976267863,
+   "editedFrom": 1791976251024
   },
   {
    "id": "6ktwvoo",
