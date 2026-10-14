@@ -384,6 +384,8 @@ import {
   extraLivesLeft,
   reviveInPlace,
   unitUntouchable,
+  unitHitImmune,
+  PLAYER_INVULN_FRAMES,
   livesLeftNote,
   DIALOGUE_ACTS,
   DIALOGUE_TONES,
@@ -12246,6 +12248,49 @@ describe("a unit's armour counts the way yours does", () => {
       const near = lines.slice(Math.max(0, i - 3), i + 1).join(" ");
       expect(near).toContain("incomingUnitDamage(");
     }
+  });
+
+  // 2026-10-14, Blake playing DK against an identical DK: "Even though me and the enemy have the
+  // same skin, same stats ect I have more HP". Only the player had i-frames after a hit, so a
+  // unit's burst landed one round on you and all of yours on it. Units take a hit by the same rule.
+  test("a unit just hit is immune for the player's own 40 frames, and the revive window still counts", () => {
+    expect(PLAYER_INVULN_FRAMES).toBe(40);
+    expect(unitHitImmune({ invuln: PLAYER_INVULN_FRAMES })).toBe(true);
+    expect(unitHitImmune({ invuln: 0.4 })).toBe(true);
+    expect(unitHitImmune({ invuln: 0 })).toBe(false);
+    expect(unitHitImmune({ invuln: -0.2 })).toBe(false); // ticked past zero
+    expect(unitHitImmune({ lifeGrace: 30 })).toBe(true);  // 🐱 mid-revive
+    expect(unitHitImmune({})).toBe(false);
+    expect(unitHitImmune(null)).toBe(false);
+    // Fire honours only the revive window, on both sides — i-frames are for hits, not a burn.
+    expect(unitUntouchable({ invuln: PLAYER_INVULN_FRAMES })).toBe(false);
+  });
+
+  test("every place a unit is HIT starts its i-frames, exactly where the player's sites start yours", () => {
+    const lines = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8").split(String.fromCharCode(10));
+    const hits = [];
+    lines.forEach((ln, i) => { if (/enemyHP\.current\[[^\]]+\] = Math\.max\(0, /.test(ln) && !ln.includes("- loss)")) hits.push(i); });
+    expect(hits.length).toBeGreaterThanOrEqual(10);
+    for (const i of hits) {
+      const after = lines.slice(i, i + 3).join(" ");
+      expect([i + 1, after.includes(".invuln = PLAYER_INVULN_FRAMES")]).toEqual([i + 1, true]);
+    }
+    // ...and every gate in front of a hit asks unitHitImmune. unitUntouchable is left to the fire
+    // drain and the gold revive glow, and to nothing else.
+    const untouchable = lines.map((ln, i) => [i, ln]).filter(([, ln]) => ln.includes("unitUntouchable(") && !ln.trim().startsWith("*") && !ln.trim().startsWith("//") && !ln.includes("export const unitUntouchable"));
+    expect(untouchable.length).toBe(2); // the fire drain, and the sprite line (gold glow + the hit blink that stands aside for it)
+    for (const [, ln] of untouchable) expect(/eDps > 0|enemySpawn/.test(ln)).toBe(true);
+  });
+
+  test("a new Playtest starts on the look's own HP, not on last session's pickups", () => {
+    // togglePlaytest empties `equipped` for the new session in the same statement, so the HP it
+    // starts you on must not come from it — 35 under a 20-HP bar was the bug.
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    const start = src.slice(src.indexOf("const togglePlaytest = (runStart) => {"), src.indexOf("const togglePlaytest = (runStart) => {") + 6000);
+    expect(start).toContain("playerHP.current = maxPlayerHP(basePlayerAsset);");
+    expect(start).not.toContain("mergeEquip(basePlayerAsset, equipped.current");
+    // ...and in play HP can never hide above the bar, whatever route puts it there.
+    expect(src).toContain("const hpCeil = maxPlayerHP(playerAsset); if (playerHP.current > hpCeil) playerHP.current = hpCeil;");
   });
 });
 

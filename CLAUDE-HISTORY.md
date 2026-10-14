@@ -4644,3 +4644,37 @@ covered the ship as it flew off**: a playing stage sits under Front paint and Fr
 the player does, and the see-through window does not run during a cutscene. Place the marker where
 the flight path to the right is open sky. Not done: no rotor sound (a state's 🔊 plays only in the
 cutscene states, not the scenery ones); not placed in any of his levels.
+**"SAME SKIN, SAME STATS … I HAVE MORE HP" — TWO ONE-SIDED RULES (2026-10-14).** Blake, furious ("I have
+asked you to fix about 10 times"): playing DK holding DK Arms, his barrel one-shot an NPC DK holding
+DK Arms, and that DK's barrel took two to kill him. "It's most likely with all weapons." He assumed
+armour again. Armour was fine: every hit site already went through `incomingUnitDamage`.
+* **The numbers (his saves branch):** DK is 20 HP (skin 5, Jean Shorts -1), Defense 5 (Gorilla
+  Mask). DK Arms hits 25 with Pierce, so a barrel is `25 × 35/40 = 21.9 → 22`. One barrel kills a
+  DK on either side. In a clean drive it did, both ways: "🎯 Hit DK for 22 — defeated!" and
+  "🏹 Hit for 22", "💀 Shot down" from a full 20.
+* **Cause 1, hidden start HP (since the July pickup code):** `togglePlaytest` set
+  `playerHP = maxPlayerHP(mergeEquip(base, equipped.current))` and then, in the same statement,
+  `equipped.current = {}`. ■ Stop clears the pickups, so the usual Stop → ▶ path was fine. But
+  📂 Load a level mid-test (`doOpenLevel` → `setPlay(false)`) ends play and KEEPS them. The next ▶
+  then started with the old kit's HP and none of the kit. Measured: DK + a held Poke Jacket (+3 HP
+  stat = +15) started on **35** while the bar drew 100%, because the bar clamps to the real 20. One
+  barrel (22) cannot kill 35; two can. That is exactly his report. Fixed by reading
+  `maxPlayerHP(basePlayerAsset)`, plus a per-frame `hpCeil` clamp in the loop so HP can never hide
+  above the bar by any route. Re-measured: start 20, and HP forced to 35 mid-play is back to 20.
+* **Cause 2, i-frames were the player's only:** `PLAYER_INVULN_FRAMES` (40 frames after a hit) was
+  listed since 2026-09-28 as a "deliberate exception", asked about, never answered. A unit's 3-round
+  burst landed one round on you and all three on it. Full auto and groups firing together hit you
+  1.5 times a second and hit them every time. In any fight with more than one hit in flight, you
+  had more HP than the identical enemy. Now `unitHitImmune(ep)` (grace window OR `ep.invuln > 0`)
+  gates all ten unit hit sites, and each sets `ep.invuln = PLAYER_INVULN_FRAMES` where the matching
+  player site sets `p.invuln`. Ticked in the unit loop beside `lifeGrace`. Fire still honours only
+  the grace window (`unitUntouchable`), as on the player. Units blink 0.5/1 through it, your own
+  blink. Measured: Experimental Rifle burst into DK, the first round "💥 Critical! Hit DK for 12 (8
+  HP left)" and the other two consumed; next burst "Hit DK for 6 (2 HP left)", one round of three.
+* **Harness:** `public/__test.js` loaded from `public/index.html` (gated MessageChannel rAF, muted
+  AudioContext, a MutationObserver logging `.toast` text with the frame). His saves library as
+  `asset-data/library.json`, plus a 60x25 flat level with one DK at 19,22. Refs by declaration
+  order: enemyPos 35, playerHP 36, equipped 44, projectiles 18, player 88 (the `{current}` hook
+  objects of AssetStudio, from `header.bar` walking `.return`). DK Arms is SLOW (speed 5): a barrel
+  takes ~2 s to cross 530 px, so a check 0.7 s after the shot reads "nothing happened". Revert
+  `public/`, `asset-data/` and `git clean asset-data/clips/` (the dev server writes his clips there).

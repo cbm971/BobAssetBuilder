@@ -4454,7 +4454,9 @@ const DEFAULT_ATTACK_RANGE = 60;   // px — used when an enemy asset hasn't set
 const DEFAULT_RANGED_ATTACK_RANGE = 540; // px = 18 cells @ 30px — an enemy holding a bow/gun engages from far further out than a fist
 const ATTACK_COOLDOWN_FRAMES = 45; // frames between one enemy's attacks (~0.75s)
 const ATTACK_SWING_FRAMES = 14;    // how long the attack's arm-swing/lunge visual plays
-const PLAYER_INVULN_FRAMES = 40;   // brief invulnerability after the player is hit, so standing in one enemy's range doesn't melt HP every frame
+// Brief invulnerability after a hit, so standing in one enemy's range doesn't melt HP every frame.
+// It is the PLAYER'S number and, since 2026-10-14, every unit's too (unitHitImmune) — see there.
+export const PLAYER_INVULN_FRAMES = 40;
 /* --- Extra Lives: instead of dying, get back up where you fell --------------------------------
    Worn clothing (EFFECT_TYPES.extraLives — "nine lives on a cat head") can carry lives. The rule
    is deliberately three small pure pieces so the loop's five death sites can all go through ONE
@@ -4495,10 +4497,11 @@ const PLAYER_INVULN_FRAMES = 40;   // brief invulnerability after the player is 
        rolled gear folded in), and the spent count lives on its `ep` record in the per-level
        bucket, so it survives a door and is wiped only by ▶ Playtest, exactly like the player's;
      * reviveInPlace is the same function — `ep` has the same stun/down/downCd/burnPool/onFire
-       fields, and `lifeGrace` is the same window. `invuln` and `restedDead` are simply fields the
-       other side never reads;
-     * unitUntouchable(ep) is the one gate every place that can hurt a unit asks — the same job
-       `p.invuln > 0` does at every player-side site. Eight places can hurt a unit and a
+       fields, and `lifeGrace` is the same window. `restedDead` is simply a field the player never
+       reads; `invuln` is read on BOTH sides since 2026-10-14 (unitHitImmune — units have i-frames);
+     * unitHitImmune(ep) is the one gate every place that can hit a unit asks — the same job
+       `p.invuln > 0` does at every player-side site (fire asks unitUntouchable, the grace window
+       alone, as the player's burn honours only lifeGrace). Eight places can hurt a unit and a
        centralised revive (see the pass before the loot roll) is worthless without this, because
        a machine gun would spend nine lives in a second and it would read as "it just dies". */
 export const EXTRA_LIFE_HP = 1;                 // what you get back up with
@@ -4531,8 +4534,22 @@ export const reviveInPlace = (p) => {
   p.restedDead = false;
   return p;
 };
-// Is this unit inside its Extra Life grace window? Asked by every site that can hurt one.
+// Is this unit inside its Extra Life grace window? Fire asks this one (fire honours only the
+// grace window on both sides), and so does the gold revive glow.
 export const unitUntouchable = (ep) => !!(ep && ep.lifeGrace > 0);
+// ...AND CAN A HIT LAND ON IT AT ALL: the grace window, or the same 40 frames of i-frames after a
+// hit that the player has always had (PLAYER_INVULN_FRAMES). Every site that HITS a unit asks
+// this; only fire and the revive glow ask unitUntouchable alone.
+// Blake, 2026-10-14, playing DK against a DK with the same kit: "Even though me and the enemy have
+// the same skin, same stats ect I have more HP and the game is too easy … most likely with all
+// weapons". After a hit only the PLAYER was immune for 40 frames, so a unit's 3-round burst landed
+// one round on you while yours landed all three on it, a full-auto gun or two enemies firing at
+// once landed one hit per 0.67 s on you and every hit on them, and the 20-frame floor between unit
+// shots never mattered for the same reason. In any fight with more than one hit in flight the
+// player simply had more HP than the identical enemy. Written down as a "deliberate exception" on
+// 2026-09-28 and asked about, never answered; his rule is "there shouldn't be any differences".
+// The unit side sets ep.invuln at every hit site, exactly where the player's sites set p.invuln.
+export const unitHitImmune = (ep) => !!(ep && (ep.lifeGrace > 0 || ep.invuln > 0));
 // The line the ▶ Playtest toast and the enemy's own revive share, so "N left" is spelt one way.
 export const livesLeftNote = (n) => (n > 0 ? n + (n === 1 ? " life" : " lives") + " left" : "that was the last one");
 /* --- Door transitions -----------------------------------------------------------------------
@@ -14250,7 +14267,7 @@ export default function AssetStudio() {
           for (const b of swept) {
             const k = b.key;
             const ep = enemyPos.current[k];
-            if (!ep || unitUntouchable(ep)) continue; // 🐱 mid-revive, as the swing and the stomp skip it
+            if (!ep || unitHitImmune(ep)) continue; // 🐱 mid-revive or in its i-frames, as the swing and the stomp skip it
             const ea = unitAssetAt(k, lv.enemies[k]);
             if (!ea) continue;
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
@@ -14258,6 +14275,7 @@ export default function AssetStudio() {
             const isCrit = Math.random() < critChance(pstats.intelligence);
             const dmg = incomingUnitDamage(playerMeleeDamage(tailSwing.damage, pstats.strength) * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, b.x + b.w / 2, false);
             enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+            ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
             ep.lastHitByFx = null; // the last blow was yours
             if (enemyHP.current[k] > 0 && tailSwing.push > 0) ep.knock = { left: tailSwing.push * CW, dir: faceBeforeKeys };
             if (puffX == null) puffX = b.x + b.w / 2;
@@ -14380,6 +14398,14 @@ export default function AssetStudio() {
       if (p.dropCooldown > 0) p.dropCooldown -= dtMul;
       if (p.invuln > 0) p.invuln -= dtMul;
       if (p.lifeGrace > 0) p.lifeGrace -= dtMul; // the 🐱 Extra Life window — the one fire honours (see reviveInPlace)
+      // YOUR HP NEVER SITS ABOVE YOUR HP BAR. The bar draws min(HP, maxPlayerHP(what you wear)), so
+      // any HP above that ceiling was invisible extra life: 2026-10-14 a new Playtest started DK on
+      // 35 under a full 20-HP bar (togglePlaytest read the last session's pickups) and an identical
+      // enemy DK needed two barrels to kill him where his one barrel killed it. Nothing raises HP
+      // past the ceiling on purpose — heals clamp to it, taking kit off trims to it — so this only
+      // ever catches a hole, whichever route it came by. playerAsset is this effect's own (re-run on
+      // every equip), the same one the bar reads.
+      { const hpCeil = maxPlayerHP(playerAsset); if (playerHP.current > hpCeil) playerHP.current = hpCeil; }
       // Purely visual, and deliberately NOT a freeze like the enter animation: you've already
       // landed in the level, so you can walk away from the door while you're still growing back in.
       if (p.arriving > 0) p.arriving = Math.max(0, p.arriving - dtMul);
@@ -14808,11 +14834,12 @@ export default function AssetStudio() {
         if (under) {
           const k = under.key, ep = enemyPos.current[k], ea = unitAssetAt(k, lv.enemies[k]);
           p.hsHits = { ...(p.hsHits || {}), [k]: true };
-          if (ea && !unitUntouchable(ep)) { // 🐱 mid-revive it is not there to hurt, as the swing and the foot-stamp skip it
+          if (ea && !unitHitImmune(ep)) { // 🐱 mid-revive or in its i-frames it is not there to hurt, as the swing and the foot-stamp skip it
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             const isCrit = Math.random() < critChance(pstats.intelligence);
             const dmg = incomingUnitDamage(playerMeleeDamage(headStompEffect.damage, pstats.strength) * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, under.x + under.w / 2, false);
             enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+            if (ep) ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
             if (ep) ep.lastHitByFx = null; // the last blow was yours
             flash((isCrit ? "💥 Critical! " : "👢 ") + "Stomped " + ea.name + " for " + dmg + crouchGuardNote(ea.effects, ep && ep.crouch) + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
           }
@@ -15004,7 +15031,8 @@ export default function AssetStudio() {
           // body being thrown two cells does not walk, turn round or strike on the way.
           const stunned = (ep.stun || 0) > 0 || (ep.down || 0) > 0 || !!(ep.knock && ep.knock.left > 0); // hit by a stun weapon, tackled flat, or mid-shove — frozen: the dodge/face/move/attack gates below all skip it while this lasts
           if ((ep.stun || 0) > 0) ep.stun -= dtMul;
-          if ((ep.lifeGrace || 0) > 0) ep.lifeGrace -= dtMul; // the 🐱 Extra Life window — every damage site asks unitUntouchable(ep) while it runs
+          if ((ep.lifeGrace || 0) > 0) ep.lifeGrace -= dtMul; // the 🐱 Extra Life window — every damage site asks unitHitImmune(ep) while it runs
+          if ((ep.invuln || 0) > 0) ep.invuln -= dtMul; // ...and its i-frames after a hit, ticking down exactly as the player's p.invuln does
           const eIntel = ea.stats?.intelligence ?? 5;
           // The Tackle ability THIS unit is wearing (null for almost everything). Read through the
           // same tackleSecsOf the player's own lookup uses, so a dressed 👹 Enemy in a football kit
@@ -15791,10 +15819,11 @@ export default function AssetStudio() {
               return true;
             }
             if (kind === "unit" && key) {
-              if (unitUntouchable(bEp)) return false; // mid-revive: the swing finds nobody, exactly as the player's i-frames read just above
+              if (unitHitImmune(bEp)) return false; // mid-revive or in its i-frames: the swing finds nobody, exactly as the player's i-frames read just above
               const cur = enemyHP.current[key] === undefined ? unitMaxHP(bEa, bEp, allyHpBonus) : enemyHP.current[key];
               const crit = Math.random() < critChance(eIntel);
               enemyHP.current[key] = Math.max(0, cur - incomingUnitDamage(crit ? rawDmg0 * 2 : rawDmg0, bEa, bEp, atkCX, unitCenterX(bEa, bEp, CW), !!(hitEw && hitEw.ignoreArmor)));
+              if (bEp) bEp.invuln = PLAYER_INVULN_FRAMES; // the player's i-frames, on it (unitHitImmune)
               if (bEp) bEp.lastHitByFx = ea.effects || null; // who struck it, for a 🍀 Lucky Find the striker wears (the loot pass)
               if (enemyHP.current[key] <= 0) flash(friendly ? (allyBadge(ep) + " Your " + ea.name + " defeated " + (bEa.name || "a foe") + "!") : ("💔 Your " + (bEa.name || "ally") + " fell."));
               return true;
@@ -16394,7 +16423,7 @@ export default function AssetStudio() {
             }
           }
           for (const k of Object.keys(lv.enemies || {})) {
-            const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0) || unitUntouchable(ep)) continue;
+            const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0) || unitHitImmune(ep)) continue;
             const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
             const bx = enemyBlastBox(ea, ep);
             if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
@@ -16402,6 +16431,7 @@ export default function AssetStudio() {
               // stun land on your ally exactly as yours land on a hostile in the branch below.
               const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(aCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2));
+              ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln just above (unitHitImmune)
               ep.lastHitByFx = pr.shooterFx || null;
               if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
             }
@@ -16412,7 +16442,7 @@ export default function AssetStudio() {
             const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             if (enemyHP.current[k] <= 0) continue;
-            const ep = enemyPos.current[k]; if (!ep || ep.friendly || unitTalkImmune(ep) || unitUntouchable(ep)) continue; // an explosion sweeps a room, and a bystander in it is exactly who this must not catch — nor one mid-🐱-revive
+            const ep = enemyPos.current[k]; if (!ep || ep.friendly || unitTalkImmune(ep) || unitHitImmune(ep)) continue; // an explosion sweeps a room, and a bystander in it is exactly who this must not catch — nor one mid-🐱-revive or in its i-frames
             const bx = enemyBlastBox(ea, ep);
             if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
               // Splash is still a SHOT — flat weapon damage plus the same crit roll as a direct
@@ -16421,6 +16451,7 @@ export default function AssetStudio() {
               // Whoever fired it: your Intelligence for your shot, a friendly unit's for its own.
               const dmg = incomingUnitDamage((Math.random() < critChance(pr.critInt ?? pstats.intelligence)) ? base * 2 : base, ea, ep, ix, bx.x + bx.w / 2);
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+              ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln in the foe branch above (unitHitImmune)
               ep.lastHitByFx = pr.shooterFx || null;
               if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
               hits++;
@@ -16557,7 +16588,7 @@ export default function AssetStudio() {
                   if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
                   if (enemyHP.current[k] <= 0) continue; // already defeated
                   if (enemyPos.current[k] && enemyPos.current[k].friendly) continue; // don't clobber your own minion
-                  if (unitUntouchable(enemyPos.current[k])) continue; // 🐱 mid-revive: the arc carries on past it, as it does past an NPC
+                  if (unitHitImmune(enemyPos.current[k])) continue; // 🐱 mid-revive or in its i-frames: the arc carries on past it, as it does past an NPC
                   const eShape = sideBodyShape(ea);
                   const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
                   const ep = enemyPos.current[k];
@@ -16600,6 +16631,7 @@ export default function AssetStudio() {
                     // ...through the unit's own armour, the way their swing at you goes through yours.
                     const dmg = incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, p.x + pw / 2, eHitLeft + epw / 2, !unarmedSwing && !!(playtestWeapon && playtestWeapon.ignoreArmor));
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+                    if (ep) ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
                     if (ep) ep.lastHitByFx = null; // the last blow was yours
                     if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon && (playtestWeapon.stun ?? 0) > 0) { ep.stun = Math.round(playtestWeapon.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
                     // Mark THIS body as struck and carry on: the rest of the arc may still be
@@ -16639,7 +16671,7 @@ export default function AssetStudio() {
             const k = b.key;
             if (!k || p.stomp.hits[k]) continue;
             const ep = enemyPos.current[k];
-            if (unitUntouchable(ep)) continue; // 🐱 mid-revive, exactly as the swing skips it
+            if (unitHitImmune(ep)) continue; // 🐱 mid-revive or in its i-frames, exactly as the swing skips it
             const ea = unitAssetAt(k, lv.enemies[k]);
             if (!ea) continue;
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
@@ -16647,6 +16679,7 @@ export default function AssetStudio() {
             const isCrit = Math.random() < critChance(pstats.intelligence);
             const dmg = incomingUnitDamage(stompDamage(pstats.strength) * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, b.x + b.w / 2, false);
             enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+            if (ep) ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
             if (ep) ep.lastHitByFx = null; // the last blow was yours
             p.stomp.hits[k] = true;
             if (!notes.length) puffX = b.x + b.w / 2;
@@ -16793,10 +16826,11 @@ export default function AssetStudio() {
               else impactNote += " · 🪨 hit you for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)";
               continue;
             }
-            if (unitUntouchable(s.ep)) continue; // 🐱 mid-revive: it stopped the rock (see the collision note above) and took nothing
+            if (unitHitImmune(s.ep)) continue; // 🐱 mid-revive or in its i-frames: it stopped the rock (see the collision note above) and took nothing
             // The same treatment the player branch just above gets — a rock in the face is a hit.
             const uDmg = incomingUnitDamage(impactDmg, s.ea, s.ep, g.x, unitCenterX(s.ea, s.ep, CW), !!(g.asset && g.asset.ignoreArmor));
             enemyHP.current[s.k] = Math.max(0, enemyHP.current[s.k] - uDmg);
+            if (s.ep) s.ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln just above (unitHitImmune)
             if (s.ep) s.ep.lastHitByFx = g.throwerFx || null;
             impactNote += " · 🪨 hit " + s.ea.name + " for " + uDmg
               + (enemyHP.current[s.k] <= 0 ? " — defeated!" : " (" + enemyHP.current[s.k] + " HP left)");
@@ -17026,11 +17060,12 @@ export default function AssetStudio() {
               const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
               if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop && pierceFreshHit(pr, k)) {
                 if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
-                if (unitUntouchable(ep)) { if (!pr.pierce) return false; continue; } // 🐱 mid-revive: consumed, does nothing — the same reading an invulnerable player gets
+                if (unitHitImmune(ep)) { if (!pr.pierce) return false; continue; } // 🐱 mid-revive or in its i-frames: consumed, does nothing — the same reading an invulnerable player gets
                 // The shooter's crit and its weapon's stun, on your ally as yours land on a hostile.
                 const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
                 if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(aCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor));
+                ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln in the branch above (unitHitImmune)
                 ep.lastHitByFx = pr.shooterFx || null;
                 if (enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
                 if (enemyHP.current[k] <= 0) flash("💔 Your " + ea.name + " fell.");
@@ -17087,10 +17122,11 @@ export default function AssetStudio() {
               if (unitTalkImmune(ep)) { talkPhaseNote(ea, ep); continue; }
               if (!pierceFreshHit(pr, k)) continue; // 🪡 already went through this one
               if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
-              // 🐱 Mid-revive: the round is consumed and does nothing, the same reading a shot
-              // gets off an invulnerable player. After the explode branch on purpose — a rocket
-              // still goes off on it, and the blast pass then reads the same window.
-              if (unitUntouchable(ep)) { if (!pr.pierce) return false; continue; }
+              // 🐱 Mid-revive, or inside the 40 i-frames after its last hit: the round is consumed
+              // and does nothing, the same reading a shot gets off an invulnerable player. After
+              // the explode branch on purpose — a rocket still goes off on it, and the blast pass
+              // then reads the same window.
+              if (unitHitImmune(ep)) { if (!pr.pierce) return false; continue; }
               // The weapon's Damage number, flat, whoever pulled the trigger — then the one
               // permitted character difference: an Intelligence crit roll for double. What it
               // takes OFF is then decided by the target's armour, exactly as a foe's round into
@@ -17101,6 +17137,7 @@ export default function AssetStudio() {
               if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
               const dmg = incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor);
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
+              if (ep) ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln in the foe branch above (unitHitImmune)
               if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
               flash((isCrit ? "💥 Critical! " : "🎯 ") + "Hit " + ea.name + " for " + dmg + crouchGuardNote(ea.effects, ep && ep.crouch) + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
               if (!pr.pierce) return false; // projectile consumed on impact — a 🪡 piercing one flies on to the next body
@@ -21498,9 +21535,15 @@ export default function AssetStudio() {
   // at 0,0) and put back on Stop, and a RUN in progress hands the editor its own level back.
   const togglePlaytest = (runStart) => {
     const view = lscrollRef.current;
-    // The player as the level screen composes them (its own playerAsset lives inside that render branch).
+    // The player a FRESH session starts as: the look with NOTHING picked up, because the statement
+    // below empties `equipped` for the new session. Starting HP used to be read off
+    // mergeEquip(base, equipped.current) — LAST session's pickups — a moment before they were
+    // cleared. A session that ended without ■ Stop (📂 Load a level mid-test calls setPlay(false)
+    // and keeps the pickups) therefore started the next one with the old kit's HP and none of the
+    // kit: DK's 20 HP plus a Poke Jacket's +3 started on 35, measured, with the bar drawing 100%
+    // because it clamps to the real 20. Blake, 2026-10-14, DK against the same DK: "my barrell 1
+    // shot, the other DK launched a barrell at me, two shots … I have more HP". Read the base.
     const basePlayerAsset = findA(playerId);
-    const playerAsset = mergeEquip(basePlayerAsset, equipped.current, equippedBodyIdFor(basePlayerAsset));
     if (play) {
       if (roomReturn.current) { setLevel(roomReturn.current.level); }
       if (runRef.current) { setLevel(runRef.current.editorLevel); runRef.current = null; setRunHud(null); }
@@ -21513,7 +21556,7 @@ export default function AssetStudio() {
     // The run's world frame starts at its first level, and .lgrid keeps that level's box for the
     // whole run — see THE WORLD NEVER MOVES AT A GATE, at the level render.
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
-    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(playerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
+    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     if (runStart) {
       const startNode = runStart.nodes[runStart.startKey];
       runRef.current = runStart; prepRunNeighbours(runStart, startNode);
@@ -24810,7 +24853,10 @@ export default function AssetStudio() {
                             altogether behind Front you cannot see through (unitHiddenByFront). */}
                         {eTalkWaiting && !downed ? <div className="talkBadge">💬</div> : null}
                       </div>
-                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : {}), ...((downed || eHsFall) ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
+                      {/* The sprite below blinks through its i-frames after a hit (ep.invuln) with the
+                          player's own 0.5-opacity blink, so a round that does nothing to it has a
+                          visible reason — the same cue your own blink gives. See unitHitImmune. */}
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : {}), ...((downed || eHsFall) ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}), ...(ep && !unitUntouchable(ep) && ep.invuln > 0 && Math.floor(ep.invuln / 4) % 2 ? { opacity: 0.5 } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {eArtHit ? eArtHit.el : storeUnitArt(uKey, eArtSig, ea, ew, eSpawn, eRenderW, eph, eAnchor, eBlocks, (() => {
                           const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + uKey, keyPrefix: uKey + "_", alphaOf: spriteAlphaOf(ea, eThrowingNow ? spawnThrowableFor(eSpawn) : ew), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
                           // Draw the art at its true aspect when the box isn't one (ducking): on a

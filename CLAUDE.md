@@ -386,8 +386,13 @@ plus traps it does not cover:
 - **Damage invariants:**
   - Every player death goes through `playerDefeated(p, msg)`, and every player HP loss through
     `playerHpAfterHit` (god mode lives there; a test greps for a bare subtraction).
-  - Every hit on a unit goes through `incomingUnitDamage` (fire excepted) and asks
-    `unitUntouchable(ep)`. A test greps for bare HP subtractions.
+  - Every hit on a unit goes through `incomingUnitDamage` (fire excepted), asks `unitHitImmune(ep)`
+    first and sets `ep.invuln = PLAYER_INVULN_FRAMES` after, exactly as the player's sites do with
+    `p.invuln`. Fire and the gold revive glow alone ask `unitUntouchable` (the grace window). Tests
+    grep for bare HP subtractions and for a hit site that skips the i-frames.
+  - Your HP never sits above your HP bar (`hpCeil` clamp in the loop; the bar clamps its drawing).
+    A new Playtest starts on the look's OWN HP (`maxPlayerHP(basePlayerAsset)`): it empties
+    `equipped` in the same statement, so reading HP off `equipped` there gave last session's kit.
   - Every unit hit box starts at `unitHitTop`.
   - "What am I wearing" means `wornEquipMap`, not `equipped`. A slot emptied on purpose is `null`.
   - A spawn's weapon comes from `spawnWeaponFor`, and its look from `unitAssetAt` (a tag placement
@@ -501,7 +506,10 @@ plus traps it does not cover:
   `brief`). Reasoning goes in a code comment or a `title` tooltip.
 - **Enemies play by the player's rules** ("there shouldn't be any differences"). Stats, armour,
   crits and abilities all apply to units, and an ability that ships player-only comes back as a
-  bug. The deliberate exceptions are player i-frames, AI pacing, and Capture being player-only.
+  bug. The deliberate exceptions are AI pacing and Capture being player-only. I-frames were one
+  until 2026-10-14 ("same skin, same stats … I have more HP"); units have yours now. When he says
+  "same character, I'm tougher", diff EVERYTHING between the two sides — HP at spawn, armour, hit
+  windows, not just the damage formula — and measure both directions in the running game.
 - Floating labels are bare words (white, with a black outline and glow) and never boxes. There is
   no 🐱×N count by HP bars. The shop panel is square and has no emoji. Dialogue has no bubble,
   answers sit in a grid, and the font is DotGothic16. The pickup banner is Shrikhand, coloured by
