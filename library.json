@@ -899160,7 +899160,7 @@
      "fadeIn": 2,
      "fadeOut": 0,
      "sound": "alrmsnd",
-     "soundVol": 0.7,
+     "soundVol": 0.65,
      "keys": [
       {
        "id": "ka0",
@@ -899858,8 +899858,8 @@
      ]
     }
    ],
-   "savedAt": 1791935558381,
-   "editedFrom": 1791935413722
+   "savedAt": 1791942457176,
+   "editedFrom": 1791935558381
   },
   {
    "id": "wcwrkni",
@@ -1063313,10 +1063313,10 @@
    },
    "front": {},
    "fx": {
-    "27,25": [
+    "27,30": [
      {
       "kind": "prop",
-      "propId": "clsdr01",
+      "propId": "ttbl6uy",
       "solid": false,
       "size": 8,
       "inFront": false,
@@ -1063325,8 +1063325,7 @@
       "fitArt": true,
       "turnedBox": true,
       "canvasScale": false,
-      "z": 1,
-      "lay": "bg"
+      "z": 1
      }
     ]
    },
@@ -1063374,8 +1063373,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1791853662243,
-   "editedFrom": 1791852166360
+   "savedAt": 1791942419838,
+   "editedFrom": 1791853662243
   },
   {
    "id": "8l3tqki",
