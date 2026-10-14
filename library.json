@@ -1051392,27 +1051392,11 @@
    "markers": {},
    "enemies": {},
    "conns": {
-    "N2": {
-     "open": false,
-     "accepts": ""
-    },
     "N1": {
      "open": false,
      "accepts": ""
     },
-    "W1": {
-     "open": false,
-     "accepts": ""
-    },
-    "W2": {
-     "open": true,
-     "accepts": "Trailor Park"
-    },
-    "S2": {
-     "open": false,
-     "accepts": ""
-    },
-    "S1": {
+    "N2": {
      "open": false,
      "accepts": ""
     },
@@ -1051422,6 +1051406,22 @@
     },
     "E2": {
      "open": false,
+     "accepts": "Trailor Park"
+    },
+    "S1": {
+     "open": false,
+     "accepts": ""
+    },
+    "S2": {
+     "open": false,
+     "accepts": ""
+    },
+    "W1": {
+     "open": false,
+     "accepts": ""
+    },
+    "W2": {
+     "open": true,
      "accepts": "Trailor Park"
     }
    },
