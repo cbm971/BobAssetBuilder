@@ -445,6 +445,7 @@ import {
   PLAYER_BODY_LEN_PX,
   unitLevelBandPx,
   unitSharesLevel,
+  enemyChasesVertically,
   enemyRenderW,
   EQUIP_KIND_TAG_MAX_SLOTS,
   SPAWN_WEAPON_NONE,
@@ -9577,6 +9578,17 @@ describe("a unit walks only to a target on its own level", () => {
   test("exactly one body length apart is another level (the attack rule's own strict <)", () => {
     expect(unitSharesLevel(street, street - humanH, humanH)).toBe(false);
     expect(unitSharesLevel(street, street - humanH + 1, humanH)).toBe(true);
+  });
+
+  // 2026-10-14: "the enemies on the road below try to chase the player" — up M7's 🚶 walkway.
+  test("a hunter does not climb, walk a walkway or drop to another storey after you", () => {
+    expect(enemyChasesVertically(street, slab)).toBe(false); // the road's units, you on the slab
+    expect(enemyChasesVertically(slab, street)).toBe(false); // the slab's units, you on the road
+  });
+  test("...but a ledge up a ladder, or a drop out of a ceiling pocket onto you, still is a chase", () => {
+    expect(enemyChasesVertically(street, street - 10 * cell)).toBe(true);
+    expect(enemyChasesVertically(10 * cell, 19 * cell)).toBe(true); // Sewer M2's rat pockets over its floor
+    expect(enemyChasesVertically(street, street - 11 * cell)).toBe(false);
   });
 });
 

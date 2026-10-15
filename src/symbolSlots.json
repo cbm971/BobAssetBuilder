@@ -15,6 +15,7 @@
   { "k": "hud.life", "l": "Extra life", "g": "HUD", "d": "gi:cat" },
   { "k": "hud.throw", "l": "Throwable", "g": "HUD", "d": "gi:unlit-bomb" },
   { "k": "hud.reload", "l": "Reloading", "g": "HUD", "d": "mdi:sync" },
+  { "k": "hud.money", "l": "Money", "g": "HUD", "d": "gi:banknote", "c": "#8fe08a" },
   { "k": "ui.symbols", "l": "Symbols", "g": "HUD", "d": "mdi:shape-plus" },
 
   { "k": "❤", "l": "Heal / HP", "g": "Play", "d": "gi:heart-organ" },

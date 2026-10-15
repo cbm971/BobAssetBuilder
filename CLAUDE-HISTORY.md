@@ -4740,3 +4740,28 @@ down marks drew yellow symbols; a painted fire cell drew the orange flame; shoot
 to 3) scored 0000100. **Not driven:** a level clear across a run's gate (unit-tested only).
 Trap: `computer` coordinates in this pane did not line up with the screenshot; clicking by `ref`
 from `find` worked.
+
+## HUD corners, the save message, menu colour, and the height limit on hunting (2026-10-14)
+
+**Asked:** "The enemies up down chasing range shouldn't be so high that on something like trailor park
+M7 the enemies on the road below try to chase the player." SCORE semi-transparent. Money bottom-left,
+the weapon's picture and current damage bottom-right. Mid-way: "it will not let me save props", then
+"Nvm it saved but nothing indicated that it saved ... add a save indicator back. Honestly add some
+color back to the main menu."
+
+**The chase.** M7's road (feet row 35) and upper floor (row 20) are joined by a 🚶 walkway. Seek units
+sense 42 cells sideways at any height. They turned to track him along the floor above, and the climb
+route / Fly gear chase had no height limit. On his saved M7 (save folder, same as the repo copy) the
+road units found no walkway route in my drive. What reproduced was the TURNING: with the limit off
+(control, 99), 34,42 swung to face the player through the floor. With 1.5 body lengths it kept its
+placed facing, while the upper-floor unit still engaged. `huntInReach` gates facing, `detected` and
+`navPursuing` for hostiles. 10.5 cells keeps a ladder ledge and Sewer M2's rat-pocket drop.
+
+**Save message.** I had made the studio toast dark (#1b2030) in 7c8b1c7. Nothing about saving broke,
+but he could not see that it had worked. It also sat at the bottom, over the Save sheet's Copy/Close
+row, for 1.6 s. Now the toast is blue again; a save is green, at the top, for 3 s, at z 60 above the
+modal. A stale timer no longer clears a newer message.
+
+**Weapon picture.** groundArt draws a weapon in its rest pose, along a hanging arm, so the M16 came
+out 18 px wide, standing on its muzzle. `hudWeaponArt` turns tall art ±90° so the muzzle (else the tip)
+points right, and adds a light outline for dark guns.

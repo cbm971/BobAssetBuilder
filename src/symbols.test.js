@@ -8,7 +8,7 @@ import {
 } from "./symbols";
 import {
   SCORE_KILL, SCORE_LEVEL_CLEAR, newScoreState, levelClearPoints, scoreLevelClear, scoreDialogueChoice, scoreDigits,
-  migrateDialogue,
+  migrateDialogue, toastIsSave,
 } from "./App";
 import { isSoundRecord, isSoundBoard } from "./audio";
 
@@ -44,7 +44,7 @@ describe("symbol slots", () => {
     expect(missing).toEqual([]);
   });
   test("the HUD's own slots exist", () => {
-    for (const k of ["stat.hp", "stat.atk", "stat.def", "stat.str", "stat.agi", "stat.spd", "stat.int", "hud.life", "hud.throw", "ui.symbols"]) expect(symbolSlot(k)).toBeTruthy();
+    for (const k of ["stat.hp", "stat.atk", "stat.def", "stat.str", "stat.agi", "stat.spd", "stat.int", "hud.life", "hud.throw", "hud.money", "ui.symbols"]) expect(symbolSlot(k)).toBeTruthy();
   });
 });
 
@@ -169,5 +169,17 @@ describe("score", () => {
     expect(d.nodes.n1.choices[0].points).toBe(150);
     expect("points" in d.nodes.n1.choices[1]).toBe(false);
     expect(migrateDialogue(JSON.parse(JSON.stringify(d)))).toEqual(d);
+  });
+});
+
+describe("the save message", () => {
+  test("a save shows as one (green, longer); a warning that mentions saving does not", () => {
+    expect(toastIsSave("Saved to this device ✓")).toBe(true);
+    expect(toastIsSave("Saved ✓")).toBe(true);
+    expect(toastIsSave("Background \"Sky\" saved ✓")).toBe(true);
+    expect(toastIsSave("⚠ Not saved to your save folder — kept in this browser")).toBe(false);
+    expect(toastIsSave("Nothing saved yet — nothing to export.")).toBe(false);
+    expect(toastIsSave("Blocked!")).toBe(false);
+    expect(toastIsSave("")).toBe(false);
   });
 });

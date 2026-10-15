@@ -146,6 +146,8 @@ const SLOTS = {
   under_bottom: { label: "Underwear bottom", icon: "🩲", z: 10 },
 };
 const SLOT_ORDER = ["under_bottom", "under_top", "pants", "shirt", "shoes", "jacket", "hat"];
+// The main menu's colour per equipment slot (the icon and a tint on the card).
+const SLOT_TINTS = { hat: "#f6c453", jacket: "#7aa8ff", shoes: "#c9a27a", shirt: "#6fdc8c", pants: "#62b0ff", under_top: "#f472b6", under_bottom: "#c08cff" };
 // Lower body always sits below the arm — pants/underwear/shoes logically can't be in front of
 // an arm. Upper body is ambiguous (a sleeved jacket should cover the arm, a tank top shouldn't)
 // so it's a per-piece toggle instead of an assumption.
@@ -11479,6 +11481,17 @@ export const enemyDetects = (distToPlayer, face) => {
 // below (a body of headroom plus a slab) never does. Feet, not heads: bodies come in every scale.
 export const unitLevelBandPx = (standH) => Math.max(PLAYER_BODY_LEN_PX, standH || 0);
 export const unitSharesLevel = (myFeetY, targetFeetY, standH) => Math.abs(myFeetY - targetFeetY) < unitLevelBandPx(standH);
+// HOW FAR UP OR DOWN A HUNTER WILL GO AFTER YOU (2026-10-14). Blake: "The enemies up down chasing
+// range shouldn't be so high that on something like Trailor Park M7 the enemies on the road below
+// try to chase the player." M7's road (feet on row 35) and its upper floor (row 20) are 15 rows
+// apart, joined by a 🚶 walkway, and a Seek unit that sensed you sideways — 42 cells, at ANY height —
+// turned to track you along the floor above, and could take the walkway, or Fly gear, up to you. Now
+// a hostile only notices, turns toward, climbs, walks a walkway, drops or flies toward a target whose
+// feet are within 1.5 body lengths (10.5 cells) of its own: a ladder up to a ledge or a drop out of a
+// ceiling pocket onto you is still a chase; another storey is not. Allies tagging along with you are
+// not hunting, and keep following you anywhere.
+export const ENEMY_CHASE_VERT_LENGTHS = 1.5;
+export const enemyChasesVertically = (myFeetY, targetFeetY) => Math.abs(targetFeetY - myFeetY) <= PLAYER_BODY_LEN_PX * ENEMY_CHASE_VERT_LENGTHS;
 // The direction an enemy should be FACING this frame. An enemy that can sense the player — out
 // to its full forward range in ANY direction, so it reacts to someone who walked up on its blind
 // side — turns to face them. This is deliberately separate from (and evaluated before) the
@@ -11675,6 +11688,8 @@ export const SCENE_LABEL_Z = { drop: 5063, label: 5070, talk: 5080 };
      the floor ends (animLeaveRef). Its clock (`secs`) runs only while the world does: a conversation,
      a shop or a cutscene returns from the loop above the tick, so reading costs nothing.
    The score lives in the studio's scoreRef for the whole session and is reset by ▶ Playtest / 🏁. */
+// A message that says something was SAVED shows green and stays up longer: the one you need to see.
+export const toastIsSave = (t) => !!t && /saved/i.test(t) && !/not saved|nothing saved|⚠/i.test(t);
 export const SCORE_KILL = 100;
 export const SCORE_LEVEL_CLEAR = 500;
 export const SCORE_PAR_SECS = 30;
@@ -12850,7 +12865,7 @@ export default function AssetStudio() {
   };
   const flash = (m) => {
     if (playLive.current) { popText(m); return; }
-    setToast(m); setTimeout(() => setToast(""), 1600);
+    setToast(m); setTimeout(() => setToast((t) => (t === m ? "" : t)), toastIsSave(m) ? 3000 : 1600);
   };
   // THE SCORE (see SCORE, above SCORE_KILL) — one object for the session; ▶ Playtest / 🏁 replace it.
   const scoreRef = useRef(newScoreState());
@@ -15333,6 +15348,11 @@ export default function AssetStudio() {
             && sideBodyShape(targetEa).heightFrac * (targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW)) <= STOMP_MAX_TARGET_FRAC * standEph;
           if (targetShort && !rangedEnemy) engageRange = Math.min(engageRange, STOMP_REACH_CELLS * CW);
           const distToTarget = targetCX - eCenterXNow;
+          // A HUNTER IGNORES SOMEONE ON ANOTHER STOREY (enemyChasesVertically): no turning to watch
+          // you walk along the floor above, no sensing, no climb or flight after you. Measured where
+          // the target's feet are right now. An ally has no hunt to call off.
+          const huntFeet = targetKind === "unit" ? (targetEp && targetEa ? targetEp.y + (targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW)) : null) : p.y + ph;
+          const huntInReach = !hostile || huntFeet == null || enemyChasesVertically(myFeetY, huntFeet);
           // A dressed look walks by YOUR rule, crawling at half speed while it ducks, as you do; an
           // animal keeps its own scale (unitMoveSpeed).
           const aiSpeed = unitMoveSpeed(ea, ep.crouch) * dtMul;
@@ -15353,7 +15373,7 @@ export default function AssetStudio() {
           // frame. They are collected into one local instead and committed ONCE, through holdFacing,
           // at the bottom. Order is unchanged, so what a unit wants to be looking at is identical.
           let wantFace = ep.face;
-          if (!stunned && acts) wantFace = enemyFaceToward(distToTarget, ep.face);
+          if (!stunned && acts && huntInReach) wantFace = enemyFaceToward(distToTarget, ep.face);
           // SOMEONE WITH SOMETHING TO SAY LOOKS AT YOU. A neutral NPC never enters the branch
           // above (it has no target and `acts` is false), so it stood staring at the wall it was
           // placed facing — and the only tell that this particular guard is the one you can talk
@@ -15373,7 +15393,7 @@ export default function AssetStudio() {
           // brawls always "see" their target (you can't stealth past a melee your minion started).
           // Reads wantFace, which is exactly the value ep.face held here before the two writes were
           // merged — a unit senses you down the line it is turning to look along, dwell or no dwell.
-          const detected = (hostile && targetKind === "player") ? enemyDetects(distToTarget, wantFace) : acts;
+          const detected = (hostile && targetKind === "player") ? huntInReach && enemyDetects(distToTarget, wantFace) : acts && huntInReach;
           const gapSigned = (Math.sign(distToTarget) || 1) * boxGap(targetCX, targetW, eCenterXNow, epw);
           // TACKLE CHARGE. A tackler that obeys its ordinary move intent can never use the ability
           // it is wearing: Guard never leaves its spawn, Avoid runs the wrong way, and Seek stops at
@@ -15411,7 +15431,7 @@ export default function AssetStudio() {
           const navTgtFeet = !navTgt ? null : navTgt.climbing ? navTgt.y + navTgtH : standingLineY(navTgt, navTgtH);
           const navTgtTopdown = !!navTgt && (!!navTgt.topdown || navTgt.tdJumpY != null); // a hop off the plane is still on it
           const navMeTopdown = !!ep.topdown || ep.tdJumpY != null;
-          const navPursuing = acts && !stunned && !ep.stomp && (following || charging || (ai === "seek" && detected));
+          const navPursuing = acts && !stunned && !ep.stomp && huntInReach && (following || charging || (ai === "seek" && detected));
           const navOff = navTgtFeet != null && !(navMeTopdown && navTgtTopdown) && Math.abs(navTgtFeet - myFeetY) > CH * 1.5
             && (following || !rangedEnemy || !targetOnLevel);
           const navJumpV = enemyJumpVelocity(ea.stats?.agility, CH), navJumpPx = navJumpV * navJumpV / (2 * 0.175);
@@ -21998,26 +22018,26 @@ export default function AssetStudio() {
           )}
           <h2>Make a body or weapon</h2>
           <div className="tiles">
-            <button className="tile" onClick={() => setChooser(true)}><span className="ti">🧍</span><span className="tl">Skin / Body</span></button>
-            <button className="tile" onClick={() => setWtypeChoice(true)}><span className="ti">{TYPES.weapon.icon}</span><span className="tl">{TYPES.weapon.label}</span></button>
-            <button className="tile" onClick={() => start("enemy")}><span className="ti">{TYPES.enemy.icon}</span><span className="tl">{TYPES.enemy.label}</span></button>
-            <button className="tile" onClick={() => setPropItemChoice(true)}><span className="ti">🌿</span><span className="tl">Object / Prop / Item</span></button>
+            <button className="tile" style={{ "--tc": "#ffb37a" }} onClick={() => setChooser(true)}><span className="ti">🧍</span><span className="tl">Skin / Body</span></button>
+            <button className="tile" style={{ "--tc": "#ff6b6b" }} onClick={() => setWtypeChoice(true)}><span className="ti">{TYPES.weapon.icon}</span><span className="tl">{TYPES.weapon.label}</span></button>
+            <button className="tile" style={{ "--tc": "#c08cff" }} onClick={() => start("enemy")}><span className="ti">{TYPES.enemy.icon}</span><span className="tl">{TYPES.enemy.label}</span></button>
+            <button className="tile" style={{ "--tc": "#6fdc8c" }} onClick={() => setPropItemChoice(true)}><span className="ti">🌿</span><span className="tl">Object / Prop / Item</span></button>
             {/* loadTextures for the same reason the creators do it: a patterned garment has to
                 have its pattern in hand here too, or a flannel jacket dresses on as flat colour. */}
-            <button className="tile dress" onClick={() => { loadTextures(); setScreen("assemble"); }}><span className="ti">🧩</span><span className="tl">Dress Bob</span></button>
-            <button className="tile lvl" onClick={openLevelCreator}><span className="ti">🗺️</span><span className="tl">Level Creator</span></button>
-            <button className="tile lvl" onClick={openRoomCreator}><span className="ti">🚪</span><span className="tl">Room Creator</span></button>
+            <button className="tile dress" style={{ "--tc": "#7aa8ff" }} onClick={() => { loadTextures(); setScreen("assemble"); }}><span className="ti">🧩</span><span className="tl">Dress Bob</span></button>
+            <button className="tile lvl" style={{ "--tc": "#4fd1c5" }} onClick={openLevelCreator}><span className="ti">🗺️</span><span className="tl">Level Creator</span></button>
+            <button className="tile lvl" style={{ "--tc": "#f6c453" }} onClick={openRoomCreator}><span className="ti">🚪</span><span className="tl">Room Creator</span></button>
             {/* Its own tile, next to the level makers, because a tree is written ONCE and then hung
                 on as many signs and NPCs as you like — it is not a property of any one level. */}
-            <button className="tile lvl" onClick={openDialogueEditor}><span className="ti">💬</span><span className="tl">Dialogue Trees</span></button>
-            <button className="tile lvl" onClick={openSoundScreen}><span className="ti">🔊</span><span className="tl">Sounds</span></button>
-            <button className="tile lvl" onClick={openAnimEditor}><span className="ti">🎬</span><span className="tl">Animations</span></button>
-            <button className="tile lvl" onClick={openSymbolScreen}><span className="ti">{sym("ui.symbols")}</span><span className="tl">Symbols</span></button>
+            <button className="tile lvl" style={{ "--tc": "#62b0ff" }} onClick={openDialogueEditor}><span className="ti">💬</span><span className="tl">Dialogue Trees</span></button>
+            <button className="tile lvl" style={{ "--tc": "#f472b6" }} onClick={openSoundScreen}><span className="ti">🔊</span><span className="tl">Sounds</span></button>
+            <button className="tile lvl" style={{ "--tc": "#fb923c" }} onClick={openAnimEditor}><span className="ti">🎬</span><span className="tl">Animations</span></button>
+            <button className="tile lvl" style={{ "--tc": "#b5e655" }} onClick={openSymbolScreen}><span className="ti">{sym("ui.symbols")}</span><span className="tl">Symbols</span></button>
           </div>
           <h2>Make a piece of equipment</h2>
           <div className="slots">
             {SLOT_ORDER.slice().reverse().map((s) => (
-              <button key={s} className="slot" onClick={() => start("equipment", s)}><span className="si">{SLOTS[s].icon}</span><span>{SLOTS[s].label}</span></button>
+              <button key={s} className="slot" style={{ "--tc": SLOT_TINTS[s] }} onClick={() => start("equipment", s)}><span className="si">{SLOTS[s].icon}</span><span>{SLOTS[s].label}</span></button>
             ))}
           </div>
           <h2>Load</h2>
@@ -22209,7 +22229,7 @@ export default function AssetStudio() {
             </div>
           </div>
         )}
-        {toast && <div className="toast">{toast}</div>}
+        {toast && <div className={"toast" + (toastIsSave(toast) ? " ok" : "")}>{toast}</div>}
       </div>
     );
   }
@@ -22444,7 +22464,7 @@ export default function AssetStudio() {
             </div>
           </div>
         </div>
-        {toast && <div className="toast">{toast}</div>}
+        {toast && <div className={"toast" + (toastIsSave(toast) ? " ok" : "")}>{toast}</div>}
       </div>
     );
   }
@@ -22788,7 +22808,7 @@ export default function AssetStudio() {
             )}
           </div>
         </div>
-        {toast && <div className="toast">{toast}</div>}
+        {toast && <div className={"toast" + (toastIsSave(toast) ? " ok" : "")}>{toast}</div>}
       </div>
     );
   }
@@ -22944,7 +22964,7 @@ export default function AssetStudio() {
             </div>
           </div>
         )}
-        {toast && <div className="toast">{toast}</div>}
+        {toast && <div className={"toast" + (toastIsSave(toast) ? " ok" : "")}>{toast}</div>}
       </div>
     );
   }
@@ -23083,7 +23103,7 @@ export default function AssetStudio() {
             </div>
           </div>
         )}
-        {toast && <div className="toast">{toast}</div>}
+        {toast && <div className={"toast" + (toastIsSave(toast) ? " ok" : "")}>{toast}</div>}
       </div>
     );
   }
@@ -23511,6 +23531,24 @@ export default function AssetStudio() {
       if (drawn.length) { let a = Infinity, b = Infinity, d = -Infinity, e = -Infinity; for (const pc of drawn) { a = Math.min(a, pc.x); b = Math.min(b, pc.y); d = Math.max(d, pc.x + pc.w); e = Math.max(e, pc.y + pc.h); } bb = { x: a, y: b, w: Math.max(1, d - a), h: Math.max(1, e - b) }; }
       const out = { pieces, bb };
       groundArtCache.current.set(it.id, out);
+      return out;
+    };
+    // The HUD's picture of what you hold: the ground art, laid on its side when it stands taller
+    // than wide. A weapon is drawn along the arm, and at rest the arm hangs, so a rifle comes out
+    // standing on its muzzle; turned, the muzzle (else the tip) points forward, to the right.
+    const hudWeaponArt = (it) => {
+      const g = groundArt(it);
+      if (!it || !g.bb) return { ...g, turn: 0 };
+      const key = "hud|" + it.id, hit = groundArtCache.current.get(key);
+      if (hit) return hit;
+      let turn = 0;
+      if (g.bb.h > g.bb.w * 1.15) {
+        const src = it.type === "weapon" && it.states && it.states.rest ? { ...it, angles: it.states.rest } : it;
+        const mz = bake(src, displayPoseKey(src)).find((pc) => pc.isMuzzle);
+        turn = mz && mz.y + mz.h / 2 < g.bb.y + g.bb.h / 2 ? 90 : -90;
+      }
+      const out = { ...g, turn };
+      groundArtCache.current.set(key, out);
       return out;
     };
     const layerKey = lLayer === "obj" ? "fx" : lLayer === "marker" ? "markers" : lLayer === "enemy" ? "enemies" : lLayer; // backing level property for each tool (climb/hazard use their own name directly)
@@ -25382,7 +25420,8 @@ export default function AssetStudio() {
               {/* 🦸 THE FLIGHT HINT (see showFlyHint): the view's, like the banner, low and quiet. */}
               {play && flyHint > 0 && <div key={"flyhint" + flyHint} className="flyHint">{FLY_HINT_TEXT}</div>}
               {/* THE PLAY HUD (2026-10-14), after Blake's mock-up: HP bar and ammo top-left, the score
-                  top-centre, the stats top-right. It belongs to the VIEW like the pickup banner, so it
+                  top-centre (half see-through, 2026-10-14), the stats top-right; money bottom-left and
+                  what you hold with its damage bottom-right. It belongs to the VIEW like the pickup banner, so it
                   is a sibling of .lgrid inside .lscroll.playing, never inside the camera's transform.
                   - AMMO IS SEGMENTS, ONE PER ROUND IN THE MAGAZINE, and no counter ("there is infinite
                     ammo and most weapons don't have many rounds"). A reload refills them left to right
@@ -25426,7 +25465,29 @@ export default function AssetStudio() {
                 const livesLeft = livesGranted ? extraLivesLeft(playerAsset?.effects, livesUsed.current) : 0;
                 const throwsLeft = playtestThrowId ? Math.max(0, throwCarry.current) : 0;
                 const pips = (key, n) => n > 0 && <div className="hudPips">{Array.from({ length: Math.min(n, 12) }, (_, i) => <span key={i}>{sym(key, null, 16)}</span>)}</div>;
+                // Bottom-right: what you hold, drawn from its own art the way the shop shelf draws it
+                // (hudWeaponArt), and the ATK figure beside it. Bare hands show the ATK symbol.
+                const wBoxW = 88, wBoxH = 44;
+                const { pieces: wPieces, bb: wBb, turn: wTurn } = hudWeaponArt(playtestWeapon);
+                let wPlane = null;
+                if (wBb) {
+                  const across = wTurn ? wBb.h : wBb.w, tall = wTurn ? wBb.w : wBb.h;
+                  const sc = Math.min(wBoxW / across, wBoxH / tall) * 0.92;
+                  wPlane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${wBoxW / 2}px,${wBoxH / 2}px) rotate(${wTurn}deg) scale(${sc}) translate(${-(wBb.x + wBb.w / 2)}px,${-(wBb.y + wBb.h / 2)}px)` };
+                }
+                const atk = stats.find((s) => s.k === "stat.atk");
                 return (
+                  <>
+                  <div className="hudBot">
+                    <div className="hudMoney">{sym("hud.money", null, 22)}<span>{walletUI}</span></div>
+                    <div className={"hudWpn" + (atk.d > 0 ? " up" : atk.d < 0 ? " down" : "")}>
+                      <div className="hudWpnArt" style={{ width: wBoxW, height: wBoxH }}>
+                        {wPlane ? <div style={wPlane}>{renderPieceRuns({ pieces: wPieces, cacheKey: "hudw_" + playtestWeapon.id, keyPrefix: "hudw" + playtestWeapon.id + "_", alpha: assetAlpha(playtestWeapon), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>
+                          : sym("stat.atk", null, 34)}
+                      </div>
+                      <span className="hudWpnDmg">{Math.round(atk.v)}</span>
+                    </div>
+                  </div>
                   <div className="hud">
                     <div className="hudL">
                       <div className="hudHp">
@@ -25451,6 +25512,7 @@ export default function AssetStudio() {
                       ))}
                     </div>
                   </div>
+                  </>
                 );
               })()}
             </div>
@@ -25795,7 +25857,7 @@ export default function AssetStudio() {
             </div>
           );
         })()}
-        {toast && <div className="toast">{toast}</div>}
+        {toast && <div className={"toast" + (toastIsSave(toast) ? " ok" : "")}>{toast}</div>}
       </div>
     );
   }
@@ -26870,7 +26932,7 @@ export default function AssetStudio() {
         </div>
       )}
       {textureModals}
-      {toast && <div className="toast">{toast}</div>}
+      {toast && <div className={"toast" + (toastIsSave(toast) ? " ok" : "")}>{toast}</div>}
     </div>
   );
 }
@@ -26920,6 +26982,10 @@ html,body{margin:0;padding:0;background:#0f1117}
 .tile{display:flex;flex-direction:column;align-items:flex-start;gap:4px;background:#171b26;border:1px solid #242a3a;border-radius:16px;padding:16px;cursor:pointer;text-align:left}
 .tile:hover{border-color:#4f7cf6;background:#1b2030}.tile.dress{border-color:#3a4a7a;background:#19203a}
 .ti{font-size:30px}.tl{font-weight:700;font-size:15px}.tb{font-size:12px;color:#9aa3b8}
+/* MENU COLOUR (2026-10-14): a tile or slot carrying --tc shows its icon in that colour on a card tinted with it. */
+.menu .tile[style*="--tc"],.menu .slot[style*="--tc"]{background:linear-gradient(150deg,color-mix(in srgb,var(--tc) 32%,#171b26) 0%,#171b26 78%);border-color:color-mix(in srgb,var(--tc) 50%,#242a3a)}
+.menu .tile[style*="--tc"]:hover,.menu .slot[style*="--tc"]:hover{border-color:var(--tc);background:linear-gradient(150deg,color-mix(in srgb,var(--tc) 42%,#1b2030) 0%,#1b2030 78%)}
+.menu .tile[style*="--tc"] .ti,.menu .slot[style*="--tc"] .si{color:var(--tc);filter:drop-shadow(0 0 6px color-mix(in srgb,var(--tc) 45%,transparent))}
 .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:24px}
 .slot{display:flex;flex-direction:column;align-items:center;gap:6px;background:#171b26;border:1px solid #242a3a;border-radius:13px;padding:14px 6px;cursor:pointer;font-size:12px}
 .slot:hover{border-color:#4f7cf6}.slot .si{font-size:24px}
@@ -27159,7 +27225,9 @@ html,body{margin:0;padding:0;background:#0f1117}
 .namefield:focus{outline:none;border-color:#4f7cf6}
 /* The studio's toast. No longer the blue box (Blake, 2026-10-14: "get rid of those blue boxes"): the
    panels' own dark, and during play it is not used at all (popText). */
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1b2030;border:1px solid #3a4258;color:#e7e9ee;padding:9px 20px;border-radius:10px;font-weight:600;z-index:40;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#3558c0;color:#fff;padding:9px 20px;border-radius:22px;font-weight:600;z-index:40;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.toast.ok{top:14px;bottom:auto;background:#1f9d55;border:2px solid #7ee2a8;font-size:17px;padding:11px 26px;z-index:60;box-shadow:0 0 0 4px rgba(31,157,85,.25),0 8px 24px rgba(0,0,0,.5);animation:toastPop .25s ease-out}
+@keyframes toastPop{from{transform:translateX(-50%) scale(.85);opacity:0}to{transform:translateX(-50%) scale(1);opacity:1}}
 .undo{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:9px 12px;cursor:pointer;font-weight:600}
 .undo:hover:not(:disabled){border-color:#4f7cf6}.undo:disabled{opacity:.4;cursor:default}
 .undo.musicTgl{opacity:.7}.undo.musicTgl.on{opacity:1;border-color:#4f7cf6;background:#26304d}
@@ -27327,7 +27395,14 @@ html,body{margin:0;padding:0;background:#0f1117}
 .hudAmmo.reloading .hudSeg.on{background:#7d8fb3;border-color:#a9b8d6}
 .hudPips{display:flex;gap:3px;font-size:16px;line-height:1}
 .hudPips .sym{filter:drop-shadow(0 0 1px #000) drop-shadow(0 1px 1px rgba(0,0,0,.9))}
-.hudC{flex:0 0 auto;text-align:center;line-height:1}
+.hudC{flex:0 0 auto;text-align:center;line-height:1;opacity:.55}
+.hudBot{position:absolute;left:0;right:0;bottom:0;z-index:6;pointer-events:none;display:flex;align-items:flex-end;justify-content:space-between;padding:10px 14px;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85)}
+.hudMoney{display:flex;align-items:center;gap:6px;font-size:20px;font-weight:700;letter-spacing:.04em;line-height:1}
+.hudWpn{display:flex;align-items:center;gap:8px;line-height:1}
+.hudWpnArt{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 1px rgba(255,255,255,.9)) drop-shadow(0 0 1px rgba(255,255,255,.6)) drop-shadow(0 1px 3px rgba(0,0,0,.8))}
+.hudWpnDmg{font-size:22px;font-weight:700;letter-spacing:.04em;min-width:26px;text-align:right}
+.hudWpn.up .hudWpnDmg{color:#8ef59a}
+.hudWpn.down .hudWpnDmg{color:#ff9b9b}
 .hudScoreLbl{font-size:12px;font-weight:700;letter-spacing:.2em;color:#dfe4ee}
 .hudScore{font-size:24px;font-weight:700;letter-spacing:.08em;margin-top:2px}
 .hudR{flex:1 1 0;min-width:0;display:flex;justify-content:flex-end;gap:11px}

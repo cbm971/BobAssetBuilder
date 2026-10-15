@@ -361,11 +361,20 @@ plus traps it does not cover:
   `public/symbols/library.json` (fetched only by the Symbols screen) and `src/symbolArt.json` (the
   defaults). Re-run it after changing a default.
 - **No toast during play.** `flash` becomes a pop (`popText`, `.playPop`): bare words rising over
-  the player's head on the labels' rung. The studio keeps a dark toast. Never bring back the blue box.
+  the player's head on the labels' rung. Never bring back the blue box DURING PLAY. The studio's toast is the
+  blue one again (the dark one went unseen: "nothing indicated that it saved"), and a message that
+  says something saved (`toastIsSave`) is a green pill at the TOP, for 3 s, above any open dialog.
 - **The play HUD** (`.hud`, after his mock-up) shows the HP bar with cur/max top-left. Below it,
   ammo is ONE SEGMENT PER ROUND with no counter, and throwables and extra lives are pips. SCORE
-  sits top-centre and the live stats (AGI ATK DEF HP INT SPD STR) top-right. There is no HP bar
-  over the player's head.
+  sits top-centre, half see-through, and the live stats (AGI ATK DEF HP INT SPD STR) top-right.
+  Bottom-left is the money (`hud.money`), bottom-right the held weapon's picture (`hudWeaponArt`:
+  the ground art turned on its side when tall, muzzle to the right) with its ATK. There is no HP
+  bar over the player's head.
+- **The main menu has colour**: each tile and equipment slot carries `--tc` (icon colour + tinted
+  card). A new tile gets one too.
+- **Height limit on hunting** (`enemyChasesVertically`, 1.5 body lengths): a hostile whose target's
+  feet are farther up or down than that does not turn to it, sense it, climb, walk a walkway, drop
+  or fly after it (Trailor Park M7's road units tracked him on the floor above).
 - **Score** (the SCORE block): a hostile unit killed by YOUR last blow is 100
   (`lastHitByFx === null`; a unit's blow always stores an array, so keep it never-null). A
   dialogue option's `points` pay once per run. A level pays 500, minus 10 per whole second after
