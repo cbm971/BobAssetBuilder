@@ -229,6 +229,7 @@ import {
   forEachAssetPiece,
   colorGroupAfter,
   recolorAssetGroup,
+  retexAssetGroup,
   restyleAssetGroup,
   editSnapshot,
   readEditSnapshot,
@@ -13550,5 +13551,19 @@ describe("a unit's HP bar shows only just after it is hurt", () => {
     expect(unitHpBarAlpha(seen, "1,1", 2000 + UNIT_HP_BAR_SHOW_MS)).toBe(0);
     noteUnitHp(seen, "1,1", 7, 9000); // no new fall: stays hidden
     expect(unitHpBarAlpha(seen, "1,1", 9000)).toBe(0);
+  });
+});
+
+describe("retexAssetGroup", () => {
+  const asset = () => ({ angles: { front: [{ id: "a", color: "#fff" }, { id: "b", color: "#fff" }, { id: "c", color: "#f00", tex: "old" }] }, variants: { default: { front: [{ id: "a", color: "#fff" }] } } });
+  test("patterns every block of the colour, in every pose and fit, and no others", () => {
+    const a = asset(), out = retexAssetGroup(a, assetColorGroup(a, "#fff"), "plaid");
+    expect(out.angles.front.map((p) => p.tex)).toEqual(["plaid", "plaid", "old"]);
+    expect(out.variants.default.front[0].tex).toBe("plaid");
+  });
+  test("null clears the pattern and keeps the flat colour", () => {
+    const a = asset(), out = retexAssetGroup(a, assetColorGroup(a, "#f00"), null);
+    expect("tex" in out.angles.front[2]).toBe(false);
+    expect(out.angles.front[2].color).toBe("#f00");
   });
 });

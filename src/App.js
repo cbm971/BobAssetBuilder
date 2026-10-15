@@ -1776,6 +1776,19 @@ export const restyleAssetGroup = (a, g, patch) => {
   if (!a || !g || !patch) return a;
   return mapAssetPieces(a, (p, k) => (inColorGroup(g, k) ? { ...p, fx: { ...defaultFx(), ...(p.fx || {}), ...patch } } : p));
 };
+// A pattern (texture) rides the same toggle: "Change this color everywhere" then patterns every
+// block wearing this colour, not just the selected one. `tex` null clears it (✕ Plain); the flat
+// colour underneath is untouched either way.
+export const retexAssetGroup = (a, g, tex) => {
+  if (!a || !g) return a;
+  return mapAssetPieces(a, (p, k) => {
+    if (!inColorGroup(g, k)) return p;
+    if (tex) return { ...p, tex };
+    if (!p.tex) return p;
+    const { tex: _gone, ...rest } = p;
+    return rest;
+  });
+};
 // The one-shot forms: resolve the group and apply it in a single call. Matching is
 // case-insensitive on the hex so "#45552A" and "#45552a" are the same colour. This is the whole
 // story for a discrete click — a swatch, a tap. Only a control that fires REPEATEDLY (a dragged
@@ -18284,6 +18297,15 @@ export default function AssetStudio() {
     const g = assetColorGroup(asset, from);
     setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(restyleAssetGroup(recolorAssetGroup(a, g, c), g, fx)); });
   };
+  // A pattern obeys the 🪣 toggle like a colour does. It used to go through updSel alone, so with
+  // "Change this color everywhere" on, patterning one underwear piece left every other block of
+  // that colour (the rest of the briefs, the other poses, every body fit) plain.
+  const applyPieceTexture = (texId) => {
+    const from = sel && sel.color;
+    if (!recolorAll || !from || effEdit || !sel || sel.kind === "emoji" || sel.kind === "text") { updSel({ tex: texId }); return; }
+    const g = assetColorGroup(asset, from);
+    setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(retexAssetGroup(a, g, texId)); });
+  };
   // Skin-palette remap: repaint one of the palette's colours everywhere it appears. Driven only by
   // a colour input, so it is always a drag: palGroup remembers the places that swatch resolved to
   // for the length of one, and the onBlur beside the input drops it. The entry is keyed by the
@@ -21917,7 +21939,7 @@ export default function AssetStudio() {
   // guarantee the two copies drift. `texTarget` is the only difference between the two callers:
   // it decides whether picking a texture arms the level brush or paints the selected art block.
   const applyTextureToTarget = (t) => {
-    if (texTarget === "piece") { updSel({ tex: t.id }); flash("\"" + t.name + "\" on this block 🧵"); }
+    if (texTarget === "piece") { applyPieceTexture(t.id); flash("\"" + t.name + "\" on this block 🧵"); }
     else { setLTexId(t.id); setLTool("paint"); flash("Painting with \"" + t.name + "\" 🧱"); }
     setTexPick(false);
   };
@@ -21953,7 +21975,7 @@ export default function AssetStudio() {
             </div>
             <div className="row2">
               {texTarget === "piece"
-                ? (sel && sel.tex && <button onClick={() => { updSel({ tex: null }); setTexPick(false); }}>✕ Plain color</button>)
+                ? (sel && sel.tex && <button onClick={() => { applyPieceTexture(null); setTexPick(false); }}>✕ Plain color</button>)
                 : (activeTexture && <button onClick={() => { setLTexId(null); setTexPick(false); }}>✕ Paint plain colors</button>)}
               <button onClick={() => setTexPick(false)}>Close</button>
             </div>
@@ -26670,7 +26692,7 @@ export default function AssetStudio() {
                   <button className={"ltbtn" + (sel.tex ? " on" : "")} onClick={() => { setTexTarget("piece"); setTexPick(true); }}>
                     {(() => { const t = resolveTexture(texLib, sel.tex); return t ? <><span className="texchip" style={cellPaintStyle({ c: textureBaseColor(t), tex: t.id }, 0, 0, texLib, TEX_CHIP_BAND)} /> {t.name}</> : <>🧵 Pattern</>; })()}
                   </button>
-                  {sel.tex && <button className="ltbtn" onClick={() => updSel({ tex: null })}>✕ Plain</button>}
+                  {sel.tex && <button className="ltbtn" onClick={() => applyPieceTexture(null)}>✕ Plain</button>}
                 </div>
               </>}
               <button className="ltbtn" onClick={() => (sel.kind === "emoji" ? updSel({ tint: newColor, fx: { ...newFx } }) : applyPickedColorFx(newColor, { ...newFx }))} >🎨 Apply picked color + fx</button>
