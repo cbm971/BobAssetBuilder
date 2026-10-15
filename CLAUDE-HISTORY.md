@@ -4678,3 +4678,65 @@ armour again. Armour was fine: every hit site already went through `incomingUnit
   objects of AssetStudio, from `header.bar` walking `.return`). DK Arms is SLOW (speed 5): a barrel
   takes ~2 s to cross 530 px, so a check 0.7 s after the shot reads "nothing happened". Revert
   `public/`, `asset-data/` and `git clean asset-data/clips/` (the dev server writes his clips there).
+
+## Symbols, the play HUD, the score and the end of the blue toast (2026-10-14)
+
+**What he asked** (with a mock-up image): overhaul the play UI. HP bar top-left with "100/100"; ammo
+as SEGMENTS, one per round in the magazine, with no round counter ("there is infinite ammo and most
+weapons don't have many rounds"); a SCORE top-centre; stats top-right, with better symbols than the
+mock-up's. Score rules: 100 a kill, dialogue can reward points, 500 a level minus 10 a second after
+30 seconds, and "it shouldn't display this anywhere". Get rid of the blue "Blocked" boxes and show
+something on screen instead. And "a symbol selector for everything we currently use an emoji for".
+
+**How it went wrong first.** I read "everything we currently use an emoji for" as the whole studio.
+I built a font that redraws ~170 interface emoji (Save, Load, tool buttons) as symbols, and I left
+the in-game effects (explosion, fire) as emoji on the theory that they were "art". He was furious:
+"WHAT IS THIS WHOLE SYMBOL THING ... MY ISSUE WAS YOU WANTED TO USE EMOJIS FOR THINGS LIKE THE STATS
+ON THE NEW UI AND I ASKED YOU TO GET RID OF EMOJIS IN PLACES LIKE EXPLOSIONS, STUNNED ETC ... I JUST
+WANTED A SELECTOR". He then kept the studio symbols ("at least I have something for those effects
+for now") and set the real spec: "a selector I can insert props into, with the emoji as the default.
+The new emojis can be the new default." **Lesson: when a request names a category, ask which
+screen it is about before re-skinning the whole studio. "Things like explosions, stunned" was the
+scope.** He also said "I hate emojis": no new emoji in new UI.
+
+**What shipped:**
+- `src/symbols.js` (no React, the game's). `symbolSlots.json` lists every slot: emoji slots (drawn
+  by the FONT), and named slots `fx.*` (play effects), `stat.*` / `hud.*` (the HUD) drawn by
+  `sym(key, cls, px)`. The board record `symbolboard` rides the sounds kind (`isSymbolBoard`, added
+  to the restoreBackup filter) with `picks` and `colors`.
+- **The font.** It is a hand-written TrueType built in the browser, with a COLRv0 layer per glyph in
+  palette 0xFFFF. Measured on Chrome 152: without the colour table, every emoji followed by U+FE0F
+  (⚔️ ❤️ 🗡️) still drew as colour emoji even though the first font in the stack had the glyph.
+  With it, all of them take the symbol. FontFace rejects a bad font silently except through
+  `load()`, so that is where a failure is logged.
+- **Icons.** game-icons.net (CC BY 3.0, so the credits must name it) and Material Design Icons
+  (Apache 2.0), via `tools/build-symbols.js` from the `@iconify-json/*` packages into one 1000-box
+  integer relative-path dialect. `public/symbols/library.json` is 6.4 MB (2.3 MB gzipped) and is
+  fetched only by the Symbols screen. `src/symbolArt.json` (~90 KB) holds the defaults.
+- **Effects.** The boom render draws `fx.boom` when the blast has no prop of its own and its char is
+  the default or none. Every stomp and tackle puff is pushed with "💥", so they follow too. A prop
+  pick goes through boomLayout / propArtInner like a weapon's blast prop. The fire layer
+  (`lvHazardLayer`) MOVED below propArtInner/findA so the flame can be a prop. Shots with no emoji of
+  their own carry `DEFAULT_SHOT_CHAR`. The stunned, knocked-down and talk badges are `sym(...)`.
+- **Toast.** `flash` checks `playLive`. During play it pushes a pop (`popText`): 12px outlined words
+  over `popAnchor` (the player's head), on the labels' rung, shifted at seam handoffs, deduped within
+  600 ms. The studio toast is dark now.
+- **HUD** (`.hud`, sibling of .lgrid like the pickup banner). ATK is `enemyAttackDamage` with the
+  buffed Strength, the rule both sides share. The player's over-head HP bar is gone; the reload bar
+  over the head stays.
+- **Score.** A kill is paid in the loot pass, the one place a death is seen once. To make
+  `lastHitByFx === null` mean "your blow", the three unit sites (brawl, throw, shot) now store
+  `ea.effects || []`. That is neutral for Lucky Find, because `[...player, ...[]]` is the player's
+  own. A level clear is paid in `seamHandoff` for `runNow.curKey`, and at `animLeaveRef` for the
+  last level. The clock ticks below the talk/shop/cutscene returns. Dialogue `points` are carried
+  by migrateDialogue only when > 0.
+
+**Verified in the dev server** (fresh 127.0.0.1 origin, cloud saves off, audio muted, gated rAF
+shim): the font loads; the Symbols screen lists 182 slots and 11,770 icons; a real click on a Props
+cell stored `fx.boom: prop:swiwj1p` (his Fire prop) in IDB. In ▶ Playtest on Trailor Park M1 as Army
+Bob with the M16: 12 segments, 3 shots → 9 lit; grenade pips 3 → 2; "Thrown — 2 left" popped with
+no toast; a pushed default "💥" boom drew the Fire prop, while a "🧨" boom stayed emoji; the stun and
+down marks drew yellow symbols; a painted fire cell drew the orange flame; shooting Bobette (HP set
+to 3) scored 0000100. **Not driven:** a level clear across a run's gate (unit-tested only).
+Trap: `computer` coordinates in this pane did not line up with the screenshot; clicking by `ref`
+from `find` worked.

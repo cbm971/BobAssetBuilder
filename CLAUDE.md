@@ -338,6 +338,39 @@ plus traps it does not cover:
   patch the editor's open copy (and the dialogue baseline). Its right column is Library, Weapons,
   Enemies; a weapon or enemy row is `assetSoundRow`, the same slots as the editor's 🔊 card.
 
+## Symbols, the play HUD and the score (2026-10-14)
+
+- **No new emoji, anywhere in the interface** (Blake: "I hate emojis"). Interface emoji are drawn
+  as symbols by a font the app builds in the browser (`src/symbols.js`, listed first in every UI
+  font stack as `${SYMBOL_FONT_FAMILY}`). Every emoji in App.js / audio.js needs a slot in
+  `src/symbolSlots.json`, and a test fails otherwise. New UI that needs an icon draws a NAMED slot
+  with `sym("group.name")` (an `<svg>`), never an emoji character. Blake picks symbols on the
+  Symbols screen. The picks live on the `symbolboard` record (sounds kind, beside the sound board).
+- The font's COLR table is load-bearing. Without it Chrome still draws "⚔️"-style emoji (the ones
+  carrying U+FE0F) in colour.
+- **What he actually asked for is the PLAY EFFECTS** (he was furious that the first pass swapped
+  studio buttons and left these as emoji). The built-in explosion / impact puff, fire cell, emoji
+  shot, stunned and knocked-down marks and the talk bubble draw `fx.*` slots. Each defaults to a
+  symbol in the slot's colour, and **he can put one of his PROPS in any drawn slot**
+  (`prop:<id>`, the Props tab; a picked blast prop animates like a weapon's own). A weapon's own
+  blast / landing / shot emoji or prop, emoji pieces and level emoji objects are HIS art and stay
+  as he chose (`ART_EMOJI_FONT`). The weapon defaults 💥 / 🔥 count as "use the slot".
+  A new in-game effect gets an `fx.*` slot and is drawn with `sym(key, null, px)`.
+- The icons are game-icons.net (`gi:`, **CC BY 3.0, so the game's credits must name it**) and
+  Material Design Icons (`mdi:`, Apache 2.0). `tools/build-symbols.js` writes them into
+  `public/symbols/library.json` (fetched only by the Symbols screen) and `src/symbolArt.json` (the
+  defaults). Re-run it after changing a default.
+- **No toast during play.** `flash` becomes a pop (`popText`, `.playPop`): bare words rising over
+  the player's head on the labels' rung. The studio keeps a dark toast. Never bring back the blue box.
+- **The play HUD** (`.hud`, after his mock-up) shows the HP bar with cur/max top-left. Below it,
+  ammo is ONE SEGMENT PER ROUND with no counter, and throwables and extra lives are pips. SCORE
+  sits top-centre and the live stats (AGI ATK DEF HP INT SPD STR) top-right. There is no HP bar
+  over the player's head.
+- **Score** (the SCORE block): a hostile unit killed by YOUR last blow is 100
+  (`lastHitByFx === null`; a unit's blow always stores an array, so keep it never-null). A
+  dialogue option's `points` pay once per run. A level pays 500, minus 10 per whole second after
+  30, on its first gate exit or at the floor's end. **Never show the rules on screen.**
+
 ## Architecture — where things are
 
 - Pure logic is `export const` at module level and unit-tested. The giant `AssetStudio()` component

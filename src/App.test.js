@@ -12575,7 +12575,7 @@ describe("a unit plays by the player's rules", () => {
 
   test("every unit's shot carries its shooter's Intelligence for the crit, and Long Shot on its range", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
-    expect(src).toContain("critInt: eIntel, shooterFx: ea.effects || null,");
+    expect(src).toContain("critInt: eIntel, shooterFx: ea.effects || [],");
     expect(src).toContain("* CW * rangeBoostMultiplier(ea.effects);");
     expect(src).toContain("const crit = Math.random() < critChance(eIntel);"); // swings, bites and stomps
     expect(src).toContain("ep.burstLeft = weaponBurstShotCount(ew) - 1;");      // the whole burst

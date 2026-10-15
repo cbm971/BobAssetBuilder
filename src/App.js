@@ -6,6 +6,9 @@ import { flushSync } from "react-dom";
 // identical by a test, so all three name a sound file the same way.
 import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped } from "./anim";
 import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume } from "./audio";
+// SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
+// browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
+import { SYMBOL_SLOTS, SYMBOL_DEFAULT_ART, SYMBOL_FONT_FAMILY, SYMBOL_BOX, SYMBOL_LIBRARY_PATH, ART_EMOJI_FONT, SYMBOL_BOARD_ID, newSymbolBoard, isSymbolBoard, symbolSlot, symbolPick, symbolColor, isPropPick, propPickId, PROP_PICK, isEmojiSlot, symbolPicksNeedingLibrary, symbolFontGlyphs, buildSymbolFont } from "./symbols";
 
 /* ============================================================================
    BOB ASSET STUDIO  — HTML canvas (reliable emoji + easy dragging on mobile)
@@ -1487,6 +1490,9 @@ export const weaponFireCooldownFrames = (fireRate) => Math.max(1, Math.round(60 
 // already built looks any different until it is deliberately changed.
 export const DEFAULT_BOOM_CHAR = "💥";
 export const DEFAULT_LAND_CHAR = "🔥";
+// The char a shot carries when its projectile names none. Never drawn as that emoji any more: it
+// is the marker that says "draw the fx.shot slot" (the Symbols screen). Same idea for the two above.
+export const DEFAULT_SHOT_CHAR = "🔥";
 export const DEFAULT_STUN_SECS = 1; // seconds a freshly added Stun ability freezes for
 export const DEFAULT_MELEE_BOOST = 3; // 🦍 Melee boost: a freshly added one triples your punch
 // What the 👊 Q/V swing is multiplied by with this weapon in hand. Only a RANGED weapon can carry
@@ -3242,6 +3248,9 @@ export const migrateDialogue = (raw) => {
         act: DIALOGUE_ACTS[c.act] ? c.act : "",
         tone: DIALOGUE_TONES[c.tone] ? c.tone : "",
         shopTag: typeof c.shopTag === "string" ? c.shopTag : "",
+        // SCORE points this option pays (scoreDialogueChoice). Carried only when set, so every
+        // tree saved before the field existed comes through byte for byte (see `once` below).
+        ...(Number(c.points) > 0 ? { points: Math.round(Number(c.points)) } : {}),
       })),
     };
   }
@@ -10089,7 +10098,7 @@ const objInner = (o, sz) => {
     else if (o.shape === "tri2") s.clipPath = "polygon(0% 0%, 100% 100%, 0% 100%)";
     return <div style={s} />;
   }
-  const span = { fontSize: sz * 0.85 + "px", lineHeight: 1 };
+  const span = { fontSize: sz * 0.85 + "px", lineHeight: 1, fontFamily: ART_EMOJI_FONT }; // art keeps its emoji (symbols.js, ART IS NOT UI)
   if (o.tint) Object.assign(span, { backgroundColor: o.tint, backgroundImage: "none", color: "transparent", WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text" });
   return <span style={span}>{o.char}</span>;
 };
@@ -11654,6 +11663,47 @@ export const topdownDepthZ = (playerFeet, unitFeet, cell) => {
 // door prompt keeps its 9500 (a door is usually IN the Front wall), and the conversation bubble
 // its 9600 (once you are talking, the conversation is the screen).
 export const SCENE_LABEL_Z = { drop: 5063, label: 5070, talk: 5080 };
+/* ── SCORE (2026-10-14) ───────────────────────────────────────────────────────────────────────
+   Blake's rules, word for word: "every enemy you kill is 100 points, dialogue can reward points,
+   every level you clear will be 500 points - 10 points per second after 30 seconds. It shouldn't
+   display this anywhere." So the HUD shows the total and nothing else; the rules live here.
+   - A KILL is a unit that dies hostile to you with YOUR blow the last to land on it
+     (`ep.lastHitByFx === null` — a unit's blow stores its own effects array, never null; see the
+     loot pass). Fire, an ally's shot and a foe's stray round score nothing.
+   - A DIALOGUE option can carry `points`, paid once per option per run however often it is picked.
+   - A LEVEL is cleared the first time you leave it through a gate in a run (seamHandoff), or when
+     the floor ends (animLeaveRef). Its clock (`secs`) runs only while the world does: a conversation,
+     a shop or a cutscene returns from the loop above the tick, so reading costs nothing.
+   The score lives in the studio's scoreRef for the whole session and is reset by ▶ Playtest / 🏁. */
+export const SCORE_KILL = 100;
+export const SCORE_LEVEL_CLEAR = 500;
+export const SCORE_PAR_SECS = 30;
+export const SCORE_LOSS_PER_SEC = 10;
+export const newScoreState = () => ({ total: 0, secs: {}, cleared: {}, spent: {} });
+// Whole seconds past the par each cost SCORE_LOSS_PER_SEC, and a slow clear is worth nothing, never less.
+export const levelClearPoints = (secs) => Math.max(0, SCORE_LEVEL_CLEAR - SCORE_LOSS_PER_SEC * Math.max(0, Math.floor((Number(secs) || 0) - SCORE_PAR_SECS)));
+// Pays a level's clear into `sc` once; returns the points paid (0 when it was already cleared).
+export const scoreLevelClear = (sc, key) => {
+  if (!sc || key == null || sc.cleared[key]) return 0;
+  sc.cleared[key] = true;
+  const pts = levelClearPoints(sc.secs[key]);
+  sc.total += pts;
+  return pts;
+};
+// Pays a dialogue option's points once per run; `key` names the option (tree id + choice id).
+export const scoreDialogueChoice = (sc, key, points) => {
+  const pts = Math.max(0, Math.round(Number(points) || 0));
+  if (!sc || !pts || sc.spent[key]) return 0;
+  sc.spent[key] = true;
+  sc.total += pts;
+  return pts;
+};
+// The HUD's number: seven digits, zero-padded, like the arcade score Blake's mock-up draws.
+// How many icons the Symbols screen's picker draws before "More" (each is an inline <svg>).
+export const SYMBOL_PAGE = 240;
+// How long a pop (a play-time flash, see popText) stays up; the .playPop animation runs as long.
+export const PLAY_POP_MS = 1300;
+export const scoreDigits =(n) => String(Math.max(0, Math.min(9999999, Math.round(Number(n) || 0)))).padStart(7, "0");
 // 🎬 A placed animation's stage: one rung under the player and the units (5000), over climb
 // (4000), so a bed is drawn under the man walking past it, and the actor on it — who IS the player
 // while it plays — sits on the same side of Front paint and Front objects as the player does.
@@ -12658,7 +12708,6 @@ export default function AssetStudio() {
   // not an invisible marker). Erasable by clicking with the Erase tool on any layer, same as
   // climb. The flicker is CSS-only, so re-rendering this list every playtest frame isn't needed —
   // it's memoized on the level + tool, exactly like the climb layer.
-  const lvHazardLayer = useMemo(() => level && level.hazard ? <div ref={hazardCellsRef} style={CELL_LAYER_STYLE}>{Object.keys(level.hazard).map((k) => { const [r, c] = k.split(",").map(Number); const cell = level.hazard[k]; const kind = hazardKindOf(cell); const info = HAZARDS[kind] || HAZARDS.fire; const eraseNow = !play && lTool === "erase"; const life = hazardLife(cell); const hidden = !!(cell && typeof cell === "object" && cell.hideInPlay); if (play && hidden) return null; /* invisible-in-play fire: still hurts (damage runs off level.hazard), just draws nothing during play so a prop fire can sit on top */ return <div key={"hz" + k} data-hk={k} className={"lhazard kind-" + kind + (hidden ? " hazHidden" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} title={info.label + " — " + hazardDps(cell) + " HP/sec" + (life > 0 ? " · burns " + life + "s" : " · permanent") + (hidden ? " · invisible during play" : "")} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv) => { const hazard = { ...lv.hazard }; delete hazard[k]; return { ...lv, hazard }; }); } : undefined}><span className="hzflame">{hidden ? "🚫" : ((cell && typeof cell === "object" && cell.char) || info.glyph)}</span></div>; })}</div> : null, [level, lTool, play]);
   const [canUndoLevel, setCanUndoLevel] = useState(false);
   const [canRedoLevel, setCanRedoLevel] = useState(false);
   const artRef = useRef(null);
@@ -12777,7 +12826,34 @@ export default function AssetStudio() {
   // losing hours of work to one misclick on a level list with no confirmation at all.
   const guardLevelSwitch = (label, run) => { if (levelIsDirty()) setPendingLevelAction({ label, run }); else run(); };
 
-  const flash = (m) => { setToast(m); setTimeout(() => setToast(""), 1600); };
+  // NO TOAST DURING PLAY (2026-10-14). Blake: "get rid of those blue boxes that say stuff like
+  // blocked. We should replace that with something on screen." While a level is being played every
+  // flash becomes a POP: bare words over the player's head (the floating-label look: white, black
+  // outline, no plate) that rise and fade where they were said, drawn in the level's label layer so
+  // Front paint covers them as it covers the player. One switch here rather than ~200 call sites,
+  // because every one of them is a message about what just happened TO YOU. The same line twice in
+  // a row is said once — a hit that repeats every frame must not stack a column of copies.
+  // The studio's own messages (saved, deleted, restored) keep the toast, restyled out of the blue.
+  const playLive = useRef(false);                       // `play` for code that runs outside a render (flash)
+  const popups = useRef([]);                            // [{ id, text, x, y, t }] — live-level pixels, t = performance.now()
+  const popSeq = useRef(0);
+  const popAnchor = useRef({ x: 0, y: 0 });             // over the player's head, written by the player render each frame
+  const popText = (m) => {
+    const now = playNowMs(), a = popAnchor.current;
+    let list = popups.current.filter((q) => now - q.t < PLAY_POP_MS);
+    const last = list[list.length - 1];
+    if (last && last.text === m && now - last.t < 600) return;
+    // Said while another is still rising: start above it rather than on top of it.
+    const recent = list.filter((q) => now - q.t < 450).length;
+    list = [...list, { id: ++popSeq.current, text: String(m), x: a.x, y: a.y - recent * 16, t: now }].slice(-5);
+    popups.current = list;
+  };
+  const flash = (m) => {
+    if (playLive.current) { popText(m); return; }
+    setToast(m); setTimeout(() => setToast(""), 1600);
+  };
+  // THE SCORE (see SCORE, above SCORE_KILL) — one object for the session; ▶ Playtest / 🏁 replace it.
+  const scoreRef = useRef(newScoreState());
   // 🎁 THE PICKUP BANNER. Taking an item off a pedestal or a body throws its NAME up over the level
   // in big arcade letters, with what it just did to you underneath (pickupChangeRows) — the
   // Binding-of-Isaac "you got X" moment, asked for as "bold, semi retro, dopamine inducing". The
@@ -13497,6 +13573,7 @@ export default function AssetStudio() {
     const opt = dialogueOptions(t.dlg.nodes[t.nodeId])[i];
     const commit = () => {
       clearTalkTimer();
+      if (opt && opt.points) scoreDialogueChoice(scoreRef.current, (t.dlg.id || "") + "|" + (opt.id || t.nodeId + ":" + i), opt.points);
       applyTalkAct(step.act, t, step);
       if (step.nextId) { const next = { ...t, nodeId: step.nextId, picked: null }; talkRef.current = next; setTalk(next); talkSoundFor(next); }
       else closeTalk();
@@ -13611,6 +13688,8 @@ export default function AssetStudio() {
     const pointLiveRefsAt = (b) => { pedestalRolls.current = b.rolls; pedestalDepleted.current = b.depleted; enemyHP.current = b.eHP; enemyPos.current = b.ePos; enemyDrops.current = b.drops; corpseStripped.current = b.stripped; hazLife.current = b.haz; enemyGearRolls.current = b.gear; };
     const seamHandoff = (side, p, pw, leavingGate, dtMul) => {
       const seam = seams[side], nb = runNow.nodes[seam.key];
+      // SCORE: leaving a level through a gate for the first time clears it (scoreLevelClear).
+      scoreLevelClear(scoreRef.current, runNow.curKey);
       // Dying in the level you are walking into puts you back at THIS gate's far side: E1 lands you
       // on the neighbour's W1 (CONN_OPP; a staggered bottom gate lands on its partner, seam.gates), which is
       // where neighbourOffset lined the two levels up.
@@ -13645,6 +13724,7 @@ export default function AssetStudio() {
       for (const pr of projectiles.current) { pr.x += rx; pr.y += ry; if (pr.startX !== undefined) { pr.startX += rx; pr.startY += ry; pr.groundY += ry; } }
       for (const g of thrown.current) { g.x += rx; g.y += ry; }
       for (const b of booms.current) { b.x += rx; b.y += ry; }
+      for (const q of popups.current) { q.x += rx; q.y += ry; } // words still rising stay over where they were said
       carryKeys.current = keys.current;
       seamCarry.current = { dt: dtMul }; // truthy = "this re-run is a seam swap"; dt = the length of the step the new loop takes first (see lastT)
       resolveRunSides(runNow, nb, runNow.pool || levelLib);
@@ -14076,6 +14156,9 @@ export default function AssetStudio() {
       //
       // downCd is the get-up grace, the same idea as the enemy's: a beat after you stand up during
       // which the tackler that floored you can't instantly floor you again.
+      // SCORE: the clock of the level you are in. Below the pause returns above, so a conversation, a
+      // shop or a cutscene never costs points; a run counts per level node, a plain Playtest per level.
+      { const sc = scoreRef.current, sk = runNow ? runNow.curKey : (lv.id || "level"); sc.secs[sk] = (sc.secs[sk] || 0) + dtMul / 60; }
       if (p.stun > 0) p.stun = Math.max(0, p.stun - dtMul);
       if (p.down > 0) { p.down = Math.max(0, p.down - dtMul); if (p.down <= 0) p.downCd = TACKLE_GETUP_GRACE_FRAMES; }
       if (p.downCd > 0) p.downCd = Math.max(0, p.downCd - dtMul);
@@ -15824,7 +15907,7 @@ export default function AssetStudio() {
               const crit = Math.random() < critChance(eIntel);
               enemyHP.current[key] = Math.max(0, cur - incomingUnitDamage(crit ? rawDmg0 * 2 : rawDmg0, bEa, bEp, atkCX, unitCenterX(bEa, bEp, CW), !!(hitEw && hitEw.ignoreArmor)));
               if (bEp) bEp.invuln = PLAYER_INVULN_FRAMES; // the player's i-frames, on it (unitHitImmune)
-              if (bEp) bEp.lastHitByFx = ea.effects || null; // who struck it, for a 🍀 Lucky Find the striker wears (the loot pass)
+              if (bEp) bEp.lastHitByFx = ea.effects || []; // who struck it, for a 🍀 Lucky Find the striker wears (the loot pass)
               if (enemyHP.current[key] <= 0) flash(friendly ? (allyBadge(ep) + " Your " + ea.name + " defeated " + (bEa.name || "a foe") + "!") : ("💔 Your " + (bEa.name || "ally") + " fell."));
               return true;
             }
@@ -15999,7 +16082,7 @@ export default function AssetStudio() {
                 // fighting. The very same `foe` channel a shot already carries, so ONE flag decides
                 // who every payload of it lands on and the two sides cannot drift apart.
                 foe: hostile,
-                throwerFx: ea.effects || null, // for a 🍀 Lucky Find the thrower wears (the loot pass)
+                throwerFx: ea.effects || [], // for a 🍀 Lucky Find the thrower wears (the loot pass)
               });
               sndMoment(eThrowable, "throw", null, eCenterXFinal, ep.y + newEph * 0.4); // 🔊 its throwable's Throw
               ep.throwLeft -= 1;
@@ -16060,15 +16143,17 @@ export default function AssetStudio() {
             projectiles.current.push({
               x: eShotAt.x, y: eShotAt.y, vx, vy,
               startX: eShotAt.x, startY: eShotAt.y, groundY: ep.y + newEph, rangePx, traveled: 0,
-              char: ew.projectile?.char || "🔥", tint: ew.projectile?.tint || null,
+              char: ew.projectile?.char || DEFAULT_SHOT_CHAR, tint: ew.projectile?.tint || null,
               pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece,
               alpha: assetAlpha(projAsset), // 👻 the Projectile asset's own Translucent
               rot: Math.atan2(vy, vx) * 180 / Math.PI, size: sizeUnits,
               damage: enemyAttackDamage(ea, ew), life: 0, foe: hostile,
               // Its crit is rolled where it LANDS, off the shooter's Intelligence — your own shot's
               // rule, which rolls yours at the impact too. shooterFx names the effects it was fired
-              // under, so a 🍀 Lucky Find the shooter wears counts the kill (the loot pass).
-              critInt: eIntel, shooterFx: ea.effects || null, snd: ew, // snd: whose 🔊 Hit plays where it lands
+              // under, so a 🍀 Lucky Find the shooter wears counts the kill (the loot pass). Never null
+              // on a unit's shot (nor its throw or brawl blow): a null lastHitByFx means YOUR blow,
+              // and that is what the score pays a kill on.
+              critInt: eIntel, shooterFx: ea.effects || [], snd: ew, // snd: whose 🔊 Hit plays where it lands
               ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: shotPierces(ew, ea.effects),
               explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeChar: ew.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
             });
@@ -16325,7 +16410,7 @@ export default function AssetStudio() {
             vx, vy,
             startX: spawnX, startY: spawnY, groundY: p.y + ph,
             rangePx: rangePxNow, traveled: 0,
-            char: playtestWeapon.projectile?.char || "🔥", tint: playtestWeapon.projectile?.tint || null,
+            char: playtestWeapon.projectile?.char || DEFAULT_SHOT_CHAR, tint: playtestWeapon.projectile?.tint || null,
             pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
             alpha: assetAlpha(projAsset || playtestWeapon), // 👻 the Projectile asset's Translucent (an old gun drew its round itself, so then the gun's)
             size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset?.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
@@ -17182,6 +17267,9 @@ export default function AssetStudio() {
       for (const k of Object.keys(lv.enemies || {})) {
         if (!(enemyHP.current[k] !== undefined && enemyHP.current[k] <= 0) || Object.prototype.hasOwnProperty.call(enemyDrops.current, k)) continue;
         const [er, ec] = k.split(",").map(Number), ea = unitAssetAt(k, lv.enemies[k]), ep = enemyPos.current[k];
+        // SCORE: this is the one place a death is seen exactly once, so a kill is paid here — a
+        // hostile body whose last blow was yours (null; a unit's blow stores its effects, at least []).
+        if (ep && ep.lastHitByFx === null && unitSide(ea, ep) === "hostile") scoreRef.current.total += SCORE_KILL;
         // Gear is looted off THIS body — only what it actually had equipped. Consumables still
         // come from the whole item pool (a potion isn't something it was wearing). A worn 🍀 Lucky
         // Find charm gets its tagged roll in first; the ordinary roll only runs when that misses.
@@ -18670,10 +18758,10 @@ export default function AssetStudio() {
                 {/* The emoji was hard-coded at 💥 with no control anywhere, so the only way to change
                     what an explosion looked like was to draw a whole Object for it. */}
                 <button className="objpick" onClick={() => setPicker({ mode: "boom" })} title="Pick the emoji the blast draws">
-                  <b>{asset.explodeChar || DEFAULT_BOOM_CHAR}</b> Choose emoji
+                  <b>{(asset.explodeChar && asset.explodeChar !== DEFAULT_BOOM_CHAR ? asset.explodeChar : null) || sym("fx.boom", null, 18)}</b> Choose emoji
                 </button>
                 <select className="projSel" value={asset.explodePropId || ""} onChange={(e) => setAsset((a) => ({ ...a, explodePropId: e.target.value || null }))}>
-                  <option value="">{(asset.explodeChar || DEFAULT_BOOM_CHAR) + " emoji (no Object)"}</option>
+                  <option value="">{((asset.explodeChar && asset.explodeChar !== DEFAULT_BOOM_CHAR ? asset.explodeChar : null) ? asset.explodeChar + " emoji" : "Default") + " (no Object)"}</option>
                   {allAssets.filter((a) => a.type === "prop").map((a) => <option key={a.id} value={a.id}>🌿 {a.name}{(a.frames && a.frames.length > 1) ? " (animated)" : ""}</option>)}
                 </select>
               </div>
@@ -19290,7 +19378,7 @@ export default function AssetStudio() {
     // canvas, Dress Bob, pose-copy panel, playtest player), and a px size computed from one
     // canvas is wildly oversized in a smaller one. cqh = 1% of this block's own height.
     const wrap = { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", userSelect: "none", pointerEvents: "none", containerType: "size" };
-    const span = { fontSize: "92cqh", lineHeight: 1, display: "inline-block" };
+    const span = { fontSize: "92cqh", lineHeight: 1, display: "inline-block", fontFamily: ART_EMOJI_FONT }; // an emoji PIECE is art: never the symbol font
     if (p.outline) span.WebkitTextStroke = "1.5px " + (p.outlineColor || "#000");
     if (p.tint) Object.assign(span, { backgroundColor: p.tint, backgroundImage: "none", color: "transparent", WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text" });
     return <div style={wrap}><span style={span}>{p.char}</span></div>;
@@ -19786,10 +19874,10 @@ export default function AssetStudio() {
     for (const [name, b64] of Object.entries((bk.clips && typeof bk.clips === "object") ? bk.clips : {})) {
       try { const b = b64ToBytes(b64); if (clipMatches(name, b)) await clipStore.put(name, b); } catch { /* one bad clip must not stop the rest */ }
     }
-    const sdn = await restoreKind((bk.sounds || []).filter((s) => isSoundRecord(s) || isSoundBoard(s)), "sound:", "soundIndex", named);
+    const sdn = await restoreKind((bk.sounds || []).filter((s) => isSoundRecord(s) || isSoundBoard(s) || isSymbolBoard(s)), "sound:", "soundIndex", named);
     // Restoring a backup is deliberate, so it brings back a sound deleted since (revive) — awaited, so
     // loadSounds below cannot read the project file before the revive has reached it and purge again.
-    if (sdn) await projectLibrary.save({ sounds: (bk.sounds || []).filter((s) => isSoundRecord(s) || isSoundBoard(s)) }, { revive: true });
+    if (sdn) await projectLibrary.save({ sounds: (bk.sounds || []).filter((s) => isSoundRecord(s) || isSoundBoard(s) || isSymbolBoard(s)) }, { revive: true });
     if (sn) loadStamps();
     if (ln) loadLevels();
     if (tn) loadTextures();
@@ -21039,6 +21127,97 @@ export default function AssetStudio() {
   const soundIds = useMemo(() => new Set(soundLib.map((s) => s.id)), [soundLib]);
   const saveSoundBoard = (patch) => putSoundRecord({ ...soundBoard, ...patch, id: SOUND_BOARD_ID, type: "soundBoard" });
   const openSoundScreen = () => { loadSounds(); loadDialogues(); setScreen("sounds"); }; // dialogues for the 💬 Dialogue card
+  // SYMBOLS (see src/symbols.js). The board is one more record of the sounds kind, beside the sound
+  // board, so it saves, syncs, exports and restores through wires that already exist.
+  const symbolBoard = useMemo(() => soundRecs.find(isSymbolBoard) || newSymbolBoard(), [soundRecs]);
+  const [symbolLib, setSymbolLib] = useState(null);      // public/symbols/library.json once fetched: { sets, icons, aliases }
+  const symbolLibLoading = useRef(null);
+  // The 6 MB picker library is fetched only when something needs it: the Symbols screen, or a board
+  // whose picks are not among the shipped defaults (symbolArt.json).
+  const loadSymbolLibrary = () => {
+    if (symbolLibLoading.current) return symbolLibLoading.current;
+    symbolLibLoading.current = fetch((process.env.PUBLIC_URL || "") + SYMBOL_LIBRARY_PATH)
+      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then((j) => { setSymbolLib(j); return j; })
+      .catch((e) => { console.warn("[Bob] the symbol library could not load: " + (e && e.message)); symbolLibLoading.current = null; return null; });
+    return symbolLibLoading.current;
+  };
+  const symbolArt = useMemo(() => (symbolLib && symbolLib.icons ? { ...symbolLib.icons, ...SYMBOL_DEFAULT_ART } : SYMBOL_DEFAULT_ART), [symbolLib]);
+  // THE FONT, rebuilt whenever a pick changes. The new face is added before the old one is taken
+  // away, so the interface never draws a frame of emoji in between; a late build for an older board
+  // (two picks in quick succession) is dropped by the signature check.
+  const symbolFace = useRef(null);
+  const symbolFontSig = useRef("");
+  useEffect(() => {
+    if (!symbolLib && symbolPicksNeedingLibrary(symbolBoard).length) loadSymbolLibrary();
+    if (typeof FontFace === "undefined" || typeof document === "undefined" || !document.fonts) return;
+    const sig = SYMBOL_SLOTS.map((s) => symbolPick(symbolBoard, s.k)).join("|") + (symbolLib ? "+lib" : "");
+    if (sig === symbolFontSig.current) return;
+    symbolFontSig.current = sig;
+    let face;
+    try { face = new FontFace(SYMBOL_FONT_FAMILY, buildSymbolFont(symbolFontGlyphs(symbolBoard, symbolArt))); }
+    catch (e) { console.warn("[Bob] the symbol font could not be built: " + (e && e.message)); return; }
+    face.load().then(() => {
+      if (symbolFontSig.current !== sig) return;
+      document.fonts.add(face);
+      if (symbolFace.current) document.fonts.delete(symbolFace.current);
+      symbolFace.current = face;
+    }).catch((e) => console.warn("[Bob] the browser refused the symbol font: " + (e && e.message)));
+  }, [symbolBoard, symbolArt]);
+  // A drawn slot (the effects, the HUD, the Symbols screen's own rows): its symbol as an <svg> in the
+  // slot's colour (symbolColor), or — when the pick is a prop — that prop's art. `px` sizes it; left
+  // out, the svg is 1em of the surrounding text (.sym) and a prop is 18px.
+  const symbolPath = (key) => symbolArt[symbolPick(symbolBoard, key)] || SYMBOL_DEFAULT_ART[(symbolSlot(key) || {}).d] || "";
+  // A prop as an icon: its visible art (propVisibleArtBox) cropped tight and centred in a px square.
+  const propIcon = (pa, px, keyBase) => {
+    const box = propVisibleArtBox(pa);
+    if (!box || !(box.w > 0) || !(box.h > 0)) return null;
+    const k = Math.min(px / box.w, px / box.h), w = box.w * k, h = box.h * k;
+    return <span className="symProp" style={{ width: px, height: px }}><span className="symPropArt" style={{ left: (px - w) / 2, top: (px - h) / 2, width: w, height: h }}>{propArtInner(pa, w, h, 0, keyBase, box)}</span></span>;
+  };
+  const sym = (key, cls, px) => {
+    const pick = symbolPick(symbolBoard, key);
+    if (isPropPick(pick)) { const pa = findA(propPickId(pick)); const el = pa && propIcon(pa, px || 18, "sym_" + key); if (el) return el; }
+    const c = symbolColor(symbolBoard, key);
+    const style = px || c ? { ...(px ? { fontSize: px } : {}), ...(c ? { color: c } : {}) } : undefined;
+    return <svg className={"sym" + (cls ? " " + cls : "")} style={style} viewBox={"0 0 " + SYMBOL_BOX + " " + SYMBOL_BOX} aria-hidden="true"><path d={symbolPath(key)} /></svg>;
+  };
+  // The board is saved in place, like the sound board: read what is there, change one entry.
+  const saveSymbolBoard = (fn) => putSoundRecord({ ...fn({ ...symbolBoard, picks: { ...(symbolBoard.picks || {}) }, colors: { ...(symbolBoard.colors || {}) } }), id: SYMBOL_BOARD_ID, type: "symbolBoard", name: "Symbols" });
+  const saveSymbolPick = (key, id) => {
+    const slot = symbolSlot(key);
+    if (!slot) return null;
+    return saveSymbolBoard((b) => { if (!id || id === slot.d) delete b.picks[key]; else b.picks[key] = id; return b; });
+  };
+  const saveSymbolColor = (key, c) => {
+    const slot = symbolSlot(key);
+    if (!slot) return null;
+    return saveSymbolBoard((b) => { if (!c || c === slot.c) delete b.colors[key]; else b.colors[key] = c; return b; });
+  };
+  // His props, A→Z, for the picker's Props tab (a drawn slot only — see isPropPick).
+  const symProps = useMemo(() => library.filter((a) => a && a.type === "prop").sort((x, y) => NAME_COLLATOR.compare(x.name || "", y.name || "")), [library]);
+  // THE FIRE LAYER, built here rather than with the other cell layers because its flame is a
+  // slot now (fx.fire: a symbol, or a prop drawn by propArtInner, which is defined above). A flame
+  // HE chose for a grenade's landing (cell.char other than the built-in one) stays that emoji.
+  const lvHazardLayer = useMemo(() => level && level.hazard ? <div ref={hazardCellsRef} style={CELL_LAYER_STYLE}>{Object.keys(level.hazard).map((k) => { const [r, c] = k.split(",").map(Number); const cell = level.hazard[k]; const kind = hazardKindOf(cell); const info = HAZARDS[kind] || HAZARDS.fire; const eraseNow = !play && lTool === "erase"; const life = hazardLife(cell); const hidden = !!(cell && typeof cell === "object" && cell.hideInPlay); if (play && hidden) return null; /* invisible-in-play fire: still hurts (damage runs off level.hazard), just draws nothing during play so a prop fire can sit on top */ const ownChar = cell && typeof cell === "object" && cell.char && cell.char !== DEFAULT_LAND_CHAR && cell.char !== info.glyph ? cell.char : null; return <div key={"hz" + k} data-hk={k} className={"lhazard kind-" + kind + (hidden ? " hazHidden" : "")} style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { pointerEvents: "auto", cursor: "pointer" } : {}) }} title={info.label + " — " + hazardDps(cell) + " HP/sec" + (life > 0 ? " · burns " + life + "s" : " · permanent") + (hidden ? " · invisible during play" : "")} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv) => { const hazard = { ...lv.hazard }; delete hazard[k]; return { ...lv, hazard }; }); } : undefined}><span className={"hzflame" + (ownChar ? " own" : "")}>{hidden ? "🚫" : ownChar || sym("fx.fire", null, 22)}</span></div>; })}</div> : null, [level, lTool, play, symbolBoard, symbolArt, library]);
+  const openSymbolScreen = () => { loadSounds(); loadSymbolLibrary(); setScreen("symbols"); };
+  // The Symbols screen: which slot is being picked for, the search, which set, how many shown.
+  const [symSel, setSymSel] = useState(SYMBOL_SLOTS[0].k);
+  const [symQ, setSymQ] = useState("");
+  const [symSet, setSymSet] = useState("all");
+  const [symShow, setSymShow] = useState(SYMBOL_PAGE);
+  // Icon ids matching the search, every word somewhere in the name; an alias (mdi has thousands of
+  // second names) finds its icon under the name it was searched by. Memoised: 12,000 names.
+  const symMatches = useMemo(() => {
+    if (!symbolLib || !symbolLib.icons) return [];
+    const words = symQ.toLowerCase().split(/[\s-]+/).filter(Boolean);
+    const hit = (id) => { const n = id.slice(id.indexOf(":") + 1); return words.every((w) => n.includes(w)); };
+    const inSet = (id) => symSet === "all" || symSet === "props" || id.startsWith(symSet + ":");
+    const out = new Set();
+    for (const id of Object.keys(symbolLib.icons)) if (inSet(id) && hit(id)) out.add(id);
+    if (words.length) for (const [a, parent] of Object.entries(symbolLib.aliases || {})) if (inSet(a) && hit(a) && symbolLib.icons[parent]) out.add(parent);
+    return [...out];
+  }, [symbolLib, symQ, symSet]);
   // The Weapons box: every saved weapon, by kind (which is what decides its slots — assetSoundSlots).
   const soundWeaponGroups = useMemo(() => {
     const kinds = [{ key: "ranged", label: "Ranged" }, { key: "melee", label: "Melee" }, { key: "throw", label: "Throwable" }];
@@ -21556,6 +21735,9 @@ export default function AssetStudio() {
     // The run's world frame starts at its first level, and .lgrid keeps that level's box for the
     // whole run — see THE WORLD NEVER MOVES AT A GATE, at the level render.
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
+    // A session STARTING scores from zero (SCORE); one stopping keeps its total readable.
+    if (!play || runStart) scoreRef.current = newScoreState();
+    popups.current = [];
     roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     if (runStart) {
       const startNode = runStart.nodes[runStart.startKey];
@@ -21569,7 +21751,10 @@ export default function AssetStudio() {
   };
   // 🎬 "Leave the floor": the black screen after a leaving animation ends play, where the next
   // floor would begin. Re-pointed every render so it stops the play that is actually running.
-  animLeaveRef.current = () => { if (play) togglePlaytest(); };
+  // The floor ending clears the level it ends in (SCORE) before play stops; the total stays in
+  // scoreRef for whatever shows it next.
+  animLeaveRef.current = () => { if (play) { scoreLevelClear(scoreRef.current, runRef.current ? runRef.current.curKey : (level && level.id) || "level"); togglePlaytest(); } };
+  playLive.current = play;
   // The pool a run is built from is every SAVED level, with the editor's live copy standing in for
   // its saved one so unsaved edits count — but a level that was never saved (the blank one the
   // creator opens on, floor "1", both upper gates open) stays out, or it fills every slot of the
@@ -21827,6 +22012,7 @@ export default function AssetStudio() {
             <button className="tile lvl" onClick={openDialogueEditor}><span className="ti">💬</span><span className="tl">Dialogue Trees</span></button>
             <button className="tile lvl" onClick={openSoundScreen}><span className="ti">🔊</span><span className="tl">Sounds</span></button>
             <button className="tile lvl" onClick={openAnimEditor}><span className="ti">🎬</span><span className="tl">Animations</span></button>
+            <button className="tile lvl" onClick={openSymbolScreen}><span className="ti">{sym("ui.symbols")}</span><span className="tl">Symbols</span></button>
           </div>
           <h2>Make a piece of equipment</h2>
           <div className="slots">
@@ -22039,8 +22225,85 @@ export default function AssetStudio() {
   // opening the gun, and every enemy's Attack / Hurt / Death under one 👹 fold. A weapon's or
   // enemy's pick saves IN that asset (saveAssetSound), a dialogue's in the dialogue
   // (saveDialogueSound).
+  // SYMBOLS — one row per slot (every interface emoji, and the HUD's own symbols), grouped; pick a row,
+  // then click a symbol. The pick saves at once (saveSymbolPick) and the font rebuilds, so the whole
+  // studio shows it a moment later, this screen's own rows included.
+  if (screen === "symbols") {
+    const groups = [];
+    for (const s of SYMBOL_SLOTS) { let gr = groups.find((x) => x.g === s.g); if (!gr) { gr = { g: s.g, slots: [] }; groups.push(gr); } gr.slots.push(s); }
+    const sel = symbolSlot(symSel) || SYMBOL_SLOTS[0];
+    const cur = symbolPick(symbolBoard, sel.k);
+    // Props go only where the slot is DRAWN (an emoji slot is a font glyph — see isPropPick).
+    const drawn = !isEmojiSlot(sel.k);
+    const tab = symSet === "props" && !drawn ? "all" : symSet;
+    const curProp = isPropPick(cur) ? findA(propPickId(cur)) : null;
+    const propWords = symQ.toLowerCase().split(/\s+/).filter(Boolean);
+    const propHits = tab === "props" ? symProps.filter((a) => propWords.every((w) => (a.name || "").toLowerCase().includes(w))) : [];
+    const icon = (id) => <svg className="sym" viewBox={"0 0 " + SYMBOL_BOX + " " + SYMBOL_BOX} aria-hidden="true"><path d={symbolArt[id] || ""} /></svg>;
+    const nameOf = (id) => (isPropPick(id) ? ((findA(propPickId(id)) || {}).name || "missing prop") : id.slice(id.indexOf(":") + 1).replace(/-/g, " "));
+    return (
+      <div className="bb"><style>{css}</style>
+        <header className="bar">
+          <button className="back" onClick={() => setScreen("menu")}>‹ Menu</button>
+          <div className="logo symLogo">{sym("ui.symbols")} Symbols</div>
+        </header>
+        <div className="symEdit">
+          <div className="symSlots">
+            {groups.map((gr) => (
+              <div key={gr.g} className="card">
+                <div className="ct">{gr.g}</div>
+                <div className="symSlotGrid">
+                  {gr.slots.map((s) => (
+                    <button key={s.k} className={"symSlot" + (s.k === sel.k ? " on" : "")} onClick={() => setSymSel(s.k)}>
+                      {sym(s.k, null, 20)}<span className="symSlotName">{s.l}</span>{(symbolPick(symbolBoard, s.k) !== s.d || symbolColor(symbolBoard, s.k) !== (s.c || null)) && <span className="symDot" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="symPick card">
+            <div className="symHead">
+              {sym(sel.k, "symBig", 44)}
+              <div className="symHeadText"><b>{sel.l}</b><span className="hint2">{nameOf(cur)}</span></div>
+              {/* The colour a drawn slot's SYMBOL is painted (a prop keeps its own). Saved when the
+                  picker closes (the native change event), not on every step of a drag. */}
+              {drawn && !curProp && <input key={sel.k + (symbolColor(symbolBoard, sel.k) || "")} className="symColor" type="color" defaultValue={symbolColor(symbolBoard, sel.k) || "#ffffff"} ref={(el) => { if (el) el.onchange = (e) => saveSymbolColor(sel.k, e.target.value); }} title="Colour" />}
+              {cur !== sel.d && <button className="ltbtn symReset" onClick={() => saveSymbolPick(sel.k, sel.d)} title={"Back to " + nameOf(sel.d)}>{icon(sel.d)} Default</button>}
+            </div>
+            <div className="symTools">
+              <input className="symSearch" value={symQ} onChange={(e) => { setSymQ(e.target.value); setSymShow(SYMBOL_PAGE); }} placeholder="Search" />
+              <div className="seg">
+                {[["all", "All"], ["gi", "Game"], ["mdi", "Interface"], ...(drawn ? [["props", "Props"]] : [])].map(([v, l]) => <button key={v} className={tab === v ? "on" : ""} onClick={() => { setSymSet(v); setSymShow(SYMBOL_PAGE); }}>{l}</button>)}
+              </div>
+              {tab === "props" ? <span className="hint2">{propHits.length}</span> : symbolLib && <span className="hint2">{symMatches.length}</span>}
+            </div>
+            {tab === "props" ? (
+              <div className="symGrid">
+                {propHits.map((a) => (
+                  <button key={a.id} className={"symCell" + (cur === PROP_PICK + a.id ? " on" : "")} title={a.name} onClick={() => saveSymbolPick(sel.k, PROP_PICK + a.id)}>{propIcon(a, 34, "pk" + a.id)}</button>
+                ))}
+              </div>
+            ) : !symbolLib ? (
+              <div className="symWait"><span className="hint2">Loading…</span> <button className="ltbtn" onClick={loadSymbolLibrary}>Retry</button></div>
+            ) : (
+              <>
+                <div className="symGrid">
+                  {symMatches.slice(0, symShow).map((id) => (
+                    <button key={id} className={"symCell" + (id === cur ? " on" : "")} title={nameOf(id)} onClick={() => saveSymbolPick(sel.k, id)}>{icon(id)}</button>
+                  ))}
+                </div>
+                {symMatches.length > symShow && <button className="ltbtn symMore" onClick={() => setSymShow((n) => n + SYMBOL_PAGE)}>More</button>}
+              </>
+            )}
+            <div className="symCredit">{symbolLib && symbolLib.sets ? Object.values(symbolLib.sets).map((st) => st.credit + " (" + st.license + ")").join(" · ") : ""}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (screen === "sounds") {
-    const renameSound = (s, name) => { const v = name.trim(); if (!v || v === s.name) return; putSoundRecord({ ...s, name: v }, "Renamed ✓"); };
+    const renameSound =(s, name) => { const v = name.trim(); if (!v || v === s.name) return; putSoundRecord({ ...s, name: v }, "Renamed ✓"); };
     // The slider saves on release (pointer up, a key, leaving it) and only when it moved.
     const setSoundVol = (s, pct) => {
       const v = Math.min(SOUND_VOL_MAX, Math.max(0, Math.round(Number(pct)) / 100));
@@ -22621,6 +22884,8 @@ export default function AssetStudio() {
                       <option value="">⚪ no colour</option>
                       {Object.keys(DIALOGUE_TONES).map((t) => <option key={t} value={t}>{DIALOGUE_TONES[t].label}</option>)}
                     </select>
+                    {/* SCORE: what picking this pays, once per run (scoreDialogueChoice). Blank = nothing. */}
+                    <input className="dlgPoints" type="number" min="0" step="10" value={c.points || ""} onChange={(e) => { const v = Math.max(0, Math.round(+e.target.value || 0)); patchChoice(nid, ci, { points: v || undefined }); }} placeholder="Points" title="Score points for picking this" />
                     {/* AN ACT THAT NEEDS AUTHORING GETS ITS OWN INPUT, and it appears only while
                         that act is picked — the same rule the 🏹 Tag Damage effect's tag box
                         follows. A tag box permanently sitting on every option would read as
@@ -23619,31 +23884,8 @@ export default function AssetStudio() {
               for (const sl of SLOT_ORDER) { const it = equipped.current[sl]; if (it) bits.push((SLOTS[sl] ? SLOTS[sl].icon : "🧩") + " " + it.name); }
               return bits.length ? <p className="statusline equipline">Carrying: {bits.join(" · ")}</p> : null;
             })()}
-            {play && (() => {
-              // 🐱 Extra Lives: counted off the kit you are wearing right now minus what this run has
-              // spent — the very sum the loop's playerDefeated makes, so the number shown is the
-              // number you get. Nothing worn grants any → no line at all, like the ammo line.
-              // Reads the live ref straight off; the loop re-renders every frame anyway.
-              const granted = extraLivesGranted(playerAsset?.effects);
-              if (!granted) return null;
-              const left = extraLivesLeft(playerAsset?.effects, livesUsed.current);
-              return <p className={"statusline ammoline" + (left <= 0 ? " empty" : "")}>🐱 {left > 0 ? left + (left === 1 ? " extra life" : " extra lives") : "no extra lives"}</p>;
-            })()}
-            {play && playtestThrowId && (() => {
-              const n = throwCarry.current;
-              return <p className={"statusline ammoline" + (n <= 0 ? " empty" : "")}>💣 {n > 0 ? n + " left" : "out of throwables"}</p>;
-            })()}
-            {play && playtestWeapon && isRanged(playtestWeapon.wtype) && (() => {
-              // Reads the live ref straight off; the playtest loop re-renders every frame anyway
-              // (setPframe), so this stays in step with the actual ammo without its own state.
-              const w = wpn.current || newWeaponAmmo(0);
-              if (w.reloadT > 0) {
-                const total = w.reloadTotal || weaponReloadFrames(playtestWeapon.reloadTime);
-                return <p className="statusline ammoline reloading">🔄 Reloading… <span className="reloadbar"><span className="reloadfill" style={{ width: (Math.max(0, 1 - w.reloadT / total) * 100) + "%" }} /></span></p>;
-              }
-              if (w.clip <= 0) return <p className="statusline ammoline">🔫 {playtestWeapon.name} · ∞ ammo</p>;
-              return <p className={"statusline ammoline" + (w.ammo <= 0 ? " empty" : "")}>🔫 {w.ammo} / {w.clip}{w.ammo <= 0 ? " — empty, reloading…" : ""}</p>;
-            })()}
+            {/* Lives, throwables and ammo used to be lines of text here ("6 / 12"); they are the
+                play HUD's pips now (.hud, over the view), which is where Blake's mock-up draws them. */}
             {!play && layerMove && layerMove.levelId === lv.id && (() => {
               const others = ["fg", "bg", "front"].filter((l) => l !== layerMove.layer);
               const nm = (l) => (l === "fg" ? "Foreground" : l === "bg" ? "Background" : "Front");
@@ -24261,11 +24503,12 @@ export default function AssetStudio() {
                   // "you got hit". After the fire filter on purpose — you may well have died IN the
                   // fire, and for this window the flames are not touching you.
                   if (p.lifeGrace > 0) style.filter = "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)";
-                  const maxHp = maxPlayerHP(playerAsset), curHp = Math.max(0, Math.min(maxHp, playerHP.current));
-                  const hpFrac = maxHp > 0 ? curHp / maxHp : 0;
+                  // Your HP is the HUD's bar now (top-left of the view, Blake's mock-up), not a bar over
+                  // your head: two of the same bar is the clutter he keeps asking to lose. The pops
+                  // (popText) rise from where that bar was.
+                  popAnchor.current = { x: p.x + pw / 2, y: p.y - 8 + (p.stepEase || 0) - climbLift };
                   return (
                     <>
-                      <div className="playerHpTrack" style={{ left: p.x, top: p.y - 10 + (p.stepEase || 0) - climbLift, width: pw }}><div className="playerHpFill" style={{ width: (hpFrac * 100) + "%", background: hpFrac > 0.5 ? "#6bd06b" : hpFrac > 0.2 ? "#c8a23c" : "#b0504f" }} /></div>
                       {/* Your own reload timer, over your head, the same bar a ranged enemy gets and
                           in the same place above the HP bar. The ammo line in the HUD already said
                           "Reloading…", but that's at the bottom of the screen while your eyes are on
@@ -24283,7 +24526,7 @@ export default function AssetStudio() {
                           a stun reads as the controls having died rather than as something that was
                           done to you, which is the difference between a mechanic and a bug. */}
                       {((p.down || 0) > 0 || (p.stun || 0) > 0) && (
-                        <div className="playerStun" style={{ left: p.x, top: p.y - 34 + (p.stepEase || 0) - climbLift, width: pw }}>{(p.down || 0) > 0 ? "😵" : "💫"}</div>
+                        <div className="playerStun" style={{ left: p.x, top: p.y - 34 + (p.stepEase || 0) - climbLift, width: pw }}>{sym((p.down || 0) > 0 ? "fx.down" : "fx.stun", null, 18)}</div>
                       )}
                       {/* 🎬 A "Walk up + E" animation you are standing in: its prompt, over your head. */}
                       {animPrompt && !animPrompt.layer && <div className="talkCallout animPrompt" style={{ left: p.x + pw / 2, top: p.y - 44 + (p.stepEase || 0) - climbLift }}>{animPromptWords(animPrompt.text)}</div>}
@@ -24843,7 +25086,7 @@ export default function AssetStudio() {
                         })()}
                         {/* 💫 is dazed on its feet, 😵 is flat on its back — same bobbing badge,
                             two different states, so a tackle is readable at a glance. */}
-                        {ep && ep.down > 0 ? <div className="enemyStun">😵</div> : ep && ep.stun > 0 ? <div className="enemyStun">💫</div> : null}
+                        {ep && ep.down > 0 ? <div className="enemyStun">{sym("fx.down", null, 18)}</div> : ep && ep.stun > 0 ? <div className="enemyStun">{sym("fx.stun", null, 18)}</div> : null}
                         {/* 💬 SOMEBODY HERE WILL TALK TO YOU — shown over every waiting NPC in the
                             level, not only the one you are standing next to, because "who is worth
                             walking over to" is a question you ask from across the room. It bobs so
@@ -24851,7 +25094,7 @@ export default function AssetStudio() {
                             goes the moment the conversation has been had. In the status layer with
                             the HP bar, so it hides with the NPC: under Front paint by z, and gone
                             altogether behind Front you cannot see through (unitHiddenByFront). */}
-                        {eTalkWaiting && !downed ? <div className="talkBadge">💬</div> : null}
+                        {eTalkWaiting && !downed ? <div className="talkBadge">{sym("fx.talk", null, 19)}</div> : null}
                       </div>
                       {/* The sprite below blinks through its i-frames after a hit (ep.invuln) with the
                           player's own 0.5-opacity blink, so a round that does nothing to it has a
@@ -25038,8 +25281,10 @@ export default function AssetStudio() {
                       </div>
                     );
                   }
-                  const span = { fontSize: sz * 0.85 + "px", lineHeight: 1 };
+                  const span = { fontSize: sz * 0.85 + "px", lineHeight: 1, fontFamily: ART_EMOJI_FONT }; // art keeps its emoji (symbols.js, ART IS NOT UI)
                   if (pr.tint) Object.assign(span, { backgroundColor: pr.tint, backgroundImage: "none", color: "transparent", WebkitTextFillColor: "transparent", WebkitBackgroundClip: "text", backgroundClip: "text" });
+                  // The built-in shot (a projectile with no emoji of its own) is the fx.shot slot.
+                  if (!pr.char || pr.char === DEFAULT_SHOT_CHAR) return <div key={"proj" + i} className="lobj fxSlot" style={{ left: pr.x - sz / 2, top: pr.y - sz / 2, width: sz, height: sz }}>{sym("fx.shot", null, sz * 0.85)}</div>;
                   return <div key={"proj" + i} className="lobj" style={{ left: pr.x - sz / 2, top: pr.y - sz / 2, width: sz, height: sz }}><span style={span}>{pr.char}</span></div>;
                 })}
                 {play && thrown.current.map((g, i) => {
@@ -25067,7 +25312,12 @@ export default function AssetStudio() {
                   // heightPx slot and the key in frameIdx, so the frame lookup was frames[NaN] — the
                   // boom never animated, it only ever showed the base pose — and with no tight box the
                   // art drew at canvas scale, which is the "explosion is tiny" bug boomLayout explains.
-                  const pa = b.propId ? findA(b.propId) : null;
+                  // The built-in blast (no prop of the weapon's own, and its char the default or none —
+                  // every impact puff is pushed with the default) draws the fx.boom slot: a prop picked
+                  // there animates exactly like a weapon's own blast prop, a symbol is drawn in its colour.
+                  const ownPa = b.propId ? findA(b.propId) : null;
+                  const slotPick = !ownPa && (!b.char || b.char === DEFAULT_BOOM_CHAR) ? symbolPick(symbolBoard, "fx.boom") : null;
+                  const pa = ownPa || (isPropPick(slotPick) ? findA(propPickId(slotPick)) : null);
                   const lay = boomLayout(pa, b.size || 3, LV_CELL);
                   const frames = (pa && pa.frames && pa.frames.length) ? pa.frames.length : 1;
                   const prog = b.life / Math.max(1, b.maxLife);
@@ -25075,10 +25325,16 @@ export default function AssetStudio() {
                   const fade = prog > 0.66 ? Math.max(0, 1 - (prog - 0.66) / 0.34) : 1;
                   return (
                     <div key={"boom" + i} className="lobj infront" style={{ left: b.x - lay.width / 2, top: b.y - lay.height / 2, width: lay.width, height: lay.height, zIndex: 9000, opacity: fade }}>
-                      {pa ? propArtInner(pa, lay.width, lay.height, frameIdx, "boom" + i, lay.box) : <span style={{ fontSize: Math.max(lay.width, lay.height) * 0.7 + "px", lineHeight: 1 }}>{b.char || DEFAULT_BOOM_CHAR}</span>}
+                      {pa ? propArtInner(pa, lay.width, lay.height, frameIdx, "boom" + i, lay.box) : slotPick ? sym("fx.boom", null, Math.max(lay.width, lay.height) * 0.8) : <span style={{ fontSize: Math.max(lay.width, lay.height) * 0.7 + "px", lineHeight: 1, fontFamily: ART_EMOJI_FONT }}>{b.char}</span>}
                     </div>
                   );
                 })}
+                {/* POPS (popText): what used to be the blue toast during play, as words rising over
+                    where they were said. Keyed by id, so each keeps its own CSS animation run. */}
+                {play && popups.current.length > 0 && (() => {
+                  const now = playNowMs();
+                  return popups.current.filter((q) => now - q.t < PLAY_POP_MS).map((q) => <div key={"pop" + q.id} className="playPop" style={{ left: q.x, top: q.y }}>{q.text}</div>);
+                })()}
                 {/* Throw-aim trajectory preview: while G is held with a throwable in hand, dot out
                     the exact arc a release right now would fly — computed from the same
                     strength/weight launch numbers and the same per-frame integration the real
@@ -25125,6 +25381,78 @@ export default function AssetStudio() {
               )}
               {/* 🦸 THE FLIGHT HINT (see showFlyHint): the view's, like the banner, low and quiet. */}
               {play && flyHint > 0 && <div key={"flyhint" + flyHint} className="flyHint">{FLY_HINT_TEXT}</div>}
+              {/* THE PLAY HUD (2026-10-14), after Blake's mock-up: HP bar and ammo top-left, the score
+                  top-centre, the stats top-right. It belongs to the VIEW like the pickup banner, so it
+                  is a sibling of .lgrid inside .lscroll.playing, never inside the camera's transform.
+                  - AMMO IS SEGMENTS, ONE PER ROUND IN THE MAGAZINE, and no counter ("there is infinite
+                    ammo and most weapons don't have many rounds"). A reload refills them left to right
+                    as it runs; a gun with no magazine (clip 0) never runs dry and has no row at all.
+                  - Throwables and extra lives are pips of their own symbol, never a "×N" count (see the ×N
+                    rule in CLAUDE.md), and only while you carry any.
+                  - The stats are the LIVE ones (kit + timed boosts, the same sums the loop uses), tinted
+                    while a boost or a cost is moving them. ATK is what one blow of what you hold deals
+                    before Defense — enemyAttackDamage, the rule both sides share.
+                  - Every symbol is a slot on the Symbols screen (stat.*, hud.*). */}
+              {play && (() => {
+                const merged = playerAsset; // the render body already merged your kit, as the loop does
+                const buffs = activeBuffSum(itemBuffs.current, playNowMs());
+                const st = (merged && merged.stats) || {};
+                const maxHp = maxPlayerHP(merged), curHp = Math.max(0, Math.min(maxHp, Math.ceil(playerHP.current)));
+                const hpFrac = maxHp > 0 ? curHp / maxHp : 0;
+                const strNow = (st.strength ?? 5) + (buffs.strength || 0);
+                const stats = [
+                  { k: "stat.agi", l: "AGI", v: (st.agility ?? 5) + (buffs.agility || 0), d: buffs.agility || 0 },
+                  { k: "stat.atk", l: "ATK", v: enemyAttackDamage({ ...merged, stats: { ...st, strength: strNow } }, playtestWeapon), d: buffs.strength || 0 },
+                  { k: "stat.def", l: "DEF", v: Math.max(0, Math.round((merged && merged.defense) || 0)), d: 0 },
+                  { k: "stat.hp", l: "HP", v: st.hp ?? 5, d: 0 },
+                  { k: "stat.int", l: "INT", v: (st.intelligence ?? 5) + (buffs.intelligence || 0), d: buffs.intelligence || 0 },
+                  { k: "stat.spd", l: "SPD", v: (st.speed ?? 5) + (buffs.speed || 0), d: buffs.speed || 0 },
+                  { k: "stat.str", l: "STR", v: strNow, d: buffs.strength || 0 },
+                ];
+                const ranged = playtestWeapon && isRanged(playtestWeapon.wtype);
+                const w = wpn.current || newWeaponAmmo(0);
+                let segs = null;
+                if (ranged && w.clip > 0) {
+                  const total = w.reloadTotal || weaponReloadFrames(playtestWeapon.reloadTime);
+                  const reloading = w.reloadT > 0;
+                  const full = reloading ? Math.floor(Math.max(0, Math.min(1, 1 - w.reloadT / total)) * w.clip) : Math.max(0, Math.min(w.clip, w.ammo));
+                  segs = (
+                    <div className={"hudAmmo" + (reloading ? " reloading" : "") + (w.clip > 24 ? " fine" : "")}>
+                      {Array.from({ length: w.clip }, (_, i) => <span key={i} className={"hudSeg" + (i < full ? " on" : "")} />)}
+                    </div>
+                  );
+                }
+                const livesGranted = extraLivesGranted(playerAsset?.effects);
+                const livesLeft = livesGranted ? extraLivesLeft(playerAsset?.effects, livesUsed.current) : 0;
+                const throwsLeft = playtestThrowId ? Math.max(0, throwCarry.current) : 0;
+                const pips = (key, n) => n > 0 && <div className="hudPips">{Array.from({ length: Math.min(n, 12) }, (_, i) => <span key={i}>{sym(key, null, 16)}</span>)}</div>;
+                return (
+                  <div className="hud">
+                    <div className="hudL">
+                      <div className="hudHp">
+                        <div className="hudHpBar"><div className="hudHpFill" style={{ width: (hpFrac * 100) + "%" }} /></div>
+                        <span className="hudHpNum">{curHp}/{maxHp}</span>
+                      </div>
+                      {segs}
+                      {pips("hud.throw", throwsLeft)}
+                      {pips("hud.life", livesLeft)}
+                    </div>
+                    <div className="hudC">
+                      <div className="hudScoreLbl">SCORE</div>
+                      <div className="hudScore">{scoreDigits(scoreRef.current.total)}</div>
+                    </div>
+                    <div className="hudR">
+                      {stats.map((s) => (
+                        <div key={s.k} className={"hudStat" + (s.d > 0 ? " up" : s.d < 0 ? " down" : "")}>
+                          {sym(s.k, null, 17)}
+                          <span className="hudStatLbl">{s.l}</span>
+                          <span className="hudStatVal">{Math.round(s.v)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -25507,7 +25835,7 @@ export default function AssetStudio() {
   const behindPieces = pieces.filter((p) => p.behindBody);
   const lrow = (p) => (
     <div key={p.id} className={"lrow" + (p.id === selId ? " on" : "") + (groupIds.includes(p.id) ? " grp" : "") + (p._recovered ? " recovered" : "")} onClick={() => { if (!multiSelect) { setSelId(p.id); if (!groupIds.includes(p.id) && groupIds.length) setGroupIds([]); return; } const ng = toggleGroupMember(groupIds, p.id); setGroupIds(ng); if (ng.includes(p.id)) setSelId(p.id); else if (selId === p.id) setSelId(ng[ng.length - 1] || null); }}>
-      <span className="lprev" style={{ background: p.kind === "emoji" ? "transparent" : p.color }}>{p.kind === "emoji" ? p.char : (p.kind === "circle" ? "●" : p.kind === "roundrect" ? "▣" : p.kind === "stadium" ? "⬭" : p.kind === "tri" ? "▲" : "")}</span>
+      <span className="lprev" style={{ background: p.kind === "emoji" ? "transparent" : p.color, ...(p.kind === "emoji" ? { fontFamily: ART_EMOJI_FONT } : {}) }}>{p.kind === "emoji" ? p.char : (p.kind === "circle" ? "●" : p.kind === "roundrect" ? "▣" : p.kind === "stadium" ? "⬭" : p.kind === "tri" ? "▲" : "")}</span>
       <span className="lname">{p._recovered ? "🩹 " : ""}{p.locked ? "🔒 " : ""}{p.isHitbox ? "🎯 hitbox" : p.isMuzzle ? "🔴 muzzle" : (p.kind === "emoji" ? "emoji" : p.kind === "roundrect" ? "rounded square" : p.kind === "stadium" ? "oval" : p.kind)}{p.mirror ? " ⟷" : ""}{p.limb === "arm" ? " 💪" : p.limb === "leg" ? " 🦵" : ""}</span>
       <button onClick={(e) => { e.stopPropagation(); movePiece(p.id, 1); }}>▲</button>
       <button onClick={(e) => { e.stopPropagation(); movePiece(p.id, -1); }}>▼</button>
@@ -25645,13 +25973,13 @@ export default function AssetStudio() {
           <span className="wslab">⬇ Landing look:</span>
           <div className="row2">
             <button className="objpick" onClick={() => setPicker({ mode: "land" })} title="Pick the emoji it leaves where it lands">
-              <b>{asset.landChar || DEFAULT_LAND_CHAR}</b> Choose emoji
+              <b>{(asset.landChar && asset.landChar !== DEFAULT_LAND_CHAR ? asset.landChar : null) || sym("fx.fire", null, 18)}</b> Choose emoji
             </button>
             {(() => {
               const props = allAssets.filter((pa) => pa.type === "prop");
               return props.length ? (
                 <select className="projSel" value={asset.landPropId || ""} onChange={(e) => setAsset((a) => ({ ...a, landPropId: e.target.value || null }))}>
-                  <option value="">{(asset.landChar || DEFAULT_LAND_CHAR) + " emoji (no Object)"}</option>
+                  <option value="">{((asset.landChar && asset.landChar !== DEFAULT_LAND_CHAR ? asset.landChar : null) ? asset.landChar + " emoji" : "Default") + " (no Object)"}</option>
                   {props.map((pa) => <option key={pa.id} value={pa.id}>🌿 {pa.name}{(pa.frames && pa.frames.length > 1) ? " (animated)" : ""}</option>)}
                 </select>
               ) : null;
@@ -26550,7 +26878,7 @@ export default function AssetStudio() {
 const css = `
 html,body{margin:0;padding:0;background:#0f1117}
 #root{height:100%}
-.bb{height:100vh;display:flex;flex-direction:column;background:#0f1117;color:#e7e9ee;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
+.bb{height:100vh;display:flex;flex-direction:column;background:#0f1117;color:#e7e9ee;font:14px/1.45 ${SYMBOL_FONT_FAMILY},system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
 .bb.weaponEditor{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto}
 .weaponEditor>.bar{grid-row:1}.weaponEditor>.main{grid-row:2;min-height:0}.weaponEditor>.angles{grid-row:3}.weaponEditor>.weaponSettings{grid-row:4}
 .weaponSettings{min-height:0;max-height:34vh;overflow:auto;border-top:2px solid #2c3245;background:#14111a}
@@ -26826,10 +27154,12 @@ html,body{margin:0;padding:0;background:#0f1117}
 .row2 button,.up{background:#1f2433;border:1px solid #2c3245;border-radius:10px;padding:9px 14px;cursor:pointer;font-size:13px}
 .row2 button:hover,.up:hover{border-color:#4f7cf6}.up{display:inline-flex;align-items:center}
 .openDressed{background:#1f2433;border:1px solid #2c3245;border-radius:10px;padding:9px 14px;cursor:pointer;font-size:13px;color:#e7e9ee}
-.dlg textarea{width:100%;height:150px;margin-top:8px;background:#0f1117;border:1px solid #2c3245;border-radius:10px;padding:10px;color:#c7cdda;resize:vertical;font-family:ui-monospace,monospace;font-size:12px}
+.dlg textarea{width:100%;height:150px;margin-top:8px;background:#0f1117;border:1px solid #2c3245;border-radius:10px;padding:10px;color:#c7cdda;resize:vertical;font-family:${SYMBOL_FONT_FAMILY},ui-monospace,monospace;font-size:12px}
 .namefield{width:100%;margin-top:6px;background:#0f1117;border:1px solid #2c3245;border-radius:10px;padding:11px 12px;font-size:15px}
 .namefield:focus{outline:none;border-color:#4f7cf6}
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#3558c0;color:#fff;padding:9px 20px;border-radius:22px;font-weight:600;z-index:40;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+/* The studio's toast. No longer the blue box (Blake, 2026-10-14: "get rid of those blue boxes"): the
+   panels' own dark, and during play it is not used at all (popText). */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1b2030;border:1px solid #3a4258;color:#e7e9ee;padding:9px 20px;border-radius:10px;font-weight:600;z-index:40;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 .undo{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:9px 12px;cursor:pointer;font-weight:600}
 .undo:hover:not(:disabled){border-color:#4f7cf6}.undo:disabled{opacity:.4;cursor:default}
 .undo.musicTgl{opacity:.7}.undo.musicTgl.on{opacity:1;border-color:#4f7cf6;background:#26304d}
@@ -26975,12 +27305,78 @@ html,body{margin:0;padding:0;background:#0f1117}
    length is PICKUP_BANNER_MS, which is when the element is removed. A soft burst in the rank colour flares behind
    it on arrival. No backticks in here: this sheet is a JS template literal. */
 .flyHint{position:absolute;left:50%;bottom:11%;z-index:5;transform:translateX(-50%);pointer-events:none;font-size:12px;letter-spacing:.05em;color:rgba(255,255,255,.72);text-shadow:0 1px 3px rgba(0,0,0,.9);white-space:nowrap;animation:flyHintLife 5s ease-in-out forwards}
+/* SYMBOLS: a slot drawn as an svg (sym), 1em square in the text colour. The font that draws the
+   emoji slots is listed first in every interface font stack (SYMBOL_FONT_FAMILY). */
+/* ART IS NOT UI (symbols.js): the emoji you DRAW with stay emoji — the picker that places them, the
+   chosen one shown on its button, and the fire cell's flame. Everything else is the symbol font. */
+.emgrid button,.objpick b,.lhazard .hzflame{font-family:${ART_EMOJI_FONT}}
+.sym{width:1em;height:1em;display:inline-block;vertical-align:-.14em;fill:currentColor;flex:0 0 auto}
+.ti>.sym{display:block;height:1.45em}
+/* THE PLAY HUD (see the render). Over the view, under the cutscene fade (.animFade, 50); nothing
+   in it takes a click. Bare text with the level labels' outline. */
+.hud{position:absolute;left:0;right:0;top:0;z-index:6;pointer-events:none;display:flex;align-items:flex-start;gap:16px;padding:10px 14px;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85)}
+.hudL{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:5px}
+.hudHp{display:flex;align-items:center;gap:8px}
+.hudHpBar{width:180px;height:11px;background:rgba(10,10,14,.75);border:1px solid rgba(255,255,255,.4);border-radius:2px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.6)}
+.hudHpFill{height:100%;background:linear-gradient(180deg,#ff6a5e 0%,#d42a24 55%,#a8150f 100%)}
+.hudHpNum{font-size:13px;font-weight:700;letter-spacing:.04em;line-height:1}
+.hudAmmo{display:flex;gap:2px;width:180px}
+.hudAmmo.fine{gap:1px}
+.hudSeg{flex:1 1 0;max-width:14px;height:8px;background:rgba(10,10,14,.7);border:1px solid rgba(170,195,255,.4);border-radius:1px;box-shadow:0 1px 2px rgba(0,0,0,.6)}
+.hudSeg.on{background:#d4e2ff;border-color:#f2f6ff}
+.hudAmmo.reloading .hudSeg.on{background:#7d8fb3;border-color:#a9b8d6}
+.hudPips{display:flex;gap:3px;font-size:16px;line-height:1}
+.hudPips .sym{filter:drop-shadow(0 0 1px #000) drop-shadow(0 1px 1px rgba(0,0,0,.9))}
+.hudC{flex:0 0 auto;text-align:center;line-height:1}
+.hudScoreLbl{font-size:12px;font-weight:700;letter-spacing:.2em;color:#dfe4ee}
+.hudScore{font-size:24px;font-weight:700;letter-spacing:.08em;margin-top:2px}
+.hudR{flex:1 1 0;min-width:0;display:flex;justify-content:flex-end;gap:11px}
+.hudStat{display:flex;flex-direction:column;align-items:center;min-width:24px;line-height:1.05}
+.hudStat .sym{font-size:17px;filter:drop-shadow(0 0 1px #000) drop-shadow(0 1px 1px rgba(0,0,0,.9))}
+.hudStatLbl{font-size:10px;font-weight:700;letter-spacing:.06em;color:#d3d9e6;margin-top:3px}
+.hudStatVal{font-size:15px;font-weight:700}
+.hudStat.up .hudStatVal{color:#8ef59a}
+.hudStat.down .hudStatVal{color:#ff9b9b}
+/* POPS (popText): the play-time flashes, bare words rising off the player's head. On the labels'
+   rung, so Front paint and Front props cover them as they cover the player; narrow and small, as
+   in-level text has to be (12px, wrapping at 150px). The animation is PLAY_POP_MS long. */
+.playPop{position:absolute;z-index:${SCENE_LABEL_Z.label};pointer-events:none;transform:translate(-50%,-100%);width:max-content;max-width:150px;text-align:center;white-space:normal;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:12px;font-weight:700;line-height:1.15;color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85);animation:playPopRise 1.3s ease-out forwards}
+@keyframes playPopRise{0%{opacity:0;transform:translate(-50%,-80%)}12%{opacity:1;transform:translate(-50%,-100%)}70%{opacity:1}100%{opacity:0;transform:translate(-50%,calc(-100% - 28px))}}
+/* The Symbols screen. */
+.symEdit{flex:1;display:flex;gap:12px;padding:12px;min-height:0}
+.symSlots{flex:1 1 55%;overflow:auto;display:flex;flex-direction:column;gap:10px;min-width:0}
+.symSlotGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px}
+.symSlot{position:relative;display:flex;align-items:center;gap:8px;background:#151a26;border:1px solid #262d40;border-radius:8px;padding:6px 8px;cursor:pointer;text-align:left;min-width:0}
+.symSlot .sym{font-size:20px}
+.symSlot.on{border-color:#ffd84a;background:#232a3c}
+.symSlotName{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.symDot{position:absolute;top:4px;right:5px;width:6px;height:6px;border-radius:50%;background:#ffd84a}
+.symPick{flex:1 1 45%;display:flex;flex-direction:column;min-width:320px;min-height:0;margin:0}
+.symHead{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.symBig{font-size:44px;color:#ffd84a}
+.symHeadText{display:flex;flex-direction:column;flex:1;min-width:0}
+.symReset{display:inline-flex;align-items:center;gap:6px}
+.symTools{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.symSearch{flex:1 1 160px;min-width:120px;background:#0d1119;border:1px solid #333c52;border-radius:8px;padding:6px 10px}
+.symGrid{flex:1;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:4px;align-content:start;min-height:0}
+.symCell{height:46px;display:flex;align-items:center;justify-content:center;background:#151a26;border:1px solid #262d40;border-radius:6px;cursor:pointer;padding:0}
+.symCell .sym{font-size:28px}
+.symProp{position:relative;display:inline-block;vertical-align:middle;flex:0 0 auto}
+.symPropArt{position:absolute;overflow:visible}
+.symColor{width:38px;height:30px;padding:0 2px;border:1px solid #333c52;border-radius:6px;background:#0d1119;cursor:pointer}
+.symCell:hover{border-color:#6b7cff}
+.symCell.on{border-color:#ffd84a;color:#ffd84a}
+.symMore{align-self:center;margin-top:8px}
+.symCredit{font-size:10px;color:#6f7890;margin-top:8px}
+.symLogo{display:flex;align-items:center;gap:6px}
+.symWait{padding:20px}
+.dlgPoints{flex:0 0 76px;width:76px;background:#0d1119;border:1px solid #333c52;border-radius:6px;color:#ffd84a;padding:6px 8px;font:inherit;font-size:12px}
 @keyframes flyHintLife{0%{opacity:0}10%,80%{opacity:1}100%{opacity:0}}
 .pickupBanner{position:absolute;left:50%;top:14%;z-index:5;max-width:94%;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:7px;transform:translateX(-50%);animation:pbLife 2.6s ease-out forwards}
 @keyframes pbLife{0%,78%{opacity:1;transform:translateX(-50%) translateY(0)}100%{opacity:0;transform:translateX(-50%) translateY(-18px)}}
 .pbBurst{position:absolute;left:50%;top:18px;width:300px;height:100px;margin:-50px 0 0 -150px;border-radius:50%;background:radial-gradient(ellipse at center,rgba(206,130,255,.62),rgba(140,60,255,.22) 45%,transparent 70%);animation:pbBurst .75s ease-out forwards}
 @keyframes pbBurst{0%{transform:scale(.2);opacity:1}100%{transform:scale(1.6);opacity:0}}
-.pbName{position:relative;font-family:'Shrikhand','Arial Black',Impact,sans-serif;font-weight:400;line-height:1.05;letter-spacing:.03em;white-space:nowrap;text-transform:uppercase;animation:pbPop .55s cubic-bezier(.18,1.5,.4,1) both}
+.pbName{position:relative;font-family:${SYMBOL_FONT_FAMILY},'Shrikhand','Arial Black',Impact,sans-serif;font-weight:400;line-height:1.05;letter-spacing:.03em;white-space:nowrap;text-transform:uppercase;animation:pbPop .55s cubic-bezier(.18,1.5,.4,1) both}
 .pbName span{position:relative;background:linear-gradient(180deg,#fdf0ff 0%,#e9b8ff 36%,#b85eff 64%,#7a2cf0 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
 .pbName::before{content:attr(data-text);position:absolute;left:0;top:0;right:0;color:#1c0535;-webkit-text-stroke:.2em #1c0535;text-shadow:0 .12em 0 #1c0535,0 0 .5em rgba(205,125,255,.9),0 0 1.1em rgba(150,60,255,.55)}
 .pbName::after{content:attr(data-text);position:absolute;left:0;top:0;right:0;background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.95) 50%,transparent 60%) no-repeat;background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;animation:pbShine 1.1s .35s ease-in-out both}
@@ -27017,7 +27413,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .rankRow{display:flex;flex-wrap:wrap;gap:6px}
 .rankBtn{flex:1 1 auto;white-space:nowrap;background:#0f1117;border:1px solid #2c3245;border-radius:9px;padding:8px 9px;font-size:13px;font-weight:700;cursor:pointer}
 .rankBtn.on{background:#1b2133}
-.pbRows{display:flex;flex-direction:column;align-items:center;gap:2px;white-space:nowrap;font-family:'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:13px;font-weight:700;line-height:1.2;color:#fff;animation:pbRowsIn .35s .3s ease-out both}
+.pbRows{display:flex;flex-direction:column;align-items:center;gap:2px;white-space:nowrap;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:13px;font-weight:700;line-height:1.2;color:#fff;animation:pbRowsIn .35s .3s ease-out both}
 @keyframes pbRowsIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .seamStrip{position:absolute;pointer-events:none;background:inherit;background-size:inherit}
 .lgrid.inRun{background:none}
@@ -27159,7 +27555,7 @@ html,body{margin:0;padding:0;background:#0f1117}
    over the paint too, and Blake called that item text going through the Front layer — behind a
    Front wall the player is hidden, and now so is what the player is about to pick up. */
 .takeCallout{position:absolute;width:0;height:0;z-index:${SCENE_LABEL_Z.label};pointer-events:none}
-.pedcallout{position:absolute;left:0;bottom:0;width:max-content;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:1px;white-space:nowrap;font-family:'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:12px;font-weight:700;line-height:1.15;letter-spacing:.01em}
+.pedcallout{position:absolute;left:0;bottom:0;width:max-content;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:1px;white-space:nowrap;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:12px;font-weight:700;line-height:1.15;letter-spacing:.01em}
 /* 🎁 THE TAKE CALLOUT, AND THE PICKUP BANNER'S ROWS (both drawn by pickupRowsView). One change per
    line, which is what Blake asked for, in Chakra Petch — squared-off, gamey and still easy to read
    at 12px — where it used to be one long run of the default UI face. The key is the only thing in
@@ -27171,7 +27567,7 @@ html,body{margin:0;padding:0;background:#0f1117}
    width:max-content on .pedcallout is load-bearing: it hangs off a ZERO-width anchor, so without
    it the box shrinks to its min-content and a gun's description wraps one word per line. */
 .pkHead{display:flex;align-items:center;gap:4px;margin-bottom:1px}
-.pkKey{font-family:'Shrikhand','Arial Black',Impact,sans-serif;font-size:15px;font-weight:400;line-height:1;color:#fff}
+.pkKey{font-family:${SYMBOL_FONT_FAMILY},'Shrikhand','Arial Black',Impact,sans-serif;font-size:15px;font-weight:400;line-height:1;color:#fff}
 .pkSwap{font-size:15px;line-height:1;font-weight:800;color:#ffd84a}
 .pkStats{display:grid;grid-template-columns:auto auto auto auto;column-gap:5px;align-items:baseline}
 .pkLbl{text-align:left;text-transform:uppercase;letter-spacing:.05em;font-size:.88em;color:#dfe6f5}
@@ -27267,7 +27663,7 @@ html,body{margin:0;padding:0;background:#0f1117}
    chips. The line stays large and plain white. Each line pops in (keyed by line). */
 .talkBox{position:relative;pointer-events:auto;width:100%;box-sizing:border-box;text-align:center;padding:0 4px;animation:talkIn .16s ease-out both}
 @keyframes talkIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.talkWho,.talkText,.talkOpts .talkNum{font-family:DotGothic16,'Chakra Petch','Segoe UI',system-ui,sans-serif}
+.talkWho,.talkText,.talkOpts .talkNum{font-family:${SYMBOL_FONT_FAMILY},DotGothic16,'Chakra Petch','Segoe UI',system-ui,sans-serif}
 .talkWho{font-size:14px;font-weight:400;letter-spacing:.14em;text-transform:uppercase;color:#ffd23f;margin-bottom:3px}
 .talkText{font-size:19px;font-weight:400;line-height:1.3;white-space:pre-wrap;overflow-wrap:anywhere}
 .talkBlank{font-size:16px;color:#c3c8d4;font-style:italic}
@@ -27289,7 +27685,7 @@ html,body{margin:0;padding:0;background:#0f1117}
    sets font and color to inherit at specificity (0,1,1), and a lone .talkOpt is only (0,1,0), so
    that rule won once and served near-white text on a white button.
    (And no backticks in here: this whole sheet is one JS template literal.) */
-.talkOpts .talkOpt{display:flex;align-items:flex-start;gap:8px;min-width:0;text-align:left;background:rgba(12,14,30,.84);border:2px solid #69739e;border-radius:3px;padding:6px 10px 6px 6px;color:#fff;font-family:DotGothic16,'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:15px;font-weight:400;line-height:1.25;text-shadow:1px 1px 0 #000;cursor:pointer;box-shadow:0 0 0 1px #000,0 3px 0 rgba(0,0,0,.5);transition:background .1s,border-color .1s}
+.talkOpts .talkOpt{display:flex;align-items:flex-start;gap:8px;min-width:0;text-align:left;background:rgba(12,14,30,.84);border:2px solid #69739e;border-radius:3px;padding:6px 10px 6px 6px;color:#fff;font-family:${SYMBOL_FONT_FAMILY},DotGothic16,'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:15px;font-weight:400;line-height:1.25;text-shadow:1px 1px 0 #000;cursor:pointer;box-shadow:0 0 0 1px #000,0 3px 0 rgba(0,0,0,.5);transition:background .1s,border-color .1s}
 .talkOpts.compact .talkOpt{min-width:64px;white-space:nowrap}
 .talkOpts .talkOpt:hover{background:rgba(28,32,68,.94);border-color:#ffd23f}
 .talkOpts .talkOpt > span:last-child{min-width:0;overflow-wrap:anywhere;padding-top:1px}
@@ -27332,8 +27728,8 @@ html,body{margin:0;padding:0;background:#0f1117}
 /* A cutscene's prompt is set in the pickup banner's face (Shrikhand, Blake 2026-10-12: "closer to
    the weapon pick up fonts"), bigger than a talk prompt because it is the only thing to do, with
    the key in the take callout's gold so it reads as the button. Outline from the shared label rule. */
-.talkCallout.animPrompt{font-family:'Shrikhand','Arial Black',Impact,sans-serif;font-size:21px;font-weight:400;letter-spacing:.02em;gap:8px}
-.talkCallout.animPrompt .talkKey{font-family:'Shrikhand','Arial Black',Impact,sans-serif;font-size:24px;font-weight:400;color:#ffd84a}
+.talkCallout.animPrompt{font-family:${SYMBOL_FONT_FAMILY},'Shrikhand','Arial Black',Impact,sans-serif;font-size:21px;font-weight:400;letter-spacing:.02em;gap:8px}
+.talkCallout.animPrompt .talkKey{font-family:${SYMBOL_FONT_FAMILY},'Shrikhand','Arial Black',Impact,sans-serif;font-size:24px;font-weight:400;color:#ffd84a}
 .animStates{display:flex;flex-direction:column;gap:10px}
 .animStateTabs{display:flex;flex-wrap:wrap;gap:6px}
 .animStateTabs .live{box-shadow:0 0 0 2px #6bd06b inset}
