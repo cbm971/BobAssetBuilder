@@ -4781,3 +4781,20 @@ have color again": the cards are plain again and the icons are coloured. "I disl
 transparent thin long HP bar": bars now show for 2.5 s after a hit, 46×7px, see-through. Verified in play:
 a weapon save after Playtest → ‹ Menu shows the green pill. No bars show at spawn, one shows after a hit, and it is gone
 after 2.5 s. The $1 Bill row "💵 +1" shows at 19px.
+
+**Round 5, the hunt limit:** "In trying to make it so enemies on a layer above or below on a two
+storey level don't follow you made it so the tracking squirrels in trees that are meant to jump out
+at you never do and enemies that are far across the map now try to chase you ... It's like vertical
+tracking is gone instead of just weaker and sideways tracking is now far too strong." His tree
+Squirrels stand on 3-cell branches 11 rows (M5, M6) and 14 rows (M7-M14: row 6 over the slab at row
+20) above where he walks, past the flat 10.5-cell cutoff, so they never sensed him. Sight was always
+6 body lengths (42 cells) sideways, at any height before the cutoff; nothing in round 1 widened it, but
+he wanted it shorter. Now `enemySenseHeightFrac` makes the zone an ellipse: 4 lengths ahead, 1 behind,
+times sqrt(1 - (dy/ry)^2), with ry 3 lengths when he is BELOW the unit (a drop, which unitDropSpot
+already limits to a hole within 3 cells and him within 8) and 1.75 above (a climb). M7's road -> slab is
+15 rows, so 1.75 (12.25 cells) keeps round 1's fix.
+Measured in the dev build on the repo's M7 (god mode, player pinned): fixed, the tree Squirrel left its
+branch and reached the slab beside him in ~70 frames (y 64 -> 485); the road's gun cat under him kept
+its placed facing for 250 frames; slab unit 19,31 ignored him at 33 cells and chased at 22. Control
+(round 1 code, bundle checked for the marker): the same Squirrel sat on its branch facing away for 260
+frames.

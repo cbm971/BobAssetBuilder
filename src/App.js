@@ -11459,11 +11459,35 @@ export const cameraTarget = (p, pw, ph, lv, seams, vw, vh, cell = LV_CELL, strip
 // One "player body length" — the unit enemy senses are specified in: the standing player is
 // PLAYER_H_CELLS tall, so a body length is that height in pixels (210px at the 30px cell).
 export const PLAYER_BODY_LEN_PX = LV_CELL * PLAYER_H_CELLS;
-export const ENEMY_SIGHT_AHEAD_LENGTHS = 6;  // sees 6 body lengths in the direction it FACES
+// Sees 4 body lengths (28 cells) in the direction it FACES. It was 6 (42 cells) from the start;
+// 2026-10-14 Blake: "enemies that are far across the map now try to chase you when you should be
+// far out of range ... sideways tracking is now far too strong."
+export const ENEMY_SIGHT_AHEAD_LENGTHS = 4;
 export const ENEMY_SIGHT_BEHIND_LENGTHS = 1; // ...but only 1 body length behind its back
-export const enemyDetects = (distToPlayer, face) => {
+// THE SENSE ZONE IS AN OVAL, NOT A STRIP (2026-10-14, round 2). Sight was only ever measured
+// sideways, at any height, and the first fix for M7 (enemyChasesVertically, 1.5 body lengths) then
+// cut it off dead at a height: Blake, "it's like vertical tracking is gone instead of just weaker" —
+// the tree Squirrels that drop on you sit 11 (M5, M6) and 14 (M7-M14) rows over the ground you walk
+// on, past the cutoff, and never came down. Now the sideways reach SHRINKS with the height between
+// the two pairs of feet, along an ellipse, and is gone only at the zone's top or bottom:
+//   - DOWN (the target below, `dyFeet` > 0) it reaches 3 body lengths (21 cells): coming down at you
+//     is a drop, and the drop route (unitDropSpot) already only fires from a hole within 3 cells and
+//     with you within 8 sideways, so a unit up there ambushes but never trails you along a floor.
+//   - UP (the target above) it reaches 1.75 body lengths (12.25 cells): a ladder ledge is still a
+//     chase, but M7's floor above its road (15 rows) is out of the zone, so the road's units neither
+//     turn to watch you up there nor take the walkway after you — the 2026-10-14 complaint.
+// Returns the fraction of the sideways reach left at that height (1 level, 0 out of the zone).
+export const ENEMY_SENSE_DOWN_LENGTHS = 3;
+export const ENEMY_SENSE_UP_LENGTHS = 1.75;
+export const enemySenseHeightFrac = (dyFeet = 0) => {
+  const f = Math.abs(dyFeet || 0) / (PLAYER_BODY_LEN_PX * (dyFeet > 0 ? ENEMY_SENSE_DOWN_LENGTHS : ENEMY_SENSE_UP_LENGTHS));
+  return f >= 1 ? 0 : Math.sqrt(1 - f * f);
+};
+export const enemyDetects = (distToPlayer, face, dyFeet = 0) => {
+  const hf = enemySenseHeightFrac(dyFeet);
+  if (hf <= 0) return false;
   const facing = distToPlayer === 0 || Math.sign(distToPlayer) === (face || 1);
-  return Math.abs(distToPlayer) <= PLAYER_BODY_LEN_PX * (facing ? ENEMY_SIGHT_AHEAD_LENGTHS : ENEMY_SIGHT_BEHIND_LENGTHS);
+  return Math.abs(distToPlayer) <= PLAYER_BODY_LEN_PX * (facing ? ENEMY_SIGHT_AHEAD_LENGTHS : ENEMY_SIGHT_BEHIND_LENGTHS) * hf;
 };
 // SAME LEVEL, FOR A WALK (2026-09-28). Blake: "If you are walking a level above them enemies they
 // shouldn't follow you, just if you are on the same level as them. Some of my newer levels have
@@ -11490,8 +11514,10 @@ export const unitSharesLevel = (myFeetY, targetFeetY, standH) => Math.abs(myFeet
 // feet are within 1.5 body lengths (10.5 cells) of its own: a ladder up to a ledge or a drop out of a
 // ceiling pocket onto you is still a chase; another storey is not. Allies tagging along with you are
 // not hunting, and keep following you anywhere.
-export const ENEMY_CHASE_VERT_LENGTHS = 1.5;
-export const enemyChasesVertically = (myFeetY, targetFeetY) => Math.abs(targetFeetY - myFeetY) <= PLAYER_BODY_LEN_PX * ENEMY_CHASE_VERT_LENGTHS;
+// ...ROUND 2 (same day): the flat 1.5-length cutoff also stopped the tree Squirrels dropping on you.
+// The height limit is now the sense zone's own top and bottom (enemySenseHeightFrac, above): up
+// 1.75 body lengths, down 3, and the sideways reach shrinks toward both instead of ending at a wall.
+export const enemyChasesVertically = (myFeetY, targetFeetY) => enemySenseHeightFrac(targetFeetY - myFeetY) > 0;
 // The direction an enemy should be FACING this frame. An enemy that can sense the player — out
 // to its full forward range in ANY direction, so it reacts to someone who walked up on its blind
 // side — turns to face them. This is deliberately separate from (and evaluated before) the
@@ -11499,10 +11525,11 @@ export const enemyChasesVertically = (myFeetY, targetFeetY) => Math.abs(targetFe
 // through movement) spawned looking away from where the player is could NEVER turn toward them,
 // so it never detected them, never raised its weapon, and never attacked — the "guard only reacts
 // when I walk right up to it, and never shoots" bug. Returns the current face unchanged when the
-// player is out of sensing range entirely, so an unaware enemy keeps its placed facing.
-export const enemyFaceToward = (distToPlayer, face) => {
+// player is out of sensing range entirely, so an unaware enemy keeps its placed facing. The range
+// is the sense zone's (enemySenseHeightFrac): shorter the higher above or below it the player is.
+export const enemyFaceToward = (distToPlayer, face, dyFeet = 0) => {
   if (distToPlayer === 0) return face || 1;
-  return (Math.abs(distToPlayer) <= PLAYER_BODY_LEN_PX * ENEMY_SIGHT_AHEAD_LENGTHS) ? Math.sign(distToPlayer) : (face || 1);
+  return (Math.abs(distToPlayer) <= PLAYER_BODY_LEN_PX * ENEMY_SIGHT_AHEAD_LENGTHS * enemySenseHeightFrac(dyFeet)) ? Math.sign(distToPlayer) : (face || 1);
 };
 // Is this enemy committed to an attack right now? Winding up to strike (reactT), mid-swing
 // (swingT), or visibly tracking a target down a raised weapon (aimHold) all count. Used to decide
@@ -15347,8 +15374,12 @@ export default function AssetStudio() {
           // A HUNTER IGNORES SOMEONE ON ANOTHER STOREY (enemyChasesVertically): no turning to watch
           // you walk along the floor above, no sensing, no climb or flight after you. Measured where
           // the target's feet are right now. An ally has no hunt to call off.
+          // Round 2: the cutoff is the sense zone's top and bottom (3 body lengths down, 1.75 up), and
+          // inside it the PLAYER is sensed over a sideways reach that shrinks with the height between
+          // you (huntDy into enemyFaceToward / enemyDetects), so a tree Squirrel still drops on you.
           const huntFeet = targetKind === "unit" ? (targetEp && targetEa ? targetEp.y + (targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW)) : null) : p.y + ph;
           const huntInReach = !hostile || huntFeet == null || enemyChasesVertically(myFeetY, huntFeet);
+          const huntDy = hostile && huntFeet != null ? huntFeet - myFeetY : 0;
           // A dressed look walks by YOUR rule, crawling at half speed while it ducks, as you do; an
           // animal keeps its own scale (unitMoveSpeed).
           const aiSpeed = unitMoveSpeed(ea, ep.crouch) * dtMul;
@@ -15369,7 +15400,7 @@ export default function AssetStudio() {
           // frame. They are collected into one local instead and committed ONCE, through holdFacing,
           // at the bottom. Order is unchanged, so what a unit wants to be looking at is identical.
           let wantFace = ep.face;
-          if (!stunned && acts && huntInReach) wantFace = enemyFaceToward(distToTarget, ep.face);
+          if (!stunned && acts && huntInReach) wantFace = enemyFaceToward(distToTarget, ep.face, huntDy);
           // SOMEONE WITH SOMETHING TO SAY LOOKS AT YOU. A neutral NPC never enters the branch
           // above (it has no target and `acts` is false), so it stood staring at the wall it was
           // placed facing — and the only tell that this particular guard is the one you can talk
@@ -15389,7 +15420,7 @@ export default function AssetStudio() {
           // brawls always "see" their target (you can't stealth past a melee your minion started).
           // Reads wantFace, which is exactly the value ep.face held here before the two writes were
           // merged — a unit senses you down the line it is turning to look along, dwell or no dwell.
-          const detected = (hostile && targetKind === "player") ? huntInReach && enemyDetects(distToTarget, wantFace) : acts && huntInReach;
+          const detected = (hostile && targetKind === "player") ? huntInReach && enemyDetects(distToTarget, wantFace, huntDy) : acts && huntInReach;
           const gapSigned = (Math.sign(distToTarget) || 1) * boxGap(targetCX, targetW, eCenterXNow, epw);
           // TACKLE CHARGE. A tackler that obeys its ordinary move intent can never use the ability
           // it is wearing: Guard never leaves its spawn, Avoid runs the wrong way, and Seek stops at

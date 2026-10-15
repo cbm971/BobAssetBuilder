@@ -379,9 +379,12 @@ plus traps it does not cover:
   bar over the player's head.
 - **The main menu has colour in its ICONS**: each tile and equipment slot carries `--tc`, the icon's
   colour; the cards stay plain (he hated tinted cards). A new tile gets one too.
-- **Height limit on hunting** (`enemyChasesVertically`, 1.5 body lengths): a hostile whose target's
-  feet are farther up or down than that does not turn to it, sense it, climb, walk a walkway, drop
-  or fly after it (Trailor Park M7's road units tracked him on the floor above).
+- **A hostile senses the player inside an OVAL** (`enemySenseHeightFrac`): 4 body lengths (28 cells)
+  ahead on its own level, 1 behind, and that reach SHRINKS with the height between the two pairs of
+  feet, reaching 0 at 3 body lengths below it and 1.75 above. Past the top or bottom
+  (`enemyChasesVertically`) it does not turn, sense, climb, walk a walkway, drop or fly. Never a flat
+  height cutoff: 1.5 lengths stopped his tree Squirrels (11 and 14 rows up) dropping on him. 1.75 up keeps
+  M7's road units off the floor above (15 rows).
 - **Score** (the SCORE block): a hostile unit killed by YOUR last blow is 100
   (`lastHitByFx === null`; a unit's blow always stores an array, so keep it never-null). A
   dialogue option's `points` pay once per run. A level pays 500, minus 10 per whole second after

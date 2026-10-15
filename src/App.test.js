@@ -446,6 +446,11 @@ import {
   unitLevelBandPx,
   unitSharesLevel,
   enemyChasesVertically,
+  enemyDetects,
+  enemySenseHeightFrac,
+  ENEMY_SIGHT_AHEAD_LENGTHS,
+  ENEMY_SENSE_DOWN_LENGTHS,
+  ENEMY_SENSE_UP_LENGTHS,
   enemyRenderW,
   EQUIP_KIND_TAG_MAX_SLOTS,
   SPAWN_WEAPON_NONE,
@@ -9583,14 +9588,46 @@ describe("a unit walks only to a target on its own level", () => {
   });
 
   // 2026-10-14: "the enemies on the road below try to chase the player" — up M7's 🚶 walkway.
-  test("a hunter does not climb, walk a walkway or drop to another storey after you", () => {
+  test("a hunter does not climb or walk a walkway up to the storey above after you", () => {
     expect(enemyChasesVertically(street, slab)).toBe(false); // the road's units, you on the slab
-    expect(enemyChasesVertically(slab, street)).toBe(false); // the slab's units, you on the road
+    expect(enemyFaceToward(cell, -1, slab - street)).toBe(-1); // ...nor turn to watch you right overhead
+    expect(enemyDetects(0, 1, slab - street)).toBe(false);
   });
   test("...but a ledge up a ladder, or a drop out of a ceiling pocket onto you, still is a chase", () => {
     expect(enemyChasesVertically(street, street - 10 * cell)).toBe(true);
     expect(enemyChasesVertically(10 * cell, 19 * cell)).toBe(true); // Sewer M2's rat pockets over its floor
-    expect(enemyChasesVertically(street, street - 11 * cell)).toBe(false);
+    expect(enemyChasesVertically(street, street - 13 * cell)).toBe(false);
+  });
+  // Round 2, same day: "vertical tracking is gone instead of just weaker". His tree Squirrels stand
+  // 11 rows (M5, M6: row 24 over row 35) and 14 rows (M7-M14: row 6 over the slab at row 20) above you.
+  test("a tree Squirrel still senses you below it, and drops when you come close", () => {
+    for (const rows of [11, 14]) {
+      const perch = street - rows * cell;
+      expect(enemyChasesVertically(perch, street)).toBe(true);
+      expect(enemyDetects(8 * cell, 1, street - perch)).toBe(true); // UNIT_DROP_TRIGGER_CELLS away
+      expect(enemyFaceToward(-8 * cell, 1, street - perch)).toBe(-1);
+    }
+  });
+  test("height WEAKENS the reach instead of ending it: an oval, longer downward than up", () => {
+    const reach = (dy) => { let d = 0; while (enemyDetects(d + 1, 1, dy)) d++; return d; };
+    const level = reach(0);
+    expect(level).toBe(ENEMY_SIGHT_AHEAD_LENGTHS * PLAYER_BODY_LEN_PX);
+    expect(reach(7 * cell)).toBeLessThan(level);        // you below it: shorter...
+    expect(reach(7 * cell)).toBeGreaterThan(reach(14 * cell)); // ...and shorter still lower down
+    expect(reach(14 * cell)).toBeGreaterThan(0);
+    expect(reach(-7 * cell)).toBeLessThan(reach(7 * cell)); // above it fades faster than below
+    expect(enemySenseHeightFrac(ENEMY_SENSE_DOWN_LENGTHS * PLAYER_BODY_LEN_PX)).toBe(0);
+    expect(enemySenseHeightFrac(-ENEMY_SENSE_UP_LENGTHS * PLAYER_BODY_LEN_PX)).toBe(0);
+  });
+  test("a slab unit over you on the road senses you only close in, never across the level", () => {
+    expect(enemyDetects(15 * cell, 1, street - slab)).toBe(true);
+    expect(enemyDetects(25 * cell, 1, street - slab)).toBe(false);
+  });
+  // "Enemies that are far across the map now try to chase you": 6 body lengths (42 cells) is now 4.
+  test("on its own level it sees 28 cells ahead, not 42", () => {
+    expect(enemyDetects(28 * cell, 1)).toBe(true);
+    expect(enemyDetects(29 * cell, 1)).toBe(false);
+    expect(enemyFaceToward(-35 * cell, 1)).toBe(1); // out of range: keeps its placed facing
   });
 });
 
