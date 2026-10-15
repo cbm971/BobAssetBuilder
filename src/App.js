@@ -11738,6 +11738,19 @@ export const noteUnitHp = (seen, key, hp, nowMs) => {
   s.hp = hp;
   return nowMs - s.at < HP_BAR_HOT_MS;
 };
+// A UNIT'S HP BAR SHOWS ONLY AFTER IT IS HURT (2026-10-14). Blake: "I dislike the enemies always on
+// non transparent thin long HP bar." It appears when the unit's HP falls (noteUnitHp's `at`),
+// stays UNIT_HP_BAR_SHOW_MS from the latest fall and fades over the last UNIT_HP_BAR_FADE_MS. Short,
+// a little thicker and see-through: .enemyHpTrack.
+export const UNIT_HP_BAR_SHOW_MS = 2500;
+export const UNIT_HP_BAR_FADE_MS = 500;
+export const unitHpBarAlpha = (seen, key, nowMs) => {
+  const s = seen && seen[key];
+  if (!s) return 0;
+  const t = nowMs - s.at;
+  if (!(t < UNIT_HP_BAR_SHOW_MS)) return 0;
+  return t <= UNIT_HP_BAR_SHOW_MS - UNIT_HP_BAR_FADE_MS ? 1 : (UNIT_HP_BAR_SHOW_MS - t) / UNIT_HP_BAR_FADE_MS;
+};
 export const unitStatusZ = (hpFrac, hotNow) => UNIT_STATUS_Z + (hotNow ? 2 : hpFrac < 1 ? 1 : 0);
 // BEHIND FRONT YOU CANNOT SEE THROUGH, NO STATUS AT ALL (2026-10-04). Blake: "You should hide enemy
 // health bars that are behind a front layer you can't see through." Sitting under Front paint in the
@@ -17476,10 +17489,7 @@ export default function AssetStudio() {
             // consumeItemNow is shared with the shop counter, so a potion bought over a counter
             // and the same potion taken off a plinth can never heal different amounts. Quiet here:
             // what it did goes under the pickup banner instead of into a toast.
-            // Money's "+N" row went (Blake: "super tiny text ... i think the +$1 text"): the HUD's
-            // money count, bottom-left, jumps instead (.hudMoney.gain).
-            const gotLine = consumeItemNow(item, "", true);
-            showPickup(item.name, isMoneyItem(item) ? [] : [{ kind: "text", text: gotLine }], itemRank(item));
+            showPickup(item.name, [{ kind: "text", text: consumeItemNow(item, "", true) }], itemRank(item));
             putBack(null);
           } else if (item.type === "weapon") {
             if (isThrowable(item.wtype)) {
@@ -21759,7 +21769,9 @@ export default function AssetStudio() {
   // The floor ending clears the level it ends in (SCORE) before play stops; the total stays in
   // scoreRef for whatever shows it next.
   animLeaveRef.current = () => { if (play) { scoreLevelClear(scoreRef.current, runRef.current ? runRef.current.curKey : (level && level.id) || "level"); togglePlaytest(); } };
-  playLive.current = play;
+  // Only the level screen PLAYS: ‹ Menu out of a running playtest leaves `play` on, and keyed on
+  // `play` alone this silenced every editor's "Saved ✓" (Blake: "no indication that weapons are saved").
+  playLive.current = play && screen === "level";
   // The pool a run is built from is every SAVED level, with the editor's live copy standing in for
   // its saved one so unsaved edits count — but a level that was never saved (the blank one the
   // creator opens on, floor "1", both upper gates open) stays out, or it fills every slot of the
@@ -22184,8 +22196,8 @@ export default function AssetStudio() {
             <div className="dlg" onClick={(e) => e.stopPropagation()}>
               <div className="dt">What are you making?</div>
               <div className="tiles">
-                <button className="tile" onClick={() => { setChooser(false); start("body"); }}><span className="ti">{TYPES.body.icon}</span><span className="tl">Body</span></button>
-                <button className="tile" onClick={() => { setChooser(false); start("skin"); }}><span className="ti">{TYPES.skin.icon}</span><span className="tl">Skin</span></button>
+                <button className="tile" style={{ "--tc": "#ffb37a" }} onClick={() => { setChooser(false); start("body"); }}><span className="ti">{TYPES.body.icon}</span><span className="tl">Body</span></button>
+                <button className="tile" style={{ "--tc": "#f6c453" }} onClick={() => { setChooser(false); start("skin"); }}><span className="ti">{TYPES.skin.icon}</span><span className="tl">Skin</span></button>
               </div>
             </div>
           </div>
@@ -22195,10 +22207,10 @@ export default function AssetStudio() {
             <div className="dlg" onClick={(e) => e.stopPropagation()}>
               <div className="dt">Melee, ranged, projectile, or throwable?</div>
               <div className="tiles">
-                <button className="tile" onClick={() => { setWtypeChoice(false); start("weapon", null, "melee"); }}><span className="ti">🗡️</span><span className="tl">Melee</span></button>
-                <button className="tile" onClick={() => { setWtypeChoice(false); start("weapon", null, "ranged"); }}><span className="ti">🏹</span><span className="tl">Ranged</span></button>
-                <button className="tile" onClick={() => { setWtypeChoice(false); start("weapon", null, "throw"); }}><span className="ti">💣</span><span className="tl">Throwable</span></button>
-                <button className="tile" onClick={() => { setWtypeChoice(false); start("projectile"); }}><span className="ti">🔮</span><span className="tl">Projectile</span></button>
+                <button className="tile" style={{ "--tc": "#d7dde8" }} onClick={() => { setWtypeChoice(false); start("weapon", null, "melee"); }}><span className="ti">🗡️</span><span className="tl">Melee</span></button>
+                <button className="tile" style={{ "--tc": "#ff6b6b" }} onClick={() => { setWtypeChoice(false); start("weapon", null, "ranged"); }}><span className="ti">🏹</span><span className="tl">Ranged</span></button>
+                <button className="tile" style={{ "--tc": "#fb923c" }} onClick={() => { setWtypeChoice(false); start("weapon", null, "throw"); }}><span className="ti">💣</span><span className="tl">Throwable</span></button>
+                <button className="tile" style={{ "--tc": "#c08cff" }} onClick={() => { setWtypeChoice(false); start("projectile"); }}><span className="ti">🔮</span><span className="tl">Projectile</span></button>
               </div>
             </div>
           </div>
@@ -22208,8 +22220,8 @@ export default function AssetStudio() {
             <div className="dlg" onClick={(e) => e.stopPropagation()}>
               <div className="dt">Object or Item?</div>
               <div className="tiles">
-                <button className="tile" onClick={() => { setPropItemChoice(false); start("prop"); }}><span className="ti">{TYPES.prop.icon}</span><span className="tl">{TYPES.prop.label}</span></button>
-                <button className="tile" onClick={() => { setPropItemChoice(false); start("item"); }}><span className="ti">{TYPES.item.icon}</span><span className="tl">{TYPES.item.label}</span></button>
+                <button className="tile" style={{ "--tc": "#6fdc8c" }} onClick={() => { setPropItemChoice(false); start("prop"); }}><span className="ti">{TYPES.prop.icon}</span><span className="tl">{TYPES.prop.label}</span></button>
+                <button className="tile" style={{ "--tc": "#62b0ff" }} onClick={() => { setPropItemChoice(false); start("item"); }}><span className="ti">{TYPES.item.icon}</span><span className="tl">{TYPES.item.label}</span></button>
               </div>
             </div>
           </div>
@@ -25025,7 +25037,9 @@ export default function AssetStudio() {
                   } // end of the drawing that eArtHit skips
                   const hpFrac = Math.max(0, Math.min(1, curHp / maxHp));
                   // The bar of whoever is being hurt RIGHT NOW draws over the rest of the crowd (unitStatusZ).
-                  const hpHot = noteUnitHp(U.hpSeen, uKey, curHp, performance.now());
+                  const hpNowMs = performance.now();
+                  const hpHot = noteUnitHp(U.hpSeen, uKey, curHp, hpNowMs);
+                  const hpBarA = unitHpBarAlpha(U.hpSeen, uKey, hpNowMs); // only just after a hit
                   // A FRONT POSE IS NEVER MIRRORED. The flip exists to point a side-on drawing the
                   // way the unit is walking; applied to art already facing the camera it just
                   // swaps the poor character's left and right for no reason, and any lettering or
@@ -25091,7 +25105,7 @@ export default function AssetStudio() {
                             your shots pass through is the game promising a fight it will not give
                             you, and it is the only on-screen difference between "immune" and "my
                             gun is broken". It appears the moment a conversation turns them. */}
-                        {!unitTalkImmune(ep) && <div className="enemyHpTrack"><div className="enemyHpFill" style={{ width: (hpFrac * 100) + "%", background: hpFrac > 0.5 ? "#6bd06b" : hpFrac > 0.2 ? "#c8a23c" : "#b0504f" }} /></div>}
+                        {!unitTalkImmune(ep) && hpBarA > 0 && <div className="enemyHpTrack" style={hpBarA < 1 ? { opacity: hpBarA } : undefined}><div className="enemyHpFill" style={{ width: (hpFrac * 100) + "%", background: hpFrac > 0.5 ? "#6bd06b" : hpFrac > 0.2 ? "#c8a23c" : "#b0504f" }} /></div>}
                         {/* NO 🐱×N COUNT HERE. A unit's Extra Lives used to be printed beside its HP
                             bar (2026-09-16, for one day); Blake: "I don't like the x8 at all". The
                             revive toast and the gold fall-and-flash are the whole tell now — an
@@ -26962,10 +26976,8 @@ html,body{margin:0;padding:0;background:#0f1117}
 .tile{display:flex;flex-direction:column;align-items:flex-start;gap:4px;background:#171b26;border:1px solid #242a3a;border-radius:16px;padding:16px;cursor:pointer;text-align:left}
 .tile:hover{border-color:#4f7cf6;background:#1b2030}.tile.dress{border-color:#3a4a7a;background:#19203a}
 .ti{font-size:30px}.tl{font-weight:700;font-size:15px}.tb{font-size:12px;color:#9aa3b8}
-/* MENU COLOUR (2026-10-14): a tile or slot carrying --tc shows its icon in that colour on a card tinted with it. */
-.menu .tile[style*="--tc"],.menu .slot[style*="--tc"]{background:linear-gradient(150deg,color-mix(in srgb,var(--tc) 32%,#171b26) 0%,#171b26 78%);border-color:color-mix(in srgb,var(--tc) 50%,#242a3a)}
-.menu .tile[style*="--tc"]:hover,.menu .slot[style*="--tc"]:hover{border-color:var(--tc);background:linear-gradient(150deg,color-mix(in srgb,var(--tc) 42%,#1b2030) 0%,#1b2030 78%)}
-.menu .tile[style*="--tc"] .ti,.menu .slot[style*="--tc"] .si{color:var(--tc);filter:drop-shadow(0 0 6px color-mix(in srgb,var(--tc) 45%,transparent))}
+/* MENU COLOUR (2026-10-14): a tile or slot carrying --tc draws its ICON in that colour; the card stays plain. */
+.tile[style*="--tc"] .ti,.slot[style*="--tc"] .si{color:var(--tc)}
 .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:24px}
 .slot{display:flex;flex-direction:column;align-items:center;gap:6px;background:#171b26;border:1px solid #242a3a;border-radius:13px;padding:14px 6px;cursor:pointer;font-size:12px}
 .slot:hover{border-color:#4f7cf6}.slot .si{font-size:24px}
@@ -27466,7 +27478,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .rankRow{display:flex;flex-wrap:wrap;gap:6px}
 .rankBtn{flex:1 1 auto;white-space:nowrap;background:#0f1117;border:1px solid #2c3245;border-radius:9px;padding:8px 9px;font-size:13px;font-weight:700;cursor:pointer}
 .rankBtn.on{background:#1b2133}
-.pbRows{display:flex;flex-direction:column;align-items:center;gap:2px;white-space:nowrap;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:13px;font-weight:700;line-height:1.2;color:#fff;animation:pbRowsIn .35s .3s ease-out both}
+.pbRows{display:flex;flex-direction:column;align-items:center;gap:2px;white-space:nowrap;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:19px;font-weight:700;line-height:1.2;color:#fff;animation:pbRowsIn .35s .3s ease-out both}
 @keyframes pbRowsIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .seamStrip{position:absolute;pointer-events:none;background:inherit;background-size:inherit}
 .lgrid.inRun{background:none}
@@ -27527,7 +27539,8 @@ html,body{margin:0;padding:0;background:#0f1117}
    window the player carries (frontFadeKeys / behindFade) reveals both together. The player's own
    .playerHpTrack stays at 8000 — that is your status, not the scene's. */
 .unitStatus{position:absolute;height:0;pointer-events:none;z-index:5060;will-change:transform} /* the inline zIndex (unitStatusZ) lifts a hurt unit's bar to 5061 and one being hit right now to 5062 - still under Front objects at 5101 */
-.enemyHpTrack{position:absolute;left:0;right:0;top:-10px;height:5px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:3px;overflow:hidden}
+.enemyHpTrack{position:absolute;left:50%;width:46px;margin-left:-23px;top:-12px;height:7px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.3);border-radius:4px;overflow:hidden}
+.enemyHpTrack .enemyHpFill{opacity:.72}
 .enemyStun{position:absolute;left:0;right:0;top:-30px;text-align:center;font-size:16px;line-height:1;pointer-events:none;animation:stunbob .6s ease-in-out infinite}
 @keyframes stunbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 .enemyHpFill{height:100%;transition:width .15s ease}

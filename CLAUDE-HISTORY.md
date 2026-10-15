@@ -4772,3 +4772,12 @@ sized to fit (RPG 1 × 180 px, M16 12 × 13 px). ATK off the top row ("you don't
 the weapon in the bottom right"). The money pickup's "+N" banner row ("super tiny text") is gone and
 the HUD money count jumps instead. Verified in play: RPG one 180 px segment, $11 Bill 0 → 11 with an
 empty row list, no toast, no pop.
+
+**Round 4:** "you could have kept it it was just tiny": the money row is back, and all banner rows
+went from 13 to 19px. "There is no indication that weapons are saved": playLive was `play`, which stays on after ‹ Menu
+out of a running playtest, so every editor's flash was swallowed. That was also the real cause of the
+earlier "can't save props" scare. "I hate the colors you made the main menu. I meant make the icons
+have color again": the cards are plain again and the icons are coloured. "I dislike the enemies always on non
+transparent thin long HP bar": bars now show for 2.5 s after a hit, 46×7px, see-through. Verified in play:
+a weapon save after Playtest → ‹ Menu shows the green pill. No bars show at spawn, one shows after a hit, and it is gone
+after 2.5 s. The $1 Bill row "💵 +1" shows at 19px.

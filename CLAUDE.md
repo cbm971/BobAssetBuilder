@@ -360,7 +360,9 @@ plus traps it does not cover:
   Material Design Icons (`mdi:`, Apache 2.0). `tools/build-symbols.js` writes them into
   `public/symbols/library.json` (fetched only by the Symbols screen) and `src/symbolArt.json` (the
   defaults). Re-run it after changing a default.
-- **No messages during play at all.** `flash` returns while `playLive` is set. The blue box went first,
+- **No messages during play at all.** `flash` returns while `playLive` is set: `play && screen === "level"`.
+  ‹ Menu out of a running playtest leaves `play` on, and keyed on `play` alone it silenced every
+  editor's "Saved ✓" ("no indication that weapons are saved"). The blue box went first,
   then its replacement (words rising over the player) the same day: "all that small white text every
   time you do something. It's redundant." The HUD, pickup banner and shop panel already say it. The
   studio toast is blue; a save (`toastIsSave`) is a green pill at the TOP, 3 s, above any dialog.
@@ -370,10 +372,13 @@ plus traps it does not cover:
   sits top-centre, half see-through, and the live stats (AGI DEF HP INT SPD STR, no ATK) top-right.
   Bottom-left is the money (`hud.money`), bottom-right the held weapon's picture (`hudWeaponArt`:
   the ground art turned on its side when tall, muzzle to the right) with its ATK, the only place ATK
-  shows. A money pickup's banner has no "+N" row; the HUD money count jumps (`walletRises`). There is no HP
+  shows. Banner rows (`.pbRows`, the money "💵 +N" too) are 19px; the HUD money count also jumps
+  (`walletRises`). He wanted the money row BIGGER, not gone.
+- **Enemy HP bars show only after a hit** (`unitHpBarAlpha`, 2.5 s from the latest fall, fading over
+  the last 0.5 s): short (46px), 7px, see-through. Never an always-on bar. There is no HP
   bar over the player's head.
-- **The main menu has colour**: each tile and equipment slot carries `--tc` (icon colour + tinted
-  card). A new tile gets one too.
+- **The main menu has colour in its ICONS**: each tile and equipment slot carries `--tc`, the icon's
+  colour; the cards stay plain (he hated tinted cards). A new tile gets one too.
 - **Height limit on hunting** (`enemyChasesVertically`, 1.5 body lengths): a hostile whose target's
   feet are farther up or down than that does not turn to it, sense it, climb, walk a walkway, drop
   or fly after it (Trailor Park M7's road units tracked him on the floor above).

@@ -508,6 +508,8 @@ import {
   propCatKey,
   PROP_UNCAT,
   noteUnitHp,
+  unitHpBarAlpha,
+  UNIT_HP_BAR_SHOW_MS,
   unitStatusZ,
   unitHiddenByFront,
   UNIT_STATUS_Z,
@@ -13495,5 +13497,21 @@ describe("👢 Stomp: land on a head from above", () => {
     expect(src).toContain("headStompLeapPlan({ v0: enemyJumpVelocity(ea.stats?.agility, CH), agility: ea.stats?.agility, rise: (ep.y + newEph) - tgtBoxTop,");
     expect(src).toContain("blocks = (p.firing || p.aiming || p.throwAiming || p.throwFiring > 0 || p.blocking) ? flyLegBlocks(blocks, hsPose) : flyPoseBlocks(blocks, hsPose, playerArtFacesRight(basePlayerAsset));");
     expect(src).toContain("eBlocks = flyLegBlocks(eBlocks, headStompPose(ep.hsFallT));");
+  });
+});
+
+// 2026-10-14: "I dislike the enemies always on non transparent thin long HP bar."
+describe("a unit's HP bar shows only just after it is hurt", () => {
+  test("none at first sight or at full health, full right after a fall, fading, then gone", () => {
+    const seen = {};
+    noteUnitHp(seen, "1,1", 10, 1000);
+    expect(unitHpBarAlpha(seen, "1,1", 1000)).toBe(0);
+    expect(unitHpBarAlpha(seen, "9,9", 1000)).toBe(0);
+    noteUnitHp(seen, "1,1", 7, 2000);
+    expect(unitHpBarAlpha(seen, "1,1", 2000)).toBe(1);
+    expect(unitHpBarAlpha(seen, "1,1", 2000 + UNIT_HP_BAR_SHOW_MS - 250)).toBeCloseTo(0.5);
+    expect(unitHpBarAlpha(seen, "1,1", 2000 + UNIT_HP_BAR_SHOW_MS)).toBe(0);
+    noteUnitHp(seen, "1,1", 7, 9000); // no new fall: stays hidden
+    expect(unitHpBarAlpha(seen, "1,1", 9000)).toBe(0);
   });
 });
