@@ -11716,8 +11716,6 @@ export const scoreDialogueChoice = (sc, key, points) => {
 // The HUD's number: seven digits, zero-padded, like the arcade score Blake's mock-up draws.
 // How many icons the Symbols screen's picker draws before "More" (each is an inline <svg>).
 export const SYMBOL_PAGE = 240;
-// How long a pop (a play-time flash, see popText) stays up; the .playPop animation runs as long.
-export const PLAY_POP_MS = 1300;
 export const scoreDigits =(n) => String(Math.max(0, Math.min(9999999, Math.round(Number(n) || 0)))).padStart(7, "0");
 // 🎬 A placed animation's stage: one rung under the player and the units (5000), over climb
 // (4000), so a bed is drawn under the man walking past it, and the actor on it — who IS the player
@@ -12500,7 +12498,8 @@ export default function AssetStudio() {
   // disagree — the same trick talkRef/talk already plays.
   const wallet = useRef(0);
   const [walletUI, setWalletUI] = useState(0);
-  const setWallet = (n) => { wallet.current = Math.max(0, Math.round(n || 0)); setWalletUI(wallet.current); };
+  const walletRises = useRef(0); // counts every time the wallet went UP: the HUD money count re-keys on it to jump
+  const setWallet = (n) => { const v = Math.max(0, Math.round(n || 0)); if (v > wallet.current) walletRises.current += 1; wallet.current = v; setWalletUI(v); };
   const runRef = useRef(null);                              // the RUN in progress (buildRun), or null for a plain Playtest: { seed, nodes, order, curKey, editorLevel, pool }
   const camRef = useRef({ x: 0, y: 0, init: false });       // the camera, in the live level's pixels; init=false snaps it to the body on the next frame instead of easing there
   const runOrigin = useRef({ x: 0, y: 0, w: 0, h: 0 });      // RUN — where the live level sits in the run's fixed world frame, and that frame's box (see THE WORLD NEVER MOVES AT A GATE)
@@ -12841,30 +12840,15 @@ export default function AssetStudio() {
   // losing hours of work to one misclick on a level list with no confirmation at all.
   const guardLevelSwitch = (label, run) => { if (levelIsDirty()) setPendingLevelAction({ label, run }); else run(); };
 
-  // NO TOAST DURING PLAY (2026-10-14). Blake: "get rid of those blue boxes that say stuff like
-  // blocked. We should replace that with something on screen." While a level is being played every
-  // flash becomes a POP: bare words over the player's head (the floating-label look: white, black
-  // outline, no plate) that rise and fade where they were said, drawn in the level's label layer so
-  // Front paint covers them as it covers the player. One switch here rather than ~200 call sites,
-  // because every one of them is a message about what just happened TO YOU. The same line twice in
-  // a row is said once — a hit that repeats every frame must not stack a column of copies.
-  // The studio's own messages (saved, deleted, restored) keep the toast, restyled out of the blue.
+  // NO MESSAGES DURING PLAY (2026-10-14). Blake first: "get rid of those blue boxes that say stuff
+  // like blocked." Their replacement, words rising over the player's head, went the same day: "There
+  // shouldn't be all that small white text every time you do something. It's redundant." What
+  // happened is already on screen (the HUD, the pickup banner, the shop panel, the hit itself), so
+  // while a level is being played a flash says nothing. One switch here rather than ~200 call sites.
+  // The studio's own messages (saved, deleted, restored) keep the toast.
   const playLive = useRef(false);                       // `play` for code that runs outside a render (flash)
-  const popups = useRef([]);                            // [{ id, text, x, y, t }] — live-level pixels, t = performance.now()
-  const popSeq = useRef(0);
-  const popAnchor = useRef({ x: 0, y: 0 });             // over the player's head, written by the player render each frame
-  const popText = (m) => {
-    const now = playNowMs(), a = popAnchor.current;
-    let list = popups.current.filter((q) => now - q.t < PLAY_POP_MS);
-    const last = list[list.length - 1];
-    if (last && last.text === m && now - last.t < 600) return;
-    // Said while another is still rising: start above it rather than on top of it.
-    const recent = list.filter((q) => now - q.t < 450).length;
-    list = [...list, { id: ++popSeq.current, text: String(m), x: a.x, y: a.y - recent * 16, t: now }].slice(-5);
-    popups.current = list;
-  };
   const flash = (m) => {
-    if (playLive.current) { popText(m); return; }
+    if (playLive.current) return;
     setToast(m); setTimeout(() => setToast((t) => (t === m ? "" : t)), toastIsSave(m) ? 3000 : 1600);
   };
   // THE SCORE (see SCORE, above SCORE_KILL) — one object for the session; ▶ Playtest / 🏁 replace it.
@@ -13739,7 +13723,6 @@ export default function AssetStudio() {
       for (const pr of projectiles.current) { pr.x += rx; pr.y += ry; if (pr.startX !== undefined) { pr.startX += rx; pr.startY += ry; pr.groundY += ry; } }
       for (const g of thrown.current) { g.x += rx; g.y += ry; }
       for (const b of booms.current) { b.x += rx; b.y += ry; }
-      for (const q of popups.current) { q.x += rx; q.y += ry; } // words still rising stay over where they were said
       carryKeys.current = keys.current;
       seamCarry.current = { dt: dtMul }; // truthy = "this re-run is a seam swap"; dt = the length of the step the new loop takes first (see lastT)
       resolveRunSides(runNow, nb, runNow.pool || levelLib);
@@ -17493,7 +17476,10 @@ export default function AssetStudio() {
             // consumeItemNow is shared with the shop counter, so a potion bought over a counter
             // and the same potion taken off a plinth can never heal different amounts. Quiet here:
             // what it did goes under the pickup banner instead of into a toast.
-            showPickup(item.name, [{ kind: "text", text: consumeItemNow(item, "", true) }], itemRank(item));
+            // Money's "+N" row went (Blake: "super tiny text ... i think the +$1 text"): the HUD's
+            // money count, bottom-left, jumps instead (.hudMoney.gain).
+            const gotLine = consumeItemNow(item, "", true);
+            showPickup(item.name, isMoneyItem(item) ? [] : [{ kind: "text", text: gotLine }], itemRank(item));
             putBack(null);
           } else if (item.type === "weapon") {
             if (isThrowable(item.wtype)) {
@@ -21757,7 +21743,6 @@ export default function AssetStudio() {
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
     // A session STARTING scores from zero (SCORE); one stopping keeps its total readable.
     if (!play || runStart) scoreRef.current = newScoreState();
-    popups.current = [];
     roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     if (runStart) {
       const startNode = runStart.nodes[runStart.startKey];
@@ -24542,9 +24527,7 @@ export default function AssetStudio() {
                   // fire, and for this window the flames are not touching you.
                   if (p.lifeGrace > 0) style.filter = "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)";
                   // Your HP is the HUD's bar now (top-left of the view, Blake's mock-up), not a bar over
-                  // your head: two of the same bar is the clutter he keeps asking to lose. The pops
-                  // (popText) rise from where that bar was.
-                  popAnchor.current = { x: p.x + pw / 2, y: p.y - 8 + (p.stepEase || 0) - climbLift };
+                  // your head: two of the same bar is the clutter he keeps asking to lose.
                   return (
                     <>
                       {/* Your own reload timer, over your head, the same bar a ranged enemy gets and
@@ -25367,12 +25350,6 @@ export default function AssetStudio() {
                     </div>
                   );
                 })}
-                {/* POPS (popText): what used to be the blue toast during play, as words rising over
-                    where they were said. Keyed by id, so each keeps its own CSS animation run. */}
-                {play && popups.current.length > 0 && (() => {
-                  const now = playNowMs();
-                  return popups.current.filter((q) => now - q.t < PLAY_POP_MS).map((q) => <div key={"pop" + q.id} className="playPop" style={{ left: q.x, top: q.y }}>{q.text}</div>);
-                })()}
                 {/* Throw-aim trajectory preview: while G is held with a throwable in hand, dot out
                     the exact arc a release right now would fly — computed from the same
                     strength/weight launch numbers and the same per-frame integration the real
@@ -25426,11 +25403,14 @@ export default function AssetStudio() {
                   - AMMO IS SEGMENTS, ONE PER ROUND IN THE MAGAZINE, and no counter ("there is infinite
                     ammo and most weapons don't have many rounds"). A reload refills them left to right
                     as it runs; a gun with no magazine (clip 0) never runs dry and has no row at all.
+                    The row is ONE WIDTH whatever the gun: a one-shot RPG is a single long segment, a
+                    rifle many thin ones (Blake).
                   - Throwables and extra lives are pips of their own symbol, never a "×N" count (see the ×N
                     rule in CLAUDE.md), and only while you carry any.
                   - The stats are the LIVE ones (kit + timed boosts, the same sums the loop uses), tinted
-                    while a boost or a cost is moving them. ATK is what one blow of what you hold deals
-                    before Defense — enemyAttackDamage, the rule both sides share.
+                    while a boost or a cost is moving them. No ATK up here: it sits beside the weapon,
+                    bottom-right — what one blow of what you hold deals before Defense
+                    (enemyAttackDamage, the rule both sides share).
                   - Every symbol is a slot on the Symbols screen (stat.*, hud.*). */}
               {play && (() => {
                 const merged = playerAsset; // the render body already merged your kit, as the loop does
@@ -25441,7 +25421,6 @@ export default function AssetStudio() {
                 const strNow = (st.strength ?? 5) + (buffs.strength || 0);
                 const stats = [
                   { k: "stat.agi", l: "AGI", v: (st.agility ?? 5) + (buffs.agility || 0), d: buffs.agility || 0 },
-                  { k: "stat.atk", l: "ATK", v: enemyAttackDamage({ ...merged, stats: { ...st, strength: strNow } }, playtestWeapon), d: buffs.strength || 0 },
                   { k: "stat.def", l: "DEF", v: Math.max(0, Math.round((merged && merged.defense) || 0)), d: 0 },
                   { k: "stat.hp", l: "HP", v: st.hp ?? 5, d: 0 },
                   { k: "stat.int", l: "INT", v: (st.intelligence ?? 5) + (buffs.intelligence || 0), d: buffs.intelligence || 0 },
@@ -25475,11 +25454,12 @@ export default function AssetStudio() {
                   const sc = Math.min(wBoxW / across, wBoxH / tall) * 0.92;
                   wPlane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${wBoxW / 2}px,${wBoxH / 2}px) rotate(${wTurn}deg) scale(${sc}) translate(${-(wBb.x + wBb.w / 2)}px,${-(wBb.y + wBb.h / 2)}px)` };
                 }
-                const atk = stats.find((s) => s.k === "stat.atk");
+                // ATK lives here only (Blake: "you don't need Atk at the top and the weapon in the bottom right").
+                const atk = { v: enemyAttackDamage({ ...merged, stats: { ...st, strength: strNow } }, playtestWeapon), d: buffs.strength || 0 };
                 return (
                   <>
                   <div className="hudBot">
-                    <div className="hudMoney">{sym("hud.money", null, 22)}<span>{walletUI}</span></div>
+                    <div key={"money" + walletRises.current} className={"hudMoney" + (walletRises.current ? " gain" : "")}>{sym("hud.money", null, 22)}<span>{walletUI}</span></div>
                     <div className={"hudWpn" + (atk.d > 0 ? " up" : atk.d < 0 ? " down" : "")}>
                       <div className="hudWpnArt" style={{ width: wBoxW, height: wBoxH }}>
                         {wPlane ? <div style={wPlane}>{renderPieceRuns({ pieces: wPieces, cacheKey: "hudw_" + playtestWeapon.id, keyPrefix: "hudw" + playtestWeapon.id + "_", alpha: assetAlpha(playtestWeapon), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>
@@ -27223,8 +27203,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .dlg textarea{width:100%;height:150px;margin-top:8px;background:#0f1117;border:1px solid #2c3245;border-radius:10px;padding:10px;color:#c7cdda;resize:vertical;font-family:${SYMBOL_FONT_FAMILY},ui-monospace,monospace;font-size:12px}
 .namefield{width:100%;margin-top:6px;background:#0f1117;border:1px solid #2c3245;border-radius:10px;padding:11px 12px;font-size:15px}
 .namefield:focus{outline:none;border-color:#4f7cf6}
-/* The studio's toast. No longer the blue box (Blake, 2026-10-14: "get rid of those blue boxes"): the
-   panels' own dark, and during play it is not used at all (popText). */
+/* The studio's toast. Never during play (see flash); a save is the green .ok pill at the top. */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#3558c0;color:#fff;padding:9px 20px;border-radius:22px;font-weight:600;z-index:40;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 .toast.ok{top:14px;bottom:auto;background:#1f9d55;border:2px solid #7ee2a8;font-size:17px;padding:11px 26px;z-index:60;box-shadow:0 0 0 4px rgba(31,157,85,.25),0 8px 24px rgba(0,0,0,.5);animation:toastPop .25s ease-out}
 @keyframes toastPop{from{transform:translateX(-50%) scale(.85);opacity:0}to{transform:translateX(-50%) scale(1);opacity:1}}
@@ -27390,14 +27369,18 @@ html,body{margin:0;padding:0;background:#0f1117}
 .hudHpNum{font-size:13px;font-weight:700;letter-spacing:.04em;line-height:1}
 .hudAmmo{display:flex;gap:2px;width:180px}
 .hudAmmo.fine{gap:1px}
-.hudSeg{flex:1 1 0;max-width:14px;height:8px;background:rgba(10,10,14,.7);border:1px solid rgba(170,195,255,.4);border-radius:1px;box-shadow:0 1px 2px rgba(0,0,0,.6)}
+.hudSeg{flex:1 1 0;min-width:0;height:8px;background:rgba(10,10,14,.7);border:1px solid rgba(170,195,255,.4);border-radius:1px;box-shadow:0 1px 2px rgba(0,0,0,.6)}
 .hudSeg.on{background:#d4e2ff;border-color:#f2f6ff}
 .hudAmmo.reloading .hudSeg.on{background:#7d8fb3;border-color:#a9b8d6}
 .hudPips{display:flex;gap:3px;font-size:16px;line-height:1}
 .hudPips .sym{filter:drop-shadow(0 0 1px #000) drop-shadow(0 1px 1px rgba(0,0,0,.9))}
 .hudC{flex:0 0 auto;text-align:center;line-height:1;opacity:.55}
 .hudBot{position:absolute;left:0;right:0;bottom:0;z-index:6;pointer-events:none;display:flex;align-items:flex-end;justify-content:space-between;padding:10px 14px;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85)}
-.hudMoney{display:flex;align-items:center;gap:6px;font-size:20px;font-weight:700;letter-spacing:.04em;line-height:1}
+.hudMoney{display:flex;align-items:center;gap:6px;font-size:20px;font-weight:700;letter-spacing:.04em;line-height:1;transform-origin:0 100%}
+.hudMoney.gain{animation:hudMoneyGain .6s ease-out}
+.hudMoney.gain span{animation:hudMoneyGlow .9s ease-out}
+@keyframes hudMoneyGain{0%{transform:scale(1)}25%{transform:scale(1.35)}100%{transform:scale(1)}}
+@keyframes hudMoneyGlow{0%,40%{color:#8fe08a}100%{color:#fff}}
 .hudWpn{display:flex;align-items:center;gap:8px;line-height:1}
 .hudWpnArt{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 1px rgba(255,255,255,.9)) drop-shadow(0 0 1px rgba(255,255,255,.6)) drop-shadow(0 1px 3px rgba(0,0,0,.8))}
 .hudWpnDmg{font-size:22px;font-weight:700;letter-spacing:.04em;min-width:26px;text-align:right}
@@ -27412,11 +27395,6 @@ html,body{margin:0;padding:0;background:#0f1117}
 .hudStatVal{font-size:15px;font-weight:700}
 .hudStat.up .hudStatVal{color:#8ef59a}
 .hudStat.down .hudStatVal{color:#ff9b9b}
-/* POPS (popText): the play-time flashes, bare words rising off the player's head. On the labels'
-   rung, so Front paint and Front props cover them as they cover the player; narrow and small, as
-   in-level text has to be (12px, wrapping at 150px). The animation is PLAY_POP_MS long. */
-.playPop{position:absolute;z-index:${SCENE_LABEL_Z.label};pointer-events:none;transform:translate(-50%,-100%);width:max-content;max-width:150px;text-align:center;white-space:normal;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:12px;font-weight:700;line-height:1.15;color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85);animation:playPopRise 1.3s ease-out forwards}
-@keyframes playPopRise{0%{opacity:0;transform:translate(-50%,-80%)}12%{opacity:1;transform:translate(-50%,-100%)}70%{opacity:1}100%{opacity:0;transform:translate(-50%,calc(-100% - 28px))}}
 /* The Symbols screen. */
 .symEdit{flex:1;display:flex;gap:12px;padding:12px;min-height:0}
 .symSlots{flex:1 1 55%;overflow:auto;display:flex;flex-direction:column;gap:10px;min-width:0}

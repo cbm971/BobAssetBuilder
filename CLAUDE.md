@@ -360,15 +360,17 @@ plus traps it does not cover:
   Material Design Icons (`mdi:`, Apache 2.0). `tools/build-symbols.js` writes them into
   `public/symbols/library.json` (fetched only by the Symbols screen) and `src/symbolArt.json` (the
   defaults). Re-run it after changing a default.
-- **No toast during play.** `flash` becomes a pop (`popText`, `.playPop`): bare words rising over
-  the player's head on the labels' rung. Never bring back the blue box DURING PLAY. The studio's toast is the
-  blue one again (the dark one went unseen: "nothing indicated that it saved"), and a message that
-  says something saved (`toastIsSave`) is a green pill at the TOP, for 3 s, above any open dialog.
+- **No messages during play at all.** `flash` returns while `playLive` is set. The blue box went first,
+  then its replacement (words rising over the player) the same day: "all that small white text every
+  time you do something. It's redundant." The HUD, pickup banner and shop panel already say it. The
+  studio toast is blue; a save (`toastIsSave`) is a green pill at the TOP, 3 s, above any dialog.
 - **The play HUD** (`.hud`, after his mock-up) shows the HP bar with cur/max top-left. Below it,
-  ammo is ONE SEGMENT PER ROUND with no counter, and throwables and extra lives are pips. SCORE
-  sits top-centre, half see-through, and the live stats (AGI ATK DEF HP INT SPD STR) top-right.
+  ammo is ONE SEGMENT PER ROUND with no counter, in a bar of ONE fixed width (a one-shot RPG is one
+  long segment, a rifle many thin ones), and throwables and extra lives are pips. SCORE
+  sits top-centre, half see-through, and the live stats (AGI DEF HP INT SPD STR, no ATK) top-right.
   Bottom-left is the money (`hud.money`), bottom-right the held weapon's picture (`hudWeaponArt`:
-  the ground art turned on its side when tall, muzzle to the right) with its ATK. There is no HP
+  the ground art turned on its side when tall, muzzle to the right) with its ATK, the only place ATK
+  shows. A money pickup's banner has no "+N" row; the HUD money count jumps (`walletRises`). There is no HP
   bar over the player's head.
 - **The main menu has colour**: each tile and equipment slot carries `--tc` (icon colour + tinted
   card). A new tile gets one too.

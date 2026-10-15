@@ -4765,3 +4765,10 @@ modal. A stale timer no longer clears a newer message.
 **Weapon picture.** groundArt draws a weapon in its rest pose, along a hanging arm, so the M16 came
 out 18 px wide, standing on its muzzle. `hudWeaponArt` turns tall art ±90° so the muzzle (else the tip)
 points right, and adds a light outline for dark guns.
+
+**Same day, round 3:** "There shouldn't be all that small white text every time you do something.
+It's redundant." The play pops are gone (flash is silent in play). Ammo bar one width with segments
+sized to fit (RPG 1 × 180 px, M16 12 × 13 px). ATK off the top row ("you don't need Atk at the top and
+the weapon in the bottom right"). The money pickup's "+N" banner row ("super tiny text") is gone and
+the HUD money count jumps instead. Verified in play: RPG one 180 px segment, $11 Bill 0 → 11 with an
+empty row list, no toast, no pop.
