@@ -13567,3 +13567,56 @@ describe("retexAssetGroup", () => {
     expect(out.angles.front[2].color).toBe("#f00");
   });
 });
+
+describe("backup and dialogue metadata preservation", () => {
+  test("migrateDialogue preserves soundVol, savedAt, and editedFrom across loads and backups", () => {
+    const raw = {
+      id: "dlg1",
+      name: "Bob Test",
+      start: "n1",
+      nodes: { n1: { id: "n1", text: "Hello", choices: [] } },
+      once: true,
+      sound: "snd1",
+      soundVol: 0.35,
+      savedAt: 1791290472185,
+      editedFrom: 1790878575153,
+    };
+    const out = migrateDialogue(raw);
+    expect(out.soundVol).toBeCloseTo(0.35, 5);
+    expect(out.savedAt).toBe(1791290472185);
+    expect(out.editedFrom).toBe(1790878575153);
+  });
+
+  test("normalizeAssetJson accepts cutscene anim assets and preserves prop animation frames", () => {
+    const animRaw = {
+      id: "wakebed",
+      name: "Wake in bed",
+      type: "anim",
+      fps: 6,
+      layers: [{ id: "l1", name: "Bob", usePlayer: true }],
+      states: [{ id: "st1", name: "Main", loop: true, frames: [{ l1: { x: 0, y: 0 } }] }],
+      savedAt: 1791000000000,
+    };
+    const animOut = normalizeAssetJson(animRaw);
+    expect(animOut.type).toBe("anim");
+    expect(animOut.id).toBe("wakebed");
+    expect(animOut.layers.length).toBe(1);
+    expect(animOut.states.length).toBe(1);
+
+    const propRaw = {
+      id: "tv1",
+      name: "TV",
+      type: "prop",
+      size: 2,
+      frames: [
+        { front: [{ id: "p1", kind: "rect", x: 10, y: 10, w: 20, h: 20, color: "#111" }] },
+        { front: [{ id: "p2", kind: "rect", x: 12, y: 10, w: 20, h: 20, color: "#222" }] },
+      ],
+    };
+    const propOut = normalizeAssetJson(propRaw);
+    expect(propOut.type).toBe("prop");
+    expect(propOut.frames.length).toBe(2);
+    expect(propOut.frames[1].front[0].color).toBe("#222");
+  });
+});
+

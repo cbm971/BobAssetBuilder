@@ -13,6 +13,37 @@ A browser game maker: draw assets out of blocks (bodies, skins, clothes, weapons
 enemies, props), dress a character, paint a level, then playtest it. Create React App
 + React 18. Everything is in **`src/App.js`** (~9400 lines). Tests in `src/App.test.js`.
 
+## OCT 16 RECOVERY: MSIX VIRTUALIZATION, SELF-RESTART PORT RACE, AND BACKUP RESTORE (2026-10-16)
+
+**What went wrong:** On Oct 15 Blake cleared cache/cookies, imported his backup, created 15 new assets
+(`TV`, `TE1`–`TE6`, 7 characters, `Flannel Boxers`), deleted 6 old characters (`Bobbi`, `Roberta`,
+`Billy`, `Bobby`, `Bobette`, `Bobert`), updated 11 items/weapons/equipment (which re-baked 26 worn
+character looks), built `Trailor Int12`, updated 5 levels, painted `Smooth Wood`, and added 6 sounds.
+On Oct 16 at 5:33 PM CDT, a new StackBlitz preview hostname came up on the stale Oct 14 `saves` branch
+(295 assets instead of 304, 6 deleted characters resurrected, and backup import unable to clear them).
+
+**Why:**
+1. **The Save Keeper was dead since Oct 14 (`11:17:43Z`):**
+   - Claude Desktop runs inside a Windows MSIX AppContainer (`Claude_pzs8sxrjxfjjc`), virtualizing
+     `%LOCALAPPDATA%\BobOkay` to `Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local\BobOkay` and killing
+     its processes when Claude closed. Meanwhile the real `C:\Users\cbm97\AppData\Local\BobOkay\game`
+     had an interrupted git reset from Sept 26 (`tools\bob-okay.js` missing from worktree), so
+     `Startup\Bob Okay save keeper.cmd` silently exited at sign-in.
+   - In `tools/bob-okay.js`, `restartIfNewCode()` and `keep()` called `server.close()` / `mutex.close()`
+     without `closeAllConnections()` or awaiting the close callback before spawning the replacement
+     process, causing `EADDRINUSE` / `pingKeep()` against the dying parent so both processes exited.
+2. **Backup export/import & loader bugs in `src/App.js`:**
+   - `exportAllAssets` did not export `removed`, and `restoreBackup` only added records on top of the
+     stale `saves` branch and only called `projectLibrary.save(..., { revive: true })` for `sounds`,
+     leaving the 6 deleted characters alive and letting loaders overwrite restored records from stale
+     `projectLibrary`.
+   - `migrateDialogue` stripped `savedAt`, `editedFrom`, and `soundVol` on every load and backup export.
+   - `KNOWN_ASSET_TYPES` / `inferAssetType` / `normalizeAssetJson` / `migrate` lacked `"anim"`, so
+     `restoreBackup` threw on `wakebed` and `cptrend` and skipped them.
+   - Re-baking character looks in `saveAsset` did not call `stampSave(rebuilt, look)` or
+     `projectLibrary.save({ assets: refreshedLooks })`, leaving `savedAt` unchanged so `decideSweep`
+     and `newerRecord` ignored re-baked looks.
+
 ## EVERY COPY OF THE GAME OPENS ON HIS ONLINE SAVE (2026-10-03) — read this before anything about saving
 
 **What went wrong, for the sixth time:** he plays on **StackBlitz**, not the desktop icon. On

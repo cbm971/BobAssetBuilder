@@ -91,6 +91,8 @@ const log = (...a) => {
   } catch { /* logging must never stop a save */ }
 };
 const say = (msg) => { console.log(msg); log(msg); };
+process.on("uncaughtException", (e) => log("uncaughtException: " + (e && e.stack || e)));
+process.on("unhandledRejection", (e) => log("unhandledRejection: " + (e && e.stack || e)));
 
 // ---------- small file helpers ----------
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -789,7 +791,11 @@ const serve = async () => {
       try { send(res, 500, { ok: false, error: String(e && e.message) }); } catch { /* socket gone */ }
     }
   });
-  await new Promise((resolve, reject) => { server.once("error", reject); server.listen(PORT, "127.0.0.1", resolve); });
+  let serverBound = false;
+  for (let i = 0; i < 10 && !serverBound; i++) {
+    try { await new Promise((resolve, reject) => { server.once("error", reject); server.listen(PORT, "127.0.0.1", resolve); }); serverBound = true; }
+    catch (e) { if (e && e.code === "EADDRINUSE") { if (await ping()) throw e; await sleep(500); } else throw e; }
+  }
   log("Bob Okay keeper on http://localhost:" + PORT + " (pid " + process.pid + ")");
   if (!problem) setInterval(() => { sweep(folder); }, 60 * 1000).unref();
   const restartIfNewCode = async () => {
@@ -797,8 +803,8 @@ const serve = async () => {
     log("keeper code changed — restarting on the new version");
     await folder.q;                                   // let any save in flight finish first
     for (let i = 0; i < 120 && cloudBusy; i++) await sleep(500);   // and a push to the online copy
-    server.close();
-    await new Promise((r) => setTimeout(r, 300));
+    if (typeof server.closeAllConnections === "function") server.closeAllConnections();
+    await new Promise((r) => server.close(() => r()));
     spawn(process.execPath, [__filename, "serve"], { cwd: ROOT, detached: true, stdio: "ignore", windowsHide: true, env: process.env }).unref();
     process.exit(0);
   };
@@ -836,6 +842,9 @@ const startupScript = () => [
   "rem Documents\\Bob Okay\\Saves and the online copy every copy opens on. Put here by",
   "rem tools\\bob-okay.js (install). The window closes by itself after a second.",
   "set \"GAME=%LOCALAPPDATA%\\BobOkay\\game\"",
+  "if not exist \"%GAME%\\tools\\bob-okay.js\" (",
+  "  if exist \"%GAME%\\.git\" git -C \"%GAME%\" reset --hard HEAD >nul 2>nul",
+  ")",
   "if not exist \"%GAME%\\tools\\bob-okay.js\" exit /b 0",
   "where node >nul 2>nul",
   "if errorlevel 1 (",
@@ -888,7 +897,13 @@ const keep = async () => {
     else if (first || ++misses >= 2) { log("watchdog: the keeper was not running — starting it"); startServe(); misses = 0; }
     first = false;
     // New watchdog code arrived with an update: hand over to it.
-    if (keeperHash() !== STARTED_HASH) { log("watchdog: new code — restarting"); mutex.close(); await sleep(500); startKeep(); process.exit(0); }
+    if (keeperHash() !== STARTED_HASH) {
+      log("watchdog: new code — restarting");
+      if (typeof mutex.closeAllConnections === "function") mutex.closeAllConnections();
+      await new Promise((r) => mutex.close(() => r()));
+      startKeep();
+      process.exit(0);
+    }
   };
   await tick();
   setInterval(tick, 30 * 1000);

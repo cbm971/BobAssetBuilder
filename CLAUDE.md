@@ -168,6 +168,22 @@ has never actually been gone; the bytes were always still on disk.** Never clear
   an add adds its ids, a revive removes its ids), and keeps its own copy in memory once a
   localStorage write fails. Pushing the frozen list wiped every delete made since the cap
   (2026-10-10, "deleted sounds come back"). Test delete code with `setItem` throwing.
+- **`exportAllAssets` / `restoreBackup`, `migrateDialogue`, `"anim"`, and re-baked looks (2026-10-16):**
+  - `exportAllAssets` carries `removed` (tombstones), and for a full v2 backup (`assetBuilderBackup >= 2`),
+    `restoreBackup` purges/forgets any id present in browser storage or `projectLibrary` (or `bk.removed`)
+    that is absent from `bk[kind]`, and calls `await projectLibrary.save(restoredPayload, { revive: true })`
+    for **all 7 kinds** before calling any loader.
+  - `migrateDialogue` MUST preserve `soundVol`, `savedAt`, and `editedFrom` (stripping `savedAt` made
+    `fileIsNewer` overwrite dialogues from `projectLibrary` on every load).
+  - `KNOWN_ASSET_TYPES`, `inferAssetType`, `normalizeAssetJson`, and `migrate` must include `"anim"`
+    (delegating to `migrateAnim`) so cutscene animations (`wakebed`, `cptrend`) survive backup import.
+  - Re-baking character looks in `saveAsset` (`rebuildLook(swapLookComponent(look, payload))`) must call
+    `stampSave(rebuilt, look)` and `projectLibrary.save({ assets: refreshedLooks })`, or the re-baked
+    look keeps its old `savedAt` and is ignored by `decideSweep` and `newerRecord`.
+  - **Windows MSIX trap:** Claude Desktop runs inside `Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local`,
+    which virtualizes `%LOCALAPPDATA%`. Check the real `C:\Users\cbm97\AppData\Local\BobOkay` as well,
+    and keep `closeAllConnections()` + awaited `close()` on `server`/`mutex` before self-restart in
+    `tools/bob-okay.js`.
 - There is **no save-status indicator** on screen; he rejected one. **Never explain origins,
   preview hostnames or "addresses" to him.**
 - 💾 Save during a run saves `run.editorLevel`, never the run's working copy.

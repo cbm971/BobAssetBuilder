@@ -3289,6 +3289,9 @@ export const migrateDialogue = (raw) => {
     // all because every load comes through here: dropping it would quietly un-assign the sound
     // the next time the library loaded.
     ...(typeof src.sound === "string" && src.sound ? { sound: src.sound } : {}),
+    ...(typeof src.soundVol === "number" && isFinite(src.soundVol) && Math.abs(oneVolume(src.soundVol) - 1) >= 0.001 ? { soundVol: oneVolume(src.soundVol) } : {}),
+    ...(typeof src.savedAt === "number" && isFinite(src.savedAt) ? { savedAt: src.savedAt } : {}),
+    ...(typeof src.editedFrom === "number" && isFinite(src.editedFrom) ? { editedFrom: src.editedFrom } : {}),
   };
 };
 // ONE TIME ONLY (2026-09-28, Blake: "sometimes dialogue is meant to be one time use. Others it is
@@ -5375,9 +5378,10 @@ const guideAsset = { angles: DEFAULT_BODY, hand: DEFAULT_HAND, shoulder: DEFAULT
 //
 // normalizeAssetJson repairs what it safely can, infers what it can't, and throws an error whose
 // MESSAGE says what's actually wrong. It never invents art: a pose with no blocks stays empty.
-export const KNOWN_ASSET_TYPES = ["body", "skin", "weapon", "enemy", "equipment", "projectile", "prop", "item", "character"];
+export const KNOWN_ASSET_TYPES = ["body", "skin", "weapon", "enemy", "equipment", "projectile", "prop", "item", "character", "anim"];
 export const inferAssetType = (raw) => {
   if (raw.type && KNOWN_ASSET_TYPES.includes(raw.type)) return raw.type;
+  if (Array.isArray(raw.layers) && Array.isArray(raw.states)) return "anim";
   if (raw.recipe || raw.components) return "character";
   if (raw.effect && typeof raw.effect === "object" && (raw.effect.kind === "heal" || raw.effect.kind === "stat" || raw.effect.kind === "money")) return "item";
   if (raw.slot) return "equipment";
@@ -5416,9 +5420,14 @@ export const normalizeAssetJson = (raw) => {
   if (raw.conns && raw.cols) throw new Error("That's a level, not an asset — load it in the Level Creator instead.");
   const type = inferAssetType(raw);
   if (!type) throw new Error("Couldn't tell what kind of asset that is. Add a \"type\" of: " + KNOWN_ASSET_TYPES.join(", ") + ".");
+  if (type === "anim") return migrateAnim({ ...raw, id: raw.id || uid() }, uid);
   const a = { ...raw, type };
   // Poses can live under .angles, or (for weapons/enemies saved mid-state) under .states.
   a.angles = normalizeAngles(a.angles && Object.keys(a.angles).length ? a.angles : (a.states && (a.states.rest || a.states.normal)));
+  if (type === "prop" && Array.isArray(a.frames) && a.frames.length) {
+    a.frames = a.frames.map((f) => normalizeAngles(f));
+    a.angles = a.frames[0];
+  }
   if (type === "weapon") a.states = { rest: normalizeAngles((a.states && a.states.rest) || a.angles), fire: normalizeAngles(a.states && a.states.fire) };
   if (type === "enemy") a.states = { normal: normalizeAngles((a.states && a.states.normal) || a.angles), onFire: normalizeAngles(a.states && a.states.onFire), charge: normalizeAngles(a.states && a.states.charge) };
   if (type === "enemy") a.groundLine = cleanGround(a.groundLine);
@@ -19703,17 +19712,20 @@ export default function AssetStudio() {
     // from its own embedded components. Without this a shirt edit only reached Playtest after
     // manually re-equipping the shirt in Dress Bob and re-saving the look over the top of itself.
     let refreshed = 0;
+    const refreshedLooks = [];
     if (ok1 && ok2) {
       for (const entry of list.filter((x) => x.type === "character")) {
         try {
           const raw = await sget("asset:" + entry.id); if (!raw) continue;
           const look = migrate(JSON.parse(raw));
           if (!lookWearsAsset(look, payload.id)) continue;
-          const rebuilt = rebuildLook(swapLookComponent(look, payload));
+          let rebuilt = rebuildLook(swapLookComponent(look, payload));
           if (!rebuilt) continue;
-          if (await sset("asset:" + entry.id, JSON.stringify(rebuilt))) refreshed++;
+          rebuilt = stampSave(rebuilt, look);
+          if (await sset("asset:" + entry.id, JSON.stringify(rebuilt))) { refreshed++; refreshedLooks.push(rebuilt); }
         } catch { /* a look that won't parse or rebuild is left exactly as it was */ }
       }
+      if (refreshedLooks.length) projectLibrary.save({ assets: refreshedLooks });
     }
     if (ok1 && ok2) {
       // The new savedAt too: the NEXT save's editedFrom must name this version, not the one opened.
@@ -19752,7 +19764,7 @@ export default function AssetStudio() {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { if (a && a.type === "anim") return migrateAnim(a, uid); try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     // Every item Blake has already saved predates prices, so it opens worth 0 (free) rather than
     // undefined — a shop reading NaN would price the whole shelf as "💵 NaN". His to set.
@@ -19882,7 +19894,8 @@ export default function AssetStudio() {
         const b = await clipStore.get(s.clip);
         if (b) clips[s.clip] = bytesToB64(b);
       }
-      const bundle = { assetBuilderBackup: 2, exportedAt: Date.now(), assets: all.assets, levels: all.levels, stamps: all.stamps, textures: all.textures, backgrounds: all.backgrounds.filter((b) => b && b.bg), dialogues: all.dialogues, sounds: all.sounds, clips };
+      const removed = await localRemoved.hydrate();
+      const bundle = { assetBuilderBackup: 2, exportedAt: Date.now(), assets: all.assets, levels: all.levels, stamps: all.stamps, textures: all.textures, backgrounds: all.backgrounds.filter((b) => b && b.bg), dialogues: all.dialogues, sounds: all.sounds, removed, clips };
       const payload = JSON.stringify(bundle, null, 1);
       const b = new Blob([payload], { type: "application/json" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "assetbuilder-backup-" + stamp + ".json"; a.click();
@@ -19899,60 +19912,124 @@ export default function AssetStudio() {
     } catch { flash("Download blocked — try again."); }
   };
   const restoreBackup = async (bk) => {
-    let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
+    const isFullBackup = Number(bk && bk.assetBuilderBackup) >= 2;
+    const restoreStamp = Math.max(Date.now(), (Number(bk && bk.exportedAt) || 0) + 1);
+    let proj = null;
+    try { proj = await projectLibrary.load(); } catch { proj = null; }
+    const projByKind = {};
+    for (const k of PROJECT_KINDS) {
+      const m = new Map();
+      for (const r of ((proj && proj[k]) || [])) if (r && r.id) m.set(r.id, r);
+      projByKind[k] = m;
+    }
+    const stripMeta = (x) => { const c = { ...x }; delete c.savedAt; delete c.editedFrom; return JSON.stringify(c); };
+    const stampForRestore = (kind, rec) => {
+      if (!rec || typeof rec !== "object") return rec;
+      const old = projByKind[kind] && projByKind[kind].get(rec.id);
+      const out = { ...rec };
+      if (kind === "dialogues" && old && out.soundVol === undefined && typeof old.soundVol === "number") out.soundVol = old.soundVol;
+      const oldAt = (old && typeof old.savedAt === "number" && isFinite(old.savedAt)) ? old.savedAt : 0;
+      const recAt = (typeof out.savedAt === "number" && isFinite(out.savedAt)) ? out.savedAt : 0;
+      if (!recAt) {
+        out.savedAt = oldAt || restoreStamp;
+        if (old && typeof old.editedFrom === "number" && out.editedFrom === undefined) out.editedFrom = old.editedFrom;
+      }
+      if (old && (out.savedAt || 0) <= oldAt && stripMeta(out) !== stripMeta(old)) {
+        out.editedFrom = oldAt || recAt;
+        out.savedAt = Math.max(restoreStamp, oldAt + 1);
+      }
+      return out;
+    };
+    const restoredPayload = {};
+    let prevList = []; const idx = await sget("assetIndex"); if (idx) try { prevList = JSON.parse(idx); } catch { prevList = []; }
+    if (!Array.isArray(prevList)) prevList = [];
+    let list = isFullBackup ? [] : [...prevList];
+    const restoredAssets = [];
     let n = 0;
-    for (const raw of bk.assets) {
+    for (const raw of (bk.assets || [])) {
       try {
-        const a = normalizeAssetJson(raw);
+        const a = stampForRestore("assets", normalizeAssetJson(raw));
         const ok = await sset("asset:" + a.id, JSON.stringify(a));
-        if (ok) { list = list.filter((x) => x.id !== a.id); list.push({ id: a.id, name: a.name, type: a.type }); n++; }
+        if (ok) { list = list.filter((x) => x.id !== a.id); list.push({ id: a.id, name: a.name, type: a.type }); restoredAssets.push(a); n++; }
       } catch { /* skip a corrupt entry, restore the rest */ }
     }
-    await writeAssetIndex(list);
+    if (isFullBackup) {
+      const keptAssetIds = new Set(restoredAssets.map((a) => a.id));
+      const goneAssets = new Set([
+        ...prevList.map((x) => x && x.id).filter(Boolean),
+        ...projByKind.assets.keys(),
+        ...((bk.removed && Array.isArray(bk.removed.assets)) ? bk.removed.assets : []),
+      ].filter((id) => id && !keptAssetIds.has(id)));
+      for (const id of goneAssets) await sdel("asset:" + id);
+      if (goneAssets.size) await projectLibrary.forget("assets", [...goneAssets]);
+      await writeAssetIndex(list, { allowShrink: true });
+      await sset(ASSET_INDEX_BAK, JSON.stringify(list));
+    } else {
+      await writeAssetIndex(list);
+    }
+    if (restoredAssets.length) restoredPayload.assets = restoredAssets;
     // Every other kind, the same way. A backup written before version 2 simply has none of these
     // keys and the loop does nothing — but one written now brings a whole studio back, which is
     // the only reason to have a backup button at all.
-    const restoreKind = async (list, prefix, indexKey, entry) => {
-      if (!Array.isArray(list) || !list.length) return 0;
-      let idxList = []; const raw = await sget(indexKey); if (raw) try { idxList = JSON.parse(raw); } catch { idxList = []; }
-      if (!Array.isArray(idxList)) idxList = [];
+    const restoreKind = async (kind, items, prefix, indexKey, entry) => {
+      const hasArray = Array.isArray(items);
+      if (!hasArray && !isFullBackup) return 0;
+      let prevIdx = []; const raw = await sget(indexKey); if (raw) try { prevIdx = JSON.parse(raw); } catch { prevIdx = []; }
+      if (!Array.isArray(prevIdx)) prevIdx = [];
+      let idxList = (isFullBackup && hasArray) ? [] : [...prevIdx];
+      const restored = [];
       let count = 0;
-      for (const item of list) {
-        if (!item || !item.id) continue;
+      for (const rawItem of (items || [])) {
+        if (!rawItem || !rawItem.id) continue;
         try {
+          const item = stampForRestore(kind, rawItem);
           if (await sset(prefix + item.id, JSON.stringify(item))) {
-            idxList = idxList.filter((x) => x && x.id !== item.id); idxList.push(entry(item)); count++;
+            idxList = idxList.filter((x) => x && x.id !== item.id); idxList.push(entry(item)); restored.push(item); count++;
           }
         } catch { /* one bad record must not stop the rest */ }
       }
-      if (count) await sset(indexKey, JSON.stringify(idxList));
+      if (isFullBackup && hasArray) {
+        const keptIds = new Set(restored.map((x) => x.id));
+        const goneIds = new Set([
+          ...prevIdx.map((x) => x && x.id).filter(Boolean),
+          ...(projByKind[kind] ? projByKind[kind].keys() : []),
+          ...((bk.removed && Array.isArray(bk.removed[kind])) ? bk.removed[kind] : []),
+        ].filter((id) => id && !keptIds.has(id)));
+        for (const id of goneIds) await sdel(prefix + id);
+        if (goneIds.size) await projectLibrary.forget(kind, [...goneIds]);
+        await sset(indexKey, JSON.stringify(idxList));
+      } else if (count) {
+        await sset(indexKey, JSON.stringify(idxList));
+      }
+      if (restored.length) restoredPayload[kind] = restored;
       return count;
     };
     const named = (x) => ({ id: x.id, name: x.name });
-    const sn = await restoreKind(bk.stamps, "stamp:", "stampIndex", named);
-    const ln = await restoreKind(bk.levels, "level:", "levelIndex", named);
-    const tn = await restoreKind(bk.textures, "texture:", "textureIndex", named);
-    const gn = await restoreKind(bk.backgrounds, "background:", "backgroundIndex", named);
+    const sn = await restoreKind("stamps", bk.stamps, "stamp:", "stampIndex", named);
+    const ln = await restoreKind("levels", bk.levels, "level:", "levelIndex", named);
+    const tn = await restoreKind("textures", bk.textures, "texture:", "textureIndex", named);
+    const gn = await restoreKind("backgrounds", bk.backgrounds, "background:", "backgroundIndex", named);
     // Dialogue trees go through migrateDialogue on the way in, the way assets go through
     // normalizeAssetJson — a tree hand-written outside the app (or written by an older version of
     // it) gets repaired here rather than becoming a record that opens to nothing.
-    const dn = await restoreKind((bk.dialogues || []).map((d) => { try { return migrateDialogue(d); } catch { return d; } }), "dialogue:", "dialogueIndex", named);
+    const dn = await restoreKind("dialogues", Array.isArray(bk.dialogues) ? bk.dialogues.map((d) => { try { return migrateDialogue(d); } catch { return d; } }) : bk.dialogues, "dialogue:", "dialogueIndex", named);
     // Sounds: the audio first (every clip in the file whose bytes match its name — into this
     // browser, the server and the folder), then the records that name it, the way the keeper orders
     // its sweep, so no sound is ever restored ahead of the audio it plays.
     for (const [name, b64] of Object.entries((bk.clips && typeof bk.clips === "object") ? bk.clips : {})) {
       try { const b = b64ToBytes(b64); if (clipMatches(name, b)) await clipStore.put(name, b); } catch { /* one bad clip must not stop the rest */ }
     }
-    const sdn = await restoreKind((bk.sounds || []).filter((s) => isSoundRecord(s) || isSoundBoard(s) || isSymbolBoard(s)), "sound:", "soundIndex", named);
-    // Restoring a backup is deliberate, so it brings back a sound deleted since (revive) — awaited, so
-    // loadSounds below cannot read the project file before the revive has reached it and purge again.
-    if (sdn) await projectLibrary.save({ sounds: (bk.sounds || []).filter((s) => isSoundRecord(s) || isSoundBoard(s) || isSymbolBoard(s)) }, { revive: true });
-    if (sn) loadStamps();
-    if (ln) loadLevels();
-    if (tn) loadTextures();
-    if (gn) loadBgLib();
-    if (dn) loadDialogues();
-    if (sdn) loadSounds();
+    const sdn = await restoreKind("sounds", Array.isArray(bk.sounds) ? bk.sounds.filter((s) => isSoundRecord(s) || isSoundBoard(s) || isSymbolBoard(s)) : bk.sounds, "sound:", "soundIndex", named);
+    // Restoring a backup is deliberate, so it brings back every record in it (revive) across all
+    // seven kinds — awaited, so the loaders below cannot read a stale project file before the
+    // backup has reached it and overwrite or purge what was just restored.
+    if (Object.keys(restoredPayload).length) await projectLibrary.save(restoredPayload, { revive: true });
+    if (sn || isFullBackup) loadStamps();
+    if (ln || isFullBackup) loadLevels();
+    if (tn || isFullBackup) loadTextures();
+    if (gn || isFullBackup) loadBgLib();
+    if (dn || isFullBackup) loadDialogues();
+    if (sdn || isFullBackup) loadSounds();
     loadLibrary();
     const bits = [n + " asset" + (n === 1 ? "" : "s")];
     const sndCount = sdn ? (bk.sounds || []).filter(isSoundRecord).length : 0; // the board rides along but is not "a sound"
@@ -20328,6 +20405,7 @@ export default function AssetStudio() {
     let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     list = list.filter((x) => x.id !== c.id); list.push({ id: c.id, name: c.name, type: c.type });
     const ok2 = await writeAssetIndex(list);
+    projectLibrary.save({ assets: [c] }, { revive: true });
     if (ok1 && ok2) { flash("Recovered \"" + c.name + "\" into your saved assets ✓"); loadLibrary(); } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ".");
   };
   const handForGuideId = (guideId) => { if (guideId && guideId !== "default") { const g = findA(guideId); if (g) { const o = {}; for (const ang of ANGLES) o[ang] = bodyRig(g, ang).hand; return o; } } return DEFAULT_HAND; };
@@ -20683,10 +20761,12 @@ export default function AssetStudio() {
     // same name used to pile up a second copy. Fall back to the index so a name always overwrites
     // the look that already owns it.
     const priorId = savedDressedIds[name] || (list.find((x) => x.type === "character" && x.name === name) || {}).id;
-    const l = { ...composeLook(priorId), name, savedAt: Date.now() };
+    const prev = priorId ? findA(priorId) : null;
+    const l = stampSave({ ...composeLook(priorId), name }, prev);
     const ok1 = await sset("asset:" + l.id, JSON.stringify(l));
     list = list.filter((x) => x.id !== l.id); list.push({ id: l.id, name: l.name, type: l.type });
     const ok2 = await writeAssetIndex(list);
+    projectLibrary.save({ assets: [l] }, { revive: true });
     if (ok1 && ok2) { setSavedDressedIds((m) => ({ ...m, [name]: l.id })); flash("Saved \"" + name + "\" ✓ — pick it under Playtest player in the level tester."); loadLibrary(); } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ". Use Export instead.");
   };
   const comboDownload = () => { try { const b = new Blob([combo], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "dressed-bob.json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
