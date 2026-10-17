@@ -802530,6 +802530,17 @@
       "color": "#42d6ff",
       "mirror": false,
       "isMuzzle": true
+     },
+     {
+      "id": "rf8r6en",
+      "kind": "circle",
+      "x": 92,
+      "y": 122,
+      "w": 16,
+      "h": 16,
+      "color": "#42d6ff",
+      "mirror": false,
+      "isMuzzle": true
      }
     ],
     "up": [
@@ -805063,6 +805074,17 @@
          "color": "#42d6ff",
          "mirror": false,
          "isMuzzle": true
+        },
+        {
+         "id": "rf8r6en",
+         "kind": "circle",
+         "x": 92,
+         "y": 122,
+         "w": 16,
+         "h": 16,
+         "color": "#42d6ff",
+         "mirror": false,
+         "isMuzzle": true
         }
        ],
        "up": [
@@ -806625,6 +806647,17 @@
        "color": "#42d6ff",
        "mirror": false,
        "isMuzzle": true
+      },
+      {
+       "id": "rf8r6en",
+       "kind": "circle",
+       "x": 92,
+       "y": 122,
+       "w": 16,
+       "h": 16,
+       "color": "#42d6ff",
+       "mirror": false,
+       "isMuzzle": true
       }
      ],
      "up": [
@@ -807809,11 +807842,11 @@
    "wtype": "ranged",
    "projectileId": "hrqbyju",
    "projectileSpeed": 12,
-   "projectileRange": 14,
-   "damage": 5,
+   "projectileRange": 20,
+   "damage": 15,
    "fireRate": 3,
-   "clipSize": 6,
-   "reloadTime": 1.2,
+   "clipSize": 1,
+   "reloadTime": 0.3,
    "weight": 3,
    "landEffect": "fire",
    "landEffectDps": 6,
@@ -807821,7 +807854,7 @@
    "landRadius": 1,
    "landPropId": null,
    "explode": false,
-   "ignoreArmor": false,
+   "ignoreArmor": true,
    "burstFire": false,
    "fullAuto": false,
    "burst": 1,
@@ -807832,22 +807865,26 @@
    "explodeLife": 0.5,
    "explodeChar": "💥",
    "landChar": "🔥",
-   "stun": 0,
+   "stun": 1,
    "captureMax": 0,
    "categories": [
     "T1",
     "Gun",
     "Odd"
    ],
-   "value": 0,
-   "rank": "common",
+   "value": 19,
+   "rank": "legendary",
    "groups": {
     "back": [],
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792249724934,
-   "editedFrom": 1792249451953
+   "savedAt": 1792249834445,
+   "editedFrom": 1792249724934,
+   "pierce": true,
+   "sounds": {
+    "fire": "4xdiye5"
+   }
   },
   {
    "id": "qfexzka",
