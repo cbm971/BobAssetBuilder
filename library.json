@@ -1281106,6 +1281106,11 @@
       ""
      ],
      "logic": "or"
+    },
+    "12,19": {
+     "kind": "objective",
+     "text": "Make it to the draft office",
+     "targetTag": "Trailor Park E1"
     }
    },
    "enemies": {},
@@ -1281143,8 +1281148,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1792272690908,
-   "editedFrom": 1792270346690
+   "savedAt": 1792272780700,
+   "editedFrom": 1792272690908
   },
   {
    "id": "d78n8wx",
