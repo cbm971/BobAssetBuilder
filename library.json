@@ -807866,7 +807866,7 @@
    "explodeLife": 0.5,
    "explodeChar": "💥",
    "landChar": "🔥",
-   "stun": 1,
+   "stun": 0.5,
    "captureMax": 0,
    "categories": [
     "T1",
@@ -807880,8 +807880,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792250540951,
-   "editedFrom": 1792250539346,
+   "savedAt": 1792250741947,
+   "editedFrom": 1792250734464,
    "pierce": true,
    "sounds": {
     "fire": "4xdiye5"
