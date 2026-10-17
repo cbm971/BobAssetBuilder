@@ -786189,9 +786189,10 @@
     "hurt": "fhg042t"
    },
    "soundVol": {
-    "attack": 0.05
+    "attack": 0.15,
+    "hurt": 0.05
    },
-   "savedAt": 1792266973941
+   "savedAt": 1792267033914
   },
   {
    "id": "lvlamp1",
