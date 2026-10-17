@@ -1813516,6 +1813516,16 @@
    "editedFrom": 1792265453707
   },
   {
+   "id": "o7wdmhu",
+   "type": "sound",
+   "name": "389642__silentstrikez__human_male_crazy-mumbles_1",
+   "category": "",
+   "clip": "13f5d02c70b63a1cf2b75b8d8722.wav",
+   "bytes": 3166154,
+   "dur": 17.75,
+   "savedAt": 1792265650351
+  },
+  {
    "id": "qd117xl",
    "type": "sound",
    "name": "Swing",
@@ -1813625,6 +1813635,17 @@
    "dur": 0.38,
    "savedAt": 1791715700809,
    "editedFrom": 1791715687612
+  },
+  {
+   "id": "za5r08m",
+   "type": "sound",
+   "name": "389644__silentstrikez__human_male_mumble_short_1",
+   "category": "Dialogue",
+   "clip": "0acc0d16d7508206d8e534f57215.wav",
+   "bytes": 969982,
+   "dur": 4.6,
+   "savedAt": 1792265644246,
+   "editedFrom": 1792265637679
   }
  ],
  "removed": {
