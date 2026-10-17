@@ -9,11 +9,14 @@
  * THE DATA — an animation is an ASSET (type "anim"), so it saves, syncs, exports and restores with
  * every other asset and needed no new saved kind:
  *   { id, type: "anim", name, w, h,                  the stage, in level cells
- *     trigger: "start" | "reach",                    plays as the level starts / when you walk up and press E
+ *     trigger: "start" | "reach" | "floor",          plays as the level starts / when you walk up and press E /
+ *                                                    as the floor is done, over the whole screen (see floorEndAnim)
+ *     floor: "Trailor Park",                         "floor" only: which floor's end it closes ("" = any)
  *     ending: "play" | "leave",                      you take over where the actor ends / the floor is done
  *     eState: <state id>,                            "Walk up + E": the state E starts (see animReachAt)
  *     layers: [{ id, name, kind: "actor" } | { id, name, kind: "prop", propId, size }
- *              | { id, name, kind: "cloth", len, bed } | { id, name, kind: "rope", from, hookX, hookY }],   back to front
+ *              | { id, name, kind: "cloth", len, bed } | { id, name, kind: "rope", from, hookX, hookY }
+ *              | { id, name, kind: "text", title, text, size, tilt, wide, color }],   back to front
  *     states: [{ id, name, dur, wait, loop, prompt, promptLayer, promptLift, fadeIn, fadeOut, sound, soundVol,
  *                keys: [{ id, t, v: { <layerId>: { x, y, rot, show, flip, pose, legs, arms, sit, play } } }] }] }
  *
@@ -50,6 +53,15 @@
  *          prop, a rope lowered from a moving helicopter to a moving man had to be keyed three
  *          times over and still came apart between keys — the blanket's lesson (2026-10-13).
  *
+ *   text   WORDS ON SCREEN (a "text" layer): a title over paragraphs, drawn `wide` cells across and
+ *          `size` cells per line of body text. x = its middle, y = the bottom of the window it shows
+ *          in (everything from the stage top down to y). rise = how far the words have moved up that
+ *          window, in cells: 0 has their top line just under y, and it is the ONE field that moves at
+ *          an even speed between keys (ANIM_LINEAR_FIELDS), because a crawl that slowed to a stop at
+ *          every key of the General's push-in would read as a stutter. tilt = degrees the page leans
+ *          back (the crawl Blake asked for, 2026-10-17: "text is going up in a layer in front of him
+ *          kind of like it's star wars"); 0 is a flat caption.
+ *
  * KEYS. A state is a few keys along its own timeline. Numbers ease from one key to the next; the
  * rest (flip, pose, play) switch AT the key. A key that leaves a layer out carries that layer's
  * values over from the key before it, so adding a prop to an old animation never moves anything.
@@ -60,9 +72,14 @@
  */
 
 export const ANIM_POSES = ["side", "front", "back", "crouch"];
-export const ANIM_TRIGGERS = [{ key: "start", label: "Level start" }, { key: "reach", label: "Walk up + E" }];
+export const ANIM_TRIGGERS = [{ key: "start", label: "Level start" }, { key: "reach", label: "Walk up + E" }, { key: "floor", label: "Floor end" }];
 export const ANIM_ENDINGS = [{ key: "play", label: "You take over" }, { key: "leave", label: "Leave the floor" }];
-export const ANIM_NUM_FIELDS = ["x", "y", "rot", "show", "sx", "sy", "legs", "arms", "sit", "fx", "cover", "lift", "drop", "swing"];
+export const ANIM_NUM_FIELDS = ["x", "y", "rot", "show", "sx", "sy", "legs", "arms", "sit", "fx", "cover", "lift", "drop", "swing", "rise"];
+// Numbers that move at an EVEN speed from one key to the next instead of easing in and out (see the
+// text layer above): a crawl.
+export const ANIM_LINEAR_FIELDS = ["rise"];
+// A text layer's look when it is made: the yellow of the crawl it was asked for.
+export const ANIM_TEXT_COLOR = "#ffe81f";
 export const ANIM_STEP_FIELDS = ["flip", "pose", "play", "hold"];
 // A prop layer's Size (cells, its longer side). Past the 1–30 the editor first offered: a Chinook's
 // rotors are 30 m tip to tip, and at the ~55% scale that keeps the whole helicopter on screen over a
@@ -88,6 +105,7 @@ export const animLayerDefaults = (anim, layer) => {
   if (layer && layer.kind === "actor") return { x: w / 2, y: h - ANIM_STAND_HIP_CELLS, rot: 0, show: 1, flip: false, pose: "side", legs: 0, arms: 0, sit: 0 };
   if (layer && layer.kind === "cloth") return { x: w / 2 - 3, fx: w / 2 + 3, y: h - 1, cover: 2.8, lift: 0, show: 1 };
   if (layer && layer.kind === "rope") return { x: w / 2, y: 1, drop: Math.max(1, h - 3), swing: 0, hold: false, show: 1 };
+  if (layer && layer.kind === "text") return { x: w / 2, y: h, rise: 0, show: 1 };
   return { x: w / 2, y: h, rot: 0, show: 1, sx: 1, sy: 1, flip: false, play: true };
 };
 // A prop layer's CSS transform for its box `hPx` tall. The turn stays about the box's middle and
@@ -124,9 +142,10 @@ export const migrateAnim = (a0, mkId) => {
   a.w = clamp(Math.round(num(a.w, 14)), 2, 80);
   a.h = clamp(Math.round(num(a.h, 9)), 2, 46);
   if (!ANIM_TRIGGERS.some((t) => t.key === a.trigger)) a.trigger = "start";
+  if (typeof a.floor !== "string") a.floor = "";
   if (!ANIM_ENDINGS.some((t) => t.key === a.ending)) a.ending = "play";
   if (!a.angles || typeof a.angles !== "object") a.angles = { front: [], back: [], side: [], up: [], crouch: [] };
-  let layers = (Array.isArray(a.layers) ? a.layers : []).filter((l) => l && l.id && (l.kind === "actor" || l.kind === "prop" || l.kind === "cloth" || l.kind === "rope"));
+  let layers = (Array.isArray(a.layers) ? a.layers : []).filter((l) => l && l.id && (l.kind === "actor" || l.kind === "prop" || l.kind === "cloth" || l.kind === "rope" || l.kind === "text"));
   const actors = layers.filter((l) => l.kind === "actor");
   if (actors.length > 1) layers = layers.filter((l) => l.kind !== "actor" || l === actors[0]);
   if (!actors.length) layers = [{ id: mkId ? mkId() : "actor", kind: "actor", name: "Bob" }, ...layers];
@@ -136,6 +155,7 @@ export const migrateAnim = (a0, mkId) => {
   a.layers = layers.map((l) => (l.kind === "prop" ? { ...l, name: l.name || "Prop", propId: l.propId || "", size: clamp(num(l.size, 3), 0.5, ANIM_PROP_SIZE_MAX) }
     : l.kind === "cloth" ? { ...l, name: l.name || "Blanket", len: clamp(num(l.len, 6), 0.5, 80), bed: clamp(num(l.bed, a.h - 2), 0, a.h) }
     : l.kind === "rope" ? { ...l, name: l.name || "Rope", from: typeof l.from === "string" && propIds.has(l.from) ? l.from : "", hookX: clamp(num(l.hookX, 0.5), 0, 1), hookY: clamp(num(l.hookY, 1), 0, 1) }
+    : l.kind === "text" ? { ...l, name: l.name || "Text", title: typeof l.title === "string" ? l.title : "", text: typeof l.text === "string" ? l.text : "", size: clamp(num(l.size, 1), 0.2, 6), tilt: clamp(num(l.tilt, 0), 0, 75), wide: clamp(num(l.wide, Math.round(a.w * 0.6)), 1, 80), color: typeof l.color === "string" && /^#[0-9a-f]{6}$/i.test(l.color) ? l.color : ANIM_TEXT_COLOR }
     : { ...l, name: l.name || "Bob" }));
   const ids = new Set(a.layers.map((l) => l.id));
   const states = (Array.isArray(a.states) ? a.states : []).filter(Boolean);
@@ -194,7 +214,8 @@ export const animLayerAt = (anim, state, layer, t) => {
     const a = fieldAt(keys, i, layer.id, f, def);
     if (ANIM_NUM_FIELDS.includes(f) && nxt && u > 0) {
       const b = fieldAt(keys, i + 1, layer.id, f, def);
-      out[f] = num(a, 0) + (num(b, 0) - num(a, 0)) * u;
+      const k = ANIM_LINEAR_FIELDS.includes(f) ? clamp((t - keys[i].t) / span, 0, 1) : u;
+      out[f] = num(a, 0) + (num(b, 0) - num(a, 0)) * k;
     } else out[f] = a;
   }
   return out;
@@ -209,6 +230,26 @@ export const animFrame = (anim, si, t) => {
 // The same frame seen in a level that was mirrored (or placed mirrored): the stage turns round its
 // own middle. Turns are on-screen angles drawn outside the mirror, so they turn the other way.
 export const animMirrorValues = (v, w) => ({ ...v, x: w - v.x, rot: -(v.rot || 0), flip: !v.flip, ...(v.fx !== undefined ? { fx: w - v.fx } : {}) });
+
+// ── "FLOOR END": the scene that closes a floor (Blake, 2026-10-17: a close-up of a General in a
+// helicopter, the story crawling up in front of him, "at the end of the Trailor Park levels"). It is
+// not placed in a level — it plays over the whole screen the moment the floor is done, after the
+// floor's own last cutscene (the rope up into the Chinook). Which one: a "floor" animation whose
+// `floor` names this floor (the level's Floor, the same loose match a gate's "accepts" uses), else
+// one that names none. null when there is none, and the floor ends the way it always did.
+export const floorEndAnim = (anims, floor) => {
+  const want = String(floor || "").trim().toLowerCase();
+  const ends = (anims || []).filter((a) => a && a.type === "anim" && a.trigger === "floor");
+  return ends.find((a) => want && String(a.floor || "").trim().toLowerCase() === want)
+    || ends.find((a) => !String(a.floor || "").trim()) || null;
+};
+// The cell size that fits a whole stage in a view w × h px, and where its top-left goes: a screen
+// scene keeps its shape and is letterboxed in black, never cropped (the words must all show).
+export const animScreenFit = (anim, vw, vh) => {
+  const w = num(anim && anim.w, 14), h = num(anim && anim.h, 9);
+  const cell = Math.max(1, Math.min(num(vw, 0) / w, num(vh, 0) / h));
+  return { cell, left: (num(vw, 0) - w * cell) / 2, top: (num(vh, 0) - h * cell) / 2 };
+};
 
 export const animStateDur = (st) => clamp(num(st && st.dur, 2), ANIM_MIN_DUR, ANIM_MAX_DUR);
 // The playhead of a running animation is { si, t, el }: the state, where on its timeline (t), and

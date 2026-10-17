@@ -4924,3 +4924,53 @@ leak was the "Talk to …" prompt, built from `ea2.name` (the rolled look, TE7).
 `talkerName(tree)`. The three draftees' speakers became Earl, Dale and Rusty, since a rolled look
 is no longer Bobby. The project file was 59 records behind his saves branch (his props re-filed and
 his sign/windsock edits among them); all were folded in newest-wins with the same commit.
+
+## 🎬 THE GENERAL'S BRIEFING (floor end) and 🎯 objectives as a list (2026-10-17)
+
+**Ask:** "add a cut scene that plays at the end of the Trailor Park levels ... a close up of a General
+and text is going up in a layer in front of him kind of like it's star wars ... look like he's in a
+helicopter but ... super close up. I can edit the text ... 'Bob, only you can stop the Vietkong from
+doing 911 in 50 years!' at the end. It should also look like he's talking some how."
+
+**How it fits the 🎬 system.** The floor already ended in exactly one place: `cutFrame` when a
+"Leave the floor" scene (his `cptrend` rope in E1) finished. A new trigger, "Floor end", marks an
+animation that is never placed; `floorEndAnim(animLib, lv.floor)` picks it there (one naming this
+Floor, else one naming none) and `cutRef` becomes `{ screen: true, ... }`. A screen cut has no stage
+in the level and no actor to put you on: it is drawn in `.animScreen` (inside `.lscroll.playing`, z
+49, under the cutscene fade at 50), the stage fitted to the view by `animScreenFit` and letterboxed
+in black, never cropped, so the words always show. Its props' frames run on the cut's own `age`.
+When it ends, the old "Floor complete" path runs (flash, `animLeaveRef` after 1.8 s). It starts on
+the black the rope scene faded out to, and fades in by its own first state.
+
+**The 🔤 text layer** is the crawl and the closing line both: `title` + `text` (blank lines split
+paragraphs), `size` (cells per line), `wide`, `tilt` (degrees leaned back about the window's
+bottom, CSS perspective; 0 = flat caption), `color`; per key x, y (window bottom), `rise`, show.
+Font News Cycle (added to GAME_FONTS_HREF), outline in em so it scales with the view. `rise` is
+LINEAR between keys (`ANIM_LINEAR_FIELDS`): every key is an ease point for every layer, so with the
+General's push-in keyed mid-scene a smoothstepped crawl would stop dead and restart.
+
+**The art** (scratchpad gen.js, session 704e81c6): `gnrlcu1` General (Close-Up), 12 frames at 8 fps,
+Bob's face vocabulary (square head, rect eyes + iris, rect nose, square teeth), Army Green service
+uniform with tan shirt and black tie, service cap with gold visor leaves, three stars each shoulder,
+ribbon rack, and a headset ear cup + boom mic so a close-up still reads "in the helicopter". The frames
+differ only in the mouth (shut/small/open/wide/oo), one blink, and a 1-unit rotor shudder on odd
+frames; frame 0 is mouth shut, so Its own frames off = not talking. `chnkcb1` Chinook Cabin Wall:
+ribs, red troop-seat webbing, floor, two windows as roundrect CUTTERS (after the ribs, or the ribs
+cross the glass). `cbnsky1` Sky Rushing Past, a separate layer behind the cabin (20 frames at 20
+fps, clouds over jungle) so the clouds need no clipping. Scene `gnrlbrf`, stage 48x20 (2.4:1):
+Briefing 44 s (crawl rise 0 to 58, cabin and sky at 55% so the yellow reads), Only you 6.5 s (crawl
+out, his line in white, the General pushed in to 1.14, cabin back to full, fade out).
+
+**Bug caught in the running game:** the second state's first key left out the sky and cabin, so they
+fell back to the layer default (middle of the floor) and the windows went black. Every state's first
+key carries every layer.
+
+**🎯 Objectives, same day:** "it won't let me set more than one objective. Like I set an object in S1,
+tried to make a different one in the closet but it over wrote the other one." There was ONE slot
+(`activeObjective = { targetTag }`, `objectiveText`), and every level's first marker took it over, so
+the closet's line replaced S1's, and a second marker in one level was never read. Now
+`objectivesOnArrival(list, done, lv)`: clear the ones whose target tag this room carries (into
+`done`), add every objective marker here that is not up and not done (id = level id + cell). The
+banner draws one line each. Verified in Playtest: S1 with two markers showed both; entering TCloset 1
+cleared only "Check the closet"; leaving back to S1 did not bring it back.
+

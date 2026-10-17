@@ -541,6 +541,13 @@ plus traps it does not cover:
   `ANIM_REACH_CELLS` of where the actor starts, and the actor starts from where you stood
   (`animEntryOffset`). Every key is a stop for EVERY layer (smoothstep per span), so a flight is
   one key span. Front paint and Front objects draw over a playing stage.
+  **Floor end** (`trigger: "floor"` + `floor`, 2026-10-17) is never placed: when a "Leave the floor"
+  scene ends, `floorEndAnim` picks the one for the level's Floor and it plays over the whole view
+  (`.animScreen`, letterboxed by `animScreenFit`), then the floor ends. Trailor Park's is `gnrlbrf`, the
+  General's briefing (props gnrlcu1 / chnkcb1 / cbnsky1). A **🔤 text layer** is words in a window down
+  to y: `rise` is the one field that moves at an EVEN speed (`ANIM_LINEAR_FIELDS`, a crawl must not
+  stall at other layers' keys), `tilt` leans it back. **Every state's first key must carry every
+  layer**: one left out falls back to its default spot (the sky dropped out of the windows).
   The 🎬 editor: only DRAWN pieces take a click (`.animStage.ed` css, `elementsFromPoint` over
   `data-ly`); a drag on the SELECTED layer's pieces moves it even under another; nothing changes
   before ANIM_DRAG_SLOP; prop corner = Size, blanket ends = Head/Foot; arrows nudge; Move: All keys
@@ -631,6 +638,9 @@ plus traps it does not cover:
   `jumpHeightBlocks`), so Speed 5 / Agility 5 are 1.1x what they were and every stat still scales from there. They hit
   the player AND every unit (looks and animals) so a fight keeps its pace; change the constant, never one call site.
   The jump knob is HEIGHT, so velocity goes by its square root (Double Jump rides along).
+- **🎯 Objectives are a LIST** (`objectivesOnArrival`): every objective marker in a level adds its line,
+  reaching a room with ITS target tag clears only that one, and a cleared one stays done all session.
+  One slot let the closet's marker wipe S1's (2026-10-17).
 - **Room names and tags are record keeping.** Play never shows them (the door prompt is just
   "Press E to enter"); only a door whose tag matches no room names the tag.
 - **A look's name is record keeping too.** A talker is named by its tree's speaker (`talkerName`):

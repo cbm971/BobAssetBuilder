@@ -1,4 +1,4 @@
-import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS, animPropTransform, animClothShape, CLOTH, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, ANIM_ENTRY_SECONDS, ANIM_PROP_SIZE_MAX, animPropPoint, animHandsAt, animRopeShape } from "./anim";
+import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS, animPropTransform, animClothShape, CLOTH, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, ANIM_ENTRY_SECONDS, ANIM_PROP_SIZE_MAX, animPropPoint, animHandsAt, animRopeShape, floorEndAnim, animScreenFit } from "./anim";
 
 let seq = 0;
 const mkId = () => "id" + (++seq);
@@ -427,5 +427,44 @@ describe("🪢 a rope (rope layer)", () => {
     expect(g.pts[2][0]).toBe(4); expect(g.pts[2][1]).toBeCloseTo(7 + 8 - Math.hypot(1, 5), 9);
     expect(animRopeShape({ drop: 3, hold: true }, [3, 2], [4, 7], 0).pts).toHaveLength(2); // pulled tight: no tail
     expect(animRopeShape({ drop: 6, hold: true }, [3, 2], null, 0).knot[1]).toBeCloseTo(8, 9); // no hands on stage: it hangs free
+  });
+});
+
+// 🎬 FLOOR END (2026-10-17): the General's briefing after the rope up into the Chinook.
+describe("floor end scenes and text layers", () => {
+  test("floorEndAnim picks the scene naming this floor, else one naming none, else nothing", () => {
+    const any = { id: "a", type: "anim", trigger: "floor", floor: "" };
+    const tp = { id: "b", type: "anim", trigger: "floor", floor: " trailor park " };
+    const placed = { id: "c", type: "anim", trigger: "reach", floor: "Trailor Park" };
+    expect(floorEndAnim([any, tp, placed], "Trailor Park")).toBe(tp);
+    expect(floorEndAnim([any, tp], "Sewer")).toBe(any);
+    expect(floorEndAnim([tp, placed], "Sewer")).toBe(null);
+    expect(floorEndAnim([placed], "Trailor Park")).toBe(null);
+    expect(floorEndAnim(null, "x")).toBe(null);
+  });
+  test("a text layer survives migrate with its words and look, clamped; a floor scene keeps its floor", () => {
+    const a = migrateAnim({ ...newAnim(mkId), id: "f1", trigger: "floor", floor: "Trailor Park", layers: [{ id: "t", kind: "text", title: "The Draft", text: "One.\n\nTwo.", size: 99, tilt: -5, color: "red" }] }, mkId);
+    expect(a.trigger).toBe("floor");
+    expect(a.floor).toBe("Trailor Park");
+    const t = a.layers.find((l) => l.id === "t");
+    expect(t).toMatchObject({ kind: "text", title: "The Draft", text: "One.\n\nTwo.", size: 6, tilt: 0, color: "#ffe81f" });
+    expect(migrateAnim({ ...newAnim(mkId), id: "f2" }, mkId).floor).toBe("");
+  });
+  test("rise moves at an even speed between keys while everything else eases", () => {
+    let a = migrateAnim({ ...newAnim(mkId), id: "f3", layers: [{ id: "t", kind: "text" }, { id: "p", kind: "prop", propId: "x" }] }, mkId);
+    a = { ...a, states: [{ ...a.states[0], dur: 10, keys: [{ id: "k0", t: 0, v: { t: { rise: 0 }, p: { x: 0 } } }, { id: "k1", t: 10, v: { t: { rise: 50 }, p: { x: 10 } } }] }] };
+    const t = a.layers.find((l) => l.id === "t"), p = a.layers.find((l) => l.id === "p");
+    expect(animLayerAt(a, a.states[0], t, 2).rise).toBeCloseTo(10, 9);
+    expect(animLayerAt(a, a.states[0], t, 5).rise).toBeCloseTo(25, 9);
+    expect(animLayerAt(a, a.states[0], p, 2).x).toBeLessThan(2); // the prop eases out of its key
+  });
+  test("animScreenFit letterboxes the whole stage in the view, never cropping it", () => {
+    const f = animScreenFit({ w: 48, h: 20 }, 3084, 871);
+    expect(f.cell).toBeCloseTo(871 / 20, 9);
+    expect(f.top).toBeCloseTo(0, 9);
+    expect(f.left).toBeCloseTo((3084 - 48 * f.cell) / 2, 9);
+    const g = animScreenFit({ w: 48, h: 20 }, 800, 800);
+    expect(g.cell).toBeCloseTo(800 / 48, 9);
+    expect(g.left).toBeCloseTo(0, 9);
   });
 });

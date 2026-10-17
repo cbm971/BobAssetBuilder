@@ -2,6 +2,7 @@ import {
   DEFAULT_PROJECTILE_RANGE,
   roomTagMatches,
   firstObjectiveMarker,
+  objectivesOnArrival,
   throwLaunchVel,
   throwAimElevationDeg,
   throwAimRad,
@@ -13858,5 +13859,21 @@ describe("objective markers", () => {
     expect(firstObjectiveMarker({ "1,1": { kind: "door" } })).toBe(null);
     expect(firstObjectiveMarker(null)).toBe(null);
     expect(firstObjectiveMarker({})).toBe(null);
+  });
+  // Blake 2026-10-17: an objective set in S1 was overwritten by the closet's own.
+  test("objectivesOnArrival keeps every objective up until ITS room is reached, and never brings a done one back", () => {
+    const s1 = { id: "s1", roomTag: "", markers: { "30,10": { kind: "objective", text: "Make it to the draft office", targetTag: "Draft" }, "30,20": { kind: "objective", text: "Check the closet", targetTag: "TCloset" }, "1,1": { kind: "door", tag: "TCloset" } } };
+    const closet = { id: "cl", roomTag: "TCloset", markers: { "5,5": { kind: "objective", text: "Find the shotgun", targetTag: "Armory" } } };
+    const office = { id: "e1", roomTag: "Draft", markers: {} };
+    let st = objectivesOnArrival([], new Set(), s1);
+    expect(st.list.map((o) => o.text)).toEqual(["Make it to the draft office", "Check the closet"]);
+    st = objectivesOnArrival(st.list, st.done, closet);
+    expect(st.list.map((o) => o.text)).toEqual(["Make it to the draft office", "Find the shotgun"]);
+    st = objectivesOnArrival(st.list, st.done, s1); // back out: the closet one stays done
+    expect(st.list.map((o) => o.text)).toEqual(["Make it to the draft office", "Find the shotgun"]);
+    st = objectivesOnArrival(st.list, st.done, office);
+    expect(st.list.map((o) => o.text)).toEqual(["Find the shotgun"]);
+    expect(objectivesOnArrival([], new Set(), { id: "x", markers: { "1,1": { kind: "objective", text: "  ", targetTag: "a" } } }).list).toEqual([]);
+    expect(objectivesOnArrival(null, null, null).list).toEqual([]);
   });
 });

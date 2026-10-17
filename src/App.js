@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 // the game's own front end will play the same data without the studio — see src/audio.js. The clip
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
-import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped } from "./anim";
+import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR } from "./anim";
 import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath, EXPLOSION_MIN_GAIN } from "./audio";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
@@ -91,7 +91,7 @@ const EMOJI_KEYWORDS = {
   "🧡": "heart health life orange", "💜": "heart health life purple", "💔": "broken heart death damage",
   "💯": "hundred perfect score", "🆙": "level up up", "🔝": "top rank", "🏆": "trophy win victory reward",
   "🥇": "gold medal first win", "🥈": "silver medal second", "🥉": "bronze medal third",
-  "🎖️": "medal award military", "🏅": "medal award reward", "👑": "crown king royal ruler",
+  "🎬️": "medal award military", "🏅": "medal award reward", "👑": "crown king royal ruler",
   "💰": "money bag gold coins treasure", "🪙": "coin gold currency money", "💎": "gem diamond treasure jewel loot",
   "🔑": "key unlock item", "🗝️": "key old ornate unlock", "🔓": "unlock open", "🔒": "lock locked closed security",
   "📦": "box crate chest item container", "🎁": "gift present box reward chest", "🧰": "toolbox chest container",
@@ -3245,6 +3245,28 @@ export const firstDoorKey = (markers) => { for (const k in (markers || {})) { co
 // room tag uses against roomPool, just one level and one tag at a time instead of a pool of them.
 export const roomTagMatches = (targetTag, roomTag) => { const t = (targetTag || "").trim().toLowerCase(); return !!t && t === (roomTag || "").trim().toLowerCase(); };
 export const firstObjectiveMarker = (markers) => { for (const k in (markers || {})) { const m = markers[k]; if (m && m.kind === "objective") return m; } return null; };
+// MORE THAN ONE AT ONCE (Blake, 2026-10-17: "it won't let me set more than one objective ... I set
+// one in S1, tried to make a different one in the closet but it over wrote the other one"). There
+// was ONE objective slot: the closet's marker took it over and S1's line was gone with its room
+// never reached, and a level with two markers only ever showed the first. Now the objectives on
+// screen are a list. Arriving in a level clears every one whose OWN target tag this room carries
+// (the others stay), then adds every objective marker in the level not already up. An objective
+// that was cleared is `done` for the session, so walking back into S1 does not put it up again.
+// An objective is its level id + marker cell: the same marker in a run's room is the same one.
+export const objectivesOnArrival = (list, done, lv) => {
+  const nd = new Set(done || []);
+  const out = [];
+  for (const o of list || []) { if (roomTagMatches(o.targetTag, lv && lv.roomTag)) nd.add(o.id); else out.push(o); }
+  const markers = (lv && lv.markers) || {};
+  for (const k in markers) {
+    const m = markers[k];
+    if (!m || m.kind !== "objective" || !(m.text || "").trim()) continue;
+    const id = ((lv && lv.id) || "") + "|" + k;
+    if (nd.has(id) || out.some((o) => o.id === id)) continue;
+    out.push({ id, text: m.text, targetTag: m.targetTag || "" });
+  }
+  return { list: out, done: nd };
+};
 // ── DIALOGUE TREES ───────────────────────────────────────────────────────────────────────────
 // A dialogue is a named, saved body of work in its own right — the SIXTH kind, next to assets,
 // levels, stored groups, textures and backgrounds — and it is authored in its own editor rather
@@ -5445,7 +5467,7 @@ export const PICKUP_BANNER_MS = 2600;
 // six pixel faces set side by side at his real size the plainest to read. It does the name tag and
 // the number keys as well. Pixelify Sans was tried first, for the words and then for the tag and
 // keys alone, and lost both times on its small sizes: "BRIDGE" read "BRIDBE" and a 5 read as an S.
-const GAME_FONTS_HREF = "https://fonts.googleapis.com/css2?family=Shrikhand&family=Chakra+Petch:wght@600;700&family=DotGothic16&display=swap";
+const GAME_FONTS_HREF = "https://fonts.googleapis.com/css2?family=Shrikhand&family=Chakra+Petch:wght@600;700&family=DotGothic16&family=News+Cycle:wght@400;700&display=swap";
 const loadGameFonts = () => {
   if (typeof document === "undefined" || !document.head || document.getElementById("bobGameFonts")) return;
   const l = document.createElement("link");
@@ -12708,17 +12730,17 @@ export default function AssetStudio() {
   const lscrollRef = useRef(null);                          // the level viewport (.lscroll): the camera needs its size, and its editor scroll position is parked during play
   const editorScroll = useRef(null);                        // where the editor had .lscroll scrolled when Playtest started, put back on Stop
   const [runHud, setRunHud] = useState(null);               // the run line over the level during play: { seed, where, name, notes }
-  const [objectiveText, setObjectiveText] = useState("");   // 🎯 the active objective's own line, shown at the top of the screen; "" shows nothing
+  const [objectives, setObjectives] = useState([]);        // 🎯 the objectives up now ({ id, text }), one line each at the top of the screen
   const [runSeedText, setRunSeedText] = useState("");       // the seed box next to 🏁 Play run; blank rolls a new one and the box then shows what was rolled
   const roomReturn = useRef(null);                         // while inside a room during play: { level: <the level to return to>, x, y } — set on enter, consumed on exit/stop
   const roomState = useRef({});                             // per-level PERSISTENT state for the current play session, keyed by level id: { rolls, depleted, eHP, ePos, drops, haz }. Never cleared on a transition — only on a fresh Playtest. This is what makes a level/room keep what you did to it when you leave and come back.
   const sessionRooms = useRef({});                          // "originLevelId|doorCell" -> chosen room id, so a given door leads to the SAME room all session (re-entering doesn't re-roll)
   // 🎯 OBJECTIVES, across the whole run session (not a per-level roomState bucket — an objective
-  // tracks progress ACROSS rooms, not any one room's own state): activeObjective holds the target
-  // tag that clears the one on screen now; lastObjLevelKey stops the check below from re-running
+  // tracks progress ACROSS rooms, not any one room's own state): activeObjective holds the list up
+  // now and the ones already done (objectivesOnArrival); lastObjLevelKey stops the check below from re-running
   // every time this effect re-fires for an unrelated reason (a weapon swap, new gear) while you're
   // still standing in the very same level — it only fires again once the level actually changes.
-  const activeObjective = useRef(null);                     // { targetTag } | null
+  const activeObjective = useRef({ list: [], done: new Set() }); // { list: [{ id, text, targetTag }], done: Set of ids }
   const lastObjLevelKey = useRef(null);
   const spawnReq = useRef(null);                            // one-shot spawn placement for the next frame: { gate:true } | { roomDoor:true } | { x, y }. Resolved once, using the real player size, then cleared.
   const respawnSpec = useRef(null);                         // where a death puts you back: { at: level/run-slot key, spec } — the spawnReq you last ARRIVED in that level by (or the gate a run crossed you in through)
@@ -14038,18 +14060,20 @@ export default function AssetStudio() {
     if (!_bkt.stripped) _bkt.stripped = {}; // same migration for looted-corpse art
     if (!_bkt.gear) _bkt.gear = {};    // and for gear-tag rolls
     pointLiveRefsAt(_bkt);
-    // 🎯 OBJECTIVES (roomTagMatches/firstObjectiveMarker): checked once per actual level change,
+    // 🎯 OBJECTIVES (objectivesOnArrival): checked once per actual level change,
     // never per frame — this effect also re-runs for a weapon swap or new gear mid-level (see its
     // dependency list, below), and lastObjLevelKey is what tells "a new room" apart from that.
-    // Reaching a room tagged for the objective on screen clears it; the room just entered may carry
-    // an objective marker of its own, which then takes over — so one marker can point straight at
-    // the room holding the next, chaining a whole trail of them door by door.
+    // Reaching a room tagged for an objective on screen clears THAT one; the room just entered may
+    // carry objective markers of its own, which join the others — so one marker can still point
+    // straight at the room holding the next, chaining a trail of them door by door, and a side
+    // objective in a closet no longer wipes the floor's own.
     const hereLvKey = lv.runKey || lv.id;
     if (hereLvKey !== lastObjLevelKey.current) {
       lastObjLevelKey.current = hereLvKey;
-      if (activeObjective.current && roomTagMatches(activeObjective.current.targetTag, lv.roomTag)) { activeObjective.current = null; setObjectiveText(""); }
-      const objMarker = firstObjectiveMarker(lv.markers);
-      if (objMarker) { activeObjective.current = { targetTag: objMarker.targetTag || "" }; setObjectiveText(objMarker.text || ""); }
+      const prevObj = activeObjective.current;
+      const nextObj = objectivesOnArrival(prevObj.list, prevObj.done, lv);
+      activeObjective.current = nextObj;
+      if (nextObj.list.map((o) => o.id).join("|") !== prevObj.list.map((o) => o.id).join("|")) setObjectives(nextObj.list.map((o) => ({ id: o.id, text: o.text })));
     }
     // 🎬 A "Level start" ANIMATION takes the player the first time its level comes up this session
     // (the run's first level as the run starts, ▶ Playtest of that level, or the first time you
@@ -14273,6 +14297,18 @@ export default function AssetStudio() {
       if (nx.si !== c.si) animStateSound(c.anim, nx.si);
       c.si = nx.si; c.t = nx.t; c.el = nx.el; c.age = (c.age || 0) + dtMul / 60;
       animInst.current[c.ik] = { si: c.si, t: c.t, done: !!nx.done };
+      // 🎬 A FLOOR END scene (floorEndAnim) is over the whole screen, not on a stage in the level:
+      // no actor to put you on, and when it is over the floor is done.
+      if (c.screen) {
+        const view = lscrollRef.current; if (view) { c.vw = view.clientWidth; c.vh = view.clientHeight; }
+        p.vx = 0; p.vy = 0;
+        if (!nx.done) return;
+        bobAudio.talk(null);
+        c.ended = true;
+        flash("🏁 Floor complete! The next floor is not built yet — this is where it would start.");
+        setTimeout(() => { if (animLeaveRef.current) animLeaveRef.current(); }, 1800);
+        return;
+      }
       const actorL = c.anim.layers.find((l) => l.kind === "actor");
       const [mr, mc] = c.mk.split(",").map(Number);
       const box = animStageBox(mr, mc, c.anim, CW);
@@ -14285,6 +14321,15 @@ export default function AssetStudio() {
       if (!nx.done) return;
       bobAudio.talk(null);
       if (c.anim.ending === "leave") {
+        // The floor's own closing scene, if it has one (the General's briefing after the rope up
+        // into the Chinook): it starts from the black this one ended on, and ends the floor itself.
+        const fin = floorEndAnim(animLib, lv.floor);
+        if (fin) {
+          const view = lscrollRef.current;
+          cutRef.current = { screen: true, ik: "floor|" + fin.id, mk: null, m: {}, anim: fin, si: 0, t: 0, el: 0, ended: false, entry: null, age: 0, vw: view ? view.clientWidth : 0, vh: view ? view.clientHeight : 0 };
+          animStateSound(fin, 0);
+          return;
+        }
         c.ended = true;
         flash("🏁 Floor complete! The next floor is not built yet — this is where it would start.");
         setTimeout(() => { if (animLeaveRef.current) animLeaveRef.current(); }, 1800);
@@ -20380,6 +20425,22 @@ export default function AssetStudio() {
             {g.patch && <path d={d(g.patch)} fill={L.sheet} />}
           </g>
         </svg>);
+      } else if (l.kind === "text") {
+        // 🔤 WORDS: a window from the stage top down to y, `wide` cells across, the page inside it
+        // leaning back by `tilt` about the window's bottom (a crawl) and moved up it by `rise`.
+        // Blank lines split paragraphs; the title is centred and bigger.
+        const winH = Math.max(0, +v.y || 0) * cellPx, wPx = (l.wide || 10) * cellPx, tilt = +l.tilt || 0;
+        const paras = String(l.text || "").split(/\n\s*\n/).map((q) => q.trim()).filter(Boolean);
+        const title = String(l.title || "").trim();
+        if (!title && !paras.length && !sel) continue;
+        kids.push(<div key={l.id} className={cls + " animText" + (tilt ? " crawl" : "")} style={{ left: v.x * cellPx - wPx / 2, top: 0, width: wPx, height: winH, opacity, ...(tilt ? { perspective: Math.round(winH * 1.15) + "px" } : {}) }} data-ly={ly}>
+          <div className="animTextPlane" style={{ transform: tilt ? "rotateX(" + tilt + "deg)" : undefined, color: l.color || ANIM_TEXT_COLOR, fontSize: Math.max(1, (l.size || 1) * cellPx) }}>
+            <div className="animTextBody" style={{ transform: "translateY(" + (winH - (+v.rise || 0) * cellPx).toFixed(1) + "px)", textAlign: tilt ? "justify" : "center" }}>
+              {title && <div className="animTextTitle">{title.split("\n").map((q, i) => <div key={i}>{q}</div>)}</div>}
+              {paras.map((q, i) => <p key={i}>{q}</p>)}
+            </div>
+          </div>
+        </div>);
       } else if (l.kind === "rope") {
         // 🪢 From the point of the prop it hangs from (animPropPoint, that layer as drawn this frame),
         // else its own x,y; to the actor's hands while held (animHandsAt). Stage cells, like the
@@ -22105,7 +22166,7 @@ export default function AssetStudio() {
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
     // A session STARTING scores from zero (SCORE); one stopping keeps its total readable.
     if (!play || runStart) scoreRef.current = newScoreState();
-    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = null; lastObjLevelKey.current = null; setObjectiveText(""); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
+    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     if (runStart) {
       const startNode = runStart.nodes[runStart.startKey];
       runRef.current = runStart; prepRunNeighbours(runStart, startNode);
@@ -23053,7 +23114,9 @@ export default function AssetStudio() {
               {d.trigger === "reach" && d.states.length > 2 && <div className="animRowF"><span className="wslab">E</span><select value={d.states[animReachAt(d)].id} onChange={(e) => put({ ...d, eState: e.target.value === d.states[1].id ? "" : e.target.value })} title="The state E starts. Every state before it plays on its own as you walk up.">
                 {d.states.map((s, i) => (i > 0 ? <option key={s.id} value={s.id}>{i + 1}. {s.name || "State"}</option> : null))}
               </select></div>}
-              <div className="animRowF"><span className="wslab">Ends</span><div className="seg">{ANIM_ENDINGS.map((t) => <button key={t.key} className={d.ending === t.key ? "on" : ""} onClick={() => put({ ...d, ending: t.key })}>{t.label}</button>)}</div></div>
+              {d.trigger === "floor" ? <div className="animRowF"><span className="wslab">Floor</span><input className="catinline" list="animFloors" value={d.floor || ""} onChange={(e) => put({ ...d, floor: e.target.value })} placeholder="Any floor" />
+                <datalist id="animFloors">{[...new Set(levelLib.map((l) => (l.floor || "").trim()).filter(Boolean))].sort((x, y) => NAME_COLLATOR.compare(x, y)).map((fl) => <option key={fl} value={fl} />)}</datalist></div>
+              : <div className="animRowF"><span className="wslab">Ends</span><div className="seg">{ANIM_ENDINGS.map((t) => <button key={t.key} className={d.ending === t.key ? "on" : ""} onClick={() => put({ ...d, ending: t.key })}>{t.label}</button>)}</div></div>}
               <div className="animRowF">
                 <label className="catfield">Stage {numIn(d.w, (v) => put({ ...d, w: Math.max(2, Math.min(80, Math.round(v))) }), 1, 54)} × {numIn(d.h, (v) => put({ ...d, h: Math.max(2, Math.min(46, Math.round(v))) }), 1, 54)} cells</label>
               </div>
@@ -23070,7 +23133,7 @@ export default function AssetStudio() {
               <div className="animLayers">
                 {d.layers.slice().reverse().map((l) => (
                   <div key={l.id} className={"animLayerRow" + (sel && l.id === sel.id ? " on" : "")} onClick={() => setAnimSel(l.id)}>
-                    <span className="animLayerName">{l.kind === "actor" ? "🧍 " : l.kind === "cloth" ? "🛏 " : l.kind === "rope" ? "🪢 " : "🌿 "}{l.name}</span>
+                    <span className="animLayerName">{l.kind === "actor" ? "🧍 " : l.kind === "cloth" ? "🛏 " : l.kind === "rope" ? "🪢 " : l.kind === "text" ? "🔤 " : "🌿 "}{l.name}</span>
                     <button className="rotbtn" title="Forward" onClick={(e) => { e.stopPropagation(); put(animMoveLayer(d, l.id, 1)); }}>▲</button>
                     <button className="rotbtn" title="Back" onClick={(e) => { e.stopPropagation(); put(animMoveLayer(d, l.id, -1)); }}>▼</button>
                     {l.kind !== "actor" && <button className="rotbtn" title="Remove" onClick={(e) => { e.stopPropagation(); put(animRemoveLayer(d, l.id)); }}>🗑</button>}
@@ -23083,10 +23146,11 @@ export default function AssetStudio() {
               </select>
               <button className="ltbtn" onClick={() => { const l = { id: uid(), kind: "cloth", name: "Blanket", len: 6, bed: Math.max(0, d.h - 2) }; put(animAddLayer(d, l)); setAnimSel(l.id); }}>＋ 🛏 Blanket</button>
               <button className="ltbtn" onClick={() => { const l = { id: uid(), kind: "rope", name: "Rope", from: "", hookX: 0.5, hookY: 1 }; put(animAddLayer(d, l)); setAnimSel(l.id); }}>＋ 🪢 Rope</button>
+              <button className="ltbtn" onClick={() => { const l = { id: uid(), kind: "text", name: "Text", title: "", text: "", size: 1, tilt: 0, wide: Math.round(d.w * 0.6), color: ANIM_TEXT_COLOR }; put(animAddLayer(d, l)); setAnimSel(l.id); }}>＋ 🔤 Text</button>
             </div>
             {sel && (
               <div className="card">
-                <div className="ct">{sel.kind === "actor" ? "🧍" : sel.kind === "cloth" ? "🛏" : sel.kind === "rope" ? "🪢" : "🌿"} {sel.name} · {onKey ? "key " + (keyIdx + 1) : "＋ key at " + Math.min(animT, dur).toFixed(2) + " s"}</div>
+                <div className="ct">{sel.kind === "actor" ? "🧍" : sel.kind === "cloth" ? "🛏" : sel.kind === "rope" ? "🪢" : sel.kind === "text" ? "🔤" : "🌿"} {sel.name} · {onKey ? "key " + (keyIdx + 1) : "＋ key at " + Math.min(animT, dur).toFixed(2) + " s"}</div>
                 <label className="catfield">Name <input value={sel.name} onChange={(e) => put(animSetLayer(d, sel.id, { name: e.target.value }))} /></label>
                 <div className="animRowF"><span className="wslab">Move</span><div className="seg"><button className={animAll ? "" : "on"} onClick={() => setAnimAll(false)}>This key</button><button className={animAll ? "on" : ""} onClick={() => setAnimAll(true)}>All keys</button></div></div>
                 {sel.kind === "prop" && <>
@@ -23108,6 +23172,19 @@ export default function AssetStudio() {
                   </div>
                   {sliderRow("Cover", selV.cover ?? 2.8, 0, 5, 0.05, " cells", (v) => setV({ cover: v }))}
                   {sliderRow("Lift", selV.lift || 0, 0, 4, 0.05, " cells", (v) => setV({ lift: v }))}
+                  {sliderRow("Show", Math.round((selV.show ?? 1) * 100), 0, 100, 5, "%", (v) => setV({ show: v / 100 }))}
+                </> : sel.kind === "text" ? <>
+                  <input className="catinline" value={sel.title || ""} onChange={(e) => put(animSetLayer(d, sel.id, { title: e.target.value }))} placeholder="Title" />
+                  <textarea className="animTextEdit" rows={8} value={sel.text || ""} onChange={(e) => put(animSetLayer(d, sel.id, { text: e.target.value }))} placeholder="Text" />
+                  {sliderRow("Size", sel.size || 1, 0.2, 6, 0.05, " cells", (v) => put(animSetLayer(d, sel.id, { size: v })))}
+                  {sliderRow("Width", sel.wide || 10, 1, 80, 0.5, " cells", (v) => put(animSetLayer(d, sel.id, { wide: v })))}
+                  {sliderRow("Lean", Math.round(sel.tilt || 0), 0, 75, 1, "°", (v) => put(animSetLayer(d, sel.id, { tilt: v })))}
+                  <label className="catfield">Colour <input type="color" value={sel.color || ANIM_TEXT_COLOR} onChange={(e) => put(animSetLayer(d, sel.id, { color: e.target.value }))} /></label>
+                  <div className="animRowF">
+                    <label className="catfield">X {numIn(selV.x, (v) => moveTo("x", v))}</label>
+                    <label className="catfield">Bottom {numIn(selV.y, (v) => moveTo("y", v))}</label>
+                    <label className="catfield">Rise {numIn(selV.rise || 0, (v) => setV({ rise: v }), 0.5, 70)}</label>
+                  </div>
                   {sliderRow("Show", Math.round((selV.show ?? 1) * 100), 0, 100, 5, "%", (v) => setV({ show: v / 100 }))}
                 </> : sel.kind === "rope" ? <>
                   <div className="animRowF">
@@ -23137,7 +23214,7 @@ export default function AssetStudio() {
                 {sliderRow("Turn", Math.round(selV.rot || 0), -180, 180, 1, "°", (v) => setV({ rot: v }))}
                 {sliderRow("Show", Math.round((selV.show ?? 1) * 100), 0, 100, 5, "%", (v) => setV({ show: v / 100 }))}
                 </>}
-                {sel.kind === "cloth" || sel.kind === "rope" ? null : sel.kind === "actor" ? <>
+                {sel.kind === "cloth" || sel.kind === "rope" || sel.kind === "text" ? null : sel.kind === "actor" ? <>
                   <div className="animRowF"><div className="seg">{ANIM_POSES.map((p) => <button key={p} className={selV.pose === p ? "on" : ""} onClick={() => setV({ pose: p })}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div></div>
                   {sliderRow("Legs", Math.round(selV.legs || 0), 0, 135, 1, "°", (v) => setV({ legs: v }))}
                   {sliderRow("Arms", Math.round(selV.arms || 0), 0, 180, 1, "°", (v) => setV({ arms: v }))}
@@ -24168,7 +24245,7 @@ export default function AssetStudio() {
                 <>
                   <select className="big" value={lAnimId} onChange={(e) => setLAnimId(e.target.value)} title="Which animation this marker plays">
                     <option value="">— pick an animation —</option>
-                    {animLib.map((a) => <option key={a.id} value={a.id}>🎬 {a.name} · {a.w}×{a.h}</option>)}
+                    {animLib.filter((a) => a.trigger !== "floor").map((a) => <option key={a.id} value={a.id}>🎬 {a.name} · {a.w}×{a.h}</option>)}
                   </select>
                   <button className="ltbtn" onClick={openAnimEditor}>✎ Animations</button>
                   {!lAnimId && <span className="hint2">⚠ None picked</span>}
@@ -24305,6 +24382,10 @@ export default function AssetStudio() {
                 commitFrame, so it lands on the frame it was computed for). In the editor no transform
                 is emitted at all and the viewport scrolls exactly as it always has. */}
             <div ref={lscrollRef} className={"lscroll layer-" + lLayer + (play ? " playing" : "")}>
+              {/* 🎬 A FLOOR END scene, over the whole view and under its own fade: the stage fitted
+                  to the view and letterboxed in black (animScreenFit). Its props' frames run on the
+                  scene's own clock (age), so the General talks only while the scene plays. */}
+              {play && cutRef.current && cutRef.current.screen && (() => { const c = cutRef.current; const fit = animScreenFit(c.anim, c.vw, c.vh); return <div className="animScreen">{animStageEl(c.anim, c.si, c.t, fit.cell, { key: "animscreen", left: fit.left, top: fit.top, clock: c.age || 0 })}</div>; })()}
               {/* 🎬 A cutscene's fade to and from black, over the whole view (outside the camera). */}
               {play && cutRef.current && (() => { const c = cutRef.current; const f = c.ended ? 1 : animFadeAt(c.anim, c.si, c.t, c.el); return f > 0.001 ? <div className="animFade" style={{ opacity: f }} /> : null; })()}
 
@@ -24482,7 +24563,7 @@ export default function AssetStudio() {
                       const m = L.markers[mk];
                       if (!m || m.kind !== "anim") continue;
                       const an = findAnim(m.animId);
-                      if (!an) continue;
+                      if (!an || an.trigger === "floor") continue; // a Floor end scene plays over the screen, never on a stage here
                       const [mr, mc] = mk.split(",").map(Number);
                       const box = animStageBox(mr, mc, an, LV_CELL);
                       let si = 0, t = 0, actor = !play, shift = null;
@@ -25862,9 +25943,9 @@ export default function AssetStudio() {
                       <span className="hudWpnDmg">{formatDps(dps)}<small className="hudWpnUnit">DPS</small></span>
                     </div>
                   </div>
-                  {/* 🎯 OBJECTIVE: the current marker's own text, top and center, above the HP/score
-                      row — set and cleared by the level-change check above (never painted here). */}
-                  {objectiveText && <div className="objBanner">{objectiveText}</div>}
+                  {/* 🎯 OBJECTIVES: each one up now on its own line, top and center, under the
+                      score — set and cleared by the level-change check above (never painted here). */}
+                  {objectives.length > 0 && <div className="objBanner">{objectives.map((o) => <div key={o.id}>{o.text}</div>)}</div>}
                   <div className="hud">
                     <div className="hudL">
                       <div className="hudHp">
@@ -28188,6 +28269,17 @@ html,body{margin:0;padding:0;background:#0f1117}
 .animSide{display:flex;flex-direction:column;gap:12px;width:330px;flex:none}
 .animStageWrap{position:relative;overflow:hidden;border:2px solid #2c3245;border-radius:6px;background-color:#1a1f2c;background-image:linear-gradient(to right,rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,.05) 1px,transparent 1px);box-shadow:inset 0 -3px 0 #6b4423;touch-action:none;user-select:none}
 .animFade{position:absolute;inset:0;background:#000;pointer-events:none;z-index:50}
+.animScreen{position:absolute;inset:0;background:#000;pointer-events:none;z-index:49;overflow:hidden}
+.animScreen .animStage{overflow:hidden}
+.animStage .animText{overflow:hidden;outline:none}
+.animStage .animText.crawl{perspective-origin:50% 20%;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 38%);mask-image:linear-gradient(to bottom,transparent 0,#000 38%)}
+.animTextPlane{position:absolute;inset:0;transform-origin:50% 100%;font-family:'News Cycle','Franklin Gothic Medium','Arial Narrow',sans-serif;font-weight:700;line-height:1.25;letter-spacing:.02em;text-shadow:-.06em -.06em 0 #000,.06em -.06em 0 #000,-.06em .06em 0 #000,.06em .06em 0 #000,0 .06em 0 #000,0 -.06em 0 #000,0 0 .3em rgba(0,0,0,.9)}
+.animTextBody{position:absolute;left:0;right:0;top:0}
+.animTextBody p{margin:0 0 .9em}
+.animTextTitle{text-align:center;font-size:1.45em;line-height:1.2;margin-bottom:.9em;text-transform:uppercase;letter-spacing:.08em}
+.animStage.ed .animText p,.animStage.ed .animText .animTextTitle div{pointer-events:auto;cursor:grab}
+.animStage.ed .animText.sel{outline:1px dashed #ffd23f;outline-offset:-1px}
+.animTextEdit{width:100%;box-sizing:border-box;resize:vertical;font:inherit;font-size:13px;margin:6px 0}
 .animFade.inStage{z-index:5}
 .animPromptBtn{background:none;border:0;cursor:pointer;z-index:6}
 /* A cutscene's prompt is set in the pickup banner's face (Shrikhand, Blake 2026-10-12: "closer to
