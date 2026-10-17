@@ -807844,9 +807844,9 @@
    "projectileId": "hrqbyju",
    "projectileSpeed": 8,
    "projectileRange": 20,
-   "damage": 15,
+   "damage": 12,
    "fireRate": 4,
-   "clipSize": 2,
+   "clipSize": 3,
    "reloadTime": 0.3,
    "weight": 3,
    "landEffect": "fire",
@@ -807858,8 +807858,8 @@
    "ignoreArmor": true,
    "burstFire": true,
    "fullAuto": false,
-   "burst": 2,
-   "burstDelay": 0.06,
+   "burst": 3,
+   "burstDelay": 0.08,
    "explodeRadius": 2,
    "explodePropId": null,
    "explodeSize": 3,
@@ -807880,8 +807880,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792250135058,
-   "editedFrom": 1792250059721,
+   "savedAt": 1792250202088,
+   "editedFrom": 1792250135058,
    "pierce": true,
    "sounds": {
     "fire": "4xdiye5"
