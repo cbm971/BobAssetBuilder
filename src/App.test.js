@@ -472,6 +472,7 @@ import {
   unitSharesLevel,
   enemyChasesVertically,
   enemyDetects,
+  enemySensesUnit,
   enemySenseHeightFrac,
   ENEMY_SIGHT_AHEAD_LENGTHS,
   ENEMY_SENSE_DOWN_LENGTHS,
@@ -9778,6 +9779,17 @@ describe("a unit walks only to a target on its own level", () => {
       expect(enemyDetects(8 * cell, 1, street - perch)).toBe(true); // UNIT_DROP_TRIGGER_CELLS away
       expect(enemyFaceToward(-8 * cell, 1, street - perch)).toBe(-1);
     }
+  });
+  // 2026-10-17: "I had all of the football players wander out to the level to the left". A friendly
+  // unit used to count as seen at ANY distance, and runs adopt the neighbour levels' units.
+  test("a hostile notices one of your allies only inside its sense oval, on either side", () => {
+    const reach = ENEMY_SIGHT_AHEAD_LENGTHS * PLAYER_BODY_LEN_PX;
+    expect(enemySensesUnit(reach, 0)).toBe(true);
+    expect(enemySensesUnit(-reach, 0)).toBe(true); // no blind side in a brawl
+    expect(enemySensesUnit(reach + 1, 0)).toBe(false);
+    expect(enemySensesUnit(-60 * cell, 0)).toBe(false); // an ally a level over
+    expect(enemySensesUnit(0, slab - street)).toBe(false); // another storey
+    expect(enemySensesUnit(reach * 0.95, 7 * cell)).toBe(false); // height shortens it, as for you
   });
   test("height WEAKENS the reach instead of ending it: an oval, longer downward than up", () => {
     const reach = (dy) => { let d = 0; while (enemyDetects(d + 1, 1, dy)) d++; return d; };

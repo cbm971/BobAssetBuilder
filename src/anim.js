@@ -635,6 +635,40 @@ export const animShiftLayer = (anim, layerId, delta) => {
 export const animDeleteKey = (anim, si, keyId) => withState(anim, si, (s) => (s.keys.length <= 1 ? s : { ...s, keys: s.keys.filter((k) => k.id !== keyId) }));
 export const animMoveKey = (anim, si, keyId, t) => withState(anim, si, (s) => ({ ...s, keys: s.keys.map((k) => (k.id === keyId ? { ...k, t: round3(clamp(t, 0, animStateDur(s))) } : k)).sort((x, y) => x.t - y.t) }));
 export const animSetState = (anim, si, patch) => withState(anim, si, (s) => ({ ...s, ...patch }));
+// MAKING A STATE SHORTER (2026-10-17). Blake, on the General's Briefing: "one of the part continues
+// too long, idk how to trim that section". Length only ever moved the END: shortened, every key
+// past it stayed where it was, off the end of the timeline where nobody could see or grab it, and
+// the scene stopped partway between two keys — the 44 s crawl cut to 30 s froze its words a third
+// short of where its last key sends them. So a state is now shortened one of three ways:
+//   - animSetLength(…, stretch): the whole state plays FASTER (or slower) — every key's time scales
+//     with the length, so the crawl still ends exactly where its last key says, sooner.
+//   - animSetLength(…, no stretch), and animCutEnd at the playhead: the TAIL is cut off. Keys past
+//     the new end go, and a key AT the end holds the picture that moment showed, so the next state
+//     starts from what you saw rather than from a key that no longer plays.
+//   - animCutStart at the playhead: the HEAD is cut off. That moment becomes 0, and the keys after
+//     it move back by the same amount.
+// Each keeps at least one key and stays inside ANIM_MIN_DUR..ANIM_MAX_DUR.
+const keysBetween = (s, t0, t1) => s.keys.filter((k) => k.t >= t0 - ANIM_KEY_EPS && k.t <= t1 + ANIM_KEY_EPS).map((k) => ({ ...k }));
+export const animSetLength = (anim, si, dur, stretch, mkId) => withState(anim, si, (s) => {
+  const old = animStateDur(s), nd = round3(clamp(num(dur, old), ANIM_MIN_DUR, ANIM_MAX_DUR));
+  if (stretch) { const k = nd / old; return { ...s, dur: nd, keys: s.keys.map((key) => ({ ...key, t: round3(Math.min(nd, key.t * k)) })) }; }
+  if (nd >= old) return { ...s, dur: nd };
+  const out = keysBetween(s, 0, nd);
+  if (!out.some((k) => Math.abs(k.t - nd) <= ANIM_KEY_EPS)) out.push({ id: mkId(), t: nd, v: snapshotAt(anim, s, nd) });
+  return { ...s, dur: nd, keys: out.map((k) => ({ ...k, t: round3(Math.min(nd, k.t)) })) };
+});
+export const animCutEnd = (anim, si, t, mkId) => animSetLength(anim, si, t, false, mkId);
+// The new first key always holds the WHOLE picture: a key at the cut may leave layers out, and the
+// keys it carried them over from are gone (a first key that omits a layer drops it to its default
+// spot — the sky that fell out of the cabin windows).
+export const animCutStart = (anim, si, t, mkId) => withState(anim, si, (s) => {
+  const old = animStateDur(s), t0 = round3(clamp(num(t, 0), 0, old - ANIM_MIN_DUR));
+  if (t0 <= 0) return s;
+  const out = keysBetween(s, t0, old);
+  if (out.length && Math.abs(out[0].t - t0) <= ANIM_KEY_EPS) out[0] = { ...out[0], t: t0, v: snapshotAt(anim, s, out[0].t) };
+  else out.unshift({ id: mkId(), t: t0, v: snapshotAt(anim, s, t0) });
+  return { ...s, dur: round3(old - t0), keys: out.map((k) => ({ ...k, t: round3(Math.max(0, k.t - t0)) })) };
+});
 // A new state starts where the one before it ENDS, so the scene does not jump at the join.
 export const animAddState = (anim, afterSi, mkId) => {
   const prev = anim.states[afterSi];

@@ -5015,3 +5015,26 @@ shot 68, HUD DPS 22.5 -> 34, back to 45 when the 30 s ran out. Flak Vest by a re
 Mosin aims level from the shoulder when firing and points up on Up. Harness trap: writing
 `equipped.current` directly changes the HUD but not the loop's `playerAsset` (no re-render); go
 through a drop + E.
+
+## Football team walked off M3 + 🎬 trimming a state (2026-10-17)
+
+**"I had all of the football players wander out to the level to the left, their detection range
+shouldn't be that high."** Trailor Park M3 has six Seek football players at cols 59-85, all facing
+left. Only the PLAYER was ever range-checked (`enemyDetects`). A hostile picks the nearest of you and
+your friendlies, and `detected` for a friendly UNIT target was just `acts && huntInReach`: seen at
+any distance, a leftover of "you can't stealth past a melee your minion started". Since ONE WORLD
+every neighbour's units are adopted into the live set, so any ally (captured, talked, raised) a level
+away was a target. Fix: `enemySensesUnit` filters the friendly candidates to the sense oval's forward
+reach, in either direction. A/B in the real loop (M3 playtest, player at col 0, one football player
+flipped to a captured ally at col 5): fixed, the other five stayed at 64-83 for 4 s; old rule (a
+temporary window flag), all five were at cols 14-18 four seconds later.
+
+**"Add a way for me to make animations shorter. Specifically the text crawl one, one of the part
+continues too long, idk how to trimm that section."** Length only moved the END: shortened, keys past
+it stayed off the end of the timeline (unseen, ungrabbable) and the scene stopped between two keys, so
+the Briefing's 44 s crawl cut to 30 froze a third short. Length also applied on every keystroke, so a
+tail cut would have destroyed keys while typing. Now: Length commits on Enter/blur; ⇔ Stretch scales
+every key (the crawl just runs faster and still reaches its last key); unticked, shortening cuts the
+tail and keys the frame at the new end; ✂ Start / ✂ End cut at the playhead (a cut start re-keys every
+layer at the new 0). Checked in the editor on gnrlbrf: stretch 44 to 30 put the end key at 30; ✂ End and
+✂ Start at 21.55 s left the crawl at the identical translateY. ✂ needed a symbol slot (mdi:content-cut).

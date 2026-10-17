@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 // the game's own front end will play the same data without the studio — see src/audio.js. The clip
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
-import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR } from "./anim";
+import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR } from "./anim";
 import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath, EXPLOSION_MIN_GAIN } from "./audio";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
@@ -11719,6 +11719,15 @@ export const unitSharesLevel = (myFeetY, targetFeetY, standH) => Math.abs(myFeet
 // The height limit is now the sense zone's own top and bottom (enemySenseHeightFrac, above): up
 // 1.75 body lengths, down 3, and the sideways reach shrinks toward both instead of ending at a wall.
 export const enemyChasesVertically = (myFeetY, targetFeetY) => enemySenseHeightFrac(targetFeetY - myFeetY) > 0;
+// A HOSTILE NOTICES ONE OF YOUR ALLIES INSIDE THE SAME OVAL (2026-10-17). Blake: "I had all of the
+// football players wander out to the level to the left, their detection range shouldn't be that
+// high." Only the PLAYER was ever range-checked: a hostile picked the nearest of you and your
+// friendlies, and a friendly UNIT counted as "seen" at any distance (unit brawls skipped stealth so
+// a fight your minion started could not be walked away from). Runs adopt every neighbour's units
+// (ONE WORLD), so an ally standing a level over was a target the whole football team walked off
+// their field after. Now a friendly is a candidate only inside the forward reach of the sense zone,
+// in EITHER direction (no blind side, the brawl rule kept): the reach that shrinks with height.
+export const enemySensesUnit = (dx, dyFeet = 0) => { const hf = enemySenseHeightFrac(dyFeet); return hf > 0 && Math.abs(dx) <= PLAYER_BODY_LEN_PX * ENEMY_SIGHT_AHEAD_LENGTHS * hf; };
 // The direction an enemy should be FACING this frame. An enemy that can sense the player — out
 // to its full forward range in ANY direction, so it reacts to someone who walked up on its blind
 // side — turns to face them. This is deliberately separate from (and evaluated before) the
@@ -12668,6 +12677,7 @@ export default function AssetStudio() {
   // Move: This key | All keys. A drag, an arrow nudge or a typed X/Y changes the key at the playhead,
   // or (All keys) every key of that layer in every state, by the same amount (animShiftLayer).
   const [animAll, setAnimAll] = useState(false);
+  const [animStretch, setAnimStretch] = useState(false); // ⇔ a typed Length scales every key (animSetLength), else it cuts the tail
   const animKeysRef = useRef(null); // the editor's keyboard actions, refreshed every render (see the anim screen)
   const animPressE = useRef(false);               // an E press for the editor's ▶, taken by its next frame
   // 🎬 IN PLAY. animInst: every placed animation's playhead this session, by "<level slot>|<cell>"
@@ -15627,7 +15637,8 @@ export default function AssetStudio() {
             if (near) { targetKind = "unit"; targetKey = near.key; targetCX = near.cx; targetEp = near.ep; targetEa = near.ea; targetW = enemyRenderW(near.ea, CW) * sideBodyShape(near.ea).fraction; }
             else { targetKind = "followPlayer"; targetCX = p.x + pw / 2; targetW = pw; } // nothing near you, or too far behind → tag along
           } else if (hostile) {
-            const cands = aliveOpposite(true).concat([{ key: null, cx: p.x + pw / 2 }]); // your friendlies + you
+            // Your friendlies it can SENSE (enemySensesUnit: an ally a level away is not a target) + you.
+            const cands = aliveOpposite(true).filter((f) => enemySensesUnit(f.cx - eCenterXNow, feetOf(f) - myFeetY)).concat([{ key: null, cx: p.x + pw / 2 }]);
             const onLevel = cands.filter(onMyLevel);
             // Nobody on its level: the nearest, exactly as before — it still faces, senses and aims at
             // them, it just does not WALK to somebody on another floor (targetOnLevel, below).
@@ -23132,7 +23143,14 @@ export default function AssetStudio() {
               </div>
               <div className="animStateRow">
                 <label className="catfield">Name <input value={st.name} onChange={(e) => put(animSetState(d, si, { name: e.target.value }))} /></label>
-                <label className="catfield">Length {numIn(st.dur, (v) => put(animSetState(d, si, { dur: Math.max(0.1, Math.min(60, v)) })), 0.1)} s</label>
+                {/* LENGTH IS TYPED, THEN SET (on Enter or leaving the box), not on every keystroke: typing 30 over
+                    44 passes through 3, and a Length that cuts the tail would have cut 41 s of keys on the way. */}
+                <label className="catfield">Length <input key={st.id + ":" + st.dur} type="number" className="animNum" style={{ width: 64 }} step={0.1} defaultValue={r2(st.dur)}
+                  onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                  onBlur={(e) => { const v = parseFloat(e.target.value); if (isFinite(v) && Math.abs(v - st.dur) > 0.0005) { put(animSetLength(d, si, v, animStretch, uid)); setAnimT((t) => (animStretch ? t * Math.max(0.1, Math.min(60, v)) / dur : t)); } else e.target.value = r2(st.dur); }} /> s</label>
+                <label className="chk" title="Keys move with the Length: the whole state plays faster or slower"><input type="checkbox" checked={animStretch} onChange={(e) => setAnimStretch(e.target.checked)} /> ⇔ Stretch</label>
+                <button className="ltbtn" disabled={playing || tNow <= 0.05} onClick={() => { put(animCutStart(d, si, tNow, uid)); setAnimT(0); }} title="Cut everything before the playhead">✂ Start</button>
+                <button className="ltbtn" disabled={playing || tNow >= dur - 0.05} onClick={() => put(animCutEnd(d, si, tNow, uid))} title="Cut everything after the playhead">✂ End</button>
                 <label className="chk"><input type="checkbox" checked={!!st.wait} onChange={(e) => put(animSetState(d, si, { wait: e.target.checked }))} /> ⏸ Wait for E</label>
                 {st.wait && <input className="catinline" style={{ flex: "1 1 200px" }} value={st.prompt} onChange={(e) => put(animSetState(d, si, { prompt: e.target.value }))} placeholder="Press E to …" />}
                 {st.wait && <label className="catfield">by <select value={st.promptLayer || ""} onChange={(e) => put(animSetState(d, si, { promptLayer: e.target.value }))}>

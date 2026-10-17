@@ -1,4 +1,4 @@
-import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS, animPropTransform, animClothShape, CLOTH, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, ANIM_ENTRY_SECONDS, ANIM_PROP_SIZE_MAX, animPropPoint, animHandsAt, animRopeShape, floorEndAnim, animScreenFit } from "./anim";
+import { newAnim, migrateAnim, animActorPromptSpot, ANIM_BODY_MID_CELLS, animLayerAt, animFrame, animMirrorValues, animStep, animFadeAt, animPromptUp, animActorShown, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, ANIM_STAND_HIP_CELLS, animPropTransform, animClothShape, CLOTH, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, ANIM_ENTRY_SECONDS, ANIM_PROP_SIZE_MAX, animPropPoint, animHandsAt, animRopeShape, floorEndAnim, animScreenFit } from "./anim";
 
 let seq = 0;
 const mkId = () => "id" + (++seq);
@@ -466,5 +466,43 @@ describe("floor end scenes and text layers", () => {
     const g = animScreenFit({ w: 48, h: 20 }, 800, 800);
     expect(g.cell).toBeCloseTo(800 / 48, 9);
     expect(g.left).toBeCloseTo(0, 9);
+  });
+});
+
+// 2026-10-17: "one of the part continues too long, idk how to trim that section" (the Briefing crawl).
+describe("shortening a state", () => {
+  const crawl = () => {
+    const a = migrateAnim({ ...newAnim(mkId), id: "c1" }, mkId);
+    const text = { id: "tx", kind: "text", name: "Crawl", text: "Words", size: 1, wide: 20, tilt: 0 };
+    const b = animAddLayer(a, text);
+    return { ...b, states: [{ ...b.states[0], dur: 44, keys: [{ id: "k0", t: 0, v: { tx: { x: 24, y: 20, rise: 0, show: 1 } } }, { id: "k1", t: 44, v: { tx: { rise: 58 } } }] }] };
+  };
+  const riseAt = (a, t) => animLayerAt(a, a.states[0], a.layers.find((l) => l.id === "tx"), t).rise;
+  test("stretched, the whole state plays faster and still ends where its last key says", () => {
+    const a = animSetLength(crawl(), 0, 30, true, mkId);
+    expect(a.states[0].dur).toBe(30);
+    expect(a.states[0].keys.map((k) => k.t)).toEqual([0, 30]);
+    expect(riseAt(a, 30)).toBeCloseTo(58, 6);
+    expect(riseAt(a, 15)).toBeCloseTo(29, 6);
+  });
+  test("cut, no key is left past the end, and the end holds the picture that moment showed", () => {
+    const a0 = crawl(), a = animSetLength(a0, 0, 22, false, mkId);
+    expect(a.states[0].dur).toBe(22);
+    expect(Math.max(...a.states[0].keys.map((k) => k.t))).toBe(22);
+    expect(riseAt(a, 22)).toBeCloseTo(riseAt(a0, 22), 3);
+    expect(animCutEnd(a0, 0, 22, mkId).states[0].keys.map((k) => k.t)).toEqual([0, 22]);
+  });
+  test("lengthening without stretch only adds time at the end", () => {
+    const a = animSetLength(crawl(), 0, 50, false, mkId);
+    expect(a.states[0].keys.map((k) => k.t)).toEqual([0, 44]);
+  });
+  test("cutting the start makes the playhead 0, and the first key holds every layer", () => {
+    const a0 = crawl(), a = animCutStart(a0, 0, 10, mkId);
+    expect(a.states[0].dur).toBe(34);
+    expect(a.states[0].keys.map((k) => k.t)).toEqual([0, 34]);
+    expect(riseAt(a, 0)).toBeCloseTo(riseAt(a0, 10), 3);
+    expect(riseAt(a, 34)).toBeCloseTo(58, 6);
+    for (const l of a.layers) expect(a.states[0].keys[0].v[l.id]).toBeTruthy();
+    expect(animCutStart(a0, 0, 0, mkId)).toEqual(a0);
   });
 });

@@ -409,6 +409,10 @@ plus traps it does not cover:
   (`enemyChasesVertically`) it does not turn, sense, climb, walk a walkway, drop or fly. Never a flat
   height cutoff: 1.5 lengths stopped his tree Squirrels (11 and 14 rows up) dropping on him. 1.75 up keeps
   M7's road units off the floor above (15 rows).
+  **Your ALLIES are sensed inside the same oval** (`enemySensesUnit`, either side, no blind spot):
+  a friendly unit used to count as seen at ANY range, and runs adopt neighbour levels' units, so a
+  far ally pulled M3's whole football team into the level to its left. Nothing a hostile targets is
+  ever unbounded.
 - **Score** (the SCORE block): a hostile unit killed by YOUR last blow is 100
   (`lastHitByFx === null`; a unit's blow always stores an array, so keep it never-null). A
   dialogue option's `points` pay once per run. A level pays 500, minus 10 per whole second after
@@ -553,6 +557,9 @@ plus traps it does not cover:
   before ANIM_DRAG_SLOP; prop corner = Size, blanket ends = Head/Foot; arrows nudge; Move: All keys
   is `animShiftLayer`. ↩/↪ (Ctrl+Z/Y) step through `animRemember` and never restore an older
   id/savedAt; picking the open animation in 📂, or ↺ Last save, reloads the saved copy.
+  **Shortening a state never leaves keys past its end**: Length is set on Enter/blur (typing 30 over 44
+  passes 3), ⇔ Stretch scales every key (`animSetLength`), otherwise the tail is cut with a key at the
+  new end holding that frame; ✂ Start / ✂ End cut at the playhead (`animCutStart`/`animCutEnd`).
   "Level start" begins in the play effect, "Walk up + E" last in the E chain, both
   through `beginCut`; a cutscene pauses the world like a conversation (`cutFrame`, one return at
   the top of the loop). "You take over" puts your standing hip on the actor's last hip and clears

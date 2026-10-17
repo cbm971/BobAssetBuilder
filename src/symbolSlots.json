@@ -185,6 +185,7 @@
   { "k": "⏸", "l": "Pause / wait", "g": "Controls", "d": "mdi:pause" },
   { "k": "⏹", "l": "Stop", "g": "Controls", "d": "mdi:stop" },
   { "k": "🔁", "l": "Loop", "g": "Controls", "d": "mdi:repeat" },
+  { "k": "✂", "l": "Trim", "g": "Controls", "d": "mdi:content-cut" },
   { "k": "↩", "l": "Undo", "g": "Controls", "d": "mdi:undo" },
   { "k": "↪", "l": "Redo", "g": "Controls", "d": "mdi:redo" },
   { "k": "↔", "l": "Left-right", "g": "Controls", "d": "mdi:arrow-left-right" },
