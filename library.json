@@ -1719524,7 +1719524,7 @@
     "nnrf0": {
      "id": "nnrf0",
      "speaker": "Nerf Trainer",
-     "text": "At ease, Bob! With a gun equipped, use the Arrow Keys to aim, press F to shoot, and press R to reload. Keep an eye on your range—every gun has a max range, and shots vanish once they fly past it!",
+     "text": "Heard they called you to Nam! Hope you remember what I taught you bout shootin! use the Arrow Keys to aim, press F to shoot, and press R to reload. Just make sure your enemy is in range!.",
      "choices": [
       {
        "id": "cnrf1",
@@ -1719555,7 +1719555,7 @@
     "nnrf1": {
      "id": "nnrf1",
      "speaker": "Nerf Trainer",
-     "text": "Pressing Q strikes up close with your gun! If you press Q right into an enemy's melee attack, you'll parry and shove each other back—and pressing Q into an incoming projectile swats it right out of the air!",
+     "text": "Pressing Q strikes up close with your gun! If you press Q right into an enemy's melee attack, you'll parry and shove each other back, pressing Q into an incoming projectile swats it right out of the air!",
      "choices": [
       {
        "id": "cnrf4",
@@ -1719591,7 +1719591,8 @@
      ]
     }
    },
-   "savedAt": 1792235735421
+   "savedAt": 1792237364813,
+   "editedFrom": 1792235735421
   },
   {
    "id": "swdtdlg",
