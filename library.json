@@ -80784,13 +80784,14 @@
    "sounds": {
     "attack": "fhg042t",
     "hurt": "fhg042t",
-    "death": "pr9c2n5"
+    "death": "9skpe67"
    },
    "soundVol": {
     "attack": 0.05,
     "hurt": 0.1
    },
-   "savedAt": 1792267393888
+   "savedAt": 1792275304148,
+   "editedFrom": 1792267393888
   },
   {
    "id": "63edlrj",
