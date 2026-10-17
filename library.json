@@ -302245,7 +302245,7 @@
     "intelligence": 0,
     "strength": 0
    },
-   "defense": 2,
+   "defense": 0,
    "effects": [
     {
      "id": "vn000ji",
@@ -302264,6 +302264,374 @@
    "value": 9,
    "rank": "common",
    "variants": {
+    "default": {
+     "front": [
+      {
+       "id": "vn000jj",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 76,
+       "y": 94,
+       "w": 49,
+       "h": 82,
+       "color": "#2e2e33"
+      },
+      {
+       "id": "vn000jk",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "tri",
+       "x": 106,
+       "y": 90,
+       "w": 38,
+       "h": 14,
+       "color": "#2e2e33",
+       "rot": 28
+      },
+      {
+       "id": "vn000jl",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 59,
+       "y": 87,
+       "w": 18,
+       "h": 87,
+       "color": "#2e2e33"
+      },
+      {
+       "id": "vn000jm",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 44,
+       "y": 85,
+       "w": 24,
+       "h": 21,
+       "color": "#2e2e33",
+       "overArms": true,
+       "rot": 9,
+       "limb": "arm"
+      }
+     ],
+     "back": [
+      {
+       "id": "vn000jn",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 76,
+       "y": 94,
+       "w": 49,
+       "h": 82,
+       "color": "#2e2e33"
+      },
+      {
+       "id": "vn000jo",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "tri",
+       "x": 106,
+       "y": 90,
+       "w": 38,
+       "h": 14,
+       "color": "#2e2e33",
+       "rot": 28
+      },
+      {
+       "id": "vn000jp",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 59,
+       "y": 87,
+       "w": 18,
+       "h": 87,
+       "color": "#2e2e33"
+      },
+      {
+       "id": "vn000jq",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 41,
+       "y": 87,
+       "w": 24,
+       "h": 21,
+       "color": "#2e2e33",
+       "overArms": true,
+       "rot": 9,
+       "limb": "arm"
+      }
+     ],
+     "side": [
+      {
+       "id": "vn000jr",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 72,
+       "y": 93,
+       "w": 54,
+       "h": 81,
+       "color": "#2e2e33"
+      },
+      {
+       "id": "vn000js",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "tri",
+       "x": 104,
+       "y": 98,
+       "w": 38,
+       "h": 14,
+       "color": "#2e2e33",
+       "rot": 138
+      },
+      {
+       "id": "vn000jt",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 59,
+       "y": 87,
+       "w": 18,
+       "h": 87,
+       "color": "#2e2e33"
+      },
+      {
+       "id": "vn000ju",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 83,
+       "y": 96,
+       "w": 26,
+       "h": 20,
+       "color": "#2e2e33",
+       "overArms": true,
+       "rot": 0,
+       "limb": "arm"
+      },
+      {
+       "id": "vn000jv",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 124,
+       "y": 88,
+       "w": 17.5,
+       "h": 87,
+       "color": "#2e2e33"
+      }
+     ],
+     "up": [
+      {
+       "id": "vn000jw",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 76,
+       "y": 94,
+       "w": 49,
+       "h": 82,
+       "color": "#2e2e33"
+      },
+      {
+       "id": "vn000jx",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "tri",
+       "x": 106,
+       "y": 90,
+       "w": 38,
+       "h": 14,
+       "color": "#2e2e33",
+       "rot": 28
+      },
+      {
+       "id": "vn000jy",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 59,
+       "y": 87,
+       "w": 18,
+       "h": 87,
+       "color": "#2e2e33"
+      },
+      {
+       "id": "vn000jz",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 44,
+       "y": 87,
+       "w": 24,
+       "h": 21,
+       "color": "#2e2e33",
+       "overArms": true,
+       "rot": 9,
+       "limb": "arm"
+      }
+     ],
+     "crouch": [
+      {
+       "id": "vn000k0",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 75,
+       "y": 129,
+       "w": 49,
+       "h": 82,
+       "color": "#2e2e33"
+      },
+      {
+       "id": "vn000k1",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "tri",
+       "x": 105,
+       "y": 130,
+       "w": 38,
+       "h": 14,
+       "color": "#2e2e33",
+       "rot": 116
+      },
+      {
+       "id": "vn000k2",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 58,
+       "y": 117,
+       "w": 18,
+       "h": 87,
+       "color": "#2e2e33"
+      },
+      {
+       "id": "vn000k3",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 39,
+       "y": 119,
+       "w": 24,
+       "h": 21,
+       "color": "#2e2e33",
+       "overArms": true,
+       "rot": 0,
+       "limb": "arm"
+      }
+     ]
+    },
     "telfv37": {
      "front": [
       {
@@ -303058,374 +303426,6 @@
        "color": "#2e2e33"
       }
      ]
-    },
-    "default": {
-     "front": [
-      {
-       "id": "vn000jj",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 76,
-       "y": 94,
-       "w": 49,
-       "h": 82,
-       "color": "#2e2e33"
-      },
-      {
-       "id": "vn000jk",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 106,
-       "y": 90,
-       "w": 38,
-       "h": 14,
-       "color": "#2e2e33",
-       "rot": 28
-      },
-      {
-       "id": "vn000jl",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 59,
-       "y": 87,
-       "w": 18,
-       "h": 87,
-       "color": "#2e2e33"
-      },
-      {
-       "id": "vn000jm",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 44,
-       "y": 85,
-       "w": 24,
-       "h": 21,
-       "color": "#2e2e33",
-       "overArms": true,
-       "rot": 9,
-       "limb": "arm"
-      }
-     ],
-     "back": [
-      {
-       "id": "vn000jn",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 76,
-       "y": 94,
-       "w": 49,
-       "h": 82,
-       "color": "#2e2e33"
-      },
-      {
-       "id": "vn000jo",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 106,
-       "y": 90,
-       "w": 38,
-       "h": 14,
-       "color": "#2e2e33",
-       "rot": 28
-      },
-      {
-       "id": "vn000jp",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 59,
-       "y": 87,
-       "w": 18,
-       "h": 87,
-       "color": "#2e2e33"
-      },
-      {
-       "id": "vn000jq",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 41,
-       "y": 87,
-       "w": 24,
-       "h": 21,
-       "color": "#2e2e33",
-       "overArms": true,
-       "rot": 9,
-       "limb": "arm"
-      }
-     ],
-     "side": [
-      {
-       "id": "vn000jr",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 72,
-       "y": 93,
-       "w": 54,
-       "h": 81,
-       "color": "#2e2e33"
-      },
-      {
-       "id": "vn000js",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 104,
-       "y": 98,
-       "w": 38,
-       "h": 14,
-       "color": "#2e2e33",
-       "rot": 138
-      },
-      {
-       "id": "vn000jt",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 59,
-       "y": 87,
-       "w": 18,
-       "h": 87,
-       "color": "#2e2e33"
-      },
-      {
-       "id": "vn000ju",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 83,
-       "y": 96,
-       "w": 26,
-       "h": 20,
-       "color": "#2e2e33",
-       "overArms": true,
-       "rot": 0,
-       "limb": "arm"
-      },
-      {
-       "id": "vn000jv",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 124,
-       "y": 88,
-       "w": 17.5,
-       "h": 87,
-       "color": "#2e2e33"
-      }
-     ],
-     "up": [
-      {
-       "id": "vn000jw",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 76,
-       "y": 94,
-       "w": 49,
-       "h": 82,
-       "color": "#2e2e33"
-      },
-      {
-       "id": "vn000jx",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 106,
-       "y": 90,
-       "w": 38,
-       "h": 14,
-       "color": "#2e2e33",
-       "rot": 28
-      },
-      {
-       "id": "vn000jy",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 59,
-       "y": 87,
-       "w": 18,
-       "h": 87,
-       "color": "#2e2e33"
-      },
-      {
-       "id": "vn000jz",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 44,
-       "y": 87,
-       "w": 24,
-       "h": 21,
-       "color": "#2e2e33",
-       "overArms": true,
-       "rot": 9,
-       "limb": "arm"
-      }
-     ],
-     "crouch": [
-      {
-       "id": "vn000k0",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 75,
-       "y": 129,
-       "w": 49,
-       "h": 82,
-       "color": "#2e2e33"
-      },
-      {
-       "id": "vn000k1",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 105,
-       "y": 130,
-       "w": 38,
-       "h": 14,
-       "color": "#2e2e33",
-       "rot": 116
-      },
-      {
-       "id": "vn000k2",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 58,
-       "y": 117,
-       "w": 18,
-       "h": 87,
-       "color": "#2e2e33"
-      },
-      {
-       "id": "vn000k3",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 39,
-       "y": 119,
-       "w": 24,
-       "h": 21,
-       "color": "#2e2e33",
-       "overArms": true,
-       "rot": 0,
-       "limb": "arm"
-      }
-     ]
     }
    },
    "angles": {
@@ -303803,7 +303803,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792276355075
+   "savedAt": 1792277885024,
+   "editedFrom": 1792276355075
   },
   {
    "id": "blnkhp1",
