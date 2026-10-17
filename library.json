@@ -306180,8 +306180,8 @@
    "name": "Boonie Hat",
    "type": "equipment",
    "slot": "hat",
-   "guideId": "telfv37",
-   "lastFit": "telfv37",
+   "guideId": "oipvf3l",
+   "lastFit": "oipvf3l",
    "confirmedFits": [
     "telfv37",
     "oipvf3l"
@@ -306212,6 +306212,338 @@
    "value": 11,
    "rank": "rare",
    "variants": {
+    "default": {
+     "front": [
+      {
+       "id": "vn000gi",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "roundrect",
+       "x": 74,
+       "y": 15,
+       "w": 52,
+       "h": 22,
+       "color": "#6b7348"
+      },
+      {
+       "id": "vn000gj",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 74,
+       "y": 30,
+       "w": 52,
+       "h": 4,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "vn000gk",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "trapezoid",
+       "x": 54,
+       "y": 35,
+       "w": 92,
+       "h": 11,
+       "color": "#6b7348"
+      },
+      {
+       "id": "vn000gl",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 54,
+       "y": 45,
+       "w": 92,
+       "h": 1,
+       "color": "#1d1b1b"
+      }
+     ],
+     "back": [
+      {
+       "id": "vn000gm",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "roundrect",
+       "x": 74,
+       "y": 15,
+       "w": 52,
+       "h": 22,
+       "color": "#6b7348"
+      },
+      {
+       "id": "vn000gn",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 74,
+       "y": 30,
+       "w": 52,
+       "h": 4,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "vn000go",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "trapezoid",
+       "x": 54,
+       "y": 35,
+       "w": 92,
+       "h": 11,
+       "color": "#6b7348"
+      },
+      {
+       "id": "vn000gp",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 54,
+       "y": 45,
+       "w": 92,
+       "h": 1,
+       "color": "#1d1b1b"
+      }
+     ],
+     "side": [
+      {
+       "id": "vn000gq",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "roundrect",
+       "x": 74,
+       "y": 15,
+       "w": 52,
+       "h": 22,
+       "color": "#6b7348"
+      },
+      {
+       "id": "vn000gr",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 74,
+       "y": 30,
+       "w": 52,
+       "h": 4,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "vn000gs",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "trapezoid",
+       "x": 54,
+       "y": 35,
+       "w": 92,
+       "h": 11,
+       "color": "#6b7348"
+      },
+      {
+       "id": "vn000gt",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 54,
+       "y": 45,
+       "w": 92,
+       "h": 1,
+       "color": "#1d1b1b"
+      }
+     ],
+     "up": [
+      {
+       "id": "vn000gu",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "roundrect",
+       "x": 74,
+       "y": 15,
+       "w": 52,
+       "h": 22,
+       "color": "#6b7348"
+      },
+      {
+       "id": "vn000gv",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 74,
+       "y": 30,
+       "w": 52,
+       "h": 4,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "vn000gw",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "trapezoid",
+       "x": 54,
+       "y": 35,
+       "w": 92,
+       "h": 11,
+       "color": "#6b7348"
+      },
+      {
+       "id": "vn000gx",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 54,
+       "y": 45,
+       "w": 92,
+       "h": 1,
+       "color": "#1d1b1b"
+      }
+     ],
+     "crouch": [
+      {
+       "id": "vn000gy",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "roundrect",
+       "x": 74,
+       "y": 51,
+       "w": 52,
+       "h": 22,
+       "color": "#6b7348"
+      },
+      {
+       "id": "vn000gz",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 74,
+       "y": 66,
+       "w": 52,
+       "h": 4,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "vn000h0",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "trapezoid",
+       "x": 54,
+       "y": 71,
+       "w": 92,
+       "h": 11,
+       "color": "#6b7348"
+      },
+      {
+       "id": "vn000h1",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 54,
+       "y": 81,
+       "w": 92,
+       "h": 1,
+       "color": "#1d1b1b"
+      }
+     ]
+    },
     "telfv37": {
      "front": [
       {
@@ -306589,7 +306921,7 @@
        },
        "kind": "trapezoid",
        "x": 54,
-       "y": 35,
+       "y": 34,
        "w": 92,
        "h": 11,
        "color": "#6b7348"
@@ -306655,7 +306987,7 @@
        },
        "kind": "trapezoid",
        "x": 54,
-       "y": 35,
+       "y": 34,
        "w": 92,
        "h": 11,
        "color": "#6b7348"
@@ -306721,7 +307053,7 @@
        },
        "kind": "trapezoid",
        "x": 54,
-       "y": 35,
+       "y": 34,
        "w": 92,
        "h": 11,
        "color": "#6b7348"
@@ -306787,7 +307119,7 @@
        },
        "kind": "trapezoid",
        "x": 54,
-       "y": 35,
+       "y": 34,
        "w": 92,
        "h": 11,
        "color": "#6b7348"
@@ -306852,8 +307184,8 @@
         "bright": 1
        },
        "kind": "trapezoid",
-       "x": 54,
-       "y": 60,
+       "x": 53.5,
+       "y": 59,
        "w": 92,
        "h": 11,
        "color": "#6b7348"
@@ -306875,344 +307207,12 @@
        "color": "#1d1b1b"
       }
      ]
-    },
-    "default": {
-     "front": [
-      {
-       "id": "vn000gi",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "roundrect",
-       "x": 74,
-       "y": 15,
-       "w": 52,
-       "h": 22,
-       "color": "#6b7348"
-      },
-      {
-       "id": "vn000gj",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 74,
-       "y": 30,
-       "w": 52,
-       "h": 4,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "vn000gk",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "trapezoid",
-       "x": 54,
-       "y": 35,
-       "w": 92,
-       "h": 11,
-       "color": "#6b7348"
-      },
-      {
-       "id": "vn000gl",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 54,
-       "y": 45,
-       "w": 92,
-       "h": 1,
-       "color": "#1d1b1b"
-      }
-     ],
-     "back": [
-      {
-       "id": "vn000gm",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "roundrect",
-       "x": 74,
-       "y": 15,
-       "w": 52,
-       "h": 22,
-       "color": "#6b7348"
-      },
-      {
-       "id": "vn000gn",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 74,
-       "y": 30,
-       "w": 52,
-       "h": 4,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "vn000go",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "trapezoid",
-       "x": 54,
-       "y": 35,
-       "w": 92,
-       "h": 11,
-       "color": "#6b7348"
-      },
-      {
-       "id": "vn000gp",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 54,
-       "y": 45,
-       "w": 92,
-       "h": 1,
-       "color": "#1d1b1b"
-      }
-     ],
-     "side": [
-      {
-       "id": "vn000gq",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "roundrect",
-       "x": 74,
-       "y": 15,
-       "w": 52,
-       "h": 22,
-       "color": "#6b7348"
-      },
-      {
-       "id": "vn000gr",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 74,
-       "y": 30,
-       "w": 52,
-       "h": 4,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "vn000gs",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "trapezoid",
-       "x": 54,
-       "y": 35,
-       "w": 92,
-       "h": 11,
-       "color": "#6b7348"
-      },
-      {
-       "id": "vn000gt",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 54,
-       "y": 45,
-       "w": 92,
-       "h": 1,
-       "color": "#1d1b1b"
-      }
-     ],
-     "up": [
-      {
-       "id": "vn000gu",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "roundrect",
-       "x": 74,
-       "y": 15,
-       "w": 52,
-       "h": 22,
-       "color": "#6b7348"
-      },
-      {
-       "id": "vn000gv",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 74,
-       "y": 30,
-       "w": 52,
-       "h": 4,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "vn000gw",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "trapezoid",
-       "x": 54,
-       "y": 35,
-       "w": 92,
-       "h": 11,
-       "color": "#6b7348"
-      },
-      {
-       "id": "vn000gx",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 54,
-       "y": 45,
-       "w": 92,
-       "h": 1,
-       "color": "#1d1b1b"
-      }
-     ],
-     "crouch": [
-      {
-       "id": "vn000gy",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "roundrect",
-       "x": 74,
-       "y": 51,
-       "w": 52,
-       "h": 22,
-       "color": "#6b7348"
-      },
-      {
-       "id": "vn000gz",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 74,
-       "y": 66,
-       "w": 52,
-       "h": 4,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "vn000h0",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "trapezoid",
-       "x": 54,
-       "y": 71,
-       "w": 92,
-       "h": 11,
-       "color": "#6b7348"
-      },
-      {
-       "id": "vn000h1",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 54,
-       "y": 81,
-       "w": 92,
-       "h": 1,
-       "color": "#1d1b1b"
-      }
-     ]
     }
    },
    "angles": {
     "front": [
      {
-      "id": "vn000gi",
+      "id": "vn000h2",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307228,7 +307228,7 @@
       "color": "#6b7348"
      },
      {
-      "id": "vn000gj",
+      "id": "vn000h3",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307244,7 +307244,7 @@
       "color": "#1d1b1b"
      },
      {
-      "id": "vn000gk",
+      "id": "vn000h4",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307254,13 +307254,13 @@
       },
       "kind": "trapezoid",
       "x": 54,
-      "y": 35,
+      "y": 34,
       "w": 92,
       "h": 11,
       "color": "#6b7348"
      },
      {
-      "id": "vn000gl",
+      "id": "vn000h5",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307278,7 +307278,7 @@
     ],
     "back": [
      {
-      "id": "vn000gm",
+      "id": "vn000h6",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307294,7 +307294,7 @@
       "color": "#6b7348"
      },
      {
-      "id": "vn000gn",
+      "id": "vn000h7",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307310,7 +307310,7 @@
       "color": "#1d1b1b"
      },
      {
-      "id": "vn000go",
+      "id": "vn000h8",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307320,13 +307320,13 @@
       },
       "kind": "trapezoid",
       "x": 54,
-      "y": 35,
+      "y": 34,
       "w": 92,
       "h": 11,
       "color": "#6b7348"
      },
      {
-      "id": "vn000gp",
+      "id": "vn000h9",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307344,7 +307344,7 @@
     ],
     "side": [
      {
-      "id": "vn000gq",
+      "id": "vn000ha",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307360,7 +307360,7 @@
       "color": "#6b7348"
      },
      {
-      "id": "vn000gr",
+      "id": "vn000hb",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307376,7 +307376,7 @@
       "color": "#1d1b1b"
      },
      {
-      "id": "vn000gs",
+      "id": "vn000hc",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307386,13 +307386,13 @@
       },
       "kind": "trapezoid",
       "x": 54,
-      "y": 35,
+      "y": 34,
       "w": 92,
       "h": 11,
       "color": "#6b7348"
      },
      {
-      "id": "vn000gt",
+      "id": "vn000hd",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307410,7 +307410,7 @@
     ],
     "up": [
      {
-      "id": "vn000gu",
+      "id": "vn000he",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307426,7 +307426,7 @@
       "color": "#6b7348"
      },
      {
-      "id": "vn000gv",
+      "id": "vn000hf",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307442,7 +307442,7 @@
       "color": "#1d1b1b"
      },
      {
-      "id": "vn000gw",
+      "id": "vn000hg",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307452,13 +307452,13 @@
       },
       "kind": "trapezoid",
       "x": 54,
-      "y": 35,
+      "y": 34,
       "w": 92,
       "h": 11,
       "color": "#6b7348"
      },
      {
-      "id": "vn000gx",
+      "id": "vn000hh",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307476,7 +307476,7 @@
     ],
     "crouch": [
      {
-      "id": "vn000gy",
+      "id": "vn000hi",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307486,13 +307486,13 @@
       },
       "kind": "roundrect",
       "x": 74,
-      "y": 51,
+      "y": 40,
       "w": 52,
       "h": 22,
       "color": "#6b7348"
      },
      {
-      "id": "vn000gz",
+      "id": "vn000hj",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307502,13 +307502,13 @@
       },
       "kind": "rect",
       "x": 74,
-      "y": 66,
+      "y": 55,
       "w": 52,
       "h": 4,
       "color": "#1d1b1b"
      },
      {
-      "id": "vn000h0",
+      "id": "vn000hk",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307517,14 +307517,14 @@
        "bright": 1
       },
       "kind": "trapezoid",
-      "x": 54,
-      "y": 71,
+      "x": 53.5,
+      "y": 59,
       "w": 92,
       "h": 11,
       "color": "#6b7348"
      },
      {
-      "id": "vn000h1",
+      "id": "vn000hl",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -307534,7 +307534,7 @@
       },
       "kind": "rect",
       "x": 54,
-      "y": 81,
+      "y": 70,
       "w": 92,
       "h": 1,
       "color": "#1d1b1b"
@@ -307548,7 +307548,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792276355072
+   "savedAt": 1792277723117,
+   "editedFrom": 1792276355072
   },
   {
    "id": "brdrug1",
@@ -1052415,8 +1052416,8 @@
    "id": "typ53cb",
    "name": "Type 53 Carbine",
    "type": "weapon",
-   "guideId": "telfv37",
-   "lastFit": "telfv37",
+   "guideId": "oipvf3l",
+   "lastFit": "oipvf3l",
    "confirmedFits": [
     "telfv37",
     "oipvf3l"
@@ -1052430,8 +1052431,8 @@
    "projectileRange": 28,
    "projectileSpeed": 20,
    "weight": 3,
-   "value": 9,
-   "rank": "common",
+   "value": 14,
+   "rank": "rare",
    "landEffect": null,
    "landEffectDps": 0,
    "landEffectLife": 0,
@@ -1054378,8 +1054379,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 152,
-         "y": 139,
+         "x": 144,
+         "y": 135,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1054414,8 +1054415,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 152,
-         "y": 186,
+         "x": 144,
+         "y": 182,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1054432,8 +1054433,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 170,
-         "y": 169,
+         "x": 162,
+         "y": 165,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1054450,8 +1054451,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 164.5,
-         "y": 174.5,
+         "x": 156.5,
+         "y": 170.5,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1054468,8 +1054469,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 163,
-         "y": 166.5,
+         "x": 155,
+         "y": 162.5,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1054486,8 +1054487,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 171.5,
-         "y": 176,
+         "x": 163.5,
+         "y": 172,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1054504,8 +1054505,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 165,
-         "y": 182.5,
+         "x": 157,
+         "y": 178.5,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1054522,8 +1054523,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 172,
-         "y": 223,
+         "x": 164,
+         "y": 219,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1054540,8 +1054541,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 180,
-         "y": 226,
+         "x": 172,
+         "y": 222,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1054558,8 +1054559,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 180.5,
-         "y": 231.5,
+         "x": 172.5,
+         "y": 227.5,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1054576,8 +1054577,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 174,
-         "y": 226.5,
+         "x": 166,
+         "y": 222.5,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1054597,8 +1054598,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 94,
-         "y": 147.5,
+         "x": 88,
+         "y": 141.5,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1054633,8 +1054634,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 90.5,
-         "y": 195,
+         "x": 84.5,
+         "y": 189,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1054651,8 +1054652,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 110,
-         "y": 178.5,
+         "x": 104,
+         "y": 172.5,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1054669,8 +1054670,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 104.5,
-         "y": 183,
+         "x": 98.5,
+         "y": 177,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1054687,8 +1054688,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 103.5,
-         "y": 175,
+         "x": 97.5,
+         "y": 169,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1054705,8 +1054706,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 111,
-         "y": 185,
+         "x": 105,
+         "y": 179,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1054723,8 +1054724,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 104,
-         "y": 191,
+         "x": 98,
+         "y": 185,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1054741,8 +1054742,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 107.5,
-         "y": 232.5,
+         "x": 101.5,
+         "y": 226.5,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1054759,8 +1054760,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 115,
-         "y": 235.5,
+         "x": 109,
+         "y": 229.5,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1054777,8 +1054778,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 114,
-         "y": 241,
+         "x": 108,
+         "y": 235,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1054795,8 +1054796,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 108.5,
-         "y": 236,
+         "x": 102.5,
+         "y": 230,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1054816,8 +1054817,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 109.5,
-         "y": 46.5,
+         "x": 115,
+         "y": 56,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1054852,8 +1054853,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 97,
-         "y": 8,
+         "x": 102.5,
+         "y": 17.5,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1054870,8 +1054871,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 109.5,
-         "y": 25.5,
+         "x": 115,
+         "y": 35,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1054888,8 +1054889,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 124.5,
-         "y": 25,
+         "x": 130,
+         "y": 34.5,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1054906,8 +1054907,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 128,
-         "y": 32,
+         "x": 133.5,
+         "y": 41.5,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1054924,8 +1054925,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 125.5,
-         "y": 18.5,
+         "x": 131,
+         "y": 28,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1054942,8 +1054943,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 129,
-         "y": 15.5,
+         "x": 134.5,
+         "y": 25,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1054960,8 +1054961,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 114,
-         "y": -24.5,
+         "x": 119.5,
+         "y": -15,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1054978,8 +1054979,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 119.5,
-         "y": -32.5,
+         "x": 125,
+         "y": -23,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1054996,8 +1054997,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 120.5,
-         "y": -59,
+         "x": 126,
+         "y": -49.5,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1055013,8 +1055014,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 115,
-         "y": -39,
+         "x": 120.5,
+         "y": -29.5,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1055034,8 +1055035,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 146.5,
-         "y": 154.5,
+         "x": 139,
+         "y": 148.5,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1055070,8 +1055071,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 143,
-         "y": 202,
+         "x": 135.5,
+         "y": 196,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1055088,8 +1055089,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 162.5,
-         "y": 185.5,
+         "x": 155,
+         "y": 179.5,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1055106,8 +1055107,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 157,
-         "y": 190,
+         "x": 149.5,
+         "y": 184,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1055124,8 +1055125,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 156,
-         "y": 182,
+         "x": 148.5,
+         "y": 176,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1055142,8 +1055143,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 163.5,
-         "y": 192,
+         "x": 156,
+         "y": 186,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1055160,8 +1055161,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 156.5,
-         "y": 198,
+         "x": 149,
+         "y": 192,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1055178,8 +1055179,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 160,
-         "y": 239.5,
+         "x": 152.5,
+         "y": 233.5,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1055196,8 +1055197,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 167.5,
-         "y": 242.5,
+         "x": 160,
+         "y": 236.5,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1055214,8 +1055215,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 166.5,
-         "y": 248,
+         "x": 159,
+         "y": 242,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1055232,8 +1055233,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 161,
-         "y": 243,
+         "x": 153.5,
+         "y": 237,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1055256,8 +1055257,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 152,
-         "y": 139,
+         "x": 146,
+         "y": 136.5,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1055292,8 +1055293,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 152,
-         "y": 186,
+         "x": 146,
+         "y": 183.5,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1055310,8 +1055311,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 170,
-         "y": 169,
+         "x": 164,
+         "y": 166.5,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1055328,8 +1055329,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 164.5,
-         "y": 174.5,
+         "x": 158.5,
+         "y": 172,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1055346,8 +1055347,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 163,
-         "y": 166.5,
+         "x": 157,
+         "y": 164,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1055364,8 +1055365,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 171.5,
-         "y": 176,
+         "x": 165.5,
+         "y": 173.5,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1055382,8 +1055383,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 165,
-         "y": 182.5,
+         "x": 159,
+         "y": 180,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1055400,8 +1055401,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 172,
-         "y": 223,
+         "x": 166,
+         "y": 220.5,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1055418,8 +1055419,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 180,
-         "y": 226,
+         "x": 174,
+         "y": 223.5,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1055436,8 +1055437,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 180.5,
-         "y": 231.5,
+         "x": 174.5,
+         "y": 229,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1055454,8 +1055455,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 177.5,
-         "y": 233.5,
+         "x": 171.5,
+         "y": 231,
          "w": 10,
          "h": 16,
          "color": "#c8a23c",
@@ -1055472,8 +1055473,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 179,
-         "y": 232,
+         "x": 173,
+         "y": 229.5,
          "w": 6,
          "h": 9,
          "color": "#efe9dc",
@@ -1055490,8 +1055491,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 174,
-         "y": 226.5,
+         "x": 168,
+         "y": 224,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1055511,8 +1055512,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 94,
-         "y": 147.5,
+         "x": 88,
+         "y": 141,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1055547,8 +1055548,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 90.5,
-         "y": 195,
+         "x": 84.5,
+         "y": 188.5,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1055565,8 +1055566,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 110,
-         "y": 178.5,
+         "x": 104,
+         "y": 172,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1055583,8 +1055584,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 104.5,
-         "y": 183,
+         "x": 98.5,
+         "y": 176.5,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1055601,8 +1055602,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 103.5,
-         "y": 175,
+         "x": 97.5,
+         "y": 168.5,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1055619,8 +1055620,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 111,
-         "y": 185,
+         "x": 105,
+         "y": 178.5,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1055637,8 +1055638,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 104,
-         "y": 191,
+         "x": 98,
+         "y": 184.5,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1055655,8 +1055656,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 107.5,
-         "y": 232.5,
+         "x": 101.5,
+         "y": 226,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1055673,8 +1055674,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 115,
-         "y": 235.5,
+         "x": 109,
+         "y": 229,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1055691,8 +1055692,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 114,
-         "y": 241,
+         "x": 108,
+         "y": 234.5,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1055709,8 +1055710,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 111.5,
-         "y": 243,
+         "x": 105.5,
+         "y": 236.5,
          "w": 10,
          "h": 16,
          "color": "#c8a23c",
@@ -1055727,8 +1055728,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 113.5,
-         "y": 241.5,
+         "x": 107.5,
+         "y": 235,
          "w": 6,
          "h": 9,
          "color": "#efe9dc",
@@ -1055745,8 +1055746,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 108.5,
-         "y": 236,
+         "x": 102.5,
+         "y": 229.5,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1055766,8 +1055767,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 109.5,
-         "y": 46.5,
+         "x": 117.5,
+         "y": 56.5,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1055802,8 +1055803,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 97,
-         "y": 8,
+         "x": 105,
+         "y": 18,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1055820,8 +1055821,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 109.5,
-         "y": 25.5,
+         "x": 117.5,
+         "y": 35.5,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1055838,8 +1055839,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 124.5,
-         "y": 25,
+         "x": 132.5,
+         "y": 35,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1055856,8 +1055857,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 128,
-         "y": 32,
+         "x": 136,
+         "y": 42,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1055874,8 +1055875,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 125.5,
-         "y": 18.5,
+         "x": 133.5,
+         "y": 28.5,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1055892,8 +1055893,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 129,
-         "y": 15.5,
+         "x": 137,
+         "y": 25.5,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1055910,8 +1055911,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 114,
-         "y": -24.5,
+         "x": 122,
+         "y": -14.5,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1055928,8 +1055929,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 119.5,
-         "y": -32.5,
+         "x": 127.5,
+         "y": -22.5,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1055946,8 +1055947,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 120.5,
-         "y": -59,
+         "x": 128.5,
+         "y": -49,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1055963,8 +1055964,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 118,
-         "y": -46,
+         "x": 126,
+         "y": -36,
          "w": 10,
          "h": 16,
          "color": "#c8a23c",
@@ -1055980,8 +1055981,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 120,
-         "y": -37.5,
+         "x": 128,
+         "y": -27.5,
          "w": 6,
          "h": 9,
          "color": "#efe9dc",
@@ -1055997,8 +1055998,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 115,
-         "y": -39,
+         "x": 123,
+         "y": -29,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1056018,8 +1056019,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 146.5,
-         "y": 154.5,
+         "x": 139.5,
+         "y": 148,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1056054,8 +1056055,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 143,
-         "y": 202,
+         "x": 136,
+         "y": 195.5,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1056072,8 +1056073,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 162.5,
-         "y": 185.5,
+         "x": 155.5,
+         "y": 179,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1056090,8 +1056091,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 157,
-         "y": 190,
+         "x": 150,
+         "y": 183.5,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1056108,8 +1056109,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 156,
-         "y": 182,
+         "x": 149,
+         "y": 175.5,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1056126,8 +1056127,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 163.5,
-         "y": 192,
+         "x": 156.5,
+         "y": 185.5,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1056144,8 +1056145,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 156.5,
-         "y": 198,
+         "x": 149.5,
+         "y": 191.5,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1056162,8 +1056163,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 160,
-         "y": 239.5,
+         "x": 153,
+         "y": 233,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1056180,8 +1056181,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 167.5,
-         "y": 242.5,
+         "x": 160.5,
+         "y": 236,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1056198,8 +1056199,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 166.5,
-         "y": 248,
+         "x": 159.5,
+         "y": 241.5,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1056216,8 +1056217,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 164,
-         "y": 250,
+         "x": 157,
+         "y": 243.5,
          "w": 10,
          "h": 16,
          "color": "#c8a23c",
@@ -1056234,8 +1056235,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 166,
-         "y": 248.5,
+         "x": 159,
+         "y": 242,
          "w": 6,
          "h": 9,
          "color": "#efe9dc",
@@ -1056252,8 +1056253,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 161,
-         "y": 243,
+         "x": 154,
+         "y": 236.5,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1056280,8 +1056281,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 141.5,
-         "y": 130,
+         "x": 130.5,
+         "y": 123.5,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1056316,8 +1056317,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 143,
-         "y": 177,
+         "x": 132,
+         "y": 170.5,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1056334,8 +1056335,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 160.5,
-         "y": 160,
+         "x": 149.5,
+         "y": 153.5,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1056352,8 +1056353,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 155,
-         "y": 165.5,
+         "x": 144,
+         "y": 159,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1056370,8 +1056371,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 153.5,
-         "y": 158,
+         "x": 142.5,
+         "y": 151.5,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1056388,8 +1056389,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 162,
-         "y": 167,
+         "x": 151,
+         "y": 160.5,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1056406,8 +1056407,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 156,
-         "y": 174,
+         "x": 145,
+         "y": 167.5,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1056424,8 +1056425,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 164.5,
-         "y": 214,
+         "x": 153.5,
+         "y": 207.5,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1056442,8 +1056443,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 172.5,
-         "y": 217,
+         "x": 161.5,
+         "y": 210.5,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1056460,8 +1056461,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 173.5,
-         "y": 222.5,
+         "x": 162.5,
+         "y": 216,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1056478,8 +1056479,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 166.5,
-         "y": 217.5,
+         "x": 155.5,
+         "y": 211,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1056499,8 +1056500,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 93,
-         "y": 131.5,
+         "x": 86.5,
+         "y": 124,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1056535,8 +1056536,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 89.5,
-         "y": 179,
+         "x": 83,
+         "y": 171.5,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1056553,8 +1056554,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 109,
-         "y": 162.5,
+         "x": 102.5,
+         "y": 155,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1056571,8 +1056572,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 103.5,
-         "y": 167,
+         "x": 97,
+         "y": 159.5,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1056589,8 +1056590,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 102.5,
-         "y": 159,
+         "x": 96,
+         "y": 151.5,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1056607,8 +1056608,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 110,
-         "y": 169,
+         "x": 103.5,
+         "y": 161.5,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1056625,8 +1056626,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 103,
-         "y": 175,
+         "x": 96.5,
+         "y": 167.5,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1056643,8 +1056644,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 106.5,
-         "y": 216.5,
+         "x": 100,
+         "y": 209,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1056661,8 +1056662,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 114,
-         "y": 219.5,
+         "x": 107.5,
+         "y": 212,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1056679,8 +1056680,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 113,
-         "y": 225,
+         "x": 106.5,
+         "y": 217.5,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1056697,8 +1056698,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 107.5,
-         "y": 220,
+         "x": 101,
+         "y": 212.5,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1056718,8 +1056719,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 109.5,
-         "y": 46.5,
+         "x": 117.5,
+         "y": 54.5,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1056754,8 +1056755,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 97,
-         "y": 8,
+         "x": 105,
+         "y": 16,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1056772,8 +1056773,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 109.5,
-         "y": 25.5,
+         "x": 117.5,
+         "y": 33.5,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1056790,8 +1056791,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 124.5,
-         "y": 25,
+         "x": 132.5,
+         "y": 33,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1056808,8 +1056809,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 128,
-         "y": 32,
+         "x": 136,
+         "y": 40,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1056826,8 +1056827,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 125.5,
-         "y": 18.5,
+         "x": 133.5,
+         "y": 26.5,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1056844,8 +1056845,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 129,
-         "y": 15.5,
+         "x": 137,
+         "y": 23.5,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1056862,8 +1056863,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 114,
-         "y": -24.5,
+         "x": 122,
+         "y": -16.5,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1056880,8 +1056881,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 119.5,
-         "y": -32.5,
+         "x": 127.5,
+         "y": -24.5,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1056898,8 +1056899,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 120.5,
-         "y": -59,
+         "x": 128.5,
+         "y": -51,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1056915,8 +1056916,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 115,
-         "y": -39,
+         "x": 123,
+         "y": -31,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1056936,8 +1056937,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 140,
-         "y": 128,
+         "x": 131,
+         "y": 122.5,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1056972,8 +1056973,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 144,
-         "y": 174.5,
+         "x": 135,
+         "y": 169,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1056990,8 +1056991,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 160.5,
-         "y": 157.5,
+         "x": 151.5,
+         "y": 152,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1057008,8 +1057009,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 155.5,
-         "y": 163.5,
+         "x": 146.5,
+         "y": 158,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1057026,8 +1057027,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 153.5,
-         "y": 156,
+         "x": 144.5,
+         "y": 150.5,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1057044,8 +1057045,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 162.5,
-         "y": 165,
+         "x": 153.5,
+         "y": 159.5,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1057062,8 +1057063,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 157,
-         "y": 172,
+         "x": 148,
+         "y": 166.5,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1057080,8 +1057081,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 167,
-         "y": 211,
+         "x": 158,
+         "y": 205.5,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1057098,8 +1057099,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 175.5,
-         "y": 214,
+         "x": 166.5,
+         "y": 208.5,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1057116,8 +1057117,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 177.5,
-         "y": 219.5,
+         "x": 168.5,
+         "y": 214,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1057134,8 +1057135,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 169.5,
-         "y": 214.5,
+         "x": 160.5,
+         "y": 209,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1057158,8 +1057159,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 141.5,
-         "y": 130,
+         "x": 135,
+         "y": 119,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1057194,8 +1057195,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 143,
-         "y": 177,
+         "x": 136.5,
+         "y": 166,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1057212,8 +1057213,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 160.5,
-         "y": 160,
+         "x": 154,
+         "y": 149,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1057230,8 +1057231,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 155,
-         "y": 165.5,
+         "x": 148.5,
+         "y": 154.5,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1057248,8 +1057249,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 153.5,
-         "y": 158,
+         "x": 147,
+         "y": 147,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1057266,8 +1057267,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 162,
-         "y": 167,
+         "x": 155.5,
+         "y": 156,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1057284,8 +1057285,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 156,
-         "y": 174,
+         "x": 149.5,
+         "y": 163,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1057302,8 +1057303,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 164.5,
-         "y": 214,
+         "x": 158,
+         "y": 203,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1057320,8 +1057321,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 172.5,
-         "y": 217,
+         "x": 166,
+         "y": 206,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1057338,8 +1057339,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 173.5,
-         "y": 222.5,
+         "x": 167,
+         "y": 211.5,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1057356,8 +1057357,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 170.5,
-         "y": 224.5,
+         "x": 164,
+         "y": 213.5,
          "w": 10,
          "h": 16,
          "color": "#c8a23c",
@@ -1057374,8 +1057375,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 172,
-         "y": 223,
+         "x": 165.5,
+         "y": 212,
          "w": 6,
          "h": 9,
          "color": "#efe9dc",
@@ -1057392,8 +1057393,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 166.5,
-         "y": 217.5,
+         "x": 160,
+         "y": 206.5,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1057413,8 +1057414,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 93,
-         "y": 131.5,
+         "x": 84.5,
+         "y": 125.5,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1057449,8 +1057450,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 89.5,
-         "y": 179,
+         "x": 81,
+         "y": 173,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1057467,8 +1057468,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 109,
-         "y": 162.5,
+         "x": 100.5,
+         "y": 156.5,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1057485,8 +1057486,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 103.5,
-         "y": 167,
+         "x": 95,
+         "y": 161,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1057503,8 +1057504,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 102.5,
-         "y": 159,
+         "x": 94,
+         "y": 153,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1057521,8 +1057522,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 110,
-         "y": 169,
+         "x": 101.5,
+         "y": 163,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1057539,8 +1057540,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 103,
-         "y": 175,
+         "x": 94.5,
+         "y": 169,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1057557,8 +1057558,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 106.5,
-         "y": 216.5,
+         "x": 98,
+         "y": 210.5,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1057575,8 +1057576,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 114,
-         "y": 219.5,
+         "x": 105.5,
+         "y": 213.5,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1057593,8 +1057594,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 113,
-         "y": 225,
+         "x": 104.5,
+         "y": 219,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1057611,8 +1057612,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 110.5,
-         "y": 227,
+         "x": 102,
+         "y": 221,
          "w": 10,
          "h": 16,
          "color": "#c8a23c",
@@ -1057629,8 +1057630,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 112.5,
-         "y": 225.5,
+         "x": 104,
+         "y": 219.5,
          "w": 6,
          "h": 9,
          "color": "#efe9dc",
@@ -1057647,8 +1057648,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 107.5,
-         "y": 220,
+         "x": 99,
+         "y": 214,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1057668,8 +1057669,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 109.5,
-         "y": 46.5,
+         "x": 115,
+         "y": 52,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1057704,8 +1057705,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 97,
-         "y": 8,
+         "x": 102.5,
+         "y": 13.5,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1057722,8 +1057723,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 109.5,
-         "y": 25.5,
+         "x": 115,
+         "y": 31,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1057740,8 +1057741,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 124.5,
-         "y": 25,
+         "x": 130,
+         "y": 30.5,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1057758,8 +1057759,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 128,
-         "y": 32,
+         "x": 133.5,
+         "y": 37.5,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1057776,8 +1057777,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 125.5,
-         "y": 18.5,
+         "x": 131,
+         "y": 24,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1057794,8 +1057795,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 129,
-         "y": 15.5,
+         "x": 134.5,
+         "y": 21,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1057812,8 +1057813,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 114,
-         "y": -24.5,
+         "x": 119.5,
+         "y": -19,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1057830,8 +1057831,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 119.5,
-         "y": -32.5,
+         "x": 125,
+         "y": -27,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1057848,8 +1057849,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 120.5,
-         "y": -59,
+         "x": 126,
+         "y": -53.5,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1057865,8 +1057866,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 118,
-         "y": -46,
+         "x": 123.5,
+         "y": -40.5,
          "w": 10,
          "h": 16,
          "color": "#c8a23c",
@@ -1057882,8 +1057883,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 120,
-         "y": -37.5,
+         "x": 125.5,
+         "y": -32,
          "w": 6,
          "h": 9,
          "color": "#efe9dc",
@@ -1057899,8 +1057900,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 115,
-         "y": -39,
+         "x": 120.5,
+         "y": -33.5,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1057920,8 +1057921,8 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 140,
-         "y": 128,
+         "x": 133,
+         "y": 124,
          "w": 36,
          "h": 19,
          "color": "#8a5a2b",
@@ -1057956,8 +1057957,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 144,
-         "y": 174.5,
+         "x": 137,
+         "y": 170.5,
          "w": 52,
          "h": 10,
          "color": "#8a5a2b",
@@ -1057974,8 +1057975,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 160.5,
-         "y": 157.5,
+         "x": 153.5,
+         "y": 153.5,
          "w": 20,
          "h": 9,
          "color": "#2b2b2b",
@@ -1057992,8 +1057993,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 155.5,
-         "y": 163.5,
+         "x": 148.5,
+         "y": 159.5,
          "w": 11,
          "h": 5.5,
          "color": "#2b2b2b",
@@ -1058010,8 +1058011,8 @@
           "bright": 1
          },
          "kind": "halfcircle",
-         "x": 153.5,
-         "y": 156,
+         "x": 146.5,
+         "y": 152,
          "w": 8,
          "h": 6,
          "color": "#2b2b2b",
@@ -1058028,8 +1058029,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 162.5,
-         "y": 165,
+         "x": 155.5,
+         "y": 161,
          "w": 3.5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1058046,8 +1058047,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 157,
-         "y": 172,
+         "x": 150,
+         "y": 168,
          "w": 6.5,
          "h": 6.5,
          "color": "#2b2b2b",
@@ -1058064,8 +1058065,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 167,
-         "y": 211,
+         "x": 160,
+         "y": 207,
          "w": 18,
          "h": 5,
          "color": "#2b2b2b",
@@ -1058082,8 +1058083,8 @@
           "bright": 1
          },
          "kind": "rect",
-         "x": 175.5,
-         "y": 214,
+         "x": 168.5,
+         "y": 210,
          "w": 5,
          "h": 10,
          "color": "#2b2b2b",
@@ -1058100,8 +1058101,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 177.5,
-         "y": 219.5,
+         "x": 170.5,
+         "y": 215.5,
          "w": 5,
          "h": 31,
          "color": "#8a929c",
@@ -1058118,8 +1058119,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 174,
-         "y": 221.5,
+         "x": 167,
+         "y": 217.5,
          "w": 10,
          "h": 16,
          "color": "#c8a23c",
@@ -1058136,8 +1058137,8 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 175,
-         "y": 220,
+         "x": 168,
+         "y": 216,
          "w": 6,
          "h": 9,
          "color": "#efe9dc",
@@ -1058154,8 +1058155,8 @@
           "bright": 1
          },
          "kind": "circle",
-         "x": 169.5,
-         "y": 214.5,
+         "x": 162.5,
+         "y": 210.5,
          "w": 16,
          "h": 16,
          "color": "#42d6ff",
@@ -1058173,7 +1058174,7 @@
      "front": [],
      "back": [
       {
-       "id": "vn000b5",
+       "id": "vn000dt",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058182,8 +1058183,8 @@
         "bright": 1
        },
        "kind": "poly",
-       "x": 152,
-       "y": 139,
+       "x": 130.5,
+       "y": 123.5,
        "w": 36,
        "h": 19,
        "color": "#8a5a2b",
@@ -1058205,11 +1058206,11 @@
          1
         ]
        ],
-       "rot": 85,
+       "rot": 83,
        "behindBody": true
       },
       {
-       "id": "vn000b6",
+       "id": "vn000du",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058218,16 +1058219,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 152,
-       "y": 186,
+       "x": 132,
+       "y": 170.5,
        "w": 52,
        "h": 10,
        "color": "#8a5a2b",
-       "rot": 85,
+       "rot": 83,
        "behindBody": true
       },
       {
-       "id": "vn000b7",
+       "id": "vn000dv",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058236,16 +1058237,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 170,
-       "y": 169,
+       "x": 149.5,
+       "y": 153.5,
        "w": 20,
        "h": 9,
        "color": "#2b2b2b",
-       "rot": 85,
+       "rot": 83,
        "behindBody": true
       },
       {
-       "id": "vn000b8",
+       "id": "vn000dw",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058254,16 +1058255,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 164.5,
-       "y": 174.5,
+       "x": 144,
+       "y": 159,
        "w": 11,
        "h": 5.5,
        "color": "#2b2b2b",
-       "rot": 85,
+       "rot": 83,
        "behindBody": true
       },
       {
-       "id": "vn000b9",
+       "id": "vn000dx",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058272,16 +1058273,16 @@
         "bright": 1
        },
        "kind": "halfcircle",
-       "x": 163,
-       "y": 166.5,
+       "x": 142.5,
+       "y": 151.5,
        "w": 8,
        "h": 6,
        "color": "#2b2b2b",
-       "rot": 265,
+       "rot": 263,
        "behindBody": true
       },
       {
-       "id": "vn000ba",
+       "id": "vn000dy",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058290,16 +1058291,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 171.5,
-       "y": 176,
+       "x": 151,
+       "y": 160.5,
        "w": 3.5,
        "h": 10,
        "color": "#2b2b2b",
-       "rot": 120,
+       "rot": 118,
        "behindBody": true
       },
       {
-       "id": "vn000bb",
+       "id": "vn000dz",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058308,16 +1058309,16 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 165,
-       "y": 182.5,
+       "x": 145,
+       "y": 167.5,
        "w": 6.5,
        "h": 6.5,
        "color": "#2b2b2b",
-       "rot": 85,
+       "rot": 83,
        "behindBody": true
       },
       {
-       "id": "vn000bc",
+       "id": "vn000e0",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058326,16 +1058327,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 172,
-       "y": 223,
+       "x": 153.5,
+       "y": 207.5,
        "w": 18,
        "h": 5,
        "color": "#2b2b2b",
-       "rot": 85,
+       "rot": 83,
        "behindBody": true
       },
       {
-       "id": "vn000bd",
+       "id": "vn000e1",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058344,16 +1058345,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 180,
-       "y": 226,
+       "x": 161.5,
+       "y": 210.5,
        "w": 5,
        "h": 10,
        "color": "#2b2b2b",
-       "rot": 85,
+       "rot": 83,
        "behindBody": true
       },
       {
-       "id": "vn000be",
+       "id": "vn000e2",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058362,16 +1058363,16 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 180.5,
-       "y": 231.5,
+       "x": 162.5,
+       "y": 216,
        "w": 5,
        "h": 31,
        "color": "#8a929c",
-       "rot": 175,
+       "rot": 173,
        "behindBody": true
       },
       {
-       "id": "vn000bf",
+       "id": "vn000e3",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058380,19 +1058381,19 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 174,
-       "y": 226.5,
+       "x": 155.5,
+       "y": 211,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
        "isMuzzle": true,
-       "rot": 85,
+       "rot": 83,
        "behindBody": true
       }
      ],
      "side": [
       {
-       "id": "vn000bt",
+       "id": "vn000eh",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058401,8 +1058402,8 @@
         "bright": 1
        },
        "kind": "poly",
-       "x": 94,
-       "y": 147.5,
+       "x": 86.5,
+       "y": 124,
        "w": 36,
        "h": 19,
        "color": "#8a5a2b",
@@ -1058428,7 +1058429,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000bu",
+       "id": "vn000ei",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058437,8 +1058438,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 90.5,
-       "y": 195,
+       "x": 83,
+       "y": 171.5,
        "w": 52,
        "h": 10,
        "color": "#8a5a2b",
@@ -1058446,7 +1058447,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000bv",
+       "id": "vn000ej",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058455,8 +1058456,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 110,
-       "y": 178.5,
+       "x": 102.5,
+       "y": 155,
        "w": 20,
        "h": 9,
        "color": "#2b2b2b",
@@ -1058464,7 +1058465,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000bw",
+       "id": "vn000ek",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058473,8 +1058474,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 104.5,
-       "y": 183,
+       "x": 97,
+       "y": 159.5,
        "w": 11,
        "h": 5.5,
        "color": "#2b2b2b",
@@ -1058482,7 +1058483,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000bx",
+       "id": "vn000el",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058491,8 +1058492,8 @@
         "bright": 1
        },
        "kind": "halfcircle",
-       "x": 103.5,
-       "y": 175,
+       "x": 96,
+       "y": 151.5,
        "w": 8,
        "h": 6,
        "color": "#2b2b2b",
@@ -1058500,7 +1058501,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000by",
+       "id": "vn000em",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058509,8 +1058510,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 111,
-       "y": 185,
+       "x": 103.5,
+       "y": 161.5,
        "w": 3.5,
        "h": 10,
        "color": "#2b2b2b",
@@ -1058518,7 +1058519,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000bz",
+       "id": "vn000en",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058527,8 +1058528,8 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 104,
-       "y": 191,
+       "x": 96.5,
+       "y": 167.5,
        "w": 6.5,
        "h": 6.5,
        "color": "#2b2b2b",
@@ -1058536,7 +1058537,25 @@
        "behindArm": true
       },
       {
-       "id": "vn000c0",
+       "id": "vn000eo",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 100,
+       "y": 209,
+       "w": 18,
+       "h": 5,
+       "color": "#2b2b2b",
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "vn000ep",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058546,25 +1058565,7 @@
        },
        "kind": "rect",
        "x": 107.5,
-       "y": 232.5,
-       "w": 18,
-       "h": 5,
-       "color": "#2b2b2b",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vn000c1",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 115,
-       "y": 235.5,
+       "y": 212,
        "w": 5,
        "h": 10,
        "color": "#2b2b2b",
@@ -1058572,7 +1058573,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000c2",
+       "id": "vn000eq",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058581,8 +1058582,8 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 114,
-       "y": 241,
+       "x": 106.5,
+       "y": 217.5,
        "w": 5,
        "h": 31,
        "color": "#8a929c",
@@ -1058590,7 +1058591,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000c3",
+       "id": "vn000er",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058599,8 +1058600,8 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 108.5,
-       "y": 236,
+       "x": 101,
+       "y": 212.5,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
@@ -1058611,7 +1058612,7 @@
      ],
      "up": [
       {
-       "id": "vn000ch",
+       "id": "vn000f5",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058620,8 +1058621,8 @@
         "bright": 1
        },
        "kind": "poly",
-       "x": 109.5,
-       "y": 46.5,
+       "x": 117.5,
+       "y": 54.5,
        "w": 36,
        "h": 19,
        "color": "#8a5a2b",
@@ -1058647,7 +1058648,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000ci",
+       "id": "vn000f6",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058656,8 +1058657,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 97,
-       "y": 8,
+       "x": 105,
+       "y": 16,
        "w": 52,
        "h": 10,
        "color": "#8a5a2b",
@@ -1058665,7 +1058666,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000cj",
+       "id": "vn000f7",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058674,8 +1058675,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 109.5,
-       "y": 25.5,
+       "x": 117.5,
+       "y": 33.5,
        "w": 20,
        "h": 9,
        "color": "#2b2b2b",
@@ -1058683,7 +1058684,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000ck",
+       "id": "vn000f8",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058692,8 +1058693,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 124.5,
-       "y": 25,
+       "x": 132.5,
+       "y": 33,
        "w": 11,
        "h": 5.5,
        "color": "#2b2b2b",
@@ -1058701,7 +1058702,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000cl",
+       "id": "vn000f9",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058710,8 +1058711,8 @@
         "bright": 1
        },
        "kind": "halfcircle",
-       "x": 128,
-       "y": 32,
+       "x": 136,
+       "y": 40,
        "w": 8,
        "h": 6,
        "color": "#2b2b2b",
@@ -1058719,7 +1058720,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000cm",
+       "id": "vn000fa",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058728,8 +1058729,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 125.5,
-       "y": 18.5,
+       "x": 133.5,
+       "y": 26.5,
        "w": 3.5,
        "h": 10,
        "color": "#2b2b2b",
@@ -1058737,7 +1058738,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000cn",
+       "id": "vn000fb",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058746,8 +1058747,8 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 129,
-       "y": 15.5,
+       "x": 137,
+       "y": 23.5,
        "w": 6.5,
        "h": 6.5,
        "color": "#2b2b2b",
@@ -1058755,7 +1058756,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000co",
+       "id": "vn000fc",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058764,8 +1058765,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 114,
-       "y": -24.5,
+       "x": 122,
+       "y": -16.5,
        "w": 18,
        "h": 5,
        "color": "#2b2b2b",
@@ -1058773,7 +1058774,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000cp",
+       "id": "vn000fd",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058782,8 +1058783,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 119.5,
-       "y": -32.5,
+       "x": 127.5,
+       "y": -24.5,
        "w": 5,
        "h": 10,
        "color": "#2b2b2b",
@@ -1058791,7 +1058792,7 @@
        "behindArm": true
       },
       {
-       "id": "vn000cq",
+       "id": "vn000fe",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058800,15 +1058801,15 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 120.5,
-       "y": -59,
+       "x": 128.5,
+       "y": -51,
        "w": 5,
        "h": 31,
        "color": "#8a929c",
        "behindArm": true
       },
       {
-       "id": "vn000cr",
+       "id": "vn000ff",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058817,8 +1058818,8 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 115,
-       "y": -39,
+       "x": 123,
+       "y": -31,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
@@ -1058829,7 +1058830,7 @@
      ],
      "crouch": [
       {
-       "id": "vn000d5",
+       "id": "vn000ft",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058838,8 +1058839,8 @@
         "bright": 1
        },
        "kind": "poly",
-       "x": 146.5,
-       "y": 154.5,
+       "x": 131,
+       "y": 122.5,
        "w": 36,
        "h": 19,
        "color": "#8a5a2b",
@@ -1058861,11 +1058862,11 @@
          1
         ]
        ],
-       "rot": 90,
+       "rot": 80,
        "behindArm": true
       },
       {
-       "id": "vn000d6",
+       "id": "vn000fu",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058874,16 +1058875,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 143,
-       "y": 202,
+       "x": 135,
+       "y": 169,
        "w": 52,
        "h": 10,
        "color": "#8a5a2b",
-       "rot": 90,
+       "rot": 80,
        "behindArm": true
       },
       {
-       "id": "vn000d7",
+       "id": "vn000fv",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058892,16 +1058893,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 162.5,
-       "y": 185.5,
+       "x": 151.5,
+       "y": 152,
        "w": 20,
        "h": 9,
        "color": "#2b2b2b",
-       "rot": 90,
+       "rot": 80,
        "behindArm": true
       },
       {
-       "id": "vn000d8",
+       "id": "vn000fw",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058910,16 +1058911,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 157,
-       "y": 190,
+       "x": 146.5,
+       "y": 158,
        "w": 11,
        "h": 5.5,
        "color": "#2b2b2b",
-       "rot": 90,
+       "rot": 80,
        "behindArm": true
       },
       {
-       "id": "vn000d9",
+       "id": "vn000fx",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058928,16 +1058929,16 @@
         "bright": 1
        },
        "kind": "halfcircle",
-       "x": 156,
-       "y": 182,
+       "x": 144.5,
+       "y": 150.5,
        "w": 8,
        "h": 6,
        "color": "#2b2b2b",
-       "rot": 270,
+       "rot": 260,
        "behindArm": true
       },
       {
-       "id": "vn000da",
+       "id": "vn000fy",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058946,16 +1058947,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 163.5,
-       "y": 192,
+       "x": 153.5,
+       "y": 159.5,
        "w": 3.5,
        "h": 10,
        "color": "#2b2b2b",
-       "rot": 125,
+       "rot": 115,
        "behindArm": true
       },
       {
-       "id": "vn000db",
+       "id": "vn000fz",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058964,16 +1058965,16 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 156.5,
-       "y": 198,
+       "x": 148,
+       "y": 166.5,
        "w": 6.5,
        "h": 6.5,
        "color": "#2b2b2b",
-       "rot": 90,
+       "rot": 80,
        "behindArm": true
       },
       {
-       "id": "vn000dc",
+       "id": "vn000g0",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1058982,16 +1058983,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 160,
-       "y": 239.5,
+       "x": 158,
+       "y": 205.5,
        "w": 18,
        "h": 5,
        "color": "#2b2b2b",
-       "rot": 90,
+       "rot": 80,
        "behindArm": true
       },
       {
-       "id": "vn000dd",
+       "id": "vn000g1",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1059000,16 +1059001,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 167.5,
-       "y": 242.5,
+       "x": 166.5,
+       "y": 208.5,
        "w": 5,
        "h": 10,
        "color": "#2b2b2b",
-       "rot": 90,
+       "rot": 80,
        "behindArm": true
       },
       {
-       "id": "vn000de",
+       "id": "vn000g2",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1059018,16 +1059019,16 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 166.5,
-       "y": 248,
+       "x": 168.5,
+       "y": 214,
        "w": 5,
        "h": 31,
        "color": "#8a929c",
-       "rot": 180,
+       "rot": 170,
        "behindArm": true
       },
       {
-       "id": "vn000df",
+       "id": "vn000g3",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1059036,13 +1059037,13 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 161,
-       "y": 243,
+       "x": 160.5,
+       "y": 209,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
        "isMuzzle": true,
-       "rot": 90,
+       "rot": 80,
        "behindArm": true
       }
      ]
@@ -1059051,7 +1059052,7 @@
      "front": [],
      "back": [
       {
-       "id": "vn000bg",
+       "id": "vn000e4",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1059060,8 +1059061,8 @@
         "bright": 1
        },
        "kind": "poly",
-       "x": 152,
-       "y": 139,
+       "x": 135,
+       "y": 119,
        "w": 36,
        "h": 19,
        "color": "#8a5a2b",
@@ -1059083,11 +1059084,11 @@
          1
         ]
        ],
-       "rot": 85,
+       "rot": 83,
        "behindBody": true
       },
       {
-       "id": "vn000bh",
+       "id": "vn000e5",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1059096,16 +1059097,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 152,
-       "y": 186,
+       "x": 136.5,
+       "y": 166,
        "w": 52,
        "h": 10,
        "color": "#8a5a2b",
-       "rot": 85,
+       "rot": 83,
        "behindBody": true
       },
       {
-       "id": "vn000bi",
+       "id": "vn000e6",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1059114,16 +1059115,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 170,
-       "y": 169,
+       "x": 154,
+       "y": 149,
        "w": 20,
        "h": 9,
        "color": "#2b2b2b",
-       "rot": 85,
+       "rot": 83,
        "behindBody": true
       },
       {
-       "id": "vn000bj",
+       "id": "vn000e7",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1059132,778 +1059133,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 164.5,
-       "y": 174.5,
-       "w": 11,
-       "h": 5.5,
-       "color": "#2b2b2b",
-       "rot": 85,
-       "behindBody": true
-      },
-      {
-       "id": "vn000bk",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "halfcircle",
-       "x": 163,
-       "y": 166.5,
-       "w": 8,
-       "h": 6,
-       "color": "#2b2b2b",
-       "rot": 265,
-       "behindBody": true
-      },
-      {
-       "id": "vn000bl",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 171.5,
-       "y": 176,
-       "w": 3.5,
-       "h": 10,
-       "color": "#2b2b2b",
-       "rot": 120,
-       "behindBody": true
-      },
-      {
-       "id": "vn000bm",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "circle",
-       "x": 165,
-       "y": 182.5,
-       "w": 6.5,
-       "h": 6.5,
-       "color": "#2b2b2b",
-       "rot": 85,
-       "behindBody": true
-      },
-      {
-       "id": "vn000bn",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 172,
-       "y": 223,
-       "w": 18,
-       "h": 5,
-       "color": "#2b2b2b",
-       "rot": 85,
-       "behindBody": true
-      },
-      {
-       "id": "vn000bo",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 180,
-       "y": 226,
-       "w": 5,
-       "h": 10,
-       "color": "#2b2b2b",
-       "rot": 85,
-       "behindBody": true
-      },
-      {
-       "id": "vn000bp",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 180.5,
-       "y": 231.5,
-       "w": 5,
-       "h": 31,
-       "color": "#8a929c",
-       "rot": 175,
-       "behindBody": true
-      },
-      {
-       "id": "vn000bq",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 177.5,
-       "y": 233.5,
-       "w": 10,
-       "h": 16,
-       "color": "#c8a23c",
-       "rot": 175,
-       "behindBody": true
-      },
-      {
-       "id": "vn000br",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 179,
-       "y": 232,
-       "w": 6,
-       "h": 9,
-       "color": "#efe9dc",
-       "rot": 175,
-       "behindBody": true
-      },
-      {
-       "id": "vn000bs",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "circle",
-       "x": 174,
-       "y": 226.5,
-       "w": 16,
-       "h": 16,
-       "color": "#42d6ff",
-       "isMuzzle": true,
-       "rot": 85,
-       "behindBody": true
-      }
-     ],
-     "side": [
-      {
-       "id": "vn000c4",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "poly",
-       "x": 94,
-       "y": 147.5,
-       "w": 36,
-       "h": 19,
-       "color": "#8a5a2b",
-       "points": [
-        [
-         0,
-         0
-        ],
-        [
-         1,
-         0
-        ],
-        [
-         1,
-         0.53
-        ],
-        [
-         0,
-         1
-        ]
-       ],
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vn000c5",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 90.5,
-       "y": 195,
-       "w": 52,
-       "h": 10,
-       "color": "#8a5a2b",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vn000c6",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 110,
-       "y": 178.5,
-       "w": 20,
-       "h": 9,
-       "color": "#2b2b2b",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vn000c7",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 104.5,
-       "y": 183,
-       "w": 11,
-       "h": 5.5,
-       "color": "#2b2b2b",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vn000c8",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "halfcircle",
-       "x": 103.5,
-       "y": 175,
-       "w": 8,
-       "h": 6,
-       "color": "#2b2b2b",
-       "rot": 270,
-       "behindArm": true
-      },
-      {
-       "id": "vn000c9",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 111,
-       "y": 185,
-       "w": 3.5,
-       "h": 10,
-       "color": "#2b2b2b",
-       "rot": 125,
-       "behindArm": true
-      },
-      {
-       "id": "vn000ca",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "circle",
-       "x": 104,
-       "y": 191,
-       "w": 6.5,
-       "h": 6.5,
-       "color": "#2b2b2b",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vn000cb",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 107.5,
-       "y": 232.5,
-       "w": 18,
-       "h": 5,
-       "color": "#2b2b2b",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vn000cc",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 115,
-       "y": 235.5,
-       "w": 5,
-       "h": 10,
-       "color": "#2b2b2b",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vn000cd",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 114,
-       "y": 241,
-       "w": 5,
-       "h": 31,
-       "color": "#8a929c",
-       "rot": 180,
-       "behindArm": true
-      },
-      {
-       "id": "vn000ce",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 111.5,
-       "y": 243,
-       "w": 10,
-       "h": 16,
-       "color": "#c8a23c",
-       "rot": 180,
-       "behindArm": true
-      },
-      {
-       "id": "vn000cf",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 113.5,
-       "y": 241.5,
-       "w": 6,
-       "h": 9,
-       "color": "#efe9dc",
-       "rot": 180,
-       "behindArm": true
-      },
-      {
-       "id": "vn000cg",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "circle",
-       "x": 108.5,
-       "y": 236,
-       "w": 16,
-       "h": 16,
-       "color": "#42d6ff",
-       "isMuzzle": true,
-       "rot": 90,
-       "behindArm": true
-      }
-     ],
-     "up": [
-      {
-       "id": "vn000cs",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "poly",
-       "x": 109.5,
-       "y": 46.5,
-       "w": 36,
-       "h": 19,
-       "color": "#8a5a2b",
-       "points": [
-        [
-         0,
-         0
-        ],
-        [
-         1,
-         0
-        ],
-        [
-         1,
-         0.53
-        ],
-        [
-         0,
-         1
-        ]
-       ],
-       "rot": 270,
-       "behindArm": true
-      },
-      {
-       "id": "vn000ct",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 97,
-       "y": 8,
-       "w": 52,
-       "h": 10,
-       "color": "#8a5a2b",
-       "rot": 270,
-       "behindArm": true
-      },
-      {
-       "id": "vn000cu",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 109.5,
-       "y": 25.5,
-       "w": 20,
-       "h": 9,
-       "color": "#2b2b2b",
-       "rot": 270,
-       "behindArm": true
-      },
-      {
-       "id": "vn000cv",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 124.5,
-       "y": 25,
-       "w": 11,
-       "h": 5.5,
-       "color": "#2b2b2b",
-       "rot": 270,
-       "behindArm": true
-      },
-      {
-       "id": "vn000cw",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "halfcircle",
-       "x": 128,
-       "y": 32,
-       "w": 8,
-       "h": 6,
-       "color": "#2b2b2b",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vn000cx",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 125.5,
-       "y": 18.5,
-       "w": 3.5,
-       "h": 10,
-       "color": "#2b2b2b",
-       "rot": 305,
-       "behindArm": true
-      },
-      {
-       "id": "vn000cy",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "circle",
-       "x": 129,
-       "y": 15.5,
-       "w": 6.5,
-       "h": 6.5,
-       "color": "#2b2b2b",
-       "rot": 270,
-       "behindArm": true
-      },
-      {
-       "id": "vn000cz",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 114,
-       "y": -24.5,
-       "w": 18,
-       "h": 5,
-       "color": "#2b2b2b",
-       "rot": 270,
-       "behindArm": true
-      },
-      {
-       "id": "vn000d0",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 119.5,
-       "y": -32.5,
-       "w": 5,
-       "h": 10,
-       "color": "#2b2b2b",
-       "rot": 270,
-       "behindArm": true
-      },
-      {
-       "id": "vn000d1",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 120.5,
-       "y": -59,
-       "w": 5,
-       "h": 31,
-       "color": "#8a929c",
-       "behindArm": true
-      },
-      {
-       "id": "vn000d2",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 118,
-       "y": -46,
-       "w": 10,
-       "h": 16,
-       "color": "#c8a23c",
-       "behindArm": true
-      },
-      {
-       "id": "vn000d3",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 120,
-       "y": -37.5,
-       "w": 6,
-       "h": 9,
-       "color": "#efe9dc",
-       "behindArm": true
-      },
-      {
-       "id": "vn000d4",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "circle",
-       "x": 115,
-       "y": -39,
-       "w": 16,
-       "h": 16,
-       "color": "#42d6ff",
-       "isMuzzle": true,
-       "rot": 270,
-       "behindArm": true
-      }
-     ],
-     "crouch": [
-      {
-       "id": "vn000dg",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "poly",
-       "x": 146.5,
+       "x": 148.5,
        "y": 154.5,
-       "w": 36,
-       "h": 19,
-       "color": "#8a5a2b",
-       "points": [
-        [
-         0,
-         0
-        ],
-        [
-         1,
-         0
-        ],
-        [
-         1,
-         0.53
-        ],
-        [
-         0,
-         1
-        ]
-       ],
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vn000dh",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 143,
-       "y": 202,
-       "w": 52,
-       "h": 10,
-       "color": "#8a5a2b",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vn000di",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 162.5,
-       "y": 185.5,
-       "w": 20,
-       "h": 9,
-       "color": "#2b2b2b",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vn000dj",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 157,
-       "y": 190,
        "w": 11,
        "h": 5.5,
        "color": "#2b2b2b",
-       "rot": 90,
-       "behindArm": true
+       "rot": 83,
+       "behindBody": true
       },
       {
-       "id": "vn000dk",
+       "id": "vn000e8",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1059912,16 +1059151,16 @@
         "bright": 1
        },
        "kind": "halfcircle",
-       "x": 156,
-       "y": 182,
+       "x": 147,
+       "y": 147,
        "w": 8,
        "h": 6,
        "color": "#2b2b2b",
-       "rot": 270,
-       "behindArm": true
+       "rot": 263,
+       "behindBody": true
       },
       {
-       "id": "vn000dl",
+       "id": "vn000e9",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1059930,16 +1059169,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 163.5,
-       "y": 192,
+       "x": 155.5,
+       "y": 156,
        "w": 3.5,
        "h": 10,
        "color": "#2b2b2b",
-       "rot": 125,
-       "behindArm": true
+       "rot": 118,
+       "behindBody": true
       },
       {
-       "id": "vn000dm",
+       "id": "vn000ea",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1059948,16 +1059187,16 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 156.5,
-       "y": 198,
+       "x": 149.5,
+       "y": 163,
        "w": 6.5,
        "h": 6.5,
        "color": "#2b2b2b",
-       "rot": 90,
-       "behindArm": true
+       "rot": 83,
+       "behindBody": true
       },
       {
-       "id": "vn000dn",
+       "id": "vn000eb",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1059966,16 +1059205,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 160,
-       "y": 239.5,
+       "x": 158,
+       "y": 203,
        "w": 18,
        "h": 5,
        "color": "#2b2b2b",
-       "rot": 90,
-       "behindArm": true
+       "rot": 83,
+       "behindBody": true
       },
       {
-       "id": "vn000do",
+       "id": "vn000ec",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1059984,16 +1059223,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 167.5,
-       "y": 242.5,
+       "x": 166,
+       "y": 206,
        "w": 5,
        "h": 10,
        "color": "#2b2b2b",
-       "rot": 90,
-       "behindArm": true
+       "rot": 83,
+       "behindBody": true
       },
       {
-       "id": "vn000dp",
+       "id": "vn000ed",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1060002,16 +1059241,16 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 166.5,
-       "y": 248,
+       "x": 167,
+       "y": 211.5,
        "w": 5,
        "h": 31,
        "color": "#8a929c",
-       "rot": 180,
-       "behindArm": true
+       "rot": 173,
+       "behindBody": true
       },
       {
-       "id": "vn000dq",
+       "id": "vn000ee",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1060021,15 +1059260,15 @@
        },
        "kind": "tri",
        "x": 164,
-       "y": 250,
+       "y": 213.5,
        "w": 10,
        "h": 16,
        "color": "#c8a23c",
-       "rot": 180,
-       "behindArm": true
+       "rot": 173,
+       "behindBody": true
       },
       {
-       "id": "vn000dr",
+       "id": "vn000ef",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1060038,16 +1059277,16 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 166,
-       "y": 248.5,
+       "x": 165.5,
+       "y": 212,
        "w": 6,
        "h": 9,
        "color": "#efe9dc",
-       "rot": 180,
-       "behindArm": true
+       "rot": 173,
+       "behindBody": true
       },
       {
-       "id": "vn000ds",
+       "id": "vn000eg",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -1060056,13 +1059295,775 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 161,
-       "y": 243,
+       "x": 160,
+       "y": 206.5,
+       "w": 16,
+       "h": 16,
+       "color": "#42d6ff",
+       "isMuzzle": true,
+       "rot": 83,
+       "behindBody": true
+      }
+     ],
+     "side": [
+      {
+       "id": "vn000es",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "poly",
+       "x": 84.5,
+       "y": 125.5,
+       "w": 36,
+       "h": 19,
+       "color": "#8a5a2b",
+       "points": [
+        [
+         0,
+         0
+        ],
+        [
+         1,
+         0
+        ],
+        [
+         1,
+         0.53
+        ],
+        [
+         0,
+         1
+        ]
+       ],
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "vn000et",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 81,
+       "y": 173,
+       "w": 52,
+       "h": 10,
+       "color": "#8a5a2b",
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "vn000eu",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 100.5,
+       "y": 156.5,
+       "w": 20,
+       "h": 9,
+       "color": "#2b2b2b",
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "vn000ev",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 95,
+       "y": 161,
+       "w": 11,
+       "h": 5.5,
+       "color": "#2b2b2b",
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "vn000ew",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "halfcircle",
+       "x": 94,
+       "y": 153,
+       "w": 8,
+       "h": 6,
+       "color": "#2b2b2b",
+       "rot": 270,
+       "behindArm": true
+      },
+      {
+       "id": "vn000ex",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 101.5,
+       "y": 163,
+       "w": 3.5,
+       "h": 10,
+       "color": "#2b2b2b",
+       "rot": 125,
+       "behindArm": true
+      },
+      {
+       "id": "vn000ey",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "circle",
+       "x": 94.5,
+       "y": 169,
+       "w": 6.5,
+       "h": 6.5,
+       "color": "#2b2b2b",
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "vn000ez",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 98,
+       "y": 210.5,
+       "w": 18,
+       "h": 5,
+       "color": "#2b2b2b",
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "vn000f0",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 105.5,
+       "y": 213.5,
+       "w": 5,
+       "h": 10,
+       "color": "#2b2b2b",
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "vn000f1",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "tri",
+       "x": 104.5,
+       "y": 219,
+       "w": 5,
+       "h": 31,
+       "color": "#8a929c",
+       "rot": 180,
+       "behindArm": true
+      },
+      {
+       "id": "vn000f2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "tri",
+       "x": 102,
+       "y": 221,
+       "w": 10,
+       "h": 16,
+       "color": "#c8a23c",
+       "rot": 180,
+       "behindArm": true
+      },
+      {
+       "id": "vn000f3",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "tri",
+       "x": 104,
+       "y": 219.5,
+       "w": 6,
+       "h": 9,
+       "color": "#efe9dc",
+       "rot": 180,
+       "behindArm": true
+      },
+      {
+       "id": "vn000f4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "circle",
+       "x": 99,
+       "y": 214,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
        "isMuzzle": true,
        "rot": 90,
+       "behindArm": true
+      }
+     ],
+     "up": [
+      {
+       "id": "vn000fg",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "poly",
+       "x": 115,
+       "y": 52,
+       "w": 36,
+       "h": 19,
+       "color": "#8a5a2b",
+       "points": [
+        [
+         0,
+         0
+        ],
+        [
+         1,
+         0
+        ],
+        [
+         1,
+         0.53
+        ],
+        [
+         0,
+         1
+        ]
+       ],
+       "rot": 270,
+       "behindArm": true
+      },
+      {
+       "id": "vn000fh",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 102.5,
+       "y": 13.5,
+       "w": 52,
+       "h": 10,
+       "color": "#8a5a2b",
+       "rot": 270,
+       "behindArm": true
+      },
+      {
+       "id": "vn000fi",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 115,
+       "y": 31,
+       "w": 20,
+       "h": 9,
+       "color": "#2b2b2b",
+       "rot": 270,
+       "behindArm": true
+      },
+      {
+       "id": "vn000fj",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 130,
+       "y": 30.5,
+       "w": 11,
+       "h": 5.5,
+       "color": "#2b2b2b",
+       "rot": 270,
+       "behindArm": true
+      },
+      {
+       "id": "vn000fk",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "halfcircle",
+       "x": 133.5,
+       "y": 37.5,
+       "w": 8,
+       "h": 6,
+       "color": "#2b2b2b",
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "vn000fl",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 131,
+       "y": 24,
+       "w": 3.5,
+       "h": 10,
+       "color": "#2b2b2b",
+       "rot": 305,
+       "behindArm": true
+      },
+      {
+       "id": "vn000fm",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "circle",
+       "x": 134.5,
+       "y": 21,
+       "w": 6.5,
+       "h": 6.5,
+       "color": "#2b2b2b",
+       "rot": 270,
+       "behindArm": true
+      },
+      {
+       "id": "vn000fn",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 119.5,
+       "y": -19,
+       "w": 18,
+       "h": 5,
+       "color": "#2b2b2b",
+       "rot": 270,
+       "behindArm": true
+      },
+      {
+       "id": "vn000fo",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 125,
+       "y": -27,
+       "w": 5,
+       "h": 10,
+       "color": "#2b2b2b",
+       "rot": 270,
+       "behindArm": true
+      },
+      {
+       "id": "vn000fp",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "tri",
+       "x": 126,
+       "y": -53.5,
+       "w": 5,
+       "h": 31,
+       "color": "#8a929c",
+       "behindArm": true
+      },
+      {
+       "id": "vn000fq",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "tri",
+       "x": 123.5,
+       "y": -40.5,
+       "w": 10,
+       "h": 16,
+       "color": "#c8a23c",
+       "behindArm": true
+      },
+      {
+       "id": "vn000fr",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "tri",
+       "x": 125.5,
+       "y": -32,
+       "w": 6,
+       "h": 9,
+       "color": "#efe9dc",
+       "behindArm": true
+      },
+      {
+       "id": "vn000fs",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "circle",
+       "x": 120.5,
+       "y": -33.5,
+       "w": 16,
+       "h": 16,
+       "color": "#42d6ff",
+       "isMuzzle": true,
+       "rot": 270,
+       "behindArm": true
+      }
+     ],
+     "crouch": [
+      {
+       "id": "vn000g4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "poly",
+       "x": 133,
+       "y": 124,
+       "w": 36,
+       "h": 19,
+       "color": "#8a5a2b",
+       "points": [
+        [
+         0,
+         0
+        ],
+        [
+         1,
+         0
+        ],
+        [
+         1,
+         0.53
+        ],
+        [
+         0,
+         1
+        ]
+       ],
+       "rot": 80,
+       "behindArm": true
+      },
+      {
+       "id": "vn000g5",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 137,
+       "y": 170.5,
+       "w": 52,
+       "h": 10,
+       "color": "#8a5a2b",
+       "rot": 80,
+       "behindArm": true
+      },
+      {
+       "id": "vn000g6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 153.5,
+       "y": 153.5,
+       "w": 20,
+       "h": 9,
+       "color": "#2b2b2b",
+       "rot": 80,
+       "behindArm": true
+      },
+      {
+       "id": "vn000g7",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 148.5,
+       "y": 159.5,
+       "w": 11,
+       "h": 5.5,
+       "color": "#2b2b2b",
+       "rot": 80,
+       "behindArm": true
+      },
+      {
+       "id": "vn000g8",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "halfcircle",
+       "x": 146.5,
+       "y": 152,
+       "w": 8,
+       "h": 6,
+       "color": "#2b2b2b",
+       "rot": 260,
+       "behindArm": true
+      },
+      {
+       "id": "vn000g9",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 155.5,
+       "y": 161,
+       "w": 3.5,
+       "h": 10,
+       "color": "#2b2b2b",
+       "rot": 115,
+       "behindArm": true
+      },
+      {
+       "id": "vn000ga",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "circle",
+       "x": 150,
+       "y": 168,
+       "w": 6.5,
+       "h": 6.5,
+       "color": "#2b2b2b",
+       "rot": 80,
+       "behindArm": true
+      },
+      {
+       "id": "vn000gb",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 160,
+       "y": 207,
+       "w": 18,
+       "h": 5,
+       "color": "#2b2b2b",
+       "rot": 80,
+       "behindArm": true
+      },
+      {
+       "id": "vn000gc",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 168.5,
+       "y": 210,
+       "w": 5,
+       "h": 10,
+       "color": "#2b2b2b",
+       "rot": 80,
+       "behindArm": true
+      },
+      {
+       "id": "vn000gd",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "tri",
+       "x": 170.5,
+       "y": 215.5,
+       "w": 5,
+       "h": 31,
+       "color": "#8a929c",
+       "rot": 170,
+       "behindArm": true
+      },
+      {
+       "id": "vn000ge",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "tri",
+       "x": 167,
+       "y": 217.5,
+       "w": 10,
+       "h": 16,
+       "color": "#c8a23c",
+       "rot": 170,
+       "behindArm": true
+      },
+      {
+       "id": "vn000gf",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "tri",
+       "x": 168,
+       "y": 216,
+       "w": 6,
+       "h": 9,
+       "color": "#efe9dc",
+       "rot": 170,
+       "behindArm": true
+      },
+      {
+       "id": "vn000gg",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "circle",
+       "x": 162.5,
+       "y": 210.5,
+       "w": 16,
+       "h": 16,
+       "color": "#42d6ff",
+       "isMuzzle": true,
+       "rot": 80,
        "behindArm": true
       }
      ]
@@ -1060072,7 +1060073,7 @@
     "front": [],
     "back": [
      {
-      "id": "vn000b5",
+      "id": "vn000dt",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060081,8 +1060082,8 @@
        "bright": 1
       },
       "kind": "poly",
-      "x": 152,
-      "y": 139,
+      "x": 130.5,
+      "y": 123.5,
       "w": 36,
       "h": 19,
       "color": "#8a5a2b",
@@ -1060104,11 +1060105,11 @@
         1
        ]
       ],
-      "rot": 85,
+      "rot": 83,
       "behindBody": true
      },
      {
-      "id": "vn000b6",
+      "id": "vn000du",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060117,16 +1060118,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 152,
-      "y": 186,
+      "x": 132,
+      "y": 170.5,
       "w": 52,
       "h": 10,
       "color": "#8a5a2b",
-      "rot": 85,
+      "rot": 83,
       "behindBody": true
      },
      {
-      "id": "vn000b7",
+      "id": "vn000dv",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060135,16 +1060136,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 170,
-      "y": 169,
+      "x": 149.5,
+      "y": 153.5,
       "w": 20,
       "h": 9,
       "color": "#2b2b2b",
-      "rot": 85,
+      "rot": 83,
       "behindBody": true
      },
      {
-      "id": "vn000b8",
+      "id": "vn000dw",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060153,16 +1060154,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 164.5,
-      "y": 174.5,
+      "x": 144,
+      "y": 159,
       "w": 11,
       "h": 5.5,
       "color": "#2b2b2b",
-      "rot": 85,
+      "rot": 83,
       "behindBody": true
      },
      {
-      "id": "vn000b9",
+      "id": "vn000dx",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060171,16 +1060172,16 @@
        "bright": 1
       },
       "kind": "halfcircle",
-      "x": 163,
-      "y": 166.5,
+      "x": 142.5,
+      "y": 151.5,
       "w": 8,
       "h": 6,
       "color": "#2b2b2b",
-      "rot": 265,
+      "rot": 263,
       "behindBody": true
      },
      {
-      "id": "vn000ba",
+      "id": "vn000dy",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060189,16 +1060190,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 171.5,
-      "y": 176,
+      "x": 151,
+      "y": 160.5,
       "w": 3.5,
       "h": 10,
       "color": "#2b2b2b",
-      "rot": 120,
+      "rot": 118,
       "behindBody": true
      },
      {
-      "id": "vn000bb",
+      "id": "vn000dz",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060207,16 +1060208,16 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 165,
-      "y": 182.5,
+      "x": 145,
+      "y": 167.5,
       "w": 6.5,
       "h": 6.5,
       "color": "#2b2b2b",
-      "rot": 85,
+      "rot": 83,
       "behindBody": true
      },
      {
-      "id": "vn000bc",
+      "id": "vn000e0",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060225,16 +1060226,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 172,
-      "y": 223,
+      "x": 153.5,
+      "y": 207.5,
       "w": 18,
       "h": 5,
       "color": "#2b2b2b",
-      "rot": 85,
+      "rot": 83,
       "behindBody": true
      },
      {
-      "id": "vn000bd",
+      "id": "vn000e1",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060243,16 +1060244,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 180,
-      "y": 226,
+      "x": 161.5,
+      "y": 210.5,
       "w": 5,
       "h": 10,
       "color": "#2b2b2b",
-      "rot": 85,
+      "rot": 83,
       "behindBody": true
      },
      {
-      "id": "vn000be",
+      "id": "vn000e2",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060261,16 +1060262,16 @@
        "bright": 1
       },
       "kind": "tri",
-      "x": 180.5,
-      "y": 231.5,
+      "x": 162.5,
+      "y": 216,
       "w": 5,
       "h": 31,
       "color": "#8a929c",
-      "rot": 175,
+      "rot": 173,
       "behindBody": true
      },
      {
-      "id": "vn000bf",
+      "id": "vn000e3",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060279,19 +1060280,19 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 174,
-      "y": 226.5,
+      "x": 155.5,
+      "y": 211,
       "w": 16,
       "h": 16,
       "color": "#42d6ff",
       "isMuzzle": true,
-      "rot": 85,
+      "rot": 83,
       "behindBody": true
      }
     ],
     "side": [
      {
-      "id": "vn000bt",
+      "id": "vn000eh",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060300,8 +1060301,8 @@
        "bright": 1
       },
       "kind": "poly",
-      "x": 94,
-      "y": 147.5,
+      "x": 86.5,
+      "y": 124,
       "w": 36,
       "h": 19,
       "color": "#8a5a2b",
@@ -1060327,7 +1060328,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000bu",
+      "id": "vn000ei",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060336,8 +1060337,8 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 90.5,
-      "y": 195,
+      "x": 83,
+      "y": 171.5,
       "w": 52,
       "h": 10,
       "color": "#8a5a2b",
@@ -1060345,7 +1060346,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000bv",
+      "id": "vn000ej",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060354,8 +1060355,8 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 110,
-      "y": 178.5,
+      "x": 102.5,
+      "y": 155,
       "w": 20,
       "h": 9,
       "color": "#2b2b2b",
@@ -1060363,7 +1060364,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000bw",
+      "id": "vn000ek",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060372,8 +1060373,8 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 104.5,
-      "y": 183,
+      "x": 97,
+      "y": 159.5,
       "w": 11,
       "h": 5.5,
       "color": "#2b2b2b",
@@ -1060381,7 +1060382,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000bx",
+      "id": "vn000el",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060390,8 +1060391,8 @@
        "bright": 1
       },
       "kind": "halfcircle",
-      "x": 103.5,
-      "y": 175,
+      "x": 96,
+      "y": 151.5,
       "w": 8,
       "h": 6,
       "color": "#2b2b2b",
@@ -1060399,7 +1060400,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000by",
+      "id": "vn000em",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060408,8 +1060409,8 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 111,
-      "y": 185,
+      "x": 103.5,
+      "y": 161.5,
       "w": 3.5,
       "h": 10,
       "color": "#2b2b2b",
@@ -1060417,7 +1060418,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000bz",
+      "id": "vn000en",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060426,8 +1060427,8 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 104,
-      "y": 191,
+      "x": 96.5,
+      "y": 167.5,
       "w": 6.5,
       "h": 6.5,
       "color": "#2b2b2b",
@@ -1060435,7 +1060436,25 @@
       "behindArm": true
      },
      {
-      "id": "vn000c0",
+      "id": "vn000eo",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "kind": "rect",
+      "x": 100,
+      "y": 209,
+      "w": 18,
+      "h": 5,
+      "color": "#2b2b2b",
+      "rot": 90,
+      "behindArm": true
+     },
+     {
+      "id": "vn000ep",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060445,25 +1060464,7 @@
       },
       "kind": "rect",
       "x": 107.5,
-      "y": 232.5,
-      "w": 18,
-      "h": 5,
-      "color": "#2b2b2b",
-      "rot": 90,
-      "behindArm": true
-     },
-     {
-      "id": "vn000c1",
-      "mirror": false,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "kind": "rect",
-      "x": 115,
-      "y": 235.5,
+      "y": 212,
       "w": 5,
       "h": 10,
       "color": "#2b2b2b",
@@ -1060471,7 +1060472,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000c2",
+      "id": "vn000eq",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060480,8 +1060481,8 @@
        "bright": 1
       },
       "kind": "tri",
-      "x": 114,
-      "y": 241,
+      "x": 106.5,
+      "y": 217.5,
       "w": 5,
       "h": 31,
       "color": "#8a929c",
@@ -1060489,7 +1060490,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000c3",
+      "id": "vn000er",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060498,8 +1060499,8 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 108.5,
-      "y": 236,
+      "x": 101,
+      "y": 212.5,
       "w": 16,
       "h": 16,
       "color": "#42d6ff",
@@ -1060510,7 +1060511,7 @@
     ],
     "up": [
      {
-      "id": "vn000ch",
+      "id": "vn000f5",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060519,8 +1060520,8 @@
        "bright": 1
       },
       "kind": "poly",
-      "x": 109.5,
-      "y": 46.5,
+      "x": 117.5,
+      "y": 54.5,
       "w": 36,
       "h": 19,
       "color": "#8a5a2b",
@@ -1060546,7 +1060547,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000ci",
+      "id": "vn000f6",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060555,8 +1060556,8 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 97,
-      "y": 8,
+      "x": 105,
+      "y": 16,
       "w": 52,
       "h": 10,
       "color": "#8a5a2b",
@@ -1060564,7 +1060565,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000cj",
+      "id": "vn000f7",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060573,8 +1060574,8 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 109.5,
-      "y": 25.5,
+      "x": 117.5,
+      "y": 33.5,
       "w": 20,
       "h": 9,
       "color": "#2b2b2b",
@@ -1060582,7 +1060583,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000ck",
+      "id": "vn000f8",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060591,8 +1060592,8 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 124.5,
-      "y": 25,
+      "x": 132.5,
+      "y": 33,
       "w": 11,
       "h": 5.5,
       "color": "#2b2b2b",
@@ -1060600,7 +1060601,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000cl",
+      "id": "vn000f9",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060609,8 +1060610,8 @@
        "bright": 1
       },
       "kind": "halfcircle",
-      "x": 128,
-      "y": 32,
+      "x": 136,
+      "y": 40,
       "w": 8,
       "h": 6,
       "color": "#2b2b2b",
@@ -1060618,7 +1060619,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000cm",
+      "id": "vn000fa",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060627,8 +1060628,8 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 125.5,
-      "y": 18.5,
+      "x": 133.5,
+      "y": 26.5,
       "w": 3.5,
       "h": 10,
       "color": "#2b2b2b",
@@ -1060636,7 +1060637,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000cn",
+      "id": "vn000fb",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060645,8 +1060646,8 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 129,
-      "y": 15.5,
+      "x": 137,
+      "y": 23.5,
       "w": 6.5,
       "h": 6.5,
       "color": "#2b2b2b",
@@ -1060654,7 +1060655,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000co",
+      "id": "vn000fc",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060663,8 +1060664,8 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 114,
-      "y": -24.5,
+      "x": 122,
+      "y": -16.5,
       "w": 18,
       "h": 5,
       "color": "#2b2b2b",
@@ -1060672,7 +1060673,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000cp",
+      "id": "vn000fd",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060681,8 +1060682,8 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 119.5,
-      "y": -32.5,
+      "x": 127.5,
+      "y": -24.5,
       "w": 5,
       "h": 10,
       "color": "#2b2b2b",
@@ -1060690,7 +1060691,7 @@
       "behindArm": true
      },
      {
-      "id": "vn000cq",
+      "id": "vn000fe",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060699,15 +1060700,15 @@
        "bright": 1
       },
       "kind": "tri",
-      "x": 120.5,
-      "y": -59,
+      "x": 128.5,
+      "y": -51,
       "w": 5,
       "h": 31,
       "color": "#8a929c",
       "behindArm": true
      },
      {
-      "id": "vn000cr",
+      "id": "vn000ff",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060716,8 +1060717,8 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 115,
-      "y": -39,
+      "x": 123,
+      "y": -31,
       "w": 16,
       "h": 16,
       "color": "#42d6ff",
@@ -1060728,7 +1060729,7 @@
     ],
     "crouch": [
      {
-      "id": "vn000d5",
+      "id": "vn000ft",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060737,8 +1060738,8 @@
        "bright": 1
       },
       "kind": "poly",
-      "x": 146.5,
-      "y": 154.5,
+      "x": 131,
+      "y": 122.5,
       "w": 36,
       "h": 19,
       "color": "#8a5a2b",
@@ -1060760,11 +1060761,11 @@
         1
        ]
       ],
-      "rot": 90,
+      "rot": 80,
       "behindArm": true
      },
      {
-      "id": "vn000d6",
+      "id": "vn000fu",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060773,16 +1060774,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 143,
-      "y": 202,
+      "x": 135,
+      "y": 169,
       "w": 52,
       "h": 10,
       "color": "#8a5a2b",
-      "rot": 90,
+      "rot": 80,
       "behindArm": true
      },
      {
-      "id": "vn000d7",
+      "id": "vn000fv",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060791,16 +1060792,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 162.5,
-      "y": 185.5,
+      "x": 151.5,
+      "y": 152,
       "w": 20,
       "h": 9,
       "color": "#2b2b2b",
-      "rot": 90,
+      "rot": 80,
       "behindArm": true
      },
      {
-      "id": "vn000d8",
+      "id": "vn000fw",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060809,16 +1060810,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 157,
-      "y": 190,
+      "x": 146.5,
+      "y": 158,
       "w": 11,
       "h": 5.5,
       "color": "#2b2b2b",
-      "rot": 90,
+      "rot": 80,
       "behindArm": true
      },
      {
-      "id": "vn000d9",
+      "id": "vn000fx",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060827,16 +1060828,16 @@
        "bright": 1
       },
       "kind": "halfcircle",
-      "x": 156,
-      "y": 182,
+      "x": 144.5,
+      "y": 150.5,
       "w": 8,
       "h": 6,
       "color": "#2b2b2b",
-      "rot": 270,
+      "rot": 260,
       "behindArm": true
      },
      {
-      "id": "vn000da",
+      "id": "vn000fy",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060845,16 +1060846,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 163.5,
-      "y": 192,
+      "x": 153.5,
+      "y": 159.5,
       "w": 3.5,
       "h": 10,
       "color": "#2b2b2b",
-      "rot": 125,
+      "rot": 115,
       "behindArm": true
      },
      {
-      "id": "vn000db",
+      "id": "vn000fz",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060863,16 +1060864,16 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 156.5,
-      "y": 198,
+      "x": 148,
+      "y": 166.5,
       "w": 6.5,
       "h": 6.5,
       "color": "#2b2b2b",
-      "rot": 90,
+      "rot": 80,
       "behindArm": true
      },
      {
-      "id": "vn000dc",
+      "id": "vn000g0",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060881,16 +1060882,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 160,
-      "y": 239.5,
+      "x": 158,
+      "y": 205.5,
       "w": 18,
       "h": 5,
       "color": "#2b2b2b",
-      "rot": 90,
+      "rot": 80,
       "behindArm": true
      },
      {
-      "id": "vn000dd",
+      "id": "vn000g1",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060899,16 +1060900,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 167.5,
-      "y": 242.5,
+      "x": 166.5,
+      "y": 208.5,
       "w": 5,
       "h": 10,
       "color": "#2b2b2b",
-      "rot": 90,
+      "rot": 80,
       "behindArm": true
      },
      {
-      "id": "vn000de",
+      "id": "vn000g2",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060917,16 +1060918,16 @@
        "bright": 1
       },
       "kind": "tri",
-      "x": 166.5,
-      "y": 248,
+      "x": 168.5,
+      "y": 214,
       "w": 5,
       "h": 31,
       "color": "#8a929c",
-      "rot": 180,
+      "rot": 170,
       "behindArm": true
      },
      {
-      "id": "vn000df",
+      "id": "vn000g3",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -1060935,18 +1060936,20 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 161,
-      "y": 243,
+      "x": 160.5,
+      "y": 209,
       "w": 16,
       "h": 16,
       "color": "#42d6ff",
       "isMuzzle": true,
-      "rot": 90,
+      "rot": 80,
       "behindArm": true
      }
     ]
    },
-   "savedAt": 1792276355071
+   "savedAt": 1792277668458,
+   "meleeBoost": 3,
+   "editedFrom": 1792276355071
   },
   {
    "id": "u23o5an",
