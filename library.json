@@ -1180306,6 +1180306,10 @@
      "kind": "sign",
      "dialogueId": "tvs1dlg",
      "text": ""
+    },
+    "33,111": {
+     "kind": "door",
+     "tag": "Trailor Int"
     }
    },
    "enemies": {
@@ -1180358,8 +1180362,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1792238131101,
-   "editedFrom": 1792237759409
+   "savedAt": 1792251318763,
+   "editedFrom": 1792238131101
   },
   {
    "id": "8l3tqki",
