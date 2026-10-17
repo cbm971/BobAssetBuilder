@@ -807844,7 +807844,7 @@
    "projectileId": "hrqbyju",
    "projectileSpeed": 12,
    "projectileRange": 25,
-   "damage": 12,
+   "damage": 10,
    "fireRate": 4,
    "clipSize": 3,
    "reloadTime": 0.3,
@@ -807880,8 +807880,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792250228510,
-   "editedFrom": 1792250202088,
+   "savedAt": 1792250540951,
+   "editedFrom": 1792250539346,
    "pierce": true,
    "sounds": {
     "fire": "4xdiye5"
