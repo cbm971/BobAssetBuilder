@@ -1300865,6 +1300865,64 @@
       "z": 8,
       "ox": 0.864,
       "oy": 0.05
+     },
+     {
+      "kind": "prop",
+      "propId": "ufotnka",
+      "solid": false,
+      "size": 2,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 21
+     }
+    ],
+    "4,17": [
+     {
+      "kind": "prop",
+      "propId": "ufoauth",
+      "solid": false,
+      "size": 5,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 18
+     }
+    ],
+    "7,31": [
+     {
+      "kind": "prop",
+      "propId": "drnkmch1",
+      "solid": false,
+      "size": 6,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 19
+     }
+    ],
+    "13,4": [
+     {
+      "kind": "prop",
+      "propId": "ufosacr",
+      "solid": false,
+      "size": 10,
+      "inFront": false,
+      "rot": 5,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 20
      }
     ]
    },
@@ -1301424,8 +1301482,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1792119755951,
-   "editedFrom": 1792119745017
+   "savedAt": 1792246938947,
+   "editedFrom": 1792119755951
   },
   {
    "id": "h440ssw",
