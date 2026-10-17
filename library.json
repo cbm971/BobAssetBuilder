@@ -807845,7 +807845,7 @@
    "projectileRange": 20,
    "damage": 15,
    "fireRate": 3,
-   "clipSize": 1,
+   "clipSize": 2,
    "reloadTime": 0.3,
    "weight": 3,
    "landEffect": "fire",
@@ -807855,10 +807855,10 @@
    "landPropId": null,
    "explode": false,
    "ignoreArmor": true,
-   "burstFire": false,
+   "burstFire": true,
    "fullAuto": false,
-   "burst": 1,
-   "burstDelay": 0.06,
+   "burst": 2,
+   "burstDelay": 0.02,
    "explodeRadius": 2,
    "explodePropId": null,
    "explodeSize": 3,
@@ -807879,8 +807879,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792249834445,
-   "editedFrom": 1792249724934,
+   "savedAt": 1792249988864,
+   "editedFrom": 1792249834445,
    "pierce": true,
    "sounds": {
     "fire": "4xdiye5"
