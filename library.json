@@ -80782,12 +80782,15 @@
     }
    },
    "sounds": {
-    "attack": "fhg042t"
+    "attack": "fhg042t",
+    "hurt": "fhg042t",
+    "death": "pr9c2n5"
    },
    "soundVol": {
-    "attack": 0.05
+    "attack": 0.05,
+    "hurt": 0.1
    },
-   "savedAt": 1791852399708
+   "savedAt": 1792267393888
   },
   {
    "id": "63edlrj",
@@ -754246,13 +754249,19 @@
     ]
    },
    "scale": 1.25,
-   "savedAt": 1790547706136,
+   "savedAt": 1792267390354,
    "holdPoint": {
     "side": {
      "x": 62,
      "y": 122
     }
-   }
+   },
+   "sounds": {
+    "attack": "jgcarlo",
+    "hurt": "8wj9mvj",
+    "death": "8wj9mvj"
+   },
+   "editedFrom": 1792267375400
   },
   {
    "id": "l17rsel",
