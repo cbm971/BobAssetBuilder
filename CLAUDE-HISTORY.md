@@ -4881,3 +4881,38 @@ Bath Tile `bthtl01` (wainscot) and Frosted glass `frstgl1`. The closet window, h
 nook, is panelled over. A pedestal draws only its item, centred in a 1.9x2.3-cell box whose bottom
 is the marker row + 1, so an item "on" furniture is placed by its marker cell. All four arm from
 the back row of the plane (body overlap, row-major: the shoes arm between the two hanging spots).
+## Trailor Park E1: the draft office, the floor's last level (2026-10-17)
+
+Blake: make "Trailor Park E1" with "a 1960s 'Draft' Office", the last Trailor Park level. His E1 (`5ao9ocf`)
+was a blank street (gravel, grass, sky), W2 open, E2 closed (so `runRole` = Exit) and his Helicopter Rope
+marker at 34,106. All of that is unchanged; the floor's objective is "Make it to the draft office".
+
+**The building** is a 2.5D cutaway like S1's trailer, cols 30-95: Front paint = White Stone brick cornice
+(row 16), Federal Brick band rows 17-20 (`fdbrck1`, new stoneBrick record), side walls only ABOVE the
+doorways (rows 21-27) so you walk in, plaster partitions over the two inner doorways, water table + brick
+foundation rows 38-41. Foreground = his Ceiling Tile rows 21-23 (solid) and Rec Hall Linoleum floor rows
+35-41. Background = pale green over his Wood panelling (waiting room, board room), white over his Bath
+Tile (exam room). Sidewalk outside, a painted helipad (cols 122-156, yellow edge cells) under the Chinook.
+
+**Rooms:** waiting room (window, I Want You poster, clock, bulletin board with the Order to Report sign
+marker, two banks of shell chairs, his ashtray stand, water cooler, his card table + urn + cups +
+doughnuts, snake plant); the local board (Classification Chart, Draft Lottery Jar, Office Flag, window,
+Steel Desk, his two Filing Cabinets); the induction physical (Eye Chart, Privacy Screen, Height Chart
+drawn at 3.2 cells/m so Bob reads 6'2", Physician Scale, Exit Sign). Outside left: Bus Stop, Protest
+Signs, Newspaper Box, his Mailbox, Flagpole. Out back: Helipad Sign, his sandbags and crates, Windsock.
+22 props, category "Draft Office", ids `dft*`, each drawn on a whole-cell grid (size = longer side, the
+box asserted exact) so every floor prop lands on row 35. All pass editorReachIssues. Generators
+(props.js, level.js, deliver.js) stayed in that session's scratchpad.
+
+**People:** hostiles on the walk in (two Trailor-tag placements with Meelee/T1 gear, a Chasing Pit Bull);
+talkers: Readitor as the Protester (Hell No: heal or hostile), Bobert (Canada: heal, or hostile if you
+call the Sergeant), Bobby (Lucky Number), the Agent from M14 as the Clerk (Draft Clerk, +100 for "Where
+do I sign?"), Rob in his underwear waiting on the physical (Turn and Cough), Army Bob as the Sergeant
+(Induction Sergeant: +100 for reading the chart's real bottom line, +100 for "Yes, Sergeant!", ends in a
+heal and "grab the rope"). Draftees in underwear is period-accurate for the physical.
+
+**Verified in Playtest** (dev build at 1800x1198, level view 874 px tall, BoB, god mode): the sign and
+every text prop render; D held from col 31 walked to col 152 at y 840 with nothing blocking; the clerk,
+sign and Sergeant trees open and pay (score 0 -> 100 -> 300); at col 146 the Chinook hovers over the pad
+with the rope down and "E - Grab the rope." up. Not checked: his 3084 px wide view, and whether the
+gate gang is too much right at the W2 gate.

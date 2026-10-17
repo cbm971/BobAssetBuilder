@@ -265,6 +265,8 @@ plus traps it does not cover:
 - Text pieces (`kind:"text"`) are part of his style. Never `mirror` one; draw the pair. A flipped
   placement keeps its text readable.
 - Draw diagonals as 4-point polys, not rotated rects (`worldArtBox` measures unrotated boxes).
+- **A sign on a Front-painted wall needs a hole in the paint.** Front objects draw UNDER Front paint
+  (5101+ vs 6000), so cut the paint where the sign sits (E1's Local Board Sign, rows 17-19).
 - Reuse his palettes (`PALETTES.trailer60s`, `#2b2b2b` for tyres and trim, `#8a929c` for chrome)
   and his textures.
 - `solidDefault` sets the Solid box when the prop is picked (still editable). Solid means collision
