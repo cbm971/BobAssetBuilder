@@ -365156,7 +365156,7 @@
     ]
    },
    "scale": 1,
-   "savedAt": 1791802352033,
+   "savedAt": 1792266719686,
    "holdPoint": {
     "side": {
      "x": 67.5,
@@ -365164,10 +365164,10 @@
     }
    },
    "sounds": {
-    "attack": "rrbq1w9",
+    "attack": "8wj9mvj",
     "hurt": "n5wassx"
    },
-   "editedFrom": 1791802347683,
+   "editedFrom": 1791802352033,
    "soundVol": {
     "hurt": 2,
     "attack": 0.05
@@ -489221,15 +489221,16 @@
     "back": [],
     "crouch": []
    },
-   "savedAt": 1792266653748,
+   "savedAt": 1792266695004,
    "explodeChar": "💥",
    "landChar": "🔥",
    "value": 7,
    "rank": "rare",
    "sounds": {
-    "throw": "qd117xl"
+    "throw": "qd117xl",
+    "land": "b5a8mj0"
    },
-   "editedFrom": 1790512135800
+   "editedFrom": 1792266653748
   },
   {
    "id": "fnzre7x",
@@ -854975,7 +854976,10 @@
     "throw": "qd117xl",
     "land": "aghad42"
    },
-   "savedAt": 1792266673937
+   "soundVol": {
+    "land": 0.55
+   },
+   "savedAt": 1792266733918
   },
   {
    "id": "phtz4un",
@@ -901880,11 +901884,12 @@
    "landChar": "🔥",
    "value": 1,
    "rank": "poor",
-   "savedAt": 1792266656620,
+   "savedAt": 1792266702289,
    "sounds": {
-    "throw": "qd117xl"
+    "throw": "qd117xl",
+    "land": "ynj37i2"
    },
-   "editedFrom": 1792261988833
+   "editedFrom": 1792266656620
   },
   {
    "id": "ry71qh6",
