@@ -4,6 +4,7 @@ import {
   firstObjectiveMarker,
   objectivesOnArrival,
   objectiveReward,
+  levelMatchesTarget,
   scoreObjective,
   newScoreState,
   throwLaunchVel,
@@ -13878,6 +13879,21 @@ describe("objective markers", () => {
     expect(st.list.map((o) => o.text)).toEqual(["Find the shotgun"]);
     expect(objectivesOnArrival([], new Set(), { id: "x", markers: { "1,1": { kind: "objective", text: "  ", targetTag: "a" } } }).list).toEqual([]);
     expect(objectivesOnArrival(null, null, null).list).toEqual([]);
+  });
+  // Blake 2026-10-17: markers aimed at "TCloset 1" and "Trailor Park E1" never cleared.
+  test("an objective clears on a level's NAME as well as a room's tag", () => {
+    const s1 = { id: "s1", name: "Trailor Park S1", markers: { "1,1": { kind: "objective", text: "Side room", targetTag: "TCloset 1" }, "2,2": { kind: "objective", text: "Office", targetTag: " trailor park e1 " } } };
+    const closet = { id: "c", name: "TCloset 1", isRoom: true, roomTag: "TCloset", markers: {} };
+    const office = { id: "e1", name: "Trailor Park E1", markers: {} };
+    let st = objectivesOnArrival([], new Set(), s1);
+    st = objectivesOnArrival(st.list, st.done, closet);
+    expect(st.cleared.map((o) => o.text)).toEqual(["Side room"]);
+    st = objectivesOnArrival(st.list, st.done, office);
+    expect(st.cleared.map((o) => o.text)).toEqual(["Office"]);
+    expect(st.list).toEqual([]);
+    expect(levelMatchesTarget("TCloset", closet)).toBe(true);
+    expect(levelMatchesTarget("", closet)).toBe(false);
+    expect(levelMatchesTarget("x", null)).toBe(false);
   });
   test("an objective carries its score and money, and hands them over once when cleared", () => {
     const s1 = { id: "s1", markers: { "3,3": { kind: "objective", text: "Reach the office", targetTag: "Draft", score: 500, money: 25 }, "4,4": { kind: "objective", text: "Plain", targetTag: "Nowhere" } } };

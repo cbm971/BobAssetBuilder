@@ -3244,6 +3244,12 @@ export const firstDoorKey = (markers) => { for (const k in (markers || {})) { co
 // roomTag matches the marker's own targetTag — the SAME case-insensitive, trimmed match a door's
 // room tag uses against roomPool, just one level and one tag at a time instead of a pool of them.
 export const roomTagMatches = (targetTag, roomTag) => { const t = (targetTag || "").trim().toLowerCase(); return !!t && t === (roomTag || "").trim().toLowerCase(); };
+// WHAT AN OBJECTIVE CAN POINT AT (Blake, 2026-10-17: "it did not complete the objective when I
+// finished it"). His markers read "TCloset 1" and "Trailor Park E1" — the LEVEL NAMES — because a
+// level has no tag to type and a room's tag ("TCloset") is not what the room is called. Matching
+// only the room tag meant neither could ever clear. Now the target matches the room tag OR the
+// level's own name, same trim and case rules.
+export const levelMatchesTarget = (targetTag, lv) => !!lv && (roomTagMatches(targetTag, lv.roomTag) || roomTagMatches(targetTag, lv.name));
 export const firstObjectiveMarker = (markers) => { for (const k in (markers || {})) { const m = markers[k]; if (m && m.kind === "objective") return m; } return null; };
 // MORE THAN ONE AT ONCE (Blake, 2026-10-17: "it won't let me set more than one objective ... I set
 // one in S1, tried to make a different one in the closet but it over wrote the other one"). There
@@ -3259,7 +3265,7 @@ export const objectiveReward = (m) => ({ score: Math.max(0, Math.round(Number(m 
 export const objectivesOnArrival = (list, done, lv) => {
   const nd = new Set(done || []);
   const out = [], cleared = [];
-  for (const o of list || []) { if (roomTagMatches(o.targetTag, lv && lv.roomTag)) { nd.add(o.id); cleared.push(o); } else out.push(o); }
+  for (const o of list || []) { if (levelMatchesTarget(o.targetTag, lv)) { nd.add(o.id); cleared.push(o); } else out.push(o); }
   const markers = (lv && lv.markers) || {};
   for (const k in markers) {
     const m = markers[k];
@@ -12737,6 +12743,7 @@ export default function AssetStudio() {
   const lscrollRef = useRef(null);                          // the level viewport (.lscroll): the camera needs its size, and its editor scroll position is parked during play
   const editorScroll = useRef(null);                        // where the editor had .lscroll scrolled when Playtest started, put back on Stop
   const [runHud, setRunHud] = useState(null);               // the run line over the level during play: { seed, where, name, notes }
+  const [objReward, setObjReward] = useState(null);      // { n, score, money }: the small fading "+100" under the objective banner
   const [objectives, setObjectives] = useState([]);        // 🎯 the objectives up now ({ id, text }), one line each at the top of the screen
   const [runSeedText, setRunSeedText] = useState("");       // the seed box next to 🏁 Play run; blank rolls a new one and the box then shows what was rolled
   const roomReturn = useRef(null);                         // while inside a room during play: { level: <the level to return to>, x, y } — set on enter, consumed on exit/stop
@@ -14085,7 +14092,7 @@ export default function AssetStudio() {
       for (const o of nextObj.cleared) {
         const got = scoreObjective(scoreRef.current, "obj|" + o.id, o.score);
         if (o.money > 0) setWallet(wallet.current + o.money);
-        if (got || o.money > 0) flash("🎯 " + o.text + (got ? " · +" + got : "") + (o.money > 0 ? " · " + MONEY_CHAR + o.money : ""));
+        if (got || o.money > 0) setObjReward((r) => ({ n: ((r && r.n) || 0) + 1, score: got, money: o.money }));
       }
       if (nextObj.list.map((o) => o.id).join("|") !== prevObj.list.map((o) => o.id).join("|")) setObjectives(nextObj.list.map((o) => ({ id: o.id, text: o.text })));
     }
@@ -24243,7 +24250,7 @@ export default function AssetStudio() {
             </>
           ) : lLayer === "marker" ? (
             <>
-              <div className="seg"><button className={lMarkerKind === "door" ? "on" : ""} onClick={() => setLMarkerKind("door")}>🚪 Door</button><button className={lMarkerKind === "pedestal" ? "on" : ""} onClick={() => setLMarkerKind("pedestal")}>💎 Pedestal</button><button className={lMarkerKind === "sign" ? "on" : ""} onClick={() => setLMarkerKind("sign")} title="A text box: walk onto this cell in play and press E to read it. Give it a whole dialogue tree, or just type one line.">💬 Sign</button><button className={lMarkerKind === "anim" ? "on" : ""} onClick={() => setLMarkerKind("anim")} title="An animation from 🎬 Animations. The cell you click is the bottom-left corner of its stage.">🎬 Animation</button><button className={lMarkerKind === "objective" ? "on" : ""} onClick={() => setLMarkerKind("objective")} title="Shows its text at the top of the screen as soon as you walk into this room. Clears the moment you reach a room with the tag you give it.">🎯 Objective</button></div>
+              <div className="seg"><button className={lMarkerKind === "door" ? "on" : ""} onClick={() => setLMarkerKind("door")}>🚪 Door</button><button className={lMarkerKind === "pedestal" ? "on" : ""} onClick={() => setLMarkerKind("pedestal")}>💎 Pedestal</button><button className={lMarkerKind === "sign" ? "on" : ""} onClick={() => setLMarkerKind("sign")} title="A text box: walk onto this cell in play and press E to read it. Give it a whole dialogue tree, or just type one line.">💬 Sign</button><button className={lMarkerKind === "anim" ? "on" : ""} onClick={() => setLMarkerKind("anim")} title="An animation from 🎬 Animations. The cell you click is the bottom-left corner of its stage.">🎬 Animation</button><button className={lMarkerKind === "objective" ? "on" : ""} onClick={() => setLMarkerKind("objective")} title="Shows its text at the top of the screen as soon as you walk into this room. Clears the moment you reach a room with the tag you give it, or a level with that name.">🎯 Objective</button></div>
               {lMarkerKind === "door" ? (
                 <>
                   <input className="catinline" value={lMarkerCat} onChange={(e) => setLMarkerCat(e.target.value)} placeholder="Room tag" />
@@ -24252,7 +24259,7 @@ export default function AssetStudio() {
               ) : lMarkerKind === "objective" ? (
                 <>
                   <input className="catinline" style={{ flex: "1 1 220px" }} value={lObjText} onChange={(e) => setLObjText(e.target.value)} placeholder="Objective text, e.g. Enter side room" />
-                  <input className="catinline" value={lObjTag} onChange={(e) => setLObjTag(e.target.value)} placeholder="Completed on reaching room tag" />
+                  <input className="catinline" value={lObjTag} onChange={(e) => setLObjTag(e.target.value)} placeholder="Completed on reaching room tag or level name" />
                   <input className="dlgPoints" type="number" min="0" step="10" value={lObjScore || ""} onChange={(e) => setLObjScore(Math.max(0, Math.round(+e.target.value || 0)))} placeholder="Score" title="Score paid when this objective is completed" />
                   <input className="dlgPoints" type="number" min="0" step="1" value={lObjMoney || ""} onChange={(e) => setLObjMoney(Math.max(0, Math.round(+e.target.value || 0)))} placeholder="Money" title="Money paid when this objective is completed" />
                   {!lObjText.trim() && <span className="hint2">⚠ Empty</span>}
@@ -24468,7 +24475,7 @@ export default function AssetStudio() {
                 })()}
                 {!play && lvClimbLayer}
                 {lvHazardLayer}
-                {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : m.kind === "sign" ? "💬 Sign · " + signSummary(m, dlgLib) + " · invisible in play until you stand on it · Erase tool: click to delete" : m.kind === "anim" ? "🎬 " + ((findAnim(m.animId) || {}).name || "missing animation") + " · bottom-left corner of its stage · Erase tool: click to delete" : m.kind === "objective" ? "🎯 Objective · \"" + (m.text || "") + "\"" + (m.targetTag ? " · clears on reaching a room tagged \"" + m.targetTag + "\"" : " ⚠ no target tag") + (m.score ? " · score " + m.score : "") + (m.money ? " · money " + m.money : "") + " · shows on entering this room · Erase tool: click to delete" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : m.kind === "sign" ? "💬" : m.kind === "anim" ? "🎬" : m.kind === "objective" ? "🎯" : "💎"}</div>; })}
+                {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : m.kind === "sign" ? "💬 Sign · " + signSummary(m, dlgLib) + " · invisible in play until you stand on it · Erase tool: click to delete" : m.kind === "anim" ? "🎬 " + ((findAnim(m.animId) || {}).name || "missing animation") + " · bottom-left corner of its stage · Erase tool: click to delete" : m.kind === "objective" ? "🎯 Objective · \"" + (m.text || "") + "\"" + (m.targetTag ? " · clears on reaching \"" + m.targetTag + "\"" : " ⚠ no target tag") + (m.score ? " · score " + m.score : "") + (m.money ? " · money " + m.money : "") + " · shows on entering this room · Erase tool: click to delete" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : m.kind === "sign" ? "💬" : m.kind === "anim" ? "🎬" : m.kind === "objective" ? "🎯" : "💎"}</div>; })}
                 {/* A spawn carrying a tree shows 💬 rather than 👹 — which of the six identical
                     guards along this wall is the one you can talk to is otherwise invisible until
                     Playtest, and the answer is the whole reason it was placed there. */}
@@ -25961,7 +25968,12 @@ export default function AssetStudio() {
                   </div>
                   {/* 🎯 OBJECTIVES: each one up now on its own line, top and center, under the
                       score — set and cleared by the level-change check above (never painted here). */}
-                  {objectives.length > 0 && <div className="objBanner">{objectives.map((o) => <div key={o.id}>{o.text}</div>)}</div>}
+                  {(objectives.length > 0 || objReward) && (
+                    <div className="objStack">
+                      {objectives.length > 0 && <div className="objBanner">{objectives.map((o) => <div key={o.id}>{o.text}</div>)}</div>}
+                      {objReward && <div key={objReward.n} className="objReward">{objReward.score > 0 && <span>+{objReward.score}</span>}{objReward.money > 0 && <span className="objRewardMoney">{sym("hud.money", null, 12)}+{objReward.money}</span>}</div>}
+                    </div>
+                  )}
                   <div className="hud">
                     <div className="hudL">
                       <div className="hudHp">
@@ -27865,6 +27877,13 @@ html,body{margin:0;padding:0;background:#0f1117}
 /* 🎯 OBJECTIVE banner: the same HUD font (Chakra Petch) as the score/stats row, centered at the
    top of the screen just under that row (.hud itself sits at top:0 — the SCORE readout already
    owns dead center there, so this one clears it rather than fighting it for the same spot). */
+.objStack{position:absolute;left:50%;top:50px;transform:translateX(-50%);z-index:7;pointer-events:none;max-width:86%;display:flex;flex-direction:column;align-items:center;gap:3px}
+.objStack .objBanner{position:static;transform:none;animation:objInS .35s ease-out both}
+@keyframes objInS{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+/* The reward is a footnote, not an alert: small, mostly see-through, gone in a few seconds. */
+.objReward{display:flex;gap:10px;align-items:center;font-family:'Chakra Petch','Segoe UI',system-ui,sans-serif;font-weight:700;font-size:12px;letter-spacing:.04em;color:#fff;opacity:.4;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;animation:objRewardLife 3.2s ease-out forwards}
+.objRewardMoney{display:inline-flex;align-items:center;gap:3px}
+@keyframes objRewardLife{0%{opacity:0}12%{opacity:.4}75%{opacity:.4}100%{opacity:0}}
 .objBanner{position:absolute;left:50%;top:50px;transform:translate(-50%,0);z-index:7;pointer-events:none;max-width:86%;text-align:center;padding:5px 16px;background:rgba(10,12,24,.55);border:1px solid rgba(255,255,255,.18);border-radius:6px;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;font-weight:700;font-size:15px;letter-spacing:.02em;white-space:nowrap;color:#ffd84a;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85);animation:objIn .35s ease-out both}
 @keyframes objIn{from{opacity:0;transform:translate(-50%,-10px)}to{opacity:1;transform:translate(-50%,0)}}
 /* The score (.hudC) sits at .55; the rest of the HUD is lightly translucent too, but not as far
