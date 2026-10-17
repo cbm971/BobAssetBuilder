@@ -1156020,31 +1156020,6 @@
      "animId": "wakebed",
      "w": 17
     },
-    "34,21": {
-     "kind": "sign",
-     "dialogueId": "tvs1dlg",
-     "text": "This just in: Press WASD to move, Space Bar to Jump!"
-    },
-    "34,22": {
-     "kind": "sign",
-     "dialogueId": "tvs1dlg",
-     "text": "This just in: Press WASD to move, Space Bar to Jump!"
-    },
-    "34,23": {
-     "kind": "sign",
-     "dialogueId": "tvs1dlg",
-     "text": "This just in: Press WASD to move, Space Bar to Jump!"
-    },
-    "34,24": {
-     "kind": "sign",
-     "dialogueId": "tvs1dlg",
-     "text": "This just in: Press WASD to move, Space Bar to Jump!"
-    },
-    "34,25": {
-     "kind": "sign",
-     "dialogueId": "tvs1dlg",
-     "text": "This just in: Press WASD to move, Space Bar to Jump!"
-    },
     "33,31": {
      "kind": "door",
      "tag": "TCloset"
@@ -1156116,8 +1156091,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1792236885441,
-   "editedFrom": 1792236854120
+   "savedAt": 1792237027629,
+   "editedFrom": 1792237009747
   },
   {
    "id": "8l3tqki",
