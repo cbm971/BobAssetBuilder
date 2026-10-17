@@ -559,6 +559,13 @@ plus traps it does not cover:
   Units climbing take the player's ladder step (`legLift`), not the walk swing, and raise
   their arms like yours (`eClimbArms`, ahead of aim/swing; creatures keep paws as drawn). Raised ladder arms
   may drop but not rise (`LADDER_ARM_REACH_UP`), or they float off the shoulder.
+- **A ladder frees the gun hand** (`climbFreesGunArm`); bars and ledges take both. On a ladder only the
+  gun arm and its sleeves aim (`gunArmOnly`, also skipped by the pump); the off hand stays on the rung.
+  With a gun in hand the arrows aim and only W/S climb (`mergeInputIntent(RK, gunAims)`).
+- **The arm points where the shot goes.** ↑ alone is -90 off level everywhere the drawn Aim-up pose
+  is not shown (walking, ladder, plane, push-off); `aimArmOffsetDeg(-1)` must equal `aimAngleDeg(-1)`.
+- **A 🚶 plane is a floor to the render** (`airborne` excludes `p.topdown`). The loop keeps
+  `p.onGround` false on it, and a plane over open air drew the jump pose and lean.
 - **The CSS sheets are JS template literals.** A backtick in a CSS comment breaks the build at a
   line far from the cause.
 - A helper that two blocks of the play loop both call belongs at loop level. A `const` in one block

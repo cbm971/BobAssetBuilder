@@ -53,6 +53,8 @@ import {
   fgSlopeFills,
   fgSolid,
   armHoldsAimPose,
+  climbFreesGunArm,
+  gunArmOnly,
   attachWeaponBlocks,
   attachWeaponBlocksToArms,
   twinArmOf,
@@ -5001,6 +5003,15 @@ describe("holding Fire locks the aim pose", () => {
     expect(armHoldsAimPose(true, true, true, true, true, { t: 0, dur: 30 })).toBe(false);
   });
 
+  // 2026-10-17: "when you try to aim up with a gun while on a ladder it does not let you".
+  test("a ladder frees the gun hand; bars and a ledge do not", () => {
+    expect(climbFreesGunArm("ladder")).toBe(true);
+    expect(climbFreesGunArm("bars")).toBe(false);
+    expect(climbFreesGunArm("cliff")).toBe(false);
+    // The loop passes `climbing && !climbFreesGunArm(kind)` as the busy flag.
+    expect(armHoldsAimPose(true, false, false, true, false, null)).toBe(true);
+  });
+
   test("a melee weapon never holds the ranged aim pose", () => {
     expect(armHoldsAimPose(false, false, true, false, false, null)).toBe(false);
   });
@@ -5047,6 +5058,44 @@ describe("holding Fire locks the aim pose", () => {
   });
 });
 
+describe("aiming a gun from a ladder (2026-10-17)", () => {
+  const { applyLimbSwing } = require("./App");
+  test("with a gun in hand the arrows aim and only W/S climb", () => {
+    const arrows = { aimUp: true, aimDown: false };
+    expect(mergeInputIntent(arrows, true).up).toBe(false);
+    expect(mergeInputIntent(arrows, true).aimUp).toBe(true);
+    expect(mergeInputIntent({ aimDown: true }, true).down).toBe(false);
+    expect(mergeInputIntent({ up: true, aimUp: true }, true).up).toBe(true); // W still climbs while ↑ aims
+  });
+
+  test("unarmed (or a blade) the arrows still climb, as before", () => {
+    expect(mergeInputIntent({ aimUp: true }).up).toBe(true);
+    expect(mergeInputIntent({ aimDown: true }, false).down).toBe(true);
+  });
+
+  // The Back pose a ladder shows has two weapon arms, the drawn one and its mirrored twin. Aiming
+  // must turn the gun arm and what is worn on it, and leave the other hand on the rung.
+  const arm = { id: "a", role: "weaponArm", armPivot: "top", x: 130, y: 100, w: 14, h: 60, rot: 180 };
+  const twin = { id: "a", role: "weaponArm", armPivot: "top", x: 56, y: 100, w: 14, h: 60, rot: 180, _m: true };
+  const sleeve = { id: "s", limb: "arm", x: 128, y: 100, w: 18, h: 30, rot: 180 };
+  const farSleeve = { id: "s", limb: "arm", x: 54, y: 100, w: 18, h: 30, rot: 180, _m: true };
+  const torso = { id: "t", x: 70, y: 90, w: 60, h: 90 };
+  const blocks = [torso, arm, twin, sleeve, farSleeve];
+
+  test("gunArmOnly picks the gun arm and its sleeve, never the off hand", () => {
+    const only = gunArmOnly(blocks, arm);
+    expect(blocks.filter(only)).toEqual([arm, sleeve]);
+  });
+
+  test("the ladder pump leaves the aiming gun arm still and keeps pumping the other hand", () => {
+    const only = gunArmOnly(blocks, arm);
+    const out = applyLimbSwing(blocks, new Set(), new Set(["s"]), 0, { alternate: true, armReach: -6, armReachUp: 1.5, armSkip: only });
+    expect(out[1].y).toBe(arm.y);
+    expect(out[3].y).toBe(sleeve.y);
+    expect(out[2].y).not.toBe(twin.y);
+  });
+});
+
 // Holding an arrow sideways alongside ↑/↓ is the 45° diagonal — the thing a single ↑ (straight up)
 // and a single ↓ (a shallow 40° dip) leave no way to ask for.
 describe("diagonal aim (two arrow keys at once)", () => {
@@ -5065,11 +5114,14 @@ describe("diagonal aim (two arrow keys at once)", () => {
     expect(projectileAimRad(0)).toBe(0);
   });
 
-  test("the arm points along a diagonal shot, and still holds ±50 for a single key", () => {
+  test("the arm points along a diagonal shot, holds 50 for ↓, and goes straight up for ↑", () => {
     expect(aimArmOffsetDeg(-AIM_DIAGONAL)).toBe(-45);
     expect(aimArmOffsetDeg(AIM_DIAGONAL)).toBe(45);
     expect(aimArmOffsetDeg(1)).toBe(50);
-    expect(aimArmOffsetDeg(-1)).toBe(-50);
+    // ↑ alone fires straight up (aimAngleDeg -90). Where the drawn Aim-up pose is not shown — a
+    // ladder, a walk, a 🚶 plane — the arm has to point there too, not 50° up beside the shot.
+    expect(aimArmOffsetDeg(-1)).toBe(-90);
+    expect(aimArmOffsetDeg(-1)).toBe(aimAngleDeg(-1));
     expect(aimArmOffsetDeg(0)).toBe(0);
   });
 

@@ -1468,8 +1468,14 @@ export const RANGED_FIRE_POSE_FRAMES = 30;
 // pose through one made the whip read as "raise the gun for a fifth of a second" instead of a
 // strike. It plays the melee swing arc instead (see meleeSwinging), gun still gripped and riding
 // the arm round.
+// `climbing` means BOTH hands are on the climb — bars and a cliff ledge. A LADDER is not that
+// (climbFreesGunArm): you hold on with one hand and aim with the other. It used to count, so on a
+// ladder the arrows did nothing to the gun and a shot left level out of arms pointing at the sky.
 export const armHoldsAimPose = (isRangedWeapon, climbing, fireHeld, aimUp, aimDown, firing) =>
   !!isRangedWeapon && !climbing && (!!fireHeld || !!aimUp || !!aimDown || (!!firing && !firing.unarmed));
+// The climbs that leave the gun hand free: a ladder only. The off hand keeps the rung (the render's
+// ladder branch), the gun hand aims (the aim branch, gun arm only — gunArmOnly).
+export const climbFreesGunArm = (kind) => kind === "ladder";
 // --- Ranged weapon: fire rate, clip, reload -------------------------------------------------
 // Everything below is a pure function over a small { clip, ammo, cd, reloadT } record so the
 // Playtest loop only has to hold one ref and the rules stay testable outside the browser.
@@ -2187,9 +2193,12 @@ export const aimAngleDeg = (aimDir) => (aimDir === -1 ? -90 : isDiagonalAim(aimD
 export const projectileAimRad = (aimDir) => aimAngleDeg(aimDir) * Math.PI / 180;
 // How far the aiming arm swings off level. ±50 is the established single-key hold (deliberately a
 // little past the shot's own 40° so the pose reads); a diagonal lifts to exactly the 45° the shot
-// leaves at, so the arm points along the shot. Full-up doesn't come through here — aimDir -1 with
-// both feet planted switches to the dedicated drawn Aim-up pose instead (playerPoseKey).
-export const aimArmOffsetDeg = (aimDir) => (isDiagonalAim(aimDir) ? aimDir * 90 : aimDir * 50);
+// leaves at, so the arm points along the shot. Full-up standing still is the dedicated drawn Aim-up
+// pose instead (playerPoseKey) and never comes through here. Everywhere that pose is NOT drawn —
+// walking, on a ladder, walking a 🚶 plane, mid push-off — full-up is -90, straight up, because the
+// shot goes straight up (aimAngleDeg). It was -50 there, so the gun pointed 50° up while the round
+// left vertically (2026-10-17: "you can not aim up at steep enough angles … the arms are wonky").
+export const aimArmOffsetDeg = (aimDir) => (aimDir === -1 ? -90 : isDiagonalAim(aimDir) ? aimDir * 90 : aimDir * 50);
 export const DEFAULT_PROJECTILE_RANGE = 14;
 // Idle dangle for a monkey-bars / ledge hang. Speed is radians per 60fps frame (0.05 ≈ one full
 // sway every ~2s — a slow pendulum, not a kick). The amplitude is a sideways SHIFT in design-canvas
@@ -4095,9 +4104,13 @@ export const slideState = (effect) => effect ? { grip: Math.max(0.05, Math.min(1
 // forces the gun to point up/down. up/down still mean "climb or crouch" and accept EITHER source
 // (W/S or ↑/↓) so a keyboard-only player can climb; the four aim* intents are surfaced raw for
 // the aim logic. Left/right come from WASD alone.
-export const mergeInputIntent = (RK) => ({
+// `gunAims`: a RANGED weapon is in hand. Then the arrows are the gun's and only W/S climb — on a
+// ladder ↑ used to climb you up it instead of aiming (2026-10-17, Blake: "when you try to aim up
+// with a gun while on a ladder it does not let you"), and ↑ beside a ladder grabbed it. Unarmed or
+// holding a blade the arrows still climb, exactly as before.
+export const mergeInputIntent = (RK, gunAims = false) => ({
   left: !!RK.left, right: !!RK.right,
-  up: !!(RK.up || RK.aimUp), down: !!(RK.down || RK.aimDown),
+  up: !!(RK.up || (!gunAims && RK.aimUp)), down: !!(RK.down || (!gunAims && RK.aimDown)),
   // crouch is S (WASD-down) or the dedicated C key — NOT the down arrow, which is for aiming
   // down; conflating them would make it impossible to aim a gun downward while standing.
   jump: !!RK.jump, fire: !!RK.fire, crouch: !!(RK.crouch || RK.down), reload: !!RK.reload, throw: !!RK.throw,
@@ -4284,6 +4297,15 @@ export const armMirrorTwist = (b) => (b && b._m && b.mirrorTwist !== false ? -1 
 // (armAnchorFinder), not the first one. With a single arm and sleeves on its shoulder that is exactly
 // what a unit did before, byte for byte. `primary` is the arm the unit's weapon is gripped by; a ✋
 // hold point (`__hold`) is not an arm, so a drawn arm on the same body is left where it was drawn.
+// The pieces that make up the GUN arm alone: the arm the weapon is gripped by, and the clothing
+// that rides it (armAnchorFinder's nearest arm). Aiming off a ladder turns only these — the Back
+// pose a ladder shows draws two weapon arms, and turning both swung the off hand off the rung, so
+// the climber hung on by nothing (2026-10-17, "the arms are often wonky when aiming while
+// climbing"). A predicate over pieces of THIS array (identity), for the aim and pump branches.
+export const gunArmOnly = (blocks, gunArm) => {
+  const anchorOf = armAnchorFinder(blocks);
+  return (b) => b === gunArm || (b.role !== "weaponArm" && b.limb === "arm" && !b._isShoe && anchorOf(b) === gunArm);
+};
 export const driveUnitArms = (blocks, primary, armRotOf) => {
   const anchorOf = armAnchorFinder(blocks);
   return blocks.map((b) => {
@@ -6056,6 +6078,7 @@ export const applyLimbSwing = (blocks, legIds, armIds, swing, opts) => {
     // 10px over the body with a gap under it. Blake: "the players arm on a ladder can go too much
     // up and down to look like his arms are floating." Capped, the pump still alternates (one hand
     // drops as the other holds) and nothing ever leaves the shoulder.
+    if (o.armReach && o.armSkip && o.armSkip(b)) return b; // the gun arm aiming off a ladder holds still (see gunArmOnly)
     if (o.armReach && (b.role === "weaponArm" || armIds.has(b.id))) { const a = b.role === "weaponArm" ? b : (nearestArm(b) || b); const dy = armSide(a) * o.armReach; return { ...b, y: b.y + (o.armReachUp != null ? Math.max(dy, -o.armReachUp) : dy) }; }
     if (b.role === "weaponArm" || armIds.has(b.id)) return b; // clothing/equipment over the arm: only moves when the arm itself does (see the weaponArm-rotation call sites in the render section, which now also cover armIds)
     if (legIds.has(b.id)) {
@@ -14230,7 +14253,7 @@ export default function AssetStudio() {
       // turning round mid-stamp — the foot comes down where the knee went up, on the thing that was
       // under it. Aim and trigger are untouched; only the keys that would move or turn the body.
       const stompPlanted = !!(p.stomp && p.onGround);
-      const K = mergeInputIntent(frozen ? {} : stompPlanted ? { ...RK, left: false, right: false, jump: false, crouch: false, down: false, aimLeft: false, aimRight: false } : RK);
+      const K = mergeInputIntent(frozen ? {} : stompPlanted ? { ...RK, left: false, right: false, jump: false, crouch: false, down: false, aimLeft: false, aimRight: false } : RK, wpnIsRanged);
       // Temporary stat boosts from consumed items: expire by wall-clock, then layer what's still
       // active onto the player's base stats. Every stat read below (speed/agility/strength/int)
       // goes through pstats, so a boost fades on its own the moment its timer runs out — no re-key.
@@ -14813,8 +14836,8 @@ export default function AssetStudio() {
       if (p.effectAnim) p.effectAnim.t += dtMul;
 
       // Live aim tracking — a projectile weapon lets ↑/↓ preview the shot's angle before you
-      // ever pull the trigger, not just snapshot it at the instant of firing. Climbing already
-      // owns ↑/↓ for movement, so aiming is suppressed there. Drops back to neutral (0) the
+      // ever pull the trigger, not just snapshot it at the instant of firing. Bars and ledges take
+      // both hands, so aiming is suppressed there (a ladder no longer is). Drops back to neutral (0) the
       // instant nothing is held, so releasing both keys always means "aim straight ahead".
       // Reloading LOWERS the weapon: dropping p.aiming here is what does it — the aim branch in
       // the renderer is the only thing that lifts the arm from its resting hang, so suppressing
@@ -14825,7 +14848,8 @@ export default function AssetStudio() {
       // ↑ or ↓ ALONE is the full hold; add ← or → to it and you get the 45° diagonal (see
       // AIM_DIAGONAL). The sideways key has already set p.face just above, so the diagonal needs no
       // left/right of its own — holding ↑+← turns you and aims up-left in one move.
-      p.aiming = armHoldsAimPose(playtestWeapon && isRanged(playtestWeapon.wtype), climbing, K.fire, K.aimUp, K.aimDown, p.firing);
+      // A ladder frees the gun hand (climbFreesGunArm): W/S still climb, the arrows aim.
+      p.aiming = armHoldsAimPose(playtestWeapon && isRanged(playtestWeapon.wtype), climbing && !climbFreesGunArm(climbKindHere), K.fire, K.aimUp, K.aimDown, p.firing);
       const aimDiag = (K.aimLeft || K.aimRight) ? AIM_DIAGONAL : 1;
       p.aimDir = p.aiming ? (K.aimUp ? -aimDiag : K.aimDown ? aimDiag : 0) : 0;
       // A THROW READS THE SAME ARROWS, on its own channel. p.aimDir is gated on p.aiming, which
@@ -24294,7 +24318,11 @@ export default function AssetStudio() {
                   // the established sideways Side pose and its leg cycle, then lowers the completed
                   // art plane below — movement must never turn the character toward the camera.
                   const angle = playerPoseKey(p);
-                  const airborne = !p.onGround && !p.climbing && !p.transitioning; // a jump or a fall — not standing, climbing, or mid level-transition
+                  // A 🚶 Top-down plane is a floor too. The loop holds p.onGround false on it, so a plane
+                  // painted over open air (Trailor Park M7's crossing) drew you mid-JUMP whenever you
+                  // stood or walked side-on there: legs split, body leaning into a leap that never came,
+                  // and an aimed gun tipped with it (2026-10-17, "the arms are often wonky when aiming").
+                  const airborne = !p.onGround && !p.climbing && !p.topdown && !p.transitioning; // a jump or a fall — not standing, climbing, on a plane, or mid level-transition
                   // hatsUnderArms: a look baked before the arms-over-hat rule still has its hat on top.
                   let blocks = playerAsset ? hatsUnderArms(livePlayerBlocks(angle)) : null;
                   // A drawn ENEMY used as the player: if it has a hand-drawn Attack pose and is
@@ -24360,7 +24388,11 @@ export default function AssetStudio() {
                     const swing = Math.sin(p.walkPhase || 0) * 22; // alternate limbs like scaling a ladder
                     // alternate: each piece swings by which SIDE it's on (so pants always match the
                     // leg under them); armReach: arms pump up/down alternately instead of rotating.
-                    blocks = applyLimbSwing(blocks, legIds, armIds, swing, { alternate: true, armReach: Math.sin(p.walkPhase || 0) * LADDER_ARM_REACH, armReachUp: LADDER_ARM_REACH_UP, legLift: Math.sin(p.walkPhase || 0) * 8 });
+                    // Aiming on the ladder (climbFreesGunArm), the gun arm is out of the pump: a
+                    // shoulder that bobs while it points a rifle reads as the arm coming loose.
+                    const gunArmPiece = p.aiming ? armOf(blocks) : null;
+                    const armSkip = gunArmPiece ? gunArmOnly(blocks, gunArmPiece) : null;
+                    blocks = applyLimbSwing(blocks, legIds, armIds, swing, { alternate: true, armReach: Math.sin(p.walkPhase || 0) * LADDER_ARM_REACH, armReachUp: LADDER_ARM_REACH_UP, legLift: Math.sin(p.walkPhase || 0) * 8, armSkip });
                   } else if (blocks && p.climbing) {
                     // Monkey bars / cliff ledge: a hang, not a climb — both arms forced straight up
                     // to the grip. The legs get a slow pendulum sway rather than the ladder's
@@ -24528,8 +24560,11 @@ export default function AssetStudio() {
                     // it is simply added; armMirrorTwist below handles facing for both alike.
                     const armAimDeg = aimArmOffsetDeg(aimDir) + ((p.firing && p.firing.aimTilt) || 0);
                     const aimAnchorOf = armAnchorFinder(blocks);
+                    // On a ladder the other hand stays on the rung (gunArmOnly): only the gun arm aims.
+                    const onlyGunArm = p.climbing ? gunArmOnly(blocks, armOf(blocks)) : null;
                     blocks = blocks.map((b) => {
                       if (b.role !== "weaponArm" && b.limb !== "arm") return b;
+                      if (onlyGunArm && !onlyGunArm(b)) return b;
                       const target = armAimAbs(b.armPivot) + armAimDeg;
                       if (b.role === "weaponArm") return { ...b, rot: target * armMirrorTwist(b) };
                       // Equipment (e.g. a jacket sleeve) flagged limb:"arm" so it tracks the arm

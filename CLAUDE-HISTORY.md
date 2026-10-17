@@ -4829,3 +4829,34 @@ branch and reached the slab beside him in ~70 frames (y 64 -> 485); the road's g
 its placed facing for 250 frames; slab unit 19,31 ignored him at 33 cells and chased at 22. Control
 (round 1 code, bundle checked for the marker): the same Squirrel sat on its branch facing away for 260
 frames.
+
+## Aiming from a ladder and a 🚶 plane (2026-10-17)
+
+Blake: "when you try to aim up with a gun while on a ladder it does not let you. In general you can
+not aim up at steep enough angles on ladders and top down climbing surfaces and the arms are often
+wonky when aiming up or aiming while climbing." Four separate causes:
+
+* **Aiming was switched off on every climb.** `armHoldsAimPose` took `climbing` as "both hands
+  busy", ladders included, so the arrows did nothing to the gun; Fire still shot, level, out of two
+  arms pointing at the sky. A ladder now frees the gun hand (`climbFreesGunArm`); bars and ledges
+  still take both.
+* **↑ climbed instead of aiming.** `mergeInputIntent` folds the arrows into K.up/K.down for
+  keyboard-only climbing. With a ranged weapon in hand (`gunAims`) the arrows are the gun's and W/S
+  climb; unarmed or with a blade the arrows still climb.
+* **Both arms aimed.** The Back pose a ladder shows has two weapon arms; the aim branch turned both,
+  so the off hand left the rung. `gunArmOnly` (the gun arm plus the clothing riding it) limits the aim
+  branch on a ladder and keeps that arm out of the hand pump, whose bob read as the arm coming loose.
+* **The arm stopped 40° short.** `aimAngleDeg(-1)` fires straight up, but `aimArmOffsetDeg(-1)` was
+  -50, so wherever the drawn Aim-up pose is not shown (walking, ladder, plane, push-off) the gun pointed
+  50° up while the round went vertical. Now -90.
+* **A plane over open air drew the jump pose.** The loop keeps `p.onGround` false on a plane, and the
+  render's `airborne` did not exclude `p.topdown`, so standing or walking side-on across Trailor Park
+  M7's crossing split the legs and leaned the body (and the aimed gun) by up to 16°.
+
+Measured in the dev build, Army Bob + M16: Sewer M1's ladder at col 30, ↑ held 300 ms, y unchanged
+(727), `aiming` true, `aimDir` -1; the gun arm at rotate(-180), the twin still at the climb's 180. A
+shot fired up from the ladder started at the drawn barrel tip to the pixel, both facings (944,631 and
+890,631), vx 0, vy -12. Trailor Park M7's plane: before the `airborne` fix the side-on idle and walk
+snapshots were tilted with split legs; after, upright, with ↑ straight up and ↑+← at 45° in Side,
+Back and Front. Units do not fire while climbing at all (`sameLevel` is false on a climb), so their
+ladder render was left alone.
