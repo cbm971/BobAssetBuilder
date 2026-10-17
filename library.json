@@ -197551,7 +197551,7 @@
        "opacity": 1,
        "glow": 0,
        "glowColor": "#ffd76b",
-       "bright": 1
+       "bright": 1.95
       }
      },
      {
@@ -197568,7 +197568,7 @@
        "opacity": 1,
        "glow": 0,
        "glowColor": "#ffd76b",
-       "bright": 1
+       "bright": 1.85
       }
      },
      {
@@ -197586,7 +197586,8 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "tex": "4cugsd5"
      },
      {
       "id": "8b2ftq0",
@@ -197675,7 +197676,7 @@
         "opacity": 1,
         "glow": 0,
         "glowColor": "#ffd76b",
-        "bright": 1
+        "bright": 1.95
        }
       },
       {
@@ -197692,7 +197693,7 @@
         "opacity": 1,
         "glow": 0,
         "glowColor": "#ffd76b",
-        "bright": 1
+        "bright": 1.85
        }
       },
       {
@@ -197710,7 +197711,8 @@
         "glow": 0,
         "glowColor": "#ffd76b",
         "bright": 1
-       }
+       },
+       "tex": "4cugsd5"
       },
       {
        "id": "8b2ftq0",
@@ -197783,8 +197785,9 @@
    ],
    "animFps": 6,
    "solidDefault": false,
-   "category": "Design Elements",
-   "savedAt": 1792247696602
+   "category": "Decoration",
+   "savedAt": 1792247943546,
+   "editedFrom": 1792247696602
   },
   {
    "id": "aaash01",
