@@ -813679,6 +813679,1025 @@
    "savedAt": 1791064640247
   },
   {
+   "id": "rfercnu",
+   "name": "Tye Dye Shirt",
+   "type": "equipment",
+   "angles": {
+    "front": [
+     {
+      "id": "v3h1928",
+      "kind": "rect",
+      "x": 66,
+      "y": 85,
+      "w": 68,
+      "h": 65,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "_src": "jfwt8r4",
+      "_slot": "shirt",
+      "tex": "ha3rb7x"
+     },
+     {
+      "id": "9gz3h1f",
+      "kind": "rect",
+      "x": 134,
+      "y": 84,
+      "w": 17,
+      "h": 65,
+      "color": "#c8a23c",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "overArms": true,
+      "limb": "arm",
+      "rot": 358,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "_src": "jfwt8r4",
+      "_slot": "shirt",
+      "tex": "ha3rb7x"
+     },
+     {
+      "id": "miumtyn",
+      "kind": "circle",
+      "x": 73,
+      "y": 80,
+      "w": 55,
+      "h": 12,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true,
+      "_src": "jfwt8r4",
+      "_slot": "shirt"
+     },
+     {
+      "id": "iki8yt0",
+      "kind": "circle",
+      "x": 59,
+      "y": 87,
+      "w": 24,
+      "h": 31,
+      "color": "#c8a23c",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "_src": "jfwt8r4",
+      "_slot": "shirt",
+      "tex": "ha3rb7x"
+     }
+    ],
+    "back": [
+     {
+      "id": "taprnol",
+      "kind": "rect",
+      "x": 66,
+      "y": 85,
+      "w": 67,
+      "h": 66,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "tex": "ha3rb7x"
+     },
+     {
+      "id": "l7r1pm9",
+      "kind": "rect",
+      "x": 128,
+      "y": 84,
+      "w": 19,
+      "h": 64,
+      "color": "#c8a23c",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "overArms": true,
+      "limb": "arm",
+      "rot": 353,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "tex": "ha3rb7x"
+     }
+    ],
+    "side": [
+     {
+      "id": "6w5jpyo",
+      "kind": "rect",
+      "x": 69,
+      "y": 85,
+      "w": 59,
+      "h": 77,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "tex": "ha3rb7x"
+     },
+     {
+      "id": "wzjn8l7",
+      "kind": "rect",
+      "x": 88,
+      "y": 96,
+      "w": 15.5,
+      "h": 55.5,
+      "color": "#c8a23c",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "overArms": true,
+      "limb": "arm",
+      "rot": 360,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "tex": "ha3rb7x"
+     },
+     {
+      "id": "t4a216v",
+      "kind": "circle",
+      "x": 118,
+      "y": 91,
+      "w": 15,
+      "h": 31,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "tex": "ha3rb7x"
+     }
+    ],
+    "up": [
+     {
+      "id": "4q51lkn",
+      "kind": "rect",
+      "x": 67,
+      "y": 85,
+      "w": 67,
+      "h": 69,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "tex": "ha3rb7x"
+     },
+     {
+      "id": "95b0zwl",
+      "kind": "rect",
+      "x": 134,
+      "y": 44,
+      "w": 18,
+      "h": 62,
+      "color": "#c8a23c",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "overArms": true,
+      "limb": "arm",
+      "rot": 360,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "tex": "ha3rb7x"
+     },
+     {
+      "id": "jm3gpeb",
+      "kind": "circle",
+      "x": 72,
+      "y": 81,
+      "w": 55,
+      "h": 13,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true
+     },
+     {
+      "id": "s77a6l8",
+      "kind": "circle",
+      "x": 62,
+      "y": 95,
+      "w": 27,
+      "h": 22,
+      "color": "#c8a23c",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "rot": 33,
+      "tex": "ha3rb7x"
+     }
+    ],
+    "crouch": [
+     {
+      "id": "8s51857",
+      "kind": "rect",
+      "x": 70,
+      "y": 104,
+      "w": 60,
+      "h": 51,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "tex": "ha3rb7x"
+     },
+     {
+      "id": "rvfpo4f",
+      "kind": "rect",
+      "x": 127,
+      "y": 101,
+      "w": 19,
+      "h": 51,
+      "color": "#c8a23c",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.6
+      },
+      "overArms": true,
+      "limb": "arm",
+      "rot": 350,
+      "outline": true,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "tex": "ha3rb7x"
+     },
+     {
+      "id": "72qt1rf",
+      "kind": "circle",
+      "x": 76,
+      "y": 98,
+      "w": 49,
+      "h": 11,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true
+     }
+    ]
+   },
+   "guideId": "oipvf3l",
+   "slot": "shirt",
+   "variants": {
+    "default": {
+     "front": [],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    },
+    "telfv37": {
+     "front": [
+      {
+       "id": "v3h1928",
+       "kind": "rect",
+       "x": 58,
+       "y": 88,
+       "w": 84,
+       "h": 90,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "_src": "jfwt8r4",
+       "_slot": "shirt",
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "9gz3h1f",
+       "kind": "rect",
+       "x": 134,
+       "y": 86,
+       "w": 23,
+       "h": 67,
+       "color": "#c8a23c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "overArms": true,
+       "limb": "arm",
+       "rot": 353,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_src": "jfwt8r4",
+       "_slot": "shirt",
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "miumtyn",
+       "kind": "circle",
+       "x": 70,
+       "y": 81,
+       "w": 55,
+       "h": 13,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true,
+       "_src": "jfwt8r4",
+       "_slot": "shirt"
+      }
+     ],
+     "back": [
+      {
+       "id": "taprnol",
+       "kind": "rect",
+       "x": 59,
+       "y": 88,
+       "w": 83,
+       "h": 90,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "l7r1pm9",
+       "kind": "rect",
+       "x": 134,
+       "y": 86,
+       "w": 23,
+       "h": 67,
+       "color": "#c8a23c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "overArms": true,
+       "limb": "arm",
+       "rot": 353,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "ha3rb7x"
+      }
+     ],
+     "side": [
+      {
+       "id": "6w5jpyo",
+       "kind": "rect",
+       "x": 59,
+       "y": 88,
+       "w": 83,
+       "h": 90,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "wzjn8l7",
+       "kind": "rect",
+       "x": 83,
+       "y": 95,
+       "w": 26,
+       "h": 68,
+       "color": "#c8a23c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "overArms": true,
+       "limb": "arm",
+       "rot": 360,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "ha3rb7x"
+      }
+     ],
+     "up": [
+      {
+       "id": "4q51lkn",
+       "kind": "rect",
+       "x": 59,
+       "y": 88,
+       "w": 83,
+       "h": 90,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "95b0zwl",
+       "kind": "rect",
+       "x": 134,
+       "y": 44,
+       "w": 18,
+       "h": 62,
+       "color": "#c8a23c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "overArms": true,
+       "limb": "arm",
+       "rot": 360,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "jm3gpeb",
+       "kind": "circle",
+       "x": 72,
+       "y": 81,
+       "w": 55,
+       "h": 13,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      }
+     ],
+     "crouch": [
+      {
+       "id": "8s51857",
+       "kind": "rect",
+       "x": 59,
+       "y": 118,
+       "w": 81,
+       "h": 59,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "rvfpo4f",
+       "kind": "rect",
+       "x": 139,
+       "y": 123,
+       "w": 20,
+       "h": 52,
+       "color": "#c8a23c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "overArms": true,
+       "limb": "arm",
+       "rot": 0,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "72qt1rf",
+       "kind": "circle",
+       "x": 70,
+       "y": 112,
+       "w": 55,
+       "h": 13,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      }
+     ]
+    },
+    "oipvf3l": {
+     "front": [
+      {
+       "id": "v3h1928",
+       "kind": "rect",
+       "x": 66,
+       "y": 85,
+       "w": 68,
+       "h": 65,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "_src": "jfwt8r4",
+       "_slot": "shirt",
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "9gz3h1f",
+       "kind": "rect",
+       "x": 134,
+       "y": 84,
+       "w": 17,
+       "h": 65,
+       "color": "#c8a23c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "overArms": true,
+       "limb": "arm",
+       "rot": 358,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "_src": "jfwt8r4",
+       "_slot": "shirt",
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "miumtyn",
+       "kind": "circle",
+       "x": 73,
+       "y": 80,
+       "w": 55,
+       "h": 12,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true,
+       "_src": "jfwt8r4",
+       "_slot": "shirt"
+      },
+      {
+       "id": "iki8yt0",
+       "kind": "circle",
+       "x": 59,
+       "y": 87,
+       "w": 24,
+       "h": 31,
+       "color": "#c8a23c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "_src": "jfwt8r4",
+       "_slot": "shirt",
+       "tex": "ha3rb7x"
+      }
+     ],
+     "back": [
+      {
+       "id": "taprnol",
+       "kind": "rect",
+       "x": 66,
+       "y": 85,
+       "w": 67,
+       "h": 66,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "l7r1pm9",
+       "kind": "rect",
+       "x": 128,
+       "y": 84,
+       "w": 19,
+       "h": 64,
+       "color": "#c8a23c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "overArms": true,
+       "limb": "arm",
+       "rot": 353,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "ha3rb7x"
+      }
+     ],
+     "side": [
+      {
+       "id": "6w5jpyo",
+       "kind": "rect",
+       "x": 69,
+       "y": 85,
+       "w": 59,
+       "h": 77,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "wzjn8l7",
+       "kind": "rect",
+       "x": 88,
+       "y": 96,
+       "w": 15.5,
+       "h": 55.5,
+       "color": "#c8a23c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "overArms": true,
+       "limb": "arm",
+       "rot": 360,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "t4a216v",
+       "kind": "circle",
+       "x": 118,
+       "y": 91,
+       "w": 15,
+       "h": 31,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "tex": "ha3rb7x"
+      }
+     ],
+     "up": [
+      {
+       "id": "4q51lkn",
+       "kind": "rect",
+       "x": 67,
+       "y": 85,
+       "w": 67,
+       "h": 69,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "95b0zwl",
+       "kind": "rect",
+       "x": 134,
+       "y": 44,
+       "w": 18,
+       "h": 62,
+       "color": "#c8a23c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "overArms": true,
+       "limb": "arm",
+       "rot": 360,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "jm3gpeb",
+       "kind": "circle",
+       "x": 72,
+       "y": 81,
+       "w": 55,
+       "h": 13,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      },
+      {
+       "id": "s77a6l8",
+       "kind": "circle",
+       "x": 62,
+       "y": 95,
+       "w": 27,
+       "h": 22,
+       "color": "#c8a23c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "rot": 33,
+       "tex": "ha3rb7x"
+      }
+     ],
+     "crouch": [
+      {
+       "id": "8s51857",
+       "kind": "rect",
+       "x": 70,
+       "y": 104,
+       "w": 60,
+       "h": 51,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "rvfpo4f",
+       "kind": "rect",
+       "x": 127,
+       "y": 101,
+       "w": 19,
+       "h": 51,
+       "color": "#c8a23c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.6
+       },
+       "overArms": true,
+       "limb": "arm",
+       "rot": 350,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "ha3rb7x"
+      },
+      {
+       "id": "72qt1rf",
+       "kind": "circle",
+       "x": 76,
+       "y": 98,
+       "w": 49,
+       "h": 11,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      }
+     ]
+    }
+   },
+   "lastFit": "oipvf3l",
+   "confirmedFits": [
+    "oipvf3l",
+    "telfv37"
+   ],
+   "statBoosts": {
+    "hp": 2,
+    "speed": 1,
+    "agility": 0,
+    "intelligence": 0,
+    "strength": 0
+   },
+   "defense": 3,
+   "effects": [],
+   "categories": [
+    "T1",
+    "Shirt",
+    "Hippy"
+   ],
+   "groups": {
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "savedAt": 1792248342906,
+   "value": 7,
+   "rank": "common"
+  },
+  {
    "id": "rockth7g",
    "name": "Rock",
    "type": "weapon",
