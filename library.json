@@ -1226495,12 +1226495,6 @@
      "enemyId": "c4ft0d4",
      "weaponId": "none"
     },
-    "34,85": {
-     "enemyTag": "Trailor",
-     "facing": 1,
-     "ai": "guard",
-     "dialogueId": "dlgrob1"
-    },
     "34,91": {
      "facing": -1,
      "ai": "guard",
@@ -1226519,6 +1226513,12 @@
      "facing": -1,
      "ai": "guard",
      "dialogueId": "dlgbby1"
+    },
+    "34,86": {
+     "enemyId": "idqfy73",
+     "facing": -1,
+     "ai": "guard",
+     "dialogueId": "dlgrob1"
     }
    },
    "conns": {
@@ -1226555,8 +1226555,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1792258951496,
-   "editedFrom": 1792258549855
+   "savedAt": 1792259649558,
+   "editedFrom": 1792258951496
   },
   {
    "id": "6ktwvoo",
