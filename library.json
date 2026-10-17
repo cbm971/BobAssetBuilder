@@ -415779,7 +415779,7 @@
    "size": 4,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Draft Office",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -416726,7 +416726,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792257863131,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dftbuss",
@@ -417219,7 +417220,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792257878828,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dftchrs",
@@ -426901,7 +426903,7 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "text": "LOCAL BOARD No. 47 · TRAILOR COUNTY",
+       "text": "LOCAL BOARD No. 47 · DADE COUNTY",
        "font": "Georgia, 'Times New Roman', serif"
       },
       {
@@ -427090,7 +427092,7 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "text": "LOCAL BOARD No. 47 · TRAILOR COUNTY",
+      "text": "LOCAL BOARD No. 47 · DADE COUNTY",
       "font": "Georgia, 'Times New Roman', serif"
      },
      {
@@ -427195,7 +427197,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792257845977,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dftsock",
