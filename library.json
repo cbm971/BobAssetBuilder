@@ -831797,7 +831797,7 @@
     "telfv37",
     "oipvf3l"
    ],
-   "wtype": "melee",
+   "wtype": "ranged",
    "projectileId": "6ufkkia",
    "damage": 22,
    "fireRate": 0.8,
@@ -840331,8 +840331,8 @@
      }
     ]
    },
-   "savedAt": 1792277360169,
-   "editedFrom": 1792276355069
+   "savedAt": 1792277379052,
+   "editedFrom": 1792277360169
   },
   {
    "id": "mstng65",
