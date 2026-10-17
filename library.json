@@ -1709658,6 +1709658,25 @@
    }
   },
   {
+   "id": "lro0laa",
+   "name": "White panels",
+   "tex": "woodPanel",
+   "colors": {
+    "board": "#ffffff",
+    "boardAlt": "#ffffff",
+    "groove": "#000000",
+    "lit": "#ffffff",
+    "grain": "#ffffff",
+    "knot": "#000000"
+   },
+   "params": {
+    "boards": 4,
+    "grain": 0.55,
+    "knots": 0.25
+   },
+   "savedAt": 1792236322996
+  },
+  {
    "id": "mpuz8u4",
    "name": "Red Wood",
    "tex": "wood",
