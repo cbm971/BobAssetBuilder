@@ -1156039,6 +1156039,11 @@
       ""
      ],
      "logic": "or"
+    },
+    "31,21": {
+     "kind": "sign",
+     "dialogueId": "tvs1dlg",
+     "text": ""
     }
    },
    "enemies": {
@@ -1156091,8 +1156096,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1792237027629,
-   "editedFrom": 1792237009747
+   "savedAt": 1792237578021,
+   "editedFrom": 1792237027629
   },
   {
    "id": "8l3tqki",
