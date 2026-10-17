@@ -628178,7 +628178,7 @@
     "kind": "tagDamage",
     "tag": "Gun",
     "mult": 1.5,
-    "duration": 30
+    "duration": 60
    },
    "categories": [
     "T1",
@@ -628280,7 +628280,8 @@
    },
    "value": 6,
    "rank": "common",
-   "savedAt": 1792276355076
+   "savedAt": 1792277930689,
+   "editedFrom": 1792276355076
   },
   {
    "id": "h5nqbt1",
