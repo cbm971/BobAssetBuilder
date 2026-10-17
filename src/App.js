@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
 import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped } from "./anim";
-import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath } from "./audio";
+import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath, EXPLOSION_MIN_GAIN } from "./audio";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
 import { SYMBOL_SLOTS, SYMBOL_DEFAULT_ART, SYMBOL_FONT_FAMILY, SYMBOL_BOX, SYMBOL_LIBRARY_PATH, ART_EMOJI_FONT, SYMBOL_BOARD_ID, newSymbolBoard, isSymbolBoard, symbolSlot, symbolPick, symbolColor, isPropPick, propPickId, PROP_PICK, isEmojiSlot, symbolPicksNeedingLibrary, symbolFontGlyphs, buildSymbolFont } from "./symbols";
@@ -16662,7 +16662,7 @@ export default function AssetStudio() {
       const detonate = (pr, ix, iy) => {
         if (!pr.explode) return;
         const radPx = Math.max(0.5, pr.explodeRadius ?? 2) * CW;
-        if (pr.snd) sndMoment(pr.snd, "hit", null, ix, iy); // 🔊 an explosive round going off is its weapon's Hit
+        if (pr.snd) bobAudio.moment({ asset: pr.snd, slot: "hit", x: ix, y: iy, minGain: EXPLOSION_MIN_GAIN }); // 🔊 an explosive round going off is its weapon's Hit, heard even off screen (EXPLOSION_MIN_GAIN)
         booms.current.push({ x: ix, y: iy, propId: pr.explodePropId || null, char: pr.explodeChar || DEFAULT_BOOM_CHAR, size: pr.explodeSize ?? 3, life: 0, maxLife: Math.max(8, Math.round((pr.explodeLife ?? 0.5) * 60)) });
         const baseDmg = pr.damage ?? 5;
         // Every target's blast box, resolved the same way the direct-hit tests do: the VISIBLE
@@ -25429,8 +25429,11 @@ export default function AssetStudio() {
                   // Doors are invisible in play (you place your own visual over the cell). All that
                   // shows is this prompt when you're standing on one, so E has an obvious meaning.
                   const [r, c] = doorPrompt.key.split(",").map(Number);
+                  // No room tag on the prompt (Blake, 2026-10-17): tags and room names are his record
+                  // keeping, and "Press E to enter · Trailor Closet" read as the game announcing it.
+                  // The tag still shows when no room carries it, because that is a level to fix.
                   const txt = doorPrompt.enter
-                    ? (doorPrompt.n > 0 ? "🚪 Press E to enter" + (doorPrompt.tag ? " · " + doorPrompt.tag : "") : "🚪 No room tagged" + (doorPrompt.tag ? " \"" + doorPrompt.tag + "\"" : "") + " yet")
+                    ? (doorPrompt.n > 0 ? "🚪 Press E to enter" : "🚪 No room tagged" + (doorPrompt.tag ? " \"" + doorPrompt.tag + "\"" : "") + " yet")
                     : "🚪 Press E to leave";
                   return <div key="doorprompt" className="doorPromptFloat" style={{ left: c * LV_CELL + LV_CELL / 2, top: r * LV_CELL - 6 }}>{txt}</div>;
                 })()}

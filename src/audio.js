@@ -209,6 +209,12 @@ export const clipMime = (clip) => CLIP_EXTS[(/\.([a-z0-9]+)$/i.exec(clip || "") 
 // view's width (or height, whichever is larger) past its edge, so a dog barking two screens away
 // is silent and one just off the edge is quiet. No view (the studio's ▶ preview, a menu click) is
 // full volume.
+// AN EXPLOSION IS HEARD EVERY TIME (Blake, 2026-10-17: "weapons that make explosions use their hit
+// sound every time they land"). The Hit was asked for at every landing all along; the fade above
+// is what ate it. A Grenade Launcher round lobs past the edge of the screen, so its blast came back
+// at half volume or under the 0.02 cut-off and was never played at all. A blast is the one sound
+// that carries, so it fades only this far and no further.
+export const EXPLOSION_MIN_GAIN = 0.6;
 export const soundGainAt = (x, y, view) => {
   if (!view || typeof x !== "number" || typeof y !== "number") return 1;
   const dx = Math.max(view.x0 - x, 0, x - view.x1), dy = Math.max(view.y0 - y, 0, y - view.y1);
@@ -497,10 +503,12 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     setView: (v) => { view = v; },
     // ONE MOMENT: the asset's own sound for `slot`, else the basic one, else nothing (resolveSound).
     // x/y place it in the level for the off-screen fade; leave them out for full volume.
-    moment: ({ asset, slot, basic, x, y } = {}) => {
+    // `minGain` is the floor that fade stops at, for a moment that must be heard wherever it
+    // happens (an explosion, see EXPLOSION_MIN_GAIN).
+    moment: ({ asset, slot, basic, x, y, minGain = 0 } = {}) => {
       const id = resolveSound({ asset, slot, basic, board, has: engine.has });
       if (!id) return false;
-      const gain = soundGainAt(x, y, view);
+      const gain = Math.max(soundGainAt(x, y, view), Math.min(1, minGain));
       if (gain <= 0.02) return false;
       // Times the slider beside the pick that chose this sound (resolveSoundVol).
       const sv = resolveSoundVol({ asset, slot, basic, board, has: engine.has });

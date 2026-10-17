@@ -4,7 +4,7 @@
 // is his data (CLAUDE.md: a test must never pin his data).
 import {
   SOUND_EVENTS, SOUND_EVENT_KEYS, ASSET_SOUND_SLOTS, assetSoundSlots, withAssetSound, resolveSound,
-  soundGainAt, voicePlan, MAX_COPIES, MAX_VOICES, RETRIGGER_MS, clipExtOf, clipMime, CLIP_MAX_BYTES,
+  soundGainAt, EXPLOSION_MIN_GAIN, voicePlan, MAX_COPIES, MAX_VOICES, RETRIGGER_MS, clipExtOf, clipMime, CLIP_MAX_BYTES,
   clipHash, clipNameOk, clipMatches, createAudioEngine, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard,
   leadingSilence, ONSET_FLOOR, ONSET_OF_PEAK, ONSET_PREROLL_S, talkSeconds, TALK_CHARS_PER_S, TALK_MIN_S, TALK_MAX_S, dialogueSoundId,
   soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, resolveSoundVol, splitHurtDeath,
@@ -311,6 +311,21 @@ describe("the engine, against a stand-in Web Audio", () => {
     const tr = e.trace();
     expect(tr.map((r) => [r.id, r.clip, r.heard])).toEqual([["gunS", clipB, true], ["jumpS", clipA, true]]);
     expect(tr[0]).toMatchObject({ slot: "fire", asset: "w1" });
+  });
+
+  test("an explosion's Hit is heard wherever it lands; anything else far off screen stays silent", async () => {
+    install("running");
+    const e = make();
+    e.preload(["gunS"]); await settle(); await settle();
+    e.setView({ x0: 0, y0: 0, x1: 1000, y1: 500 });
+    const launcher = { id: "gl", type: "weapon", wtype: "ranged", sounds: { hit: "gunS" } };
+    expect(e.moment({ asset: launcher, slot: "hit", x: 5000, y: 250 })).toBe(false);  // the old fade: silent
+    expect(e.moment({ asset: launcher, slot: "hit", x: 5000, y: 250, minGain: EXPLOSION_MIN_GAIN })).toBe(true);
+    expect(e.trace().slice(-1)[0].gain).toBeCloseTo(EXPLOSION_MIN_GAIN);
+    const realNow = performance.now; let t = 1e6; performance.now = () => t;      // past the retrigger gap
+    try { expect(e.moment({ asset: launcher, slot: "hit", x: 500, y: 250, minGain: EXPLOSION_MIN_GAIN })).toBe(true); }
+    finally { performance.now = realNow; }
+    expect(e.trace().slice(-1)[0].gain).toBe(1);                                   // on screen it is still full volume
   });
 
   test("never more than three copies of one sound: the fourth is heard and the oldest is cut", async () => {

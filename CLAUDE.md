@@ -343,6 +343,8 @@ plus traps it does not cover:
   `soundVol`, an asset's `soundVol[slot]` (absent = 100%, `slotVolume`/`withSlotVolume`), and it
   multiplies the sound's own `vol`. `resolveSoundVol` follows resolveSound's choice. Any new place
   a sound is picked gets `volSlider` beside it, and its ▶ passes that volume.
+- **An explosion is heard wherever it lands** (`EXPLOSION_MIN_GAIN`, a `minGain` floor on the
+  off-screen fade): a launcher round lobs past the screen edge and its Hit was faded to nothing.
 - The dev server writes uploads into `asset-data/clips/`. Delete test clips before committing.
 - 10 MB per file; the answer to a bigger one is mp3/ogg, not a bigger cap. The 🎵 toggle is per copy
   (localStorage `bobMusic`).
@@ -627,6 +629,8 @@ plus traps it does not cover:
   `jumpHeightBlocks`), so Speed 5 / Agility 5 are 1.1x what they were and every stat still scales from there. They hit
   the player AND every unit (looks and animals) so a fight keeps its pace; change the constant, never one call site.
   The jump knob is HEIGHT, so velocity goes by its square root (Double Jump rides along).
+- **Room names and tags are record keeping.** Play never shows them (the door prompt is just
+  "Press E to enter"); only a door whose tag matches no room names the tag.
 - There is no 👹 enemy flag and no weapon picker in Dress Bob. What a character carries is set per
   placement.
 - Units walk only to targets on their own storey (`unitSharesLevel`), and allies guard the area

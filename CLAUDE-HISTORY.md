@@ -4860,3 +4860,24 @@ shot fired up from the ladder started at the drawn barrel tip to the pixel, both
 snapshots were tilted with split legs; after, upright, with ↑ straight up and ↑+← at 45° in Side,
 Back and Front. Units do not fire while climbing at all (`sameLevel` is false on a climb), so their
 ladder render was left alone.
+## Explosions always heard, no room tag on doors, TCloset redesigned (2026-10-17)
+
+Blake: "weapons that make explosions use there hit sound every time they land". `detonate` already
+asked for the weapon Hit at every landing. The engine dropped it: `soundGainAt` fades a sound to 0
+half a view past the camera edge and `moment` skips anything under 0.02. Measured in the dev build
+with the Grenade Launcher on Trailor Park M1: rounds landed ~860 px from the player, and the Hit
+returned false with no trace row (the gain cut runs before `startVoice`). With `minGain:
+EXPLOSION_MIN_GAIN` (0.6) the same landing played at 0.6, and every launch paired with a heard Hit.
+
+"have it so it doesn't say Entering X when entering rooms. Room names are largly just simple record
+keeping": the play door prompt read "🚪 Press E to enter · <roomTag>". The tag is gone from it.
+
+TCloset 1 (`bv4u5mz`, his shell: wood panelling, checker tile, top-down plane) became a closet and
+bathroom: Closet Nook `clsnk01` (rod, hangers, shelf, shoe rack, with gaps where the Shirt and Pants
+pedestals hang their item and the Shoes item stands), his Mirror Dresser and Bear Skin Rug moved
+into the closet half, Bathroom Sink `bthsnk1`, Laundry Hamper `lndhmp1` (the T1 pedestal sits on
+it), 1960s Toilet `tlt60s1` under the window, Shower Stall `shwr601`, Bath Mat `bthmat1`; textures
+Bath Tile `bthtl01` (wainscot) and Frosted glass `frstgl1`. The closet window, hidden behind the
+nook, is panelled over. A pedestal draws only its item, centred in a 1.9x2.3-cell box whose bottom
+is the marker row + 1, so an item "on" furniture is placed by its marker cell. All four arm from
+the back row of the plane (body overlap, row-major: the shoes arm between the two hanging spots).
