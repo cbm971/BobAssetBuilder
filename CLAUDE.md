@@ -633,6 +633,8 @@ plus traps it does not cover:
   The jump knob is HEIGHT, so velocity goes by its square root (Double Jump rides along).
 - **Room names and tags are record keeping.** Play never shows them (the door prompt is just
   "Press E to enter"); only a door whose tag matches no room names the tag.
+- **A look's name is record keeping too.** A talker is named by its tree's speaker (`talkerName`):
+  the "Talk to …" prompt and the box. A 🎲 tag placement rolls a different look every Playtest.
 - There is no 👹 enemy flag and no weapon picker in Dress Bob. What a character carries is set per
   placement.
 - Units walk only to targets on their own storey (`unitSharesLevel`), and allies guard the area

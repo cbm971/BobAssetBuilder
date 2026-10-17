@@ -4916,3 +4916,11 @@ every text prop render; D held from col 31 walked to col 152 at y 840 with nothi
 sign and Sergeant trees open and pay (score 0 -> 100 -> 300); at col 146 the Chinook hovers over the pad
 with the rope down and "E - Grab the rope." up. Not checked: his 3084 px wide view, and whether the
 gate gang is too much right at the W2 gate.
+**Follow-up the same evening.** Blake: the draftees were "starter characters ... who have yet to get
+dressed. Can you change it to trailor Park Any? And can you have it display the name in the dialogue
+box instead of the saved characters name like Te7". He had already switched Bobby and Bobert to
+`enemyTag: "Trailor"` himself; Rob followed. The box already put each line's speaker first; the
+leak was the "Talk to …" prompt, built from `ea2.name` (the rolled look, TE7). It now reads
+`talkerName(tree)`. The three draftees' speakers became Earl, Dale and Rusty, since a rolled look
+is no longer Bobby. The project file was 59 records behind his saves branch (his props re-filed and
+his sign/windsock edits among them); all were folded in newest-wins with the same commit.

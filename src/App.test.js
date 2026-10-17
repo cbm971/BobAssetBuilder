@@ -420,6 +420,7 @@ import {
   inlineSignDialogue,
   signSummary,
   talkDialogueId,
+  talkerName,
   spawnStartsPeaceful,
   nearestTalkable,
   TALK_RANGE_CELLS,
@@ -8355,6 +8356,13 @@ describe("a peaceful NPC, and what a conversation does to its side", () => {
     expect(talkDialogueId({ dialogueId: "d1" })).toBe("d1");
     expect(talkDialogueId({})).toBe(null);
     expect(talkDialogueId(null)).toBe(null);
+  });
+  test("talkerName: the tree's speaker names the talker, never the look", () => {
+    const n = (speaker) => ({ speaker, text: "", choices: [] });
+    expect(talkerName({ start: "a", nodes: { a: n(" Clerk "), b: n("Other") } })).toBe("Clerk");
+    expect(talkerName({ start: "a", nodes: { a: n(""), b: n("Sergeant") } })).toBe("Sergeant");
+    expect(talkerName({ start: "a", nodes: { a: n("") } })).toBe("");
+    expect(talkerName(null)).toBe("");
   });
 
   test("THE FEATURE: a talkable guard is neutral until a choice turns him hostile", () => {

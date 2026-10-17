@@ -3432,6 +3432,20 @@ export const inlineSignDialogue = (text) => ({ id: "__inline", name: "Sign", sta
 // four separate places ask "does this thing have something to say" — the prompt, the E press, the
 // peaceful rule and the editor's badge — and they must never be able to disagree.
 export const talkDialogueId = (rec) => ((rec && rec.dialogueId) || "") || null;
+// WHO IS TALKING, in the tree's own words: its opening line's speaker, else the first speaker any
+// line names, else "" (the prompt then says "Talk to them"). Never the look's saved name. Blake,
+// 2026-10-17: "display the name in the dialogue box instead of the saved characters name like
+// Te7". A look's name is record keeping, like a room's tag, and a 🎲 tag placement (Trailor Park
+// Any) rolls a different look every Playtest, so its name says nothing about who this person is.
+// The box already preferred each line's speaker; the "Talk to …" prompt read the look's name.
+export const talkerName = (dlg) => {
+  const nodes = (dlg && dlg.nodes) || null;
+  if (!nodes) return "";
+  const first = nodes[dlg.start] && String(nodes[dlg.start].speaker || "").trim();
+  if (first) return first;
+  for (const id of Object.keys(nodes)) { const s = nodes[id] && String(nodes[id].speaker || "").trim(); if (s) return s; }
+  return "";
+};
 // One line saying what a placed sign will actually say, for the editor tooltip and status line.
 // Names the tree, or quotes the inline line, or says plainly that it is empty — a sign that does
 // nothing looks identical on the grid to one that works, and this is the only place that shows it.
@@ -17547,7 +17561,8 @@ export default function AssetStudio() {
             const ea2 = unitAssetAt(k2, sp2); if (!ea2) continue;
             if (unitSide(ea2, ep2) === "hostile") continue;
             const sh2 = sideBodyShape(ea2), rw2 = enemyRenderW(ea2, CW);
-            cands.push({ key: k2, dialogueId: dId, name: ea2.name, cx: ep2.x + sh2.centerFrac * rw2, cy: ep2.y + enemyStandH(ea2, CW) / 2 });
+            const dlg2 = (dlgLibRef.current || []).find((x) => x && x.id === dId);
+            cands.push({ key: k2, dialogueId: dId, name: talkerName(dlg2), cx: ep2.x + sh2.centerFrac * rw2, cy: ep2.y + enemyStandH(ea2, CW) / 2 });
           }
           const near = nearestTalkable(cands, p.x + pw / 2, p.y + ph / 2, TALK_RANGE_CELLS * CW, TALK_RANGE_ROWS * CH);
           if (near) curTalk = { kind: "npc", key: near.key, name: near.name, marker: null, lvKey: talkLvKey };
