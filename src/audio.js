@@ -30,8 +30,12 @@ export const SOUND_EVENTS = [
   // Punch only if it connects with something.
   { key: "swing", label: "Swing", icon: "💨" },
   { key: "punch", label: "Punch", icon: "👊" },
-  { key: "hurt", label: "Hurt", icon: "🤕" },
-  { key: "death", label: "Death", icon: "💀" },
+  // Hurt and Death are one row per SIDE (Blake, 2026-10-17: "a seperate enemy hurt and death sound
+  // and player hurt and death sound"). They were one pair for everybody.
+  { key: "playerHurt", label: "Player hurt", icon: "🤕" },
+  { key: "playerDeath", label: "Player death", icon: "💀" },
+  { key: "enemyHurt", label: "Enemy hurt", icon: "👹" },
+  { key: "enemyDeath", label: "Enemy death", icon: "🦴" },
   { key: "pickup", label: "Pickup", icon: "✨" },
   { key: "door", label: "Door", icon: "🚪" },
   { key: "menuClick", label: "Menu click", icon: "🖱️" },
@@ -49,7 +53,28 @@ export const ASSET_SOUND_SLOTS = {
   melee: [{ key: "swing", label: "Swing", basic: "swing" }, { key: "hit", label: "Hit", basic: "punch" }],
   ranged: [{ key: "fire", label: "Fire", basic: null }, { key: "hit", label: "Hit", basic: null }],
   throw: [{ key: "throw", label: "Throw", basic: null }, { key: "land", label: "Land", basic: null }],
-  enemy: [{ key: "attack", label: "Attack", basic: "punch" }, { key: "hurt", label: "Hurt", basic: "hurt" }, { key: "death", label: "Death", basic: "death" }],
+  enemy: [{ key: "attack", label: "Attack", basic: "punch" }, { key: "hurt", label: "Hurt", basic: "enemyHurt" }, { key: "death", label: "Death", basic: "enemyDeath" }],
+};
+// A board saved before Hurt and Death were split has ONE `hurt` and ONE `death` (and a volume for
+// each). Those sounds were playing for both sides, so they become both sides' sounds -- nothing he
+// had set goes quiet -- and the old keys are dropped. Idempotent; returns the same object when there
+// is nothing to move, so a memo keyed on it does not churn.
+export const SPLIT_BASICS = { hurt: ["playerHurt", "enemyHurt"], death: ["playerDeath", "enemyDeath"] };
+export const splitHurtDeath = (board) => {
+  if (!board || typeof board !== "object") return board;
+  const has = (m) => m && typeof m === "object" && Object.keys(SPLIT_BASICS).some((k) => Object.prototype.hasOwnProperty.call(m, k));
+  if (!has(board.basic) && !has(board.basicVol)) return board;
+  const move = (m) => {
+    if (!has(m)) return m;
+    const out = { ...m };
+    for (const [old, news] of Object.entries(SPLIT_BASICS)) {
+      if (!Object.prototype.hasOwnProperty.call(out, old)) continue;
+      for (const k of news) if (!Object.prototype.hasOwnProperty.call(out, k)) out[k] = out[old];
+      delete out[old];
+    }
+    return out;
+  };
+  return { ...board, basic: move(board.basic), ...(board.basicVol ? { basicVol: move(board.basicVol) } : {}) };
 };
 // Which of the above an asset has. A weapon by its kind (wtype), an Enemy-creator enemy as an
 // enemy; everything else (props, clothes, bodies…) has no sounds of its own.
@@ -453,7 +478,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     setLibrary: (records, boardRec) => {
       sounds.clear();
       for (const r of records || []) if (isSoundRecord(r)) sounds.set(r.id, r);
-      board = boardRec || (records || []).find(isSoundBoard) || null;
+      board = splitHurtDeath(boardRec || (records || []).find(isSoundBoard) || null);
       engine.syncMusic();
     },
     has: (id) => sounds.has(id),

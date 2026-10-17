@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
 import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped } from "./anim";
-import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume } from "./audio";
+import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath } from "./audio";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
 import { SYMBOL_SLOTS, SYMBOL_DEFAULT_ART, SYMBOL_FONT_FAMILY, SYMBOL_BOX, SYMBOL_LIBRARY_PATH, ART_EMOJI_FONT, SYMBOL_BOARD_ID, newSymbolBoard, isSymbolBoard, symbolSlot, symbolPick, symbolColor, isPropPick, propPickId, PROP_PICK, isEmojiSlot, symbolPicksNeedingLibrary, symbolFontGlyphs, buildSymbolFont } from "./symbols";
@@ -153,6 +153,7 @@ const SLOT_TINTS = { hat: "#f6c453", jacket: "#7aa8ff", shoes: "#c9a27a", shirt:
 // so it's a per-piece toggle instead of an assumption.
 const LOWER_BODY_SLOTS = new Set(["pants", "under_bottom", "shoes"]);
 const UPPER_BODY_SLOTS = new Set(["shirt", "jacket", "under_top"]);
+const UNDER_SLOTS = new Set(["under_top", "under_bottom"]);
 
 // Ask a host-provided storage object to ERASE one key, and then CHECK THAT IT DID.
 //
@@ -3704,10 +3705,15 @@ export const equipDisplacedSlot = (item, equippedMap, kindTags) => {
   // trusted: every equipment asset in the library has a real slot today, and one that didn't
   // would lose the garment it replaced in exactly the way this whole function now exists to stop.
   if (item.slot && equippedMap && equippedMap[item.slot]) return item.slot;
+  // UNDERWEAR IS WORN UNDER THE OUTER GARMENT, so no shared tag can make one displace the other.
+  // An undershirt and a shirt are both tagged "Shirt" (a kind that spans exactly two slots), and
+  // an underwear top and bottom are both "Underwear" -- so putting on a shirt took the undershirt
+  // off, and vice versa. An under_* slot only ever trades with itself (the slot rule above).
+  if (UNDER_SLOTS.has(item.slot)) return null;
   let xCats = normCats(item.categories);
   if (kindTags) xCats = xCats.filter((c) => kindTags.has(c));
   if (!xCats.length) return null;
-  return SLOT_ORDER.find((sl) => { const it = equippedMap && equippedMap[sl]; return it && normCats(it.categories).some((c) => xCats.includes(c)); }) || null;
+  return SLOT_ORDER.find((sl) => { const it = equippedMap && equippedMap[sl]; return it && !UNDER_SLOTS.has(sl) && normCats(it.categories).some((c) => xCats.includes(c)); }) || null;
 };
 // A hit is "from behind" when the attacker is on the opposite side to the way the wearer faces.
 // face is -1 (facing left) or 1 (facing right); attacker/wearer are world x positions. A hit
@@ -13981,7 +13987,7 @@ export default function AssetStudio() {
     const sndSeen = { hp: null, air: 0, hurtAt: -1e9, units: new Map() };
     const soundFrame = (p, pw, ph, dt, nowMs) => {
       const hp = playerHP.current;
-      if (sndSeen.hp != null && hp < sndSeen.hp && hp > 0 && nowMs - sndSeen.hurtAt >= SND_HURT_GAP_MS) { sndSeen.hurtAt = nowMs; sndMoment(basePlayerAsset, "hurt", "hurt", p.x + pw / 2, p.y + ph / 2); }
+      if (sndSeen.hp != null && hp < sndSeen.hp && hp > 0 && nowMs - sndSeen.hurtAt >= SND_HURT_GAP_MS) { sndSeen.hurtAt = nowMs; sndMoment(basePlayerAsset, "hurt", "playerHurt", p.x + pw / 2, p.y + ph / 2); }
       sndSeen.hp = hp;
       if (p.onGround && sndSeen.air >= SND_LAND_AIR) sndEvent("land", p.x + pw / 2, p.y + ph);
       sndSeen.air = (p.onGround || p.climbing || p.topdown) ? 0 : sndSeen.air + dt;
@@ -14002,8 +14008,8 @@ export default function AssetStudio() {
           const after = typeof hpU === "number" ? hpU : before;
           const x = unitSndX(ep, ea), y = ep.y + CH * 2;
           if (before != null && after != null && after < before) {
-            if (after <= 0 && before > 0) sndMoment(ea, "death", "death", x, y);
-            else if (after > 0 && nowMs - was.hurtAt >= SND_HURT_GAP_MS) { was.hurtAt = nowMs; sndMoment(ea, "hurt", "hurt", x, y); }
+            if (after <= 0 && before > 0) sndMoment(ea, "death", "enemyDeath", x, y);
+            else if (after > 0 && nowMs - was.hurtAt >= SND_HURT_GAP_MS) { was.hurtAt = nowMs; sndMoment(ea, "hurt", "enemyHurt", x, y); }
           }
           if (landed && !(after <= 0)) sndEvent("land", x, y);
         }
@@ -14021,7 +14027,7 @@ export default function AssetStudio() {
     // worn every time it re-runs (a pedestal pickup bumps equipGen), so a cat head picked up
     // mid-run counts from the moment it is on.
     const playerDefeated = (p, deathMsg) => {
-      sndMoment(basePlayerAsset, "death", "death", p.x, p.y); // the one door every player death goes through
+      sndMoment(basePlayerAsset, "death", "playerDeath", p.x, p.y); // the one door every player death goes through
       sndSeen.hp = null; // ...and the HP it hands back (a respawn, an extra life) is not a hurt
       const left = extraLivesLeft(playerAsset?.effects, livesUsed.current);
       if (left > 0) {
@@ -19299,7 +19305,12 @@ export default function AssetStudio() {
       tucked = underBottom.concat(belowLegs.filter((p) => !isUnder(p))); // underBottom: every underwear piece, in the order it was drawn
       lowerOver = lower.filter((p) => !isUnder(p));
     }
-    let out = back.concat(tuckBehindLegs(bodyNonArm, isLegPiece, tucked)).concat(skinDecor).concat(shoesLower).concat(underTop).concat(lowerOver).concat(upperUnder).concat(bodyArm).concat(upperOver).concat(other);
+    // UNDERWEAR BOTTOM IS THE BOTTOM LAYER, the undershirt sits above it. The undershirt used to be
+    // drawn before every lower-body piece, so the underwear bottom painted OVER it and the shirt
+    // looked tucked in. Pants still go over the undershirt (the one thing that does tuck in).
+    const lowerUnderwear = lowerOver.filter((p) => p._slot === "under_bottom");
+    const lowerRest = lowerOver.filter((p) => p._slot !== "under_bottom");
+    let out = back.concat(tuckBehindLegs(bodyNonArm, isLegPiece, tucked)).concat(skinDecor).concat(shoesLower).concat(lowerUnderwear).concat(underTop).concat(lowerRest).concat(upperUnder).concat(bodyArm).concat(upperOver).concat(other);
     if (ang === "crouch") {
       // Crouching brings a bent knee up in front of the torso — a shirt shouldn't paint over
       // it. Move every shirt/jacket piece to just before the FIRST leg piece, instead of
@@ -21295,7 +21306,7 @@ export default function AssetStudio() {
     flash(deleteNote("🗑 Deleted sound \"" + (s.name || id) + "\"", forgot));
   };
   const soundLib = useMemo(() => soundRecs.filter(isSoundRecord), [soundRecs]);
-  const soundBoard = useMemo(() => soundRecs.find(isSoundBoard) || newSoundBoard(), [soundRecs]);
+  const soundBoard = useMemo(() => splitHurtDeath(soundRecs.find(isSoundBoard) || newSoundBoard()), [soundRecs]);
   const soundGroups = useMemo(() => groupByCategory(soundLib, "sound"), [soundLib]);
   const soundIds = useMemo(() => new Set(soundLib.map((s) => s.id)), [soundLib]);
   const saveSoundBoard = (patch) => putSoundRecord({ ...soundBoard, ...patch, id: SOUND_BOARD_ID, type: "soundBoard" });

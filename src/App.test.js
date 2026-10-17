@@ -9342,7 +9342,7 @@ describe("a hat does not replace your underwear", () => {
 
   test("THE BUG: a hat displaced the underwear because both were tagged T1", () => {
     const worn = { under_bottom: undies };
-    expect(equipDisplacedSlot(hat, worn)).toBe("under_bottom");            // what it used to answer
+    expect(equipDisplacedSlot(hat, worn)).toBe(null);                      // underwear is never displaced across slots, tags or not
     expect(equipDisplacedSlot(hat, worn, kinds)).toBe(null);               // and what it answers now
   });
 
@@ -9359,12 +9359,35 @@ describe("a hat does not replace your underwear", () => {
     expect(equipDisplacedSlot(jacket, { shirt }, kinds)).toBe("shirt");
   });
 
+  test("A SHIRT AND AN UNDERSHIRT TAGGED THE SAME KIND DO NOT REPLACE EACH OTHER", () => {
+    // "Shirt" is on an under_top and a shirt -- two slots, so it counts as a kind -- and wearing one
+    // used to take the other off. Underwear is worn UNDER the outer layer, never instead of it.
+    const undershirt = { id: "us", type: "equipment", slot: "under_top", name: "Undershirt", categories: ["T1", "Shirt", ""] };
+    const tee = { id: "tee", type: "equipment", slot: "shirt", name: "Tee", categories: ["T1", "Shirt", ""] };
+    const k = equipKindTags([undershirt, tee]);
+    expect(k.has("shirt")).toBe(true);
+    expect(equipDisplacedSlot(tee, { under_top: undershirt }, k)).toBe(null);
+    expect(equipDisplacedSlot(undershirt, { shirt: tee }, k)).toBe(null);
+    // ...but each still replaces its own slot
+    expect(equipDisplacedSlot({ ...tee, id: "tee2" }, { shirt: tee, under_top: undershirt }, k)).toBe("shirt");
+    expect(equipDisplacedSlot({ ...undershirt, id: "us2" }, { shirt: tee, under_top: undershirt }, k)).toBe("under_top");
+  });
+
+  test("an underwear top and bottom sharing the Underwear tag do not replace each other", () => {
+    const top = { id: "ut", type: "equipment", slot: "under_top", name: "Bra", categories: ["", "Underwear", ""] };
+    const k = equipKindTags([top, undies]);
+    expect(k.has("underwear")).toBe(true);
+    expect(equipDisplacedSlot(top, { under_bottom: undies }, k)).toBe(null);
+    expect(equipDisplacedSlot(undies, { under_top: top }, k)).toBe(null);
+  });
+
   test("boots over a hat and pants take neither", () => {
     expect(equipDisplacedSlot(boots, { hat, under_bottom: undies }, kinds)).toBe(null);
   });
 
   test("omitting the tag set keeps the old answer, so an unconverted caller is not surprised", () => {
-    expect(equipDisplacedSlot(hat, { under_bottom: undies })).toBe("under_bottom");
+    expect(equipDisplacedSlot(hat, { under_bottom: undies })).toBe(null); // the library-blind answer no longer takes underwear either
+    expect(equipDisplacedSlot(shirt, { jacket })).toBe("jacket");           // ...but it still answers across the outer slots
   });
 
   test("A RARITY ON EXACTLY TWO SLOTS IS CAUGHT BY THE SECOND SIGNAL", () => {

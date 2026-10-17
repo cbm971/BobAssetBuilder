@@ -328,6 +328,10 @@ plus traps it does not cover:
 - Fire sounds where the thing happens in the play loop (`sndMoment` / `sndEvent`), never from the
   render. Hurt, death and landing come from `soundFrame`'s per-frame diff, for the player and every
   unit; do not add hurt sounds at damage sites. Units make the same calls the player does.
+  Hurt and Death are four basic rows (`playerHurt/playerDeath/enemyHurt/enemyDeath`); an old board's
+  single `hurt`/`death` is split into both sides by `splitHurtDeath`.
+- Underwear (`under_top`/`under_bottom`) never cross-displaces an outer garment through a shared tag
+  (`equipDisplacedSlot`): an undershirt and a shirt are both tagged Shirt.
 - **Melee is two sounds: Swing as the stroke starts, the blow only on CONTACT** (his rule,
   2026-10-11). Start: the weapon's Swing, else the basic Swing (fists and bites too). Contact (a
   body struck, a shot parried, a clash, a guard hit): the weapon's Hit, else the body's Attack,
@@ -419,7 +423,7 @@ plus traps it does not cover:
   weapons lack front. Walking `ANGLES` has silently deleted art.
 - Piece ids are unique only inside one pose list. Never re-id saved art.
 - **Look stacking** (`layerBodyAndOverlays`), back to front: behind-body · body (with Behind-legs
-  pieces tucked under the legs) · skin decor · shoes · undershirt · pants/underwear · shirt/jacket
+  pieces tucked under the legs) · skin decor · shoes · underwear bottom · undershirt · pants · shirt/jacket
   · hat · body arm · over-arms. Units re-compose their drawing per run (`liveEnemyAsset`); a look's
   stats and effects are baked when it is saved.
 - **Level cells:** `lv.fg` / `lv.bg` / `lv.front`, keyed `"r,c"`. A value is a colour or

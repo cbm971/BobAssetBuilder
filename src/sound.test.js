@@ -7,7 +7,7 @@ import {
   soundGainAt, voicePlan, MAX_COPIES, MAX_VOICES, RETRIGGER_MS, clipExtOf, clipMime, CLIP_MAX_BYTES,
   clipHash, clipNameOk, clipMatches, createAudioEngine, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard,
   leadingSilence, ONSET_FLOOR, ONSET_OF_PEAK, ONSET_PREROLL_S, talkSeconds, TALK_CHARS_PER_S, TALK_MIN_S, TALK_MAX_S, dialogueSoundId,
-  soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, resolveSoundVol,
+  soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, resolveSoundVol, splitHurtDeath,
 } from "./audio";
 import { groupByCategory, mergeLibraries, mergeCloudLibrary, diskLibrary } from "./App";
 
@@ -18,10 +18,38 @@ const snd = (id, name, category, clip) => ({ id, type: "sound", name, category, 
 const board = (basic, music) => ({ ...newSoundBoard(), basic: basic || {}, music: music || "" });
 const bytesOf = (n, seed) => { const b = new Uint8Array(n); let x = seed || 7; for (let i = 0; i < n; i++) { x = (x * 1103515245 + 12345) >>> 0; b[i] = x >>> 24; } return b; };
 
+describe("hurt and death are separate sounds for the player and for enemies", () => {
+  test("an enemy asset falls back to the ENEMY rows", () => {
+    const byKey = Object.fromEntries(ASSET_SOUND_SLOTS.enemy.map((x) => [x.key, x.basic]));
+    expect(byKey.hurt).toBe("enemyHurt");
+    expect(byKey.death).toBe("enemyDeath");
+  });
+  test("a board saved with the one shared Hurt/Death keeps both sides sounding the same", () => {
+    const old = { ...board({ hurt: "yelp", death: "thud", punch: "whoosh" }), basicVol: { hurt: 0.5, death: 1.5 } };
+    const up = splitHurtDeath(old);
+    expect(up.basic).toEqual({ punch: "whoosh", playerHurt: "yelp", enemyHurt: "yelp", playerDeath: "thud", enemyDeath: "thud" });
+    expect(up.basicVol).toEqual({ playerHurt: 0.5, enemyHurt: 0.5, playerDeath: 1.5, enemyDeath: 1.5 });
+    expect(old.basic.hurt).toBe("yelp"); // never edited in place
+  });
+  test("a side he already set is not overwritten, and a migrated board is left alone", () => {
+    const mixed = splitHurtDeath(board({ hurt: "yelp", enemyHurt: "growl" }));
+    expect(mixed.basic).toEqual({ playerHurt: "yelp", enemyHurt: "growl" });
+    const done = board({ playerHurt: "a", enemyDeath: "b" });
+    expect(splitHurtDeath(done)).toBe(done);
+    expect(splitHurtDeath(null)).toBe(null);
+  });
+  test("the engine plays the player row for the player and the enemy row for an enemy", () => {
+    const b2 = board({ playerHurt: "ouch", enemyHurt: "grr" });
+    const has2 = (id) => id === "ouch" || id === "grr";
+    expect(resolveSound({ asset: { type: "character" }, slot: "hurt", basic: "playerHurt", board: b2, has: has2 })).toBe("ouch");
+    expect(resolveSound({ asset: { type: "enemy" }, slot: "hurt", basic: "enemyHurt", board: b2, has: has2 })).toBe("grr");
+  });
+});
+
 describe("which sound plays: the asset's own, else the basic one, else silence", () => {
   const lib = new Set(["gunshot", "whoosh", "thud", "yelp"]);
   const has = (id) => lib.has(id);
-  const b = board({ punch: "whoosh", hurt: "yelp" });
+  const b = board({ punch: "whoosh", enemyHurt: "yelp" });
 
   test("the asset's own sound wins", () => {
     const gun = { id: "g", type: "weapon", wtype: "ranged", sounds: { fire: "gunshot" } };
@@ -34,7 +62,8 @@ describe("which sound plays: the asset's own, else the basic one, else silence",
     const bat = { id: "b", type: "weapon", wtype: "melee" };                    // never given a sounds map at all
     expect(resolveSound({ asset: bat, slot: "swing", basic: "punch", board: b, has })).toBe("whoosh");
     const dog = { id: "d", type: "enemy", sounds: {} };
-    expect(resolveSound({ asset: dog, slot: "hurt", basic: "hurt", board: b, has })).toBe("yelp");
+    expect(resolveSound({ asset: dog, slot: "hurt", basic: "enemyHurt", board: b, has })).toBe("yelp");
+    expect(resolveSound({ asset: dog, slot: "hurt", basic: "playerHurt", board: b, has })).toBe(null); // the player's hurt is its own row, not the enemy's
     expect(resolveSound({ asset: null, slot: null, basic: "punch", board: b, has })).toBe("whoosh"); // an everyday moment, no asset
   });
 
@@ -69,7 +98,7 @@ describe("which sound plays: the asset's own, else the basic one, else silence",
   });
 
   test("the basic-sound registry: every moment he asked for, each one a row", () => {
-    expect(SOUND_EVENT_KEYS).toEqual(["jump", "land", "swing", "punch", "hurt", "death", "pickup", "door", "menuClick"]);
+    expect(SOUND_EVENT_KEYS).toEqual(["jump", "land", "swing", "punch", "playerHurt", "playerDeath", "enemyHurt", "enemyDeath", "pickup", "door", "menuClick"]);
     for (const e of SOUND_EVENTS) { expect(typeof e.label).toBe("string"); expect(e.label.length).toBeGreaterThan(0); }
   });
 });
