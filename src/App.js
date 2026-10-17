@@ -3253,19 +3253,22 @@ export const firstObjectiveMarker = (markers) => { for (const k in (markers || {
 // (the others stay), then adds every objective marker in the level not already up. An objective
 // that was cleared is `done` for the session, so walking back into S1 does not put it up again.
 // An objective is its level id + marker cell: the same marker in a run's room is the same one.
+// REWARDS (Blake, 2026-10-17): an objective marker can carry `score` and `money`, paid once, the
+// moment it is cleared. `cleared` is the objectives THIS arrival finished, so the caller pays them.
+export const objectiveReward = (m) => ({ score: Math.max(0, Math.round(Number(m && m.score) || 0)), money: Math.max(0, Math.round(Number(m && m.money) || 0)) });
 export const objectivesOnArrival = (list, done, lv) => {
   const nd = new Set(done || []);
-  const out = [];
-  for (const o of list || []) { if (roomTagMatches(o.targetTag, lv && lv.roomTag)) nd.add(o.id); else out.push(o); }
+  const out = [], cleared = [];
+  for (const o of list || []) { if (roomTagMatches(o.targetTag, lv && lv.roomTag)) { nd.add(o.id); cleared.push(o); } else out.push(o); }
   const markers = (lv && lv.markers) || {};
   for (const k in markers) {
     const m = markers[k];
     if (!m || m.kind !== "objective" || !(m.text || "").trim()) continue;
     const id = ((lv && lv.id) || "") + "|" + k;
     if (nd.has(id) || out.some((o) => o.id === id)) continue;
-    out.push({ id, text: m.text, targetTag: m.targetTag || "" });
+    out.push({ id, text: m.text, targetTag: m.targetTag || "", ...objectiveReward(m) });
   }
-  return { list: out, done: nd };
+  return { list: out, done: nd, cleared };
 };
 // ── DIALOGUE TREES ───────────────────────────────────────────────────────────────────────────
 // A dialogue is a named, saved body of work in its own right — the SIXTH kind, next to assets,
@@ -11915,6 +11918,8 @@ export const scoreDialogueChoice = (sc, key, points) => {
   sc.total += pts;
   return pts;
 };
+// An objective's score, paid once per run; `key` is "obj|" + the objective's id.
+export const scoreObjective = (sc, key, points) => scoreDialogueChoice(sc, key, points);
 // The HUD's number: seven digits, zero-padded, like the arcade score Blake's mock-up draws.
 // How many icons the Symbols screen's picker draws before "More" (each is an inline <svg>).
 export const SYMBOL_PAGE = 240;
@@ -12652,6 +12657,8 @@ export default function AssetStudio() {
   // puts that objective's text away, and if THAT room has an objective marker of its own, its text
   // takes over. Free text both ways, same as a door's room tag (lMarkerCat) just above.
   const [lObjText, setLObjText] = useState("");          // the objective's own line, e.g. "Enter side room"
+  const [lObjScore, setLObjScore] = useState(0);          // score paid when it is cleared
+  const [lObjMoney, setLObjMoney] = useState(0);          // money paid when it is cleared
   const [lObjTag, setLObjTag] = useState("");            // room tag that completes it, e.g. "wardrobe"
   const [lSignDlg, setLSignDlg] = useState("");         // dialogue tree a newly-placed 💬 Sign runs (blank = use the one-off line below instead)
   const [lSignText, setLSignText] = useState("");       // a 💬 Sign's one-off line, for a text box that doesn't need a whole tree written for it
@@ -14073,6 +14080,13 @@ export default function AssetStudio() {
       const prevObj = activeObjective.current;
       const nextObj = objectivesOnArrival(prevObj.list, prevObj.done, lv);
       activeObjective.current = nextObj;
+      // Pay what the cleared ones are worth. Score is once-per-run by its key (scoreObjective);
+      // money cannot repeat because a cleared objective is in `done` and never comes back.
+      for (const o of nextObj.cleared) {
+        const got = scoreObjective(scoreRef.current, "obj|" + o.id, o.score);
+        if (o.money > 0) setWallet(wallet.current + o.money);
+        if (got || o.money > 0) flash("🎯 " + o.text + (got ? " · +" + got : "") + (o.money > 0 ? " · " + MONEY_CHAR + o.money : ""));
+      }
       if (nextObj.list.map((o) => o.id).join("|") !== prevObj.list.map((o) => o.id).join("|")) setObjectives(nextObj.list.map((o) => ({ id: o.id, text: o.text })));
     }
     // 🎬 A "Level start" ANIMATION takes the player the first time its level comes up this session
@@ -21810,7 +21824,7 @@ export default function AssetStudio() {
     }
     if (lLayer === "climb") { const climb = { ...lv.climb }; if (erase || lTool === "erase") delete climb[k]; else climb[k] = { kind: lClimbKind }; return { ...lv, climb }; }
     if (lLayer === "hazard") { const hazard = { ...(lv.hazard || {}) }; if (erase || lTool === "erase") delete hazard[k]; else hazard[k] = { kind: "fire", dps: lHazDps, life: lHazLife, ...(lHazHide ? { hideInPlay: true } : {}) }; return { ...lv, hazard }; }
-    if (lLayer === "marker") { const markers = { ...lv.markers }; if (erase || lTool === "erase") delete markers[k]; else if (lMarkerKind === "anim") { const an = findAnim(lAnimId); if (!an) return lv; markers[k] = { kind: "anim", animId: an.id, w: an.w }; } else markers[k] = lMarkerKind === "door" ? { kind: "door", tag: lMarkerCat } : lMarkerKind === "sign" ? { kind: "sign", dialogueId: lSignDlg, text: lSignText } : lMarkerKind === "objective" ? { kind: "objective", text: lObjText, targetTag: lObjTag } : { kind: "pedestal", cats: [lPedCat1, lPedCat2], logic: lPedLogic }; return { ...lv, markers }; }
+    if (lLayer === "marker") { const markers = { ...lv.markers }; if (erase || lTool === "erase") delete markers[k]; else if (lMarkerKind === "anim") { const an = findAnim(lAnimId); if (!an) return lv; markers[k] = { kind: "anim", animId: an.id, w: an.w }; } else markers[k] = lMarkerKind === "door" ? { kind: "door", tag: lMarkerCat } : lMarkerKind === "sign" ? { kind: "sign", dialogueId: lSignDlg, text: lSignText } : lMarkerKind === "objective" ? { kind: "objective", text: lObjText, targetTag: lObjTag, ...(lObjScore > 0 ? { score: lObjScore } : {}), ...(lObjMoney > 0 ? { money: lObjMoney } : {}) } : { kind: "pedestal", cats: [lPedCat1, lPedCat2], logic: lPedLogic }; return { ...lv, markers }; }
     if (erase || lTool === "erase") {
       const from = eraseFrom && TERRAIN_SHAPE_LAYERS.includes(eraseFrom) ? eraseFrom : lLayer;
       if (!lv[from] || lv[from][k] === undefined) return lv;
@@ -24239,6 +24253,8 @@ export default function AssetStudio() {
                 <>
                   <input className="catinline" style={{ flex: "1 1 220px" }} value={lObjText} onChange={(e) => setLObjText(e.target.value)} placeholder="Objective text, e.g. Enter side room" />
                   <input className="catinline" value={lObjTag} onChange={(e) => setLObjTag(e.target.value)} placeholder="Completed on reaching room tag" />
+                  <input className="dlgPoints" type="number" min="0" step="10" value={lObjScore || ""} onChange={(e) => setLObjScore(Math.max(0, Math.round(+e.target.value || 0)))} placeholder="Score" title="Score paid when this objective is completed" />
+                  <input className="dlgPoints" type="number" min="0" step="1" value={lObjMoney || ""} onChange={(e) => setLObjMoney(Math.max(0, Math.round(+e.target.value || 0)))} placeholder="Money" title="Money paid when this objective is completed" />
                   {!lObjText.trim() && <span className="hint2">⚠ Empty</span>}
                 </>
               ) : lMarkerKind === "anim" ? (
@@ -24452,7 +24468,7 @@ export default function AssetStudio() {
                 })()}
                 {!play && lvClimbLayer}
                 {lvHazardLayer}
-                {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : m.kind === "sign" ? "💬 Sign · " + signSummary(m, dlgLib) + " · invisible in play until you stand on it · Erase tool: click to delete" : m.kind === "anim" ? "🎬 " + ((findAnim(m.animId) || {}).name || "missing animation") + " · bottom-left corner of its stage · Erase tool: click to delete" : m.kind === "objective" ? "🎯 Objective · \"" + (m.text || "") + "\"" + (m.targetTag ? " · clears on reaching a room tagged \"" + m.targetTag + "\"" : " ⚠ no target tag") + " · shows on entering this room · Erase tool: click to delete" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : m.kind === "sign" ? "💬" : m.kind === "anim" ? "🎬" : m.kind === "objective" ? "🎯" : "💎"}</div>; })}
+                {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : m.kind === "sign" ? "💬 Sign · " + signSummary(m, dlgLib) + " · invisible in play until you stand on it · Erase tool: click to delete" : m.kind === "anim" ? "🎬 " + ((findAnim(m.animId) || {}).name || "missing animation") + " · bottom-left corner of its stage · Erase tool: click to delete" : m.kind === "objective" ? "🎯 Objective · \"" + (m.text || "") + "\"" + (m.targetTag ? " · clears on reaching a room tagged \"" + m.targetTag + "\"" : " ⚠ no target tag") + (m.score ? " · score " + m.score : "") + (m.money ? " · money " + m.money : "") + " · shows on entering this room · Erase tool: click to delete" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : m.kind === "sign" ? "💬" : m.kind === "anim" ? "🎬" : m.kind === "objective" ? "🎯" : "💎"}</div>; })}
                 {/* A spawn carrying a tree shows 💬 rather than 👹 — which of the six identical
                     guards along this wall is the one you can talk to is otherwise invisible until
                     Playtest, and the answer is the whole reason it was placed there. */}

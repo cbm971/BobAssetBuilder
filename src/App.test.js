@@ -3,6 +3,9 @@ import {
   roomTagMatches,
   firstObjectiveMarker,
   objectivesOnArrival,
+  objectiveReward,
+  scoreObjective,
+  newScoreState,
   throwLaunchVel,
   throwAimElevationDeg,
   throwAimRad,
@@ -13875,5 +13878,21 @@ describe("objective markers", () => {
     expect(st.list.map((o) => o.text)).toEqual(["Find the shotgun"]);
     expect(objectivesOnArrival([], new Set(), { id: "x", markers: { "1,1": { kind: "objective", text: "  ", targetTag: "a" } } }).list).toEqual([]);
     expect(objectivesOnArrival(null, null, null).list).toEqual([]);
+  });
+  test("an objective carries its score and money, and hands them over once when cleared", () => {
+    const s1 = { id: "s1", markers: { "3,3": { kind: "objective", text: "Reach the office", targetTag: "Draft", score: 500, money: 25 }, "4,4": { kind: "objective", text: "Plain", targetTag: "Nowhere" } } };
+    let st = objectivesOnArrival([], new Set(), s1);
+    expect(st.cleared).toEqual([]);
+    expect(st.list.map((o) => [o.score, o.money])).toEqual([[500, 25], [0, 0]]);
+    st = objectivesOnArrival(st.list, st.done, { id: "e1", roomTag: "Draft", markers: {} });
+    expect(st.cleared.map((o) => [o.text, o.score, o.money])).toEqual([["Reach the office", 500, 25]]);
+    const again = objectivesOnArrival(st.list, st.done, { id: "e1", roomTag: "Draft", markers: {} });
+    expect(again.cleared).toEqual([]);
+    const sc = newScoreState();
+    expect(scoreObjective(sc, "obj|s1|3,3", 500)).toBe(500);
+    expect(scoreObjective(sc, "obj|s1|3,3", 500)).toBe(0);
+    expect(sc.total).toBe(500);
+    expect(objectiveReward({ score: -5, money: "12.4" })).toEqual({ score: 0, money: 12 });
+    expect(objectiveReward(null)).toEqual({ score: 0, money: 0 });
   });
 });
