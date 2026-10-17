@@ -121,6 +121,9 @@ import {
   AIM_DIAGONAL,
   aimAngleDeg,
   aimArmOffsetDeg,
+  aimSteepDown,
+  unitTalkImmune,
+  TALKER_BEHIND_Z,
   isDiagonalAim,
   projectileAimRad,
   armPivotFrac,
@@ -362,6 +365,13 @@ import {
   applyHeal,
   enemyMaxHP,
   doorAnimProgress,
+  doorFadeAlpha,
+  doorWalkX,
+  DOOR_WALK_FRAMES,
+  DOOR_ENTER_FRAMES,
+  DOOR_ARRIVE_FRAMES,
+  DOOR_BLACK_HOLD,
+  DOOR_FADE_START,
   statSliderMax,
   ENEMY_SPEED_STAT_MAX,
   enemyScale,
@@ -849,38 +859,92 @@ describe("random enemy by tag", () => {
   });
 });
 
+describe("straight down on a ladder or a top-down plane", () => {
+  test("on the ground ↓ alone is still the shallow dip; on a ladder or plane it is straight down", () => {
+    expect(aimAngleDeg(1)).toBe(40);
+    expect(aimAngleDeg(1, false)).toBe(40);
+    expect(aimAngleDeg(1, true)).toBe(90);
+    expect(aimArmOffsetDeg(1)).toBe(50);
+    expect(aimArmOffsetDeg(1, true)).toBe(90);          // the arm points along the shot, as ↑ does at -90
+    expect(aimArmOffsetDeg(1, true)).toBe(-aimArmOffsetDeg(-1, true));
+  });
+  test("the other holds do not change with it", () => {
+    expect(aimAngleDeg(-1, true)).toBe(-90);
+    expect(aimAngleDeg(0, true)).toBe(0);
+    expect(aimAngleDeg(AIM_DIAGONAL, true)).toBe(45);   // ↓+→ stays the 45° line
+    expect(aimAngleDeg(-AIM_DIAGONAL, true)).toBe(-45);
+    expect(projectileAimRad(1, true)).toBeCloseTo(Math.PI / 2, 10);
+  });
+  test("a climbing body or one on a plane counts, a walking one does not", () => {
+    expect(aimSteepDown({ climbing: true })).toBe(true);
+    expect(aimSteepDown({ topdown: true })).toBe(true);
+    expect(aimSteepDown({ onGround: true })).toBe(false);
+    expect(aimSteepDown(null)).toBe(false);
+  });
+});
+
+describe("a talker stands behind you", () => {
+  test("its rung is under the player's and over the pedestals", () => {
+    expect(TALKER_BEHIND_Z).toBeLessThan(5000);
+    expect(TALKER_BEHIND_Z).toBeGreaterThan(4000);
+  });
+  test("only a peaceful, still-unturned unit gets it; a hostile stays on the plain rung", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toContain("tdZ != null ? { zIndex: tdZ } : unitTalkImmune(ep) ? { zIndex: TALKER_BEHIND_Z } : {}");
+    expect(unitTalkImmune({ peaceful: true })).toBe(true);
+    expect(unitTalkImmune({ peaceful: true, turned: "hostile" })).toBe(false);
+    expect(unitTalkImmune({})).toBe(false);
+  });
+});
+
 describe("door transitions", () => {
   // 1 = full size in the level, 0 = gone into the doorway.
-  test("entering a room shrinks away into the door", () => {
+  test("you walk to the middle of the door first, THEN recede into it", () => {
     expect(doorAnimProgress({ transitioning: { mode: "enter", t: 0 } })).toBe(1);
-    expect(doorAnimProgress({ transitioning: { mode: "enter", t: 15 } })).toBeCloseTo(0.5);
-    expect(doorAnimProgress({ transitioning: { mode: "enter", t: 30 } })).toBe(0);
+    expect(doorAnimProgress({ transitioning: { mode: "enter", t: DOOR_WALK_FRAMES } })).toBe(1); // still full size while walking over
+    const mid = (DOOR_WALK_FRAMES + DOOR_ENTER_FRAMES) / 2;
+    expect(doorAnimProgress({ transitioning: { mode: "enter", t: mid } })).toBeCloseTo(0.5);
+    expect(doorAnimProgress({ transitioning: { mode: "enter", t: DOOR_ENTER_FRAMES } })).toBe(0);
   });
 
-  // The point of the change: leaving runs the same numbers the other way, so the exit is the
-  // entrance played backwards rather than a second entrance.
-  test("leaving a room grows back out of it", () => {
-    expect(doorAnimProgress({ arriving: 30 })).toBe(0);
-    expect(doorAnimProgress({ arriving: 15 })).toBeCloseTo(0.5);
+  test("leaving the far door grows back out of it", () => {
+    expect(doorAnimProgress({ arriving: DOOR_ARRIVE_FRAMES })).toBe(0);
+    expect(doorAnimProgress({ arriving: DOOR_ARRIVE_FRAMES / 2 })).toBeCloseTo(0.5);
     expect(doorAnimProgress({ arriving: 0 })).toBe(1);
-  });
-
-  // Frame for frame: at the same point into each animation, the exit is exactly as far out of the
-  // door as the entrance is into it. (`transitioning.t` counts frames elapsed, `arriving` counts
-  // frames remaining, which is why one reads forwards and the other backwards.)
-  test("the two are exact mirrors at every step", () => {
-    for (let elapsed = 0; elapsed <= 30; elapsed++) {
-      const enter = doorAnimProgress({ transitioning: { t: elapsed } });
-      const exit = doorAnimProgress({ arriving: 30 - elapsed });
-      expect(exit).toBeCloseTo(1 - enter);
-    }
   });
 
   test("standing in a level is full size, and neither animation overshoots", () => {
     expect(doorAnimProgress({})).toBe(1);
     expect(doorAnimProgress()).toBe(1);
-    expect(doorAnimProgress({ transitioning: { t: 45 } })).toBe(0); // a slow frame can overshoot the count
-    expect(doorAnimProgress({ arriving: 40 })).toBe(0);
+    expect(doorAnimProgress({ transitioning: { t: 99 } })).toBe(0); // a slow frame can overshoot the count
+    expect(doorAnimProgress({ arriving: 99 })).toBe(0);
+  });
+
+  test("THE BLACK: none while you walk over, fully black on the frame the level swaps", () => {
+    expect(doorFadeAlpha({ transitioning: { t: 0 } })).toBe(0);
+    expect(doorFadeAlpha({ transitioning: { t: DOOR_ENTER_FRAMES * DOOR_FADE_START } })).toBe(0);
+    let last = 0;
+    for (let t = 0; t <= DOOR_ENTER_FRAMES; t++) { const a = doorFadeAlpha({ transitioning: { t } }); expect(a).toBeGreaterThanOrEqual(last); last = a; }
+    expect(doorFadeAlpha({ transitioning: { t: DOOR_ENTER_FRAMES } })).toBe(1);
+    expect(doorFadeAlpha({ transitioning: { t: 999 } })).toBe(1);
+  });
+
+  test("the far side opens black, holds a beat, then fades up to nothing", () => {
+    // continuous with the walk-in: the swap frame is black and the first arriving frame is too
+    expect(doorFadeAlpha({ arriving: DOOR_ARRIVE_FRAMES })).toBe(1);
+    expect(doorFadeAlpha({ arriving: DOOR_ARRIVE_FRAMES - DOOR_BLACK_HOLD })).toBe(1);
+    expect(doorFadeAlpha({ arriving: (DOOR_ARRIVE_FRAMES - DOOR_BLACK_HOLD) / 2 })).toBeCloseTo(0.5);
+    expect(doorFadeAlpha({ arriving: 0 })).toBe(0);
+    expect(doorFadeAlpha({})).toBe(0);
+    expect(doorFadeAlpha()).toBe(0);
+  });
+
+  test("the walk to the door's middle starts where you stand, ends exactly on it, and never overshoots", () => {
+    expect(doorWalkX(100, 160, 0)).toBe(100);
+    expect(doorWalkX(100, 160, DOOR_WALK_FRAMES)).toBe(160);
+    expect(doorWalkX(100, 160, 500)).toBe(160);
+    expect(doorWalkX(160, 100, DOOR_WALK_FRAMES / 2)).toBeLessThan(160);
+    expect(doorWalkX(160, 100, DOOR_WALK_FRAMES / 2)).toBeGreaterThan(100);
   });
 });
 

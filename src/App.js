@@ -2194,8 +2194,13 @@ export const stripThrownLanding = (hazardIn, fxIn, hazKeys, propKeys) => {
 export const AIM_DIAGONAL = 0.5;
 export const isDiagonalAim = (aimDir) => Math.abs(aimDir || 0) === AIM_DIAGONAL;
 // Degrees off level the shot flies, positive = downward (screen coords, matching rot everywhere else).
-export const aimAngleDeg = (aimDir) => (aimDir === -1 ? -90 : isDiagonalAim(aimDir) ? aimDir * 90 : aimDir * 40);
-export const projectileAimRad = (aimDir) => aimAngleDeg(aimDir) * Math.PI / 180;
+// STRAIGHT DOWN WHERE THERE IS SOMETHING TO SHOOT DOWN AT (Blake, 2026-10-17: "on climbing surfaces like
+// ladders and top down I need to be able to shoot pretty much straight down"). On the ground ↓ alone is the
+// shallow 40° dip (you stand on what is below you), but on a ladder or a 🚶 plane the floor is a long way
+// off, so ↓ alone there is the full hold, -90 mirrored: 90. Pass aimSteepDown(p) as the second argument.
+export const aimSteepDown = (p) => !!(p && (p.climbing || p.topdown));
+export const aimAngleDeg = (aimDir, steepDown) => (aimDir === -1 ? -90 : aimDir === 1 && steepDown ? 90 : isDiagonalAim(aimDir) ? aimDir * 90 : aimDir * 40);
+export const projectileAimRad = (aimDir, steepDown) => aimAngleDeg(aimDir, steepDown) * Math.PI / 180;
 // How far the aiming arm swings off level. ±50 is the established single-key hold (deliberately a
 // little past the shot's own 40° so the pose reads); a diagonal lifts to exactly the 45° the shot
 // leaves at, so the arm points along the shot. Full-up standing still is the dedicated drawn Aim-up
@@ -2203,7 +2208,7 @@ export const projectileAimRad = (aimDir) => aimAngleDeg(aimDir) * Math.PI / 180;
 // walking, on a ladder, walking a 🚶 plane, mid push-off — full-up is -90, straight up, because the
 // shot goes straight up (aimAngleDeg). It was -50 there, so the gun pointed 50° up while the round
 // left vertically (2026-10-17: "you can not aim up at steep enough angles … the arms are wonky").
-export const aimArmOffsetDeg = (aimDir) => (aimDir === -1 ? -90 : isDiagonalAim(aimDir) ? aimDir * 90 : aimDir * 50);
+export const aimArmOffsetDeg = (aimDir, steepDown) => (aimDir === -1 ? -90 : aimDir === 1 && steepDown ? 90 : isDiagonalAim(aimDir) ? aimDir * 90 : aimDir * 50);
 export const DEFAULT_PROJECTILE_RANGE = 14;
 // Idle dangle for a monkey-bars / ledge hang. Speed is radians per 60fps frame (0.05 ≈ one full
 // sway every ~2s — a slow pendulum, not a kick). The amplitude is a sideways SHIFT in design-canvas
@@ -4619,17 +4624,35 @@ export const livesLeftNote = (n) => (n > 0 ? n + (n === 1 ? " life" : " lives") 
    returned to, facing the camera the whole way. Enter animates BEFORE the swap (you're still in
    the level you're leaving); exit animates AFTER it (you're arriving), which is what makes one
    the other's mirror rather than a copy. */
-const DOOR_ENTER_FRAMES = 30;
-const DOOR_ARRIVE_FRAMES = 30;
-const DOOR_MIN_SCALE = 0.4;        // how small the sprite gets at the doorway end of either animation
-const DOOR_MIN_OPACITY = 0.2;
+// 2026-10-17 (Blake: "a better enter door animation so it really looks like the player is walking into
+// a door ... for a brief second it should fade to black between rooms"). Going through a door is
+// now ONE sequence both ways: you turn your back and WALK to the middle of the door (legs stepping),
+// keep stepping in as you recede into it (smaller, darker, feet planted), the screen goes black, the
+// level swaps behind the black, holds black a beat, and fades up as you step back out of the far door.
+export const DOOR_WALK_FRAMES = 12;   // walking to the middle of the door
+export const DOOR_ENTER_FRAMES = 44;  // the whole walk-in, ending on full black
+export const DOOR_ARRIVE_FRAMES = 36; // the far side: a black beat, then the fade up as you step out
+export const DOOR_BLACK_HOLD = 8;     // frames of the arrival that are still fully black
+export const DOOR_FADE_START = 0.45;  // how far into the walk-in the black starts coming up
+export const DOOR_STEP_RAD = 0.22;    // leg-cycle radians per frame while stepping into the door
+const DOOR_MIN_SCALE = 0.45;       // how small the sprite gets at the doorway end of either animation
+const DOOR_MIN_OPACITY = 0.55;
 // The whole thing as one number: 1 = standing in the level at full size, 0 = gone into the doorway.
 // Entering counts down, leaving counts back up, and scale/opacity are just lerps off it — so the
 // two animations can't drift apart into "nearly reversed". Pure.
 export const doorAnimProgress = ({ transitioning, arriving } = {}) =>
-  transitioning ? Math.max(0, 1 - (transitioning.t || 0) / DOOR_ENTER_FRAMES)
+  transitioning ? Math.min(1, Math.max(0, 1 - ((transitioning.t || 0) - DOOR_WALK_FRAMES) / (DOOR_ENTER_FRAMES - DOOR_WALK_FRAMES)))
     : arriving > 0 ? Math.max(0, 1 - arriving / DOOR_ARRIVE_FRAMES)
       : 1;
+// The black over the view, 0..1. Walking in it comes up over the second half and is exactly 1 on the
+// frame the level swaps; arriving it is 1 for the black beat, then fades down to 0. Pure.
+export const doorFadeAlpha = ({ transitioning, arriving } = {}) => {
+  if (transitioning) { const f = Math.min(1, Math.max(0, (transitioning.t || 0) / DOOR_ENTER_FRAMES)); return Math.min(1, Math.max(0, (f - DOOR_FADE_START) / (1 - DOOR_FADE_START))); }
+  if (arriving > 0) { const fade = DOOR_ARRIVE_FRAMES - DOOR_BLACK_HOLD; return arriving >= fade ? 1 : Math.max(0, arriving / fade); }
+  return 0;
+};
+// Where the walk to the middle of the door has got you after t frames (eased, and it stops there).
+export const doorWalkX = (fromX, toX, t) => { const f = Math.min(1, Math.max(0, (t || 0) / DOOR_WALK_FRAMES)); return fromX + (toX - fromX) * (f * (2 - f)); };
 /* --- Enemy AI: every decision an enemy makes is driven by its Intelligence stat -------------
    5 is the baseline (as for every other stat), so an Intelligence-5 enemy behaves the way the
    old hard-coded numbers did, and moving the stat up or down is what actually changes it. */
@@ -11742,6 +11765,12 @@ export const CORPSE_Z = 5050;
 // the player's rung — above pedestals (4000) and below corpses (CORPSE_Z). null = not on a plane
 // together; the sprite keeps the plain rung, so side-view play is exactly as it was.
 export const TOPDOWN_DEPTH_STEPS = 48;
+// A TALKER STANDS BEHIND YOU on an ordinary (height-based) level (Blake, 2026-10-17: "NPCs with dialogue
+// ... should be behind the player, they are facing forward, think logically"). A talker is drawn facing the
+// camera, so it is standing back from the line you walk along; units are drawn after the player and
+// used to land on top of you. One rung under the player (5000), above pedestals (4000) and in the
+// same gap the plane depth band uses. On a shared 🚶 plane the depth sort above still decides.
+export const TALKER_BEHIND_Z = 4999;
 export const topdownDepthZ = (playerFeet, unitFeet, cell) => {
   if (playerFeet == null || unitFeet == null) return null;
   const steps = Math.min(TOPDOWN_DEPTH_STEPS, Math.floor(Math.abs(unitFeet - playerFeet) / (cell / 4)));
@@ -14283,10 +14312,13 @@ export default function AssetStudio() {
       // Door transition: controls frozen, character's back to camera, then the level swaps.
       if (p.transitioning) {
         p.transitioning.t += dtMul;
-        // Only "enter" holds here — an exit swaps on this very frame and does its animating on the
-        // far side, in the level being returned to (p.arriving, below).
-        if (p.transitioning.t >= (p.transitioning.mode === "enter" ? DOOR_ENTER_FRAMES : 0)) {
+        // Walk to the middle of the door, then keep stepping as you go in (the legs step in place).
+        { const tw = p.transitioning; if (tw.toX != null) { if (tw.fromX == null) tw.fromX = p.x; p.x = doorWalkX(tw.fromX, tw.toX, tw.t); } p.vx = 0; p.walking = true; p.walkPhase = (p.walkPhase || 0) + DOOR_STEP_RAD * dtMul; }
+        // Both ways hold for the whole walk-in and swap on the black; the far side fades back up
+        // (p.arriving, below).
+        if (p.transitioning.t >= DOOR_ENTER_FRAMES) {
           const tr = p.transitioning;
+          p.walking = false;
           p.transitioning = null; p.climbing = false; p.topdown = false; p.tdJumpY = null; p.crouch = false; p.vy = 0;
           // No state is cleared here — each level/room keeps its own PERSISTENT bucket (roomState),
           // repointed at the top of the effect, so a level remembers what you did and a room you
@@ -14296,7 +14328,7 @@ export default function AssetStudio() {
             const room = (levelLib || []).find((l) => l.id === tr.roomId);
             if (room) {
               roomReturn.current = { level: JSON.parse(JSON.stringify(lv)), x: tr.retX, y: tr.retY };
-              p.arriving = 0;                               // a door taken mid-arrival: you're going IN, don't keep growing out
+              p.arriving = DOOR_ARRIVE_FRAMES;              // step out of the room's own door, out of the black
 
               camRef.current.init = false;                  // a door is a cut, not a pan: the camera snaps to the far side
               spawnReq.current = { roomDoor: true };        // appear at the room's own door
@@ -16448,7 +16480,7 @@ export default function AssetStudio() {
             // angle plus the aim tilt — except in the dedicated Aim-up pose, which is drawn pointing
             // up. Crouch DOES extend now, so a ducked shot leaves the barrel instead of thin air.
             const aimingNow = p.aiming && angleNow !== "up";
-            const curArmM = { ...armPieceM, rot: aimingNow ? (aimAbsM + aimArmOffsetDeg(aimDir) + tiltDeg) : baseArmRotM };
+            const curArmM = { ...armPieceM, rot: aimingNow ? (aimAbsM + aimArmOffsetDeg(aimDir, aimSteepDown(p)) + tiltDeg) : baseArmRotM };
             const wfitM = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
             const guideHandM = handForGuideId(wfitM.guideId)[wPoseM] || DEFAULT_HAND[wPoseM];
             const wBaseM = wPoseM === angleNow ? baseArmRotM : armBaseFrom(armOf(playerAsset.angles[wPoseM] || []), armPieceM, baseArmRotM);
@@ -16473,7 +16505,7 @@ export default function AssetStudio() {
           // builder a unit's trigger finger uses, so both sides lock onto exactly what their shot
           // can hit and nothing else.
           const assistTargets = shotTargetsFor(false, !!playtestWeapon.resurrect, null);
-          const aimDegHeld = aimAngleDeg(aimDir); // straight up when aimDir is -1 — see aimAngleDeg
+          const aimDegHeld = aimAngleDeg(aimDir, aimSteepDown(p)); // straight up when aimDir is -1, straight down on a ladder or plane — see aimAngleDeg
           let shotDeg = aimDegHeld, aimTilt = 0;
           // floorLock: a Squirrel at your feet — see aimAssistAngle. It bends the arm a long way, so
           // it is handed the barrel-tip function to solve from where the gun actually ends up.
@@ -17538,13 +17570,14 @@ export default function AssetStudio() {
       if (K.interact && !p.wasInteract && curTalk && !talkRef.current) openTalk(curTalk);
       // Press E on a door to enter (a matching room) or leave (back to the level you came from).
       if (K.interact && !p.wasInteract && curDoorKey && !p.transitioning) {
-        if (roomReturn.current) { p.transitioning = { mode: "exit", t: 0 }; sndEvent("door", p.x, p.y); }
+        const doorToX = (() => { const [, dc0] = curDoorKey.split(",").map(Number); return dc0 * CW + CW / 2 - pw / 2; })(); // the middle of the door, where the walk-in ends
+        if (roomReturn.current) { p.arriving = 0; p.transitioning = { mode: "exit", t: 0, toX: doorToX }; sndEvent("door", p.x, p.y); }
         else {
           const tag = doorTagOf(lv.markers[curDoorKey]);
           const cacheKey = (lv.runKey || lv.id) + "|" + curDoorKey;    // per run slot, like the state bucket
           let roomId = sessionRooms.current[cacheKey];              // a door leads to the SAME room all session
           if (!roomId) { const r = pickRoom(levelLib, tag, playRunId.current + "|" + cacheKey + "|" + tag); roomId = r && r.id; if (roomId) sessionRooms.current[cacheKey] = roomId; }
-          if (roomId) { sndEvent("door", p.x, p.y); const [dr, dc] = curDoorKey.split(",").map(Number); p.transitioning = { mode: "enter", t: 0, roomId, retX: dc * CW, retY: dr * CH + CH - ph }; }
+          if (roomId) { sndEvent("door", p.x, p.y); const [dr, dc] = curDoorKey.split(",").map(Number); p.arriving = 0; p.transitioning = { mode: "enter", t: 0, roomId, toX: doorToX, retX: dc * CW, retY: dr * CH + CH - ph }; }
           else flash(tag ? "🚪 No room tagged \"" + tag + "\" yet — make one in the Room Creator." : "🚪 This is an exit door (blank tag) — it only does something from inside a room.");
         }
       }
@@ -24453,7 +24486,7 @@ export default function AssetStudio() {
                     // stomp plants you — there is no stride to show — and the arms are left to the
                     // aim/melee branches below exactly as they are for any other leg pose.
                     blocks = stompLegBlocks(blocks, stompLift(p.stomp.t, p.stomp.dur), playerArtFacesRight(basePlayerAsset) ? 1 : -1);
-                  } else if (blocks && p.walking && p.topdown && angle !== "side") {
+                  } else if (blocks && p.walking && (p.topdown || p.transitioning) && angle !== "side") {
                     // Walking up or down the screen on a 🚶 Top-down plane, seen from behind or in
                     // front. A hip swing is a sagittal motion — it reads as nothing at all from these
                     // two views, the same reason the ladder's legs STEP instead of swinging — so the
@@ -24576,7 +24609,7 @@ export default function AssetStudio() {
                     // onto its target as it fires — and drops back to the held direction when the
                     // pose ends. Same sign convention as aimArmOffsetDeg (positive = downward), so
                     // it is simply added; armMirrorTwist below handles facing for both alike.
-                    const armAimDeg = aimArmOffsetDeg(aimDir) + ((p.firing && p.firing.aimTilt) || 0);
+                    const armAimDeg = aimArmOffsetDeg(aimDir, aimSteepDown(p)) + ((p.firing && p.firing.aimTilt) || 0);
                     const aimAnchorOf = armAnchorFinder(blocks);
                     // On a ladder the other hand stays on the rung (gunArmOnly): only the gun arm aims.
                     const onlyGunArm = p.climbing ? gunArmOnly(blocks, armOf(blocks)) : null;
@@ -24668,7 +24701,8 @@ export default function AssetStudio() {
                   }
                   const doorT = doorAnimProgress(p);
                   const flip = playerSpriteMirrored(basePlayerAsset, p.face) ? "scaleX(-1)" : "";
-                  const shrink = doorT < 1 ? "scale(" + (DOOR_MIN_SCALE + (1 - DOOR_MIN_SCALE) * doorT) + ")" : "";
+                  // Receding into the door: smaller and a touch UP the screen, scaled about the feet so they stay on the floor line.
+                  const shrink = doorT < 1 ? "translateY(" + (-(1 - doorT) * ph * 0.06).toFixed(1) + "px) scale(" + (DOOR_MIN_SCALE + (1 - DOOR_MIN_SCALE) * doorT).toFixed(3) + ")" : "";
                   // A small forward tilt while actively climbing a ramp — only when walking
                   // AND moving in the ramp's rising direction (not just standing on one, and
                   // not while walking back down it). Written as a constant tilt "toward the
@@ -24717,8 +24751,9 @@ export default function AssetStudio() {
                   const downLift = downed ? layFlatLiftPx(blocks, renderW, ph) : 0; // every-frame path: don't walk the pieces unless someone is actually on the floor
                   const stompDip = p.stomp ? stompDipPx(p.stomp.t, p.stomp.dur) : 0; // the weight landing on the stamping foot
                   const flyBob = p.flying ? flyPoseOf(p).bob : 0; // the hover's gentle bob — the sprite only, never the hitbox
-                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift + stompDip + flyBob, width: renderW, height: ph, transform: (downed ? [flip, shrink, "translateY(" + (-downLift).toFixed(2) + "px)", LAY_FLAT_ROT_CSS] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...((downed || p.hsFall) ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
+                  const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift + stompDip + flyBob, width: renderW, height: ph, transform: (downed ? [flip, shrink, "translateY(" + (-downLift).toFixed(2) + "px)", LAY_FLAT_ROT_CSS] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...((downed || p.hsFall || doorT < 1) ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
                   if (p.onFire > 0) style.filter = "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)";
+                  else if (doorT < 1) style.filter = "brightness(" + (0.35 + 0.65 * doorT).toFixed(2) + ")"; // dimmer the deeper into the doorway you are
                   // The 🐱 Extra Life window: the same invuln blink as an ordinary hit (set longer by
                   // reviveInPlace), tinted gold so it reads as "you got a life back" rather than
                   // "you got hit". After the fire filter on purpose — you may well have died IN the
@@ -25320,7 +25355,7 @@ export default function AssetStudio() {
                       {/* The sprite below blinks through its i-frames after a hit (ep.invuln) with the
                           player's own 0.5-opacity blink, so a round that does nothing to it has a
                           visible reason — the same cue your own blink gives. See unitHitImmune. */}
-                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : {}), ...((downed || eHsFall) ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}), ...(ep && !unitUntouchable(ep) && ep.invuln > 0 && Math.floor(ep.invuln / 4) % 2 ? { opacity: 0.5 } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : unitTalkImmune(ep) ? { zIndex: TALKER_BEHIND_Z } : {}), ...((downed || eHsFall) ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}), ...(ep && !unitUntouchable(ep) && ep.invuln > 0 && Math.floor(ep.invuln / 4) % 2 ? { opacity: 0.5 } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {eArtHit ? eArtHit.el : storeUnitArt(uKey, eArtSig, ea, ew, eSpawn, eRenderW, eph, eAnchor, eBlocks, (() => {
                           const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + uKey, keyPrefix: uKey + "_", alphaOf: spriteAlphaOf(ea, eThrowingNow ? spawnThrowableFor(eSpawn) : ew), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
                           // Draw the art at its true aspect when the box isn't one (ducking): on a
@@ -25612,6 +25647,8 @@ export default function AssetStudio() {
                     bottom-right — what one blow of what you hold deals before Defense
                     (enemyAttackDamage, the rule both sides share).
                   - Every symbol is a slot on the Symbols screen (stat.*, hud.*). */}
+              {/* 🚪 THE BLACK between rooms (doorFadeAlpha): over the level, under the HUD. */}
+              {play && doorFadeAlpha(player.current) > 0 && <div className="doorFade" style={{ opacity: doorFadeAlpha(player.current) }} />}
               {play && (() => {
                 const merged = playerAsset; // the render body already merged your kit, as the loop does
                 const buffs = activeBuffSum(itemBuffs.current, playNowMs());
@@ -27551,6 +27588,7 @@ html,body{margin:0;padding:0;background:#0f1117}
    sweeps across once. It pops in with an overshoot, holds, then drifts up and fades — pbLife's
    length is PICKUP_BANNER_MS, which is when the element is removed. A soft burst in the rank colour flares behind
    it on arrival. No backticks in here: this sheet is a JS template literal. */
+.doorFade{position:absolute;left:0;top:0;right:0;bottom:0;background:#000;z-index:5;pointer-events:none}
 .flyHint{position:absolute;left:50%;bottom:11%;z-index:5;transform:translateX(-50%);pointer-events:none;font-size:12px;letter-spacing:.05em;color:rgba(255,255,255,.72);text-shadow:0 1px 3px rgba(0,0,0,.9);white-space:nowrap;animation:flyHintLife 5s ease-in-out forwards}
 /* SYMBOLS: a slot drawn as an svg (sym), 1em square in the text colour. The font that draws the
    emoji slots is listed first in every interface font stack (SYMBOL_FONT_FAMILY). */
