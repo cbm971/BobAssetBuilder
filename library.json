@@ -603841,7 +603841,7 @@
      "kind": "text",
      "name": "Crawl",
      "title": "The Draft",
-     "text": "It is a dark time for the free world. Deep in the jungles of Vietnam, the Vietkong have hatched their most fiendish plot yet.\n\nUsing a stolen calendar and a crystal ball, their scientists have found a date FIFTY YEARS in the future. On it they have circled two numbers in red: 9 and 11.\n\nThe Pentagon sent its finest men. Every last one of them failed. Desperate, Uncle Sam has drafted every able body in the Trailor Park, and found one more able than the rest.\n\nHe beat the squirrels. He beat the pit bulls. He beat his own alarm clock. He climbed a rope into a helicopter with no training whatsoever.\n\nNow, high above the jungle, the General has one last thing to tell him....",
+     "text": "It is a dark time for the free world. Deep in the jungles of Vietnam, the Vietkong have hatched their most fiendish plot yet.\n\nUsing a stolen calendar and a crystal ball, their scientists have found a date FIFTY YEARS in the future. On it they have circled two numbers in red: 9 and 11.\n\nThe Pentagon sent its finest men. Every last one of them failed. Desperate, Uncle Sam has drafted every able body in the Trailor Park, and found one more able than the rest.\n\nHe got a C. on his physical. He got a B. on his IQ test. His cholesterol should be studied and his blood sugar is 50/50. He is a specimen of specimen and that man is,\n\nBOB\n\nNow, high above the jungle, the General has one last thing to tell him....",
      "size": 1.1,
      "tilt": 52,
      "wide": 32,
@@ -603947,6 +603947,81 @@
          "y": 20,
          "rise": 58,
          "show": 1
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": "b5jsxx9",
+     "name": "State 3",
+     "dur": 2,
+     "wait": false,
+     "loop": false,
+     "prompt": "",
+     "promptLayer": "",
+     "promptLift": 0,
+     "fadeIn": 0,
+     "fadeOut": 0,
+     "sound": "",
+     "soundVol": 1,
+     "keys": [
+      {
+       "id": "vbazu41",
+       "t": 0,
+       "v": {
+        "lySky": {
+         "x": 24,
+         "y": 12,
+         "rot": 0,
+         "show": 1,
+         "sx": 1,
+         "sy": 1,
+         "flip": false,
+         "play": true
+        },
+        "lyCab": {
+         "x": 24,
+         "y": 20,
+         "rot": 0,
+         "show": 1,
+         "sx": 1,
+         "sy": 1,
+         "flip": false,
+         "play": false
+        },
+        "lyGen": {
+         "x": 24,
+         "y": 20.6,
+         "rot": 0,
+         "show": 1,
+         "sx": 1.14,
+         "sy": 1.14,
+         "flip": false,
+         "play": true
+        },
+        "lyCrawl": {
+         "x": 24,
+         "y": 20,
+         "rise": 58,
+         "show": 0
+        },
+        "lyLine": {
+         "x": 24,
+         "y": 19.4,
+         "rise": 2.4,
+         "show": 1
+        },
+        "lyBob": {
+         "x": 60,
+         "y": 30,
+         "rot": 0,
+         "show": 0,
+         "flip": false,
+         "pose": "side",
+         "legs": 0,
+         "arms": 0,
+         "sit": 0
         }
        }
       }
@@ -604092,7 +604167,8 @@
      ]
     }
    ],
-   "savedAt": 1792271652171
+   "savedAt": 1792275707668,
+   "editedFrom": 1792271652171
   },
   {
    "id": "gnrlcu1",
