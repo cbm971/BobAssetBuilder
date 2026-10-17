@@ -1132783,11 +1132783,11 @@
     "kind": "tagDamage",
     "tag": "Meelee",
     "mult": 1.5,
-    "duration": 30
+    "duration": 120
    },
    "categories": [
-    "T1",
-    "Vietnam",
+    "T2",
+    "Fantasy",
     "Item"
    ],
    "dropWeight": 1,
@@ -1132852,8 +1132852,9 @@
     "crouch": []
    },
    "value": 6,
-   "rank": "common",
-   "savedAt": 1792276355077
+   "rank": "rare",
+   "savedAt": 1792278026968,
+   "editedFrom": 1792276355077
   },
   {
    "id": "wugsq40",
