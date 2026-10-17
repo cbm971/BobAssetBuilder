@@ -719892,8 +719892,8 @@
    "size": 16,
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1791285887904,
-   "category": "Trailor Park",
+   "savedAt": 1792247020279,
+   "category": "Vehichles",
    "frames": [
     {
      "front": [
@@ -721535,7 +721535,8 @@
     "side": [],
     "up": [],
     "crouch": []
-   }
+   },
+   "editedFrom": 1791285887904
   },
   {
    "id": "n0h690d",
