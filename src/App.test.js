@@ -1,5 +1,7 @@
 import {
   DEFAULT_PROJECTILE_RANGE,
+  roomTagMatches,
+  firstObjectiveMarker,
   throwLaunchVel,
   throwAimElevationDeg,
   throwAimRad,
@@ -13834,5 +13836,27 @@ describe("weaponDpsOver", () => {
     expect(formatDps(12.349)).toBe("12.3");
     expect(formatDps(123.6)).toBe("124");
     expect(formatDps(undefined)).toBe("0");
+  });
+});
+
+// 🎯 OBJECTIVE markers: a kind="objective" marker's own text goes up top-of-screen on entering its
+// room, and clears on reaching a room whose roomTag matches the marker's targetTag — the same
+// case-insensitive, trimmed match a door's room tag already uses against roomPool.
+describe("objective markers", () => {
+  test("roomTagMatches is case-insensitive and trims both sides, and a blank target never matches", () => {
+    expect(roomTagMatches("wardrobe", "Wardrobe")).toBe(true);
+    expect(roomTagMatches(" Wardrobe ", "wardrobe")).toBe(true);
+    expect(roomTagMatches("wardrobe", "draft office")).toBe(false);
+    expect(roomTagMatches("", "")).toBe(false);
+    expect(roomTagMatches("", "wardrobe")).toBe(false);
+    expect(roomTagMatches("wardrobe", "")).toBe(false);
+    expect(roomTagMatches(null, null)).toBe(false);
+  });
+  test("firstObjectiveMarker finds the one objective marker among others, or null", () => {
+    const markers = { "1,1": { kind: "door", tag: "wardrobe" }, "2,2": { kind: "objective", text: "Enter side room", targetTag: "wardrobe" } };
+    expect(firstObjectiveMarker(markers)).toEqual({ kind: "objective", text: "Enter side room", targetTag: "wardrobe" });
+    expect(firstObjectiveMarker({ "1,1": { kind: "door" } })).toBe(null);
+    expect(firstObjectiveMarker(null)).toBe(null);
+    expect(firstObjectiveMarker({})).toBe(null);
   });
 });

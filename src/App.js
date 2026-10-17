@@ -3239,6 +3239,12 @@ export const preferredOpenGate = (conns) => { for (const k of GATE_SPAWN_ORDER) 
 // included, keeps the open-gate preference.
 export const spawnGateFor = (lv) => (runRole(lv) === "intro" ? "W2" : preferredOpenGate(lv && lv.conns));
 export const firstDoorKey = (markers) => { for (const k in (markers || {})) { const m = markers[k]; if (m && m.kind === "door") return k; } return null; };
+// 🎯 OBJECTIVES (2026-10-17): a "objective" marker's text goes up at the top of the screen the
+// moment you walk into the room/level holding it, and it clears the moment you reach a room whose
+// roomTag matches the marker's own targetTag — the SAME case-insensitive, trimmed match a door's
+// room tag uses against roomPool, just one level and one tag at a time instead of a pool of them.
+export const roomTagMatches = (targetTag, roomTag) => { const t = (targetTag || "").trim().toLowerCase(); return !!t && t === (roomTag || "").trim().toLowerCase(); };
+export const firstObjectiveMarker = (markers) => { for (const k in (markers || {})) { const m = markers[k]; if (m && m.kind === "objective") return m; } return null; };
 // ── DIALOGUE TREES ───────────────────────────────────────────────────────────────────────────
 // A dialogue is a named, saved body of work in its own right — the SIXTH kind, next to assets,
 // levels, stored groups, textures and backgrounds — and it is authored in its own editor rather
@@ -12583,7 +12589,7 @@ export default function AssetStudio() {
   const moving = useRef(null);                          // { key, item, from: "fx" | "markers" } — the actual picked-up data
   const [lFxSel, setLFxSel] = useState(null);           // cell key currently showing its object stack in the side panel
   const [lFxEditIdx, setLFxEditIdx] = useState(null);   // index within that cell's stack currently expanded for tweaking
-  const [lMarkerKind, setLMarkerKind] = useState("door"); // door | pedestal | sign | anim
+  const [lMarkerKind, setLMarkerKind] = useState("door"); // door | pedestal | sign | anim | objective
   const [lAnimId, setLAnimId] = useState("");             // the 🎬 marker's animation
   // 🎬 THE ANIMATIONS SCREEN (screen "anim"). animDoc is the record open in it, animBaseline the
   // JSON it was opened or last saved as (so "unsaved" is a plain compare, as the dialogue editor does).
@@ -12619,6 +12625,12 @@ export default function AssetStudio() {
   // A placed stage's element, by its key, handed back while nothing it draws has changed (animStageEl).
   const animStageCache = useRef(new Map());
   const [lMarkerCat, setLMarkerCat] = useState("");      // door's accepted destination category (free text)
+  // 🎯 OBJECTIVE marker (2026-10-17): the text shown at the top of the screen when you walk into
+  // the room holding it, and the room tag that clears it — walking into any room tagged with it
+  // puts that objective's text away, and if THAT room has an objective marker of its own, its text
+  // takes over. Free text both ways, same as a door's room tag (lMarkerCat) just above.
+  const [lObjText, setLObjText] = useState("");          // the objective's own line, e.g. "Enter side room"
+  const [lObjTag, setLObjTag] = useState("");            // room tag that completes it, e.g. "wardrobe"
   const [lSignDlg, setLSignDlg] = useState("");         // dialogue tree a newly-placed 💬 Sign runs (blank = use the one-off line below instead)
   const [lSignText, setLSignText] = useState("");       // a 💬 Sign's one-off line, for a text box that doesn't need a whole tree written for it
   const [lPedCat1, setLPedCat1] = useState("");        // pedestal search: first category filter (blank = any)
@@ -12696,10 +12708,18 @@ export default function AssetStudio() {
   const lscrollRef = useRef(null);                          // the level viewport (.lscroll): the camera needs its size, and its editor scroll position is parked during play
   const editorScroll = useRef(null);                        // where the editor had .lscroll scrolled when Playtest started, put back on Stop
   const [runHud, setRunHud] = useState(null);               // the run line over the level during play: { seed, where, name, notes }
+  const [objectiveText, setObjectiveText] = useState("");   // 🎯 the active objective's own line, shown at the top of the screen; "" shows nothing
   const [runSeedText, setRunSeedText] = useState("");       // the seed box next to 🏁 Play run; blank rolls a new one and the box then shows what was rolled
   const roomReturn = useRef(null);                         // while inside a room during play: { level: <the level to return to>, x, y } — set on enter, consumed on exit/stop
   const roomState = useRef({});                             // per-level PERSISTENT state for the current play session, keyed by level id: { rolls, depleted, eHP, ePos, drops, haz }. Never cleared on a transition — only on a fresh Playtest. This is what makes a level/room keep what you did to it when you leave and come back.
   const sessionRooms = useRef({});                          // "originLevelId|doorCell" -> chosen room id, so a given door leads to the SAME room all session (re-entering doesn't re-roll)
+  // 🎯 OBJECTIVES, across the whole run session (not a per-level roomState bucket — an objective
+  // tracks progress ACROSS rooms, not any one room's own state): activeObjective holds the target
+  // tag that clears the one on screen now; lastObjLevelKey stops the check below from re-running
+  // every time this effect re-fires for an unrelated reason (a weapon swap, new gear) while you're
+  // still standing in the very same level — it only fires again once the level actually changes.
+  const activeObjective = useRef(null);                     // { targetTag } | null
+  const lastObjLevelKey = useRef(null);
   const spawnReq = useRef(null);                            // one-shot spawn placement for the next frame: { gate:true } | { roomDoor:true } | { x, y }. Resolved once, using the real player size, then cleared.
   const respawnSpec = useRef(null);                         // where a death puts you back: { at: level/run-slot key, spec } — the spawnReq you last ARRIVED in that level by (or the gate a run crossed you in through)
   const propArtCache = useRef(new Map());                  // placement key -> the prop art element last built for it and what it was built from (see renderObj): a placed prop that has not changed is handed React the SAME element, so it bails out of that subtree instead of re-diffing ~90 nodes a frame
@@ -14017,7 +14037,21 @@ export default function AssetStudio() {
     if (!_bkt.drops) _bkt.drops = {}; // migrate a bucket created earlier in this same hot-reloaded play session
     if (!_bkt.stripped) _bkt.stripped = {}; // same migration for looted-corpse art
     if (!_bkt.gear) _bkt.gear = {};    // and for gear-tag rolls
-    pointLiveRefsAt(_bkt);    // 🎬 A "Level start" ANIMATION takes the player the first time its level comes up this session
+    pointLiveRefsAt(_bkt);
+    // 🎯 OBJECTIVES (roomTagMatches/firstObjectiveMarker): checked once per actual level change,
+    // never per frame — this effect also re-runs for a weapon swap or new gear mid-level (see its
+    // dependency list, below), and lastObjLevelKey is what tells "a new room" apart from that.
+    // Reaching a room tagged for the objective on screen clears it; the room just entered may carry
+    // an objective marker of its own, which then takes over — so one marker can point straight at
+    // the room holding the next, chaining a whole trail of them door by door.
+    const hereLvKey = lv.runKey || lv.id;
+    if (hereLvKey !== lastObjLevelKey.current) {
+      lastObjLevelKey.current = hereLvKey;
+      if (activeObjective.current && roomTagMatches(activeObjective.current.targetTag, lv.roomTag)) { activeObjective.current = null; setObjectiveText(""); }
+      const objMarker = firstObjectiveMarker(lv.markers);
+      if (objMarker) { activeObjective.current = { targetTag: objMarker.targetTag || "" }; setObjectiveText(objMarker.text || ""); }
+    }
+    // 🎬 A "Level start" ANIMATION takes the player the first time its level comes up this session
     // (the run's first level as the run starts, ▶ Playtest of that level, or the first time you
     // arrive). animInst remembers it was played, so a door out and back, a gate, or this effect
     // re-running because a grenade painted fire into the level never plays it twice.
@@ -16990,6 +17024,12 @@ export default function AssetStudio() {
         if (stompLands(prevT, p.stomp.t, p.stomp.dur)) {
           const notes = [];
           let crit = false, puffX = p.face > 0 ? p.x + pw * 0.8 : p.x + pw * 0.2;
+          // UNDOCUMENTED (never surfaced in a blurb or number on screen): stompFrom() only ever
+          // returns bodies short enough to pass STOMP_MAX_TARGET_FRAC, so every foot-stomp hit here
+          // IS a small-enemy hit by construction. Doubled on top of stompDamage's own Strength
+          // curve, and tripled instead if the player happens to be wearing a 👢 Stomp item
+          // (headStompEffect) — two unrelated feet, one quietly bigger payout when both are yours.
+          const smallStompMul = headStompEffect ? 3 : 2;
           for (const b of stompFrom()) {
             const k = b.key;
             if (!k || p.stomp.hits[k]) continue;
@@ -17000,7 +17040,7 @@ export default function AssetStudio() {
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             if (enemyHP.current[k] <= 0) continue;
             const isCrit = Math.random() < critChance(pstats.intelligence);
-            const dmg = incomingUnitDamage(stompDamage(pstats.strength) * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, b.x + b.w / 2, false);
+            const dmg = incomingUnitDamage(stompDamage(pstats.strength) * smallStompMul * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, b.x + b.w / 2, false);
             enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
             if (ep) ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
             if (ep) ep.lastHitByFx = null; // the last blow was yours
@@ -21709,7 +21749,7 @@ export default function AssetStudio() {
     }
     if (lLayer === "climb") { const climb = { ...lv.climb }; if (erase || lTool === "erase") delete climb[k]; else climb[k] = { kind: lClimbKind }; return { ...lv, climb }; }
     if (lLayer === "hazard") { const hazard = { ...(lv.hazard || {}) }; if (erase || lTool === "erase") delete hazard[k]; else hazard[k] = { kind: "fire", dps: lHazDps, life: lHazLife, ...(lHazHide ? { hideInPlay: true } : {}) }; return { ...lv, hazard }; }
-    if (lLayer === "marker") { const markers = { ...lv.markers }; if (erase || lTool === "erase") delete markers[k]; else if (lMarkerKind === "anim") { const an = findAnim(lAnimId); if (!an) return lv; markers[k] = { kind: "anim", animId: an.id, w: an.w }; } else markers[k] = lMarkerKind === "door" ? { kind: "door", tag: lMarkerCat } : lMarkerKind === "sign" ? { kind: "sign", dialogueId: lSignDlg, text: lSignText } : { kind: "pedestal", cats: [lPedCat1, lPedCat2], logic: lPedLogic }; return { ...lv, markers }; }
+    if (lLayer === "marker") { const markers = { ...lv.markers }; if (erase || lTool === "erase") delete markers[k]; else if (lMarkerKind === "anim") { const an = findAnim(lAnimId); if (!an) return lv; markers[k] = { kind: "anim", animId: an.id, w: an.w }; } else markers[k] = lMarkerKind === "door" ? { kind: "door", tag: lMarkerCat } : lMarkerKind === "sign" ? { kind: "sign", dialogueId: lSignDlg, text: lSignText } : lMarkerKind === "objective" ? { kind: "objective", text: lObjText, targetTag: lObjTag } : { kind: "pedestal", cats: [lPedCat1, lPedCat2], logic: lPedLogic }; return { ...lv, markers }; }
     if (erase || lTool === "erase") {
       const from = eraseFrom && TERRAIN_SHAPE_LAYERS.includes(eraseFrom) ? eraseFrom : lLayer;
       if (!lv[from] || lv[from][k] === undefined) return lv;
@@ -22065,7 +22105,7 @@ export default function AssetStudio() {
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
     // A session STARTING scores from zero (SCORE); one stopping keeps its total readable.
     if (!play || runStart) scoreRef.current = newScoreState();
-    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
+    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = null; lastObjLevelKey.current = null; setObjectiveText(""); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     if (runStart) {
       const startNode = runStart.nodes[runStart.startKey];
       runRef.current = runStart; prepRunNeighbours(runStart, startNode);
@@ -24112,11 +24152,17 @@ export default function AssetStudio() {
             </>
           ) : lLayer === "marker" ? (
             <>
-              <div className="seg"><button className={lMarkerKind === "door" ? "on" : ""} onClick={() => setLMarkerKind("door")}>🚪 Door</button><button className={lMarkerKind === "pedestal" ? "on" : ""} onClick={() => setLMarkerKind("pedestal")}>💎 Pedestal</button><button className={lMarkerKind === "sign" ? "on" : ""} onClick={() => setLMarkerKind("sign")} title="A text box: walk onto this cell in play and press E to read it. Give it a whole dialogue tree, or just type one line.">💬 Sign</button><button className={lMarkerKind === "anim" ? "on" : ""} onClick={() => setLMarkerKind("anim")} title="An animation from 🎬 Animations. The cell you click is the bottom-left corner of its stage.">🎬 Animation</button></div>
+              <div className="seg"><button className={lMarkerKind === "door" ? "on" : ""} onClick={() => setLMarkerKind("door")}>🚪 Door</button><button className={lMarkerKind === "pedestal" ? "on" : ""} onClick={() => setLMarkerKind("pedestal")}>💎 Pedestal</button><button className={lMarkerKind === "sign" ? "on" : ""} onClick={() => setLMarkerKind("sign")} title="A text box: walk onto this cell in play and press E to read it. Give it a whole dialogue tree, or just type one line.">💬 Sign</button><button className={lMarkerKind === "anim" ? "on" : ""} onClick={() => setLMarkerKind("anim")} title="An animation from 🎬 Animations. The cell you click is the bottom-left corner of its stage.">🎬 Animation</button><button className={lMarkerKind === "objective" ? "on" : ""} onClick={() => setLMarkerKind("objective")} title="Shows its text at the top of the screen as soon as you walk into this room. Clears the moment you reach a room with the tag you give it.">🎯 Objective</button></div>
               {lMarkerKind === "door" ? (
                 <>
                   <input className="catinline" value={lMarkerCat} onChange={(e) => setLMarkerCat(e.target.value)} placeholder="Room tag" />
                   {(() => { const t = (lMarkerCat || "").trim(); const n = roomPool(levelLib, t).length; return <span className="hint2">{t ? n + " room" + (n === 1 ? "" : "s") + (n === 0 ? " ⚠" : "") : "exit door"}</span>; })()}
+                </>
+              ) : lMarkerKind === "objective" ? (
+                <>
+                  <input className="catinline" style={{ flex: "1 1 220px" }} value={lObjText} onChange={(e) => setLObjText(e.target.value)} placeholder="Objective text, e.g. Enter side room" />
+                  <input className="catinline" value={lObjTag} onChange={(e) => setLObjTag(e.target.value)} placeholder="Completed on reaching room tag" />
+                  {!lObjText.trim() && <span className="hint2">⚠ Empty</span>}
                 </>
               ) : lMarkerKind === "anim" ? (
                 <>
@@ -24325,7 +24371,7 @@ export default function AssetStudio() {
                 })()}
                 {!play && lvClimbLayer}
                 {lvHazardLayer}
-                {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : m.kind === "sign" ? "💬 Sign · " + signSummary(m, dlgLib) + " · invisible in play until you stand on it · Erase tool: click to delete" : m.kind === "anim" ? "🎬 " + ((findAnim(m.animId) || {}).name || "missing animation") + " · bottom-left corner of its stage · Erase tool: click to delete" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : m.kind === "sign" ? "💬" : m.kind === "anim" ? "🎬" : "💎"}</div>; })}
+                {!play && lv.markers && Object.keys(lv.markers).map((k) => { const [r, c] = k.split(",").map(Number); const m = lv.markers[k]; const dt = (m.tag !== undefined ? m.tag : m.accepts) || ""; const eraseNow = !play && lTool === "erase"; return <div key={"mk" + k} className="lmarker" style={{ left: c * LV_CELL, top: r * LV_CELL, width: LV_CELL, height: LV_CELL, ...(eraseNow ? { cursor: "pointer" } : {}) }} title={m.kind === "door" ? "Door · " + (dt ? "opens room tagged \"" + dt + "\"" : "exit (back to previous level)") + " · press E in play" : m.kind === "sign" ? "💬 Sign · " + signSummary(m, dlgLib) + " · invisible in play until you stand on it · Erase tool: click to delete" : m.kind === "anim" ? "🎬 " + ((findAnim(m.animId) || {}).name || "missing animation") + " · bottom-left corner of its stage · Erase tool: click to delete" : m.kind === "objective" ? "🎯 Objective · \"" + (m.text || "") + "\"" + (m.targetTag ? " · clears on reaching a room tagged \"" + m.targetTag + "\"" : " ⚠ no target tag") + " · shows on entering this room · Erase tool: click to delete" : "Item pedestal · " + pedestalSummary(m) + " · invisible in the editor · Erase tool: click to delete"} onPointerDown={eraseNow ? (e) => { e.stopPropagation(); setLevel((lv2) => { const markers = { ...lv2.markers }; delete markers[k]; return { ...lv2, markers }; }); } : undefined}>{m.kind === "door" ? "🚪" : m.kind === "sign" ? "💬" : m.kind === "anim" ? "🎬" : m.kind === "objective" ? "🎯" : "💎"}</div>; })}
                 {/* A spawn carrying a tree shows 💬 rather than 👹 — which of the six identical
                     guards along this wall is the one you can talk to is otherwise invisible until
                     Playtest, and the answer is the whole reason it was placed there. */}
@@ -25816,6 +25862,9 @@ export default function AssetStudio() {
                       <span className="hudWpnDmg">{formatDps(dps)}<small className="hudWpnUnit">DPS</small></span>
                     </div>
                   </div>
+                  {/* 🎯 OBJECTIVE: the current marker's own text, top and center, above the HP/score
+                      row — set and cleared by the level-change check above (never painted here). */}
+                  {objectiveText && <div className="objBanner">{objectiveText}</div>}
                   <div className="hud">
                     <div className="hudL">
                       <div className="hudHp">
@@ -27716,6 +27765,11 @@ html,body{margin:0;padding:0;background:#0f1117}
 /* THE PLAY HUD (see the render). Over the view, under the cutscene fade (.animFade, 50); nothing
    in it takes a click. Bare text with the level labels' outline. */
 .hud{position:absolute;left:0;right:0;top:0;z-index:6;pointer-events:none;display:flex;align-items:flex-start;gap:16px;padding:10px 14px;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85)}
+/* 🎯 OBJECTIVE banner: the same HUD font (Chakra Petch) as the score/stats row, centered at the
+   top of the screen just under that row (.hud itself sits at top:0 — the SCORE readout already
+   owns dead center there, so this one clears it rather than fighting it for the same spot). */
+.objBanner{position:absolute;left:50%;top:50px;transform:translate(-50%,0);z-index:7;pointer-events:none;max-width:86%;text-align:center;padding:5px 16px;background:rgba(10,12,24,.55);border:1px solid rgba(255,255,255,.18);border-radius:6px;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;font-weight:700;font-size:15px;letter-spacing:.02em;white-space:nowrap;color:#ffd84a;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85);animation:objIn .35s ease-out both}
+@keyframes objIn{from{opacity:0;transform:translate(-50%,-10px)}to{opacity:1;transform:translate(-50%,0)}}
 /* The score (.hudC) sits at .55; the rest of the HUD is lightly translucent too, but not as far
    ("not too much"), so the level reads through it without the numbers going faint. */
 .hudL{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:5px;opacity:.8}
