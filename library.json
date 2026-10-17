@@ -797446,10 +797446,10 @@
    "projectileId": "aopkigm",
    "projectileSpeed": 8,
    "projectileRange": 20,
-   "damage": 45,
+   "damage": 50,
    "fireRate": 1.5,
    "clipSize": 1,
-   "reloadTime": 2.5,
+   "reloadTime": 2.2,
    "weight": 3,
    "landEffect": "fire",
    "landEffectDps": 6,
@@ -797486,8 +797486,8 @@
     "hit": "6hh0w94",
     "fire": "dti525c"
    },
-   "savedAt": 1792252365085,
-   "editedFrom": 1791656363669
+   "savedAt": 1792260459705,
+   "editedFrom": 1792252365085
   },
   {
    "id": "mdetsd1",
