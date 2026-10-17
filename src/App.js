@@ -16852,7 +16852,13 @@ export default function AssetStudio() {
                   if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
                   if (enemyHP.current[k] <= 0) continue; // already defeated
                   if (enemyPos.current[k] && enemyPos.current[k].friendly) continue; // don't clobber your own minion
-                  if (unitHitImmune(enemyPos.current[k])) continue; // 🐱 mid-revive or in its i-frames: the arc carries on past it, as it does past an NPC
+                  // YOUR SWING IGNORES THE 40 I-FRAMES (it neither asks them nor starts them), as a bullet
+                  // does. A stroke is 12 frames and can be thrown again the moment it ends, so with i-frames
+                  // on the unit every other swing found nobody home -- the shock baton "hits every other
+                  // time" (Blake, 2026-10-17). Nothing here needed them: p.swingHits already lands ONE hit
+                  // per body per stroke. Only the revive grace (unitUntouchable) still lets the arc carry on
+                  // past a unit, as it does past an NPC. Stomps and blasts keep their i-frames.
+                  if (unitUntouchable(enemyPos.current[k])) continue;
                   const eShape = sideBodyShape(ea);
                   const eRenderW = enemyRenderW(ea, CW), epw = eRenderW * eShape.fraction;
                   const ep = enemyPos.current[k];
@@ -16894,8 +16900,7 @@ export default function AssetStudio() {
                     const isCrit = Math.random() < critChance(intelligence);
                     // ...through the unit's own armour, the way their swing at you goes through yours.
                     const dmg = incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, p.x + pw / 2, eHitLeft + epw / 2, !unarmedSwing && !!(playtestWeapon && playtestWeapon.ignoreArmor));
-                    enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
-                    if (ep) ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
+                    enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🗡️ swing: starts no i-frames
                     if (ep) ep.lastHitByFx = null; // the last blow was yours
                     if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon && (playtestWeapon.stun ?? 0) > 0) { ep.stun = Math.round(playtestWeapon.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
                     // Mark THIS body as struck and carry on: the rest of the arc may still be

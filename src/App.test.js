@@ -12480,8 +12480,10 @@ describe("a unit's armour counts the way yours does", () => {
     expect(hits.length).toBeGreaterThanOrEqual(10);
     // A BULLET is the exception (Blake, 2026-10-17): full auto fires every few frames, so 40 i-frames
     // swallowed most of an M16's rounds. Exactly the two bullet sites are marked, and nothing else is.
-    const bulletSites = hits.filter((i) => lines[i].includes("🔫 bullet: starts no i-frames"));
-    expect(bulletSites.length).toBe(2);
+    // Your melee swing is the third (Blake, 2026-10-17: the shock baton hit every other swing): a stroke
+    // can be thrown again after 12 frames and p.swingHits already limits it to one hit per body.
+    const bulletSites = hits.filter((i) => /(🔫 bullet|🗡️ swing): starts no i-frames/.test(lines[i]));
+    expect(bulletSites.length).toBe(3);
     for (const i of hits) {
       if (bulletSites.includes(i)) continue;
       const after = lines.slice(i, i + 3).join(" ");
@@ -12491,8 +12493,8 @@ describe("a unit's armour counts the way yours does", () => {
     // drain and the gold revive glow, and to nothing else.
     // ...and the two bullet gates ask unitUntouchable (the revive grace) and nothing about i-frames.
     const untouchable = lines.map((ln, i) => [i, ln]).filter(([, ln]) => ln.includes("unitUntouchable(") && !ln.trim().startsWith("*") && !ln.trim().startsWith("//") && !ln.includes("export const unitUntouchable"));
-    expect(untouchable.length).toBe(4); // the fire drain, the sprite line (gold glow + the hit blink that stands aside for it), and the two bullet gates
-    for (const [, ln] of untouchable) expect(/eDps > 0|enemySpawn|!pr.pierce/.test(ln)).toBe(true);
+    expect(untouchable.length).toBe(5); // the fire drain, the sprite line (gold glow + the hit blink that stands aside for it), the two bullet gates and the swing's
+    for (const [, ln] of untouchable) expect(/eDps > 0|enemySpawn|!pr.pierce/.test(ln) || ln.includes("unitUntouchable(enemyPos.current[k])) continue;")).toBe(true); // ...or your swing's gate
   });
 
   test("a new Playtest starts on the look's own HP, not on last session's pickups", () => {
