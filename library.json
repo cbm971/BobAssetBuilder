@@ -807871,7 +807871,7 @@
    "captureMax": 0,
    "categories": [
     "T1",
-    "Gun",
+    "Rare",
     "Odd"
    ],
    "value": 19,
@@ -807881,8 +807881,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792250741947,
-   "editedFrom": 1792250734464,
+   "savedAt": 1792253015041,
+   "editedFrom": 1792250741947,
    "pierce": true,
    "sounds": {
     "fire": "4xdiye5"
