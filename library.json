@@ -1811671,14 +1811671,6 @@
        "shopTag": ""
       },
       {
-       "id": "cdlgclk12",
-       "text": "Bob Okay.",
-       "to": "ndlgclk1b",
-       "act": "",
-       "tone": "",
-       "shopTag": ""
-      },
-      {
        "id": "cdlgclk13",
        "text": "Didn't I see you at a weather balloon?",
        "to": "ndlgclk1c",
@@ -1811804,7 +1811796,8 @@
      ]
     }
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792259607847,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dlgcnd1",
