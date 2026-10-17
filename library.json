@@ -832567,7 +832567,7 @@
    "damage": 22,
    "fireRate": 0.8,
    "clipSize": 5,
-   "reloadTime": 3.5,
+   "reloadTime": 3,
    "projectileRange": 34,
    "projectileSpeed": 22,
    "weight": 4,
@@ -841096,8 +841096,8 @@
      }
     ]
    },
-   "savedAt": 1792277379052,
-   "editedFrom": 1792277360169
+   "savedAt": 1792278726894,
+   "editedFrom": 1792277379052
   },
   {
    "id": "mstng65",
