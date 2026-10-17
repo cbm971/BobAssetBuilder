@@ -416737,7 +416737,7 @@
    "size": 7,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Draft Office",
+   "category": "Stage",
    "frames": [
     {
      "front": [
@@ -417220,8 +417220,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792257878828,
-   "editedFrom": 1792257446342
+   "savedAt": 1792257895922,
+   "editedFrom": 1792257878828
   },
   {
    "id": "dftchrs",
@@ -417708,7 +417708,7 @@
    "size": 4,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Draft Office",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -418167,7 +418167,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792257918573,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dftclok",
@@ -423020,7 +423021,7 @@
    "size": 4,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Draft Office",
+   "category": "Interior",
    "frames": [
     {
      "front": [
@@ -423839,7 +423840,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792257928491,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dftnews",
