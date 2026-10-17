@@ -171,7 +171,7 @@ const cyrb53 = (bytes, seed) => {
   return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(14, "0");
 };
 export const clipHash = (bytes) => cyrb53(bytes, 0) + cyrb53(bytes, bytes.length + 1);
-const CLIP_NAME_RE = /^[0-9a-f]{28}\.(wav|mp3|ogg)$/;
+const CLIP_NAME_RE = /^[0-9a-f]{28}\.(wav|mp3|ogg|flac|m4a|aac|opus)$/;
 export const clipNameOk = (name) => typeof name === "string" && CLIP_NAME_RE.test(name);
 export const clipMatches = (name, bytes) => clipNameOk(name) && !!bytes && clipHash(bytes) === name.slice(0, 28);
 
@@ -180,19 +180,27 @@ export const clipMatches = (name, bytes) => clipNameOk(name) && !!bytes && clipH
 // encoded music track (a 3-minute mp3 at 192 kbps is 4.3 MB); it refuses a minutes-long WAV,
 // which is 10 MB a minute. The answer to that is an mp3 or ogg, not a bigger cap.
 export const CLIP_MAX_BYTES = 10 * 1024 * 1024;
-export const CLIP_EXTS = { wav: "audio/wav", mp3: "audio/mpeg", ogg: "audio/ogg" };
+export const CLIP_EXTS = { wav: "audio/wav", mp3: "audio/mpeg", ogg: "audio/ogg", flac: "audio/flac", m4a: "audio/mp4", aac: "audio/aac", opus: "audio/ogg" };
 // The extension a picked file is stored under, from its name first and its type second; null for
-// anything that is not wav / mp3 / ogg.
+// anything the browser could not be asked to play (wav, mp3, ogg, flac, m4a, aac, opus).
 export const clipExtOf = (fileName, mime) => {
   const m = /\.([a-z0-9]+)$/i.exec(fileName || "");
   const ext = m ? m[1].toLowerCase() : "";
   if (ext === "wav" || ext === "wave") return "wav";
   if (ext === "mp3") return "mp3";
   if (ext === "ogg" || ext === "oga") return "ogg";
+  if (ext === "flac") return "flac";
+  if (ext === "m4a" || ext === "mp4") return "m4a";
+  if (ext === "aac") return "aac";
+  if (ext === "opus") return "opus";
   const t = (mime || "").toLowerCase();
   if (/wav/.test(t)) return "wav";
   if (/mpeg|mp3/.test(t)) return "mp3";
   if (/ogg/.test(t)) return "ogg";
+  if (/flac/.test(t)) return "flac";
+  if (/mp4|m4a/.test(t)) return "m4a";
+  if (/aac/.test(t)) return "aac";
+  if (/opus/.test(t)) return "opus";
   return null;
 };
 export const clipMime = (clip) => CLIP_EXTS[(/\.([a-z0-9]+)$/i.exec(clip || "") || [])[1]] || "application/octet-stream";

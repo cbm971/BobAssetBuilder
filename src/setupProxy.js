@@ -30,7 +30,7 @@ const KINDS = ["assets", "levels", "stamps", "textures", "backgrounds", "dialogu
 // Why it is not inside the record is written up beside clipHash.
 const CLIP_DIR = path.join(DATA_DIR, "clips");
 const CLIP_MAX_BYTES = 10 * 1024 * 1024; // the studio refuses bigger (audio.js CLIP_MAX_BYTES); this is the server's own guard
-const CLIP_TYPES = { wav: "audio/wav", mp3: "audio/mpeg", ogg: "audio/ogg" };
+const CLIP_TYPES = { wav: "audio/wav", mp3: "audio/mpeg", ogg: "audio/ogg", flac: "audio/flac", m4a: "audio/mp4", aac: "audio/aac", opus: "audio/ogg" };
 let clipCore = null;
 try { clipCore = require("./saveKeeperCore"); } catch { /* no clip storage, the records still work */ }
 

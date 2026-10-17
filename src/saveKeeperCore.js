@@ -47,7 +47,7 @@ const cyrb53 = (bytes, seed) => {
   return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(14, "0");
 };
 const clipHash = (bytes) => cyrb53(bytes, 0) + cyrb53(bytes, bytes.length + 1);
-const CLIP_NAME_RE = /^[0-9a-f]{28}\.(wav|mp3|ogg)$/;
+const CLIP_NAME_RE = /^[0-9a-f]{28}\.(wav|mp3|ogg|flac|m4a|aac|opus)$/;
 const clipNameOk = (name) => typeof name === "string" && CLIP_NAME_RE.test(name);
 // Do these bytes belong under this name? The one check every reader and writer makes.
 const clipMatches = (name, bytes) => clipNameOk(name) && !!bytes && clipHash(bytes) === name.slice(0, 28);

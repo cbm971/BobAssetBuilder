@@ -12215,6 +12215,9 @@ describe("pickup change rows", () => {
     expect(effectBrief({ type: "backGuard" }).desc).toBe("blocks 50% of hits from behind");
     expect(effectBrief({ type: "backGuard", reduce: 0.75 }).desc).toBe("blocks 75% of hits from behind");
     expect(effectBrief({ type: "tagBoost", tag: " bow ", mult: 2 }).desc).toBe("×2 damage with bow weapons");
+    expect(effectBrief({ type: "tagBoost", tag: " bow " }).label).toBe("Increase bow damage");
+    expect(effectBrief({ type: "tagBoost" }).label).toBe("Increase weapon damage");
+    expect(itemAbilityNames({ type: "equipment", slot: "hat", effects: [{ type: "tagBoost", tag: "rifle" }] })).toEqual(["Increase rifle damage"]);
     expect(effectBrief({ type: "extraLives", lives: 9 }).desc).toBe("9 extra lives · get back up where you fall");
     expect(effectBrief({ type: "extraLives" }).desc).toBe("1 extra life · get back up where you fall");
     expect(effectBrief({ type: "extraLives" }).label).toBe("Extra Lives");

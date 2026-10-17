@@ -235,7 +235,10 @@ describe("a sound file is named by its own bytes", () => {
     expect(clipExtOf("boom.mp3", "audio/mpeg")).toBe("mp3");
     expect(clipExtOf("theme.ogg", "")).toBe("ogg");
     expect(clipExtOf("noext", "audio/x-wav")).toBe("wav");
-    expect(clipExtOf("song.flac", "audio/flac")).toBeNull();
+    expect(clipExtOf("song.FLAC", "")).toBe("flac");
+    expect(clipExtOf("a.m4a", "")).toBe("m4a");
+    expect(clipExtOf("noext", "audio/flac")).toBe("flac");
+    expect(clipExtOf("song.wma", "audio/x-ms-wma")).toBeNull();
     expect(clipExtOf("notes.txt", "text/plain")).toBeNull();
     expect(clipMime("a".repeat(28) + ".mp3")).toBe("audio/mpeg");
     expect(CLIP_MAX_BYTES).toBe(10 * 1024 * 1024);

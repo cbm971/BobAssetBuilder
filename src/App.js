@@ -5137,6 +5137,8 @@ export const EFFECT_TYPES = {
   // worn. No animation of its own; it's purely a damage buff resolved in the playtest math.
   tagBoost: {
     label: "Tag Damage", icon: "🏹",
+    // What a player READS says which weapons it boosts ("Increase bow damage"), not the editor's name for the effect.
+    shownName: (p) => "Increase " + (p.tag || "weapon") + " damage",
     blurb: "Empowers a kind of weapon: any equipped weapon whose category tags include the tag you set below (e.g. \"bow\") deals multiplied damage while this is worn. Set the tag and the multiplier. No animation of its own.",
     brief: (p) => "×" + briefNum(p.mult) + " damage with " + (p.tag ? p.tag + " weapons" : "tagged weapons"),
     noAnim: true,
@@ -5342,7 +5344,7 @@ export const effectBrief = (eff) => {
   const p = { ...eff };
   for (const pm of def.params || []) if (!Number.isFinite(p[pm.key])) p[pm.key] = pm.def;
   if (def.tagParam) p.tag = String(eff.tag || "").trim();
-  return { kind: "ability", icon: def.icon, label: def.label, desc: def.brief ? def.brief(p) : "" };
+  return { kind: "ability", icon: def.icon, label: def.shownName ? def.shownName(p) : def.label, desc: def.brief ? def.brief(p) : "" };
 };
 export const weaponAbilityBrief = (w, k) => {
   const ab = WEAPON_ABILITIES[k];
@@ -5368,7 +5370,7 @@ export const itemAbilityNames = (it) => {
   for (const e of it.effects || []) {
     const def = e && EFFECT_TYPES[e.type];
     if (!def || seen.has(e.type)) continue;
-    seen.add(e.type); out.push(def.label);
+    seen.add(e.type); out.push(def.shownName ? def.shownName({ ...e, tag: String(e.tag || "").trim() }) : def.label);
   }
   return out;
 };
@@ -21308,7 +21310,7 @@ export default function AssetStudio() {
     flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ".");
     return null;
   };
-  // UPLOAD: each file is checked (wav/mp3/ogg, under the cap, and it must actually decode), named by
+  // UPLOAD: each file is checked (wav/mp3/ogg/flac/m4a/aac/opus, under the cap, and it must actually decode), named by
   // its hash, stored as a clip, and becomes a sound named after the file, filed under the 📂 box.
   const uploadSounds = async (fileList) => {
     const files = [...(fileList || [])];
@@ -21318,8 +21320,8 @@ export default function AssetStudio() {
     try {
       for (const f of files) {
         const ext = clipExtOf(f.name, f.type);
-        if (!ext) { flash("⚠ " + f.name + " isn't a wav, mp3 or ogg"); continue; }
-        if (f.size > CLIP_MAX_BYTES) { flash("⚠ " + f.name + " is " + fmtClipSize(f.size) + " — the limit is " + fmtClipSize(CLIP_MAX_BYTES) + ". Save it as mp3 or ogg."); continue; }
+        if (!ext) { flash("⚠ " + f.name + " isn't a supported audio file (wav, mp3, ogg, flac, m4a, aac, opus)"); continue; }
+        if (f.size > CLIP_MAX_BYTES) { flash("⚠ " + f.name + " is " + fmtClipSize(f.size) + " — the limit is " + fmtClipSize(CLIP_MAX_BYTES) + ". Save it as mp3, ogg or m4a."); continue; }
         const bytes = new Uint8Array(await f.arrayBuffer());
         const decoded = await bobAudio.decodeBytes(bytes);
         if (!decoded) { flash("⚠ Couldn't read " + f.name + " as audio"); continue; }
@@ -22667,7 +22669,7 @@ export default function AssetStudio() {
             <div className="card">
               <div className="ct">Library</div>
               <div className="sndRow">
-                <label className={"ltbtn sndUp" + (soundBusy ? " on" : "")}>{soundBusy ? "⏳ Adding…" : "⬆ Upload sounds"}<input type="file" accept=".wav,.mp3,.ogg,audio/wav,audio/x-wav,audio/mpeg,audio/ogg" multiple hidden disabled={soundBusy} onChange={(e) => { const el = e.target; uploadSounds(el.files).finally(() => { el.value = ""; }); }} /></label>
+                <label className={"ltbtn sndUp" + (soundBusy ? " on" : "")}>{soundBusy ? "⏳ Adding…" : "⬆ Upload sounds"}<input type="file" accept=".wav,.mp3,.ogg,.flac,.m4a,.aac,.opus,audio/*" multiple hidden disabled={soundBusy} onChange={(e) => { const el = e.target; uploadSounds(el.files).finally(() => { el.value = ""; }); }} /></label>
                 <label className="catfield" title="New uploads go in this folder">📂 <input list="soundcats" value={soundUploadCat} onChange={(e) => setSoundUploadCat(e.target.value)} placeholder={PROP_UNCAT} /></label>
               </div>
               {soundGroups.map((g) => (
@@ -26022,6 +26024,10 @@ export default function AssetStudio() {
                       <div className="shopMeta">
                         <div className={"shopName rk-" + itemRank(it)}>{it.name}</div>
                         <div className="hint2">{what}</div>
+                        {/* THE STAT CHANGES, the same rows the pedestal callout prints (takePrompt),
+                            so a shelf answers "what does this do to me" before the money is spent.
+                            Stats only: the abilities are already named on the line below. */}
+                        {(() => { const tp = takePrompt(it); const st = tp ? tp.rows.filter((r) => r.kind === "stat") : []; return st.length ? <div className="shopStats">{pickupRowsView(st)}</div> : null; })()}
                         {(() => { const ab = itemAbilityNames(it); return ab.length ? <div className="shopAbilities">{ab.join(" · ")}</div> : null; })()}
                         {/* THE ONE THING THE PRICE ALONE CANNOT TELL YOU: which of your own things
                             walks out of the door to pay for it. Only shown when something actually
@@ -27468,6 +27474,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .shopMeta{flex:1 1 auto;min-width:0}
 .shopName{font-size:14px;font-weight:600;color:#f2f5fb}
 .shopSwap{margin-top:3px;font-size:12px;color:#f0cd8d}
+.shopStats{margin-top:3px;font-size:12px;font-weight:700;font-family:'Chakra Petch','Segoe UI',system-ui,sans-serif}
 .shopAbilities{margin-top:3px;font-size:12px;font-weight:600;color:#a9d4ff}
 .shopBuy{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:96px;background:rgba(46,74,52,.92);border:1px solid rgba(122,196,138,.7);border-radius:0;padding:7px 12px;color:#d8f7de;font-size:15px;font-weight:800;cursor:pointer}
 .shopBuy:hover:not(:disabled){background:rgba(62,102,71,.95);border-color:#8fdda0}
@@ -27653,7 +27660,9 @@ html,body{margin:0;padding:0;background:#0f1117}
 /* THE PLAY HUD (see the render). Over the view, under the cutscene fade (.animFade, 50); nothing
    in it takes a click. Bare text with the level labels' outline. */
 .hud{position:absolute;left:0;right:0;top:0;z-index:6;pointer-events:none;display:flex;align-items:flex-start;gap:16px;padding:10px 14px;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85)}
-.hudL{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:5px}
+/* The score (.hudC) sits at .55; the rest of the HUD is lightly translucent too, but not as far
+   ("not too much"), so the level reads through it without the numbers going faint. */
+.hudL{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:5px;opacity:.8}
 .hudHp{display:flex;align-items:center;gap:8px}
 .hudHpBar{width:180px;height:11px;background:rgba(10,10,14,.75);border:1px solid rgba(255,255,255,.4);border-radius:2px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.6)}
 .hudHpFill{height:100%;background:linear-gradient(180deg,#ff6a5e 0%,#d42a24 55%,#a8150f 100%)}
@@ -27666,7 +27675,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .hudPips{display:flex;gap:3px;font-size:16px;line-height:1}
 .hudPips .sym{filter:drop-shadow(0 0 1px #000) drop-shadow(0 1px 1px rgba(0,0,0,.9))}
 .hudC{flex:0 0 auto;text-align:center;line-height:1;opacity:.55}
-.hudBot{position:absolute;left:0;right:0;bottom:0;z-index:6;pointer-events:none;display:flex;align-items:flex-end;justify-content:space-between;padding:10px 14px;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85)}
+.hudBot{position:absolute;left:0;right:0;bottom:0;z-index:6;opacity:.8;pointer-events:none;display:flex;align-items:flex-end;justify-content:space-between;padding:10px 14px;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85)}
 .hudMoney{display:flex;align-items:center;gap:6px;font-size:20px;font-weight:700;letter-spacing:.04em;line-height:1;transform-origin:0 100%}
 .hudMoney.gain{animation:hudMoneyGain .6s ease-out}
 .hudMoney.gain span{animation:hudMoneyGlow .9s ease-out}
@@ -27680,7 +27689,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .hudWpn.down .hudWpnDmg{color:#ff9b9b}
 .hudScoreLbl{font-size:12px;font-weight:700;letter-spacing:.2em;color:#dfe4ee}
 .hudScore{font-size:24px;font-weight:700;letter-spacing:.08em;margin-top:2px}
-.hudR{flex:1 1 0;min-width:0;display:flex;justify-content:flex-end;gap:11px}
+.hudR{flex:1 1 0;min-width:0;display:flex;justify-content:flex-end;gap:11px;opacity:.8}
 .hudStat{display:flex;flex-direction:column;align-items:center;min-width:24px;line-height:1.05}
 .hudStat .sym{font-size:17px;filter:drop-shadow(0 0 1px #000) drop-shadow(0 1px 1px rgba(0,0,0,.9))}
 .hudStatLbl{font-size:10px;font-weight:700;letter-spacing:.06em;color:#d3d9e6;margin-top:3px}
