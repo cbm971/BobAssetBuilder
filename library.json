@@ -1284638,39 +1284638,8 @@
      "hideInPlay": true
     },
     "20,132": {
-     "c": "#3a3f52",
-     "hideInPlay": true
-    },
-    "21,132": {
-     "c": "#3a3f52",
-     "hideInPlay": true
-    },
-    "21,133": {
-     "c": "#3a3f52",
-     "hideInPlay": true
-    },
-    "22,133": {
-     "c": "#3a3f52",
-     "hideInPlay": true
-    },
-    "22,132": {
-     "c": "#3a3f52",
-     "hideInPlay": true
-    },
-    "20,133": {
-     "c": "#3a3f52",
-     "hideInPlay": true
-    },
-    "19,133": {
-     "c": "#3a3f52",
-     "hideInPlay": true
-    },
-    "18,133": {
-     "c": "#3a3f52",
-     "hideInPlay": true
-    },
-    "17,133": {
-     "c": "#3a3f52",
+     "c": "#7f8479",
+     "tex": "v13fgi5",
      "hideInPlay": true
     }
    },
@@ -1295428,8 +1295397,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1792261193940,
-   "editedFrom": 1792261192665
+   "savedAt": 1792261238157,
+   "editedFrom": 1792261231226
   },
   {
    "id": "eb4dqst",
