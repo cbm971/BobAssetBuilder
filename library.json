@@ -901830,7 +901830,7 @@
    "wtype": "throw",
    "projectileId": null,
    "projectileSpeed": 12,
-   "damage": 15,
+   "damage": 25,
    "fireRate": 3,
    "clipSize": 0,
    "reloadTime": 1.2,
@@ -901844,7 +901844,6 @@
     "Grenade",
     "T1"
    ],
-   "savedAt": 1790512135800,
    "projectileRange": 14,
    "landPropId": "r0ckrub",
    "explode": false,
@@ -901857,12 +901856,13 @@
    "explodePropId": null,
    "explodeSize": 3,
    "explodeLife": 0.5,
-   "stun": 0.25,
+   "stun": 0.75,
    "captureMax": 0,
    "explodeChar": "💥",
    "landChar": "🔥",
    "value": 1,
-   "rank": "poor"
+   "rank": "poor",
+   "savedAt": 1792261988833
   },
   {
    "id": "ry71qh6",
