@@ -1301079,21 +1301079,6 @@
       "z": 21
      }
     ],
-    "4,17": [
-     {
-      "kind": "prop",
-      "propId": "ufoauth",
-      "solid": false,
-      "size": 5,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "z": 18
-     }
-    ],
     "7,31": [
      {
       "kind": "prop",
@@ -1301122,6 +1301107,36 @@
       "turnedBox": true,
       "canvasScale": false,
       "z": 20
+     }
+    ],
+    "3,15": [
+     {
+      "kind": "prop",
+      "propId": "0ec8qh0",
+      "solid": false,
+      "size": 10,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 22
+     }
+    ],
+    "5,24": [
+     {
+      "kind": "prop",
+      "propId": "ufoauth",
+      "solid": false,
+      "size": 5,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 18
      }
     ]
    },
@@ -1301681,8 +1301696,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1792246938947,
-   "editedFrom": 1792119755951
+   "savedAt": 1792248068353,
+   "editedFrom": 1792248047100
   },
   {
    "id": "h440ssw",
