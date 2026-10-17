@@ -420765,7 +420765,7 @@
    "size": 2,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Draft Office",
+   "category": "Interior",
    "frames": [
     {
      "front": [
@@ -420884,7 +420884,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792257971104,
+   "editedFrom": 1792257947553
   },
   {
    "id": "dfteye",
@@ -420894,7 +420895,7 @@
    "size": 4,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Draft Office",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -421333,7 +421334,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792257957591,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dftflg1",
@@ -422236,7 +422238,7 @@
    "size": 8,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Draft Office",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -423011,7 +423013,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792258002358,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dftlotr",
@@ -424380,7 +424383,7 @@
    "size": 16,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Draft Office",
+   "category": "Exterior",
    "frames": [
     {
      "front": [
@@ -425231,7 +425234,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792257980872,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dftprot",
