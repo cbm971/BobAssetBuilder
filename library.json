@@ -208911,7 +208911,7 @@
    "damage": 8,
    "fireRate": 3,
    "clipSize": 15,
-   "reloadTime": 3.2,
+   "reloadTime": 2.5,
    "weight": 4,
    "landEffect": null,
    "landEffectDps": 0,
@@ -211944,8 +211944,8 @@
     "hit": "6hh0w94",
     "fire": "18sacwd"
    },
-   "savedAt": 1792027196927,
-   "editedFrom": 1792027193720
+   "savedAt": 1792274423887,
+   "editedFrom": 1792027196927
   },
   {
    "id": "9boz0o8",
@@ -1145219,7 +1145219,7 @@
    "damage": 8,
    "fireRate": 6,
    "clipSize": 12,
-   "reloadTime": 3,
+   "reloadTime": 2.9,
    "weight": 3,
    "landEffect": "fire",
    "landEffectDps": 6,
@@ -1145304,8 +1145304,8 @@
     "hit": "6hh0w94",
     "fire": "18sacwd"
    },
-   "savedAt": 1792245620351,
-   "editedFrom": 1792027207750
+   "savedAt": 1792274443299,
+   "editedFrom": 1792245620351
   },
   {
    "id": "z38lzvj",
