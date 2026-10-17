@@ -569152,12 +569152,23 @@
     ]
    },
    "scale": 2.1,
-   "savedAt": 1791514171592,
+   "savedAt": 1792267324772,
    "holdPoint": {
     "side": {
      "x": 10,
      "y": 82
     }
+   },
+   "sounds": {
+    "attack": "5542xx2",
+    "hurt": "n5wassx",
+    "death": "b9qzwp7"
+   },
+   "editedFrom": 1792267314506,
+   "soundVol": {
+    "attack": 0.5,
+    "hurt": 0.05,
+    "death": 0.05
    }
   },
   {
