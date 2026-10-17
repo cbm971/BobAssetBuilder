@@ -489221,11 +489221,15 @@
     "back": [],
     "crouch": []
    },
-   "savedAt": 1790512135800,
+   "savedAt": 1792266653748,
    "explodeChar": "💥",
    "landChar": "🔥",
    "value": 7,
-   "rank": "rare"
+   "rank": "rare",
+   "sounds": {
+    "throw": "qd117xl"
+   },
+   "editedFrom": 1790512135800
   },
   {
    "id": "fnzre7x",
@@ -601756,7 +601760,6 @@
     "Grenade",
     "Army"
    ],
-   "savedAt": 1790597736011,
    "projectileRange": 14,
    "ignoreArmor": false,
    "burst": 1,
@@ -601767,7 +601770,12 @@
    "explodeChar": "💥",
    "landChar": "🔥",
    "value": 5,
-   "rank": "common"
+   "rank": "common",
+   "sounds": {
+    "throw": "qd117xl",
+    "land": "aghad42"
+   },
+   "savedAt": 1792266673918
   },
   {
    "id": "gr3nsh1",
@@ -854940,7 +854948,6 @@
      }
     ]
    },
-   "savedAt": 1790512135800,
    "landPropId": "swiwj1p",
    "categories": [
     "T1",
@@ -854963,7 +854970,12 @@
    "explodeChar": "💥",
    "landChar": "🔥",
    "value": 5,
-   "rank": "common"
+   "rank": "common",
+   "sounds": {
+    "throw": "qd117xl",
+    "land": "aghad42"
+   },
+   "savedAt": 1792266673937
   },
   {
    "id": "phtz4un",
@@ -901868,7 +901880,11 @@
    "landChar": "🔥",
    "value": 1,
    "rank": "poor",
-   "savedAt": 1792261988833
+   "savedAt": 1792266656620,
+   "sounds": {
+    "throw": "qd117xl"
+   },
+   "editedFrom": 1792261988833
   },
   {
    "id": "ry71qh6",
@@ -1044087,8 +1044103,11 @@
    "landChar": "🔥",
    "value": 9,
    "rank": "poor",
-   "savedAt": 1791716398912,
-   "editedFrom": 1791511419964
+   "savedAt": 1792266620883,
+   "editedFrom": 1791716398912,
+   "sounds": {
+    "hit": "ynj37i2"
+   }
   },
   {
    "id": "vmcrl51",
