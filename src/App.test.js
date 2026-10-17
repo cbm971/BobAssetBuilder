@@ -863,11 +863,11 @@ describe("random enemy by tag", () => {
   });
 });
 
-describe("straight down on a ladder or a top-down plane", () => {
-  test("on the ground ↓ alone is still the shallow dip; on a ladder or plane it is straight down", () => {
-    expect(aimAngleDeg(1)).toBe(40);
-    expect(aimAngleDeg(1, false)).toBe(40);
-    expect(aimAngleDeg(1, true)).toBe(90);
+describe("straight down, in every stance", () => {
+  test("↓ alone fires straight down (mirrors ↑ alone going straight up), with steepDown passed explicitly", () => {
+    expect(aimAngleDeg(1)).toBe(40);        // the raw function still has a shallow fallback when steepDown is omitted...
+    expect(aimAngleDeg(1, false)).toBe(40); // ...or passed false explicitly
+    expect(aimAngleDeg(1, true)).toBe(90);  // ...but every real call site passes aimSteepDown(p), which is now always true
     expect(aimArmOffsetDeg(1)).toBe(50);
     expect(aimArmOffsetDeg(1, true)).toBe(90);          // the arm points along the shot, as ↑ does at -90
     expect(aimArmOffsetDeg(1, true)).toBe(-aimArmOffsetDeg(-1, true));
@@ -879,11 +879,11 @@ describe("straight down on a ladder or a top-down plane", () => {
     expect(aimAngleDeg(-AIM_DIAGONAL, true)).toBe(-45);
     expect(projectileAimRad(1, true)).toBeCloseTo(Math.PI / 2, 10);
   });
-  test("a climbing body or one on a plane counts, a walking one does not", () => {
+  test("every stance is steep now — standing, climbing, and a top-down plane alike", () => {
     expect(aimSteepDown({ climbing: true })).toBe(true);
     expect(aimSteepDown({ topdown: true })).toBe(true);
-    expect(aimSteepDown({ onGround: true })).toBe(false);
-    expect(aimSteepDown(null)).toBe(false);
+    expect(aimSteepDown({ onGround: true })).toBe(true); // 2026-10-17: "steeper angles downwards" widened this off climbing/topdown only
+    expect(aimSteepDown(null)).toBe(true);
   });
 });
 
@@ -13169,7 +13169,7 @@ describe("🛡 god mode (a testing switch)", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
     expect(src).not.toMatch(/playerHP\.current\s*=\s*Math\.max\(0,\s*playerHP\.current\s*-/);
     expect(src).not.toMatch(/playerHP\.current\s*-=/);
-    expect((src.match(/playerHP\.current = playerHpAfterHit\(/g) || []).length).toBe(5);
+    expect((src.match(/playerHP\.current = playerHpAfterHit\(/g) || []).length).toBe(6); // +1: detonate's own-blast self-damage
   });
 });
 

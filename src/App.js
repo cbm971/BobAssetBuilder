@@ -2238,11 +2238,14 @@ export const stripThrownLanding = (hazardIn, fxIn, hazKeys, propKeys) => {
 export const AIM_DIAGONAL = 0.5;
 export const isDiagonalAim = (aimDir) => Math.abs(aimDir || 0) === AIM_DIAGONAL;
 // Degrees off level the shot flies, positive = downward (screen coords, matching rot everywhere else).
-// STRAIGHT DOWN WHERE THERE IS SOMETHING TO SHOOT DOWN AT (Blake, 2026-10-17: "on climbing surfaces like
-// ladders and top down I need to be able to shoot pretty much straight down"). On the ground ↓ alone is the
-// shallow 40° dip (you stand on what is below you), but on a ladder or a 🚶 plane the floor is a long way
-// off, so ↓ alone there is the full hold, -90 mirrored: 90. Pass aimSteepDown(p) as the second argument.
-export const aimSteepDown = (p) => !!(p && (p.climbing || p.topdown));
+// STRAIGHT DOWN, PERIOD (Blake, 2026-10-17: ladders/planes first, then same day — "steeper angles
+// downwards" generally). ↓ alone used to be a shallow 40° dip everywhere except a ladder or 🚶 plane
+// (the floor-is-right-below-you reasoning doesn't hold once there's a ledge, a pit, or a lower floor
+// to shoot down into), so it is now the full hold, -90 mirrored: 90, in every stance — mirroring ↑,
+// which was already unconditional. Kept as a function (rather than inlining `true` at each call site
+// below) so a future stance that genuinely needs the shallow dip back has one place to carve the
+// exception. Pass aimSteepDown(p) as the second argument.
+export const aimSteepDown = (p) => true;
 export const aimAngleDeg = (aimDir, steepDown) => (aimDir === -1 ? -90 : aimDir === 1 && steepDown ? 90 : isDiagonalAim(aimDir) ? aimDir * 90 : aimDir * 40);
 export const projectileAimRad = (aimDir, steepDown) => aimAngleDeg(aimDir, steepDown) * Math.PI / 180;
 // How far the aiming arm swings off level. ±50 is the established single-key hold (deliberately a
@@ -16351,6 +16354,7 @@ export default function AssetStudio() {
               critInt: eIntel, shooterFx: ea.effects || [], snd: ew, // snd: whose 🔊 Hit plays where it lands
               ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: shotPierces(ew, ea.effects),
               explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeChar: ew.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
+              shooterKey: k, // who fired it, so an exploding round can catch its OWN shooter in the blast (detonate)
             });
             sndMoment(ew, "fire", null, eShotAt.x, eShotAt.y); // 🔊 its gun's Fire, as yours
             ep.weaponAmmo = consumeShot(ep.weaponAmmo, weaponFireCooldownFrames(ew.fireRate));
@@ -16688,6 +16692,22 @@ export default function AssetStudio() {
           const eph2 = ep2 && ep2.crouch ? enemyCrouchH(ea2, CW) : enemyStandH(ea2, CW);
           return { x: ep2.x + (eShape.centerFrac * eRenderW - epw2 / 2), y: ep2.y + unitHitTop(ea2, eShape, eph2), w: epw2, h: eShape.heightFrac * eph2 };
         };
+        // CAUGHT IN YOUR OWN BLAST: an exploding round's shooter is a unit (shooterKey, set where
+        // the shot is fired) rather than the player, and it fires from BEHIND the muzzle — standing
+        // close to a short-range blast, or a wall bouncing it back, puts the shooter in its own
+        // radius exactly like anyone else. Same armour/crit/stun treatment as every other body the
+        // blast reaches, just keyed off the one unit who is never checked anywhere above.
+        const selfBlastUnit = (k) => {
+          const ep = enemyPos.current[k]; if (!ep || !(enemyHP.current[k] > 0) || unitHitImmune(ep)) return;
+          const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) return;
+          const bx = enemyBlastBox(ea, ep);
+          if (!blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) return;
+          const sCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
+          enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(sCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2));
+          ep.invuln = PLAYER_INVULN_FRAMES;
+          ep.lastHitByFx = pr.shooterFx || null;
+          if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
+        };
         if (pr.foe) {
           if (p.invuln <= 0) {
             const pcx = p.x + pw / 2;
@@ -16716,6 +16736,7 @@ export default function AssetStudio() {
               if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
             }
           }
+          if (pr.shooterKey) selfBlastUnit(pr.shooterKey); // the hostile who fired it stands in it exactly as its targets do
         } else {
           let hits = 0;
           for (const k of Object.keys(lv.enemies || {})) {
@@ -16738,6 +16759,23 @@ export default function AssetStudio() {
             }
           }
           flash("💥 Explosion" + (hits ? " — hit " + hits + (hits === 1 ? " enemy" : " enemies") : ""));
+          // The shooter stands in their own blast exactly as a target does: a friendly unit's own
+          // round checks itself (selfBlastUnit); the player has no `lv.enemies` entry, so it's the
+          // SAME box-and-invuln test the foe branch above runs on you, just with nobody else's shot.
+          // Run AFTER the generic flash above so a self-hit's own message is the one left on screen.
+          if (pr.shooterKey) selfBlastUnit(pr.shooterKey);
+          else if (p.invuln <= 0) {
+            const pcx = p.x + pw / 2;
+            if (blastHitsBox(ix, iy, p.x, p.y, pw, ph, radPx)) {
+              const sCrit = Math.random() < critChance(pr.critInt ?? pstats.intelligence);
+              const dmg = incomingPlayerDamage(sCrit ? baseDmg * 2 : baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch);
+              playerHP.current = playerHpAfterHit(playerHP.current, dmg);
+              p.invuln = PLAYER_INVULN_FRAMES;
+              if (playerHP.current <= 0) { playerDefeated(p, "💀 Caught in your own blast — back to the start."); }
+              else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash("💥 Caught in your own blast for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
+              else flash("💥 Caught in your own blast for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)");
+            }
+          }
         }
       };
       if (p.firing) {
