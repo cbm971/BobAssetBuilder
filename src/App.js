@@ -16686,7 +16686,12 @@ export default function AssetStudio() {
             // angle plus the aim tilt — except in the dedicated Aim-up pose, which is drawn pointing
             // up. Crouch DOES extend now, so a ducked shot leaves the barrel instead of thin air.
             const aimingNow = p.aiming && angleNow !== "up";
-            const curArmM = { ...armPieceM, rot: aimingNow ? (aimAbsM + aimArmOffsetDeg(aimDir, aimSteepDown(p)) + tiltDeg) : baseArmRotM };
+            // HANGING (bars / a cliff ledge) or pushing off a climb with no aim up: the renderer SETS
+            // the gun arm straight up to the grip (armClimbAbs) or half way down (armPushOffAbs). The
+            // barrel has to be read off THAT arm. Read off the arm as drawn at rest, the rifle hangs
+            // down at your side and the shot left from your feet (Blake, 2026-10-18, on the S1 bars).
+            const climbRotM = aimingNow ? null : p.climbing ? armClimbAbs(armPieceM.armPivot) : p.climbJumpKind ? armPushOffAbs(armPieceM.armPivot) : null;
+            const curArmM = { ...armPieceM, rot: aimingNow ? (aimAbsM + aimArmOffsetDeg(aimDir, aimSteepDown(p)) + tiltDeg) : climbRotM != null ? climbRotM : baseArmRotM };
             const wfitM = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
             const guideHandM = handForGuideId(wfitM.guideId)[wPoseM] || DEFAULT_HAND[wPoseM];
             const wBaseM = wPoseM === angleNow ? baseArmRotM : armBaseFrom(armOf(playerAsset.angles[wPoseM] || []), armPieceM, baseArmRotM);
