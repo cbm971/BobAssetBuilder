@@ -369523,7 +369523,7 @@
    "projectileId": null,
    "projectileSpeed": 12,
    "damage": 13,
-   "savedAt": 1792107387373,
+   "savedAt": 1792243841794,
    "groups": {
     "side": [
      {
@@ -372769,8 +372769,8 @@
    "explodeChar": "💥",
    "landChar": "🔥",
    "value": 8,
-   "rank": "rare",
-   "editedFrom": 1791753098906,
+   "rank": "common",
+   "editedFrom": 1792107387373,
    "sounds": {
     "hit": "j8bdd8g"
    }
