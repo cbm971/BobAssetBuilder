@@ -597618,10 +597618,10 @@
      {
       "id": "whxfo5g",
       "kind": "stadium",
-      "x": 23,
-      "y": 109.5,
-      "w": 164.5,
-      "h": 5.5,
+      "x": 0,
+      "y": 110,
+      "w": 199.5,
+      "h": 3.5,
       "color": "#7a3b8f",
       "mirror": false,
       "fx": {
@@ -597634,9 +597634,9 @@
      {
       "id": "66e2duw",
       "kind": "stadium",
-      "x": 41,
+      "x": 24,
       "y": 110.5,
-      "w": 14,
+      "w": 8.5,
       "h": 3,
       "color": "#7a3b8f",
       "mirror": false,
@@ -597651,8 +597651,8 @@
      {
       "id": "1bqj9yo",
       "kind": "stadium",
-      "x": 104.5,
-      "y": 110,
+      "x": 123.5,
+      "y": 109,
       "w": 11,
       "h": 4,
       "color": "#7a3b8f",
@@ -597685,7 +597685,7 @@
      {
       "id": "x9nz9d6",
       "kind": "stadium",
-      "x": 153.5,
+      "x": 158.5,
       "y": 110.5,
       "w": 7.5,
       "h": 3,
@@ -597706,8 +597706,9 @@
     "crouch": []
    },
    "guideId": "default",
-   "size": 1,
-   "savedAt": 1792249335308
+   "size": 1.6,
+   "savedAt": 1792250027377,
+   "editedFrom": 1792249335308
   },
   {
    "id": "hwbtm2t",
@@ -807841,10 +807842,10 @@
    ],
    "wtype": "ranged",
    "projectileId": "hrqbyju",
-   "projectileSpeed": 12,
+   "projectileSpeed": 8,
    "projectileRange": 20,
    "damage": 15,
-   "fireRate": 3,
+   "fireRate": 15,
    "clipSize": 2,
    "reloadTime": 0.3,
    "weight": 3,
@@ -807879,8 +807880,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792249988864,
-   "editedFrom": 1792249834445,
+   "savedAt": 1792250059721,
+   "editedFrom": 1792250055596,
    "pierce": true,
    "sounds": {
     "fire": "4xdiye5"
