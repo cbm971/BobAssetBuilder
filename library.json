@@ -1813409,6 +1813409,17 @@
    "savedAt": 1791656219258
   },
   {
+   "id": "ecptbje",
+   "type": "sound",
+   "name": "Ambler",
+   "category": "Music",
+   "clip": "1e90c9458188cd145028f6e53a72.mp3",
+   "bytes": 1855906,
+   "dur": 46.27,
+   "savedAt": 1792265207530,
+   "editedFrom": 1792265193858
+  },
+  {
    "id": "fgx2nvz",
    "type": "sound",
    "name": "15419__pagancow__dorm-door-opening",
@@ -1813506,16 +1813517,20 @@
     "hurt": "bigcacc",
     "death": "y8te6ak",
     "door": "fgx2nvz",
-    "menuClick": "6c8zsq5"
+    "menuClick": "6c8zsq5",
+    "playerHurt": "bigcacc",
+    "enemyHurt": "bigcacc",
+    "playerDeath": "y8te6ak",
+    "enemyDeath": "y8te6ak"
    },
-   "music": "",
-   "savedAt": 1792107445805,
-   "editedFrom": 1792107436546,
+   "music": "ecptbje",
    "basicVol": {
     "punch": 0.1,
     "pickup": 0.8,
     "land": 0.25
-   }
+   },
+   "musicVol": 0.05,
+   "savedAt": 1792265233790
   },
   {
    "id": "symbolboard",
