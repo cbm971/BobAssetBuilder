@@ -1719678,11 +1719678,19 @@
     "ntv0": {
      "id": "ntv0",
      "speaker": "TV",
-     "text": "This just in: Press WASD to move, and press Space Bar to jump! Grab a weapon from the pedestals in the kitchen to the right before heading outside.",
+     "text": "This just in: \nWASD to move. \nSpace Bar to jump.\nClothes in the Closet, Guns in the Kitchen.\nIn other news: Bob has been drafted to Vietnam!",
      "choices": [
       {
        "id": "ctv0",
-       "text": "Got it!",
+       "text": "I should get dressed!",
+       "to": "",
+       "act": "",
+       "tone": "good",
+       "shopTag": ""
+      },
+      {
+       "id": "c8hvzdsr",
+       "text": "I should get armed!",
        "to": "",
        "act": "",
        "tone": "good",
@@ -1719691,7 +1719699,8 @@
      ]
     }
    },
-   "savedAt": 1792235735419
+   "savedAt": 1792237207822,
+   "editedFrom": 1792235735419
   }
  ],
  "sounds": [
