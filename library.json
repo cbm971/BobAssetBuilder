@@ -718904,7 +718904,7 @@
    ],
    "projectileId": "gr3nsh1",
    "projectileSpeed": 9,
-   "damage": 16,
+   "damage": 20,
    "fireRate": 1,
    "clipSize": 4,
    "reloadTime": 2.2,
@@ -718940,7 +718940,8 @@
     "hit": "6hh0w94",
     "fire": "dti525c"
    },
-   "savedAt": 1791656363665
+   "savedAt": 1792249714401,
+   "editedFrom": 1791656363665
   },
   {
    "id": "lsp9nh6",
@@ -807845,8 +807846,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792249451953,
-   "editedFrom": 1792249191879
+   "savedAt": 1792249724934,
+   "editedFrom": 1792249451953
   },
   {
    "id": "qfexzka",
