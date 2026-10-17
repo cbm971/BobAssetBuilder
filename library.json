@@ -365156,7 +365156,7 @@
     ]
    },
    "scale": 1,
-   "savedAt": 1792266719686,
+   "savedAt": 1792266744877,
    "holdPoint": {
     "side": {
      "x": 67.5,
@@ -365165,12 +365165,14 @@
    },
    "sounds": {
     "attack": "8wj9mvj",
-    "hurt": "n5wassx"
+    "hurt": "n5wassx",
+    "death": "rrbq1w9"
    },
-   "editedFrom": 1791802352033,
+   "editedFrom": 1792266740879,
    "soundVol": {
     "hurt": 2,
-    "attack": 0.05
+    "attack": 0.05,
+    "death": 0.6
    }
   },
   {
@@ -1813719,12 +1813721,10 @@
     "pickup": "ag3z5mg",
     "punch": "4bw3ztd",
     "swing": "qd117xl",
-    "hurt": "bigcacc",
-    "death": "y8te6ak",
     "door": "fgx2nvz",
     "menuClick": "6c8zsq5",
     "playerHurt": "bigcacc",
-    "enemyHurt": "bigcacc",
+    "enemyHurt": "5dlatox",
     "playerDeath": "y8te6ak",
     "enemyDeath": "y8te6ak"
    },
@@ -1813735,7 +1813735,8 @@
     "land": 0.25
    },
    "musicVol": 0.05,
-   "savedAt": 1792265233790
+   "savedAt": 1792266781052,
+   "editedFrom": 1792265233790
   },
   {
    "id": "symbolboard",
