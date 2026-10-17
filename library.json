@@ -807842,8 +807842,8 @@
    ],
    "wtype": "ranged",
    "projectileId": "hrqbyju",
-   "projectileSpeed": 8,
-   "projectileRange": 20,
+   "projectileSpeed": 12,
+   "projectileRange": 25,
    "damage": 12,
    "fireRate": 4,
    "clipSize": 3,
@@ -807880,8 +807880,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792250202088,
-   "editedFrom": 1792250135058,
+   "savedAt": 1792250228510,
+   "editedFrom": 1792250202088,
    "pierce": true,
    "sounds": {
     "fire": "4xdiye5"
