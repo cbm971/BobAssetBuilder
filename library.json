@@ -1743889,6 +1743889,37 @@
    "editedFrom": 1792235735421
   },
   {
+   "id": "omabn5b",
+   "name": "UFO Fanatic",
+   "start": "nngwaggl",
+   "nodes": {
+    "nngwaggl": {
+     "id": "nngwaggl",
+     "speaker": "Fanatic",
+     "text": "We have to build a wall to keep the Aliens out!",
+     "choices": [
+      {
+       "id": "cawf3pfv",
+       "text": "Build the wall!",
+       "to": "",
+       "act": "",
+       "tone": "",
+       "shopTag": ""
+      },
+      {
+       "id": "ce27pho0",
+       "text": "\"Aliens\" is offensive they prefer extra terrestrials.",
+       "to": "",
+       "act": "hostile",
+       "tone": "bad",
+       "shopTag": ""
+      }
+     ]
+    }
+   },
+   "savedAt": 1792249620175
+  },
+  {
    "id": "swdtdlg",
    "name": "Sword Trainer (Melee)",
    "start": "nswd0",
