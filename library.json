@@ -401040,9 +401040,11 @@
     }
    },
    "sounds": {
-    "attack": "lx4ot2r"
+    "attack": "lx4ot2r",
+    "hurt": "pr9c2n5",
+    "death": "9skpe67"
    },
-   "savedAt": 1791656123742
+   "savedAt": 1792266973913
   },
   {
    "id": "crcmsk1",
@@ -786182,12 +786184,14 @@
     }
    },
    "sounds": {
-    "attack": "fhg042t"
+    "attack": "fhg042t",
+    "death": "9skpe67",
+    "hurt": "fhg042t"
    },
    "soundVol": {
     "attack": 0.05
    },
-   "savedAt": 1791852399757
+   "savedAt": 1792266973941
   },
   {
    "id": "lvlamp1",
@@ -826824,11 +826828,13 @@
      "y": 131
     }
    },
-   "savedAt": 1792266910638,
+   "savedAt": 1792266926578,
    "sounds": {
-    "attack": "32tmy0z"
+    "attack": "32tmy0z",
+    "hurt": "32tmy0z",
+    "death": "32tmy0z"
    },
-   "editedFrom": 1791072671240
+   "editedFrom": 1792266916614
   },
   {
    "id": "o51p2f3",
