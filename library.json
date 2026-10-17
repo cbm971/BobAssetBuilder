@@ -278187,7 +278187,11 @@
    "landChar": "🔥",
    "value": 15,
    "rank": "rare",
-   "savedAt": 1791642740396
+   "savedAt": 1792266601605,
+   "sounds": {
+    "hit": "utkfmiw"
+   },
+   "editedFrom": 1791642740396
   },
   {
    "id": "b8kwtcz",
@@ -442285,11 +442289,11 @@
    "value": 30,
    "rank": "legendary",
    "sounds": {
-    "hit": "332pcx1",
+    "hit": "ynj37i2",
     "fire": "m2jvkmv"
    },
-   "savedAt": 1792266550329,
-   "editedFrom": 1791656423785
+   "savedAt": 1792266556769,
+   "editedFrom": 1792266550329
   },
   {
    "id": "dkbarl1",
@@ -820128,10 +820132,10 @@
    "rank": "poor",
    "sounds": {
     "fire": "18sacwd",
-    "hit": "6hh0w94"
+    "hit": "332pcx1"
    },
-   "savedAt": 1792254242358,
-   "editedFrom": 1792234948555
+   "savedAt": 1792266563506,
+   "editedFrom": 1792254242358
   },
   {
    "id": "nhls82t",
