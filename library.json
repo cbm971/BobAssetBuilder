@@ -1053188,7 +1053188,7 @@
    "wtype": "ranged",
    "projectileId": "6ufkkia",
    "damage": 22,
-   "fireRate": 1,
+   "fireRate": 1.5,
    "clipSize": 5,
    "reloadTime": 3,
    "projectileRange": 28,
@@ -1061710,9 +1061710,9 @@
      }
     ]
    },
-   "savedAt": 1792278669613,
+   "savedAt": 1792278978656,
    "meleeBoost": 3,
-   "editedFrom": 1792277668458
+   "editedFrom": 1792278669613
   },
   {
    "id": "u23o5an",
