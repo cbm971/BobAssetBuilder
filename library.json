@@ -998522,8 +998522,8 @@
    "wtype": "melee",
    "projectileId": null,
    "projectileSpeed": 12,
-   "damage": 67,
-   "savedAt": 1792254261820,
+   "damage": 1,
+   "savedAt": 1792267718483,
    "groups": {
     "front": [],
     "back": [],
@@ -1001546,12 +1001546,12 @@
    "captureMax": 0,
    "explodeChar": "💥",
    "landChar": "🔥",
-   "value": 2,
+   "value": 67,
    "rank": "poor",
    "sounds": {
     "hit": "j8bdd8g"
    },
-   "editedFrom": 1792234948556
+   "editedFrom": 1792254261820
   },
   {
    "id": "trplmp1",
