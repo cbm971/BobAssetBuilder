@@ -832569,7 +832569,7 @@
    "clipSize": 5,
    "reloadTime": 3,
    "projectileRange": 34,
-   "projectileSpeed": 22,
+   "projectileSpeed": 14,
    "weight": 4,
    "value": 14,
    "rank": "rare",
@@ -841096,8 +841096,8 @@
      }
     ]
    },
-   "savedAt": 1792278993298,
-   "editedFrom": 1792278753583
+   "savedAt": 1792279571765,
+   "editedFrom": 1792278993298
   },
   {
    "id": "mstng65",
@@ -1053192,7 +1053192,7 @@
    "clipSize": 5,
    "reloadTime": 3,
    "projectileRange": 28,
-   "projectileSpeed": 20,
+   "projectileSpeed": 13,
    "weight": 3,
    "value": 14,
    "rank": "rare",
@@ -1061710,9 +1061710,9 @@
      }
     ]
    },
-   "savedAt": 1792278978656,
+   "savedAt": 1792279564134,
    "meleeBoost": 3,
-   "editedFrom": 1792278669613
+   "editedFrom": 1792278978656
   },
   {
    "id": "u23o5an",
