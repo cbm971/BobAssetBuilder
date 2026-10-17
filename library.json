@@ -1226496,11 +1226496,10 @@
      "weaponId": "none"
     },
     "34,85": {
+     "enemyTag": "Trailor",
      "facing": 1,
      "ai": "guard",
-     "dialogueId": "dlgrob1",
-     "enemyId": "idqfy73",
-     "weaponId": "none"
+     "dialogueId": "dlgrob1"
     },
     "34,91": {
      "facing": -1,
@@ -1226556,8 +1226555,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1792258549855,
-   "editedFrom": 1792257446342
+   "savedAt": 1792258951496,
+   "editedFrom": 1792258549855
   },
   {
    "id": "6ktwvoo",
@@ -1811575,7 +1811574,7 @@
    "nodes": {
     "ndlgbby1a": {
      "id": "ndlgbby1a",
-     "speaker": "Bobby",
+     "speaker": "Earl",
      "text": "They pulled the numbers on TV last night. My birthday came up first. Number one.",
      "choices": [
       {
@@ -1811606,7 +1811605,7 @@
     },
     "ndlgbby1b": {
      "id": "ndlgbby1b",
-     "speaker": "Bobby",
+     "speaker": "Earl",
      "text": "Lucky like a squirrel in a dog park.",
      "choices": [
       {
@@ -1811621,7 +1811620,7 @@
     },
     "ndlgbby1c": {
      "id": "ndlgbby1c",
-     "speaker": "Bobby",
+     "speaker": "Earl",
      "text": "See you over there, then. Save me a spot in the foxhole.",
      "choices": [
       {
@@ -1811636,7 +1811635,7 @@
     },
     "ndlgbby1d": {
      "id": "ndlgbby1d",
-     "speaker": "Bobby",
+     "speaker": "Earl",
      "text": "Thanks. Uncle Sam is getting me a helmet.",
      "choices": [
       {
@@ -1811650,7 +1811649,8 @@
      ]
     }
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792258951496,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dlgclk1",
@@ -1811813,7 +1811813,7 @@
    "nodes": {
     "ndlgcnd1a": {
      "id": "ndlgcnd1a",
-     "speaker": "Bobert",
+     "speaker": "Dale",
      "text": "Psst. I'm not really waiting. My car's running out front. Canada is nice this time of year.",
      "choices": [
       {
@@ -1811844,7 +1811844,7 @@
     },
     "ndlgcnd1b": {
      "id": "ndlgcnd1b",
-     "speaker": "Bobert",
+     "speaker": "Dale",
      "text": "No room. The car is full of my mom's casseroles.",
      "choices": [
       {
@@ -1811859,7 +1811859,7 @@
     },
     "ndlgcnd1c": {
      "id": "ndlgcnd1c",
-     "speaker": "Bobert",
+     "speaker": "Dale",
      "text": "You're alright, Bob. Here, take my lunch. I won't need it up north.",
      "choices": [
       {
@@ -1811874,7 +1811874,7 @@
     },
     "ndlgcnd1d": {
      "id": "ndlgcnd1d",
-     "speaker": "Bobert",
+     "speaker": "Dale",
      "text": "You RAT!",
      "choices": [
       {
@@ -1811888,7 +1811888,8 @@
      ]
     }
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792258951496,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dlgord1",
@@ -1812084,7 +1812085,7 @@
    "nodes": {
     "ndlgrob1a": {
      "id": "ndlgrob1a",
-     "speaker": "Rob",
+     "speaker": "Rusty",
      "text": "They told me to turn my head and cough. That was an hour ago. Nobody came back.",
      "choices": [
       {
@@ -1812107,7 +1812108,7 @@
     },
     "ndlgrob1b": {
      "id": "ndlgrob1b",
-     "speaker": "Rob",
+     "speaker": "Rusty",
      "text": "*cough*",
      "choices": [
       {
@@ -1812122,7 +1812123,7 @@
     },
     "ndlgrob1c": {
      "id": "ndlgrob1c",
-     "speaker": "Rob",
+     "speaker": "Rusty",
      "text": "Same place as yours will be in about five minutes.",
      "choices": [
       {
@@ -1812136,7 +1812137,8 @@
      ]
     }
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792258951496,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dlgsgt1",
