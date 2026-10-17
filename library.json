@@ -1718968,7 +1718968,9 @@
      ]
     }
    },
-   "savedAt": 1791546697759
+   "savedAt": 1792237516633,
+   "once": true,
+   "editedFrom": 1791546697759
   },
   {
    "id": "dlgwthr",
@@ -1719602,11 +1719604,11 @@
     "nswd0": {
      "id": "nswd0",
      "speaker": "Sword Trainer",
-     "text": "Hey Bob! Ready to learn melee combat? When holding a melee weapon, press F to swing at enemies, and press Q to raise your guard and block incoming melee attacks!",
+     "text": "They got you headin to Nam? Best learn how to swing a machete! When holding a melee weapon, press F to swing at enemies, press Q to raise your guard and block incoming melee attacks!",
      "choices": [
       {
        "id": "cswd1",
-       "text": "What if someone shoots at me?",
+       "text": "What if someone shoots at me in Vietnam (Or on the way to the draft office)?",
        "to": "nswd1",
        "act": "",
        "tone": "",
@@ -1719633,7 +1719635,7 @@
     "nswd1": {
      "id": "nswd1",
      "speaker": "Sword Trainer",
-     "text": "Good question! Blocking with Q stops melee blows, and swinging your melee weapon with F right into an incoming projectile swats it out of the air! Time your Q blocks and F swings—want to try it on me?",
+     "text": "Good question! Blocking with Q stops melee blows, and swinging your melee weapon with F right into an incoming projectile swats it out of the air! Time your Q blocks and F swings. want to try it on me?",
      "choices": [
       {
        "id": "cswd4",
@@ -1719656,7 +1719658,7 @@
     "nswd2": {
      "id": "nswd2",
      "speaker": "Sword Trainer",
-     "text": "En garde! Block my 1-damage training sword with Q and strike back with F!",
+     "text": "En garde! Block my strike with Q and strike back with F!",
      "choices": [
       {
        "id": "cswd6",
@@ -1719669,7 +1719671,8 @@
      ]
     }
    },
-   "savedAt": 1792235735420
+   "savedAt": 1792237493690,
+   "editedFrom": 1792235735420
   },
   {
    "id": "tvs1dlg",
