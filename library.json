@@ -894523,9 +894523,11 @@
     }
    },
    "sounds": {
-    "attack": "pr9c2n5"
+    "attack": "pr9c2n5",
+    "hurt": "8wj9mvj",
+    "death": "9skpe67"
    },
-   "savedAt": 1792267513973
+   "savedAt": 1792267573921
   },
   {
    "id": "ratmsk1",
@@ -968626,7 +968628,6 @@
      "y": 124
     }
    },
-   "savedAt": 1790547633242,
    "groups": {
     "side": [
      {
@@ -968839,7 +968840,13 @@
      "x": 121.5,
      "y": 75
     }
-   }
+   },
+   "sounds": {
+    "death": "9skpe67",
+    "attack": "5542xx2",
+    "hurt": "5542xx2"
+   },
+   "savedAt": 1792267573931
   },
   {
    "id": "swiwj1p",
@@ -1005360,13 +1005367,18 @@
     ]
    },
    "scale": 1,
-   "savedAt": 1791071089809,
    "holdPoint": {
     "side": {
      "x": 25,
      "y": 121
     }
-   }
+   },
+   "sounds": {
+    "death": "9skpe67",
+    "hurt": "6f5xiih",
+    "attack": "6f5xiih"
+   },
+   "savedAt": 1792267573938
   },
   {
    "id": "trtlmsk",
