@@ -1284621,6 +1284621,54 @@
     "9,10": {
      "c": "#29331f",
      "tex": "422iwrd"
+    },
+    "17,132": {
+     "c": "#3a3f52",
+     "hideInPlay": true
+    },
+    "18,132": {
+     "c": "#3a3f52",
+     "hideInPlay": true
+    },
+    "19,132": {
+     "c": "#3a3f52",
+     "hideInPlay": true
+    },
+    "20,132": {
+     "c": "#3a3f52",
+     "hideInPlay": true
+    },
+    "21,132": {
+     "c": "#3a3f52",
+     "hideInPlay": true
+    },
+    "21,133": {
+     "c": "#3a3f52",
+     "hideInPlay": true
+    },
+    "22,133": {
+     "c": "#3a3f52",
+     "hideInPlay": true
+    },
+    "22,132": {
+     "c": "#3a3f52",
+     "hideInPlay": true
+    },
+    "20,133": {
+     "c": "#3a3f52",
+     "hideInPlay": true
+    },
+    "19,133": {
+     "c": "#3a3f52",
+     "hideInPlay": true
+    },
+    "18,133": {
+     "c": "#3a3f52",
+     "hideInPlay": true
+    },
+    "17,133": {
+     "c": "#3a3f52",
+     "hideInPlay": true
     }
    },
    "bg": {
@@ -1295254,6 +1295302,12 @@
     },
     "29,131": {
      "kind": "ladder"
+    },
+    "17,130": {
+     "kind": "ladder"
+    },
+    "17,131": {
+     "kind": "ladder"
     }
    },
    "hazard": {},
@@ -1295342,8 +1295396,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1792260914582,
-   "editedFrom": 1792113890715
+   "savedAt": 1792261072789,
+   "editedFrom": 1792260914582
   },
   {
    "id": "eb4dqst",
