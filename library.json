@@ -759247,13 +759247,14 @@
    "captureMax": 0,
    "explodeChar": "💥",
    "landChar": "🔥",
-   "value": 2,
+   "value": 69,
    "rank": "poor",
    "sounds": {
     "fire": "18sacwd",
     "hit": "6hh0w94"
    },
-   "savedAt": 1792234948555
+   "savedAt": 1792254242358,
+   "editedFrom": 1792234948555
   },
   {
    "id": "nhls82t",
@@ -936219,8 +936220,8 @@
    "wtype": "melee",
    "projectileId": null,
    "projectileSpeed": 12,
-   "damage": 1,
-   "savedAt": 1792234948556,
+   "damage": 67,
+   "savedAt": 1792254261820,
    "groups": {
     "front": [],
     "back": [],
@@ -939247,7 +939248,8 @@
    "rank": "poor",
    "sounds": {
     "hit": "j8bdd8g"
-   }
+   },
+   "editedFrom": 1792234948556
   },
   {
    "id": "trplmp1",
