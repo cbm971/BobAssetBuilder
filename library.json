@@ -1268701,6 +1268701,12 @@
     "43,79": {
      "kind": "door",
      "tag": "Trailor Int"
+    },
+    "13,33": {
+     "kind": "objective",
+     "text": "Go into the side room to prepare",
+     "targetTag": "TCloset 1",
+     "score": 100
     }
    },
    "enemies": {
@@ -1268753,8 +1268759,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1792272619081,
-   "editedFrom": 1792270288305
+   "savedAt": 1792273152728,
+   "editedFrom": 1792273147178
   },
   {
    "id": "8l3tqki",
