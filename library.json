@@ -1745099,9 +1745099,10 @@
      ]
     }
    },
-   "savedAt": 1792237516633,
+   "savedAt": 1792253773799,
    "once": true,
-   "editedFrom": 1791546697759
+   "editedFrom": 1792237516633,
+   "sound": "6f5xiih"
   },
   {
    "id": "dlgwthr",
@@ -1745756,7 +1745757,10 @@
      ]
     }
    },
-   "savedAt": 1792249620175
+   "savedAt": 1792253781861,
+   "sound": "6f5xiih",
+   "editedFrom": 1792253766319,
+   "soundVol": 0.5
   },
   {
    "id": "swdtdlg",
@@ -1745944,6 +1745948,17 @@
    "dur": 0.47,
    "savedAt": 1792107353089,
    "editedFrom": 1792107341569
+  },
+  {
+   "id": "6f5xiih",
+   "type": "sound",
+   "name": "93828__cgeffex__alien-voice8",
+   "category": "Dialogue",
+   "clip": "16b540dd77a8461dad9496c1f0cf.flac",
+   "bytes": 46493,
+   "dur": 0.78,
+   "savedAt": 1792253757305,
+   "editedFrom": 1792253746247
   },
   {
    "id": "6hh0w94",
