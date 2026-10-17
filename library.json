@@ -807845,7 +807845,7 @@
    "projectileSpeed": 8,
    "projectileRange": 20,
    "damage": 15,
-   "fireRate": 15,
+   "fireRate": 4,
    "clipSize": 2,
    "reloadTime": 0.3,
    "weight": 3,
@@ -807859,7 +807859,7 @@
    "burstFire": true,
    "fullAuto": false,
    "burst": 2,
-   "burstDelay": 0.02,
+   "burstDelay": 0.06,
    "explodeRadius": 2,
    "explodePropId": null,
    "explodeSize": 3,
@@ -807880,8 +807880,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792250059721,
-   "editedFrom": 1792250055596,
+   "savedAt": 1792250135058,
+   "editedFrom": 1792250059721,
    "pierce": true,
    "sounds": {
     "fire": "4xdiye5"
