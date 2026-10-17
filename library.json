@@ -417232,7 +417232,7 @@
    "size": 6,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Draft Office",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -417699,7 +417699,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792258176693,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dftclas",
@@ -419802,7 +419803,7 @@
    "size": 6,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Draft Office",
+   "category": "Science",
    "frames": [
     {
      "front": [
@@ -420757,7 +420758,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792258166821,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dftexit",
@@ -425249,7 +425251,7 @@
    "size": 6,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Draft Office",
+   "category": "Stage",
    "frames": [
     {
      "front": [
@@ -425772,7 +425774,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792258157578,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dftscal",
@@ -425782,7 +425785,7 @@
    "size": 5,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Draft Office",
+   "category": "Science",
    "frames": [
     {
      "front": [
@@ -426213,7 +426216,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792258133005,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dftscrn",
@@ -426223,7 +426227,7 @@
    "size": 5,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Draft Office",
+   "category": "Science",
    "frames": [
     {
      "front": [
@@ -426818,7 +426822,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792257446342
+   "savedAt": 1792258143892,
+   "editedFrom": 1792257446342
   },
   {
    "id": "dftsign",
