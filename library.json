@@ -736688,7 +736688,7 @@
    "projectileId": "aopkigm",
    "projectileSpeed": 8,
    "projectileRange": 20,
-   "damage": 35,
+   "damage": 45,
    "fireRate": 1.5,
    "clipSize": 1,
    "reloadTime": 2.5,
@@ -736728,7 +736728,8 @@
     "hit": "6hh0w94",
     "fire": "dti525c"
    },
-   "savedAt": 1791656363669
+   "savedAt": 1792252365085,
+   "editedFrom": 1791656363669
   },
   {
    "id": "mdetsd1",
