@@ -1144810,24 +1144810,7 @@
     },
     "17,68": {
      "c": "#ece4cc",
-     "tex": "clgtl01",
-     "slope": -1,
-     "run": 1,
-     "step": 0,
-     "rise": 4,
-     "rstep": 1,
-     "upsideDown": true,
-     "more": [
-      {
-       "c": "#8b5a2b",
-       "tex": "4cugsd5",
-       "slope": 1,
-       "run": 1,
-       "step": 0,
-       "rise": 4,
-       "rstep": 1
-      }
-     ]
+     "tex": "clgtl01"
     },
     "18,67": {
      "c": "#ece4cc",
@@ -1144835,24 +1144818,7 @@
     },
     "18,68": {
      "c": "#ece4cc",
-     "tex": "clgtl01",
-     "slope": -1,
-     "run": 1,
-     "step": 0,
-     "rise": 4,
-     "rstep": 2,
-     "upsideDown": true,
-     "more": [
-      {
-       "c": "#8b5a2b",
-       "tex": "4cugsd5",
-       "slope": 1,
-       "run": 1,
-       "step": 0,
-       "rise": 4,
-       "rstep": 2
-      }
-     ]
+     "tex": "clgtl01"
     },
     "19,67": {
      "c": "#ece4cc",
@@ -1144860,147 +1144826,31 @@
     },
     "19,68": {
      "c": "#ece4cc",
-     "tex": "clgtl01",
-     "slope": -1,
-     "run": 1,
-     "step": 0,
-     "rise": 4,
-     "rstep": 3,
-     "upsideDown": true,
-     "more": [
-      {
-       "c": "#8b5a2b",
-       "tex": "4cugsd5",
-       "slope": 1,
-       "run": 1,
-       "step": 0,
-       "rise": 4,
-       "rstep": 3
-      }
-     ]
+     "tex": "clgtl01"
     },
     "20,67": {
      "c": "#ece4cc",
-     "tex": "clgtl01",
-     "slope": -1,
-     "run": 1,
-     "step": 0,
-     "rise": 3,
-     "rstep": 0,
-     "upsideDown": true,
-     "more": [
-      {
-       "c": "#8b5a2b",
-       "tex": "4cugsd5",
-       "slope": 1,
-       "run": 1,
-       "step": 0,
-       "rise": 3,
-       "rstep": 0
-      }
-     ]
+     "tex": "clgtl01"
     },
     "20,68": {
-     "c": "#8b5a2b",
-     "tex": "4cugsd5"
-    },
-    "21,67": {
      "c": "#ece4cc",
-     "tex": "clgtl01",
-     "slope": -1,
-     "run": 1,
-     "step": 0,
-     "rise": 3,
-     "rstep": 1,
-     "upsideDown": true,
-     "more": [
-      {
-       "c": "#8b5a2b",
-       "tex": "4cugsd5",
-       "slope": 1,
-       "run": 1,
-       "step": 0,
-       "rise": 3,
-       "rstep": 1
-      }
-     ]
+     "tex": "clgtl01"
     },
     "21,68": {
-     "c": "#8b5a2b",
-     "tex": "4cugsd5"
+     "c": "#ece4cc",
+     "tex": "clgtl01"
+    },
+    "22,68": {
+     "c": "#ece4cc",
+     "tex": "clgtl01"
     },
     "22,67": {
      "c": "#ece4cc",
-     "tex": "clgtl01",
-     "slope": -1,
-     "run": 1,
-     "step": 0,
-     "rise": 3,
-     "rstep": 2,
-     "upsideDown": true,
-     "more": [
-      {
-       "c": "#8b5a2b",
-       "tex": "4cugsd5",
-       "slope": 1,
-       "run": 1,
-       "step": 0,
-       "rise": 3,
-       "rstep": 2
-      }
-     ]
+     "tex": "clgtl01"
     },
-    "22,68": {
-     "c": "#8b5a2b",
-     "tex": "4cugsd5"
-    },
-    "23,42": {
-     "c": "#8b5a2b",
-     "tex": "4cugsd5"
-    },
-    "23,43": {
-     "c": "#8b5a2b",
-     "tex": "4cugsd5"
-    },
-    "24,42": {
-     "c": "#8b5a2b",
-     "tex": "4cugsd5"
-    },
-    "24,43": {
-     "c": "#8b5a2b",
-     "tex": "4cugsd5"
-    },
-    "25,42": {
-     "c": "#8b5a2b",
-     "tex": "4cugsd5"
-    },
-    "25,43": {
-     "c": "#8b5a2b",
-     "tex": "4cugsd5"
-    },
-    "23,67": {
-     "c": "#8b5a2b",
-     "tex": "4cugsd5"
-    },
-    "23,68": {
-     "c": "#8b5a2b",
-     "tex": "4cugsd5"
-    },
-    "24,67": {
-     "c": "#8b5a2b",
-     "tex": "4cugsd5"
-    },
-    "24,68": {
-     "c": "#8b5a2b",
-     "tex": "4cugsd5"
-    },
-    "25,67": {
-     "c": "#8b5a2b",
-     "tex": "4cugsd5"
-    },
-    "25,68": {
-     "c": "#8b5a2b",
-     "tex": "4cugsd5"
+    "21,67": {
+     "c": "#ece4cc",
+     "tex": "clgtl01"
     }
    },
    "bg": {
@@ -1156266,8 +1156116,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1792236759345,
-   "editedFrom": 1792236758716
+   "savedAt": 1792236854120,
+   "editedFrom": 1792236759345
   },
   {
    "id": "8l3tqki",
