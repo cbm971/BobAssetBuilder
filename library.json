@@ -597610,6 +597610,106 @@
    "rank": "common"
   },
   {
+   "id": "hrqbyju",
+   "name": "Beam",
+   "type": "projectile",
+   "angles": {
+    "front": [
+     {
+      "id": "whxfo5g",
+      "kind": "stadium",
+      "x": 23,
+      "y": 109.5,
+      "w": 164.5,
+      "h": 5.5,
+      "color": "#7a3b8f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.15
+      }
+     },
+     {
+      "id": "66e2duw",
+      "kind": "stadium",
+      "x": 41,
+      "y": 110.5,
+      "w": 14,
+      "h": 3,
+      "color": "#7a3b8f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.15
+      },
+      "rot": 115
+     },
+     {
+      "id": "1bqj9yo",
+      "kind": "stadium",
+      "x": 104.5,
+      "y": 110,
+      "w": 11,
+      "h": 4,
+      "color": "#7a3b8f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.05
+      },
+      "rot": 57
+     },
+     {
+      "id": "g3b36y9",
+      "kind": "stadium",
+      "x": 74,
+      "y": 111.5,
+      "w": 9,
+      "h": 3,
+      "color": "#7a3b8f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.15
+      },
+      "rot": 90
+     },
+     {
+      "id": "x9nz9d6",
+      "kind": "stadium",
+      "x": 153.5,
+      "y": 110.5,
+      "w": 7.5,
+      "h": 3,
+      "color": "#7a3b8f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.05
+      },
+      "rot": 108
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "guideId": "default",
+   "size": 1,
+   "savedAt": 1792249335308
+  },
+  {
    "id": "hwbtm2t",
    "name": "Vietnamese Hat",
    "type": "equipment",
