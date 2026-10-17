@@ -1364159,15 +1364159,6 @@
       "Range"
      ]
     },
-    "18,107": {
-     "enemyId": "k9mmx44",
-     "facing": -1,
-     "ai": "seek",
-     "weaponId": "none",
-     "gearTags": [
-      "Meelee"
-     ]
-    },
     "18,147": {
      "enemyId": "cr0cd1l",
      "facing": -1,
@@ -1364209,7 +1364200,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1791671301224
+   "savedAt": 1792243668919,
+   "editedFrom": 1791671301224
   },
   {
    "id": "k7385z5",
