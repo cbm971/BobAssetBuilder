@@ -1325722,7 +1325722,20 @@
      "logic": "or"
     }
    },
-   "enemies": {},
+   "enemies": {
+    "18,29": {
+     "enemyId": "7o95ulb",
+     "facing": -1,
+     "ai": "guard",
+     "dialogueId": "omabn5b"
+    },
+    "18,11": {
+     "enemyId": "xclq3hs",
+     "facing": -1,
+     "ai": "guard",
+     "dialogueId": "omabn5b"
+    }
+   },
    "conns": {
     "N1": {
      "open": false,
@@ -1325757,8 +1325770,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1792249485906,
-   "editedFrom": 1792248149138
+   "savedAt": 1792249849359,
+   "editedFrom": 1792249846598
   },
   {
    "id": "h440ssw",
