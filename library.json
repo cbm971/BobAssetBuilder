@@ -811915,8 +811915,8 @@
    "fireRate": 1,
    "clipSize": 5,
    "reloadTime": 3.6,
-   "projectileRange": 42,
-   "projectileSpeed": 26,
+   "projectileRange": 44,
+   "projectileSpeed": 18,
    "weight": 5,
    "value": 22,
    "rank": "legendary",
@@ -821091,8 +821091,8 @@
      }
     ]
    },
-   "savedAt": 1792279052134,
-   "editedFrom": 1792279027144
+   "savedAt": 1792279590716,
+   "editedFrom": 1792279052134
   },
   {
    "id": "ma7adq1",
