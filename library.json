@@ -754249,7 +754249,7 @@
     ]
    },
    "scale": 1.25,
-   "savedAt": 1792267390354,
+   "savedAt": 1792267404800,
    "holdPoint": {
     "side": {
      "x": 62,
@@ -754259,9 +754259,12 @@
    "sounds": {
     "attack": "jgcarlo",
     "hurt": "8wj9mvj",
-    "death": "8wj9mvj"
+    "death": "lx4ot2r"
    },
-   "editedFrom": 1792267375400
+   "editedFrom": 1792267399339,
+   "soundVol": {
+    "death": 0.05
+   }
   },
   {
    "id": "l17rsel",
@@ -887843,7 +887846,6 @@
      "y": 124
     }
    },
-   "savedAt": 1790547623910,
    "groups": {
     "side": [
      {
@@ -888056,7 +888058,17 @@
      "x": 117,
      "y": 78.5
     }
-   }
+   },
+   "sounds": {
+    "attack": "rrbq1w9",
+    "hurt": "w9z0dds",
+    "death": "5542xx2"
+   },
+   "soundVol": {
+    "attack": 0.05,
+    "hurt": 0.1
+   },
+   "savedAt": 1792267453900
   },
   {
    "id": "r0ckrub",
