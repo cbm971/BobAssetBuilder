@@ -388,6 +388,7 @@ import {
   reviveInPlace,
   unitUntouchable,
   unitHitImmune,
+  weaponKindOf,
   PLAYER_INVULN_FRAMES,
   livesLeftNote,
   DIALOGUE_ACTS,
@@ -9321,6 +9322,18 @@ describe("you get the change, and the counter still cannot be farmed", () => {
   });
 });
 
+describe("a weapon opens among its own kind", () => {
+  test("melee, ranged and throwable are told apart, and an old weapon with no type is melee", () => {
+    expect(weaponKindOf({ type: "weapon", wtype: "melee" })).toBe("melee");
+    expect(weaponKindOf({ type: "weapon" })).toBe("melee");
+    expect(weaponKindOf({ type: "weapon", wtype: "ranged" })).toBe("ranged");
+    expect(weaponKindOf({ type: "weapon", wtype: "projectile" })).toBe("ranged");
+    expect(weaponKindOf({ type: "weapon", wtype: "throw" })).toBe("throw");
+    const lib = [{ id: "b", wtype: "melee" }, { id: "m", wtype: "ranged" }, { id: "g", wtype: "throw" }, { id: "o" }];
+    expect(lib.filter((a) => weaponKindOf(a) === weaponKindOf({ wtype: "melee" })).map((a) => a.id)).toEqual(["b", "o"]);
+  });
+});
+
 describe("a hat does not replace your underwear", () => {
   // Blake's own tagging: box 1 is a TIER every item carries, box 2 is the kind, box 3 is a mood.
   const hat = { id: "h", type: "equipment", slot: "hat", name: "Cap", categories: ["T1", "Hat", "Strong"] };
@@ -12393,20 +12406,26 @@ describe("a unit's armour counts the way yours does", () => {
     expect(unitUntouchable({ invuln: PLAYER_INVULN_FRAMES })).toBe(false);
   });
 
-  test("every place a unit is HIT starts its i-frames, exactly where the player's sites start yours", () => {
+  test("every place a unit is HIT by a blow starts its i-frames, exactly where the player's sites start yours (a bullet does not)", () => {
     const lines = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8").split(String.fromCharCode(10));
     const hits = [];
     lines.forEach((ln, i) => { if (/enemyHP\.current\[[^\]]+\] = Math\.max\(0, /.test(ln) && !ln.includes("- loss)")) hits.push(i); });
     expect(hits.length).toBeGreaterThanOrEqual(10);
+    // A BULLET is the exception (Blake, 2026-10-17): full auto fires every few frames, so 40 i-frames
+    // swallowed most of an M16's rounds. Exactly the two bullet sites are marked, and nothing else is.
+    const bulletSites = hits.filter((i) => lines[i].includes("🔫 bullet: starts no i-frames"));
+    expect(bulletSites.length).toBe(2);
     for (const i of hits) {
+      if (bulletSites.includes(i)) continue;
       const after = lines.slice(i, i + 3).join(" ");
       expect([i + 1, after.includes(".invuln = PLAYER_INVULN_FRAMES")]).toEqual([i + 1, true]);
     }
     // ...and every gate in front of a hit asks unitHitImmune. unitUntouchable is left to the fire
     // drain and the gold revive glow, and to nothing else.
+    // ...and the two bullet gates ask unitUntouchable (the revive grace) and nothing about i-frames.
     const untouchable = lines.map((ln, i) => [i, ln]).filter(([, ln]) => ln.includes("unitUntouchable(") && !ln.trim().startsWith("*") && !ln.trim().startsWith("//") && !ln.includes("export const unitUntouchable"));
-    expect(untouchable.length).toBe(2); // the fire drain, and the sprite line (gold glow + the hit blink that stands aside for it)
-    for (const [, ln] of untouchable) expect(/eDps > 0|enemySpawn/.test(ln)).toBe(true);
+    expect(untouchable.length).toBe(4); // the fire drain, the sprite line (gold glow + the hit blink that stands aside for it), and the two bullet gates
+    for (const [, ln] of untouchable) expect(/eDps > 0|enemySpawn|!pr.pierce/.test(ln)).toBe(true);
   });
 
   test("a new Playtest starts on the look's own HP, not on last session's pickups", () => {

@@ -1869,6 +1869,10 @@ export const isRanged = (wtype) => wtype === "ranged" || wtype === "projectile";
 // It's a limited, single-use PICKUP — you carry however many you've found, like Isaac's bombs —
 // so it never mounts on the hand like a melee/ranged weapon; it lives only in the throw system.
 export const isThrowable = (wtype) => wtype === "throw";
+// Which of the three kinds a weapon is, for any list that groups or narrows weapons by kind. An old
+// weapon with no wtype is melee, as migrate says.
+export const weaponKindOf = (w) => (w && isRanged(w.wtype) ? "ranged" : w && isThrowable(w.wtype) ? "throw" : "melee");
+export const WEAPON_KIND_LABEL = { ranged: "ranged weapon", melee: "melee weapon", throw: "throwable" };
 // WEAPON ABILITIES — the optional powers and firing modes a ranged weapon can carry. These live as
 // plain flags on the asset; the EDITOR reads
 // them from this registry instead of hard-coding one checkbox each. A checkbox per power meant every
@@ -17244,12 +17248,11 @@ export default function AssetStudio() {
               const eHitLeft = ep.x + (eShape.centerFrac * eRenderW - epw / 2);
               if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop && pierceFreshHit(pr, k)) {
                 if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
-                if (unitHitImmune(ep)) { if (!pr.pierce) return false; continue; } // 🐱 mid-revive or in its i-frames: consumed, does nothing — the same reading an invulnerable player gets
+                if (unitUntouchable(ep)) { if (!pr.pierce) return false; continue; } // 🐱 mid-revive: consumed, does nothing. A bullet ignores i-frames (see the shot at a hostile below)
                 // The shooter's crit and its weapon's stun, on your ally as yours land on a hostile.
                 const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
                 if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
-                enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(aCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor));
-                ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln in the branch above (unitHitImmune)
+                enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(aCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor)); // 🔫 bullet: starts no i-frames
                 ep.lastHitByFx = pr.shooterFx || null;
                 if (enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
                 if (enemyHP.current[k] <= 0) flash("💔 Your " + ea.name + " fell.");
@@ -17310,7 +17313,12 @@ export default function AssetStudio() {
               // and does nothing, the same reading a shot gets off an invulnerable player. After
               // the explode branch on purpose — a rocket still goes off on it, and the blast pass
               // then reads the same window.
-              if (unitHitImmune(ep)) { if (!pr.pierce) return false; continue; }
+              // A BULLET IGNORES THE 40 I-FRAMES (it neither asks them nor starts them). Full auto fires
+              // every few frames, so with i-frames on a unit the M16 landed one round in ten and the rest
+              // were swallowed (Blake, 2026-10-17: "in full auto most shots do not do damage"). The i-frames
+              // stay for blows -- melee, stomps, blasts -- which are one hit per swing. Only the revive grace
+              // (unitUntouchable) still turns a round away.
+              if (unitUntouchable(ep)) { if (!pr.pierce) return false; continue; }
               // The weapon's Damage number, flat, whoever pulled the trigger — then the one
               // permitted character difference: an Intelligence crit roll for double. What it
               // takes OFF is then decided by the target's armour, exactly as a foe's round into
@@ -17320,8 +17328,7 @@ export default function AssetStudio() {
               if (ep) ep.lastHitByFx = pr.shooterFx || null;
               if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
               const dmg = incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor);
-              enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
-              if (ep) ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln in the foe branch above (unitHitImmune)
+              enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🔫 bullet: starts no i-frames
               if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
               flash((isCrit ? "💥 Critical! " : "🎯 ") + "Hit " + ea.name + " for " + dmg + crouchGuardNote(ea.effects, ep && ep.crouch) + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
               if (!pr.pierce) return false; // projectile consumed on impact — a 🪡 piercing one flies on to the next body
@@ -27071,9 +27078,11 @@ export default function AssetStudio() {
             <div className="grp"><span className="gl">Keep your work</span>
               <div className="row2">{hasStore && <button onClick={saveAsset}>💾 Save</button>}<button onClick={download}>⬇ Download file</button><label className="up">⬆ Upload file<input type="file" accept=".json,application/json,text/plain" onChange={upload} hidden /></label></div>
             </div>
-            <div className="grp"><span className="gl">Open a saved {asset.type === "equipment" ? (SLOTS[asset.slot]?.label || "item") : (TYPES[asset.type]?.label || asset.type)}</span>
+            <div className="grp"><span className="gl">Open a saved {asset.type === "equipment" ? (SLOTS[asset.slot]?.label || "item") : asset.type === "weapon" ? WEAPON_KIND_LABEL[weaponKindOf(asset)] : (TYPES[asset.type]?.label || asset.type)}</span>
               {(() => {
-                const sameCategory = library.filter((a) => a.type === asset.type && (asset.type !== "equipment" || a.slot === asset.slot));
+                            // A WEAPON OPENS AMONG ITS OWN KIND. Weapon > Melee started a melee weapon and this list then
+                // offered every ranged gun and grenade beside it.
+                const sameCategory = library.filter((a) => a.type === asset.type && (asset.type !== "equipment" || a.slot === asset.slot) && (asset.type !== "weapon" || weaponKindOf(a) === weaponKindOf(asset)));
                 // OBJECTS OPEN THROUGH THEIR FOLDERS HERE TOO. Load and the Level Creator both file
                 // Objects under their folder (groupByCategory), but this list — the one the Object
                 // editor's own 💾 Save & Open shows — was every Object flat, in library order, so 63
