@@ -1194061,10 +1194061,6 @@
      "c": "#7fa8b4",
      "tex": "frstgl1"
     },
-    "8,24": {
-     "c": "#7fa8b4",
-     "tex": "frstgl1"
-    },
     "9,24": {
      "c": "#40e0d0",
      "tex": "bthtl01"
@@ -1195281,13 +1195277,9 @@
      "c": "#f5f5dc",
      "tex": "5n56ytz"
     },
-    "12,25": {
-     "c": "#f5f5dc",
-     "tex": "5n56ytz"
-    },
     "13,25": {
-     "c": "#f5f5dc",
-     "tex": "5n56ytz"
+     "c": "#7fa8b4",
+     "tex": "frstgl1"
     },
     "14,25": {
      "c": "#f5f5dc",
@@ -1197130,12 +1197122,6 @@
     ]
    },
    "climb": {
-    "12,33": {
-     "kind": "topdown"
-    },
-    "12,34": {
-     "kind": "topdown"
-    },
     "13,33": {
      "kind": "topdown"
     },
@@ -1198138,12 +1198124,6 @@
     "23,36": {
      "kind": "topdown"
     },
-    "16,37": {
-     "kind": "topdown"
-    },
-    "17,37": {
-     "kind": "topdown"
-    },
     "18,37": {
      "kind": "topdown"
     },
@@ -1198178,24 +1198158,6 @@
      "kind": "topdown"
     },
     "13,36": {
-     "kind": "topdown"
-    },
-    "12,35": {
-     "kind": "topdown"
-    },
-    "12,36": {
-     "kind": "topdown"
-    },
-    "12,37": {
-     "kind": "topdown"
-    },
-    "13,37": {
-     "kind": "topdown"
-    },
-    "14,37": {
-     "kind": "topdown"
-    },
-    "15,37": {
      "kind": "topdown"
     },
     "17,24": {
@@ -1198248,6 +1198210,24 @@
     },
     "14,6": {
      "kind": "topdown"
+    },
+    "13,27": {
+     "kind": "topdown"
+    },
+    "13,28": {
+     "kind": "topdown"
+    },
+    "13,29": {
+     "kind": "topdown"
+    },
+    "13,30": {
+     "kind": "topdown"
+    },
+    "13,31": {
+     "kind": "topdown"
+    },
+    "13,32": {
+     "kind": "topdown"
     }
    },
    "hazard": {},
@@ -1198280,7 +1198260,7 @@
      ],
      "logic": "or"
     },
-    "8,24": {
+    "13,25": {
      "kind": "pedestal",
      "cats": [
       "T1",
@@ -1198324,8 +1198304,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1792254845350,
-   "editedFrom": 1792062028479
+   "savedAt": 1792255937251,
+   "editedFrom": 1792255925414
   },
   {
    "id": "d78n8wx",
