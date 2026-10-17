@@ -1574,6 +1574,50 @@ export const advanceAutoReloadWeapon = (w, dt, reloadFrames) => {
   const next = advanceWeapon(w, dt);
   return needsReload(next) ? startReload(next, reloadFrames) : next;
 };
+// --- Damage per second over a window --------------------------------------------------------
+// The HUD's bottom-right number used to be ONE hit's damage, which says nothing about a gun that
+// fires 15 a second next to one that fires 1 and then reloads for five. This is what the weapon
+// actually puts out over `secs` seconds (10 by default) starting from a full magazine, with the
+// trigger worked as fast as the weapon lets you, divided by the window: fire-rate cooldown, burst
+// salvos, the magazine running dry and the reload it forces are all in it. It is a SIMULATION over
+// the same pure rules the playtest loop calls (canFireNow, consumeShot, burstShotDue, startReload,
+// advanceWeapon) rather than a formula, so a change to any of them moves the HUD with it — the
+// closed-form version (shots-per-clip over clip-time-plus-reload) is wrong the moment a burst or a
+// cooldown shorter than a frame is in play.
+//   * RANGED: `perHit` is one round's damage (enemyAttackDamage). clip 0 = unlimited, so fire rate
+//     alone; `intelligence` and `effects` feed the reload speed and the Magazine Size gear exactly
+//     as the loop does.
+//   * everything else (melee, a throwable held in the hand): one swing per PLAYER_SWING_FRAMES,
+//     the arc's own length — a swing is edge-triggered by the press, and the stroke cannot be
+//     restarted faster than it plays, so that is the ceiling the HUD can honestly quote.
+export const WEAPON_DPS_WINDOW_SECS = 10;
+export const PLAYER_SWING_FRAMES = 12;
+export const weaponDpsOver = (weapon, perHit, intelligence, effects, secs = WEAPON_DPS_WINDOW_SECS) => {
+  const frames = Math.max(1, Math.round(secs * 60));
+  const hit = Math.max(0, perHit || 0);
+  if (!weapon || !isRanged(weapon.wtype)) return hit * Math.ceil(frames / PLAYER_SWING_FRAMES) / secs;
+  const cdFrames = weaponFireCooldownFrames(weapon.fireRate);
+  const reloadFrames = weaponReloadFrames(weapon.reloadTime, intelligence);
+  const salvo = weaponBurstShotCount(weapon), salvoGap = burstDelayFrames(weapon.burstDelay);
+  let w = newWeaponAmmo(effectiveMagazineSize(weapon.clipSize, effects));
+  let burstLeft = 0, burstT = 0, shots = 0;
+  for (let f = 0; f < frames; f++) {
+    if (burstLeft > 0) burstT -= 1;
+    const due = burstShotDue(burstLeft, burstT, w);
+    if (burstLeft > 0 && !due && (w.reloadT > 0 || (w.clip > 0 && w.ammo <= 0))) burstLeft = 0; // ran dry mid-salvo — the loop abandons the rest
+    if (!canFireNow(w) && !due) {
+      if (needsReload(w)) { w = startReload(w, reloadFrames); burstLeft = 0; }
+    } else {
+      w = consumeShot(w, cdFrames); shots++;
+      burstLeft = due ? burstLeft - 1 : salvo - 1;
+      burstT = salvoGap;
+    }
+    w = advanceWeapon(w, 1);
+  }
+  return hit * shots / secs;
+};
+// The HUD's wording of it: a whole number from 100 up, one decimal below, so 2.5 does not read as 3.
+export const formatDps = (dps) => { const d = Math.max(0, dps || 0); return d >= 100 ? String(Math.round(d)) : String(Math.round(d * 10) / 10); };
 // --- Undo: an entry is the asset AND the cursor saying which slot of it is on screen ---------
 //
 // `asset.angles` is the ONE live editing surface. Which slot it belongs to is held in separate
@@ -25693,6 +25737,10 @@ export default function AssetStudio() {
                 }
                 // ATK lives here only (Blake: "you don't need Atk at the top and the weapon in the bottom right").
                 const atk = { v: enemyAttackDamage({ ...merged, stats: { ...st, strength: strNow } }, playtestWeapon), d: buffs.strength || 0 };
+                // The figure shown is what that damage adds up to over 10 s with the fire rate, the
+                // magazine and the reload in it (weaponDpsOver) — one hit's damage said nothing about
+                // a fast gun next to a slow one. d still tints it off the Strength buff.
+                const dps = weaponDpsOver(playtestWeapon, atk.v, (st.intelligence ?? 5) + (buffs.intelligence || 0), playerAsset?.effects);
                 return (
                   <>
                   <div className="hudBot">
@@ -25702,7 +25750,7 @@ export default function AssetStudio() {
                         {wPlane ? <div style={wPlane}>{renderPieceRuns({ pieces: wPieces, cacheKey: "hudw_" + playtestWeapon.id, keyPrefix: "hudw" + playtestWeapon.id + "_", alpha: assetAlpha(playtestWeapon), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>
                           : sym("stat.atk", null, 34)}
                       </div>
-                      <span className="hudWpnDmg">{Math.round(atk.v)}</span>
+                      <span className="hudWpnDmg">{formatDps(dps)}<small className="hudWpnUnit">DPS</small></span>
                     </div>
                   </div>
                   <div className="hud">
@@ -27622,6 +27670,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .hudWpn{display:flex;align-items:center;gap:8px;line-height:1}
 .hudWpnArt{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 1px rgba(255,255,255,.9)) drop-shadow(0 0 1px rgba(255,255,255,.6)) drop-shadow(0 1px 3px rgba(0,0,0,.8))}
 .hudWpnDmg{font-size:22px;font-weight:700;letter-spacing:.04em;min-width:26px;text-align:right}
+.hudWpnUnit{font-size:11px;font-weight:700;margin-left:3px;letter-spacing:.06em;opacity:.8}
 .hudWpn.up .hudWpnDmg{color:#8ef59a}
 .hudWpn.down .hudWpnDmg{color:#ff9b9b}
 .hudScoreLbl{font-size:12px;font-weight:700;letter-spacing:.2em;color:#dfe4ee}

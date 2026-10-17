@@ -174,6 +174,9 @@ import {
   CUTTER_MASK_PAD,
   cutterMaskFrameLayout,
   advanceAutoReloadWeapon,
+  weaponDpsOver,
+  formatDps,
+  WEAPON_DPS_WINDOW_SECS,
   weaponAbilitiesFor,
   shotPierces,
   pierceFreshHit,
@@ -13778,3 +13781,45 @@ describe("backup and dialogue metadata preservation", () => {
   });
 });
 
+// The HUD's bottom-right figure: damage per second over 10 s, not one hit.
+describe("weaponDpsOver", () => {
+  const gun = (o) => ({ wtype: "ranged", fireRate: 3, clipSize: 0, reloadTime: 1.2, ...o });
+  test("the window is ten seconds", () => { expect(WEAPON_DPS_WINDOW_SECS).toBe(10); });
+  test("an unlimited-ammo gun is its fire rate times the hit", () => {
+    expect(weaponDpsOver(gun({ fireRate: 3 }), 10)).toBe(30);   // 30 shots in 10 s
+    expect(weaponDpsOver(gun({ fireRate: 6 }), 10)).toBe(60);
+  });
+  test("a magazine running dry and reloading costs damage", () => {
+    const free = weaponDpsOver(gun({ clipSize: 0 }), 10);
+    const clipped = weaponDpsOver(gun({ clipSize: 6 }), 10);
+    expect(clipped).toBeLessThan(free);
+    expect(clipped).toBe(23);                                   // 6 + 6 + 6 + 5 shots, two 1.2 s reloads in between
+  });
+  test("a longer reload and a smaller clip both lower it", () => {
+    const base = weaponDpsOver(gun({ clipSize: 6, reloadTime: 1.2 }), 10);
+    expect(weaponDpsOver(gun({ clipSize: 6, reloadTime: 3 }), 10)).toBeLessThan(base);
+    expect(weaponDpsOver(gun({ clipSize: 2, reloadTime: 1.2 }), 10)).toBeLessThan(base);
+    expect(weaponDpsOver(gun({ clipSize: 6, reloadTime: 0.5 }), 10)).toBeGreaterThan(base);
+  });
+  test("Intelligence speeds the reload and Magazine Size gear adds rounds", () => {
+    const g = gun({ clipSize: 6, reloadTime: 2 });
+    expect(weaponDpsOver(g, 10, 10)).toBeGreaterThan(weaponDpsOver(g, 10, 5));
+    expect(weaponDpsOver(g, 10, 5, [{ type: "magazineSize", rounds: 4 }])).toBeGreaterThan(weaponDpsOver(g, 10, 5));
+  });
+  test("a burst fires its whole salvo per pull", () => {
+    const burst = gun({ fireRate: 1, burstFire: true, burst: 3 });
+    expect(weaponDpsOver(burst, 10)).toBe(27);                  // 9 pulls of 3 rounds in 10 s
+    expect(weaponDpsOver(burst, 10)).toBeGreaterThan(weaponDpsOver(gun({ fireRate: 1 }), 10));
+  });
+  test("melee swings at the arc's own pace", () => {
+    expect(weaponDpsOver({ wtype: "melee" }, 8)).toBe(40);      // 5 swings a second
+    expect(weaponDpsOver(null, 3)).toBe(15);                    // bare hands
+  });
+  test("formatDps keeps a decimal below 100 only", () => {
+    expect(formatDps(2.5)).toBe("2.5");
+    expect(formatDps(30)).toBe("30");
+    expect(formatDps(12.349)).toBe("12.3");
+    expect(formatDps(123.6)).toBe("124");
+    expect(formatDps(undefined)).toBe("0");
+  });
+});
