@@ -718905,7 +718905,7 @@
    ],
    "projectileId": "gr3nsh1",
    "projectileSpeed": 9,
-   "damage": 20,
+   "damage": 25,
    "fireRate": 1,
    "clipSize": 4,
    "reloadTime": 2.2,
@@ -718941,8 +718941,8 @@
     "hit": "6hh0w94",
     "fire": "dti525c"
    },
-   "savedAt": 1792249714401,
-   "editedFrom": 1791656363665
+   "savedAt": 1792254214960,
+   "editedFrom": 1792249714401
   },
   {
    "id": "lsp9nh6",
@@ -1013424,7 +1013424,7 @@
     "speed": 26,
     "size": 1
    },
-   "damage": 10,
+   "damage": 11,
    "projectileId": "6ufkkia",
    "projectileSpeed": 30,
    "variants": {
@@ -1016741,13 +1016741,13 @@
    "explodeChar": "💥",
    "landChar": "🔥",
    "value": 9,
-   "rank": "rare",
+   "rank": "common",
    "sounds": {
     "fire": "18sacwd",
     "hit": "6hh0w94"
    },
-   "savedAt": 1792027220115,
-   "editedFrom": 1791656303726
+   "savedAt": 1792254183302,
+   "editedFrom": 1792027220115
   },
   {
    "id": "wdywgn6",
