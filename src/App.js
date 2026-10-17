@@ -3001,6 +3001,7 @@ export const pedestalSummary = (m) => { const cs = ((m && m.cats) || []).map((c)
 //   { kind: "stat", stat, amount, duration }  — adds `amount` to a stat for `duration` seconds
 //   { kind: "money", amount }                 — pays `amount` into your wallet (a dollar bill, a coin)
 //   { kind: "range", mult, duration }         — your shots fly `mult`× as far for `duration` seconds
+//   { kind: "tagDamage", tag, mult, duration } — weapons tagged `tag` hit `mult`× harder for `duration` seconds
 // It carries `categories` like gear so the SAME pedestal search finds it. Only the stats the player
 // actually reads in play are offered: Speed (move), Agility (jump), Strength (melee+throw damage),
 // Intelligence (crit chance, melee and ranged) — every one has a live effect.
@@ -3029,6 +3030,14 @@ export const normItemEffect = (e) => {
   // throw (Strength vs weight) and a melee swing alone. Floored at ×1: below that it would SHORTEN
   // your range, which is not what an item called a range boost is for.
   if (e.kind === "range") return { kind: "range", mult: Number.isFinite(e.mult) ? Math.max(1, e.mult) : 1.5, duration: Number.isFinite(e.duration) ? e.duration : 8 };
+  // 🏹 A TIMED TAG DAMAGE (2026-10-17, Blake: "a way to boost damage on items with a certain tag in
+  // the item builder"). The 🏹 Tag Damage clothing ability on a timer: every weapon whose tags
+  // include `tag` (his "Gun", "Meelee", "Bow" …) hits `mult`× harder for `duration` seconds. It is
+  // read through the SAME tagDamageMultiplier the clothing uses (activeTagBoosts turns the running
+  // buffs into tagBoost-shaped entries), so a ×1.5 Gun potion and a ×1.5 Gun hat are one number and
+  // stack the same way. The tag is NOT trimmed here: the box is typed into live, and trimming on
+  // every keystroke ate the space in "Assault Rifle". The compare trims. Floored at ×1 like range.
+  if (e.kind === "tagDamage") return { kind: "tagDamage", tag: typeof e.tag === "string" ? e.tag : "", mult: Number.isFinite(e.mult) ? Math.max(1, e.mult) : 1.5, duration: Number.isFinite(e.duration) ? e.duration : 8 };
   return { kind: "heal", amount: Number.isFinite(e.amount) ? e.amount : 5 };
 };
 // One-line human summary for the pedestal callout / pickup flash.
@@ -3037,6 +3046,7 @@ export const itemEffectSummary = (e) => {
   return x.kind === "heal" ? "Heal " + x.amount + " HP"
     : x.kind === "money" ? MONEY_CHAR + " +" + x.amount
     : x.kind === "range" ? "Range ×" + x.mult + " for " + x.duration + "s"
+    : x.kind === "tagDamage" ? (x.tag.trim() || "Tagged") + " damage ×" + x.mult + " for " + x.duration + "s"
     : "+" + x.amount + " " + (ITEM_STAT_LABEL[x.stat] || x.stat) + " for " + x.duration + "s";
 };
 export const isMoneyItem = (a) => !!a && a.type === "item" && normItemEffect(a.effect).kind === "money";
@@ -3207,6 +3217,19 @@ export const activeRangeMult = (buffs, nowMs) => {
   let mult = 1;
   for (const b of (buffs || [])) if (b && b.kind === "range" && b.until > nowMs) mult *= Math.max(1, b.mult || 1);
   return mult;
+};
+// The 🏹 timed tag-damage items still running, in the shape of the clothing's tagBoost effect, laid
+// after the worn effects — so tagDamageMultiplier answers for gear and potions together and the two
+// can never disagree about what "×1.5 Gun" means. Hands back the SAME effects array when nothing is
+// running: it is called per shot, per swing and by the HUD every frame, and allocates nothing then.
+export const withTimedTagBoosts = (effects, buffs, nowMs) => {
+  let out = null;
+  for (const b of (buffs || [])) {
+    if (!b || b.kind !== "tagDamage" || !(b.until > nowMs)) continue;
+    if (!out) out = [...(effects || [])];
+    out.push({ type: "tagBoost", tag: b.tag || "", mult: Math.max(1, b.mult || 1) });
+  }
+  return out || effects;
 };
 // Drop buffs whose timer has elapsed (called every frame so the list can't grow unbounded).
 export const pruneBuffs = (buffs, nowMs) => (buffs || []).filter((b) => b && b.until > nowMs);
@@ -5538,7 +5561,7 @@ export const inferAssetType = (raw) => {
   if (raw.type && KNOWN_ASSET_TYPES.includes(raw.type)) return raw.type;
   if (Array.isArray(raw.layers) && Array.isArray(raw.states)) return "anim";
   if (raw.recipe || raw.components) return "character";
-  if (raw.effect && typeof raw.effect === "object" && (raw.effect.kind === "heal" || raw.effect.kind === "stat" || raw.effect.kind === "money")) return "item";
+  if (raw.effect && typeof raw.effect === "object" && ["heal", "stat", "money", "range", "tagDamage"].includes(raw.effect.kind)) return "item";
   if (raw.slot) return "equipment";
   if (raw.wtype || raw.projectileId !== undefined || (raw.states && raw.states.fire)) return "weapon";
   if (raw.hasArms !== undefined || (raw.states && raw.states.onFire)) return "enemy";
@@ -13727,6 +13750,14 @@ export default function AssetStudio() {
       itemBuffs.current.push({ kind: "range", mult: eff.mult, until: nowMs + eff.duration * 1000 });
       line = itemEffectSummary(eff);
       if (!quiet) flash("🎯 " + item.name + " · " + line + tail);
+    } else if (eff.kind === "tagDamage") {
+      // Same timed list again; withTimedTagBoosts hands it to tagDamageMultiplier at the shot, the
+      // swing and the HUD's ATK. The tag is stored trimmed — the compare is trimmed anyway.
+      const nowMs = playNowMs();
+      itemBuffs.current = pruneBuffs(itemBuffs.current, nowMs);
+      itemBuffs.current.push({ kind: "tagDamage", tag: eff.tag.trim(), mult: eff.mult, until: nowMs + eff.duration * 1000 });
+      line = itemEffectSummary(eff);
+      if (!quiet) flash("🏹 " + item.name + " · " + line + tail);
     } else {
       const nowMs = playNowMs();
       itemBuffs.current = pruneBuffs(itemBuffs.current, nowMs);
@@ -16712,7 +16743,7 @@ export default function AssetStudio() {
             char: playtestWeapon.projectile?.char || DEFAULT_SHOT_CHAR, tint: playtestWeapon.projectile?.tint || null,
             pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
             alpha: assetAlpha(projAsset || playtestWeapon), // 👻 the Projectile asset's Translucent (an old gun drew its round itself, so then the gun's)
-            size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset?.effects, playtestWeapon.categories)), stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
+            size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), playtestWeapon.categories)), // 🏹 worn Tag Damage × a 🧪 timed one still running stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
             ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor, pierce: playerShotsPierce, snd: playtestWeapon, // snd: whose 🔊 Hit plays where it lands
             explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeChar: playtestWeapon.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
           });
@@ -17047,7 +17078,7 @@ export default function AssetStudio() {
                     // 2x Strength the AI bites you with, because a creature's jaws should not be
                     // worth a different number depending on who is holding the controls.
                     const base = (!unarmedSwing && playtestWeapon)
-                      ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(playerAsset?.effects, playtestWeapon.categories), strength)
+                      ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), playtestWeapon.categories), strength)
                       : isCreatureUnit(basePlayerAsset)
                       ? creatureMeleeDamage(strength)
                       : playerMeleeDamage(UNARMED_DAMAGE * meleeBoostOf(playtestWeapon), strength); // 🦍 a Melee-boost gun (DK Arms) punches harder
@@ -25949,7 +25980,8 @@ export default function AssetStudio() {
                   wPlane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${wBoxW / 2}px,${wBoxH / 2}px) rotate(${wTurn}deg) scale(${sc}) translate(${-(wBb.x + wBb.w / 2)}px,${-(wBb.y + wBb.h / 2)}px)` };
                 }
                 // ATK lives here only (Blake: "you don't need Atk at the top and the weapon in the bottom right").
-                const atk = { v: enemyAttackDamage({ ...merged, stats: { ...st, strength: strNow } }, playtestWeapon), d: buffs.strength || 0 };
+                const atkEffects = withTimedTagBoosts(merged?.effects, itemBuffs.current, playNowMs()); // a 🧪 timed Tag Damage shows in ATK while it runs
+                const atk = { v: enemyAttackDamage({ ...merged, effects: atkEffects, stats: { ...st, strength: strNow } }, playtestWeapon), d: (buffs.strength || 0) + (atkEffects !== merged?.effects ? 1 : 0) };
                 // The figure shown is what that damage adds up to over 10 s with the fire rate, the
                 // magazine and the reload in it (weaponDpsOver) — one hit's damage said nothing about
                 // a fast gun next to a slow one. d still tints it off the Strength buff.
@@ -27011,6 +27043,7 @@ export default function AssetStudio() {
                   <button className={eff.kind === "stat" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "stat" ? cur : { kind: "stat", stat: "speed", amount: 2, duration: 8 } }; })}>📊 Boost a stat</button>
                   <button className={eff.kind === "money" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "money" ? cur : { kind: "money", amount: 10 } }; })}>{MONEY_CHAR} Money</button>
                   <button className={eff.kind === "range" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "range" ? cur : { kind: "range", mult: 1.5, duration: 8 } }; })}>🎯 Range</button>
+                  <button className={eff.kind === "tagDamage" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "tagDamage" ? cur : { kind: "tagDamage", tag: "", mult: 1.5, duration: 8 } }; })}>🏹 Tag damage</button>
                 </div>
                 {eff.kind === "heal" ? (
                   <label className="slider">❤️ Heal amount<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>HP</span></label>
@@ -27023,6 +27056,15 @@ export default function AssetStudio() {
                     {/* The 🎯 Long Shot clothing ability's own scale (×1 to ×4 in quarters), so a
                         potion and a pair of goggles that both say ×1.5 mean the same shot. */}
                     <label className="slider">🎯 Range ×<input type="range" min="1.25" max="4" step="0.25" value={eff.mult} onChange={(e) => setEff({ mult: +e.target.value })} /><span className="hint2" style={{ marginLeft: 6 }}>×{eff.mult}</span></label>
+                    <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
+                  </>
+                ) : eff.kind === "tagDamage" ? (
+                  <>
+                    {/* The 🏹 Tag Damage clothing card's own controls: the same "Tag to boost" box
+                        (matched against a weapon's three tags, any case) and the same ×1 to ×5 scale,
+                        so a potion and a hat that both say "Gun ×1.5" are the same hit. */}
+                    <label className="slider">Tag to boost<input type="text" value={eff.tag} placeholder="e.g. Gun" onChange={(e) => setEff({ tag: e.target.value })} style={{ marginLeft: 6, width: 110 }} /></label>
+                    <label className="slider">🏹 Damage<input type="range" min="1.25" max="5" step="0.25" value={eff.mult} onChange={(e) => setEff({ mult: +e.target.value })} /><span className="hint2" style={{ marginLeft: 6 }}>×{eff.mult}</span></label>
                     <label className="slider">⏱ Duration<input type="number" min="1" value={eff.duration} onChange={(e) => setEff({ duration: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>sec</span></label>
                   </>
                 ) : (

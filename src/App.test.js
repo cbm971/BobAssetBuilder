@@ -13487,6 +13487,50 @@ describe("🎯 range items", () => {
   });
 });
 
+import { withTimedTagBoosts, inferAssetType } from "./App";
+
+// 🏹 2026-10-17, Blake: "a way to boost damage on items with a certain tag in the item builder". The
+// clothing's Tag Damage, on a timer, read through the same tagDamageMultiplier.
+describe("🏹 timed tag-damage items", () => {
+  test("the effect survives the normalizer, and never weakens a weapon", () => {
+    expect(normItemEffect({ kind: "tagDamage", tag: "Gun", mult: 2, duration: 30 })).toEqual({ kind: "tagDamage", tag: "Gun", mult: 2, duration: 30 });
+    expect(normItemEffect({ kind: "tagDamage" })).toEqual({ kind: "tagDamage", tag: "", mult: 1.5, duration: 8 });
+    expect(normItemEffect({ kind: "tagDamage", tag: "Gun", mult: 0.5 }).mult).toBe(1);
+    expect(normItemEffect({ kind: "tagDamage", tag: "Assault Rifle " }).tag).toBe("Assault Rifle "); // typed live, not trimmed per keystroke
+  });
+  test("the pickup line names the tag", () => {
+    expect(itemEffectSummary({ kind: "tagDamage", tag: "Meelee", mult: 1.5, duration: 30 })).toBe("Meelee damage ×1.5 for 30s");
+    expect(itemEffectSummary({ kind: "tagDamage", tag: " ", mult: 2, duration: 8 })).toBe("Tagged damage ×2 for 8s");
+  });
+  test("a running buff boosts only weapons with its tag, stacks with the worn ability, and stops on time", () => {
+    const hat = [{ type: "tagBoost", tag: "Gun", mult: 1.5 }];
+    const buffs = [{ kind: "tagDamage", tag: "gun", mult: 2, until: 5000 }, { kind: "range", mult: 2, until: 5000 }, { stat: "speed", amount: 3, until: 5000 }];
+    expect(tagDamageMultiplier(withTimedTagBoosts(hat, buffs, 1000), ["T1", "Gun", "Army"])).toBeCloseTo(3);
+    expect(tagDamageMultiplier(withTimedTagBoosts(hat, buffs, 1000), ["T1", "Meelee"])).toBe(1);
+    expect(tagDamageMultiplier(withTimedTagBoosts(hat, buffs, 6000), ["Gun"])).toBe(1.5);
+    expect(tagDamageMultiplier(withTimedTagBoosts(undefined, buffs, 0), ["Gun"])).toBe(2);
+  });
+  test("nothing running hands back the very same effects (the HUD asks every frame)", () => {
+    const eff = [{ type: "pierce" }];
+    expect(withTimedTagBoosts(eff, [{ kind: "range", mult: 2, until: 9e9 }], 0)).toBe(eff);
+    expect(withTimedTagBoosts(eff, [], 0)).toBe(eff);
+    expect(withTimedTagBoosts(eff, [{ kind: "tagDamage", tag: "Gun", mult: 2, until: 10 }], 10)).toBe(eff);
+  });
+  test("it is not a stat, expires with the rest, and a typeless item file is still an item", () => {
+    const buffs = [{ kind: "tagDamage", tag: "Gun", mult: 2, until: 5000 }];
+    expect(activeBuffSum(buffs, 0)).toEqual({});
+    expect(activeRangeMult(buffs, 0)).toBe(1);
+    expect(pruneBuffs(buffs, 6000)).toEqual([]);
+    expect(inferAssetType({ effect: { kind: "tagDamage", tag: "Gun" } })).toBe("item");
+  });
+  test("the shot, the swing and the HUD all read the running buffs", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).not.toContain("tagDamageMultiplier(playerAsset?.effects");
+    expect((src.match(/tagDamageMultiplier\(withTimedTagBoosts\(playerAsset\?\.effects, itemBuffs\.current, nowT\)/g) || []).length).toBe(2);
+    expect(src).toContain("withTimedTagBoosts(merged?.effects, itemBuffs.current, playNowMs())");
+  });
+});
+
 import { orderStepZ } from "./App";
 
 describe("rotated prop pieces and the placement crop (Furr Con Sign, 2026-10-10)", () => {

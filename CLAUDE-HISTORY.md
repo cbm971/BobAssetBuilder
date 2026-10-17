@@ -4974,3 +4974,44 @@ the closet's line replaced S1's, and a second marker in one level was never read
 banner draws one line each. Verified in Playtest: S1 with two markers showed both; entering TCloset 1
 cleared only "Check the closet"; leaving back to S1 did not bring it back.
 
+## VIETNAM CONTENT PACK + 🏹 TIMED TAG DAMAGE ITEMS (2026-10-17)
+
+Blake: "make a small content pack? I need a few Vietnam centric guns, I am thinking bolt rifle type
+stuff. Also can you make a way to boost damage on items with a certain tag in the item builder? And
+can you make clothing items with the ability tag damage gun and some with tag damage meelee?"
+
+**"In the item builder" meant the 🧪 Item (consumable) editor.** Tag Damage already existed as a
+clothing ability (`EFFECT_TYPES.tagBoost`), so the new thing is a fifth item effect beside Heal / Stat /
+Money / Range: `{ kind: "tagDamage", tag, mult, duration }`. It rides `itemBuffs` like the 🎯 Range
+item, and `withTimedTagBoosts` turns the running buffs into tagBoost-shaped entries appended to the
+worn effects, so `tagDamageMultiplier` answers for gear and potions together (the shot, the melee
+swing, and the HUD ATK/DPS). It returns the SAME array when nothing is running (the HUD asks every
+frame). The tag is not trimmed while typed (it ate the space in "Assault Rifle"); the compare trims.
+
+**His tags are "Gun" and "Meelee"** (his spelling, on every melee weapon: Bat, Cane, Machete, Shock
+Baton). The pack matches it. A third tag "Vietnam" sits on every pack record (he already has a
+Vietnam floor button and a Vietkong look folder).
+
+**Delivered (asset-data/library.json, additive, 9 new ids):**
+- Rifles, all ranged / Bullet 6ufkkia / the M16's fire+hit sounds / no land fire: `msnngt1`
+  Mosin-Nagant (22 dmg, 0.8/s, 5 rounds, range 34, rare), `m40snpr` M40 Sniper (30, 0.6/s, 5, range
+  42, scope, legendary), `typ53cb` Type 53 Carbine (18, 1/s, 5, range 28, spike bayonet out, common).
+- Clothing: `bnyhat1` Boonie Hat (Gun x1.5), `flkvst1` Flak Vest (jacket, Gun x1.25, Def 8),
+  `rdbndna` Red Bandana (hat, ignoreHideIfHat, Meelee x1.5), `blkpjms` Black Pajamas (his Army Shirt's
+  own fit recoloured, Meelee x1.25).
+- Items: `gunoil1` Gun Oil (Gun x1.5 for 30 s), `whtstn1` Whetstone (Meelee x1.5 for 30 s).
+
+**Weapon recipe used:** one design in the AIM view (muzzle +X, top -Y, grip at the hand), placed per
+body and pose at that body's weapon-arm hand (`armShoulderPoint` + the far end turned by the arm's
+rot), turned by the shoulder->hand angle, as UNFLAGGED pieces (centre pivot, like his M16). Hanging,
+the muzzle points down and the top faces forward, which is how the M16 is drawn; the bore sits ~20
+units above the hand (the M16's is ~22). Back pose pieces are `behindBody`, the rest `behindArm`.
+Fire = rest + two flash tris + the same 🔴 muzzle marker.
+
+**Verified in Playtest (Forest M1, Army Bob, god mode, rAF shim):** M40 shot 45 (30 x his Army Hat's
+Gun 1.5); Gun Oil taken from a real drop showed "Gun damage x1.5 for 30s" on the callout and banner,
+shot 68, HUD DPS 22.5 -> 34, back to 45 when the 30 s ran out. Flak Vest by a real E pickup: callout
+"Increase Gun damage x1.25", shot 56. Machete: Red Bandana DPS 130 -> 195, Whetstone 130 -> 195.
+Mosin aims level from the shoulder when firing and points up on Up. Harness trap: writing
+`equipped.current` directly changes the HUD but not the loop's `playerAsset` (no re-render); go
+through a drop + E.

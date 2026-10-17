@@ -630,6 +630,10 @@ plus traps it does not cover:
 - "Range" means how far a gun or bow shot flies (the weapon's Range, 🎯 Long Shot, the 🎯 Range
   item). An item's range boost multiplies with Long Shot at the trigger (`activeRangeMult`); throws
   and melee are untouched.
+- **🧪 Item effects are clothing abilities on a timer** (`itemBuffs`): 🎯 Range is Long Shot, 🏹 Tag damage
+  (2026-10-17) is Tag Damage. A timed tag buff reaches the shot, the swing and the HUD's ATK only through
+  `withTimedTagBoosts(effects, itemBuffs.current, now)` into `tagDamageMultiplier`; never a second multiplier.
+  His weapon tags are `Gun` and `Meelee` (his spelling; match them).
 - Talk reach is `TALK_RANGE_CELLS` = 6. The Enemy-creator Speed AND Strength sliders go to 20 (the animals' scale; a
   creature's Strength is its bite, 2x, unclamped), a
   dressed look walks by `playerWalkSpeed`, and Speed floors at 0.
