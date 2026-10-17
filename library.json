@@ -811912,9 +811912,9 @@
    "wtype": "ranged",
    "projectileId": "6ufkkia",
    "damage": 33,
-   "fireRate": 0.6,
+   "fireRate": 1,
    "clipSize": 5,
-   "reloadTime": 3.8,
+   "reloadTime": 3.6,
    "projectileRange": 42,
    "projectileSpeed": 26,
    "weight": 5,
@@ -821091,8 +821091,8 @@
      }
     ]
    },
-   "savedAt": 1792278680157,
-   "editedFrom": 1792277506467
+   "savedAt": 1792279027144,
+   "editedFrom": 1792278680157
   },
   {
    "id": "ma7adq1",
@@ -832565,7 +832565,7 @@
    "wtype": "ranged",
    "projectileId": "6ufkkia",
    "damage": 24,
-   "fireRate": 0.8,
+   "fireRate": 1,
    "clipSize": 5,
    "reloadTime": 3,
    "projectileRange": 34,
@@ -841096,8 +841096,8 @@
      }
     ]
    },
-   "savedAt": 1792278753583,
-   "editedFrom": 1792278726894
+   "savedAt": 1792278993298,
+   "editedFrom": 1792278753583
   },
   {
    "id": "mstng65",
