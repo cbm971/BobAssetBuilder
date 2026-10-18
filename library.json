@@ -832610,8 +832610,8 @@
    ],
    "wtype": "ranged",
    "projectileId": "6ufkkia",
-   "damage": 24,
-   "fireRate": 1,
+   "damage": 20,
+   "fireRate": 0.5,
    "clipSize": 5,
    "reloadTime": 3,
    "projectileRange": 34,
@@ -841142,8 +841142,8 @@
      }
     ]
    },
-   "savedAt": 1792279571765,
-   "editedFrom": 1792278993298
+   "savedAt": 1792286973869,
+   "editedFrom": 1792286969106
   },
   {
    "id": "mstng65",
