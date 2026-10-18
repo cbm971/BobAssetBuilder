@@ -36,7 +36,7 @@ const COLORS = ["#e2b48c", "#c98f63", "#5d6b39", "#3d4a28", "#2a2017", "#8a929c"
 // a theme here gets it a picker entry, in the art editor AND the level/room painter, for free. The
 // custom "＋" picker and the recent-colours strip are untouched — a palette is a starting point you
 // reach past whenever you want, never a restriction on what a block can be.
-const PALETTES = {
+export const PALETTES = {
   bob: { label: "Bob's kit", icon: "🎨", colors: COLORS },
   // The level painter's original ten. It starts on this one because terrain, not clothing, is what
   // you're reaching for the moment you open the level editor.
@@ -47,6 +47,11 @@ const PALETTES = {
   // and the burnt orange / coral / powder blue that shared every catalogue page with them.
   trailer60s: { label: "1960s trailer", icon: "🚐", colors: ["#556b2f", "#daa520", "#40e0d0", "#f5f5dc", "#c0392b", "#8b5a2b",
     "#6b4423", "#c1440e", "#e8917d", "#9cc3d5", "#c9cdd2", "#33302e"] },
+  // Vietnam, 1960s. The land first — canopy shadow, jungle, elephant grass, young rice, bamboo and
+  // thatch, the red laterite earth, monsoon mud and paddy water — then the people in it: olive
+  // drab, khaki, black pyjamas, and napalm orange for fire and explosions.
+  vietnam: { label: "Vietnam", icon: "🌾", colors: ["#1c3314", "#2f5420", "#5e8a2b", "#9cc23e", "#c2ab62", "#8a3d1f",
+    "#5a3a22", "#6f6c48", "#4b5320", "#9a8c5c", "#1f1e22", "#d9641e"] },
 };
 const PALETTE_KEYS = Object.keys(PALETTES);
 const paletteColors = (key) => (PALETTES[key] || PALETTES.bob).colors;
@@ -8321,6 +8326,90 @@ export const TEXTURES = {
       for (let i = 0; i < 9; i++) {
         const x = trnd(i * 19.1) * tw, y = trnd(i * 23.7) * th;
         out += `<ellipse cx="${px(x)}" cy="${px(y)}" rx="${px(1.2 + lush * 1.2)}" ry="${px(0.6 + lush * 0.5)}" fill="${co.dark}" opacity="0.35"/>`;
+      }
+      return out;
+    },
+  },
+  // VIETNAM GRASS — the same idea as Grass, rebuilt for the Vietnam floor. Elephant grass grows in
+  // TUFTS, a fan of broad blades from one root that arch over, so each blade is a filled leaf rather
+  // than Grass's one-pixel stroke, and the side blades sit behind in shadow. Between the tufts the
+  // red laterite earth shows through in flat patches (Red earth 0 hides it), with short loose blades
+  // over everything so the patches sit IN the grass rather than on it.
+  //
+  // A 120px tile (four cells): tufts are big enough that a 60px repeat reads as a grid. Tuft and
+  // patch roots follow the R2 low-discrepancy sequence, because plain trnd() positions clump and a
+  // clump repeating every tile is the first thing the eye finds. Anything near an edge is drawn
+  // again on the opposite side, gravel's wrap, so a tuft crossing a seam is never cut in half.
+  vietnamGrass: {
+    label: "Vietnam grass", icon: "🌾", tile: [120, 120], base: "base",
+    colors: [["base", "Jungle floor", "#2c4419"], ["earth", "Red earth", "#6b3a1e"], ["dark", "Shadow blades", "#1b2f10"], ["mid", "Blades", "#4a7623"], ["light", "Fresh blades", "#7fa834"], ["tip", "Dry tips", "#c4ae5e"]],
+    params: [
+      { key: "lush", label: "Lush", min: 0, max: 1, step: 0.05, def: 0.6 },
+      { key: "earth", label: "Red earth", min: 0, max: 1, step: 0.05, def: 0.35 },
+    ],
+    svg: (co, _t, pa) => {
+      const tw = 120, th = 120;
+      const lush = Math.max(0, Math.min(1, pa.lush ?? 0.6)), earth = Math.max(0, Math.min(1, pa.earth ?? 0.35));
+      const wrap = (x, y, r, draw) => {
+        const xs = [0].concat(x - r < 0 ? [tw] : [], x + r > tw ? [-tw] : []);
+        const ys = [0].concat(y - r < 0 ? [th] : [], y + r > th ? [-th] : []);
+        let s = "";
+        for (const ox of xs) for (const oy of ys) s += draw(ox, oy);
+        return s;
+      };
+      const r2 = (i, ox, oy) => [((ox + (i + 1) * 0.7548776662) % 1), ((oy + (i + 1) * 0.5698402910) % 1)];
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.base);
+      const patches = Math.round(earth * 10);
+      for (let i = 0; i < patches; i++) {
+        const [fx, fy] = r2(i, 0.21, 0.63), cx = fx * tw, cy = fy * th;
+        const rx = 7 + trnd(i * 8.7) * 9 + earth * 5, ry = rx * (0.3 + trnd(i * 9.9) * 0.2);
+        out += wrap(cx, cy, rx * 1.25, (ox, oy) => {
+          let d = "";
+          for (let k = 0; k < 18; k++) {
+            const a = (k / 18) * Math.PI * 2, w = 1 + (trnd(i * 12.7 + k * 2.3) - 0.5) * 0.3;
+            d += (k ? "L" : "M") + px(cx + ox + Math.cos(a) * rx * w) + "," + px(cy + oy + Math.sin(a) * ry * w);
+          }
+          return `<path d="${d}Z" fill="${co.earth}"/>`;
+        });
+      }
+      const loose = Math.round(55 + lush * 55);
+      for (let i = 0; i < loose; i++) {
+        const x = trnd(i * 4.1 + 7) * tw, y = trnd(i * 7.9 + 3) * th, len = 2.5 + trnd(i * 5.5) * 4, lean = (trnd(i * 9.7) - 0.5) * 5;
+        const stroke = trnd(i * 2.2) > 0.5 ? co.dark : co.mid;
+        out += wrap(x, y, len + 3, (ox, oy) => `<path d="M${px(x + ox)},${px(y + oy)} L${px(x + ox + lean)},${px(y + oy - len)}" stroke="${stroke}" stroke-width="1" stroke-linecap="round" fill="none"/>`);
+      }
+      // Tufts are drawn top row first, so a lower (nearer) tuft overlaps the one behind it.
+      const tufts = [];
+      const n = Math.round(16 + lush * 24);
+      for (let i = 0; i < n; i++) {
+        const [fx, fy] = r2(i, 0.5, 0.5);
+        tufts.push({ i, x: ((fx + (trnd(i * 2.9) - 0.5) * 0.12 + 1) % 1) * tw, y: ((fy + (trnd(i * 5.3) - 0.5) * 0.12 + 1) % 1) * th });
+      }
+      tufts.sort((a, b) => a.y - b.y);
+      for (const { i, x, y } of tufts) {
+        const count = 4 + Math.floor(trnd(i * 7.7) * (3 + lush * 4));
+        const tall = 9 + trnd(i * 3.7) * (6 + lush * 10);
+        const lean = (trnd(i * 13.1) - 0.5) * 0.6;
+        const blades = [];
+        for (let b = 0; b < count; b++) {
+          const f = b / (count - 1) - 0.5;            // -0.5 = leftmost blade of the fan, 0.5 = rightmost
+          const ang = -Math.PI / 2 + lean + f * 1.7 + (trnd(i * 17 + b * 3.1) - 0.5) * 0.35;
+          const len = tall * (0.6 + trnd(i * 19 + b * 5.3) * 0.5) * (1 - Math.abs(f) * 0.35);
+          const droop = Math.sign(f) * (2 + trnd(i * 23 + b) * 3) * Math.abs(f) * 2;   // the outer blades arch over
+          const w = 1.1 + trnd(i * 29 + b * 1.7) * 1.2;
+          const roll = trnd(i * 31 + b * 2.9), back = Math.abs(f) > 0.3;
+          blades.push({
+            back, fill: roll > 0.86 ? co.tip : back ? co.dark : roll > 0.45 ? co.light : co.mid,
+            tx: Math.cos(ang) * len + droop, ty: Math.sin(ang) * len + Math.abs(droop) * 0.6,
+            cx: Math.cos(ang) * len * 0.55, cy: Math.sin(ang) * len * 0.55,
+            nx: -Math.sin(ang) * w, ny: Math.cos(ang) * w,
+          });
+        }
+        blades.sort((a, b) => (b.back ? 1 : 0) - (a.back ? 1 : 0));
+        out += wrap(x, y, tall * 1.2 + 8, (ox, oy) => blades.map((bl) => {
+          const X = x + ox, Y = y + oy;
+          return `<path d="M${px(X - bl.nx)},${px(Y - bl.ny)} Q${px(X + bl.cx - bl.nx * 0.6)},${px(Y + bl.cy - bl.ny * 0.6)} ${px(X + bl.tx)},${px(Y + bl.ty)} Q${px(X + bl.cx + bl.nx * 0.6)},${px(Y + bl.cy + bl.ny * 0.6)} ${px(X + bl.nx)},${px(Y + bl.ny)}Z" fill="${bl.fill}"/>`;
+        }).join(""));
       }
       return out;
     },

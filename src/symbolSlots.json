@@ -107,6 +107,7 @@
   { "k": "🧱", "l": "Brick / texture", "g": "Textures", "d": "gi:brick-wall" },
   { "k": "🟫", "l": "Big brick", "g": "Textures", "d": "mdi:square" },
   { "k": "🌱", "l": "Grass", "g": "Textures", "d": "gi:sprout" },
+  { "k": "🌾", "l": "Vietnam grass / palette", "g": "Textures", "d": "gi:wheat" },
   { "k": "⛰", "l": "Terrain / gravel", "g": "Textures", "d": "gi:mountains" },
   { "k": "🪵", "l": "Wood planks", "g": "Textures", "d": "gi:wood-beam" },
   { "k": "🧶", "l": "Carpet", "g": "Textures", "d": "gi:yarn" },

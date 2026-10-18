@@ -154,6 +154,7 @@ import {
   rampDragSpan,
   TEXTURES,
   TEXTURE_KEYS,
+  PALETTES,
   newTexture,
   pieceTextureStyle,
   textureBaseColor,
@@ -2670,6 +2671,61 @@ describe("grass texture", () => {
       const recoloured = { ...base, colors: { ...base.colors, [key]: "#ff00ff" } };
       expect(textureDataUri(recoloured)).not.toBe(textureDataUri(base));
     }
+  });
+});
+
+describe("vietnam grass texture", () => {
+  const svgOf = (params) => {
+    const t = newTexture("vietnamGrass");
+    return TEXTURES.vietnamGrass.svg(t.colors, TEXTURES.vietnamGrass.tile, { ...t.params, ...(params || {}) });
+  };
+
+  test("is registered right after Grass", () => {
+    expect(TEXTURE_KEYS[TEXTURE_KEYS.indexOf("grass") + 1]).toBe("vietnamGrass");
+    expect(TEXTURES.vietnamGrass.label).toBe("Vietnam grass");
+    expect(textureDataUri(newTexture("vietnamGrass"))).toBe(textureDataUri(newTexture("vietnamGrass")));
+  });
+
+  test("every colour control contributes to the rendered texture", () => {
+    const base = newTexture("vietnamGrass");
+    for (const [key] of TEXTURES.vietnamGrass.colors) {
+      expect(textureDataUri({ ...base, colors: { ...base.colors, [key]: "#ff00ff" } })).not.toBe(textureDataUri(base));
+    }
+  });
+
+  test("Red earth 0 hides the earth; Lush adds tufts", () => {
+    const earth = newTexture("vietnamGrass").colors.earth;
+    expect(svgOf({ earth: 0 })).not.toContain(earth);
+    expect(svgOf({ earth: 1 }).split(earth).length).toBeGreaterThan(svgOf().split(earth).length);
+    expect(svgOf({ lush: 1 }).length).toBeGreaterThan(svgOf({ lush: 0 }).length);
+  });
+
+  test("anything drawn past an edge is drawn again on the opposite side", () => {
+    const [tw, th] = TEXTURES.vietnamGrass.tile;
+    const shapes = [...svgOf({ lush: 1, earth: 1 }).matchAll(/<path d="([^"]+)"[^>]*fill="(#[0-9a-f]+)"/g)].map((m) => ({ d: m[1], fill: m[2] }));
+    const pts = (d) => [...d.matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((m) => [+m[1], +m[2]]);
+    const shifted = (d, dx, dy) => pts(d).map(([x, y]) => [x + dx, y + dy]);
+    const same = (a, b) => a.length === b.length && a.every(([x, y], k) => Math.abs(x - b[k][0]) < 0.011 && Math.abs(y - b[k][1]) < 0.011);
+    let crossing = 0;
+    for (const s of shapes) {
+      const p = pts(s.d), xs = p.map((q) => q[0]), ys = p.map((q) => q[1]);
+      const dx = Math.min(...xs) < 0 ? tw : Math.max(...xs) > tw ? -tw : 0;
+      const dy = Math.min(...ys) < 0 ? th : Math.max(...ys) > th ? -th : 0;
+      if (!dx && !dy) continue;
+      crossing++;
+      const want = shifted(s.d, dx, dy);
+      expect(shapes.some((o) => o.fill === s.fill && same(pts(o.d), want))).toBe(true);
+    }
+    expect(crossing).toBeGreaterThan(5);
+  });
+});
+
+describe("Vietnam palette", () => {
+  test("is a twelve-swatch palette of real hex colours", () => {
+    expect(PALETTES.vietnam.label).toBe("Vietnam");
+    expect(PALETTES.vietnam.colors).toHaveLength(12);
+    for (const c of PALETTES.vietnam.colors) expect(c).toMatch(/^#[0-9a-f]{6}$/);
+    expect(new Set(PALETTES.vietnam.colors).size).toBe(12);
   });
 });
 
