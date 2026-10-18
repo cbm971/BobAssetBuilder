@@ -1132185,7 +1132185,7 @@
    "size": 5,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Rocket Program",
+   "category": "Science",
    "frames": [
     {
      "front": [
@@ -1133464,7 +1133464,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792349372508
+   "savedAt": 1792356227092,
+   "editedFrom": 1792349372508
   },
   {
    "id": "vcrcrsh",
@@ -1147284,7 +1147285,7 @@
    "size": 3,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Rocket Program",
+   "category": "Wacky",
    "frames": [
     {
      "front": [
@@ -1147373,8 +1147374,8 @@
        "kind": "rect",
        "x": 69.75,
        "y": 96,
-       "w": 59.51,
-       "h": 44,
+       "w": 58.5,
+       "h": 46,
        "color": "#8b5a2b",
        "mirror": false,
        "fx": {
@@ -1147650,8 +1147651,8 @@
       "kind": "rect",
       "x": 69.75,
       "y": 96,
-      "w": 59.51,
-      "h": 44,
+      "w": 58.5,
+      "h": 46,
       "color": "#8b5a2b",
       "mirror": false,
       "fx": {
@@ -1147839,7 +1147840,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792349372508
+   "savedAt": 1792356204251,
+   "editedFrom": 1792349372508
   },
   {
    "id": "vcrradi",
@@ -1152349,7 +1152351,7 @@
    "size": 12,
    "animFps": 3,
    "solidDefault": false,
-   "category": "Rocket Program",
+   "category": "Science",
    "frames": [
     {
      "front": [
@@ -1152712,7 +1152714,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792349372508
+   "savedAt": 1792356216016,
+   "editedFrom": 1792349372508
   },
   {
    "id": "vcsndls",
