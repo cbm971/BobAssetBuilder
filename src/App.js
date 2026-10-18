@@ -22669,7 +22669,8 @@ export default function AssetStudio({ game = false } = {}) {
     const sc = scoreRef.current, run = runRef.current;
     const node = run && run.nodes[run.curKey];
     const floor = (node && node.level && node.level.floor) || (level && level.floor) || "";
-    putGameRecord(recordFloorDone(gameRecordRef.current, floor, sc.total));
+    const look = findA(playerId);
+    putGameRecord(recordFloorDone(gameRecordRef.current, floor, sc.total, look ? look.name : "")); // who finished it unlocks Roberta (gameFront.js STARTER_LOCKS)
     if (gameCur.current.saveId) putGameSaves(dropGameSave(gameSavesRef.current, gameCur.current.saveId)); // the run is over: nothing left to load
     setGameFloorDone({ floor, score: sc.total, secs: scorePlaySecs(sc) });
     gameCur.current = GAME_CUR_NONE;

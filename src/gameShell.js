@@ -5,7 +5,7 @@
 //
 // THE LOOK is Blake's mock-up of 2026-10-18: "everything on a green menu", over "some Bob stuff
 // going on in the background" with his ACTUAL characters. So every screen is a green panel — a
-// flat field green (no patterns: he turned the striped first try down), an off-white border, a yellow ▶ on the lit row, Russo One for the words and
+// flat field green (no patterns: he turned the striped first try down), an off-white border, a yellow ▶ on the lit row, Saira wide italic for the words (Russo One until 2026-10-18) and
 // the BOB logo (Sarpanch, see public/index.html) on top — standing over one of his own levels
 // with his Starter crew (dressed) and that level's units walking about in it — a different level
 // behind each screen (SceneBackdrop; the levels and the walkers come from App.js menuSceneFor). It replaced the black Skyrim screen of 10-17.
@@ -18,7 +18,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   GAME_MENU, menuStep, introRemainingMs, INTRO_OUT_MS, formatPlayTime, UNLOCK_TABS, unlockPool,
-  starterLooks, pickStartLook, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, stepMenuWalker,
+  starterLooks, pickStartLook, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, stepMenuWalker, starterLock,
 } from "./gameFront";
 
 const fmtNum = (n) => Math.round(Number(n) || 0).toLocaleString("en-US");
@@ -201,6 +201,15 @@ function MainMenu({ go, note, click, at, setAt }) {
   );
 }
 
+// A padlock, drawn (no emoji in the menus).
+const Padlock = ({ size }) => (
+  <svg className="gPadlock" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M7 10V7a5 5 0 0 1 10 0v3" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+    <rect x="4" y="10" width="16" height="12" rx="2" fill="currentColor" />
+    <rect x="11" y="14" width="2" height="4" rx="1" fill="#111" />
+  </svg>
+);
+
 // ---------- New Game: the character select ----------
 // Super Smash Bros., as Blake asked: a box per fighter, its HEAD filling it ("pretty much neck up")
 // and the name on a black plate along its foot, the lit one ringed in yellow with a P1 tag; the one
@@ -209,7 +218,10 @@ function MainMenu({ go, note, click, at, setAt }) {
 // its lives drawn as the HUD's own life symbol — and START.
 // Two steps for the keyboard: pick a fighter (arrows, Enter), then the difficulty (left/right,
 // Enter starts; Esc or up goes back to the fighters). The mouse can do either at any time.
-function CharacterSelect({ assets, renderArt, renderDressed, lifeIcon, difficulty, onStart, back, click, vp }) {
+// LOCKED fighters (gameFront.js STARTER_LOCKS: Bobby, Bobert, Roberta) stand in the grid as a dark
+// silhouette under a padlock, and can be lit but not picked; the P1 card says what opens them.
+// Back sits beside START, under Easy (Blake: "nestled between Easy and start").
+function CharacterSelect({ assets, record, renderArt, renderDressed, lifeIcon, difficulty, onStart, back, click, vp }) {
   const roster = React.useMemo(() => {
     const s = starterLooks(assets);
     if (s.length) return s;
@@ -222,12 +234,16 @@ function CharacterSelect({ assets, renderArt, renderDressed, lifeIcon, difficult
   const cols = selectGridCols(roster.length);
   const box = Math.round(Math.max(92, Math.min(176, vp.w * 0.095, (vp.h * 0.36) / Math.ceil(Math.max(1, roster.length) / cols))));
   const cur = roster[Math.min(at, roster.length - 1)] || null;
+  const locks = React.useMemo(() => roster.map((a) => starterLock(a, record, assets)), [roster, record, assets]);
+  const curLock = cur ? locks[Math.min(at, roster.length - 1)] : null;
+  const [shake, setShake] = useState(0);
+  const refuse = () => { click(); setShake((n) => n + 1); };
   const di = DIFFICULTIES.findIndex((d) => d.id === diff);
-  const start = () => { if (!cur) return; click(); onStart(cur, diff); };
+  const start = () => { if (!cur) return; if (curLock) { refuse(); setStep("fighter"); return; } click(); onStart(cur, diff); };
   useMenuKeys(true, step === "fighter" ? {
     move: (d) => setAt((i) => gridStep(roster.length, cols, i, 0, d)),
     side: (d) => setAt((i) => gridStep(roster.length, cols, i, d, 0)),
-    pick: () => { if (cur) { click(); setStep("diff"); } },
+    pick: () => { if (!cur) return; if (curLock) { refuse(); return; } click(); setStep("diff"); },
     back: () => { click(); back(); },
   } : {
     side: (d) => { click(); setDiff(DIFFICULTIES[(di + d + DIFFICULTIES.length) % DIFFICULTIES.length].id); },
@@ -236,17 +252,19 @@ function CharacterSelect({ assets, renderArt, renderDressed, lifeIcon, difficult
     back: () => { click(); setStep("fighter"); },
   });
   const p1 = Math.round(Math.max(200, Math.min(400, vp.h * 0.4)));
+  // The name on the P1 card shrinks to fit it: BOBERT and ROBERTA ran off the card's edge.
+  const p1Name = cur ? String(cur.name || "").toUpperCase() : "";
+  const p1NamePx = Math.round(Math.min(Math.max(26, Math.min(52, vp.w * 0.03)), (p1 * 0.82 * 0.86) / (Math.max(3, p1Name.length) * 0.9)));
   return (
     <div className="gBody gSelect">
-      {/* Back, on the screen as every other menu has it (Blake: "there is no way to back out of NEW
-          GAME"; Esc always did, but nothing said so). It leaves the difficulty step first, then the screen. */}
-      <div className="gSelHead"><span>Select Character</span><div role="button" className="gSelBack" onClick={() => { click(); back(); }}><span>Back</span></div></div>
+      <div className="gSelHead"><span>Select Character</span></div>
       <div className="gRoster" style={{ gridTemplateColumns: "repeat(" + cols + "," + box + "px)" }}>
         {roster.map((a, i) => (
-          <div key={a.id} role="button" className={"gFighter" + (i === at ? " on" : "") + (i === at && step === "diff" ? " locked" : "")} style={{ width: box, height: Math.round(box * 1.12) }}
+          <div key={a.id + (i === at && locks[i] ? ":" + shake : "")} role="button" className={"gFighter" + (i === at ? " on" : "") + (i === at && step === "diff" ? " locked" : "") + (locks[i] ? " shut" : "") + (i === at && locks[i] && shake ? " no" : "")} style={{ width: box, height: Math.round(box * 1.12) }}
             onMouseEnter={() => { if (step === "fighter") setAt(i); }}
-            onClick={() => { click(); setAt(i); setStep("diff"); }}>
+            onClick={() => { setAt(i); if (locks[i]) { refuse(); setStep("fighter"); return; } click(); setStep("diff"); }}>
             <div className="gFighterArt" style={{ width: box, height: box }}>{renderArt(a, box, 0.3)}</div>
+            {locks[i] && <div className="gFighterLock"><Padlock size={Math.round(box * 0.34)} /></div>}
             <div className="gFighterName" style={{ fontSize: Math.max(11, Math.round(box * 0.12)) }}><span>{a.name}</span></div>
             {i === at && <div className="gP1Tag">P1</div>}
           </div>
@@ -255,8 +273,10 @@ function CharacterSelect({ assets, renderArt, renderDressed, lifeIcon, difficult
       </div>
       <div className="gSelFoot">
         <div className="gP1Card" style={{ width: Math.round(p1 * 0.82), height: p1 }}>
-          {cur && <div className="gP1Art" style={{ width: Math.round(p1 * 0.82), height: Math.round(p1 * 0.82) }}>{renderDressed(cur, Math.round(p1 * 0.82))}</div>}
-          <div className="gP1Name"><BobLogo text={cur ? String(cur.name || "").toUpperCase() : ""} /></div>
+          {cur && <div className={"gP1Art" + (curLock ? " shut" : "")} style={{ width: Math.round(p1 * 0.82), height: Math.round(p1 * 0.82) }}>{renderDressed(cur, Math.round(p1 * 0.82))}</div>}
+          {curLock && <div className="gP1Lock"><Padlock size={Math.round(p1 * 0.22)} /></div>}
+          <div className="gP1Name" style={{ fontSize: p1NamePx }}><BobLogo text={p1Name} /></div>
+          {curLock && <div className="gP1Need" style={{ bottom: "calc(6% + " + Math.round(p1NamePx * 1.15) + "px)" }}><span>{curLock.need}</span>{curLock.of ? <b>{curLock.have} / {curLock.of}</b> : null}</div>}
           <div className="gP1Badge">P1</div>
         </div>
         <div className={"gDiffBox" + (step === "diff" ? " live" : "")}>
@@ -268,7 +288,12 @@ function CharacterSelect({ assets, renderArt, renderDressed, lifeIcon, difficult
               </div>
             ))}
           </div>
-          <div role="button" className={"gStart" + (step === "diff" ? " ready" : "")} onClick={start}><span>Start</span></div>
+          <div className="gSelGo">
+            {/* Back, on the screen as every other menu has it (Blake: "there is no way to back out of NEW
+                GAME"; Esc always did). It leaves the screen; Esc leaves the difficulty step first. */}
+            <div role="button" className="gSelBack" onClick={() => { click(); back(); }}><span>Back</span></div>
+            <div role="button" className={"gStart" + (step === "diff" ? " ready" : "") + (curLock ? " shut" : "")} onClick={start}><span>Start</span></div>
+          </div>
         </div>
       </div>
     </div>
@@ -514,7 +539,7 @@ export function GameShell({ view, setView, ready, saves, options, setOptions, re
       {sceneUp && <div className={"gScreen gStage" + (view === "menu" ? "" : " dim")}><SceneBackdrop key={scene ? scene.id : "none"} scene={scene} vp={vp} /></div>}
       {view === "title" && <TitleHandoff ready={ready} onDone={toMenu} />}
       {view === "menu" && <MainMenu go={setView} note={note} click={click} at={menuAt} setAt={setMenuAt} />}
-      {view === "select" && <CharacterSelect assets={assets} renderArt={renderArt} renderDressed={renderDressed} lifeIcon={lifeIcon} difficulty={options.difficulty} onStart={onStartGame} back={toMenu} click={click} vp={vp} />}
+      {view === "select" && <CharacterSelect assets={assets} record={record} renderArt={renderArt} renderDressed={renderDressed} lifeIcon={lifeIcon} difficulty={options.difficulty} onStart={onStartGame} back={toMenu} click={click} vp={vp} />}
       {view === "load" && <LoadGame saves={saves} onLoad={onLoad} onDelete={onDelete} back={toMenu} click={click} />}
       {view === "options" && <OptionsPanel options={options} setOptions={setOptions} back={toMenu} click={click} />}
       {view === "unlocks" && <Unlocks assets={assets} record={record} renderArt={renderArt} back={toMenu} click={click} />}
@@ -525,11 +550,12 @@ export function GameShell({ view, setView, ready, saves, options, setOptions, re
   );
 }
 
-// The sheet. The faces (Russo One, Sarpanch, UnifrakturCook) are loaded by public/index.html for the
+// The sheet. The faces (Saira — wide, extra-bold, italic: the free face nearest the CA Magic Hour
+// Blake named on 2026-10-18 for "Retro, 1970s", which is a paid font — Sarpanch, UnifrakturCook) are loaded by public/index.html for the
 // game address only; offline they fall back to Impact / a plain sans and nothing else changes.
 // Colours are fixed (a game screen, not a themed page): field green, off-white, one yellow.
 export const GAME_CSS = `
-.gRoot,.gPause{--gG1:#285e3b;--gG2:#1b4429;--gG3:#123220;--gInk:#f4f3ea;--gDim:rgba(236,240,226,.74);--gEdge:#f1efe4;--gGold:#f7c531;font-family:'Russo One',Impact,'Arial Black',sans-serif;color:var(--gInk);-webkit-font-smoothing:antialiased}
+.gRoot,.gPause{--gG1:#245535;--gG2:#183d25;--gG3:#102d1d;--gInk:#f4f3ea;--gDim:rgba(236,240,226,.74);--gEdge:#f1efe4;--gGold:#f7c531;font-family:Saira,'Russo One',Impact,'Arial Black',sans-serif;font-style:italic;font-stretch:125%;font-weight:800;color:var(--gInk);-webkit-font-smoothing:antialiased}
 .gScreen{position:fixed;inset:0;background:#0a0c12;overflow:hidden;z-index:50}
 .gScreen.gBlack{background:#000;z-index:60}
 .gStage{z-index:40}
@@ -546,7 +572,7 @@ export const GAME_CSS = `
 .gMainPanel{width:clamp(290px,27vw,500px);padding:clamp(16px,2.6vh,34px) clamp(16px,2vw,34px) clamp(16px,2.8vh,36px);display:flex;flex-direction:column;align-items:stretch}
 @media (max-width:700px){.gBodyMain{align-items:center;padding-left:16px}.gMainPanel{width:min(500px,100%)}}
 @keyframes gIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-.bobLogo{display:inline-grid;font-family:Sarpanch,'Russo One',Impact,sans-serif;font-weight:900;line-height:.92;letter-spacing:.02em;white-space:nowrap;user-select:none}
+.bobLogo{display:inline-grid;font-family:Sarpanch,'Russo One',Impact,sans-serif;font-style:normal;font-stretch:normal;font-weight:900;line-height:.92;letter-spacing:.02em;white-space:nowrap;user-select:none}
 .bobLogo>span{grid-area:1/1;padding:0 .1em;transform:skewX(-9deg)}
 .bobLogo .bl1{color:#fff;-webkit-text-stroke:.16em #fff;filter:drop-shadow(.02em .05em .03em rgba(0,0,0,.6))}
 .bobLogo .bl2{color:#4e8a57;-webkit-text-stroke:.07em #4e8a57}
@@ -582,12 +608,12 @@ export const GAME_CSS = `
 .gDel.arm{color:#ffd0c4;border-color:#e06a4f;background:rgba(120,20,10,.35)}
 .gOpts .gItem{min-width:min(640px,86vw)}
 .gSlider{display:flex;align-items:center;gap:.9em}
-.gSlider b,.gToggle{font-weight:400;min-width:3.2em;text-align:right;color:#fff;font-size:1.25em}
+.gSlider b,.gToggle{font-weight:inherit;min-width:3.2em;text-align:right;color:#fff;font-size:1.25em}
 .gSlider input[type=range]{-webkit-appearance:none;appearance:none;width:clamp(150px,17vw,280px);height:6px;background:linear-gradient(90deg,var(--gGold),rgba(241,239,228,.35));border-radius:3px;outline:none;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.3)}
 .gSlider input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:3px;background:var(--gEdge);border:2px solid var(--gG3);cursor:pointer}
 .gSlider input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:3px;background:var(--gEdge);border:2px solid var(--gG3)}
 .gStats{display:flex;gap:2.2em;flex-wrap:wrap;justify-content:center;font-size:clamp(13px,1.15vw,19px);letter-spacing:.1em;text-transform:uppercase;color:var(--gDim);margin:-1vh 0 2.2vh}
-.gStats b{color:#fff;font-weight:400;margin-left:.45em;letter-spacing:.04em}
+.gStats b{color:#fff;font-weight:inherit;margin-left:.45em;letter-spacing:.04em}
 .gStatsBig{font-size:clamp(17px,1.6vw,27px);margin:0 0 3.2vh}
 .gTabs{display:flex;gap:1em;margin-bottom:1.6vh}
 .gTab{border:2px solid transparent;font-size:clamp(15px,1.3vw,21px);letter-spacing:.08em;text-transform:uppercase;color:var(--gDim);padding:.3em .8em;cursor:pointer;transform:skewX(-8deg)}
@@ -606,12 +632,13 @@ export const GAME_CSS = `
 .gTile.got{border-color:rgba(241,239,228,.4);background:radial-gradient(circle at 50% 40%,rgba(255,255,255,.16),rgba(0,0,0,.12) 75%)}
 .gHover{height:1.6em;margin:1.2vh 0 .4vh;font-size:clamp(14px,1.2vw,19px);letter-spacing:.1em;text-transform:uppercase;color:#fff}
 .gBackOnly{margin-top:.6vh}
-.gItem,.gTab,.gDel,.gFighter,.gDiff,.gStart{user-select:none;-webkit-user-select:none}
+.gItem,.gTab,.gDel,.gFighter,.gDiff,.gStart,.gSelBack{user-select:none;-webkit-user-select:none}
 /* ---- the character select ---- */
 .gSelect{justify-content:space-between;padding:3vh clamp(16px,3vw,56px) 4vh}
 .gSelHead{align-self:stretch;display:flex;justify-content:space-between;align-items:center}
-.gSelBack{cursor:pointer;font-size:clamp(16px,1.6vw,28px);text-transform:uppercase;letter-spacing:.06em;color:#fff;background:var(--gG2);border:4px solid var(--gEdge);padding:.2em 1em;transform:skewX(-12deg);box-shadow:0 6px 0 rgba(0,0,0,.35);text-shadow:0 3px 0 rgba(0,0,0,.35);transition:background .12s,color .12s}
-.gSelBack>span{display:inline-block;transform:skewX(12deg)}
+.gSelGo{align-self:stretch;display:flex;align-items:center;justify-content:space-between;gap:clamp(8px,1vw,16px)}
+.gSelBack{cursor:pointer;font-size:clamp(17px,1.6vw,28px);min-width:clamp(110px,10vw,170px);box-sizing:border-box;text-align:center;text-transform:uppercase;letter-spacing:.06em;color:#fff;background:var(--gG2);border:3px solid rgba(241,239,228,.75);padding:.35em .9em;transform:skewX(-10deg);box-shadow:0 6px 0 rgba(0,0,0,.35);text-shadow:0 3px 0 rgba(0,0,0,.35);transition:background .12s,color .12s}
+.gSelBack>span{display:inline-block;transform:skewX(10deg)}
 .gSelBack:hover{background:var(--gGold);color:var(--gG3);text-shadow:none}
 .gSelHead>span{display:inline-block;font-size:clamp(20px,2.3vw,40px);letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--gG2);border:4px solid var(--gEdge);padding:.2em 1.2em .2em .9em;transform:skewX(-12deg);box-shadow:0 6px 0 rgba(0,0,0,.35);text-shadow:0 3px 0 rgba(0,0,0,.35)}
 .gRoster{display:grid;gap:clamp(8px,1vw,16px);justify-content:center;padding:6px}
@@ -621,6 +648,17 @@ export const GAME_CSS = `
 .gFighterName{position:absolute;left:-2px;right:-2px;bottom:-2px;background:#111;color:#fff;text-transform:uppercase;letter-spacing:.04em;text-align:center;padding:.38em .3em .3em;clip-path:polygon(0 22%,100% 0,100% 100%,0 100%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gFighter.on{border-color:var(--gGold);transform:translateY(-4px);box-shadow:0 0 0 3px var(--gGold),0 0 26px rgba(247,197,49,.55),0 10px 0 rgba(0,0,0,.4);z-index:1}
 .gFighter.locked{animation:gLock .5s ease}
+.gFighter.shut{background:var(--gG3)}
+.gFighter.shut .gFighterArt>div{filter:brightness(0) opacity(.55)}
+.gFighter.no{animation:gNo .35s ease}
+@keyframes gNo{20%,60%{transform:translate(-5px,-4px)}40%,80%{transform:translate(5px,-4px)}}
+.gFighterLock,.gP1Lock{position:absolute;left:0;right:0;display:flex;justify-content:center;pointer-events:none;color:var(--gEdge);filter:drop-shadow(0 3px 0 rgba(0,0,0,.5))}
+.gFighterLock{top:28%}
+.gP1Art.shut>div{filter:brightness(0) opacity(.6)}
+.gP1Lock{top:30%;transform:skewX(4deg)}
+.gP1Need{position:absolute;left:0;right:0;padding:0 9%;display:flex;flex-direction:column;align-items:center;text-align:center;gap:.15em;line-height:1.15;font-size:clamp(12px,.95vw,16px);letter-spacing:.06em;text-transform:uppercase;color:var(--gGold);text-shadow:0 2px 0 rgba(0,0,0,.5);transform:skewX(4deg)}
+.gP1Need b{color:#fff;font-weight:inherit}
+.gStart.shut{opacity:.35;animation:none;filter:grayscale(.7)}
 @keyframes gLock{30%{transform:translateY(-4px) scale(1.08)}}
 .gP1Tag{position:absolute;left:4px;top:4px;background:var(--gGold);color:#2a1d00;font-size:13px;padding:.15em .45em;border:2px solid #fff;transform:skewX(-10deg);box-shadow:0 2px 0 rgba(0,0,0,.4)}
 .gSelFoot{align-self:stretch;display:flex;align-items:flex-end;justify-content:space-between;gap:2vw;flex-wrap:wrap}
@@ -628,8 +666,8 @@ export const GAME_CSS = `
 .gP1Art{position:absolute;left:0;top:2%;overflow:hidden;transform:skewX(4deg)}
 .gP1Art>div{filter:drop-shadow(0 6px 0 rgba(0,0,0,.3))}
 .gP1Name{position:absolute;left:0;right:0;bottom:6%;display:flex;justify-content:center;transform:skewX(4deg)}
-.gP1Name .bobLogo{font-size:clamp(26px,3vw,52px)}
-.gP1Badge{position:absolute;left:8px;top:8px;font-family:Sarpanch,'Russo One',sans-serif;font-weight:900;font-size:clamp(20px,2vw,34px);color:var(--gGold);text-shadow:0 3px 0 rgba(0,0,0,.45);transform:skewX(4deg)}
+.gP1Name .bobLogo{font-size:1em}
+.gP1Badge{position:absolute;left:8px;top:8px;font-family:Sarpanch,'Russo One',sans-serif;font-style:normal;font-stretch:normal;font-weight:900;font-size:clamp(20px,2vw,34px);color:var(--gGold);text-shadow:0 3px 0 rgba(0,0,0,.45);transform:skewX(4deg)}
 .gDiffBox{display:flex;flex-direction:column;align-items:flex-end;gap:2vh;margin-left:auto}
 .gDiffRow{display:flex;gap:clamp(8px,1vw,16px);flex-wrap:wrap;justify-content:flex-end}
 .gDiff{display:flex;flex-direction:column;align-items:center;gap:.3em;min-width:clamp(110px,10vw,170px);box-sizing:border-box;padding:.5em .9em .55em;cursor:pointer;background:var(--gG2);border:3px solid rgba(241,239,228,.75);color:var(--gDim);transform:skewX(-10deg);box-shadow:0 6px 0 rgba(0,0,0,.35);transition:transform .1s,background .1s}
@@ -639,7 +677,7 @@ export const GAME_CSS = `
 .gDiffLives i{display:inline-flex;font-style:normal}
 .gDiff.on{background:var(--gGold);border-color:#fff;color:#1d2a12;transform:skewX(-10deg) translateY(-3px)}
 .gDiffBox.live .gDiff.on{box-shadow:0 0 0 3px #fff,0 0 24px rgba(247,197,49,.6),0 8px 0 rgba(0,0,0,.35)}
-.gStart{cursor:pointer;font-family:Sarpanch,'Russo One',sans-serif;font-weight:900;font-size:clamp(28px,3vw,54px);text-transform:uppercase;letter-spacing:.06em;color:#fff;background:linear-gradient(180deg,#d8452f,#a52a1a);border:4px solid var(--gEdge);padding:.08em 1.1em .12em;transform:skewX(-10deg);box-shadow:0 8px 0 rgba(0,0,0,.4);text-shadow:0 3px 0 rgba(0,0,0,.4);opacity:.7;transition:opacity .15s}
+.gStart{cursor:pointer;font-family:Sarpanch,'Russo One',sans-serif;font-style:normal;font-stretch:normal;font-weight:900;font-size:clamp(28px,3vw,54px);text-transform:uppercase;letter-spacing:.06em;color:#fff;background:linear-gradient(180deg,#d8452f,#a52a1a);border:4px solid var(--gEdge);padding:.08em 1.1em .12em;transform:skewX(-10deg);box-shadow:0 8px 0 rgba(0,0,0,.4);text-shadow:0 3px 0 rgba(0,0,0,.4);opacity:.7;transition:opacity .15s}
 .gStart>span{display:inline-block;transform:skewX(10deg)}
 .gStart:hover,.gStart.ready{opacity:1}
 .gStart.ready{animation:gPulse 1s ease-in-out infinite}

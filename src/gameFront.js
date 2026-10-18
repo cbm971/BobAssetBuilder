@@ -309,18 +309,61 @@ export const normalizeGameOptions = (o) => {
 // screen draws everything that could be found as a silhouette and fills in what has been.
 // Ids only — the art comes from his library when the screen is drawn, so a garment he redraws
 // shows its new self here too.
-export const newGameRecord = () => ({ found: [], defeated: [], floors: [], bestScore: 0, kills: 0, games: 0 });
+// `floorsWith` is who finished each floor: { [floor]: [look names, lower case] } — Roberta unlocks
+// on a floor finished AS ROB, so the floor alone is not enough. Names, not ids: a look he saves
+// under a new name forks a new id, and "Rob" is what he means.
+export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, bestScore: 0, kills: 0, games: 0 });
 export const normalizeGameRecord = (r) => {
   const b = newGameRecord();
   if (!r || typeof r !== "object") return b;
   const ids = (v) => (Array.isArray(v) ? [...new Set(v.filter((x) => typeof x === "string" && x))] : []);
   const n = (v) => Math.max(0, Math.round(Number(v) || 0));
-  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), bestScore: n(r.bestScore), kills: n(r.kills), games: n(r.games) };
+  const fw = {};
+  if (r.floorsWith && typeof r.floorsWith === "object") for (const k of Object.keys(r.floorsWith)) { const v = ids(r.floorsWith[k]); if (k && v.length) fw[k] = v; }
+  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), floorsWith: fw, bestScore: n(r.bestScore), kills: n(r.kills), games: n(r.games) };
 };
 // Returns the SAME object when nothing changed, so a caller can skip the write.
 export const recordFound = (rec, id) => (!id || rec.found.includes(id) ? rec : { ...rec, found: [...rec.found, id] });
 export const recordDefeated = (rec, id) => (!id ? rec : { ...rec, kills: rec.kills + 1, defeated: rec.defeated.includes(id) ? rec.defeated : [...rec.defeated, id] });
-export const recordFloorDone = (rec, floor, score) => ({ ...rec, floors: !floor || rec.floors.includes(floor) ? rec.floors : [...rec.floors, floor], bestScore: Math.max(rec.bestScore, Math.round(Number(score) || 0)) });
+export const recordFloorDone = (rec, floor, score, lookName) => {
+  const who = normName(lookName), had = (rec.floorsWith && rec.floorsWith[floor]) || [];
+  const floorsWith = !floor || !who || had.includes(who) ? rec.floorsWith || {} : { ...(rec.floorsWith || {}), [floor]: [...had, who] };
+  return { ...rec, floors: !floor || rec.floors.includes(floor) ? rec.floors : [...rec.floors, floor], floorsWith, bestScore: Math.max(rec.bestScore, Math.round(Number(score) || 0)) };
+};
+
+// ---------- locked starters ----------
+// Blake (2026-10-18): Bobby unlocks once the Trailor Park floor is done, Bobert at 50 items unlocked (found),
+// Roberta once Trailor Park is done AS ROB — and all three show on the select screen, locked.
+// Matched by look NAME (lower case), like Bob is. A floor matches by its letters only, and his
+// "Trailor" spelling and the usual one are the same floor, so a rename either way keeps the lock.
+export const STARTER_LOCKS = [
+  { name: "bobby", floor: "Trailor Park" },
+  { name: "bobert", items: 50 },
+  { name: "roberta", floor: "Trailor Park", as: "rob" },
+];
+const floorKey = (s) => normName(s).replace(/[^a-z]/g, "").replace(/trailer/g, "trailor");
+const floorWasDone = (rec, floor, as) => {
+  const k = floorKey(floor);
+  if (!as) return (rec.floors || []).some((f) => floorKey(f) === k);
+  return Object.keys(rec.floorsWith || {}).some((f) => floorKey(f) === k && rec.floorsWith[f].includes(as));
+};
+// Items found that are items (the Unlocks screen's Items tab), not every id in `found`.
+export const itemsFoundCount = (rec, assets) => {
+  const items = new Set(unlockPool(assets, "items").map((a) => a.id));
+  return (rec.found || []).filter((id) => items.has(id)).length;
+};
+// null when the look is open; otherwise { need, have, of } — `need` is the line its card shows.
+export const starterLock = (look, rec, assets) => {
+  const lock = look && STARTER_LOCKS.find((l) => l.name === normName(look.name));
+  if (!lock) return null;
+  const r = normalizeGameRecord(rec);
+  if (lock.items) {
+    const have = itemsFoundCount(r, assets);
+    return have >= lock.items ? null : { need: "Unlock " + lock.items + " Items", have, of: lock.items };
+  }
+  if (floorWasDone(r, lock.floor, lock.as)) return null;
+  return { need: "Complete " + lock.floor + (lock.as ? " as " + lock.as.charAt(0).toUpperCase() + lock.as.slice(1) : "") };
+};
 // What each Unlocks tab lists, in a stable order (by name). Items are what can be carried or worn —
 // weapons (not their projectiles), clothing and consumables; enemies are every animal and every
 // dressed look, since any look can be placed as a unit.

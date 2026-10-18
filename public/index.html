@@ -23,7 +23,9 @@
     WHITE (his words: "White, green out line, white not BOLD GREEN OUT LINE"), and then, seeing it,
     "lets have the inside of that outline be green as well": so a GREEN face inside a white edge.
     Three stacked copies, see .bobLogo: a fat white stroke outside, the green line, the green face.
-  * The menus use Russo One (gameShell.js). All three load here, for the game address only.
+  * The menus use Saira, wide (125%), extra-bold, italic (gameShell.js) — the free face nearest CA
+    Magic Hour, the paid 70s face Blake named on 2026-10-18 ("Retro, 1970s", not pixely). Russo One
+    before that. All three load here, for the game address only.
 -->
 <script>
 (function () {
@@ -34,7 +36,7 @@
   document.title = "BOB";
   var pc = document.createElement("link"); pc.rel = "preconnect"; pc.href = "https://fonts.gstatic.com"; pc.crossOrigin = "anonymous"; document.head.appendChild(pc);
   var f = document.createElement("link"); f.rel = "stylesheet";
-  f.href = "https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&family=Sarpanch:wght@700;900&family=Russo+One&display=block";
+  f.href = "https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&family=Sarpanch:wght@700;900&family=Saira:ital,wdth,wght@1,125,800&display=block";
   var started = false;
   // The sequence starts once the faces are in (at once from a warm cache), so "BLAKE Presents" never
   // fades in as a fallback serif and swaps halfway; never later than 1.2 s, offline included.
@@ -44,7 +46,7 @@
     d.className += " biGo";
   };
   f.onload = function () {
-    try { Promise.all([document.fonts.load("700 40px UnifrakturCook", "BLAKE Presents"), document.fonts.load("900 40px Sarpanch", "BOB"), document.fonts.load("400 20px 'Russo One'", "NEW GAME")]).then(go, go); } catch (e) { go(); }
+    try { Promise.all([document.fonts.load("700 40px UnifrakturCook", "BLAKE Presents"), document.fonts.load("900 40px Sarpanch", "BOB"), document.fonts.load("italic 800 expanded 20px Saira", "NEW GAME")]).then(go, go); } catch (e) { go(); }
   };
   f.onerror = go;
   document.head.appendChild(f);

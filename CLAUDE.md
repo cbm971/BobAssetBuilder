@@ -444,7 +444,10 @@ plus traps it does not cover:
   **Sarpanch 900** upright with a -9° skew for BOB (a GREEN face inside a thin WHITE edge — he went
   white/green line/white, then "have the inside of that outline be green as well"; never a bold
   green outline: three stacked copies, `.bobLogo`, in BOTH index.html and
-  GAME_CSS), **Russo One** for menus. Loaded only at the game's address.
+  GAME_CSS), and for the menus **Saira, wide (125%), 800, italic** (2026-10-18: he named CA Magic
+  Hour, "Retro, 1970s" and not pixely; that face is paid, Saira is the nearest free one; Russo One
+  before). BOB stays Sarpanch. Loaded only at the game's address. The panel greens are a touch
+  darker since then (he asked "very slightly darker"); the BOB logo green did not change.
 - **The look (2026-10-18, his mock-up): every screen is a FLAT green panel** (off-white border,
   yellow ▶ on the lit row) over one of his own levels with his people walking it. **No patterned
   fills** — he turned down the striped panel and the rayed card. The backdrop is `menuSceneFor`
@@ -456,7 +459,11 @@ plus traps it does not cover:
 - **New Game → character select, Smash style**: a box per look filed under **Starter**
   (`starterLooks`, Bob first), the box shows the HEAD only ("neck up"), the P1 card the whole body
   **dressed in a random shirt + pants** drawn for its body (`gameDressed`, kept per page) — display
-  only, the run starts as the look is saved. Then **Easy 4 / Medium 2 / Hard 1 lives**
+  only, the run starts as the look is saved. **Locked starters** (`STARTER_LOCKS`, by look name):
+  Bobby = Trailor Park floor done, Bobert = 50 items found (Items-tab ids in `record.found`),
+  Roberta = Trailor Park done AS Rob (`record.floorsWith`). Locked boxes show as a silhouette under
+  a padlock, can be lit but not picked; the P1 card names what opens them. **Back sits beside
+  START, under Easy** (his placement). Then **Easy 4 / Medium 2 / Hard 1 lives**
   (`DIFFICULTIES`). A death no 🐱 Extra Life catches costs one (`gameDeathRef`, called from
   `playerDefeated`; counted in the save as `deaths`); the last one freezes the loop and shows
   **Game Over** (Retry = same look, difficulty and seed; the save is deleted). HUD life pips =

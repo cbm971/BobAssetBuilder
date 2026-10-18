@@ -6,6 +6,7 @@ import {
   normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone,
   unlockPool, createGameStore, starterLooks, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, runLivesLeft, deathEndsRun,
   pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS,
+  starterLock, STARTER_LOCKS,
 } from "./gameFront";
 import fs from "fs";
 import path from "path";
@@ -278,5 +279,40 @@ describe("the menu's backdrop scene", () => {
     const idle = stepMenuWalker({ ...w, idle: 0.5 }, 0.2, surface, 30, () => 0.9);
     expect(idle.idle).toBeCloseTo(0.3);
     expect(idle.x).toBe(w.x);
+  });
+});
+
+describe("locked starters", () => {
+  const look = (name) => ({ id: name, type: "character", category: "Starter", name });
+  const items = Array.from({ length: 60 }, (_, i) => ({ id: "i" + i, type: i % 2 ? "weapon" : "equipment", name: "Item " + i }));
+  const assets = [...items, { id: "dog", type: "enemy", name: "Dog" }];
+  test("Bob, Rob and the rest are open from the start", () => {
+    for (const n of ["Bob", "Rob", "Bobette", "Bobbi"]) expect(starterLock(look(n), newGameRecord(), assets)).toBeNull();
+  });
+  test("Bobby opens on Trailor Park, by anyone, either spelling", () => {
+    expect(starterLock(look("Bobby"), newGameRecord(), assets).need).toBe("Complete Trailor Park");
+    expect(starterLock(look("Bobby"), recordFloorDone(newGameRecord(), "Trailor Park", 10, "Bobette"), assets)).toBeNull();
+    expect(starterLock(look("bobby"), recordFloorDone(newGameRecord(), "Trailer park", 10, "Bob"), assets)).toBeNull();
+    expect(starterLock(look("Bobby"), recordFloorDone(newGameRecord(), "Sewer", 10, "Bob"), assets)).not.toBeNull();
+  });
+  test("Bobert opens at 50 ITEMS found; enemies and repeats do not count", () => {
+    let r = newGameRecord();
+    for (let i = 0; i < 49; i++) r = { ...r, found: [...r.found, "i" + i] };
+    r = { ...r, found: [...r.found, "dog", "i0"] };
+    expect(starterLock(look("Bobert"), r, assets)).toEqual({ need: "Unlock 50 Items", have: 49, of: 50 });
+    r = { ...r, found: [...r.found, "i55"] };
+    expect(starterLock(look("Bobert"), r, assets)).toBeNull();
+  });
+  test("Roberta opens only on Trailor Park finished AS Rob", () => {
+    let r = recordFloorDone(newGameRecord(), "Trailor Park", 10, "Bob");
+    expect(starterLock(look("Roberta"), r, assets).need).toBe("Complete Trailor Park as Rob");
+    r = recordFloorDone(r, "Trailor Park", 10, "Rob");
+    expect(r.floorsWith).toEqual({ "Trailor Park": ["bob", "rob"] });
+    expect(starterLock(look("Roberta"), r, assets)).toBeNull();
+    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta"]);
+  });
+  test("an old record with no floorsWith still loads, and a stored one survives", () => {
+    expect(normalizeGameRecord({ floors: ["Trailor Park"] }).floorsWith).toEqual({});
+    expect(normalizeGameRecord({ floorsWith: { "Trailor Park": ["rob", 4, "rob"], "": ["x"] } }).floorsWith).toEqual({ "Trailor Park": ["rob"] });
   });
 });
