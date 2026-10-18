@@ -70078,21 +70078,30 @@
    ],
    "statBoosts": {
     "hp": 1,
-    "speed": 0,
+    "speed": -1,
     "agility": 0,
     "intelligence": 0,
-    "strength": 0
+    "strength": 2
    },
    "defense": 5,
-   "effects": [],
+   "effects": [
+    {
+     "id": "2hyzg3t",
+     "type": "magazineSize",
+     "rounds": 2,
+     "animByBody": {},
+     "lastFit": "default"
+    }
+   ],
    "categories": [
     "T1",
     "Pants",
     "Vietnam"
    ],
-   "value": 10,
-   "rank": "common",
-   "savedAt": 1792354517083
+   "value": 11,
+   "rank": "rare",
+   "savedAt": 1792354590046,
+   "editedFrom": 1792354517083
   },
   {
    "id": "4d3utug",
