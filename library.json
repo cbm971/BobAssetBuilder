@@ -1133474,7 +1133474,7 @@
    "size": 6,
    "animFps": 2,
    "solidDefault": false,
-   "category": "Rocket Program",
+   "category": "Stage",
    "frames": [
     {
      "front": [
@@ -1135157,8 +1135157,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792355604522,
-   "editedFrom": 1792349372508
+   "savedAt": 1792356156355,
+   "editedFrom": 1792355604522
   },
   {
    "id": "vcrdish",
@@ -1136566,7 +1136566,7 @@
    "size": 3,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Rocket Program",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -1137201,7 +1137201,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792349372508
+   "savedAt": 1792356173073,
+   "editedFrom": 1792349372508
   },
   {
    "id": "vcrflam",
@@ -1141390,7 +1141391,7 @@
    "size": 8,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Rocket Program",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -1142549,8 +1142550,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792355604522,
-   "editedFrom": 1792349372508
+   "savedAt": 1792356183973,
+   "editedFrom": 1792355604522
   },
   {
    "id": "vcrlnch",
@@ -1145133,7 +1145134,7 @@
    "size": 10,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Rocket Program",
+   "category": "Nature",
    "frames": [
     {
      "front": [
@@ -1145702,8 +1145703,8 @@
       {
        "id": "net024",
        "kind": "diamond",
-       "x": 150.5,
-       "y": 60.25,
+       "x": 165.5,
+       "y": 69.5,
        "w": 15,
        "h": 7.5,
        "color": "#4b5320",
@@ -1146771,8 +1146772,8 @@
      {
       "id": "net024",
       "kind": "diamond",
-      "x": 150.5,
-      "y": 60.25,
+      "x": 165.5,
+      "y": 69.5,
       "w": 15,
       "h": 7.5,
       "color": "#4b5320",
@@ -1147272,7 +1147273,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792349372508
+   "savedAt": 1792356129482,
+   "editedFrom": 1792349372508
   },
   {
    "id": "vcrplng",
