@@ -8508,6 +8508,105 @@ export const TEXTURES = {
       return out;
     },
   },
+  // BAMBOO — split-cane walling for the Vietnam floor (Forest M2's rocket program, 2026-10-18): hut
+  // walls, fences, the launch gantry's screens. Canes stand side by side with a dark gap between, so
+  // a painted run reads as many poles lashed together and not as one striped board. What makes a
+  // cane read as BAMBOO rather than a dowel is the node, the ring every half-metre or so, which is a
+  // dark band with a lit lip just under it. Nodes sit at a different height on each cane (two per
+  // cane per tile, kept clear of the tile's top and bottom edge), because nodes all in a row look
+  // like a ruled grid the moment the wall is taller than a cell.
+  //
+  // Lashing is the rope binding the canes to their rails, two bands a tile; 0 takes it off for a
+  // plain cane wall. Every vertical stroke runs past both edges of the tile, so it repeats down a
+  // wall with no seam.
+  bamboo: {
+    label: "Bamboo", icon: "🎋", tile: [60, 120], base: "culm",
+    colors: [["culm", "Cane", "#c2ab62"], ["culmAlt", "Cane (alt)", "#ad9650"], ["node", "Node", "#6f5f2a"], ["lit", "Highlight", "#e0cf8a"], ["gap", "Gap", "#2a2412"], ["lash", "Lashing", "#5a3a22"]],
+    params: [
+      { key: "canes", label: "Canes", min: 3, max: 6, step: 1, def: 4 },
+      { key: "lash", label: "Lashing", min: 0, max: 1, step: 0.05, def: 0.5 },
+    ],
+    svg: (co, _t, pa) => {
+      const tw = 60, th = 120;
+      const n = Math.max(3, Math.min(6, Math.round(pa.canes ?? 4))), cw = tw / n;
+      const lash = Math.max(0, Math.min(1, pa.lash ?? 0.5));
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.gap);
+      for (let b = 0; b < n; b++) {
+        const x = b * cw, w = cw - 1.4;
+        out += svgRect(x + 0.7, -2, w, th + 4, trnd(b * 5.3 + 1) > 0.5 ? co.culmAlt : co.culm);
+        out += svgRect(x + 0.7 + w * 0.2, -2, w * 0.16, th + 4, co.lit, ' opacity="0.55"');   // the light down the round of the cane
+        out += svgRect(x + 0.7 + w * 0.82, -2, w * 0.18, th + 4, co.node, ' opacity="0.35"'); // its shadow side
+        for (let k = 0; k < 2; k++) {
+          const ny = k * th / 2 + 12 + trnd(b * 7.1 + k * 3.3) * (th / 2 - 24);
+          out += svgRect(x + 0.7, ny - 1.6, w, 3.2, co.node);
+          out += svgRect(x + 0.7, ny + 1.6, w, 1.2, co.lit, ' opacity="0.6"');
+        }
+      }
+      if (lash > 0) {
+        const bh = 2 + lash * 4;
+        for (const by of [th * 0.25, th * 0.75]) {
+          out += svgRect(-2, by - bh / 2, tw + 4, bh, co.lash);
+          // the turns of the rope: short dark diagonals across the band, one set per cane
+          for (let b = 0; b < n; b++) {
+            for (let k = 0; k < 3; k++) {
+              const x0 = b * cw + (k + 0.5) * cw / 3 - 1.5;
+              out += `<path d="M${px(x0)},${px(by + bh / 2)} L${px(x0 + 3)},${px(by - bh / 2)}" stroke="${co.gap}" stroke-width="0.8" opacity="0.6"/>`;
+            }
+          }
+        }
+      }
+      return out;
+    },
+  },
+  // THATCH — a palm-leaf roof, laid in courses like shingles. Each course is a band of straw whose
+  // ragged hem hangs down over the top of the course below, and what gives a flat-painted roof its
+  // layers is the SHADOW of that hem: the same ragged outline, dropped a few pixels and dark, drawn
+  // just before the hem itself. A flat dark strip under a row of teeth read as a comb (the first
+  // cut of this texture). Two courses a tile, the second shifted half a tooth so the hems never
+  // line up into a stripe. The bottom course's hem hangs past the tile and is drawn again at the
+  // top (gravel's wrap), and every tooth's shape goes by its index mod the tile, so the repeat has
+  // no seam either way. Rough jitters the strands and the hem; 0 is a neatly trimmed roof.
+  thatch: {
+    label: "Thatch", icon: "🛖", tile: [120, 60], base: "straw",
+    colors: [["straw", "Straw", "#a8823f"], ["strawAlt", "Straw (alt)", "#93703a"], ["dark", "Shadow", "#4a3519"], ["tip", "Dry tips", "#d4b468"]],
+    params: [{ key: "rough", label: "Rough", min: 0, max: 1, step: 0.05, def: 0.5 }],
+    svg: (co, _t, pa) => {
+      const tw = 120, th = 60, ch = th / 2, teeth = 11, tooth = tw / teeth;
+      const rough = Math.max(0, Math.min(1, pa.rough ?? 0.5));
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.straw);
+      for (let row = 0; row < 2; row++) {
+        const y = row * ch;
+        out += svgRect(-2, y, tw + 4, ch, row ? co.strawAlt : co.straw);
+        for (let k = 0; k < 18; k++) {
+          const sx = ((k + 0.5) * tw) / 18 + (trnd(row * 31 + k * 1.7) - 0.5) * 4 * rough;
+          const sy = y + 4 + trnd(row * 3.7 + k * 5.1) * ch * 0.45;
+          const lean = (trnd(row * 17 + k * 2.3) - 0.5) * 4 * rough;
+          const stroke = trnd(row * 13 + k * 3.1) > 0.6 ? co.tip : co.dark;
+          out += `<path d="M${px(sx)},${px(sy)} L${px(sx + lean)},${px(y + ch + 3)}" stroke="${stroke}" stroke-width="1.4" stroke-linecap="round" opacity="0.55"/>`;
+        }
+      }
+      // The hems go on after BOTH courses, or the second course's band would cover the first one's.
+      const hem = (row, dy) => {
+        const y = row * ch + dy, shift = row ? tooth / 2 : 0;
+        let d = "";
+        for (const oy of row ? [0, -th] : [0]) {
+          let p = "M" + px(-tooth + shift) + "," + px(y + oy + ch - 1);
+          for (let k = -1; k <= teeth; k++) {
+            const i = (k + teeth) % teeth, x0 = k * tooth + shift;
+            const drop = 5 + trnd(row * 11 + i * 4.9 + 2) * 7 * rough, tip = 0.3 + trnd(row * 5 + i * 2.1) * 0.4 * (0.5 + rough);
+            p += " L" + px(x0 + tooth * tip) + "," + px(y + oy + ch + drop) + " L" + px(x0 + tooth) + "," + px(y + oy + ch - 1);
+          }
+          d += p + " L" + px(teeth * tooth + tooth + shift) + "," + px(y + oy + ch - 6) + " L" + px(-tooth + shift) + "," + px(y + oy + ch - 6) + "Z";
+        }
+        return d;
+      };
+      for (let row = 0; row < 2; row++) {
+        out += `<path d="${hem(row, 4)}" fill="${co.dark}" opacity="0.85"/>`;
+        out += `<path d="${hem(row, 0)}" fill="${row ? co.strawAlt : co.straw}"/>`;
+      }
+      return out;
+    },
+  },
   // CHECKER TILE — the vinyl floor under all that panelling. Straight checkerboard rather than
   // diamond, because that is what got laid in kitchens and diners, and because a straight grid
   // lines up with a level's cell grid instead of fighting it.

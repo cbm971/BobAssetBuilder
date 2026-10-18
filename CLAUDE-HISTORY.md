@@ -5123,3 +5123,45 @@ on it. Later levels still join by gates, so a gate naming another floor still cr
 has a floor box opening on the editor level's floor; 🏁 Play this run and Hold-R reroll keep it.
 Verified on his online save in a prod build: Trailor Park seeds 1-3 roll the same chains as
 before; Vietnam rolls "1 level, Forest M1" and Play this run starts "level 1 of 1 · Forest M1".
+
+## FOREST M2 — THE ROCKET PROGRAM (2026-10-18)
+
+Blake: "make a Forest M2 level ... themed around a vietkong rocket program (Like NASA) and you can go
+somewhat wild and make whatever assets you'd like ... do keep in mind it's in a jungle". His Forest M1
+(llbe2ks) is an early draft; its trees are not rounded yet ("I have yet to round the edges of some
+trees but will"), so nothing of his was touched. New level `vcfrm02` "Forest M2", floor Vietnam,
+180 x 46, ground on row 38 and berms on row 36 at both seams to meet M1's edges.
+
+- **Gates:** W1 and E2 open, blank (= Vietnam). M1 has E1 + W2 open (W2 accepts "Vietnam"), so both pairs
+  agree on both seams and buildRun lays M1>M2 and M2>M1 (checked over 40 seeds with { floor: "Vietnam" }).
+- **West to east:** the Program Sign (a 💬 sign reads it), the trail depot under two camo nets (rocket
+  bicycles, fuel drums), MISSION CONTROL, a stilt hut (plank floor row 29, eight clear rows under it,
+  bamboo back wall, thatch roof in Front paint rows 15-20) reached up a grass hillside from the west and a
+  ladder at its east end; the launch site (stone pad one row up, the Bamboo Gantry with two decks, the
+  rocket, the plunger behind sandbags); the crash site of VC-0, still smoking.
+- **The launch is a 🎬 "Walk up + E" animation** (`vcrlnch`, stage cols 100-143, marker on its bottom-left
+  cell). The rocket only exists in the stage. E within reach of the plunger: countdown (Bob pushes it,
+  the rocket rocks, smoke), liftoff with his explosion sound (aghad42), the rocket flies off the top,
+  smoke clears, you take over. Measured in the dev build: the prompt shows, the layers move, the stage
+  ends empty, Bob stands at the plunger.
+- **Cast:** his Viatnamese 1/2/3 as hostiles (his M1 spawn shape: seek, T1 gear, Molotovs) with his
+  machete, the Type 53 and a Mosin lookout on the gantry's top deck, and his Elaphant; inside the hut
+  three talkers: Quartermaster (shop act, tag Vietnam: his Vietnam pack), Chief Engineer (100 points,
+  heal, or hostile), Volunteer Pilot (heal, or "friendly" - he joins you). Pedestals: Item/Drink in the
+  hut, Vietnam kit on the top deck.
+- **New records:** 15 props in category "Rocket Program" (`vcr*`), anim `vcrlnch`, textures `vcbmbo1`
+  Bamboo and `vcthch1` Thatch (new `bamboo`/`thatch` registry entries, icons gi:bamboo / gi:hut),
+  dialogues `dlgvcsg` `dlgvceg` `dlgvcqm` `dlgvcpl`. Pack file: assets/forest-m2-rocket-program-pack.json
+  (a version-1 backup, so importing it only adds). Every asset passes editorReachIssues.
+- **Two climbing bugs found by driving it** (both now CLAUDE.md rules): the hut ladder's top cell level
+  with the floor pinned Bob at feet 871 against a floor at 870 and he could not step off; with the ladder
+  one row higher, the gantry's decks eight rows apart put his head in the upper deck at the lower ladder's
+  top. Decks now rows 19 and 28.
+- **Recipe:** generators vcprops.js (whole-cell grid; the drawing is stretched onto its grid, with a warning
+  past 6%), vclevel.js (trees as ellipse lobes whose row ends become ONE ramp across the cells that stick
+  out; one-cell ramps on every row end made a sawtooth), vcdeliver.js (text insertion, proofs) in session
+  5786b7e8's scratchpad. Drive: dev server seeded with his folder export + the new records, gated
+  MessageChannel shim and frame-scripted key holds as page scripts.
+- **Not verified:** the look on his 3084 px view, the fight's difficulty, and the run seam with M1 in play
+  (buildRun was checked, the crossing was not walked).
+

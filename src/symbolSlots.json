@@ -110,6 +110,8 @@
   { "k": "🌾", "l": "Vietnam grass / palette", "g": "Textures", "d": "gi:wheat" },
   { "k": "⛰", "l": "Terrain / gravel", "g": "Textures", "d": "gi:mountains" },
   { "k": "🪵", "l": "Wood planks", "g": "Textures", "d": "gi:wood-beam" },
+  { "k": "🎋", "l": "Bamboo", "g": "Textures", "d": "gi:bamboo" },
+  { "k": "🛖", "l": "Thatch", "g": "Textures", "d": "gi:hut" },
   { "k": "🧶", "l": "Carpet", "g": "Textures", "d": "gi:yarn" },
   { "k": "🪟", "l": "Glass", "g": "Textures", "d": "mdi:window-closed-variant" },
   { "k": "⛪", "l": "Stained glass", "g": "Textures", "d": "gi:church" },

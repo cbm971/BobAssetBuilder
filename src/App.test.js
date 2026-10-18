@@ -2720,6 +2720,60 @@ describe("vietnam grass texture", () => {
   });
 });
 
+describe("bamboo and thatch textures (Forest M2)", () => {
+  const svgOf = (key, params) => {
+    const t = newTexture(key);
+    return TEXTURES[key].svg(t.colors, TEXTURES[key].tile, { ...t.params, ...(params || {}) });
+  };
+
+  test("are registered right after Wood panelling, and render the same every time", () => {
+    const at = TEXTURE_KEYS.indexOf("woodPanel");
+    expect(TEXTURE_KEYS.slice(at + 1, at + 3)).toEqual(["bamboo", "thatch"]);
+    for (const key of ["bamboo", "thatch"]) expect(textureDataUri(newTexture(key))).toBe(textureDataUri(newTexture(key)));
+  });
+
+  test("every colour control contributes to the rendered texture", () => {
+    for (const key of ["bamboo", "thatch"]) {
+      const base = newTexture(key);
+      for (const [c] of TEXTURES[key].colors) {
+        expect(textureDataUri({ ...base, colors: { ...base.colors, [c]: "#ff00ff" } })).not.toBe(textureDataUri(base));
+      }
+    }
+  });
+
+  test("Lashing 0 takes the rope off; Canes sets how many canes stand in a tile", () => {
+    const lash = newTexture("bamboo").colors.lash;
+    expect(svgOf("bamboo", { lash: 0 })).not.toContain(lash);
+    expect(svgOf("bamboo", { lash: 1 })).toContain(lash);
+    const canes = (n) => svgOf("bamboo", { canes: n, lash: 0 }).split('opacity="0.55"').length - 1;
+    expect(canes(3)).toBe(3);
+    expect(canes(6)).toBe(6);
+  });
+
+  test("bamboo nodes stay clear of the tile's top and bottom, so a wall repeats with no seam", () => {
+    const [, th] = TEXTURES.bamboo.tile, node = newTexture("bamboo").colors.node;
+    const ys = [...svgOf("bamboo", { lash: 0 }).matchAll(/<rect x="[^"]+" y="(-?[\d.]+)" width="[^"]+" height="3.2" fill="([^"]+)"/g)].filter((m) => m[2] === node).map((m) => +m[1]);
+    expect(ys.length).toBeGreaterThan(0);
+    for (const y of ys) { expect(y).toBeGreaterThan(5); expect(y + 3.2).toBeLessThan(th - 5); }
+  });
+
+  test("thatch hems match across the tile's side edges and wrap the bottom hem to the top", () => {
+    const [tw, th] = TEXTURES.thatch.tile;
+    const hems = [...svgOf("thatch", { rough: 1 }).matchAll(/<path d="(M[^"]+Z)" fill="[^"]+"\/>/g)].map((m) => m[1]);
+    expect(hems).toHaveLength(2);
+    for (const d of hems.flatMap((h) => h.split("M").filter(Boolean))) {
+      // the hem line itself: every point but the two that close the band off above it
+      const pts = [...d.matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((m) => [+m[1], +m[2]]).slice(0, -2);
+      for (const [x, y] of pts) if (x < 0) expect(pts.some(([x2, y2]) => Math.abs(x2 - (x + tw)) < 0.011 && Math.abs(y2 - y) < 0.011)).toBe(true);
+    }
+    // the second course's hem hangs past the bottom and is drawn again over the top
+    expect(hems[1].split("M").length - 1).toBe(2);
+    const ys = [...hems[1].matchAll(/,(-?[\d.]+)/g)].map((m) => +m[1]);
+    expect(Math.max(...ys)).toBeGreaterThan(th);
+    expect(Math.min(...ys)).toBeLessThan(0);
+  });
+});
+
 describe("Vietnam palette", () => {
   test("is a twelve-swatch palette of real hex colours", () => {
     expect(PALETTES.vietnam.label).toBe("Vietnam");

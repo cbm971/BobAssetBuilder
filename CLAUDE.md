@@ -275,13 +275,18 @@ plus traps it does not cover:
 - **A sign on a Front-painted wall needs a hole in the paint.** Front objects draw UNDER Front paint
   (5101+ vs 6000), so cut the paint where the sign sits (E1's Local Board Sign, rows 17-19).
 - Reuse his palettes (`PALETTES.trailer60s`, `PALETTES.vietnam` + the `vietnamGrass` texture for the Vietnam floor, `#2b2b2b` for tyres and trim, `#8a929c` for chrome)
-  and his textures.
+  and his textures. The Vietnam floor also has `bamboo` (canes, walls) and `thatch` (roofs) registry textures.
 - `solidDefault` sets the Solid box when the prop is picked (still editable). Solid means collision
   and nothing else; the drawing layer is `lay` (bg / fg / front).
 - **Props cannot be climbed.** Climbing comes only from the level's Climb layer (ladder, bars,
   cliff, 🚶 top-down), painted cell by cell. To let Bob WALK over a prop (the M14 saucer), paint
   hidden Foreground (`hideInPlay`) blocks under its top with a 45° ramp wherever the height
   changes, each column at most one row from the next.
+- **A ladder runs ONE ROW PAST the deck it reaches.** A climb pins you where your body last overlaps a
+  ladder cell, so a ladder whose top cell is level with the deck leaves your feet a pixel inside the deck
+  and you cannot step off. Decks joined by a ladder are at least NINE rows apart (seven tall + that row),
+  or your head is in the deck above at the ladder top. The Climb layer is invisible in play: draw the rungs
+  (ladder Objects, as M1 does, or the prop's own art).
 - **Nothing solid taller than one cell across the only way through a level.** Agility -1 to 1
   jumps ONE cell (Army Bob, Roberta, Crocobob, Bobby, Billy), so a two-cell solid prop traps them
   for good. Place such props as scenery (Solid off), or give the path a way round.
@@ -580,7 +585,7 @@ plus traps it does not cover:
   - **A run is one floor's** (`buildRun(pool, seed, { floor })`, 2026-10-18): the Intro, the Exit and
     (with no Intro) the first level come from that floor; later levels join by gates alone. 🎲 Generate
     has a floor box (`runFloors`), opening on the editor level's floor; Hold-R keeps the run's floor.
-    No floor = any Intro (the game's New Game). Vietnam is one middle level (Forest M1): a 1-level run.
+    No floor = any Intro (the game's New Game). Vietnam is two middle levels, Forest M1 and Forest M2 (M2's W1/E2 meet M1's E1/W2), and a run lays them in either order.
   - Sewers and tree tops (Floor "Sewer", "Underground" or "Tree Top") are planned as passages
     with a way out. **No street level is laid with a top/bottom gate that leads nowhere** (his rule,
     2026-10-11: "an impossible seed"): `tryLay` takes a level back when its passage cannot be
