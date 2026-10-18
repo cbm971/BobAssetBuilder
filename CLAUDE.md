@@ -728,6 +728,13 @@ plus traps it does not cover:
   (`headStompPose`, Fly's rig, no designer) shows exactly then. A wearing unit leaps at its target at
   an attack commit (`headStompLeapPlan`) only if its jump clears the head: Agility 10 clears a 7-cell
   Bob, 9 does not. Keep the `hs*` names; `stomp*` is taken.
+- **🔥 Ignite (weapon ability, ranged + melee, 2026-10-18):** a connecting hit sets the body alight for `ignite` s at
+  `igniteDps` (`igniteBody`). It is a timer on the body added to `hazardDpsAt` in the SAME burn pool fire cells use, so the
+  onFire look and immunities are fire's own; it never paints cells (a 10/s flamethrower would re-raster the level). Applied at
+  every hit site that applies a shot/swing stun, both directions. The Flamethrower (`flmthr1`, Flame `flmpuf1`) uses it.
+- **Melee DPS is damage x a fixed swing** (`PLAYER_SWING_FRAMES` 12, 5 swings/s); a melee weapon's Fire rate does nothing.
+  Melee is balanced on damage vs stun / reach (hitbox) / ignoreArmor. Roster 2026-10-18: Cane 7, Bat 7+0.25 stun, Knife 8
+  (short), Baton 9+1 stun, Crowbar 11+0.25, Machete 13, Katana 13+ignore armour (long), Punji 15, Sledgehammer 17+0.5 stun.
 - **⚔️ Melee clash:** a Q/V pistol-whip WITH A GUN IN HAND and a unit's melee blow in the air together
   (`meleeClash`, face to face) both miss and both bodies are shoved `CLASH_PUSH_CELLS` apart. A bite
   lands the frame it commits, so the last `CLASH_WINDUP_FRAMES` of a melee wind-up count as thrown.

@@ -1514,6 +1514,22 @@ export const DEFAULT_LAND_CHAR = "🔥";
 // is the marker that says "draw the fx.shot slot" (the Symbols screen). Same idea for the two above.
 export const DEFAULT_SHOT_CHAR = "🔥";
 export const DEFAULT_STUN_SECS = 1; // seconds a freshly added Stun ability freezes for
+// 🔥 IGNITE: a connecting hit sets the body alight. It then burns at igniteDps for `ignite` seconds,
+// through the SAME per-second pool a fire cell drains (burnPool), on top of any fire it stands in, so
+// the onFire look, the death message and every immunity are the fire rules already in the game. A
+// re-hit refreshes the clock to the longer of the two and the hotter flame wins; burning never stacks.
+// It is a timer on the body, not painted cells: a flamethrower lands ~12 hits a second, and painting a
+// hazard cell per hit would re-raster the level every frame.
+export const DEFAULT_IGNITE_SECS = 2, DEFAULT_IGNITE_DPS = 6;
+export const igniteBody = (body, secs, dps) => {
+  if (!body || !((secs || 0) > 0) || !((dps || 0) > 0)) return body;
+  const burning = (body.ignite || 0) > 0;
+  body.ignite = Math.max(body.ignite || 0, Math.round(secs * 60));
+  body.igniteDps = burning ? Math.max(body.igniteDps || 0, dps) : dps;
+  return body;
+};
+export const igniteDpsOf = (body) => (body && (body.ignite || 0) > 0 ? body.igniteDps || 0 : 0);
+export const tickIgnite = (body, dtMul) => { if (body && (body.ignite || 0) > 0) body.ignite = Math.max(0, body.ignite - dtMul); return body; };
 export const DEFAULT_MELEE_BOOST = 3; // 🦍 Melee boost: a freshly added one triples your punch
 // What the 👊 Q/V swing is multiplied by with this weapon in hand. Only a RANGED weapon can carry
 // it (a melee weapon's swing is its own Damage number already), and anything <= 1 means off.
@@ -2004,6 +2020,14 @@ export const WEAPON_ABILITIES = {
     brief: (a) => "freezes what it hits for " + briefNum(a.stun || DEFAULT_STUN_SECS) + "s",
     melee: true,
     on: { stun: DEFAULT_STUN_SECS }, off: { stun: 0 },
+  },
+  ignite: {
+    icon: "🔥", label: "Ignite", types: ["ranged", "melee"],
+    blurb: "A connecting hit sets the target on fire: it keeps losing HP every second for a few seconds after, like standing in fire. Re-hitting refreshes the timer. Works in both directions: in a 👹 Enemy's hands it sets YOU alight.",
+    brief: (a) => "sets what it hits on fire for " + briefNum(a.ignite || DEFAULT_IGNITE_SECS) + "s",
+    melee: true,
+    isOn: (a) => !!a && !isThrowable(a.wtype) && (a.ignite ?? 0) > 0, // older saves have no wtype: a melee weapon
+    on: { ignite: DEFAULT_IGNITE_SECS, igniteDps: DEFAULT_IGNITE_DPS }, off: { ignite: 0 },
   },
   resurrect: {
     icon: "🔮", label: "Resurrect staff", types: ["ranged", "melee"],
@@ -4760,7 +4784,7 @@ export const reviveInPlace = (p) => {
   // reaches zero, and the window here outlasts it anyway.
   p.stun = 0; p.down = EXTRA_LIFE_DOWN_FRAMES;
   p.blocking = null; p.throwAiming = false; p.throwAim = 0; p.burstLeft = 0; p.stomp = null; // a stomp is committed state too
-  p.burnPool = 0; p.onFire = 0;
+  p.burnPool = 0; p.onFire = 0; p.ignite = 0;
   // A unit's corpse flag. The revive runs the same frame as the death, before the dead branch
   // ever sees it, so this is belt-and-braces — but a settled corpse that got back up must not
   // keep "stop simulating" set, or it would stand there with gravity switched off.
@@ -14645,7 +14669,7 @@ export default function AssetStudio({ game = false } = {}) {
       const here = lv.runKey || lv.id, rs = respawnSpec.current;
       const spec = rs && rs.at === here ? rs.spec : (lv.isRoom ? { roomDoor: true } : { gate: true });
       p.crouch = false; p.climbing = false; p.climbJump = false; p.topdown = false; p.tdJumpY = null;
-      p.stun = 0; p.down = 0; p.downCd = 0;
+      p.stun = 0; p.down = 0; p.downCd = 0; p.ignite = 0; p.burnPool = 0;
       placeSpawn(p, spec, CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, CH * PLAYER_H_CELLS);
       camRef.current.init = false; // a respawn is a cut, like a door — not a pan across the level
     };
@@ -15594,7 +15618,8 @@ export default function AssetStudio({ game = false } = {}) {
       // fractional pool so sub-1-HP ticks aren't rounded away to nothing each frame.
       // The ONE window it does honour is lifeGrace, the 🐱 Extra Life flash: you get back up in the
       // flames you died in, and without this the next life goes a sixth of a second later.
-      const pDps = hazardDpsAt(lv, p.x, p.y, pw, ph, CW, CH, hazardAlive);
+      const pDps = hazardDpsAt(lv, p.x, p.y, pw, ph, CW, CH, hazardAlive) + igniteDpsOf(p); // 🔥 plus a hit that set you alight
+      tickIgnite(p, dtMul);
       if (pDps > 0 && !p.transitioning && !(p.lifeGrace > 0)) {
         p.burnPool = (p.burnPool || 0) + pDps * (dtMul / 60);
         if (p.burnPool >= 1) {
@@ -16453,7 +16478,8 @@ export default function AssetStudio({ game = false } = {}) {
 
           // Enemies burn in fire the same way the player does — same per-second drain into a
           // per-enemy fractional pool. Fire is universal: it doesn't care whose side you're on.
-          const eDps = hazardDpsAt(lv, ep.x, ep.y, epw, newEph, CW, CH, hazardAlive);
+          const eDps = hazardDpsAt(lv, ep.x, ep.y, epw, newEph, CW, CH, hazardAlive) + igniteDpsOf(ep); // 🔥 plus a hit that set it alight
+          tickIgnite(ep, dtMul);
           // Fire is universal and does not care whose side you are on — with ONE exception, and it
           // is not a special case so much as closing the door the rest of the rule leaves open: a
           // Burn throwable paints hazard cells, so without this a molotov at their feet is simply
@@ -16558,6 +16584,7 @@ export default function AssetStudio({ game = false } = {}) {
                 // theirs was an ordinary stick. Same 💫 channel, same seconds off the same slider.
                 // Deliberately inside the else and behind the i-frame and block gates above: a hit
                 // that killed you, that never landed, or that you turned aside cannot daze you.
+                if (hitEw) igniteBody(p, hitEw.ignite, hitEw.igniteDps ?? DEFAULT_IGNITE_DPS);
                 if ((hitEw?.stun ?? 0) > 0) { stunPlayer(p, hitEw.stun); flash(critNote + "👹 " + ea.name + " hit you for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + hitEw.stun + "s (" + playerHP.current + " HP left)"); }
                 else flash(critNote + "👹 " + ea.name + " hit you for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)");
               }
@@ -16816,7 +16843,7 @@ export default function AssetStudio({ game = false } = {}) {
               // on a unit's shot (nor its throw or brawl blow): a null lastHitByFx means YOUR blow,
               // and that is what the score pays a kill on.
               critInt: eIntel, shooterFx: ea.effects || [], snd: ew, // snd: whose 🔊 Hit plays where it lands
-              ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: shotPierces(ew, ea.effects),
+              ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: shotPierces(ew, ea.effects), ignite: ew.ignite ?? 0, igniteDps: ew.igniteDps ?? DEFAULT_IGNITE_DPS,
               explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeChar: ew.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
               shooterKey: k, // who fired it, so an exploding round can catch its OWN shooter in the blast (detonate)
             });
@@ -17081,7 +17108,9 @@ export default function AssetStudio({ game = false } = {}) {
             char: playtestWeapon.projectile?.char || DEFAULT_SHOT_CHAR, tint: playtestWeapon.projectile?.tint || null,
             pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
             alpha: assetAlpha(projAsset || playtestWeapon), // 👻 the Projectile asset's Translucent (an old gun drew its round itself, so then the gun's)
-            size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), playtestWeapon.categories)), // 🏹 worn Tag Damage × a 🧪 timed one still running stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
+            size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), playtestWeapon.categories)), // 🏹 worn Tag Damage × a 🧪 timed one still running
+            stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
+            ignite: playtestWeapon.resurrect ? 0 : (playtestWeapon.ignite ?? 0), igniteDps: playtestWeapon.igniteDps ?? DEFAULT_IGNITE_DPS,
             ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor, pierce: playerShotsPierce, snd: playtestWeapon, // snd: whose 🔊 Hit plays where it lands
             explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeChar: playtestWeapon.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
           });
@@ -17175,7 +17204,7 @@ export default function AssetStudio({ game = false } = {}) {
           enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(sCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2));
           ep.invuln = PLAYER_INVULN_FRAMES;
           ep.lastHitByFx = pr.shooterFx || null;
-          if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
+          if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) igniteBody(ep, pr.ignite, pr.igniteDps);
         };
         if (pr.foe) {
           if (p.invuln <= 0) {
@@ -17186,6 +17215,7 @@ export default function AssetStudio({ game = false } = {}) {
               const dmg = incomingPlayerDamage(bCrit ? baseDmg * 2 : baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch);
               playerHP.current = playerHpAfterHit(playerHP.current, dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
+              if (playerHP.current > 0) igniteBody(p, pr.ignite, pr.igniteDps);
               if (playerHP.current <= 0) { playerDefeated(p, "💀 Caught in the blast — back to the start."); }
               else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(bNote + "💥 Blast hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
               else flash(bNote + "💥 Blast hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)");
@@ -17202,7 +17232,7 @@ export default function AssetStudio({ game = false } = {}) {
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(aCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2));
               ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln just above (unitHitImmune)
               ep.lastHitByFx = pr.shooterFx || null;
-              if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
+              if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) igniteBody(ep, pr.ignite, pr.igniteDps);
             }
           }
           if (pr.shooterKey) selfBlastUnit(pr.shooterKey); // the hostile who fired it stands in it exactly as its targets do
@@ -17223,7 +17253,7 @@ export default function AssetStudio({ game = false } = {}) {
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
               ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln in the foe branch above (unitHitImmune)
               ep.lastHitByFx = pr.shooterFx || null;
-              if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
+              if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) igniteBody(ep, pr.ignite, pr.igniteDps);
               hits++;
             }
           }
@@ -17426,6 +17456,7 @@ export default function AssetStudio({ game = false } = {}) {
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🗡️ swing: starts no i-frames
                     if (ep) ep.lastHitByFx = null; // the last blow was yours
                     if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon && (playtestWeapon.stun ?? 0) > 0) { ep.stun = Math.round(playtestWeapon.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
+                    if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon) igniteBody(ep, playtestWeapon.ignite, playtestWeapon.igniteDps ?? DEFAULT_IGNITE_DPS);
                     // Mark THIS body as struck and carry on: the rest of the arc may still be
                     // through somebody else. (Not p.hitRegistered — that would end the whole swing.)
                     p.swingHits[k] = true;
@@ -17840,6 +17871,7 @@ export default function AssetStudio({ game = false } = {}) {
                 const dmg = incomingPlayerDamage(sCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, pr.ignoreArmor);
                 playerHP.current = playerHpAfterHit(playerHP.current, dmg);
                 p.invuln = PLAYER_INVULN_FRAMES;
+                if (playerHP.current > 0) igniteBody(p, pr.ignite, pr.igniteDps);
                 if (playerHP.current <= 0) { playerDefeated(p, "💀 Shot down — back to the start."); }
                 else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(sNote + "🏹 Hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
                 else flash(sNote + "🏹 Hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)");
@@ -17865,6 +17897,7 @@ export default function AssetStudio({ game = false } = {}) {
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(aCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor)); // 🔫 bullet: starts no i-frames
                 ep.lastHitByFx = pr.shooterFx || null;
                 if (enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
+                if (enemyHP.current[k] > 0) igniteBody(ep, pr.ignite, pr.igniteDps);
                 if (enemyHP.current[k] <= 0) flash("💔 Your " + ea.name + " fell.");
                 if (!pr.pierce) return false;
               }
@@ -17940,6 +17973,7 @@ export default function AssetStudio({ game = false } = {}) {
               const dmg = incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor);
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🔫 bullet: starts no i-frames
               if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
+              if (ep && enemyHP.current[k] > 0) igniteBody(ep, pr.ignite, pr.igniteDps);
               flash((isCrit ? "💥 Critical! " : "🎯 ") + "Hit " + ea.name + " for " + dmg + crouchGuardNote(ea.effects, ep && ep.crouch) + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
               if (!pr.pierce) return false; // projectile consumed on impact — a 🪡 piercing one flies on to the next body
             }
@@ -19448,6 +19482,10 @@ export default function AssetStudio({ game = false } = {}) {
             {k === "stun" && (
               <label className="slider">Freeze for<input type="range" min="0.25" max="5" step="0.25" value={asset.stun || DEFAULT_STUN_SECS} onChange={(e) => setAsset((a) => ({ ...a, stun: +e.target.value }))} /><span className="hint2">{(asset.stun || DEFAULT_STUN_SECS)}s</span></label>
             )}
+            {k === "ignite" && (<>
+              <label className="slider">Burn<input type="range" min="1" max="30" step="1" value={asset.igniteDps || DEFAULT_IGNITE_DPS} onChange={(e) => setAsset((a) => ({ ...a, igniteDps: +e.target.value }))} /><span className="hint2">{(asset.igniteDps || DEFAULT_IGNITE_DPS)} HP/sec</span></label>
+              <label className="slider">Burns for<input type="range" min="0.5" max="10" step="0.5" value={asset.ignite || DEFAULT_IGNITE_SECS} onChange={(e) => setAsset((a) => ({ ...a, ignite: +e.target.value }))} /><span className="hint2">{(asset.ignite || DEFAULT_IGNITE_SECS)}s</span></label>
+            </>)}
             {k === "burn" && (<>
               <label className="slider">Burn<input type="range" min="1" max="30" step="1" value={asset.landEffectDps || 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectDps: +e.target.value }))} /><span className="hint2">{(asset.landEffectDps || 6)} HP/sec</span></label>
               {/* Half-second steps: the Grenade in the library is set to 2.5s, which a step of 1

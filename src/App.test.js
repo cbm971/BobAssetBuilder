@@ -295,6 +295,10 @@ import {
   blastHitsBox,
   pointBoxDistance,
   WEAPON_ABILITIES,
+  igniteBody,
+  igniteDpsOf,
+  tickIgnite,
+  DEFAULT_IGNITE_DPS,
   weaponAbilityKeys,
   weaponAbilityOn,
   BLOCK_STAGGER_SECS,
@@ -4210,8 +4214,8 @@ describe("weapon magazines and enemy reloads", () => {
 
 describe("which abilities a weapon may carry", () => {
   test("a melee weapon is offered exactly the powers a swing can carry", () => {
-    expect(weaponAbilitiesFor("melee").sort()).toEqual(["ignoreArmor", "resurrect", "stun"]);
-    expect(weaponAbilitiesFor(undefined).sort()).toEqual(["ignoreArmor", "resurrect", "stun"]); // older saves have no wtype
+    expect(weaponAbilitiesFor("melee").sort()).toEqual(["ignite", "ignoreArmor", "resurrect", "stun"]);
+    expect(weaponAbilitiesFor(undefined).sort()).toEqual(["ignite", "ignoreArmor", "resurrect", "stun"]); // older saves have no wtype
   });
 
   test("a ranged weapon gets everything that isn't a thrown object's payload", () => {
@@ -14222,5 +14226,43 @@ describe("holding R rerolls the run", () => {
     expect(REROLL_SHOW_FRAMES).toBeLessThan(REROLL_HOLD_FRAMES);
     expect(nextRerollHold(nextRerollHold(0, true), false)).toBe(0);
     expect(nextRerollHold(10, true, 1.5)).toBe(11.5);
+  });
+});
+
+describe("🔥 Ignite: a hit that sets the body alight", () => {
+  test("a hit lights the body for its seconds, and it burns at the weapon dps until the clock runs out", () => {
+    const b = igniteBody({}, 2, 8);
+    expect(b.ignite).toBe(120);
+    expect(igniteDpsOf(b)).toBe(8);
+    tickIgnite(b, 119);
+    expect(igniteDpsOf(b)).toBe(8);
+    tickIgnite(b, 5);
+    expect(b.ignite).toBe(0);
+    expect(igniteDpsOf(b)).toBe(0);
+  });
+  test("re-hits refresh to the longer clock and the hotter flame; they never stack", () => {
+    const b = igniteBody({}, 2, 8);
+    tickIgnite(b, 60);
+    igniteBody(b, 2, 4);
+    expect(b.ignite).toBe(120);
+    expect(igniteDpsOf(b)).toBe(8);
+    igniteBody(b, 0.5, 12);
+    expect(b.ignite).toBe(120);
+    expect(igniteDpsOf(b)).toBe(12);
+  });
+  test("a weapon without Ignite, or a shot from before it existed, lights nothing", () => {
+    const b = {};
+    igniteBody(b, undefined, DEFAULT_IGNITE_DPS);
+    igniteBody(b, 0, 6);
+    igniteBody(b, 2, 0);
+    expect(igniteDpsOf(b)).toBe(0);
+    expect(igniteDpsOf(null)).toBe(0);
+  });
+  test("the ability is on from its own seconds, for guns and blades but never a throwable", () => {
+    expect(weaponAbilityOn({ wtype: "ranged", ignite: 2 }, "ignite")).toBe(true);
+    expect(weaponAbilityOn({ wtype: "melee", ignite: 2 }, "ignite")).toBe(true);
+    expect(weaponAbilityOn({ ignite: 2 }, "ignite")).toBe(true);
+    expect(weaponAbilityOn({ wtype: "ranged", ignite: 0 }, "ignite")).toBe(false);
+    expect(weaponAbilityOn({ wtype: "throw", ignite: 2 }, "ignite")).toBe(false);
   });
 });
