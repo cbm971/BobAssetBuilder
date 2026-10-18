@@ -240216,6 +240216,1637 @@
    "tone": "#b38761"
   },
   {
+   "id": "b7o7jrt",
+   "name": "Pith Helmet",
+   "type": "equipment",
+   "slot": "hat",
+   "guideId": "telfv37",
+   "angles": {
+    "front": [
+     {
+      "id": "vph001",
+      "kind": "roundrect",
+      "x": 90,
+      "y": 9,
+      "w": 20,
+      "h": 6,
+      "color": "#9a8c5c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph002",
+      "kind": "halfcircle",
+      "x": 68,
+      "y": 12,
+      "w": 64,
+      "h": 22,
+      "color": "#9a8c5c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph003",
+      "kind": "trapezoid",
+      "x": 58,
+      "y": 28,
+      "w": 84,
+      "h": 8,
+      "color": "#9a8c5c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph004",
+      "kind": "rect",
+      "x": 58,
+      "y": 34,
+      "w": 84,
+      "h": 3,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph005",
+      "kind": "star",
+      "x": 93,
+      "y": 15,
+      "w": 14,
+      "h": 14,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [
+     {
+      "id": "vph006",
+      "kind": "roundrect",
+      "x": 90,
+      "y": 9,
+      "w": 20,
+      "h": 6,
+      "color": "#9a8c5c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph007",
+      "kind": "halfcircle",
+      "x": 68,
+      "y": 12,
+      "w": 64,
+      "h": 22,
+      "color": "#9a8c5c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph008",
+      "kind": "trapezoid",
+      "x": 58,
+      "y": 28,
+      "w": 84,
+      "h": 9,
+      "color": "#9a8c5c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph009",
+      "kind": "rect",
+      "x": 58,
+      "y": 35,
+      "w": 84,
+      "h": 3,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "side": [
+     {
+      "id": "vph00a",
+      "kind": "roundrect",
+      "x": 89,
+      "y": 9,
+      "w": 20,
+      "h": 6,
+      "color": "#9a8c5c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph00b",
+      "kind": "halfcircle",
+      "x": 67,
+      "y": 12,
+      "w": 66,
+      "h": 22,
+      "color": "#9a8c5c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph00c",
+      "kind": "trapezoid",
+      "x": 57,
+      "y": 28,
+      "w": 86,
+      "h": 8,
+      "color": "#9a8c5c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph00d",
+      "kind": "rect",
+      "x": 57,
+      "y": 34,
+      "w": 86,
+      "h": 3,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph00e",
+      "kind": "star",
+      "x": 114,
+      "y": 16,
+      "w": 12,
+      "h": 12,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "up": [
+     {
+      "id": "vph00f",
+      "kind": "roundrect",
+      "x": 90,
+      "y": 9,
+      "w": 20,
+      "h": 6,
+      "color": "#9a8c5c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph00g",
+      "kind": "halfcircle",
+      "x": 68,
+      "y": 12,
+      "w": 64,
+      "h": 22,
+      "color": "#9a8c5c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph00h",
+      "kind": "trapezoid",
+      "x": 58,
+      "y": 28,
+      "w": 84,
+      "h": 8,
+      "color": "#9a8c5c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph00i",
+      "kind": "rect",
+      "x": 58,
+      "y": 34,
+      "w": 84,
+      "h": 3,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph00j",
+      "kind": "star",
+      "x": 93,
+      "y": 15,
+      "w": 14,
+      "h": 14,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "crouch": [
+     {
+      "id": "vph00k",
+      "kind": "roundrect",
+      "x": 90,
+      "y": 45,
+      "w": 20,
+      "h": 6,
+      "color": "#9a8c5c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph00l",
+      "kind": "halfcircle",
+      "x": 68,
+      "y": 48,
+      "w": 64,
+      "h": 22,
+      "color": "#9a8c5c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph00m",
+      "kind": "trapezoid",
+      "x": 58,
+      "y": 64,
+      "w": 84,
+      "h": 8,
+      "color": "#9a8c5c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph00n",
+      "kind": "rect",
+      "x": 58,
+      "y": 70,
+      "w": 84,
+      "h": 3,
+      "color": "#1d1b1b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "vph00o",
+      "kind": "star",
+      "x": 93,
+      "y": 51,
+      "w": 14,
+      "h": 14,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ]
+   },
+   "groups": {
+    "front": [],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "variants": {
+    "default": {
+     "front": [
+      {
+       "id": "vcpd01d",
+       "kind": "roundrect",
+       "x": 90,
+       "y": 9,
+       "w": 20,
+       "h": 6,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01e",
+       "kind": "halfcircle",
+       "x": 68,
+       "y": 12,
+       "w": 64,
+       "h": 22,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01f",
+       "kind": "trapezoid",
+       "x": 58,
+       "y": 28,
+       "w": 84,
+       "h": 8,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01g",
+       "kind": "rect",
+       "x": 58,
+       "y": 34,
+       "w": 84,
+       "h": 3,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01h",
+       "kind": "star",
+       "x": 93,
+       "y": 15,
+       "w": 14,
+       "h": 14,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "back": [
+      {
+       "id": "vcpd01i",
+       "kind": "roundrect",
+       "x": 90,
+       "y": 9,
+       "w": 20,
+       "h": 6,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01j",
+       "kind": "halfcircle",
+       "x": 68,
+       "y": 12,
+       "w": 64,
+       "h": 22,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01k",
+       "kind": "trapezoid",
+       "x": 58,
+       "y": 28,
+       "w": 84,
+       "h": 9,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01l",
+       "kind": "rect",
+       "x": 58,
+       "y": 35,
+       "w": 84,
+       "h": 3,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "side": [
+      {
+       "id": "vcpd01m",
+       "kind": "roundrect",
+       "x": 89,
+       "y": 9,
+       "w": 20,
+       "h": 6,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01n",
+       "kind": "halfcircle",
+       "x": 67,
+       "y": 12,
+       "w": 66,
+       "h": 22,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01o",
+       "kind": "trapezoid",
+       "x": 57,
+       "y": 28,
+       "w": 86,
+       "h": 8,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01p",
+       "kind": "rect",
+       "x": 57,
+       "y": 34,
+       "w": 86,
+       "h": 3,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01q",
+       "kind": "star",
+       "x": 114,
+       "y": 16,
+       "w": 12,
+       "h": 12,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "up": [
+      {
+       "id": "vcpd01r",
+       "kind": "roundrect",
+       "x": 90,
+       "y": 9,
+       "w": 20,
+       "h": 6,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01s",
+       "kind": "halfcircle",
+       "x": 68,
+       "y": 12,
+       "w": 64,
+       "h": 22,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01t",
+       "kind": "trapezoid",
+       "x": 58,
+       "y": 28,
+       "w": 84,
+       "h": 8,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01u",
+       "kind": "rect",
+       "x": 58,
+       "y": 34,
+       "w": 84,
+       "h": 3,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01v",
+       "kind": "star",
+       "x": 93,
+       "y": 15,
+       "w": 14,
+       "h": 14,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "crouch": [
+      {
+       "id": "vcpd01w",
+       "kind": "roundrect",
+       "x": 90,
+       "y": 45,
+       "w": 20,
+       "h": 6,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01x",
+       "kind": "halfcircle",
+       "x": 68,
+       "y": 48,
+       "w": 64,
+       "h": 22,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01y",
+       "kind": "trapezoid",
+       "x": 58,
+       "y": 64,
+       "w": 84,
+       "h": 8,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd01z",
+       "kind": "rect",
+       "x": 58,
+       "y": 70,
+       "w": 84,
+       "h": 3,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vcpd020",
+       "kind": "star",
+       "x": 93,
+       "y": 51,
+       "w": 14,
+       "h": 14,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ]
+    },
+    "telfv37": {
+     "front": [
+      {
+       "id": "vph001",
+       "kind": "roundrect",
+       "x": 90,
+       "y": 9,
+       "w": 20,
+       "h": 6,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph002",
+       "kind": "halfcircle",
+       "x": 68,
+       "y": 12,
+       "w": 64,
+       "h": 22,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph003",
+       "kind": "trapezoid",
+       "x": 58,
+       "y": 28,
+       "w": 84,
+       "h": 8,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph004",
+       "kind": "rect",
+       "x": 58,
+       "y": 34,
+       "w": 84,
+       "h": 3,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph005",
+       "kind": "star",
+       "x": 93,
+       "y": 15,
+       "w": 14,
+       "h": 14,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "back": [
+      {
+       "id": "vph006",
+       "kind": "roundrect",
+       "x": 90,
+       "y": 9,
+       "w": 20,
+       "h": 6,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph007",
+       "kind": "halfcircle",
+       "x": 68,
+       "y": 12,
+       "w": 64,
+       "h": 22,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph008",
+       "kind": "trapezoid",
+       "x": 58,
+       "y": 28,
+       "w": 84,
+       "h": 9,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph009",
+       "kind": "rect",
+       "x": 58,
+       "y": 35,
+       "w": 84,
+       "h": 3,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "side": [
+      {
+       "id": "vph00a",
+       "kind": "roundrect",
+       "x": 89,
+       "y": 9,
+       "w": 20,
+       "h": 6,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00b",
+       "kind": "halfcircle",
+       "x": 67,
+       "y": 12,
+       "w": 66,
+       "h": 22,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00c",
+       "kind": "trapezoid",
+       "x": 57,
+       "y": 28,
+       "w": 86,
+       "h": 8,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00d",
+       "kind": "rect",
+       "x": 57,
+       "y": 34,
+       "w": 86,
+       "h": 3,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00e",
+       "kind": "star",
+       "x": 114,
+       "y": 16,
+       "w": 12,
+       "h": 12,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "up": [
+      {
+       "id": "vph00f",
+       "kind": "roundrect",
+       "x": 90,
+       "y": 9,
+       "w": 20,
+       "h": 6,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00g",
+       "kind": "halfcircle",
+       "x": 68,
+       "y": 12,
+       "w": 64,
+       "h": 22,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00h",
+       "kind": "trapezoid",
+       "x": 58,
+       "y": 28,
+       "w": 84,
+       "h": 8,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00i",
+       "kind": "rect",
+       "x": 58,
+       "y": 34,
+       "w": 84,
+       "h": 3,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00j",
+       "kind": "star",
+       "x": 93,
+       "y": 15,
+       "w": 14,
+       "h": 14,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "crouch": [
+      {
+       "id": "vph00k",
+       "kind": "roundrect",
+       "x": 90,
+       "y": 45,
+       "w": 20,
+       "h": 6,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00l",
+       "kind": "halfcircle",
+       "x": 68,
+       "y": 48,
+       "w": 64,
+       "h": 22,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00m",
+       "kind": "trapezoid",
+       "x": 58,
+       "y": 64,
+       "w": 84,
+       "h": 8,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00n",
+       "kind": "rect",
+       "x": 58,
+       "y": 70,
+       "w": 84,
+       "h": 3,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00o",
+       "kind": "star",
+       "x": 93,
+       "y": 51,
+       "w": 14,
+       "h": 14,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ]
+    },
+    "oipvf3l": {
+     "front": [
+      {
+       "id": "vph00p",
+       "kind": "roundrect",
+       "x": 90,
+       "y": 9,
+       "w": 20,
+       "h": 6,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00q",
+       "kind": "halfcircle",
+       "x": 70,
+       "y": 12,
+       "w": 60,
+       "h": 22,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00r",
+       "kind": "trapezoid",
+       "x": 60,
+       "y": 28,
+       "w": 80,
+       "h": 8,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00s",
+       "kind": "rect",
+       "x": 60,
+       "y": 34,
+       "w": 80,
+       "h": 3,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00t",
+       "kind": "star",
+       "x": 93,
+       "y": 15,
+       "w": 14,
+       "h": 14,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "back": [
+      {
+       "id": "vph00u",
+       "kind": "roundrect",
+       "x": 90,
+       "y": 9,
+       "w": 20,
+       "h": 6,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00v",
+       "kind": "halfcircle",
+       "x": 68,
+       "y": 12,
+       "w": 64,
+       "h": 22,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00w",
+       "kind": "trapezoid",
+       "x": 58,
+       "y": 28,
+       "w": 84,
+       "h": 9,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00x",
+       "kind": "rect",
+       "x": 58,
+       "y": 35,
+       "w": 84,
+       "h": 3,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "side": [
+      {
+       "id": "vph00y",
+       "kind": "roundrect",
+       "x": 89,
+       "y": 9,
+       "w": 20,
+       "h": 6,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph00z",
+       "kind": "halfcircle",
+       "x": 70,
+       "y": 12,
+       "w": 60,
+       "h": 22,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph010",
+       "kind": "trapezoid",
+       "x": 60,
+       "y": 28,
+       "w": 80,
+       "h": 8,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph011",
+       "kind": "rect",
+       "x": 60,
+       "y": 34,
+       "w": 80,
+       "h": 3,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph012",
+       "kind": "star",
+       "x": 112,
+       "y": 16,
+       "w": 12,
+       "h": 12,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "up": [
+      {
+       "id": "vph013",
+       "kind": "roundrect",
+       "x": 90,
+       "y": 9,
+       "w": 20,
+       "h": 6,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph014",
+       "kind": "halfcircle",
+       "x": 70,
+       "y": 12,
+       "w": 60,
+       "h": 22,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph015",
+       "kind": "trapezoid",
+       "x": 60,
+       "y": 28,
+       "w": 80,
+       "h": 8,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph016",
+       "kind": "rect",
+       "x": 60,
+       "y": 34,
+       "w": 80,
+       "h": 3,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph017",
+       "kind": "star",
+       "x": 93,
+       "y": 15,
+       "w": 14,
+       "h": 14,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "crouch": [
+      {
+       "id": "vph018",
+       "kind": "roundrect",
+       "x": 90,
+       "y": 34,
+       "w": 20,
+       "h": 6,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph019",
+       "kind": "halfcircle",
+       "x": 70,
+       "y": 37,
+       "w": 60,
+       "h": 22,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph01a",
+       "kind": "trapezoid",
+       "x": 60,
+       "y": 53,
+       "w": 80,
+       "h": 8,
+       "color": "#9a8c5c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph01b",
+       "kind": "rect",
+       "x": 60,
+       "y": 59,
+       "w": 80,
+       "h": 3,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "vph01c",
+       "kind": "star",
+       "x": 93,
+       "y": 40,
+       "w": 14,
+       "h": 14,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ]
+    }
+   },
+   "lastFit": "telfv37",
+   "confirmedFits": [
+    "telfv37",
+    "oipvf3l"
+   ],
+   "statBoosts": {
+    "hp": 0,
+    "speed": 0,
+    "agility": 0,
+    "intelligence": 1,
+    "strength": 0
+   },
+   "defense": 5,
+   "effects": [
+    {
+     "id": "vphfx01",
+     "type": "tagBoost",
+     "mult": 1.25,
+     "tag": "Gun",
+     "animByBody": {},
+     "lastFit": "default"
+    }
+   ],
+   "categories": [
+    "T1",
+    "Hat",
+    "Vietnam"
+   ],
+   "value": 12,
+   "rank": "rare",
+   "savedAt": 1792354895959
+  },
+  {
    "id": "b7y4epm",
    "name": "Readitor",
    "type": "character",
