@@ -1,7 +1,8 @@
-// THE GAME'S FRONT END — BOB OKAY AS PLAYERS GET IT (2026-10-17).
+// THE GAME'S FRONT END — BOB AS PLAYERS GET IT (2026-10-17; the look redone 2026-10-18).
+// (The game is called BOB. Earlier notes here said "Bob Okay"; the "Okay" was never his.)
 //
-// The studio is not the game (Blake, 2026-10-08, emphatic). The game is a title sequence ("Blake
-// presents…", then "Bob"), a main menu (New Game, Load Game, Options, Unlocks, Quit Game), and a
+// The studio is not the game (Blake, 2026-10-08, emphatic). The game is a title sequence ("BLAKE
+// Presents…", then "BOB"), a main menu (New Game, Load Game, Options, Unlocks, Quit Game), and a
 // run of floor 1 with none of the editor on screen. It is the SAME app at a second address — the
 // page path ends in /game (see isGameAddress) — so it plays his levels, looks and sounds through
 // the exact engine the studio's 🏁 Play run uses, and every fix to play reaches both at once. A
@@ -81,16 +82,147 @@ export const menuStep = (items, at, dir) => {
 };
 
 // ---------- who you play ----------
-// New Game starts as his look named "Bob" (the hero of Bob Okay; his "Starter" folder holds Bob,
-// Bobby, Bobert, Bobette and Bobbi), else the first look in the Starter folder, else any look.
-// Matched by NAME on purpose: a rename to "Bob" is how he would point the game at a new hero,
-// and an id would silently keep the old one.
+// New Game opens the CHARACTER SELECT (2026-10-18, Blake: "inboxes like in super smash bros", pulling
+// "from the characters inside of the Starter sub category"). The roster is every dressed look filed
+// under Starter — Bob, Bobby, Bobert, Bobette, Bobbi, Rob, Roberta on his copy — read live from the
+// library, so a look he files under Starter tomorrow is a box on the screen tomorrow. Bob leads (he
+// is the hero; the cursor starts on him), the rest by name.
+// pickStartLook is the fallback when the folder is empty: "Bob" by NAME (a rename to "Bob" is how
+// he would point the game at a new hero), else the first Starter, else any look.
 export const START_LOOK_FOLDER = "starter";
+const normName = (s) => String(s || "").trim().toLowerCase();
+export const starterLooks = (assets) => {
+  const looks = (assets || []).filter((a) => a && a.type === "character" && a.id && normName(a.category) === START_LOOK_FOLDER);
+  return looks.sort((a, b) => (normName(a.name) === "bob" ? -1 : 0) - (normName(b.name) === "bob" ? -1 : 0) || String(a.name || "").localeCompare(String(b.name || "")) || (a.id < b.id ? -1 : 1));
+};
 export const pickStartLook = (assets) => {
   const looks = (assets || []).filter((a) => a && a.type === "character" && a.id);
-  const norm = (s) => String(s || "").trim().toLowerCase();
-  const starters = looks.filter((a) => norm(a.category) === START_LOOK_FOLDER);
-  return starters.find((a) => norm(a.name) === "bob") || looks.find((a) => norm(a.name) === "bob") || starters[0] || looks[0] || null;
+  const starters = looks.filter((a) => normName(a.category) === START_LOOK_FOLDER);
+  return starters.find((a) => normName(a.name) === "bob") || looks.find((a) => normName(a.name) === "bob") || starters[0] || looks[0] || null;
+};
+// The Smash grid: as square as the roster allows, never wider than 6 boxes (7 starters = 4 + 3).
+export const selectGridCols = (n) => Math.max(1, Math.min(6, Math.ceil(Math.sqrt(Math.max(1, n)) * 1.4)));
+// Arrow keys over that grid. Left/right wrap along the whole list; up/down keep the column, and a
+// step into the short last row lands on its last box rather than on nothing.
+export const gridStep = (n, cols, at, dx, dy) => {
+  if (n <= 0) return 0;
+  if (dx) return (at + dx + n) % n;
+  const rows = Math.ceil(n / cols);
+  const col = at % cols;
+  let row = Math.floor(at / cols) + dy;
+  row = (row + rows) % rows;
+  return Math.min(n - 1, row * cols + col);
+};
+
+// ---------- difficulty ----------
+// Blake (2026-10-18): Easy gives 4 lives, Medium 2, Hard 1, and running out ends the run on the
+// Game Over / Retry screen. A life is a whole try: losing one is the ordinary death (back to the
+// gate you came in by, full HP). It is counted per RUN in `deaths`, saved with the checkpoint, so
+// quitting to the menu and loading cannot buy them back. 🐱 Extra Lives (the item) are separate and
+// spent first — they get you up where you fell, as they always have.
+export const DIFFICULTIES = [
+  { id: "easy", label: "Easy", lives: 4 },
+  { id: "medium", label: "Medium", lives: 2 },
+  { id: "hard", label: "Hard", lives: 1 },
+];
+export const DEFAULT_DIFFICULTY = "medium";
+export const difficultyOf = (id) => DIFFICULTIES.find((d) => d.id === id) || DIFFICULTIES.find((d) => d.id === DEFAULT_DIFFICULTY);
+// Lives still in hand, the one being played included (Hard starts on 1).
+export const runLivesLeft = (diffId, deaths) => Math.max(0, difficultyOf(diffId).lives - Math.max(0, Math.round(Number(deaths) || 0)));
+// Does this death end the run? `deathsBefore` is the count before it.
+export const deathEndsRun = (diffId, deathsBefore) => runLivesLeft(diffId, (deathsBefore || 0) + 1) <= 0;
+
+// ---------- the menu's backdrop: one of his levels, with his people walking it ----------
+// Blake's mock-up had the menu over a park scene with made-up figures; he wants "actual characters
+// not those made up ones … some Bob stuff going on in the background". So the menu stands over one
+// of his own levels, drawn by the game's own tile and prop code (App.js menuSceneFor), with his
+// Starter crew and that level's own placed units strolling along its ground. Nobody fights, nothing
+// is simulated: a walker follows the level's top surface, turns at a wall, a drop or now and then
+// for no reason, and stops to stand a moment. The geometry is here, the drawing is in App.js.
+//
+// Which levels: the street levels of the floor most of his levels belong to (not rooms, not
+// sewers), ranked by what there is to look at. A placed PROP is his drawn art and counts three; an
+// emoji object counts one, and only the first 40 (a field of grass emoji is not scenery); the sum
+// is capped so a church of 300 objects cannot drown out a street full of people, and each unit
+// adds six. He called a low-ranked pick "a pretty boring level", so the order is fixed: the main
+// menu always stands over the best of them.
+//
+// EACH SCREEN HAS ITS OWN LEVEL (Blake, 2026-10-18: "when you went to different sub menus it used
+// different menus / level screenshots"). MENU_SCENE_VIEWS gives every screen its slot in that
+// ranked lineup — the main menu the best, the character select the next, and so on — wrapping when
+// he has fewer levels than screens.
+export const MENU_SCENE_PROP_CAP = 160;
+export const MENU_SCENE_VIEWS = ["menu", "select", "load", "options", "unlocks", "gameOver", "floorDone"];
+export const menuLevelScore = (l) => {
+  const objs = Object.values((l && l.fx) || {}).flat().filter(Boolean);
+  const props = objs.filter((o) => o.kind === "prop").length;
+  return Math.min(MENU_SCENE_PROP_CAP, props * 3 + Math.min(40, objs.length - props)) + 6 * Object.keys((l && l.enemies) || {}).length;
+};
+export const menuLevelLineup = (levels) => {
+  const all = (levels || []).filter((l) => l && l.cols && l.rows);
+  const street = all.filter((l) => !l.isRoom && l.cols >= 40 && l.rows >= 20 && !/sewer/i.test((l.floor || "") + " " + (l.name || "")));
+  if (!street.length) return all.slice(0, 1);
+  const floors = {};
+  for (const l of street) floors[l.floor || ""] = (floors[l.floor || ""] || 0) + 1;
+  const main = Object.keys(floors).sort((a, b) => floors[b] - floors[a] || (a < b ? -1 : 1))[0];
+  return street.filter((l) => (l.floor || "") === main).sort((a, b) => menuLevelScore(b) - menuLevelScore(a) || (a.id < b.id ? -1 : 1));
+};
+export const pickMenuLevel = (levels) => menuLevelLineup(levels)[0] || null;
+export const sceneLevelFor = (lineup, view) => {
+  if (!lineup || !lineup.length) return null;
+  const i = MENU_SCENE_VIEWS.indexOf(view);
+  return lineup[(i < 0 ? 0 : i) % lineup.length];
+};
+// The row each column's walkable top surface is on: the first solid cell from the top with a body's
+// height of open air over it (so a tree canopy or a roof with no room under the sky is skipped
+// past, and so is a ceiling). null where nothing in the column can be stood on.
+export const MENU_BODY_ROWS = 7;
+export const sceneSurface = (rows, cols, solidAt, bodyRows = MENU_BODY_ROWS) => {
+  const out = new Array(cols).fill(null);
+  for (let c = 0; c < cols; c++) {
+    let open = 0;
+    for (let r = 0; r < rows; r++) {
+      if (solidAt(r, c)) { if (open >= bodyRows) { out[c] = r; break; } open = 0; }
+      else open++;
+    }
+  }
+  return out;
+};
+// Where the view stands vertically: the ground the walkers are on (the median of the surface) a
+// little under three-quarters of the way down, the way the mock-up framed its gravel path.
+export const MENU_GROUND_AT = 0.76;
+// The level's main ground: the median of the surface. Walkers start only within MENU_GROUND_BAND rows
+// of it, so nobody begins on a rooftop or a ledge (and, turning at every step of more than a row,
+// nobody climbs onto one either).
+export const MENU_GROUND_BAND = 4;
+export const sceneGroundRow = (surface, rows) => {
+  const s = (surface || []).filter((v) => v != null).sort((a, b) => a - b);
+  return s.length ? s[Math.floor(s.length / 2)] : rows - 4;
+};
+export const sceneTopRow = (surface, rows, viewRows) => {
+  const ground = sceneGroundRow(surface, rows);
+  return Math.max(0, Math.min(Math.max(0, rows - viewRows), Math.round(ground - viewRows * MENU_GROUND_AT)));
+};
+// One walker, `dt` seconds on. A walker is { x (its centre, px), foot (px, eased), dir (±1), speed
+// (px/s), idle (s left standing), phase (the walk cycle, the loop's own 0.03 rad per px) }.
+// It turns back at the level's ends, at a step of more than one row, and at a column with no
+// surface, and stands for a beat when it does half the time.
+export const MENU_WALK_PHASE_PER_PX = 0.03;
+export const stepMenuWalker = (w, dt, surface, cell, rnd = Math.random) => {
+  const ease = (foot, to) => foot + (to - foot) * Math.min(1, dt * 12);
+  if (w.idle > 0) return { ...w, idle: Math.max(0, w.idle - dt), walking: false };
+  const n = surface.length;
+  const cur = Math.max(0, Math.min(n - 1, Math.floor(w.x / cell)));
+  const nx = w.x + w.dir * w.speed * dt;
+  const c = Math.floor(nx / cell);
+  const here = surface[cur], next = c >= 1 && c < n - 1 ? surface[c] : null;
+  if (next == null || (here != null && Math.abs(next - here) > 1)) {
+    return { ...w, dir: -w.dir, idle: rnd() < 0.5 ? 0.5 + rnd() * 1.5 : 0, walking: false };
+  }
+  const out = { ...w, x: nx, foot: ease(w.foot, next * cell), walking: true, phase: (w.phase || 0) + w.speed * dt * MENU_WALK_PHASE_PER_PX };
+  // Now and then — about once every twelve seconds of walking — stop and look the other way.
+  if (rnd() < dt / 12) { out.dir = -w.dir; out.idle = 0.8 + rnd() * 2; out.walking = false; }
+  return out;
 };
 
 // ---------- saved games ----------
@@ -122,6 +254,8 @@ export const makeGameSave = (prev, s) => ({
   hp: typeof s.hp === "number" && isFinite(s.hp) ? s.hp : null,
   wallet: Math.max(0, Math.round(Number(s.wallet) || 0)),
   livesUsed: Math.max(0, Math.round(Number(s.livesUsed) || 0)),
+  difficulty: difficultyOf(s.difficulty || (prev && prev.difficulty)).id,
+  deaths: Math.max(0, Math.round(Number(s.deaths) || 0)),
   score: s.score && typeof s.score === "object" ? JSON.parse(JSON.stringify(s.score)) : null,
   objectives: s.objectives && Array.isArray(s.objectives.list) ? { list: s.objectives.list.map((o) => ({ ...o })), done: [...(s.objectives.done || [])] } : null,
   talkSpent: [...(s.talkSpent || [])],
@@ -158,10 +292,11 @@ export const scorePlaySecs = (score) => Object.values((score && score.secs) || {
 // ---------- options ----------
 // Volumes are 0-100 on screen and multiply everything (the music element, the effects' master
 // gain); fullscreen is the browser's own, asked for on the click that turns it on.
-export const GAME_OPTIONS_DEFAULT = { music: 80, effects: 100 };
+// The difficulty last started with rides here too, so the character select opens on it.
+export const GAME_OPTIONS_DEFAULT = { music: 80, effects: 100, difficulty: DEFAULT_DIFFICULTY };
 export const normalizeGameOptions = (o) => {
   const pct = (v, d) => (typeof v === "number" && isFinite(v) ? Math.min(100, Math.max(0, Math.round(v))) : d);
-  return { music: pct(o && o.music, GAME_OPTIONS_DEFAULT.music), effects: pct(o && o.effects, GAME_OPTIONS_DEFAULT.effects) };
+  return { music: pct(o && o.music, GAME_OPTIONS_DEFAULT.music), effects: pct(o && o.effects, GAME_OPTIONS_DEFAULT.effects), difficulty: difficultyOf(o && o.difficulty).id };
 };
 
 // ---------- unlocks ----------

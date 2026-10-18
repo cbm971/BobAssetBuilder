@@ -6,12 +6,12 @@ import { flushSync } from "react-dom";
 // identical by a test, so all three name a sound file the same way.
 import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR } from "./anim";
 import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath, EXPLOSION_MIN_GAIN } from "./audio";
-// THE GAME (2026-10-17): Bob Okay as players get it — title, main menu, saved games, options,
+// THE GAME (2026-10-17): BOB as players get it — title, main menu, saved games, options,
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
 // rules and store are src/gameFront.js and its screens src/gameShell.js; the GAME FRONT END block
 // after startRun is where it meets the run engine.
-import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, gameAddressFor } from "./gameFront";
-import { GameShell, GamePause } from "./gameShell";
+import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND } from "./gameFront";
+import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
 import { SYMBOL_SLOTS, SYMBOL_DEFAULT_ART, SYMBOL_FONT_FAMILY, SYMBOL_BOX, SYMBOL_LIBRARY_PATH, ART_EMOJI_FONT, SYMBOL_BOARD_ID, newSymbolBoard, isSymbolBoard, symbolSlot, symbolPick, symbolColor, isPropPick, propPickId, PROP_PICK, isEmojiSlot, symbolPicksNeedingLibrary, symbolFontGlyphs, buildSymbolFont } from "./symbols";
@@ -13159,6 +13159,9 @@ export default function AssetStudio({ game = false } = {}) {
   // Refs, because the loop's closure is built once per level and never sees a re-render.
   const gamePauseRef = useRef(false);
   const gameNoteRef = useRef(() => {});
+  // ...and the one the loop asks at a death that no 🐱 Extra Life caught: has the run's difficulty
+  // run out of lives? true = the run is over (the Game Over screen is on its way), so no respawn.
+  const gameDeathRef = useRef(() => false);
   // 🎁 THE PICKUP BANNER. Taking an item off a pedestal or a body throws its NAME up over the level
   // in big arcade letters, with what it just did to you underneath (pickupChangeRows) — the
   // Binding-of-Isaac "you got X" moment, asked for as "bold, semi retro, dopamine inducing". The
@@ -13483,7 +13486,7 @@ export default function AssetStudio({ game = false } = {}) {
       if (document.getElementById("bobOtherTab")) return;
       const d = document.createElement("div");
       d.id = "bobOtherTab"; d.className = "otherTab";
-      d.innerHTML = '<div class="dlg"><div class="dt">Bob Okay is open in another tab</div><button class="ltbtn saveRead">Play here instead</button></div>';
+      d.innerHTML = '<div class="dlg"><div class="dt">BOB is open in another tab</div><button class="ltbtn saveRead">Play here instead</button></div>';
       d.querySelector("button").onclick = () => { try { sessionStorage.setItem("bobTakeOver", "1"); } catch { /* no session storage */ } window.location.reload(); };
       document.body.appendChild(d);
     };
@@ -14285,6 +14288,10 @@ export default function AssetStudio({ game = false } = {}) {
         flash("🐱 Extra life! Down for a moment, then back on " + EXTRA_LIFE_HP + " HP right where you fell — " + livesLeftNote(left - 1));
         return true;
       }
+      // THE GAME's difficulty (Easy 4 lives, Medium 2, Hard 1): this death costs one of them, and
+      // the last one ends the run — gameDeathRef freezes the loop and brings up Game Over, so there
+      // is no walk back to the start to make. Outside the game it is always false.
+      if (gameDeathRef.current()) return false;
       flash(deathMsg);
       respawnAtEntry(p);
       playerHP.current = maxPlayerHP(playerAsset);
@@ -22455,7 +22462,7 @@ export default function AssetStudio({ game = false } = {}) {
   };
 
   /* ====================================================================== */
-  // THE GAME FRONT END (2026-10-17). Bob Okay as players get it: the title (drawn by
+  // THE GAME FRONT END (2026-10-17). BOB as players get it: the title (drawn by
   // public/index.html before the app loads), a main menu of New Game / Load Game / Options /
   // Unlocks / Quit Game, and a floor-1 run with the studio nowhere on screen. It is this component
   // started with `game` at the /game address — the SAME run engine 🏁 Play run uses, so a fix to
@@ -22481,12 +22488,15 @@ export default function AssetStudio({ game = false } = {}) {
   const [gameBoot, setGameBoot] = useState(null);           // { lookId, seed, save } waiting for the look to be committed
   const [gameNote, setGameNote] = useState("");             // the one ⚠ the menu can show
   const [gameFloorDone, setGameFloorDone] = useState(null); // { floor, score, secs } for the Floor Complete card
+  const [gameOverInfo, setGameOverInfo] = useState(null);   // { score, secs, floor, lookId, lookName, difficulty, seed } for Game Over
   const [gameVp, setGameVp] = useState(() => ({ w: typeof window !== "undefined" ? window.innerWidth : 1280, h: typeof window !== "undefined" ? window.innerHeight : 720 }));
   const gameSavesRef = useRef([]);
   const gameRecordRef = useRef(newGameRecord());
   // The game being played: its save id, when it began, the gate each level was entered by (so a
-  // save made after a room trip still knows its gate), and where the newest checkpoint stood.
-  const gameCur = useRef({ saveId: null, startedAt: 0, gates: {}, loc: null });
+  // save made after a room trip still knows its gate), where the newest checkpoint stood, and its
+  // difficulty with the lives it has lost so far (gameFront.js DIFFICULTIES).
+  const GAME_CUR_NONE = { saveId: null, startedAt: 0, gates: {}, loc: null, difficulty: "medium", deaths: 0 };
+  const gameCur = useRef(GAME_CUR_NONE);
   const gameArtCache = useRef(new Map());
   const gameReady = game && !libraryLoading && gameLevelsIn;
   useEffect(() => {
@@ -22543,6 +22553,7 @@ export default function AssetStudio({ game = false } = {}) {
       id: gameCur.current.saveId, startedAt: gameCur.current.startedAt, seed: run ? run.seed : "", ...loc,
       lookId: playerId, lookName: look ? look.name : "", weaponId: playtestWeaponId, throwId: playtestThrowId, throwCount: throwCarry.current,
       equipped: eq, hp: playerHP.current, wallet: wallet.current, livesUsed: livesUsed.current, score: scoreRef.current,
+      difficulty: gameCur.current.difficulty, deaths: gameCur.current.deaths,
       objectives: { list: ao.list || [], done: [...(ao.done || [])] }, talkSpent: [...(talkSpentSigns.current || [])],
       playSecs: scorePlaySecs(scoreRef.current),
     });
@@ -22601,15 +22612,19 @@ export default function AssetStudio({ game = false } = {}) {
     togglePlaytest(run, b.save || null);
     setScreen("level"); setGameView("play");
   };
-  const gameNewGame = () => {
-    const look = pickStartLook(allAssets);
-    gameCur.current = { saveId: newGameSaveId(), startedAt: Date.now(), gates: {}, loc: null };
+  // NEW GAME comes off the character select (gameShell.js CharacterSelect) with the fighter and
+  // the difficulty picked there; Retry on Game Over comes here too, with the run's own seed.
+  const gameNewGame = (look, diffId, seed) => {
+    look = look || pickStartLook(allAssets);
+    const difficulty = difficultyOf(diffId).id;
+    gameCur.current = { ...GAME_CUR_NONE, saveId: newGameSaveId(), startedAt: Date.now(), difficulty };
     putGameRecord({ ...gameRecordRef.current, games: gameRecordRef.current.games + 1 });
+    if (gameOptions.difficulty !== difficulty) setGameOptions({ ...gameOptions, difficulty });
     setPlayerId(look ? look.id : ""); setPlaytestWeaponId(""); setPlaytestThrowId("");
-    setGameBoot({ lookId: look ? look.id : "", seed: newRunSeed(), save: null });
+    setGameBoot({ lookId: look ? look.id : "", seed: seed || newRunSeed(), save: null });
   };
   const gameLoadGame = (save) => {
-    gameCur.current = { saveId: save.id, startedAt: save.startedAt, gates: save.nodeKey ? { [save.nodeKey]: save.gateKey ?? null } : {}, loc: null };
+    gameCur.current = { ...GAME_CUR_NONE, saveId: save.id, startedAt: save.startedAt, gates: save.nodeKey ? { [save.nodeKey]: save.gateKey ?? null } : {}, difficulty: difficultyOf(save.difficulty).id, deaths: save.deaths || 0 };
     setPlayerId(save.lookId || ""); setPlaytestWeaponId(save.weaponId || ""); setPlaytestThrowId(save.throwId || "");
     setGameBoot({ lookId: save.lookId || "", seed: save.seed, save });
   };
@@ -22648,19 +22663,58 @@ export default function AssetStudio({ game = false } = {}) {
     putGameRecord(recordFloorDone(gameRecordRef.current, floor, sc.total));
     if (gameCur.current.saveId) putGameSaves(dropGameSave(gameSavesRef.current, gameCur.current.saveId)); // the run is over: nothing left to load
     setGameFloorDone({ floor, score: sc.total, secs: scorePlaySecs(sc) });
-    gameCur.current = { saveId: null, startedAt: 0, gates: {}, loc: null };
+    gameCur.current = GAME_CUR_NONE;
     gameSetPaused(false);
     togglePlaytest();
     setScreen("game"); setGameView("floorDone");
+  };
+  // A death the 🐱 Extra Lives did not catch (playerDefeated, in the loop). It costs a life of the
+  // run's difficulty; while one is left the loop does its ordinary walk back to the gate, and the
+  // count goes into the checkpoint at once so a reload cannot hand the life back. The last one ends
+  // the run: the loop is frozen where you fell (gamePauseRef) for a beat, then Game Over.
+  gameDeathRef.current = () => {
+    const cur = gameCur.current;
+    if (!game || !cur.saveId) return false;
+    const before = cur.deaths || 0;
+    cur.deaths = before + 1;
+    if (!deathEndsRun(cur.difficulty, before)) { setTimeout(() => gameCheckpointRef.current(), 300); return false; }
+    gamePauseRef.current = true; keys.current = {};
+    setTimeout(() => gameGameOverRef.current(), 1100);
+    return true;
+  };
+  const gameGameOver = () => {
+    const cur = gameCur.current, sc = scoreRef.current, run = runRef.current;
+    if (!cur.saveId) return;
+    const node = run && run.nodes[run.curKey];
+    const look = findA(playerId);
+    // Out of lives is the end of that run: its checkpoint goes, or Load Game would hand the lives back.
+    putGameSaves(dropGameSave(gameSavesRef.current, cur.saveId));
+    putGameRecord({ ...gameRecordRef.current, bestScore: Math.max(gameRecordRef.current.bestScore, Math.round(sc.total || 0)) });
+    setGameOverInfo({ score: sc.total, secs: scorePlaySecs(sc), floor: (node && node.level && node.level.floor) || "", lookId: playerId, lookName: look ? look.name : "", difficulty: cur.difficulty, seed: run ? run.seed : "" });
+    gameCur.current = GAME_CUR_NONE;
+    gameSetPaused(false);
+    togglePlaytest();
+    setScreen("game"); setGameView("gameOver");
+  };
+  const gameGameOverRef = useRef(gameGameOver);
+  gameGameOverRef.current = gameGameOver;
+  const gameRetry = () => {
+    const o = gameOverInfo;
+    setGameOverInfo(null);
+    if (!o) { setGameView("select"); return; }
+    gameNewGame(findA(o.lookId), o.difficulty, o.seed);
   };
   const gameViewStyle = useMemo(() => {
     if (!game) return undefined;
     const s = Math.max(0.25, gameVp.h / (GAME_VIEW_ROWS * LV_CELL));
     return { position: "fixed", left: 0, top: 0, width: gameVp.w / s, height: gameVp.h / s, transform: "scale(" + s + ")", transformOrigin: "0 0", border: 0, borderRadius: 0, flex: "none" };
   }, [game, gameVp]);
-  // An asset's art centred in a px square, for the Unlocks grid: the shop shelf's drawing (bake +
-  // renderPieceRuns), cached per asset object so a redrawn garment is re-baked and nothing else is.
-  const gameArt = (a, px) => {
+  // An asset's art centred in a px square, for the Unlocks grid and the character select: the shop
+  // shelf's drawing (bake + renderPieceRuns), cached per asset object so a redrawn garment is
+  // re-baked and nothing else is. `frac` < 1 frames only the top part of the art by HEIGHT alone, the
+  // way a Smash box is a portrait rather than the whole fighter: 0.3 is the head (Blake, 2026-10-18:
+  // "pretty much neck up / head"), and arms or anything wider simply run off the box's sides.
+  const gameArt = (a, px, frac = 1) => {
     let hit = gameArtCache.current.get(a.id);
     if (!hit || hit.src !== a) {
       const src = a.type === "weapon" && a.states && a.states.rest ? { ...a, angles: a.states.rest } : a;
@@ -22673,9 +22727,142 @@ export default function AssetStudio({ game = false } = {}) {
       gameArtCache.current.set(a.id, hit);
     }
     if (!hit.bb) return null;
-    const sc = Math.min(px / hit.bb.w, px / hit.bb.h) * 0.9;
-    const plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${px / 2 - sc * (hit.bb.x + hit.bb.w / 2)}px,${px / 2 - sc * (hit.bb.y + hit.bb.h / 2)}px) scale(${sc})` };
+    const fh = hit.bb.h * Math.max(0.2, Math.min(1, frac));
+    const sc = frac < 1 ? (px / fh) * 0.9 : Math.min(px / hit.bb.w, px / fh) * 0.9;
+    const midY = frac < 1 ? px * 0.46 : px / 2; // a portrait sits a little high: the name plate covers the box's foot
+    const plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${px / 2 - sc * (hit.bb.x + hit.bb.w / 2)}px,${midY - sc * (hit.bb.y + fh / 2)}px) scale(${sc})` };
     return <div style={plane}>{renderPieceRuns({ pieces: hit.pieces, cacheKey: "unl_" + a.id, keyPrefix: "unl" + a.id + "_", alpha: assetAlpha(a), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>;
+  };
+  // THE CHARACTER SELECT'S FULL-BODY CARD shows the fighter DRESSED, not in the underwear a Starter
+  // begins a run in (Blake, 2026-10-18: "show how they would look if fully dressed … You can give them
+  // a random pants and shirt item"). One shirt and one pair of pants rolled per look, from the ones
+  // drawn for that look's own body (variants[bodyId]) so nothing hangs off a body it was not made
+  // for — any shirt or pants at all if none were — and kept for the page's life, so moving the
+  // cursor off a fighter and back does not re-dress them. Composed by assembleLook, the compositor
+  // every dressed look goes through. Only the card: the run itself starts as the look is saved.
+  const gameDressCache = useRef(new Map());
+  const gameDressed = (look) => {
+    const c = look && look.components;
+    if (!c || !c.body) return look;
+    const hit = gameDressCache.current.get(look.id);
+    if (hit && hit.src === look) return hit.out;
+    const bodyId = c.body.id;
+    const roll = (slot) => {
+      const all = allAssets.filter((a) => a && a.type === "equipment" && a.slot === slot);
+      const fit = all.filter((a) => a.variants && a.variants[bodyId]);
+      const pool = fit.length ? fit : all;
+      return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+    };
+    const eq = { ...(c.equipment || {}) };
+    for (const slot of ["shirt", "pants"]) { const it = (hit && hit.rolled[slot]) || roll(slot); if (it) eq[slot] = it; }
+    const out = assembleLook(c.body, c.skin || null, c.weapon || null, eq, { id: look.id + "|dressed", name: look.name, type: "character" });
+    gameDressCache.current.set(look.id, { src: look, out, rolled: { shirt: eq.shirt, pants: eq.pants } });
+    return out;
+  };
+  // THE MENU'S BACKDROP (2026-10-18; the rules are "the menu's backdrop" in gameFront.js): one of his
+  // street levels drawn exactly as play draws it — the same Background/Foreground/Front tiles
+  // (cellRuns, cellOutlineStyle, fgClipPath, hidden-in-play fills left out) and the same object pass
+  // (levelObjectsInDrawOrder + renderObj, on the same z rungs) — and a cast walking its ground: the
+  // level's own placed units plus every Starter look, each drawn the way a walking unit is drawn
+  // (bake the Side pose, hatsUnderArms, then the legs swung by identifyLimbs / multiLegPivot or
+  // addBackLeg + applyLimbSwing at 28° — the unit pass's walk branch). Only the rows the view shows
+  // are built. EACH SCREEN HAS ITS OWN LEVEL (sceneLevelFor), and each level's scene is built the
+  // first time a screen asks for it and kept (menuSceneCache) until the textures or the library
+  // change under it; gameShell.js SceneBackdrop moves the camera and the cast.
+  // ?scene=<level name> in the game's address pins the MAIN MENU's level (case-insensitive), for
+  // looking at how a level reads behind it; the other screens keep their own.
+  const menuLineup = useMemo(() => (game && gameLevelsIn ? menuLevelLineup(levelLib) : []), [game, gameLevelsIn]);
+  const menuSceneCache = useRef(new Map());
+  const menuSceneFor = (view) => {
+    if (!menuLineup.length) return null;
+    let lv = sceneLevelFor(menuLineup, view);
+    if (view === "menu") {
+      let want = "";
+      try { want = (new URLSearchParams(window.location.search).get("scene") || "").trim().toLowerCase(); } catch { /* no address */ }
+      const pinned = want ? levelLib.find((l) => l && String(l.name || "").trim().toLowerCase() === want) : null;
+      if (pinned) lv = pinned;
+    }
+    if (!lv) return null;
+    const hit = menuSceneCache.current.get(lv.id);
+    if (hit && hit.lv === lv && hit.tex === texLib && hit.assets === allAssets) return hit.scene;
+    const scene = buildMenuScene(lv);
+    menuSceneCache.current.set(lv.id, { lv, tex: texLib, assets: allAssets, scene });
+    return scene;
+  };
+  const buildMenuScene = (lv) => {
+    const cell = LV_CELL;
+    // Ground you can SEE: a collision-only block (hidden in play) is solid to the player but drawn as
+    // nothing, and a walker on one strolls across the sky (the first try did exactly that).
+    const solidAt = (r, c) => { const v = lv.fg && lv.fg[cellKey(r, c)]; return !!v && fgFills(v).some((f) => !fgHiddenInPlay(f)) && (fgSolid(v) || fgSlopeFills(v).length > 0); };
+    const surface = sceneSurface(lv.rows, lv.cols, solidAt);
+    const r0 = sceneTopRow(surface, lv.rows, GAME_VIEW_ROWS), r1 = r0 + GAME_VIEW_ROWS;
+    const rowOf = (k) => +k.slice(0, k.indexOf(","));
+    const band = (map) => { const o = {}; for (const k of Object.keys(map || {})) { const r = rowOf(k); if (r >= r0 - 1 && r <= r1) o[k] = map[k]; } return o; };
+    const bgRuns = cellRuns(band(lv.bg), texLib), fgRuns = cellRuns(band(lv.fg), texLib), frontKeys = Object.keys(band(lv.front));
+    const objs = levelObjectsInDrawOrder(lv.fx || {}).filter(({ r, o }) => { const L = levelObjectPixelLayout(o); const top = objNudgedTop(o, r, cell); return top < r1 * cell + cell && top + L.height > r0 * cell - cell; });
+    const layers = (
+      <>
+        <div style={CELL_LAYER_STYLE}>{bgRuns.map(({ key, r, c, span, cell: v }) => {
+          const fills = fgFills(v);
+          if (fills.length <= 1) return <div key={"b" + key} className="lcell bg" style={{ left: c * cell, top: r * cell, ...cellOutlineStyle(lv.bg, v, r, c, texLib, span), clipPath: fgClipPath(v), width: span * cell }} />;
+          return <div key={"b" + key} className="lcell bg" style={{ left: c * cell, top: r * cell, width: span * cell }}>{fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(lv.bg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}</div>;
+        })}</div>
+        <div style={CELL_LAYER_STYLE}>{fgRuns.flatMap(({ key, r, c, span, cell: v, sig }) => {
+          if (sig !== null) { const fill = fgFills(v)[0]; return fgHiddenInPlay(fill) ? [] : [<div key={"f" + key + "_0"} className="lcell" style={{ left: c * cell, top: r * cell, ...cellOutlineStyle(lv.fg, fill, r, c, texLib, span), width: span * cell }} />]; }
+          return fgFills(v).map((fill, i) => (fgHiddenInPlay(fill) ? null : <div key={"f" + key + "_" + i} className="lcell" style={{ left: c * cell, top: r * cell, ...cellOutlineStyle(lv.fg, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />)).reverse();
+        })}</div>
+        <div style={CELL_LAYER_STYLE}>{frontKeys.map((k) => {
+          const [r, c] = k.split(",").map(Number), v = lv.front[k], fills = fgFills(v);
+          if (fills.length <= 1) return <div key={"fr" + k} className="lcell front" style={{ left: c * cell, top: r * cell, ...cellOutlineStyle(lv.front, v, r, c, texLib), clipPath: fgClipPath(v) }} />;
+          return <div key={"fr" + k} className="lcell front" style={{ left: c * cell, top: r * cell }}>{fills.map((fill, i) => <div key={i} style={{ position: "absolute", inset: 0, ...cellOutlineStyle(lv.front, fill, r, c, texLib), clipPath: fgClipPath(fill) }} />).reverse()}</div>;
+        })}</div>
+        {objs.map(({ k, r, c, si, o, ord }) => {
+          const L = levelObjectPixelLayout(o), key = "ms" + k + "_" + si;
+          return <div key={key} className={"lobj " + (o.inFront ? "infront " : "") + objectLayerClass(o)} style={{ zIndex: levelObjectZIndex(o, ord), left: objNudgedLeft(o, c, cell), top: objNudgedTop(o, r, cell), width: L.width, height: L.height, ...objRotStyle(o), pointerEvents: "none" }}>{renderObj(o, L.width, key, 0, L.height, L.box)}</div>;
+        })}
+      </>
+    );
+    // The cast. A walker stands on a column with ground under it; a unit starts at its own spawn.
+    const mainGround = sceneGroundRow(surface, lv.rows);
+    const groundCols = surface.map((v, c) => (v != null && Math.abs(v - mainGround) <= MENU_GROUND_BAND && c > 1 && c < lv.cols - 2 ? c : -1)).filter((c) => c >= 0);
+    const nearestGround = (c) => groundCols.reduce((b, g) => (Math.abs(g - c) < Math.abs(b - c) ? g : b), groundCols[0]);
+    const who = [];
+    for (const k of Object.keys(lv.enemies || {})) {
+      const sp = lv.enemies[k], tag = spawnEnemyTagOf(sp);
+      const ea = tag ? (enemyTagPool(allAssets, tag)[0] || null) : findA(sp.enemyId);
+      if (ea && ea.angles) who.push({ ea, c: +k.slice(k.indexOf(",") + 1) });
+      if (who.length >= 9) break;
+    }
+    const starters = allAssets.filter((a) => a && a.type === "character" && String(a.category || "").trim().toLowerCase() === "starter");
+    starters.forEach((ea, i) => who.push({ ea, c: Math.round(((i + 0.5) / starters.length) * lv.cols), dress: true }));
+    // The Starter crew walks DRESSED (Blake: "better if the player in the screenshot was fully
+    // dressed"), in the same rolled shirt and pants their P1 card shows (gameDressed).
+    const cast = !groundCols.length ? [] : who.map(({ ea: raw, c, dress }, i) => {
+      const ea = (dress ? gameDressed(raw) : liveEnemyAsset("menu|" + raw.id, raw, null)) || raw;
+      const shape = sideBodyShape(ea), w = enemyRenderW(ea, cell), h = enemyStandH(ea, cell);
+      const pose = enemyPoseKey(ea, "side");
+      const gy = enemyGroundLine(ea, pose);
+      const anchor = gy !== null ? ((H - gy) / H) * h : Math.max(0, 1 - shape.topFrac - shape.heightFrac) * h;
+      const frames = new Map();
+      const art = (step) => {
+        let el = frames.get(step);
+        if (el) return el;
+        let blocks = hatsUnderArms(bake(ea, pose));
+        if (step >= 0) {
+          const swing = Math.sin((step / MENU_PHASE_STEPS) * Math.PI * 2) * 28;
+          const { legIds, armIds } = identifyLimbs(blocks);
+          const stacked = multiLegPivot(blocks, legIds, swing);
+          if (stacked) blocks = stacked;
+          else { blocks = addBackLeg(blocks, legIds, swing); blocks = applyLimbSwing(blocks, legIds, armIds, swing); }
+        }
+        el = renderPieceRuns({ pieces: blocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "menu_" + ea.id + "_" + step, keyPrefix: "mw" + i + "_" + step + "_", alphaOf: spriteAlphaOf(ea, null), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
+        frames.set(step, el);
+        return el;
+      };
+      const col = nearestGround(c);
+      return { key: "w" + i + "_" + ea.id, w, h, anchor, cf: shape.centerFrac, art, flipFor: (dir) => enemyNeedsFlip(ea, dir), x: (col + 0.5) * cell, dir: Math.random() < 0.5 ? -1 : 1, speed: 55 + Math.random() * 40 };
+    });
+    return { id: lv.id, w: lv.cols * cell, h: lv.rows * cell, cell, r0, viewRows: GAME_VIEW_ROWS, surface, layers, cast };
   };
 
   // The texture picker and the texture creator, built ONCE and rendered by both the Level Creator
@@ -22784,9 +22971,11 @@ export default function AssetStudio({ game = false } = {}) {
     return (
       <div className="bb gameMode"><style>{css}</style>
         <GameShell view={gameView === "play" ? "menu" : gameView} setView={setGameView} ready={gameReady}
-          saves={gameSaves} options={gameOptions} setOptions={setGameOptions} record={gameRecord} assets={allAssets} renderArt={gameArt}
-          onNewGame={gameNewGame} onLoad={gameLoadGame} onDelete={(id) => putGameSaves(dropGameSave(gameSavesRef.current, id))}
-          floorDone={gameFloorDone} onFloorDoneContinue={() => { setGameFloorDone(null); setGameView("menu"); }} note={gameNote} click={gameClick} />
+          saves={gameSaves} options={gameOptions} setOptions={setGameOptions} record={gameRecord} assets={allAssets} renderArt={gameArt} renderDressed={(look, px) => gameArt(gameDressed(look), px)}
+          lifeIcon={() => sym("hud.life", null, 18)} sceneFor={menuSceneFor}
+          onStartGame={(look, diff) => gameNewGame(look, diff)} onLoad={gameLoadGame} onDelete={(id) => putGameSaves(dropGameSave(gameSavesRef.current, id))}
+          floorDone={gameFloorDone} onFloorDoneContinue={() => { setGameFloorDone(null); setGameView("menu"); }}
+          gameOver={gameOverInfo} onRetry={gameRetry} onGameOverMenu={() => { setGameOverInfo(null); setGameView("menu"); }} note={gameNote} click={gameClick} />
       </div>
     );
   }
@@ -22843,7 +23032,7 @@ export default function AssetStudio({ game = false } = {}) {
             {/* THE GAME, as players get it (title, main menu, a floor-1 run, no studio), in its own
                 tab at the game's address — wherever this studio is running, StackBlitz or Pages. Opened
                 by the page so that the game's Quit Game is allowed to close the tab again. */}
-            <button className="tile lvl" style={{ "--tc": "#e3e7ee" }} onClick={() => { try { window.open(gameAddressFor(window.location), "_blank"); } catch { /* a blocked pop-up leaves the studio as it is */ } }}><span className="ti">{sym("ui.playGame")}</span><span className="tl">Play Bob Okay</span></button>
+            <button className="tile lvl" style={{ "--tc": "#e3e7ee" }} onClick={() => { try { window.open(gameAddressFor(window.location), "_blank"); } catch { /* a blocked pop-up leaves the studio as it is */ } }}><span className="ti">{sym("ui.playGame")}</span><span className="tl">Play BOB</span></button>
           </div>
           <h2>Make a piece of equipment</h2>
           <div className="slots">
@@ -26328,7 +26517,10 @@ export default function AssetStudio({ game = false } = {}) {
                   );
                 }
                 const livesGranted = extraLivesGranted(playerAsset?.effects);
-                const livesLeft = livesGranted ? extraLivesLeft(playerAsset?.effects, livesUsed.current) : 0;
+                // In THE GAME the pips also carry the run's own lives (its difficulty's, the one being
+                // played included), so Hard shows one and every death takes one away.
+                const runLives = game && gameCur.current.saveId ? runLivesLeft(gameCur.current.difficulty, gameCur.current.deaths) : 0;
+                const livesLeft = (livesGranted ? extraLivesLeft(playerAsset?.effects, livesUsed.current) : 0) + runLives;
                 const throwsLeft = playtestThrowId ? Math.max(0, throwCarry.current) : 0;
                 const pips = (key, n) => n > 0 && <div className="hudPips">{Array.from({ length: Math.min(n, 12) }, (_, i) => <span key={i}>{sym(key, null, 16)}</span>)}</div>;
                 // Bottom-right: what you hold, drawn from its own art the way the shop shelf draws it

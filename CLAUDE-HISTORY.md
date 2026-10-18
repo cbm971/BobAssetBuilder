@@ -5086,3 +5086,28 @@ page), the save folder and History. No copy ever held a save of either change: o
 the open animation and any page reload dropped the screen silently. Fixed by the editor saving itself. Same night:
 the keeper never swept WebStorage buckets (now it does), and a record I wrote straight into Saves/assets was never
 published online, so the game kept the old one until it was POSTed through /__library.
+
+## THE GAME'S NEW LOOK, CHARACTER SELECT AND DIFFICULTY (2026-10-18)
+
+Blake sent two mock-ups: the intro ("BLAKE Presents..." in a blackletter, then a slanted BOB with a
+grey-green outline) and a main menu (a green panel down the left over a park with figures). He
+also said the game is called **BOB** — "the Okay is hallucinated in" — so every display string
+that said "Bob Okay" now says BOB (paths on his PC keep the old folder name).
+
+- **Fonts.** A sheet of 7 blackletters and 14 squared italics was rendered beside his image. The
+  intro image was set in New Rocker; he chose **Sarpanch 900 "with the slant"** for BOB (upright
+  face + skewX(-9deg), so it is "slightly more squared and slightly less angled" than his mock).
+- **The menu backdrop.** He wanted "actual characters not those made up ones". The first cut drew
+  a random top-5 level; he called it "a pretty boring level" with a low-quality trailer, and said
+  the diagonal stripes on the panel and the spinning rays on the P1 card were unwanted textures.
+  Fixes: a fixed ranking (drawn props x3, emoji capped at 40, units x6), flat fills, and then —
+  his next ask — a different level behind every screen. A first walker pass put two characters
+  on collision-only cells high in the sky: the surface now ignores hidden-in-play fills and the
+  cast only starts within 4 rows of the main ground.
+- **Character select.** "Inboxes like in super smash bros", pulling the Starter folder. Box art
+  first framed head-and-chest; he asked for "pretty much neck up / head", and for the full-body
+  card to show the fighter "fully dressed … a random pants and shirt item". The walkers behind
+  the menus wear the same rolled clothes ("better if the player in the screenshot was fully
+  dressed").
+- **Difficulty.** Easy 4, Medium 2, Hard 1 lives, then a Game Over / Retry screen. Verified in a
+  dev /game/: Hard → one death → Game Over → Retry starts the same seed with the same fighter.

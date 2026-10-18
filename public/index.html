@@ -5,14 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Bob Asset Studio</title>
 <!--
-  THE GAME'S TITLE SEQUENCE (2026-10-17). At the game's address (a path ending in /game, or ?game;
-  see isGameAddress in src/gameFront.js) this page shows "Blake presents…" and then "Bob" BEFORE the
-  app's script has even arrived — Blake: "before anything else even loads". It is plain HTML and CSS
-  for that reason: the app bundle is megabytes (more again in StackBlitz's dev build), and a title
-  drawn by React could only start once all of it had downloaded and run. The app finds #bobIntro
-  when it is ready, fades it out over the main menu and removes it (TitleHandoff, gameShell.js).
-  The timings below are mirrored by INTRO_* in gameFront.js; change both.
+  THE GAME'S TITLE SEQUENCE (2026-10-17; the look redone 2026-10-18). At the game's address (a path
+  ending in /game, or ?game; see isGameAddress in src/gameFront.js) this page shows "BLAKE
+  Presents..." and then "BOB" BEFORE the app's script has even arrived — Blake: "before anything else
+  even loads". It is plain HTML and CSS for that reason: the app bundle is megabytes (more again in
+  StackBlitz's dev build), and a title drawn by React could only start once all of it had downloaded
+  and run. The app finds #bobIntro when it is ready, fades it out over the main menu and removes it
+  (TitleHandoff, gameShell.js). The timings below are mirrored by INTRO_* in gameFront.js; change both.
   At the studio's address none of this runs and #bobIntro stays display:none.
+
+  THE FACES are the ones Blake picked from a sheet on 2026-10-18, against his own mock-up:
+  * "BLAKE Presents..." — New Rocker, the face his mock-up was set in ("honestly this font if not a
+    slightly fancier version"), white, with a fine dark edge and a cold sheen to dress it up.
+  * "BOB" — Sarpanch Black, upright, slanted by hand rather than set in an italic: he wanted it
+    "slightly more squared and slightly less angled" than the mock-up's. White, a thin near-black
+    outline and a thick grey-green one outside it (three stacked copies; see .bobLogo).
+  * The menus use Russo One (gameShell.js). All three load here, for the game address only.
 -->
 <script>
 (function () {
@@ -20,13 +28,12 @@
   if (!(/\/game(\/(index\.html)?)?$/i.test(p) || /(^|[?&])game(=|&|$)/i.test(q))) return;
   var d = document.documentElement;
   d.className += " bobGame";
-  document.title = "Bob Okay";
+  document.title = "BOB";
   var pc = document.createElement("link"); pc.rel = "preconnect"; pc.href = "https://fonts.gstatic.com"; pc.crossOrigin = "anonymous"; document.head.appendChild(pc);
-  // Cinzel: the free face cut from the same Roman capitals as the Elder Scrolls titles.
   var f = document.createElement("link"); f.rel = "stylesheet";
-  f.href = "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&display=block";
+  f.href = "https://fonts.googleapis.com/css2?family=New+Rocker&family=Sarpanch:wght@700;900&family=Russo+One&display=block";
   var started = false;
-  // The sequence starts once the face is in (at once from a warm cache), so "Blake presents" never
+  // The sequence starts once the faces are in (at once from a warm cache), so "BLAKE Presents" never
   // fades in as a fallback serif and swaps halfway; never later than 1.2 s, offline included.
   var go = function () {
     if (started) return; started = true;
@@ -34,7 +41,7 @@
     d.className += " biGo";
   };
   f.onload = function () {
-    try { Promise.all([document.fonts.load("400 40px Cinzel", "Blake presents"), document.fonts.load("900 40px Cinzel", "Bob")]).then(go, go); } catch (e) { go(); }
+    try { Promise.all([document.fonts.load("400 40px 'New Rocker'", "BLAKE Presents"), document.fonts.load("900 40px Sarpanch", "BOB"), document.fonts.load("400 20px 'Russo One'", "NEW GAME")]).then(go, go); } catch (e) { go(); }
   };
   f.onerror = go;
   document.head.appendChild(f);
@@ -44,24 +51,34 @@
 <style>
 #bobIntro{display:none}
 html.bobGame,html.bobGame body{margin:0;height:100%;background:#000;overflow:hidden}
-html.bobGame #bobIntro{display:flex;position:fixed;inset:0;z-index:100000;background:#000;flex-direction:column;align-items:center;justify-content:center;font-family:Cinzel,'Trajan Pro',Georgia,'Times New Roman',serif;color:#e9ecef;cursor:default;-webkit-user-select:none;user-select:none;transition:opacity .7s ease;-webkit-font-smoothing:antialiased}
+html.bobGame #bobIntro{display:flex;position:fixed;inset:0;z-index:100000;background:#000;align-items:center;justify-content:center;color:#f2f2ee;cursor:default;-webkit-user-select:none;user-select:none;transition:opacity .7s ease;-webkit-font-smoothing:antialiased}
 /* Fading out over the menu it still takes clicks, so the click that skipped the intro cannot land
    on a menu row that appeared under the pointer between press and release. */
 #bobIntro.out{opacity:0}
-#bobIntro .biPresents{font-weight:400;font-size:clamp(18px,2.4vw,38px);letter-spacing:.34em;padding-left:.34em;opacity:0;text-shadow:0 0 18px rgba(200,215,235,.22)}
-#bobIntro .biBob{font-weight:900;font-size:clamp(96px,16vw,260px);line-height:1;letter-spacing:.04em;margin-top:.12em;opacity:0;background:linear-gradient(180deg,#fdfdfd 0%,#d5d9de 42%,#8d939b 54%,#e6e9ec 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 22px rgba(200,215,235,.32)) drop-shadow(0 4px 0 rgba(0,0,0,.6))}
-#bobIntro .biLoad{width:min(240px,40vw);height:1px;margin-top:6vh;opacity:0;background:linear-gradient(90deg,transparent,rgba(235,240,248,.9),transparent) no-repeat;background-size:40% 100%}
+#bobIntro .biCard{display:flex;flex-direction:column;align-items:flex-end}
+#bobIntro .biPresents{font-family:'New Rocker','UnifrakturCook',Georgia,serif;font-weight:400;font-size:clamp(34px,6.2vw,104px);line-height:1.05;letter-spacing:.01em;opacity:0;background:linear-gradient(180deg,#ffffff 0%,#f1f1ec 46%,#c9ccc8 58%,#f6f6f2 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 1px 0 #0b0b0b) drop-shadow(1px 0 0 #0b0b0b) drop-shadow(-1px 0 0 #0b0b0b) drop-shadow(0 -1px 0 #0b0b0b) drop-shadow(3px 5px 3px rgba(0,0,0,.75)) drop-shadow(0 0 22px rgba(255,255,255,.12))}
+#bobIntro .biBob{font-size:clamp(70px,11vw,190px);margin-top:.04em;margin-right:-.06em;opacity:0}
+#bobIntro .biLoad{position:absolute;bottom:12vh;left:50%;width:min(240px,40vw);height:2px;margin-left:max(-120px,-20vw);opacity:0;background:linear-gradient(90deg,transparent,rgba(160,190,160,.9),transparent) no-repeat;background-size:40% 100%}
+/* THE BOB LOGO — three copies of the word stacked in one grid cell: the grey-green outer edge (a fat
+   stroke, half of which sits outside the letters) with the drop shadow, the thin near-black edge,
+   and the white face. A single text element cannot carry two outlines. The same rules are in
+   GAME_CSS (gameShell.js) for the menu's logo; keep them in step. */
+.bobLogo{display:inline-grid;font-family:Sarpanch,'Russo One',Impact,sans-serif;font-weight:900;line-height:.92;letter-spacing:.02em}
+.bobLogo>span{grid-area:1/1;padding:0 .1em;transform:skewX(-9deg)} /* the slant is on the copies, not the box, so the pop animation can own the box transform */
+.bobLogo .bl1{color:#6c8b6e;-webkit-text-stroke:.2em #6c8b6e;filter:drop-shadow(.03em .06em .02em rgba(0,0,0,.55))}
+.bobLogo .bl2{color:#121612;-webkit-text-stroke:.075em #121612}
+.bobLogo .bl3{color:#fff;background:linear-gradient(180deg,#fff 0%,#fff 55%,#e3e8e2 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 html.biGo #bobIntro .biPresents{animation:biFade 1s ease .25s forwards}
 html.biGo #bobIntro .biBob{animation:biPop .52s cubic-bezier(.2,1.5,.4,1) 1.75s forwards}
 /* Only ever seen when the game is still loading after the title has had its time (INTRO_MIN_MS). */
 html.biGo #bobIntro .biLoad{animation:biFade .6s ease 3.8s forwards,biSweep 1.4s linear 3.8s infinite}
 @keyframes biFade{to{opacity:1}}
-@keyframes biPop{0%{opacity:0;transform:scale(.55)}60%{opacity:1;transform:scale(1.07)}100%{opacity:1;transform:scale(1)}}
+@keyframes biPop{0%{opacity:0;transform:scale(.55) translateX(.2em)}60%{opacity:1;transform:scale(1.07)}100%{opacity:1;transform:scale(1)}}
 @keyframes biSweep{from{background-position:-60% 0}to{background-position:160% 0}}
 </style>
 </head>
 <body>
-<div id="bobIntro"><div class="biPresents">Blake presents…</div><div class="biBob">Bob</div><div class="biLoad"></div></div>
+<div id="bobIntro"><div class="biCard"><div class="biPresents">BLAKE Presents...</div><div class="biBob bobLogo"><span class="bl1">BOB</span><span class="bl2">BOB</span><span class="bl3">BOB</span></div></div><div class="biLoad"></div></div>
 <div id="root"></div>
 </body>
 </html>

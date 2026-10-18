@@ -4,7 +4,8 @@ import {
   isGameAddress, gameAddressFor, introRemainingMs, INTRO_MIN_MS, INTRO_BOB_AT_MS, GAME_MENU, menuStep, pickStartLook,
   makeGameSave, sortGameSaves, upsertGameSave, dropGameSave, GAME_SAVES_MAX, resumeNodeKey, formatPlayTime, scorePlaySecs,
   normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone,
-  unlockPool, createGameStore,
+  unlockPool, createGameStore, starterLooks, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, runLivesLeft, deathEndsRun,
+  pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS,
 } from "./gameFront";
 import fs from "fs";
 import path from "path";
@@ -30,7 +31,9 @@ describe("the game's address", () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8");
     expect(html).toContain('/\\/game(\\/(index\\.html)?)?$/i');
     expect(html).toContain('id="bobIntro"');
-    expect(html).toContain("Blake presents");
+    expect(html).toContain(">BLAKE Presents...<");
+    expect(html).toContain("family=New+Rocker");
+    expect(html).toContain("Sarpanch:wght@700;900");
   });
 });
 
@@ -127,8 +130,8 @@ describe("saved games", () => {
 describe("options", () => {
   test("volumes are whole percents, 0-100, defaulted", () => {
     expect(normalizeGameOptions(null)).toEqual(GAME_OPTIONS_DEFAULT);
-    expect(normalizeGameOptions({ music: 140, effects: -3 })).toEqual({ music: 100, effects: 0 });
-    expect(normalizeGameOptions({ music: 33.4, effects: "x" })).toEqual({ music: 33, effects: GAME_OPTIONS_DEFAULT.effects });
+    expect(normalizeGameOptions({ music: 140, effects: -3 })).toEqual({ music: 100, effects: 0, difficulty: "medium" });
+    expect(normalizeGameOptions({ music: 33.4, effects: "x" })).toEqual({ music: 33, effects: GAME_OPTIONS_DEFAULT.effects, difficulty: "medium" });
   });
 });
 
@@ -165,5 +168,115 @@ describe("the game's store", () => {
     expect(await st.get("game:saves")).toBe(null);
     expect(await st.set("game:saves", [{ id: "g1" }])).toBe(false); // nothing durable to write to
     expect(await st.get("game:saves")).toEqual([{ id: "g1" }]);
+  });
+});
+
+describe("the character select (2026-10-18)", () => {
+  const look = (id, name, category) => ({ id, type: "character", name, category });
+  test("the roster is every look filed under Starter, Bob first, then by name", () => {
+    const r = starterLooks([look("1", "Rob", "Starter"), look("2", "Bobette", " starter "), look("3", "Bob", "Starter"), look("4", "Army Bob", "Army"), { id: "5", type: "weapon", name: "Bob", category: "Starter" }]);
+    expect(r.map((a) => a.name)).toEqual(["Bob", "Bobette", "Rob"]);
+    expect(starterLooks([])).toEqual([]);
+  });
+  test("the grid is never wider than six and fits seven as 4 + 3", () => {
+    expect(selectGridCols(7)).toBe(4);
+    expect(selectGridCols(1)).toBe(2);
+    expect(selectGridCols(40)).toBe(6);
+  });
+  test("arrows: left/right wrap the list, up/down keep the column and land in a short last row", () => {
+    expect(gridStep(7, 4, 3, 1, 0)).toBe(4);
+    expect(gridStep(7, 4, 0, -1, 0)).toBe(6);
+    expect(gridStep(7, 4, 1, 0, 1)).toBe(5);
+    expect(gridStep(7, 4, 3, 0, 1)).toBe(6);
+    expect(gridStep(7, 4, 5, 0, 1)).toBe(1);
+    expect(gridStep(0, 4, 0, 1, 0)).toBe(0);
+  });
+});
+
+describe("difficulty (Blake: Easy 4 lives, Medium 2, Hard 1)", () => {
+  test("the lives", () => {
+    expect(DIFFICULTIES.map((d) => [d.id, d.lives])).toEqual([["easy", 4], ["medium", 2], ["hard", 1]]);
+    expect(difficultyOf("nope").id).toBe("medium");
+  });
+  test("Hard ends the run on the first death, Medium on the second, Easy on the fourth", () => {
+    expect(deathEndsRun("hard", 0)).toBe(true);
+    expect(deathEndsRun("medium", 0)).toBe(false);
+    expect(deathEndsRun("medium", 1)).toBe(true);
+    expect([0, 1, 2, 3].map((n) => deathEndsRun("easy", n))).toEqual([false, false, false, true]);
+  });
+  test("lives left counts the one being played", () => {
+    expect(runLivesLeft("hard", 0)).toBe(1);
+    expect(runLivesLeft("easy", 1)).toBe(3);
+    expect(runLivesLeft("medium", 5)).toBe(0);
+  });
+  test("a save keeps the difficulty and the deaths; an old save without them is Medium with none lost", () => {
+    const s = makeGameSave(null, { seed: "7", difficulty: "hard", deaths: 0 });
+    expect([s.difficulty, s.deaths]).toEqual(["hard", 0]);
+    const t = makeGameSave(s, { seed: "7", deaths: 1.2 });
+    expect([t.difficulty, t.deaths]).toEqual(["hard", 1]);
+    expect(makeGameSave(null, { seed: "7" }).difficulty).toBe("medium");
+  });
+  test("options remember the difficulty last started with", () => {
+    expect(normalizeGameOptions({ music: 10, effects: 20, difficulty: "easy" }).difficulty).toBe("easy");
+    expect(normalizeGameOptions({ difficulty: "insane" }).difficulty).toBe("medium");
+  });
+});
+
+describe("the menu's backdrop scene", () => {
+  const lv = (id, extra) => ({ id, name: id, floor: "Park", cols: 60, rows: 30, fx: {}, enemies: {}, ...extra });
+  const fx = (n) => Object.fromEntries(Array.from({ length: n }, (_, i) => ["1," + i, [{ kind: "prop" }]]));
+  test("a street level of the main floor, never a room or a sewer, busiest first", () => {
+    const levels = [lv("room", { isRoom: true, cols: 40, rows: 24, enemies: { a: 1, b: 1, c: 1 } }), lv("sewer", { floor: "Sewer", enemies: { a: 1, b: 1, c: 1, d: 1 } }), lv("quiet"), lv("busy", { enemies: { a: 1, b: 1 } }), lv("other", { floor: "Elsewhere" })];
+    expect(pickMenuLevel(levels, () => 0).id).toBe("busy");
+    expect(pickMenuLevel([], () => 0)).toBe(null);
+  });
+  test("a church full of props does not outrank a street full of people", () => {
+    const levels = [lv("church", { fx: fx(MENU_SCENE_PROP_CAP + 200) }), lv("street", { fx: fx(MENU_SCENE_PROP_CAP - 10), enemies: { a: 1, b: 1, c: 1 } })];
+    expect(pickMenuLevel(levels, () => 0).id).toBe("street");
+  });
+  test("his drawn props count three times an emoji, and only 40 emoji count at all", () => {
+    const emoji = Object.fromEntries(Array.from({ length: 90 }, (_, i) => ["2," + i, [{ kind: "emoji" }]]));
+    expect(menuLevelScore(lv("e", { fx: emoji }))).toBe(40);
+    expect(menuLevelScore(lv("p", { fx: fx(10) }))).toBe(30);
+  });
+  test("every screen gets its own level, best first, wrapping when there are fewer levels", () => {
+    const levels = [lv("a", { fx: fx(1) }), lv("b", { fx: fx(5) }), lv("c", { fx: fx(3) })];
+    const line = menuLevelLineup(levels);
+    expect(line.map((l) => l.id)).toEqual(["b", "c", "a"]);
+    expect(sceneLevelFor(line, "menu").id).toBe("b");
+    expect(sceneLevelFor(line, "select").id).toBe("c");
+    expect(sceneLevelFor(line, "load").id).toBe("a");
+    expect(sceneLevelFor(line, "options").id).toBe("b");
+    expect(sceneLevelFor(line, "nope").id).toBe("b");
+    expect(sceneLevelFor([], "menu")).toBe(null);
+    expect(new Set(MENU_SCENE_VIEWS).size).toBe(MENU_SCENE_VIEWS.length);
+  });
+  test("the surface is the first ground with a body's height of air over it", () => {
+    // Column 0: ground at row 20. Column 1: a canopy at row 5 with only 3 rows over it, ground at 20.
+    // Column 2: a roof at row 10 with open sky over it is stood on, never the floor 3 rows under it.
+    const solid = new Set(["20,0", "21,0", "2,1", "20,1", "10,2", "14,2"]);
+    const s = sceneSurface(24, 3, (r, c) => solid.has(r + "," + c), 7);
+    expect(s).toEqual([20, 20, 10]);
+  });
+  test("the view puts the ground about three-quarters down, inside the level", () => {
+    expect(sceneTopRow([30, 30, 31, null], 46, 29)).toBe(8);
+    expect(sceneTopRow([44], 46, 29)).toBe(17);
+    expect(sceneTopRow([3], 46, 29)).toBe(0);
+  });
+  test("a walker walks, follows a one-row step, and turns at a cliff", () => {
+    const surface = [null, 10, 10, 10, 11, 11, 20, 20];
+    let w = { x: 75, foot: 300, dir: 1, speed: 30, idle: 0, phase: 0 };
+    w = stepMenuWalker(w, 1, surface, 30, () => 0.9);
+    expect(w.x).toBe(105);
+    expect(w.walking).toBe(true);
+    expect(w.foot).toBe(300);
+    w = stepMenuWalker({ ...w, x: 115 }, 1, surface, 30, () => 0.9);
+    expect(w.foot).toBe(330); // eased onto the lower row (dt*12 >= 1)
+    const t = stepMenuWalker({ ...w, x: 175 }, 1, surface, 30, () => 0.9);
+    expect(t.dir).toBe(-1);
+    expect(t.x).toBe(175);
+    const idle = stepMenuWalker({ ...w, idle: 0.5 }, 0.2, surface, 30, () => 0.9);
+    expect(idle.idle).toBeCloseTo(0.3);
+    expect(idle.x).toBe(w.x);
   });
 });

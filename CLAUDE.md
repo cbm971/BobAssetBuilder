@@ -1,4 +1,4 @@
-# Bob Okay — agent handoff
+# BOB — agent handoff
 
 **This file is the RULES. Read all of it; it is kept short on purpose.** The full write-ups behind
 each rule (bug stories, measurements, verification recipes, design notes) are in
@@ -14,7 +14,9 @@ The repo holds two things, and they are NOT the same thing:
 - **The studio (Bob Asset Builder).** Blake draws assets out of blocks (bodies, skins, clothes,
   weapons, enemies, props), dresses characters, paints levels, writes dialogue and playtests.
   Everything on screen today is the studio.
-- **The game (Bob Okay).** What players get. It needs none of the studio. It is a title sequence,
+- **The game (BOB).** What players get. Its name is **BOB** — never "Bob Okay"; the "Okay" was an
+  agent's invention he called out on 2026-10-18 (the `DocumentsBob OkaySaves` folder and the
+  `Bob Okay.cmd` icon keep their old names only because they are real paths on his PC). It needs none of the studio. It is a title sequence,
   then a main menu (his 2026-10-17 list: New Game, Load Game, Options, Unlocks, Quit Game), then a
   run. Floor 1 is the Trailor Park, and its objective is "Make it to the draft office". Game-facing
   UI must not pull editor controls into it. It is BUILT (2026-10-17): see "The game front end".
@@ -428,14 +430,33 @@ plus traps it does not cover:
 - **One app, two addresses.** A path ending in `/game` (or `?game`) starts `AssetStudio` with `game`
   (`isGameAddress`, src/index.js). Pages: https://cbm971.github.io/BobAssetBuilder/game/
   (`tools/publish.js` copies index.html into `game/`). StackBlitz and the studio: the studio menu's
-  **Play Bob Okay** tile opens `<this copy>/game/` in a new tab. Never fork the engine into a second
+  **Play BOB** tile opens `<this copy>/game/` in a new tab. Never fork the engine into a second
   app; a fix to play must reach both.
 - Rules and the game's store are `src/gameFront.js` (no React); screens are `src/gameShell.js`; the
   wiring is the **GAME FRONT END** block after `startRun` in App.js. No studio screen is reachable in
   game mode, and `flash` is silent there.
 - **The title is plain HTML/CSS in `public/index.html`**, so it shows before the bundle arrives (his
   words: "before anything else even loads"). Its timings are mirrored by `INTRO_*` in gameFront.js
-  (a test checks both). Cinzel is loaded only at the game's address. `TitleHandoff` fades it out.
+  (a test checks both). `TitleHandoff` fades it out. Faces, picked by him from a sheet on 2026-10-18:
+  **New Rocker** for "BLAKE Presents...", **Sarpanch 900** upright with a -9° skew for BOB (white,
+  near-black edge, grey-green outer edge: three stacked copies, `.bobLogo`, in BOTH index.html and
+  GAME_CSS), **Russo One** for menus. Loaded only at the game's address.
+- **The look (2026-10-18, his mock-up): every screen is a FLAT green panel** (off-white border,
+  yellow ▶ on the lit row) over one of his own levels with his people walking it. **No patterned
+  fills** — he turned down the striped panel and the rayed card. The backdrop is `menuSceneFor`
+  (App.js): the level's tiles and objects drawn by the play code, the cast = the level's units +
+  every Starter look (dressed, see below) walking the visible main ground (`stepMenuWalker`; never
+  collision-only cells, or they walk on the sky). **Each screen has its own level** (`sceneLevelFor`
+  over `menuLevelLineup`, ranked by drawn props x3 + units; he called a low-ranked pick "a pretty
+  boring level"). `?scene=<level name>` pins the main menu's.
+- **New Game → character select, Smash style**: a box per look filed under **Starter**
+  (`starterLooks`, Bob first), the box shows the HEAD only ("neck up"), the P1 card the whole body
+  **dressed in a random shirt + pants** drawn for its body (`gameDressed`, kept per page) — display
+  only, the run starts as the look is saved. Then **Easy 4 / Medium 2 / Hard 1 lives**
+  (`DIFFICULTIES`). A death no 🐱 Extra Life catches costs one (`gameDeathRef`, called from
+  `playerDefeated`; counted in the save as `deaths`); the last one freezes the loop and shows
+  **Game Over** (Retry = same look, difficulty and seed; the save is deleted). HUD life pips =
+  run lives left + extra lives.
 - **Saves are checkpoints** in their OWN IndexedDB database `bobOkayGame` (plain objects under
   `game:` keys), never the studio's `bobAssetStudio` store or localStorage (full). One is written
   400 ms after each run level goes live (never on the seam frame) and on Quit to Main Menu. Load
