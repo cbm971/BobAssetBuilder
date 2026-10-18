@@ -286,8 +286,8 @@ describe("locked starters", () => {
   const look = (name) => ({ id: name, type: "character", category: "Starter", name });
   const items = Array.from({ length: 60 }, (_, i) => ({ id: "i" + i, type: i % 2 ? "weapon" : "equipment", name: "Item " + i }));
   const assets = [...items, { id: "dog", type: "enemy", name: "Dog" }];
-  test("Bob, Rob and the rest are open from the start", () => {
-    for (const n of ["Bob", "Rob", "Bobette", "Bobbi"]) expect(starterLock(look(n), newGameRecord(), assets)).toBeNull();
+  test("Bob and the rest are open from the start (Rob is not)", () => {
+    for (const n of ["Bob", "Bobette", "Bobbi"]) expect(starterLock(look(n), newGameRecord(), assets)).toBeNull();
   });
   test("Bobby opens on Trailor Park, by anyone, either spelling", () => {
     expect(starterLock(look("Bobby"), newGameRecord(), assets).need).toBe("Complete Trailor Park");
@@ -309,7 +309,25 @@ describe("locked starters", () => {
     r = recordFloorDone(r, "Trailor Park", 10, "Rob");
     expect(r.floorsWith).toEqual({ "Trailor Park": ["bob", "rob"] });
     expect(starterLock(look("Roberta"), r, assets)).toBeNull();
-    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta"]);
+    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob"]);
+  });
+  test("Rob is locked until the Trailor Park is beaten on Hard, by anyone", () => {
+    let r = newGameRecord();
+    expect(starterLock(look("Rob"), r, assets).need).toBe("Complete Trailor Park on Hard");
+    r = recordFloorDone(r, "Trailor Park", 10, "Bob", "easy");
+    r = recordFloorDone(r, "Trailor Park", 10, "Bob", "medium");
+    expect(starterLock(look("Rob"), r, assets)).not.toBeNull();
+    expect(starterLock(look("Rob"), recordFloorDone(newGameRecord(), "Sewer", 10, "Bob", "hard"), assets)).not.toBeNull();
+    r = recordFloorDone(r, "Trailer Park", 10, "Bobette", "hard");
+    expect(starterLock(look("Rob"), r, assets)).toBeNull();
+  });
+  test("a floor remembers the hardest difficulty each fighter beat it on", () => {
+    let r = recordFloorDone(newGameRecord(), "Trailor Park", 10, "Bob", "hard");
+    r = recordFloorDone(r, "Trailor Park", 10, "Bob", "easy");
+    r = recordFloorDone(r, "Trailor Park", 10, "Rob", "medium");
+    expect(r.floorsDiff).toEqual({ "Trailor Park": { bob: 3, rob: 2 } });
+    expect(normalizeGameRecord(r).floorsDiff).toEqual(r.floorsDiff);
+    expect(normalizeGameRecord({ floorsDiff: { "Trailor Park": { bob: 9, rob: "x", "": 2 } } }).floorsDiff).toEqual({});
   });
   test("an old record with no floorsWith still loads, and a stored one survives", () => {
     expect(normalizeGameRecord({ floors: ["Trailor Park"] }).floorsWith).toEqual({});
@@ -333,13 +351,19 @@ describe("the character select's player card", () => {
     let r = recordFloorDone(newGameRecord(), "Trailer Park", 10, "Rob");
     r = recordFloorDone(r, "Vietnam", 10, "Bob");
     expect(lookFloorMedals(r, "Rob", ["Trailor Park", "Vietnam"])).toEqual([
-      { floor: "Trailor Park", mark: "T", done: true },
-      { floor: "Vietnam", mark: "V", done: false },
+      { floor: "Trailor Park", mark: "T", done: true, diff: "easy" },
+      { floor: "Vietnam", mark: "V", done: false, diff: null },
     ]);
     expect(lookFloorMedals(r, "bob", ["Trailor Park"])).toEqual([
-      { floor: "Trailor Park", mark: "T", done: false },
-      { floor: "Vietnam", mark: "V", done: true },
+      { floor: "Trailor Park", mark: "T", done: false, diff: null },
+      { floor: "Vietnam", mark: "V", done: true, diff: "easy" },
     ]);
+    // the T is outlined by the hardest difficulty this look beat the floor on
+    let d = recordFloorDone(newGameRecord(), "Trailor Park", 10, "Bob", "medium");
+    expect(lookFloorMedals(d, "Bob", ["Trailor Park"])[0].diff).toBe("medium");
+    d = recordFloorDone(d, "Trailor Park", 10, "Bob", "hard");
+    expect(lookFloorMedals(d, "Bob", ["Trailor Park"])[0].diff).toBe("hard");
+    expect(lookFloorMedals(d, "Rob", ["Trailor Park"])[0].diff).toBeNull();
     expect(lookFloorMedals(null, "Bob", [])).toEqual([]);
   });
 });

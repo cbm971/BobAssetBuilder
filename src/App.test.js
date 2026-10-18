@@ -1,4 +1,12 @@
 import {
+  nextRerollHold,
+  REROLL_HOLD_FRAMES,
+  REROLL_SHOW_FRAMES,
+  nextAimSideGrace,
+  AIM_DIAGONAL_GRACE_FRAMES,
+  playerWeaponDps,
+  pickRoom,
+  ENEMY_PROVOKED_SENSE_MUL,
   animAutoSaves,
   DEFAULT_PROJECTILE_RANGE,
   roomTagMatches,
@@ -13979,5 +13987,100 @@ describe("animAutoSaves", () => {
     expect(animAutoSaves({ id: "x", name: "Animation" }, null)).toBe(false);
     expect(animAutoSaves({ id: "gnrlbr2", name: "Briefing 2" }, { id: "gnrlbr2", name: "General's Briefing" })).toBe(false);
     expect(animAutoSaves(null, { id: "a", name: "a" })).toBe(false);
+  });
+});
+
+describe("no room twice on a seed", () => {
+  const rooms = ["a", "b", "c", "d"].map((id) => ({ id, isRoom: true, roomTag: "Shop" }));
+  test("a room already handed out is skipped while another fits the tag", () => {
+    for (let i = 0; i < 200; i++) {
+      const got = pickRoom(rooms, "shop", "seed" + i, ["a", "c"]);
+      expect(["b", "d"]).toContain(got.id);
+    }
+  });
+  test("every room in a pool is handed out once before any repeats", () => {
+    for (let i = 0; i < 50; i++) {
+      const used = [];
+      for (let door = 0; door < 4; door++) used.push(pickRoom(rooms, "Shop", i + "|door" + door, used).id);
+      expect(new Set(used).size).toBe(4);
+    }
+  });
+  test("a spent pool repeats rather than refusing; no match is still null; no used list is the old pick", () => {
+    expect(pickRoom(rooms, "shop", "x", ["a", "b", "c", "d"])).not.toBeNull();
+    expect(pickRoom(rooms, "nope", "x", [])).toBeNull();
+    expect(pickRoom(rooms, "shop", "x")).toBe(pickRoom(rooms, "shop", "x", []));
+  });
+});
+
+describe("provoked enemies lock on far beyond their range", () => {
+  const cell = PLAYER_BODY_LEN_PX / 7;
+  test("a calm enemy loses you at 28 cells; a provoked one still has you at 100, behind its back too", () => {
+    expect(enemyDetects(40 * cell, 1, 0)).toBe(false);
+    expect(enemyDetects(100 * cell, 1, 0, true)).toBe(true);
+    expect(enemyDetects(-100 * cell, 1, 0)).toBe(false);
+    expect(enemyDetects(-100 * cell, 1, 0, true)).toBe(true);
+    expect(enemyDetects(150 * cell, 1, 0, true)).toBe(false); // far, not infinite
+    expect(ENEMY_PROVOKED_SENSE_MUL).toBeGreaterThan(1);
+  });
+  test("it also reaches a floor above that a calm one ignores, and turns toward you", () => {
+    const up = -3 * PLAYER_BODY_LEN_PX;
+    expect(enemyDetects(10 * cell, 1, up)).toBe(false);
+    expect(enemyDetects(10 * cell, 1, up, true)).toBe(true);
+    expect(enemyChasesVertically(0, up)).toBe(false);
+    expect(enemyChasesVertically(0, up, true)).toBe(true);
+    expect(enemyFaceToward(-60 * cell, 1, 0)).toBe(1);
+    expect(enemyFaceToward(-60 * cell, 1, 0, true)).toBe(-1);
+  });
+});
+
+describe("switching weapons quotes DPS, not one hit's damage", () => {
+  const me = { stats: { strength: 5, intelligence: 5 }, effects: [] };
+  const slowBig = { type: "weapon", wtype: "ranged", damage: 10, fireRate: 1, clipSize: 0 };
+  const fastSmall = { type: "weapon", wtype: "ranged", damage: 4, fireRate: 10, clipSize: 0 };
+  const dpsOf = (w) => playerWeaponDps(me, w, {}, [], 0);
+  test("the callout compares what each does per second, the HUD's own figure", () => {
+    expect(dpsOf(fastSmall)).toBeGreaterThan(dpsOf(slowBig)); // the 4-damage gun is the stronger one
+    const rows = pickupChangeRows(fastSmall, { held: slowBig, dpsOf });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kind: "stat", label: "DPS" });
+    expect(rows[0].from).toBe(Math.round(dpsOf(slowBig) * 10) / 10);
+    expect(rows[0].to).toBe(Math.round(dpsOf(fastSmall) * 10) / 10);
+    expect(rows[0].to).toBeGreaterThan(rows[0].from);
+  });
+  test("nothing held prints just the number; the same DPS prints no row; a throwable keeps Dmg", () => {
+    expect(pickupChangeRows(fastSmall, { dpsOf })[0]).toMatchObject({ label: "DPS", from: null });
+    expect(pickupChangeRows(fastSmall, { held: fastSmall, dpsOf })).toEqual([]);
+    expect(pickupChangeRows({ type: "weapon", wtype: "throw", damage: 12 }, { dpsOf })[0]).toMatchObject({ label: "Dmg", to: 12 });
+  });
+});
+
+describe("the 45 degree aim survives a staggered release", () => {
+  test("the sideways arrow lifting a frame early keeps the diagonal for a moment, then lets go", () => {
+    let g = nextAimSideGrace(0, true, true);
+    expect(g).toBe(AIM_DIAGONAL_GRACE_FRAMES);
+    for (let i = 0; i < AIM_DIAGONAL_GRACE_FRAMES - 1; i++) { g = nextAimSideGrace(g, false, true); expect(g).toBeGreaterThan(0); }
+    g = nextAimSideGrace(g, false, true);
+    expect(g).toBe(0); // up held alone long enough = straight up again
+  });
+  test("releasing up and down drops the grace at once, so the next plain up is straight up", () => {
+    expect(nextAimSideGrace(AIM_DIAGONAL_GRACE_FRAMES, false, false)).toBe(0);
+    expect(nextAimSideGrace(0, true, false)).toBe(0);
+    expect(nextAimSideGrace(0, false, true)).toBe(0);
+  });
+});
+
+describe("holding R rerolls the run", () => {
+  test("the hold builds while R is down and is gone the frame it lifts", () => {
+    let h = 0;
+    for (let i = 0; i < REROLL_HOLD_FRAMES - 1; i++) h = nextRerollHold(h, true);
+    expect(h).toBeLessThan(REROLL_HOLD_FRAMES);
+    h = nextRerollHold(h, true);
+    expect(h).toBeGreaterThanOrEqual(REROLL_HOLD_FRAMES);
+    expect(nextRerollHold(h, false)).toBe(0);
+  });
+  test("a plain reload tap never gets near the ring or the reroll, and a slow frame counts its real length", () => {
+    expect(REROLL_SHOW_FRAMES).toBeLessThan(REROLL_HOLD_FRAMES);
+    expect(nextRerollHold(nextRerollHold(0, true), false)).toBe(0);
+    expect(nextRerollHold(10, true, 1.5)).toBe(11.5);
   });
 });

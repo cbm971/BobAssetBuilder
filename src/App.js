@@ -1624,6 +1624,16 @@ export const weaponDpsOver = (weapon, perHit, intelligence, effects, secs = WEAP
 };
 // The HUD's wording of it: a whole number from 100 up, one decimal below, so 2.5 does not read as 3.
 export const formatDps = (dps) => { const d = Math.max(0, dps || 0); return d >= 100 ? String(Math.round(d)) : String(Math.round(d * 10) / 10); };
+// WHAT A WEAPON DOES PER SECOND IN THIS PLAYER'S HANDS — the HUD's figure, as one call so the HUD and
+// the swap callout (pickupChangeRows) can never quote two different numbers for the same gun.
+// `merged` is the player with their kit on (mergeEquip); `buffs` is activeBuffSum, `timed` the live
+// timed item buffs (a 🧪 Tag Damage potion counts while it runs).
+export const playerWeaponDps = (merged, weapon, buffs, timed, nowMs) => {
+  const st = (merged && merged.stats) || {}, b = buffs || {};
+  const effects = withTimedTagBoosts(merged && merged.effects, timed || [], nowMs || 0);
+  const perHit = enemyAttackDamage({ ...merged, effects, stats: { ...st, strength: (st.strength ?? 5) + (b.strength || 0) } }, weapon);
+  return weaponDpsOver(weapon, perHit, (st.intelligence ?? 5) + (b.intelligence || 0), merged && merged.effects);
+};
 // --- Undo: an entry is the asset AND the cursor saying which slot of it is on screen ---------
 //
 // `asset.angles` is the ONE live editing surface. Which slot it belongs to is held in separate
@@ -2243,6 +2253,21 @@ export const stripThrownLanding = (hazardIn, fxIn, hazKeys, propKeys) => {
 // separate handling here: the shot is fired along p.face.
 export const AIM_DIAGONAL = 0.5;
 export const isDiagonalAim = (aimDir) => Math.abs(aimDir || 0) === AIM_DIAGONAL;
+// THE 45° HOLDS THROUGH A STAGGERED RELEASE (2026-10-18; Blake: "sometimes it didn't really want to
+// let me aim up at 45"). The diagonal is two arrows held together, and fingers never lift in the same
+// frame: let go of → a hair before ↑ and, for those frames, aimDir read ↑ ALONE — a straight-up pose
+// and a straight-up shot in the middle of a 45° hold. The sideways key now keeps the diagonal alive
+// for AIM_DIAGONAL_GRACE_FRAMES after it goes (about 0.1 s) for as long as ↑/↓ stays down, and the
+// grace is dropped the moment both are up so a later plain ↑ is still straight up.
+export const AIM_DIAGONAL_GRACE_FRAMES = 6;
+// HOLD R TO REROLL THE RUN (2026-10-18). A tap of R still reloads; held for REROLL_HOLD_FRAMES (1.5 s)
+// while a run is playing, it throws the run away and starts a fresh seed. The ring over the screen
+// only appears after REROLL_SHOW_FRAMES, so an ordinary reload never flashes it.
+export const REROLL_HOLD_FRAMES = 90;
+export const REROLL_SHOW_FRAMES = 15;
+export const nextRerollHold = (prev, held, dtMul = 1) => (held ? (prev || 0) + dtMul : 0);
+export const nextAimSideGrace = (prev, sideHeld, vertHeld, dtMul = 1) =>
+  !vertHeld ? 0 : sideHeld ? AIM_DIAGONAL_GRACE_FRAMES : Math.max(0, (prev || 0) - dtMul);
 // Degrees off level the shot flies, positive = downward (screen coords, matching rot everywhere else).
 // STRAIGHT DOWN, PERIOD (Blake, 2026-10-17: ladders/planes first, then same day — "steeper angles
 // downwards" generally). ↓ alone used to be a shallow 40° dip everywhere except a ladder or 🚶 plane
@@ -3249,9 +3274,17 @@ export const roomPool = (levels, tag) => {
   return (levels || []).filter((l) => l && l.isRoom && ((l.roomTag || "").trim().toLowerCase() === t));
 };
 export const roomSeed = (str) => { let h = 2166136261 >>> 0; const s = String(str); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return (h >>> 0) / 4294967296; };
-export const pickRoom = (levels, tag, seedStr) => {
-  const pool = roomPool(levels, tag);
-  if (!pool.length) return null;
+// NO ROOM TWICE ON A SEED (2026-10-18; Blake: "You shouldn't generate the same room twice on a floor
+// seed"). Two doors with the same tag each rolled from the whole pool, so a floor with five 🚪 doors
+// and five rooms could hand out one room three times. `usedIds` is the rooms this run has already
+// handed out (sessionRooms): they are skipped while any other room fits the tag, and only when the
+// pool is spent does a door repeat one — there is nothing else to give it.
+export const pickRoom = (levels, tag, seedStr, usedIds) => {
+  const all = roomPool(levels, tag);
+  if (!all.length) return null;
+  const used = new Set(usedIds || []);
+  const fresh = all.filter((l) => !used.has(l.id));
+  const pool = fresh.length ? fresh : all;
   return pool[Math.min(pool.length - 1, Math.floor(roomSeed(seedStr) * pool.length))];
 };
 // Playtest spawn: you "enter" a level through an OPEN gate (connector), favouring top-left then
@@ -5464,8 +5497,18 @@ export const pickupChangeRows = (item, ctx) => {
   const rows = [];
   if (item.type === "weapon") {
     const liveKeys = weaponLiveAbilityKeys;
-    const to = item.damage ?? 5, from = held ? (held.damage ?? 5) : null;
-    if (from !== to) rows.push({ kind: "stat", label: "Dmg", from, to });
+    // SWITCHING WEAPONS SHOWS DPS, NOT DAMAGE (Blake, 2026-10-18): one hit's damage says nothing
+    // about a fast gun beside a slow one, so the swap compares what each does per second in YOUR
+    // hands — the same figure as the HUD (playerWeaponDps, handed in as ctx.dpsOf). A throwable has no
+    // rate to quote, and a caller with no player to ask (a test, a bare item) still gets the old Dmg.
+    if (typeof ctx?.dpsOf === "function" && !isThrowable(item.wtype)) {
+      const r1 = (w) => Math.round(Math.max(0, ctx.dpsOf(w) || 0) * 10) / 10;
+      const to = r1(item), from = held ? r1(held) : null;
+      if (from !== to) rows.push({ kind: "stat", label: "DPS", from, to });
+    } else {
+      const to = item.damage ?? 5, from = held ? (held.damage ?? 5) : null;
+      if (from !== to) rows.push({ kind: "stat", label: "Dmg", from, to });
+    }
     const mineW = liveKeys(item);
     for (const k of mineW) rows.push(weaponAbilityBrief(item, k));
     // What the weapon you are putting DOWN could do and this one cannot — the half of a swap you
@@ -11697,13 +11740,22 @@ export const ENEMY_SIGHT_BEHIND_LENGTHS = 1; // ...but only 1 body length behind
 // Returns the fraction of the sideways reach left at that height (1 level, 0 out of the zone).
 export const ENEMY_SENSE_DOWN_LENGTHS = 3;
 export const ENEMY_SENSE_UP_LENGTHS = 1.75;
-export const enemySenseHeightFrac = (dyFeet = 0) => {
-  const f = Math.abs(dyFeet || 0) / (PLAYER_BODY_LEN_PX * (dyFeet > 0 ? ENEMY_SENSE_DOWN_LENGTHS : ENEMY_SENSE_UP_LENGTHS));
+// PROVOKED (2026-10-18). Blake: "Enemies should lock on far beyond their normal range when attacked,
+// with whatever their chase setting is set to." A unit that has taken damage knows exactly where it
+// came from: its sense zone grows ENEMY_PROVOKED_SENSE_MUL times in every direction (20 body lengths
+// = 140 cells sideways, ~9 up and 15 down) and the blind side is gone. It changes only WHAT IT
+// NOTICES — Guard still holds its spawn, Avoid still backs off, Seek still closes — so each unit
+// keeps the chase setting it was placed with.
+export const ENEMY_PROVOKED_SENSE_MUL = 5;
+export const enemySenseHeightFrac = (dyFeet = 0, provoked = false) => {
+  const mul = provoked ? ENEMY_PROVOKED_SENSE_MUL : 1;
+  const f = Math.abs(dyFeet || 0) / (PLAYER_BODY_LEN_PX * mul * (dyFeet > 0 ? ENEMY_SENSE_DOWN_LENGTHS : ENEMY_SENSE_UP_LENGTHS));
   return f >= 1 ? 0 : Math.sqrt(1 - f * f);
 };
-export const enemyDetects = (distToPlayer, face, dyFeet = 0) => {
-  const hf = enemySenseHeightFrac(dyFeet);
+export const enemyDetects = (distToPlayer, face, dyFeet = 0, provoked = false) => {
+  const hf = enemySenseHeightFrac(dyFeet, provoked);
   if (hf <= 0) return false;
+  if (provoked) return Math.abs(distToPlayer) <= PLAYER_BODY_LEN_PX * ENEMY_SIGHT_AHEAD_LENGTHS * ENEMY_PROVOKED_SENSE_MUL * hf;
   const facing = distToPlayer === 0 || Math.sign(distToPlayer) === (face || 1);
   return Math.abs(distToPlayer) <= PLAYER_BODY_LEN_PX * (facing ? ENEMY_SIGHT_AHEAD_LENGTHS : ENEMY_SIGHT_BEHIND_LENGTHS) * hf;
 };
@@ -11735,7 +11787,7 @@ export const unitSharesLevel = (myFeetY, targetFeetY, standH) => Math.abs(myFeet
 // ...ROUND 2 (same day): the flat 1.5-length cutoff also stopped the tree Squirrels dropping on you.
 // The height limit is now the sense zone's own top and bottom (enemySenseHeightFrac, above): up
 // 1.75 body lengths, down 3, and the sideways reach shrinks toward both instead of ending at a wall.
-export const enemyChasesVertically = (myFeetY, targetFeetY) => enemySenseHeightFrac(targetFeetY - myFeetY) > 0;
+export const enemyChasesVertically = (myFeetY, targetFeetY, provoked = false) => enemySenseHeightFrac(targetFeetY - myFeetY, provoked) > 0;
 // A HOSTILE NOTICES ONE OF YOUR ALLIES INSIDE THE SAME OVAL (2026-10-17). Blake: "I had all of the
 // football players wander out to the level to the left, their detection range shouldn't be that
 // high." Only the PLAYER was ever range-checked: a hostile picked the nearest of you and your
@@ -11754,9 +11806,9 @@ export const enemySensesUnit = (dx, dyFeet = 0) => { const hf = enemySenseHeight
 // when I walk right up to it, and never shoots" bug. Returns the current face unchanged when the
 // player is out of sensing range entirely, so an unaware enemy keeps its placed facing. The range
 // is the sense zone's (enemySenseHeightFrac): shorter the higher above or below it the player is.
-export const enemyFaceToward = (distToPlayer, face, dyFeet = 0) => {
+export const enemyFaceToward = (distToPlayer, face, dyFeet = 0, provoked = false) => {
   if (distToPlayer === 0) return face || 1;
-  return (Math.abs(distToPlayer) <= PLAYER_BODY_LEN_PX * ENEMY_SIGHT_AHEAD_LENGTHS * enemySenseHeightFrac(dyFeet)) ? Math.sign(distToPlayer) : (face || 1);
+  return (Math.abs(distToPlayer) <= PLAYER_BODY_LEN_PX * ENEMY_SIGHT_AHEAD_LENGTHS * (provoked ? ENEMY_PROVOKED_SENSE_MUL : 1) * enemySenseHeightFrac(dyFeet, provoked)) ? Math.sign(distToPlayer) : (face || 1);
 };
 // Is this enemy committed to an attack right now? Winding up to strike (reactT), mid-swing
 // (swingT), or visibly tracking a target down a raised weapon (aimHold) all count. Used to decide
@@ -13726,6 +13778,8 @@ export default function AssetStudio({ game = false } = {}) {
      changes hands and that what you traded in does not land back on a plinth — the shopkeeper
      keeps it. Anything that behaves differently in a shop than it does at a pedestal is a bug. */
   const playNowMs = () => ((typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now());
+  // A weapon's DPS in the player's hands right now (playerWeaponDps) — what the swap callout, the pickup banner and the HUD quote.
+  const playerDpsOf = (w) => { const base = findA(playerId), now = playNowMs(); return playerWeaponDps(mergeEquip(base, equipped.current, equippedBodyIdFor(base)), w, activeBuffSum(itemBuffs.current, now), itemBuffs.current, now); };
   // Which tags mean a KIND of garment (see equipKindTags), cached against the library's own
   // identity. Every "what comes off" question goes through this — a pedestal prompt asks it inside
   // the render body, which runs 60x a second in Playtest, and walking 120 assets there would be a
@@ -14509,6 +14563,11 @@ export default function AssetStudio({ game = false } = {}) {
       // THE GAME'S PAUSE MENU (Esc) stops it on the same line: nothing moves, no timer runs and the
       // score clock (below) does not count, exactly as while reading a conversation.
       if (talkRef.current || shopRef.current || gamePauseRef.current) { if (talkRef.current) lastTalkSig = ""; raf = requestAnimationFrame(loop); return; }
+      // 🎲 HOLD R (rerollRun): read off the RAW keys and before the cutscene return below, so it works
+      // while a stun has your intent zeroed or the wake-up animation is playing — a run you do not
+      // want is one you do not want to sit through the opening of either.
+      p.rerollHold = nextRerollHold(p.rerollHold, !!RK.reload && !!runNow, dtMul);
+      if (p.rerollHold >= REROLL_HOLD_FRAMES) { p.rerollHold = 0; rerollRunRef.current(); }
       // 🎬 A CUTSCENE PAUSES IT ON THE SAME TERMS: one return, above everything, so nobody walks up
       // and shoots a sleeping man. Only the animation's clock runs (cutFrame), and the camera keeps
       // following the hidden body, which cutFrame keeps on the actor.
@@ -14537,7 +14596,7 @@ export default function AssetStudio({ game = false } = {}) {
       // turning round mid-stamp — the foot comes down where the knee went up, on the thing that was
       // under it. Aim and trigger are untouched; only the keys that would move or turn the body.
       const stompPlanted = !!(p.stomp && p.onGround);
-      const K = mergeInputIntent(frozen ? {} : stompPlanted ? { ...RK, left: false, right: false, jump: false, crouch: false, down: false, aimLeft: false, aimRight: false } : RK, wpnIsRanged);
+      const K = mergeInputIntent(frozen ? {} : stompPlanted ? { ...RK, left: false, right: false, jump: false, crouch: false, down: false } : RK, wpnIsRanged); // aimLeft/aimRight stay: they are half of the 45° hold (a stomp must not drop you to straight up); the turn they cause is held back below
       // Temporary stat boosts from consumed items: expire by wall-clock, then layer what's still
       // active onto the player's base stats. Every stat read below (speed/agility/strength/int)
       // goes through pstats, so a boost fades on its own the moment its timer runs out — no re-key.
@@ -14704,7 +14763,7 @@ export default function AssetStudio({ game = false } = {}) {
       if (K.left) p.face = -1; if (K.right) p.face = 1; // facing follows movement, even mid-air
       // Aiming left/right also turns you — so you can stand still and point the other way to
       // shoot without having to walk. Movement keys win if both are held (you face where you go).
-      if (!K.left && !K.right) { if (K.aimLeft) p.face = -1; else if (K.aimRight) p.face = 1; }
+      if (!K.left && !K.right && !stompPlanted) { if (K.aimLeft) p.face = -1; else if (K.aimRight) p.face = 1; }
       // 🦎 TAIL SWING (see tailSwingTargets). Only a turn YOU make with the keys swings: the stomp's
       // turn-to-face and a door's arrival also set p.face, and neither is "turning around". The tail
       // sweeps into the side you were facing (faceBeforeKeys), once, on the frame you turn; every
@@ -15137,7 +15196,8 @@ export default function AssetStudio({ game = false } = {}) {
       // left/right of its own — holding ↑+← turns you and aims up-left in one move.
       // A ladder frees the gun hand (climbFreesGunArm): W/S still climb, the arrows aim.
       p.aiming = armHoldsAimPose(playtestWeapon && isRanged(playtestWeapon.wtype), climbing && !climbFreesGunArm(climbKindHere), K.fire, K.aimUp, K.aimDown, p.firing);
-      const aimDiag = (K.aimLeft || K.aimRight) ? AIM_DIAGONAL : 1;
+      p.aimSideGrace = nextAimSideGrace(p.aimSideGrace, !!(K.aimLeft || K.aimRight), !!(K.aimUp || K.aimDown), dtMul);
+      const aimDiag = p.aimSideGrace > 0 ? AIM_DIAGONAL : 1;
       p.aimDir = p.aiming ? (K.aimUp ? -aimDiag : K.aimDown ? aimDiag : 0) : 0;
       // A THROW READS THE SAME ARROWS, on its own channel. p.aimDir is gated on p.aiming, which
       // armHoldsAimPose only ever grants to a RANGED weapon — so while you held G with a grenade in
@@ -15712,7 +15772,13 @@ export default function AssetStudio({ game = false } = {}) {
           // inside it the PLAYER is sensed over a sideways reach that shrinks with the height between
           // you (huntDy into enemyFaceToward / enemyDetects), so a tree Squirrel still drops on you.
           const huntFeet = targetKind === "unit" ? (targetEp && targetEa ? targetEp.y + (targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW)) : null) : p.y + ph;
-          const huntInReach = !hostile || huntFeet == null || enemyChasesVertically(myFeetY, huntFeet);
+          // PROVOKED: any HP it has lost since the last frame (a bullet, a swing, a stomp, a blast, a
+          // burn) wakes its whole sense zone up for good (ENEMY_PROVOKED_SENSE_MUL), whoever hit it.
+          const hpSeen = enemyHP.current[k];
+          if (hostile && hpSeen !== undefined && ep.provHp != null && hpSeen < ep.provHp) ep.provoked = true;
+          ep.provHp = hpSeen === undefined ? null : hpSeen;
+          const provoked = hostile && !!ep.provoked;
+          const huntInReach = !hostile || huntFeet == null || enemyChasesVertically(myFeetY, huntFeet, provoked);
           const huntDy = hostile && huntFeet != null ? huntFeet - myFeetY : 0;
           // A dressed look walks by YOUR rule, crawling at half speed while it ducks, as you do; an
           // animal keeps its own scale (unitMoveSpeed).
@@ -15734,7 +15800,7 @@ export default function AssetStudio({ game = false } = {}) {
           // frame. They are collected into one local instead and committed ONCE, through holdFacing,
           // at the bottom. Order is unchanged, so what a unit wants to be looking at is identical.
           let wantFace = ep.face;
-          if (!stunned && acts && huntInReach) wantFace = enemyFaceToward(distToTarget, ep.face, huntDy);
+          if (!stunned && acts && huntInReach) wantFace = enemyFaceToward(distToTarget, ep.face, huntDy, provoked);
           // SOMEONE WITH SOMETHING TO SAY LOOKS AT YOU. A neutral NPC never enters the branch
           // above (it has no target and `acts` is false), so it stood staring at the wall it was
           // placed facing — and the only tell that this particular guard is the one you can talk
@@ -15754,7 +15820,7 @@ export default function AssetStudio({ game = false } = {}) {
           // brawls always "see" their target (you can't stealth past a melee your minion started).
           // Reads wantFace, which is exactly the value ep.face held here before the two writes were
           // merged — a unit senses you down the line it is turning to look along, dwell or no dwell.
-          const detected = (hostile && targetKind === "player") ? huntInReach && enemyDetects(distToTarget, wantFace, huntDy) : acts && huntInReach;
+          const detected = (hostile && targetKind === "player") ? huntInReach && enemyDetects(distToTarget, wantFace, huntDy, provoked) : acts && huntInReach;
           const gapSigned = (Math.sign(distToTarget) || 1) * boxGap(targetCX, targetW, eCenterXNow, epw);
           // TACKLE CHARGE. A tackler that obeys its ordinary move intent can never use the ability
           // it is wearing: Guard never leaves its spawn, Avoid runs the wrong way, and Seek stops at
@@ -16418,7 +16484,7 @@ export default function AssetStudio({ game = false } = {}) {
           let inSight = false;
           // A brawl opponent is always "seen" (no stealth between two fighters); only a hostile
           // hunting the PLAYER has to sense them first. Cover still blocks the line either way.
-          if (!stunned && attacking && gapNow <= attackRange && sameLevel && (targetKind === "unit" || enemyDetects(tgtAimCX - eCenterXFinal, ep.face))) {
+          if (!stunned && attacking && gapNow <= attackRange && sameLevel && (targetKind === "unit" || enemyDetects(tgtAimCX - eCenterXFinal, ep.face, 0, provoked))) {
             const chestY = ep.y + newEph * 0.5;
             const STEPS = 6;
             let blocked = false;
@@ -17876,7 +17942,7 @@ export default function AssetStudio({ game = false } = {}) {
           const tag = doorTagOf(lv.markers[curDoorKey]);
           const cacheKey = (lv.runKey || lv.id) + "|" + curDoorKey;    // per run slot, like the state bucket
           let roomId = sessionRooms.current[cacheKey];              // a door leads to the SAME room all session
-          if (!roomId) { const r = pickRoom(levelLib, tag, playRunId.current + "|" + cacheKey + "|" + tag); roomId = r && r.id; if (roomId) sessionRooms.current[cacheKey] = roomId; }
+          if (!roomId) { const r = pickRoom(levelLib, tag, playRunId.current + "|" + cacheKey + "|" + tag, Object.values(sessionRooms.current)); roomId = r && r.id; if (roomId) sessionRooms.current[cacheKey] = roomId; }
           if (roomId) { sndEvent("door", p.x, p.y); const [dr, dc] = curDoorKey.split(",").map(Number); p.arriving = 0; p.transitioning = { mode: "enter", t: 0, roomId, toX: doorToX, retX: dc * CW, retY: dr * CH + CH - ph }; }
           else flash(tag ? "🚪 No room tagged \"" + tag + "\" yet — make one in the Room Creator." : "🚪 This is an exit door (blank tag) — it only does something from inside a room.");
         }
@@ -17922,12 +17988,12 @@ export default function AssetStudio({ game = false } = {}) {
               const prevId = playtestThrowId, prev = prevId ? findA(prevId) : null;
               putBack(prev);
               throwPickup.current = 3;
-              showPickup(item.name + " ×3", pickupChangeRows(item, { held: prev }), itemRank(item), item);
+              showPickup(item.name + " ×3", pickupChangeRows(item, { held: prev, dpsOf: playerDpsOf }), itemRank(item), item);
               setPlaytestThrowId(item.id);
             } else {
               const prevId = playtestWeaponId, prev = prevId ? findA(prevId) : null;
               putBack(prev);
-              showPickup(item.name, pickupChangeRows(item, { held: prev }), itemRank(item), item);
+              showPickup(item.name, pickupChangeRows(item, { held: prev, dpsOf: playerDpsOf }), itemRank(item), item);
               setPlaytestWeaponId(item.id);
             }
           } else {
@@ -22670,7 +22736,7 @@ export default function AssetStudio({ game = false } = {}) {
     const node = run && run.nodes[run.curKey];
     const floor = (node && node.level && node.level.floor) || (level && level.floor) || "";
     const look = findA(playerId);
-    putGameRecord(recordFloorDone(gameRecordRef.current, floor, sc.total, look ? look.name : "")); // who finished it unlocks Roberta (gameFront.js STARTER_LOCKS)
+    putGameRecord(recordFloorDone(gameRecordRef.current, floor, sc.total, look ? look.name : "", gameCur.current.difficulty)); // who finished it, and on what, unlocks Roberta and Rob (gameFront.js STARTER_LOCKS)
     if (gameCur.current.saveId) putGameSaves(dropGameSave(gameSavesRef.current, gameCur.current.saveId)); // the run is over: nothing left to load
     setGameFloorDone({ floor, score: sc.total, secs: scorePlaySecs(sc) });
     gameCur.current = GAME_CUR_NONE;
@@ -22708,6 +22774,37 @@ export default function AssetStudio({ game = false } = {}) {
   };
   const gameGameOverRef = useRef(gameGameOver);
   gameGameOverRef.current = gameGameOver;
+  // 🎲 HOLD R: throw this run away and roll a fresh seed. The playtest is stopped first and the new
+  // run started by the effect below once `play` has gone false — startRun and the game's own start
+  // both read the level as the editor left it, which is only true after the stop. In the game that is
+  // a new game as the same fighter on the same difficulty (the old checkpoint goes: it was this run's).
+  const rerollReq = useRef(null);
+  const [rerollTick, setRerollTick] = useState(0);
+  const rerollRun = () => {
+    if (!play || !runRef.current || rerollReq.current) return;
+    if (game) {
+      const cur = gameCur.current;
+      if (!cur.saveId) return;
+      rerollReq.current = { game: true, look: findA(playerId), difficulty: cur.difficulty };
+      putGameSaves(dropGameSave(gameSavesRef.current, cur.saveId));
+      gameCur.current = GAME_CUR_NONE;
+      gameSetPaused(false);
+      togglePlaytest();
+      setScreen("game"); setGameView("reroll");
+    } else {
+      rerollReq.current = { game: false };
+      togglePlaytest();
+    }
+    setRerollTick((t) => t + 1);
+  };
+  const rerollRunRef = useRef(rerollRun);
+  rerollRunRef.current = rerollRun;
+  useEffect(() => {
+    const r = rerollReq.current;
+    if (!r || play) return;
+    rerollReq.current = null;
+    if (r.game) gameNewGame(r.look, r.difficulty, ""); else startRun("");
+  }, [play, rerollTick]);
   const gameRetry = () => {
     const o = gameOverInfo;
     setGameOverInfo(null);
@@ -24538,7 +24635,7 @@ export default function AssetStudio({ game = false } = {}) {
         // swap and a damage change for a take that left the gun exactly where it was.
         const heldId = isThrowable(it.wtype) ? playtestThrowId : playtestWeaponId;
         const held = heldId ? findA(heldId) : null;
-        return { swap: !!held, rows: pickupChangeRows(it, { held }) };
+        return { swap: !!held, rows: pickupChangeRows(it, { held, dpsOf: playerDpsOf }) };
       }
       // Same worn map the take itself uses, or the callout promises an "equip" and delivers a swap.
       const wornNow = wornEquipMap(basePlayerAsset, equipped.current);
@@ -26557,6 +26654,10 @@ export default function AssetStudio({ game = false } = {}) {
                   - Every symbol is a slot on the Symbols screen (stat.*, hud.*). */}
               {/* 🚪 THE BLACK between rooms (doorFadeAlpha): over the level, under the HUD. */}
               {play && doorFadeAlpha(player.current) > 0 && <div className="doorFade" style={{ opacity: doorFadeAlpha(player.current) }} />}
+              {/* 🎲 Holding R: a ring fills over 1.5 s and the run rerolls (rerollRun). Just the key and the ring. */}
+              {play && (player.current.rerollHold || 0) > REROLL_SHOW_FRAMES && (
+                <div className="rerollHold"><svg viewBox="0 0 40 40" width="64" height="64"><circle className="rhTrack" cx="20" cy="20" r="17" /><circle className="rhFill" cx="20" cy="20" r="17" pathLength="100" strokeDasharray={Math.min(100, (player.current.rerollHold / REROLL_HOLD_FRAMES) * 100) + " 100"} /></svg><span>R</span></div>
+              )}
               {play && (() => {
                 const merged = playerAsset; // the render body already merged your kit, as the loop does
                 const buffs = activeBuffSum(itemBuffs.current, playNowMs());
@@ -26623,7 +26724,7 @@ export default function AssetStudio({ game = false } = {}) {
                 // The figure shown is what that damage adds up to over 10 s with the fire rate, the
                 // magazine and the reload in it (weaponDpsOver) — one hit's damage said nothing about
                 // a fast gun next to a slow one. d still tints it off the Strength buff.
-                const dps = weaponDpsOver(playtestWeapon, atk.v, (st.intelligence ?? 5) + (buffs.intelligence || 0), playerAsset?.effects);
+                const dps = weaponDpsOver(playtestWeapon, atk.v, (st.intelligence ?? 5) + (buffs.intelligence || 0), playerAsset?.effects); // = playerDpsOf(playtestWeapon)
                 return (
                   <>
                   <div className="hudBot">
@@ -28643,6 +28744,11 @@ html,body{margin:0;padding:0;background:#0f1117}
 .symWait{padding:20px}
 .dlgPoints{flex:0 0 76px;width:76px;background:#0d1119;border:1px solid #333c52;border-radius:6px;color:#ffd84a;padding:6px 8px;font:inherit;font-size:12px}
 @keyframes flyHintLife{0%{opacity:0}10%,80%{opacity:1}100%{opacity:0}}
+.rerollHold{position:absolute;left:50%;bottom:24%;width:64px;height:64px;margin-left:-32px;z-index:7;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.rerollHold svg{position:absolute;left:0;top:0;transform:rotate(-90deg)}
+.rerollHold .rhTrack{fill:rgba(0,0,0,.45);stroke:rgba(255,255,255,.25);stroke-width:3}
+.rerollHold .rhFill{fill:none;stroke:#ffe600;stroke-width:3.5;stroke-linecap:round}
+.rerollHold span{position:relative;font:900 26px/1 'Russo One',Impact,sans-serif;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.6)}
 .pickupBanner{position:absolute;left:50%;top:14%;z-index:5;max-width:94%;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:7px;transform:translateX(-50%);animation:pbLife 2.6s ease-out forwards}
 @keyframes pbLife{0%,78%{opacity:1;transform:translateX(-50%) translateY(0)}100%{opacity:0;transform:translateX(-50%) translateY(-18px)}}
 .pbBurst{position:absolute;left:50%;top:18px;width:300px;height:100px;margin:-50px 0 0 -150px;border-radius:50%;background:radial-gradient(ellipse at center,rgba(206,130,255,.62),rgba(140,60,255,.22) 45%,transparent 70%);animation:pbBurst .75s ease-out forwards}

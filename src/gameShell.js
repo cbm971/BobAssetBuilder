@@ -214,8 +214,8 @@ const Padlock = ({ size }) => (
 // A floor's medal on the player card, drawn (no emoji in the menus): gold once this fighter has
 // beaten the floor, an empty dim ring until then. The Trailor Park's is a drawn slab T (Blake: "a
 // sort of T symbol of some kind"); any other floor gets its first letter in the logo face.
-const FloorMedal = ({ mark, done, size, title }) => (
-  <svg className={"gMedal" + (done ? " done" : "")} width={size} height={size} viewBox="0 0 40 40" role="img" aria-label={title}>
+const FloorMedal = ({ mark, done, diff, size, title }) => (
+  <svg className={"gMedal" + (done ? " done" : "") + (done && diff === "medium" ? " medium" : "") + (done && diff === "hard" ? " hard" : "")} width={size} height={size} viewBox="0 0 40 40" role="img" aria-label={title}>
     <title>{title}</title>
     <circle className="gMedalRim" cx="20" cy="20" r="17.5" />
     <circle className="gMedalFace" cx="20" cy="20" r="12.5" />
@@ -314,7 +314,7 @@ function CharacterSelect({ assets, record, renderArt, renderDressed, renderHead,
             </div>
             {medals.length > 0 && (
               <div className="gPFloors">
-                {medals.map((m) => <FloorMedal key={m.floor} mark={m.mark} done={m.done} size={medalPx} title={m.floor} />)}
+                {medals.map((m) => <FloorMedal key={m.floor} mark={m.mark} done={m.done} diff={m.diff} size={medalPx} title={m.floor} />)}
               </div>
             )}
           </div>
@@ -732,6 +732,8 @@ export const GAME_CSS = `
 .gMedal.done .gMedalRim{fill:var(--gGold);stroke:var(--gEdge)}
 .gMedal.done .gMedalFace{fill:#d9a21b;stroke:#8a5d05}
 .gMedal.done .gMedalMark{fill:#2a1d00}
+.gMedal.medium .gMedalMark{stroke:#ffe600;stroke-width:3;stroke-linejoin:round;paint-order:stroke}
+.gMedal.hard .gMedalMark{stroke:#e5201b;stroke-width:3;stroke-linejoin:round;paint-order:stroke}
 .gDiff.on{background:var(--gGold);border-color:#fff;color:#1d2a12;transform:skewX(-10deg) translateY(-3px)}
 .gDiffBox.live .gDiff.on{box-shadow:0 0 0 3px #fff,0 0 24px rgba(247,197,49,.6),0 8px 0 rgba(0,0,0,.35)}
 .gStart{cursor:pointer;font-family:Sarpanch,'Russo One',sans-serif;font-style:normal;font-stretch:normal;font-weight:900;font-size:clamp(28px,3vw,54px);text-transform:uppercase;letter-spacing:.06em;color:#fff;background:linear-gradient(180deg,#d8452f,#a52a1a);border:4px solid var(--gEdge);padding:.08em 1.1em .12em;transform:skewX(-10deg);box-shadow:0 8px 0 rgba(0,0,0,.4);text-shadow:0 3px 0 rgba(0,0,0,.4);opacity:.7;transition:opacity .15s}

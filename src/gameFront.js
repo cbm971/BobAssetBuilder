@@ -316,7 +316,11 @@ export const normalizeGameOptions = (o) => {
 // `floorsWith` is who finished each floor: { [floor]: [look names, lower case] } — Roberta unlocks
 // on a floor finished AS ROB, so the floor alone is not enough. Names, not ids: a look he saves
 // under a new name forks a new id, and "Rob" is what he means.
-export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, bestScore: 0, kills: 0, games: 0 });
+// `floorsDiff` is the hardest difficulty each fighter finished each floor on: { [floor]: { [look
+// name, lower case]: 1 Easy | 2 Medium | 3 Hard } }. Blake (2026-10-18): a yellow outline over the
+// medal's T for Medium, red for Hard; and Rob stays locked until the Trailor Park is beaten on Hard.
+export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, floorsDiff: {}, bestScore: 0, kills: 0, games: 0 });
+export const diffRank = (id) => Math.max(1, DIFFICULTIES.findIndex((d) => d.id === difficultyOf(id).id) + 1);
 export const normalizeGameRecord = (r) => {
   const b = newGameRecord();
   if (!r || typeof r !== "object") return b;
@@ -324,15 +328,24 @@ export const normalizeGameRecord = (r) => {
   const n = (v) => Math.max(0, Math.round(Number(v) || 0));
   const fw = {};
   if (r.floorsWith && typeof r.floorsWith === "object") for (const k of Object.keys(r.floorsWith)) { const v = ids(r.floorsWith[k]); if (k && v.length) fw[k] = v; }
-  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), floorsWith: fw, bestScore: n(r.bestScore), kills: n(r.kills), games: n(r.games) };
+  const fd = {};
+  if (r.floorsDiff && typeof r.floorsDiff === "object") for (const f of Object.keys(r.floorsDiff)) {
+    const v = r.floorsDiff[f], o = {};
+    if (f && v && typeof v === "object") for (const who of Object.keys(v)) { const k = Math.round(Number(v[who])); if (who && k >= 1 && k <= DIFFICULTIES.length) o[who] = k; }
+    if (Object.keys(o).length) fd[f] = o;
+  }
+  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), floorsWith: fw, floorsDiff: fd, bestScore: n(r.bestScore), kills: n(r.kills), games: n(r.games) };
 };
 // Returns the SAME object when nothing changed, so a caller can skip the write.
 export const recordFound = (rec, id) => (!id || rec.found.includes(id) ? rec : { ...rec, found: [...rec.found, id] });
 export const recordDefeated = (rec, id) => (!id ? rec : { ...rec, kills: rec.kills + 1, defeated: rec.defeated.includes(id) ? rec.defeated : [...rec.defeated, id] });
-export const recordFloorDone = (rec, floor, score, lookName) => {
+export const recordFloorDone = (rec, floor, score, lookName, diffId) => {
   const who = normName(lookName), had = (rec.floorsWith && rec.floorsWith[floor]) || [];
   const floorsWith = !floor || !who || had.includes(who) ? rec.floorsWith || {} : { ...(rec.floorsWith || {}), [floor]: [...had, who] };
-  return { ...rec, floors: !floor || rec.floors.includes(floor) ? rec.floors : [...rec.floors, floor], floorsWith, bestScore: Math.max(rec.bestScore, Math.round(Number(score) || 0)) };
+  // Only the hardest finish counts, and only when a difficulty is given (older callers and saves have none).
+  const hadDiff = (rec.floorsDiff && rec.floorsDiff[floor]) || {}, rank = diffId ? diffRank(diffId) : 0;
+  const floorsDiff = !floor || !rank || (hadDiff[who || ""] || 0) >= rank ? rec.floorsDiff || {} : { ...(rec.floorsDiff || {}), [floor]: { ...hadDiff, [who || ""]: rank } };
+  return { ...rec, floors: !floor || rec.floors.includes(floor) ? rec.floors : [...rec.floors, floor], floorsWith, floorsDiff, bestScore: Math.max(rec.bestScore, Math.round(Number(score) || 0)) };
 };
 
 // ---------- the player card: what a fighter starts with, and the floors they have beaten ----------
@@ -364,7 +377,12 @@ export const lookFloorMedals = (rec, lookName, floors) => {
   const add = (f) => { const k = floorKey(f); if (!f || !k || seen.has(k)) return; seen.add(k); list.push(f); };
   for (const f of floors || []) add(f);
   for (const f of Object.keys(r.floorsWith)) if (r.floorsWith[f].includes(who)) add(f);
-  return list.map((f) => ({ floor: f, mark: floorMark(f), done: !!who && floorWasDone(r, f, who) }));
+  // `diff` is the hardest difficulty this look beat the floor on ("easy" | "medium" | "hard"), null
+  // when it has not — the medal's T gets a yellow outline for Medium and a red one for Hard.
+  return list.map((f) => {
+    const done = !!who && floorWasDone(r, f, who), rank = done ? floorDiffRank(r, f, who) : 0;
+    return { floor: f, mark: floorMark(f), done, diff: done ? DIFFICULTIES[Math.max(1, rank) - 1].id : null };
+  });
 };
 
 // ---------- locked starters ----------
@@ -376,12 +394,21 @@ export const STARTER_LOCKS = [
   { name: "bobby", floor: "Trailor Park" },
   { name: "bobert", items: 50 },
   { name: "roberta", floor: "Trailor Park", as: "rob" },
+  { name: "rob", floor: "Trailor Park", diff: "hard" }, // Blake (2026-10-18): Rob is locked until the Trailor Park is beaten on Hard, by anyone
 ];
 const floorKey = (s) => normName(s).replace(/[^a-z]/g, "").replace(/trailer/g, "trailor");
 const floorWasDone = (rec, floor, as) => {
   const k = floorKey(floor);
   if (!as) return (rec.floors || []).some((f) => floorKey(f) === k);
   return Object.keys(rec.floorsWith || {}).some((f) => floorKey(f) === k && rec.floorsWith[f].includes(as));
+};
+// The hardest difficulty rank a floor was beaten on: by `as` (a look name), or by anyone when
+// omitted. 0 when never, or when it was beaten before difficulties were recorded (that reads as Easy).
+const floorDiffRank = (rec, floor, as) => {
+  const k = floorKey(floor);
+  let best = 0;
+  for (const f of Object.keys(rec.floorsDiff || {})) if (floorKey(f) === k) for (const who of Object.keys(rec.floorsDiff[f])) if (!as || who === as) best = Math.max(best, rec.floorsDiff[f][who]);
+  return best;
 };
 // Items found that are items (the Unlocks screen's Items tab), not every id in `found`.
 export const itemsFoundCount = (rec, assets) => {
@@ -396,6 +423,10 @@ export const starterLock = (look, rec, assets) => {
   if (lock.items) {
     const have = itemsFoundCount(r, assets);
     return have >= lock.items ? null : { need: "Unlock " + lock.items + " Items", have, of: lock.items };
+  }
+  if (lock.diff) {
+    const rank = diffRank(lock.diff);
+    return floorDiffRank(r, lock.floor, lock.as) >= rank ? null : { need: "Complete " + lock.floor + " on " + difficultyOf(lock.diff).label };
   }
   if (floorWasDone(r, lock.floor, lock.as)) return null;
   return { need: "Complete " + lock.floor + (lock.as ? " as " + lock.as.charAt(0).toUpperCase() + lock.as.slice(1) : "") };
