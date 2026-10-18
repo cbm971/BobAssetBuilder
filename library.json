@@ -1130316,7 +1130316,7 @@
    "size": 6,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Rocket Program",
+   "category": "Science",
    "frames": [
     {
      "front": [
@@ -1132175,7 +1132175,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792349372508
+   "savedAt": 1792356307949,
+   "editedFrom": 1792349372508
   },
   {
    "id": "vcrbord",
@@ -1137213,7 +1137214,7 @@
    "size": 8,
    "animFps": 12,
    "solidDefault": false,
-   "category": "Rocket Program",
+   "category": "Effects",
    "frames": [
     {
      "front": [
@@ -1137864,7 +1137865,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792349372508
+   "savedAt": 1792356320408,
+   "editedFrom": 1792349372508
   },
   {
    "id": "vcrgant",
