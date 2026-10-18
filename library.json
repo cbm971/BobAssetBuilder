@@ -453107,7 +453107,7 @@
    "projectileId": "dkbarl1",
    "projectileSpeed": 5,
    "projectileRange": 35,
-   "damage": 50,
+   "damage": 60,
    "fireRate": 0.5,
    "clipSize": 1,
    "reloadTime": 2.3,
@@ -453145,8 +453145,8 @@
     "hit": "ynj37i2",
     "fire": "m2jvkmv"
    },
-   "savedAt": 1792333847937,
-   "editedFrom": 1792266556769
+   "savedAt": 1792333867493,
+   "editedFrom": 1792333847937
   },
   {
    "id": "dkbarl1",
@@ -959612,7 +959612,7 @@
    "projectileId": "kvwjzbs",
    "projectileSpeed": 11,
    "projectileRange": 35,
-   "damage": 25,
+   "damage": 70,
    "fireRate": 0.5,
    "clipSize": 1,
    "reloadTime": 2.1,
@@ -959645,13 +959645,13 @@
     "Furry"
    ],
    "value": 30,
-   "savedAt": 1792266513599,
+   "savedAt": 1792333902461,
    "rank": "legendary",
    "sounds": {
     "hit": "ynj37i2",
     "fire": "m2jvkmv"
    },
-   "editedFrom": 1791663544889
+   "editedFrom": 1792266513599
   },
   {
    "id": "scet4bx",
