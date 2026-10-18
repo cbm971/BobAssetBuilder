@@ -5165,3 +5165,29 @@ trees but will"), so nothing of his was touched. New level `vcfrm02` "Forest M2"
 - **Not verified:** the look on his 3084 px view, the fight's difficulty, and the run seam with M1 in play
   (buildRun was checked, the crossing was not walked).
 
+* **Horse Mask (`hrsmsk1`), Zebra Shirt (`zbrshrt`), Horse hooves (`hrshoof`), the 🦓 Zebra texture (`zebra`,
+  record `zbrtex1`), and the 🧯 Fire Immunity / 🪖 Explosion Immunity abilities, 2026-10-18.** Blake asked for a black
+  and white horse mask "obviously a mask as we do", the two immunities, a zebra shirt, and shoes called "Horse hooves".
+  Pack file: assets/horse-mask-zebra-shirt-hooves.json (a version-1 backup, textures included). Tag `Horse` on all
+  three (T1/Mask/Horse, T1/Shirt/Horse, T1/Shoes/Horse) so a gear tag rolls them as a set. Stats, rank and value are my
+  picks; effects are left empty for him to assign the new immunities.
+  - **The mask is the Alien Mask idiom**: two `#1d1b1b` straps drawn first (they show past the face plate and across
+    the back of the head), a long white face plate whose muzzle hangs below the chin, black ears / forelock / nostrils,
+    and the wearer's eyes through circle cutters on that body's iris. Every body and pose is mapped from alnmsk1's OWN
+    plate (front/up/crouch), side plate and back straps, then the eye hole is re-placed on the body's iris. Back = straps
+    + `behindBody` ears tall enough to tuck under the hair. `ignoreHideIfHat` keeps the hair.
+  - **The shirt is his Blue Shirt box for box**, cloth pieces `tex: zbrtex1`, collar black. His Blue Shirt runs at
+    `fx.bright` 0.8, which turned the zebra white grey in Dress Bob: the cloth is at 1.
+  - **The hooves sit on his Bob's Shoes sole box** per body and pose: black hoof poly, steel `#8a929c` horseshoe, white
+    tufted fetlock, all `limb:"leg"` and mirrored like his. Front hooves stop at the leg's inner edge (x 98) or the
+    two feet merge into one block. The side slant is kept small: the mirrored far foot otherwise makes a cone.
+  - **The zebra texture**: three bands per 40-unit tile whose centre wanders (two sines) and width swells, periodic in
+    the tile height; some throw a tapering fork into the gap. Drawn one tile over each way so nothing clips at a seam.
+  - **Driven in a real playtest** (seeded level, three clones of the Bob look: fireproof, blastproof, control): in the
+    same fire the fireproof unit stayed 35/35 while the control burned to death in under a second; the player in fire
+    held HP with the burn pool at 0 (a guard unit punching through it was the only loss, stunned to prove it); a
+    60-damage RPG point-blank killed the control unit and the control PLAYER (instant respawn), while a blastproof unit
+    3 cells from the blast and a blastproof player 2 cells from it took nothing. Not driven: thrown-grenade contact and
+    the flamethrower wash-over (unit-tested helpers, same gate shape as the driven sites).
+  - **Trap:** a brand-new store's startup `loadTextures` had not restored the new texture 8 s in; opening any editor
+    (which calls it again) did. Assets were already there.

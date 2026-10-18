@@ -732,6 +732,13 @@ plus traps it does not cover:
   `igniteDps` (`igniteBody`). It is a timer on the body added to `hazardDpsAt` in the SAME burn pool fire cells use, so the
   onFire look and immunities are fire's own; it never paints cells (a 10/s flamethrower would re-raster the level). Applied at
   every hit site that applies a shot/swing stun, both directions. The Flamethrower (`flmthr1`, Flame `flmpuf1`) uses it.
+- **🧯 Fire Immunity / 🪖 Explosion Immunity (clothing abilities, 2026-10-18):** `fireImmune(effects)` /
+  `blastImmune(effects)`, the same call for the player (`pFireImmune`/`pBlastImmune`) and every unit (`ea.effects`).
+  Fire = no burn pool at all (fire cells AND Ignite, zeroed where the pool is fed) plus a flame SHOT (`shotIsFlame`:
+  a ranged round with ignite) washing over. Blast = every branch of `detonate` and the contact hit of an explosive
+  throwable (`throwIsExplosive`: explode or Cluster). A new blast or flame damage site must ask them too.
+- **Clothing prints are textures** (Tye Dye, Flannel, 🦓 `zebra`): the piece carries `tex: <texture record id>`, and the
+  record ships in library.json `textures`. A fresh store restores textures when an editor opens (`loadTextures`).
 - **Melee DPS is damage x a fixed swing** (`PLAYER_SWING_FRAMES` 12, 5 swings/s); a melee weapon's Fire rate does nothing.
   Melee is balanced on damage vs stun / reach (hitbox) / ignoreArmor. Roster 2026-10-18: Cane 7, Bat 7+0.25 stun, Knife 8
   (short), Baton 9+1 stun, Crowbar 11+0.25, Machete 13, Katana 13+ignore armour (long), Punji 15, Sledgehammer 17+0.5 stun.

@@ -296,6 +296,10 @@ import {
   pointBoxDistance,
   WEAPON_ABILITIES,
   igniteBody,
+  fireImmune,
+  blastImmune,
+  shotIsFlame,
+  throwIsExplosive,
   igniteDpsOf,
   tickIgnite,
   DEFAULT_IGNITE_DPS,
@@ -14264,5 +14268,50 @@ describe("🔥 Ignite: a hit that sets the body alight", () => {
     expect(weaponAbilityOn({ ignite: 2 }, "ignite")).toBe(true);
     expect(weaponAbilityOn({ wtype: "ranged", ignite: 0 }, "ignite")).toBe(false);
     expect(weaponAbilityOn({ wtype: "throw", ignite: 2 }, "ignite")).toBe(false);
+  });
+});
+
+describe("🧯 Fire Immunity / 🪖 Explosion Immunity", () => {
+  test("worn by the effect type, by anyone", () => {
+    expect(fireImmune([{ type: "fireImmune" }])).toBe(true);
+    expect(fireImmune([{ type: "blastImmune" }])).toBe(false);
+    expect(blastImmune([{ type: "tackle", secs: 2 }, { type: "blastImmune" }])).toBe(true);
+    expect(fireImmune(undefined)).toBe(false);
+    expect(blastImmune([null])).toBe(false);
+  });
+  test("a flame shot is a round that sets alight; a bullet is not", () => {
+    expect(shotIsFlame({ ignite: 2, damage: 3 })).toBe(true);
+    expect(shotIsFlame({ ignite: 0, damage: 7 })).toBe(false);
+    expect(shotIsFlame(null)).toBe(false);
+  });
+  test("an explosive throwable is a grenade or a cluster, never a rock or a molotov", () => {
+    expect(throwIsExplosive({ wtype: "throw", explode: true, damage: 12 })).toBe(true);
+    expect(throwIsExplosive({ wtype: "throw", clusterCount: 4 })).toBe(true);
+    expect(throwIsExplosive({ wtype: "throw", damage: 25, landEffect: "none" })).toBe(false);
+    expect(throwIsExplosive({ wtype: "throw", landEffectDps: 6 })).toBe(false);
+  });
+  test("both are in the registry with a brief and no numbers to set", () => {
+    for (const k of ["fireImmune", "blastImmune"]) {
+      expect(EFFECT_TYPES[k].noAnim).toBe(true);
+      expect(EFFECT_TYPES[k].params).toEqual([]);
+      expect(typeof EFFECT_TYPES[k].brief({})).toBe("string");
+    }
+  });
+});
+
+describe("zebra texture", () => {
+  test("is registered with two editable colours, so the piece picker offers it", () => {
+    expect(TEXTURE_KEYS).toContain("zebra");
+    const t = newTexture("zebra");
+    expect(Object.keys(t.colors).sort()).toEqual(["ground", "stripe"]);
+    const svg = TEXTURES.zebra.svg(t.colors, TEXTURES.zebra.tile, t.params);
+    for (const c of Object.values(t.colors)) expect(svg).toContain(c);
+  });
+  test("deterministic, and both sliders change the stripes", () => {
+    const t = newTexture("zebra");
+    const draw = (p) => TEXTURES.zebra.svg(t.colors, TEXTURES.zebra.tile, { ...t.params, ...p });
+    expect(draw({})).toBe(draw({}));
+    expect(draw({ bold: 0.5 })).not.toBe(draw({ bold: 1.5 }));
+    expect(draw({ wave: 0 })).not.toBe(draw({ wave: 1 }));
   });
 });

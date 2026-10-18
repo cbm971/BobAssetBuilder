@@ -1530,6 +1530,20 @@ export const igniteBody = (body, secs, dps) => {
 };
 export const igniteDpsOf = (body) => (body && (body.ignite || 0) > 0 ? body.igniteDps || 0 : 0);
 export const tickIgnite = (body, dtMul) => { if (body && (body.ignite || 0) > 0) body.ignite = Math.max(0, body.ignite - dtMul); return body; };
+// 🧯 FIRE IMMUNITY / 🪖 EXPLOSION IMMUNITY (clothing abilities, 2026-10-18). Whoever wears one,
+// player or unit, by the same function (Blake: "there shouldn't be any differences").
+//   Fire  = fire cells, the 🔥 Ignite burn, and a FLAME SHOT (a ranged round that sets alight — the
+//           Flamethrower): its whole hit washes over the wearer. A melee blade with Ignite still cuts;
+//           only its burn is gone. Burning is stopped where the burn pool is fed, so no site that
+//           calls igniteBody needs to know.
+//   Blast = every body an explosion reaches (detonate: the shot's splash, your own blast, the
+//           shooter's), and the contact hit of an EXPLOSIVE throwable (explode or Cluster — a
+//           grenade, its bomblets). A Rock's hit is not a blast. A grenade's fire is fire's.
+export const wearsEffect = (effects, type) => (effects || []).some((e) => e && e.type === type);
+export const fireImmune = (effects) => wearsEffect(effects, "fireImmune");
+export const blastImmune = (effects) => wearsEffect(effects, "blastImmune");
+export const shotIsFlame = (pr) => !!pr && (pr.ignite || 0) > 0;
+export const throwIsExplosive = (a) => !!a && (!!a.explode || Math.round(a.clusterCount || 0) > 0);
 export const DEFAULT_MELEE_BOOST = 3; // 🦍 Melee boost: a freshly added one triples your punch
 // What the 👊 Q/V swing is multiplied by with this weapon in hand. Only a RANGED weapon can carry
 // it (a melee weapon's swing is its own Damage number already), and anything <= 1 means off.
@@ -5392,6 +5406,21 @@ export const EFFECT_TYPES = {
   // 👹 Enemy wearing it gets back up the same way (see the revive pass before the loot roll), and
   // it shipped player-only first — Blake's first report was an enemy in the cat head dying as
   // normal, so do not take the enemy half out again.
+  // 🧯 / 🪖 — see fireImmune / blastImmune for exactly what each one stops. No numbers: immune is immune.
+  fireImmune: {
+    label: "Fire Immunity", icon: "🧯",
+    blurb: "Fire cannot hurt you: you can walk through flames, nothing sets you alight, and a flamethrower's flames wash over you. A burning blade still cuts, it just cannot set you on fire. Worn by a 👹 Enemy it works on THEM. No animation of its own.",
+    brief: () => "immune to fire",
+    noAnim: true,
+    params: [],
+  },
+  blastImmune: {
+    label: "Explosion Immunity", icon: "🪖",
+    blurb: "Explosions cannot hurt you: a rocket, a launcher round or a grenade going off next to you does nothing, your own included. The fire a grenade leaves behind still burns (Fire Immunity covers that). Worn by a 👹 Enemy it works on THEM. No animation of its own.",
+    brief: () => "immune to explosions",
+    noAnim: true,
+    params: [],
+  },
   extraLives: {
     label: "Extra Lives", icon: "🐱",
     blurb: "Instead of dying you flash and get straight back up on 1 HP, exactly where you fell — no trip back to the start. Spends one life each time; set how many the item carries (a cat head might carry 9). While you flash, nothing can hurt you — fire included — so you have a moment to get clear. Lives refill only when you press ▶ Playtest: taking the item off and putting it back on does not restock them, and the lives on several worn items add together. Worn by a 👹 Enemy it works on THEM — they get back up too, with a 🐱×N count by their HP bar. No animation of its own.",
@@ -9231,6 +9260,44 @@ export const TEXTURES = {
       // all four corners with the same seed so every quarter agrees about the shape it's part of.
       for (const [cx, cy] of [[0, 0], [tw, 0], [0, th], [tw, th]]) out += dyeRosette(cx, cy, 26, ring, wob, 5.1);
       out += dyeRosette(tw / 2, th / 2, 30, ring, wob, 41.7);
+      return out;
+    },
+  },
+  // ZEBRA — a cloth print, made for the Zebra Shirt (2026-10-18). Flat ink, two colours, his house
+  // style: no tiers. A zebra's stripes are never straight or evenly spaced, so each one is a band
+  // whose centre WANDERS (two sines) and whose width SWELLS and pinches as it goes, and a few of
+  // them throw a short tapering fork toward the next — the fork is what reads as an animal rather
+  // than as a deckchair. Every wander and swell is periodic in the tile's height, so the bottom of
+  // a stripe meets the top of the same stripe on the next tile; each band and fork is also drawn
+  // one tile over on each side (and a fork one tile up and down) so nothing is clipped at a seam.
+  // Deterministic (trnd), so a slider thickens THESE stripes rather than reshuffling them.
+  zebra: {
+    label: "Zebra", icon: "🦓", tile: [40, 40], base: "ground",
+    colors: [["ground", "Ground", "#f2efe6"], ["stripe", "Stripes", "#1d1b1b"]],
+    params: [
+      { key: "bold", label: "Stripe width", min: 0.5, max: 1.5, step: 0.05, def: 1 },
+      { key: "wave", label: "Wave", min: 0, max: 1, step: 0.05, def: 0.5 },
+    ],
+    svg: (co, _t, pa) => {
+      const tw = 40, th = 40, n = 3, gap = tw / n, TAU = Math.PI * 2;
+      const bold = Math.max(0.5, Math.min(1.5, pa.bold ?? 1)), wave = Math.max(0, Math.min(1, pa.wave ?? 0.5));
+      let out = svgRect(-2, -2, tw + 4, th + 4, co.ground);
+      for (let i = 0; i < n; i++) {
+        const x0 = (i + 0.5) * gap + (trnd(i * 4.3) - 0.5) * 3;
+        const ph1 = trnd(i * 7.1) * TAU, ph2 = trnd(i * 9.7) * TAU, ph3 = trnd(i * 2.9) * TAU;
+        const cx = (y) => x0 + wave * (4.6 * Math.sin(TAU * y / th + ph1) + 1.9 * Math.sin(2 * TAU * y / th + ph2));
+        const half = (y) => bold * 3.3 * (0.58 + 0.42 * Math.sin(TAU * y / th + ph3));
+        const steps = 12, left = [], right = [];
+        for (let s = 0; s <= steps; s++) { const y = -2 + (th + 4) * s / steps; left.push([cx(y) - half(y), y]); right.push([cx(y) + half(y), y]); }
+        const ring = [...left, ...right.reverse()];
+        for (const ox of [-tw, 0, tw]) out += `<path d="${ring.map(([x, y], k) => (k ? "L" : "M") + px(x + ox) + "," + px(y)).join("")}Z" fill="${co.stripe}"/>`;
+        // A fork off this stripe's right edge, tapering into the gap toward the next one.
+        if (trnd(i * 5.5) > 0.3) {
+          const yb = trnd(i * 3.3) * th, xr = cx(yb) + half(yb) * 0.6, reach = gap * (0.6 + 0.2 * trnd(i * 8.8));
+          const fw = bold * 2.6;
+          for (const ox of [-tw, 0, tw]) for (const oy of [-th, 0, th]) out += `<path d="M${px(xr + ox)},${px(yb - fw + oy)}L${px(xr + reach + ox)},${px(yb + 6 + oy)}L${px(xr + ox)},${px(yb + fw + oy)}Z" fill="${co.stripe}"/>`;
+        }
+      }
       return out;
     },
   },
@@ -14400,6 +14467,7 @@ export default function AssetStudio({ game = false } = {}) {
     const backGuardReduce = backGuardEffect ? (backGuardEffect.reduce ?? 0.5) : null; // null = no cape, skip the behind check entirely
     const crouchGuardEffect = (playerAsset?.effects || []).find((e) => e.type === "crouchGuard") || null;
     const crouchGuardReduce = crouchGuardEffect ? (crouchGuardEffect.reduce ?? 0.5) : null; // null = not worn, skip the crouch check entirely
+    const pFireImmune = fireImmune(playerAsset?.effects), pBlastImmune = blastImmune(playerAsset?.effects); // 🧯 / 🪖
     // Tackle carries one number — how long whoever you barge into stays on the floor. null when
     // it isn't worn, so the per-enemy contact test below is skipped outright rather than run 60
     // times a second for every player who owns no football kit.
@@ -15618,7 +15686,8 @@ export default function AssetStudio({ game = false } = {}) {
       // fractional pool so sub-1-HP ticks aren't rounded away to nothing each frame.
       // The ONE window it does honour is lifeGrace, the 🐱 Extra Life flash: you get back up in the
       // flames you died in, and without this the next life goes a sixth of a second later.
-      const pDps = hazardDpsAt(lv, p.x, p.y, pw, ph, CW, CH, hazardAlive) + igniteDpsOf(p); // 🔥 plus a hit that set you alight
+      if (pFireImmune) p.ignite = 0; // 🧯 nothing sets you alight
+      const pDps = pFireImmune ? 0 : hazardDpsAt(lv, p.x, p.y, pw, ph, CW, CH, hazardAlive) + igniteDpsOf(p); // 🔥 plus a hit that set you alight
       tickIgnite(p, dtMul);
       if (pDps > 0 && !p.transitioning && !(p.lifeGrace > 0)) {
         p.burnPool = (p.burnPool || 0) + pDps * (dtMul / 60);
@@ -16478,7 +16547,9 @@ export default function AssetStudio({ game = false } = {}) {
 
           // Enemies burn in fire the same way the player does — same per-second drain into a
           // per-enemy fractional pool. Fire is universal: it doesn't care whose side you're on.
-          const eDps = hazardDpsAt(lv, ep.x, ep.y, epw, newEph, CW, CH, hazardAlive) + igniteDpsOf(ep); // 🔥 plus a hit that set it alight
+          const eFireImmune = fireImmune(ea.effects); // 🧯 the player's rule, on it
+          if (eFireImmune) ep.ignite = 0;
+          const eDps = eFireImmune ? 0 : hazardDpsAt(lv, ep.x, ep.y, epw, newEph, CW, CH, hazardAlive) + igniteDpsOf(ep); // 🔥 plus a hit that set it alight
           tickIgnite(ep, dtMul);
           // Fire is universal and does not care whose side you are on — with ONE exception, and it
           // is not a special case so much as closing the door the rest of the rule leaves open: a
@@ -17197,7 +17268,7 @@ export default function AssetStudio({ game = false } = {}) {
         // blast reaches, just keyed off the one unit who is never checked anywhere above.
         const selfBlastUnit = (k) => {
           const ep = enemyPos.current[k]; if (!ep || !(enemyHP.current[k] > 0) || unitHitImmune(ep)) return;
-          const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) return;
+          const ea = unitAssetAt(k, lv.enemies[k]); if (!ea || blastImmune(ea.effects)) return; // 🪖
           const bx = enemyBlastBox(ea, ep);
           if (!blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) return;
           const sCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
@@ -17207,7 +17278,7 @@ export default function AssetStudio({ game = false } = {}) {
           if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) igniteBody(ep, pr.ignite, pr.igniteDps);
         };
         if (pr.foe) {
-          if (p.invuln <= 0) {
+          if (p.invuln <= 0 && !pBlastImmune) { // 🪖
             const pcx = p.x + pw / 2;
             if (blastHitsBox(ix, iy, p.x, p.y, pw, ph, radPx)) {
               // The shooter's crit, rolled here where it lands — your blast rolls yours the same way.
@@ -17223,7 +17294,7 @@ export default function AssetStudio({ game = false } = {}) {
           }
           for (const k of Object.keys(lv.enemies || {})) {
             const ep = enemyPos.current[k]; if (!ep || !ep.friendly || !(enemyHP.current[k] > 0) || unitHitImmune(ep)) continue;
-            const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
+            const ea = unitAssetAt(k, lv.enemies[k]); if (!ea || blastImmune(ea.effects)) continue; // 🪖
             const bx = enemyBlastBox(ea, ep);
             if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
               // Armour counts, as it does on you just above; the shooter's crit and the weapon's
@@ -17242,7 +17313,7 @@ export default function AssetStudio({ game = false } = {}) {
             const ea = unitAssetAt(k, lv.enemies[k]); if (!ea) continue;
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             if (enemyHP.current[k] <= 0) continue;
-            const ep = enemyPos.current[k]; if (!ep || ep.friendly || unitTalkImmune(ep) || unitHitImmune(ep)) continue; // an explosion sweeps a room, and a bystander in it is exactly who this must not catch — nor one mid-🐱-revive or in its i-frames
+            const ep = enemyPos.current[k]; if (!ep || ep.friendly || unitTalkImmune(ep) || unitHitImmune(ep) || blastImmune(ea.effects)) continue; // 🪖 — an explosion sweeps a room, and a bystander in it is exactly who this must not catch — nor one mid-🐱-revive or in its i-frames
             const bx = enemyBlastBox(ea, ep);
             if (blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) {
               // Splash is still a SHOT — flat weapon damage plus the same crit roll as a direct
@@ -17263,7 +17334,7 @@ export default function AssetStudio({ game = false } = {}) {
           // SAME box-and-invuln test the foe branch above runs on you, just with nobody else's shot.
           // Run AFTER the generic flash above so a self-hit's own message is the one left on screen.
           if (pr.shooterKey) selfBlastUnit(pr.shooterKey);
-          else if (p.invuln <= 0) {
+          else if (p.invuln <= 0 && !pBlastImmune) { // 🪖
             const pcx = p.x + pw / 2;
             if (blastHitsBox(ix, iy, p.x, p.y, pw, ph, radPx)) {
               const sCrit = Math.random() < critChance(pr.critInt ?? pstats.intelligence);
@@ -17648,6 +17719,7 @@ export default function AssetStudio({ game = false } = {}) {
               // guard, the crouch guard and the i-frames. A grenade to the face is not a special
               // case of being hit, so it must not have its own arithmetic.
               if (p.invuln > 0) continue;
+              if (pBlastImmune && throwIsExplosive(g.asset)) continue; // 🪖 a grenade going off on you; it still stopped on you
               const dmg = incomingPlayerDamage(impactDmg, playerAsset?.defense ?? 0, p.face, g.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(g.asset && g.asset.ignoreArmor));
               playerHP.current = playerHpAfterHit(playerHP.current, dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
@@ -17656,6 +17728,7 @@ export default function AssetStudio({ game = false } = {}) {
               continue;
             }
             if (unitHitImmune(s.ep)) continue; // 🐱 mid-revive or in its i-frames: it stopped the rock (see the collision note above) and took nothing
+            if (throwIsExplosive(g.asset) && blastImmune(s.ea.effects)) continue; // 🪖 as on you just above
             // The same treatment the player branch just above gets — a rock in the face is a hit.
             const uDmg = incomingUnitDamage(impactDmg, s.ea, s.ep, g.x, unitCenterX(s.ea, s.ep, CW), !!(g.asset && g.asset.ignoreArmor));
             enemyHP.current[s.k] = Math.max(0, enemyHP.current[s.k] - uDmg);
@@ -17860,7 +17933,8 @@ export default function AssetStudio({ game = false } = {}) {
             // friendly fire), and it can't be dodged by the shooter's own crouch/jump logic.
             if (prLeft < p.x + pw && prLeft + boxW > p.x && prTop < p.y + ph && prTop + boxH > p.y && pierceFreshHit(pr, "player")) {
               if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
-              if (p.invuln <= 0) {
+              if (pFireImmune && shotIsFlame(pr)) { if (!pr.pierce) return false; } // 🧯 the flames wash over you
+              else if (p.invuln <= 0) {
                 // For a projectile, "from behind" is decided by which way the shot is travelling
                 // relative to the way you're facing — a bullet catching you in the back is one
                 // moving the same way you face while coming from behind you. Using the shot's own
@@ -17891,6 +17965,7 @@ export default function AssetStudio({ game = false } = {}) {
               if (prLeft < eHitLeft + epw && prLeft + boxW > eHitLeft && prTop < hitTop + hitH && prTop + boxH > hitTop && pierceFreshHit(pr, k)) {
                 if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
                 if (unitUntouchable(ep)) { if (!pr.pierce) return false; continue; } // 🐱 mid-revive: consumed, does nothing. A bullet ignores i-frames (see the shot at a hostile below)
+                if (shotIsFlame(pr) && fireImmune(ea.effects)) { if (!pr.pierce) return false; continue; } // 🧯 as on you above
                 // The shooter's crit and its weapon's stun, on your ally as yours land on a hostile.
                 const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
                 if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
@@ -17962,6 +18037,7 @@ export default function AssetStudio({ game = false } = {}) {
               // stay for blows -- melee, stomps, blasts -- which are one hit per swing. Only the revive grace
               // (unitUntouchable) still turns a round away.
               if (unitUntouchable(ep)) { if (!pr.pierce) return false; continue; }
+              if (shotIsFlame(pr) && fireImmune(ea.effects)) { if (!pr.pierce) return false; continue; } // 🧯 the player's rule, on it
               // The weapon's Damage number, flat, whoever pulled the trigger — then the one
               // permitted character difference: an Intelligence crit roll for double. What it
               // takes OFF is then decided by the target's armour, exactly as a foe's round into

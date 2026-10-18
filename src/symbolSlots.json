@@ -67,6 +67,8 @@
   { "k": "⤴", "l": "Jump", "g": "Abilities", "d": "gi:jump-across" },
   { "k": "⤵", "l": "Land", "g": "Abilities", "d": "mdi:arrow-down-bold" },
   { "k": "🧎", "l": "Crouch guard", "g": "Abilities", "d": "gi:kneeling" },
+  { "k": "🧯", "l": "Fire immunity", "g": "Abilities", "d": "gi:fire-shield" },
+  { "k": "🪖", "l": "Explosion immunity", "g": "Abilities", "d": "mdi:bomb-off" },
   { "k": "➕", "l": "Magazine / amount", "g": "Abilities", "d": "mdi:plus-box" },
   { "k": "✨", "l": "Effects", "g": "Abilities", "d": "gi:sparkles" },
   { "k": "👻", "l": "Translucent", "g": "Abilities", "d": "gi:ghost" },
@@ -121,6 +123,7 @@
   { "k": "🏗", "l": "Steel girder", "g": "Textures", "d": "gi:crane" },
   { "k": "🧣", "l": "Flannel", "g": "Textures", "d": "gi:shirt-button" },
   { "k": "🌀", "l": "Tie dye", "g": "Textures", "d": "mdi:weather-hurricane" },
+  { "k": "🦓", "l": "Zebra", "g": "Textures", "d": "gi:zebra-shield" },
   { "k": "🚐", "l": "1960s trailer", "g": "Textures", "d": "gi:caravan" },
   { "k": "🧵", "l": "Pattern", "g": "Textures", "d": "gi:sewing-needle" },
 

@@ -68,7 +68,9 @@ Type keys: `doubleJump`, `backGuard`, `crouchGuard`, `glide`, `slide`, `tagBoost
 1 HP instead of dying, `lives` 1–9), `pierce` (🪡 every shot flies through everyone in its path,
 with any ranged weapon — no params), `headStomp` (👢 Stomp: land on an enemy's head from above,
 Mario-style, for `damage` 5–200 riding Strength, and bounce `bounce` 0.5–8 cells; worn by an enemy it
-leaps at you, and needs Agility 10 to clear a Bob). One of each type per item.
+leaps at you, and needs Agility 10 to clear a Bob), `fireImmune` (🧯 fire, burning and flamethrower
+flames do nothing — no params), `blastImmune` (🪖 explosions do nothing, your own included — no params).
+One of each type per item.
 
 ---
 
