@@ -12666,6 +12666,9 @@ export default function AssetStudio() {
   const [animPrev, setAnimPrev] = useState(null); // ▶ in the editor: { si, t } while it runs
   const [animLook, setAnimLook] = useState("");   // which look plays the actor in the editor
   const [animDelArm, setAnimDelArm] = useState(false);
+  // An armed 🗑 Animation goes back to safe on its own. It used to stay on "Sure?" forever, so the
+  // next click on it (Blake, 2026-10-17, meaning to delete "a small part") took the whole scene.
+  useEffect(() => { if (!animDelArm) return; const t = setTimeout(() => setAnimDelArm(false), 3000); return () => clearTimeout(t); }, [animDelArm]);
   const animDrag = useRef(null);
   // ↩ UNDO in the 🎬 editor, as the Level Creator does it: the record as it was before each change
   // (JSON), newest last. Blake, 2026-10-13: "I could not undo". A drag is one step, and so is a burst
@@ -23113,7 +23116,7 @@ export default function AssetStudio() {
           {stored && <button className="ltbtn" disabled={!dirty} onClick={() => { animPlayStop(); openAnimDoc(stored, true); }}>↺ Last save</button>}
           <button className="ltbtn" onClick={() => { animPlayStop(); openAnimDoc(null); }}>✚ New</button>
           {playing ? <button className="ltbtn" onClick={animPlayStop}>⏹ Stop</button> : <button className="ltbtn" onClick={() => animPlayStart(si)} title="Plays from this state to the end. E (or a click on the prompt) moves a waiting state on.">▶ Play</button>}
-          {stored && <button className={"ltbtn" + (animDelArm ? " danger" : "")} onClick={() => { if (!animDelArm) { setAnimDelArm(true); return; } setAnimDelArm(false); animPlayStop(); deleteAsset(stored); openAnimDoc(null); }}>{animDelArm ? "Sure?" : "🗑"}</button>}
+          {stored && <button className={"ltbtn" + (animDelArm ? " danger" : "")} onClick={() => { if (!animDelArm) { setAnimDelArm(true); return; } setAnimDelArm(false); animPlayStop(); deleteAsset(stored); openAnimDoc(null); }}>{animDelArm ? "Delete the whole animation?" : "🗑 Animation"}</button>}
           <button className="save" onClick={saveAnim}>💾 Save</button>
         </header>
         <div className="animEdit">
