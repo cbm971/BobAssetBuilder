@@ -2784,15 +2784,29 @@ export const HAS_CATEGORIES = (a) => !!a && (a.type === "equipment" || a.type ==
 // not touch the drop roll, the shop price or anything else.
 // A record with no rank (everything saved before this, and hand-written JSON) reads as Common —
 // the middle of the ladder, and what an untouched item most likely is.
-export const ITEM_RANKS = ["poor", "common", "rare", "legendary"];
+export const ITEM_RANKS = ["poor", "common", "rare", "legendary", "mystic"];
 export const DEFAULT_ITEM_RANK = "common";
 export const ITEM_RANK_INFO = {
   poor: { label: "Poor", color: "#f4f4f4", bannerScale: 0.78 },
   common: { label: "Common", color: "#6fe27c", bannerScale: 0.85 },
   rare: { label: "Rare", color: "#5ea9ff", bannerScale: 0.92 },
   legendary: { label: "Legendary", color: "#c67bff", bannerScale: 1 },
+  mystic: { label: "Mystic", color: "#ffd84a", bannerScale: 1.08 },
 };
 export const itemRank = (a) => (a && ITEM_RANKS.includes(a.rank) ? a.rank : DEFAULT_ITEM_RANK);
+export const MYSTIC_BANNER_SPARKLES = [
+  { left: "-10%", top: "-25%", size: 26, delay: 0 },
+  { left: "10%", top: "-45%", size: 20, delay: 0.35 },
+  { left: "48%", top: "-50%", size: 28, delay: 0.1 },
+  { left: "82%", top: "-40%", size: 22, delay: 0.5 },
+  { left: "104%", top: "-20%", size: 26, delay: 0.2 },
+  { left: "-14%", top: "35%", size: 22, delay: 0.65 },
+  { left: "108%", top: "40%", size: 24, delay: 0.4 },
+  { left: "-6%", top: "90%", size: 18, delay: 0.8 },
+  { left: "26%", top: "100%", size: 22, delay: 0.25 },
+  { left: "74%", top: "105%", size: 20, delay: 0.6 },
+  { left: "102%", top: "85%", size: 20, delay: 0.75 },
+];
 const normCats = (arr) => (arr || []).map((c) => (typeof c === "string" ? c.trim().toLowerCase() : "")).filter(Boolean);
 export const itemMatchesPedestal = (item, cats, logic) => {
   const filters = normCats(cats);
@@ -13225,11 +13239,21 @@ export default function AssetStudio({ game = false } = {}) {
   // and it guards the timer so the first pickup's timeout cannot clear the second one's banner.
   const [pickupBanner, setPickupBanner] = useState(null); // { n, name, rows, rank } | null
   const pickupSeq = useRef(0);
+  const [pickupSparkle, setPickupSparkle] = useState(0);
+  const pickupSparkleSeq = useRef(0);
   const showPickup = (name, rows, rank, item) => {
+    const rk = ITEM_RANKS.includes(rank) ? rank : DEFAULT_ITEM_RANK;
     bobAudio.event("pickup"); // 🔊 every pickup announces itself through here, so this is the one place it can sound
+    if (rk === "mystic") {
+      setTimeout(() => bobAudio.event("pickup"), 140);
+      setTimeout(() => bobAudio.event("pickup"), 280);
+      const ps = ++pickupSparkleSeq.current;
+      setPickupSparkle(ps);
+      setTimeout(() => setPickupSparkle((s) => (s === ps ? 0 : s)), 1800);
+    }
     if (item) gameNoteRef.current("found", item.id); // ...and the one place the game's Unlocks hears of it
     const n = ++pickupSeq.current;
-    setPickupBanner({ n, name: name || "", rows: rows || [], rank: ITEM_RANKS.includes(rank) ? rank : DEFAULT_ITEM_RANK });
+    setPickupBanner({ n, name: name || "", rows: rows || [], rank: rk });
     setTimeout(() => setPickupBanner((b) => (b && b.n === n ? null : b)), PICKUP_BANNER_MS);
   };
   // 🦸 THE FLIGHT HINT. Blake: "when you pick up or start with a flying item it should say (In subtle
@@ -22395,7 +22419,7 @@ export default function AssetStudio({ game = false } = {}) {
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
     // A session STARTING scores from zero (SCORE); one stopping keeps its total readable.
     if (!play || runStart) scoreRef.current = newScoreState();
-    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
+    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); setPickupSparkle(0); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     // A loaded game comes in by the gate it was saved at, as a death in that level would put you back.
     if (runStart && runStart.resumeSpawn) spawnReq.current = runStart.resumeSpawn;
     if (resume) applyGameResume(resume, basePlayerAsset);
@@ -25798,6 +25822,15 @@ export default function AssetStudio({ game = false } = {}) {
                         const it = dk ? (enemyDrops.current[dk] || {}).item : pedestalRolls.current[pedPrompt.key];
                         return it ? takeCallout(it, p.x + pw / 2, p.y - 22 + (p.stepEase || 0) - climbLift) : null;
                       })()}
+                      {pickupSparkle > 0 && (
+                        <div className="playerSparkleBurst" style={{ left: p.x + pw / 2, top: p.y - 20 + (p.stepEase || 0) - climbLift }}>
+                          <svg className="psp psp1" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
+                          <svg className="psp psp2" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
+                          <svg className="psp psp3" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
+                          <svg className="psp psp4" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
+                          <svg className="psp psp5" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
+                        </div>
+                      )}
                       <div className={blocks ? "playerWrap" : "player"} style={style}>
                         {blocks ? (() => {
                           const art = renderPieceRuns({ pieces: blocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "player", keyPrefix: "pl", alphaOf: spriteAlphaOf(playerAsset, showThrowInHand ? carriedThrowRender : playtestWeapon), drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, undefined, cut) });
@@ -26470,9 +26503,16 @@ export default function AssetStudio({ game = false } = {}) {
                   let dPlane = null;
                   if (bb) { const sc = Math.min(dBox / bb.w, dBox / bb.h) * 0.86; dPlane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${dBox / 2 - sc * (bb.x + bb.w / 2)}px,${dBox / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})` }; }
                   const icon = item.type === "weapon" ? "⚔️" : item.type === "equipment" ? "🎒" : "🧪";
-                  return <div key={"drop" + k} className="enemyDropPlay" style={{ left: drop.x, top: drop.y }} title={"Dropped " + item.name}>
+                  return <div key={"drop" + k} className={"enemyDropPlay rk-" + itemRank(item)} style={{ left: drop.x, top: drop.y }} title={"Dropped " + item.name}>
                     <div className={"enemyDropOrb" + (bb ? " art" : "")} style={bb ? { width: dBox, height: dBox } : undefined}>{bb ? <div style={dPlane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "drop_" + k, keyPrefix: "drop" + k + "_", alpha: assetAlpha(item), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : icon}</div>
                     <div className={"enemyDropCap rk-" + itemRank(item)}>{item.name}</div>
+                    {itemRank(item) === "mystic" && (
+                      <div className="worldSparkles">
+                        <svg className="worldSparkle sp1" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
+                        <svg className="worldSparkle sp2" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
+                        <svg className="worldSparkle sp3" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
+                      </div>
+                    )}
                   </div>;
                 })}
                 {play && lv.markers && Object.keys(lv.markers).map((k) => {
@@ -26510,8 +26550,15 @@ export default function AssetStudio({ game = false } = {}) {
                     // stuck down there too — the player's head covered the name of the very thing
                     // they were standing on to read it. Same box, same coordinates, own layer.
                     <React.Fragment key={"ped" + k}>
-                      <div className={"pedestalPlay" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
+                      <div className={"pedestalPlay" + (xrayed ? " xray" : "") + (rolled && itemRank(rolled) === "mystic" ? " rk-mystic" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
                         <div className="pedestalArt" style={artStyle}>{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + k, keyPrefix: "ped" + k + "_", alpha: assetAlpha(rolled), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : null}</div>
+                        {rolled && itemRank(rolled) === "mystic" && (
+                          <div className="worldSparkles">
+                            <svg className="worldSparkle sp1" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
+                            <svg className="worldSparkle sp2" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
+                            <svg className="worldSparkle sp3" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
+                          </div>
+                        )}
                       </div>
                       {(rolled || !bb) && (
                         <div className={"pedLabels" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }}>
@@ -26630,7 +26677,18 @@ export default function AssetStudio({ game = false } = {}) {
               {play && pickupBanner && (
                 <div key={"pickup" + pickupBanner.n} className={"pickupBanner pbRank-" + pickupBanner.rank}>
                   <div className="pbBurst" />
-                  <div className="pbName" data-text={pickupBanner.name} style={{ fontSize: Math.round((pickupBanner.name.length > 22 ? 20 : pickupBanner.name.length > 15 ? 24 : pickupBanner.name.length > 10 ? 28 : 32) * ITEM_RANK_INFO[pickupBanner.rank].bannerScale) }}><span>{pickupBanner.name}</span></div>
+                  <div className="pbName" data-text={pickupBanner.name} style={{ fontSize: Math.round((pickupBanner.name.length > 22 ? 20 : pickupBanner.name.length > 15 ? 24 : pickupBanner.name.length > 10 ? 28 : 32) * ITEM_RANK_INFO[pickupBanner.rank].bannerScale) }}>
+                    <span>{pickupBanner.name}</span>
+                    {pickupBanner.rank === "mystic" && (
+                      <div className="pbSparkles">
+                        {MYSTIC_BANNER_SPARKLES.map((sp, i) => (
+                          <svg key={i} className="pbSparkle" viewBox="-10 -10 20 20" style={{ left: sp.left, top: sp.top, width: sp.size, height: sp.size, animationDelay: sp.delay + "s" }}>
+                            <polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#ffffff" strokeWidth="0.8" />
+                          </svg>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   {pickupBanner.rows.length > 0 && <div className="pbRows">{pickupRowsView(pickupBanner.rows)}</div>}
                 </div>
               )}
@@ -28763,9 +28821,14 @@ html,body{margin:0;padding:0;background:#0f1117}
    3-D drop, a double glow that keeps breathing while the name holds, the shine sweep and the burst.
    Each rank below takes one step off, as asked ("each font slightly smaller or with slightly less
    effects than the upgrade"): the size steps down in ITEM_RANK_INFO.bannerScale, and here
+     MYSTIC  gold  — golden burst, golden breathing double glow, shine sweep, and sparkling stars
      RARE    blue  — no breathing glow, a smaller and fainter burst, thinner outline
      COMMON  green — no burst, no shine, a softer pop, a faint glow
      POOR    white — no glow at all, the thinnest outline, the gentlest pop. */
+.pbRank-mystic .pbBurst{width:360px;height:120px;margin:-60px 0 0 -180px;background:radial-gradient(ellipse at center,rgba(255,230,120,.8),rgba(245,176,65,.38) 45%,transparent 70%)}
+.pbRank-mystic .pbName span{background-image:linear-gradient(180deg,#fffdf0 0%,#ffe680 32%,#f7b731 64%,#c68200 100%)}
+.pbRank-mystic .pbName::before{color:#2b1700;-webkit-text-stroke:.22em #2b1700;text-shadow:0 .14em 0 #2b1700,0 0 .6em rgba(255,225,100,.95),0 0 1.3em rgba(245,176,65,.75);animation:pbBreatheGold 1.1s .55s ease-in-out infinite alternate}
+@keyframes pbBreatheGold{from{text-shadow:0 .14em 0 #2b1700,0 0 .6em rgba(255,225,100,.95),0 0 1.3em rgba(245,176,65,.75)}to{text-shadow:0 .14em 0 #2b1700,0 0 .9em rgba(255,245,160,1),0 0 1.8em rgba(255,195,40,.9)}}
 .pbRank-legendary .pbName::before{animation:pbBreathe 1.1s .55s ease-in-out infinite alternate}
 @keyframes pbBreathe{from{text-shadow:0 .12em 0 #1c0535,0 0 .5em rgba(205,125,255,.9),0 0 1.1em rgba(150,60,255,.55)}to{text-shadow:0 .12em 0 #1c0535,0 0 .7em rgba(225,160,255,1),0 0 1.6em rgba(150,60,255,.8)}}
 .pbRank-rare .pbBurst{width:230px;height:76px;margin:-38px 0 0 -115px;background:radial-gradient(ellipse at center,rgba(110,175,255,.45),rgba(40,110,255,.14) 45%,transparent 70%)}
@@ -28779,14 +28842,34 @@ html,body{margin:0;padding:0;background:#0f1117}
 .pbRank-poor .pbName span{background-image:linear-gradient(180deg,#ffffff 0%,#f1f1f1 50%,#cacaca 100%)}
 .pbRank-poor .pbName::before{color:#121212;-webkit-text-stroke:.14em #121212;text-shadow:0 .06em 0 #121212}
 @keyframes pbPopSoft{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.05);opacity:1}100%{transform:scale(1)}}
-/* The same four colours on every OTHER place the game prints an item's name: over a pedestal,
+.pbSparkles{position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;overflow:visible}
+.pbSparkle{position:absolute;filter:drop-shadow(0 0 6px #ffd84a) drop-shadow(0 0 12px rgba(255,200,50,.85));animation:pbSparkleAnim 1.1s ease-in-out infinite both}
+@keyframes pbSparkleAnim{0%{transform:scale(0) rotate(0deg);opacity:0}35%{transform:scale(1.3) rotate(45deg);opacity:1}70%{transform:scale(0.8) rotate(90deg);opacity:0.85}100%{transform:scale(0) rotate(140deg);opacity:0}}
+.pedestalPlay.rk-mystic .pedestalArt,.enemyDropPlay.rk-mystic .enemyDropOrb{filter:drop-shadow(0 0 6px #ffd84a) drop-shadow(0 0 12px rgba(255,200,50,.7))}
+.worldSparkles{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.worldSparkle{position:absolute;width:14px;height:14px;filter:drop-shadow(0 0 4px #ffd84a);animation:worldSparkleAnim 1.3s ease-in-out infinite both}
+.worldSparkle.sp1{left:-6px;top:-6px;animation-delay:0s}
+.worldSparkle.sp2{right:-6px;top:-2px;animation-delay:.45s}
+.worldSparkle.sp3{left:50%;bottom:-6px;margin-left:-7px;animation-delay:.9s}
+@keyframes worldSparkleAnim{0%{transform:scale(0) rotate(0deg);opacity:0}40%{transform:scale(1.2) rotate(45deg);opacity:1}80%{transform:scale(.7) rotate(90deg);opacity:.8}100%{transform:scale(0) rotate(135deg);opacity:0}}
+.playerSparkleBurst{position:absolute;z-index:9002;pointer-events:none}
+.playerSparkleBurst .psp{position:absolute;width:18px;height:18px;filter:drop-shadow(0 0 6px #ffd84a);animation:pspFloat 1.2s ease-out infinite both}
+.playerSparkleBurst .psp1{left:-20px;top:-20px;animation-delay:0s}
+.playerSparkleBurst .psp2{left:15px;top:-35px;animation-delay:.2s}
+.playerSparkleBurst .psp3{left:-10px;top:-45px;animation-delay:.35s}
+.playerSparkleBurst .psp4{left:20px;top:-15px;animation-delay:.5s}
+.playerSparkleBurst .psp5{left:0px;top:-55px;animation-delay:.65s}
+@keyframes pspFloat{0%{transform:scale(0) translateY(10px) rotate(0deg);opacity:0}30%{transform:scale(1.3) translateY(0) rotate(45deg);opacity:1}80%{transform:scale(.8) translateY(-20px) rotate(90deg);opacity:.8}100%{transform:scale(0) translateY(-35px) rotate(135deg);opacity:0}}
+/* The same five colours on every OTHER place the game prints an item's name: over a pedestal,
    under a drop, on a shop row. Two classes deep so they beat the shared white-outline rule's
-   color; the outline itself is untouched. Legendary alone adds a purple glow to it. */
+   color; the outline itself is untouched. Legendary alone adds a purple glow to it; Mystic adds a gold glow. */
 .pedestalCap.rk-poor,.enemyDropCap.rk-poor,.shopName.rk-poor{color:${ITEM_RANK_INFO.poor.color}}
 .pedestalCap.rk-common,.enemyDropCap.rk-common,.shopName.rk-common{color:${ITEM_RANK_INFO.common.color}}
 .pedestalCap.rk-rare,.enemyDropCap.rk-rare,.shopName.rk-rare{color:${ITEM_RANK_INFO.rare.color}}
 .pedestalCap.rk-legendary,.enemyDropCap.rk-legendary,.shopName.rk-legendary{color:${ITEM_RANK_INFO.legendary.color}}
+.pedestalCap.rk-mystic,.enemyDropCap.rk-mystic,.shopName.rk-mystic{color:${ITEM_RANK_INFO.mystic.color}}
 .pedestalCap.rk-legendary,.enemyDropCap.rk-legendary{text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(190,110,255,.95)}
+.pedestalCap.rk-mystic,.enemyDropCap.rk-mystic{text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(255,216,74,.95),0 0 14px rgba(255,180,30,.85)}
 .rankRow{display:flex;flex-wrap:wrap;gap:6px}
 .rankBtn{flex:1 1 auto;white-space:nowrap;background:#0f1117;border:1px solid #2c3245;border-radius:9px;padding:8px 9px;font-size:13px;font-weight:700;cursor:pointer}
 .rankBtn.on{background:#1b2133}

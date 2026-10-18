@@ -597,6 +597,7 @@ import {
   DEFAULT_ITEM_RANK,
   ITEM_RANK_INFO,
   itemRank,
+  MYSTIC_BANNER_SPARKLES,
 } from "./App";
 import {
   weaponArtPose,
@@ -12373,14 +12374,16 @@ describe("pickup change rows", () => {
    Rare blue, Common green, Poor white), every step below Legendary drawn smaller, anything
    unranked or garbled reading as Common, and a new item starting at Common. */
 describe("item rank", () => {
-  test("four ranks, bottom to top, each drawn a step smaller than the one above", () => {
-    expect(ITEM_RANKS).toEqual(["poor", "common", "rare", "legendary"]);
-    expect(ITEM_RANKS.map((r) => ITEM_RANK_INFO[r].label)).toEqual(["Poor", "Common", "Rare", "Legendary"]);
+  test("five ranks, bottom to top, each drawn a step smaller than the one above", () => {
+    expect(ITEM_RANKS).toEqual(["poor", "common", "rare", "legendary", "mystic"]);
+    expect(ITEM_RANKS.map((r) => ITEM_RANK_INFO[r].label)).toEqual(["Poor", "Common", "Rare", "Legendary", "Mystic"]);
     const scales = ITEM_RANKS.map((r) => ITEM_RANK_INFO[r].bannerScale);
     for (let i = 1; i < scales.length; i++) expect(scales[i]).toBeGreaterThan(scales[i - 1]);
     expect(ITEM_RANK_INFO.legendary.bannerScale).toBe(1);
-    // Legendary is purple (red and blue both well above green), Rare blue, Common green, Poor white.
+    expect(ITEM_RANK_INFO.mystic.bannerScale).toBeGreaterThan(1);
+    // Mystic is gold (red and green high, blue low), Legendary purple (red and blue both well above green), Rare blue, Common green, Poor white.
     const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+    const [mr, mg, mb] = rgb(ITEM_RANK_INFO.mystic.color); expect(mr > mg && mg > mb).toBe(true);
     const [lr, lg, lb] = rgb(ITEM_RANK_INFO.legendary.color); expect(lr > lg && lb > lg).toBe(true);
     const [rr, rg, rb] = rgb(ITEM_RANK_INFO.rare.color); expect(rb > rr && rb > rg).toBe(true);
     const [cr, cg, cb] = rgb(ITEM_RANK_INFO.common.color); expect(cg > cr && cg > cb).toBe(true);
@@ -12391,12 +12394,23 @@ describe("item rank", () => {
     expect(itemRank({ type: "weapon" })).toBe("common");
     expect(itemRank({ type: "weapon", rank: "Legendary" })).toBe("common"); // stored lower-case, like the ids
     expect(itemRank({ type: "weapon", rank: "mythic" })).toBe("common");
+    expect(itemRank({ type: "weapon", rank: "mystic" })).toBe("mystic");
     expect(itemRank(null)).toBe("common");
     for (const r of ITEM_RANKS) expect(itemRank({ rank: r })).toBe(r);
     expect(newAsset("weapon", null, "ranged").rank).toBe("common");
     expect(newAsset("item").rank).toBe("common");
     expect(newAsset("equipment", "hat").rank).toBe("common");
     expect(newAsset("prop").rank).toBeUndefined(); // only the three types that carry categories
+  });
+  test("mystic rank has sparkling star positions for the banner", () => {
+    expect(Array.isArray(MYSTIC_BANNER_SPARKLES)).toBe(true);
+    expect(MYSTIC_BANNER_SPARKLES.length).toBeGreaterThanOrEqual(8);
+    for (const sp of MYSTIC_BANNER_SPARKLES) {
+      expect(typeof sp.left).toBe("string");
+      expect(typeof sp.top).toBe("string");
+      expect(typeof sp.size).toBe("number");
+      expect(typeof sp.delay).toBe("number");
+    }
   });
 });
 
