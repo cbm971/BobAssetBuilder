@@ -608006,7 +608006,7 @@
     {
      "id": "stCrawl",
      "name": "Briefing",
-     "dur": 44,
+     "dur": 33.85,
      "wait": false,
      "loop": false,
      "prompt": "",
@@ -608077,14 +608077,61 @@
        }
       },
       {
-       "id": "kc1",
-       "t": 44,
+       "id": "50wbeq5",
+       "t": 33.85,
        "v": {
+        "lySky": {
+         "x": 24,
+         "y": 12,
+         "rot": 0,
+         "show": 0.55,
+         "sx": 1,
+         "sy": 1,
+         "flip": false,
+         "play": true
+        },
+        "lyCab": {
+         "x": 24,
+         "y": 20,
+         "rot": 0,
+         "show": 0.55,
+         "sx": 1,
+         "sy": 1,
+         "flip": false,
+         "play": false
+        },
+        "lyGen": {
+         "x": 24,
+         "y": 20.6,
+         "rot": 0,
+         "show": 1,
+         "sx": 1,
+         "sy": 1,
+         "flip": false,
+         "play": true
+        },
         "lyCrawl": {
          "x": 24,
          "y": 20,
-         "rise": 58,
+         "rise": 44.62,
          "show": 1
+        },
+        "lyLine": {
+         "x": 24,
+         "y": 19.4,
+         "rise": 2.4,
+         "show": 0
+        },
+        "lyBob": {
+         "x": 60,
+         "y": 30,
+         "rot": 0,
+         "show": 0,
+         "flip": false,
+         "pose": "side",
+         "legs": 0,
+         "arms": 0,
+         "sit": 0
         }
        }
       }
@@ -608305,8 +608352,8 @@
      ]
     }
    ],
-   "savedAt": 1792275757024,
-   "editedFrom": 1792275707668
+   "savedAt": 1792284523045,
+   "editedFrom": 1792275757024
   },
   {
    "id": "gnrlcu1",
