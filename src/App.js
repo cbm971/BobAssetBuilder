@@ -12653,6 +12653,8 @@ export default function AssetStudio({ game = false } = {}) {
   // data and lives on the board. Default on: picking a track is asking to hear it.
   const [musicOn, setMusicOn] = useState(() => { try { return localStorage.getItem("bobMusic") !== "off"; } catch { return true; } });
   const [levelLoadOpen, setLevelLoadOpen] = useState(false);          // true while the "Load a level" picker modal is open
+  const [loadFold, setLoadFold] = useState(null);                     // which folders of that picker are open (null = just the one holding the open level)
+  useEffect(() => { if (!levelLoadOpen) setLoadFold(null); }, [levelLoadOpen]);
   const [confirmLvlDel, setConfirmLvlDel] = useState(null);           // level id armed for deletion — the same tap-again-to-confirm the asset shelf uses
   const [confirmBgDel, setConfirmBgDel] = useState(null);             // background id armed for deletion
   const [bgPick, setBgPick] = useState("");                            // background chosen in the Load BG picker (so it can be loaded OR deleted)
@@ -27070,24 +27072,38 @@ export default function AssetStudio({ game = false } = {}) {
             <div className="dlg" onClick={(e) => e.stopPropagation()}>
               <div className="dt">Load a level or room</div>
               {levelLib.length === 0 && <p className="mini">Nothing saved yet.</p>}
-              {levelLoadGroups(levelLib).map(({ key, label, isRoom, items }) => (
-                <div key={key} className="loadgroup">
-                  <div className="loadgrouplabel">{isRoom ? "🚪 " + (label || "Rooms") : label ? "🏢 Floor " + label : "No floor set"}</div>
-                  {/* Open on the left, 🗑 on the right. Two taps to delete, exactly like the asset
-                      shelf's — the first arms it and says which one, so a mis-tap on a picker you
-                      opened to LOAD something cannot cost you a level. */}
-                  <div className="loadlist">{items.map((l) => (
-                    <div key={l.id} className="loadrow">
-                      {/* Just the name: a room is filed under its own Room tag (so repeating the tag
-                          is the same word twice), and a level's old Section hint went with the box. */}
-                      <button className="loadopen" onClick={() => openLevel(l)}>{l.isRoom ? "🚪" : "🗺️"} {l.name}</button>
-                      <button className={"loaddel" + (confirmLvlDel === l.id ? " arm" : "")}
-                        title={confirmLvlDel === l.id ? "Tap again to permanently delete" : "Delete this " + (l.isRoom ? "room" : "level")}
-                        onClick={(e) => { e.stopPropagation(); if (confirmLvlDel === l.id) deleteLevel(l); else { setConfirmLvlDel(l.id); flash("Tap 🗑 again to permanently delete \"" + l.name + "\""); } }}>{confirmLvlDel === l.id ? "Sure?" : "🗑"}</button>
-                    </div>
-                  ))}</div>
-                </div>
-              ))}
+              {/* NESTED AND SHUT (2026-10-18): Levels and Rooms are two folders, each floor or room tag
+                  a folder inside, and everything starts closed except the folder holding the level that
+                  is open now — so forty levels on one floor cost one line until you ask for them. */}
+              {(() => {
+                const groups = levelLoadGroups(levelLib);
+                const curKey = level && levelLib.some((x) => x && x.id === level.id) ? (level.isRoom ? "room:" : "floor:") + String((level.isRoom ? level.roomTag : level.floor) || "").trim().toLowerCase() : "";
+                const curSec = level && levelLib.some((x) => x && x.id === level.id) ? (level.isRoom ? "sec:rooms" : "sec:levels") : "";
+                const open = loadFold || new Set([curKey, curSec].filter(Boolean));
+                const flip = (k) => { const n = new Set(open); if (n.has(k)) n.delete(k); else n.add(k); setLoadFold(n); };
+                const sections = [["sec:levels", "Levels", groups.filter((g) => !g.isRoom)], ["sec:rooms", "Rooms", groups.filter((g) => g.isRoom)]].filter((x) => x[2].length);
+                return sections.map(([sk, sl, gs]) => (
+                  <div key={sk} className="loadsec">
+                    <button className="loadfold sec" onClick={() => flip(sk)}><span className="lfArrow">{open.has(sk) ? "▾" : "▸"}</span>{sl}<span className="lfCount">{gs.reduce((n, g) => n + g.items.length, 0)}</span></button>
+                    {open.has(sk) && <div className="loadnest">{gs.map(({ key, label, isRoom, items }) => (
+                      <div key={key} className="loadgroup">
+                        <button className="loadfold" onClick={() => flip(key)}><span className="lfArrow">{open.has(key) ? "▾" : "▸"}</span>{label || (isRoom ? "Untagged" : "No floor set")}<span className="lfCount">{items.length}</span></button>
+                        {/* Open on the left, 🗑 on the right. Two taps to delete, exactly like the asset
+                            shelf's — the first arms it and says which one, so a mis-tap on a picker you
+                            opened to LOAD something cannot cost you a level. */}
+                        {open.has(key) && <div className="loadlist">{items.map((l) => (
+                          <div key={l.id} className="loadrow">
+                            <button className="loadopen" onClick={() => openLevel(l)}>{l.name}</button>
+                            <button className={"loaddel" + (confirmLvlDel === l.id ? " arm" : "")}
+                              title={confirmLvlDel === l.id ? "Tap again to permanently delete" : "Delete this " + (l.isRoom ? "room" : "level")}
+                              onClick={(e) => { e.stopPropagation(); if (confirmLvlDel === l.id) deleteLevel(l); else { setConfirmLvlDel(l.id); flash("Tap 🗑 again to permanently delete \"" + l.name + "\""); } }}>{confirmLvlDel === l.id ? "Sure?" : "🗑"}</button>
+                          </div>
+                        ))}</div>}
+                      </div>
+                    ))}</div>}
+                  </div>
+                ));
+              })()}
             </div>
           </div>
         )}
@@ -28466,6 +28482,17 @@ html,body{margin:0;padding:0;background:#0f1117}
 .loadlist button:hover{border-color:#4f7cf6}
 .loadgroup{margin-bottom:14px}
 .loadgrouplabel{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#9aa3b8;margin-bottom:4px}
+.loadsec{margin-bottom:5px}
+.loadfold{display:flex;align-items:center;gap:6px;width:100%;box-sizing:border-box;text-align:left;background:#1a1f2d;border:1px solid #2c3245;border-radius:7px;padding:5px 9px;font-size:13px;cursor:pointer;color:inherit}
+.loadfold.sec{background:#222a3d;font-weight:700}
+.loadfold:hover{border-color:#4f7cf6}
+.lfArrow{width:10px;color:#9aa3b8;font-size:11px;flex:none}
+.lfCount{margin-left:auto;color:#9aa3b8;font-size:11px;font-weight:400}
+.loadnest{margin:4px 0 2px 12px;display:flex;flex-direction:column;gap:3px}
+.loadnest .loadgroup{margin:0}
+.loadnest .loadlist{margin:3px 0 3px 12px;gap:3px;max-height:260px}
+.loadnest .loadlist button{padding:4px 9px;font-size:13px;border-radius:6px}
+.loadnest .loadlist .loaddel{padding:4px 8px}
 .slotrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;font-size:13px;color:#cdd3df}
 .slotrow select{flex:none;width:120px;background:#1f2433;border:1px solid #2c3245;border-radius:8px;padding:6px}
 .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
