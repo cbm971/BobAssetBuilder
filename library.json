@@ -1228558,7 +1228558,7 @@
    "wtype": "ranged",
    "projectileId": "r40hfbn",
    "projectileSpeed": 7,
-   "damage": 15,
+   "damage": 16,
    "fireRate": 3,
    "clipSize": 1,
    "reloadTime": 0.8,
@@ -1228599,8 +1228599,8 @@
     "fire": "u2f4b15",
     "hit": "ynj37i2"
    },
-   "savedAt": 1792267939149,
-   "editedFrom": 1792266133847
+   "savedAt": 1792333748186,
+   "editedFrom": 1792267939149
   },
   {
    "id": "zzzfx01",
