@@ -804477,7 +804477,7 @@
    ],
    "projectileId": "gr3nsh1",
    "projectileSpeed": 9,
-   "damage": 25,
+   "damage": 30,
    "fireRate": 1,
    "clipSize": 4,
    "reloadTime": 2.2,
@@ -804513,8 +804513,8 @@
     "hit": "aghad42",
     "fire": "dti525c"
    },
-   "savedAt": 1792266521739,
-   "editedFrom": 1792254214960
+   "savedAt": 1792333237736,
+   "editedFrom": 1792266521739
   },
   {
    "id": "lndhmp1",
@@ -831819,8 +831819,8 @@
     "hit": "aghad42",
     "fire": "dti525c"
    },
-   "savedAt": 1792333174069,
-   "editedFrom": 1792266529068
+   "savedAt": 1792333225214,
+   "editedFrom": 1792333174069
   },
   {
    "id": "mdetsd1",
