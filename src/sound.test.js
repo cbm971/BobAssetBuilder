@@ -8,6 +8,7 @@ import {
   clipHash, clipNameOk, clipMatches, createAudioEngine, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard,
   leadingSilence, ONSET_FLOOR, ONSET_OF_PEAK, ONSET_PREROLL_S, talkSeconds, TALK_CHARS_PER_S, TALK_MIN_S, TALK_MAX_S, dialogueSoundId,
   soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, resolveSoundVol, splitHurtDeath,
+  musicTrackFor,
 } from "./audio";
 import { groupByCategory, mergeLibraries, mergeCloudLibrary, diskLibrary } from "./App";
 
@@ -683,5 +684,21 @@ describe("the sounds loader is wired like every other kind", () => {
     expect(body("const exportAllAssets = async", "const restoreBackup = async")).toContain("loadSounds()");
     expect(body("const restoreBackup = async", "const start = (type")).toContain('"sound:", "soundIndex"');
     expect(src).toMatch(/reloadAllRef\.current = \(\) => Promise\.all\(\[[^\]]*loadSounds\(\)/);
+  });
+});
+
+describe("which music plays (2026-10-18: the game's menus have music)", () => {
+  const board = { music: "run", musicVol: 0.8 };
+  test("a run plays the Run track", () => {
+    expect(musicTrackFor(board, true, true)).toEqual({ id: "run", vol: 0.8 });
+  });
+  test("the menus play the Menus track, or the Run track when none is picked", () => {
+    expect(musicTrackFor(board, false, true)).toEqual({ id: "run", vol: 0.8 });
+    expect(musicTrackFor({ ...board, menuMusic: "menu", menuMusicVol: 0.5 }, false, true)).toEqual({ id: "menu", vol: 0.5 });
+  });
+  test("neither: silence", () => {
+    expect(musicTrackFor(board, false, false)).toBe(null);
+    expect(musicTrackFor({}, true, true)).toBe(null);
+    expect(musicTrackFor(null, true, true)).toBe(null);
   });
 });

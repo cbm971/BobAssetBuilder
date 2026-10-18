@@ -26,22 +26,23 @@
 // work, so it gets this simple store rather than the library's five-way wiring.
 
 // ---------- the address ----------
-// /game, /game/ or /game/index.html at the end of the path (the Pages copy is
-// /BobAssetBuilder/game/, the dev server's is /game), or ?game in the query for any host where a
-// path cannot be chosen.
-export const GAME_PATH_RE = /\/game(\/(index\.html)?)?$/i;
+// /bob or /game (with or without a slash or index.html) at the end of the path, or ?game in the
+// query for any host where a path cannot be chosen. /bob is the address named after the game
+// (2026-10-18, when he said the game is BOB): https://cbm971.github.io/BobAssetBuilder/bob/. The
+// older /game/ keeps working so no link he has saved goes dead.
+export const GAME_PATH_RE = /\/(bob|game)(\/(index\.html)?)?$/i;
 export const isGameAddress = (loc) => {
   if (!loc) return false;
   if (GAME_PATH_RE.test(loc.pathname || "")) return true;
   return /(^|[?&])game(=|&|$)/i.test((loc.search || "").replace(/^\?/, "&"));
 };
 // The address of the game for whichever copy the studio is running in: the studio's own folder
-// plus "game/" (so the Pages studio at /BobAssetBuilder/ opens /BobAssetBuilder/game/, and the
-// dev server's / opens /game/).
+// plus "bob/" (so the Pages studio at /BobAssetBuilder/ opens /BobAssetBuilder/bob/, and the
+// dev server's / opens /bob/).
 export const gameAddressFor = (loc) => {
-  if (!loc) return "game/";
+  if (!loc) return "bob/";
   const path = (loc.pathname || "/").replace(/[^/]*$/, "");
-  return (loc.origin || "") + path + "game/";
+  return (loc.origin || "") + path + "bob/";
 };
 
 // ---------- the title sequence ----------
@@ -61,6 +62,9 @@ export const INTRO_OUT_MS = 700;
 export const introRemainingMs = (elapsed, skipped) => (skipped ? 0 : Math.max(0, INTRO_MIN_MS - Math.max(0, elapsed || 0)));
 
 // ---------- the main menu ----------
+// The menu click plays at this share of its sound board volume — at full it was "too loud" over
+// the menus (Blake, 2026-10-18), while the same sound in the studio stays as he set it.
+export const GAME_MENU_CLICK_GAIN = 0.45;
 // Blake's list, in his order (2026-10-17). Ids, not labels, are what the code switches on.
 export const GAME_MENU = [
   { id: "new", label: "New Game" },

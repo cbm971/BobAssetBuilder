@@ -6,7 +6,7 @@
 <title>Bob Asset Studio</title>
 <!--
   THE GAME'S TITLE SEQUENCE (2026-10-17; the look redone 2026-10-18). At the game's address (a path
-  ending in /game, or ?game; see isGameAddress in src/gameFront.js) this page shows "BLAKE
+  ending in /bob or /game, or ?game; see isGameAddress in src/gameFront.js) this page shows "BLAKE
   Presents..." and then "BOB" BEFORE the app's script has even arrived — Blake: "before anything else
   even loads". It is plain HTML and CSS for that reason: the app bundle is megabytes (more again in
   StackBlitz's dev build), and a title drawn by React could only start once all of it had downloaded
@@ -15,23 +15,26 @@
   At the studio's address none of this runs and #bobIntro stays display:none.
 
   THE FACES are the ones Blake picked from a sheet on 2026-10-18, against his own mock-up:
-  * "BLAKE Presents..." — New Rocker, the face his mock-up was set in ("honestly this font if not a
-    slightly fancier version"), white, with a fine dark edge and a cold sheen to dress it up.
+  * "BLAKE Presents..." — UnifrakturCook, plain white. His pick from a sheet set beside his own
+    image (2026-10-18), after New Rocker with a silver sheen was "NOTHING like I showed you": no
+    gradient, no tint, white letters with a soft shadow, as in his image.
   * "BOB" — Sarpanch Black, upright, slanted by hand rather than set in an italic: he wanted it
-    "slightly more squared and slightly less angled" than the mock-up's. White, a thin near-black
-    outline and a thick grey-green one outside it (three stacked copies; see .bobLogo).
+    "slightly more squared and slightly less angled" than the mock-up's. WHITE, a THIN GREEN line,
+    WHITE (his words: "White, green out line, white not BOLD GREEN OUT LINE"), and then, seeing it,
+    "lets have the inside of that outline be green as well": so a GREEN face inside a white edge.
+    Three stacked copies, see .bobLogo: a fat white stroke outside, the green line, the green face.
   * The menus use Russo One (gameShell.js). All three load here, for the game address only.
 -->
 <script>
 (function () {
   var p = location.pathname || "", q = (location.search || "").replace(/^\?/, "&");
-  if (!(/\/game(\/(index\.html)?)?$/i.test(p) || /(^|[?&])game(=|&|$)/i.test(q))) return;
+  if (!(/\/(bob|game)(\/(index\.html)?)?$/i.test(p) || /(^|[?&])game(=|&|$)/i.test(q))) return;
   var d = document.documentElement;
   d.className += " bobGame";
   document.title = "BOB";
   var pc = document.createElement("link"); pc.rel = "preconnect"; pc.href = "https://fonts.gstatic.com"; pc.crossOrigin = "anonymous"; document.head.appendChild(pc);
   var f = document.createElement("link"); f.rel = "stylesheet";
-  f.href = "https://fonts.googleapis.com/css2?family=New+Rocker&family=Sarpanch:wght@700;900&family=Russo+One&display=block";
+  f.href = "https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&family=Sarpanch:wght@700;900&family=Russo+One&display=block";
   var started = false;
   // The sequence starts once the faces are in (at once from a warm cache), so "BLAKE Presents" never
   // fades in as a fallback serif and swaps halfway; never later than 1.2 s, offline included.
@@ -41,7 +44,7 @@
     d.className += " biGo";
   };
   f.onload = function () {
-    try { Promise.all([document.fonts.load("400 40px 'New Rocker'", "BLAKE Presents"), document.fonts.load("900 40px Sarpanch", "BOB"), document.fonts.load("400 20px 'Russo One'", "NEW GAME")]).then(go, go); } catch (e) { go(); }
+    try { Promise.all([document.fonts.load("700 40px UnifrakturCook", "BLAKE Presents"), document.fonts.load("900 40px Sarpanch", "BOB"), document.fonts.load("400 20px 'Russo One'", "NEW GAME")]).then(go, go); } catch (e) { go(); }
   };
   f.onerror = go;
   document.head.appendChild(f);
@@ -56,7 +59,7 @@ html.bobGame #bobIntro{display:flex;position:fixed;inset:0;z-index:100000;backgr
    on a menu row that appeared under the pointer between press and release. */
 #bobIntro.out{opacity:0}
 #bobIntro .biCard{display:flex;flex-direction:column;align-items:flex-end}
-#bobIntro .biPresents{font-family:'New Rocker','UnifrakturCook',Georgia,serif;font-weight:400;font-size:clamp(34px,6.2vw,104px);line-height:1.05;letter-spacing:.01em;opacity:0;background:linear-gradient(180deg,#ffffff 0%,#f1f1ec 46%,#c9ccc8 58%,#f6f6f2 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 1px 0 #0b0b0b) drop-shadow(1px 0 0 #0b0b0b) drop-shadow(-1px 0 0 #0b0b0b) drop-shadow(0 -1px 0 #0b0b0b) drop-shadow(3px 5px 3px rgba(0,0,0,.75)) drop-shadow(0 0 22px rgba(255,255,255,.12))}
+#bobIntro .biPresents{font-family:UnifrakturCook,'Old English Text MT',Georgia,serif;font-weight:700;font-size:clamp(34px,6.2vw,104px);line-height:1.05;letter-spacing:.01em;opacity:0;color:#fff;text-shadow:.03em .05em .04em rgba(0,0,0,.85)}
 #bobIntro .biBob{font-size:clamp(70px,11vw,190px);margin-top:.04em;margin-right:-.06em;opacity:0}
 #bobIntro .biLoad{position:absolute;bottom:12vh;left:50%;width:min(240px,40vw);height:2px;margin-left:max(-120px,-20vw);opacity:0;background:linear-gradient(90deg,transparent,rgba(160,190,160,.9),transparent) no-repeat;background-size:40% 100%}
 /* THE BOB LOGO — three copies of the word stacked in one grid cell: the grey-green outer edge (a fat
@@ -65,9 +68,10 @@ html.bobGame #bobIntro{display:flex;position:fixed;inset:0;z-index:100000;backgr
    GAME_CSS (gameShell.js) for the menu's logo; keep them in step. */
 .bobLogo{display:inline-grid;font-family:Sarpanch,'Russo One',Impact,sans-serif;font-weight:900;line-height:.92;letter-spacing:.02em}
 .bobLogo>span{grid-area:1/1;padding:0 .1em;transform:skewX(-9deg)} /* the slant is on the copies, not the box, so the pop animation can own the box transform */
-.bobLogo .bl1{color:#6c8b6e;-webkit-text-stroke:.2em #6c8b6e;filter:drop-shadow(.03em .06em .02em rgba(0,0,0,.55))}
-.bobLogo .bl2{color:#121612;-webkit-text-stroke:.075em #121612}
-.bobLogo .bl3{color:#fff;background:linear-gradient(180deg,#fff 0%,#fff 55%,#e3e8e2 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.bobLogo .bl1{color:#fff;-webkit-text-stroke:.16em #fff;filter:drop-shadow(.02em .05em .03em rgba(0,0,0,.6))}
+.bobLogo .bl2{color:#4e8a57;-webkit-text-stroke:.07em #4e8a57}
+
+.bobLogo .bl3{color:#4e8a57}
 html.biGo #bobIntro .biPresents{animation:biFade 1s ease .25s forwards}
 html.biGo #bobIntro .biBob{animation:biPop .52s cubic-bezier(.2,1.5,.4,1) 1.75s forwards}
 /* Only ever seen when the game is still loading after the title has had its time (INTRO_MIN_MS). */

@@ -10,7 +10,7 @@ import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSound
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
 // rules and store are src/gameFront.js and its screens src/gameShell.js; the GAME FRONT END block
 // after startRun is where it meets the run engine.
-import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND } from "./gameFront";
+import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND } from "./gameFront";
 import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
@@ -22527,13 +22527,22 @@ export default function AssetStudio({ game = false } = {}) {
     bobAudio.setVolumes({ music: gameOptions.music / 100, effects: gameOptions.effects / 100 });
     bobAudio.setMusicOn(gameOptions.music > 0);
   }, [game, gameOptions]);
+  // ...and the menus have music of their own (bobAudio.setMenuMusic): from the main menu on, off
+  // during a run (the run's track takes over through setPlaying) and on the Quit screen.
+  const gameMenuMusic = game && screen !== "level" && gameView !== "title" && gameView !== "quit";
+  useEffect(() => {
+    if (!game) return undefined;
+    bobAudio.setMenuMusic(gameMenuMusic);
+    return () => bobAudio.setMenuMusic(false);
+  }, [game, gameMenuMusic]);
   // The menu's click is the board's basic Menu click; decoded ahead so the first press is heard.
   useEffect(() => {
     if (!gameReady) return;
     const bd = bobAudio.board();
     if (bd && bd.basic && bd.basic.menuClick) bobAudio.preload([bd.basic.menuClick]);
   }, [gameReady]);
-  const gameClick = () => bobAudio.event("menuClick");
+  // At GAME_MENU_CLICK_GAIN of its board volume: at full it was "too loud" over the menus (Blake).
+  const gameClick = () => bobAudio.event("menuClick", undefined, undefined, GAME_MENU_CLICK_GAIN);
   // Unlocks hears of a pickup, a purchase (showPickup / buyFromShop) and a kill (the loot pass).
   gameNoteRef.current = (kind, id) => {
     if (!game || !id) return;
@@ -23388,9 +23397,18 @@ export default function AssetStudio({ game = false } = {}) {
             <div className="card">
               <div className="ct">Music</div>
               <div className="sndRow">
+                <span className="sndEvt">🏁 Run</span>
                 <select value={soundVal(soundBoard.music)} onChange={(e) => saveSoundBoard({ music: e.target.value })}>{soundOptions("— none —")}</select>
                 {playBtn(soundVal(soundBoard.music), oneVolume(soundBoard.musicVol))}
                 {volSlider("music", oneVolume(soundBoard.musicVol), (v) => saveSoundBoard({ musicVol: v }))}
+              </div>
+              {/* The game's menus (2026-10-18). Left on none, the menus play the Run track
+                  (musicTrackFor, audio.js). */}
+              <div className="sndRow">
+                <span className="sndEvt">📋 Menus</span>
+                <select value={soundVal(soundBoard.menuMusic)} onChange={(e) => saveSoundBoard({ menuMusic: e.target.value })}>{soundOptions("— same as Run —")}</select>
+                {playBtn(soundVal(soundBoard.menuMusic), oneVolume(soundBoard.menuMusicVol))}
+                {volSlider("menuMusic", oneVolume(soundBoard.menuMusicVol), (v) => saveSoundBoard({ menuMusicVol: v }))}
               </div>
             </div>
             <div className="card">

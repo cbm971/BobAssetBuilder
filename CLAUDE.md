@@ -428,8 +428,10 @@ plus traps it does not cover:
 ## The game front end (2026-10-17)
 
 - **One app, two addresses.** A path ending in `/game` (or `?game`) starts `AssetStudio` with `game`
-  (`isGameAddress`, src/index.js). Pages: https://cbm971.github.io/BobAssetBuilder/game/
-  (`tools/publish.js` copies index.html into `game/`). StackBlitz and the studio: the studio menu's
+  (`isGameAddress`, src/index.js); `/bob` is the address named after the game, `/game` still works.
+  Pages: https://cbm971.github.io/BobAssetBuilder/bob/ (`tools/publish.js` copies index.html into
+  `bob/` and `game/`). **Run `node tools/publish.js` after every push he will test on Pages** — on
+  2026-10-18 he opened the Pages link and saw none of a shipped change because it had not been run. StackBlitz and the studio: the studio menu's
   **Play BOB** tile opens `<this copy>/game/` in a new tab. Never fork the engine into a second
   app; a fix to play must reach both.
 - Rules and the game's store are `src/gameFront.js` (no React); screens are `src/gameShell.js`; the
@@ -438,8 +440,10 @@ plus traps it does not cover:
 - **The title is plain HTML/CSS in `public/index.html`**, so it shows before the bundle arrives (his
   words: "before anything else even loads"). Its timings are mirrored by `INTRO_*` in gameFront.js
   (a test checks both). `TitleHandoff` fades it out. Faces, picked by him from a sheet on 2026-10-18:
-  **New Rocker** for "BLAKE Presents...", **Sarpanch 900** upright with a -9° skew for BOB (white,
-  near-black edge, grey-green outer edge: three stacked copies, `.bobLogo`, in BOTH index.html and
+  **UnifrakturCook**, plain white (no sheen or tint — he rejected that), for "BLAKE Presents...",
+  **Sarpanch 900** upright with a -9° skew for BOB (a GREEN face inside a thin WHITE edge — he went
+  white/green line/white, then "have the inside of that outline be green as well"; never a bold
+  green outline: three stacked copies, `.bobLogo`, in BOTH index.html and
   GAME_CSS), **Russo One** for menus. Loaded only at the game's address.
 - **The look (2026-10-18, his mock-up): every screen is a FLAT green panel** (off-white border,
   yellow ▶ on the lit row) over one of his own levels with his people walking it. **No patterned
@@ -469,6 +473,9 @@ plus traps it does not cover:
 - **Unlocks** is a record (`game:record`): `found` from `showPickup(…, item)` and `buyFromShop`,
   `defeated` from the loot pass's kill (`spawnEnemyIdAt`), floors and best score from the floor end.
   New pickup or kill sites must call `gameNoteRef.current`.
+- **The menus have music** (`bobAudio.setMenuMusic`): the sound board's 📋 Menus track, else the
+  🏁 Run track (`musicTrackFor`, audio.js). The menu click plays at `GAME_MENU_CLICK_GAIN` (0.45);
+  at full it was "too loud". A silent menu read to him as "the game audio didn't work".
 - Options volumes go through `bobAudio.setVolumes` (master gain + music element); the studio
   never calls it. The game's music follows the slider, not the studio's 🎵 toggle.
 - His menu has no Credits screen yet; the game-icons.net symbols still need crediting somewhere.

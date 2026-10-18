@@ -315,6 +315,17 @@ export const fmtClipDur = (s) => (typeof s === "number" && s > 0 ? (s < 10 ? s.t
  * Browsers keep audio locked until the first click or key. The engine listens for that itself, once,
  * and unlocks silently — there is no prompt, and a sound fired before it is simply not heard.
  */
+// WHICH TRACK PLAYS. A run (or a Playtest) plays the board's `music`. The GAME'S MENUS play too
+// (2026-10-18: Blake heard nothing but menu clicks there and took it for "the game audio didn't
+// work"): the board's `menuMusic` when he has picked one, else the run's own track. Each track
+// keeps its own slider (`musicVol` / `menuMusicVol`). null = silence.
+export const musicTrackFor = (board, playing, menu) => {
+  if (!board) return null;
+  if (playing) return board.music ? { id: board.music, vol: board.musicVol } : null;
+  if (!menu) return null;
+  if (board.menuMusic) return { id: board.menuMusic, vol: board.menuMusicVol };
+  return board.music ? { id: board.music, vol: board.musicVol } : null;
+};
 export const createAudioEngine = ({ loadClip } = {}) => {
   const W = typeof window !== "undefined" ? window : null;
   let ctx = null, master = null;
@@ -327,7 +338,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
   let voices = [];               // [{ id, at, src }]
   let view = null;
   const trace = [];              // the last plays, for anyone checking what fired (see `trace` below)
-  const music = { el: null, url: null, clip: null, on: false, playing: false };
+  const music = { el: null, url: null, clip: null, on: false, playing: false, menu: false };
   // THE PLAYER'S VOLUMES (the game's Options screen, 2026-10-17): 0-1 each, multiplying everything
   // underneath them — `effects` is the master gain every moment and talk loop goes through, `music`
   // multiplies the track's own volume. The studio never sets them, so there they stay at 1.
@@ -375,7 +386,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
   const unlock = () => {
     const c = ensureCtx();
     if (c && c.state === "suspended") { try { c.resume().catch(() => {}); } catch { /* not allowed yet */ } }
-    if (music.playing && music.el && music.el.paused) { try { const p = music.el.play(); if (p && p.catch) p.catch(() => {}); } catch { /* still locked */ } }
+    if ((music.playing || music.menu) && music.el && music.el.paused) { try { const p = music.el.play(); if (p && p.catch) p.catch(() => {}); } catch { /* still locked */ } }
   };
   if (W && W.addEventListener) {
     for (const ev of ["pointerdown", "keydown", "touchstart"]) W.addEventListener(ev, unlock, { capture: true, passive: true });
@@ -509,17 +520,19 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     // x/y place it in the level for the off-screen fade; leave them out for full volume.
     // `minGain` is the floor that fade stops at, for a moment that must be heard wherever it
     // happens (an explosion, see EXPLOSION_MIN_GAIN).
-    moment: ({ asset, slot, basic, x, y, minGain = 0 } = {}) => {
+    // `scale` turns one call down (the game's menu click, which on its own over a quiet menu was
+    // "too loud"); 1 everywhere else.
+    moment: ({ asset, slot, basic, x, y, minGain = 0, scale = 1 } = {}) => {
       const id = resolveSound({ asset, slot, basic, board, has: engine.has });
       if (!id) return false;
       const gain = Math.max(soundGainAt(x, y, view), Math.min(1, minGain));
       if (gain <= 0.02) return false;
       // Times the slider beside the pick that chose this sound (resolveSoundVol).
       const sv = resolveSoundVol({ asset, slot, basic, board, has: engine.has });
-      return startVoice(id, gain * sv, { slot: slot || null, basic: basic || null, asset: asset ? asset.id || null : null });
+      return startVoice(id, gain * sv * scale, { slot: slot || null, basic: basic || null, asset: asset ? asset.id || null : null });
     },
     // An everyday moment with no asset behind it (a door, a pickup, a menu click).
-    event: (key, x, y) => engine.moment({ basic: key, x, y }),
+    event: (key, x, y, scale = 1) => engine.moment({ basic: key, x, y, scale }),
     // The studio's ▶: one sound, full volume, decoded first if it has to be. A LONG one (a music
     // track) is streamed through its own element instead — decoding it would keep tens of MB in
     // memory for the rest of the session just to hear it once — and pressing ▶ on it again stops it.
@@ -556,6 +569,8 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     // the board's `music`. Any change to the three goes through syncMusic, which is the only thing
     // that starts, swaps or stops the element.
     setMusicOn: (on) => { music.on = !!on; engine.syncMusic(); },
+    // The game's menus are up (title over, no run going): their music plays (see musicTrackFor).
+    setMenuMusic: (on) => { music.menu = !!on; engine.syncMusic(); },
     setPlaying: (playing) => { music.playing = !!playing; if (!playing) stopTalk(); syncAwake(); engine.syncMusic(); },
     // A LINE OF DIALOGUE BEING SAID: loop sound `id` for `secs` (talkSeconds), replacing whatever
     // line was talking. talk(null) stops it. A sound not decoded yet starts when it is, provided
@@ -570,20 +585,22 @@ export const createAudioEngine = ({ loadClip } = {}) => {
       return false;
     },
     syncMusic: async () => {
-      const s = board && board.music ? sounds.get(board.music) : null;
-      const want = music.on && music.playing && s && s.clip ? s.clip : null;
+      const tr = musicTrackFor(board, music.playing, music.menu);
+      const s = tr ? sounds.get(tr.id) : null;
+      const want = music.on && s && s.clip ? s.clip : null;
       if (!want) { if (music.el && !music.el.paused) { try { music.el.pause(); } catch { /* gone */ } } return; }
       if (!W || typeof W.Audio !== "function") return;
       if (!music.el) { music.el = new W.Audio(); music.el.loop = true; music.el.preload = "auto"; }
       // Every sync, not only on a new track: setLibrary calls this when the slider saves, so the
       // track playing now follows the slider without restarting.
-      music.el.volume = Math.min(1, soundVolume(s) * oneVolume(board.musicVol)) * vol.music;
+      music.el.volume = Math.min(1, soundVolume(s) * oneVolume(tr.vol)) * vol.music;
       if (music.clip !== want) {
         const bytes = loadClip ? await loadClip(want) : null;
         if (!bytes) return;
         // The toggle or the track may have changed while the file was being fetched.
-        const s2 = board && board.music ? sounds.get(board.music) : null;
-        if (!(music.on && music.playing && s2 && s2.clip === want)) return;
+        const tr2 = musicTrackFor(board, music.playing, music.menu);
+        const s2 = tr2 ? sounds.get(tr2.id) : null;
+        if (!(music.on && s2 && s2.clip === want)) return;
         if (music.url) { try { URL.revokeObjectURL(music.url); } catch { /* gone */ } }
         music.url = URL.createObjectURL(new Blob([bytes], { type: clipMime(want) }));
         music.clip = want;
@@ -591,7 +608,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
       }
       if (music.el.paused) { try { const p = music.el.play(); if (p && p.catch) p.catch(() => {}); } catch { /* locked until the first input */ } }
     },
-    musicState: () => ({ on: music.on, playing: music.playing, clip: music.clip, paused: music.el ? music.el.paused : true }),
+    musicState: () => ({ on: music.on, playing: music.playing, menu: music.menu, clip: music.clip, paused: music.el ? music.el.paused : true }),
     // The game's Options sliders (see `vol`). Applied at once: the master gain for what is sounding
     // now and everything after, and the music element through syncMusic without a restart.
     setVolumes: ({ music: m, effects: e } = {}) => {

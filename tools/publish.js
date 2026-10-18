@@ -33,8 +33,11 @@ fs.writeFileSync(path.join(root, "build", ".nojekyll"), ""); // Pages must serve
 // which starts as the game because of its path (isGameAddress, src/gameFront.js). Pages serves
 // folders only, with no fallback to the root page, so the page is copied into game/. Every file it
 // loads is named from the site root (PUBLIC_URL), so the copy needs nothing else beside it.
-fs.mkdirSync(path.join(root, "build", "game"), { recursive: true });
-fs.copyFileSync(path.join(root, "build", "index.html"), path.join(root, "build", "game", "index.html"));
+// ...and at bob/ (2026-10-18): the address named after the game, which the studio's Play tile opens.
+for (const dir of ["game", "bob"]) {
+  fs.mkdirSync(path.join(root, "build", dir), { recursive: true });
+  fs.copyFileSync(path.join(root, "build", "index.html"), path.join(root, "build", dir, "index.html"));
+}
 const wt = path.join(root, ".gh-pages-worktree");
 if (fs.existsSync(wt)) { try { run(`git worktree remove --force "${wt}"`); } catch { fs.rmSync(wt, { recursive: true, force: true }); } }
 // A fresh orphan branch every time: the site is a build product, its history is worthless, and a
@@ -51,4 +54,4 @@ run("git add -A", { cwd: wt });
 run(`git -c user.email=cbm971@gmail.com -c user.name=cbm971 commit -q -m "Publish ${new Date().toISOString()} from ${execSync("git rev-parse --short HEAD", { cwd: root }).toString().trim()}"`, { cwd: wt });
 run("git push --force origin HEAD:gh-pages", { cwd: wt });
 run(`git worktree remove --force "${wt}"`);
-console.log("published: https://cbm971.github.io/BobAssetBuilder/ and the game at https://cbm971.github.io/BobAssetBuilder/game/ (Pages serves it within a minute or two)");
+console.log("published: https://cbm971.github.io/BobAssetBuilder/ and the game at https://cbm971.github.io/BobAssetBuilder/bob/ (also /game/; Pages serves it within a minute or two)");

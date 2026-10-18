@@ -238,7 +238,9 @@ function CharacterSelect({ assets, renderArt, renderDressed, lifeIcon, difficult
   const p1 = Math.round(Math.max(200, Math.min(400, vp.h * 0.4)));
   return (
     <div className="gBody gSelect">
-      <div className="gSelHead"><span>Select Character</span></div>
+      {/* Back, on the screen as every other menu has it (Blake: "there is no way to back out of NEW
+          GAME"; Esc always did, but nothing said so). It leaves the difficulty step first, then the screen. */}
+      <div className="gSelHead"><span>Select Character</span><div role="button" className="gSelBack" onClick={() => { click(); back(); }}><span>Back</span></div></div>
       <div className="gRoster" style={{ gridTemplateColumns: "repeat(" + cols + "," + box + "px)" }}>
         {roster.map((a, i) => (
           <div key={a.id} role="button" className={"gFighter" + (i === at ? " on" : "") + (i === at && step === "diff" ? " locked" : "")} style={{ width: box, height: Math.round(box * 1.12) }}
@@ -523,7 +525,7 @@ export function GameShell({ view, setView, ready, saves, options, setOptions, re
   );
 }
 
-// The sheet. The faces (Russo One, Sarpanch, New Rocker) are loaded by public/index.html for the
+// The sheet. The faces (Russo One, Sarpanch, UnifrakturCook) are loaded by public/index.html for the
 // game address only; offline they fall back to Impact / a plain sans and nothing else changes.
 // Colours are fixed (a game screen, not a themed page): field green, off-white, one yellow.
 export const GAME_CSS = `
@@ -546,9 +548,10 @@ export const GAME_CSS = `
 @keyframes gIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .bobLogo{display:inline-grid;font-family:Sarpanch,'Russo One',Impact,sans-serif;font-weight:900;line-height:.92;letter-spacing:.02em;white-space:nowrap;user-select:none}
 .bobLogo>span{grid-area:1/1;padding:0 .1em;transform:skewX(-9deg)}
-.bobLogo .bl1{color:#6c8b6e;-webkit-text-stroke:.2em #6c8b6e;filter:drop-shadow(.03em .06em .02em rgba(0,0,0,.55))}
-.bobLogo .bl2{color:#121612;-webkit-text-stroke:.075em #121612}
-.bobLogo .bl3{background:linear-gradient(180deg,#fff 0%,#fff 55%,#e3e8e2 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#fff}
+.bobLogo .bl1{color:#fff;-webkit-text-stroke:.16em #fff;filter:drop-shadow(.02em .05em .03em rgba(0,0,0,.6))}
+.bobLogo .bl2{color:#4e8a57;-webkit-text-stroke:.07em #4e8a57}
+
+.bobLogo .bl3{color:#4e8a57}
 .gLogoMenu{font-size:clamp(70px,8.2vw,156px);align-self:center;margin:.02em 0 .06em}
 .gLogoQuit{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:clamp(60px,9vw,140px);opacity:.22}
 .gBanner{font-size:clamp(34px,4.6vw,78px);margin-bottom:2.2vh}
@@ -606,8 +609,11 @@ export const GAME_CSS = `
 .gItem,.gTab,.gDel,.gFighter,.gDiff,.gStart{user-select:none;-webkit-user-select:none}
 /* ---- the character select ---- */
 .gSelect{justify-content:space-between;padding:3vh clamp(16px,3vw,56px) 4vh}
-.gSelHead{align-self:stretch;display:flex}
-.gSelHead span{display:inline-block;font-size:clamp(20px,2.3vw,40px);letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--gG2);border:4px solid var(--gEdge);padding:.2em 1.2em .2em .9em;transform:skewX(-12deg);box-shadow:0 6px 0 rgba(0,0,0,.35);text-shadow:0 3px 0 rgba(0,0,0,.35)}
+.gSelHead{align-self:stretch;display:flex;justify-content:space-between;align-items:center}
+.gSelBack{cursor:pointer;font-size:clamp(16px,1.6vw,28px);text-transform:uppercase;letter-spacing:.06em;color:#fff;background:var(--gG2);border:4px solid var(--gEdge);padding:.2em 1em;transform:skewX(-12deg);box-shadow:0 6px 0 rgba(0,0,0,.35);text-shadow:0 3px 0 rgba(0,0,0,.35);transition:background .12s,color .12s}
+.gSelBack>span{display:inline-block;transform:skewX(12deg)}
+.gSelBack:hover{background:var(--gGold);color:var(--gG3);text-shadow:none}
+.gSelHead>span{display:inline-block;font-size:clamp(20px,2.3vw,40px);letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--gG2);border:4px solid var(--gEdge);padding:.2em 1.2em .2em .9em;transform:skewX(-12deg);box-shadow:0 6px 0 rgba(0,0,0,.35);text-shadow:0 3px 0 rgba(0,0,0,.35)}
 .gRoster{display:grid;gap:clamp(8px,1vw,16px);justify-content:center;padding:6px}
 .gFighter{position:relative;box-sizing:border-box;overflow:hidden;cursor:pointer;background:var(--gG1);border:4px solid var(--gEdge);box-shadow:0 6px 0 rgba(0,0,0,.4);transition:transform .1s,box-shadow .1s,border-color .1s;animation:gIn .35s ease both}
 .gFighterArt{position:absolute;left:0;top:0;overflow:hidden;pointer-events:none}

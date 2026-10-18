@@ -12,7 +12,7 @@ import path from "path";
 
 describe("the game's address", () => {
   test("the /game path, with or without a slash or index.html, on any base folder", () => {
-    for (const p of ["/game", "/game/", "/game/index.html", "/BobAssetBuilder/game/", "/BobAssetBuilder/game"]) expect(isGameAddress({ pathname: p, search: "" })).toBe(true);
+    for (const p of ["/game", "/game/", "/game/index.html", "/BobAssetBuilder/game/", "/BobAssetBuilder/game", "/bob", "/BobAssetBuilder/bob/", "/bob/index.html"]) expect(isGameAddress({ pathname: p, search: "" })).toBe(true);
   });
   test("?game works where a path cannot be chosen", () => {
     expect(isGameAddress({ pathname: "/", search: "?game" })).toBe(true);
@@ -23,16 +23,16 @@ describe("the game's address", () => {
     expect(isGameAddress(null)).toBe(false);
   });
   test("the studio's tile opens the game beside it", () => {
-    expect(gameAddressFor({ origin: "https://cbm971.github.io", pathname: "/BobAssetBuilder/" })).toBe("https://cbm971.github.io/BobAssetBuilder/game/");
-    expect(gameAddressFor({ origin: "http://localhost:3000", pathname: "/" })).toBe("http://localhost:3000/game/");
-    expect(gameAddressFor({ origin: "http://localhost:3000", pathname: "/index.html" })).toBe("http://localhost:3000/game/");
+    expect(gameAddressFor({ origin: "https://cbm971.github.io", pathname: "/BobAssetBuilder/" })).toBe("https://cbm971.github.io/BobAssetBuilder/bob/");
+    expect(gameAddressFor({ origin: "http://localhost:3000", pathname: "/" })).toBe("http://localhost:3000/bob/");
+    expect(gameAddressFor({ origin: "http://localhost:3000", pathname: "/index.html" })).toBe("http://localhost:3000/bob/");
   });
   test("public/index.html recognises the same addresses (its boot script copies the rule)", () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8");
-    expect(html).toContain('/\\/game(\\/(index\\.html)?)?$/i');
+    expect(html).toContain('/\\/(bob|game)(\\/(index\\.html)?)?$/i');
     expect(html).toContain('id="bobIntro"');
     expect(html).toContain(">BLAKE Presents...<");
-    expect(html).toContain("family=New+Rocker");
+    expect(html).toContain("family=UnifrakturCook:wght@700");
     expect(html).toContain("Sarpanch:wght@700;900");
   });
 });
