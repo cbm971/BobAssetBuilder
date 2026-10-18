@@ -22743,6 +22743,48 @@ export default function AssetStudio({ game = false } = {}) {
     const plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${px / 2 - sc * (hit.bb.x + hit.bb.w / 2)}px,${midY - sc * (hit.bb.y + fh / 2)}px) scale(${sc})` };
     return <div style={plane}>{renderPieceRuns({ pieces: hit.pieces, cacheKey: "unl_" + a.id, keyPrefix: "unl" + a.id + "_", alpha: assetAlpha(a), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>;
   };
+  // A LIFE OF THE RUN: the HEAD alone — the front drawing cut at the neck (the rig's own shoulder
+  // line, which on every Starter sits at the chin), with whatever is on it: hair, a hat, a mask.
+  // Blake (2026-10-18): "only the head, not head and part of chest", "factor whatever hat you have
+  // on", smaller. The HUD hands in the LIVE body (playerAsset, kit merged), so a hat picked up
+  // mid-run is on every life; the difficulty boxes hand in the look as saved. Only pieces that start
+  // above the neck size the box (arms and the torso start at or below it), and the plane is clipped
+  // at the neck, so a long helmet or hair is cut there rather than widening the head into a bust.
+  const gameHeadCache = useRef(new Map());
+  const gameHead = (a, px, rig = a) => {
+    if (!a || !a.angles) return null;
+    // The HUD's live body is a fresh mergeEquip every frame, so identity says nothing: the cache
+    // holds while the drawing's pieces are the same (a hat put on or taken off changes them), or
+    // the heads would re-key and remount sixty times a second.
+    let hit = gameHeadCache.current.get(a.id);
+    const pose = displayPoseKey(a);
+    const fresh = hit && hit.src === a ? null : bake(a, pose).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
+    const sig = fresh ? fresh.map((pc) => pc.id + ":" + pc.x + ":" + pc.y + ":" + pc.w + ":" + pc.h + ":" + pc.c).join("|") : null;
+    if (fresh && hit && hit.sig === sig) hit.src = a;
+    else if (fresh) {
+      const pieces = fresh;
+      const drawn = pieces.filter((pc) => !pc.isCutter);
+      let bb = null;
+      if (drawn.length) {
+        const top = Math.min(...drawn.map((pc) => pc.y)), foot = Math.max(...drawn.map((pc) => pc.y + pc.h));
+        const shs = a.shoulder || (rig && rig.shoulder); // a composed look may not carry its rig; the saved look does
+        const sh = shs && (shs[pose] || shs.front);
+        const neck = sh && sh.y > top + 4 ? sh.y : top + (foot - top) * 0.3;
+        const above = drawn.filter((pc) => pc.y < neck - 1);
+        if (above.length) {
+          const x0 = Math.min(...above.map((pc) => pc.x)), x1 = Math.max(...above.map((pc) => pc.x + pc.w));
+          bb = { x: x0, y: top, w: Math.max(1, x1 - x0), h: Math.max(1, neck - top) };
+        }
+      }
+      hit = { src: a, sig, pieces, bb, n: hit ? hit.n + 1 : 0 };
+      gameHeadCache.current.set(a.id, hit);
+    }
+    const bb = hit.bb;
+    if (!bb) return null;
+    const sc = (px / Math.max(bb.w, bb.h)) * 0.96;
+    const plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${px / 2 - sc * (bb.x + bb.w / 2)}px,${px / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})`, clipPath: `inset(${bb.y}px ${W - bb.x - bb.w}px ${H - bb.y - bb.h}px ${bb.x}px)` };
+    return <div style={plane}>{renderPieceRuns({ pieces: hit.pieces, keyPrefix: "hd" + a.id + "_" + hit.n + "_", alpha: assetAlpha(a), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>;
+  };
   // THE CHARACTER SELECT'S FULL-BODY CARD shows the fighter DRESSED, not in the underwear a Starter
   // begins a run in (Blake, 2026-10-18: "show how they would look if fully dressed … You can give them
   // a random pants and shirt item"). One shirt and one pair of pants rolled per look, from the ones
@@ -22782,6 +22824,14 @@ export default function AssetStudio({ game = false } = {}) {
   // ?scene=<level name> in the game's address pins the MAIN MENU's level (case-insensitive), for
   // looking at how a level reads behind it; the other screens keep their own.
   const menuLineup = useMemo(() => (game && gameLevelsIn ? menuLevelLineup(levelLib) : []), [game, gameLevelsIn]);
+  // The floors a run can start on — the floors of his intro levels (runRole), in library order — for
+  // the medals on the character select's player card (gameFront.js lookFloorMedals).
+  const gameFloors = useMemo(() => {
+    if (!game || !gameLevelsIn) return [];
+    const out = [];
+    for (const l of levelLib) { const f = l && runRole(l) === "intro" ? String(l.floor || "").trim() : ""; if (f && !out.includes(f)) out.push(f); }
+    return out;
+  }, [game, gameLevelsIn, levelLib]);
   const menuSceneCache = useRef(new Map());
   const menuSceneFor = (view) => {
     if (!menuLineup.length) return null;
@@ -22981,8 +23031,8 @@ export default function AssetStudio({ game = false } = {}) {
     return (
       <div className="bb gameMode"><style>{css}</style>
         <GameShell view={gameView === "play" ? "menu" : gameView} setView={setGameView} ready={gameReady}
-          saves={gameSaves} options={gameOptions} setOptions={setGameOptions} record={gameRecord} assets={allAssets} renderArt={gameArt} renderDressed={(look, px) => gameArt(gameDressed(look), px)}
-          lifeIcon={() => sym("hud.life", null, 18)} sceneFor={menuSceneFor}
+          saves={gameSaves} options={gameOptions} setOptions={setGameOptions} record={gameRecord} assets={allAssets} renderArt={gameArt} renderDressed={(look, px) => gameArt(gameDressed(look), px)} renderHead={gameHead}
+          statIcon={(k, px) => sym(k, null, px)} floors={gameFloors} sceneFor={menuSceneFor}
           onStartGame={(look, diff) => gameNewGame(look, diff)} onLoad={gameLoadGame} onDelete={(id) => putGameSaves(dropGameSave(gameSavesRef.current, id))}
           floorDone={gameFloorDone} onFloorDoneContinue={() => { setGameFloorDone(null); setGameView("menu"); }}
           gameOver={gameOverInfo} onRetry={gameRetry} onGameOverMenu={() => { setGameOverInfo(null); setGameView("menu"); }} note={gameNote} click={gameClick} />
@@ -26536,10 +26586,25 @@ export default function AssetStudio({ game = false } = {}) {
                   );
                 }
                 const livesGranted = extraLivesGranted(playerAsset?.effects);
-                // In THE GAME the pips also carry the run's own lives (its difficulty's, the one being
-                // played included), so Hard shows one and every death takes one away.
+                const abilityLives = livesGranted ? extraLivesLeft(playerAsset?.effects, livesUsed.current) : 0;
+                // THE GAME's own lives (its difficulty's, the one being played included, so Hard shows
+                // one and every death takes one away) are a row of the PLAYER'S HEAD, under the 🐱 row
+                // of any Extra Lives ability. They used to be added into the cat pips, and Blake read the
+                // difficulty as "a multi lives ability" (2026-10-18): a run life is the editor's death —
+                // back to the gate on full HP — and must not look like the item's get-up-where-you-fell.
                 const runLives = game && gameCur.current.saveId ? runLivesLeft(gameCur.current.difficulty, gameCur.current.deaths) : 0;
-                const livesLeft = (livesGranted ? extraLivesLeft(playerAsset?.effects, livesUsed.current) : 0) + runLives;
+                // The head is drawn off the body the SPRITE wears: a dressed look is recomposed with
+                // its pickups by livePlayerBlocks (memoised per kit, so the same object frame to
+                // frame) — mergeEquip alone only merges its stats, and a helmet picked up never reached
+                // the lives. A raw body is the merged asset, as livePlayerBlocks bakes it.
+                let runLook = null;
+                if (runLives > 0 && basePlayerAsset) {
+                  livePlayerBlocks("front");
+                  const lc = playerLookCache.current.look;
+                  runLook = basePlayerAsset.type === "character" && basePlayerAsset.components && lc && lc.id === basePlayerAsset.id
+                    ? lc : playerAsset;
+                }
+                const runHead = runLook ? gameHead(runLook, 20, basePlayerAsset) : null; // one drawing, shown once per life
                 const throwsLeft = playtestThrowId ? Math.max(0, throwCarry.current) : 0;
                 const pips = (key, n) => n > 0 && <div className="hudPips">{Array.from({ length: Math.min(n, 12) }, (_, i) => <span key={i}>{sym(key, null, 16)}</span>)}</div>;
                 // Bottom-right: what you hold, drawn from its own art the way the shop shelf draws it
@@ -26587,7 +26652,8 @@ export default function AssetStudio({ game = false } = {}) {
                       </div>
                       {segs}
                       {pips("hud.throw", throwsLeft)}
-                      {pips("hud.life", livesLeft)}
+                      {pips("hud.life", abilityLives)}
+                      {runLook && <div className="hudPips hudHeads">{Array.from({ length: Math.min(runLives, 12) }, (_, i) => <span key={i} className="hudHead">{runHead}</span>)}</div>}
                     </div>
                     <div className="hudC">
                       <div className="hudScoreLbl">SCORE</div>
@@ -28522,6 +28588,9 @@ html,body{margin:0;padding:0;background:#0f1117}
 .hudAmmo.reloading .hudSeg.on{background:#7d8fb3;border-color:#a9b8d6}
 .hudPips{display:flex;gap:3px;font-size:16px;line-height:1}
 .hudPips .sym{filter:drop-shadow(0 0 1px #000) drop-shadow(0 1px 1px rgba(0,0,0,.9))}
+.hudHeads{gap:3px}
+.hudHead{position:relative;overflow:hidden;flex:none;width:20px;height:20px}
+.hudHead>div{filter:drop-shadow(0 0 1px #000) drop-shadow(0 1px 1px rgba(0,0,0,.9))}
 .hudC{flex:0 0 auto;text-align:center;line-height:1;opacity:.55}
 .hudBot{position:absolute;left:0;right:0;bottom:0;z-index:6;opacity:.8;pointer-events:none;display:flex;align-items:flex-end;justify-content:space-between;padding:10px 14px;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85)}
 .hudMoney{display:flex;align-items:center;gap:6px;font-size:20px;font-weight:700;letter-spacing:.04em;line-height:1;transform-origin:0 100%}

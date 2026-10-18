@@ -19,6 +19,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   GAME_MENU, menuStep, introRemainingMs, INTRO_OUT_MS, formatPlayTime, UNLOCK_TABS, unlockPool,
   starterLooks, pickStartLook, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, stepMenuWalker, starterLock,
+  starterStats, lookFloorMedals,
 } from "./gameFront";
 
 const fmtNum = (n) => Math.round(Number(n) || 0).toLocaleString("en-US");
@@ -210,18 +211,34 @@ const Padlock = ({ size }) => (
   </svg>
 );
 
+// A floor's medal on the player card, drawn (no emoji in the menus): gold once this fighter has
+// beaten the floor, an empty dim ring until then. The Trailor Park's is a drawn slab T (Blake: "a
+// sort of T symbol of some kind"); any other floor gets its first letter in the logo face.
+const FloorMedal = ({ mark, done, size, title }) => (
+  <svg className={"gMedal" + (done ? " done" : "")} width={size} height={size} viewBox="0 0 40 40" role="img" aria-label={title}>
+    <title>{title}</title>
+    <circle className="gMedalRim" cx="20" cy="20" r="17.5" />
+    <circle className="gMedalFace" cx="20" cy="20" r="12.5" />
+    {mark === "T"
+      ? <path className="gMedalMark" d="M11.5 11.5h17v5h-6V29.5h-5V16.5h-6z" />
+      : <text className="gMedalMark" x="20" y="26" textAnchor="middle" fontSize="17">{mark}</text>}
+  </svg>
+);
+
 // ---------- New Game: the character select ----------
 // Super Smash Bros., as Blake asked: a box per fighter, its HEAD filling it ("pretty much neck up")
 // and the name on a black plate along its foot, the lit one ringed in yellow with a P1 tag; the one
 // you are on stands full size in the P1 card bottom-left, DRESSED — a random shirt and pants on
 // (renderDressed, App.js gameDressed), "how they would look if fully dressed". Below the boxes, the difficulty — Easy, Medium, Hard, each with
-// its lives drawn as the HUD's own life symbol — and START.
+// its lives drawn as the lit fighter's own HEAD (the HUD draws them the same way; the 🐱 symbol is
+// the Extra Lives ability's and only that) — and START. Beside the P1 card, the PLAYER CARD: the
+// fighter's starting stats, as the HUD's own symbols, and a medal per floor they have beaten.
 // Two steps for the keyboard: pick a fighter (arrows, Enter), then the difficulty (left/right,
 // Enter starts; Esc or up goes back to the fighters). The mouse can do either at any time.
 // LOCKED fighters (gameFront.js STARTER_LOCKS: Bobby, Bobert, Roberta) stand in the grid as a dark
 // silhouette under a padlock, and can be lit but not picked; the P1 card says what opens them.
 // Back sits beside START, under Easy (Blake: "nestled between Easy and start").
-function CharacterSelect({ assets, record, renderArt, renderDressed, lifeIcon, difficulty, onStart, back, click, vp }) {
+function CharacterSelect({ assets, record, renderArt, renderDressed, renderHead, statIcon, floors, difficulty, onStart, back, click, vp }) {
   const roster = React.useMemo(() => {
     const s = starterLooks(assets);
     if (s.length) return s;
@@ -255,6 +272,11 @@ function CharacterSelect({ assets, record, renderArt, renderDressed, lifeIcon, d
   // The name on the P1 card shrinks to fit it: BOBERT and ROBERTA ran off the card's edge.
   const p1Name = cur ? String(cur.name || "").toUpperCase() : "";
   const p1NamePx = Math.round(Math.min(Math.max(26, Math.min(52, vp.w * 0.03)), (p1 * 0.82 * 0.86) / (Math.max(3, p1Name.length) * 0.9)));
+  const stats = cur ? starterStats(cur) : [];
+  const medals = cur ? lookFloorMedals(record, cur.name, floors) : [];
+  const statPx = Math.round(Math.max(16, Math.min(30, p1 * 0.072)));
+  const medalPx = Math.round(Math.max(36, Math.min(68, p1 * 0.17)));
+  const headPx = 18;
   return (
     <div className="gBody gSelect">
       <div className="gSelHead"><span>Select Character</span></div>
@@ -279,12 +301,30 @@ function CharacterSelect({ assets, record, renderArt, renderDressed, lifeIcon, d
           {curLock && <div className="gP1Need" style={{ bottom: "calc(6% + " + Math.round(p1NamePx * 1.15) + "px)" }}><span>{curLock.need}</span>{curLock.of ? <b>{curLock.have} / {curLock.of}</b> : null}</div>}
           <div className="gP1Badge">P1</div>
         </div>
+        {cur && (
+          <div className="gPCard" style={{ height: p1, fontSize: statPx }}>
+            <div className="gPStats">
+              {stats.map((s) => (
+                <div key={s.k} className="gPStat">
+                  <span className="gPStatIcon">{statIcon(s.k, statPx)}</span>
+                  <span className="gPStatLbl">{s.l}</span>
+                  <b>{s.v}</b>
+                </div>
+              ))}
+            </div>
+            {medals.length > 0 && (
+              <div className="gPFloors">
+                {medals.map((m) => <FloorMedal key={m.floor} mark={m.mark} done={m.done} size={medalPx} title={m.floor} />)}
+              </div>
+            )}
+          </div>
+        )}
         <div className={"gDiffBox" + (step === "diff" ? " live" : "")}>
           <div className="gDiffRow">
             {DIFFICULTIES.map((d) => (
               <div key={d.id} role="button" className={"gDiff" + (d.id === diff ? " on" : "")} onClick={() => { click(); setDiff(d.id); setStep("diff"); }}>
                 <span className="gDiffTxt">{d.label}</span>
-                <span className="gDiffLives">{Array.from({ length: d.lives }, (_, i) => <i key={i}>{lifeIcon()}</i>)}</span>
+                <span className={"gDiffLives" + (curLock ? " shut" : "")}>{cur && Array.from({ length: d.lives }, (_, i) => <i key={i} style={{ width: headPx, height: headPx }}>{renderHead(cur, headPx)}</i>)}</span>
               </div>
             ))}
           </div>
@@ -525,7 +565,7 @@ export function GamePause({ onResume, onQuit, options, setOptions, click }) {
 }
 
 // ---------- the shell: whichever menu screen is up, over the scene ----------
-export function GameShell({ view, setView, ready, saves, options, setOptions, record, assets, renderArt, renderDressed, lifeIcon, sceneFor, onStartGame, onLoad, onDelete, floorDone, onFloorDoneContinue, gameOver, onRetry, onGameOverMenu, note, click }) {
+export function GameShell({ view, setView, ready, saves, options, setOptions, record, assets, renderArt, renderDressed, renderHead, statIcon, floors, sceneFor, onStartGame, onLoad, onDelete, floorDone, onFloorDoneContinue, gameOver, onRetry, onGameOverMenu, note, click }) {
   const toMenu = React.useCallback(() => setView("menu"), [setView]);
   const [menuAt, setMenuAt] = useState(0);
   const vp = useViewport();
@@ -539,7 +579,7 @@ export function GameShell({ view, setView, ready, saves, options, setOptions, re
       {sceneUp && <div className={"gScreen gStage" + (view === "menu" ? "" : " dim")}><SceneBackdrop key={scene ? scene.id : "none"} scene={scene} vp={vp} /></div>}
       {view === "title" && <TitleHandoff ready={ready} onDone={toMenu} />}
       {view === "menu" && <MainMenu go={setView} note={note} click={click} at={menuAt} setAt={setMenuAt} />}
-      {view === "select" && <CharacterSelect assets={assets} record={record} renderArt={renderArt} renderDressed={renderDressed} lifeIcon={lifeIcon} difficulty={options.difficulty} onStart={onStartGame} back={toMenu} click={click} vp={vp} />}
+      {view === "select" && <CharacterSelect assets={assets} record={record} renderArt={renderArt} renderDressed={renderDressed} renderHead={renderHead} statIcon={statIcon} floors={floors} difficulty={options.difficulty} onStart={onStartGame} back={toMenu} click={click} vp={vp} />}
       {view === "load" && <LoadGame saves={saves} onLoad={onLoad} onDelete={onDelete} back={toMenu} click={click} />}
       {view === "options" && <OptionsPanel options={options} setOptions={setOptions} back={toMenu} click={click} />}
       {view === "unlocks" && <Unlocks assets={assets} record={record} renderArt={renderArt} back={toMenu} click={click} />}
@@ -673,8 +713,25 @@ export const GAME_CSS = `
 .gDiff{display:flex;flex-direction:column;align-items:center;gap:.3em;min-width:clamp(110px,10vw,170px);box-sizing:border-box;padding:.5em .9em .55em;cursor:pointer;background:var(--gG2);border:3px solid rgba(241,239,228,.75);color:var(--gDim);transform:skewX(-10deg);box-shadow:0 6px 0 rgba(0,0,0,.35);transition:transform .1s,background .1s}
 .gDiff>*{transform:skewX(10deg)}
 .gDiffTxt{font-size:clamp(17px,1.6vw,28px);text-transform:uppercase;letter-spacing:.06em}
-.gDiffLives{display:flex;gap:2px;min-height:20px;align-items:center}
-.gDiffLives i{display:inline-flex;font-style:normal}
+.gDiffLives{display:flex;gap:3px;min-height:18px;align-items:center}
+.gDiffLives i{position:relative;overflow:hidden;flex:none;display:inline-block;font-style:normal}
+.gDiffLives i>div{filter:drop-shadow(0 2px 0 rgba(0,0,0,.35))}
+.gDiffLives.shut i>div{filter:brightness(0) opacity(.55)}
+.gPCard{flex:none;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;gap:1.2vh;min-width:clamp(150px,11vw,220px);padding:.8em 1.1em .9em;background:var(--gG2);border:4px solid var(--gEdge);box-shadow:0 10px 0 rgba(0,0,0,.4),inset 0 0 0 2px var(--gG3);transform:skewX(-4deg)}
+.gPCard>*{transform:skewX(4deg)}
+.gPStats{flex:1;display:flex;flex-direction:column;justify-content:space-around}
+.gPStat{display:flex;align-items:center;gap:.5em;line-height:1;text-transform:uppercase;letter-spacing:.06em;color:var(--gDim)}
+.gPStatIcon{display:inline-flex;flex:none}
+.gPStatLbl{flex:1}
+.gPStat b{font-weight:inherit;color:#fff;font-size:1.15em;min-width:1.4em;text-align:right}
+.gPFloors{display:flex;flex-wrap:wrap;gap:.35em;border-top:2px solid rgba(241,239,228,.2);padding-top:.6em}
+.gMedal{flex:none;filter:drop-shadow(0 3px 0 rgba(0,0,0,.4))}
+.gMedalRim{fill:rgba(0,0,0,.22);stroke:rgba(241,239,228,.32);stroke-width:2.5}
+.gMedalFace{fill:none;stroke:rgba(241,239,228,.18);stroke-width:1.5}
+.gMedalMark{fill:rgba(241,239,228,.26);font-family:Sarpanch,'Russo One',Impact,sans-serif;font-style:normal;font-weight:900}
+.gMedal.done .gMedalRim{fill:var(--gGold);stroke:var(--gEdge)}
+.gMedal.done .gMedalFace{fill:#d9a21b;stroke:#8a5d05}
+.gMedal.done .gMedalMark{fill:#2a1d00}
 .gDiff.on{background:var(--gGold);border-color:#fff;color:#1d2a12;transform:skewX(-10deg) translateY(-3px)}
 .gDiffBox.live .gDiff.on{box-shadow:0 0 0 3px #fff,0 0 24px rgba(247,197,49,.6),0 8px 0 rgba(0,0,0,.35)}
 .gStart{cursor:pointer;font-family:Sarpanch,'Russo One',sans-serif;font-style:normal;font-stretch:normal;font-weight:900;font-size:clamp(28px,3vw,54px);text-transform:uppercase;letter-spacing:.06em;color:#fff;background:linear-gradient(180deg,#d8452f,#a52a1a);border:4px solid var(--gEdge);padding:.08em 1.1em .12em;transform:skewX(-10deg);box-shadow:0 8px 0 rgba(0,0,0,.4);text-shadow:0 3px 0 rgba(0,0,0,.4);opacity:.7;transition:opacity .15s}

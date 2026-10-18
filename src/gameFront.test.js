@@ -6,7 +6,7 @@ import {
   normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone,
   unlockPool, createGameStore, starterLooks, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, runLivesLeft, deathEndsRun,
   pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS,
-  starterLock, STARTER_LOCKS,
+  starterLock, STARTER_LOCKS, starterStats, floorMark, lookFloorMedals,
 } from "./gameFront";
 import fs from "fs";
 import path from "path";
@@ -314,5 +314,32 @@ describe("locked starters", () => {
   test("an old record with no floorsWith still loads, and a stored one survives", () => {
     expect(normalizeGameRecord({ floors: ["Trailor Park"] }).floorsWith).toEqual({});
     expect(normalizeGameRecord({ floorsWith: { "Trailor Park": ["rob", 4, "rob"], "": ["x"] } }).floorsWith).toEqual({ "Trailor Park": ["rob"] });
+  });
+});
+
+describe("the character select's player card", () => {
+  test("starting stats read like the HUD: unset is 5, zero stays zero, DEF is the look's defense", () => {
+    const s = starterStats({ stats: { hp: 7, strength: 2, speed: 0 }, defense: 3.4 });
+    expect(s.map((x) => x.l)).toEqual(["HP", "STR", "DEF", "SPD", "AGI", "INT"]);
+    expect(s.map((x) => x.v)).toEqual([7, 2, 3, 0, 5, 5]);
+    expect(starterStats({}).find((x) => x.l === "DEF").v).toBe(0);
+  });
+  test("a floor's mark is its first letter: T for the Trailor Park", () => {
+    expect(floorMark("Trailor Park")).toBe("T");
+    expect(floorMark("  vietnam")).toBe("V");
+    expect(floorMark("")).toBe("?");
+  });
+  test("medals are beaten AS THIS look, by name, in the run's floor order, either spelling", () => {
+    let r = recordFloorDone(newGameRecord(), "Trailer Park", 10, "Rob");
+    r = recordFloorDone(r, "Vietnam", 10, "Bob");
+    expect(lookFloorMedals(r, "Rob", ["Trailor Park", "Vietnam"])).toEqual([
+      { floor: "Trailor Park", mark: "T", done: true },
+      { floor: "Vietnam", mark: "V", done: false },
+    ]);
+    expect(lookFloorMedals(r, "bob", ["Trailor Park"])).toEqual([
+      { floor: "Trailor Park", mark: "T", done: false },
+      { floor: "Vietnam", mark: "V", done: true },
+    ]);
+    expect(lookFloorMedals(null, "Bob", [])).toEqual([]);
   });
 });

@@ -124,6 +124,10 @@ export const gridStep = (n, cols, at, dx, dy) => {
 // gate you came in by, full HP). It is counted per RUN in `deaths`, saved with the checkpoint, so
 // quitting to the menu and loading cannot buy them back. 🐱 Extra Lives (the item) are separate and
 // spent first — they get you up where you fell, as they always have.
+// Blake (2026-10-18, second word on it): a life of the run is "how you do in the level editor, with
+// full HP, not as if you have a multi lives ability" — and they are DRAWN as the player's own head
+// (HUD and the difficulty boxes), never the 🐱 Extra Life symbol. Sharing that symbol is what made
+// the run's lives read as the ability. An ability's lives keep the cat, on their own row above.
 export const DIFFICULTIES = [
   { id: "easy", label: "Easy", lives: 4 },
   { id: "medium", label: "Medium", lives: 2 },
@@ -329,6 +333,38 @@ export const recordFloorDone = (rec, floor, score, lookName) => {
   const who = normName(lookName), had = (rec.floorsWith && rec.floorsWith[floor]) || [];
   const floorsWith = !floor || !who || had.includes(who) ? rec.floorsWith || {} : { ...(rec.floorsWith || {}), [floor]: [...had, who] };
   return { ...rec, floors: !floor || rec.floors.includes(floor) ? rec.floors : [...rec.floors, floor], floorsWith, bestScore: Math.max(rec.bestScore, Math.round(Number(score) || 0)) };
+};
+
+// ---------- the player card: what a fighter starts with, and the floors they have beaten ----------
+// Blake (2026-10-18): the character select shows each fighter's STARTING stats, and "which levels
+// each character has beaten like a sort of player card" — a medal per floor, "a sort of T symbol"
+// for the Trailor Park. The medal's mark is the floor name's first letter, so a floor he adds later
+// gets its own medal with no code. Stats are the look's saved ones (the run starts as it is saved),
+// read the way the HUD reads them: a stat left unset is 5, DEF is the look's own defense.
+export const STARTER_STATS = [
+  { k: "stat.hp", l: "HP", stat: "hp" },
+  { k: "stat.str", l: "STR", stat: "strength" },
+  { k: "stat.def", l: "DEF", def: true },
+  { k: "stat.spd", l: "SPD", stat: "speed" },
+  { k: "stat.agi", l: "AGI", stat: "agility" },
+  { k: "stat.int", l: "INT", stat: "intelligence" },
+];
+export const starterStats = (look) => {
+  const st = (look && look.stats) || {};
+  return STARTER_STATS.map((s) => ({ k: s.k, l: s.l, v: s.def ? Math.max(0, Math.round((look && look.defense) || 0)) : Math.round(Number(st[s.stat] ?? 5)) || 0 }));
+};
+export const floorMark = (floor) => { const m = String(floor || "").trim().match(/[A-Za-z0-9]/); return m ? m[0].toUpperCase() : "?"; };
+// The medals one fighter's card shows: every floor a run can start on (`floors`, App.js — the floors
+// of his intro levels), in that order, then any other floor this look has finished. `done` is
+// finished AS THIS LOOK (record.floorsWith, by name), not by anyone.
+export const lookFloorMedals = (rec, lookName, floors) => {
+  const r = normalizeGameRecord(rec), who = normName(lookName);
+  const list = [];
+  const seen = new Set();
+  const add = (f) => { const k = floorKey(f); if (!f || !k || seen.has(k)) return; seen.add(k); list.push(f); };
+  for (const f of floors || []) add(f);
+  for (const f of Object.keys(r.floorsWith)) if (r.floorsWith[f].includes(who)) add(f);
+  return list.map((f) => ({ floor: f, mark: floorMark(f), done: !!who && floorWasDone(r, f, who) }));
 };
 
 // ---------- locked starters ----------
