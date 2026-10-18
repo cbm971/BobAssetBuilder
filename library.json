@@ -1131417,8 +1131417,8 @@
      }
     ]
    },
-   "fireRate": 3,
-   "clipSize": 6,
+   "fireRate": 4,
+   "clipSize": 7,
    "reloadTime": 3,
    "weight": 3,
    "landEffect": "fire",
@@ -1131452,8 +1131452,8 @@
     "fire": "18sacwd",
     "hit": "6hh0w94"
    },
-   "savedAt": 1792254183302,
-   "editedFrom": 1792027220115
+   "savedAt": 1792333675290,
+   "editedFrom": 1792254183302
   },
   {
    "id": "wdywgn6",
