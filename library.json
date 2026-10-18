@@ -567841,7 +567841,7 @@
    "size": 16,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Vehichles",
+   "category": "vehicles",
    "angles": {
     "front": [
      {
@@ -568746,8 +568746,8 @@
      "crouch": []
     }
    ],
-   "savedAt": 1791848683343,
-   "editedFrom": 1791065196789
+   "savedAt": 1792356067755,
+   "editedFrom": 1791848683343
   },
   {
    "id": "frmscro",
@@ -573769,7 +573769,7 @@
    "size": 12,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Vehichles",
+   "category": "vehicles",
    "angles": {
     "front": [
      {
@@ -576612,8 +576612,8 @@
      "crouch": []
     }
    ],
-   "savedAt": 1791848702553,
-   "editedFrom": 1791065196789
+   "savedAt": 1792356096570,
+   "editedFrom": 1791848702553
   },
   {
    "id": "frmtrgh",
@@ -1000653,8 +1000653,8 @@
    "size": 30,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Vehichles",
-   "savedAt": 1792342301157,
+   "category": "vehicles",
+   "savedAt": 1792356082855,
    "frames": [
     {
      "front": [
@@ -1004931,7 +1004931,7 @@
     "up": [],
     "crouch": []
    },
-   "editedFrom": 1792247053248
+   "editedFrom": 1792342301157
   },
   {
    "id": "shjvbax",
@@ -1149352,7 +1149352,7 @@
    "size": 20,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Rocket Program",
+   "category": "Science",
    "frames": [
     {
      "front": [
@@ -1151199,7 +1151199,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792349372508
+   "savedAt": 1792356108176,
+   "editedFrom": 1792349372508
   },
   {
    "id": "vcrsign",
@@ -1191690,8 +1191691,8 @@
    "size": 16,
    "animFps": 6,
    "solidDefault": false,
-   "savedAt": 1792247043688,
-   "category": "Vehichles",
+   "savedAt": 1792356089940,
+   "category": "vehicles",
    "frames": [
     {
      "front": [
@@ -1193732,7 +1193733,7 @@
     "up": [],
     "crouch": []
    },
-   "editedFrom": 1791285887904
+   "editedFrom": 1792247043688
   },
   {
    "id": "whtstn1",
