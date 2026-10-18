@@ -1,1 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bob Asset Studio</title>
+<!--
+  THE GAME'S TITLE SEQUENCE (2026-10-17). At the game's address (a path ending in /game, or ?game;
+  see isGameAddress in src/gameFront.js) this page shows "Blake presents…" and then "Bob" BEFORE the
+  app's script has even arrived — Blake: "before anything else even loads". It is plain HTML and CSS
+  for that reason: the app bundle is megabytes (more again in StackBlitz's dev build), and a title
+  drawn by React could only start once all of it had downloaded and run. The app finds #bobIntro
+  when it is ready, fades it out over the main menu and removes it (TitleHandoff, gameShell.js).
+  The timings below are mirrored by INTRO_* in gameFront.js; change both.
+  At the studio's address none of this runs and #bobIntro stays display:none.
+-->
+<script>
+(function () {
+  var p = location.pathname || "", q = (location.search || "").replace(/^\?/, "&");
+  if (!(/\/game(\/(index\.html)?)?$/i.test(p) || /(^|[?&])game(=|&|$)/i.test(q))) return;
+  var d = document.documentElement;
+  d.className += " bobGame";
+  document.title = "Bob Okay";
+  var pc = document.createElement("link"); pc.rel = "preconnect"; pc.href = "https://fonts.gstatic.com"; pc.crossOrigin = "anonymous"; document.head.appendChild(pc);
+  // Cinzel: the free face cut from the same Roman capitals as the Elder Scrolls titles.
+  var f = document.createElement("link"); f.rel = "stylesheet";
+  f.href = "https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&display=block";
+  var started = false;
+  // The sequence starts once the face is in (at once from a warm cache), so "Blake presents" never
+  // fades in as a fallback serif and swaps halfway; never later than 1.2 s, offline included.
+  var go = function () {
+    if (started) return; started = true;
+    window.__bobIntroAt = (window.performance && performance.now) ? performance.now() : 0;
+    d.className += " biGo";
+  };
+  f.onload = function () {
+    try { Promise.all([document.fonts.load("400 40px Cinzel", "Blake presents"), document.fonts.load("900 40px Cinzel", "Bob")]).then(go, go); } catch (e) { go(); }
+  };
+  f.onerror = go;
+  document.head.appendChild(f);
+  setTimeout(go, 1200);
+})();
+</script>
+<style>
+#bobIntro{display:none}
+html.bobGame,html.bobGame body{margin:0;height:100%;background:#000;overflow:hidden}
+html.bobGame #bobIntro{display:flex;position:fixed;inset:0;z-index:100000;background:#000;flex-direction:column;align-items:center;justify-content:center;font-family:Cinzel,'Trajan Pro',Georgia,'Times New Roman',serif;color:#e9ecef;cursor:default;-webkit-user-select:none;user-select:none;transition:opacity .7s ease;-webkit-font-smoothing:antialiased}
+/* Fading out over the menu it still takes clicks, so the click that skipped the intro cannot land
+   on a menu row that appeared under the pointer between press and release. */
+#bobIntro.out{opacity:0}
+#bobIntro .biPresents{font-weight:400;font-size:clamp(18px,2.4vw,38px);letter-spacing:.34em;padding-left:.34em;opacity:0;text-shadow:0 0 18px rgba(200,215,235,.22)}
+#bobIntro .biBob{font-weight:900;font-size:clamp(96px,16vw,260px);line-height:1;letter-spacing:.04em;margin-top:.12em;opacity:0;background:linear-gradient(180deg,#fdfdfd 0%,#d5d9de 42%,#8d939b 54%,#e6e9ec 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 22px rgba(200,215,235,.32)) drop-shadow(0 4px 0 rgba(0,0,0,.6))}
+#bobIntro .biLoad{width:min(240px,40vw);height:1px;margin-top:6vh;opacity:0;background:linear-gradient(90deg,transparent,rgba(235,240,248,.9),transparent) no-repeat;background-size:40% 100%}
+html.biGo #bobIntro .biPresents{animation:biFade 1s ease .25s forwards}
+html.biGo #bobIntro .biBob{animation:biPop .52s cubic-bezier(.2,1.5,.4,1) 1.75s forwards}
+/* Only ever seen when the game is still loading after the title has had its time (INTRO_MIN_MS). */
+html.biGo #bobIntro .biLoad{animation:biFade .6s ease 3.8s forwards,biSweep 1.4s linear 3.8s infinite}
+@keyframes biFade{to{opacity:1}}
+@keyframes biPop{0%{opacity:0;transform:scale(.55)}60%{opacity:1;transform:scale(1.07)}100%{opacity:1;transform:scale(1)}}
+@keyframes biSweep{from{background-position:-60% 0}to{background-position:160% 0}}
+</style>
+</head>
+<body>
+<div id="bobIntro"><div class="biPresents">Blake presents…</div><div class="biBob">Bob</div><div class="biLoad"></div></div>
 <div id="root"></div>
+</body>
+</html>

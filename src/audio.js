@@ -328,6 +328,10 @@ export const createAudioEngine = ({ loadClip } = {}) => {
   let view = null;
   const trace = [];              // the last plays, for anyone checking what fired (see `trace` below)
   const music = { el: null, url: null, clip: null, on: false, playing: false };
+  // THE PLAYER'S VOLUMES (the game's Options screen, 2026-10-17): 0-1 each, multiplying everything
+  // underneath them — `effects` is the master gain every moment and talk loop goes through, `music`
+  // multiplies the track's own volume. The studio never sets them, so there they stay at 1.
+  const vol = { music: 1, effects: 1 };
   const prev = { el: null, url: null, id: null };   // the studio's ▶ for a long sound (see preview)
   const LONG_PREVIEW_S = 20;
   const now = () => (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now());
@@ -339,7 +343,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     if (ctx || !W) return ctx;
     const AC = W.AudioContext || W.webkitAudioContext;
     if (!AC) return null;
-    try { ctx = new AC({ latencyHint: "interactive" }); master = ctx.createGain(); master.connect(ctx.destination); } catch { ctx = null; }
+    try { ctx = new AC({ latencyHint: "interactive" }); master = ctx.createGain(); master.gain.value = vol.effects; master.connect(ctx.destination); } catch { ctx = null; }
     if (ctx) syncAwake();
     return ctx;
   };
@@ -573,7 +577,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
       if (!music.el) { music.el = new W.Audio(); music.el.loop = true; music.el.preload = "auto"; }
       // Every sync, not only on a new track: setLibrary calls this when the slider saves, so the
       // track playing now follows the slider without restarting.
-      music.el.volume = Math.min(1, soundVolume(s) * oneVolume(board.musicVol));
+      music.el.volume = Math.min(1, soundVolume(s) * oneVolume(board.musicVol)) * vol.music;
       if (music.clip !== want) {
         const bytes = loadClip ? await loadClip(want) : null;
         if (!bytes) return;
@@ -588,6 +592,15 @@ export const createAudioEngine = ({ loadClip } = {}) => {
       if (music.el.paused) { try { const p = music.el.play(); if (p && p.catch) p.catch(() => {}); } catch { /* locked until the first input */ } }
     },
     musicState: () => ({ on: music.on, playing: music.playing, clip: music.clip, paused: music.el ? music.el.paused : true }),
+    // The game's Options sliders (see `vol`). Applied at once: the master gain for what is sounding
+    // now and everything after, and the music element through syncMusic without a restart.
+    setVolumes: ({ music: m, effects: e } = {}) => {
+      const unit = (v, d) => (typeof v === "number" && isFinite(v) ? Math.min(1, Math.max(0, v)) : d);
+      vol.music = unit(m, vol.music); vol.effects = unit(e, vol.effects);
+      if (master) { try { master.gain.value = vol.effects; } catch { /* a closed context */ } }
+      engine.syncMusic();
+    },
+    volumes: () => ({ ...vol }),
     stopAll: () => { voices = []; },
     unlock,
     // What has played, newest last: [{ at, id, clip, gain, slot, basic, asset }]. Read by tests and

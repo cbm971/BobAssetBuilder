@@ -5038,3 +5038,41 @@ every key (the crawl just runs faster and still reaches its last key); unticked,
 tail and keys the frame at the new end; ✂ Start / ✂ End cut at the playhead (a cut start re-keys every
 layer at the new 0). Checked in the editor on gnrlbrf: stretch 44 to 30 put the end key at 30; ✂ End and
 ✂ Start at 21.55 s left the crawl at the identical translateY. ✂ needed a symbol slot (mdi:content-cut).
+
+## THE GAME FRONT END: title, main menu, saves, options, unlocks (2026-10-17)
+
+Blake: "the main game is still in its asset builder but I have everything I need for a stand alone
+for the first floor. Separate from the asset builder with a seperate more direct UI. I want it to
+start as before anything else even loads 'Blake presents..' in like the font at the beginning of
+elder scrolls v Skyrim and then after half a second I want 'Bob' to pop up then it loads into the
+game", with a menu of "New game" "Load Game" "options" "unlocks" "quit game". He asked whether he
+needed a second StackBlitz link and whether to use Gemini or Claude for the loading screen. Answer:
+neither. It is the same app at a second address, so every play fix reaches both.
+
+- **Why not a second app:** the run engine (physics, AI, camera, gates, cutscenes) lives inside the
+  one `AssetStudio` component and its refs. Copying it out would have been a second 28,000-line copy to
+  keep in step. Instead `AssetStudio({ game })` hides every editor bar with `.bb.gameMode` and renders
+  the game's screens when it is not in a level.
+- **"Before anything else even loads":** the title is in public/index.html as plain HTML/CSS behind
+  a path check, so it plays while the bundle (megabytes; more in StackBlitz's dev build) downloads.
+  It waits for Cinzel (≤1.2 s) so the words never swap face mid-fade. The React side (TitleHandoff)
+  fades it over the menu once the library AND the levels are loaded. The studio loads levels only
+  when the Level Creator opens, so the game calls loadLevels/Textures/BgLib/Dialogues itself. The fading
+  intro keeps taking clicks so a skip-click cannot land on a menu row.
+- **Saves:** their own IndexedDB database. The keeper reads every IndexedDB record of a game address
+  off disk but keeps only string values under the studio's key families; game saves are objects, so
+  they never reach his folder. localStorage is full on his copies. The first load after a save showed
+  no objective: the arrival check redraws the list only when it changes, and the restored list is no
+  change. applyGameResume now sets it.
+- **Verified in the dev server's /game/ (pane, sound muted through the game's own options):** intro
+  frames black → "Blake presents…" → "Bob"; menu by keyboard; New Game put Bob in bed in S1 (seed
+  211368, the 8-level chain S1 → E1) with no editor visible; checkpoint at S1 then at M3 with gate W2
+  after a crossing; Esc froze the player while `d` was held and Resume did not walk on; Quit to Main
+  Menu → Load Game listed "Bob | Trailor Park M3 | Score 500" and loading went live at M3 x=0 with the
+  score; Options by arrows and by a real mouse drag (Music 10 → 50%, 280 px slider); Quit Game closed
+  the script-opened tab, and with window.close stubbed showed the black screen and came back on a key;
+  the floor-end hook showed Floor Complete and dropped the save; a kill put through the loot pass
+  added Footbob to Unlocks and the loop kept running. Pane screenshots lag a frame and shrink when an
+  emulated size is wider than the pane (506 px here). Read the DOM, not the picture.
+- **Not verified:** the whole floor played start to finish in the game, the scaled view on his
+  3440×1440 screen (paint cost grows with the window), menu music (none yet), and gamepad input (none).

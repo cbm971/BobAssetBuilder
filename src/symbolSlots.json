@@ -17,6 +17,7 @@
   { "k": "hud.reload", "l": "Reloading", "g": "HUD", "d": "mdi:sync" },
   { "k": "hud.money", "l": "Money", "g": "HUD", "d": "gi:banknote", "c": "#8fe08a" },
   { "k": "ui.symbols", "l": "Symbols", "g": "HUD", "d": "mdi:shape-plus" },
+  { "k": "ui.playGame", "l": "Play the game", "g": "HUD", "d": "gi:console-controller" },
 
   { "k": "❤", "l": "Heal / HP", "g": "Play", "d": "gi:heart-organ" },
   { "k": "💀", "l": "Death", "g": "Play", "d": "gi:death-skull" },

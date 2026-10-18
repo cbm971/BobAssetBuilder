@@ -12531,7 +12531,7 @@ describe("a unit's armour counts the way yours does", () => {
     // togglePlaytest empties `equipped` for the new session in the same statement, so the HP it
     // starts you on must not come from it — 35 under a 20-HP bar was the bug.
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
-    const start = src.slice(src.indexOf("const togglePlaytest = (runStart) => {"), src.indexOf("const togglePlaytest = (runStart) => {") + 6000);
+    const start = src.slice(src.indexOf("const togglePlaytest = (runStart, resume) => {"), src.indexOf("const togglePlaytest = (runStart, resume) => {") + 6000);
     expect(start).toContain("playerHP.current = maxPlayerHP(basePlayerAsset);");
     expect(start).not.toContain("mergeEquip(basePlayerAsset, equipped.current");
     // ...and in play HP can never hide above the bar, whatever route puts it there.

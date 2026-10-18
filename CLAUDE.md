@@ -15,9 +15,9 @@ The repo holds two things, and they are NOT the same thing:
   weapons, enemies, props), dresses characters, paints levels, writes dialogue and playtests.
   Everything on screen today is the studio.
 - **The game (Bob Okay).** What players get. It needs none of the studio. It is a title sequence,
-  then a main menu (New Game, Load Game, Unlocks, Extras, Asset Builder sign-up, Credits), then a
+  then a main menu (his 2026-10-17 list: New Game, Load Game, Options, Unlocks, Quit Game), then a
   run. Floor 1 is the Trailor Park, and its objective is "Make it to the draft office". Game-facing
-  UI must not pull editor controls into it.
+  UI must not pull editor controls into it. It is BUILT (2026-10-17): see "The game front end".
 
 It is Create React App + React 18. **Everything is in `src/App.js`** (~24,300 lines), with tests in
 `src/App.test.js`. `src/saveKeeperCore.js` holds the save keeper's merge rules, `src/setupProxy.js`
@@ -418,6 +418,35 @@ plus traps it does not cover:
   dialogue option's `points` pay once per run. A level pays 500, minus 10 per whole second after
   30, on its first gate exit or at the floor's end. **Never show the rules on screen.**
 
+## The game front end (2026-10-17)
+
+- **One app, two addresses.** A path ending in `/game` (or `?game`) starts `AssetStudio` with `game`
+  (`isGameAddress`, src/index.js). Pages: https://cbm971.github.io/BobAssetBuilder/game/
+  (`tools/publish.js` copies index.html into `game/`). StackBlitz and the studio: the studio menu's
+  **Play Bob Okay** tile opens `<this copy>/game/` in a new tab. Never fork the engine into a second
+  app; a fix to play must reach both.
+- Rules and the game's store are `src/gameFront.js` (no React); screens are `src/gameShell.js`; the
+  wiring is the **GAME FRONT END** block after `startRun` in App.js. No studio screen is reachable in
+  game mode, and `flash` is silent there.
+- **The title is plain HTML/CSS in `public/index.html`**, so it shows before the bundle arrives (his
+  words: "before anything else even loads"). Its timings are mirrored by `INTRO_*` in gameFront.js
+  (a test checks both). Cinzel is loaded only at the game's address. `TitleHandoff` fades it out.
+- **Saves are checkpoints** in their OWN IndexedDB database `bobOkayGame` (plain objects under
+  `game:` keys), never the studio's `bobAssetStudio` store or localStorage (full). One is written
+  400 ms after each run level goes live (never on the seam frame) and on Quit to Main Menu. Load
+  rebuilds `buildRun` from the save's seed and goes live at `resumeNodeKey` (key, else the same
+  level id) by the saved gate (`run.curKey` + `run.resumeSpawn`, `togglePlaytest(run, save)`).
+  A finished floor deletes its save.
+- **Esc pauses** on the loop's conversation line (`gamePauseRef`); leaving the window pauses too.
+  Held keys are cleared both ways. The view is scaled to `GAME_VIEW_ROWS` (29) rows tall on any
+  window (`gameViewStyle` on `.lscroll`), matching his 871 px Playtest; HUD included.
+- **Unlocks** is a record (`game:record`): `found` from `showPickup(…, item)` and `buyFromShop`,
+  `defeated` from the loot pass's kill (`spawnEnemyIdAt`), floors and best score from the floor end.
+  New pickup or kill sites must call `gameNoteRef.current`.
+- Options volumes go through `bobAudio.setVolumes` (master gain + music element); the studio
+  never calls it. The game's music follows the slider, not the studio's 🎵 toggle.
+- His menu has no Credits screen yet; the game-icons.net symbols still need crediting somewhere.
+
 ## Architecture — where things are
 
 - Pure logic is `export const` at module level and unit-tested. The giant `AssetStudio()` component
@@ -694,4 +723,5 @@ Grep it for the function or feature name. In order, it covers:
 - sound: the storage measurements and why audio is a file, the clip ladder, the keeper's sweep of
   clips, and the test rigs (fake host store, a test keeper with a local bare repo, headless Edge);
 - the 👢 Stomp clothing ability (`headStomp`), with how it was driven in a real build;
-- and, last, the 🚁 helicopter rope ending: the Chinook, the rope layer, the walk-in scenery states.
+- the 🚁 helicopter rope ending: the Chinook, the rope layer, the walk-in scenery states.
+- and, last, the game front end: why it is one app at two addresses, the title before the bundle, where saves live.

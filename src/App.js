@@ -6,6 +6,12 @@ import { flushSync } from "react-dom";
 // identical by a test, so all three name a sound file the same way.
 import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR } from "./anim";
 import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath, EXPLOSION_MIN_GAIN } from "./audio";
+// THE GAME (2026-10-17): Bob Okay as players get it — title, main menu, saved games, options,
+// unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
+// rules and store are src/gameFront.js and its screens src/gameShell.js; the GAME FRONT END block
+// after startRun is where it meets the run engine.
+import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, gameAddressFor } from "./gameFront";
+import { GameShell, GamePause } from "./gameShell";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
 import { SYMBOL_SLOTS, SYMBOL_DEFAULT_ART, SYMBOL_FONT_FAMILY, SYMBOL_BOX, SYMBOL_LIBRARY_PATH, ART_EMOJI_FONT, SYMBOL_BOARD_ID, newSymbolBoard, isSymbolBoard, symbolSlot, symbolPick, symbolColor, isPropPick, propPickId, PROP_PICK, isEmojiSlot, symbolPicksNeedingLibrary, symbolFontGlyphs, buildSymbolFont } from "./symbols";
@@ -12424,8 +12430,10 @@ export const ceilingBonkRows = (lv, centerC, headY, ph, vy, dtMul, CW, CH) => {
   return rows;
 };
 
-export default function AssetStudio() {
-  const [screen, setScreen] = useState("menu");
+// `game`: started at the game's address (src/index.js) — the front end players get, with no studio
+// screen reachable from it. See THE GAME FRONT END, after startRun.
+export default function AssetStudio({ game = false } = {}) {
+  const [screen, setScreen] = useState(game ? "game" : "menu");
   const [asset, setAsset] = useState(null);
   const [library, setLibrary] = useState([]);
   const [libraryLoading, setLibraryLoading] = useState(true); // never present the initial async read as an empty/deleted library
@@ -13126,12 +13134,19 @@ export default function AssetStudio() {
   // while a level is being played a flash says nothing. One switch here rather than ~200 call sites.
   // The studio's own messages (saved, deleted, restored) keep the toast.
   const playLive = useRef(false);                       // `play` for code that runs outside a render (flash)
+  // The GAME has no toast at all: every studio message ("Saved ✓", "🏁 Run 12345 — 8 levels", the
+  // floor-complete stub line) is about the studio, and a player never sees the studio.
   const flash = (m) => {
-    if (playLive.current) return;
+    if (playLive.current || game) return;
     setToast(m); setTimeout(() => setToast((t) => (t === m ? "" : t)), toastIsSave(m) ? 3000 : 1600);
   };
   // THE SCORE (see SCORE, above SCORE_KILL) — one object for the session; ▶ Playtest / 🏁 replace it.
   const scoreRef = useRef(newScoreState());
+  // THE GAME'S hooks into play (see THE GAME FRONT END, after startRun): the pause flag the loop
+  // stops on, and the one function the loop and the pickup/kill sites call to note what happened.
+  // Refs, because the loop's closure is built once per level and never sees a re-render.
+  const gamePauseRef = useRef(false);
+  const gameNoteRef = useRef(() => {});
   // 🎁 THE PICKUP BANNER. Taking an item off a pedestal or a body throws its NAME up over the level
   // in big arcade letters, with what it just did to you underneath (pickupChangeRows) — the
   // Binding-of-Isaac "you got X" moment, asked for as "bold, semi retro, dopamine inducing". The
@@ -13143,8 +13158,9 @@ export default function AssetStudio() {
   // and it guards the timer so the first pickup's timeout cannot clear the second one's banner.
   const [pickupBanner, setPickupBanner] = useState(null); // { n, name, rows, rank } | null
   const pickupSeq = useRef(0);
-  const showPickup = (name, rows, rank) => {
+  const showPickup = (name, rows, rank, item) => {
     bobAudio.event("pickup"); // 🔊 every pickup announces itself through here, so this is the one place it can sound
+    if (item) gameNoteRef.current("found", item.id); // ...and the one place the game's Unlocks hears of it
     const n = ++pickupSeq.current;
     setPickupBanner({ n, name: name || "", rows: rows || [], rank: ITEM_RANKS.includes(rank) ? rank : DEFAULT_ITEM_RANK });
     setTimeout(() => setPickupBanner((b) => (b && b.n === n ? null : b)), PICKUP_BANNER_MS);
@@ -13815,6 +13831,7 @@ export default function AssetStudio() {
     // empty wallet, which is the whole point of getting change.
     if (q.net > 0 && wallet.current < q.net) { flash(MONEY_CHAR + " " + item.name + " costs " + q.net + " and you have " + wallet.current + "."); return; }
     setWallet(wallet.current - q.net); // net < 0 pays INTO the wallet — see shopNetPrice
+    gameNoteRef.current("found", item.id); // a bought item is found as much as a looted one (the game's Unlocks)
     // Said once, here, and appended to whatever the acquisition itself reports — so a swap says
     // both what you are now holding and what it cost, rather than one line hiding the other.
     const paid = " · " + (q.net > 0 ? "paid " + MONEY_CHAR + " " + q.net : q.net < 0 ? "got " + MONEY_CHAR + " " + (-q.net) + " back" : "no charge")
@@ -14470,7 +14487,9 @@ export default function AssetStudio() {
       // afterwards reads as "no change", so the "E Talk" callout stayed gone until you walked off
       // and back. Now the first frame after the talk asks again — someone who can be talked to
       // again says so, and a spent "One time only" one does not.
-      if (talkRef.current || shopRef.current) { if (talkRef.current) lastTalkSig = ""; raf = requestAnimationFrame(loop); return; }
+      // THE GAME'S PAUSE MENU (Esc) stops it on the same line: nothing moves, no timer runs and the
+      // score clock (below) does not count, exactly as while reading a conversation.
+      if (talkRef.current || shopRef.current || gamePauseRef.current) { if (talkRef.current) lastTalkSig = ""; raf = requestAnimationFrame(loop); return; }
       // 🎬 A CUTSCENE PAUSES IT ON THE SAME TERMS: one return, above everything, so nobody walks up
       // and shoots a sleeping man. Only the animation's clock runs (cutFrame), and the camera keeps
       // following the hidden body, which cutFrame keeps on the actor.
@@ -17666,7 +17685,9 @@ export default function AssetStudio() {
         const [er, ec] = k.split(",").map(Number), ea = unitAssetAt(k, lv.enemies[k]), ep = enemyPos.current[k];
         // SCORE: this is the one place a death is seen exactly once, so a kill is paid here — a
         // hostile body whose last blow was yours (null; a unit's blow stores its effects, at least []).
-        if (ep && ep.lastHitByFx === null && unitSide(ea, ep) === "hostile") scoreRef.current.total += SCORE_KILL;
+        // ...and noted for the game's Unlocks by the placement's own look or animal (spawnEnemyIdAt:
+        // a 🎲 tag placement has no enemyId, its roll does; ea may be a re-composed copy).
+        if (ep && ep.lastHitByFx === null && unitSide(ea, ep) === "hostile") { scoreRef.current.total += SCORE_KILL; gameNoteRef.current("defeated", spawnEnemyIdAt(k, lv.enemies[k], enemyGearRolls.current)); }
         // Gear is looted off THIS body — only what it actually had equipped. Consumables still
         // come from the whole item pool (a potion isn't something it was wearing). A worn 🍀 Lucky
         // Find charm gets its tagged roll in first; the ordinary roll only runs when that misses.
@@ -17872,7 +17893,7 @@ export default function AssetStudio() {
             // consumeItemNow is shared with the shop counter, so a potion bought over a counter
             // and the same potion taken off a plinth can never heal different amounts. Quiet here:
             // what it did goes under the pickup banner instead of into a toast.
-            showPickup(item.name, [{ kind: "text", text: consumeItemNow(item, "", true) }], itemRank(item));
+            showPickup(item.name, [{ kind: "text", text: consumeItemNow(item, "", true) }], itemRank(item), item);
             putBack(null);
           } else if (item.type === "weapon") {
             if (isThrowable(item.wtype)) {
@@ -17882,12 +17903,12 @@ export default function AssetStudio() {
               const prevId = playtestThrowId, prev = prevId ? findA(prevId) : null;
               putBack(prev);
               throwPickup.current = 3;
-              showPickup(item.name + " ×3", pickupChangeRows(item, { held: prev }), itemRank(item));
+              showPickup(item.name + " ×3", pickupChangeRows(item, { held: prev }), itemRank(item), item);
               setPlaytestThrowId(item.id);
             } else {
               const prevId = playtestWeaponId, prev = prevId ? findA(prevId) : null;
               putBack(prev);
-              showPickup(item.name, pickupChangeRows(item, { held: prev }), itemRank(item));
+              showPickup(item.name, pickupChangeRows(item, { held: prev }), itemRank(item), item);
               setPlaytestWeaponId(item.id);
             }
           } else {
@@ -17910,7 +17931,7 @@ export default function AssetStudio() {
             const after = mergeEquip(basePlayerAsset, nextMap, equippedBodyIdFor(basePlayerAsset));
             equipped.current = nextMap;
             putBack(prev);
-            showPickup(item.name, pickupChangeRows(item, { before, after, off: prev }), itemRank(item));
+            showPickup(item.name, pickupChangeRows(item, { before, after, off: prev }), itemRank(item), item);
             playerHP.current = Math.min(playerHP.current, maxPlayerHP(after));
             // The ALLY side of that same line — pay anyone owed a top-up, trim anyone now over the
             // ceiling. Swapping kit is the only way the worn ally bonus moves mid-run, and there
@@ -22212,7 +22233,10 @@ export default function AssetStudio() {
   // them: the camera is told to snap rather than pan to the spawn, the editor's scroll position is
   // parked (the camera drives .lgrid by transform while play is on, so the viewport itself must sit
   // at 0,0) and put back on Stop, and a RUN in progress hands the editor its own level back.
-  const togglePlaytest = (runStart) => {
+  // `resume` (the game's Load Game only): a saved game's carried state, put back after the resets
+  // below (applyGameResume). The run itself already starts where the save was: its curKey is the
+  // saved level and its resumeSpawn the gate (THE GAME FRONT END, beginGameRun).
+  const togglePlaytest = (runStart, resume) => {
     const view = lscrollRef.current;
     // The player a FRESH session starts as: the look with NOTHING picked up, because the statement
     // below empties `equipped` for the new session. Starting HP used to be read off
@@ -22231,15 +22255,22 @@ export default function AssetStudio() {
       if (view) { editorScroll.current = { x: view.scrollLeft, y: view.scrollTop }; view.scrollLeft = 0; view.scrollTop = 0; }
       camRef.current = { x: 0, y: 0, init: false };
     }
-    const startLevel = runStart ? runStart.nodes[runStart.startKey].level : level;
+    // A run goes live at its curKey: its first level (buildRun sets curKey = startKey), or a loaded
+    // game's saved level.
+    const runAt = runStart ? runStart.nodes[runStart.curKey] || runStart.nodes[runStart.startKey] : null;
+    const startLevel = runStart ? runAt.level : level;
     // The run's world frame starts at its first level, and .lgrid keeps that level's box for the
     // whole run — see THE WORLD NEVER MOVES AT A GATE, at the level render.
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
     // A session STARTING scores from zero (SCORE); one stopping keeps its total readable.
     if (!play || runStart) scoreRef.current = newScoreState();
     roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
+    // A loaded game comes in by the gate it was saved at, as a death in that level would put you back.
+    if (runStart && runStart.resumeSpawn) spawnReq.current = runStart.resumeSpawn;
+    if (resume) applyGameResume(resume, basePlayerAsset);
     if (runStart) {
-      const startNode = runStart.nodes[runStart.startKey];
+      const startNode = runAt;
+      runStart.curKey = startNode.key;
       runRef.current = runStart; prepRunNeighbours(runStart, startNode);
       // The level beyond the first gate is alive from the first frame (see ONE WORLD, above
       // runWorldParts): its units are the live level's to simulate, so they are adopted before it goes live.
@@ -22252,7 +22283,8 @@ export default function AssetStudio() {
   // floor would begin. Re-pointed every render so it stops the play that is actually running.
   // The floor ending clears the level it ends in (SCORE) before play stops; the total stays in
   // scoreRef for whatever shows it next.
-  animLeaveRef.current = () => { if (play) { scoreLevelClear(scoreRef.current, runRef.current ? runRef.current.curKey : (level && level.id) || "level"); togglePlaytest(); } };
+  // In the GAME the floor ending is the Floor Complete card, then the main menu (gameFinishFloor).
+  animLeaveRef.current = () => { if (play) { scoreLevelClear(scoreRef.current, runRef.current ? runRef.current.curKey : (level && level.id) || "level"); if (game) gameFinishFloor(); else togglePlaytest(); } };
   // Only the level screen PLAYS: ‹ Menu out of a running playtest leaves `play` on, and keyed on
   // `play` alone this silenced every editor's "Saved ✓" (Blake: "no indication that weapons are saved").
   playLive.current = play && screen === "level";
@@ -22364,6 +22396,230 @@ export default function AssetStudio() {
     togglePlaytest(run);
   };
 
+  /* ====================================================================== */
+  // THE GAME FRONT END (2026-10-17). Bob Okay as players get it: the title (drawn by
+  // public/index.html before the app loads), a main menu of New Game / Load Game / Options /
+  // Unlocks / Quit Game, and a floor-1 run with the studio nowhere on screen. It is this component
+  // started with `game` at the /game address — the SAME run engine 🏁 Play run uses, so a fix to
+  // play is a fix to both. What is game-only lives here and in src/gameFront.js (rules, store) and
+  // src/gameShell.js (screens):
+  // * NEW GAME is 🏁 Play run with a fresh seed, as his look named "Bob" (pickStartLook), bare-handed.
+  // * A SAVE is a checkpoint, written a beat after each level of the run goes live (never on the
+  //   seam frame, the one frame that must stay cheap) and again on Quit to Main Menu. LOAD GAME
+  //   rebuilds the run from the save's seed and goes live at the saved level, by the gate it was
+  //   entered at — where a death in that level would have put you back.
+  // * ESC pauses (the loop stops on gamePauseRef, the conversation's line); so does leaving the window.
+  // * The view is scaled to GAME_VIEW_ROWS rows tall whatever the window, so a level frames the
+  //   way it did in his Playtest (871 px ≈ 29 rows on his screen) on any monitor, HUD included.
+  // * The floor's end ("Leave the floor", then the General's briefing) is the Floor Complete card.
+  const GAME_VIEW_ROWS = 29;
+  const gameStore = useMemo(() => (game ? createGameStore() : null), [game]);
+  const [gameView, setGameView] = useState("title");       // title | menu | load | options | unlocks | quit | floorDone | play
+  const [gamePaused, setGamePausedUI] = useState(false);
+  const [gameLevelsIn, setGameLevelsIn] = useState(false);
+  const [gameSaves, setGameSavesUI] = useState([]);
+  const [gameOptions, setGameOptionsUI] = useState(GAME_OPTIONS_DEFAULT);
+  const [gameRecord, setGameRecordUI] = useState(newGameRecord);
+  const [gameBoot, setGameBoot] = useState(null);           // { lookId, seed, save } waiting for the look to be committed
+  const [gameNote, setGameNote] = useState("");             // the one ⚠ the menu can show
+  const [gameFloorDone, setGameFloorDone] = useState(null); // { floor, score, secs } for the Floor Complete card
+  const [gameVp, setGameVp] = useState(() => ({ w: typeof window !== "undefined" ? window.innerWidth : 1280, h: typeof window !== "undefined" ? window.innerHeight : 720 }));
+  const gameSavesRef = useRef([]);
+  const gameRecordRef = useRef(newGameRecord());
+  // The game being played: its save id, when it began, the gate each level was entered by (so a
+  // save made after a room trip still knows its gate), and where the newest checkpoint stood.
+  const gameCur = useRef({ saveId: null, startedAt: 0, gates: {}, loc: null });
+  const gameArtCache = useRef(new Map());
+  const gameReady = game && !libraryLoading && gameLevelsIn;
+  useEffect(() => {
+    if (!game) return undefined;
+    let dead = false;
+    Promise.all([gameStore.get(GAME_KEYS.saves), gameStore.get(GAME_KEYS.options), gameStore.get(GAME_KEYS.record)]).then(([sv, op, rc]) => {
+      if (dead) return;
+      const saves = sortGameSaves(Array.isArray(sv) ? sv : []);
+      gameSavesRef.current = saves; setGameSavesUI(saves);
+      setGameOptionsUI(normalizeGameOptions(op));
+      const rec = normalizeGameRecord(rc);
+      gameRecordRef.current = rec; setGameRecordUI(rec);
+    });
+    // The studio loads levels, textures, backgrounds and dialogues only when the Level Creator opens
+    // (the library and the sounds load at start); a run needs all four before New Game can build one.
+    Promise.all([loadLevels(), loadTextures(), loadBgLib(), loadDialogues()]).catch(() => null).then(() => { if (!dead) setGameLevelsIn(true); });
+    const fit = () => setGameVp({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener("resize", fit);
+    return () => { dead = true; window.removeEventListener("resize", fit); };
+  }, []);
+  const putGameSaves = (next) => { gameSavesRef.current = next; setGameSavesUI(next); if (gameStore) gameStore.set(GAME_KEYS.saves, next); };
+  const putGameRecord = (next) => { gameRecordRef.current = next; setGameRecordUI(next); if (gameStore) gameStore.set(GAME_KEYS.record, next); };
+  const setGameOptions = (o) => { const n = normalizeGameOptions(o); setGameOptionsUI(n); if (gameStore) gameStore.set(GAME_KEYS.options, n); };
+  // Options reach the engine at once. Music is on whenever its slider is above 0: the studio's
+  // 🎵 toggle (localStorage bobMusic) is a per-copy studio switch and must not mute the game.
+  useEffect(() => {
+    if (!game) return;
+    bobAudio.setVolumes({ music: gameOptions.music / 100, effects: gameOptions.effects / 100 });
+    bobAudio.setMusicOn(gameOptions.music > 0);
+  }, [game, gameOptions]);
+  // The menu's click is the board's basic Menu click; decoded ahead so the first press is heard.
+  useEffect(() => {
+    if (!gameReady) return;
+    const bd = bobAudio.board();
+    if (bd && bd.basic && bd.basic.menuClick) bobAudio.preload([bd.basic.menuClick]);
+  }, [gameReady]);
+  const gameClick = () => bobAudio.event("menuClick");
+  // Unlocks hears of a pickup, a purchase (showPickup / buyFromShop) and a kill (the loot pass).
+  gameNoteRef.current = (kind, id) => {
+    if (!game || !id) return;
+    const r = gameRecordRef.current;
+    const n = kind === "found" ? recordFound(r, id) : kind === "defeated" ? recordDefeated(r, id) : r;
+    if (n !== r) putGameRecord(n);
+  };
+  // What the player is carrying now, as a save at `loc` (gameFront.js makeGameSave).
+  const gameSnapshot = (loc) => {
+    const run = runRef.current;
+    const eq = {};
+    for (const sl of Object.keys(equipped.current || {})) { const it = equipped.current[sl]; eq[sl] = it ? it.id : null; }
+    const look = findA(playerId);
+    const prev = gameSavesRef.current.find((s) => s.id === gameCur.current.saveId) || null;
+    const ao = activeObjective.current || { list: [], done: new Set() };
+    return makeGameSave(prev, {
+      id: gameCur.current.saveId, startedAt: gameCur.current.startedAt, seed: run ? run.seed : "", ...loc,
+      lookId: playerId, lookName: look ? look.name : "", weaponId: playtestWeaponId, throwId: playtestThrowId, throwCount: throwCarry.current,
+      equipped: eq, hp: playerHP.current, wallet: wallet.current, livesUsed: livesUsed.current, score: scoreRef.current,
+      objectives: { list: ao.list || [], done: [...(ao.done || [])] }, talkSpent: [...(talkSpentSigns.current || [])],
+      playSecs: scorePlaySecs(scoreRef.current),
+    });
+  };
+  const gameCheckpoint = () => {
+    const run = runRef.current;
+    if (!game || !play || !run || !gameCur.current.saveId) return;
+    const node = run.nodes[run.curKey];
+    if (!node || !level || level.isRoom || level.runKey !== node.key) return;
+    const rs = respawnSpec.current, gates = gameCur.current.gates;
+    if (rs && rs.at === node.key && rs.spec && rs.spec.gate) gates[node.key] = rs.spec.gateKey || null;
+    const loc = { nodeKey: node.key, levelId: node.level.id, levelName: node.level.name, floor: node.level.floor, gateKey: gates[node.key] ?? null };
+    gameCur.current.loc = loc;
+    putGameSaves(upsertGameSave(gameSavesRef.current, gameSnapshot(loc)));
+  };
+  const gameCheckpointRef = useRef(gameCheckpoint);
+  gameCheckpointRef.current = gameCheckpoint;
+  const liveRunKey = level ? level.runKey : undefined;
+  useEffect(() => {
+    if (!game || !play || !liveRunKey) return undefined;
+    const t = setTimeout(() => gameCheckpointRef.current(), 400);
+    return () => clearTimeout(t);
+  }, [game, play, liveRunKey]);
+  // Put a loaded game's carried state back (called by togglePlaytest after its resets). The look,
+  // the held weapon and the grenade are already committed (gameLoadGame); a garment or weapon he has
+  // since deleted is simply not there.
+  const applyGameResume = (s, base) => {
+    const eq = {};
+    for (const sl of Object.keys(s.equipped || {})) { const id = s.equipped[sl]; if (id === null) eq[sl] = null; else { const it = findA(id); if (it) eq[sl] = it; } }
+    equipped.current = eq;
+    const worn = mergeEquip(base, eq, equippedBodyIdFor(base));
+    playerHP.current = s.hp != null ? Math.max(1, Math.min(s.hp, maxPlayerHP(worn))) : maxPlayerHP(worn);
+    wallet.current = Math.max(0, Math.round(s.wallet || 0)); setWalletUI(wallet.current); // not setWallet: a load is not a gain
+    livesUsed.current = s.livesUsed || 0;
+    if (s.score) scoreRef.current = { ...newScoreState(), ...JSON.parse(JSON.stringify(s.score)) };
+    // ...and on screen now: the arrival check only redraws the list when it CHANGES, and arriving
+    // in the saved level with the saved list is no change, so a load showed no objective at all.
+    if (s.objectives) { activeObjective.current = { list: (s.objectives.list || []).map((o) => ({ ...o })), done: new Set(s.objectives.done || []) }; setObjectives(activeObjective.current.list.map((o) => ({ id: o.id, text: o.text }))); }
+    talkSpentSigns.current = new Set(s.talkSpent || []);
+    throwPickup.current = s.throwId ? Math.max(0, s.throwCount || 0) : null;
+  };
+  const beginGameRun = (b) => {
+    const pool = runPool();
+    const run = buildRun(pool, b.seed);
+    if (!run.startKey) { setGameNote("No level can start a run yet."); setScreen("game"); setGameView("menu"); return; }
+    run.editorLevel = level; run.pool = pool;
+    if (b.save) {
+      // His levels may have changed since the save; resumeNodeKey finds the saved level wherever the
+      // rebuilt run put it, or the run starts from its beginning with what you were carrying.
+      const k = resumeNodeKey(run, b.save);
+      if (k) { run.curKey = k; if (b.save.gateKey) run.resumeSpawn = { gate: true, gateKey: b.save.gateKey }; }
+    }
+    resolveRunSides(run, run.nodes[run.curKey], pool);
+    setRunSeedText(run.seed); setGen(null); setGameNote("");
+    gamePauseRef.current = false; setGamePausedUI(false);
+    togglePlaytest(run, b.save || null);
+    setScreen("level"); setGameView("play");
+  };
+  const gameNewGame = () => {
+    const look = pickStartLook(allAssets);
+    gameCur.current = { saveId: newGameSaveId(), startedAt: Date.now(), gates: {}, loc: null };
+    putGameRecord({ ...gameRecordRef.current, games: gameRecordRef.current.games + 1 });
+    setPlayerId(look ? look.id : ""); setPlaytestWeaponId(""); setPlaytestThrowId("");
+    setGameBoot({ lookId: look ? look.id : "", seed: newRunSeed(), save: null });
+  };
+  const gameLoadGame = (save) => {
+    gameCur.current = { saveId: save.id, startedAt: save.startedAt, gates: save.nodeKey ? { [save.nodeKey]: save.gateKey ?? null } : {}, loc: null };
+    setPlayerId(save.lookId || ""); setPlaytestWeaponId(save.weaponId || ""); setPlaytestThrowId(save.throwId || "");
+    setGameBoot({ lookId: save.lookId || "", seed: save.seed, save });
+  };
+  // togglePlaytest reads the look, weapon and grenade from THIS render's state, so the run starts
+  // only once the ones just picked are committed — never with the previous game's.
+  useEffect(() => {
+    if (!gameBoot || playerId !== gameBoot.lookId) return;
+    const b = gameBoot;
+    setGameBoot(null);
+    beginGameRun(b);
+  }, [gameBoot, playerId]);
+  // Held keys are dropped both ways: a walk held into the pause must not resume by itself.
+  const gameSetPaused = (on) => { gamePauseRef.current = on; setGamePausedUI(on); keys.current = {}; };
+  useEffect(() => {
+    if (!game || !play) return undefined;
+    const kd = (e) => {
+      if (e.key !== "Escape" || e.defaultPrevented || gamePauseRef.current) return; // Esc already closed a conversation or a shop
+      if (talkRef.current || shopRef.current) return;
+      e.preventDefault(); gameSetPaused(true);
+    };
+    const away = () => { if (!gamePauseRef.current) gameSetPaused(true); };
+    window.addEventListener("keydown", kd);
+    window.addEventListener("blur", away);
+    return () => { window.removeEventListener("keydown", kd); window.removeEventListener("blur", away); };
+  }, [game, play]);
+  const gameQuitToMenu = () => {
+    if (play && gameCur.current.saveId && gameCur.current.loc) putGameSaves(upsertGameSave(gameSavesRef.current, gameSnapshot(gameCur.current.loc)));
+    gameSetPaused(false);
+    if (play) togglePlaytest();
+    setScreen("game"); setGameView("menu");
+  };
+  const gameFinishFloor = () => {
+    const sc = scoreRef.current, run = runRef.current;
+    const node = run && run.nodes[run.curKey];
+    const floor = (node && node.level && node.level.floor) || (level && level.floor) || "";
+    putGameRecord(recordFloorDone(gameRecordRef.current, floor, sc.total));
+    if (gameCur.current.saveId) putGameSaves(dropGameSave(gameSavesRef.current, gameCur.current.saveId)); // the run is over: nothing left to load
+    setGameFloorDone({ floor, score: sc.total, secs: scorePlaySecs(sc) });
+    gameCur.current = { saveId: null, startedAt: 0, gates: {}, loc: null };
+    gameSetPaused(false);
+    togglePlaytest();
+    setScreen("game"); setGameView("floorDone");
+  };
+  const gameViewStyle = useMemo(() => {
+    if (!game) return undefined;
+    const s = Math.max(0.25, gameVp.h / (GAME_VIEW_ROWS * LV_CELL));
+    return { position: "fixed", left: 0, top: 0, width: gameVp.w / s, height: gameVp.h / s, transform: "scale(" + s + ")", transformOrigin: "0 0", border: 0, borderRadius: 0, flex: "none" };
+  }, [game, gameVp]);
+  // An asset's art centred in a px square, for the Unlocks grid: the shop shelf's drawing (bake +
+  // renderPieceRuns), cached per asset object so a redrawn garment is re-baked and nothing else is.
+  const gameArt = (a, px) => {
+    let hit = gameArtCache.current.get(a.id);
+    if (!hit || hit.src !== a) {
+      const src = a.type === "weapon" && a.states && a.states.rest ? { ...a, angles: a.states.rest } : a;
+      const pose = a.type === "enemy" && src.angles && (src.angles.side || []).length ? "side" : displayPoseKey(src);
+      const pieces = (src.angles ? bake(src, pose) : []).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
+      const drawn = pieces.filter((pc) => !pc.isCutter);
+      let bb = null;
+      if (drawn.length) { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const pc of drawn) { x0 = Math.min(x0, pc.x); y0 = Math.min(y0, pc.y); x1 = Math.max(x1, pc.x + pc.w); y1 = Math.max(y1, pc.y + pc.h); } bb = { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) }; }
+      hit = { src: a, pieces, bb };
+      gameArtCache.current.set(a.id, hit);
+    }
+    if (!hit.bb) return null;
+    const sc = Math.min(px / hit.bb.w, px / hit.bb.h) * 0.9;
+    const plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${px / 2 - sc * (hit.bb.x + hit.bb.w / 2)}px,${px / 2 - sc * (hit.bb.y + hit.bb.h / 2)}px) scale(${sc})` };
+    return <div style={plane}>{renderPieceRuns({ pieces: hit.pieces, cacheKey: "unl_" + a.id, keyPrefix: "unl" + a.id + "_", alpha: assetAlpha(a), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>;
+  };
+
   // The texture picker and the texture creator, built ONCE and rendered by both the Level Creator
   // and the asset creator. They used to live inside the level screen's markup, which is why a
   // pattern was a level-only idea; a jacket needs the same two dialogs, and duplicating them would
@@ -22464,6 +22720,18 @@ export default function AssetStudio() {
   );
 
   /* ====================================================================== */
+  // THE GAME, anywhere but in a level: title, menu, Load Game, Options, Unlocks, Quit, Floor
+  // Complete (src/gameShell.js). No studio screen is reachable from here.
+  if (game && screen !== "level") {
+    return (
+      <div className="bb gameMode"><style>{css}</style>
+        <GameShell view={gameView === "play" ? "menu" : gameView} setView={setGameView} ready={gameReady}
+          saves={gameSaves} options={gameOptions} setOptions={setGameOptions} record={gameRecord} assets={allAssets} renderArt={gameArt}
+          onNewGame={gameNewGame} onLoad={gameLoadGame} onDelete={(id) => putGameSaves(dropGameSave(gameSavesRef.current, id))}
+          floorDone={gameFloorDone} onFloorDoneContinue={() => { setGameFloorDone(null); setGameView("menu"); }} note={gameNote} click={gameClick} />
+      </div>
+    );
+  }
   if (screen === "menu") {
     return (
       <div className="bb"><style>{css}</style>
@@ -22514,6 +22782,10 @@ export default function AssetStudio() {
             <button className="tile lvl" style={{ "--tc": "#f472b6" }} onClick={openSoundScreen}><span className="ti">🔊</span><span className="tl">Sounds</span></button>
             <button className="tile lvl" style={{ "--tc": "#fb923c" }} onClick={openAnimEditor}><span className="ti">🎬</span><span className="tl">Animations</span></button>
             <button className="tile lvl" style={{ "--tc": "#b5e655" }} onClick={openSymbolScreen}><span className="ti">{sym("ui.symbols")}</span><span className="tl">Symbols</span></button>
+            {/* THE GAME, as players get it (title, main menu, a floor-1 run, no studio), in its own
+                tab at the game's address — wherever this studio is running, StackBlitz or Pages. Opened
+                by the page so that the game's Quit Game is allowed to close the tab again. */}
+            <button className="tile lvl" style={{ "--tc": "#e3e7ee" }} onClick={() => { try { window.open(gameAddressFor(window.location), "_blank"); } catch { /* a blocked pop-up leaves the studio as it is */ } }}><span className="ti">{sym("ui.playGame")}</span><span className="tl">Play Bob Okay</span></button>
           </div>
           <h2>Make a piece of equipment</h2>
           <div className="slots">
@@ -24065,7 +24337,9 @@ export default function AssetStudio() {
     const fillPreview = (!play && lTool === "fill" && lHoverCell && lv && (lLayer === "fg" || lLayer === "bg" || lLayer === "front"))
       ? computeFillRegion(lv, layerWithPaintAt(lv, lHoverCell.r, lHoverCell.c), lHoverCell.r, lHoverCell.c) : null;
     return (
-      <div className="bb" onPointerDownCapture={snapshotLevel}><style>{css}</style>
+      // gameMode: the game's run — every editor bar, the side panel and the status row are hidden by
+      // the sheet (.bb.gameMode), and the view fills the window (gameViewStyle on .lscroll).
+      <div className={"bb" + (game ? " gameMode" : "")} onPointerDownCapture={game ? undefined : snapshotLevel}><style>{css}</style>
         <header className="bar">
           <button className="back" onClick={() => setScreen("menu")}>‹ Menu</button>
           <input className="nm wide2" value={lv.name} onChange={(e) => setLevel({ ...lv, name: e.target.value })} />
@@ -24461,7 +24735,7 @@ export default function AssetStudio() {
                 translated by the camera (camRef, written by the loop and read here inside
                 commitFrame, so it lands on the frame it was computed for). In the editor no transform
                 is emitted at all and the viewport scrolls exactly as it always has. */}
-            <div ref={lscrollRef} className={"lscroll layer-" + lLayer + (play ? " playing" : "")}>
+            <div ref={lscrollRef} className={"lscroll layer-" + lLayer + (play ? " playing" : "")} style={gameViewStyle}>
               {/* 🎬 A FLOOR END scene, over the whole view and under its own fade: the stage fitted
                   to the view and letterboxed in black (animScreenFit). Its props' frames run on the
                   scene's own clock (age), so the General talks only while the scene plays. */}
@@ -26405,6 +26679,8 @@ export default function AssetStudio() {
             </div>
           );
         })()}
+        {/* THE GAME'S PAUSE MENU (Esc), over the frozen level. */}
+        {game && play && gamePaused && <GamePause onResume={() => gameSetPaused(false)} onQuit={gameQuitToMenu} options={gameOptions} setOptions={setGameOptions} click={gameClick} />}
         {toast && <div className={"toast" + (toastIsSave(toast) ? " ok" : "")}>{toast}</div>}
       </div>
     );
@@ -27921,6 +28197,11 @@ html,body{margin:0;padding:0;background:#0f1117}
    its own "Load a level" dialog. Contained here, the grid competes with page chrome only as a
    single z-auto box, which is exactly how it behaved when these were 1-9. */
 .lscroll.playing{overflow:hidden;position:relative}
+/* THE GAME (.bb.gameMode, see THE GAME FRONT END): the run with none of the studio on screen. The
+   view itself is placed and scaled by gameViewStyle; this only takes the editor away around it. */
+.bb.gameMode{background:#000}
+.bb.gameMode>.bar,.bb.gameMode>.catbar,.bb.gameMode>.ltools,.bb.gameMode .statusrow,.bb.gameMode .lside{display:none!important}
+.bb.gameMode .lstage{padding:0}
 .lgrid.camera{will-change:transform}
 /* 🎁 THE PICKUP BANNER — the item's name the moment you take it, positioned in the VIEW (the
    .lscroll box made relative just above), top-centre, over the level. z 5 clears the grid (one

@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 
 import App from './App';
+import { isGameAddress } from './gameFront';
 
 const rootElement = document.getElementById('root');
 const root = createRoot(rootElement);
@@ -13,4 +14,7 @@ const root = createRoot(rootElement);
 // bug report he could read, and the checks it exists for (effects that don't clean up, legacy
 // APIs) are not what this app fails on. Everything that was written to survive the double effect
 // run (the loop's __ptLoopGen guard, the staged neighbour mount) still works with a single one.
-root.render(<App />);
+//
+// THE GAME (2026-10-17): the same app at the /game address is Bob Okay as players get it — the
+// title, the main menu and a run, with none of the studio (see src/gameFront.js).
+root.render(<App game={isGameAddress(window.location)} />);
