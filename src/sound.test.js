@@ -8,7 +8,7 @@ import {
   clipHash, clipNameOk, clipMatches, createAudioEngine, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard,
   leadingSilence, ONSET_FLOOR, ONSET_OF_PEAK, ONSET_PREROLL_S, talkSeconds, TALK_CHARS_PER_S, TALK_MIN_S, TALK_MAX_S, dialogueSoundId,
   soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, resolveSoundVol, splitHurtDeath,
-  musicTrackFor,
+  musicTrackFor, stretchChannels, PICKUP_LEGENDARY_STRETCH,
 } from "./audio";
 import { groupByCategory, mergeLibraries, mergeCloudLibrary, diskLibrary } from "./App";
 
@@ -700,5 +700,43 @@ describe("which music plays (2026-10-18: the game's menus have music)", () => {
     expect(musicTrackFor(board, false, false)).toBe(null);
     expect(musicTrackFor({}, true, true)).toBe(null);
     expect(musicTrackFor(null, true, true)).toBe(null);
+  });
+});
+
+/* A gold (Legendary) pickup is the standard pickup sound held three times as long — the same
+   sound, not three copies of it, and not slowed down (a plain slow-down drops the pitch). */
+describe("stretchChannels", () => {
+  const sr = 44100;
+  const tone = (hz, secs) => Float32Array.from({ length: Math.round(sr * secs) }, (_, i) => 0.6 * Math.sin((2 * Math.PI * hz * i) / sr));
+  const crossings = (d, from, to) => { let c = 0; for (let i = from + 1; i < to; i++) if (d[i - 1] < 0 && d[i] >= 0) c++; return c; };
+  test("the gold pickup holds the sound 3x as long", () => {
+    expect(PICKUP_LEGENDARY_STRETCH).toBe(3);
+  });
+  test("comes out about factor times as long, finite, and no louder than it went in", () => {
+    const src = tone(880, 0.88);
+    const [out] = stretchChannels([src], sr, 3);
+    expect(out.length).toBe(Math.ceil(src.length * 3));
+    let peak = 0; for (const v of out) { expect(Number.isFinite(v)).toBe(true); peak = Math.max(peak, Math.abs(v)); }
+    expect(peak).toBeLessThan(0.75);
+    expect(peak).toBeGreaterThan(0.4);
+  });
+  test("keeps the pitch: the same number of cycles per second, not a third as many", () => {
+    const src = tone(880, 0.88);
+    const [out] = stretchChannels([src], sr, 3);
+    const hz = (d) => crossings(d, Math.round(sr * 0.2), Math.round(sr * 0.6)) / 0.4;
+    // the middle of the stretched sound, 0.6 s to 1.8 s in, measured over a second
+    const mid = crossings(out, Math.round(sr * 0.6), Math.round(sr * 1.6)) / 1.0;
+    expect(Math.abs(mid - hz(src))).toBeLessThan(hz(src) * 0.05);
+  });
+  test("a factor of 1 or less, and a clip too short to cut, come back unchanged", () => {
+    const src = tone(440, 0.1);
+    expect(stretchChannels([src], sr, 1)[0].length).toBe(src.length);
+    expect(stretchChannels([src], sr, 0.5)[0].length).toBe(src.length);
+    expect(stretchChannels([new Float32Array(10)], sr, 3)[0].length).toBe(10);
+    expect(stretchChannels(null, sr, 3)).toEqual([]);
+  });
+  test("every channel is stretched to the same length", () => {
+    const [l, r] = stretchChannels([tone(440, 0.3), tone(660, 0.3)], sr, 3);
+    expect(l.length).toBe(r.length);
   });
 });

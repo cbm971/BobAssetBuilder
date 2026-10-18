@@ -399,8 +399,12 @@ const useFullscreen = () => {
   };
   return [on, toggle];
 };
-export function OptionsPanel({ options, setOptions, back, click, overlay }) {
+// onUpload (main menu only): async (File) => short result text. Takes a file the studio exported
+// (Export everything, or one asset) and updates the game's items from it — App.js gameUploadFile.
+export function OptionsPanel({ options, setOptions, back, click, overlay, onUpload }) {
   const [at, setAt] = useState(0);
+  const [upStatus, setUpStatus] = useState("");
+  const fileRef = useRef(null);
   const [fs, toggleFs] = useFullscreen();
   const VOL_STEP = 5;
   const slider = (key) => (
@@ -413,6 +417,7 @@ export function OptionsPanel({ options, setOptions, back, click, overlay }) {
     { id: "music", label: "Music", right: slider("music") },
     { id: "effects", label: "Sound Effects", right: slider("effects") },
     { id: "fullscreen", label: "Fullscreen", right: <b className="gToggle">{fs ? "On" : "Off"}</b> },
+    ...(onUpload ? [{ id: "upload", label: "Upload File", right: upStatus ? <b className="gToggle gUpStatus">{upStatus}</b> : null }] : []),
     { id: "__back", label: "Back" },
   ];
   const nudge = (d) => {
@@ -423,12 +428,21 @@ export function OptionsPanel({ options, setOptions, back, click, overlay }) {
   const pick = (r) => {
     if (r.id === "__back") { click(); back(); }
     else if (r.id === "fullscreen") { click(); toggleFs(); }
+    else if (r.id === "upload") { click(); if (fileRef.current) fileRef.current.click(); }
+  };
+  const picked = async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = ""; // the same file can be chosen again after it is edited
+    if (!f || !onUpload) return;
+    setUpStatus("Working");
+    try { setUpStatus(await onUpload(f)); } catch { setUpStatus("Could not read that file"); }
   };
   useMenuKeys(true, { move: (d) => setAt((i) => menuStep(rows, i, d)), side: nudge, pick: () => pick(rows[at]), back });
   const body = (
     <>
       <div className="gHead">Options</div>
       <MenuList rows={rows} at={at} setAt={setAt} onPick={pick} className="gOpts" />
+      {onUpload && <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: "none" }} onChange={picked} />}
     </>
   );
   return overlay ? <div className="gPanel gCenter">{body}</div> : <Panel>{body}</Panel>;
@@ -565,7 +579,7 @@ export function GamePause({ onResume, onQuit, options, setOptions, click }) {
 }
 
 // ---------- the shell: whichever menu screen is up, over the scene ----------
-export function GameShell({ view, setView, ready, saves, options, setOptions, record, assets, renderArt, renderDressed, renderHead, statIcon, floors, sceneFor, onStartGame, onLoad, onDelete, floorDone, onFloorDoneContinue, gameOver, onRetry, onGameOverMenu, note, click }) {
+export function GameShell({ view, setView, ready, saves, options, setOptions, record, assets, renderArt, renderDressed, renderHead, statIcon, floors, sceneFor, onStartGame, onLoad, onUpload, onDelete, floorDone, onFloorDoneContinue, gameOver, onRetry, onGameOverMenu, note, click }) {
   const toMenu = React.useCallback(() => setView("menu"), [setView]);
   const [menuAt, setMenuAt] = useState(0);
   const vp = useViewport();
@@ -581,7 +595,7 @@ export function GameShell({ view, setView, ready, saves, options, setOptions, re
       {view === "menu" && <MainMenu go={setView} note={note} click={click} at={menuAt} setAt={setMenuAt} />}
       {view === "select" && <CharacterSelect assets={assets} record={record} renderArt={renderArt} renderDressed={renderDressed} renderHead={renderHead} statIcon={statIcon} floors={floors} difficulty={options.difficulty} onStart={onStartGame} back={toMenu} click={click} vp={vp} />}
       {view === "load" && <LoadGame saves={saves} onLoad={onLoad} onDelete={onDelete} back={toMenu} click={click} />}
-      {view === "options" && <OptionsPanel options={options} setOptions={setOptions} back={toMenu} click={click} />}
+      {view === "options" && <OptionsPanel options={options} setOptions={setOptions} back={toMenu} click={click} onUpload={onUpload} />}
       {view === "unlocks" && <Unlocks assets={assets} record={record} renderArt={renderArt} back={toMenu} click={click} />}
       {view === "quit" && <QuitScreen back={toMenu} />}
       {view === "floorDone" && floorDone && <FloorDone done={floorDone} onContinue={onFloorDoneContinue} click={click} />}
@@ -648,6 +662,7 @@ export const GAME_CSS = `
 .gDel.arm{color:#ffd0c4;border-color:#e06a4f;background:rgba(120,20,10,.35)}
 .gOpts .gItem{min-width:min(640px,86vw)}
 .gSlider{display:flex;align-items:center;gap:.9em}
+.gUpStatus{font-size:.8em;text-transform:none;letter-spacing:.02em}
 .gSlider b,.gToggle{font-weight:inherit;min-width:3.2em;text-align:right;color:#fff;font-size:1.25em}
 .gSlider input[type=range]{-webkit-appearance:none;appearance:none;width:clamp(150px,17vw,280px);height:6px;background:linear-gradient(90deg,var(--gGold),rgba(241,239,228,.35));border-radius:3px;outline:none;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.3)}
 .gSlider input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:3px;background:var(--gEdge);border:2px solid var(--gG3);cursor:pointer}

@@ -278,6 +278,58 @@ export const leadingSilence = (channels, sampleRate) => {
   return Math.max(0, first / sampleRate - ONSET_PREROLL_S);
 };
 
+// ── STRETCH. A sound held longer WITHOUT dropping its pitch (a plain slow-down would take a bright
+// pickup chime down two octaves): WSOLA, windowed grains laid down at the longer spacing, each one
+// nudged by up to STRETCH_SEEK_S to the offset that lines its waveform up with the end of the grain
+// before, so the joins do not buzz. channels: Float32Arrays; returns new Float32Arrays about
+// `factor` times as long. A factor at or under 1 returns copies untouched. Pure, so it is tested.
+export const PICKUP_LEGENDARY_STRETCH = 3; // a gold (Legendary) pickup holds the standard sound this much longer
+export const STRETCH_GRAIN_S = 0.05;
+export const STRETCH_SEEK_S = 0.012;
+export const stretchChannels = (channels, sampleRate, factor) => {
+  const chs = (channels || []).filter((d) => d && d.length);
+  if (!chs.length) return [];
+  const n = chs[0].length;
+  if (!(factor > 1.001) || !(sampleRate > 0) || n < 64) return chs.map((d) => Float32Array.from(d));
+  const grain = Math.max(32, 2 * Math.round(sampleRate * STRETCH_GRAIN_S / 2));
+  const hop = grain / 2; // output spacing
+  const seek = Math.max(1, Math.round(sampleRate * STRETCH_SEEK_S));
+  const outLen = Math.ceil(n * factor);
+  const win = new Float32Array(grain);
+  for (let i = 0; i < grain; i++) win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * (i + 0.5)) / grain);
+  const mono = new Float32Array(n);
+  for (const d of chs) for (let i = 0; i < n; i++) mono[i] += d[i] / chs.length;
+  const out = chs.map(() => new Float32Array(outLen));
+  const norm = new Float32Array(outLen);
+  const STEP = 4; // the search compares every 4th sample: plenty to find a phase, a quarter of the work
+  let prev = -1;  // where in the source the last grain was taken from
+  for (let k = 0, o = 0; o < outLen; k++, o += hop) {
+    const nominal = Math.round((k * hop) / factor);
+    let at = nominal;
+    if (prev >= 0) {
+      const want = prev + hop; // the source that would naturally follow the grain just laid
+      let best = -Infinity;
+      for (let d = -seek; d <= seek; d++) {
+        const c = nominal + d;
+        if (c < 0 || c + grain > n || want + grain > n) continue;
+        let sum = 0;
+        for (let i = 0; i < grain; i += STEP) sum += mono[want + i] * mono[c + i];
+        if (sum > best) { best = sum; at = c; }
+      }
+    }
+    if (at < 0) at = 0;
+    if (at + grain > n) at = Math.max(0, n - grain);
+    for (let ch = 0; ch < chs.length; ch++) {
+      const src = chs[ch], dst = out[ch];
+      for (let i = 0; i < grain && o + i < outLen && at + i < n; i++) dst[o + i] += src[at + i] * win[i];
+    }
+    for (let i = 0; i < grain && o + i < outLen; i++) norm[o + i] += win[i];
+    prev = at;
+  }
+  for (const dst of out) for (let i = 0; i < outLen; i++) if (norm[i] > 1e-3) dst[i] /= norm[i];
+  return out;
+};
+
 // ── DIALOGUE. A conversation can carry a sound (`dlg.sound`, set per dialogue on the 🔊 Sounds
 // screen) — a meow for the cat, gibberish for most people — that LOOPS while the line is being
 // said. Lines appear whole, there is no typing-out, so "while they are talking" is how long the
@@ -420,6 +472,23 @@ export const createAudioEngine = ({ loadClip } = {}) => {
   };
 
   const note = (row) => { trace.push(row); if (trace.length > 200) trace.shift(); };
+  // The clip held `by` times as long, cached (stretchChannels). A context that cannot build one plays the plain clip.
+  const stretchedBufs = new Map();
+  const stretchedBuffer = (clip, base, by) => {
+    const key = clip + "@x" + by;
+    if (stretchedBufs.has(key)) return stretchedBufs.get(key);
+    let out = base;
+    try {
+      const c = ensureCtx();
+      const chs = []; for (let i = 0; i < base.numberOfChannels; i++) chs.push(base.getChannelData(i));
+      const st = stretchChannels(chs, base.sampleRate, by);
+      const nb = c.createBuffer(st.length, st[0].length, base.sampleRate);
+      st.forEach((d, i) => nb.copyToChannel(d, i));
+      out = nb;
+    } catch { out = base; }
+    stretchedBufs.set(key, out);
+    return out;
+  };
   const startVoice = (id, gain0, info) => {
     const s = sounds.get(id);
     if (!s || !s.clip) return false;
@@ -434,7 +503,9 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     voices = voices.filter((v) => !v.done && t < v.until);
     const plan = voicePlan(voices, id, t);
     if (!plan.play) { note({ at: t, id, clip: s.clip, gain, heard: false, why: "retrigger", ...info }); return false; }
-    const buf = buffers.get(s.clip);
+    const base = buffers.get(s.clip);
+    const stretchBy = info && info.stretch > 1 ? info.stretch : 1;
+    const buf = base && stretchBy > 1 ? stretchedBuffer(s.clip, base, stretchBy) : base;
     // Not decoded yet: start the decode and skip THIS play. A sound that arrives late is worse
     // than one that does not play — a jump heard a quarter-second after the jump.
     if (!buf) { decode(s.clip); note({ at: t, id, clip: s.clip, gain, heard: false, why: "decoding", ...info }); return false; }
@@ -454,7 +525,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
       src.buffer = buf;
       const g = c.createGain();
       // Start where the sound starts (leadingSilence), with a 3 ms ramp in so the cut is never a click.
-      const skip = Math.min(starts.get(s.clip) || 0, Math.max(0, buf.duration - 0.01));
+      const skip = Math.min((starts.get(s.clip) || 0) * stretchBy, Math.max(0, buf.duration - 0.01));
       if (skip > 0) { g.gain.setValueAtTime(0, c.currentTime); g.gain.linearRampToValueAtTime(gain, c.currentTime + 0.003); }
       else g.gain.value = gain;
       src.connect(g); g.connect(master);
@@ -522,17 +593,18 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     // happens (an explosion, see EXPLOSION_MIN_GAIN).
     // `scale` turns one call down (the game's menu click, which on its own over a quiet menu was
     // "too loud"); 1 everywhere else.
-    moment: ({ asset, slot, basic, x, y, minGain = 0, scale = 1 } = {}) => {
+    moment: ({ asset, slot, basic, x, y, minGain = 0, scale = 1, stretch = 1 } = {}) => {
       const id = resolveSound({ asset, slot, basic, board, has: engine.has });
       if (!id) return false;
       const gain = Math.max(soundGainAt(x, y, view), Math.min(1, minGain));
       if (gain <= 0.02) return false;
       // Times the slider beside the pick that chose this sound (resolveSoundVol).
       const sv = resolveSoundVol({ asset, slot, basic, board, has: engine.has });
-      return startVoice(id, gain * sv * scale, { slot: slot || null, basic: basic || null, asset: asset ? asset.id || null : null });
+      return startVoice(id, gain * sv * scale, { slot: slot || null, basic: basic || null, asset: asset ? asset.id || null : null, stretch });
     },
     // An everyday moment with no asset behind it (a door, a pickup, a menu click).
-    event: (key, x, y, scale = 1) => engine.moment({ basic: key, x, y, scale }),
+    // `opts.stretch`: hold the sound that many times as long (stretchChannels).
+    event: (key, x, y, scale = 1, opts) => engine.moment({ basic: key, x, y, scale, stretch: opts && opts.stretch > 1 ? opts.stretch : 1 }),
     // The studio's ▶: one sound, full volume, decoded first if it has to be. A LONG one (a music
     // track) is streamed through its own element instead — decoding it would keep tens of MB in
     // memory for the rest of the session just to hear it once — and pressing ▶ on it again stops it.

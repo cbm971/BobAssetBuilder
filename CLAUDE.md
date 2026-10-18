@@ -492,6 +492,20 @@ plus traps it does not cover:
 - Options volumes go through `bobAudio.setVolumes` (master gain + music element); the studio
   never calls it. The game's music follows the slider, not the studio's 🎵 toggle.
 - His menu has no Credits screen yet; the game-icons.net symbols still need crediting somewhere.
+- **Options → Upload File (2026-10-18)** takes a file from the studio (Export everything, or one asset) and
+  updates THIS address's items from it (`gameUploadFile`, App.js; the row is `onUpload` on OptionsPanel, main
+  menu only). It is the studio's `restoreBackup`, but a full export is passed in as a version-1 backup, so it
+  ADDS/REPLACES by id and never deletes what the file leaves out; what it brings is stamped newer than the copy
+  it replaces, so it beats the published library.json seed. Pages and StackBlitz are different origins with
+  different stores, so this is how a changed weapon reaches the published game.
+- **The pointer** is a slightly larger green arrow with a white outline (`html.bobGame *{cursor:…}` in
+  public/index.html, so the title has it too). The studio never gets it.
+- **Item tiers were RENAMED (2026-10-18), not re-keyed.** Ids on saved items: poor, common, rare, legendary,
+  mystic. Names he reads: Poor (white), Common (green), **Good** (blue, id `rare`), **Rare** (purple, id
+  `legendary`), **Legendary** (gold, id `mystic`). Never "fix" the ids: every saved item carries them. No
+  sparkles, emoji or art glow on any tier; gold has only a second shine pass on the banner and a slow glow on
+  its caption. A gold pickup plays the standard pickup sound held 3x as long (`PICKUP_LEGENDARY_STRETCH`,
+  `stretchChannels` in audio.js, pitch kept), not three copies of it.
 
 ## Architecture — where things are
 

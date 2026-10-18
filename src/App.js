@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 // hash there is the same function the dev server and the keeper use (saveKeeperCore.clipHash), held
 // identical by a test, so all three name a sound file the same way.
 import { ANIM_POSES, ANIM_TRIGGERS, ANIM_ENDINGS, ANIM_STAND_HIP_CELLS, newAnim, migrateAnim, animActorPromptSpot, animLayerAt, animFrame, animMirrorValues, animPropTransform, animStateDur, animStep, animFadeAt, animPromptUp, animActorShown, animClothShape, CLOTH, CLOTH_LOOK, animReachAt, animReachPromptState, animSceneryStep, animEntryOffset, animPropPoint, animHandsAt, animRopeShape, ROPE, ROPE_LOOK, ANIM_REACH_CELLS, ANIM_PROP_SIZE_MAX, animKeyIndexAt, animAddKey, animSetValues, animShiftLayer, animDeleteKey, animMoveKey, animSetState, animSetLength, animCutStart, animCutEnd, animAddState, animDeleteState, animMoveState, animAddLayer, animSetLayer, animRemoveLayer, animMoveLayer, animStageBox, animMarkerFlipped, floorEndAnim, animScreenFit, ANIM_TEXT_COLOR } from "./anim";
-import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath, EXPLOSION_MIN_GAIN } from "./audio";
+import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard, CLIP_MAX_BYTES, clipExtOf, fmtClipSize, fmtClipDur, createAudioEngine, PICKUP_LEGENDARY_STRETCH, clipHash, clipNameOk, clipMatches, talkSeconds, dialogueSoundId, soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, splitHurtDeath, EXPLOSION_MIN_GAIN } from "./audio";
 // THE GAME (2026-10-17): BOB as players get it — title, main menu, saved games, options,
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
 // rules and store are src/gameFront.js and its screens src/gameShell.js; the GAME FRONT END block
@@ -2784,29 +2784,19 @@ export const HAS_CATEGORIES = (a) => !!a && (a.type === "equipment" || a.type ==
 // not touch the drop roll, the shop price or anything else.
 // A record with no rank (everything saved before this, and hand-written JSON) reads as Common —
 // the middle of the ladder, and what an untouched item most likely is.
+// 2026-10-18 the tiers were RENAMED, not re-keyed: the ids below are what every saved item carries, so
+// they stay, and only the label he reads changed. Poor (white) · Common (green) · Good (blue, id
+// "rare") · Rare (purple, id "legendary") · Legendary (gold, id "mystic"). Never "fix" the ids.
 export const ITEM_RANKS = ["poor", "common", "rare", "legendary", "mystic"];
 export const DEFAULT_ITEM_RANK = "common";
 export const ITEM_RANK_INFO = {
   poor: { label: "Poor", color: "#f4f4f4", bannerScale: 0.78 },
   common: { label: "Common", color: "#6fe27c", bannerScale: 0.85 },
-  rare: { label: "Rare", color: "#5ea9ff", bannerScale: 0.92 },
-  legendary: { label: "Legendary", color: "#c67bff", bannerScale: 1 },
-  mystic: { label: "Mystic", color: "#ffd84a", bannerScale: 1.08 },
+  rare: { label: "Good", color: "#5ea9ff", bannerScale: 0.92 },
+  legendary: { label: "Rare", color: "#c67bff", bannerScale: 1 },
+  mystic: { label: "Legendary", color: "#ffd84a", bannerScale: 1.08 },
 };
 export const itemRank = (a) => (a && ITEM_RANKS.includes(a.rank) ? a.rank : DEFAULT_ITEM_RANK);
-export const MYSTIC_BANNER_SPARKLES = [
-  { left: "-10%", top: "-25%", size: 26, delay: 0 },
-  { left: "10%", top: "-45%", size: 20, delay: 0.35 },
-  { left: "48%", top: "-50%", size: 28, delay: 0.1 },
-  { left: "82%", top: "-40%", size: 22, delay: 0.5 },
-  { left: "104%", top: "-20%", size: 26, delay: 0.2 },
-  { left: "-14%", top: "35%", size: 22, delay: 0.65 },
-  { left: "108%", top: "40%", size: 24, delay: 0.4 },
-  { left: "-6%", top: "90%", size: 18, delay: 0.8 },
-  { left: "26%", top: "100%", size: 22, delay: 0.25 },
-  { left: "74%", top: "105%", size: 20, delay: 0.6 },
-  { left: "102%", top: "85%", size: 20, delay: 0.75 },
-];
 const normCats = (arr) => (arr || []).map((c) => (typeof c === "string" ? c.trim().toLowerCase() : "")).filter(Boolean);
 export const itemMatchesPedestal = (item, cats, logic) => {
   const filters = normCats(cats);
@@ -13239,18 +13229,12 @@ export default function AssetStudio({ game = false } = {}) {
   // and it guards the timer so the first pickup's timeout cannot clear the second one's banner.
   const [pickupBanner, setPickupBanner] = useState(null); // { n, name, rows, rank } | null
   const pickupSeq = useRef(0);
-  const [pickupSparkle, setPickupSparkle] = useState(0);
-  const pickupSparkleSeq = useRef(0);
   const showPickup = (name, rows, rank, item) => {
     const rk = ITEM_RANKS.includes(rank) ? rank : DEFAULT_ITEM_RANK;
-    bobAudio.event("pickup"); // 🔊 every pickup announces itself through here, so this is the one place it can sound
-    if (rk === "mystic") {
-      setTimeout(() => bobAudio.event("pickup"), 140);
-      setTimeout(() => bobAudio.event("pickup"), 280);
-      const ps = ++pickupSparkleSeq.current;
-      setPickupSparkle(ps);
-      setTimeout(() => setPickupSparkle((s) => (s === ps ? 0 : s)), 1800);
-    }
+    // 🔊 every pickup announces itself through here, so this is the one place it can sound. A gold
+    // (Legendary) one is the SAME sound held three times as long (PICKUP_LEGENDARY_STRETCH) — not
+    // the sound played three times, which he called "duplicated".
+    bobAudio.event("pickup", undefined, undefined, 1, rk === "mystic" ? { stretch: PICKUP_LEGENDARY_STRETCH } : undefined);
     if (item) gameNoteRef.current("found", item.id); // ...and the one place the game's Unlocks hears of it
     const n = ++pickupSeq.current;
     setPickupBanner({ n, name: name || "", rows: rows || [], rank: rk });
@@ -20502,6 +20486,7 @@ export default function AssetStudio({ game = false } = {}) {
       if (c) bits.push(c + " " + label + (c === 1 ? "" : "s"));
     }
     flash("Restored " + bits.join(", ") + " from the backup ✓");
+    return bits;
   };
 
   // loadTextures() here as well as in the level creator: pieces can be painted with a texture now
@@ -22633,6 +22618,22 @@ export default function AssetStudio({ game = false } = {}) {
   }, [gameReady]);
   // At GAME_MENU_CLICK_GAIN of its board volume: at full it was "too loud" over the menus (Blake).
   const gameClick = () => bobAudio.event("menuClick", undefined, undefined, GAME_MENU_CLICK_GAIN);
+  // OPTIONS → UPLOAD FILE (2026-10-18). The studio's "Export everything" file, or one asset's file, is
+  // put into THIS address's store so a changed weapon can be tried here at once. It goes through the
+  // studio's own restoreBackup, but as an ADD/REPLACE by id (the file is passed as a version-1 backup,
+  // so a full export never deletes what it does not mention), and restoreBackup stamps what it brings
+  // newer than the copy it replaces, so the upload beats the published library.json seed.
+  const gameUploadFile = async (file) => {
+    let parsed;
+    try { parsed = JSON.parse(await file.text()); } catch { return "Not a BOB file"; }
+    let bk = null;
+    if (parsed && Array.isArray(parsed.assets) && parsed.assetBuilderBackup) bk = { ...parsed, assetBuilderBackup: 1 };
+    else if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) { try { normalizeAssetJson(parsed); bk = { assetBuilderBackup: 1, assets: [parsed] }; } catch { bk = null; } }
+    if (!bk) return "Not a BOB file";
+    const bits = await restoreBackup(bk);
+    gameArtCache.current.clear();
+    return "Updated " + (bits || []).join(", ");
+  };
   // Unlocks hears of a pickup, a purchase (showPickup / buyFromShop) and a kill (the loot pass).
   gameNoteRef.current = (kind, id) => {
     if (!game || !id) return;
@@ -23154,7 +23155,7 @@ export default function AssetStudio({ game = false } = {}) {
         <GameShell view={gameView === "play" ? "menu" : gameView} setView={setGameView} ready={gameReady}
           saves={gameSaves} options={gameOptions} setOptions={setGameOptions} record={gameRecord} assets={allAssets} renderArt={gameArt} renderDressed={(look, px) => gameArt(gameDressed(look), px)} renderHead={gameHead}
           statIcon={(k, px) => sym(k, null, px)} floors={gameFloors} sceneFor={menuSceneFor}
-          onStartGame={(look, diff) => gameNewGame(look, diff)} onLoad={gameLoadGame} onDelete={(id) => putGameSaves(dropGameSave(gameSavesRef.current, id))}
+          onStartGame={(look, diff) => gameNewGame(look, diff)} onLoad={gameLoadGame} onUpload={gameUploadFile} onDelete={(id) => putGameSaves(dropGameSave(gameSavesRef.current, id))}
           floorDone={gameFloorDone} onFloorDoneContinue={() => { setGameFloorDone(null); setGameView("menu"); }}
           gameOver={gameOverInfo} onRetry={gameRetry} onGameOverMenu={() => { setGameOverInfo(null); setGameView("menu"); }} note={gameNote} click={gameClick} />
       </div>
@@ -25822,15 +25823,6 @@ export default function AssetStudio({ game = false } = {}) {
                         const it = dk ? (enemyDrops.current[dk] || {}).item : pedestalRolls.current[pedPrompt.key];
                         return it ? takeCallout(it, p.x + pw / 2, p.y - 22 + (p.stepEase || 0) - climbLift) : null;
                       })()}
-                      {pickupSparkle > 0 && (
-                        <div className="playerSparkleBurst" style={{ left: p.x + pw / 2, top: p.y - 20 + (p.stepEase || 0) - climbLift }}>
-                          <svg className="psp psp1" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
-                          <svg className="psp psp2" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
-                          <svg className="psp psp3" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
-                          <svg className="psp psp4" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
-                          <svg className="psp psp5" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
-                        </div>
-                      )}
                       <div className={blocks ? "playerWrap" : "player"} style={style}>
                         {blocks ? (() => {
                           const art = renderPieceRuns({ pieces: blocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "player", keyPrefix: "pl", alphaOf: spriteAlphaOf(playerAsset, showThrowInHand ? carriedThrowRender : playtestWeapon), drawPiece: (pc, k, cut) => Static(pc, null, false, !!pc._m, k, undefined, cut) });
@@ -26506,13 +26498,6 @@ export default function AssetStudio({ game = false } = {}) {
                   return <div key={"drop" + k} className={"enemyDropPlay rk-" + itemRank(item)} style={{ left: drop.x, top: drop.y }} title={"Dropped " + item.name}>
                     <div className={"enemyDropOrb" + (bb ? " art" : "")} style={bb ? { width: dBox, height: dBox } : undefined}>{bb ? <div style={dPlane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "drop_" + k, keyPrefix: "drop" + k + "_", alpha: assetAlpha(item), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : icon}</div>
                     <div className={"enemyDropCap rk-" + itemRank(item)}>{item.name}</div>
-                    {itemRank(item) === "mystic" && (
-                      <div className="worldSparkles">
-                        <svg className="worldSparkle sp1" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
-                        <svg className="worldSparkle sp2" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
-                        <svg className="worldSparkle sp3" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
-                      </div>
-                    )}
                   </div>;
                 })}
                 {play && lv.markers && Object.keys(lv.markers).map((k) => {
@@ -26550,15 +26535,8 @@ export default function AssetStudio({ game = false } = {}) {
                     // stuck down there too — the player's head covered the name of the very thing
                     // they were standing on to read it. Same box, same coordinates, own layer.
                     <React.Fragment key={"ped" + k}>
-                      <div className={"pedestalPlay" + (xrayed ? " xray" : "") + (rolled && itemRank(rolled) === "mystic" ? " rk-mystic" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
+                      <div className={"pedestalPlay" + (xrayed ? " xray" : "") + ""} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }} title={"Pedestal · " + pedestalSummary(m)}>
                         <div className="pedestalArt" style={artStyle}>{bb ? <div style={planeStyle}>{renderPieceRuns({ pieces: artPieces, cacheKey: "ped_" + k, keyPrefix: "ped" + k + "_", alpha: assetAlpha(rolled), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : null}</div>
-                        {rolled && itemRank(rolled) === "mystic" && (
-                          <div className="worldSparkles">
-                            <svg className="worldSparkle sp1" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
-                            <svg className="worldSparkle sp2" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
-                            <svg className="worldSparkle sp3" viewBox="-10 -10 20 20"><polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#fff" strokeWidth="0.8" /></svg>
-                          </div>
-                        )}
                       </div>
                       {(rolled || !bb) && (
                         <div className={"pedLabels" + (xrayed ? " xray" : "")} style={{ left: c * LV_CELL + LV_CELL / 2 - boxW / 2, top: r * LV_CELL - boxH + LV_CELL, width: boxW, height: boxH }}>
@@ -26679,15 +26657,6 @@ export default function AssetStudio({ game = false } = {}) {
                   <div className="pbBurst" />
                   <div className="pbName" data-text={pickupBanner.name} style={{ fontSize: Math.round((pickupBanner.name.length > 22 ? 20 : pickupBanner.name.length > 15 ? 24 : pickupBanner.name.length > 10 ? 28 : 32) * ITEM_RANK_INFO[pickupBanner.rank].bannerScale) }}>
                     <span>{pickupBanner.name}</span>
-                    {pickupBanner.rank === "mystic" && (
-                      <div className="pbSparkles">
-                        {MYSTIC_BANNER_SPARKLES.map((sp, i) => (
-                          <svg key={i} className="pbSparkle" viewBox="-10 -10 20 20" style={{ left: sp.left, top: sp.top, width: sp.size, height: sp.size, animationDelay: sp.delay + "s" }}>
-                            <polygon points="0,-9 2.5,-2.5 9,0 2.5,2.5 0,9 -2.5,2.5 -9,0 -2.5,-2.5" fill="#ffe866" stroke="#ffffff" strokeWidth="0.8" />
-                          </svg>
-                        ))}
-                      </div>
-                    )}
                   </div>
                   {pickupBanner.rows.length > 0 && <div className="pbRows">{pickupRowsView(pickupBanner.rows)}</div>}
                 </div>
@@ -28821,10 +28790,11 @@ html,body{margin:0;padding:0;background:#0f1117}
    3-D drop, a double glow that keeps breathing while the name holds, the shine sweep and the burst.
    Each rank below takes one step off, as asked ("each font slightly smaller or with slightly less
    effects than the upgrade"): the size steps down in ITEM_RANK_INFO.bannerScale, and here
-     MYSTIC  gold  — golden burst, golden breathing double glow, shine sweep, and sparkling stars
+     LEGENDARY (id mystic) gold — golden burst, golden breathing double glow, a shine sweep that passes twice
      RARE    blue  — no breathing glow, a smaller and fainter burst, thinner outline
      COMMON  green — no burst, no shine, a softer pop, a faint glow
      POOR    white — no glow at all, the thinnest outline, the gentlest pop. */
+.pbRank-mystic .pbName::after{animation:pbShine 1.1s .35s ease-in-out both,pbShine 1.1s 1.5s ease-in-out both}
 .pbRank-mystic .pbBurst{width:360px;height:120px;margin:-60px 0 0 -180px;background:radial-gradient(ellipse at center,rgba(255,230,120,.8),rgba(245,176,65,.38) 45%,transparent 70%)}
 .pbRank-mystic .pbName span{background-image:linear-gradient(180deg,#fffdf0 0%,#ffe680 32%,#f7b731 64%,#c68200 100%)}
 .pbRank-mystic .pbName::before{color:#2b1700;-webkit-text-stroke:.22em #2b1700;text-shadow:0 .14em 0 #2b1700,0 0 .6em rgba(255,225,100,.95),0 0 1.3em rgba(245,176,65,.75);animation:pbBreatheGold 1.1s .55s ease-in-out infinite alternate}
@@ -28842,37 +28812,20 @@ html,body{margin:0;padding:0;background:#0f1117}
 .pbRank-poor .pbName span{background-image:linear-gradient(180deg,#ffffff 0%,#f1f1f1 50%,#cacaca 100%)}
 .pbRank-poor .pbName::before{color:#121212;-webkit-text-stroke:.14em #121212;text-shadow:0 .06em 0 #121212}
 @keyframes pbPopSoft{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.05);opacity:1}100%{transform:scale(1)}}
-.pbSparkles{position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;overflow:visible}
-.pbSparkle{position:absolute;filter:drop-shadow(0 0 6px #ffd84a) drop-shadow(0 0 12px rgba(255,200,50,.85));animation:pbSparkleAnim 1.1s ease-in-out infinite both}
-@keyframes pbSparkleAnim{0%{transform:scale(0) rotate(0deg);opacity:0}35%{transform:scale(1.3) rotate(45deg);opacity:1}70%{transform:scale(0.8) rotate(90deg);opacity:0.85}100%{transform:scale(0) rotate(140deg);opacity:0}}
-.pedestalPlay.rk-mystic .pedestalArt,.enemyDropPlay.rk-mystic .enemyDropOrb{filter:drop-shadow(0 0 6px #ffd84a) drop-shadow(0 0 12px rgba(255,200,50,.7))}
-.worldSparkles{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible}
-.worldSparkle{position:absolute;width:14px;height:14px;filter:drop-shadow(0 0 4px #ffd84a);animation:worldSparkleAnim 1.3s ease-in-out infinite both}
-.worldSparkle.sp1{left:-6px;top:-6px;animation-delay:0s}
-.worldSparkle.sp2{right:-6px;top:-2px;animation-delay:.45s}
-.worldSparkle.sp3{left:50%;bottom:-6px;margin-left:-7px;animation-delay:.9s}
-@keyframes worldSparkleAnim{0%{transform:scale(0) rotate(0deg);opacity:0}40%{transform:scale(1.2) rotate(45deg);opacity:1}80%{transform:scale(.7) rotate(90deg);opacity:.8}100%{transform:scale(0) rotate(135deg);opacity:0}}
-.playerSparkleBurst{position:absolute;z-index:9002;pointer-events:none}
-.playerSparkleBurst .psp{position:absolute;width:18px;height:18px;filter:drop-shadow(0 0 6px #ffd84a);animation:pspFloat 1.2s ease-out infinite both}
-.playerSparkleBurst .psp1{left:-20px;top:-20px;animation-delay:0s}
-.playerSparkleBurst .psp2{left:15px;top:-35px;animation-delay:.2s}
-.playerSparkleBurst .psp3{left:-10px;top:-45px;animation-delay:.35s}
-.playerSparkleBurst .psp4{left:20px;top:-15px;animation-delay:.5s}
-.playerSparkleBurst .psp5{left:0px;top:-55px;animation-delay:.65s}
-@keyframes pspFloat{0%{transform:scale(0) translateY(10px) rotate(0deg);opacity:0}30%{transform:scale(1.3) translateY(0) rotate(45deg);opacity:1}80%{transform:scale(.8) translateY(-20px) rotate(90deg);opacity:.8}100%{transform:scale(0) translateY(-35px) rotate(135deg);opacity:0}}
 /* The same five colours on every OTHER place the game prints an item's name: over a pedestal,
    under a drop, on a shop row. Two classes deep so they beat the shared white-outline rule's
-   color; the outline itself is untouched. Legendary alone adds a purple glow to it; Mystic adds a gold glow. */
+   color; the outline itself is untouched. The purple (Rare) adds a purple glow to it; the gold (Legendary) a gold glow that breathes slowly. */
 .pedestalCap.rk-poor,.enemyDropCap.rk-poor,.shopName.rk-poor{color:${ITEM_RANK_INFO.poor.color}}
 .pedestalCap.rk-common,.enemyDropCap.rk-common,.shopName.rk-common{color:${ITEM_RANK_INFO.common.color}}
 .pedestalCap.rk-rare,.enemyDropCap.rk-rare,.shopName.rk-rare{color:${ITEM_RANK_INFO.rare.color}}
 .pedestalCap.rk-legendary,.enemyDropCap.rk-legendary,.shopName.rk-legendary{color:${ITEM_RANK_INFO.legendary.color}}
 .pedestalCap.rk-mystic,.enemyDropCap.rk-mystic,.shopName.rk-mystic{color:${ITEM_RANK_INFO.mystic.color}}
 .pedestalCap.rk-legendary,.enemyDropCap.rk-legendary{text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(190,110,255,.95)}
-.pedestalCap.rk-mystic,.enemyDropCap.rk-mystic{text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(255,216,74,.95),0 0 14px rgba(255,180,30,.85)}
-.rankRow{display:flex;flex-wrap:wrap;gap:6px}
-.rankBtn{flex:1 1 auto;white-space:nowrap;background:#0f1117;border:1px solid #2c3245;border-radius:9px;padding:8px 9px;font-size:13px;font-weight:700;cursor:pointer}
-.rankBtn.on{background:#1b2133}
+.pedestalCap.rk-mystic,.enemyDropCap.rk-mystic{animation:capGold 2.4s ease-in-out infinite;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(255,216,74,.95),0 0 14px rgba(255,180,30,.85)}
+@keyframes capGold{0%,100%{text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 9px rgba(255,216,74,.8),0 0 14px rgba(255,180,30,.55)}50%{text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 0 4px rgba(0,0,0,.95),0 0 11px rgba(255,230,120,1),0 0 18px rgba(255,190,40,.95)}}
+.rankRow{display:flex;flex-wrap:nowrap;gap:3px}
+.rankRow .rankBtn{flex:1 1 auto;min-width:0;white-space:nowrap;background:#0f1117;border:1px solid #2c3245;border-radius:8px;padding:8px 4px;font-size:11px;font-weight:700;cursor:pointer;text-align:center}
+.rankRow .rankBtn.on{background:#1b2133}
 .pbRows{display:flex;flex-direction:column;align-items:center;gap:2px;white-space:nowrap;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:19px;font-weight:700;line-height:1.2;color:#fff;animation:pbRowsIn .35s .3s ease-out both}
 @keyframes pbRowsIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .seamStrip{position:absolute;pointer-events:none;background:inherit;background-size:inherit}
