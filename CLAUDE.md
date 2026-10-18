@@ -116,6 +116,11 @@ has never actually been gone; the bytes were always still on disk.** Never clear
    `node tools/bob-okay.js export <file>` writes the folder in library.json shape. **Never point a
    test keeper at his folder.** Use `BOB_SAVES`, `BOB_HOME`, `BOB_PORT`, `BOB_NO_SWEEP=1`, and
    `BOB_NO_CLOUD=1` or `BOB_CLOUD_REMOTE=<local bare repo>`.
+   The sweep also reads Chrome's **WebStorage/<bucket>** copies (QuotaManager maps bucket to storage key,
+   `core.gameStorageKey`): the preview shown INSIDE the StackBlitz page is a partitioned store there, and
+   its saves never left it before 2026-10-17. **To deliver a record, POST it to the keeper**
+   (`localhost:47017/__library`, `revive:true`): a file written straight into the folder is NOT published
+   online, so no copy (the game included) sees it.
    **Every save carries `editedFrom`** (App.js `stampSave`): the savedAt of the version the editor was
    holding. The sweep's three-way merge uses EXACTLY that version as the base, or simply takes the
    save when `editedFrom` is the folder's current version. Never stamp `savedAt: Date.now()` by
@@ -585,7 +590,9 @@ plus traps it does not cover:
   `data-ly`); a drag on the SELECTED layer's pieces moves it even under another; nothing changes
   before ANIM_DRAG_SLOP; prop corner = Size, blanket ends = Head/Foot; arrows nudge; Move: All keys
   is `animShiftLayer`. ↩/↪ (Ctrl+Z/Y) step through `animRemember` and never restore an older
-  id/savedAt; picking the open animation in 📂, or ↺ Last save, reloads the saved copy.
+  id/savedAt; ↺ Last save reloads the saved copy. **The editor saves by itself** ANIM_AUTOSAVE_MS after
+  a change (`animAutoSaves`: saved before, same name; new/renamed wait for 💾), and ‹ Menu, ✚ New, 📂 and
+  closing the page write first — only 💾 wrote before, and his edits were lost for a day (2026-10-17).
   **Shortening a state never leaves keys past its end**: Length is set on Enter/blur (typing 30 over 44
   passes 3), ⇔ Stretch scales every key (`animSetLength`), otherwise the tail is cut with a key at the
   new end holding that frame; ✂ Start / ✂ End cut at the playhead (`animCutStart`/`animCutEnd`).

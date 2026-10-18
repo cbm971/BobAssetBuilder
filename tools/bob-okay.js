@@ -394,7 +394,7 @@ const findCopies = () => {
     for (const p of profiles) {
       const idb = path.join(root, p, "IndexedDB");
       let names = [];
-      try { names = fs.readdirSync(idb); } catch { continue; }
+      try { names = fs.readdirSync(idb); } catch { names = []; }
       for (const n of names) {
         const m = GAME_ORIGIN.exec(n);
         if (!m) continue;
@@ -403,8 +403,38 @@ const findCopies = () => {
         const short = m[1].replace(/\.local-credentialless\.webcontainer\.io$|\.webcontainer\.io$/i, "");
         out.push({ name: short + (p === "Default" ? "" : " (" + p + ")"), dir, blob: dir.replace(/\.leveldb$/, ".blob") });
       }
+      // ...and the copies Chrome files under WebStorage/<bucket> instead (core.gameStorageKey says
+      // why): the preview shown inside the StackBlitz page is one, and its saves never left it.
+      for (const b of partitionedBuckets(path.join(root, p, "WebStorage"))) {
+        const short = b.host.replace(/\.local-credentialless\.webcontainer\.io$|\.webcontainer\.io$/i, "");
+        out.push({ name: short + (b.top ? " in " + b.top : " bucket " + b.id) + (p === "Default" ? "" : " (" + p + ")"), dir: b.dir, blob: b.dir.replace(/\.leveldb$/, ".blob") });
+      }
     }
   }
+  return out;
+};
+// WebStorage/QuotaManager (sqlite) maps bucket ids to storage keys. Read from a copy, since Chrome
+// holds it open. node:sqlite needs Node 22.5+; on an older Node these copies are skipped, as before.
+const partitionedBuckets = (ws) => {
+  const out = [];
+  const qm = path.join(ws, "QuotaManager");
+  if (!fs.existsSync(qm)) return out;
+  const tmp = path.join(os.tmpdir(), "bob-okay-qm-" + process.pid + ".db");
+  try {
+    fs.copyFileSync(qm, tmp);
+    const { DatabaseSync } = require("node:sqlite");
+    const db = new DatabaseSync(tmp, { readOnly: true });
+    try {
+      for (const r of db.prepare("SELECT id, storage_key FROM buckets WHERE name = '_default'").all()) {
+        const g = core.gameStorageKey(r.storage_key);
+        if (!g) continue;
+        const dir = path.join(ws, String(r.id), "IndexedDB", "indexeddb.leveldb");
+        if (fs.existsSync(dir)) out.push({ ...g, id: r.id, dir });
+      }
+    } finally { db.close(); }
+  } catch (e) {
+    if (!partitionedBuckets.warned) { partitionedBuckets.warned = true; log("sweep: WebStorage copies not read: " + e.message); }
+  } finally { try { fs.rmSync(tmp, { force: true }); } catch { /* temp */ } }
   return out;
 };
 const signature = (dir) => {

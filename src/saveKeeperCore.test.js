@@ -1,6 +1,6 @@
 // The save keeper's merge rules (src/saveKeeperCore.js). The fixtures are shaped like 2026-09-26:
 // two copies of the game that each edited records from the same committed version.
-const { merge3, decideSweep, libraryFromStore, sameContent, cloudSnapshot } = require("./saveKeeperCore");
+const { gameStorageKey, merge3, decideSweep, libraryFromStore, sameContent, cloudSnapshot } = require("./saveKeeperCore");
 
 const lvl = (savedAt, extra) => ({ id: "i80q4s6", name: "Trailor Int1", savedAt, section: "", fg: { "1,1": "#111", "2,2": "#222" }, climb: {}, enemies: {}, ...extra });
 
@@ -182,5 +182,19 @@ describe("cloudSnapshot", () => {
     const before = JSON.stringify(lib);
     expect(JSON.parse(cloudSnapshot(lib)).assets).toEqual([{ id: "a" }]);
     expect(JSON.stringify(lib)).toBe(before);
+  });
+});
+
+describe("gameStorageKey", () => {
+  // 2026-10-17: saves made in StackBlitz's editor view sat in a partitioned store the sweep never read.
+  it("finds the game embedded in StackBlitz and on its own", () => {
+    expect(gameStorageKey("https://bobassetbuilder-hzer--3000--2ed8f36d.local-credentialless.webcontainer.io/^0https://stackblitz.com")).toEqual({ host: "bobassetbuilder-hzer--3000--2ed8f36d.local-credentialless.webcontainer.io", top: "stackblitz.com" });
+    expect(gameStorageKey("https://cbm971.github.io/")).toEqual({ host: "cbm971.github.io", top: "" });
+  });
+  it("ignores everything else, localhost included", () => {
+    expect(gameStorageKey("https://www.youtube.com/^0https://google.com")).toBeNull();
+    expect(gameStorageKey("http://localhost:47017/")).toBeNull();
+    expect(gameStorageKey("https://stackblitz.com/")).toBeNull();
+    expect(gameStorageKey(null)).toBeNull();
   });
 });

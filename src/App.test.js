@@ -1,4 +1,5 @@
 import {
+  animAutoSaves,
   DEFAULT_PROJECTILE_RANGE,
   roomTagMatches,
   firstObjectiveMarker,
@@ -13966,5 +13967,17 @@ describe("objective markers", () => {
     expect(sc.total).toBe(500);
     expect(objectiveReward({ score: -5, money: "12.4" })).toEqual({ score: 0, money: 12 });
     expect(objectiveReward(null)).toEqual({ score: 0, money: 0 });
+  });
+});
+
+describe("animAutoSaves", () => {
+  // 2026-10-17: his white crawl and State 3 removal never reached any store; only 💾 wrote.
+  it("saves an animation already saved under the name it still has", () => {
+    expect(animAutoSaves({ id: "gnrlbr2", name: "General's Briefing" }, { id: "gnrlbr2", name: "General's Briefing" })).toBe(true);
+  });
+  it("leaves a new or renamed one for 💾 (a rename is a Save As)", () => {
+    expect(animAutoSaves({ id: "x", name: "Animation" }, null)).toBe(false);
+    expect(animAutoSaves({ id: "gnrlbr2", name: "Briefing 2" }, { id: "gnrlbr2", name: "General's Briefing" })).toBe(false);
+    expect(animAutoSaves(null, { id: "a", name: "a" })).toBe(false);
   });
 });

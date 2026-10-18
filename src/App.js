@@ -6916,6 +6916,17 @@ export const animActorBlocks = (blocks, v) => {
 // 🎬 editor undo: changes closer together than this (ms) are one ↩ step — a slider sends dozens a
 // second while it is dragged, and one ↩ per pixel of it would be no undo at all.
 export const ANIM_UNDO_GAP = 600;
+// 🎬 THE EDITOR SAVES BY ITSELF (Blake, 2026-10-17: "No matter how many times I edit that animation
+// the edits won't stay!"). Every copy of his on this PC was read that night — Chrome, Edge, the
+// StackBlitz preview's own store and its embedded twin, the save folder and its History — and not
+// one held a single save of his white crawl or his State 3 removed. The edits were never written:
+// only 💾 wrote, and ‹ Menu, ✚ New, picking the open animation in 📂 again (it reloads the saved
+// copy) and any reload of the page all dropped what was on screen without a word. So the open
+// animation is written ANIM_AUTOSAVE_MS after the last change. Only one already saved under the
+// name it still has: a new one waits for 💾 (or every ✚ New would leave a stray record behind),
+// and a renamed one waits for 💾 because that save is a Save As (resolveSaveTarget, his rule).
+export const ANIM_AUTOSAVE_MS = 1200;
+export const animAutoSaves = (doc, stored) => !!(doc && stored && doc.id === stored.id && (doc.name || "") === (stored.name || ""));
 // ...and how far (px) the pointer must travel on the stage before a press is a DRAG. Under it, it
 // is a click that only picks a layer: a press that wobbled a pixel used to set a key.
 export const ANIM_DRAG_SLOP = 4;
@@ -12668,6 +12679,7 @@ export default function AssetStudio({ game = false } = {}) {
   // JSON it was opened or last saved as (so "unsaved" is a plain compare, as the dialogue editor does).
   const [animDoc, setAnimDoc] = useState(null);
   const animBaseline = useRef("");
+  const animOpenId = useRef(null); // the id of the record open in it, set the moment one is opened (saveAnim checks it)
   const [animSi, setAnimSi] = useState(0);        // the state being edited
   const [animT, setAnimT] = useState(0);          // the playhead, seconds into that state
   const [animSel, setAnimSel] = useState(null);   // the layer being edited
@@ -20610,9 +20622,15 @@ export default function AssetStudio({ game = false } = {}) {
   // 💾 Save the animation open in the editor. The asset path, narrowed: stamped (editedFrom), Save
   // As on a rename (resolveSaveTarget, his rule), the index row, the project file. Nothing wears an
   // animation, so there are no dressed looks to refresh.
-  const saveAnim = async () => {
-    if (!animDoc) return;
-    let payload = stampSave(migrateAnim(animDoc, uid), animDoc);
+  // `quiet`: the editor's own save (ANIM_AUTOSAVE_MS). No "Saved ✓" every second and a half, and
+  // no loadLibrary — that re-reads every record he has — so the one saved record is put straight
+  // into the library, which is all the game, 📂 and ↺ Last save read it from.
+  // The doc is taken as it was when the save STARTED, and only its id and savedAt are written back
+  // afterwards: a change made while the store was being written stays (and is saved next).
+  const saveAnim = async (quiet) => {
+    const doc = animDoc;
+    if (!doc) return false;
+    let payload = stampSave(migrateAnim(doc, uid), doc);
     let list = []; const idx = await sget("assetIndex"); if (idx) try { list = JSON.parse(idx); } catch { list = []; }
     const target = resolveSaveTarget(list, payload);
     if (target.id !== payload.id) { payload = { ...payload, id: target.id }; delete payload.editedFrom; }
@@ -20621,12 +20639,51 @@ export default function AssetStudio({ game = false } = {}) {
     const ok2 = await writeAssetIndex(list);
     projectLibrary.save({ assets: [payload] }, { revive: true });
     if (ok1 && ok2) {
-      const kept = { ...animDoc, id: payload.id, savedAt: payload.savedAt };
-      setAnimDoc(kept); animBaseline.current = JSON.stringify(kept);
-      flash(target.mode === "rename" ? "Saved as a new \"" + payload.name + "\" ✓ — the original was kept" : "Saved ✓");
-      loadLibrary();
-    } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ".");
+      // ...unless another animation was opened meanwhile (✚ New or 📂 while this was being written):
+      // then this one is saved and the editor is left alone.
+      const stamp = (x) => ({ ...x, id: payload.id, savedAt: payload.savedAt });
+      if (animOpenId.current == null || animOpenId.current === doc.id) {
+        animOpenId.current = payload.id;
+        animBaseline.current = JSON.stringify(stamp(doc));
+        setAnimDoc((cur) => (cur && cur.id === doc.id ? stamp(cur) : cur));
+      }
+      if (quiet) {
+        setLibrary((lib) => (lib.some((a) => a && a.id === payload.id) ? lib.map((a) => (a && a.id === payload.id ? payload : a)) : [...lib, payload]));
+      } else {
+        flash(target.mode === "rename" ? "Saved as a new \"" + payload.name + "\" ✓ — the original was kept" : "Saved ✓");
+        loadLibrary();
+      }
+      return true;
+    }
+    flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ".");
+    return false;
   };
+  // The editor's own save (see ANIM_AUTOSAVE_MS): the open animation, a moment after its last
+  // change. animAutoRef holds the latest "save it now if it needs it" for the ways out below
+  // (‹ Menu, ✚ New, 📂, closing the page), which must not wait out the timer and lose its last edit.
+  const animAutoRef = useRef(null);
+  useEffect(() => {
+    const doc = animDoc;
+    const pending = () => !!doc && JSON.stringify(doc) !== animBaseline.current && animAutoSaves(doc, findAnim(doc.id));
+    animAutoRef.current = () => (pending() ? saveAnim(true) : Promise.resolve(false));
+    if (!pending()) return undefined;
+    const t = setTimeout(() => { saveAnim(true); }, ANIM_AUTOSAVE_MS);
+    return () => clearTimeout(t);
+  }, [animDoc, animLib]); // saveAnim/findAnim are re-made every render; animDoc + the library are what decide
+  // Closing or reloading the page with an animation change not yet written: write it now (the
+  // store usually takes it before the page goes), and for one that cannot save itself (new, or
+  // renamed and waiting for its Save As) the browser asks before leaving.
+  useEffect(() => {
+    if (screen !== "anim") return undefined;
+    const bu = (e) => {
+      const doc = animDoc;
+      if (!doc || JSON.stringify(doc) === animBaseline.current) return;
+      if (animAutoSaves(doc, findAnim(doc.id))) { if (animAutoRef.current) animAutoRef.current(); return; }
+      e.preventDefault(); e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", bu);
+    return () => window.removeEventListener("beforeunload", bu);
+  }); // re-bound every render, so it always sees the open doc
   // `keepView`: stay on the same state, moment and layer (↺ Last save puts back what you were
   // looking at, it does not throw you to the start). Opening the SAME animation again is an undo
   // step, so a reload you did not mean is one ↩ away; opening another one starts a fresh history.
@@ -20635,6 +20692,7 @@ export default function AssetStudio({ game = false } = {}) {
     if (a && animDoc && animDoc.id === doc.id) { if (JSON.stringify(animDoc) !== JSON.stringify(doc)) animRemember(animDoc, true); }
     else { animUndo.current = []; animRedo.current = []; setAnimHist({ u: 0, r: 0 }); }
     animLastPut.current = 0;
+    animOpenId.current = doc.id;
     setAnimDoc(doc); animBaseline.current = a ? JSON.stringify(doc) : "";
     if (!keepView) { setAnimSi(0); setAnimT(0); setAnimSel(doc.layers[0] ? doc.layers[0].id : null); }
     setAnimPrev(null); setAnimDelArm(false);
@@ -23237,6 +23295,10 @@ export default function AssetStudio({ game = false } = {}) {
     const dirty = JSON.stringify(d) !== animBaseline.current;
     // Every change to the record goes through here, so every change can be undone (animRemember).
     const put = (next) => { if (next === d) return; animRemember(d); setAnimDoc(next); setAnimDelArm(false); };
+    // Write what is on screen now rather than when the timer would (ANIM_AUTOSAVE_MS): true when
+    // there was something to write. Picking the open animation in 📂 again used to reload its saved
+    // copy over the screen; with the screen saved there is nothing older to go back to.
+    const animSaveNow = () => { const pend = animAutoSaves(d, findAnim(d.id)) && dirty; if (pend) saveAnim(true); return pend; };
     const si = Math.max(0, Math.min(animSi, d.states.length - 1));
     const st = d.states[si];
     const dur = animStateDur(st);
@@ -23371,7 +23433,7 @@ export default function AssetStudio({ game = false } = {}) {
     return (
       <div className="bb"><style>{css}</style>
         <header className="bar">
-          <button className="back" onClick={() => { animPlayStop(); setScreen("menu"); }}>‹ Menu</button>
+          <button className="back" onClick={() => { animPlayStop(); animSaveNow(); setScreen("menu"); }}>‹ Menu</button>
           <input className="nm wide2" value={d.name} onChange={(e) => put({ ...d, name: e.target.value })} placeholder="Animation name" />
           {/* Before the badge, which grows by "· unsaved": after it, ↩ Undo slid sideways the moment
               an undo got back to the saved copy, and the next click landed on something else. */}
@@ -23381,12 +23443,12 @@ export default function AssetStudio({ game = false } = {}) {
           {/* The picker always sits on its first line, so picking the animation that is open
               reloads it as saved — it used to show that one picked, and picking it again did nothing
               ("I could not load a un messed up version"). */}
-          <select className="animOpen" value="" onChange={(e) => { const a = findAnim(e.target.value); if (!a) return; animPlayStop(); openAnimDoc(a); }} title="Open a saved animation">
+          <select className="animOpen" value="" onChange={(e) => { const a = findAnim(e.target.value); if (!a) return; animPlayStop(); if (animSaveNow() && a.id === d.id) return; openAnimDoc(a); }} title="Open a saved animation">
             <option value="">{stored ? "🎬 " + stored.name : "📂 Open…"}</option>
             {animLib.map((a) => <option key={a.id} value={a.id}>🎬 {a.name}</option>)}
           </select>
           {stored && <button className="ltbtn" disabled={!dirty} onClick={() => { animPlayStop(); openAnimDoc(stored, true); }}>↺ Last save</button>}
-          <button className="ltbtn" onClick={() => { animPlayStop(); openAnimDoc(null); }}>✚ New</button>
+          <button className="ltbtn" onClick={() => { animPlayStop(); animSaveNow(); openAnimDoc(null); }}>✚ New</button>
           {playing ? <button className="ltbtn" onClick={animPlayStop}>⏹ Stop</button> : <button className="ltbtn" onClick={() => animPlayStart(si)} title="Plays from this state to the end. E (or a click on the prompt) moves a waiting state on.">▶ Play</button>}
           {stored && <button className={"ltbtn" + (animDelArm ? " danger" : "")} onClick={() => { if (!animDelArm) { setAnimDelArm(true); return; } setAnimDelArm(false); animPlayStop(); deleteAsset(stored); openAnimDoc(null); }}>{animDelArm ? "Delete the whole animation?" : "🗑 Animation"}</button>}
           <button className="save" onClick={saveAnim}>💾 Save</button>

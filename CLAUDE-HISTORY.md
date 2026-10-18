@@ -5076,3 +5076,13 @@ neither. It is the same app at a second address, so every play fix reaches both.
   emulated size is wider than the pane (506 px here). Read the DOM, not the picture.
 - **Not verified:** the whole floor played start to finish in the game, the scaled view on his
   3440×1440 screen (paint cost grows with the window), menu music (none yet), and gamepad input (none).
+
+## 🎬 "THE EDITS WON'T STAY" (2026-10-17)
+
+He kept making General's Briefing's crawl white and deleting State 3 (the last line popped on, vanished, then
+faded back in), and it kept coming back yellow and jumpy. Every store on his PC was read: Chrome and Edge IndexedDB,
+the StackBlitz preview's store AND its partitioned twin under WebStorage/476 (the preview embedded in the StackBlitz
+page), the save folder and History. No copy ever held a save of either change: only 💾 wrote, and Menu, ✚ New, 📂 on
+the open animation and any page reload dropped the screen silently. Fixed by the editor saving itself. Same night:
+the keeper never swept WebStorage buckets (now it does), and a record I wrote straight into Saves/assets was never
+published online, so the game kept the old one until it was POSTed through /__library.

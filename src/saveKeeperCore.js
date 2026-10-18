@@ -222,4 +222,19 @@ const cloudSnapshot = (lib) => {
   return JSON.stringify(out, null, 1);
 };
 
-module.exports = { KINDS, PREFIX, newerRecord, sameContent, merge3, decideSweep, libraryFromStore, cloudSnapshot, clipHash, clipNameOk, clipMatches, CLIP_PREFIX };
+// A COPY OF THE GAME KEPT IN CHROME'S WebStorage FOLDER (2026-10-17). The StackBlitz preview shown
+// INSIDE the StackBlitz page is a third-party frame, and Chrome gives a frame its own partitioned
+// store: same address, different store, filed as WebStorage/<bucket>/IndexedDB under a storage key
+// like "https://bobassetbuilder-hzer--3000--2ed8f36d.local-credentialless.webcontainer.io/^0https://stackblitz.com".
+// The sweep only ever read IndexedDB/https_<host>_0.indexeddb.leveldb, so a save made in the
+// editor view of StackBlitz stayed in that one store: never in the folder, never online, never in
+// the game. Given a QuotaManager storage key: { host, top } for a copy of the game (top = the page
+// it is embedded in, "" when it is not), else null. localhost never counts (see GAME_ORIGIN).
+const GAME_HOST = /^(bobassetbuilder-[a-z0-9-]+\.local-credentialless\.webcontainer\.io|bobassetbuilder-[a-z0-9-]+\.webcontainer\.io|cbm971\.github\.io)$/i;
+const gameStorageKey = (key) => {
+  const m = /^https:\/\/([^/^]+)\/(?:\^0https?:\/\/([^/^]+))?/i.exec(String(key || ""));
+  if (!m || !GAME_HOST.test(m[1])) return null;
+  return { host: m[1].toLowerCase(), top: (m[2] || "").toLowerCase() };
+};
+
+module.exports = { gameStorageKey, KINDS, PREFIX, newerRecord, sameContent, merge3, decideSweep, libraryFromStore, cloudSnapshot, clipHash, clipNameOk, clipMatches, CLIP_PREFIX };
