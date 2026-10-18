@@ -1303569,6 +1303569,289 @@
     "crouch": []
    },
    "variants": {
+    "default": {
+     "front": [
+      {
+       "id": "zbrft00",
+       "kind": "rect",
+       "x": 58,
+       "y": 88,
+       "w": 84,
+       "h": 90,
+       "color": "#f2efe6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "zbrtex1"
+      },
+      {
+       "id": "zbrft10",
+       "kind": "rect",
+       "x": 134,
+       "y": 86,
+       "w": 23,
+       "h": 67,
+       "color": "#f2efe6",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "overArms": true,
+       "limb": "arm",
+       "rot": 353,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "zbrtex1"
+      },
+      {
+       "id": "zbrft20",
+       "kind": "circle",
+       "x": 70,
+       "y": 81,
+       "w": 55,
+       "h": 13,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      }
+     ],
+     "back": [
+      {
+       "id": "zbrbt00",
+       "kind": "rect",
+       "x": 59,
+       "y": 88,
+       "w": 83,
+       "h": 90,
+       "color": "#f2efe6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "zbrtex1"
+      },
+      {
+       "id": "zbrbt10",
+       "kind": "rect",
+       "x": 136,
+       "y": 86.5,
+       "w": 23,
+       "h": 67,
+       "color": "#f2efe6",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "overArms": true,
+       "limb": "arm",
+       "rot": 353,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "zbrtex1"
+      }
+     ],
+     "side": [
+      {
+       "id": "zbrst00",
+       "kind": "rect",
+       "x": 59,
+       "y": 88,
+       "w": 83,
+       "h": 90,
+       "color": "#f2efe6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "zbrtex1"
+      },
+      {
+       "id": "zbrst10",
+       "kind": "rect",
+       "x": 83,
+       "y": 95,
+       "w": 26,
+       "h": 68,
+       "color": "#f2efe6",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "overArms": true,
+       "limb": "arm",
+       "rot": 360,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "zbrtex1"
+      }
+     ],
+     "up": [
+      {
+       "id": "zbrut00",
+       "kind": "rect",
+       "x": 59,
+       "y": 88,
+       "w": 83,
+       "h": 90,
+       "color": "#f2efe6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "zbrtex1"
+      },
+      {
+       "id": "zbrut10",
+       "kind": "rect",
+       "x": 134,
+       "y": 44,
+       "w": 18,
+       "h": 62,
+       "color": "#f2efe6",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "overArms": true,
+       "limb": "arm",
+       "rot": 360,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "zbrtex1"
+      },
+      {
+       "id": "zbrut20",
+       "kind": "circle",
+       "x": 72,
+       "y": 81,
+       "w": 55,
+       "h": 13,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      }
+     ],
+     "crouch": [
+      {
+       "id": "zbrct00",
+       "kind": "rect",
+       "x": 59,
+       "y": 118,
+       "w": 81,
+       "h": 59,
+       "color": "#f2efe6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "zbrtex1"
+      },
+      {
+       "id": "zbrct10",
+       "kind": "rect",
+       "x": 139,
+       "y": 123,
+       "w": 20,
+       "h": 52,
+       "color": "#f2efe6",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "overArms": true,
+       "limb": "arm",
+       "rot": 0,
+       "outline": true,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "zbrtex1"
+      },
+      {
+       "id": "zbrct20",
+       "kind": "circle",
+       "x": 70,
+       "y": 112,
+       "w": 55,
+       "h": 13,
+       "color": "#1d1b1b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
+      }
+     ]
+    },
     "telfv37": {
      "front": [
       {
@@ -1304186,289 +1304469,6 @@
        "isCutter": true
       }
      ]
-    },
-    "default": {
-     "front": [
-      {
-       "id": "zbrft00",
-       "kind": "rect",
-       "x": 58,
-       "y": 88,
-       "w": 84,
-       "h": 90,
-       "color": "#f2efe6",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "tex": "zbrtex1"
-      },
-      {
-       "id": "zbrft10",
-       "kind": "rect",
-       "x": 134,
-       "y": 86,
-       "w": 23,
-       "h": 67,
-       "color": "#f2efe6",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "overArms": true,
-       "limb": "arm",
-       "rot": 353,
-       "outline": true,
-       "outlineFx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "tex": "zbrtex1"
-      },
-      {
-       "id": "zbrft20",
-       "kind": "circle",
-       "x": 70,
-       "y": 81,
-       "w": 55,
-       "h": 13,
-       "color": "#1d1b1b",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "isCutter": true
-      }
-     ],
-     "back": [
-      {
-       "id": "zbrbt00",
-       "kind": "rect",
-       "x": 59,
-       "y": 88,
-       "w": 83,
-       "h": 90,
-       "color": "#f2efe6",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "tex": "zbrtex1"
-      },
-      {
-       "id": "zbrbt10",
-       "kind": "rect",
-       "x": 136,
-       "y": 86.5,
-       "w": 23,
-       "h": 67,
-       "color": "#f2efe6",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "overArms": true,
-       "limb": "arm",
-       "rot": 353,
-       "outline": true,
-       "outlineFx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "tex": "zbrtex1"
-      }
-     ],
-     "side": [
-      {
-       "id": "zbrst00",
-       "kind": "rect",
-       "x": 59,
-       "y": 88,
-       "w": 83,
-       "h": 90,
-       "color": "#f2efe6",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "tex": "zbrtex1"
-      },
-      {
-       "id": "zbrst10",
-       "kind": "rect",
-       "x": 83,
-       "y": 95,
-       "w": 26,
-       "h": 68,
-       "color": "#f2efe6",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "overArms": true,
-       "limb": "arm",
-       "rot": 360,
-       "outline": true,
-       "outlineFx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "tex": "zbrtex1"
-      }
-     ],
-     "up": [
-      {
-       "id": "zbrut00",
-       "kind": "rect",
-       "x": 59,
-       "y": 88,
-       "w": 83,
-       "h": 90,
-       "color": "#f2efe6",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "tex": "zbrtex1"
-      },
-      {
-       "id": "zbrut10",
-       "kind": "rect",
-       "x": 134,
-       "y": 44,
-       "w": 18,
-       "h": 62,
-       "color": "#f2efe6",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "overArms": true,
-       "limb": "arm",
-       "rot": 360,
-       "outline": true,
-       "outlineFx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "tex": "zbrtex1"
-      },
-      {
-       "id": "zbrut20",
-       "kind": "circle",
-       "x": 72,
-       "y": 81,
-       "w": 55,
-       "h": 13,
-       "color": "#1d1b1b",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "isCutter": true
-      }
-     ],
-     "crouch": [
-      {
-       "id": "zbrct00",
-       "kind": "rect",
-       "x": 59,
-       "y": 118,
-       "w": 81,
-       "h": 59,
-       "color": "#f2efe6",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "tex": "zbrtex1"
-      },
-      {
-       "id": "zbrct10",
-       "kind": "rect",
-       "x": 139,
-       "y": 123,
-       "w": 20,
-       "h": 52,
-       "color": "#f2efe6",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "overArms": true,
-       "limb": "arm",
-       "rot": 0,
-       "outline": true,
-       "outlineFx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "tex": "zbrtex1"
-      },
-      {
-       "id": "zbrct20",
-       "kind": "circle",
-       "x": 70,
-       "y": 112,
-       "w": 55,
-       "h": 13,
-       "color": "#1d1b1b",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "isCutter": true
-      }
-     ]
     }
    },
    "lastFit": "telfv37",
@@ -1304478,7 +1304478,7 @@
    ],
    "statBoosts": {
     "hp": 1,
-    "speed": 1,
+    "speed": 2,
     "agility": 0,
     "intelligence": 0,
     "strength": 0
@@ -1304490,9 +1304490,10 @@
     "Shirt",
     "Horse"
    ],
-   "value": 8,
+   "value": 9,
    "rank": "common",
-   "savedAt": 1792359265846
+   "savedAt": 1792366502816,
+   "editedFrom": 1792359265846
   },
   {
    "id": "zcj905w",
