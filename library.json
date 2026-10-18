@@ -1131418,8 +1131418,8 @@
     ]
    },
    "fireRate": 4,
-   "clipSize": 7,
-   "reloadTime": 3,
+   "clipSize": 6,
+   "reloadTime": 2,
    "weight": 3,
    "landEffect": "fire",
    "landEffectDps": 6,
@@ -1131452,8 +1131452,8 @@
     "fire": "18sacwd",
     "hit": "6hh0w94"
    },
-   "savedAt": 1792333675290,
-   "editedFrom": 1792254183302
+   "savedAt": 1792333705061,
+   "editedFrom": 1792333675290
   },
   {
    "id": "wdywgn6",
