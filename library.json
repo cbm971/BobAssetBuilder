@@ -718240,7 +718240,7 @@
         0.0106
        ]
       ],
-      "color": "#f2efe6"
+      "color": "#5a3a22"
      },
      {
       "id": "hrsft40",
@@ -718355,8 +718355,8 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "x": 71,
-      "y": 1,
+      "x": 70.5,
+      "y": 4,
       "w": 13,
       "h": 32,
       "color": "#1d1b1b",
@@ -718458,8 +718458,8 @@
       },
       "x": 88,
       "y": 14,
-      "w": 68,
-      "h": 86,
+      "w": 71.5,
+      "h": 78.5,
       "points": [
        [
         0.1176,
@@ -718514,7 +718514,7 @@
         0.1628
        ]
       ],
-      "color": "#f2efe6"
+      "color": "#5a3a22"
      },
      {
       "id": "hrsst40",
@@ -718756,7 +718756,7 @@
         0.0106
        ]
       ],
-      "color": "#f2efe6"
+      "color": "#5a3a22"
      },
      {
       "id": "hrsut40",
@@ -718998,7 +718998,7 @@
         0.0106
        ]
       ],
-      "color": "#f2efe6"
+      "color": "#5a3a22"
      },
      {
       "id": "hrsct40",
@@ -719111,7 +719111,7 @@
     "crouch": []
    },
    "variants": {
-    "telfv37": {
+    "default": {
      "front": [
       {
        "id": "hrsft00",
@@ -719250,7 +719250,7 @@
          0.0106
         ]
        ],
-       "color": "#f2efe6"
+       "color": "#5a3a22"
       },
       {
        "id": "hrsft40",
@@ -719524,7 +719524,7 @@
          0.1628
         ]
        ],
-       "color": "#f2efe6"
+       "color": "#5a3a22"
       },
       {
        "id": "hrsst40",
@@ -719766,7 +719766,7 @@
          0.0106
         ]
        ],
-       "color": "#f2efe6"
+       "color": "#5a3a22"
       },
       {
        "id": "hrsut40",
@@ -720008,7 +720008,1009 @@
          0.0106
         ]
        ],
-       "color": "#f2efe6"
+       "color": "#5a3a22"
+      },
+      {
+       "id": "hrsct40",
+       "kind": "poly",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 89,
+       "y": 39.5,
+       "w": 22,
+       "h": 25,
+       "points": [
+        [
+         0.5,
+         0
+        ],
+        [
+         1,
+         0.08
+        ],
+        [
+         0.8182,
+         0.44
+        ],
+        [
+         0.6818,
+         1
+        ],
+        [
+         0.5,
+         0.64
+        ],
+        [
+         0.3182,
+         1
+        ],
+        [
+         0.1818,
+         0.44
+        ],
+        [
+         0,
+         0.08
+        ]
+       ],
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "hrsct50",
+       "kind": "circle",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 74.5,
+       "y": 80,
+       "w": 21,
+       "h": 12,
+       "color": "#1d1b1b",
+       "rot": 20
+      },
+      {
+       "id": "hrsct60",
+       "kind": "circle",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 80.5,
+       "y": 81.5,
+       "w": 9,
+       "h": 9,
+       "color": "#1d1b1b",
+       "isCutter": true
+      },
+      {
+       "id": "hrsct70",
+       "kind": "circle",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 86,
+       "y": 121.5,
+       "w": 8,
+       "h": 5,
+       "color": "#1d1b1b",
+       "rot": 30
+      }
+     ]
+    },
+    "telfv37": {
+     "front": [
+      {
+       "id": "hrsft00",
+       "kind": "rect",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 64,
+       "y": 51,
+       "w": 72,
+       "h": 3.5,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "hrsft10",
+       "kind": "rect",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 64,
+       "y": 79,
+       "w": 72,
+       "h": 3.5,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "hrsft20",
+       "kind": "tri",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 71,
+       "y": 1,
+       "w": 13,
+       "h": 25,
+       "color": "#1d1b1b",
+       "rot": -12
+      },
+      {
+       "id": "hrsft30",
+       "kind": "poly",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 70,
+       "y": 14,
+       "w": 60,
+       "h": 94,
+       "points": [
+        [
+         0.5,
+         0
+        ],
+        [
+         0.7667,
+         0.0106
+        ],
+        [
+         0.95,
+         0.0851
+        ],
+        [
+         1,
+         0.1915
+        ],
+        [
+         0.9667,
+         0.383
+        ],
+        [
+         0.8833,
+         0.5957
+        ],
+        [
+         0.8167,
+         0.7872
+        ],
+        [
+         0.85,
+         0.8936
+        ],
+        [
+         0.7833,
+         0.9787
+        ],
+        [
+         0.5,
+         1
+        ],
+        [
+         0.2167,
+         0.9787
+        ],
+        [
+         0.15,
+         0.8936
+        ],
+        [
+         0.1833,
+         0.7872
+        ],
+        [
+         0.1167,
+         0.5957
+        ],
+        [
+         0.0333,
+         0.383
+        ],
+        [
+         0,
+         0.1915
+        ],
+        [
+         0.05,
+         0.0851
+        ],
+        [
+         0.2333,
+         0.0106
+        ]
+       ],
+       "color": "#5a3a22"
+      },
+      {
+       "id": "hrsft40",
+       "kind": "poly",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 89,
+       "y": 11,
+       "w": 22,
+       "h": 25,
+       "points": [
+        [
+         0.5,
+         0
+        ],
+        [
+         1,
+         0.08
+        ],
+        [
+         0.8182,
+         0.44
+        ],
+        [
+         0.6818,
+         1
+        ],
+        [
+         0.5,
+         0.64
+        ],
+        [
+         0.3182,
+         1
+        ],
+        [
+         0.1818,
+         0.44
+        ],
+        [
+         0,
+         0.08
+        ]
+       ],
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "hrsft50",
+       "kind": "circle",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 74.5,
+       "y": 51,
+       "w": 21,
+       "h": 12,
+       "color": "#1d1b1b",
+       "rot": 20
+      },
+      {
+       "id": "hrsft60",
+       "kind": "circle",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 80.5,
+       "y": 52.5,
+       "w": 9,
+       "h": 9,
+       "color": "#1d1b1b",
+       "isCutter": true
+      },
+      {
+       "id": "hrsft70",
+       "kind": "circle",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 86,
+       "y": 93,
+       "w": 8,
+       "h": 5,
+       "color": "#1d1b1b",
+       "rot": 30
+      }
+     ],
+     "back": [
+      {
+       "id": "hrsbt00",
+       "kind": "tri",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 70.5,
+       "y": 4,
+       "w": 13,
+       "h": 32,
+       "color": "#1d1b1b",
+       "rot": -12,
+       "behindBody": true
+      },
+      {
+       "id": "hrsbt10",
+       "kind": "rect",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 66,
+       "y": 51,
+       "w": 68,
+       "h": 3.5,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "hrsbt20",
+       "kind": "rect",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 66,
+       "y": 79,
+       "w": 68,
+       "h": 3.5,
+       "color": "#1d1b1b"
+      }
+     ],
+     "side": [
+      {
+       "id": "hrsst00",
+       "kind": "rect",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 70,
+       "y": 51,
+       "w": 36,
+       "h": 3.5,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "hrsst10",
+       "kind": "rect",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 70,
+       "y": 79,
+       "w": 38,
+       "h": 3.5,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "hrsst20",
+       "kind": "tri",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 92,
+       "y": 0,
+       "w": 13,
+       "h": 25,
+       "color": "#1d1b1b",
+       "rot": 10
+      },
+      {
+       "id": "hrsst30",
+       "kind": "poly",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 88,
+       "y": 14,
+       "w": 71.5,
+       "h": 78.5,
+       "points": [
+        [
+         0.1176,
+         0
+        ],
+        [
+         0.3235,
+         0.0233
+        ],
+        [
+         0.5294,
+         0.1395
+        ],
+        [
+         0.7647,
+         0.4419
+        ],
+        [
+         0.9412,
+         0.7442
+        ],
+        [
+         1,
+         0.8605
+        ],
+        [
+         0.9412,
+         0.9767
+        ],
+        [
+         0.7353,
+         1
+        ],
+        [
+         0.4706,
+         0.9302
+        ],
+        [
+         0.2353,
+         0.907
+        ],
+        [
+         0.0294,
+         0.7674
+        ],
+        [
+         0,
+         0.4186
+        ],
+        [
+         0.0294,
+         0.1628
+        ]
+       ],
+       "color": "#5a3a22"
+      },
+      {
+       "id": "hrsst40",
+       "kind": "poly",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 86,
+       "y": 12,
+       "w": 16,
+       "h": 72,
+       "points": [
+        [
+         0.5,
+         0
+        ],
+        [
+         1,
+         0.0556
+        ],
+        [
+         0.6875,
+         0.3889
+        ],
+        [
+         0.6875,
+         0.75
+        ],
+        [
+         0.375,
+         1
+        ],
+        [
+         0,
+         0.75
+        ],
+        [
+         0,
+         0.3611
+        ],
+        [
+         0.1875,
+         0.1111
+        ]
+       ],
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "hrsst50",
+       "kind": "circle",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 112.5,
+       "y": 49.5,
+       "w": 18,
+       "h": 11,
+       "color": "#1d1b1b",
+       "rot": 20
+      },
+      {
+       "id": "hrsst60",
+       "kind": "circle",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 117.5,
+       "y": 50.5,
+       "w": 9,
+       "h": 9,
+       "color": "#1d1b1b",
+       "isCutter": true
+      },
+      {
+       "id": "hrsst70",
+       "kind": "circle",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 144,
+       "y": 79,
+       "w": 7,
+       "h": 4.5,
+       "color": "#1d1b1b",
+       "rot": 30
+      }
+     ],
+     "up": [
+      {
+       "id": "hrsut00",
+       "kind": "rect",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 64,
+       "y": 51,
+       "w": 72,
+       "h": 3.5,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "hrsut10",
+       "kind": "rect",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 64,
+       "y": 79,
+       "w": 72,
+       "h": 3.5,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "hrsut20",
+       "kind": "tri",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 71,
+       "y": 1,
+       "w": 13,
+       "h": 25,
+       "color": "#1d1b1b",
+       "rot": -12
+      },
+      {
+       "id": "hrsut30",
+       "kind": "poly",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 70,
+       "y": 14,
+       "w": 60,
+       "h": 94,
+       "points": [
+        [
+         0.5,
+         0
+        ],
+        [
+         0.7667,
+         0.0106
+        ],
+        [
+         0.95,
+         0.0851
+        ],
+        [
+         1,
+         0.1915
+        ],
+        [
+         0.9667,
+         0.383
+        ],
+        [
+         0.8833,
+         0.5957
+        ],
+        [
+         0.8167,
+         0.7872
+        ],
+        [
+         0.85,
+         0.8936
+        ],
+        [
+         0.7833,
+         0.9787
+        ],
+        [
+         0.5,
+         1
+        ],
+        [
+         0.2167,
+         0.9787
+        ],
+        [
+         0.15,
+         0.8936
+        ],
+        [
+         0.1833,
+         0.7872
+        ],
+        [
+         0.1167,
+         0.5957
+        ],
+        [
+         0.0333,
+         0.383
+        ],
+        [
+         0,
+         0.1915
+        ],
+        [
+         0.05,
+         0.0851
+        ],
+        [
+         0.2333,
+         0.0106
+        ]
+       ],
+       "color": "#5a3a22"
+      },
+      {
+       "id": "hrsut40",
+       "kind": "poly",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 89,
+       "y": 11,
+       "w": 22,
+       "h": 25,
+       "points": [
+        [
+         0.5,
+         0
+        ],
+        [
+         1,
+         0.08
+        ],
+        [
+         0.8182,
+         0.44
+        ],
+        [
+         0.6818,
+         1
+        ],
+        [
+         0.5,
+         0.64
+        ],
+        [
+         0.3182,
+         1
+        ],
+        [
+         0.1818,
+         0.44
+        ],
+        [
+         0,
+         0.08
+        ]
+       ],
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "hrsut50",
+       "kind": "circle",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 74.5,
+       "y": 51,
+       "w": 21,
+       "h": 12,
+       "color": "#1d1b1b",
+       "rot": 20
+      },
+      {
+       "id": "hrsut60",
+       "kind": "circle",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 80.5,
+       "y": 52.5,
+       "w": 9,
+       "h": 9,
+       "color": "#1d1b1b",
+       "isCutter": true
+      },
+      {
+       "id": "hrsut70",
+       "kind": "circle",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 86,
+       "y": 93,
+       "w": 8,
+       "h": 5,
+       "color": "#1d1b1b",
+       "rot": 30
+      }
+     ],
+     "crouch": [
+      {
+       "id": "hrsct00",
+       "kind": "rect",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 64,
+       "y": 79.5,
+       "w": 72,
+       "h": 3.5,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "hrsct10",
+       "kind": "rect",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 64,
+       "y": 107.5,
+       "w": 72,
+       "h": 3.5,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "hrsct20",
+       "kind": "tri",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 71,
+       "y": 29.5,
+       "w": 13,
+       "h": 25,
+       "color": "#1d1b1b",
+       "rot": -12
+      },
+      {
+       "id": "hrsct30",
+       "kind": "poly",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "x": 70,
+       "y": 42.5,
+       "w": 60,
+       "h": 94,
+       "points": [
+        [
+         0.5,
+         0
+        ],
+        [
+         0.7667,
+         0.0106
+        ],
+        [
+         0.95,
+         0.0851
+        ],
+        [
+         1,
+         0.1915
+        ],
+        [
+         0.9667,
+         0.383
+        ],
+        [
+         0.8833,
+         0.5957
+        ],
+        [
+         0.8167,
+         0.7872
+        ],
+        [
+         0.85,
+         0.8936
+        ],
+        [
+         0.7833,
+         0.9787
+        ],
+        [
+         0.5,
+         1
+        ],
+        [
+         0.2167,
+         0.9787
+        ],
+        [
+         0.15,
+         0.8936
+        ],
+        [
+         0.1833,
+         0.7872
+        ],
+        [
+         0.1167,
+         0.5957
+        ],
+        [
+         0.0333,
+         0.383
+        ],
+        [
+         0,
+         0.1915
+        ],
+        [
+         0.05,
+         0.0851
+        ],
+        [
+         0.2333,
+         0.0106
+        ]
+       ],
+       "color": "#5a3a22"
       },
       {
        "id": "hrsct40",
@@ -720252,7 +721254,7 @@
          0.0106
         ]
        ],
-       "color": "#f2efe6"
+       "color": "#5a3a22"
       },
       {
        "id": "hrsfo40",
@@ -720367,8 +721369,8 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "x": 76.2,
-       "y": 2.6,
+       "x": 77,
+       "y": 9.5,
        "w": 11,
        "h": 27.1,
        "color": "#1d1b1b",
@@ -720468,10 +721470,10 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "x": 89.7,
-       "y": 15,
-       "w": 59.7,
-       "h": 75.5,
+       "x": 89.5,
+       "y": 20,
+       "w": 64,
+       "h": 68.5,
        "points": [
         [
          0.1176,
@@ -720526,7 +721528,7 @@
          0.1628
         ]
        ],
-       "color": "#f2efe6"
+       "color": "#5a3a22"
       },
       {
        "id": "hrsso40",
@@ -720768,7 +721770,7 @@
          0.0106
         ]
        ],
-       "color": "#f2efe6"
+       "color": "#5a3a22"
       },
       {
        "id": "hrsuo40",
@@ -721010,7 +722012,7 @@
          0.0106
         ]
        ],
-       "color": "#f2efe6"
+       "color": "#5a3a22"
       },
       {
        "id": "hrsco40",
@@ -721114,1008 +722116,6 @@
        "rot": 30
       }
      ]
-    },
-    "default": {
-     "front": [
-      {
-       "id": "hrsft00",
-       "kind": "rect",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 64,
-       "y": 51,
-       "w": 72,
-       "h": 3.5,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "hrsft10",
-       "kind": "rect",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 64,
-       "y": 79,
-       "w": 72,
-       "h": 3.5,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "hrsft20",
-       "kind": "tri",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 71,
-       "y": 1,
-       "w": 13,
-       "h": 25,
-       "color": "#1d1b1b",
-       "rot": -12
-      },
-      {
-       "id": "hrsft30",
-       "kind": "poly",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 70,
-       "y": 14,
-       "w": 60,
-       "h": 94,
-       "points": [
-        [
-         0.5,
-         0
-        ],
-        [
-         0.7667,
-         0.0106
-        ],
-        [
-         0.95,
-         0.0851
-        ],
-        [
-         1,
-         0.1915
-        ],
-        [
-         0.9667,
-         0.383
-        ],
-        [
-         0.8833,
-         0.5957
-        ],
-        [
-         0.8167,
-         0.7872
-        ],
-        [
-         0.85,
-         0.8936
-        ],
-        [
-         0.7833,
-         0.9787
-        ],
-        [
-         0.5,
-         1
-        ],
-        [
-         0.2167,
-         0.9787
-        ],
-        [
-         0.15,
-         0.8936
-        ],
-        [
-         0.1833,
-         0.7872
-        ],
-        [
-         0.1167,
-         0.5957
-        ],
-        [
-         0.0333,
-         0.383
-        ],
-        [
-         0,
-         0.1915
-        ],
-        [
-         0.05,
-         0.0851
-        ],
-        [
-         0.2333,
-         0.0106
-        ]
-       ],
-       "color": "#f2efe6"
-      },
-      {
-       "id": "hrsft40",
-       "kind": "poly",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 89,
-       "y": 11,
-       "w": 22,
-       "h": 25,
-       "points": [
-        [
-         0.5,
-         0
-        ],
-        [
-         1,
-         0.08
-        ],
-        [
-         0.8182,
-         0.44
-        ],
-        [
-         0.6818,
-         1
-        ],
-        [
-         0.5,
-         0.64
-        ],
-        [
-         0.3182,
-         1
-        ],
-        [
-         0.1818,
-         0.44
-        ],
-        [
-         0,
-         0.08
-        ]
-       ],
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "hrsft50",
-       "kind": "circle",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 74.5,
-       "y": 51,
-       "w": 21,
-       "h": 12,
-       "color": "#1d1b1b",
-       "rot": 20
-      },
-      {
-       "id": "hrsft60",
-       "kind": "circle",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 80.5,
-       "y": 52.5,
-       "w": 9,
-       "h": 9,
-       "color": "#1d1b1b",
-       "isCutter": true
-      },
-      {
-       "id": "hrsft70",
-       "kind": "circle",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 86,
-       "y": 93,
-       "w": 8,
-       "h": 5,
-       "color": "#1d1b1b",
-       "rot": 30
-      }
-     ],
-     "back": [
-      {
-       "id": "hrsbt00",
-       "kind": "tri",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 71,
-       "y": 1,
-       "w": 13,
-       "h": 32,
-       "color": "#1d1b1b",
-       "rot": -12,
-       "behindBody": true
-      },
-      {
-       "id": "hrsbt10",
-       "kind": "rect",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 66,
-       "y": 51,
-       "w": 68,
-       "h": 3.5,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "hrsbt20",
-       "kind": "rect",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 66,
-       "y": 79,
-       "w": 68,
-       "h": 3.5,
-       "color": "#1d1b1b"
-      }
-     ],
-     "side": [
-      {
-       "id": "hrsst00",
-       "kind": "rect",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 70,
-       "y": 51,
-       "w": 36,
-       "h": 3.5,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "hrsst10",
-       "kind": "rect",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 70,
-       "y": 79,
-       "w": 38,
-       "h": 3.5,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "hrsst20",
-       "kind": "tri",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 92,
-       "y": 0,
-       "w": 13,
-       "h": 25,
-       "color": "#1d1b1b",
-       "rot": 10
-      },
-      {
-       "id": "hrsst30",
-       "kind": "poly",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 88,
-       "y": 14,
-       "w": 68,
-       "h": 86,
-       "points": [
-        [
-         0.1176,
-         0
-        ],
-        [
-         0.3235,
-         0.0233
-        ],
-        [
-         0.5294,
-         0.1395
-        ],
-        [
-         0.7647,
-         0.4419
-        ],
-        [
-         0.9412,
-         0.7442
-        ],
-        [
-         1,
-         0.8605
-        ],
-        [
-         0.9412,
-         0.9767
-        ],
-        [
-         0.7353,
-         1
-        ],
-        [
-         0.4706,
-         0.9302
-        ],
-        [
-         0.2353,
-         0.907
-        ],
-        [
-         0.0294,
-         0.7674
-        ],
-        [
-         0,
-         0.4186
-        ],
-        [
-         0.0294,
-         0.1628
-        ]
-       ],
-       "color": "#f2efe6"
-      },
-      {
-       "id": "hrsst40",
-       "kind": "poly",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 86,
-       "y": 12,
-       "w": 16,
-       "h": 72,
-       "points": [
-        [
-         0.5,
-         0
-        ],
-        [
-         1,
-         0.0556
-        ],
-        [
-         0.6875,
-         0.3889
-        ],
-        [
-         0.6875,
-         0.75
-        ],
-        [
-         0.375,
-         1
-        ],
-        [
-         0,
-         0.75
-        ],
-        [
-         0,
-         0.3611
-        ],
-        [
-         0.1875,
-         0.1111
-        ]
-       ],
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "hrsst50",
-       "kind": "circle",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 112.5,
-       "y": 49.5,
-       "w": 18,
-       "h": 11,
-       "color": "#1d1b1b",
-       "rot": 20
-      },
-      {
-       "id": "hrsst60",
-       "kind": "circle",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 117.5,
-       "y": 50.5,
-       "w": 9,
-       "h": 9,
-       "color": "#1d1b1b",
-       "isCutter": true
-      },
-      {
-       "id": "hrsst70",
-       "kind": "circle",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 144,
-       "y": 79,
-       "w": 7,
-       "h": 4.5,
-       "color": "#1d1b1b",
-       "rot": 30
-      }
-     ],
-     "up": [
-      {
-       "id": "hrsut00",
-       "kind": "rect",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 64,
-       "y": 51,
-       "w": 72,
-       "h": 3.5,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "hrsut10",
-       "kind": "rect",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 64,
-       "y": 79,
-       "w": 72,
-       "h": 3.5,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "hrsut20",
-       "kind": "tri",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 71,
-       "y": 1,
-       "w": 13,
-       "h": 25,
-       "color": "#1d1b1b",
-       "rot": -12
-      },
-      {
-       "id": "hrsut30",
-       "kind": "poly",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 70,
-       "y": 14,
-       "w": 60,
-       "h": 94,
-       "points": [
-        [
-         0.5,
-         0
-        ],
-        [
-         0.7667,
-         0.0106
-        ],
-        [
-         0.95,
-         0.0851
-        ],
-        [
-         1,
-         0.1915
-        ],
-        [
-         0.9667,
-         0.383
-        ],
-        [
-         0.8833,
-         0.5957
-        ],
-        [
-         0.8167,
-         0.7872
-        ],
-        [
-         0.85,
-         0.8936
-        ],
-        [
-         0.7833,
-         0.9787
-        ],
-        [
-         0.5,
-         1
-        ],
-        [
-         0.2167,
-         0.9787
-        ],
-        [
-         0.15,
-         0.8936
-        ],
-        [
-         0.1833,
-         0.7872
-        ],
-        [
-         0.1167,
-         0.5957
-        ],
-        [
-         0.0333,
-         0.383
-        ],
-        [
-         0,
-         0.1915
-        ],
-        [
-         0.05,
-         0.0851
-        ],
-        [
-         0.2333,
-         0.0106
-        ]
-       ],
-       "color": "#f2efe6"
-      },
-      {
-       "id": "hrsut40",
-       "kind": "poly",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 89,
-       "y": 11,
-       "w": 22,
-       "h": 25,
-       "points": [
-        [
-         0.5,
-         0
-        ],
-        [
-         1,
-         0.08
-        ],
-        [
-         0.8182,
-         0.44
-        ],
-        [
-         0.6818,
-         1
-        ],
-        [
-         0.5,
-         0.64
-        ],
-        [
-         0.3182,
-         1
-        ],
-        [
-         0.1818,
-         0.44
-        ],
-        [
-         0,
-         0.08
-        ]
-       ],
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "hrsut50",
-       "kind": "circle",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 74.5,
-       "y": 51,
-       "w": 21,
-       "h": 12,
-       "color": "#1d1b1b",
-       "rot": 20
-      },
-      {
-       "id": "hrsut60",
-       "kind": "circle",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 80.5,
-       "y": 52.5,
-       "w": 9,
-       "h": 9,
-       "color": "#1d1b1b",
-       "isCutter": true
-      },
-      {
-       "id": "hrsut70",
-       "kind": "circle",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 86,
-       "y": 93,
-       "w": 8,
-       "h": 5,
-       "color": "#1d1b1b",
-       "rot": 30
-      }
-     ],
-     "crouch": [
-      {
-       "id": "hrsct00",
-       "kind": "rect",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 64,
-       "y": 79.5,
-       "w": 72,
-       "h": 3.5,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "hrsct10",
-       "kind": "rect",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 64,
-       "y": 107.5,
-       "w": 72,
-       "h": 3.5,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "hrsct20",
-       "kind": "tri",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 71,
-       "y": 29.5,
-       "w": 13,
-       "h": 25,
-       "color": "#1d1b1b",
-       "rot": -12
-      },
-      {
-       "id": "hrsct30",
-       "kind": "poly",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 70,
-       "y": 42.5,
-       "w": 60,
-       "h": 94,
-       "points": [
-        [
-         0.5,
-         0
-        ],
-        [
-         0.7667,
-         0.0106
-        ],
-        [
-         0.95,
-         0.0851
-        ],
-        [
-         1,
-         0.1915
-        ],
-        [
-         0.9667,
-         0.383
-        ],
-        [
-         0.8833,
-         0.5957
-        ],
-        [
-         0.8167,
-         0.7872
-        ],
-        [
-         0.85,
-         0.8936
-        ],
-        [
-         0.7833,
-         0.9787
-        ],
-        [
-         0.5,
-         1
-        ],
-        [
-         0.2167,
-         0.9787
-        ],
-        [
-         0.15,
-         0.8936
-        ],
-        [
-         0.1833,
-         0.7872
-        ],
-        [
-         0.1167,
-         0.5957
-        ],
-        [
-         0.0333,
-         0.383
-        ],
-        [
-         0,
-         0.1915
-        ],
-        [
-         0.05,
-         0.0851
-        ],
-        [
-         0.2333,
-         0.0106
-        ]
-       ],
-       "color": "#f2efe6"
-      },
-      {
-       "id": "hrsct40",
-       "kind": "poly",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 89,
-       "y": 39.5,
-       "w": 22,
-       "h": 25,
-       "points": [
-        [
-         0.5,
-         0
-        ],
-        [
-         1,
-         0.08
-        ],
-        [
-         0.8182,
-         0.44
-        ],
-        [
-         0.6818,
-         1
-        ],
-        [
-         0.5,
-         0.64
-        ],
-        [
-         0.3182,
-         1
-        ],
-        [
-         0.1818,
-         0.44
-        ],
-        [
-         0,
-         0.08
-        ]
-       ],
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "hrsct50",
-       "kind": "circle",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 74.5,
-       "y": 80,
-       "w": 21,
-       "h": 12,
-       "color": "#1d1b1b",
-       "rot": 20
-      },
-      {
-       "id": "hrsct60",
-       "kind": "circle",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 80.5,
-       "y": 81.5,
-       "w": 9,
-       "h": 9,
-       "color": "#1d1b1b",
-       "isCutter": true
-      },
-      {
-       "id": "hrsct70",
-       "kind": "circle",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "x": 86,
-       "y": 121.5,
-       "w": 8,
-       "h": 5,
-       "color": "#1d1b1b",
-       "rot": 30
-      }
-     ]
     }
    },
    "lastFit": "telfv37",
@@ -722125,22 +722125,23 @@
    ],
    "statBoosts": {
     "hp": 0,
-    "speed": 2,
+    "speed": 3,
     "agility": 1,
     "intelligence": -1,
     "strength": 0
    },
-   "defense": 2,
+   "defense": 0,
    "effects": [],
    "categories": [
-    "T1",
+    "Furry",
     "Mask",
-    "Horse"
+    "Odd"
    ],
    "ignoreHideIfHat": true,
    "value": 10,
    "rank": "common",
-   "savedAt": 1792359265846
+   "savedAt": 1792366352930,
+   "editedFrom": 1792359265846
   },
   {
    "id": "hwbtm2t",
