@@ -453107,7 +453107,7 @@
    "projectileId": "dkbarl1",
    "projectileSpeed": 5,
    "projectileRange": 35,
-   "damage": 25,
+   "damage": 50,
    "fireRate": 0.5,
    "clipSize": 1,
    "reloadTime": 2.3,
@@ -453145,8 +453145,8 @@
     "hit": "ynj37i2",
     "fire": "m2jvkmv"
    },
-   "savedAt": 1792266556769,
-   "editedFrom": 1792266550329
+   "savedAt": 1792333847937,
+   "editedFrom": 1792266556769
   },
   {
    "id": "dkbarl1",
