@@ -577,6 +577,10 @@ plus traps it does not cover:
     are extra). **No level twice on a seed** (his rule): buildRun never re-picks a used street or sewer
     level, and a chain that runs dry ends at the last level an Exit joins. A run starts at the Intro's Lower Left gate even though it is closed (`spawnGateFor`). **A level's role comes from its gates and Floor only (`runRole`).** Blake
     retired the free-text Section box on 2026-10-09; an old save's `section` is ignored.
+  - **A run is one floor's** (`buildRun(pool, seed, { floor })`, 2026-10-18): the Intro, the Exit and
+    (with no Intro) the first level come from that floor; later levels join by gates alone. 🎲 Generate
+    has a floor box (`runFloors`), opening on the editor level's floor; Hold-R keeps the run's floor.
+    No floor = any Intro (the game's New Game). Vietnam is one middle level (Forest M1): a 1-level run.
   - Sewers and tree tops (Floor "Sewer", "Underground" or "Tree Top") are planned as passages
     with a way out. **No street level is laid with a top/bottom gate that leads nowhere** (his rule,
     2026-10-11: "an impossible seed"): `tryLay` takes a level back when its passage cannot be

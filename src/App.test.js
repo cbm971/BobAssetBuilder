@@ -214,7 +214,7 @@ import {
   migrateLevel,
   newLevelBucket, runWorldParts, worldPartAt, worldPartOfCell, unitClampX, unitFloorY, moveRunUnit, adoptRunNeighbours, releaseRunUnits, TALK_BUBBLE_MIN_H,
   runMountPlan, RUN_MOUNT_ITEMS_PER_FRAME, runGridOrder, unitDrawOrder,
-  runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, seamGatePair, seamGateLeaving, buildRun, runPassageLevels, RUN_PASSAGE_MAX, vertSeamLinesUp, resolveRunNeighbour, resolveRunSides, runSeams, runSceneryNodes, runCameraParts, runPlacements, runFills, spawnGateFor, RUN_LEVELS_PER_FLOOR, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
+  runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, seamGatePair, seamGateLeaving, buildRun, runFloors, runPassageLevels, RUN_PASSAGE_MAX, vertSeamLinesUp, resolveRunNeighbour, resolveRunSides, runSeams, runSceneryNodes, runCameraParts, runPlacements, runFills, spawnGateFor, RUN_LEVELS_PER_FLOOR, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
   objTopAt,
   objNudgedLeft,
   objNudgedTop,
@@ -10639,6 +10639,32 @@ describe("runs", () => {
     expect(first.conns.E1.open || first.conns.E2.open).toBe(true); // a run without an Intro starts on a level you can leave to the right
     expect(buildRun([], "7").startKey).toBe(null);
     expect(buildRun([ROOM], "7").order).toEqual([]);
+  });
+
+  // Blake, 2026-10-18: "even though there is only one level for it, make sure generate works for
+  // vietnam". His Vietnam floor is one middle level (Forest M1: E1 blank, W2 "Vietnam"), and every
+  // seed used to start at the Trailor Park Intro, so it could never be generated.
+  test("buildRun rolls ONE floor's run: a lone Vietnam middle level is a run of its own", () => {
+    const FOREST = mk("FOREST", { floor: "Vietnam", open: { E1: "", W2: "Vietnam" } });
+    const pool = [A, B, C, D, INTRO, EXIT, SEWER, SEWER2, ROOM, FOREST];
+    for (const sd of ["1", "2", "3", "vn"]) {
+      const r = buildRun(pool, sd, { floor: "Vietnam" });
+      expect(r.order.map((k) => r.nodes[k].level.id)).toEqual(["FOREST"]);
+      expect(r.startKey).toBe(r.order[0]); expect(r.floor).toBe("Vietnam");
+      expect(r.notes).toEqual(["no Intro level yet (right gates only)", "no Exit level yet (left gates only)"]);
+      expect(resolveRunNeighbour(r, r.nodes[r.startKey], "E", pool)).toBe(null);   // no Trailor Park level joins its blank (Vietnam-only) gate
+      expect(buildRun(pool, sd, { floor: " vietnam " }).order.length).toBe(1);   // the floor's own case and spaces
+      // no floor, or Trailor Park: what Generate always rolled, the Trailor Park Intro first
+      for (const opts of [{}, { floor: "Trailor Park" }]) { const t = buildRun(pool, sd, opts); expect(t.nodes[t.order[0]].level.id).toBe("INTRO"); expect(t.order.map((k) => t.nodes[k].level.id)).not.toContain("FOREST"); }
+    }
+    // a floor's Intro and Exit are its own: a second floor's ends are never laid on this one
+    const VI = mk("VI", { floor: "Vietnam", open: { E2: "" } }), VX = mk("VX", { floor: "Vietnam", open: { W1: "" } });
+    const both = buildRun([...pool, VI, VX], "x", { floor: "Vietnam" }), ids = both.order.map((k) => both.nodes[k].level.id);
+    expect(ids).toEqual(["VI", "FOREST", "VX"]); expect(both.hasIntro && both.hasExit).toBe(true);
+    const tp = buildRun([...pool, VI, VX], "x", { floor: "Trailor Park" }); expect(tp.order.map((k) => tp.nodes[k].level.id)).not.toContain("VI");
+    // the floors to choose from: street floors only, once each, never a sewer's or a room's
+    expect(runFloors([...pool, mk("f2", { floor: "vietnam", open: { E1: "" } })])).toEqual(["Trailor Park", "Vietnam"]);
+    expect(runFloors([SEWER, ROOM])).toEqual([]);
   });
 
   test("resolveRunNeighbour: a bottom gate finds a sewer, remembers it, links back, and the grid joins slots", () => {

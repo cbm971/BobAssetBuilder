@@ -10889,12 +10889,29 @@ export const vertSeamLinesUp = (top, bottom, side) => {
   const gates = seamGates(top, bottom, side, neighbourOffset(top, pair[0], bottom, 1, pair[1]), 1), landed = Object.values(gates);
   return ours.every((k) => gates[k]) && theirs.every((nk) => landed.includes(nk));
 };
+// A RUN IS ONE FLOOR'S (2026-10-18). Blake: "even though there is only one level for it, make sure
+// generate works for vietnam". The pool was every level, and every run starts at an Intro when the
+// pool has one — so every seed started at Trailor Park S1, and Vietnam's lone Forest M1 (a middle
+// level, Vietnam gates only) could never be laid at all. `opts.floor` names the floor the run is
+// FOR: its Intro, its Exit, and (with no Intro there) its first level come from that floor only.
+// Levels after the first still join purely by gates, so a gate that names another floor still
+// leads there. No floor = the old pick among every Intro. `runFloors` is the list to choose from.
+const sameFloor = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+export const runFloors = (levels) => {
+  const out = [];
+  for (const l of levels || []) {
+    const role = l && l.conns ? runRole(l) : null, f = role && role !== "side" ? String(l.floor || "").trim() : "";
+    if (f && !out.some((x) => sameFloor(x, f))) out.push(f);
+  }
+  return out.sort((a, b) => NAME_COLLATOR.compare(a, b));
+};
 export const buildRun = (levels, seed, opts = {}) => {
   const attempts = opts.attempts || 24;
   const planPassages = opts.passages !== false;
   const rnd = seededRng(seed);
+  const floor = String(opts.floor || "").trim(), onFloor = (l) => !floor || sameFloor(l.floor, floor);
   const pool = (levels || []).filter((l) => l && !l.isRoom && l.conns).map(migrateLevel);
-  const intros = pool.filter((l) => runRole(l) === "intro"), exits = pool.filter((l) => runRole(l) === "exit"), middles = pool.filter((l) => runRole(l) === "middle");
+  const intros = pool.filter((l) => runRole(l) === "intro" && onFloor(l)), exits = pool.filter((l) => runRole(l) === "exit" && onFloor(l)), middles = pool.filter((l) => runRole(l) === "middle");
   const maxMiddles = opts.maxMiddles !== undefined ? opts.maxMiddles : RUN_LEVELS_PER_FLOOR - (intros.length ? 1 : 0) - (exits.length ? 1 : 0);   // eight in all (RUN_LEVELS_PER_FLOOR)
   // What may sit off the street: a sewer/tree-top level, or a middle level whose gates happen to fit.
   const offStreet = pool.filter((l) => runRole(l) === "side" || runRole(l) === "middle");
@@ -11041,7 +11058,7 @@ export const buildRun = (levels, seed, opts = {}) => {
     planUpTo();
     while (middlesLeft > 0) {
       const last = chain[chain.length - 1];
-      if (!layOne(last ? middles.filter((c) => canAttach(last, c, "E")) : middles.filter(eastOpen), false)) break;
+      if (!layOne(last ? middles.filter((c) => canAttach(last, c, "E")) : middles.filter((c) => eastOpen(c) && onFloor(c)), false)) break;
     }
     const last = chain[chain.length - 1];
     // The Exit goes through tryLay like every other street level, so an Exit with a sewer gate of
@@ -11074,7 +11091,7 @@ export const buildRun = (levels, seed, opts = {}) => {
     if (!best || score > best.score) best = { chain, passages, exit: !!exit, intro: !!intro, score, dead };
     if (best.exit && !best.dead && best.chain.length >= maxMiddles + 2) break;
   }
-  const run = { seed: String(seed), nodes: {}, nextKey: 1, order: [], startKey: null, curKey: null, hasIntro: !!(best && best.intro), hasExit: !!(best && best.exit), notes: [], planned: planPassages };
+  const run = { seed: String(seed), floor, nodes: {}, nextKey: 1, order: [], startKey: null, curKey: null, hasIntro: !!(best && best.intro), hasExit: !!(best && best.exit), notes: [], planned: planPassages };
   if (!intros.length) run.notes.push("no Intro level yet (right gates only)");
   if (!exits.length) run.notes.push("no Exit level yet (left gates only)");
   else if (!run.hasExit) run.notes.push("no Exit level joins the last middle level's right gate");
@@ -22513,11 +22530,24 @@ export default function AssetStudio({ game = false } = {}) {
   // 🏁 Play run would never actually produce, then freeze the page drawing it (see LevelThumb). Now
   // it is buildRun from a seed — the same call startRun makes — so what it shows is what you play,
   // and its seed box is where a run is typed back in (the box used to sit in the toolbar).
-  const rollGenerate = (seedText) => {
+  // WHICH FLOOR (2026-10-18, "make sure generate works for vietnam"): the dialog rolls one floor's
+  // run (buildRun's opts.floor). It opens on the floor of the level in the editor, so Generate from
+  // Forest M1 rolls Vietnam; a level on no street floor (a room, a sewer, the blank one) opens on the
+  // floor of the first Intro — Trailor Park, what Generate always rolled.
+  const genFloors = () => runFloors(runPool());
+  const genDefaultFloor = () => {
+    const fl = genFloors(), pool = runPool();
+    const own = level && !level.isRoom && level.conns && runRole(level) !== "side" ? level.floor : "";
+    const intro = pool.find((l) => l && !l.isRoom && l.conns && runRole(l) === "intro");
+    const is = (f, g) => String(f || "").trim().toLowerCase() === String(g || "").trim().toLowerCase();
+    return fl.find((f) => is(f, own)) || fl.find((f) => intro && is(f, intro.floor)) || fl[0] || "";
+  };
+  const rollGenerate = (seedText, floor) => {
     const typed = (seedText || "").trim(), seed = typed || newRunSeed();
-    const run = buildRun(runPool(), seed);
+    const fl = floor !== undefined ? floor : gen ? gen.floor : genDefaultFloor();
+    const run = buildRun(runPool(), seed, { floor: fl });
     if (!typed) setRunSeedText(seed); // a fresh roll shows its seed; a typed one is left exactly as typed
-    setGen({ seed, levels: run.order.map((k) => run.nodes[k].level), notes: run.notes, off: runPassageLevels(run) });
+    setGen({ seed, floor: fl, levels: run.order.map((k) => run.nodes[k].level), notes: run.notes, off: runPassageLevels(run) });
   };
   const runGenerate = () => rollGenerate("");
   // 🏁 Play run: the chain is built from every saved level (plus the one open in the editor) by
@@ -22525,11 +22555,11 @@ export default function AssetStudio({ game = false } = {}) {
   // Generate dialog passes its seed box so a run can be replayed); its first level goes live and an
   // ordinary Playtest starts in it, entering through a gate. Missing Intro/Exit levels are said in
   // the run line, not refused — the middle levels alone are a run.
-  const startRun = (seedText) => {
+  const startRun = (seedText, floor) => {
     if (play) { flash("Stop the current Playtest first."); return; }
     const seed = (seedText || "").trim() || newRunSeed();
     const pool = runPool();
-    const run = buildRun(pool, seed);
+    const run = buildRun(pool, seed, { floor });
     if (!run.startKey) { flash("No level can start a run yet — save one with an open Right gate."); return; }
     run.editorLevel = level; run.pool = pool;
     resolveRunSides(run, run.nodes[run.startKey], pool);
@@ -22819,7 +22849,7 @@ export default function AssetStudio({ game = false } = {}) {
       togglePlaytest();
       setScreen("game"); setGameView("reroll");
     } else {
-      rerollReq.current = { game: false };
+      rerollReq.current = { game: false, floor: runRef.current.floor };   // a Vietnam run rerolls Vietnam
       togglePlaytest();
     }
     setRerollTick((t) => t + 1);
@@ -22830,7 +22860,7 @@ export default function AssetStudio({ game = false } = {}) {
     const r = rerollReq.current;
     if (!r || play) return;
     rerollReq.current = null;
-    if (r.game) gameNewGame(r.look, r.difficulty, ""); else startRun("");
+    if (r.game) gameNewGame(r.look, r.difficulty, ""); else startRun("", r.floor);
   }, [play, rerollTick]);
   const gameRetry = () => {
     const o = gameOverInfo;
@@ -27138,9 +27168,10 @@ export default function AssetStudio({ game = false } = {}) {
                 </React.Fragment>
               ))}</div>
               <div className="row2">
-                <input className="bgNameInput runSeed" value={runSeedText} onChange={(e) => { const v = e.target.value; setRunSeedText(v); if (v.trim()) rollGenerate(v); }} placeholder="Seed" />
+                <select className="runFloor" value={gen.floor} onChange={(e) => rollGenerate(runSeedText, e.target.value)}>{genFloors().map((f) => <option key={f} value={f}>{f}</option>)}</select>
+                <input className="bgNameInput runSeed" value={runSeedText} onChange={(e) => { const v = e.target.value; setRunSeedText(v); if (v.trim()) rollGenerate(v, gen.floor); }} placeholder="Seed" />
                 <button onClick={runGenerate}>🎲 Re-roll</button>
-                <button disabled={!gen.levels.length} onClick={() => startRun(gen.seed)}>🏁 Play this run</button>
+                <button disabled={!gen.levels.length} onClick={() => startRun(gen.seed, gen.floor)}>🏁 Play this run</button>
                 <button onClick={() => setGen(null)}>Close</button>
               </div>
             </div>

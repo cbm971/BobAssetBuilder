@@ -5111,3 +5111,15 @@ that said "Bob Okay" now says BOB (paths on his PC keep the old folder name).
   dressed").
 - **Difficulty.** Easy 4, Medium 2, Hard 1 lives, then a Game Over / Retry screen. Verified in a
   dev /game/: Hard → one death → Game Over → Retry starts the same seed with the same fighter.
+
+## Generate for one floor: Vietnam (2026-10-18)
+
+Blake: "even though there is only one level for it, make sure generate works for vietnam". His
+Vietnam floor is one middle level, Forest M1 (Right Upper open, Left Lower accepting "Vietnam").
+buildRun took every saved level and started at an Intro whenever the pool had one, and the only
+Intro is Trailor Park S1, so every seed rolled Trailor Park and Forest M1 could never be laid.
+Now buildRun takes `opts.floor`: the Intro, the Exit and (with no Intro) the first level must be
+on it. Later levels still join by gates, so a gate naming another floor still crosses. 🎲 Generate
+has a floor box opening on the editor level's floor; 🏁 Play this run and Hold-R reroll keep it.
+Verified on his online save in a prod build: Trailor Park seeds 1-3 roll the same chains as
+before; Vietnam rolls "1 level, Forest M1" and Play this run starts "level 1 of 1 · Forest M1".
