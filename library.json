@@ -811882,7 +811882,7 @@
    ],
    "wtype": "ranged",
    "projectileId": "6ufkkia",
-   "damage": 33,
+   "damage": 35,
    "fireRate": 1,
    "clipSize": 5,
    "reloadTime": 3.6,
@@ -821062,8 +821062,9 @@
      }
     ]
    },
-   "savedAt": 1792279590716,
-   "editedFrom": 1792279052134
+   "savedAt": 1792333429962,
+   "editedFrom": 1792333417023,
+   "pierce": true
   },
   {
    "id": "ma7adq1",
