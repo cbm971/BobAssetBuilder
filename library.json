@@ -1978656,7 +1978656,7 @@
     "ndlgvcplb": {
      "id": "ndlgvcplb",
      "speaker": "Pilot",
-     "text": "He has done forty launches in the cage. I have done none. He is the senior pilot.",
+     "text": "He has done forty launches in the cage. I haven't done any, yet. He is the senior pilot.",
      "choices": [
       {
        "id": "cdlgvcpl18",
@@ -1978671,7 +1978671,7 @@
     "ndlgvcplc": {
      "id": "ndlgvcplc",
      "speaker": "Pilot",
-     "text": "Thank you! Take my rations. They give the monkey my rations anyway.",
+     "text": "Thank you! Take my rations. They'll just give them to the monkey anyway.",
      "choices": [
       {
        "id": "cdlgvcpl19",
@@ -1978708,9 +1978708,9 @@
      ]
     }
    },
-   "savedAt": 1792372071224,
    "sound": "6f5xiih",
-   "editedFrom": 1792372060529
+   "savedAt": 1792372252865,
+   "editedFrom": 1792372071224
   },
   {
    "id": "dlgvcqm",
