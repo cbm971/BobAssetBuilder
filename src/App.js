@@ -6330,6 +6330,9 @@ export const legChain = (legs) => {
 };
 // The ladder's hand pump (applyLimbSwing's armReach/armReachUp): px down, and the most px up.
 export const LADDER_ARM_REACH = 6;
+// How long a unit may hang on a ladder, bar or ledge without climbing, shimmying or stepping off
+// (its target level with it) before it lets go and falls. See the grip check in the enemy loop.
+export const CLIMB_IDLE_LET_GO_FRAMES = 90;
 export const LADDER_ARM_REACH_UP = 1.5;
 export const applyLimbSwing = (blocks, legIds, armIds, swing, opts) => {
   const o = opts || {};
@@ -6585,6 +6588,16 @@ export const unitHitTop = (ea, shape, eph) => {
   const gY = enemyGroundLine(ea, enemyPoseKey(ea, "side"));
   const anchor = gY !== null ? ((H - gY) / H) * eph : Math.max(0, 1 - shape.topFrac - shape.heightFrac) * eph;
   return anchor + shape.topFrac * eph;
+};
+// The box a unit's VISIBLE body occupies, in level pixels: what a rock stops on, what a stun reaches
+// and what a Capture ball claims. ONE function for all three, because they each built their own and
+// two of them forgot unitHitTop — the ball stopped on a corpse and then measured to a box hung up to
+// 200 px above it, so a Lion was caught only by luck and a Crocodile never.
+export const unitBodyBox = (ea, ep, cell) => {
+  const shape = sideBodyShape(ea);
+  const renderW = enemyRenderW(ea, cell), w = renderW * shape.fraction;
+  const eph = ep && ep.crouch ? enemyCrouchH(ea, cell) : enemyStandH(ea, cell);
+  return { x: ep.x + (shape.centerFrac * renderW - w / 2), y: ep.y + unitHitTop(ea, shape, eph), w, h: shape.heightFrac * eph };
 };
 // WHERE A DUCKING UNIT'S FEET ARE ON ITS OWN CROUCH DRAWING (2026-09-27). Blake: "Enemies seem to
 // float when crouched." They did, by exactly the difference between two drawings: a ducking unit was
@@ -13189,7 +13202,9 @@ export default function AssetStudio({ game = false } = {}) {
   const booms = useRef([]);                              // live explosion visuals (play-only, front layer): {x,y,propId,size,life,maxLife} — an explode-tagged shot spawns one on impact; never touches saved level data
   const thrown = useRef([]);                             // live thrown-grenade entities mid-arc: {x,y,vx,vy,rot,asset,pieces}
   const throwCarry = useRef(0);                          // how many of the carried throwable the player still has this session (single-use)
-  const throwPickup = useRef(null);                       // set to a count (e.g. 3) when a throwable is TAKEN from a pedestal, so a fresh pickup arrives stocked regardless of the test-count knob; consumed on the next loop init
+  const wpnClipKey = useRef(null);                        // playRunId|weaponId|clip size the clip was last filled for (see throwStockKey)
+  const throwStockKey = useRef(null);                    // playRunId|throwId|knob the throwCarry count was last stocked for — an effect re-run with the same key keeps what is left instead of refilling
+  const throwPickup = useRef(null);                      // set to a count (e.g. 3) when a throwable is TAKEN from a pedestal, so a fresh pickup arrives stocked regardless of the test-count knob; consumed on the next loop init
   const throwCd = useRef(0);                             // small cooldown after a throw so one G press = one grenade
   const thrownFireKeys = useRef(new Set());              // hazard keys created by grenades this session — removed on Stop so they don't persist into the saved level
   const thrownPropKeys = useRef(new Set());              // fx-prop keys stamped by grenades this session (custom fire art) — pulled back off on Stop, same as thrownFireKeys
@@ -14589,12 +14604,30 @@ export default function AssetStudio({ game = false } = {}) {
     // the swap was visible in the ammo counter even when nothing on screen moved. seamHandoff says
     // it was the swap (seamCarry), and has already re-based what is flying into the new level.
     const fromSeam = seamCarry.current; seamCarry.current = false;
-    if (!fromSeam) wpn.current = newWeaponAmmo(wpnIsRanged ? effectiveMagazineSize(playtestWeapon.clipSize, playerAsset?.effects) : 0);
+    // Same trap as the grenade count below: a grenade's fire paint or a pedestal pickup re-runs this
+    // effect, and a fresh clip each time made every such moment a free reload. Re-based only for a
+    // new session, a different weapon or a different clip size.
+    const clipSize = wpnIsRanged ? effectiveMagazineSize(playtestWeapon.clipSize, playerAsset?.effects) : 0;
+    const clipKey = playRunId.current + "|" + (playtestWeapon ? playtestWeapon.id : "") + "|" + clipSize;
+    if (!fromSeam && clipKey !== wpnClipKey.current) wpn.current = newWeaponAmmo(clipSize);
+    wpnClipKey.current = clipKey;
     // Throwable the player is carrying this session (chosen separately from the held weapon), plus
     // the count they start with. Single-use: each throw decrements throwCarry; at 0, G does nothing.
     const carriedThrow = playtestThrowId ? findA(playtestThrowId) : null;
     if (fromSeam) { /* the count you had at the gate is the count you have past it */ }
-    else if (carriedThrow && isThrowable(carriedThrow.wtype)) { throwCarry.current = throwPickup.current != null ? throwPickup.current : Math.max(0, playtestThrowCount || 0); } else { throwCarry.current = 0; }
+    else if (carriedThrow && isThrowable(carriedThrow.wtype)) {
+      // THIS EFFECT RE-RUNS FOR REASONS THAT ARE NOT A NEW STOCK OF GRENADES: a landed grenade
+      // paints fire into the level (setLevel), a garment pickup bumps equipGen, a door changes
+      // the level. Each used to refill throwCarry to the starting count, so a Pokeball thrown at
+      // a body and landing in a fire (or any pickup in between) was never spent — "infinite, not
+      // just 3". The count is re-based only when it is genuinely a different stock: a new play
+      // session (playRunId), a different throwable, a fresh pickup/purchase (throwPickup), or the
+      // editor's "Start with" knob.
+      const stockKey = playRunId.current + "|" + carriedThrow.id + "|" + playtestThrowCount;
+      if (throwPickup.current == null && throwStockKey.current === stockKey) { /* same stock: keep what is left */ }
+      else { throwCarry.current = throwPickup.current != null ? throwPickup.current : Math.max(0, playtestThrowCount || 0); }
+      throwStockKey.current = stockKey;
+    } else { throwCarry.current = 0; throwStockKey.current = null; }
     throwPickup.current = null;
     if (!fromSeam) { thrown.current = []; throwCd.current = 0; booms.current = []; }
     // PERSISTENT per-level state (this play session). Point the live refs at THIS level's bucket, so
@@ -15857,6 +15890,9 @@ export default function AssetStudio({ game = false } = {}) {
             // the corpse render), and everything that boxes a corpse — capture, resurrect, loot —
             // reads ep.y + its height, so keeping the feet where they were moves none of them.
             if (dep && dea && dep.crouch) { dep.y -= enemyStandH(dea, CW) - enemyCrouchH(dea, CW); dep.crouch = false; dep.crouchT = 0; dep.duckUnder = false; }
+            // A body holds nothing: killed on a ladder or a bar, it still carried ep.climbing, and a
+            // revive (ball or staff) then stood it up "gripping" a ladder it was no longer on.
+            if (dep && (dep.climbing || dep.climbJump || dep.navHangJump)) { dep.climbing = null; dep.climbJump = false; dep.navHangJump = false; dep.navDropCd = 0; }
             if (dep && dea && !dep.restedDead) {
               const dShape = sideBodyShape(dea);
               const dRenderW = enemyRenderW(dea, CW), dw = dRenderW * dShape.fraction;
@@ -16509,6 +16545,16 @@ export default function AssetStudio({ game = false } = {}) {
               else { ep.climbing = kindHere; ep.vy = 0; ep.onGround = false; }
             }
           }
+          // A GRIP THAT GOES NOWHERE LETS GO. A unit holds a ladder, bar or ledge with no gravity, so one
+          // that grabbed it for a target which then came level, and is neither climbing nor walking off
+          // (the target is within half a cell of its own column, or a wall is in the way), hung there
+          // in the air for good — a lion "stuck on a ladder", a dog floating above the ground. A
+          // second and a half of that and it drops; nothing sends it back on, because a climb route
+          // exists only for a target that is NOT level (navDropCd keeps the same frame honest).
+          if (ep.climbing && Math.abs(cbWant) <= CH * 0.5 && eClimbMove < 0.5 && Math.abs(ep.x - exBefore) < 0.5) {
+            ep.climbIdleT = (ep.climbIdleT || 0) + dtMul;
+            if (ep.climbIdleT > CLIMB_IDLE_LET_GO_FRAMES) { ep.climbing = null; ep.navDropCd = 45; ep.climbIdleT = 0; }
+          } else ep.climbIdleT = 0;
           const eTdOverlap = !ep.climbing && topdownAt(eStand.lv, ep.x - eStand.ox, ep.y + newEph - eStand.oy, epw, CW, CH);
           const eTopdown = topdownHolds(eTdOverlap, ep.vy, ep.y, ep.tdJumpY);
           let eTdStep = 0; // how far it walked up/down the plane this frame — its legs cycle for that too
@@ -17708,12 +17754,7 @@ export default function AssetStudio({ game = false } = {}) {
         const stillFlying = [];
         // The VISIBLE body of an enemy, same rule the explosion and the stun use — not the wider
         // render box, or a big enemy would be hit by a rock sailing past its shoulder.
-        const enemyThrowBox = (ea2, ep2) => {
-          const eShape = sideBodyShape(ea2);
-          const eRenderW = enemyRenderW(ea2, CW), epw2 = eRenderW * eShape.fraction;
-          const eph2 = ep2 && ep2.crouch ? enemyCrouchH(ea2, CW) : enemyStandH(ea2, CW);
-          return { x: ep2.x + (eShape.centerFrac * eRenderW - epw2 / 2), y: ep2.y + unitHitTop(ea2, eShape, eph2), w: epw2, h: eShape.heightFrac * eph2 };
-        };
+        const enemyThrowBox = (ea2, ep2) => unitBodyBox(ea2, ep2, CW);
         for (const g of thrown.current) {
           g.vy = Math.min(40, g.vy + 0.175 * dtMul);
           g.x += g.vx * dtMul; g.y += g.vy * dtMul; g.rot += (g.spin || 6) * dtMul;
@@ -17891,12 +17932,7 @@ export default function AssetStudio({ game = false } = {}) {
             // Same box-not-centre rule the explosion uses (blastHitsBox) — measuring to a big
             // enemy's centre made a grenade that landed at its feet miss it entirely. One helper so
             // both sides of the throw ask the identical question about who is standing in it.
-            const stunBoxOf = (ea2, ep2) => {
-              const sShape = sideBodyShape(ea2);
-              const sRenderW = enemyRenderW(ea2, CW), spw = sRenderW * sShape.fraction;
-              const sph = ep2.crouch ? enemyCrouchH(ea2, CW) : enemyStandH(ea2, CW);
-              return { x: ep2.x + (sShape.centerFrac * sRenderW - spw / 2), y: ep2.y + sShape.topFrac * sph, w: spw, h: sShape.heightFrac * sph };
-            };
+            const stunBoxOf = (ea2, ep2) => unitBodyBox(ea2, ep2, CW);
             if (g.foe) {
               // A shock grenade thrown at YOU freezes you through the same stunPlayer channel a stun
               // weapon's hit uses, so the 💫 marker and every can't-move/can't-aim/can't-attack gate
@@ -17948,12 +17984,13 @@ export default function AssetStudio({ game = false } = {}) {
               const ep2 = enemyPos.current[k]; if (!ep2) continue;
               const hp2 = enemyHP.current[k] === undefined ? enemyMaxHP(ea2) : enemyHP.current[k];
               if (!canCapture(ea2, hp2, ep2)) continue;
-              const cShape = sideBodyShape(ea2);
-              const cRenderW = enemyRenderW(ea2, CW), cpw = cRenderW * cShape.fraction;
-              const cph = ep2.crouch ? enemyCrouchH(ea2, CW) : enemyStandH(ea2, CW);
-              const bx = ep2.x + (cShape.centerFrac * cRenderW - cpw / 2), by = ep2.y + cShape.topFrac * cph;
-              if (!blastHitsBox(g.x, g.y, bx, by, cpw, cShape.heightFrac * cph, capRadPx)) continue;
-              inRange.push({ k, ea: ea2, ep: ep2, d: Math.hypot(bx + cpw / 2 - g.x, by - g.y) });
+              // The body's real box — the SAME unitBodyBox the ball STOPPED on a few lines up (and the stun
+              // uses). This used a bare topFrac * height, which sits above an animal by its ground anchor: the
+              // ball stopped on the corpse and then measured against a box 70-200 px over its head, so a Lion
+              // was caught only by luck and a scaled Crocodile never.
+              const cb = unitBodyBox(ea2, ep2, CW);
+              if (!blastHitsBox(g.x, g.y, cb.x, cb.y, cb.w, cb.h, capRadPx)) continue;
+              inRange.push({ k, ea: ea2, ep: ep2, d: Math.hypot(cb.x + cb.w / 2 - g.x, cb.y - g.y) });
             }
             inRange.sort((x, y) => x.d - y.d);
             for (const c of inRange.slice(0, wantCaptures)) {

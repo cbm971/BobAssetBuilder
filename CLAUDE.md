@@ -700,6 +700,16 @@ plus traps it does not cover:
   `p.onGround` false on it, and a plane over open air drew the jump pose and lean.
 - **The CSS sheets are JS template literals.** A backtick in a CSS comment breaks the build at a
   line far from the cause.
+- **The play effect re-runs for reasons that are not a new session** (a landed grenade paints fire with
+  setLevel, a pickup bumps `equipGen`, a door changes `level`). Anything it seeds must be keyed:
+  `throwStockKey` / `wpnClipKey` (playRunId|asset|knob) keep the grenade count and the clip across
+  re-runs, or every Pokeball landing in its own fire refilled the stack ("infinite, not 3").
+- **One body box for throws.** `unitBodyBox` is what a rock stops on, a stun reaches and a Capture ball
+  claims. A bare `topFrac * height` sits above an animal by its ground anchor (`unitHitTop`); the capture
+  payout used it, so a Crocodile (scale 1.6) was never caught and a Lion only by luck.
+- **A grip that goes nowhere lets go** (`CLIMB_IDLE_LET_GO_FRAMES`): a unit on a ladder/bar/ledge with its
+  target level and no movement for 1.5 s drops. Corpses clear `ep.climbing`. Crocobob, Ratman and Turtle
+  Man are `character`s (people), so Capture refuses them by design — only Enemy-creator assets are catchable.
 - A helper that two blocks of the play loop both call belongs at loop level. A `const` in one block
   is invisible to its sibling, and that once crashed the game on a parry.
 

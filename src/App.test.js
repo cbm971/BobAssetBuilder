@@ -229,6 +229,8 @@ import {
   enemyNeedsFlip,
   enemyStandH,
   unitHitTop,
+  unitBodyBox,
+  CLIMB_IDLE_LET_GO_FRAMES,
   effectiveMagazineSize,
   flipPropFramesHorizontally,
   incomingPlayerDamage,
@@ -2325,6 +2327,38 @@ describe("unit hit box sits on the DRAWN body", () => {
   test("art that fills its canvas moves by nothing", () => {
     const full = { topFrac: 0.03, heightFrac: 0.97 };
     expect(unitHitTop({ angles: { side: [] } }, full, 210)).toBeCloseTo(0.03 * 210, 9);
+  });
+});
+
+describe("unitBodyBox: the one box a rock stops on, a stun reaches and a capture ball claims", () => {
+  // The Crocodile: scale 1.6 with a ground line at canvas y 148. The capture payout used to measure
+  // to a box hung at topFrac alone, which sat an animal's whole ground anchor above the body the
+  // ball had just stopped on.
+  const croc = { type: "enemy", scale: 1.6, angles: { side: [{ x: 20, y: 80, w: 160, h: 70 }] }, groundLine: { side: 148 } };
+  const ep = { x: 666, y: 594 };
+  const eph = enemyStandH(croc, 30);
+
+  test("the box ends on the feet, not above the animal", () => {
+    const b = unitBodyBox(croc, ep, 30);
+    expect(b.y + b.h).toBeGreaterThan(ep.y + eph - 0.1 * eph);
+    expect(b.y + b.h).toBeLessThan(ep.y + eph + 0.1 * eph);
+  });
+
+  test("a ball resting on the body's own floor is inside the capture reach", () => {
+    const b = unitBodyBox(croc, ep, 30);
+    const reach = throwStunRadiusCells(0) * 30;
+    expect(blastHitsBox(b.x + b.w / 2, ep.y + eph - 2, b.x, b.y, b.w, b.h, reach)).toBe(true);
+  });
+
+  test("ducking uses the crouch height", () => {
+    expect(unitBodyBox(croc, { ...ep, crouch: true }, 30).h).toBeLessThan(unitBodyBox(croc, ep, 30).h);
+  });
+});
+
+describe("a climbing unit that goes nowhere lets go", () => {
+  test("the idle grace is a second or two, not instant and not forever", () => {
+    expect(CLIMB_IDLE_LET_GO_FRAMES).toBeGreaterThanOrEqual(60);
+    expect(CLIMB_IDLE_LET_GO_FRAMES).toBeLessThanOrEqual(180);
   });
 });
 
