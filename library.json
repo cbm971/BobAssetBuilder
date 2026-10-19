@@ -52688,8 +52688,8 @@
    "id": "3shg4ho",
    "name": "AK-47",
    "type": "weapon",
-   "guideId": "oipvf3l",
-   "lastFit": "oipvf3l",
+   "guideId": "telfv37",
+   "lastFit": "telfv37",
    "confirmedFits": [
     "telfv37",
     "oipvf3l"
@@ -52743,7 +52743,7 @@
     "front": [],
     "back": [
      {
-      "id": "vakr0vy",
+      "id": "vakr0ta",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -52752,12 +52752,12 @@
        "bright": 1
       },
       "kind": "poly",
-      "x": 134,
-      "y": 138,
+      "x": 144.5,
+      "y": 146,
       "w": 28,
       "h": 15,
       "color": "#8a3d1f",
-      "rot": 83,
+      "rot": 85,
       "behindBody": true,
       "points": [
        [
@@ -52776,10 +52776,11 @@
         0,
         1
        ]
-      ]
+      ],
+      "tex": "unokran"
      },
      {
-      "id": "vakr0vz",
+      "id": "vakr0tb",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -52788,16 +52789,17 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 141,
-      "y": 154,
+      "x": 151,
+      "y": 162,
       "w": 8,
       "h": 14,
       "color": "#8a3d1f",
-      "rot": 99,
-      "behindBody": true
+      "rot": 101,
+      "behindBody": true,
+      "tex": "unokran"
      },
      {
-      "id": "vakr0w0",
+      "id": "vakr0tc",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -52806,16 +52808,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 143,
-      "y": 165.5,
+      "x": 153,
+      "y": 173.5,
       "w": 26,
       "h": 11,
       "color": "#2b2b2b",
-      "rot": 83,
+      "rot": 85,
       "behindBody": true
      },
      {
-      "id": "vakr0w1",
+      "id": "vakr0td",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -52824,16 +52826,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 148.5,
-      "y": 168.5,
+      "x": 158.5,
+      "y": 177,
       "w": 24,
       "h": 4,
       "color": "#1d1b1b",
-      "rot": 83,
+      "rot": 85,
       "behindBody": true
      },
      {
-      "id": "vakr0w2",
+      "id": "vakr0te",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -52842,16 +52844,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 141.5,
-      "y": 170,
+      "x": 151,
+      "y": 178,
       "w": 9,
       "h": 16,
       "color": "#2b2b2b",
-      "rot": 65,
+      "rot": 67,
       "behindBody": true
      },
      {
-      "id": "vakr0w3",
+      "id": "vakr0tf",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -52860,16 +52862,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 133,
-      "y": 176,
+      "x": 142.5,
+      "y": 184,
       "w": 9,
       "h": 14,
       "color": "#2b2b2b",
-      "rot": 47,
+      "rot": 49,
       "behindBody": true
      },
      {
-      "id": "vakr0w4",
+      "id": "vakr0tg",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -52878,16 +52880,17 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 148.5,
-      "y": 188.5,
+      "x": 157.5,
+      "y": 197,
       "w": 20,
       "h": 8,
       "color": "#8a3d1f",
-      "rot": 83,
-      "behindBody": true
+      "rot": 85,
+      "behindBody": true,
+      "tex": "unokran"
      },
      {
-      "id": "vakr0w5",
+      "id": "vakr0th",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -52896,16 +52899,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 153.5,
-      "y": 189,
+      "x": 162.5,
+      "y": 197.5,
       "w": 18,
       "h": 4.5,
       "color": "#5a3a22",
-      "rot": 83,
+      "rot": 85,
       "behindBody": true
      },
      {
-      "id": "vakr0w6",
+      "id": "vakr0ti",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -52914,16 +52917,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 150,
-      "y": 208,
+      "x": 158.5,
+      "y": 216.5,
       "w": 24,
       "h": 4.5,
       "color": "#2b2b2b",
-      "rot": 83,
+      "rot": 85,
       "behindBody": true
      },
      {
-      "id": "vakr0w7",
+      "id": "vakr0tj",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -52932,16 +52935,16 @@
        "bright": 1
       },
       "kind": "tri",
-      "x": 163,
-      "y": 212,
+      "x": 171.5,
+      "y": 220.5,
       "w": 7,
       "h": 8,
       "color": "#2b2b2b",
-      "rot": 83,
+      "rot": 85,
       "behindBody": true
      },
      {
-      "id": "vakr0w8",
+      "id": "vakr0tk",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -52950,19 +52953,19 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 155.5,
-      "y": 215.5,
+      "x": 163.5,
+      "y": 224,
       "w": 16,
       "h": 16,
       "color": "#42d6ff",
-      "rot": 83,
+      "rot": 85,
       "behindBody": true,
       "isMuzzle": true
      }
     ],
     "side": [
      {
-      "id": "vakr0wm",
+      "id": "vakr0ty",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -52971,8 +52974,8 @@
        "bright": 1
       },
       "kind": "poly",
-      "x": 85,
-      "y": 137.5,
+      "x": 87,
+      "y": 153.5,
       "w": 28,
       "h": 15,
       "color": "#8a3d1f",
@@ -52995,10 +52998,11 @@
         0,
         1
        ]
-      ]
+      ],
+      "tex": "unokran"
      },
      {
-      "id": "vakr0wn",
+      "id": "vakr0tz",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53007,124 +53011,17 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 90,
-      "y": 153,
+      "x": 92,
+      "y": 169,
       "w": 8,
       "h": 14,
       "color": "#8a3d1f",
       "rot": 106,
-      "behindArm": true
+      "behindArm": true,
+      "tex": "unokran"
      },
      {
-      "id": "vakr0wo",
-      "mirror": false,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "kind": "rect",
-      "x": 91,
-      "y": 165.5,
-      "w": 26,
-      "h": 11,
-      "color": "#2b2b2b",
-      "rot": 90,
-      "behindArm": true
-     },
-     {
-      "id": "vakr0wp",
-      "mirror": false,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "kind": "rect",
-      "x": 96.5,
-      "y": 169,
-      "w": 24,
-      "h": 4,
-      "color": "#1d1b1b",
-      "rot": 90,
-      "behindArm": true
-     },
-     {
-      "id": "vakr0wq",
-      "mirror": false,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "kind": "rect",
-      "x": 88.5,
-      "y": 169,
-      "w": 9,
-      "h": 16,
-      "color": "#2b2b2b",
-      "rot": 72,
-      "behindArm": true
-     },
-     {
-      "id": "vakr0wr",
-      "mirror": false,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "kind": "rect",
-      "x": 79.5,
-      "y": 174,
-      "w": 9,
-      "h": 14,
-      "color": "#2b2b2b",
-      "rot": 54,
-      "behindArm": true
-     },
-     {
-      "id": "vakr0ws",
-      "mirror": false,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "kind": "rect",
-      "x": 93.5,
-      "y": 189,
-      "w": 20,
-      "h": 8,
-      "color": "#8a3d1f",
-      "rot": 90,
-      "behindArm": true
-     },
-     {
-      "id": "vakr0wt",
-      "mirror": false,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "kind": "rect",
-      "x": 99,
-      "y": 190,
-      "w": 18,
-      "h": 4.5,
-      "color": "#5a3a22",
-      "rot": 90,
-      "behindArm": true
-     },
-     {
-      "id": "vakr0wu",
+      "id": "vakr0u0",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53134,7 +53031,116 @@
       },
       "kind": "rect",
       "x": 93,
-      "y": 209,
+      "y": 181.5,
+      "w": 26,
+      "h": 11,
+      "color": "#2b2b2b",
+      "rot": 90,
+      "behindArm": true
+     },
+     {
+      "id": "vakr0u1",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "kind": "rect",
+      "x": 98.5,
+      "y": 185,
+      "w": 24,
+      "h": 4,
+      "color": "#1d1b1b",
+      "rot": 90,
+      "behindArm": true
+     },
+     {
+      "id": "vakr0u2",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "kind": "rect",
+      "x": 90.5,
+      "y": 185,
+      "w": 9,
+      "h": 16,
+      "color": "#2b2b2b",
+      "rot": 72,
+      "behindArm": true
+     },
+     {
+      "id": "vakr0u3",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "kind": "rect",
+      "x": 81.5,
+      "y": 190,
+      "w": 9,
+      "h": 14,
+      "color": "#2b2b2b",
+      "rot": 54,
+      "behindArm": true
+     },
+     {
+      "id": "vakr0u4",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "kind": "rect",
+      "x": 95.5,
+      "y": 205,
+      "w": 20,
+      "h": 8,
+      "color": "#8a3d1f",
+      "rot": 90,
+      "behindArm": true,
+      "tex": "unokran"
+     },
+     {
+      "id": "vakr0u5",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "kind": "rect",
+      "x": 101,
+      "y": 206,
+      "w": 18,
+      "h": 4.5,
+      "color": "#5a3a22",
+      "rot": 90,
+      "behindArm": true
+     },
+     {
+      "id": "vakr0u6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "kind": "rect",
+      "x": 95,
+      "y": 225,
       "w": 24,
       "h": 4.5,
       "color": "#2b2b2b",
@@ -53142,7 +53148,7 @@
       "behindArm": true
      },
      {
-      "id": "vakr0wv",
+      "id": "vakr0u7",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53151,8 +53157,8 @@
        "bright": 1
       },
       "kind": "tri",
-      "x": 105.5,
-      "y": 213,
+      "x": 107.5,
+      "y": 229,
       "w": 7,
       "h": 8,
       "color": "#2b2b2b",
@@ -53160,7 +53166,7 @@
       "behindArm": true
      },
      {
-      "id": "vakr0ww",
+      "id": "vakr0u8",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53169,8 +53175,8 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 97,
-      "y": 216,
+      "x": 99,
+      "y": 232,
       "w": 16,
       "h": 16,
       "color": "#42d6ff",
@@ -53181,7 +53187,7 @@
     ],
     "up": [
      {
-      "id": "vakr0xa",
+      "id": "vakr0um",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53214,10 +53220,11 @@
         0,
         1
        ]
-      ]
+      ],
+      "tex": "unokran"
      },
      {
-      "id": "vakr0xb",
+      "id": "vakr0un",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53232,10 +53239,11 @@
       "h": 14,
       "color": "#8a3d1f",
       "rot": 286,
-      "behindArm": true
+      "behindArm": true,
+      "tex": "unokran"
      },
      {
-      "id": "vakr0xc",
+      "id": "vakr0uo",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53253,7 +53261,7 @@
       "behindArm": true
      },
      {
-      "id": "vakr0xd",
+      "id": "vakr0up",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53271,7 +53279,7 @@
       "behindArm": true
      },
      {
-      "id": "vakr0xe",
+      "id": "vakr0uq",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53289,7 +53297,7 @@
       "behindArm": true
      },
      {
-      "id": "vakr0xf",
+      "id": "vakr0ur",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53307,7 +53315,7 @@
       "behindArm": true
      },
      {
-      "id": "vakr0xg",
+      "id": "vakr0us",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53322,10 +53330,11 @@
       "h": 8,
       "color": "#8a3d1f",
       "rot": 270,
-      "behindArm": true
+      "behindArm": true,
+      "tex": "unokran"
      },
      {
-      "id": "vakr0xh",
+      "id": "vakr0ut",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53343,7 +53352,7 @@
       "behindArm": true
      },
      {
-      "id": "vakr0xi",
+      "id": "vakr0uu",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53361,7 +53370,7 @@
       "behindArm": true
      },
      {
-      "id": "vakr0xj",
+      "id": "vakr0uv",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53379,7 +53388,7 @@
       "behindArm": true
      },
      {
-      "id": "vakr0xk",
+      "id": "vakr0uw",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53400,7 +53409,7 @@
     ],
     "crouch": [
      {
-      "id": "vakr0xy",
+      "id": "vakr0va",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53409,12 +53418,12 @@
        "bright": 1
       },
       "kind": "poly",
-      "x": 133,
-      "y": 137,
+      "x": 139,
+      "y": 160.5,
       "w": 28,
       "h": 15,
       "color": "#8a3d1f",
-      "rot": 80,
+      "rot": 90,
       "behindArm": true,
       "points": [
        [
@@ -53433,10 +53442,11 @@
         0,
         1
        ]
-      ]
+      ],
+      "tex": "unokran"
      },
      {
-      "id": "vakr0xz",
+      "id": "vakr0vb",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53445,16 +53455,17 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 141,
-      "y": 153,
+      "x": 144,
+      "y": 176,
       "w": 8,
       "h": 14,
       "color": "#8a3d1f",
-      "rot": 96,
-      "behindArm": true
+      "rot": 106,
+      "behindArm": true,
+      "tex": "unokran"
      },
      {
-      "id": "vakr0y0",
+      "id": "vakr0vc",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53463,16 +53474,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 143.5,
-      "y": 164,
+      "x": 145,
+      "y": 188.5,
       "w": 26,
       "h": 11,
       "color": "#2b2b2b",
-      "rot": 80,
+      "rot": 90,
       "behindArm": true
      },
      {
-      "id": "vakr0y1",
+      "id": "vakr0vd",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53481,16 +53492,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 149,
-      "y": 166.5,
+      "x": 150.5,
+      "y": 192,
       "w": 24,
       "h": 4,
       "color": "#1d1b1b",
-      "rot": 80,
+      "rot": 90,
       "behindArm": true
      },
      {
-      "id": "vakr0y2",
+      "id": "vakr0ve",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53500,15 +53511,15 @@
       },
       "kind": "rect",
       "x": 142.5,
-      "y": 169,
+      "y": 192,
       "w": 9,
       "h": 16,
       "color": "#2b2b2b",
-      "rot": 62,
+      "rot": 72,
       "behindArm": true
      },
      {
-      "id": "vakr0y3",
+      "id": "vakr0vf",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53517,16 +53528,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 134,
-      "y": 175.5,
+      "x": 133.5,
+      "y": 197,
       "w": 9,
       "h": 14,
       "color": "#2b2b2b",
-      "rot": 44,
+      "rot": 54,
       "behindArm": true
      },
      {
-      "id": "vakr0y4",
+      "id": "vakr0vg",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53535,16 +53546,17 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 150,
-      "y": 187,
+      "x": 147.5,
+      "y": 212,
       "w": 20,
       "h": 8,
       "color": "#8a3d1f",
-      "rot": 80,
-      "behindArm": true
+      "rot": 90,
+      "behindArm": true,
+      "tex": "unokran"
      },
      {
-      "id": "vakr0y5",
+      "id": "vakr0vh",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53553,16 +53565,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 155,
-      "y": 187,
+      "x": 153,
+      "y": 213,
       "w": 18,
       "h": 4.5,
       "color": "#5a3a22",
-      "rot": 80,
+      "rot": 90,
       "behindArm": true
      },
      {
-      "id": "vakr0y6",
+      "id": "vakr0vi",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53571,16 +53583,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 152.5,
-      "y": 206.5,
+      "x": 147,
+      "y": 232,
       "w": 24,
       "h": 4.5,
       "color": "#2b2b2b",
-      "rot": 80,
+      "rot": 90,
       "behindArm": true
      },
      {
-      "id": "vakr0y7",
+      "id": "vakr0vj",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53589,16 +53601,16 @@
        "bright": 1
       },
       "kind": "tri",
-      "x": 166,
-      "y": 209.5,
+      "x": 159.5,
+      "y": 236,
       "w": 7,
       "h": 8,
       "color": "#2b2b2b",
-      "rot": 80,
+      "rot": 90,
       "behindArm": true
      },
      {
-      "id": "vakr0y8",
+      "id": "vakr0vk",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -53607,12 +53619,12 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 159,
-      "y": 213.5,
+      "x": 151,
+      "y": 239,
       "w": 16,
       "h": 16,
       "color": "#42d6ff",
-      "rot": 80,
+      "rot": 90,
       "behindArm": true,
       "isMuzzle": true
      }
@@ -53623,7 +53635,7 @@
      "front": [],
      "back": [
       {
-       "id": "vakr0vy",
+       "id": "vakr0ta",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -53632,12 +53644,12 @@
         "bright": 1
        },
        "kind": "poly",
-       "x": 134,
-       "y": 138,
+       "x": 144.5,
+       "y": 146,
        "w": 28,
        "h": 15,
        "color": "#8a3d1f",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true,
        "points": [
         [
@@ -53656,10 +53668,11 @@
          0,
          1
         ]
-       ]
+       ],
+       "tex": "unokran"
       },
       {
-       "id": "vakr0vz",
+       "id": "vakr0tb",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -53668,16 +53681,17 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 141,
-       "y": 154,
+       "x": 151,
+       "y": 162,
        "w": 8,
        "h": 14,
        "color": "#8a3d1f",
-       "rot": 99,
-       "behindBody": true
+       "rot": 101,
+       "behindBody": true,
+       "tex": "unokran"
       },
       {
-       "id": "vakr0w0",
+       "id": "vakr0tc",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -53686,16 +53700,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 143,
-       "y": 165.5,
+       "x": 153,
+       "y": 173.5,
        "w": 26,
        "h": 11,
        "color": "#2b2b2b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "vakr0w1",
+       "id": "vakr0td",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -53704,16 +53718,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 148.5,
-       "y": 168.5,
+       "x": 158.5,
+       "y": 177,
        "w": 24,
        "h": 4,
        "color": "#1d1b1b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "vakr0w2",
+       "id": "vakr0te",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -53722,16 +53736,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 141.5,
-       "y": 170,
+       "x": 151,
+       "y": 178,
        "w": 9,
        "h": 16,
        "color": "#2b2b2b",
-       "rot": 65,
+       "rot": 67,
        "behindBody": true
       },
       {
-       "id": "vakr0w3",
+       "id": "vakr0tf",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -53740,16 +53754,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 133,
-       "y": 176,
+       "x": 142.5,
+       "y": 184,
        "w": 9,
        "h": 14,
        "color": "#2b2b2b",
-       "rot": 47,
+       "rot": 49,
        "behindBody": true
       },
       {
-       "id": "vakr0w4",
+       "id": "vakr0tg",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -53758,16 +53772,17 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 148.5,
-       "y": 188.5,
+       "x": 157.5,
+       "y": 197,
        "w": 20,
        "h": 8,
        "color": "#8a3d1f",
-       "rot": 83,
-       "behindBody": true
+       "rot": 85,
+       "behindBody": true,
+       "tex": "unokran"
       },
       {
-       "id": "vakr0w5",
+       "id": "vakr0th",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -53776,16 +53791,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 153.5,
-       "y": 189,
+       "x": 162.5,
+       "y": 197.5,
        "w": 18,
        "h": 4.5,
        "color": "#5a3a22",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "vakr0w6",
+       "id": "vakr0ti",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -53794,16 +53809,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 150,
-       "y": 208,
+       "x": 158.5,
+       "y": 216.5,
        "w": 24,
        "h": 4.5,
        "color": "#2b2b2b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "vakr0w7",
+       "id": "vakr0tj",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -53812,16 +53827,16 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 163,
-       "y": 212,
+       "x": 171.5,
+       "y": 220.5,
        "w": 7,
        "h": 8,
        "color": "#2b2b2b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "vakr0w8",
+       "id": "vakr0tk",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -53830,19 +53845,19 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 155.5,
-       "y": 215.5,
+       "x": 163.5,
+       "y": 224,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true,
        "isMuzzle": true
       }
      ],
      "side": [
       {
-       "id": "vakr0wm",
+       "id": "vakr0ty",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -53851,8 +53866,8 @@
         "bright": 1
        },
        "kind": "poly",
-       "x": 85,
-       "y": 137.5,
+       "x": 87,
+       "y": 153.5,
        "w": 28,
        "h": 15,
        "color": "#8a3d1f",
@@ -53875,10 +53890,11 @@
          0,
          1
         ]
-       ]
+       ],
+       "tex": "unokran"
       },
       {
-       "id": "vakr0wn",
+       "id": "vakr0tz",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -53887,124 +53903,17 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 90,
-       "y": 153,
+       "x": 92,
+       "y": 169,
        "w": 8,
        "h": 14,
        "color": "#8a3d1f",
        "rot": 106,
-       "behindArm": true
+       "behindArm": true,
+       "tex": "unokran"
       },
       {
-       "id": "vakr0wo",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 91,
-       "y": 165.5,
-       "w": 26,
-       "h": 11,
-       "color": "#2b2b2b",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vakr0wp",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 96.5,
-       "y": 169,
-       "w": 24,
-       "h": 4,
-       "color": "#1d1b1b",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vakr0wq",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 88.5,
-       "y": 169,
-       "w": 9,
-       "h": 16,
-       "color": "#2b2b2b",
-       "rot": 72,
-       "behindArm": true
-      },
-      {
-       "id": "vakr0wr",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 79.5,
-       "y": 174,
-       "w": 9,
-       "h": 14,
-       "color": "#2b2b2b",
-       "rot": 54,
-       "behindArm": true
-      },
-      {
-       "id": "vakr0ws",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 93.5,
-       "y": 189,
-       "w": 20,
-       "h": 8,
-       "color": "#8a3d1f",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vakr0wt",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 99,
-       "y": 190,
-       "w": 18,
-       "h": 4.5,
-       "color": "#5a3a22",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vakr0wu",
+       "id": "vakr0u0",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54014,7 +53923,116 @@
        },
        "kind": "rect",
        "x": 93,
-       "y": 209,
+       "y": 181.5,
+       "w": 26,
+       "h": 11,
+       "color": "#2b2b2b",
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "vakr0u1",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 98.5,
+       "y": 185,
+       "w": 24,
+       "h": 4,
+       "color": "#1d1b1b",
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "vakr0u2",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 90.5,
+       "y": 185,
+       "w": 9,
+       "h": 16,
+       "color": "#2b2b2b",
+       "rot": 72,
+       "behindArm": true
+      },
+      {
+       "id": "vakr0u3",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 81.5,
+       "y": 190,
+       "w": 9,
+       "h": 14,
+       "color": "#2b2b2b",
+       "rot": 54,
+       "behindArm": true
+      },
+      {
+       "id": "vakr0u4",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 95.5,
+       "y": 205,
+       "w": 20,
+       "h": 8,
+       "color": "#8a3d1f",
+       "rot": 90,
+       "behindArm": true,
+       "tex": "unokran"
+      },
+      {
+       "id": "vakr0u5",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 101,
+       "y": 206,
+       "w": 18,
+       "h": 4.5,
+       "color": "#5a3a22",
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "vakr0u6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 95,
+       "y": 225,
        "w": 24,
        "h": 4.5,
        "color": "#2b2b2b",
@@ -54022,7 +54040,7 @@
        "behindArm": true
       },
       {
-       "id": "vakr0wv",
+       "id": "vakr0u7",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54031,8 +54049,8 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 105.5,
-       "y": 213,
+       "x": 107.5,
+       "y": 229,
        "w": 7,
        "h": 8,
        "color": "#2b2b2b",
@@ -54040,7 +54058,7 @@
        "behindArm": true
       },
       {
-       "id": "vakr0ww",
+       "id": "vakr0u8",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54049,8 +54067,8 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 97,
-       "y": 216,
+       "x": 99,
+       "y": 232,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
@@ -54061,7 +54079,7 @@
      ],
      "up": [
       {
-       "id": "vakr0xa",
+       "id": "vakr0um",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54094,10 +54112,11 @@
          0,
          1
         ]
-       ]
+       ],
+       "tex": "unokran"
       },
       {
-       "id": "vakr0xb",
+       "id": "vakr0un",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54112,10 +54131,11 @@
        "h": 14,
        "color": "#8a3d1f",
        "rot": 286,
-       "behindArm": true
+       "behindArm": true,
+       "tex": "unokran"
       },
       {
-       "id": "vakr0xc",
+       "id": "vakr0uo",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54133,7 +54153,7 @@
        "behindArm": true
       },
       {
-       "id": "vakr0xd",
+       "id": "vakr0up",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54151,7 +54171,7 @@
        "behindArm": true
       },
       {
-       "id": "vakr0xe",
+       "id": "vakr0uq",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54169,7 +54189,7 @@
        "behindArm": true
       },
       {
-       "id": "vakr0xf",
+       "id": "vakr0ur",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54187,7 +54207,7 @@
        "behindArm": true
       },
       {
-       "id": "vakr0xg",
+       "id": "vakr0us",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54202,10 +54222,11 @@
        "h": 8,
        "color": "#8a3d1f",
        "rot": 270,
-       "behindArm": true
+       "behindArm": true,
+       "tex": "unokran"
       },
       {
-       "id": "vakr0xh",
+       "id": "vakr0ut",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54223,7 +54244,7 @@
        "behindArm": true
       },
       {
-       "id": "vakr0xi",
+       "id": "vakr0uu",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54241,7 +54262,7 @@
        "behindArm": true
       },
       {
-       "id": "vakr0xj",
+       "id": "vakr0uv",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54259,7 +54280,7 @@
        "behindArm": true
       },
       {
-       "id": "vakr0xk",
+       "id": "vakr0uw",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54280,7 +54301,7 @@
      ],
      "crouch": [
       {
-       "id": "vakr0xy",
+       "id": "vakr0va",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54289,12 +54310,12 @@
         "bright": 1
        },
        "kind": "poly",
-       "x": 133,
-       "y": 137,
+       "x": 139,
+       "y": 160.5,
        "w": 28,
        "h": 15,
        "color": "#8a3d1f",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true,
        "points": [
         [
@@ -54313,10 +54334,11 @@
          0,
          1
         ]
-       ]
+       ],
+       "tex": "unokran"
       },
       {
-       "id": "vakr0xz",
+       "id": "vakr0vb",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54325,16 +54347,17 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 141,
-       "y": 153,
+       "x": 144,
+       "y": 176,
        "w": 8,
        "h": 14,
        "color": "#8a3d1f",
-       "rot": 96,
-       "behindArm": true
+       "rot": 106,
+       "behindArm": true,
+       "tex": "unokran"
       },
       {
-       "id": "vakr0y0",
+       "id": "vakr0vc",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54343,16 +54366,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 143.5,
-       "y": 164,
+       "x": 145,
+       "y": 188.5,
        "w": 26,
        "h": 11,
        "color": "#2b2b2b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "vakr0y1",
+       "id": "vakr0vd",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54361,16 +54384,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 149,
-       "y": 166.5,
+       "x": 150.5,
+       "y": 192,
        "w": 24,
        "h": 4,
        "color": "#1d1b1b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "vakr0y2",
+       "id": "vakr0ve",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54380,15 +54403,15 @@
        },
        "kind": "rect",
        "x": 142.5,
-       "y": 169,
+       "y": 192,
        "w": 9,
        "h": 16,
        "color": "#2b2b2b",
-       "rot": 62,
+       "rot": 72,
        "behindArm": true
       },
       {
-       "id": "vakr0y3",
+       "id": "vakr0vf",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54397,16 +54420,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 134,
-       "y": 175.5,
+       "x": 133.5,
+       "y": 197,
        "w": 9,
        "h": 14,
        "color": "#2b2b2b",
-       "rot": 44,
+       "rot": 54,
        "behindArm": true
       },
       {
-       "id": "vakr0y4",
+       "id": "vakr0vg",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54415,16 +54438,17 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 150,
-       "y": 187,
+       "x": 147.5,
+       "y": 212,
        "w": 20,
        "h": 8,
        "color": "#8a3d1f",
-       "rot": 80,
-       "behindArm": true
+       "rot": 90,
+       "behindArm": true,
+       "tex": "unokran"
       },
       {
-       "id": "vakr0y5",
+       "id": "vakr0vh",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54433,16 +54457,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 155,
-       "y": 187,
+       "x": 153,
+       "y": 213,
        "w": 18,
        "h": 4.5,
        "color": "#5a3a22",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "vakr0y6",
+       "id": "vakr0vi",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54451,16 +54475,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 152.5,
-       "y": 206.5,
+       "x": 147,
+       "y": 232,
        "w": 24,
        "h": 4.5,
        "color": "#2b2b2b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "vakr0y7",
+       "id": "vakr0vj",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54469,16 +54493,16 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 166,
-       "y": 209.5,
+       "x": 159.5,
+       "y": 236,
        "w": 7,
        "h": 8,
        "color": "#2b2b2b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "vakr0y8",
+       "id": "vakr0vk",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54487,12 +54511,12 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 159,
-       "y": 213.5,
+       "x": 151,
+       "y": 239,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true,
        "isMuzzle": true
       }
@@ -54502,7 +54526,7 @@
      "front": [],
      "back": [
       {
-       "id": "vakf0w9",
+       "id": "vakf0tl",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54511,12 +54535,12 @@
         "bright": 1
        },
        "kind": "poly",
-       "x": 134,
-       "y": 138,
+       "x": 144.5,
+       "y": 146,
        "w": 28,
        "h": 15,
        "color": "#8a3d1f",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true,
        "points": [
         [
@@ -54535,10 +54559,11 @@
          0,
          1
         ]
-       ]
+       ],
+       "tex": "unokran"
       },
       {
-       "id": "vakf0wa",
+       "id": "vakf0tm",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54547,16 +54572,17 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 141,
-       "y": 154,
+       "x": 151,
+       "y": 162,
        "w": 8,
        "h": 14,
        "color": "#8a3d1f",
-       "rot": 99,
-       "behindBody": true
+       "rot": 101,
+       "behindBody": true,
+       "tex": "unokran"
       },
       {
-       "id": "vakf0wb",
+       "id": "vakf0tn",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54565,16 +54591,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 143,
-       "y": 165.5,
+       "x": 153,
+       "y": 173.5,
        "w": 26,
        "h": 11,
        "color": "#2b2b2b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "vakf0wc",
+       "id": "vakf0to",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54583,16 +54609,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 148.5,
-       "y": 168.5,
+       "x": 158.5,
+       "y": 177,
        "w": 24,
        "h": 4,
        "color": "#1d1b1b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "vakf0wd",
+       "id": "vakf0tp",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54601,16 +54627,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 141.5,
-       "y": 170,
+       "x": 151,
+       "y": 178,
        "w": 9,
        "h": 16,
        "color": "#2b2b2b",
-       "rot": 65,
+       "rot": 67,
        "behindBody": true
       },
       {
-       "id": "vakf0we",
+       "id": "vakf0tq",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54619,16 +54645,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 133,
-       "y": 176,
+       "x": 142.5,
+       "y": 184,
        "w": 9,
        "h": 14,
        "color": "#2b2b2b",
-       "rot": 47,
+       "rot": 49,
        "behindBody": true
       },
       {
-       "id": "vakf0wf",
+       "id": "vakf0tr",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54637,16 +54663,17 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 148.5,
-       "y": 188.5,
+       "x": 157.5,
+       "y": 197,
        "w": 20,
        "h": 8,
        "color": "#8a3d1f",
-       "rot": 83,
-       "behindBody": true
+       "rot": 85,
+       "behindBody": true,
+       "tex": "unokran"
       },
       {
-       "id": "vakf0wg",
+       "id": "vakf0ts",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54655,16 +54682,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 153.5,
-       "y": 189,
+       "x": 162.5,
+       "y": 197.5,
        "w": 18,
        "h": 4.5,
        "color": "#5a3a22",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "vakf0wh",
+       "id": "vakf0tt",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54673,16 +54700,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 150,
-       "y": 208,
+       "x": 158.5,
+       "y": 216.5,
        "w": 24,
        "h": 4.5,
        "color": "#2b2b2b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "vakf0wi",
+       "id": "vakf0tu",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54691,16 +54718,16 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 163,
-       "y": 212,
+       "x": 171.5,
+       "y": 220.5,
        "w": 7,
        "h": 8,
        "color": "#2b2b2b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "vakf0wj",
+       "id": "vakf0tv",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54709,16 +54736,16 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 159,
-       "y": 219.5,
+       "x": 167,
+       "y": 228,
        "w": 10,
        "h": 16,
        "color": "#c8a23c",
-       "rot": 173,
+       "rot": 175,
        "behindBody": true
       },
       {
-       "id": "vakf0wk",
+       "id": "vakf0tw",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54727,16 +54754,16 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 160.5,
-       "y": 220,
+       "x": 168.5,
+       "y": 228.5,
        "w": 6,
        "h": 9,
        "color": "#efe9dc",
-       "rot": 173,
+       "rot": 175,
        "behindBody": true
       },
       {
-       "id": "vakf0wl",
+       "id": "vakf0tx",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54745,19 +54772,19 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 155.5,
-       "y": 215.5,
+       "x": 163.5,
+       "y": 224,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true,
        "isMuzzle": true
       }
      ],
      "side": [
       {
-       "id": "vakf0wx",
+       "id": "vakf0u9",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54766,8 +54793,8 @@
         "bright": 1
        },
        "kind": "poly",
-       "x": 85,
-       "y": 137.5,
+       "x": 87,
+       "y": 153.5,
        "w": 28,
        "h": 15,
        "color": "#8a3d1f",
@@ -54790,10 +54817,11 @@
          0,
          1
         ]
-       ]
+       ],
+       "tex": "unokran"
       },
       {
-       "id": "vakf0wy",
+       "id": "vakf0ua",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54802,124 +54830,17 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 90,
-       "y": 153,
+       "x": 92,
+       "y": 169,
        "w": 8,
        "h": 14,
        "color": "#8a3d1f",
        "rot": 106,
-       "behindArm": true
+       "behindArm": true,
+       "tex": "unokran"
       },
       {
-       "id": "vakf0wz",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 91,
-       "y": 165.5,
-       "w": 26,
-       "h": 11,
-       "color": "#2b2b2b",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vakf0x0",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 96.5,
-       "y": 169,
-       "w": 24,
-       "h": 4,
-       "color": "#1d1b1b",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vakf0x1",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 88.5,
-       "y": 169,
-       "w": 9,
-       "h": 16,
-       "color": "#2b2b2b",
-       "rot": 72,
-       "behindArm": true
-      },
-      {
-       "id": "vakf0x2",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 79.5,
-       "y": 174,
-       "w": 9,
-       "h": 14,
-       "color": "#2b2b2b",
-       "rot": 54,
-       "behindArm": true
-      },
-      {
-       "id": "vakf0x3",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 93.5,
-       "y": 189,
-       "w": 20,
-       "h": 8,
-       "color": "#8a3d1f",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vakf0x4",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 99,
-       "y": 190,
-       "w": 18,
-       "h": 4.5,
-       "color": "#5a3a22",
-       "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "vakf0x5",
+       "id": "vakf0ub",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54929,7 +54850,116 @@
        },
        "kind": "rect",
        "x": 93,
-       "y": 209,
+       "y": 181.5,
+       "w": 26,
+       "h": 11,
+       "color": "#2b2b2b",
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "vakf0uc",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 98.5,
+       "y": 185,
+       "w": 24,
+       "h": 4,
+       "color": "#1d1b1b",
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "vakf0ud",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 90.5,
+       "y": 185,
+       "w": 9,
+       "h": 16,
+       "color": "#2b2b2b",
+       "rot": 72,
+       "behindArm": true
+      },
+      {
+       "id": "vakf0ue",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 81.5,
+       "y": 190,
+       "w": 9,
+       "h": 14,
+       "color": "#2b2b2b",
+       "rot": 54,
+       "behindArm": true
+      },
+      {
+       "id": "vakf0uf",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 95.5,
+       "y": 205,
+       "w": 20,
+       "h": 8,
+       "color": "#8a3d1f",
+       "rot": 90,
+       "behindArm": true,
+       "tex": "unokran"
+      },
+      {
+       "id": "vakf0ug",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 101,
+       "y": 206,
+       "w": 18,
+       "h": 4.5,
+       "color": "#5a3a22",
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "vakf0uh",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 95,
+       "y": 225,
        "w": 24,
        "h": 4.5,
        "color": "#2b2b2b",
@@ -54937,7 +54967,7 @@
        "behindArm": true
       },
       {
-       "id": "vakf0x6",
+       "id": "vakf0ui",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54946,8 +54976,8 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 105.5,
-       "y": 213,
+       "x": 107.5,
+       "y": 229,
        "w": 7,
        "h": 8,
        "color": "#2b2b2b",
@@ -54955,25 +54985,7 @@
        "behindArm": true
       },
       {
-       "id": "vakf0x7",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 100,
-       "y": 220,
-       "w": 10,
-       "h": 16,
-       "color": "#c8a23c",
-       "rot": 180,
-       "behindArm": true
-      },
-      {
-       "id": "vakf0x8",
+       "id": "vakf0uj",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -54983,7 +54995,25 @@
        },
        "kind": "tri",
        "x": 102,
-       "y": 220.5,
+       "y": 236,
+       "w": 10,
+       "h": 16,
+       "color": "#c8a23c",
+       "rot": 180,
+       "behindArm": true
+      },
+      {
+       "id": "vakf0uk",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "tri",
+       "x": 104,
+       "y": 236.5,
        "w": 6,
        "h": 9,
        "color": "#efe9dc",
@@ -54991,7 +55021,7 @@
        "behindArm": true
       },
       {
-       "id": "vakf0x9",
+       "id": "vakf0ul",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55000,8 +55030,8 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 97,
-       "y": 216,
+       "x": 99,
+       "y": 232,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
@@ -55012,7 +55042,7 @@
      ],
      "up": [
       {
-       "id": "vakf0xl",
+       "id": "vakf0ux",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55045,10 +55075,11 @@
          0,
          1
         ]
-       ]
+       ],
+       "tex": "unokran"
       },
       {
-       "id": "vakf0xm",
+       "id": "vakf0uy",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55063,10 +55094,11 @@
        "h": 14,
        "color": "#8a3d1f",
        "rot": 286,
-       "behindArm": true
+       "behindArm": true,
+       "tex": "unokran"
       },
       {
-       "id": "vakf0xn",
+       "id": "vakf0uz",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55084,7 +55116,7 @@
        "behindArm": true
       },
       {
-       "id": "vakf0xo",
+       "id": "vakf0v0",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55102,7 +55134,7 @@
        "behindArm": true
       },
       {
-       "id": "vakf0xp",
+       "id": "vakf0v1",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55120,7 +55152,7 @@
        "behindArm": true
       },
       {
-       "id": "vakf0xq",
+       "id": "vakf0v2",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55138,7 +55170,7 @@
        "behindArm": true
       },
       {
-       "id": "vakf0xr",
+       "id": "vakf0v3",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55153,10 +55185,11 @@
        "h": 8,
        "color": "#8a3d1f",
        "rot": 270,
-       "behindArm": true
+       "behindArm": true,
+       "tex": "unokran"
       },
       {
-       "id": "vakf0xs",
+       "id": "vakf0v4",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55174,7 +55207,7 @@
        "behindArm": true
       },
       {
-       "id": "vakf0xt",
+       "id": "vakf0v5",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55192,7 +55225,7 @@
        "behindArm": true
       },
       {
-       "id": "vakf0xu",
+       "id": "vakf0v6",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55210,7 +55243,7 @@
        "behindArm": true
       },
       {
-       "id": "vakf0xv",
+       "id": "vakf0v7",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55228,7 +55261,7 @@
        "behindArm": true
       },
       {
-       "id": "vakf0xw",
+       "id": "vakf0v8",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55246,7 +55279,7 @@
        "behindArm": true
       },
       {
-       "id": "vakf0xx",
+       "id": "vakf0v9",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55267,7 +55300,7 @@
      ],
      "crouch": [
       {
-       "id": "vakf0y9",
+       "id": "vakf0vl",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55276,12 +55309,12 @@
         "bright": 1
        },
        "kind": "poly",
-       "x": 133,
-       "y": 137,
+       "x": 139,
+       "y": 160.5,
        "w": 28,
        "h": 15,
        "color": "#8a3d1f",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true,
        "points": [
         [
@@ -55300,10 +55333,11 @@
          0,
          1
         ]
-       ]
+       ],
+       "tex": "unokran"
       },
       {
-       "id": "vakf0ya",
+       "id": "vakf0vm",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55312,16 +55346,17 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 141,
-       "y": 153,
+       "x": 144,
+       "y": 176,
        "w": 8,
        "h": 14,
        "color": "#8a3d1f",
-       "rot": 96,
-       "behindArm": true
+       "rot": 106,
+       "behindArm": true,
+       "tex": "unokran"
       },
       {
-       "id": "vakf0yb",
+       "id": "vakf0vn",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55330,16 +55365,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 143.5,
-       "y": 164,
+       "x": 145,
+       "y": 188.5,
        "w": 26,
        "h": 11,
        "color": "#2b2b2b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "vakf0yc",
+       "id": "vakf0vo",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55348,16 +55383,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 149,
-       "y": 166.5,
+       "x": 150.5,
+       "y": 192,
        "w": 24,
        "h": 4,
        "color": "#1d1b1b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "vakf0yd",
+       "id": "vakf0vp",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55367,15 +55402,15 @@
        },
        "kind": "rect",
        "x": 142.5,
-       "y": 169,
+       "y": 192,
        "w": 9,
        "h": 16,
        "color": "#2b2b2b",
-       "rot": 62,
+       "rot": 72,
        "behindArm": true
       },
       {
-       "id": "vakf0ye",
+       "id": "vakf0vq",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55384,16 +55419,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 134,
-       "y": 175.5,
+       "x": 133.5,
+       "y": 197,
        "w": 9,
        "h": 14,
        "color": "#2b2b2b",
-       "rot": 44,
+       "rot": 54,
        "behindArm": true
       },
       {
-       "id": "vakf0yf",
+       "id": "vakf0vr",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55402,16 +55437,17 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 150,
-       "y": 187,
+       "x": 147.5,
+       "y": 212,
        "w": 20,
        "h": 8,
        "color": "#8a3d1f",
-       "rot": 80,
-       "behindArm": true
+       "rot": 90,
+       "behindArm": true,
+       "tex": "unokran"
       },
       {
-       "id": "vakf0yg",
+       "id": "vakf0vs",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55420,16 +55456,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 155,
-       "y": 187,
+       "x": 153,
+       "y": 213,
        "w": 18,
        "h": 4.5,
        "color": "#5a3a22",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "vakf0yh",
+       "id": "vakf0vt",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55438,16 +55474,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 152.5,
-       "y": 206.5,
+       "x": 147,
+       "y": 232,
        "w": 24,
        "h": 4.5,
        "color": "#2b2b2b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "vakf0yi",
+       "id": "vakf0vu",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55456,16 +55492,16 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 166,
-       "y": 209.5,
+       "x": 159.5,
+       "y": 236,
        "w": 7,
        "h": 8,
        "color": "#2b2b2b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "vakf0yj",
+       "id": "vakf0vv",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55474,16 +55510,16 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 162.5,
-       "y": 217,
+       "x": 154,
+       "y": 243,
        "w": 10,
        "h": 16,
        "color": "#c8a23c",
-       "rot": 170,
+       "rot": 180,
        "behindArm": true
       },
       {
-       "id": "vakf0yk",
+       "id": "vakf0vw",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55492,16 +55528,16 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 164,
-       "y": 218,
+       "x": 156,
+       "y": 243.5,
        "w": 6,
        "h": 9,
        "color": "#efe9dc",
-       "rot": 170,
+       "rot": 180,
        "behindArm": true
       },
       {
-       "id": "vakf0yl",
+       "id": "vakf0vx",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -55510,12 +55546,12 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 159,
-       "y": 213.5,
+       "x": 151,
+       "y": 239,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true,
        "isMuzzle": true
       }
@@ -55562,7 +55598,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakr0yn",
@@ -55580,7 +55617,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 101,
-         "behindBody": true
+         "behindBody": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0yo",
@@ -55670,7 +55708,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 85,
-         "behindBody": true
+         "behindBody": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0yt",
@@ -55781,7 +55820,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakr0zb",
@@ -55799,7 +55839,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 106,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0zc",
@@ -55889,7 +55930,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 90,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0zh",
@@ -56000,7 +56042,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakr0zz",
@@ -56018,7 +56061,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 286,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr100",
@@ -56108,7 +56152,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 270,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr105",
@@ -56219,7 +56264,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakr10n",
@@ -56237,7 +56283,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 106,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr10o",
@@ -56327,7 +56374,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 90,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr10t",
@@ -56441,7 +56489,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakf0yy",
@@ -56459,7 +56508,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 101,
-         "behindBody": true
+         "behindBody": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0yz",
@@ -56549,7 +56599,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 85,
-         "behindBody": true
+         "behindBody": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0z4",
@@ -56696,7 +56747,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakf0zm",
@@ -56714,7 +56766,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 106,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0zn",
@@ -56804,7 +56857,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 90,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0zs",
@@ -56951,7 +57005,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakf10a",
@@ -56969,7 +57024,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 286,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf10b",
@@ -57059,7 +57115,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 270,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf10g",
@@ -57206,7 +57263,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakf10y",
@@ -57224,7 +57282,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 106,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf10z",
@@ -57314,7 +57373,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 90,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf114",
@@ -57468,7 +57528,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakr0tb",
@@ -57486,7 +57547,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 101,
-         "behindBody": true
+         "behindBody": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0tc",
@@ -57576,7 +57638,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 85,
-         "behindBody": true
+         "behindBody": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0th",
@@ -57687,7 +57750,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakr0tz",
@@ -57705,7 +57769,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 106,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0u0",
@@ -57795,7 +57860,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 90,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0u5",
@@ -57906,7 +57972,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakr0un",
@@ -57924,7 +57991,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 286,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0uo",
@@ -58014,7 +58082,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 270,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0ut",
@@ -58125,7 +58194,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakr0vb",
@@ -58143,7 +58213,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 106,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0vc",
@@ -58233,7 +58304,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 90,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0vh",
@@ -58347,7 +58419,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakf0tm",
@@ -58365,7 +58438,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 101,
-         "behindBody": true
+         "behindBody": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0tn",
@@ -58455,7 +58529,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 85,
-         "behindBody": true
+         "behindBody": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0ts",
@@ -58602,7 +58677,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakf0ua",
@@ -58620,7 +58696,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 106,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0ub",
@@ -58710,7 +58787,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 90,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0ug",
@@ -58857,7 +58935,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakf0uy",
@@ -58875,7 +58954,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 286,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0uz",
@@ -58965,7 +59045,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 270,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0v4",
@@ -59112,7 +59193,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakf0vm",
@@ -59130,7 +59212,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 106,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0vn",
@@ -59220,7 +59303,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 90,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0vs",
@@ -59374,7 +59458,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakr0vz",
@@ -59392,7 +59477,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 99,
-         "behindBody": true
+         "behindBody": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0w0",
@@ -59482,7 +59568,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 83,
-         "behindBody": true
+         "behindBody": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0w5",
@@ -59569,7 +59656,7 @@
           "bright": 1
          },
          "kind": "poly",
-         "x": 85,
+         "x": 85.5,
          "y": 137.5,
          "w": 28,
          "h": 15,
@@ -59593,7 +59680,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakr0wn",
@@ -59611,7 +59699,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 106,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0wo",
@@ -59701,7 +59790,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 90,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0wt",
@@ -59812,7 +59902,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakr0xb",
@@ -59830,7 +59921,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 286,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0xc",
@@ -59920,7 +60012,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 270,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0xh",
@@ -60031,7 +60124,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakr0xz",
@@ -60049,7 +60143,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 96,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0y0",
@@ -60139,7 +60234,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 80,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakr0y5",
@@ -60253,7 +60349,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakf0wa",
@@ -60271,7 +60368,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 99,
-         "behindBody": true
+         "behindBody": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0wb",
@@ -60361,7 +60459,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 83,
-         "behindBody": true
+         "behindBody": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0wg",
@@ -60508,7 +60607,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakf0wy",
@@ -60526,7 +60626,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 106,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0wz",
@@ -60616,7 +60717,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 90,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0x4",
@@ -60763,7 +60865,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakf0xm",
@@ -60781,7 +60884,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 286,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0xn",
@@ -60871,7 +60975,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 270,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0xs",
@@ -61018,7 +61123,8 @@
            0,
            1
           ]
-         ]
+         ],
+         "tex": "unokran"
         },
         {
          "id": "vakf0ya",
@@ -61036,7 +61142,8 @@
          "h": 14,
          "color": "#8a3d1f",
          "rot": 96,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0yb",
@@ -61126,7 +61233,8 @@
          "h": 8,
          "color": "#8a3d1f",
          "rot": 80,
-         "behindArm": true
+         "behindArm": true,
+         "tex": "unokran"
         },
         {
          "id": "vakf0yg",
@@ -61242,7 +61350,8 @@
      }
     }
    },
-   "savedAt": 1792355735154
+   "savedAt": 1792371701219,
+   "editedFrom": 1792355735154
   },
   {
    "id": "3uhxgm1",
