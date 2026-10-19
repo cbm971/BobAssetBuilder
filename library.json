@@ -538558,12 +538558,10 @@
    "defense": 8,
    "effects": [
     {
-     "id": "vn000ij",
-     "type": "tagBoost",
-     "mult": 1.25,
+     "id": "033oxzr",
+     "type": "blastImmune",
      "animByBody": {},
-     "lastFit": "default",
-     "tag": "Gun"
+     "lastFit": "default"
     }
    ],
    "categories": [
@@ -538572,8 +538570,292 @@
     "Vietnam"
    ],
    "value": 14,
-   "rank": "rare",
+   "rank": "legendary",
    "variants": {
+    "default": {
+     "front": [
+      {
+       "id": "vn000ik",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 61,
+       "y": 90,
+       "w": 78,
+       "h": 86,
+       "color": "#6b7547"
+      },
+      {
+       "id": "vn000il",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 74,
+       "y": 86,
+       "w": 52,
+       "h": 7,
+       "color": "#6b7547"
+      },
+      {
+       "id": "vn000im",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 98.5,
+       "y": 94,
+       "w": 3,
+       "h": 80,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "vn000in",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 67,
+       "y": 152,
+       "w": 20,
+       "h": 3,
+       "color": "#1d1b1b"
+      }
+     ],
+     "back": [
+      {
+       "id": "vn000io",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 61,
+       "y": 90,
+       "w": 78,
+       "h": 86,
+       "color": "#6b7547"
+      },
+      {
+       "id": "vn000ip",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 74,
+       "y": 86,
+       "w": 52,
+       "h": 7,
+       "color": "#6b7547"
+      }
+     ],
+     "side": [
+      {
+       "id": "vn000iq",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 61,
+       "y": 90,
+       "w": 78,
+       "h": 86,
+       "color": "#6b7547"
+      },
+      {
+       "id": "vn000ir",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 74,
+       "y": 86,
+       "w": 52,
+       "h": 7,
+       "color": "#6b7547"
+      },
+      {
+       "id": "vn000is",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 113,
+       "y": 152,
+       "w": 20,
+       "h": 3,
+       "color": "#1d1b1b"
+      }
+     ],
+     "up": [
+      {
+       "id": "vn000it",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 61,
+       "y": 90,
+       "w": 78,
+       "h": 86,
+       "color": "#6b7547"
+      },
+      {
+       "id": "vn000iu",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 74,
+       "y": 86,
+       "w": 52,
+       "h": 7,
+       "color": "#6b7547"
+      },
+      {
+       "id": "vn000iv",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 98.5,
+       "y": 94,
+       "w": 3,
+       "h": 80,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "vn000iw",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 67,
+       "y": 152,
+       "w": 20,
+       "h": 3,
+       "color": "#1d1b1b"
+      }
+     ],
+     "crouch": [
+      {
+       "id": "vn000ix",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 61,
+       "y": 120,
+       "w": 78,
+       "h": 60,
+       "color": "#6b7547"
+      },
+      {
+       "id": "vn000iy",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 74,
+       "y": 116,
+       "w": 52,
+       "h": 7,
+       "color": "#6b7547"
+      },
+      {
+       "id": "vn000iz",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 98.5,
+       "y": 124,
+       "w": 3,
+       "h": 54,
+       "color": "#1d1b1b"
+      },
+      {
+       "id": "vn000j0",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 67,
+       "y": 160,
+       "w": 20,
+       "h": 3,
+       "color": "#1d1b1b"
+      }
+     ]
+    },
     "telfv37": {
      "front": [
       {
@@ -539141,290 +539423,6 @@
        "color": "#1d1b1b"
       }
      ]
-    },
-    "default": {
-     "front": [
-      {
-       "id": "vn000ik",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 61,
-       "y": 90,
-       "w": 78,
-       "h": 86,
-       "color": "#6b7547"
-      },
-      {
-       "id": "vn000il",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 74,
-       "y": 86,
-       "w": 52,
-       "h": 7,
-       "color": "#6b7547"
-      },
-      {
-       "id": "vn000im",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 98.5,
-       "y": 94,
-       "w": 3,
-       "h": 80,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "vn000in",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 67,
-       "y": 152,
-       "w": 20,
-       "h": 3,
-       "color": "#1d1b1b"
-      }
-     ],
-     "back": [
-      {
-       "id": "vn000io",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 61,
-       "y": 90,
-       "w": 78,
-       "h": 86,
-       "color": "#6b7547"
-      },
-      {
-       "id": "vn000ip",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 74,
-       "y": 86,
-       "w": 52,
-       "h": 7,
-       "color": "#6b7547"
-      }
-     ],
-     "side": [
-      {
-       "id": "vn000iq",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 61,
-       "y": 90,
-       "w": 78,
-       "h": 86,
-       "color": "#6b7547"
-      },
-      {
-       "id": "vn000ir",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 74,
-       "y": 86,
-       "w": 52,
-       "h": 7,
-       "color": "#6b7547"
-      },
-      {
-       "id": "vn000is",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 113,
-       "y": 152,
-       "w": 20,
-       "h": 3,
-       "color": "#1d1b1b"
-      }
-     ],
-     "up": [
-      {
-       "id": "vn000it",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 61,
-       "y": 90,
-       "w": 78,
-       "h": 86,
-       "color": "#6b7547"
-      },
-      {
-       "id": "vn000iu",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 74,
-       "y": 86,
-       "w": 52,
-       "h": 7,
-       "color": "#6b7547"
-      },
-      {
-       "id": "vn000iv",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 98.5,
-       "y": 94,
-       "w": 3,
-       "h": 80,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "vn000iw",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 67,
-       "y": 152,
-       "w": 20,
-       "h": 3,
-       "color": "#1d1b1b"
-      }
-     ],
-     "crouch": [
-      {
-       "id": "vn000ix",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 61,
-       "y": 120,
-       "w": 78,
-       "h": 60,
-       "color": "#6b7547"
-      },
-      {
-       "id": "vn000iy",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 74,
-       "y": 116,
-       "w": 52,
-       "h": 7,
-       "color": "#6b7547"
-      },
-      {
-       "id": "vn000iz",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 98.5,
-       "y": 124,
-       "w": 3,
-       "h": 54,
-       "color": "#1d1b1b"
-      },
-      {
-       "id": "vn000j0",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 67,
-       "y": 160,
-       "w": 20,
-       "h": 3,
-       "color": "#1d1b1b"
-      }
-     ]
     }
    },
    "angles": {
@@ -539718,7 +539716,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792276355074
+   "savedAt": 1792371780697,
+   "editedFrom": 1792276355074
   },
   {
    "id": "flmpuf1",
