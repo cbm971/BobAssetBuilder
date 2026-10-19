@@ -10226,6 +10226,21 @@ export const pieceOriginCss = (p) => { const o = pieceOriginFrac(p); return (o[0
 // ...and as an absolute canvas point, which is what the SVG rotate()/mirror ops in cutterMaskCss take.
 export const pieceOriginPoint = (p) => { const o = pieceOriginFrac(p); return { x: p.x + o[0] * p.w, y: p.y + o[1] * p.h }; };
 export const pieceBox = (p) => ({ x: p.x, y: p.y, w: p.w, h: p.h, rot: p.rot || 0, o: pieceOriginFrac(p) });
+// THE AXIS-ALIGNED BOX A PIECE ACTUALLY COVERS ONCE IT IS TURNED, not its unturned x/y/w/h. A knife's
+// handle is drawn 172° about its own top edge, so it hangs UP from y and its real extent starts 16
+// units above the box. Sizing an item from the unturned boxes made the pedestal's art box too small
+// for the art, then clipped the overhang (overflow:hidden) — the handle came out a third of its length.
+// Same turn-then-mirror order as animActorParts / Static.
+export const pieceDrawnBounds = (p) => {
+  const [fx, fy] = pieceOriginFrac(p), ox = p.x + fx * p.w, oy = p.y + fy * p.h, mir = !!p._m;
+  const r = ((mir && p.mirrorTwist === false ? -(p.rot || 0) : (p.rot || 0)) * Math.PI) / 180, c = Math.cos(r), sn = Math.sin(r);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of [[p.x, p.y], [p.x + p.w, p.y], [p.x + p.w, p.y + p.h], [p.x, p.y + p.h]]) {
+    const dx = x - ox, dy = y - oy, px = ox + (dx * c - dy * sn) * (mir ? -1 : 1), py = oy + dx * sn + dy * c;
+    x0 = Math.min(x0, px); y0 = Math.min(y0, py); x1 = Math.max(x1, px); y1 = Math.max(y1, py);
+  }
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+};
 // ---- Cutter holes as per-piece clip-paths -------------------------------------------------------
 // A CUTTER USED TO BE A MASK OVER THE WHOLE GROUP, and that mask was the single biggest cost in a
 // playtest frame. Measured on Blake's own machine (RTX 5070 Ti, 165 Hz, the published build,
@@ -25178,7 +25193,7 @@ export default function AssetStudio({ game = false } = {}) {
       const pieces = bake(src, displayPoseKey(src)).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
       const drawn = pieces.filter((pc) => !pc.isCutter);
       let bb = null;
-      if (drawn.length) { let a = Infinity, b = Infinity, d = -Infinity, e = -Infinity; for (const pc of drawn) { a = Math.min(a, pc.x); b = Math.min(b, pc.y); d = Math.max(d, pc.x + pc.w); e = Math.max(e, pc.y + pc.h); } bb = { x: a, y: b, w: Math.max(1, d - a), h: Math.max(1, e - b) }; }
+      if (drawn.length) { let a = Infinity, b = Infinity, d = -Infinity, e = -Infinity; for (const pc of drawn) { const t = pieceDrawnBounds(pc); a = Math.min(a, t.x); b = Math.min(b, t.y); d = Math.max(d, t.x + t.w); e = Math.max(e, t.y + t.h); } bb = { x: a, y: b, w: Math.max(1, d - a), h: Math.max(1, e - b) }; }
       const out = { pieces, bb };
       groundArtCache.current.set(it.id, out);
       return out;

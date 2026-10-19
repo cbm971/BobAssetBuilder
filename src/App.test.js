@@ -372,6 +372,7 @@ import {
   canEdgeSnap,
   boxPoint,
   pieceBox,
+  pieceDrawnBounds,
   SNAP_DIST,
   cellRuns,
   cellRunSig,
@@ -14345,5 +14346,23 @@ describe("zebra texture", () => {
     expect(draw({})).toBe(draw({}));
     expect(draw({ bold: 0.5 })).not.toBe(draw({ bold: 1.5 }));
     expect(draw({ wave: 0 })).not.toBe(draw({ wave: 1 }));
+  });
+});
+
+// A knife's handle is turned 172° about its top edge, so it hangs UP from its own box. The pedestal
+// sized the item from the unturned boxes and clipped the overhang — the handle came out short.
+describe("pieceDrawnBounds", () => {
+  it("is the plain box when nothing is turned", () => {
+    expect(pieceDrawnBounds({ x: 10, y: 20, w: 8, h: 16 })).toEqual({ x: 10, y: 20, w: 8, h: 16 });
+  });
+  it("swings an arm-flagged piece up past its own top edge when it is turned about the shoulder", () => {
+    const b = pieceDrawnBounds({ x: 144.6, y: 176, w: 8, h: 16, rot: 172, limb: "arm" });
+    expect(b.y).toBeLessThan(162);              // the handle's far end is ~16 above y=176, not 16 below it
+    expect(b.y + b.h).toBeGreaterThan(176);
+  });
+  it("turns an ordinary piece about its centre", () => {
+    const b = pieceDrawnBounds({ x: 0, y: 0, w: 10, h: 30, rot: 90 });
+    expect(b.w).toBeCloseTo(30); expect(b.h).toBeCloseTo(10);
+    expect(b.x + b.w / 2).toBeCloseTo(5); expect(b.y + b.h / 2).toBeCloseTo(15);
   });
 });
