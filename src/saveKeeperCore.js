@@ -214,12 +214,40 @@ const libraryFromStore = (entries) => {
 // the same text, or the hash that says "nothing changed" would change every minute. The time a
 // snapshot was made goes in head.json instead.
 const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-const cloudSnapshot = (lib) => {
+// `removedAt` ({ kind: { id: ms } }, reconcileRemovedAt): when each delete reached the folder. Copies
+// use it to drop a deleted record they already hold, but only a copy no newer than the delete
+// (App.js cloudDeleteReaches). Written only for ids still deleted, in id order, so it is as stable as
+// the rest of the text.
+const cloudSnapshot = (lib, removedAt) => {
   const out = { savedAt: null };
   for (const k of KINDS) out[k] = (((lib && lib[k]) || []).filter((r) => r && r.id)).slice().sort(byId);
   out.removed = {};
   for (const k of KINDS) out.removed[k] = [...new Set(((((lib && lib.removed) || {})[k]) || []).filter(Boolean))].sort();
+  if (removedAt && typeof removedAt === "object") {
+    out.removedAt = {};
+    for (const k of KINDS) {
+      const at = removedAt[k] || {};
+      out.removedAt[k] = {};
+      for (const id of out.removed[k]) if (typeof at[id] === "number" && isFinite(at[id])) out.removedAt[k][id] = at[id];
+    }
+  }
   return JSON.stringify(out, null, 1);
+};
+// WHEN EACH DELETE HAPPENED (2026-10-18). The folder's deleted list has no dates, and a delete with
+// no date can never be applied to a copy that already holds the record (it may have been saved again
+// since). So the keeper dates each id the first time it sees it on the list, keeps dates for ids still
+// there, and forgets ids that were brought back, so a later delete gets a fresh date. Ids already on
+// the list when this first ran are dated then: they were all deleted before that moment.
+const reconcileRemovedAt = (prev, removed, now) => {
+  const out = {};
+  for (const k of KINDS) {
+    const was = (prev && prev[k] && typeof prev[k] === "object") ? prev[k] : {};
+    out[k] = {};
+    for (const id of new Set((((removed || {})[k]) || []).filter(Boolean))) {
+      out[k][id] = (typeof was[id] === "number" && isFinite(was[id])) ? was[id] : now;
+    }
+  }
+  return out;
 };
 
 // A COPY OF THE GAME KEPT IN CHROME'S WebStorage FOLDER (2026-10-17). The StackBlitz preview shown
@@ -237,4 +265,4 @@ const gameStorageKey = (key) => {
   return { host: m[1].toLowerCase(), top: (m[2] || "").toLowerCase() };
 };
 
-module.exports = { gameStorageKey, KINDS, PREFIX, newerRecord, sameContent, merge3, decideSweep, libraryFromStore, cloudSnapshot, clipHash, clipNameOk, clipMatches, CLIP_PREFIX };
+module.exports = { gameStorageKey, KINDS, PREFIX, newerRecord, sameContent, merge3, decideSweep, libraryFromStore, cloudSnapshot, reconcileRemovedAt, clipHash, clipNameOk, clipMatches, CLIP_PREFIX };

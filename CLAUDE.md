@@ -112,6 +112,14 @@ has never actually been gone; the bytes were always still on disk.** Never clear
    keeper (`cloudSync` in `tools/bob-okay.js`) pushes his folder there at most once a minute. It
    folds in other pushes newest-wins and never forces. Push to `saves` yourself only for a
    recovery, and only a newest-wins superset.
+   **Copies read it BY COMMIT** (`cloudSavesRoot`, 2026-10-18): raw caches the branch path 5 minutes
+   and ignores query strings, so a copy opened right after a save used to read the save before it
+   (his "the game has the old spelling, and my new item got deleted"). The newest commit id comes
+   from the API (`CLOUD_SAVES_SHA_URL`, 60/hour per network, asked at most every 30 s per copy).
+   When the API refuses, the copy falls back to the branch path.
+   **Deletes are dated:** the keeper dates each id when it first sees it deleted
+   (`core.reconcileRemovedAt`, kept in keeper-state.json) and publishes `removedAt`. A copy drops a
+   record it holds only if that copy is not newer than the delete (`cloudDeleteReaches`).
 2. **His save folder** is `C:\Users\cbm97\OneDrive\Documents\Bob Okay\Saves`. It holds one file per
    record, and `History\` keeps every version ever seen and never deletes. The keeper
    (`tools/bob-okay.js keep`, started at sign-in) sweeps every other copy's browser store into it.
@@ -500,9 +508,11 @@ plus traps it does not cover:
 - **Options → Upload File (2026-10-18)** takes a file from the studio (Export everything, or one asset) and
   updates THIS address's items from it (`gameUploadFile`, App.js; the row is `onUpload` on OptionsPanel, main
   menu only). It is the studio's `restoreBackup`, but a full export is passed in as a version-1 backup, so it
-  ADDS/REPLACES by id and never deletes what the file leaves out; what it brings is stamped newer than the copy
-  it replaces, so it beats the published library.json seed. Pages and StackBlitz are different origins with
-  different stores, so this is how a changed weapon reaches the published game.
+  ADDS/REPLACES by id and never deletes what the file leaves out. **It takes only records NEWER than the copy
+  held here, as saved** (`restoreBackup(bk, { keepNewer: true })`, 2026-10-18). It used to restamp everything
+  newer, so an old export uploaded in the game would have become the newest version of everything in it, and
+  the keeper would have swept that into every copy. **The game must never write an older version over the
+  studio's.**
 - **The pointer** is a slightly larger green arrow with a white outline (`html.bobGame *{cursor:…}` in
   public/index.html, so the title has it too). The studio never gets it.
 - **Item tiers were RENAMED (2026-10-18), not re-keyed.** Ids on saved items: poor, common, rare, legendary,

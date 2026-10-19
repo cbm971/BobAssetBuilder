@@ -576,7 +576,13 @@ const cloudSyncOnce = async (folder) => {
       if (s.take || s.deleted) log("from the online copy: " + s.take + " new or newer, " + s.deleted + " deleted");
     }
   }
-  const text = await folder.run(async () => core.cloudSnapshot(folder.lib));   // read between writes, never mid-commit
+  // Read between writes, never mid-commit. Each delete is dated the first time it is seen here
+  // (core.reconcileRemovedAt), so copies that still hold the record can drop it.
+  const text = await folder.run(async () => {
+    const at = core.reconcileRemovedAt(state.removedAt, folder.lib.removed, Date.now());
+    if (JSON.stringify(at) !== JSON.stringify(state.removedAt || null)) { state.removedAt = at; await saveState(); }
+    return core.cloudSnapshot(folder.lib, at);
+  });
   // The sound files are part of what is published, so a new one is a new snapshot even when no
   // record changed. Only once there are any: with none, the hash is exactly what it always was, so
   // this change alone does not make every copy download the library again.

@@ -650,25 +650,55 @@ export const keeperLink = {
 // CORS headers, so no copy needs a login. Only the keeper on his PC (with his git login) writes it.
 //
 // head.json is tiny ({ hash, savedAt, records }) and is what gets polled; library.json is only fetched
-// when that hash changes. The query string is required: raw caches a branch path for five minutes and
-// a new query is a cache miss (checked 2026-10-03). For a test, set localStorage "bobCloudSaves" to
-// another base URL, or to "off".
+// when that hash changes. For a test, set localStorage "bobCloudSaves" to another base URL, or to "off".
+//
+// READ BY COMMIT, NOT BY BRANCH (2026-10-18). raw caches a branch path for five minutes, and by
+// 2026-10-18 it ignored the query string too (four different `?t=` values, one cached copy, the same
+// age). So every copy opened within five minutes of a save read the save before it. He renamed
+// Harembe Arms, opened the game, saw the old spelling, came back to a studio on a fresh address that
+// had read the same old snapshot, found his new item "deleted", and renamed it again: three copies of
+// one item on three addresses in five minutes. A path under a commit id never changes, so it can
+// never be stale. The newest commit id comes from GitHub's API (CLOUD_SAVES_SHA_URL, about a second
+// behind a push). That allows 60 asks an hour per network, so a copy asks at most every
+// CLOUD_SHA_REUSE_MS. When it is refused or unreachable, the copy reads the branch path as before.
 export const CLOUD_SAVES_BASE = "https://raw.githubusercontent.com/cbm971/BobAssetBuilder/saves/";
+export const CLOUD_SAVES_SHA_URL = "https://api.github.com/repos/cbm971/BobAssetBuilder/commits/saves";
+export const CLOUD_SHA_REUSE_MS = 30 * 1000;
+// Where a snapshot is read from: the commit's own path when the newest commit id is known, else the
+// branch. Only for the real online save; a test base set in localStorage is read as it is.
+export const cloudSavesRoot = (base, sha) =>
+  (base && base === CLOUD_SAVES_BASE && typeof sha === "string" && /^[0-9a-f]{40}$/.test(sha))
+    ? CLOUD_SAVES_BASE.slice(0, -"saves/".length) + sha + "/"
+    : base;
 // The online snapshot merged into what the other sources said. RECORDS: newest save wins, exactly as
 // mergeLibraries. DELETES: an online tombstone stops that id being RESTORED from any file, so a thing
-// he deleted in one copy never walks back into a fresh one. It is NOT added to `removed`, though, so
-// it never purges a record this browser already holds. A tombstone carries no date, and the record
-// here may be one he brought back on purpose after that delete; purging it would be the save system
-// deleting his work, which is the one thing it must never do. The worst this rule allows is a deleted
-// thing lingering in a copy that already had it.
+// he deleted in one copy never walks back into a fresh one. It is NOT added to `removed`, because
+// `removed` purges whatever this browser holds under that id, and the copy here may be one he made
+// AFTER the delete. The record may have been brought back on purpose, and purging it would be the save
+// system deleting his work.
+//
+// DATED DELETES (2026-10-18). Without a date that rule left every deleted thing in every copy that
+// already had it, for good: his old "Harembe Arms" stayed in the game after he had renamed and deleted
+// it. The keeper now publishes `removedAt` ({ kind: { id: ms } }, when the folder first had the
+// delete), and the snapshot's dates ride out of here as `cloudRemovedAt`. purgeRemoved drops a copy
+// this browser holds only when that copy is not newer than the delete (cloudDeleteReaches), so a
+// record saved after the delete always stays.
+export const cloudDeleteReaches = (removedAt, savedAt) =>
+  typeof removedAt === "number" && isFinite(removedAt) && removedAt > 0 &&
+  !(typeof savedAt === "number" && isFinite(savedAt) && savedAt > removedAt);
 export const mergeCloudLibrary = (lib, cloud) => {
   if (!cloud || !Array.isArray(cloud.assets)) return lib || null;
   // A copy: mergeLibraries(null, b) hands back b itself, and b here is the cached snapshot.
   const out = { ...mergeLibraries(lib, { ...cloud, removed: {} }) };
+  const dates = {};
   for (const k of PROJECT_KINDS) {
     const dead = new Set((((cloud.removed || {})[k]) || []).filter(Boolean));
     out[k] = (out[k] || []).filter((r) => r && r.id && !dead.has(r.id));
+    const at = (cloud.removedAt && typeof cloud.removedAt === "object" && cloud.removedAt[k]) || null;
+    if (!at || typeof at !== "object") continue;
+    for (const id of dead) if (typeof at[id] === "number" && isFinite(at[id])) (dates[k] || (dates[k] = {}))[id] = at[id];
   }
+  out.cloudRemovedAt = dates;
   return out;
 };
 const cloudLibrary = {
@@ -678,6 +708,9 @@ const cloudLibrary = {
   inflight: null,
   failedOnce: false,
   onFail: null,      // set by the studio: a copy that could not reach the snapshot says so, once
+  sha: null,         // the newest commit id of the saves branch, from the API
+  shaAt: 0,
+  shaWaitUntil: 0,   // refused (60 an hour) or unreachable: read the branch path until then
   base: () => {
     try { const o = localStorage.getItem("bobCloudSaves"); if (o === "off") return null; if (o) return o.endsWith("/") ? o : o + "/"; } catch { /* no localStorage */ }
     return CLOUD_SAVES_BASE;
@@ -689,11 +722,33 @@ const cloudLibrary = {
     catch { return null; }
     finally { if (t) clearTimeout(t); }
   },
+  newestSha: async () => {
+    if (cloudLibrary.base() !== CLOUD_SAVES_BASE) return null;
+    const now = Date.now();
+    if (now < cloudLibrary.shaWaitUntil) return null;
+    if (cloudLibrary.sha && now - cloudLibrary.shaAt < CLOUD_SHA_REUSE_MS) return cloudLibrary.sha;
+    const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const t = ctl ? setTimeout(() => ctl.abort(), 8000) : null;
+    try {
+      const res = await fetch(CLOUD_SAVES_SHA_URL, { cache: "no-store", headers: { Accept: "application/vnd.github.sha" }, signal: ctl ? ctl.signal : undefined });
+      if (!res.ok) { cloudLibrary.shaWaitUntil = now + (res.status === 403 || res.status === 429 ? 10 * 60 * 1000 : 60 * 1000); return null; }
+      const sha = (await res.text()).trim();
+      if (!/^[0-9a-f]{40}$/.test(sha)) return null;
+      cloudLibrary.sha = sha; cloudLibrary.shaAt = now;
+      return sha;
+    } catch { cloudLibrary.shaWaitUntil = now + 60 * 1000; return null; }
+    finally { if (t) clearTimeout(t); }
+  },
+  // head.json, plus `root`: the path its library.json must be read from, so the two always match.
   head: async () => {
     const b = cloudLibrary.base();
     if (!b) return null;
-    const h = await cloudLibrary.getJson(b + "head.json?t=" + Date.now(), 10000);
-    return h && typeof h.hash === "string" ? h : null;
+    const root = cloudSavesRoot(b, await cloudLibrary.newestSha());
+    let h = await cloudLibrary.getJson(root + "head.json" + (root === b ? "?t=" + Date.now() : ""), 10000);
+    if (h && typeof h.hash === "string") return { ...h, root };
+    if (root === b) return null;
+    h = await cloudLibrary.getJson(b + "head.json?t=" + Date.now(), 10000);   // the commit path failed: the branch, as before
+    return h && typeof h.hash === "string" ? { ...h, root: b } : null;
   },
   // Is there a newer snapshot than the one this copy last merged? Cheap: head.json only.
   changed: async () => { const h = await cloudLibrary.head(); return !!h && h.hash !== cloudLibrary.hash; },
@@ -707,7 +762,7 @@ const cloudLibrary = {
       if (!b) return null;
       const h = await cloudLibrary.head();
       if (h && cloudLibrary.data && h.hash === cloudLibrary.hash) { cloudLibrary.checkedAt = Date.now(); return cloudLibrary.data; }
-      const d = h ? await cloudLibrary.getJson(b + "library.json?v=" + encodeURIComponent(h.hash), 30000) : null;
+      const d = h ? await cloudLibrary.getJson(h.root + "library.json" + (h.root === b ? "?v=" + encodeURIComponent(h.hash) : ""), 30000) : null;
       if (d && Array.isArray(d.assets)) { cloudLibrary.data = d; cloudLibrary.hash = h.hash; cloudLibrary.checkedAt = Date.now(); return d; }
       if (!cloudLibrary.data && !cloudLibrary.failedOnce) { cloudLibrary.failedOnce = true; if (cloudLibrary.onFail) { try { cloudLibrary.onFail(); } catch { /* a notice must not break a load */ } } }
       return cloudLibrary.data;
@@ -860,7 +915,7 @@ export const clipStore = {
       const sources = [
         () => clipStore.fetchFrom("/__clip/" + name),
         async () => { try { return await diskLibrary.getClip(name); } catch { return null; } },
-        () => { const b = cloudLibrary.base(); return b ? clipStore.fetchFrom(b + "clips/" + name) : null; },
+        () => { const b = cloudLibrary.base(); return b ? clipStore.fetchFrom(cloudSavesRoot(b, cloudLibrary.sha) + "clips/" + name) : null; },
         () => clipStore.fetchFrom((process.env.PUBLIC_URL || "") + "/clips/" + name),
       ];
       for (const src of sources) {
@@ -13770,6 +13825,22 @@ export default function AssetStudio({ game = false } = {}) {
   };
   const purgeRemoved = async (proj, kind, prefix, rows, known) => {
     const tombed = known || await tombstoneSet(proj, kind);
+    // Deleted online, and this browser's copy is no newer than the delete (mergeCloudLibrary,
+    // cloudDeleteReaches): a delete made in another copy. Filed here like any other, so it stays
+    // gone and the restore loops skip it. A copy saved after the delete is left alone.
+    const dated = (proj && proj.cloudRemovedAt && proj.cloudRemovedAt[kind]) || null;
+    if (dated) {
+      const late = [];
+      for (const it of rows) {
+        const id = it && it.id;
+        if (!id || tombed.has(id) || !(id in dated)) continue;
+        const raw = await sget(prefix + id);
+        if (raw === null || raw === undefined || isTombstoneRecord(raw)) continue;
+        let at; try { at = JSON.parse(raw).savedAt; } catch { at = undefined; }
+        if (cloudDeleteReaches(dated[id], at)) late.push(id);
+      }
+      if (late.length) { for (const id of late) tombed.add(id); localRemoved.add(kind, late); }
+    }
     if (!tombed.size) return rows;
     let purged = 0;
     for (const it of rows) { const id = it && it.id; if (id && tombed.has(id)) { await sdel(prefix + id); purged++; } }
@@ -20681,7 +20752,13 @@ export default function AssetStudio({ game = false } = {}) {
         : "Exported " + bits.join(", ") + " ✓ — keep that file somewhere safe.");
     } catch { flash("Download blocked — try again."); }
   };
-  const restoreBackup = async (bk) => {
+  // `opts.keepNewer` (the game's Upload File): a record in the file that is not newer than the copy
+  // held here (this browser or the merged project/online library) is skipped, never stamped over it.
+  // The studio's restore is a deliberate step back and restamps on purpose; the game must never do
+  // that, or an old export uploaded there becomes the newest version of everything in it, the keeper
+  // sweeps it up, and every copy of the studio goes back with it.
+  const restoreBackup = async (bk, opts) => {
+    const keepNewer = !!(opts && opts.keepNewer);
     const isFullBackup = Number(bk && bk.assetBuilderBackup) >= 2;
     const restoreStamp = Math.max(Date.now(), (Number(bk && bk.exportedAt) || 0) + 1);
     let proj = null;
@@ -20710,6 +20787,23 @@ export default function AssetStudio({ game = false } = {}) {
       }
       return out;
     };
+    // keepNewer: is the file's record no newer than a copy already held here? (Held but undated
+    // counts as held: only a dated record from the file can be newer than it.)
+    const notNewerThanHeld = async (kind, prefix, rec) => {
+      if (!keepNewer || !rec || !rec.id) return false;
+      const recAt = (typeof rec.savedAt === "number" && isFinite(rec.savedAt)) ? rec.savedAt : 0;
+      const old = projByKind[kind] && projByKind[kind].get(rec.id);
+      let held = !!old, at = (old && typeof old.savedAt === "number" && isFinite(old.savedAt)) ? old.savedAt : 0;
+      try {
+        const raw = await sget(prefix + rec.id);
+        if (raw !== null && raw !== undefined && !isTombstoneRecord(raw)) {
+          held = true;
+          const s = JSON.parse(raw).savedAt;
+          if (typeof s === "number" && isFinite(s) && s > at) at = s;
+        }
+      } catch { /* unreadable here: the merged library decides */ }
+      return held && recAt <= at;
+    };
     const restoredPayload = {};
     let prevList = []; const idx = await sget("assetIndex"); if (idx) try { prevList = JSON.parse(idx); } catch { prevList = []; }
     if (!Array.isArray(prevList)) prevList = [];
@@ -20718,7 +20812,9 @@ export default function AssetStudio({ game = false } = {}) {
     let n = 0;
     for (const raw of (bk.assets || [])) {
       try {
-        const a = stampForRestore("assets", normalizeAssetJson(raw));
+        const norm = normalizeAssetJson(raw);
+        if (await notNewerThanHeld("assets", "asset:", norm)) continue;
+        const a = stampForRestore("assets", norm);
         const ok = await sset("asset:" + a.id, JSON.stringify(a));
         if (ok) { list = list.filter((x) => x.id !== a.id); list.push({ id: a.id, name: a.name, type: a.type }); restoredAssets.push(a); n++; }
       } catch { /* skip a corrupt entry, restore the rest */ }
@@ -20752,6 +20848,7 @@ export default function AssetStudio({ game = false } = {}) {
       for (const rawItem of (items || [])) {
         if (!rawItem || !rawItem.id) continue;
         try {
+          if (await notNewerThanHeld(kind, prefix, rawItem)) continue;
           const item = stampForRestore(kind, rawItem);
           if (await sset(prefix + item.id, JSON.stringify(item))) {
             idxList = idxList.filter((x) => x && x.id !== item.id); idxList.push(entry(item)); restored.push(item); count++;
@@ -22955,8 +23052,9 @@ export default function AssetStudio({ game = false } = {}) {
   // OPTIONS → UPLOAD FILE (2026-10-18). The studio's "Export everything" file, or one asset's file, is
   // put into THIS address's store so a changed weapon can be tried here at once. It goes through the
   // studio's own restoreBackup, but as an ADD/REPLACE by id (the file is passed as a version-1 backup,
-  // so a full export never deletes what it does not mention), and restoreBackup stamps what it brings
-  // newer than the copy it replaces, so the upload beats the published library.json seed.
+  // so a full export never deletes what it does not mention). Only what is NEWER than the copy held
+  // here goes in, as it was saved (keepNewer, 2026-10-18): the game must never write an older version
+  // of anything over the studio's, because the keeper sweeps this store like every other.
   const gameUploadFile = async (file) => {
     let parsed;
     try { parsed = JSON.parse(await file.text()); } catch { return "Not a BOB file"; }
@@ -22964,7 +23062,7 @@ export default function AssetStudio({ game = false } = {}) {
     if (parsed && Array.isArray(parsed.assets) && parsed.assetBuilderBackup) bk = { ...parsed, assetBuilderBackup: 1 };
     else if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) { try { normalizeAssetJson(parsed); bk = { assetBuilderBackup: 1, assets: [parsed] }; } catch { bk = null; } }
     if (!bk) return "Not a BOB file";
-    const bits = await restoreBackup(bk);
+    const bits = await restoreBackup(bk, { keepNewer: true });
     gameArtCache.current.clear();
     return "Updated " + (bits || []).join(", ");
   };

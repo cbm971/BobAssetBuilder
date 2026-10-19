@@ -1,6 +1,6 @@
 // The save keeper's merge rules (src/saveKeeperCore.js). The fixtures are shaped like 2026-09-26:
 // two copies of the game that each edited records from the same committed version.
-const { gameStorageKey, merge3, decideSweep, libraryFromStore, sameContent, cloudSnapshot } = require("./saveKeeperCore");
+const { gameStorageKey, merge3, decideSweep, libraryFromStore, sameContent, cloudSnapshot, reconcileRemovedAt } = require("./saveKeeperCore");
 
 const lvl = (savedAt, extra) => ({ id: "i80q4s6", name: "Trailor Int1", savedAt, section: "", fg: { "1,1": "#111", "2,2": "#222" }, climb: {}, enemies: {}, ...extra });
 
@@ -176,6 +176,25 @@ describe("cloudSnapshot", () => {
     expect(out.stamps).toEqual([]);
     expect(out.removed.levels).toEqual([]);
     expect(JSON.parse(cloudSnapshot(null)).assets).toEqual([]);
+  });
+  it("carries the date of each delete still on the list, in a stable order", () => {
+    const lib = { assets: [{ id: "a" }], removed: { assets: ["z", "y"] } };
+    const out = JSON.parse(cloudSnapshot(lib, { assets: { y: 2, z: 1, gone: 9 }, levels: { q: 3 } }));
+    expect(out.removedAt.assets).toEqual({ y: 2, z: 1 });          // not "gone": no longer deleted
+    expect(Object.keys(out.removedAt.assets)).toEqual(["y", "z"]);
+    expect(out.removedAt.levels).toEqual({});
+    expect(cloudSnapshot(lib, { assets: { z: 1, y: 2 } })).toBe(cloudSnapshot({ removed: { assets: ["y", "z"] }, assets: [{ id: "a" }] }, { assets: { y: 2, z: 1 } }));
+    expect(JSON.parse(cloudSnapshot(lib)).removedAt).toBeUndefined();   // no dates given: the old shape
+  });
+  it("reconcileRemovedAt dates a delete when first seen, keeps it, and forgets a revived id", () => {
+    const first = reconcileRemovedAt(null, { assets: ["a", "b"] }, 100);
+    expect(first.assets).toEqual({ a: 100, b: 100 });
+    const next = reconcileRemovedAt(first, { assets: ["b", "c"], levels: ["L"] }, 200);
+    expect(next.assets).toEqual({ b: 100, c: 200 });                  // a revived, b kept its date, c is new
+    expect(next.levels).toEqual({ L: 200 });
+    const again = reconcileRemovedAt(next, { assets: ["a", "b", "c"], levels: ["L"] }, 300);
+    expect(again.assets.a).toBe(300);                                 // deleted again: a fresh date
+    expect(JSON.stringify(reconcileRemovedAt(again, { assets: ["a", "b", "c"], levels: ["L"] }, 400))).toBe(JSON.stringify(again)); // nothing new: same
   });
   it("drops records without an id and never edits what it was given", () => {
     const lib = { assets: [{ id: "a" }, null, { name: "no id" }] };

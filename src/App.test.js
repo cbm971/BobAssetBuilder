@@ -244,6 +244,8 @@ import {
   mergeLibraries,
   mergeCloudLibrary,
   CLOUD_SAVES_BASE,
+  cloudSavesRoot,
+  cloudDeleteReaches,
   shapeClipPath,
   NAME_COLLATOR,
   NUMERIC_COLLATOR,
@@ -11637,6 +11639,36 @@ describe("the save folder on his disk (diskLibrary) and the two-backend merge", 
     expect(only.assets.map((r) => r.id)).toEqual(["a"]);
     expect(only.removed).toEqual({});
     expect(CLOUD_SAVES_BASE).toBe("https://raw.githubusercontent.com/cbm971/BobAssetBuilder/saves/");
+  });
+
+  // 2026-10-18: raw.githubusercontent.com served the branch path five minutes stale whatever the query
+  // string, so a copy opened right after a save read the save before it. A commit path cannot be stale.
+  test("cloudSavesRoot reads the online save by commit when the newest commit is known", () => {
+    const sha = "fbc9e34ec5620599c48bf453feed11050b8aec92";
+    expect(cloudSavesRoot(CLOUD_SAVES_BASE, sha)).toBe("https://raw.githubusercontent.com/cbm971/BobAssetBuilder/" + sha + "/");
+    expect(cloudSavesRoot(CLOUD_SAVES_BASE, null)).toBe(CLOUD_SAVES_BASE);          // API refused: the branch, as before
+    expect(cloudSavesRoot(CLOUD_SAVES_BASE, "fbc9e34")).toBe(CLOUD_SAVES_BASE);     // only a full id is a path
+    expect(cloudSavesRoot(CLOUD_SAVES_BASE, "<html>")).toBe(CLOUD_SAVES_BASE);
+    expect(cloudSavesRoot("http://127.0.0.2/test/", sha)).toBe("http://127.0.0.2/test/"); // a test base is read as it is
+    expect(cloudSavesRoot(null, sha)).toBeNull();
+  });
+
+  // 2026-10-18: his old "Harembe Arms" stayed in the game for good after he renamed it and deleted the
+  // original, because an online delete had no date and so never reached a copy that already held it.
+  test("a dated online delete reaches a copy only when that copy is not newer than the delete", () => {
+    expect(cloudDeleteReaches(1000, 900)).toBe(true);       // saved before the delete: deleted
+    expect(cloudDeleteReaches(1000, 1000)).toBe(true);
+    expect(cloudDeleteReaches(1000, undefined)).toBe(true); // undated = older than any dated save
+    expect(cloudDeleteReaches(1000, 1001)).toBe(false);     // saved after the delete: his, kept
+    expect(cloudDeleteReaches(undefined, 5)).toBe(false);   // an undated delete purges nothing
+    expect(cloudDeleteReaches(0, 5)).toBe(false);
+    expect(cloudDeleteReaches("1000", 5)).toBe(false);
+    const cloud = { assets: [{ id: "new", savedAt: 5 }], removed: { assets: ["old", "nodate"] }, removedAt: { assets: { old: 1000, stray: 7 }, levels: "junk" } };
+    const m = mergeCloudLibrary({ assets: [{ id: "old", savedAt: 900 }, { id: "nodate", savedAt: 1 }] }, cloud);
+    expect(m.assets.map((r) => r.id)).toEqual(["new"]);
+    expect(m.cloudRemovedAt).toEqual({ assets: { old: 1000 } }); // only ids still deleted, only numbers
+    expect((m.removed && m.removed.assets) || []).toEqual([]);   // never a plain tombstone
+    expect(mergeCloudLibrary(null, { assets: [], removed: { assets: ["x"] } }).cloudRemovedAt).toEqual({}); // an old snapshot: no dates
   });
 
   test("with no picker in the browser the folder is 'unsupported' and every call is a quiet no-op", async () => {
