@@ -8,6 +8,8 @@ import {
   pickRoom,
   ENEMY_PROVOKED_SENSE_MUL,
   animAutoSaves,
+  assetAutoSaves,
+  assetEditSig,
   DEFAULT_PROJECTILE_RANGE,
   roomTagMatches,
   firstObjectiveMarker,
@@ -14364,5 +14366,25 @@ describe("pieceDrawnBounds", () => {
     const b = pieceDrawnBounds({ x: 0, y: 0, w: 10, h: 30, rot: 90 });
     expect(b.w).toBeCloseTo(30); expect(b.h).toBeCloseTo(10);
     expect(b.x + b.w / 2).toBeCloseTo(5); expect(b.y + b.h / 2).toBeCloseTo(15);
+  });
+});
+
+// Blake, 2026-10-19: he raised the Flamethrower's damage, hit the header's 💾 Save & Open, and the
+// edit was gone — that button only opened the sheet. A saved asset now writes itself (see
+// ASSET_AUTOSAVE_MS); these are the rules for WHEN.
+describe("asset autosave", () => {
+  const stored = { id: "flmthr1", name: "Flamethrower", type: "weapon", damage: 3 };
+  it("saves an asset that is already stored under the name it still has", () => {
+    expect(assetAutoSaves({ ...stored, damage: 9 }, stored)).toBe(true);
+  });
+  it("waits for a new asset (nothing stored) and for a renamed one (that save is a Save As)", () => {
+    expect(assetAutoSaves({ ...stored }, undefined)).toBe(false);
+    expect(assetAutoSaves({ ...stored, name: "Flamer" }, stored)).toBe(false);
+    expect(assetAutoSaves({ ...stored, type: "item" }, stored)).toBe(false);
+  });
+  it("does not read a save's own stamps as an edit, but does read a damage change as one", () => {
+    const a = { ...stored, savedAt: 1, editedFrom: 0, confirmedFits: ["x"] };
+    expect(assetEditSig({ ...a, savedAt: 2, editedFrom: 1, confirmedFits: ["x", "y"] })).toBe(assetEditSig(a));
+    expect(assetEditSig({ ...a, damage: 9 })).not.toBe(assetEditSig(a));
   });
 });

@@ -7087,6 +7087,19 @@ export const ANIM_UNDO_GAP = 600;
 // and a renamed one waits for 💾 because that save is a Save As (resolveSaveTarget, his rule).
 export const ANIM_AUTOSAVE_MS = 1200;
 export const animAutoSaves = (doc, stored) => !!(doc && stored && doc.id === stored.id && (doc.name || "") === (stored.name || ""));
+// THE SAME FOR EVERY OTHER ASSET (2026-10-19, Blake on the Flamethrower: "i hit save, go to test, i see
+// my edits didn't save"). The header's big 💾 Save & Open only OPENED the sheet — the real write was a
+// second 💾 Save inside it — so a damage change he thought he had saved was never written, exactly the
+// animation editor's story above. Now 💾 Save & Open writes an asset that is already saved under the
+// name it still has, and the editor writes it ASSET_AUTOSAVE_MS after the last change. A new asset
+// waits for its first 💾 (or every ✚ New would leave a stray record), and a renamed one waits for 💾
+// because that save is a Save As (resolveSaveTarget forks a new id).
+export const ASSET_AUTOSAVE_MS = 1200;
+export const ASSET_OPEN_SETTLE_MS = 1500; // opening an asset normalises it a render or two later; that is not an edit
+export const assetAutoSaves = (a, stored) => !!(a && stored && a.id === stored.id && a.type === stored.type && (a.name || "") === (stored.name || ""));
+// What counts as a CHANGE: everything but the save stamps and the fit bookkeeping a save rewrites,
+// so a save never looks like a fresh edit of its own.
+export const assetEditSig = (a) => JSON.stringify(a, (k, v) => (k === "savedAt" || k === "editedFrom" || k === "confirmedFits") ? undefined : v);
 // ...and how far (px) the pointer must travel on the stage before a press is a DRAG. Under it, it
 // is a click that only picks a layer: a press that wobbled a pixel used to set a key.
 export const ANIM_DRAG_SLOP = 4;
@@ -20538,7 +20551,42 @@ export default function AssetStudio({ game = false } = {}) {
   const syncProp = (a) => { if (!a || a.type !== "prop") return a; const frames = [...(a.frames || [blankAngles()])]; frames[propFrame] = a.angles; return { ...a, frames, angles: frames[0], category: (a.category || "").trim() }; };
   const data = () => JSON.stringify(syncProp(syncFit(syncEnemy(syncWeapon(syncEffectAnim(asset))))), null, 2);
   const openSheet = () => { setText(data()); setSheetFolder(null); setSheet(true); };
-  const saveAsset = async () => {
+  // The header's 💾 Save & Open: for an asset already saved under the name it still has, it SAVES, then
+  // opens the sheet — it used to only open it (see ASSET_AUTOSAVE_MS). A new or renamed one still
+  // waits for the sheet's own 💾 Save, where the name is chosen.
+  const saveAndOpen = () => { openSheet(); if (hasStore && assetAutoSaves(asset, library.find((x) => x && x.id === asset.id))) saveAsset(); };
+  // The editor's own save: the open asset, a moment after its last change. assetBase is what the
+  // editor last matched the store on (id + content signature); assetAutoRef holds the latest "save it
+  // now if it needs it" for the ways out (‹ Menu, picking another asset, closing the page), which must
+  // not wait out the timer and lose the last edit.
+  const assetBase = useRef({ id: null, sig: "", at: 0 });
+  const assetAutoRef = useRef(null);
+  useEffect(() => {
+    if (!asset || !asset.id) return undefined;
+    const sig = assetEditSig(asset), now = Date.now();
+    if (assetBase.current.id !== asset.id) {
+      if (assetAutoRef.current) assetAutoRef.current(); // another asset was opened: write the one being left first
+      assetBase.current = { id: asset.id, sig, at: now };
+    } else if (now - assetBase.current.at < ASSET_OPEN_SETTLE_MS && sig !== assetBase.current.sig) {
+      assetBase.current = { ...assetBase.current, sig }; // the open itself normalising the record, not an edit
+    }
+    const pending = () => hasStore && assetBase.current.sig !== sig && assetAutoSaves(asset, library.find((x) => x && x.id === asset.id));
+    assetAutoRef.current = () => (pending() ? saveAsset(true) : Promise.resolve(false));
+    if (!pending()) return undefined;
+    const t = setTimeout(() => { saveAsset(true); }, ASSET_AUTOSAVE_MS);
+    return () => clearTimeout(t);
+  }, [asset, library, hasStore]); // saveAsset is re-made every render; the asset and the library decide
+  useEffect(() => {
+    const bu = () => { if (assetAutoRef.current) assetAutoRef.current(); };
+    window.addEventListener("beforeunload", bu);
+    return () => window.removeEventListener("beforeunload", bu);
+  }, []);
+  // `quiet` (=== true, because it is also an onClick handler): the editor's own save. No "Saved ✓" every
+  // second and a half and no loadLibrary — that re-reads every record he has — so the one saved record is
+  // put straight into the library, which is what the Level Creator and Playtest read it from.
+  const saveAsset = async (quiet) => {
+    quiet = quiet === true;
+    const savedFrom = asset; // the state this save started from: what the editor now matches
     let payload = syncProp(syncFit(syncEnemy(syncWeapon(asset))));
     if (HAS_FIT_VARIANTS(payload)) {
       // Confirm every guide body actually EDITED this session (dirtyGuides — set by real piece
@@ -20585,12 +20633,21 @@ export default function AssetStudio({ game = false } = {}) {
     }
     if (ok1 && ok2) {
       // The new savedAt too: the NEXT save's editedFrom must name this version, not the one opened.
-      setAsset((a) => ({ ...a, id: payload.id, savedAt: payload.savedAt }));
+      // ...unless another asset was opened while this was being written (a flush as one is picked): then
+      // this one is saved and the editor is left on the one it now shows.
+      setAsset((a) => (a && a.id === savedFrom.id ? { ...a, id: payload.id, savedAt: payload.savedAt, ...(payload.confirmedFits ? { confirmedFits: payload.confirmedFits } : {}) } : a));
+      if (assetBase.current.id === savedFrom.id) assetBase.current = { id: payload.id, sig: assetEditSig(savedFrom), at: assetBase.current.at };
       const worn = refreshed ? " — updated " + refreshed + " dressed look" + (refreshed === 1 ? "" : "s") : "";
-      flash(target.mode === "rename" ? "Saved as a new \"" + payload.name + "\" ✓ — the original was kept"
-        : "Saved to this device ✓" + worn);
-      loadLibrary();
-    } else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ". Use Download.");
+      if (quiet) {
+        setLibrary((lib) => (lib.some((x) => x && x.id === payload.id) ? lib.map((x) => (x && x.id === payload.id ? payload : x)) : [...lib, payload]));
+      } else {
+        flash(target.mode === "rename" ? "Saved as a new \"" + payload.name + "\" ✓ — the original was kept"
+          : "Saved to this device ✓" + worn);
+        loadLibrary();
+      }
+      return true;
+    } else if (quiet) { flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ". Use Download."); return false; }
+    else flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ". Use Download.");
   };
   const convertLegacyProjectile = async () => {
     const legacyDrawn = asset.states?.projectile;
@@ -27662,12 +27719,12 @@ export default function AssetStudio({ game = false } = {}) {
         <div className="recoverBanner">🩹 This body was auto-recovered from "{asset._recoveredFrom}" — it's a best-effort guess. Pieces marked 🩹 in the layer list might actually be fused-in clothing rather than original body parts; check each one and delete anything that doesn't belong.</div>
       )}
       <header className="bar">
-        <button className="back" onClick={() => setScreen("menu")}>‹ Menu</button>
+        <button className="back" onClick={() => { if (assetAutoRef.current) assetAutoRef.current(); setScreen("menu"); }}>‹ Menu</button>
         <input className="nm" value={asset.name} onChange={(e) => setAsset({ ...asset, name: e.target.value })} />
         <span className="badge">{asset.type === "equipment" ? (SLOTS[asset.slot]?.icon || "📦") : (TYPES[asset.type]?.icon || "📦")} {slotLabel}</span>
         <button className="undo" disabled={!canUndo} onClick={undo}>↩ Undo</button>
         <button className="undo" disabled={!canRedo} onClick={redo}>↪ Redo</button>
-        <button className="save" onClick={openSheet}>💾 Save & Open</button>
+        <button className="save" onClick={saveAndOpen}>💾 Save & Open</button>
       </header>
 
       {asset.type === "prop" && (
