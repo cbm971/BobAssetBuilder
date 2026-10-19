@@ -812882,14 +812882,23 @@
     "telfv37"
    ],
    "statBoosts": {
-    "hp": 3,
+    "hp": 1,
     "speed": 0,
     "agility": 0,
-    "intelligence": 0,
-    "strength": 3
+    "intelligence": 1,
+    "strength": 1
    },
    "defense": 5,
-   "effects": [],
+   "effects": [
+    {
+     "id": "69ck2ps",
+     "type": "tagBoost",
+     "mult": 1.25,
+     "animByBody": {},
+     "lastFit": "default",
+     "tag": "Gun"
+    }
+   ],
    "categories": [
     "T1",
     "Shirt",
@@ -812902,9 +812911,10 @@
     "crouch": [],
     "front": []
    },
-   "savedAt": 1790512135800,
+   "savedAt": 1792371944912,
    "value": 15,
-   "rank": "rare"
+   "rank": "legendary",
+   "editedFrom": 1790512135800
   },
   {
    "id": "kgqpnss",
