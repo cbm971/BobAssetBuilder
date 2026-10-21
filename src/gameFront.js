@@ -135,10 +135,12 @@ export const DIFFICULTIES = [
 ];
 export const DEFAULT_DIFFICULTY = "medium";
 export const difficultyOf = (id) => DIFFICULTIES.find((d) => d.id === id) || DIFFICULTIES.find((d) => d.id === DEFAULT_DIFFICULTY);
-// Lives still in hand, the one being played included (Hard starts on 1).
-export const runLivesLeft = (diffId, deaths) => Math.max(0, difficultyOf(diffId).lives - Math.max(0, Math.round(Number(deaths) || 0)));
+// Lives still in hand, the one being played included (Hard starts on 1). `oneUps` is how many 🍄 One
+// Up items this run has picked up (2026-10-21): each one is one more life of exactly this kind.
+const wholeCount = (n) => Math.max(0, Math.round(Number(n) || 0));
+export const runLivesLeft = (diffId, deaths, oneUps) => Math.max(0, difficultyOf(diffId).lives + wholeCount(oneUps) - wholeCount(deaths));
 // Does this death end the run? `deathsBefore` is the count before it.
-export const deathEndsRun = (diffId, deathsBefore) => runLivesLeft(diffId, (deathsBefore || 0) + 1) <= 0;
+export const deathEndsRun = (diffId, deathsBefore, oneUps) => runLivesLeft(diffId, (deathsBefore || 0) + 1, oneUps) <= 0;
 
 // ---------- the menu's backdrop: one of his levels, with his people walking it ----------
 // Blake's mock-up had the menu over a park scene with made-up figures; he wants "actual characters
@@ -264,6 +266,7 @@ export const makeGameSave = (prev, s) => ({
   livesUsed: Math.max(0, Math.round(Number(s.livesUsed) || 0)),
   difficulty: difficultyOf(s.difficulty || (prev && prev.difficulty)).id,
   deaths: Math.max(0, Math.round(Number(s.deaths) || 0)),
+  oneUps: Math.max(0, Math.round(Number(s.oneUps) || 0)), // 🍄 lives picked up this run, so Load cannot lose them
   score: s.score && typeof s.score === "object" ? JSON.parse(JSON.stringify(s.score)) : null,
   objectives: s.objectives && Array.isArray(s.objectives.list) ? { list: s.objectives.list.map((o) => ({ ...o })), done: [...(s.objectives.done || [])] } : null,
   talkSpent: [...(s.talkSpent || [])],

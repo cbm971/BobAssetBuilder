@@ -1590,6 +1590,78 @@ export const igniteBody = (body, secs, dps) => {
 };
 export const igniteDpsOf = (body) => (body && (body.ignite || 0) > 0 ? body.igniteDps || 0 : 0);
 export const tickIgnite = (body, dtMul) => { if (body && (body.ignite || 0) > 0) body.ignite = Math.max(0, body.ignite - dtMul); return body; };
+// 🔥 FIRE DAMAGE / ❄️ ICE DAMAGE (weapon abilities, 2026-10-21). Blake: "A Ability I can apply to
+// weapons that adds Fire damage. And an ability that adds Ice damage", and "When on fire a character
+// should have a reddish orange fire glow and sort of sparks coming off of them and they should take 2
+// damage per second for 10 second. Ice damage should be a white outline and effects and should do 1
+// damage per second but half agility and speed."
+//   Fire is the 🔥 Ignite burn above, renamed in the picker to what he called it, and newly added it
+//        starts on his numbers (FIRE_DAMAGE_*). The Flamethrower keeps its saved 2 s at 6/s. One burn,
+//        not two: a second fire ability on the same body would have needed its own pool, its own
+//        immunity check and its own look, and the two would have stacked into a burn nobody set.
+//   Ice  is its own timer on the body (`chill`), drained by its own per-second pool on the same
+//        frame clock as the burn. While it runs the body walks at ICE_SLOW_MULT of its speed and
+//        jumps ICE_SLOW_MULT of its height ("half agility and speed") — chillMoveMult, read by the
+//        player's walk and jump and by every unit's walk, hop and nav plan. Re-hitting refreshes it
+//        to the longer clock and the colder hit wins, exactly as a re-burn does. It has the length
+//        fire has: he gave fire's clock and none for ice, and the pair should read as a pair.
+// A hit carries all three onto the body through afflictBody, the ONE call every shot, swing, blast
+// and bite site makes, so a new site cannot set you alight and forget to freeze you.
+export const FIRE_DAMAGE_SECS = 10, FIRE_DAMAGE_DPS = 2;
+export const ICE_DAMAGE_SECS = 10, ICE_DAMAGE_DPS = 1, ICE_SLOW_MULT = 0.5;
+export const chillBody = (body, secs, dps) => {
+  if (!body || !((secs || 0) > 0) || !((dps || 0) > 0)) return body;
+  const cold = (body.chill || 0) > 0;
+  body.chill = Math.max(body.chill || 0, Math.round(secs * 60));
+  body.chillDps = cold ? Math.max(body.chillDps || 0, dps) : dps;
+  return body;
+};
+export const chillDpsOf = (body) => (body && (body.chill || 0) > 0 ? body.chillDps || 0 : 0);
+export const tickChill = (body, dtMul) => { if (body && (body.chill || 0) > 0) body.chill = Math.max(0, body.chill - dtMul); return body; };
+// Walk speed AND jump height multiplier (1 = not chilled). A jump's height goes with its launch
+// velocity SQUARED, so the velocity takes the square root (chillJumpVMult) to land at half height.
+export const chillMoveMult = (body) => (body && (body.chill || 0) > 0 ? ICE_SLOW_MULT : 1);
+export const chillJumpVMult = (body) => Math.sqrt(chillMoveMult(body));
+// What a hit carries onto whoever it lands on. `src` is a weapon (a swing, a bite) or a projectile
+// (which copied these fields off its gun as it left the barrel: shotStatusOf).
+export const afflictBody = (body, src, igniteDpsDef = DEFAULT_IGNITE_DPS) => {
+  if (!body || !src) return body;
+  igniteBody(body, src.ignite, src.igniteDps ?? igniteDpsDef);
+  chillBody(body, src.iceDamage, src.iceDamageDps ?? ICE_DAMAGE_DPS);
+  return body;
+};
+// The ice half of a projectile's payload, copied off the weapon at the trigger (a resurrect shot
+// does no harm at all, so it carries none). Ignite rides its own long-standing fields beside it.
+export const shotStatusOf = (w) => (!w || w.resurrect ? { iceDamage: 0, iceDamageDps: ICE_DAMAGE_DPS } : { iceDamage: w.iceDamage ?? 0, iceDamageDps: w.iceDamageDps ?? ICE_DAMAGE_DPS });
+// WHAT THE STATUS LOOKS LIKE. Burning covers the whole burn (an Ignite clock still running, or the
+// 12-frame flag a fire cell's tick sets), not just the tick: the glow used to show only on the frames
+// HP actually came off, which at his 2/s blinked on for a fifth of every second.
+export const bodyBurning = (body) => !!body && ((body.ignite || 0) > 0 || (body.onFire || 0) > 0);
+export const bodyChilled = (body) => !!body && (body.chill || 0) > 0;
+export const BURN_GLOW_CSS = "drop-shadow(0 0 5px #ff5a1f) drop-shadow(0 0 2px #ffa23a) brightness(1.2) saturate(1.35) hue-rotate(-10deg)";
+// A WHITE OUTLINE: two tight white shadows build a crisp rim round the silhouette, a wider pale-blue
+// one frosts it, and the colours go a little pale under it.
+export const ICE_OUTLINE_CSS = "drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff) drop-shadow(0 0 4px #bfe8ff) saturate(0.7) brightness(1.1)";
+// The filter for a body's status, both at once when it is burning AND chilled (the glow outside the rim).
+export const bodyStatusFilter = (body) => [bodyChilled(body) ? ICE_OUTLINE_CSS : null, bodyBurning(body) ? BURN_GLOW_CSS : null].filter(Boolean).join(" ") || null;
+// "Sort of sparks coming off of them" / ice "effects": a handful of particles over the body's hit
+// box, sparks rising out of its lower two thirds, frost glinting all over it and sliding down. The
+// spots are FIXED and the motion is CSS (.statusFx), because the play view re-renders every frame:
+// a spot picked by Math.random here would teleport sixty times a second. Built once, styles and all.
+const statusParticles = (spots) => spots.map(([x, b, d, s, dx]) => ({ "--x": x + "%", "--b": b + "%", "--d": d + "s", "--s": s + "s", "--dx": dx + "px" }));
+const BURN_SPARK_STYLES = statusParticles([[12, 8, 0, 0.9, -7], [30, 22, 0.35, 1.05, 5], [48, 4, 0.7, 0.85, -3], [62, 30, 0.15, 1.1, 8], [80, 12, 0.5, 0.95, 4], [24, 46, 0.85, 1, -5], [70, 52, 0.25, 0.9, -8], [42, 60, 0.6, 1.15, 6]]);
+const ICE_GLINT_STYLES = statusParticles([[10, 70, 0, 1.6, -2], [34, 88, 0.5, 1.9, 3], [58, 64, 1.1, 1.7, -3], [84, 80, 0.3, 2, 2], [22, 40, 0.8, 1.8, 3], [72, 34, 1.4, 1.6, -2], [46, 18, 0.2, 2.1, 2]]);
+export const StatusFx = ({ body, left, top, width, height }) => {
+  const burn = bodyBurning(body), ice = bodyChilled(body);
+  if (!burn && !ice) return null;
+  const box = { left, top, width, height };
+  return (
+    <>
+      {ice && <div className="statusFx ice" style={box}>{ICE_GLINT_STYLES.map((st, i) => <i key={i} style={st} />)}</div>}
+      {burn && <div className="statusFx burn" style={box}>{BURN_SPARK_STYLES.map((st, i) => <i key={i} style={st} />)}</div>}
+    </>
+  );
+};
 // 🧯 FIRE IMMUNITY / 🪖 EXPLOSION IMMUNITY (clothing abilities, 2026-10-18). Whoever wears one,
 // player or unit, by the same function (Blake: "there shouldn't be any differences").
 //   Fire  = fire cells, the 🔥 Ignite burn, and a FLAME SHOT (a ranged round that sets alight — the
@@ -2034,6 +2106,16 @@ export const resolveSaveTarget = (list, payload, freshId) => {
   if (existing && existing.name !== payload.name) return { id: freshId || uid(), mode: "rename", sourceId: payload.id };
   return { id: payload.id, mode: existing ? "update" : "create" };
 };
+// ...AND SAVE AS PUTS THE ORIGINAL BACK (2026-10-21). Blake opened his Black shirt and Scarf to make
+// a red one from it, recoloured it, then renamed it "Red shirt and Scarf" and saved: the red one was
+// forked exactly as above, but the 1.2 s autosave (ASSET_AUTOSAVE_MS) and 💾 Save & Open's own save
+// had already written the red onto the BLACK record while it still had its old name. The fork kept
+// the original "exactly as it was" — as it was a second before, red. ("HOW ARE WE STILL DEALING WITH
+// SAVE BUGS".) So the editors remember the stored record as it was when it was OPENED, and a save
+// that forks writes that version back over the original if anything saved over it since. His rule
+// read whole: loading an asset and saving it as a different name makes a different asset, and leaves
+// the one he loaded as he loaded it. True = the original needs putting back.
+export const saveAsRestores = (opened, stored) => !!(opened && stored && opened.id === stored.id && opened.savedAt !== stored.savedAt);
 
 // A saved Dressed Look embeds full copies of its components, so editing the source shirt used to
 // leave every look wearing a stale copy of it until it was re-equipped and re-saved by hand. Given
@@ -2144,13 +2226,25 @@ export const WEAPON_ABILITIES = {
     melee: true,
     on: { stun: DEFAULT_STUN_SECS }, off: { stun: 0 },
   },
+  // 🔥 "Fire damage" is the key `ignite` (the Flamethrower's, 2026-10-18) under the name Blake asked
+  // for on 2026-10-21. Adding it now starts on his 2 HP/s for 10 s; a weapon that already has it
+  // keeps what it was saved with. See FIRE_DAMAGE_SECS.
   ignite: {
-    icon: "🔥", label: "Ignite", types: ["ranged", "melee"],
-    blurb: "A connecting hit sets the target on fire: it keeps losing HP every second for a few seconds after, like standing in fire. Re-hitting refreshes the timer. Works in both directions: in a 👹 Enemy's hands it sets YOU alight.",
-    brief: (a) => "sets what it hits on fire for " + briefNum(a.ignite || DEFAULT_IGNITE_SECS) + "s",
+    icon: "🔥", label: "Fire damage", types: ["ranged", "melee"],
+    blurb: "A connecting hit sets the target on fire: it glows and throws sparks, and keeps losing HP every second until the fire goes out. Re-hitting refreshes the timer. Fire Immunity and Fire Resistance work against it. Works in both directions: in a 👹 Enemy's hands it sets YOU alight.",
+    brief: (a) => "sets what it hits on fire · " + briefNum(a.igniteDps ?? DEFAULT_IGNITE_DPS) + " HP/s for " + briefNum(a.ignite || DEFAULT_IGNITE_SECS) + "s",
     melee: true,
     isOn: (a) => !!a && !isThrowable(a.wtype) && (a.ignite ?? 0) > 0, // older saves have no wtype: a melee weapon
-    on: { ignite: DEFAULT_IGNITE_SECS, igniteDps: DEFAULT_IGNITE_DPS }, off: { ignite: 0 },
+    on: { ignite: FIRE_DAMAGE_SECS, igniteDps: FIRE_DAMAGE_DPS }, off: { ignite: 0 },
+  },
+  // ❄️ See chillBody: HP off every second and half speed and jump while it lasts.
+  iceDamage: {
+    icon: "❄️", label: "Ice damage", types: ["ranged", "melee"],
+    blurb: "A connecting hit freezes the target over: a white frosted outline, HP lost every second, and it walks at half speed and jumps half as high until it thaws. Re-hitting refreshes the timer. Works in both directions: in a 👹 Enemy's hands it freezes YOU.",
+    brief: (a) => "freezes what it hits · " + briefNum(a.iceDamageDps ?? ICE_DAMAGE_DPS) + " HP/s and half speed for " + briefNum(a.iceDamage || ICE_DAMAGE_SECS) + "s",
+    melee: true,
+    isOn: (a) => !!a && !isThrowable(a.wtype) && (a.iceDamage ?? 0) > 0,
+    on: { iceDamage: ICE_DAMAGE_SECS, iceDamageDps: ICE_DAMAGE_DPS }, off: { iceDamage: 0 },
   },
   resurrect: {
     icon: "🔮", label: "Resurrect staff", types: ["ranged", "melee"],
@@ -3189,6 +3283,7 @@ export const pedestalSummary = (m) => { const cs = ((m && m.cats) || []).map((c)
 //   { kind: "money", amount }                 — pays `amount` into your wallet (a dollar bill, a coin)
 //   { kind: "range", mult, duration }         — your shots fly `mult`× as far for `duration` seconds
 //   { kind: "tagDamage", tag, mult, duration } — weapons tagged `tag` hit `mult`× harder for `duration` seconds
+//   { kind: "oneUp", lives }                  — 🍄 `lives` more lives for the run (see ONE UP below)
 // It carries `categories` like gear so the SAME pedestal search finds it. Only the stats the player
 // actually reads in play are offered: Speed (move), Agility (jump), Strength (melee+throw damage),
 // Intelligence (crit chance, melee and ranged) — every one has a live effect.
@@ -3225,6 +3320,12 @@ export const normItemEffect = (e) => {
   // stack the same way. The tag is NOT trimmed here: the box is typed into live, and trimming on
   // every keystroke ate the space in "Assault Rifle". The compare trims. Floored at ×1 like range.
   if (e.kind === "tagDamage") return { kind: "tagDamage", tag: typeof e.tag === "string" ? e.tag : "", mult: Number.isFinite(e.mult) ? Math.max(1, e.mult) : 1.5, duration: Number.isFinite(e.duration) ? e.duration : 8 };
+  // 🍄 A ONE UP (2026-10-21, Blake: "A one up ability I can assign to Items (Like health pick ups)").
+  // A life of the RUN, the kind the difficulty deals out (Easy 4, Medium 2, Hard 1) and the HUD
+  // draws as your head: taking it puts another head on the row, and a death that would have ended
+  // the run spends it instead. It is never a 🐱 Extra Life, which gets you up where you fell and is
+  // the worn ability's alone (he split those two apart on 2026-10-18). Whole lives, at least one.
+  if (e.kind === "oneUp") return { kind: "oneUp", lives: Math.max(1, Math.round(Number.isFinite(e.lives) ? e.lives : 1)) };
   return { kind: "heal", amount: Number.isFinite(e.amount) ? e.amount : 5 };
 };
 // One-line human summary for the pedestal callout / pickup flash.
@@ -3234,6 +3335,7 @@ export const itemEffectSummary = (e) => {
     : x.kind === "money" ? MONEY_CHAR + " +" + x.amount
     : x.kind === "range" ? "Range ×" + x.mult + " for " + x.duration + "s"
     : x.kind === "tagDamage" ? (x.tag.trim() || "Tagged") + " damage ×" + x.mult + " for " + x.duration + "s"
+    : x.kind === "oneUp" ? "+" + x.lives + (x.lives === 1 ? " life" : " lives")
     : "+" + x.amount + " " + (ITEM_STAT_LABEL[x.stat] || x.stat) + " for " + x.duration + "s";
 };
 export const isMoneyItem = (a) => !!a && a.type === "item" && normItemEffect(a.effect).kind === "money";
@@ -4298,6 +4400,27 @@ export const shotPierces = (weapon, effects) => !!(weapon && weapon.pierce) || (
 // enemy on every frame it spends inside them — a slow arrow through an Elaphant would land a dozen
 // times. Returns whether `key` is a body this shot hasn't touched yet, and records it. A normal shot
 // is consumed on its first hit, so for it every body is fresh.
+// ⏩ DOUBLE SHOT (clothing ability, 2026-10-21): the round as fired, and its twin beside it. The two
+// leave PARALLEL, each half the gap off the line the shot was aimed down (perpendicular to its
+// flight), so both reach whatever the aim assist locked onto: a twin fanned off at an angle missed a
+// close body past a few cells. Same speed, range and payload; one round of ammo (the caller spends it
+// once). `pair` names the two so YOUR i-frames, which a unit's first round starts, let its twin land
+// too — without it a double shot hit you once and every hostile twice (see the foe branch).
+export const DOUBLE_SHOT_GAP_CELLS = 0.45;
+export const doubleShotOn = (effects) => wearsEffect(effects, "doubleShot");
+let doubleShotPairSeq = 0;
+export const doubleShotPair = (shot, cellPx) => {
+  const sp = Math.hypot(shot.vx || 0, shot.vy || 0) || 1, half = DOUBLE_SHOT_GAP_CELLS * (cellPx || 30) / 2;
+  const nx = -(shot.vy || 0) / sp * half, ny = (shot.vx || 0) / sp * half;
+  const pair = ++doubleShotPairSeq;
+  const at = (k) => ({ ...shot, x: shot.x + nx * k, y: shot.y + ny * k, startX: shot.startX + nx * k, startY: shot.startY + ny * k, hits: undefined, pair });
+  return [at(-1), at(1)];
+};
+// Where a gun's round goes into the air, for the player and every unit: one, or the ⏩ pair.
+export const pushShot = (list, effects, shot, cellPx) => {
+  if (doubleShotOn(effects)) list.push(...doubleShotPair(shot, cellPx)); else list.push(shot);
+  return list;
+};
 export const pierceFreshHit = (pr, key) => {
   if (!pr.pierce) return true;
   if (!pr.hits) pr.hits = [];
@@ -4907,7 +5030,7 @@ export const reviveInPlace = (p) => {
   // reaches zero, and the window here outlasts it anyway.
   p.stun = 0; p.down = EXTRA_LIFE_DOWN_FRAMES;
   p.blocking = null; p.throwAiming = false; p.throwAim = 0; p.burstLeft = 0; p.stomp = null; // a stomp is committed state too
-  p.burnPool = 0; p.onFire = 0; p.ignite = 0;
+  p.burnPool = 0; p.onFire = 0; p.ignite = 0; p.chill = 0; p.chillPool = 0; // a revive thaws you as it puts you out
   // A unit's corpse flag. The revive runs the same frame as the death, before the dead branch
   // ever sees it, so this is belt-and-braces — but a settled corpse that got back up must not
   // keep "stop simulating" set, or it would stand there with gravity switched off.
@@ -5568,6 +5691,14 @@ export const EFFECT_TYPES = {
       { key: "lives", label: "Lives", min: 1, max: 9, step: 1, def: 1 },
     ],
   },
+  // ⏩ Blake, 2026-10-21: "A ability I can assign to clothing that adds double shot." See doubleShotPair.
+  doubleShot: {
+    label: "Double Shot", icon: "⏩",
+    blurb: "Every shot you fire is two: a second round flies alongside the first, side by side, for the same single round of ammo. Bursts and full auto double too, and everything the gun does (explode, pierce, stun, fire, ice) rides both rounds. Two items carrying it still fire two. Worn by a 👹 Enemy it works on THEM. No animation of its own.",
+    brief: () => "every shot fires two rounds",
+    noAnim: true,
+    params: [],
+  },
 };
 // Live pedestal pickup: layer a taken equipment item's stat boosts / defense / effects onto the
 // player during Playtest. Mirrors assembleLook's stat/effect math (additive stat boosts, summed
@@ -5810,7 +5941,7 @@ export const inferAssetType = (raw) => {
   if (raw.type && KNOWN_ASSET_TYPES.includes(raw.type)) return raw.type;
   if (Array.isArray(raw.layers) && Array.isArray(raw.states)) return "anim";
   if (raw.recipe || raw.components) return "character";
-  if (raw.effect && typeof raw.effect === "object" && ["heal", "stat", "money", "range", "tagDamage"].includes(raw.effect.kind)) return "item";
+  if (raw.effect && typeof raw.effect === "object" && ["heal", "stat", "money", "range", "tagDamage", "oneUp"].includes(raw.effect.kind)) return "item";
   if (raw.slot) return "equipment";
   if (raw.wtype || raw.projectileId !== undefined || (raw.states && raw.states.fire)) return "weapon";
   if (raw.hasArms !== undefined || (raw.states && raw.states.onFire)) return "enemy";
@@ -13314,6 +13445,7 @@ export default function AssetStudio({ game = false } = {}) {
   const meleeReach = useRef({});                          // enemyId|weaponId -> swept melee-hitbox reach in px, so the engage gate doesn't re-sweep the whole swing arc every frame
   const enemyPos = useRef({});                            // spawnKey -> { y, vy, onGround } — lets enemies fall to the ground on Playtest start ("drop into place") instead of being frozen at their placed cell
   const playerHP = useRef(10);                            // player's remaining HP this Playtest session — seeded from the player asset's HP stat when Playtest starts
+  const studioOneUps = useRef(0);                         // 🍄 One Up lives taken this Playtest OUTSIDE a game run (a run keeps its own on gameCur); a death spends one, ▶ Playtest empties it
   const livesUsed = useRef(0);                            // 🐱 Extra Lives SPENT this Playtest run — run-wide like playerHP and the wallet, wiped only by the ▶ button (never by a door or a re-run); what is LEFT is extraLivesLeft(worn effects, this), so swapping the item off and on cannot restock
   const pedestalRolls = useRef({});
   const enemyGearRolls = useRef({});                       // spawnKey -> the item that placement's gear tag rolled this session (null = the tag matched nothing). Rolled once per level entry, exactly like pedestalRolls, and kept in the same per-level bucket — re-rolling per reader would arm the unit with one gun and drop another.
@@ -14371,6 +14503,14 @@ export default function AssetStudio({ game = false } = {}) {
       itemBuffs.current.push({ kind: "tagDamage", tag: eff.tag.trim(), mult: eff.mult, until: nowMs + eff.duration * 1000 });
       line = itemEffectSummary(eff);
       if (!quiet) flash("🏹 " + item.name + " · " + line + tail);
+    } else if (eff.kind === "oneUp") {
+      // 🍄 Another head on the run's row (see normItemEffect's ONE UP). In the game that is the run's
+      // own count, saved with the checkpoint at once so quitting cannot lose it; in the studio's
+      // Playtest, where a death costs nothing, it is the same head row so the item can be tried.
+      if (game && gameCur.current.saveId) { gameCur.current.oneUps = (gameCur.current.oneUps || 0) + eff.lives; setTimeout(() => gameCheckpointRef.current(), 300); }
+      else studioOneUps.current += eff.lives;
+      line = itemEffectSummary(eff);
+      if (!quiet) flash("🍄 " + item.name + " · " + line + tail);
     } else {
       const nowMs = playNowMs();
       itemBuffs.current = pruneBuffs(itemBuffs.current, nowMs);
@@ -14881,6 +15021,7 @@ export default function AssetStudio({ game = false } = {}) {
       // the last one ends the run — gameDeathRef freezes the loop and brings up Game Over, so there
       // is no walk back to the start to make. Outside the game it is always false.
       if (gameDeathRef.current()) return false;
+      if (studioOneUps.current > 0) studioOneUps.current -= 1; // 🍄 the studio's head row, spent the way a run's is (outside a run it is the only one)
       flash(deathMsg);
       respawnAtEntry(p);
       playerHP.current = maxPlayerHP(playerAsset);
@@ -14996,7 +15137,7 @@ export default function AssetStudio({ game = false } = {}) {
       const here = lv.runKey || lv.id, rs = respawnSpec.current;
       const spec = rs && rs.at === here ? rs.spec : (lv.isRoom ? { roomDoor: true } : { gate: true });
       p.crouch = false; p.climbing = false; p.climbJump = false; p.topdown = false; p.tdJumpY = null;
-      p.stun = 0; p.down = 0; p.downCd = 0; p.ignite = 0; p.burnPool = 0;
+      p.stun = 0; p.down = 0; p.downCd = 0; p.ignite = 0; p.burnPool = 0; p.chill = 0; p.chillPool = 0;
       placeSpawn(p, spec, CW * PLAYER_RENDER_W_CELLS * bodyShape.fraction, CH * PLAYER_H_CELLS);
       camRef.current.init = false; // a respawn is a cut, like a door — not a pan across the level
     };
@@ -15310,7 +15451,7 @@ export default function AssetStudio({ game = false } = {}) {
       // value at 2× base and only went up from there, so even Speed 1 was already faster than
       // an unscaled character, which is what "sends you to the moon" was actually describing.
       // (playerWalkSpeed — the same function a dressed look walking as a unit is moved by.)
-      const speed = playerWalkSpeed(pstats.speed, crouch) * dtMul; // px per 60fps-frame — dtMul makes this real-time, not per-rendered-frame
+      const speed = playerWalkSpeed(pstats.speed, crouch) * chillMoveMult(p) * dtMul; // ❄️ half while chilled · px per 60fps-frame — dtMul makes this real-time, not per-rendered-frame
       // Jump height is specified directly in BLOCKS, not as a multiplier: 1 block at Agility 1,
       // rising half a block per point (1.5 at 2, 2 at 3, ... 3 at baseline 5, 5.5 at 10).
       // Converted to launch velocity via h = v²/2g (inverted: v = √(2gh)) so a stated block
@@ -15320,7 +15461,7 @@ export default function AssetStudio({ game = false } = {}) {
       // multiplier sounds modest, but height scales with velocity SQUARED, and the unscaled
       // base velocity (18) already produced a ~31-block jump on its own.
       const agilityStat = Math.min(10, Math.max(1, pstats.agility));
-      const jumpHeightBlocks = (0.5 * agilityStat + 0.5) * JUMP_HEIGHT_BOOST; // x1.1 global knob — see MOVE_SPEED_BOOST
+      const jumpHeightBlocks = (0.5 * agilityStat + 0.5) * JUMP_HEIGHT_BOOST * chillMoveMult(p); // ❄️ half as high while chilled · x1.1 global knob — see MOVE_SPEED_BOOST
       const jumpV = Math.sqrt(2 * 0.175 * jumpHeightBlocks * CH);
       const jumpVMulRel = jumpV / Math.sqrt(2 * 0.175 * 3 * CH); // same relative scaling (1.0× at baseline Agility 5), reused below for the double-jump effect's own configurable height
       let dx = 0;
@@ -15960,6 +16101,18 @@ export default function AssetStudio({ game = false } = {}) {
         }
       } else { p.burnPool = 0; }
       if (p.onFire > 0) p.onFire -= dtMul;
+      // ❄️ ICE: the burn's twin, by the same per-second pool and the same two windows (a door, the
+      // 🐱 get-up). Fire Immunity has nothing to say about it. See chillBody.
+      const pIceDps = chillDpsOf(p);
+      tickChill(p, dtMul);
+      if (pIceDps > 0 && !p.transitioning && !(p.lifeGrace > 0) && playerHP.current > 0) {
+        p.chillPool = (p.chillPool || 0) + pIceDps * (dtMul / 60);
+        if (p.chillPool >= 1) {
+          const loss = Math.floor(p.chillPool); p.chillPool -= loss;
+          playerHP.current = playerHpAfterHit(playerHP.current, loss);
+          if (playerHP.current <= 0) { playerDefeated(p, "❄️ Frozen solid — back to the start."); p.chillPool = 0; }
+        }
+      } else { p.chillPool = 0; }
 
       // Walk/climb-cycle phase for limb-flagged pieces — advances with actual movement so
       // animation speed naturally scales with how fast (or slow, e.g. crouched) you're moving.
@@ -16230,7 +16383,7 @@ export default function AssetStudio({ game = false } = {}) {
               if (!ep.dodgeRolled) { ep.willDodge = Math.random() < enemyDodgeChance(eIntel); ep.dodgeRolled = true; }
               if (ep.willDodge) {
                 if (threat === "crouch" && canCrouch) { ep.crouch = true; ep.crouchT = CROUCH_HOLD_FRAMES; }
-                else if (threat === "jump" && ep.onGround && !ep.crouch) { sndEvent("jump", unitSndX(ep, ea), ep.y); if (ep.topdown) ep.tdJumpY = ep.y; ep.vy = -enemyJumpVelocity(ea.stats?.agility, CH); ep.onGround = false; ep.jumpHoldT = 0; } // hopping off a 🚶 Top-down plane remembers the line it left, so it lands back on it
+                else if (threat === "jump" && ep.onGround && !ep.crouch) { sndEvent("jump", unitSndX(ep, ea), ep.y); if (ep.topdown) ep.tdJumpY = ep.y; ep.vy = -enemyJumpVelocity(ea.stats?.agility, CH) * chillJumpVMult(ep); ep.onGround = false; ep.jumpHoldT = 0; } // hopping off a 🚶 Top-down plane remembers the line it left, so it lands back on it
                 // ⤴️ DOUBLE JUMP ON A UNIT: its one extra mid-air jump, used the way a player would
                 // — the first hop was not enough and it is coming back DOWN into the shot. Same
                 // Height (scaled by its Agility, jumpVelocityScale = your jumpVMulRel) and the same
@@ -16355,7 +16508,7 @@ export default function AssetStudio({ game = false } = {}) {
           const huntDy = hostile && huntFeet != null ? huntFeet - myFeetY : 0;
           // A dressed look walks by YOUR rule, crawling at half speed while it ducks, as you do; an
           // animal keeps its own scale (unitMoveSpeed).
-          const aiSpeed = unitMoveSpeed(ea, ep.crouch) * dtMul;
+          const aiSpeed = unitMoveSpeed(ea, ep.crouch) * chillMoveMult(ep) * dtMul; // ❄️ your half speed, on it
           // A tackler's charge used to SPRINT (x1.7) because units walked at a third of your pace and
           // could never otherwise reach you. A dressed look now walks at yours, and you have no
           // sprint: you tackle by walking into somebody, so it charges at its walk. (Only dressed
@@ -16434,7 +16587,7 @@ export default function AssetStudio({ game = false } = {}) {
           const navPursuing = acts && !stunned && !ep.stomp && huntInReach && (following || charging || (ai === "seek" && detected));
           const navOff = navTgtFeet != null && !(navMeTopdown && navTgtTopdown) && Math.abs(navTgtFeet - myFeetY) > CH * 1.5
             && (following || !rangedEnemy || !targetOnLevel);
-          const navJumpV = enemyJumpVelocity(ea.stats?.agility, CH), navJumpPx = navJumpV * navJumpV / (2 * 0.175);
+          const navJumpV = enemyJumpVelocity(ea.stats?.agility, CH) * chillJumpVMult(ep), navJumpPx = navJumpV * navJumpV / (2 * 0.175);
           const navPart = worldPartAt(worldParts, ep.x + epw / 2, ep.y + newEph / 2, CW);
           // 🦸 FLY ON A UNIT — the player's flight, with "Jump held" decided by the chase: a unit
           // wearing it that is coming for a target more than a step ABOVE it takes off and climbs
@@ -16842,6 +16995,18 @@ export default function AssetStudio({ game = false } = {}) {
             }
           } else { ep.burnPool = 0; }
           if (ep.onFire > 0) ep.onFire -= dtMul;
+          // ❄️ ICE on a unit: your pool, your two windows (a talker, the 🐱 get-up), its fire's flash.
+          const eIceDps = chillDpsOf(ep);
+          tickChill(ep, dtMul);
+          if (eIceDps > 0 && !unitTalkImmune(ep) && !unitUntouchable(ep)) {
+            if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
+            ep.chillPool = (ep.chillPool || 0) + eIceDps * (dtMul / 60);
+            if (ep.chillPool >= 1) {
+              const loss = Math.floor(ep.chillPool); ep.chillPool -= loss;
+              enemyHP.current[k] = Math.max(0, enemyHP.current[k] - loss);
+              if (enemyHP.current[k] <= 0) { flash("❄️ " + ea.name + " froze solid!"); continue; }
+            }
+          } else { ep.chillPool = 0; }
 
           // Attack: independent of AI type — Guard attacks without chasing, Seek/Avoid can also
           // attack mid-chase/retreat. Gated by range (weapon-aware, see enemyAttackRange),
@@ -16930,7 +17095,7 @@ export default function AssetStudio({ game = false } = {}) {
                 // theirs was an ordinary stick. Same 💫 channel, same seconds off the same slider.
                 // Deliberately inside the else and behind the i-frame and block gates above: a hit
                 // that killed you, that never landed, or that you turned aside cannot daze you.
-                if (hitEw) igniteBody(p, hitEw.ignite, hitEw.igniteDps ?? DEFAULT_IGNITE_DPS);
+                if (hitEw) afflictBody(p, hitEw);
                 if ((hitEw?.stun ?? 0) > 0) { stunPlayer(p, hitEw.stun); flash(critNote + "👹 " + ea.name + " hit you for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + hitEw.stun + "s (" + playerHP.current + " HP left)"); }
                 else flash(critNote + "👹 " + ea.name + " hit you for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)");
               }
@@ -16945,6 +17110,7 @@ export default function AssetStudio({ game = false } = {}) {
               enemyHP.current[key] = Math.max(0, cur - uDmg);
               if (bEp) bEp.invuln = PLAYER_INVULN_FRAMES; // the player's i-frames, on it (unitHitImmune)
               if (bEp) bEp.lastHitByFx = ea.effects || []; // who struck it, for a 🍀 Lucky Find the striker wears (the loot pass)
+              if (bEp && enemyHP.current[key] > 0 && hitEw) afflictBody(bEp, hitEw); // 🔥 / ❄️ its blade's fire and ice, unit on unit as on you
               if (enemyHP.current[key] <= 0) flash(friendly ? (allyBadge(ep) + " Your " + ea.name + " defeated " + (bEa.name || "a foe") + "!") : ("💔 Your " + (bEa.name || "ally") + " fell."));
               return true;
             }
@@ -17178,7 +17344,7 @@ export default function AssetStudio({ game = false } = {}) {
             // The arm tilts by that much, which swings the barrel round the grip — so the round
             // leaves the barrel where it is drawn at the tilt, the way the player's re-read does.
             const eShotAt = (eMuzzle0 && enemyHeldMuzzleAt(ea, ew, ep, newEph, eRenderW, shotDeg)) || { x: sx, y: sy };
-            projectiles.current.push({
+            pushShot(projectiles.current, ea.effects, { // ⏩ yours, on it
               x: eShotAt.x, y: eShotAt.y, vx, vy,
               startX: eShotAt.x, startY: eShotAt.y, groundY: ep.y + newEph, rangePx, traveled: 0,
               char: ew.projectile?.char || DEFAULT_SHOT_CHAR, tint: ew.projectile?.tint || null,
@@ -17192,10 +17358,10 @@ export default function AssetStudio({ game = false } = {}) {
               // on a unit's shot (nor its throw or brawl blow): a null lastHitByFx means YOUR blow,
               // and that is what the score pays a kill on.
               critInt: eIntel, shooterFx: ea.effects || [], snd: ew, // snd: whose 🔊 Hit plays where it lands
-              ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: shotPierces(ew, ea.effects), ignite: ew.ignite ?? 0, igniteDps: ew.igniteDps ?? DEFAULT_IGNITE_DPS,
+              ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: shotPierces(ew, ea.effects), ignite: ew.ignite ?? 0, igniteDps: ew.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(ew),
               explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeChar: ew.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
               shooterKey: k, // who fired it, so an exploding round can catch its OWN shooter in the blast (detonate)
-            });
+            }, CW);
             sndMoment(ew, "fire", null, eShotAt.x, eShotAt.y); // 🔊 its gun's Fire, as yours
             ep.weaponAmmo = consumeShot(ep.weaponAmmo, weaponFireCooldownFrames(ew.fireRate));
           };
@@ -17228,7 +17394,7 @@ export default function AssetStudio({ game = false } = {}) {
                 // it commits is a LEAP at them. Then not again until HEAD_STOMP_LEAP_COOLDOWN_FRAMES
                 // after it lands, so between leaps it fights with what it is holding.
                 const eLeap = (!eUnder.length && eHeadStomp && !(ep.hsLeapCd > 0) && !ep.hsLeap && ep.onGround && !ep.climbing && !ep.topdown && !ep.crouch && !ep.flying)
-                  ? headStompLeapPlan({ v0: enemyJumpVelocity(ea.stats?.agility, CH), agility: ea.stats?.agility, rise: (ep.y + newEph) - tgtBoxTop, dx: tgtAimCX - eCenterXFinal, speed: unitMoveSpeed(ea, false), cellPx: CW })
+                  ? headStompLeapPlan({ v0: enemyJumpVelocity(ea.stats?.agility, CH) * chillJumpVMult(ep), agility: ea.stats?.agility, rise: (ep.y + newEph) - tgtBoxTop, dx: tgtAimCX - eCenterXFinal, speed: unitMoveSpeed(ea, false) * chillMoveMult(ep), cellPx: CW })
                   : null;
                 if (eUnder.length) {
                   ep.swingT = 0; ep.swingHit = null;
@@ -17240,7 +17406,7 @@ export default function AssetStudio({ game = false } = {}) {
                   // test when it comes down. No swing or shot rides along, and none is taken mid-leap.
                   ep.swingT = 0; ep.swingHit = null; ep.burstLeft = 0;
                   ep.attackT = Math.max(ATTACK_COOLDOWN_FRAMES, eLeap.frames);
-                  sndEvent("jump", unitSndX(ep, ea), ep.y); ep.vy = -enemyJumpVelocity(ea.stats?.agility, CH); ep.onGround = false; ep.jumpHoldT = 0;
+                  sndEvent("jump", unitSndX(ep, ea), ep.y); ep.vy = -enemyJumpVelocity(ea.stats?.agility, CH) * chillJumpVMult(ep); ep.onGround = false; ep.jumpHoldT = 0;
                   ep.hsLeap = true;
                 } else if (eTailFront.length) {
                   ep.swingT = 0; ep.swingHit = null; ep.burstLeft = 0;
@@ -17449,7 +17615,7 @@ export default function AssetStudio({ game = false } = {}) {
             if (legacyState && !anglesEmpty(legacyState)) drawnPieces = bake({ ...playtestWeapon, angles: legacyState }, "front").filter((pc) => !pc.isHitbox);
             sizeUnits = playtestWeapon.projectile?.size || 1;
           }
-          projectiles.current.push({
+          pushShot(projectiles.current, playerAsset?.effects, { // ⏩ two side by side under a Double Shot
             x: spawnX, y: spawnY,
             vx, vy,
             startX: spawnX, startY: spawnY, groundY: p.y + ph,
@@ -17459,10 +17625,10 @@ export default function AssetStudio({ game = false } = {}) {
             alpha: assetAlpha(projAsset || playtestWeapon), // 👻 the Projectile asset's Translucent (an old gun drew its round itself, so then the gun's)
             size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), playtestWeapon.categories)), // 🏹 worn Tag Damage × a 🧪 timed one still running
             stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
-            ignite: playtestWeapon.resurrect ? 0 : (playtestWeapon.ignite ?? 0), igniteDps: playtestWeapon.igniteDps ?? DEFAULT_IGNITE_DPS,
+            ignite: playtestWeapon.resurrect ? 0 : (playtestWeapon.ignite ?? 0), igniteDps: playtestWeapon.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(playtestWeapon), // ❄️ its ice rides the round too
             ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor, pierce: playerShotsPierce, snd: playtestWeapon, // snd: whose 🔊 Hit plays where it lands
             explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeChar: playtestWeapon.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
-          });
+          }, CW);
           sndMoment(playtestWeapon, "fire", null, spawnX, spawnY); // 🔊 the gun's Fire
           wpn.current = consumeShot(wpn.current, fireCdFrames); // spends a round (unless clip 0 = unlimited) and starts the fire-rate cooldown
           // A fresh pull ARMS the rest of the burst; a burst shot spends one of them. Either way the
@@ -17555,7 +17721,7 @@ export default function AssetStudio({ game = false } = {}) {
           enemyHP.current[k] = Math.max(0, enemyHP.current[k] - sDmg);
           ep.invuln = PLAYER_INVULN_FRAMES;
           ep.lastHitByFx = pr.shooterFx || null;
-          if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) igniteBody(ep, pr.ignite, pr.igniteDps);
+          if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) afflictBody(ep, pr);
         };
         if (pr.foe) {
           if (p.invuln <= 0 && !pBlastImmune) { // 🪖
@@ -17568,7 +17734,7 @@ export default function AssetStudio({ game = false } = {}) {
               else {
               playerHP.current = playerHpAfterHit(playerHP.current, dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
-              if (playerHP.current > 0) igniteBody(p, pr.ignite, pr.igniteDps);
+              if (playerHP.current > 0) afflictBody(p, pr);
               if (playerHP.current <= 0) { playerDefeated(p, "💀 Caught in the blast — back to the start."); }
               else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(bNote + "💥 Blast hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
               else flash(bNote + "💥 Blast hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)");
@@ -17588,7 +17754,7 @@ export default function AssetStudio({ game = false } = {}) {
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - aDmg);
               ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln just above (unitHitImmune)
               ep.lastHitByFx = pr.shooterFx || null;
-              if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) igniteBody(ep, pr.ignite, pr.igniteDps);
+              if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) afflictBody(ep, pr);
             }
           }
           if (pr.shooterKey) selfBlastUnit(pr.shooterKey); // the hostile who fired it stands in it exactly as its targets do
@@ -17610,7 +17776,7 @@ export default function AssetStudio({ game = false } = {}) {
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
               ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln in the foe branch above (unitHitImmune)
               ep.lastHitByFx = pr.shooterFx || null;
-              if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) igniteBody(ep, pr.ignite, pr.igniteDps);
+              if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) afflictBody(ep, pr);
               hits++;
             }
           }
@@ -17817,7 +17983,7 @@ export default function AssetStudio({ game = false } = {}) {
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🗡️ swing: starts no i-frames
                     if (ep) ep.lastHitByFx = null; // the last blow was yours
                     if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon && (playtestWeapon.stun ?? 0) > 0) { ep.stun = Math.round(playtestWeapon.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
-                    if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon) igniteBody(ep, playtestWeapon.ignite, playtestWeapon.igniteDps ?? DEFAULT_IGNITE_DPS);
+                    if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon) afflictBody(ep, playtestWeapon);
                     // Mark THIS body as struck and carry on: the rest of the arc may still be
                     // through somebody else. (Not p.hitRegistered — that would end the whole swing.)
                     p.swingHits[k] = true;
@@ -18218,7 +18384,7 @@ export default function AssetStudio({ game = false } = {}) {
             if (prLeft < p.x + pw && prLeft + boxW > p.x && prTop < p.y + ph && prTop + boxH > p.y && pierceFreshHit(pr, "player")) {
               if (pr.explode) { detonate(pr, boxCx, boxCy); return false; }
               if (pFireImmune && shotIsFlame(pr)) { if (!pr.pierce) return false; } // 🧯 the flames wash over you
-              else if (p.invuln <= 0) {
+              else if (p.invuln <= 0 || (pr.pair && p.invulnPair === pr.pair)) { // ⏩ a Double Shot's twin is the same shot, not a second hit to wait out
                 // For a projectile, "from behind" is decided by which way the shot is travelling
                 // relative to the way you're facing — a bullet catching you in the back is one
                 // moving the same way you face while coming from behind you. Using the shot's own
@@ -18229,8 +18395,8 @@ export default function AssetStudio({ game = false } = {}) {
                 const dmg = fireResistedHit(incomingPlayerDamage(sCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, pr.ignoreArmor), pr, playerAsset?.effects); // 🚒
                 if (!shrugsHit("player", playerAsset?.effects, dmg, pr.shooterKey || null, p.x + pw / 2, p.y)) { // 🐞 / 🪞 — either way the round is spent below
                 playerHP.current = playerHpAfterHit(playerHP.current, dmg);
-                p.invuln = PLAYER_INVULN_FRAMES;
-                if (playerHP.current > 0) igniteBody(p, pr.ignite, pr.igniteDps);
+                p.invuln = PLAYER_INVULN_FRAMES; p.invulnPair = pr.pair || null;
+                if (playerHP.current > 0) afflictBody(p, pr);
                 if (playerHP.current <= 0) { playerDefeated(p, "💀 Shot down — back to the start."); }
                 else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(sNote + "🏹 Hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
                 else flash(sNote + "🏹 Hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)");
@@ -18260,7 +18426,7 @@ export default function AssetStudio({ game = false } = {}) {
                 enemyHP.current[k] = Math.max(0, enemyHP.current[k] - aDmg); // 🔫 bullet: starts no i-frames
                 ep.lastHitByFx = pr.shooterFx || null;
                 if (enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
-                if (enemyHP.current[k] > 0) igniteBody(ep, pr.ignite, pr.igniteDps);
+                if (enemyHP.current[k] > 0) afflictBody(ep, pr);
                 if (enemyHP.current[k] <= 0) flash("💔 Your " + ea.name + " fell.");
                 if (!pr.pierce) return false;
               }
@@ -18338,7 +18504,7 @@ export default function AssetStudio({ game = false } = {}) {
               if (shrugsHit(k, ea.effects, dmg, pr.shooterKey || "player", eHitLeft + epw / 2, hitTop)) { if (!pr.pierce) return false; continue; } // 🐞 / 🪞 the round is spent on it either way
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🔫 bullet: starts no i-frames
               if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
-              if (ep && enemyHP.current[k] > 0) igniteBody(ep, pr.ignite, pr.igniteDps);
+              if (ep && enemyHP.current[k] > 0) afflictBody(ep, pr);
               flash((isCrit ? "💥 Critical! " : "🎯 ") + "Hit " + ea.name + " for " + dmg + crouchGuardNote(ea.effects, ep && ep.crouch) + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
               if (!pr.pierce) return false; // projectile consumed on impact — a 🪡 piercing one flies on to the next body
             }
@@ -19851,6 +20017,10 @@ export default function AssetStudio({ game = false } = {}) {
               <label className="slider">Burn<input type="range" min="1" max="30" step="1" value={asset.igniteDps || DEFAULT_IGNITE_DPS} onChange={(e) => setAsset((a) => ({ ...a, igniteDps: +e.target.value }))} /><span className="hint2">{(asset.igniteDps || DEFAULT_IGNITE_DPS)} HP/sec</span></label>
               <label className="slider">Burns for<input type="range" min="0.5" max="10" step="0.5" value={asset.ignite || DEFAULT_IGNITE_SECS} onChange={(e) => setAsset((a) => ({ ...a, ignite: +e.target.value }))} /><span className="hint2">{(asset.ignite || DEFAULT_IGNITE_SECS)}s</span></label>
             </>)}
+            {k === "iceDamage" && (<>
+              <label className="slider">Chill<input type="range" min="1" max="10" step="1" value={asset.iceDamageDps ?? ICE_DAMAGE_DPS} onChange={(e) => setAsset((a) => ({ ...a, iceDamageDps: +e.target.value }))} /><span className="hint2">{(asset.iceDamageDps ?? ICE_DAMAGE_DPS)} HP/sec</span></label>
+              <label className="slider">Frozen for<input type="range" min="0.5" max="20" step="0.5" value={asset.iceDamage || ICE_DAMAGE_SECS} onChange={(e) => setAsset((a) => ({ ...a, iceDamage: +e.target.value }))} /><span className="hint2">{(asset.iceDamage || ICE_DAMAGE_SECS)}s</span></label>
+            </>)}
             {k === "burn" && (<>
               <label className="slider">Burn<input type="range" min="1" max="30" step="1" value={asset.landEffectDps || 6} onChange={(e) => setAsset((a) => ({ ...a, landEffectDps: +e.target.value }))} /><span className="hint2">{(asset.landEffectDps || 6)} HP/sec</span></label>
               {/* Half-second steps: the Grenade in the library is set to 2.5s, which a step of 1
@@ -20751,12 +20921,16 @@ export default function AssetStudio({ game = false } = {}) {
   // not wait out the timer and lose the last edit.
   const assetBase = useRef({ id: null, sig: "", at: 0 });
   const assetAutoRef = useRef(null);
+  // The stored record as it was when the open asset was OPENED — what a Save As puts back over the
+  // original (saveAsRestores). Never moved by the autosaves; a fork or a first save re-points it.
+  const assetOpened = useRef({ id: null, rec: null });
   useEffect(() => {
     if (!asset || !asset.id) return undefined;
     const sig = assetEditSig(asset), now = Date.now();
     if (assetBase.current.id !== asset.id) {
       if (assetAutoRef.current) assetAutoRef.current(); // another asset was opened: write the one being left first
       assetBase.current = { id: asset.id, sig, at: now };
+      assetOpened.current = { id: asset.id, rec: library.find((x) => x && x.id === asset.id) || null };
     } else if (now - assetBase.current.at < ASSET_OPEN_SETTLE_MS && sig !== assetBase.current.sig) {
       assetBase.current = { ...assetBase.current, sig }; // the open itself normalising the record, not an edit
     }
@@ -20805,22 +20979,42 @@ export default function AssetStudio({ game = false } = {}) {
     // Push this edit into every saved Dressed Look already wearing it, re-baking that look's art
     // from its own embedded components. Without this a shirt edit only reached Playtest after
     // manually re-equipping the shirt in Dress Bob and re-saving the look over the top of itself.
-    let refreshed = 0;
     const refreshedLooks = [];
-    if (ok1 && ok2) {
+    const rebakeLooksWearing = async (saved) => {
       for (const entry of list.filter((x) => x.type === "character")) {
         try {
           const raw = await sget("asset:" + entry.id); if (!raw) continue;
           const look = migrate(JSON.parse(raw));
-          if (!lookWearsAsset(look, payload.id)) continue;
-          let rebuilt = rebuildLook(swapLookComponent(look, payload));
+          if (!lookWearsAsset(look, saved.id)) continue;
+          let rebuilt = rebuildLook(swapLookComponent(look, saved));
           if (!rebuilt) continue;
           rebuilt = stampSave(rebuilt, look);
-          if (await sset("asset:" + entry.id, JSON.stringify(rebuilt))) { refreshed++; refreshedLooks.push(rebuilt); }
+          if (await sset("asset:" + entry.id, JSON.stringify(rebuilt))) refreshedLooks.push(rebuilt);
         } catch { /* a look that won't parse or rebuild is left exactly as it was */ }
       }
-      if (refreshedLooks.length) projectLibrary.save({ assets: refreshedLooks });
+    };
+    let putBack = null;
+    if (ok1 && ok2) {
+      await rebakeLooksWearing(payload);
+      // 🔙 A Save As: the original goes back to how it was opened (saveAsRestores), and so do the
+      // looks wearing it, which this session's autosaves re-baked in the new colours (his Viatnamese 4
+      // came out in the red shirt). After the fork's own write, so a failure here costs only the put-back.
+      const opened = assetOpened.current;
+      if (target.mode === "rename" && opened.rec && opened.id === target.sourceId) {
+        try {
+          const raw = await sget("asset:" + target.sourceId);
+          const stored = raw ? JSON.parse(raw) : null;
+          if (saveAsRestores(opened.rec, stored)) {
+            const rec = stampSave(opened.rec, stored);
+            if (await sset("asset:" + rec.id, JSON.stringify(rec))) { putBack = rec; await rebakeLooksWearing(rec); }
+          }
+        } catch { /* an original that will not read is left as it is; the fork is saved either way */ }
+      }
+      if (putBack || refreshedLooks.length) projectLibrary.save({ assets: [...(putBack ? [putBack] : []), ...refreshedLooks] }, putBack ? { revive: true } : undefined);
+      // From here the open asset IS the one just written: a later rename forks from it, and puts it back as it is now.
+      if (target.mode !== "update") assetOpened.current = { id: payload.id, rec: payload };
     }
+    const refreshed = new Set(refreshedLooks.map((l) => l.id)).size;
     if (ok1 && ok2) {
       // The new savedAt too: the NEXT save's editedFrom must name this version, not the one opened.
       // ...unless another asset was opened while this was being written (a flush as one is picked): then
@@ -20829,7 +21023,8 @@ export default function AssetStudio({ game = false } = {}) {
       if (assetBase.current.id === savedFrom.id) assetBase.current = { id: payload.id, sig: assetEditSig(savedFrom), at: assetBase.current.at };
       const worn = refreshed ? " — updated " + refreshed + " dressed look" + (refreshed === 1 ? "" : "s") : "";
       if (quiet) {
-        setLibrary((lib) => (lib.some((x) => x && x.id === payload.id) ? lib.map((x) => (x && x.id === payload.id ? payload : x)) : [...lib, payload]));
+        const wrote = [payload, ...(putBack ? [putBack] : []), ...refreshedLooks];
+        setLibrary((lib) => { let out = lib; for (const w of wrote) out = out.some((x) => x && x.id === w.id) ? out.map((x) => (x && x.id === w.id ? w : x)) : [...out, w]; return out; });
       } else {
         flash(target.mode === "rename" ? "Saved as a new \"" + payload.name + "\" ✓ — the original was kept"
           : "Saved to this device ✓" + worn);
@@ -21400,6 +21595,21 @@ export default function AssetStudio({ game = false } = {}) {
     list = list.filter((x) => x.id !== payload.id); list.push({ id: payload.id, name: payload.name, type: payload.type });
     const ok2 = await writeAssetIndex(list);
     projectLibrary.save({ assets: [payload] }, { revive: true });
+    // 🔙 A Save As puts the original back as it was opened, past the autosaves made on the way to
+    // the rename — the asset editor's rule (saveAsRestores), the same trap here.
+    let putBack = null;
+    const opened = animOpened.current;
+    if (ok1 && ok2 && target.mode === "rename" && opened && opened.rec && opened.id === target.sourceId) {
+      try {
+        const raw = await sget("asset:" + target.sourceId);
+        const stored = raw ? JSON.parse(raw) : null;
+        if (saveAsRestores(opened.rec, stored)) {
+          const rec = stampSave(opened.rec, stored);
+          if (await sset("asset:" + rec.id, JSON.stringify(rec))) { putBack = rec; projectLibrary.save({ assets: [rec] }, { revive: true }); }
+        }
+      } catch { /* the fork is saved either way */ }
+    }
+    if (ok1 && ok2 && target.mode !== "update") animOpened.current = { id: payload.id, rec: payload };
     if (ok1 && ok2) {
       // ...unless another animation was opened meanwhile (✚ New or 📂 while this was being written):
       // then this one is saved and the editor is left alone.
@@ -21410,7 +21620,7 @@ export default function AssetStudio({ game = false } = {}) {
         setAnimDoc((cur) => (cur && cur.id === doc.id ? stamp(cur) : cur));
       }
       if (quiet) {
-        setLibrary((lib) => (lib.some((a) => a && a.id === payload.id) ? lib.map((a) => (a && a.id === payload.id ? payload : a)) : [...lib, payload]));
+        setLibrary((lib) => { let out = lib; for (const w of [payload, ...(putBack ? [putBack] : [])]) out = out.some((a) => a && a.id === w.id) ? out.map((a) => (a && a.id === w.id ? w : a)) : [...out, w]; return out; });
       } else {
         flash(target.mode === "rename" ? "Saved as a new \"" + payload.name + "\" ✓ — the original was kept" : "Saved ✓");
         loadLibrary();
@@ -21424,6 +21634,7 @@ export default function AssetStudio({ game = false } = {}) {
   // change. animAutoRef holds the latest "save it now if it needs it" for the ways out below
   // (‹ Menu, ✚ New, 📂, closing the page), which must not wait out the timer and lose its last edit.
   const animAutoRef = useRef(null);
+  const animOpened = useRef(null); // { id, rec }: the open animation's stored record as opened — see saveAsRestores
   useEffect(() => {
     const doc = animDoc;
     const pending = () => !!doc && JSON.stringify(doc) !== animBaseline.current && animAutoSaves(doc, findAnim(doc.id));
@@ -21454,6 +21665,9 @@ export default function AssetStudio({ game = false } = {}) {
     if (a && animDoc && animDoc.id === doc.id) { if (JSON.stringify(animDoc) !== JSON.stringify(doc)) animRemember(animDoc, true); }
     else { animUndo.current = []; animRedo.current = []; setAnimHist({ u: 0, r: 0 }); }
     animLastPut.current = 0;
+    // 🔙 What a Save As puts back (saveAsRestores): the stored record as first opened. ↺ Last save
+    // re-opens the SAME animation, and must not move it onto the autosaved copy.
+    if (!(animOpened.current && animOpened.current.id === doc.id)) animOpened.current = a ? { id: a.id, rec: a } : null;
     animOpenId.current = doc.id;
     setAnimDoc(doc); animBaseline.current = a ? JSON.stringify(doc) : "";
     if (!keepView) { setAnimSi(0); setAnimT(0); setAnimSel(doc.layers[0] ? doc.layers[0].id : null); }
@@ -23084,7 +23298,7 @@ export default function AssetStudio({ game = false } = {}) {
     runOrigin.current = { x: 0, y: 0, w: ((startLevel && startLevel.cols) || 0) * LV_CELL, h: ((startLevel && startLevel.rows) || 0) * LV_CELL };
     // A session STARTING scores from zero (SCORE); one stopping keeps its total readable.
     if (!play || runStart) scoreRef.current = newScoreState();
-    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
+    roomReturn.current = null; roomState.current = {}; sessionRooms.current = {}; talkSpentSigns.current = new Set(); setDoorPrompt(null); activeObjective.current = { list: [], done: new Set() }; lastObjLevelKey.current = null; setObjectives([]); player.current = { x: 60, y: 40, vx: 0, vy: 0, onGround: false, crouch: false, face: 1, climbing: false, climbJump: false, climbKind: null, climbJumpKind: null, climbJumpGrab: false, dropCooldown: 0, onSlope: false, slopeDir: 0, slopeRun: 0, sliding: false, slideVx: 0, stepEase: 0, transitioning: null, arriving: 0, walking: false, walkPhase: 0, firing: null, wasFire: false, blocking: null, blockCd: 0, wasMelee: false, hitRegistered: false, aimDir: 0, extraJumped: false, wasJump: false, effectAnim: null, djGravMul: 1, invuln: 0, lifeGrace: 0, jumpHoldT: 0, onFire: 0, burnPool: 0, wasThrow: false, throwAiming: false, throwAim: 0, throwFiring: 0, hangPhase: 0, stun: 0, down: 0, downCd: 0, topdown: false, tdView: "side", tdJumpY: null }; projectiles.current = []; thrown.current = []; booms.current = []; throwCarry.current = 0; enemyHP.current = {}; unitHpSeen.current = {}; enemyPos.current = {}; enemyDrops.current = {}; corpseStripped.current = {}; hazLife.current = {}; playRunId.current += 1; playerHP.current = maxPlayerHP(basePlayerAsset); livesUsed.current = 0; studioOneUps.current = 0; pedestalRolls.current = {}; pedestalDepleted.current = new Set(); enemyGearRolls.current = {}; liveSpawnCache.current.clear(); equipped.current = {}; itemBuffs.current = []; setWallet(0); closeShop(); shopRolls.current = {}; setPedPrompt(null); setPickupBanner(null); hadFly.current = false; setFlyHint(0); respawnSpec.current = null; spawnReq.current = (startLevel && startLevel.isRoom) ? { roomDoor: true } : { gate: true }; animInst.current = {}; cutRef.current = null; setAnimPrompt(null); bobAudio.talk(null);
     // A loaded game comes in by the gate it was saved at, as a death in that level would put you back.
     if (runStart && runStart.resumeSpawn) spawnReq.current = runStart.resumeSpawn;
     if (resume) applyGameResume(resume, basePlayerAsset);
@@ -23263,7 +23477,7 @@ export default function AssetStudio({ game = false } = {}) {
   // The game being played: its save id, when it began, the gate each level was entered by (so a
   // save made after a room trip still knows its gate), where the newest checkpoint stood, and its
   // difficulty with the lives it has lost so far (gameFront.js DIFFICULTIES).
-  const GAME_CUR_NONE = { saveId: null, startedAt: 0, gates: {}, loc: null, difficulty: "medium", deaths: 0 };
+  const GAME_CUR_NONE = { saveId: null, startedAt: 0, gates: {}, loc: null, difficulty: "medium", deaths: 0, oneUps: 0 };
   const gameCur = useRef(GAME_CUR_NONE);
   const gameArtCache = useRef(new Map());
   const gameReady = game && !libraryLoading && gameLevelsIn;
@@ -23347,7 +23561,7 @@ export default function AssetStudio({ game = false } = {}) {
       id: gameCur.current.saveId, startedAt: gameCur.current.startedAt, seed: run ? run.seed : "", ...loc,
       lookId: playerId, lookName: look ? look.name : "", weaponId: playtestWeaponId, throwId: playtestThrowId, throwCount: throwCarry.current,
       equipped: eq, hp: playerHP.current, wallet: wallet.current, livesUsed: livesUsed.current, score: scoreRef.current,
-      difficulty: gameCur.current.difficulty, deaths: gameCur.current.deaths,
+      difficulty: gameCur.current.difficulty, deaths: gameCur.current.deaths, oneUps: gameCur.current.oneUps || 0,
       objectives: { list: ao.list || [], done: [...(ao.done || [])] }, talkSpent: [...(talkSpentSigns.current || [])],
       playSecs: scorePlaySecs(scoreRef.current),
     });
@@ -23418,7 +23632,7 @@ export default function AssetStudio({ game = false } = {}) {
     setGameBoot({ lookId: look ? look.id : "", seed: seed || newRunSeed(), save: null });
   };
   const gameLoadGame = (save) => {
-    gameCur.current = { ...GAME_CUR_NONE, saveId: save.id, startedAt: save.startedAt, gates: save.nodeKey ? { [save.nodeKey]: save.gateKey ?? null } : {}, difficulty: difficultyOf(save.difficulty).id, deaths: save.deaths || 0 };
+    gameCur.current = { ...GAME_CUR_NONE, saveId: save.id, startedAt: save.startedAt, gates: save.nodeKey ? { [save.nodeKey]: save.gateKey ?? null } : {}, difficulty: difficultyOf(save.difficulty).id, deaths: save.deaths || 0, oneUps: save.oneUps || 0 };
     setPlayerId(save.lookId || ""); setPlaytestWeaponId(save.weaponId || ""); setPlaytestThrowId(save.throwId || "");
     setGameBoot({ lookId: save.lookId || "", seed: save.seed, save });
   };
@@ -23472,7 +23686,7 @@ export default function AssetStudio({ game = false } = {}) {
     if (!game || !cur.saveId) return false;
     const before = cur.deaths || 0;
     cur.deaths = before + 1;
-    if (!deathEndsRun(cur.difficulty, before)) { setTimeout(() => gameCheckpointRef.current(), 300); return false; }
+    if (!deathEndsRun(cur.difficulty, before, cur.oneUps)) { setTimeout(() => gameCheckpointRef.current(), 300); return false; }
     gamePauseRef.current = true; keys.current = {};
     setTimeout(() => gameGameOverRef.current(), 1100);
     return true;
@@ -26473,7 +26687,8 @@ export default function AssetStudio({ game = false } = {}) {
                   const stompDip = p.stomp ? stompDipPx(p.stomp.t, p.stomp.dur) : 0; // the weight landing on the stamping foot
                   const flyBob = p.flying ? flyPoseOf(p).bob : 0; // the hover's gentle bob — the sprite only, never the hitbox
                   const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift + stompDip + flyBob, width: renderW, height: ph, transform: (downed ? [flip, shrink, "translateY(" + (-downLift).toFixed(2) + "px)", LAY_FLAT_ROT_CSS] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...((downed || p.hsFall || doorT < 1) ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
-                  if (p.onFire > 0) style.filter = "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)";
+                  const pStatusCss = bodyStatusFilter(p); // 🔥 the burn's glow / ❄️ the white rim, for the whole of each
+                  if (pStatusCss) style.filter = pStatusCss;
                   else if (doorT < 1) style.filter = "brightness(" + (0.35 + 0.65 * doorT).toFixed(2) + ")"; // dimmer the deeper into the doorway you are
                   // The 🐱 Extra Life window: the same invuln blink as an ordinary hit (set longer by
                   // reviveInPlace), tinted gold so it reads as "you got a life back" rather than
@@ -26524,6 +26739,7 @@ export default function AssetStudio({ game = false } = {}) {
                           return crouchPlane ? <div style={{ position: "absolute", left: 0, top: crouchPlane.top, width: renderW, height: crouchPlane.height, transform: crouchWalk ? `scaleY(${crouchPlane.walkScaleY})` : undefined, transformOrigin: crouchWalk ? `50% ${crouchPlane.originY}px` : undefined }}>{art}</div> : art;
                         })() : <><div className="peye" /><div className="pbody" /></>}
                         {p.hsFall && (() => { const hsH = Math.min(3 * LV_CELL, 12 + (p.vy || 0) * 6); return <div className="stompStreaks" style={{ left: bodyShape.centerFrac * renderW - pw * 0.35, width: pw * 0.7, top: bodyShape.topFrac * ph - hsH, height: hsH, opacity: Math.min(0.8, 0.3 + (p.vy || 0) * 0.06) }} />; })()}
+                        <StatusFx body={p} left={bodyShape.centerFrac * renderW - pw / 2} top={bodyShape.topFrac * ph} width={pw} height={bodyShape.heightFrac * ph} />
                       </div>
                     </>
                   );
@@ -27076,7 +27292,7 @@ export default function AssetStudio({ game = false } = {}) {
                       {/* The sprite below blinks through its i-frames after a hit (ep.invuln) with the
                           player's own 0.5-opacity blink, so a round that does nothing to it has a
                           visible reason — the same cue your own blink gives. See unitHitImmune. */}
-                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : unitTalkImmune(ep) ? { zIndex: TALKER_BEHIND_Z } : {}), ...((downed || eHsFall) ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: allyGlowCss(ep) } : (ep && ep.onFire > 0) ? { filter: "drop-shadow(0 0 5px #ff6a1f) brightness(1.25) saturate(1.4) hue-rotate(-12deg)" } : {}), ...(ep && !unitUntouchable(ep) && ep.invuln > 0 && Math.floor(ep.invuln / 4) % 2 ? { opacity: 0.5 } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : unitTalkImmune(ep) ? { zIndex: TALKER_BEHIND_Z } : {}), ...((downed || eHsFall) ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: [allyGlowCss(ep), bodyStatusFilter(ep)].filter(Boolean).join(" ") } : bodyStatusFilter(ep) ? { filter: bodyStatusFilter(ep) } : {}), ...(ep && !unitUntouchable(ep) && ep.invuln > 0 && Math.floor(ep.invuln / 4) % 2 ? { opacity: 0.5 } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {eArtHit ? eArtHit.el : storeUnitArt(uKey, eArtSig, ea, ew, eSpawn, eRenderW, eph, eAnchor, eBlocks, (() => {
                           const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + uKey, keyPrefix: uKey + "_", alphaOf: spriteAlphaOf(ea, eThrowingNow ? spawnThrowableFor(eSpawn) : ew), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
                           // Draw the art at its true aspect when the box isn't one (ducking): on a
@@ -27091,6 +27307,7 @@ export default function AssetStudio({ game = false } = {}) {
                           return <div style={{ position: "absolute", left: 0, top: plane.top, width: "100%", height: plane.height }}>{art}</div>;
                         })())}
                         {eHsFall && (() => { const hsH = Math.min(3 * LV_CELL, 12 + (ep.vy || 0) * 6); return <div className="stompStreaks" style={{ left: hitboxOffset + epw * 0.15, width: epw * 0.7, top: eHitTopPx - eAnchor - hsH, height: hsH, opacity: Math.min(0.8, 0.3 + (ep.vy || 0) * 0.06) }} />; })()}
+                        {ep && <StatusFx body={ep} left={hitboxOffset} top={eHitTopPx - eAnchor} width={epw} height={Math.max(1, eph - eHitTopPx)} />}
                       </div>
                     </React.Fragment>
                   );
@@ -27389,12 +27606,15 @@ export default function AssetStudio({ game = false } = {}) {
                 const maxHp = maxPlayerHP(merged), curHp = Math.max(0, Math.min(maxHp, Math.ceil(playerHP.current)));
                 const hpFrac = maxHp > 0 ? curHp / maxHp : 0;
                 const strNow = (st.strength ?? 5) + (buffs.strength || 0);
+                // ❄️ Chilled, AGI and SPD read half (in the down colour) for as long as the walk and
+                // the jump really are half — the HUD saying what the body is doing.
+                const icy = chillMoveMult(player.current), icyD = icy < 1 ? -1 : 0;
                 const stats = [
-                  { k: "stat.agi", l: "AGI", v: (st.agility ?? 5) + (buffs.agility || 0), d: buffs.agility || 0 },
+                  { k: "stat.agi", l: "AGI", v: ((st.agility ?? 5) + (buffs.agility || 0)) * icy, d: icyD || buffs.agility || 0 },
                   { k: "stat.def", l: "DEF", v: Math.max(0, Math.round((merged && merged.defense) || 0)), d: 0 },
                   { k: "stat.hp", l: "HP", v: st.hp ?? 5, d: 0 },
                   { k: "stat.int", l: "INT", v: (st.intelligence ?? 5) + (buffs.intelligence || 0), d: buffs.intelligence || 0 },
-                  { k: "stat.spd", l: "SPD", v: (st.speed ?? 5) + (buffs.speed || 0), d: buffs.speed || 0 },
+                  { k: "stat.spd", l: "SPD", v: ((st.speed ?? 5) + (buffs.speed || 0)) * icy, d: icyD || buffs.speed || 0 },
                   { k: "stat.str", l: "STR", v: strNow, d: buffs.strength || 0 },
                 ];
                 const ranged = playtestWeapon && isRanged(playtestWeapon.wtype);
@@ -27417,7 +27637,7 @@ export default function AssetStudio({ game = false } = {}) {
                 // of any Extra Lives ability. They used to be added into the cat pips, and Blake read the
                 // difficulty as "a multi lives ability" (2026-10-18): a run life is the editor's death —
                 // back to the gate on full HP — and must not look like the item's get-up-where-you-fell.
-                const runLives = game && gameCur.current.saveId ? runLivesLeft(gameCur.current.difficulty, gameCur.current.deaths) : 0;
+                const runLives = game && gameCur.current.saveId ? runLivesLeft(gameCur.current.difficulty, gameCur.current.deaths, gameCur.current.oneUps) : studioOneUps.current; // 🍄 outside a run only One Ups put heads here
                 // The head is drawn off the body the SPRITE wears: a dressed look is recomposed with
                 // its pickups by livePlayerBlocks (memoised per kit, so the same object frame to
                 // frame) — mergeEquip alone only merges its stats, and a helmet picked up never reached
@@ -28525,9 +28745,12 @@ export default function AssetStudio({ game = false } = {}) {
                   <button className={eff.kind === "money" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "money" ? cur : { kind: "money", amount: 10 } }; })}>{MONEY_CHAR} Money</button>
                   <button className={eff.kind === "range" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "range" ? cur : { kind: "range", mult: 1.5, duration: 8 } }; })}>🎯 Range</button>
                   <button className={eff.kind === "tagDamage" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "tagDamage" ? cur : { kind: "tagDamage", tag: "", mult: 1.5, duration: 8 } }; })}>🏹 Tag damage</button>
+                  <button className={eff.kind === "oneUp" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "oneUp" ? cur : { kind: "oneUp", lives: 1 } }; })}>🍄 One up</button>
                 </div>
                 {eff.kind === "heal" ? (
                   <label className="slider">❤️ Heal amount<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>HP</span></label>
+                ) : eff.kind === "oneUp" ? (
+                  <label className="slider">🍄 Lives<input type="number" min="1" max="9" value={eff.lives} onChange={(e) => setEff({ lives: Math.max(1, Math.min(9, Math.round(+e.target.value || 1))) })} style={{ width: 60 }} /></label>
                 ) : eff.kind === "money" ? (
                   <>
                     <label className="slider">{MONEY_CHAR} Worth<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 70 }} /></label>
@@ -29648,6 +29871,17 @@ html,body{margin:0;padding:0;background:#0f1117}
 /* 👢 A Stomp's fall (headStompPose): speed streaks trailing up off the head, fading out at the top. Static
    stripes, no animation: they ride the sprite, which is already moving down the screen. */
 .stompStreaks{position:absolute;pointer-events:none;background:repeating-linear-gradient(90deg,transparent 0 12%,rgba(255,255,255,.9) 12% 17%,transparent 17% 33%);-webkit-mask-image:linear-gradient(to top,#000,transparent);mask-image:linear-gradient(to top,#000,transparent)}
+/* 🔥 / ❄️ STATUS PARTICLES (StatusFx): sparks rising off a burning body, frost glinting on a chilled
+   one. Only transform and opacity animate, so the compositor moves them without a repaint of the
+   sprite under them. Each particle's spot and delay come in as --x / --d / --s from STATUS_SPARKS. */
+.statusFx{position:absolute;pointer-events:none;overflow:visible}
+.statusFx i{position:absolute;left:var(--x);bottom:var(--b);display:block;border-radius:50%;opacity:0;will-change:transform,opacity}
+.statusFx.burn i{width:4px;height:4px;background:#ffd25a;box-shadow:0 0 4px 1px #ff6a1f,0 0 1px #fff3c0;animation:burnSpark var(--s) ease-out var(--d) infinite}
+.statusFx.burn i:nth-child(3n){width:3px;height:3px;background:#ff8a2a}
+@keyframes burnSpark{0%{opacity:0;transform:translate(0,0) scale(1)}12%{opacity:1}70%{opacity:.85}100%{opacity:0;transform:translate(var(--dx),-46px) scale(.4)}}
+.statusFx.ice i{width:3px;height:3px;background:#fff;box-shadow:0 0 3px 1px #cdeeff;animation:iceGlint var(--s) ease-in-out var(--d) infinite}
+.statusFx.ice i:nth-child(2n){width:5px;height:1.5px;border-radius:1px}
+@keyframes iceGlint{0%,100%{opacity:0;transform:translate(0,0) scale(.3)}45%{opacity:1;transform:translate(0,4px) scale(1)}80%{opacity:.4;transform:translate(var(--dx),14px) scale(.6)}}
 .lcell.collisionOnly,.blockGhost.collisionOnly,.rampGhost.collisionOnly{opacity:.48;outline:2px dashed #62d9ff;outline-offset:-2px;filter:saturate(.55)}
 .player .pbody{position:absolute;inset:0;background:#7aa2d6;border-radius:5px}
 .player .peye{position:absolute;right:3px;top:5px;width:4px;height:4px;border-radius:50%;background:#0a0c12;z-index:2}

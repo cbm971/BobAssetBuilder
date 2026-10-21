@@ -5215,3 +5215,38 @@ trees but will"), so nothing of his was touched. New level `vcfrm02` "Forest M2"
     biting plain Bob took him 35→26→17→8→dead; on Reflect Bob it went 25→16→7→dead with him at 35/35; on Lucky Bob 3 bites
     in 10 s landed. Plain Bob shooting a Reflect Bob enemy with the Experimental Rifle lost HP to his own rounds. In a fire
     row plain Bob burned ~18 HP/s, resistant Bob ~8.4 (0.47, expected 0.45). Both marks drew in their slot colours.
+
+## 2026-10-21: Fire / Ice / Double Shot / One Up, and "save and open autosaved the red one onto the black one"
+
+- **What he asked:** a One Up for items, a Double Shot clothing ability, Fire damage and Ice damage for weapons; on fire "a
+  reddish orange fire glow and sort of sparks", 2 damage/s for 10 s; ice "a white outline and effects", 1 damage/s, "half
+  agility and speed".
+- **Fire = the existing Ignite.** Ignite (2026-10-18) was an agent's name for the Flamethrower's burn. A second fire
+  ability would have needed its own pool, immunity and look and stacked into a burn nobody set, so the picker now says
+  "Fire damage" and a fresh add starts on 10 s at 2/s. The old glow showed only on the 12 frames after each HP tick, so at
+  2/s it blinked; `bodyBurning` covers the whole clock.
+- **Ice** is a twin pool (`chill`, `chillPool`). "Half agility" is read as half the jump HEIGHT (stat-halving would do
+  nothing to an Agility-1 look and only 25% to speed). Drained in the loop beside the burn, both sides.
+- **Double Shot** twins are PARALLEL, not fanned: a fanned twin missed anything closer than a few cells. A unit's pair
+  hitting YOU was swallowed by your i-frames after the first round, hence `pair` / `p.invulnPair`.
+- **One Up** is a RUN life (head row), not a 🐱 Extra Life, because he split those two on 2026-10-18.
+- **Driven in a seeded studio Playtest:** one trigger pull with Double Shot put 2 rounds up, 13 px apart; the ice M16 gave
+  the enemy the white rim + 7 frost particles and took 1 HP per 60 frames; chilled walk 6.2 → 2.9 px/frame; Bobs Gun with
+  Fire damage gave the glow + 8 sparks and 1 HP per ~29 frames; the One Up pedestal added a head (0 → 1) and a fire death
+  spent it (1 → 0, back to the start).
+
+### The Black shirt and Scarf overwrite
+
+He opened Black shirt and Scarf (`vv3nkdu`), recoloured it red, pressed 💾 Save & Open, renamed it "Red shirt and
+Scarf" and saved. The rename forked `eo0mino` correctly, but the 1.2 s autosave and Save & Open's own save had ALREADY
+written the red onto `vv3nkdu` under its old name, and every one of those saves re-baked the look wearing it
+(Viatnamese 4, `dd1w8a2`) red too. 92 s later the same red was saved over `vv3nkdu` again.
+**Recovery:** the keeper was dead (again). The folder and the saves branch still held the black (Oct 18). Reviving it swept
+the red version in, then History held both. Black (History 1792354680292) and Viatnamese 4 (History 1792542744406, whose only
+change since was the re-baked shirt) were POSTed back to the keeper with savedAt = now. Fallback bundle in Downloads:
+"Black shirt and Scarf - restored 2026-10-21.json".
+**Fix:** `saveAsRestores`: the asset and animation editors remember the stored record as OPENED, and a save that forks
+writes it back over the original (re-baking the looks that wear it). Save & Open still saves in place, because the
+Flamethrower report (2026-10-19) was exactly an edit lost to a Save & Open that did not save. Verified in the studio: the
+autosave wrote Defense 9 over a test shirt saved at 3, and the rename's save left the original at 3 and the fork at 9, both
+for a freshly made item and for one reopened from 📂 Load.

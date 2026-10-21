@@ -217,6 +217,15 @@ describe("difficulty (Blake: Easy 4 lives, Medium 2, Hard 1)", () => {
     expect([t.difficulty, t.deaths]).toEqual(["hard", 1]);
     expect(makeGameSave(null, { seed: "7" }).difficulty).toBe("medium");
   });
+  test("🍄 a One Up is one more life of the run, and the save keeps it", () => {
+    expect(runLivesLeft("hard", 0, 1)).toBe(2);
+    expect(runLivesLeft("medium", 2, 1)).toBe(1);
+    expect(runLivesLeft("hard", 0, undefined)).toBe(1); // an old save, a studio caller
+    expect(deathEndsRun("hard", 0, 1)).toBe(false);   // Hard with one picked up survives the first death...
+    expect(deathEndsRun("hard", 1, 1)).toBe(true);    // ...and not the second
+    expect(makeGameSave(null, { seed: "7", oneUps: 2 }).oneUps).toBe(2);
+    expect(makeGameSave(null, { seed: "7" }).oneUps).toBe(0);
+  });
   test("options remember the difficulty last started with", () => {
     expect(normalizeGameOptions({ music: 10, effects: 20, difficulty: "easy" }).difficulty).toBe("easy");
     expect(normalizeGameOptions({ difficulty: "insane" }).difficulty).toBe("medium");

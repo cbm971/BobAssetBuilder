@@ -151,7 +151,9 @@ has never actually been gone; the bytes were always still on disk.** Never clear
 - Never tombstone an id to revise it; that purges his copy. A tombstone retires a record. A newer
   `savedAt` revises one.
 - **Renaming a loaded asset or level and saving makes a NEW record** (`resolveSaveTarget`). That is
-  his rule.
+  his rule. **And the original goes back to how it was OPENED** (`saveAsRestores`, `assetOpened` /
+  `animOpened`): the autosave writes edits in place before the rename, so a fork alone kept his recolour
+  on the original (Black shirt and Scarf, 2026-10-21). Any editor that autosaves must do the same.
 - Start an asset job from his existing asset of the same kind, not from a blank page.
 - The dev server rewrites `asset-data/` from the browser. **`git checkout -- asset-data/` also
   restores anything he deleted that session**, so check `git diff --stat asset-data/` first.
@@ -765,6 +767,17 @@ plus traps it does not cover:
   a hit: resistance scales the burn pool and a flame round (`fireResistedHit`), luck never reads fire. A new hit site
   calls shrugsHit (a test counts 16). The marks are booms with `slot: "fx.lucky" | "fx.reflect"`. Items: Lucky Hat
   `lckyhat`, Spiked Jacket `spkjkt1`, Fireman's Coat `frcoat1`, Fireman's Helmet `frhelm1`.
+- **🔥 Fire damage / ❄️ Ice damage (weapon abilities, 2026-10-21):** "Fire damage" is the `ignite` key renamed in the
+  picker; added now it starts on his 2 HP/s for 10 s (`FIRE_DAMAGE_*`), saved weapons keep theirs. Ice is `iceDamage`
+  (+`iceDamageDps`, 1/s, 10 s): its own timer on the body (`chillBody`, `chillPool`), half walk speed and half jump HEIGHT
+  (`chillMoveMult`, `chillJumpVMult`) for the player and every unit, AGI/SPD read half on the HUD. Every hit site calls
+  `afflictBody(body, weaponOrShot)`, never igniteBody directly; a round copies the ice off its gun (`shotStatusOf`). The
+  look: `bodyStatusFilter` (glow for the whole burn, a white rim while chilled) + `<StatusFx>` (CSS sparks / frost).
+- **⏩ Double Shot (clothing, 2026-10-21):** every gun round goes up through `pushShot` (player and units): two parallel
+  rounds `DOUBLE_SHOT_GAP_CELLS` apart for one round of ammo. A pair shares `pair`, so your i-frames from the first let
+  its twin land (`p.invulnPair`).
+- **🍄 One Up (item effect `oneUp`, 2026-10-21):** a life of the RUN (a head on the HUD row), never a 🐱 Extra Life. In a
+  game run it is `gameCur.oneUps` (saved; `runLivesLeft(diff, deaths, oneUps)`); outside a run `studioOneUps`, spent by a death.
 - **Clothing prints are textures** (Tye Dye, Flannel, 🦓 `zebra`): the piece carries `tex: <texture record id>`, and the
   record ships in library.json `textures`. A fresh store restores textures when an editor opens (`loadTextures`).
 - **Melee DPS is damage x a fixed swing** (`PLAYER_SWING_FRAMES` 12, 5 swings/s); a melee weapon's Fire rate does nothing.

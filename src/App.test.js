@@ -295,6 +295,7 @@ import {
   PROJECTILE_FALL_ACCEL_CAP,
   rangeBoostMultiplier,
   resolveSaveTarget,
+  saveAsRestores,
   splitObjectStackByPlayerLayer,
   weaponReloadFrames,
   BLOCK_FRAMES,
@@ -302,6 +303,24 @@ import {
   pointBoxDistance,
   WEAPON_ABILITIES,
   igniteBody,
+  chillBody,
+  chillDpsOf,
+  tickChill,
+  chillMoveMult,
+  chillJumpVMult,
+  afflictBody,
+  shotStatusOf,
+  bodyBurning,
+  bodyChilled,
+  bodyStatusFilter,
+  ICE_DAMAGE_SECS,
+  ICE_DAMAGE_DPS,
+  FIRE_DAMAGE_SECS,
+  FIRE_DAMAGE_DPS,
+  doubleShotPair,
+  doubleShotOn,
+  pushShot,
+  DOUBLE_SHOT_GAP_CELLS,
   fireImmune,
   blastImmune,
   luckyChance,
@@ -4264,8 +4283,8 @@ describe("weapon magazines and enemy reloads", () => {
 
 describe("which abilities a weapon may carry", () => {
   test("a melee weapon is offered exactly the powers a swing can carry", () => {
-    expect(weaponAbilitiesFor("melee").sort()).toEqual(["ignite", "ignoreArmor", "resurrect", "stun"]);
-    expect(weaponAbilitiesFor(undefined).sort()).toEqual(["ignite", "ignoreArmor", "resurrect", "stun"]); // older saves have no wtype
+    expect(weaponAbilitiesFor("melee").sort()).toEqual(["iceDamage", "ignite", "ignoreArmor", "resurrect", "stun"]);
+    expect(weaponAbilitiesFor(undefined).sort()).toEqual(["iceDamage", "ignite", "ignoreArmor", "resurrect", "stun"]); // older saves have no wtype
   });
 
   test("a ranged weapon gets everything that isn't a thrown object's payload", () => {
@@ -12774,7 +12793,7 @@ describe("a unit's armour counts the way yours does", () => {
     // drain and the gold revive glow, and to nothing else.
     // ...and the two bullet gates ask unitUntouchable (the revive grace) and nothing about i-frames.
     const untouchable = lines.map((ln, i) => [i, ln]).filter(([, ln]) => ln.includes("unitUntouchable(") && !ln.trim().startsWith("*") && !ln.trim().startsWith("//") && !ln.includes("export const unitUntouchable"));
-    expect(untouchable.length).toBe(6); // the fire drain, the sprite line (gold glow + the hit blink that stands aside for it), the two bullet gates, the swing's, and a 🪞 reflect landing on its attacker (not a blow: the attacker's own hit coming back, so only the revive grace turns it away)
+    expect(untouchable.length).toBe(7); // the fire drain, the ❄️ ice drain beside it, the sprite line (gold glow + the hit blink that stands aside for it), the two bullet gates, the swing's, and a 🪞 reflect landing on its attacker (not a blow: the attacker's own hit coming back, so only the revive grace turns it away)
     for (const [, ln] of untouchable) expect(/eDps > 0|enemySpawn|!pr.pierce|aea && !unitUntouchable\(aep\)/.test(ln) || ln.includes("unitUntouchable(enemyPos.current[k])) continue;")).toBe(true); // ...or your swing's gate
   });
 
@@ -12922,8 +12941,8 @@ describe("a unit plays by the player's rules", () => {
 
   test("the player's own loop walks through the same function", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
-    expect(src).toContain("const speed = playerWalkSpeed(pstats.speed, crouch) * dtMul;");
-    expect(src).toContain("const aiSpeed = unitMoveSpeed(ea, ep.crouch) * dtMul;");
+    expect(src).toContain("const speed = playerWalkSpeed(pstats.speed, crouch) * chillMoveMult(p) * dtMul;");
+    expect(src).toContain("const aiSpeed = unitMoveSpeed(ea, ep.crouch) * chillMoveMult(ep) * dtMul;"); // ❄️ the same half speed on both sides
   });
 
   test("a unit's jump is the player's: same height, same Agility scaling for Double Jump", () => {
@@ -13439,7 +13458,7 @@ describe("🛡 god mode (a testing switch)", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
     expect(src).not.toMatch(/playerHP\.current\s*=\s*Math\.max\(0,\s*playerHP\.current\s*-/);
     expect(src).not.toMatch(/playerHP\.current\s*-=/);
-    expect((src.match(/playerHP\.current = playerHpAfterHit\(/g) || []).length).toBe(7); // +1: detonate's own-blast self-damage; +1: a 🪞 Reflect sending your own hit back (shrugsHit)
+    expect((src.match(/playerHP\.current = playerHpAfterHit\(/g) || []).length).toBe(8); // +1: the ❄️ ice drain; +1: detonate's own-blast self-damage; +1: a 🪞 Reflect sending your own hit back (shrugsHit)
   });
 });
 
@@ -14020,7 +14039,7 @@ describe("👢 Stomp: land on a head from above", () => {
     expect(src).toContain("eHsArmed = headStompArmed(eHeadStomp, ep.hsAir, ep.y, ep.vy, CH, ep.gliding);");
     expect(src).toContain("for (const b of shotTargetsFor(false, false, null)) {");
     expect(src).toContain("applyHitTo(under.kind, under.kind === \"player\" ? null : under.key, under.ep, under.ea, playerMeleeDamage(eHeadStomp.damage, ea.stats?.strength), true);");
-    expect(src).toContain("headStompLeapPlan({ v0: enemyJumpVelocity(ea.stats?.agility, CH), agility: ea.stats?.agility, rise: (ep.y + newEph) - tgtBoxTop,");
+    expect(src).toContain("headStompLeapPlan({ v0: enemyJumpVelocity(ea.stats?.agility, CH) * chillJumpVMult(ep), agility: ea.stats?.agility, rise: (ep.y + newEph) - tgtBoxTop,");
     expect(src).toContain("blocks = (p.firing || p.aiming || p.throwAiming || p.throwFiring > 0 || p.blocking) ? flyLegBlocks(blocks, hsPose) : flyPoseBlocks(blocks, hsPose, playerArtFacesRight(basePlayerAsset));");
     expect(src).toContain("eBlocks = flyLegBlocks(eBlocks, headStompPose(ep.hsFallT));");
   });
@@ -14497,5 +14516,120 @@ describe("asset autosave", () => {
     const a = { ...stored, savedAt: 1, editedFrom: 0, confirmedFits: ["x"] };
     expect(assetEditSig({ ...a, savedAt: 2, editedFrom: 1, confirmedFits: ["x", "y"] })).toBe(assetEditSig(a));
     expect(assetEditSig({ ...a, damage: 9 })).not.toBe(assetEditSig(a));
+  });
+});
+
+import { StatusFx } from "./App";
+
+describe("🔥 Fire damage / ❄️ Ice damage (weapon abilities, 2026-10-21)", () => {
+  test("Fire damage is the Ignite burn under his name, and starts on his 2 HP/s for 10 s", () => {
+    expect(WEAPON_ABILITIES.ignite.label).toBe("Fire damage");
+    expect(WEAPON_ABILITIES.ignite.on).toEqual({ ignite: FIRE_DAMAGE_SECS, igniteDps: FIRE_DAMAGE_DPS });
+    expect([FIRE_DAMAGE_SECS, FIRE_DAMAGE_DPS]).toEqual([10, 2]);
+    // A weapon saved before keeps its own numbers (the Flamethrower's 2 s at 6/s).
+    expect(WEAPON_ABILITIES.ignite.brief({ wtype: "ranged", ignite: 2, igniteDps: 6 })).toContain("6 HP/s for 2s");
+  });
+  test("Ice damage: guns and blades, never a throwable; 1 HP/s for 10 s by default", () => {
+    expect(weaponAbilityOn({ wtype: "ranged", iceDamage: 10 }, "iceDamage")).toBe(true);
+    expect(weaponAbilityOn({ wtype: "melee", iceDamage: 10 }, "iceDamage")).toBe(true);
+    expect(weaponAbilityOn({ wtype: "throw", iceDamage: 10 }, "iceDamage")).toBe(false);
+    expect(weaponAbilityOn({ wtype: "ranged", iceDamage: 0 }, "iceDamage")).toBe(false);
+    expect(WEAPON_ABILITIES.iceDamage.on).toEqual({ iceDamage: ICE_DAMAGE_SECS, iceDamageDps: ICE_DAMAGE_DPS });
+    expect([ICE_DAMAGE_SECS, ICE_DAMAGE_DPS]).toEqual([10, 1]);
+    expect(typeof WEAPON_ABILITIES.iceDamage.brief({})).toBe("string");
+  });
+  test("a chill runs its clock, refreshes to the longer one, and the colder hit wins", () => {
+    const b = chillBody({}, 10, 1);
+    expect([b.chill, chillDpsOf(b)]).toEqual([600, 1]);
+    tickChill(b, 300);
+    chillBody(b, 2, 3);
+    expect([b.chill, b.chillDps]).toEqual([300, 3]);
+    tickChill(b, 400);
+    expect([b.chill, chillDpsOf(b)]).toEqual([0, 0]);
+    expect(chillBody({}, 0, 1).chill).toBeUndefined();
+  });
+  test("chilled: half the walk, half the jump HEIGHT (so the launch velocity takes the root)", () => {
+    expect(chillMoveMult({})).toBe(1);
+    expect(chillMoveMult({ chill: 5 })).toBe(0.5);
+    expect(chillJumpVMult({ chill: 5 }) ** 2).toBeCloseTo(0.5);
+    expect(chillJumpVMult(null)).toBe(1);
+  });
+  test("one hit carries fire and ice together, from a weapon or from its round", () => {
+    const gun = { wtype: "ranged", ignite: 10, igniteDps: 2, iceDamage: 4, iceDamageDps: 3 };
+    const shot = { ignite: gun.ignite, igniteDps: gun.igniteDps, ...shotStatusOf(gun) };
+    for (const src of [gun, shot]) {
+      const b = afflictBody({}, src);
+      expect([b.ignite, b.igniteDps, b.chill, b.chillDps]).toEqual([600, 2, 240, 3]);
+    }
+    expect(shotStatusOf({ iceDamage: 4, resurrect: true }).iceDamage).toBe(0);
+    expect(afflictBody({}, { damage: 5 })).toEqual({});
+  });
+  test("ice is not a flame: a Fire Immune body's bullet rules do not read it", () => {
+    expect(shotIsFlame({ iceDamage: 10, damage: 5 })).toBe(false);
+  });
+  test("the look: a glow for the WHOLE burn, a white rim while chilled, both at once", () => {
+    expect(bodyBurning({ ignite: 30, onFire: 0 })).toBe(true);   // between drain ticks too
+    expect(bodyBurning({ onFire: 4 })).toBe(true);               // a fire cell's tick
+    expect(bodyBurning({})).toBe(false);
+    expect(bodyChilled({ chill: 1 })).toBe(true);
+    expect(bodyStatusFilter({})).toBe(null);
+    expect(bodyStatusFilter({ chill: 9 })).toContain("#fff");
+    expect(bodyStatusFilter({ ignite: 9 })).toContain("#ff5a1f");
+    const both = bodyStatusFilter({ ignite: 9, chill: 9 });
+    expect(both).toContain("#fff"); expect(both).toContain("#ff5a1f");
+  });
+  test("StatusFx draws nothing on a body that is neither", () => {
+    expect(StatusFx({ body: {}, left: 0, top: 0, width: 10, height: 10 })).toBe(null);
+    expect(StatusFx({ body: { chill: 3 }, left: 0, top: 0, width: 10, height: 10 })).not.toBe(null);
+  });
+});
+
+describe("⏩ Double Shot (clothing ability, 2026-10-21)", () => {
+  test("in the registry, worn by type", () => {
+    expect(EFFECT_TYPES.doubleShot.noAnim).toBe(true);
+    expect(EFFECT_TYPES.doubleShot.params).toEqual([]);
+    expect(typeof EFFECT_TYPES.doubleShot.brief({})).toBe("string");
+    expect(doubleShotOn([{ type: "doubleShot" }])).toBe(true);
+    expect(doubleShotOn([{ type: "fireImmune" }])).toBe(false);
+  });
+  test("the pair flies parallel, a gap apart across the line of flight, with the same payload", () => {
+    const shot = { x: 100, y: 50, startX: 100, startY: 50, vx: 10, vy: 0, damage: 7, pierce: true, iceDamage: 3 };
+    const [a, b] = doubleShotPair(shot, 30);
+    expect([a.vx, a.vy, b.vx, b.vy]).toEqual([10, 0, 10, 0]);
+    expect(a.x).toBe(100); expect(b.x).toBe(100);
+    expect(Math.abs(a.y - b.y)).toBeCloseTo(DOUBLE_SHOT_GAP_CELLS * 30);
+    expect((a.y + b.y) / 2).toBeCloseTo(50); // centred on the aimed line
+    expect([a.damage, b.damage, a.iceDamage, b.iceDamage]).toEqual([7, 7, 3, 3]);
+    expect(a.pair).toBe(b.pair);
+    expect(doubleShotPair(shot, 30)[0].pair).not.toBe(a.pair);
+    a.hits = ["k"]; expect(b.hits).toBeUndefined(); // a pierce record is each round's own
+  });
+  test("pushShot: one round, or the pair under a Double Shot", () => {
+    const shot = { x: 0, y: 0, startX: 0, startY: 0, vx: 0, vy: 5 };
+    expect(pushShot([], [], shot, 30)).toEqual([shot]);
+    expect(pushShot([], [{ type: "doubleShot" }], shot, 30)).toHaveLength(2);
+    expect(pushShot([], [{ type: "doubleShot" }, { type: "doubleShot" }], shot, 30)).toHaveLength(2);
+  });
+});
+
+describe("🍄 One up (item effect, 2026-10-21)", () => {
+  test("whole lives, at least one", () => {
+    expect(normItemEffect({ kind: "oneUp" })).toEqual({ kind: "oneUp", lives: 1 });
+    expect(normItemEffect({ kind: "oneUp", lives: 2.6 })).toEqual({ kind: "oneUp", lives: 3 });
+    expect(normItemEffect({ kind: "oneUp", lives: 0 })).toEqual({ kind: "oneUp", lives: 1 });
+    expect(itemEffectSummary({ kind: "oneUp", lives: 1 })).toBe("+1 life");
+    expect(itemEffectSummary({ kind: "oneUp", lives: 2 })).toBe("+2 lives");
+    expect(inferAssetType({ effect: { kind: "oneUp", lives: 1 } })).toBe("item");
+  });
+});
+
+describe("🔙 Save As puts the original back (2026-10-21, the Black shirt and Scarf)", () => {
+  test("only when something saved over the original since it was opened", () => {
+    const opened = { id: "vv3nkdu", name: "Black shirt and Scarf", savedAt: 100 };
+    expect(saveAsRestores(opened, { ...opened, savedAt: 200 })).toBe(true);  // the autosave wrote red over it
+    expect(saveAsRestores(opened, { ...opened })).toBe(false);               // untouched: nothing to put back
+    expect(saveAsRestores(opened, { id: "other", savedAt: 200 })).toBe(false);
+    expect(saveAsRestores(null, { ...opened, savedAt: 200 })).toBe(false);   // a new asset has no original
+    expect(saveAsRestores(opened, null)).toBe(false);
   });
 });
