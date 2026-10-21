@@ -733969,11 +733969,11 @@
    "name": "Horse hooves",
    "type": "equipment",
    "slot": "shoes",
-   "guideId": "telfv37",
+   "guideId": "oipvf3l",
    "angles": {
     "front": [
      {
-      "id": "hrsft00",
+      "id": "hrsfo00",
       "kind": "poly",
       "mirror": true,
       "fx": {
@@ -734008,7 +734008,7 @@
       "limb": "leg"
      },
      {
-      "id": "hrsft10",
+      "id": "hrsfo10",
       "kind": "rect",
       "mirror": true,
       "fx": {
@@ -734025,7 +734025,7 @@
       "limb": "leg"
      },
      {
-      "id": "hrsft20",
+      "id": "hrsfo20",
       "kind": "poly",
       "mirror": true,
       "fx": {
@@ -734090,7 +734090,7 @@
     ],
     "back": [
      {
-      "id": "hrsbt00",
+      "id": "hrsbo00",
       "kind": "poly",
       "mirror": true,
       "fx": {
@@ -734125,7 +734125,7 @@
       "limb": "leg"
      },
      {
-      "id": "hrsbt10",
+      "id": "hrsbo10",
       "kind": "rect",
       "mirror": true,
       "fx": {
@@ -734142,7 +734142,7 @@
       "limb": "leg"
      },
      {
-      "id": "hrsbt20",
+      "id": "hrsbo20",
       "kind": "poly",
       "mirror": true,
       "fx": {
@@ -734207,7 +734207,7 @@
     ],
     "side": [
      {
-      "id": "hrsst00",
+      "id": "hrsso00",
       "kind": "poly",
       "mirror": true,
       "fx": {
@@ -734216,10 +734216,10 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "x": 74,
-      "y": 240.5,
-      "w": 59.5,
-      "h": 17.5,
+      "x": 84,
+      "y": 242,
+      "w": 42.5,
+      "h": 18,
       "points": [
        [
         0.0769,
@@ -734242,7 +734242,7 @@
       "limb": "leg"
      },
      {
-      "id": "hrsst10",
+      "id": "hrsso10",
       "kind": "rect",
       "mirror": true,
       "fx": {
@@ -734251,15 +734251,15 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "x": 75,
-      "y": 256.5,
-      "w": 58,
-      "h": 4.5,
+      "x": 83.2,
+      "y": 258.5,
+      "w": 45,
+      "h": 5,
       "color": "#8a929c",
       "limb": "leg"
      },
      {
-      "id": "hrsst20",
+      "id": "hrsso20",
       "kind": "poly",
       "mirror": true,
       "fx": {
@@ -734268,10 +734268,10 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "x": 77.5,
-      "y": 229.5,
-      "w": 44,
-      "h": 16,
+      "x": 84.8,
+      "y": 230,
+      "w": 32.7,
+      "h": 15.5,
       "points": [
        [
         0,
@@ -734320,7 +734320,7 @@
     ],
     "up": [
      {
-      "id": "hrsut00",
+      "id": "hrsuo00",
       "kind": "poly",
       "mirror": true,
       "fx": {
@@ -734355,7 +734355,7 @@
       "limb": "leg"
      },
      {
-      "id": "hrsut10",
+      "id": "hrsuo10",
       "kind": "rect",
       "mirror": true,
       "fx": {
@@ -734372,7 +734372,7 @@
       "limb": "leg"
      },
      {
-      "id": "hrsut20",
+      "id": "hrsuo20",
       "kind": "poly",
       "mirror": true,
       "fx": {
@@ -734437,7 +734437,7 @@
     ],
     "crouch": [
      {
-      "id": "hrsct00",
+      "id": "hrsco00",
       "kind": "poly",
       "mirror": true,
       "fx": {
@@ -734447,7 +734447,7 @@
        "bright": 1
       },
       "x": 58,
-      "y": 209,
+      "y": 206,
       "w": 36,
       "h": 18,
       "points": [
@@ -734472,7 +734472,7 @@
       "limb": "leg"
      },
      {
-      "id": "hrsct10",
+      "id": "hrsco10",
       "kind": "rect",
       "mirror": true,
       "fx": {
@@ -734482,14 +734482,14 @@
        "bright": 1
       },
       "x": 57,
-      "y": 225.5,
+      "y": 222.5,
       "w": 37.5,
       "h": 5,
       "color": "#8a929c",
       "limb": "leg"
      },
      {
-      "id": "hrsct20",
+      "id": "hrsco20",
       "kind": "poly",
       "mirror": true,
       "fx": {
@@ -734499,7 +734499,7 @@
        "bright": 1
       },
       "x": 61,
-      "y": 197,
+      "y": 194,
       "w": 33,
       "h": 15.5,
       "points": [
@@ -735156,7 +735156,7 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "x": 62,
+       "x": 63.5,
        "y": 240,
        "w": 36,
        "h": 18,
@@ -735191,7 +735191,7 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "x": 61,
+       "x": 61.5,
        "y": 256.5,
        "w": 37.5,
        "h": 5,
@@ -735208,8 +735208,8 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "x": 65,
-       "y": 228,
+       "x": 65.5,
+       "y": 230,
        "w": 33,
        "h": 15.5,
        "points": [
@@ -735275,7 +735275,7 @@
        },
        "x": 62,
        "y": 240,
-       "w": 36,
+       "w": 37,
        "h": 18,
        "points": [
         [
@@ -735325,8 +735325,8 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "x": 65,
-       "y": 228,
+       "x": 66,
+       "y": 229.5,
        "w": 33,
        "h": 15.5,
        "points": [
@@ -735390,7 +735390,7 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "x": 74,
+       "x": 73.5,
        "y": 240.5,
        "w": 59.5,
        "h": 17.5,
@@ -735425,9 +735425,9 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "x": 75,
+       "x": 73,
        "y": 256.5,
-       "w": 58,
+       "w": 59,
        "h": 4.5,
        "color": "#8a929c",
        "limb": "leg"
@@ -735503,7 +735503,7 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "x": 62,
+       "x": 63,
        "y": 240,
        "w": 36,
        "h": 18,
@@ -735538,7 +735538,7 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "x": 61,
+       "x": 61.5,
        "y": 256.5,
        "w": 37.5,
        "h": 5,
@@ -735555,8 +735555,8 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "x": 65,
-       "y": 228,
+       "x": 65.5,
+       "y": 229,
        "w": 33,
        "h": 15.5,
        "points": [
@@ -735620,7 +735620,7 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "x": 58,
+       "x": 60,
        "y": 209,
        "w": 36,
        "h": 18,
@@ -735655,7 +735655,7 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "x": 57,
+       "x": 59,
        "y": 225.5,
        "w": 37.5,
        "h": 5,
@@ -735672,7 +735672,7 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "x": 61,
+       "x": 62.5,
        "y": 197,
        "w": 33,
        "h": 15.5,
@@ -736311,7 +736311,7 @@
      ]
     }
    },
-   "lastFit": "telfv37",
+   "lastFit": "oipvf3l",
    "confirmedFits": [
     "telfv37",
     "oipvf3l"
@@ -736332,8 +736332,8 @@
    ],
    "value": 14,
    "rank": "rare",
-   "savedAt": 1792624814056,
-   "editedFrom": 1792624811513
+   "savedAt": 1792624874457,
+   "editedFrom": 1792624865356
   },
   {
    "id": "hrsmsk1",
