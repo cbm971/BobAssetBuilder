@@ -99,6 +99,8 @@ import {
   startReload,
   needsReload,
   displayPoseKey,
+  groundRingK,
+  groundRingVars,
   editablePoses,
   groupWeaponBlocksByArm,
   mergeFgFill,
@@ -5247,6 +5249,38 @@ describe("what pose an item is displayed in on a pedestal", () => {
   test("a genuinely empty asset reports front and lets the caller show its placeholder", () => {
     expect(displayPoseKey({ angles: { front: [], side: [] } })).toBe("front");
     expect(displayPoseKey(null)).toBe("front");
+  });
+
+  // The Shock Baton has BOTH: a staggered front copy and the side drawing it is held in. The pedestal
+  // used to draw the front one and looked jagged next to the baton in hand.
+  test("a weapon drawn in both Front and Side shows Side, the pose it is held in", () => {
+    const baton = { type: "weapon", angles: { front: [{ id: "f" }], side: [{ id: "s" }], back: [{ id: "b" }], up: [], crouch: [] } };
+    expect(displayPoseKey(baton)).toBe("side");
+    expect(displayPoseKey({ type: "weapon", angles: { front: [{ id: "f" }], side: [] } })).toBe("front");
+    expect(displayPoseKey({ type: "equipment", angles: { front: [{ id: "f" }], side: [{ id: "s" }] } })).toBe("front");
+  });
+});
+
+describe("outline thickness on art drawn in a scaled plane", () => {
+  test("an unscaled render site keeps the full 1.4px ring", () => {
+    expect(groundRingK(0)).toBe(1);
+    expect(groundRingK(NaN)).toBe(1);
+  });
+
+  test("a plane at ~0.5 px per unit gets a ring of about the editor's share of the art", () => {
+    // The Cowboy Hat on a pedestal is drawn at ~0.54: 0.7 units, not 1.4 units of the art.
+    expect(groundRingK(0.5447) * 1.4).toBeCloseTo(0.7, 5);
+    expect(groundRingK(2) * 1.4).toBeCloseTo(0.7, 5);
+  });
+
+  test("a small plane keeps a ring you can see, but never one fatter than the stock ring", () => {
+    // 0.3 px per unit: 0.7 units would be 0.21 px, so the 0.35 px floor decides.
+    expect(groundRingK(0.3) * 1.4 * 0.3).toBeCloseTo(0.35, 5);
+    expect(groundRingK(0.1)).toBe(1);
+  });
+
+  test("the plane carries it as a CSS variable", () => {
+    expect(groundRingVars(2)).toEqual({ "--olk": 0.5 });
   });
 });
 

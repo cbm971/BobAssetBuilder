@@ -3068,11 +3068,31 @@ export const copyAngleTargets = (allPoses, current, picked) => {
   if (!picked || !picked.length) return others;
   return others.filter((ag) => picked.includes(ag));
 };
+// A WEAPON is the exception to "front first": in play it is held side-on, so Side is the drawing
+// that gets the care and the one the game shows. A melee weapon DOES have a Front pose (the hand
+// held out toward the camera), and it is a looser copy — the Shock Baton's front art is a different,
+// staggered set of segments, so on a pedestal it looked jagged where the same baton in hand did not.
 export const displayPoseKey = (a) => {
   const has = (ang) => !!(a && a.angles && (a.angles[ang] || []).length);
-  for (const ang of ["front", "side", "back", "up", "crouch"]) if (has(ang)) return ang;
+  const order = a && a.type === "weapon" ? ["side", "front", "back", "up", "crouch"] : ["front", "side", "back", "up", "crouch"];
+  for (const ang of order) if (has(ang)) return ang;
   return "front";
 };
+// THE OUTLINE'S THICKNESS ON ART DRAWN IN A SCALED PLANE (a pedestal, a drop, a shop shelf, the HUD
+// weapon). An outline is a fixed ring in CSS px (outlineStyle), so it is a fixed share of the art
+// only where the art is drawn at a fixed size: in the editor it is ~0.7 design units, but inside a
+// plane squeezed to ~0.5 px per unit the same 1.4px ring is 1.4 units — twice as fat — and swallows
+// whatever a later piece was covering. The 60s Cowboy Hat's hatband is outlined and covered by the
+// brim and the crown; on a pedestal its ring ran out from under both as a black bar across the hat.
+// `--olk` multiplies the ring: unset it is 1 (every other render site is unchanged), and a plane sets
+// it so the ring is GROUND_RING_UNITS of the art — but never under GROUND_RING_MIN_PX of screen, or
+// a small item loses its outline altogether, and never over the stock ring.
+export const GROUND_RING_UNITS = 0.7, GROUND_RING_MIN_PX = 0.35, OUTLINE_RING_PX = 1.4;
+export const groundRingK = (sc) => {
+  if (!(sc > 0)) return 1;
+  return Math.min(1, Math.max(GROUND_RING_UNITS, GROUND_RING_MIN_PX / sc) / OUTLINE_RING_PX);
+};
+export const groundRingVars = (sc) => ({ "--olk": +groundRingK(sc).toFixed(3) });
 export const rollPedestalItem = (assets, cats, logic, rnd) => {
   const pool = pedestalItemPool(assets, cats, logic);
   if (!pool.length) return null;
@@ -20624,9 +20644,12 @@ export default function AssetStudio({ game = false } = {}) {
         // drop-shadow instead follows the actual post-clip silhouette (of outlineFillStyle's fill
         // sibling, which sits right below this wrapper) — one drop-shadow only casts in a single
         // direction though, so 8 tiny same-color offsets in a ring approximate a uniform outline.
-        const d = 1.4;
+        // Each offset is `calc(Npx * var(--olk, 1))`: --olk is unset (so 1) everywhere but the
+        // scaled planes that set it (groundRingVars).
+        const d = OUTLINE_RING_PX;
         const dirs = [[d, 0], [-d, 0], [0, d], [0, -d], [d, d], [d, -d], [-d, d], [-d, -d]];
-        filterParts.push(...dirs.map(([dx, dy]) => `drop-shadow(${dx}px ${dy}px 0 ${oc})`));
+        const ringPx = (n) => n === 0 ? "0px" : `calc(${n}px * var(--olk, 1))`;
+        filterParts.push(...dirs.map(([dx, dy]) => `drop-shadow(${ringPx(dx)} ${ringPx(dy)} 0 ${oc})`));
       }
     }
     if (filterParts.length) s.filter = filterParts.join(" ");
@@ -20641,7 +20664,7 @@ export default function AssetStudio({ game = false } = {}) {
     const oc = p.outlineColor || "#000";
     const cp = shapeClipPath(p);
     if (cp) { s.clipPath = cp; s.background = oc; }
-    else { if (p.kind === "circle") s.borderRadius = "50%"; else if (p.kind === "roundrect") s.borderRadius = "22%"; else if (p.kind === "stadium") s.borderRadius = STADIUM_CSS_RADIUS; s.boxShadow = "0 0 0 2px " + oc; }
+    else { if (p.kind === "circle") s.borderRadius = "50%"; else if (p.kind === "roundrect") s.borderRadius = "22%"; else if (p.kind === "stadium") s.borderRadius = STADIUM_CSS_RADIUS; s.boxShadow = "0 0 0 calc(2px * var(--olk, 1)) " + oc; }
     return s;
   };
   // The cutter hole used to be a CSS mask-image built here (cutterMaskCss, until 2026-09-20). It is
@@ -27404,7 +27427,7 @@ export default function AssetStudio({ game = false } = {}) {
                   const { pieces: artPieces, bb } = groundArt(item);
                   const dBox = LV_CELL * 1.6;
                   let dPlane = null;
-                  if (bb) { const sc = Math.min(dBox / bb.w, dBox / bb.h) * 0.86; dPlane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${dBox / 2 - sc * (bb.x + bb.w / 2)}px,${dBox / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})` }; }
+                  if (bb) { const sc = Math.min(dBox / bb.w, dBox / bb.h) * 0.86; dPlane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${dBox / 2 - sc * (bb.x + bb.w / 2)}px,${dBox / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})`, ...groundRingVars(sc) }; }
                   const icon = item.type === "weapon" ? "⚔️" : item.type === "equipment" ? "🎒" : "🧪";
                   return <div key={"drop" + k} className={"enemyDropPlay rk-" + itemRank(item)} style={{ left: drop.x, top: drop.y }} title={"Dropped " + item.name}>
                     <div className={"enemyDropOrb" + (bb ? " art" : "")} style={bb ? { width: dBox, height: dBox } : undefined}>{bb ? <div style={dPlane}>{renderPieceRuns({ pieces: artPieces, cacheKey: "drop_" + k, keyPrefix: "drop" + k + "_", alpha: assetAlpha(item), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div> : icon}</div>
@@ -27434,7 +27457,7 @@ export default function AssetStudio({ game = false } = {}) {
                     ? { opacity: 1 - 0.45 * ghost, filter: `saturate(${(1 - 0.6 * ghost).toFixed(3)}) brightness(${(1 + 0.35 * ghost).toFixed(3)}) drop-shadow(0 0 ${(5 * ghost).toFixed(2)}px rgba(130,215,255,.95))` }
                     : undefined;
                   let planeStyle = null;
-                  if (bb) { const sc = Math.min(boxW / bb.w, boxH / bb.h) * 0.86; const tx = boxW / 2 - sc * (bb.x + bb.w / 2), ty = boxH / 2 - sc * (bb.y + bb.h / 2); planeStyle = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${tx}px,${ty}px) scale(${sc})` }; }
+                  if (bb) { const sc = Math.min(boxW / bb.w, boxH / bb.h) * 0.86; const tx = boxW / 2 - sc * (bb.x + bb.w / 2), ty = boxH / 2 - sc * (bb.y + bb.h / 2); planeStyle = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${tx}px,${ty}px) scale(${sc})`, ...groundRingVars(sc) }; }
                   // The "E ⇄ + what changes" callout for the pedestal you are standing on is NOT drawn
                   // here any more — it floats over the player's head (see takeCallout, drawn with the
                   // player), because as a stack of rows it grew up the pedestal straight across the body
@@ -27660,7 +27683,7 @@ export default function AssetStudio({ game = false } = {}) {
                 if (wBb) {
                   const across = wTurn ? wBb.h : wBb.w, tall = wTurn ? wBb.w : wBb.h;
                   const sc = Math.min(wBoxW / across, wBoxH / tall) * 0.92;
-                  wPlane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${wBoxW / 2}px,${wBoxH / 2}px) rotate(${wTurn}deg) scale(${sc}) translate(${-(wBb.x + wBb.w / 2)}px,${-(wBb.y + wBb.h / 2)}px)` };
+                  wPlane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${wBoxW / 2}px,${wBoxH / 2}px) rotate(${wTurn}deg) scale(${sc}) translate(${-(wBb.x + wBb.w / 2)}px,${-(wBb.y + wBb.h / 2)}px)`, ...groundRingVars(sc) };
                 }
                 // ATK lives here only (Blake: "you don't need Atk at the top and the weapon in the bottom right").
                 const atkEffects = withTimedTagBoosts(merged?.effects, itemBuffs.current, playNowMs()); // a 🧪 timed Tag Damage shows in ATK while it runs
@@ -27938,7 +27961,7 @@ export default function AssetStudio({ game = false } = {}) {
                   const { pieces: artPieces, bb } = groundArt(it);
                   const box = 44;
                   let plane = null;
-                  if (bb) { const sc = Math.min(box / bb.w, box / bb.h) * 0.86; plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${box / 2 - sc * (bb.x + bb.w / 2)}px,${box / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})` }; }
+                  if (bb) { const sc = Math.min(box / bb.w, box / bb.h) * 0.86; plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${box / 2 - sc * (bb.x + bb.w / 2)}px,${box / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})`, ...groundRingVars(sc) }; }
                   const what = it.type === "item" ? itemEffectSummary(it.effect)
                     : it.type === "weapon" ? ((isThrowable(it.wtype) ? "Throwable ×3" : isRanged(it.wtype) ? "Ranged" : "Melee") + " · " + (it.damage ?? 5) + " dmg")
                     : ((SLOTS[it.slot] && SLOTS[it.slot].label) || "Worn") + (it.defense ? " · Defense " + it.defense : "");
