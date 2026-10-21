@@ -304,6 +304,12 @@ import {
   igniteBody,
   fireImmune,
   blastImmune,
+  luckyChance,
+  reflectChance,
+  hitFate,
+  fireDamageMult,
+  fireResistedHit,
+  FIRE_RESIST_MAX,
   shotIsFlame,
   throwIsExplosive,
   igniteDpsOf,
@@ -12749,8 +12755,8 @@ describe("a unit's armour counts the way yours does", () => {
     // drain and the gold revive glow, and to nothing else.
     // ...and the two bullet gates ask unitUntouchable (the revive grace) and nothing about i-frames.
     const untouchable = lines.map((ln, i) => [i, ln]).filter(([, ln]) => ln.includes("unitUntouchable(") && !ln.trim().startsWith("*") && !ln.trim().startsWith("//") && !ln.includes("export const unitUntouchable"));
-    expect(untouchable.length).toBe(5); // the fire drain, the sprite line (gold glow + the hit blink that stands aside for it), the two bullet gates and the swing's
-    for (const [, ln] of untouchable) expect(/eDps > 0|enemySpawn|!pr.pierce/.test(ln) || ln.includes("unitUntouchable(enemyPos.current[k])) continue;")).toBe(true); // ...or your swing's gate
+    expect(untouchable.length).toBe(6); // the fire drain, the sprite line (gold glow + the hit blink that stands aside for it), the two bullet gates, the swing's, and a 🪞 reflect landing on its attacker (not a blow: the attacker's own hit coming back, so only the revive grace turns it away)
+    for (const [, ln] of untouchable) expect(/eDps > 0|enemySpawn|!pr.pierce|aea && !unitUntouchable\(aep\)/.test(ln) || ln.includes("unitUntouchable(enemyPos.current[k])) continue;")).toBe(true); // ...or your swing's gate
   });
 
   test("a new Playtest starts on the look's own HP, not on last session's pickups", () => {
@@ -13414,7 +13420,7 @@ describe("🛡 god mode (a testing switch)", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
     expect(src).not.toMatch(/playerHP\.current\s*=\s*Math\.max\(0,\s*playerHP\.current\s*-/);
     expect(src).not.toMatch(/playerHP\.current\s*-=/);
-    expect((src.match(/playerHP\.current = playerHpAfterHit\(/g) || []).length).toBe(6); // +1: detonate's own-blast self-damage
+    expect((src.match(/playerHP\.current = playerHpAfterHit\(/g) || []).length).toBe(7); // +1: detonate's own-blast self-damage; +1: a 🪞 Reflect sending your own hit back (shrugsHit)
   });
 });
 
@@ -14365,6 +14371,58 @@ describe("🧯 Fire Immunity / 🪖 Explosion Immunity", () => {
       expect(EFFECT_TYPES[k].params).toEqual([]);
       expect(typeof EFFECT_TYPES[k].brief({})).toBe("string");
     }
+  });
+});
+
+// 🐞 Lucky / 🪞 Reflect / 🚒 Fire Resistance (2026-10-20, Blake: "a percent chance hits will not do
+// any damage", "a percent chance to reflect damage back at the attacker", a fireman's jacket and hat
+// "each with fire resistance").
+describe("🐞 Lucky, 🪞 Reflect and 🚒 Fire Resistance", () => {
+  const seq = (...v) => { let i = 0; return () => v[i++]; };
+  test("a worn chance is read off the item, and two items multiply instead of adding", () => {
+    expect(luckyChance([])).toBe(0);
+    expect(luckyChance(undefined)).toBe(0);
+    expect(luckyChance([{ type: "luckyDodge", chance: 0.2 }])).toBeCloseTo(0.2);
+    expect(luckyChance([{ type: "luckyDodge", chance: 0.2 }, { type: "luckyDodge", chance: 0.2 }])).toBeCloseTo(0.36);
+    expect(luckyChance([{ type: "luckyDodge" }])).toBeCloseTo(0.2); // the default
+    expect(reflectChance([{ type: "reflect", chance: 0.5 }, { type: "luckyDodge", chance: 0.9 }])).toBeCloseTo(0.5);
+    expect(luckyChance([{ type: "luckyDodge", chance: 1 }, { type: "luckyDodge", chance: 1 }])).toBe(1); // never past 100%
+  });
+  test("a hit is lucky, reflected or taken, never two, and luck is rolled first", () => {
+    const fx = [{ type: "luckyDodge", chance: 0.5 }, { type: "reflect", chance: 0.5 }];
+    expect(hitFate(fx, true, seq(0.1))).toBe("lucky");
+    expect(hitFate(fx, true, seq(0.9, 0.1))).toBe("reflect");
+    expect(hitFate(fx, true, seq(0.9, 0.9))).toBe("hit");
+    expect(hitFate([], true, seq(0))).toBe("hit"); // nothing worn: never rolls
+  });
+  test("a hit with nobody to send it back to (an own blast) can be lucky but never reflected", () => {
+    expect(hitFate([{ type: "reflect", chance: 0.75 }], false, seq(0, 0))).toBe("hit");
+    expect(hitFate([{ type: "luckyDodge", chance: 0.75 }], false, seq(0))).toBe("lucky");
+  });
+  test("fire resistance cuts a burn by what is left, items multiply, and one never reaches immunity", () => {
+    expect(fireDamageMult([])).toBe(1);
+    expect(fireDamageMult([{ type: "fireResist", resist: 0.4 }])).toBeCloseTo(0.6);
+    expect(fireDamageMult([{ type: "fireResist", resist: 0.4 }, { type: "fireResist", resist: 0.25 }])).toBeCloseTo(0.45); // jacket + hat: 55% off
+    expect(fireDamageMult([{ type: "fireResist", resist: 1 }])).toBeCloseTo(1 - FIRE_RESIST_MAX);
+  });
+  test("a flame round is cut (never below 1); a bullet is not", () => {
+    const fx = [{ type: "fireResist", resist: 0.5 }];
+    expect(fireResistedHit(6, { ignite: 2 }, fx)).toBe(3);
+    expect(fireResistedHit(1, { ignite: 2 }, fx)).toBe(1);
+    expect(fireResistedHit(6, { ignite: 0 }, fx)).toBe(6);
+    expect(fireResistedHit(6, { ignite: 2 }, [])).toBe(6);
+  });
+  test("all three are in the registry with a brief, worn by anyone", () => {
+    for (const k of ["luckyDodge", "reflect", "fireResist"]) {
+      expect(EFFECT_TYPES[k].noAnim).toBe(true);
+      expect(typeof EFFECT_TYPES[k].brief({ chance: 0.2, resist: 0.4 })).toBe("string");
+    }
+    expect(EFFECT_TYPES.luckyDodge.brief({ chance: 0.2 })).toBe("20% chance a hit does no damage");
+  });
+  test("every hit site asks shrugsHit before it takes HP off, on the player and on units", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    const calls = (src.match(/shrugsHit\(/g) || []).length; // the definition reads "shrugsHit = (", so it is not counted
+    expect(calls).toBe(16);
   });
 });
 

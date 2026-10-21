@@ -757,6 +757,14 @@ plus traps it does not cover:
   Fire = no burn pool at all (fire cells AND Ignite, zeroed where the pool is fed) plus a flame SHOT (`shotIsFlame`:
   a ranged round with ignite) washing over. Blast = every branch of `detonate` and the contact hit of an explosive
   throwable (`throwIsExplosive`: explode or Cluster). A new blast or flame damage site must ask them too.
+- **🐞 Lucky / 🪞 Reflect / 🚒 Fire Resistance (clothing abilities, 2026-10-20):** every hit site, both ways, calls
+  `shrugsHit(wearer, effects, dmg, by, x, y)` (loop level) once its damage is known and before HP moves. True = the hit
+  does nothing to the wearer (no damage, stun, burn or i-frames); reflect has already put the wearer's post-armour damage
+  on `by` ("player", a unit key, or null; shots carry `shooterKey`, unit throws `throwerKey`). Never reflected twice, and
+  an own blast rolls luck only. Chances and resistances MULTIPLY across items (`hitFate`, `fireDamageMult`). Fire is not
+  a hit: resistance scales the burn pool and a flame round (`fireResistedHit`), luck never reads fire. A new hit site
+  calls shrugsHit (a test counts 16). The marks are booms with `slot: "fx.lucky" | "fx.reflect"`. Items: Lucky Hat
+  `lckyhat`, Spiked Jacket `spkjkt1`, Fireman's Coat `frcoat1`, Fireman's Helmet `frhelm1`.
 - **Clothing prints are textures** (Tye Dye, Flannel, 🦓 `zebra`): the piece carries `tex: <texture record id>`, and the
   record ships in library.json `textures`. A fresh store restores textures when an editor opens (`loadTextures`).
 - **Melee DPS is damage x a fixed swing** (`PLAYER_SWING_FRAMES` 12, 5 swings/s); a melee weapon's Fire rate does nothing.

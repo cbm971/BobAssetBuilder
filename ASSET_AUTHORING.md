@@ -70,6 +70,8 @@ with any ranged weapon — no params), `headStomp` (👢 Stomp: land on an enemy
 Mario-style, for `damage` 5–200 riding Strength, and bounce `bounce` 0.5–8 cells; worn by an enemy it
 leaps at you, and needs Agility 10 to clear a Bob), `fireImmune` (🧯 fire, burning and flamethrower
 flames do nothing — no params), `blastImmune` (🪖 explosions do nothing, your own included — no params).
+`luckyDodge` (🐞 `chance` 0.05–0.75 that a hit does nothing), `reflect` (🪞 `chance` 0.05–0.75 that a hit goes back
+at the attacker instead), `fireResist` (🚒 `resist` 0.05–0.95 off all fire damage; two items multiply).
 One of each type per item.
 
 ---

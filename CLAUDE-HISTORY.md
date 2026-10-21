@@ -5191,3 +5191,27 @@ trees but will"), so nothing of his was touched. New level `vcfrm02` "Forest M2"
     the flamethrower wash-over (unit-tested helpers, same gate shape as the driven sites).
   - **Trap:** a brand-new store's startup `loadTextures` had not restored the new texture 8 s in; opening any editor
     (which calls it again) did. Assets were already there.
+
+* **🐞 Lucky, 🪞 Reflect, 🚒 Fire Resistance + Lucky Hat, Spiked Jacket, Fireman's Coat and Helmet, 2026-10-20.** Blake:
+  "an ability that adds a percent chance hits will not do any damage, and added to a 'Lucky hat' you decide the design. And
+  an item that has a percent change to reflect damage back at the attacker ... maybe a jacket? I would also like a firemans
+  jacket and hat, each with fire resistance."
+  - **One gate, sixteen callers.** Damage had no single choke point on the unit side (12 `enemyHP` writes) and six on yours,
+    so `shrugsHit` is asked at each one right after the damage number and before HP moves. Two existing grep-tests moved:
+    `playerHpAfterHit` is now 7 (a reflect onto you), `unitUntouchable(` 6 (a reflect onto a unit honours only the revive
+    grace: its i-frames from the blow it just took would otherwise swallow most reflections). The reflected line uses
+    `- loss)` so the "every hit starts i-frames" test leaves it alone; a reflection is not a blow.
+  - **Attackers:** your shots have no `shooterKey` (so "player"), a unit's do; unit throws got `throwerKey`. A foe's
+    throw or blast with no key reflects to nobody. Your 👢 head stomp still bounces when the hit is shrugged.
+  - **Fire Resistance is new rather than reusing 🧯** because a coat AND a helmet each "with fire resistance" only makes sense
+    if they add up; immunity on both would make one of them pointless. Coat 40% + helmet 25% = 55% off.
+  - **Art:** both jackets are his Leather Jacket's boxes per fit and pose. Spikes stand on the torso panel's WORLD top edge
+    (his Bobbett panels are r175, upside down, so local "top" is the hem — the first render put the spikes at her hips).
+    The coat is closed down the middle (a turned panel overlaps to x 96 or it gapes at the hem), 14 longer, with three
+    `#e9ecef` reflective bands; the sleeve band is a sub-box placed in the sleeve's own rotated frame (`subBox`:
+    d = (I-R)(O-T)). Lucky Hat = green bowler + four-leaf clover; helmet = red dome, gold front shield, long rear brim.
+    Generators: scratchpad gen.js / view.js / deliver.js (session c314f27c).
+  - **Driven in the running studio** (seeded flat level, Bob clones with 75% reflect / 75% lucky / 40%+25% resist): a Squirrel
+    biting plain Bob took him 35→26→17→8→dead; on Reflect Bob it went 25→16→7→dead with him at 35/35; on Lucky Bob 3 bites
+    in 10 s landed. Plain Bob shooting a Reflect Bob enemy with the Experimental Rifle lost HP to his own rounds. In a fire
+    row plain Bob burned ~18 HP/s, resistant Bob ~8.4 (0.47, expected 0.45). Both marks drew in their slot colours.

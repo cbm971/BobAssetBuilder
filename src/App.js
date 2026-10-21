@@ -1599,6 +1599,55 @@ export const fireImmune = (effects) => wearsEffect(effects, "fireImmune");
 export const blastImmune = (effects) => wearsEffect(effects, "blastImmune");
 export const shotIsFlame = (pr) => !!pr && (pr.ignite || 0) > 0;
 export const throwIsExplosive = (a) => !!a && (!!a.explode || Math.round(a.clusterCount || 0) > 0);
+// 🐞 LUCKY / 🪞 REFLECT / 🚒 FIRE RESISTANCE (clothing abilities, 2026-10-20). Blake asked for "an
+// ability that adds a percent chance hits will not do any damage" (on a Lucky Hat) and "an item that
+// has a percent chance to reflect damage back at the attacker", plus a fireman's jacket and hat "each
+// with fire resistance". Whoever wears them, player or unit, by the same functions.
+//   Lucky   = a HIT that lands on the wearer does nothing at all: no damage, no stun, no burn, no
+//             i-frames. Fire is not a hit (the burn drain is per second, not a blow), so luck never
+//             reads it; that is what Fire Resistance is for.
+//   Reflect = the hit goes back at whoever threw it instead: the wearer takes nothing and the
+//             ATTACKER takes the damage the wearer would have taken (after the wearer's armour, so it
+//             is never more than the hit was worth here). A body caught in its own blast has nobody
+//             to send it back to, so reflect only rolls when the attacker is someone else. A
+//             reflected hit is never reflected again: two mirror jackets cannot bat a hit back and forth.
+//   Fire Resistance = a PART of fire: the burn drain (fire cells and Ignite) and a flame shot's hit
+//             are cut by the worn percent. Unlike 🧯 Fire Immunity it stacks, which is the point of a
+//             jacket AND a hat: each one multiplies what is left (40% and 25% together take 55% off).
+// The chances stack the same way: two 20% items give 1 - 0.8 x 0.8 = 36%, never past 100%.
+// Lucky is rolled first, then reflect, so a hit is either lucky, reflected or taken, never two.
+export const DEFAULT_LUCKY_CHANCE = 0.2, DEFAULT_REFLECT_CHANCE = 0.25, DEFAULT_FIRE_RESIST = 0.4;
+export const FIRE_RESIST_MAX = 0.95; // one item never adds up to Fire Immunity; that ability is its own
+const clampChance = (v) => Math.max(0, Math.min(1, Number(v) || 0));
+export const stackedChance = (effects, type, def) => {
+  let miss = 1;
+  for (const e of effects || []) if (e && e.type === type) miss *= 1 - clampChance(e.chance ?? def);
+  return 1 - miss;
+};
+export const luckyChance = (effects) => stackedChance(effects, "luckyDodge", DEFAULT_LUCKY_CHANCE);
+export const reflectChance = (effects) => stackedChance(effects, "reflect", DEFAULT_REFLECT_CHANCE);
+// "lucky", "reflect" or "hit" for one hit landing on a wearer. canReflect is false when there is
+// nobody else to send it to (an own blast, a hit with no thrower).
+export const hitFate = (effects, canReflect, rng = Math.random) => {
+  const lucky = luckyChance(effects);
+  if (lucky > 0 && rng() < lucky) return "lucky";
+  const back = canReflect ? reflectChance(effects) : 0;
+  if (back > 0 && rng() < back) return "reflect";
+  return "hit";
+};
+// What is left of fire damage after every worn Fire Resistance (1 = none worn).
+export const fireDamageMult = (effects) => {
+  let m = 1;
+  for (const e of effects || []) if (e && e.type === "fireResist") m *= 1 - Math.max(0, Math.min(FIRE_RESIST_MAX, Number(e.resist ?? DEFAULT_FIRE_RESIST) || 0));
+  return m;
+};
+// A flame SHOT's hit after the wearer's Fire Resistance; any other shot is untouched. Never below 1,
+// the floor every hit already has (incomingPlayerDamage).
+export const fireResistedHit = (dmg, pr, effects) => {
+  if (!shotIsFlame(pr)) return dmg;
+  const m = fireDamageMult(effects);
+  return m >= 1 ? dmg : Math.max(1, Math.round(dmg * m));
+};
 export const DEFAULT_MELEE_BOOST = 3; // 🦍 Melee boost: a freshly added one triples your punch
 // What the 👊 Q/V swing is multiplied by with this weapon in hand. Only a RANGED weapon can carry
 // it (a melee weapon's swing is its own Damage number already), and anything <= 1 means off.
@@ -5475,6 +5524,35 @@ export const EFFECT_TYPES = {
     brief: () => "immune to explosions",
     noAnim: true,
     params: [],
+  },
+  // 🐞 / 🪞 / 🚒 — see hitFate and fireDamageMult for exactly what each one does, and why the
+  // chances and the resistances multiply instead of adding when two items carry the same one.
+  luckyDodge: {
+    label: "Lucky", icon: "🐞",
+    blurb: "Some hits just miss you: each hit that lands has the chance you set to do nothing at all — no damage, no stun, no burn. Fire you stand in is not a hit (Fire Resistance covers that). Two lucky items stack (20% and 20% make 36%). Worn by a 👹 Enemy it works on THEM. No animation of its own.",
+    brief: (p) => briefPct(p.chance) + " chance a hit does no damage",
+    noAnim: true,
+    params: [
+      { key: "chance", label: "Chance", min: 0.05, max: 0.75, step: 0.05, def: DEFAULT_LUCKY_CHANCE, fmt: (v) => briefPct(v) },
+    ],
+  },
+  reflect: {
+    label: "Reflect", icon: "🪞",
+    blurb: "Sends hits back: each hit that lands has the chance you set to bounce back at whoever threw it — they take the damage and you take none. Works on swings, bites, stomps, shots, throws and blasts; your own blast has nobody to go back to. Two reflect items stack. Worn by a 👹 Enemy it works on THEM, so your own shots can come back at you. No animation of its own.",
+    brief: (p) => briefPct(p.chance) + " chance to send a hit back at the attacker",
+    noAnim: true,
+    params: [
+      { key: "chance", label: "Chance", min: 0.05, max: 0.75, step: 0.05, def: DEFAULT_REFLECT_CHANCE, fmt: (v) => briefPct(v) },
+    ],
+  },
+  fireResist: {
+    label: "Fire Resistance", icon: "🚒",
+    blurb: "Fire hurts you less: the burn from flames you stand in, from anything that set you alight, and a flamethrower's hit are all cut by the percent you set. Several items stack (a 40% jacket and a 25% hat take 55% off). Fire Immunity is the all-or-nothing version. Worn by a 👹 Enemy it works on THEM. No animation of its own.",
+    brief: (p) => briefPct(p.resist) + " less fire damage",
+    noAnim: true,
+    params: [
+      { key: "resist", label: "Resist", min: 0.05, max: FIRE_RESIST_MAX, step: 0.05, def: DEFAULT_FIRE_RESIST, fmt: (v) => briefPct(v) },
+    ],
   },
   extraLives: {
     label: "Extra Lives", icon: "🐱",
@@ -14582,6 +14660,7 @@ export default function AssetStudio({ game = false } = {}) {
     const crouchGuardEffect = (playerAsset?.effects || []).find((e) => e.type === "crouchGuard") || null;
     const crouchGuardReduce = crouchGuardEffect ? (crouchGuardEffect.reduce ?? 0.5) : null; // null = not worn, skip the crouch check entirely
     const pFireImmune = fireImmune(playerAsset?.effects), pBlastImmune = blastImmune(playerAsset?.effects); // 🧯 / 🪖
+    const pFireMult = fireDamageMult(playerAsset?.effects); // 🚒 what is left of a burn (1 = no resistance worn)
     // Tackle carries one number — how long whoever you barge into stays on the floor. null when
     // it isn't worn, so the per-enemy contact test below is skipped outright rather than run 60
     // times a second for every player who owns no football kit.
@@ -14789,6 +14868,37 @@ export default function AssetStudio({ game = false } = {}) {
       respawnAtEntry(p);
       playerHP.current = maxPlayerHP(playerAsset);
       return false;
+    };
+    // 🐞 LUCKY / 🪞 REFLECT, asked by EVERY hit site, player and unit alike, after the hit's damage is
+    // worked out and before any of it lands (see hitFate). `wearer` is "player" or the struck unit's
+    // key, `effects` what it wears, `by` who threw the hit ("player", a unit key, or null when nobody
+    // can be named), x/y where the mark shows. True = the hit does NOTHING to the wearer: the caller
+    // skips its damage, stun, burn and i-frames, exactly as for a miss. A reflected hit goes onto the
+    // attacker here, by the attacker's own HP rules (god mode and playerDefeated for you; the 🐱 revive
+    // grace for a unit), and is final: it is never rolled for luck or reflected a second time.
+    const shrugsHit = (wearer, effects, dmg, by, x, y) => {
+      const fate = hitFate(effects, by != null && by !== wearer);
+      if (fate === "hit") return false;
+      if (fate === "reflect" && dmg > 0) {
+        if (by === "player") {
+          const p = player.current;
+          if (playerHP.current > 0 && !(p.lifeGrace > 0)) {
+            playerHP.current = playerHpAfterHit(playerHP.current, dmg);
+            if (playerHP.current <= 0) playerDefeated(p, "💀 Your own hit came back at you — back to the start.");
+          }
+        } else {
+          const aep = enemyPos.current[by], aea = aep ? unitAssetAt(by, lv.enemies[by]) : null;
+          if (aea && !unitUntouchable(aep)) {
+            const hpNow = enemyHP.current[by] === undefined ? unitMaxHP(aea, aep, allyHpBonus) : enemyHP.current[by], loss = dmg;
+            if (hpNow > 0) {
+              enemyHP.current[by] = Math.max(0, hpNow - loss);
+              aep.lastHitByFx = wearer === "player" ? null : (effects || []); // a kill your jacket sent back is YOUR kill (the score)
+            }
+          }
+        }
+      }
+      booms.current.push({ x, y, propId: null, slot: fate === "lucky" ? "fx.lucky" : "fx.reflect", size: 2, life: 0, maxLife: 30 });
+      return true;
     };
     // Precompute solid object footprints (a sized emoji can cover more than its anchor cell).
     // "In front of player" objects are a purely visual overlay (that's the whole point of the
@@ -15225,6 +15335,7 @@ export default function AssetStudio({ game = false } = {}) {
             if (enemyHP.current[k] <= 0) continue;
             const isCrit = Math.random() < critChance(pstats.intelligence);
             const dmg = incomingUnitDamage(playerMeleeDamage(tailSwing.damage, pstats.strength) * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, b.x + b.w / 2, false);
+            if (shrugsHit(k, ea.effects, dmg, "player", b.x + b.w / 2, b.y)) continue; // 🐞 / 🪞
             enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
             ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
             ep.lastHitByFx = null; // the last blow was yours
@@ -15791,9 +15902,10 @@ export default function AssetStudio({ game = false } = {}) {
             if (enemyHP.current[k] === undefined) enemyHP.current[k] = enemyMaxHP(ea);
             const isCrit = Math.random() < critChance(pstats.intelligence);
             const dmg = incomingUnitDamage(playerMeleeDamage(headStompEffect.damage, pstats.strength) * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, under.x + under.w / 2, false);
-            enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
-            if (ep) ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
-            if (ep) ep.lastHitByFx = null; // the last blow was yours
+            const shrugged = shrugsHit(k, ea.effects, dmg, "player", under.x + under.w / 2, under.y); // 🐞 / 🪞 — you still bounce off the head below
+            enemyHP.current[k] = Math.max(0, enemyHP.current[k] - (shrugged ? 0 : dmg));
+            if (ep && !shrugged) ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
+            if (ep && !shrugged) ep.lastHitByFx = null; // the last blow was yours
             flash((isCrit ? "💥 Critical! " : "👢 ") + "Stomped " + ea.name + " for " + dmg + crouchGuardNote(ea.effects, ep && ep.crouch) + (enemyHP.current[k] <= 0 ? " — defeated!" : " (" + enemyHP.current[k] + " HP left)"));
           }
           // ...and off the head you go, hurt or not: you landed on it. No Agility hold boost on top —
@@ -15819,7 +15931,7 @@ export default function AssetStudio({ game = false } = {}) {
       // The ONE window it does honour is lifeGrace, the 🐱 Extra Life flash: you get back up in the
       // flames you died in, and without this the next life goes a sixth of a second later.
       if (pFireImmune) p.ignite = 0; // 🧯 nothing sets you alight
-      const pDps = pFireImmune ? 0 : hazardDpsAt(lv, p.x, p.y, pw, ph, CW, CH, hazardAlive) + igniteDpsOf(p); // 🔥 plus a hit that set you alight
+      const pDps = pFireImmune ? 0 : (hazardDpsAt(lv, p.x, p.y, pw, ph, CW, CH, hazardAlive) + igniteDpsOf(p)) * pFireMult; // 🔥 plus a hit that set you alight, less any 🚒 resistance
       tickIgnite(p, dtMul);
       if (pDps > 0 && !p.transitioning && !(p.lifeGrace > 0)) {
         p.burnPool = (p.burnPool || 0) + pDps * (dtMul / 60);
@@ -16694,7 +16806,7 @@ export default function AssetStudio({ game = false } = {}) {
           // per-enemy fractional pool. Fire is universal: it doesn't care whose side you're on.
           const eFireImmune = fireImmune(ea.effects); // 🧯 the player's rule, on it
           if (eFireImmune) ep.ignite = 0;
-          const eDps = eFireImmune ? 0 : hazardDpsAt(lv, ep.x, ep.y, epw, newEph, CW, CH, hazardAlive) + igniteDpsOf(ep); // 🔥 plus a hit that set it alight
+          const eDps = eFireImmune ? 0 : (hazardDpsAt(lv, ep.x, ep.y, epw, newEph, CW, CH, hazardAlive) + igniteDpsOf(ep)) * fireDamageMult(ea.effects); // 🔥 plus a hit that set it alight, less any 🚒 resistance
           tickIgnite(ep, dtMul);
           // Fire is universal and does not care whose side you are on — with ONE exception, and it
           // is not a special case so much as closing the door the rest of the rule leaves open: a
@@ -16789,6 +16901,7 @@ export default function AssetStudio({ game = false } = {}) {
               const crit = Math.random() < critChance(eIntel);
               const dmg = incomingPlayerDamage(crit ? rawDmg0 * 2 : rawDmg0, playerAsset?.defense ?? 0, p.face, atkCX, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(hitEw && hitEw.ignoreArmor));
               const critNote = crit ? "💥 Critical! " : "";
+              if (shrugsHit("player", playerAsset?.effects, dmg, k, p.x + pw / 2, p.y)) return true; // 🐞 / 🪞 the blow is spent, as a block spends it
               playerHP.current = playerHpAfterHit(playerHP.current, dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
               if (playerHP.current <= 0) { playerDefeated(p, "💀 " + ea.name + " defeated you — back to the start."); }
@@ -16810,7 +16923,9 @@ export default function AssetStudio({ game = false } = {}) {
               if (unitHitImmune(bEp)) return false; // mid-revive or in its i-frames: the swing finds nobody, exactly as the player's i-frames read just above
               const cur = enemyHP.current[key] === undefined ? unitMaxHP(bEa, bEp, allyHpBonus) : enemyHP.current[key];
               const crit = Math.random() < critChance(eIntel);
-              enemyHP.current[key] = Math.max(0, cur - incomingUnitDamage(crit ? rawDmg0 * 2 : rawDmg0, bEa, bEp, atkCX, unitCenterX(bEa, bEp, CW), !!(hitEw && hitEw.ignoreArmor)));
+              const uDmg = incomingUnitDamage(crit ? rawDmg0 * 2 : rawDmg0, bEa, bEp, atkCX, unitCenterX(bEa, bEp, CW), !!(hitEw && hitEw.ignoreArmor));
+              if (shrugsHit(key, bEa.effects, uDmg, k, unitCenterX(bEa, bEp, CW), bEp ? bEp.y : 0)) return true; // 🐞 / 🪞
+              enemyHP.current[key] = Math.max(0, cur - uDmg);
               if (bEp) bEp.invuln = PLAYER_INVULN_FRAMES; // the player's i-frames, on it (unitHitImmune)
               if (bEp) bEp.lastHitByFx = ea.effects || []; // who struck it, for a 🍀 Lucky Find the striker wears (the loot pass)
               if (enemyHP.current[key] <= 0) flash(friendly ? (allyBadge(ep) + " Your " + ea.name + " defeated " + (bEa.name || "a foe") + "!") : ("💔 Your " + (bEa.name || "ally") + " fell."));
@@ -16988,6 +17103,7 @@ export default function AssetStudio({ game = false } = {}) {
                 // who every payload of it lands on and the two sides cannot drift apart.
                 foe: hostile,
                 throwerFx: ea.effects || [], // for a 🍀 Lucky Find the thrower wears (the loot pass)
+                throwerKey: k, // who threw it, for a 🪞 Reflect worn by whoever it hits
               });
               sndMoment(eThrowable, "throw", null, eCenterXFinal, ep.y + newEph * 0.4); // 🔊 its throwable's Throw
               ep.throwLeft -= 1;
@@ -17417,7 +17533,9 @@ export default function AssetStudio({ game = false } = {}) {
           const bx = enemyBlastBox(ea, ep);
           if (!blastHitsBox(ix, iy, bx.x, bx.y, bx.w, bx.h, radPx)) return;
           const sCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
-          enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(sCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2));
+          const sDmg = incomingUnitDamage(sCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2);
+          if (shrugsHit(k, ea.effects, sDmg, k, bx.x + bx.w / 2, bx.y)) return; // 🐞 its own blast: luck, never a reflect
+          enemyHP.current[k] = Math.max(0, enemyHP.current[k] - sDmg);
           ep.invuln = PLAYER_INVULN_FRAMES;
           ep.lastHitByFx = pr.shooterFx || null;
           if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) igniteBody(ep, pr.ignite, pr.igniteDps);
@@ -17429,12 +17547,15 @@ export default function AssetStudio({ game = false } = {}) {
               // The shooter's crit, rolled here where it lands — your blast rolls yours the same way.
               const bCrit = pr.critInt != null && Math.random() < critChance(pr.critInt), bNote = bCrit ? "💥 Critical! " : "";
               const dmg = incomingPlayerDamage(bCrit ? baseDmg * 2 : baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch);
+              if (shrugsHit("player", playerAsset?.effects, dmg, pr.shooterKey || null, pcx, p.y)) { /* 🐞 / 🪞 nothing lands on you */ }
+              else {
               playerHP.current = playerHpAfterHit(playerHP.current, dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
               if (playerHP.current > 0) igniteBody(p, pr.ignite, pr.igniteDps);
               if (playerHP.current <= 0) { playerDefeated(p, "💀 Caught in the blast — back to the start."); }
               else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(bNote + "💥 Blast hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
               else flash(bNote + "💥 Blast hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)");
+              }
             }
           }
           for (const k of Object.keys(lv.enemies || {})) {
@@ -17445,7 +17566,9 @@ export default function AssetStudio({ game = false } = {}) {
               // Armour counts, as it does on you just above; the shooter's crit and the weapon's
               // stun land on your ally exactly as yours land on a hostile in the branch below.
               const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
-              enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(aCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2));
+              const aDmg = incomingUnitDamage(aCrit ? baseDmg * 2 : baseDmg, ea, ep, ix, bx.x + bx.w / 2);
+              if (shrugsHit(k, ea.effects, aDmg, pr.shooterKey || null, bx.x + bx.w / 2, bx.y)) continue; // 🐞 / 🪞
+              enemyHP.current[k] = Math.max(0, enemyHP.current[k] - aDmg);
               ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln just above (unitHitImmune)
               ep.lastHitByFx = pr.shooterFx || null;
               if ((pr.stun ?? 0) > 0 && enemyHP.current[k] > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; } if (enemyHP.current[k] > 0) igniteBody(ep, pr.ignite, pr.igniteDps);
@@ -17466,6 +17589,7 @@ export default function AssetStudio({ game = false } = {}) {
               const base = playerRangedDamage(baseDmg);
               // Whoever fired it: your Intelligence for your shot, a friendly unit's for its own.
               const dmg = incomingUnitDamage((Math.random() < critChance(pr.critInt ?? pstats.intelligence)) ? base * 2 : base, ea, ep, ix, bx.x + bx.w / 2);
+              if (shrugsHit(k, ea.effects, dmg, pr.shooterKey || "player", bx.x + bx.w / 2, bx.y)) continue; // 🐞 / 🪞
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
               ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln in the foe branch above (unitHitImmune)
               ep.lastHitByFx = pr.shooterFx || null;
@@ -17484,11 +17608,14 @@ export default function AssetStudio({ game = false } = {}) {
             if (blastHitsBox(ix, iy, p.x, p.y, pw, ph, radPx)) {
               const sCrit = Math.random() < critChance(pr.critInt ?? pstats.intelligence);
               const dmg = incomingPlayerDamage(sCrit ? baseDmg * 2 : baseDmg, playerAsset?.defense ?? 0, p.face, ix, pcx, backGuardReduce, crouchGuardReduce, p.crouch);
+              if (shrugsHit("player", playerAsset?.effects, dmg, "player", pcx, p.y)) { /* 🐞 your own blast: luck, never a reflect */ }
+              else {
               playerHP.current = playerHpAfterHit(playerHP.current, dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
               if (playerHP.current <= 0) { playerDefeated(p, "💀 Caught in your own blast — back to the start."); }
               else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash("💥 Caught in your own blast for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
               else flash("💥 Caught in your own blast for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)");
+              }
             }
           }
         }
@@ -17669,6 +17796,7 @@ export default function AssetStudio({ game = false } = {}) {
                     const isCrit = Math.random() < critChance(intelligence);
                     // ...through the unit's own armour, the way their swing at you goes through yours.
                     const dmg = incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, p.x + pw / 2, eHitLeft + epw / 2, !unarmedSwing && !!(playtestWeapon && playtestWeapon.ignoreArmor));
+                    if (shrugsHit(k, ea.effects, dmg, "player", eHitLeft + epw / 2, hitTop)) { p.swingHits[k] = true; continue; } // 🐞 / 🪞 struck, for nothing: still one hit per body per stroke
                     enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🗡️ swing: starts no i-frames
                     if (ep) ep.lastHitByFx = null; // the last blow was yours
                     if (ep && enemyHP.current[k] > 0 && !unarmedSwing && playtestWeapon && (playtestWeapon.stun ?? 0) > 0) { ep.stun = Math.round(playtestWeapon.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
@@ -17723,6 +17851,7 @@ export default function AssetStudio({ game = false } = {}) {
             if (enemyHP.current[k] <= 0) continue;
             const isCrit = Math.random() < critChance(pstats.intelligence);
             const dmg = incomingUnitDamage(stompDamage(pstats.strength) * smallStompMul * (isCrit ? 2 : 1), ea, ep, p.x + pw / 2, b.x + b.w / 2, false);
+            if (shrugsHit(k, ea.effects, dmg, "player", b.x + b.w / 2, b.y)) { p.stomp.hits[k] = true; continue; } // 🐞 / 🪞
             enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg);
             if (ep) ep.invuln = PLAYER_INVULN_FRAMES; // your i-frames, on it (unitHitImmune)
             if (ep) ep.lastHitByFx = null; // the last blow was yours
@@ -17861,6 +17990,7 @@ export default function AssetStudio({ game = false } = {}) {
               if (p.invuln > 0) continue;
               if (pBlastImmune && throwIsExplosive(g.asset)) continue; // 🪖 a grenade going off on you; it still stopped on you
               const dmg = incomingPlayerDamage(impactDmg, playerAsset?.defense ?? 0, p.face, g.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, !!(g.asset && g.asset.ignoreArmor));
+              if (shrugsHit("player", playerAsset?.effects, dmg, g.throwerKey || null, p.x + pw / 2, p.y)) continue; // 🐞 / 🪞
               playerHP.current = playerHpAfterHit(playerHP.current, dmg);
               p.invuln = PLAYER_INVULN_FRAMES;
               if (playerHP.current <= 0) { playerDefeated(p, "💀 Blown off your feet — back to the start."); }
@@ -17871,6 +18001,7 @@ export default function AssetStudio({ game = false } = {}) {
             if (throwIsExplosive(g.asset) && blastImmune(s.ea.effects)) continue; // 🪖 as on you just above
             // The same treatment the player branch just above gets — a rock in the face is a hit.
             const uDmg = incomingUnitDamage(impactDmg, s.ea, s.ep, g.x, unitCenterX(s.ea, s.ep, CW), !!(g.asset && g.asset.ignoreArmor));
+            if (shrugsHit(s.k, s.ea.effects, uDmg, g.throwerKey || (g.foe ? null : "player"), unitCenterX(s.ea, s.ep, CW), s.ep ? s.ep.y : g.y)) continue; // 🐞 / 🪞
             enemyHP.current[s.k] = Math.max(0, enemyHP.current[s.k] - uDmg);
             if (s.ep) s.ep.invuln = PLAYER_INVULN_FRAMES; // as p.invuln just above (unitHitImmune)
             if (s.ep) s.ep.lastHitByFx = g.throwerFx || null;
@@ -18078,13 +18209,15 @@ export default function AssetStudio({ game = false } = {}) {
                 // The shooter's crit, off its Intelligence, rolled where the round lands — yours is.
                 if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
                 const sCrit = pr.critInt != null && Math.random() < critChance(pr.critInt), sNote = sCrit ? "💥 Critical! " : "";
-                const dmg = incomingPlayerDamage(sCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, pr.ignoreArmor);
+                const dmg = fireResistedHit(incomingPlayerDamage(sCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), playerAsset?.defense ?? 0, p.face, pr.x, p.x + pw / 2, backGuardReduce, crouchGuardReduce, p.crouch, pr.ignoreArmor), pr, playerAsset?.effects); // 🚒
+                if (!shrugsHit("player", playerAsset?.effects, dmg, pr.shooterKey || null, p.x + pw / 2, p.y)) { // 🐞 / 🪞 — either way the round is spent below
                 playerHP.current = playerHpAfterHit(playerHP.current, dmg);
                 p.invuln = PLAYER_INVULN_FRAMES;
                 if (playerHP.current > 0) igniteBody(p, pr.ignite, pr.igniteDps);
                 if (playerHP.current <= 0) { playerDefeated(p, "💀 Shot down — back to the start."); }
                 else if ((pr.stun ?? 0) > 0) { stunPlayer(p, pr.stun); flash(sNote + "🏹 Hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " — 💫 stunned for " + pr.stun + "s (" + playerHP.current + " HP left)"); }
                 else flash(sNote + "🏹 Hit for " + dmg + crouchGuardNote(playerAsset?.effects, p.crouch) + " (" + playerHP.current + " HP left)");
+                }
                 if (!pr.pierce) return false; // consumed on impact — a 🪡 piercing shot flies on
               } else if (!pr.pierce) return false; // struck an invulnerable player: still consumed, just does nothing
             }
@@ -18105,7 +18238,9 @@ export default function AssetStudio({ game = false } = {}) {
                 // The shooter's crit and its weapon's stun, on your ally as yours land on a hostile.
                 const aCrit = pr.critInt != null && Math.random() < critChance(pr.critInt);
                 if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
-                enemyHP.current[k] = Math.max(0, enemyHP.current[k] - incomingUnitDamage(aCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor)); // 🔫 bullet: starts no i-frames
+                const aDmg = fireResistedHit(incomingUnitDamage(aCrit ? (pr.damage ?? 5) * 2 : (pr.damage ?? 5), ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor), pr, ea.effects); // 🚒
+                if (shrugsHit(k, ea.effects, aDmg, pr.shooterKey || null, eHitLeft + epw / 2, hitTop)) { if (!pr.pierce) return false; continue; } // 🐞 / 🪞 the round is spent on it either way
+                enemyHP.current[k] = Math.max(0, enemyHP.current[k] - aDmg); // 🔫 bullet: starts no i-frames
                 ep.lastHitByFx = pr.shooterFx || null;
                 if (enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
                 if (enemyHP.current[k] > 0) igniteBody(ep, pr.ignite, pr.igniteDps);
@@ -18182,7 +18317,8 @@ export default function AssetStudio({ game = false } = {}) {
               const isCrit = Math.random() < critChance(pr.critInt ?? intelligence); // a friendly unit's round crits off ITS Intelligence
               if (ep) ep.lastHitByFx = pr.shooterFx || null;
               if (pr.snd) sndMoment(pr.snd, "hit", null, pr.x, pr.y); // 🔊 the shooter's weapon Hit
-              const dmg = incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor);
+              const dmg = fireResistedHit(incomingUnitDamage(isCrit ? base * 2 : base, ea, ep, pr.x, eHitLeft + epw / 2, pr.ignoreArmor), pr, ea.effects); // 🚒
+              if (shrugsHit(k, ea.effects, dmg, pr.shooterKey || "player", eHitLeft + epw / 2, hitTop)) { if (!pr.pierce) return false; continue; } // 🐞 / 🪞 the round is spent on it either way
               enemyHP.current[k] = Math.max(0, enemyHP.current[k] - dmg); // 🔫 bullet: starts no i-frames
               if (ep && enemyHP.current[k] > 0 && (pr.stun ?? 0) > 0) { ep.stun = Math.round(pr.stun * 60); ep.reactT = 0; ep.swingT = 0; ep.aimHold = 0; }
               if (ep && enemyHP.current[k] > 0) igniteBody(ep, pr.ignite, pr.igniteDps);
@@ -27142,8 +27278,11 @@ export default function AssetStudio({ game = false } = {}) {
                   // The built-in blast (no prop of the weapon's own, and its char the default or none —
                   // every impact puff is pushed with the default) draws the fx.boom slot: a prop picked
                   // there animates exactly like a weapon's own blast prop, a symbol is drawn in its colour.
+                  // A mark pushed with its own `slot` (fx.lucky / fx.reflect, from shrugsHit) draws that
+                  // slot the same way, so he can swap either for a prop on the Symbols screen too.
                   const ownPa = b.propId ? findA(b.propId) : null;
-                  const slotPick = !ownPa && (!b.char || b.char === DEFAULT_BOOM_CHAR) ? symbolPick(symbolBoard, "fx.boom") : null;
+                  const slotKey = b.slot || "fx.boom";
+                  const slotPick = !ownPa && (b.slot || !b.char || b.char === DEFAULT_BOOM_CHAR) ? symbolPick(symbolBoard, slotKey) : null;
                   const pa = ownPa || (isPropPick(slotPick) ? findA(propPickId(slotPick)) : null);
                   const lay = boomLayout(pa, b.size || 3, LV_CELL);
                   const frames = (pa && pa.frames && pa.frames.length) ? pa.frames.length : 1;
@@ -27152,7 +27291,7 @@ export default function AssetStudio({ game = false } = {}) {
                   const fade = prog > 0.66 ? Math.max(0, 1 - (prog - 0.66) / 0.34) : 1;
                   return (
                     <div key={"boom" + i} className="lobj infront" style={{ left: b.x - lay.width / 2, top: b.y - lay.height / 2, width: lay.width, height: lay.height, zIndex: 9000, opacity: fade }}>
-                      {pa ? propArtInner(pa, lay.width, lay.height, frameIdx, "boom" + i, lay.box) : slotPick ? sym("fx.boom", null, Math.max(lay.width, lay.height) * 0.8) : <span style={{ fontSize: Math.max(lay.width, lay.height) * 0.7 + "px", lineHeight: 1, fontFamily: ART_EMOJI_FONT }}>{b.char}</span>}
+                      {pa ? propArtInner(pa, lay.width, lay.height, frameIdx, "boom" + i, lay.box) : slotPick ? sym(slotKey, null, Math.max(lay.width, lay.height) * 0.8) : <span style={{ fontSize: Math.max(lay.width, lay.height) * 0.7 + "px", lineHeight: 1, fontFamily: ART_EMOJI_FONT }}>{b.char}</span>}
                     </div>
                   );
                 })}
