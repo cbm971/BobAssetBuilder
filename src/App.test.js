@@ -504,6 +504,7 @@ import {
   enemyChasesVertically,
   enemyDetects,
   enemySensesUnit,
+  unitProvokedByHit,
   enemySenseHeightFrac,
   ENEMY_SIGHT_AHEAD_LENGTHS,
   ENEMY_SENSE_DOWN_LENGTHS,
@@ -5253,10 +5254,12 @@ describe("holding Fire locks the aim pose", () => {
   });
 
   // 2026-10-17: "when you try to aim up with a gun while on a ladder it does not let you".
-  test("a ladder frees the gun hand; bars and a ledge do not", () => {
+  // 2026-10-21: "when hanging on a ledge the character needs to still aim their gun" (power lines).
+  test("a ladder, bars and a ledge all free the gun hand", () => {
     expect(climbFreesGunArm("ladder")).toBe(true);
-    expect(climbFreesGunArm("bars")).toBe(false);
-    expect(climbFreesGunArm("cliff")).toBe(false);
+    expect(climbFreesGunArm("bars")).toBe(true);
+    expect(climbFreesGunArm("cliff")).toBe(true);
+    expect(climbFreesGunArm(null)).toBe(false);
     // The loop passes `climbing && !climbFreesGunArm(kind)` as the busy flag.
     expect(armHoldsAimPose(true, false, false, true, false, null)).toBe(true);
   });
@@ -9983,6 +9986,22 @@ describe("a unit walks only to a target on its own level", () => {
     expect(enemyDetects(28 * cell, 1)).toBe(true);
     expect(enemyDetects(29 * cell, 1)).toBe(false);
     expect(enemyFaceToward(-35 * cell, 1)).toBe(1); // out of range: keeps its placed facing
+  });
+  // 2026-10-21: "I had the entire football team come from far away ... I was far too far to be able
+  // to shoot them." A 🟣 Ally Health wearer dying (or leaving the live level at a gate) trims every
+  // hostile's HP to the lower ceiling, and that trim read as a hit: the whole run world provoked.
+  test("only YOUR hit provokes: an Ally Health trim, a brawl or a burn does not", () => {
+    const full = applyAllyHPBonus(10, 10, 5, 0);           // a wearer around: 15 HP
+    const trimmed = applyAllyHPBonus(full.hp, 10, 0, full.granted); // the wearer is gone
+    expect(trimmed.hp).toBeLessThan(full.hp);
+    expect(unitProvokedByHit(trimmed.hp, full.hp, undefined)).toBe(false); // never hit by anyone
+    expect(unitProvokedByHit(8, 10, [{ type: "tackle" }])).toBe(false);    // another unit's blow
+    expect(unitProvokedByHit(8, 10, null)).toBe(true);                     // yours
+    expect(unitProvokedByHit(10, 10, null)).toBe(false);                   // no HP lost
+    expect(unitProvokedByHit(8, null, null)).toBe(false);                  // first frame seen
+    // ...so an unprovoked unit keeps the 28-cell reach, and a provoked one gets the long one.
+    expect(enemyDetects(60 * cell, 1, 0, false)).toBe(false);
+    expect(enemyDetects(60 * cell, 1, 0, true)).toBe(true);
   });
 });
 

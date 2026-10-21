@@ -1540,9 +1540,14 @@ export const RANGED_FIRE_POSE_FRAMES = 30;
 // ladder the arrows did nothing to the gun and a shot left level out of arms pointing at the sky.
 export const armHoldsAimPose = (isRangedWeapon, climbing, fireHeld, aimUp, aimDown, firing) =>
   !!isRangedWeapon && !climbing && (!!fireHeld || !!aimUp || !!aimDown || (!!firing && !firing.unarmed));
-// The climbs that leave the gun hand free: a ladder only. The off hand keeps the rung (the render's
+// The climbs that leave the gun hand free: every one. The off hand keeps the rung (the render's
 // ladder branch), the gun hand aims (the aim branch, gun arm only — gunArmOnly).
-export const climbFreesGunArm = (kind) => kind === "ladder";
+// ...a HANG too (2026-10-21). Blake, on Trailor Park's power lines (cliff cells): "when hanging on a
+// ledge the character needs to still aim their gun when shooting as opposed to having both hands on
+// the ledge ... with the bullets coming from the side." Bars and a cliff ledge kept BOTH arms on the
+// grip, so the shot left a rifle pointing at the sky. Now the off hand holds the bar or ledge (the
+// hang branch) and the gun arm aims out to the side like on a ladder, the shot leaving its barrel.
+export const climbFreesGunArm = (kind) => kind === "ladder" || kind === "bars" || kind === "cliff";
 // --- Ranged weapon: fire rate, clip, reload -------------------------------------------------
 // Everything below is a pure function over a small { clip, ammo, cd, reloadT } record so the
 // Playtest loop only has to hold one ref and the rules stay testable outside the browser.
@@ -12221,6 +12226,18 @@ export const ENEMY_SENSE_UP_LENGTHS = 1.75;
 // NOTICES — Guard still holds its spawn, Avoid still backs off, Seek still closes — so each unit
 // keeps the chase setting it was placed with.
 export const ENEMY_PROVOKED_SENSE_MUL = 5;
+// WHAT COUNTS AS BEING ATTACKED (2026-10-21). Blake: "I had the entire football team come from far
+// away ... I was far too far to be able to shoot them." Provoked used to be ANY drop in HP, whoever
+// or whatever caused it, and two things nobody aimed at them dropped every hostile in a run at once:
+// a 🟣 Ally Health wearer (the Chaplin, DK, Ratman, Crocobob, Harembe...) raises max HP for its
+// whole side across the run world, so when one died — or a gate handoff took it out of the live
+// level — every hostile's HP was trimmed back to the lower ceiling, read as a hit, and the whole
+// world sensed you from 140 cells for good. A brawl with your ally, a burn in a level's fire or a
+// fall did the same one unit at a time. Now only HP lost while the last blow on it was YOURS
+// (`lastHitByFx === null`; a unit's blow stores its own effects array, never null) provokes it —
+// a hit it can trace back to you.
+export const unitProvokedByHit = (hpNow, hpBefore, lastHitByFx) =>
+  hpNow !== undefined && hpBefore != null && hpNow < hpBefore && lastHitByFx === null;
 export const enemySenseHeightFrac = (dyFeet = 0, provoked = false) => {
   const mul = provoked ? ENEMY_PROVOKED_SENSE_MUL : 1;
   const f = Math.abs(dyFeet || 0) / (PLAYER_BODY_LEN_PX * mul * (dyFeet > 0 ? ENEMY_SENSE_DOWN_LENGTHS : ENEMY_SENSE_UP_LENGTHS));
@@ -15732,8 +15749,8 @@ export default function AssetStudio({ game = false } = {}) {
       if (p.effectAnim) p.effectAnim.t += dtMul;
 
       // Live aim tracking — a projectile weapon lets ↑/↓ preview the shot's angle before you
-      // ever pull the trigger, not just snapshot it at the instant of firing. Bars and ledges take
-      // both hands, so aiming is suppressed there (a ladder no longer is). Drops back to neutral (0) the
+      // ever pull the trigger, not just snapshot it at the instant of firing. Every climb leaves the
+      // gun hand free now — ladder, bars and ledge (climbFreesGunArm). Drops back to neutral (0) the
       // instant nothing is held, so releasing both keys always means "aim straight ahead".
       // Reloading LOWERS the weapon: dropping p.aiming here is what does it — the aim branch in
       // the renderer is the only thing that lifts the arm from its resting hang, so suppressing
@@ -15744,7 +15761,7 @@ export default function AssetStudio({ game = false } = {}) {
       // ↑ or ↓ ALONE is the full hold; add ← or → to it and you get the 45° diagonal (see
       // AIM_DIAGONAL). The sideways key has already set p.face just above, so the diagonal needs no
       // left/right of its own — holding ↑+← turns you and aims up-left in one move.
-      // A ladder frees the gun hand (climbFreesGunArm): W/S still climb, the arrows aim.
+      // Any climb frees the gun hand (climbFreesGunArm): W/S still climb, the arrows aim.
       p.aiming = armHoldsAimPose(playtestWeapon && isRanged(playtestWeapon.wtype), climbing && !climbFreesGunArm(climbKindHere), K.fire, K.aimUp, K.aimDown, p.firing);
       p.aimSideGrace = nextAimSideGrace(p.aimSideGrace, !!(K.aimLeft || K.aimRight), !!(K.aimUp || K.aimDown), dtMul);
       const aimDiag = p.aimSideGrace > 0 ? AIM_DIAGONAL : 1;
@@ -16328,10 +16345,10 @@ export default function AssetStudio({ game = false } = {}) {
           // inside it the PLAYER is sensed over a sideways reach that shrinks with the height between
           // you (huntDy into enemyFaceToward / enemyDetects), so a tree Squirrel still drops on you.
           const huntFeet = targetKind === "unit" ? (targetEp && targetEa ? targetEp.y + (targetEp.crouch ? enemyCrouchH(targetEa, CW) : enemyStandH(targetEa, CW)) : null) : p.y + ph;
-          // PROVOKED: any HP it has lost since the last frame (a bullet, a swing, a stomp, a blast, a
-          // burn) wakes its whole sense zone up for good (ENEMY_PROVOKED_SENSE_MUL), whoever hit it.
+          // PROVOKED: HP it has lost since the last frame to YOUR hit wakes its whole sense zone up for
+          // good (ENEMY_PROVOKED_SENSE_MUL) — see unitProvokedByHit for why only yours.
           const hpSeen = enemyHP.current[k];
-          if (hostile && hpSeen !== undefined && ep.provHp != null && hpSeen < ep.provHp) ep.provoked = true;
+          if (hostile && unitProvokedByHit(hpSeen, ep.provHp, ep.lastHitByFx)) ep.provoked = true;
           ep.provHp = hpSeen === undefined ? null : hpSeen;
           const provoked = hostile && !!ep.provoked;
           const huntInReach = !hostile || huntFeet == null || enemyChasesVertically(myFeetY, huntFeet, provoked);
@@ -26315,7 +26332,7 @@ export default function AssetStudio({ game = false } = {}) {
                     // it is simply added; armMirrorTwist below handles facing for both alike.
                     const armAimDeg = aimArmOffsetDeg(aimDir, aimSteepDown(p)) + ((p.firing && p.firing.aimTilt) || 0);
                     const aimAnchorOf = armAnchorFinder(blocks);
-                    // On a ladder the other hand stays on the rung (gunArmOnly): only the gun arm aims.
+                    // On a ladder, bars or a ledge the other hand stays on the grip (gunArmOnly): only the gun arm aims.
                     const onlyGunArm = p.climbing ? gunArmOnly(blocks, armOf(blocks)) : null;
                     blocks = blocks.map((b) => {
                       if (b.role !== "weaponArm" && b.limb !== "arm") return b;
