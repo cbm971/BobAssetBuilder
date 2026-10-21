@@ -565342,7 +565342,7 @@
       "kind": "rect",
       "x": 99,
       "y": 88,
-      "w": 3,
+      "w": 1,
       "h": 87.5,
       "color": "#1d1b1b",
       "mirror": false,
@@ -565508,6 +565508,24 @@
     ],
     "side": [
      {
+      "id": "f05d",
+      "kind": "hexagon",
+      "x": 122,
+      "y": 93,
+      "w": 14,
+      "h": 30,
+      "color": "#d9a82b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 9,
+      "overArms": true
+     },
+     {
       "id": "f05a",
       "kind": "tri2",
       "x": 72,
@@ -565543,6 +565561,41 @@
       "outline": true
      },
      {
+      "id": "p05f",
+      "kind": "rect",
+      "x": 69,
+      "y": 160,
+      "w": 60,
+      "h": 6,
+      "color": "#e9ecef",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 0
+     },
+     {
+      "id": "p05e",
+      "kind": "rect",
+      "x": 69,
+      "y": 117,
+      "w": 60,
+      "h": 6,
+      "color": "#e9ecef",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 0,
+      "overArms": true
+     },
+     {
       "id": "f05c",
       "kind": "rect",
       "x": 74,
@@ -565563,62 +565616,10 @@
       "limb": "arm"
      },
      {
-      "id": "f05d",
-      "kind": "hexagon",
-      "x": 122,
-      "y": 93,
-      "w": 14,
-      "h": 30,
-      "color": "#d9a82b",
-      "mirror": false,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "rot": 9,
-      "overArms": true
-     },
-     {
-      "id": "p05e",
-      "kind": "rect",
-      "x": 69,
-      "y": 117,
-      "w": 60,
-      "h": 6,
-      "color": "#e9ecef",
-      "mirror": true,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "rot": 0
-     },
-     {
-      "id": "p05f",
-      "kind": "rect",
-      "x": 69,
-      "y": 160,
-      "w": 60,
-      "h": 6,
-      "color": "#e9ecef",
-      "mirror": true,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "rot": 0
-     },
-     {
       "id": "p05g",
       "kind": "rect",
       "x": 105,
-      "y": 155,
+      "y": 156.5,
       "w": 7,
       "h": 25,
       "color": "#e9ecef",
@@ -567254,7 +567255,7 @@
        "kind": "rect",
        "x": 99,
        "y": 88,
-       "w": 3,
+       "w": 1,
        "h": 87.5,
        "color": "#1d1b1b",
        "mirror": false,
@@ -567420,6 +567421,24 @@
      ],
      "side": [
       {
+       "id": "f05d",
+       "kind": "hexagon",
+       "x": 122,
+       "y": 93,
+       "w": 14,
+       "h": 30,
+       "color": "#d9a82b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 9,
+       "overArms": true
+      },
+      {
        "id": "f05a",
        "kind": "tri2",
        "x": 72,
@@ -567455,6 +567474,41 @@
        "outline": true
       },
       {
+       "id": "p05f",
+       "kind": "rect",
+       "x": 69,
+       "y": 160,
+       "w": 60,
+       "h": 6,
+       "color": "#e9ecef",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 0
+      },
+      {
+       "id": "p05e",
+       "kind": "rect",
+       "x": 69,
+       "y": 117,
+       "w": 60,
+       "h": 6,
+       "color": "#e9ecef",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 0,
+       "overArms": true
+      },
+      {
        "id": "f05c",
        "kind": "rect",
        "x": 74,
@@ -567475,62 +567529,10 @@
        "limb": "arm"
       },
       {
-       "id": "f05d",
-       "kind": "hexagon",
-       "x": 122,
-       "y": 93,
-       "w": 14,
-       "h": 30,
-       "color": "#d9a82b",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "rot": 9,
-       "overArms": true
-      },
-      {
-       "id": "p05e",
-       "kind": "rect",
-       "x": 69,
-       "y": 117,
-       "w": 60,
-       "h": 6,
-       "color": "#e9ecef",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "rot": 0
-      },
-      {
-       "id": "p05f",
-       "kind": "rect",
-       "x": 69,
-       "y": 160,
-       "w": 60,
-       "h": 6,
-       "color": "#e9ecef",
-       "mirror": true,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "rot": 0
-      },
-      {
        "id": "p05g",
        "kind": "rect",
        "x": 105,
-       "y": 155,
+       "y": 156.5,
        "w": 7,
        "h": 25,
        "color": "#e9ecef",
@@ -567835,8 +567837,8 @@
    ],
    "value": 12,
    "rank": "common",
-   "savedAt": 1792625056686,
-   "editedFrom": 1792625053121
+   "savedAt": 1792625109854,
+   "editedFrom": 1792625105893
   },
   {
    "id": "frhelm1",
