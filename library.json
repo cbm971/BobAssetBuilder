@@ -565238,15 +565238,15 @@
    "name": "Fireman's Coat",
    "type": "equipment",
    "slot": "jacket",
-   "guideId": "telfv37",
+   "guideId": "oipvf3l",
    "angles": {
     "front": [
      {
-      "id": "f03t",
+      "id": "f04v",
       "kind": "tri2",
-      "x": 59,
-      "y": 84,
-      "w": 38,
+      "x": 63,
+      "y": 79,
+      "w": 30,
       "h": 18,
       "color": "#d9a82b",
       "mirror": true,
@@ -565260,12 +565260,12 @@
       "rot": 12
      },
      {
-      "id": "f03u",
+      "id": "f04w",
       "kind": "rect",
-      "x": 100,
-      "y": 91,
-      "w": 43,
-      "h": 92,
+      "x": 96,
+      "y": 86,
+      "w": 41,
+      "h": 88,
       "color": "#d9a82b",
       "mirror": true,
       "fx": {
@@ -565274,15 +565274,22 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "outline": true
+      "outline": false,
+      "rot": 175,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
      },
      {
-      "id": "f03w",
+      "id": "f04y",
       "kind": "rect",
-      "x": 128,
-      "y": 117,
-      "w": 69,
-      "h": 25,
+      "x": 122,
+      "y": 115,
+      "w": 68,
+      "h": 21,
       "color": "#d9a82b",
       "mirror": true,
       "fx": {
@@ -565291,18 +565298,18 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 81,
+      "rot": 87,
       "overArms": true,
       "outline": true,
       "limb": "arm"
      },
      {
-      "id": "p03x",
+      "id": "p04z",
       "kind": "rect",
-      "x": 100,
-      "y": 124,
-      "w": 43,
-      "h": 6.5,
+      "x": 97,
+      "y": 136,
+      "w": 41,
+      "h": 6,
       "color": "#e9ecef",
       "mirror": true,
       "fx": {
@@ -565311,15 +565318,15 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 0
+      "rot": 175
      },
      {
-      "id": "p03y",
+      "id": "p050",
       "kind": "rect",
-      "x": 100,
-      "y": 170,
-      "w": 43,
-      "h": 6.5,
+      "x": 98.5,
+      "y": 92.5,
+      "w": 39,
+      "h": 5,
       "color": "#e9ecef",
       "mirror": true,
       "fx": {
@@ -565328,15 +565335,15 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 0
+      "rot": 175
      },
      {
-      "id": "p03z",
+      "id": "p051",
       "kind": "rect",
       "x": 99,
-      "y": 93,
-      "w": 2,
-      "h": 88,
+      "y": 88,
+      "w": 3,
+      "h": 87.5,
       "color": "#1d1b1b",
       "mirror": false,
       "fx": {
@@ -565347,12 +565354,12 @@
       }
      },
      {
-      "id": "p040",
+      "id": "p052",
       "kind": "rect",
-      "x": 163,
-      "y": 141,
+      "x": 154,
+      "y": 139,
       "w": 7,
-      "h": 25,
+      "h": 21,
       "color": "#e9ecef",
       "mirror": true,
       "fx": {
@@ -565361,17 +565368,17 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 81,
+      "rot": 87,
       "overArms": true,
       "limb": "arm"
      }
     ],
     "back": [
      {
-      "id": "f041",
+      "id": "f053",
       "kind": "tri2",
-      "x": 65,
-      "y": 84,
+      "x": 66,
+      "y": 82,
       "w": 61,
       "h": 16,
       "color": "#d9a82b",
@@ -565386,12 +565393,12 @@
       "rot": 0
      },
      {
-      "id": "f042",
+      "id": "f054",
       "kind": "rect",
-      "x": 53,
-      "y": 92,
-      "w": 89,
-      "h": 99,
+      "x": 66,
+      "y": 89,
+      "w": 73,
+      "h": 79,
       "color": "#d9a82b",
       "mirror": false,
       "fx": {
@@ -565403,10 +565410,10 @@
       "outline": true
      },
      {
-      "id": "f043",
+      "id": "f055",
       "kind": "rect",
-      "x": 131,
-      "y": 119,
+      "x": 121,
+      "y": 116,
       "w": 69,
       "h": 25,
       "color": "#d9a82b",
@@ -565423,12 +565430,35 @@
       "limb": "arm"
      },
      {
-      "id": "p044",
+      "id": "f056",
+      "kind": "tri",
+      "x": 59,
+      "y": 117,
+      "w": 87,
+      "h": 44,
+      "color": "#d9a82b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "outline": false,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "p057",
       "kind": "rect",
-      "x": 53,
-      "y": 127.5,
-      "w": 89,
-      "h": 7,
+      "x": 66,
+      "y": 117.5,
+      "w": 73,
+      "h": 5.5,
       "color": "#e9ecef",
       "mirror": false,
       "fx": {
@@ -565440,12 +565470,12 @@
       "rot": 0
      },
      {
-      "id": "p045",
+      "id": "p058",
       "kind": "rect",
-      "x": 53,
-      "y": 177,
-      "w": 89,
-      "h": 7,
+      "x": 66,
+      "y": 157,
+      "w": 73,
+      "h": 5.5,
       "color": "#e9ecef",
       "mirror": false,
       "fx": {
@@ -565457,10 +565487,10 @@
       "rot": 0
      },
      {
-      "id": "p046",
+      "id": "p059",
       "kind": "rect",
-      "x": 166,
-      "y": 143,
+      "x": 156,
+      "y": 140,
       "w": 7,
       "h": 25,
       "color": "#e9ecef",
@@ -565478,10 +565508,10 @@
     ],
     "side": [
      {
-      "id": "f047",
+      "id": "f05a",
       "kind": "tri2",
       "x": 72,
-      "y": 73,
+      "y": 67,
       "w": 64,
       "h": 27,
       "color": "#d9a82b",
@@ -565496,12 +565526,12 @@
       "rot": 342
      },
      {
-      "id": "f048",
+      "id": "f05b",
       "kind": "rect",
-      "x": 52,
-      "y": 88,
-      "w": 91,
-      "h": 93,
+      "x": 69,
+      "y": 86,
+      "w": 60,
+      "h": 86,
       "color": "#d9a82b",
       "mirror": true,
       "fx": {
@@ -565513,7 +565543,7 @@
       "outline": true
      },
      {
-      "id": "f049",
+      "id": "f05c",
       "kind": "rect",
       "x": 74,
       "y": 131,
@@ -565533,12 +565563,30 @@
       "limb": "arm"
      },
      {
-      "id": "p04a",
+      "id": "f05d",
+      "kind": "hexagon",
+      "x": 122,
+      "y": 93,
+      "w": 14,
+      "h": 30,
+      "color": "#d9a82b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 9,
+      "overArms": true
+     },
+     {
+      "id": "p05e",
       "kind": "rect",
-      "x": 52,
-      "y": 121.5,
-      "w": 91,
-      "h": 6.5,
+      "x": 69,
+      "y": 117,
+      "w": 60,
+      "h": 6,
       "color": "#e9ecef",
       "mirror": true,
       "fx": {
@@ -565550,12 +565598,12 @@
       "rot": 0
      },
      {
-      "id": "p04b",
+      "id": "p05f",
       "kind": "rect",
-      "x": 52,
-      "y": 168,
-      "w": 91,
-      "h": 6.5,
+      "x": 69,
+      "y": 160,
+      "w": 60,
+      "h": 6,
       "color": "#e9ecef",
       "mirror": true,
       "fx": {
@@ -565567,7 +565615,7 @@
       "rot": 0
      },
      {
-      "id": "p04c",
+      "id": "p05g",
       "kind": "rect",
       "x": 105,
       "y": 155,
@@ -565588,7 +565636,7 @@
     ],
     "up": [
      {
-      "id": "f04d",
+      "id": "f05h",
       "kind": "rect",
       "x": 128,
       "y": 81,
@@ -565608,12 +565656,12 @@
       "limb": "arm"
      },
      {
-      "id": "f04e",
+      "id": "f05i",
       "kind": "tri2",
-      "x": 61,
-      "y": 88,
-      "w": 35,
-      "h": 18,
+      "x": 72,
+      "y": 84,
+      "w": 20,
+      "h": 16,
       "color": "#d9a82b",
       "mirror": true,
       "fx": {
@@ -565627,12 +565675,12 @@
       "overArms": true
      },
      {
-      "id": "f04f",
+      "id": "f05j",
       "kind": "rect",
-      "x": 100,
-      "y": 91,
-      "w": 43,
-      "h": 92,
+      "x": 96,
+      "y": 87,
+      "w": 41,
+      "h": 91,
       "color": "#d9a82b",
       "mirror": true,
       "fx": {
@@ -565642,14 +565690,15 @@
        "bright": 1
       },
       "outline": true,
-      "overArms": true
+      "overArms": true,
+      "rot": 173
      },
      {
-      "id": "p04h",
+      "id": "p05l",
       "kind": "rect",
-      "x": 100,
-      "y": 124,
-      "w": 43,
+      "x": 97,
+      "y": 139,
+      "w": 41,
       "h": 6.5,
       "color": "#e9ecef",
       "mirror": true,
@@ -565659,15 +565708,15 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 0,
+      "rot": 173,
       "overArms": true
      },
      {
-      "id": "p04i",
+      "id": "p05m",
       "kind": "rect",
-      "x": 100,
-      "y": 170,
-      "w": 43,
+      "x": 91.5,
+      "y": 93.5,
+      "w": 41,
       "h": 6.5,
       "color": "#e9ecef",
       "mirror": true,
@@ -565677,16 +565726,16 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 0,
+      "rot": 173,
       "overArms": true
      },
      {
-      "id": "p04j",
+      "id": "p05n",
       "kind": "rect",
       "x": 99,
-      "y": 93,
+      "y": 89,
       "w": 2,
-      "h": 88,
+      "h": 87,
       "color": "#1d1b1b",
       "mirror": false,
       "fx": {
@@ -565698,7 +565747,7 @@
       "overArms": true
      },
      {
-      "id": "p04k",
+      "id": "p05o",
       "kind": "rect",
       "x": 153,
       "y": 62,
@@ -565719,12 +565768,12 @@
     ],
     "crouch": [
      {
-      "id": "f04l",
+      "id": "f05p",
       "kind": "tri2",
-      "x": 63,
-      "y": 113,
-      "w": 23,
-      "h": 15,
+      "x": 69,
+      "y": 99,
+      "w": 25,
+      "h": 19,
       "color": "#d9a82b",
       "mirror": true,
       "fx": {
@@ -565737,12 +565786,12 @@
       "rot": 12
      },
      {
-      "id": "f04m",
+      "id": "f05q",
       "kind": "rect",
       "x": 100,
-      "y": 122,
-      "w": 46,
-      "h": 65,
+      "y": 106,
+      "w": 31,
+      "h": 62,
       "color": "#d9a82b",
       "mirror": true,
       "fx": {
@@ -565754,12 +565803,12 @@
       "outline": true
      },
      {
-      "id": "f04p",
+      "id": "f05s",
       "kind": "rect",
-      "x": 131,
-      "y": 148,
-      "w": 54,
-      "h": 21,
+      "x": 104,
+      "y": 129,
+      "w": 55,
+      "h": 20,
       "color": "#d9a82b",
       "mirror": true,
       "fx": {
@@ -565768,37 +565817,17 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 88,
+      "rot": 263,
       "overArms": true,
       "outline": true,
       "limb": "arm"
      },
      {
-      "id": "f04q",
-      "kind": "rect",
-      "x": 154,
-      "y": 143,
-      "w": 13,
-      "h": 9,
-      "color": "#d9a82b",
-      "mirror": true,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "overArms": true,
-      "rot": 87,
-      "outline": true,
-      "limb": "arm"
-     },
-     {
-      "id": "p04r",
+      "id": "p05t",
       "kind": "rect",
       "x": 100,
-      "y": 145.5,
-      "w": 46,
+      "y": 128.5,
+      "w": 31,
       "h": 4.5,
       "color": "#e9ecef",
       "mirror": true,
@@ -565811,11 +565840,11 @@
       "rot": 0
      },
      {
-      "id": "p04s",
+      "id": "p05u",
       "kind": "rect",
       "x": 100,
-      "y": 178,
-      "w": 46,
+      "y": 159.5,
+      "w": 31,
       "h": 4.5,
       "color": "#e9ecef",
       "mirror": true,
@@ -565828,12 +565857,12 @@
       "rot": 0
      },
      {
-      "id": "p04t",
+      "id": "p05v",
       "kind": "rect",
       "x": 99,
-      "y": 124,
+      "y": 108,
       "w": 2,
-      "h": 61,
+      "h": 58,
       "color": "#1d1b1b",
       "mirror": false,
       "fx": {
@@ -565844,12 +565873,12 @@
       }
      },
      {
-      "id": "p04u",
+      "id": "p05w",
       "kind": "rect",
-      "x": 156,
-      "y": 167,
+      "x": 131,
+      "y": 148,
       "w": 5.5,
-      "h": 21,
+      "h": 20,
       "color": "#e9ecef",
       "mirror": true,
       "fx": {
@@ -565858,7 +565887,7 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "rot": 88,
+      "rot": 263,
       "overArms": true,
       "limb": "arm"
      }
@@ -567157,8 +567186,14 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "outline": true,
-       "rot": 175
+       "outline": false,
+       "rot": 175,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
       },
       {
        "id": "f04y",
@@ -567200,10 +567235,10 @@
       {
        "id": "p050",
        "kind": "rect",
-       "x": 93,
+       "x": 98.5,
        "y": 92.5,
-       "w": 41,
-       "h": 6,
+       "w": 39,
+       "h": 5,
        "color": "#e9ecef",
        "mirror": true,
        "fx": {
@@ -567219,8 +567254,8 @@
        "kind": "rect",
        "x": 99,
        "y": 88,
-       "w": 2,
-       "h": 84,
+       "w": 3,
+       "h": 87.5,
        "color": "#1d1b1b",
        "mirror": false,
        "fx": {
@@ -567771,7 +567806,7 @@
      ]
     }
    },
-   "lastFit": "telfv37",
+   "lastFit": "oipvf3l",
    "confirmedFits": [
     "telfv37",
     "oipvf3l"
@@ -567800,7 +567835,8 @@
    ],
    "value": 12,
    "rank": "common",
-   "savedAt": 1792544165898
+   "savedAt": 1792625056686,
+   "editedFrom": 1792625053121
   },
   {
    "id": "frhelm1",
