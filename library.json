@@ -565690,9 +565690,15 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "outline": true,
+      "outline": false,
       "overArms": true,
-      "rot": 173
+      "rot": 173,
+      "outlineFx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
      },
      {
       "id": "p05l",
@@ -565715,10 +565721,10 @@
      {
       "id": "p05m",
       "kind": "rect",
-      "x": 91.5,
-      "y": 93.5,
-      "w": 41,
-      "h": 6.5,
+      "x": 100.5,
+      "y": 96.5,
+      "w": 34.5,
+      "h": 5.5,
       "color": "#e9ecef",
       "mirror": true,
       "fx": {
@@ -567603,9 +567609,15 @@
         "glowColor": "#ffd76b",
         "bright": 1
        },
-       "outline": true,
+       "outline": false,
        "overArms": true,
-       "rot": 173
+       "rot": 173,
+       "outlineFx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
       },
       {
        "id": "p05l",
@@ -567628,10 +567640,10 @@
       {
        "id": "p05m",
        "kind": "rect",
-       "x": 91.5,
-       "y": 93.5,
-       "w": 41,
-       "h": 6.5,
+       "x": 100.5,
+       "y": 96.5,
+       "w": 34.5,
+       "h": 5.5,
        "color": "#e9ecef",
        "mirror": true,
        "fx": {
@@ -567818,14 +567830,14 @@
     "speed": 0,
     "agility": 0,
     "intelligence": 0,
-    "strength": 0
+    "strength": 2
    },
-   "defense": 6,
+   "defense": 10,
    "effects": [
     {
      "id": "e03s",
      "type": "fireResist",
-     "resist": 0.4,
+     "resist": 0.5,
      "animByBody": {},
      "lastFit": "default"
     }
@@ -567836,9 +567848,9 @@
     "Fireman"
    ],
    "value": 12,
-   "rank": "common",
-   "savedAt": 1792625109854,
-   "editedFrom": 1792625105893
+   "rank": "rare",
+   "savedAt": 1792625165659,
+   "editedFrom": 1792625165140
   },
   {
    "id": "frhelm1",
