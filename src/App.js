@@ -782,26 +782,36 @@ const cloudLibrary = {
 // so a healthy setup never shows it. This is a warning about something actually wrong, which his
 // "no status on screen" rule allows; it never shows while things work.
 export const BACKUP_WARN_MS = 8 * 60 * 1000;
-export const backupWatch = { pending: new Map() }; // "kind:id" -> { savedAt, at: when first not yet online }
+// EVERY VERSION, not just the newest (fixed the same evening). The first cut kept one { savedAt, at }
+// per record and waited for the online save to hold the NEWEST version. While he edits, the editor
+// autosaves about once a minute and the keeper's sweep + push + the snapshot read take a minute or
+// two, so the online copy is always one version behind the tab and never "catches up": eight minutes
+// of steady work on one item put the red banner up with the keeper working perfectly (his
+// screenshot, 9:41 PM, item ihgnkr6 backed up every minute). What matters is how old the OLDEST
+// version not yet online is. Each record keeps its saved versions in order; the online save holding
+// version N clears every version up to N, and the clock is the oldest version still waiting.
+export const backupWatch = { pending: new Map() }; // "kind:id" -> [{ savedAt, at }] oldest first, none of them online yet
 export const noteUnbacked = (pending, body, now) => {
   for (const k of PROJECT_KINDS) for (const r of (body && body[k]) || []) {
     if (!r || !r.id || typeof r.savedAt !== "number") continue;
-    const key = k + ":" + r.id, cur = pending.get(key);
-    if (!cur || r.savedAt > cur.savedAt) pending.set(key, { savedAt: r.savedAt, at: cur ? cur.at : now });
+    const key = k + ":" + r.id, list = pending.get(key) || [];
+    if (!list.length || r.savedAt > list[list.length - 1].savedAt) { list.push({ savedAt: r.savedAt, at: now }); pending.set(key, list); }
   }
   return pending;
 };
 export const clearBackedUp = (pending, cloud) => {
   if (!cloud) return pending;
-  for (const [key, p] of [...pending]) {
+  for (const [key, list] of [...pending]) {
     const i = key.indexOf(":"), k = key.slice(0, i), id = key.slice(i + 1);
     const o = (cloud[k] || []).find((x) => x && x.id === id);
-    const gone = ((cloud.removed || {})[k] || []).includes(id); // his delete reached the online save: nothing left to back up
-    if (gone || (o && typeof o.savedAt === "number" && o.savedAt >= p.savedAt)) pending.delete(key);
+    if (((cloud.removed || {})[k] || []).includes(id)) { pending.delete(key); continue; } // his delete reached the online save: nothing left to back up
+    const online = o && typeof o.savedAt === "number" ? o.savedAt : -Infinity;
+    const left = list.filter((v) => v.savedAt > online);
+    if (left.length) pending.set(key, left); else pending.delete(key);
   }
   return pending;
 };
-export const unbackedOverdue = (pending, now, ms = BACKUP_WARN_MS) => { let n = 0; for (const p of pending.values()) if (now - p.at >= ms) n++; return n; };
+export const unbackedOverdue = (pending, now, ms = BACKUP_WARN_MS) => { let n = 0; for (const list of pending.values()) if (list.length && now - list[0].at >= ms) n++; return n; };
 const projectLibrary = {
   available: false, // set on the first successful read; a plain static build simply won't have it
   // BOTH backends, merged newest-wins (mergeLibraries): the dev server file, and the save folder on

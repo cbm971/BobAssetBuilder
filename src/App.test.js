@@ -14574,12 +14574,32 @@ describe("⚠ not backed up", () => {
     clearBackedUp(p, { assets: [{ id: "5z2auvk", savedAt: 800 }] });
     expect(p.size).toBe(0);
   });
-  test("overdue only past BACKUP_WARN_MS, counted from the FIRST save not yet online", () => {
+  test("overdue only past BACKUP_WARN_MS, counted from the OLDEST version not yet online", () => {
     const p = noteUnbacked(new Map(), { assets: [{ id: "a", savedAt: 1 }] }, T0);
-    noteUnbacked(p, { assets: [{ id: "a", savedAt: 2 }] }, T0 + BACKUP_WARN_MS - 1000); // a later save of the same thing keeps the clock
+    noteUnbacked(p, { assets: [{ id: "a", savedAt: 2 }] }, T0 + BACKUP_WARN_MS - 1000); // nothing online yet: the clock stays on version 1
     expect(unbackedOverdue(p, T0 + BACKUP_WARN_MS - 1)).toBe(0);
     expect(unbackedOverdue(p, T0 + BACKUP_WARN_MS)).toBe(1);
-    expect(p.get("assets:a").savedAt).toBe(2);
+  });
+  // His 9:41 PM screenshot: the keeper backed item ihgnkr6 up every minute while he kept editing it,
+  // the online copy was always one autosave behind, and the first cut warned anyway.
+  test("steady editing with the online save one version behind never warns", () => {
+    const p = new Map(), MIN = 60 * 1000;
+    for (let m = 0; m <= 30; m++) {
+      noteUnbacked(p, { assets: [{ id: "ihgnkr6", savedAt: 1000 + m }] }, T0 + m * MIN);                 // an autosave a minute
+      if (m >= 2) clearBackedUp(p, { assets: [{ id: "ihgnkr6", savedAt: 1000 + m - 2 }] });               // the online copy two minutes behind
+      expect(unbackedOverdue(p, T0 + m * MIN)).toBe(0);
+    }
+    clearBackedUp(p, { assets: [{ id: "ihgnkr6", savedAt: 1030 }] });                                     // and it catches up when he stops
+    expect(p.size).toBe(0);
+  });
+  test("...but a keeper that stops backing up mid-edit still warns, 8 minutes after the first missed version", () => {
+    const p = new Map(), MIN = 60 * 1000;
+    for (let m = 0; m <= 12; m++) {
+      noteUnbacked(p, { assets: [{ id: "x", savedAt: 1000 + m }] }, T0 + m * MIN);
+      if (m <= 3) clearBackedUp(p, { assets: [{ id: "x", savedAt: 1000 + m }] });                         // backed up until minute 3, then the keeper dies
+    }
+    expect(unbackedOverdue(p, T0 + 11 * MIN)).toBe(0);  // oldest waiting version is minute 4: 7 minutes
+    expect(unbackedOverdue(p, T0 + 12 * MIN)).toBe(1);  // 8 minutes
   });
   test("no online snapshot (offline, refused) clears nothing; a record with no savedAt is not watched", () => {
     const p = noteUnbacked(new Map(), { assets: [{ id: "a", savedAt: 5 }, { id: "b" }] }, T0);
