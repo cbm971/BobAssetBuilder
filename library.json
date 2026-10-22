@@ -1277011,8 +1277011,8 @@
      {
       "id": "c56i5gs",
       "kind": "emoji",
-      "x": 140.5,
-      "y": 77,
+      "x": 171,
+      "y": 74,
       "w": 47,
       "h": 51.5,
       "color": "#f4f4f4",
@@ -1277029,10 +1277029,10 @@
      {
       "id": "hx0vkxm",
       "kind": "emoji",
-      "x": 13.5,
+      "x": 2.5,
       "y": 75,
-      "w": 47,
-      "h": 51.5,
+      "w": 55,
+      "h": 53.5,
       "color": "#f4f4f4",
       "mirror": false,
       "char": "❄️",
@@ -1277047,10 +1277047,10 @@
      {
       "id": "liivxqb",
       "kind": "hexagon",
-      "x": 37.5,
+      "x": 13.5,
       "y": 93,
-      "w": 44,
-      "h": 44,
+      "w": 91.5,
+      "h": 42,
       "color": "#f4f4f4",
       "mirror": false,
       "fx": {
@@ -1277175,8 +1277175,8 @@
      {
       "id": "1kdavii",
       "kind": "hexagon",
-      "x": 57,
-      "y": 65,
+      "x": 103.5,
+      "y": 76,
       "w": 114.5,
       "h": 57,
       "color": "#f4f4f4",
@@ -1277186,7 +1277186,8 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "translucency": 0.25
      }
     ],
     "back": [],
@@ -1277195,9 +1277196,9 @@
     "crouch": []
    },
    "guideId": "default",
-   "size": 0.8,
-   "savedAt": 1792635495211,
-   "editedFrom": 1792635489400
+   "size": 1.1,
+   "savedAt": 1792635781648,
+   "editedFrom": 1792635780229
   },
   {
    "id": "yykzkdg",
