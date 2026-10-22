@@ -1955651,9 +1955651,376 @@
       "inFront": false,
       "z": 123
      }
+    ],
+    "45,110": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 124
+     }
+    ],
+    "45,111": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 125
+     }
+    ],
+    "45,112": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 126
+     }
+    ],
+    "44,112": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 127
+     },
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 135
+     }
+    ],
+    "44,111": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 128
+     },
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 136
+     }
+    ],
+    "44,110": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 129
+     }
+    ],
+    "43,110": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 130
+     }
+    ],
+    "42,110": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 131
+     },
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 141
+     }
+    ],
+    "42,111": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 132
+     },
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 138
+     },
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 140
+     }
+    ],
+    "42,112": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 133
+     }
+    ],
+    "43,112": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 134
+     }
+    ],
+    "43,111": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 137
+     }
+    ],
+    "41,111": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 139
+     },
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 143
+     }
+    ],
+    "41,110": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 142
+     }
+    ],
+    "41,112": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 144
+     }
+    ],
+    "40,112": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 145
+     }
+    ],
+    "39,112": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 146
+     }
+    ],
+    "38,112": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 147
+     }
+    ],
+    "38,111": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 148
+     }
+    ],
+    "39,111": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 149
+     }
+    ],
+    "40,111": [
+     {
+      "kind": "shape",
+      "shape": "vine",
+      "tint": "#1c3314",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 150
+     }
     ]
    },
-   "climb": {},
+   "climb": {
+    "45,110": {
+     "kind": "ladder"
+    },
+    "43,110": {
+     "kind": "ladder"
+    },
+    "44,110": {
+     "kind": "ladder"
+    },
+    "43,111": {
+     "kind": "ladder"
+    },
+    "45,111": {
+     "kind": "ladder"
+    },
+    "44,111": {
+     "kind": "ladder"
+    },
+    "44,112": {
+     "kind": "ladder"
+    },
+    "45,112": {
+     "kind": "ladder"
+    },
+    "43,112": {
+     "kind": "ladder"
+    }
+   },
    "markers": {},
    "enemies": {},
    "conns": {
@@ -1955693,8 +1956060,8 @@
    "floor": "Tree Tops",
    "section": "Middle",
    "hazard": {},
-   "savedAt": 1792664893737,
-   "editedFrom": 1792637258616
+   "savedAt": 1792664975530,
+   "editedFrom": 1792664893737
   },
   {
    "id": "ypjilr0",
