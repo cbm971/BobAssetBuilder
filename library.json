@@ -93619,20 +93619,19 @@
    },
    "guideId": "default",
    "effect": {
-    "kind": "tagDamage",
-    "tag": "",
-    "mult": 1.5,
-    "duration": 8
+    "kind": "oneUp",
+    "lives": 1
    },
    "categories": [
-    "",
-    "",
+    "T1",
+    "Item",
     ""
    ],
-   "value": 0,
-   "rank": "common",
-   "savedAt": 1792634096336,
-   "editedFrom": 1792634091147
+   "value": 10,
+   "rank": "legendary",
+   "savedAt": 1792635182263,
+   "editedFrom": 1792635171886,
+   "dropWeight": 1
   },
   {
    "id": "63edlrj",
