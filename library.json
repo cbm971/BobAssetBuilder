@@ -766953,29 +766953,11 @@
    "angles": {
     "front": [
      {
-      "id": "brnlqoo",
-      "kind": "circle",
-      "x": 75,
-      "y": 43,
-      "w": 20,
-      "h": 19,
-      "color": "#2b2b2b",
-      "mirror": true,
-      "fx": {
-       "opacity": 0.1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "outline": true,
-      "tex": "9v3z2x4"
-     },
-     {
       "id": "2hinuwj",
       "kind": "rect",
-      "x": 96,
+      "x": 95.5,
       "y": 49,
-      "w": 8,
+      "w": 9.5,
       "h": 6,
       "rot": 1,
       "color": "#2b2b2b",
@@ -767002,6 +766984,23 @@
        "glowColor": "#ffd76b",
        "bright": 1
       }
+     },
+     {
+      "id": "fqq6lyj",
+      "kind": "circle",
+      "x": 74,
+      "y": 43,
+      "w": 21.5,
+      "h": 19.5,
+      "color": "#7aa2d6",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "tex": "9v3z2x4"
      }
     ],
     "back": [
@@ -767195,29 +767194,11 @@
     "telfv37": {
      "front": [
       {
-       "id": "brnlqoo",
-       "kind": "circle",
-       "x": 75,
-       "y": 43,
-       "w": 20,
-       "h": 19,
-       "color": "#2b2b2b",
-       "mirror": true,
-       "fx": {
-        "opacity": 0.1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "outline": true,
-       "tex": "9v3z2x4"
-      },
-      {
        "id": "2hinuwj",
        "kind": "rect",
-       "x": 96,
+       "x": 95.5,
        "y": 49,
-       "w": 8,
+       "w": 9.5,
        "h": 6,
        "rot": 1,
        "color": "#2b2b2b",
@@ -767244,6 +767225,23 @@
         "glowColor": "#ffd76b",
         "bright": 1
        }
+      },
+      {
+       "id": "fqq6lyj",
+       "kind": "circle",
+       "x": 74,
+       "y": 43,
+       "w": 21.5,
+       "h": 19.5,
+       "color": "#7aa2d6",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "tex": "9v3z2x4"
       }
      ],
      "back": [
@@ -767662,14 +767660,21 @@
     "telfv37",
     "oipvf3l"
    ],
-   "savedAt": 1792636423625,
+   "savedAt": 1792636481319,
    "statBoosts": {
     "speed": 0,
     "agility": 0,
     "intelligence": 0,
     "strength": 0
    },
-   "effects": [],
+   "effects": [
+    {
+     "id": "pkqago5",
+     "type": "doubleShot",
+     "animByBody": {},
+     "lastFit": "default"
+    }
+   ],
    "defense": 0,
    "ignoreHideIfHat": true,
    "categories": [
@@ -767679,7 +767684,7 @@
    ],
    "value": 5,
    "rank": "common",
-   "editedFrom": 1792636410900
+   "editedFrom": 1792636476323
   },
   {
    "id": "inumieg",
