@@ -14560,7 +14560,7 @@ describe("asset autosave", () => {
   });
 });
 
-import { StatusFx } from "./App";
+import { StatusFx, ITEM_EFFECT_KINDS } from "./App";
 
 describe("🔥 Fire damage / ❄️ Ice damage (weapon abilities, 2026-10-21)", () => {
   test("Fire damage is the Ignite burn under his name, and starts on his 2 HP/s for 10 s", () => {
@@ -14661,6 +14661,10 @@ describe("🍄 One up (item effect, 2026-10-21)", () => {
     expect(itemEffectSummary({ kind: "oneUp", lives: 1 })).toBe("+1 life");
     expect(itemEffectSummary({ kind: "oneUp", lives: 2 })).toBe("+2 lives");
     expect(inferAssetType({ effect: { kind: "oneUp", lives: 1 } })).toBe("item");
+  });
+  test("the item editor's Effect dropdown lists every kind, One up included, each starting valid", () => {
+    expect(ITEM_EFFECT_KINDS.map((x) => x.kind)).toEqual(["heal", "stat", "money", "range", "tagDamage", "oneUp"]);
+    for (const x of ITEM_EFFECT_KINDS) expect(normItemEffect(x.fresh()).kind).toBe(x.kind);
   });
 });
 

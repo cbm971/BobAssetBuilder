@@ -3358,6 +3358,16 @@ export const itemEffectSummary = (e) => {
     : x.kind === "oneUp" ? "+" + x.lives + (x.lives === 1 ? " life" : " lives")
     : "+" + x.amount + " " + (ITEM_STAT_LABEL[x.stat] || x.stat) + " for " + x.duration + "s";
 };
+// The item editor's Effect dropdown, in order: what each kind is called there and what it starts on
+// when picked (switching back to the kind already set keeps its numbers).
+export const ITEM_EFFECT_KINDS = [
+  { kind: "heal", label: "❤️ Heal", fresh: () => ({ kind: "heal", amount: 5 }) },
+  { kind: "stat", label: "📊 Boost a stat", fresh: () => ({ kind: "stat", stat: "speed", amount: 2, duration: 8 }) },
+  { kind: "money", label: MONEY_CHAR + " Money", fresh: () => ({ kind: "money", amount: 10 }) },
+  { kind: "range", label: "🎯 Range", fresh: () => ({ kind: "range", mult: 1.5, duration: 8 }) },
+  { kind: "tagDamage", label: "🏹 Tag damage", fresh: () => ({ kind: "tagDamage", tag: "", mult: 1.5, duration: 8 }) },
+  { kind: "oneUp", label: "🍄 One up", fresh: () => ({ kind: "oneUp", lives: 1 }) },
+];
 export const isMoneyItem = (a) => !!a && a.type === "item" && normItemEffect(a.effect).kind === "money";
 
 /* ── 💵 WHAT A THING IS WORTH, AND WHAT A SHOP CHARGES FOR IT ────────────────────────────────
@@ -28765,14 +28775,15 @@ export default function AssetStudio({ game = false } = {}) {
             return (
               <div className="card">
                 <div className="ct">🧪 Item effect</div>
-                <div className="seg">
-                  <button className={eff.kind === "heal" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "heal" ? cur : { kind: "heal", amount: 5 } }; })}>❤️ Heal</button>
-                  <button className={eff.kind === "stat" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "stat" ? cur : { kind: "stat", stat: "speed", amount: 2, duration: 8 } }; })}>📊 Boost a stat</button>
-                  <button className={eff.kind === "money" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "money" ? cur : { kind: "money", amount: 10 } }; })}>{MONEY_CHAR} Money</button>
-                  <button className={eff.kind === "range" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "range" ? cur : { kind: "range", mult: 1.5, duration: 8 } }; })}>🎯 Range</button>
-                  <button className={eff.kind === "tagDamage" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "tagDamage" ? cur : { kind: "tagDamage", tag: "", mult: 1.5, duration: 8 } }; })}>🏹 Tag damage</button>
-                  <button className={eff.kind === "oneUp" ? "on" : ""} onClick={() => setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === "oneUp" ? cur : { kind: "oneUp", lives: 1 } }; })}>🍄 One up</button>
-                </div>
+                {/* A DROPDOWN (Blake, 2026-10-21: "you should make it a drop down"). It was a row of
+                    buttons in a card of fixed width, and the sixth, 🍄 One up, sat past the card's
+                    right edge where the row's overflow:hidden cut it off — "Tag damage" was already
+                    half gone. A list has room for every kind there will ever be. */}
+                <label className="slider">Effect
+                  <select value={eff.kind} onChange={(e) => { const k = e.target.value; setAsset((a) => { const cur = normItemEffect(a.effect); return { ...a, effect: cur.kind === k ? cur : normItemEffect(ITEM_EFFECT_KINDS.find((x) => x.kind === k).fresh()) }; }); }} style={{ marginLeft: 6 }}>
+                    {ITEM_EFFECT_KINDS.map((x) => <option key={x.kind} value={x.kind}>{x.label}</option>)}
+                  </select>
+                </label>
                 {eff.kind === "heal" ? (
                   <label className="slider">❤️ Heal amount<input type="number" min="1" value={eff.amount} onChange={(e) => setEff({ amount: Math.max(1, +e.target.value || 1) })} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>HP</span></label>
                 ) : eff.kind === "oneUp" ? (
