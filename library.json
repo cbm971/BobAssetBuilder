@@ -1612382,6 +1612382,135 @@
     "36,151": {
      "c": "#2c4419",
      "tex": "arsou0j"
+    },
+    "0,106": "#4a5a28",
+    "0,105": "#4a5a28",
+    "0,107": "#4a5a28",
+    "0,100": "#4a5a28",
+    "0,99": "#4a5a28",
+    "0,98": "#4a5a28",
+    "0,93": "#4a5a28",
+    "0,92": "#4a5a28",
+    "0,91": "#4a5a28",
+    "0,86": "#4a5a28",
+    "0,85": "#4a5a28",
+    "0,84": "#4a5a28",
+    "0,117": "#4a5a28",
+    "0,118": "#4a5a28",
+    "0,119": "#4a5a28",
+    "0,125": "#4a5a28",
+    "0,124": "#4a5a28",
+    "0,126": "#4a5a28",
+    "0,131": "#4a5a28",
+    "0,132": "#4a5a28",
+    "0,133": "#4a5a28",
+    "0,138": "#4a5a28",
+    "0,139": "#4a5a28",
+    "0,140": "#4a5a28",
+    "0,90": {
+     "c": "#4a5a28",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "0,97": {
+     "c": "#4a5a28",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "0,104": {
+     "c": "#4a5a28",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "0,137": {
+     "c": "#4a5a28",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "0,130": {
+     "c": "#4a5a28",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "0,123": {
+     "c": "#4a5a28",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "0,116": {
+     "c": "#4a5a28",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "0,134": {
+     "c": "#4a5a28",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "0,141": {
+     "c": "#4a5a28",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "0,127": {
+     "c": "#4a5a28",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "0,108": {
+     "c": "#4a5a28",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "0,101": {
+     "c": "#4a5a28",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "0,94": {
+     "c": "#4a5a28",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "0,87": {
+     "c": "#4a5a28",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "0,83": {
+     "c": "#4a5a28",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
     }
    },
    "bg": {
@@ -1621185,8 +1621314,8 @@
    "floor": "Vietnam",
    "section": "Middle",
    "hazard": {},
-   "savedAt": 1792630896493,
-   "editedFrom": 1792630889857
+   "savedAt": 1792637142301,
+   "editedFrom": 1792630896493
   },
   {
    "id": "ikupopa",
