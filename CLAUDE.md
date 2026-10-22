@@ -154,6 +154,8 @@ has never actually been gone; the bytes were always still on disk.** Never clear
   his rule. **And the original goes back to how it was OPENED** (`saveAsRestores`, `assetOpened` /
   `animOpened`): the autosave writes edits in place before the rename, so a fork alone kept his recolour
   on the original (Black shirt and Scarf, 2026-10-21). Any editor that autosaves must do the same.
+  **💾 Save & Open writes NOTHING** (it only opens the sheet) and the autosave holds while the sheet is up:
+  "it says 'Saved' right away even before i try to save anything" (2026-10-21). The sheet's 💾 Save is the save.
 - Start an asset job from his existing asset of the same kind, not from a blank page.
 - The dev server rewrites `asset-data/` from the browser. **`git checkout -- asset-data/` also
   restores anything he deleted that session**, so check `git diff --stat asset-data/` first.

@@ -20934,10 +20934,13 @@ export default function AssetStudio({ game = false } = {}) {
   const syncProp = (a) => { if (!a || a.type !== "prop") return a; const frames = [...(a.frames || [blankAngles()])]; frames[propFrame] = a.angles; return { ...a, frames, angles: frames[0], category: (a.category || "").trim() }; };
   const data = () => JSON.stringify(syncProp(syncFit(syncEnemy(syncWeapon(syncEffectAnim(asset))))), null, 2);
   const openSheet = () => { setText(data()); setSheetFolder(null); setSheet(true); };
-  // The header's 💾 Save & Open: for an asset already saved under the name it still has, it SAVES, then
-  // opens the sheet — it used to only open it (see ASSET_AUTOSAVE_MS). A new or renamed one still
-  // waits for the sheet's own 💾 Save, where the name is chosen.
-  const saveAndOpen = () => { openSheet(); if (hasStore && assetAutoSaves(asset, library.find((x) => x && x.id === asset.id))) saveAsset(); };
+  // The header's 💾 Save & Open OPENS the sheet and writes nothing; the sheet's own 💾 Save is the save.
+  // From 2026-10-19 it saved first (the Flamethrower report, ASSET_AUTOSAVE_MS) and said "Saved" as the
+  // sheet came up, and Blake (2026-10-21): "I click save and open and it says 'Saved' right away even
+  // before i try to save anything". The sheet is where he names what he is about to save, often a NEW
+  // name, so nothing is written before he chooses. The autosave below holds while the sheet is open
+  // for the same reason; the Flamethrower edit is still covered by it, before the sheet and after.
+  const saveAndOpen = () => openSheet();
   // The editor's own save: the open asset, a moment after its last change. assetBase is what the
   // editor last matched the store on (id + content signature); assetAutoRef holds the latest "save it
   // now if it needs it" for the ways out (‹ Menu, picking another asset, closing the page), which must
@@ -20959,10 +20962,10 @@ export default function AssetStudio({ game = false } = {}) {
     }
     const pending = () => hasStore && assetBase.current.sig !== sig && assetAutoSaves(asset, library.find((x) => x && x.id === asset.id));
     assetAutoRef.current = () => (pending() ? saveAsset(true) : Promise.resolve(false));
-    if (!pending()) return undefined;
+    if (!pending() || sheet) return undefined; // 💾 Save & Open's sheet is up: he is choosing the name, nothing writes until its 💾 Save
     const t = setTimeout(() => { saveAsset(true); }, ASSET_AUTOSAVE_MS);
     return () => clearTimeout(t);
-  }, [asset, library, hasStore]); // saveAsset is re-made every render; the asset and the library decide
+  }, [asset, library, hasStore, sheet]); // saveAsset is re-made every render; the asset, the library and the sheet decide
   useEffect(() => {
     const bu = () => { if (assetAutoRef.current) assetAutoRef.current(); };
     window.addEventListener("beforeunload", bu);

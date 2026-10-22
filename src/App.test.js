@@ -14551,6 +14551,13 @@ describe("asset autosave", () => {
     expect(assetEditSig({ ...a, savedAt: 2, editedFrom: 1, confirmedFits: ["x", "y"] })).toBe(assetEditSig(a));
     expect(assetEditSig({ ...a, damage: 9 })).not.toBe(assetEditSig(a));
   });
+  // Blake, 2026-10-21: "I click save and open and it says 'Saved' right away even before i try to
+  // save anything". Save & Open opens the sheet and writes nothing; the autosave holds while it is open.
+  it("💾 Save & Open only opens the sheet, and the autosave waits while the sheet is up", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toContain("const saveAndOpen = () => openSheet();");
+    expect(src).toContain("if (!pending() || sheet) return undefined;");
+  });
 });
 
 import { StatusFx } from "./App";
