@@ -949500,8 +949500,8 @@
    "id": "nrlag3w",
    "name": "Ice Launcher",
    "type": "weapon",
-   "guideId": "oipvf3l",
-   "lastFit": "oipvf3l",
+   "guideId": "telfv37",
+   "lastFit": "telfv37",
    "confirmedFits": [
     "telfv37",
     "oipvf3l"
@@ -951868,31 +951868,13 @@
          "behindBody": true
         },
         {
-         "id": "fttf1i",
-         "mirror": false,
-         "fx": {
-          "opacity": 1,
-          "glow": 0,
-          "glowColor": "#ffd76b",
-          "bright": 1
-         },
-         "kind": "tri",
-         "x": 173.1,
-         "y": 240.1,
-         "w": 16,
-         "h": 26,
-         "color": "#ff8a1f",
-         "rot": 175,
-         "behindBody": true
-        },
-        {
          "id": "fttf1j",
          "mirror": false,
          "fx": {
           "opacity": 1,
           "glow": 0,
           "glowColor": "#ffd76b",
-          "bright": 1
+          "bright": 2
          },
          "kind": "tri",
          "x": 175.9,
@@ -952069,31 +952051,13 @@
          "behindArm": true
         },
         {
-         "id": "fttf2i",
-         "mirror": false,
-         "fx": {
-          "opacity": 1,
-          "glow": 0,
-          "glowColor": "#ffd76b",
-          "bright": 1
-         },
-         "kind": "tri",
-         "x": 106.5,
-         "y": 249.5,
-         "w": 16,
-         "h": 26,
-         "color": "#ff8a1f",
-         "rot": 180,
-         "behindArm": true
-        },
-        {
          "id": "fttf2j",
          "mirror": false,
          "fx": {
           "opacity": 1,
           "glow": 0,
           "glowColor": "#ffd76b",
-          "bright": 1
+          "bright": 2
          },
          "kind": "tri",
          "x": 110,
@@ -952270,31 +952234,13 @@
          "behindArm": true
         },
         {
-         "id": "fttf3i",
-         "mirror": false,
-         "fx": {
-          "opacity": 1,
-          "glow": 0,
-          "glowColor": "#ffd76b",
-          "bright": 1
-         },
-         "kind": "tri",
-         "x": 121.5,
-         "y": -60,
-         "w": 16,
-         "h": 26,
-         "color": "#ff8a1f",
-         "rot": 0,
-         "behindArm": true
-        },
-        {
          "id": "fttf3j",
          "mirror": false,
          "fx": {
           "opacity": 1,
           "glow": 0,
           "glowColor": "#ffd76b",
-          "bright": 1
+          "bright": 2
          },
          "kind": "tri",
          "x": 125,
@@ -952471,31 +952417,13 @@
          "behindArm": true
         },
         {
-         "id": "fttf4i",
-         "mirror": false,
-         "fx": {
-          "opacity": 1,
-          "glow": 0,
-          "glowColor": "#ffd76b",
-          "bright": 1
-         },
-         "kind": "tri",
-         "x": 155.5,
-         "y": 258,
-         "w": 16,
-         "h": 26,
-         "color": "#ff8a1f",
-         "rot": 180,
-         "behindArm": true
-        },
-        {
          "id": "fttf4j",
          "mirror": false,
          "fx": {
           "opacity": 1,
           "glow": 0,
           "glowColor": "#ffd76b",
-          "bright": 1
+          "bright": 2
          },
          "kind": "tri",
          "x": 159,
@@ -953918,31 +953846,13 @@
          "behindArm": true
         },
         {
-         "id": "ftof4i",
-         "mirror": false,
-         "fx": {
-          "opacity": 1,
-          "glow": 0,
-          "glowColor": "#ffd76b",
-          "bright": 1
-         },
-         "kind": "tri",
-         "x": 166.1,
-         "y": 230.3,
-         "w": 16,
-         "h": 26,
-         "color": "#ff8a1f",
-         "rot": 170,
-         "behindArm": true
-        },
-        {
          "id": "ftof4j",
          "mirror": false,
          "fx": {
           "opacity": 1,
           "glow": 0,
           "glowColor": "#ffd76b",
-          "bright": 1
+          "bright": 2
          },
          "kind": "tri",
          "x": 168.2,
@@ -953982,7 +953892,7 @@
      "front": [],
      "back": [
       {
-       "id": "ftor1e",
+       "id": "fttr1a",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -953991,34 +953901,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 142.5,
-       "y": 142,
-       "w": 6,
-       "h": 13,
-       "color": "#2b2b2b",
-       "rot": 108,
-       "behindBody": true
-      },
-      {
-       "id": "ftor1a",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 139,
-       "y": 125,
+       "x": 150.3,
+       "y": 132.8,
        "w": 30,
        "h": 10,
        "color": "#2b2b2b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "ftor1b",
+       "id": "fttr1b",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954027,16 +953919,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 130.6,
-       "y": 165.5,
+       "x": 143,
+       "y": 172.9,
        "w": 58,
        "h": 13,
        "color": "#7aa2d6",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "ftor1c",
+       "id": "fttr1c",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954045,12 +953937,12 @@
         "bright": 1
        },
        "kind": "stadium",
-       "x": 128.5,
-       "y": 170.5,
+       "x": 140.4,
+       "y": 177.6,
        "w": 36,
        "h": 14,
        "color": "#7aa2d6",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true,
        "outline": true,
        "outlineFx": {
@@ -954061,7 +953953,7 @@
        }
       },
       {
-       "id": "ftor1d",
+       "id": "fttr1d",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954070,16 +953962,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 145,
-       "y": 170.5,
+       "x": 156.4,
+       "y": 177.6,
        "w": 4,
        "h": 14,
        "color": "#2b2b2b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "ftor1f",
+       "id": "fttr1e",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954088,16 +953980,34 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 151.7,
-       "y": 210.7,
+       "x": 156.6,
+       "y": 157.9,
+       "w": 6,
+       "h": 13,
+       "color": "#2b2b2b",
+       "rot": 70,
+       "behindBody": true
+      },
+      {
+       "id": "fttr1f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 162.7,
+       "y": 218.2,
        "w": 26,
        "h": 6,
        "color": "#2b2b2b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "ftor1g",
+       "id": "fttr1g",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954106,16 +954016,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 163.5,
-       "y": 223.6,
+       "x": 174,
+       "y": 231.2,
        "w": 6,
        "h": 10,
        "color": "#2b2b2b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "ftor1h",
+       "id": "fttr1h",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954124,16 +954034,16 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 172,
-       "y": 225.1,
+       "x": 182.4,
+       "y": 233,
        "w": 5,
        "h": 5,
        "color": "#ff8a1f",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "ftor1z",
+       "id": "fttr1z",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954142,19 +954052,19 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 159.1,
-       "y": 225.6,
+       "x": 169.4,
+       "y": 233.2,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
        "isMuzzle": true,
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       }
      ],
      "side": [
       {
-       "id": "ftor2e",
+       "id": "fttr2e",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954163,16 +954073,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 98,
-       "y": 149.5,
+       "x": 101,
+       "y": 158.5,
        "w": 6,
        "h": 13,
        "color": "#2b2b2b",
-       "rot": 108,
+       "rot": 121,
        "behindArm": true
       },
       {
-       "id": "ftor2a",
+       "id": "fttr2a",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954181,8 +954091,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 92.5,
-       "y": 129.5,
+       "x": 99,
+       "y": 139.5,
        "w": 30,
        "h": 10,
        "color": "#2b2b2b",
@@ -954190,7 +954100,7 @@
        "behindArm": true
       },
       {
-       "id": "ftor2b",
+       "id": "fttr2b",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954199,8 +954109,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 81.5,
-       "y": 170,
+       "x": 84.5,
+       "y": 180,
        "w": 58,
        "h": 13,
        "color": "#7aa2d6",
@@ -954208,7 +954118,7 @@
        "behindArm": true
       },
       {
-       "id": "ftor2c",
+       "id": "fttr2c",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954217,8 +954127,8 @@
         "bright": 1
        },
        "kind": "stadium",
-       "x": 79.5,
-       "y": 173.5,
+       "x": 82.5,
+       "y": 183.5,
        "w": 36,
        "h": 14,
        "color": "#7aa2d6",
@@ -954233,7 +954143,7 @@
        }
       },
       {
-       "id": "ftor2d",
+       "id": "fttr2d",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954242,8 +954152,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 95.5,
-       "y": 173.5,
+       "x": 98.5,
+       "y": 183.5,
        "w": 4,
        "h": 14,
        "color": "#2b2b2b",
@@ -954251,7 +954161,7 @@
        "behindArm": true
       },
       {
-       "id": "ftor2f",
+       "id": "fttr2f",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954260,8 +954170,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 97.5,
-       "y": 215.5,
+       "x": 100.5,
+       "y": 225.5,
        "w": 26,
        "h": 6,
        "color": "#2b2b2b",
@@ -954269,7 +954179,7 @@
        "behindArm": true
       },
       {
-       "id": "ftor2g",
+       "id": "fttr2g",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954278,8 +954188,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 107.5,
-       "y": 228.5,
+       "x": 110.5,
+       "y": 238.5,
        "w": 6,
        "h": 10,
        "color": "#2b2b2b",
@@ -954287,7 +954197,7 @@
        "behindArm": true
       },
       {
-       "id": "ftor2h",
+       "id": "fttr2h",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954296,8 +954206,8 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 116,
-       "y": 231,
+       "x": 119,
+       "y": 241,
        "w": 5,
        "h": 5,
        "color": "#ff8a1f",
@@ -954305,7 +954215,7 @@
        "behindArm": true
       },
       {
-       "id": "ftor2z",
+       "id": "fttr2z",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954314,8 +954224,8 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 102.5,
-       "y": 230.5,
+       "x": 105.5,
+       "y": 240.5,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
@@ -954326,7 +954236,7 @@
      ],
      "up": [
       {
-       "id": "ftor3a",
+       "id": "fttr3e",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954335,8 +954245,26 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 117,
-       "y": 61,
+       "x": 135.5,
+       "y": 41.5,
+       "w": 6,
+       "h": 13,
+       "color": "#2b2b2b",
+       "rot": 288,
+       "behindArm": true
+      },
+      {
+       "id": "fttr3a",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 113.5,
+       "y": 66,
        "w": 30,
        "h": 10,
        "color": "#2b2b2b",
@@ -954344,7 +954272,7 @@
        "behindArm": true
       },
       {
-       "id": "ftor3b",
+       "id": "fttr3b",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954354,7 +954282,7 @@
        },
        "kind": "rect",
        "x": 100,
-       "y": 17.5,
+       "y": 22.5,
        "w": 58,
        "h": 13,
        "color": "#7aa2d6",
@@ -954362,7 +954290,7 @@
        "behindArm": true
       },
       {
-       "id": "ftor3c",
+       "id": "fttr3c",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954372,7 +954300,7 @@
        },
        "kind": "stadium",
        "x": 125,
-       "y": 13,
+       "y": 18,
        "w": 36,
        "h": 14,
        "color": "#7aa2d6",
@@ -954387,7 +954315,7 @@
        }
       },
       {
-       "id": "ftor3d",
+       "id": "fttr3d",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954397,7 +954325,7 @@
        },
        "kind": "rect",
        "x": 141,
-       "y": 13,
+       "y": 18,
        "w": 4,
        "h": 14,
        "color": "#2b2b2b",
@@ -954405,25 +954333,7 @@
        "behindArm": true
       },
       {
-       "id": "ftor3e",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 137,
-       "y": 33.5,
-       "w": 6,
-       "h": 13,
-       "color": "#2b2b2b",
-       "rot": 285,
-       "behindArm": true
-      },
-      {
-       "id": "ftor3f",
+       "id": "fttr3f",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954433,7 +954343,7 @@
        },
        "kind": "rect",
        "x": 116,
-       "y": -21,
+       "y": -16,
        "w": 26,
        "h": 6,
        "color": "#2b2b2b",
@@ -954441,7 +954351,7 @@
        "behindArm": true
       },
       {
-       "id": "ftor3g",
+       "id": "fttr3g",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954451,7 +954361,7 @@
        },
        "kind": "rect",
        "x": 126,
-       "y": -38,
+       "y": -33,
        "w": 6,
        "h": 10,
        "color": "#2b2b2b",
@@ -954459,7 +954369,7 @@
        "behindArm": true
       },
       {
-       "id": "ftor3h",
+       "id": "fttr3h",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954469,7 +954379,7 @@
        },
        "kind": "circle",
        "x": 118.5,
-       "y": -35.5,
+       "y": -30.5,
        "w": 5,
        "h": 5,
        "color": "#ff8a1f",
@@ -954477,7 +954387,7 @@
        "behindArm": true
       },
       {
-       "id": "ftor3z",
+       "id": "fttr3z",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954487,7 +954397,7 @@
        },
        "kind": "circle",
        "x": 121,
-       "y": -46,
+       "y": -41,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
@@ -954498,7 +954408,7 @@
      ],
      "crouch": [
       {
-       "id": "ftor4e",
+       "id": "fttr4e",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954508,15 +954418,15 @@
        },
        "kind": "rect",
        "x": 149,
-       "y": 145.5,
+       "y": 165,
        "w": 6,
        "h": 13,
        "color": "#2b2b2b",
-       "rot": 94,
+       "rot": 111,
        "behindArm": true
       },
       {
-       "id": "ftor4a",
+       "id": "fttr4a",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954525,16 +954435,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 142,
-       "y": 125.5,
+       "x": 146.5,
+       "y": 144,
        "w": 30,
        "h": 10,
        "color": "#2b2b2b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "ftor4b",
+       "id": "fttr4b",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954543,16 +954453,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 135.9,
-       "y": 165.4,
+       "x": 133,
+       "y": 185.5,
        "w": 58,
        "h": 13,
        "color": "#7aa2d6",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "ftor4c",
+       "id": "fttr4c",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954561,30 +954471,12 @@
         "bright": 1
        },
        "kind": "stadium",
-       "x": 134.5,
-       "y": 170,
+       "x": 130,
+       "y": 189,
        "w": 36,
        "h": 14,
        "color": "#7aa2d6",
-       "rot": 80,
-       "behindArm": true
-      },
-      {
-       "id": "ftor4d",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "rect",
-       "x": 151.5,
-       "y": 171.5,
-       "w": 4,
-       "h": 14,
-       "color": "#2b2b2b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true,
        "outline": true,
        "outlineFx": {
@@ -954595,7 +954487,7 @@
        }
       },
       {
-       "id": "ftor4f",
+       "id": "fttr4d",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954604,16 +954496,34 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 159.2,
-       "y": 210.3,
+       "x": 146,
+       "y": 189,
+       "w": 4,
+       "h": 14,
+       "color": "#2b2b2b",
+       "rot": 90,
+       "behindArm": true
+      },
+      {
+       "id": "fttr4f",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "kind": "rect",
+       "x": 149,
+       "y": 231,
        "w": 26,
        "h": 6,
        "color": "#2b2b2b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "ftor4g",
+       "id": "fttr4g",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954622,16 +954532,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 171.8,
-       "y": 223.1,
+       "x": 159,
+       "y": 244,
        "w": 6,
        "h": 10,
        "color": "#2b2b2b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "ftor4h",
+       "id": "fttr4h",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954640,16 +954550,16 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 180.2,
-       "y": 224.2,
+       "x": 167.5,
+       "y": 246.5,
        "w": 5,
        "h": 5,
        "color": "#ff8a1f",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "ftor4z",
+       "id": "fttr4z",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954658,13 +954568,13 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 167.7,
-       "y": 225,
+       "x": 154,
+       "y": 246,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
        "isMuzzle": true,
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       }
      ]
@@ -954673,7 +954583,7 @@
      "front": [],
      "back": [
       {
-       "id": "ftof1a",
+       "id": "fttf1a",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954682,16 +954592,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 139.5,
-       "y": 125.5,
+       "x": 152.8,
+       "y": 130.8,
        "w": 30,
        "h": 10,
        "color": "#2b2b2b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "ftof1b",
+       "id": "fttf1b",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954700,16 +954610,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 131.1,
-       "y": 165.5,
+       "x": 145.5,
+       "y": 170.9,
        "w": 58,
        "h": 13,
        "color": "#7aa2d6",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "ftof1c",
+       "id": "fttf1c",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954718,16 +954628,16 @@
         "bright": 1
        },
        "kind": "stadium",
-       "x": 128.7,
-       "y": 170.7,
+       "x": 142.9,
+       "y": 175.6,
        "w": 36,
        "h": 14,
        "color": "#7aa2d6",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "ftof1d",
+       "id": "fttf1d",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954736,16 +954646,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 144.7,
-       "y": 170.7,
+       "x": 158.9,
+       "y": 175.6,
        "w": 4,
        "h": 14,
        "color": "#2b2b2b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "ftof1e",
+       "id": "fttf1e",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954754,16 +954664,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 144.2,
-       "y": 151,
+       "x": 159.1,
+       "y": 155.9,
        "w": 6,
        "h": 13,
        "color": "#2b2b2b",
-       "rot": 68,
+       "rot": 70,
        "behindBody": true
       },
       {
-       "id": "ftof1f",
+       "id": "fttf1f",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954772,16 +954682,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 152.2,
-       "y": 210.7,
+       "x": 165.2,
+       "y": 216.2,
        "w": 26,
        "h": 6,
        "color": "#2b2b2b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "ftof1g",
+       "id": "fttf1g",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954790,16 +954700,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 164,
-       "y": 223.6,
+       "x": 176.5,
+       "y": 229.2,
        "w": 6,
        "h": 10,
        "color": "#2b2b2b",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "ftof1h",
+       "id": "fttf1h",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954808,16 +954718,16 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 172.5,
-       "y": 225.1,
+       "x": 184.9,
+       "y": 231,
        "w": 5,
        "h": 5,
        "color": "#ff8a1f",
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       },
       {
-       "id": "ftof1j",
+       "id": "fttf1j",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954826,16 +954736,16 @@
         "bright": 2
        },
        "kind": "tri",
-       "x": 164,
-       "y": 232.5,
+       "x": 175.9,
+       "y": 238.1,
        "w": 9,
        "h": 14,
        "color": "#7aa2d6",
-       "rot": 173,
+       "rot": 175,
        "behindBody": true
       },
       {
-       "id": "ftof1z",
+       "id": "fttf1z",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954844,36 +954754,19 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 159.6,
-       "y": 225.6,
+       "x": 171.9,
+       "y": 231.2,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
        "isMuzzle": true,
-       "rot": 83,
+       "rot": 85,
        "behindBody": true
       }
      ],
      "side": [
       {
-       "id": "qf91a2o",
-       "kind": "tri",
-       "x": 103,
-       "y": 239,
-       "w": 6.5,
-       "h": 15.5,
-       "color": "#7aa2d6",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 2
-       },
-       "rot": 180
-      },
-      {
-       "id": "ftof2e",
+       "id": "fttf2e",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954882,16 +954775,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 91.5,
-       "y": 154,
+       "x": 102,
+       "y": 155.5,
        "w": 6,
        "h": 13,
        "color": "#2b2b2b",
-       "rot": 108,
+       "rot": 118,
        "behindArm": true
       },
       {
-       "id": "ftof2a",
+       "id": "fttf2a",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954900,8 +954793,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 89.5,
-       "y": 135,
+       "x": 100.5,
+       "y": 139.5,
        "w": 30,
        "h": 10,
        "color": "#2b2b2b",
@@ -954909,7 +954802,7 @@
        "behindArm": true
       },
       {
-       "id": "ftof2b",
+       "id": "fttf2b",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954918,8 +954811,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 76.5,
-       "y": 176.5,
+       "x": 85.5,
+       "y": 180,
        "w": 58,
        "h": 13,
        "color": "#7aa2d6",
@@ -954927,7 +954820,7 @@
        "behindArm": true
       },
       {
-       "id": "ftof2c",
+       "id": "fttf2c",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954936,8 +954829,8 @@
         "bright": 1
        },
        "kind": "stadium",
-       "x": 73.5,
-       "y": 180,
+       "x": 82.5,
+       "y": 183.5,
        "w": 36,
        "h": 14,
        "color": "#7aa2d6",
@@ -954945,7 +954838,7 @@
        "behindArm": true
       },
       {
-       "id": "ftof2d",
+       "id": "fttf2d",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954954,8 +954847,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 89.5,
-       "y": 180,
+       "x": 98.5,
+       "y": 183.5,
        "w": 4,
        "h": 14,
        "color": "#2b2b2b",
@@ -954963,7 +954856,7 @@
        "behindArm": true
       },
       {
-       "id": "ftof2f",
+       "id": "fttf2f",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954972,8 +954865,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 92.5,
-       "y": 222,
+       "x": 101.5,
+       "y": 225.5,
        "w": 26,
        "h": 6,
        "color": "#2b2b2b",
@@ -954981,7 +954874,7 @@
        "behindArm": true
       },
       {
-       "id": "ftof2g",
+       "id": "fttf2g",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -954990,8 +954883,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 102.5,
-       "y": 235,
+       "x": 111.5,
+       "y": 238.5,
        "w": 6,
        "h": 10,
        "color": "#2b2b2b",
@@ -954999,7 +954892,7 @@
        "behindArm": true
       },
       {
-       "id": "ftof2h",
+       "id": "fttf2h",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955008,8 +954901,8 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 111,
-       "y": 237.5,
+       "x": 120,
+       "y": 241,
        "w": 5,
        "h": 5,
        "color": "#ff8a1f",
@@ -955017,7 +954910,25 @@
        "behindArm": true
       },
       {
-       "id": "ftof2z",
+       "id": "fttf2j",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 2
+       },
+       "kind": "tri",
+       "x": 110,
+       "y": 247.5,
+       "w": 9,
+       "h": 14,
+       "color": "#7aa2d6",
+       "rot": 180,
+       "behindArm": true
+      },
+      {
+       "id": "fttf2z",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955026,8 +954937,8 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 97.5,
-       "y": 237,
+       "x": 106.5,
+       "y": 240.5,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
@@ -955038,7 +954949,7 @@
      ],
      "up": [
       {
-       "id": "ftof3e",
+       "id": "fttf3e",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955047,16 +954958,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 134,
-       "y": 38.5,
+       "x": 137.5,
+       "y": 44,
        "w": 6,
        "h": 13,
        "color": "#2b2b2b",
-       "rot": 274,
+       "rot": 285,
        "behindArm": true
       },
       {
-       "id": "ftof3a",
+       "id": "fttf3a",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955065,8 +954976,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 109,
-       "y": 63.5,
+       "x": 114.5,
+       "y": 66,
        "w": 30,
        "h": 10,
        "color": "#2b2b2b",
@@ -955074,7 +954985,7 @@
        "behindArm": true
       },
       {
-       "id": "ftof3b",
+       "id": "fttf3b",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955083,8 +954994,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 97,
-       "y": 20,
+       "x": 100.5,
+       "y": 22.5,
        "w": 58,
        "h": 13,
        "color": "#7aa2d6",
@@ -955092,7 +955003,7 @@
        "behindArm": true
       },
       {
-       "id": "ftof3c",
+       "id": "fttf3c",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955101,8 +955012,8 @@
         "bright": 1
        },
        "kind": "stadium",
-       "x": 122,
-       "y": 15.5,
+       "x": 125.5,
+       "y": 18,
        "w": 36,
        "h": 14,
        "color": "#7aa2d6",
@@ -955110,7 +955021,7 @@
        "behindArm": true
       },
       {
-       "id": "ftof3d",
+       "id": "fttf3d",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955119,8 +955030,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 138,
-       "y": 15.5,
+       "x": 141.5,
+       "y": 18,
        "w": 4,
        "h": 14,
        "color": "#2b2b2b",
@@ -955128,7 +955039,7 @@
        "behindArm": true
       },
       {
-       "id": "ftof3f",
+       "id": "fttf3f",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955137,8 +955048,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 113,
-       "y": -18.5,
+       "x": 116.5,
+       "y": -16,
        "w": 26,
        "h": 6,
        "color": "#2b2b2b",
@@ -955146,7 +955057,7 @@
        "behindArm": true
       },
       {
-       "id": "ftof3g",
+       "id": "fttf3g",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955155,8 +955066,8 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 123,
-       "y": -35.5,
+       "x": 126.5,
+       "y": -33,
        "w": 6,
        "h": 10,
        "color": "#2b2b2b",
@@ -955164,7 +955075,7 @@
        "behindArm": true
       },
       {
-       "id": "ftof3h",
+       "id": "fttf3h",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955173,8 +955084,8 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 115.5,
-       "y": -33,
+       "x": 119,
+       "y": -30.5,
        "w": 5,
        "h": 5,
        "color": "#ff8a1f",
@@ -955182,25 +955093,25 @@
        "behindArm": true
       },
       {
-       "id": "ftof3j",
+       "id": "fttf3j",
        "mirror": false,
        "fx": {
         "opacity": 1,
         "glow": 0,
         "glowColor": "#ffd76b",
-        "bright": 1.35
+        "bright": 2
        },
        "kind": "tri",
-       "x": 121.5,
-       "y": -48.5,
+       "x": 125,
+       "y": -46,
        "w": 9,
        "h": 14,
-       "color": "#f4f4f4",
+       "color": "#7aa2d6",
        "rot": 0,
        "behindArm": true
       },
       {
-       "id": "ftof3z",
+       "id": "fttf3z",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955209,8 +955120,8 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 118,
-       "y": -43.5,
+       "x": 121.5,
+       "y": -41,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
@@ -955221,7 +955132,7 @@
      ],
      "crouch": [
       {
-       "id": "ftof4e",
+       "id": "fttf4e",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955230,16 +955141,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 141.5,
-       "y": 141.5,
+       "x": 151,
+       "y": 165,
        "w": 6,
        "h": 13,
        "color": "#2b2b2b",
-       "rot": 87,
+       "rot": 115,
        "behindArm": true
       },
       {
-       "id": "ftof4a",
+       "id": "fttf4a",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955248,16 +955159,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 137,
-       "y": 122,
+       "x": 148,
+       "y": 148,
        "w": 30,
        "h": 10,
        "color": "#2b2b2b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "ftof4b",
+       "id": "fttf4b",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955266,16 +955177,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 131.9,
-       "y": 161.9,
+       "x": 134.5,
+       "y": 188.5,
        "w": 58,
        "h": 13,
        "color": "#7aa2d6",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "ftof4c",
+       "id": "fttf4c",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955284,16 +955195,16 @@
         "bright": 1
        },
        "kind": "stadium",
-       "x": 129.8,
-       "y": 167.8,
+       "x": 131.5,
+       "y": 192,
        "w": 36,
        "h": 14,
        "color": "#7aa2d6",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "ftof4d",
+       "id": "fttf4d",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955302,16 +955213,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 145.8,
-       "y": 167.8,
+       "x": 147.5,
+       "y": 192,
        "w": 4,
        "h": 14,
        "color": "#2b2b2b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "ftof4f",
+       "id": "fttf4f",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955320,16 +955231,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 155.2,
-       "y": 206.8,
+       "x": 150.5,
+       "y": 234,
        "w": 26,
        "h": 6,
        "color": "#2b2b2b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "ftof4g",
+       "id": "fttf4g",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955338,16 +955249,16 @@
         "bright": 1
        },
        "kind": "rect",
-       "x": 167.8,
-       "y": 219.6,
+       "x": 160.5,
+       "y": 247,
        "w": 6,
        "h": 10,
        "color": "#2b2b2b",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "ftof4h",
+       "id": "fttf4h",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955356,52 +955267,34 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 176.2,
-       "y": 220.7,
+       "x": 169,
+       "y": 249.5,
        "w": 5,
        "h": 5,
        "color": "#ff8a1f",
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       },
       {
-       "id": "ftof4i",
+       "id": "fttf4j",
        "mirror": false,
        "fx": {
         "opacity": 1,
         "glow": 0,
         "glowColor": "#ffd76b",
-        "bright": 1
+        "bright": 2
        },
        "kind": "tri",
-       "x": 166.1,
-       "y": 230.3,
-       "w": 16,
-       "h": 26,
-       "color": "#ff8a1f",
-       "rot": 170,
-       "behindArm": true
-      },
-      {
-       "id": "ftof4j",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 168.2,
-       "y": 228.4,
+       "x": 159,
+       "y": 256,
        "w": 9,
        "h": 14,
        "color": "#7aa2d6",
-       "rot": 170,
+       "rot": 180,
        "behindArm": true
       },
       {
-       "id": "ftof4z",
+       "id": "fttf4z",
        "mirror": false,
        "fx": {
         "opacity": 1,
@@ -955410,13 +955303,13 @@
         "bright": 1
        },
        "kind": "circle",
-       "x": 163.7,
-       "y": 221.5,
+       "x": 155.5,
+       "y": 249,
        "w": 16,
        "h": 16,
        "color": "#42d6ff",
        "isMuzzle": true,
-       "rot": 80,
+       "rot": 90,
        "behindArm": true
       }
      ]
@@ -955426,7 +955319,7 @@
     "front": [],
     "back": [
      {
-      "id": "ftor1e",
+      "id": "fttr1a",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955435,34 +955328,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 142.5,
-      "y": 142,
-      "w": 6,
-      "h": 13,
-      "color": "#2b2b2b",
-      "rot": 108,
-      "behindBody": true
-     },
-     {
-      "id": "ftor1a",
-      "mirror": false,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "kind": "rect",
-      "x": 139,
-      "y": 125,
+      "x": 150.3,
+      "y": 132.8,
       "w": 30,
       "h": 10,
       "color": "#2b2b2b",
-      "rot": 83,
+      "rot": 85,
       "behindBody": true
      },
      {
-      "id": "ftor1b",
+      "id": "fttr1b",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955471,16 +955346,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 130.6,
-      "y": 165.5,
+      "x": 143,
+      "y": 172.9,
       "w": 58,
       "h": 13,
       "color": "#7aa2d6",
-      "rot": 83,
+      "rot": 85,
       "behindBody": true
      },
      {
-      "id": "ftor1c",
+      "id": "fttr1c",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955489,12 +955364,12 @@
        "bright": 1
       },
       "kind": "stadium",
-      "x": 128.5,
-      "y": 170.5,
+      "x": 140.4,
+      "y": 177.6,
       "w": 36,
       "h": 14,
       "color": "#7aa2d6",
-      "rot": 83,
+      "rot": 85,
       "behindBody": true,
       "outline": true,
       "outlineFx": {
@@ -955505,7 +955380,7 @@
       }
      },
      {
-      "id": "ftor1d",
+      "id": "fttr1d",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955514,16 +955389,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 145,
-      "y": 170.5,
+      "x": 156.4,
+      "y": 177.6,
       "w": 4,
       "h": 14,
       "color": "#2b2b2b",
-      "rot": 83,
+      "rot": 85,
       "behindBody": true
      },
      {
-      "id": "ftor1f",
+      "id": "fttr1e",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955532,16 +955407,34 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 151.7,
-      "y": 210.7,
+      "x": 156.6,
+      "y": 157.9,
+      "w": 6,
+      "h": 13,
+      "color": "#2b2b2b",
+      "rot": 70,
+      "behindBody": true
+     },
+     {
+      "id": "fttr1f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "kind": "rect",
+      "x": 162.7,
+      "y": 218.2,
       "w": 26,
       "h": 6,
       "color": "#2b2b2b",
-      "rot": 83,
+      "rot": 85,
       "behindBody": true
      },
      {
-      "id": "ftor1g",
+      "id": "fttr1g",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955550,16 +955443,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 163.5,
-      "y": 223.6,
+      "x": 174,
+      "y": 231.2,
       "w": 6,
       "h": 10,
       "color": "#2b2b2b",
-      "rot": 83,
+      "rot": 85,
       "behindBody": true
      },
      {
-      "id": "ftor1h",
+      "id": "fttr1h",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955568,16 +955461,16 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 172,
-      "y": 225.1,
+      "x": 182.4,
+      "y": 233,
       "w": 5,
       "h": 5,
       "color": "#ff8a1f",
-      "rot": 83,
+      "rot": 85,
       "behindBody": true
      },
      {
-      "id": "ftor1z",
+      "id": "fttr1z",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955586,19 +955479,19 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 159.1,
-      "y": 225.6,
+      "x": 169.4,
+      "y": 233.2,
       "w": 16,
       "h": 16,
       "color": "#42d6ff",
       "isMuzzle": true,
-      "rot": 83,
+      "rot": 85,
       "behindBody": true
      }
     ],
     "side": [
      {
-      "id": "ftor2e",
+      "id": "fttr2e",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955607,16 +955500,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 98,
-      "y": 149.5,
+      "x": 101,
+      "y": 158.5,
       "w": 6,
       "h": 13,
       "color": "#2b2b2b",
-      "rot": 108,
+      "rot": 121,
       "behindArm": true
      },
      {
-      "id": "ftor2a",
+      "id": "fttr2a",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955625,8 +955518,8 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 92.5,
-      "y": 129.5,
+      "x": 99,
+      "y": 139.5,
       "w": 30,
       "h": 10,
       "color": "#2b2b2b",
@@ -955634,7 +955527,7 @@
       "behindArm": true
      },
      {
-      "id": "ftor2b",
+      "id": "fttr2b",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955643,8 +955536,8 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 81.5,
-      "y": 170,
+      "x": 84.5,
+      "y": 180,
       "w": 58,
       "h": 13,
       "color": "#7aa2d6",
@@ -955652,7 +955545,7 @@
       "behindArm": true
      },
      {
-      "id": "ftor2c",
+      "id": "fttr2c",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955661,8 +955554,8 @@
        "bright": 1
       },
       "kind": "stadium",
-      "x": 79.5,
-      "y": 173.5,
+      "x": 82.5,
+      "y": 183.5,
       "w": 36,
       "h": 14,
       "color": "#7aa2d6",
@@ -955677,7 +955570,7 @@
       }
      },
      {
-      "id": "ftor2d",
+      "id": "fttr2d",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955686,8 +955579,8 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 95.5,
-      "y": 173.5,
+      "x": 98.5,
+      "y": 183.5,
       "w": 4,
       "h": 14,
       "color": "#2b2b2b",
@@ -955695,7 +955588,7 @@
       "behindArm": true
      },
      {
-      "id": "ftor2f",
+      "id": "fttr2f",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955704,8 +955597,8 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 97.5,
-      "y": 215.5,
+      "x": 100.5,
+      "y": 225.5,
       "w": 26,
       "h": 6,
       "color": "#2b2b2b",
@@ -955713,7 +955606,7 @@
       "behindArm": true
      },
      {
-      "id": "ftor2g",
+      "id": "fttr2g",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955722,8 +955615,8 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 107.5,
-      "y": 228.5,
+      "x": 110.5,
+      "y": 238.5,
       "w": 6,
       "h": 10,
       "color": "#2b2b2b",
@@ -955731,7 +955624,7 @@
       "behindArm": true
      },
      {
-      "id": "ftor2h",
+      "id": "fttr2h",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955740,8 +955633,8 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 116,
-      "y": 231,
+      "x": 119,
+      "y": 241,
       "w": 5,
       "h": 5,
       "color": "#ff8a1f",
@@ -955749,7 +955642,7 @@
       "behindArm": true
      },
      {
-      "id": "ftor2z",
+      "id": "fttr2z",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955758,8 +955651,8 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 102.5,
-      "y": 230.5,
+      "x": 105.5,
+      "y": 240.5,
       "w": 16,
       "h": 16,
       "color": "#42d6ff",
@@ -955770,7 +955663,7 @@
     ],
     "up": [
      {
-      "id": "ftor3a",
+      "id": "fttr3e",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955779,8 +955672,26 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 117,
-      "y": 61,
+      "x": 135.5,
+      "y": 41.5,
+      "w": 6,
+      "h": 13,
+      "color": "#2b2b2b",
+      "rot": 288,
+      "behindArm": true
+     },
+     {
+      "id": "fttr3a",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "kind": "rect",
+      "x": 113.5,
+      "y": 66,
       "w": 30,
       "h": 10,
       "color": "#2b2b2b",
@@ -955788,7 +955699,7 @@
       "behindArm": true
      },
      {
-      "id": "ftor3b",
+      "id": "fttr3b",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955798,7 +955709,7 @@
       },
       "kind": "rect",
       "x": 100,
-      "y": 17.5,
+      "y": 22.5,
       "w": 58,
       "h": 13,
       "color": "#7aa2d6",
@@ -955806,7 +955717,7 @@
       "behindArm": true
      },
      {
-      "id": "ftor3c",
+      "id": "fttr3c",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955816,7 +955727,7 @@
       },
       "kind": "stadium",
       "x": 125,
-      "y": 13,
+      "y": 18,
       "w": 36,
       "h": 14,
       "color": "#7aa2d6",
@@ -955831,7 +955742,7 @@
       }
      },
      {
-      "id": "ftor3d",
+      "id": "fttr3d",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955841,7 +955752,7 @@
       },
       "kind": "rect",
       "x": 141,
-      "y": 13,
+      "y": 18,
       "w": 4,
       "h": 14,
       "color": "#2b2b2b",
@@ -955849,25 +955760,7 @@
       "behindArm": true
      },
      {
-      "id": "ftor3e",
-      "mirror": false,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "kind": "rect",
-      "x": 137,
-      "y": 33.5,
-      "w": 6,
-      "h": 13,
-      "color": "#2b2b2b",
-      "rot": 285,
-      "behindArm": true
-     },
-     {
-      "id": "ftor3f",
+      "id": "fttr3f",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955877,7 +955770,7 @@
       },
       "kind": "rect",
       "x": 116,
-      "y": -21,
+      "y": -16,
       "w": 26,
       "h": 6,
       "color": "#2b2b2b",
@@ -955885,7 +955778,7 @@
       "behindArm": true
      },
      {
-      "id": "ftor3g",
+      "id": "fttr3g",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955895,7 +955788,7 @@
       },
       "kind": "rect",
       "x": 126,
-      "y": -38,
+      "y": -33,
       "w": 6,
       "h": 10,
       "color": "#2b2b2b",
@@ -955903,7 +955796,7 @@
       "behindArm": true
      },
      {
-      "id": "ftor3h",
+      "id": "fttr3h",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955913,7 +955806,7 @@
       },
       "kind": "circle",
       "x": 118.5,
-      "y": -35.5,
+      "y": -30.5,
       "w": 5,
       "h": 5,
       "color": "#ff8a1f",
@@ -955921,7 +955814,7 @@
       "behindArm": true
      },
      {
-      "id": "ftor3z",
+      "id": "fttr3z",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955931,7 +955824,7 @@
       },
       "kind": "circle",
       "x": 121,
-      "y": -46,
+      "y": -41,
       "w": 16,
       "h": 16,
       "color": "#42d6ff",
@@ -955942,7 +955835,7 @@
     ],
     "crouch": [
      {
-      "id": "ftor4e",
+      "id": "fttr4e",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955952,15 +955845,15 @@
       },
       "kind": "rect",
       "x": 149,
-      "y": 145.5,
+      "y": 165,
       "w": 6,
       "h": 13,
       "color": "#2b2b2b",
-      "rot": 94,
+      "rot": 111,
       "behindArm": true
      },
      {
-      "id": "ftor4a",
+      "id": "fttr4a",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955969,16 +955862,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 142,
-      "y": 125.5,
+      "x": 146.5,
+      "y": 144,
       "w": 30,
       "h": 10,
       "color": "#2b2b2b",
-      "rot": 80,
+      "rot": 90,
       "behindArm": true
      },
      {
-      "id": "ftor4b",
+      "id": "fttr4b",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -955987,16 +955880,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 135.9,
-      "y": 165.4,
+      "x": 133,
+      "y": 185.5,
       "w": 58,
       "h": 13,
       "color": "#7aa2d6",
-      "rot": 80,
+      "rot": 90,
       "behindArm": true
      },
      {
-      "id": "ftor4c",
+      "id": "fttr4c",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -956005,30 +955898,12 @@
        "bright": 1
       },
       "kind": "stadium",
-      "x": 134.5,
-      "y": 170,
+      "x": 130,
+      "y": 189,
       "w": 36,
       "h": 14,
       "color": "#7aa2d6",
-      "rot": 80,
-      "behindArm": true
-     },
-     {
-      "id": "ftor4d",
-      "mirror": false,
-      "fx": {
-       "opacity": 1,
-       "glow": 0,
-       "glowColor": "#ffd76b",
-       "bright": 1
-      },
-      "kind": "rect",
-      "x": 151.5,
-      "y": 171.5,
-      "w": 4,
-      "h": 14,
-      "color": "#2b2b2b",
-      "rot": 80,
+      "rot": 90,
       "behindArm": true,
       "outline": true,
       "outlineFx": {
@@ -956039,7 +955914,7 @@
       }
      },
      {
-      "id": "ftor4f",
+      "id": "fttr4d",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -956048,16 +955923,34 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 159.2,
-      "y": 210.3,
+      "x": 146,
+      "y": 189,
+      "w": 4,
+      "h": 14,
+      "color": "#2b2b2b",
+      "rot": 90,
+      "behindArm": true
+     },
+     {
+      "id": "fttr4f",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "kind": "rect",
+      "x": 149,
+      "y": 231,
       "w": 26,
       "h": 6,
       "color": "#2b2b2b",
-      "rot": 80,
+      "rot": 90,
       "behindArm": true
      },
      {
-      "id": "ftor4g",
+      "id": "fttr4g",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -956066,16 +955959,16 @@
        "bright": 1
       },
       "kind": "rect",
-      "x": 171.8,
-      "y": 223.1,
+      "x": 159,
+      "y": 244,
       "w": 6,
       "h": 10,
       "color": "#2b2b2b",
-      "rot": 80,
+      "rot": 90,
       "behindArm": true
      },
      {
-      "id": "ftor4h",
+      "id": "fttr4h",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -956084,16 +955977,16 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 180.2,
-      "y": 224.2,
+      "x": 167.5,
+      "y": 246.5,
       "w": 5,
       "h": 5,
       "color": "#ff8a1f",
-      "rot": 80,
+      "rot": 90,
       "behindArm": true
      },
      {
-      "id": "ftor4z",
+      "id": "fttr4z",
       "mirror": false,
       "fx": {
        "opacity": 1,
@@ -956102,21 +955995,21 @@
        "bright": 1
       },
       "kind": "circle",
-      "x": 167.7,
-      "y": 225,
+      "x": 154,
+      "y": 246,
       "w": 16,
       "h": 16,
       "color": "#42d6ff",
       "isMuzzle": true,
-      "rot": 80,
+      "rot": 90,
       "behindArm": true
      }
     ]
    },
-   "savedAt": 1792635682374,
+   "savedAt": 1792635742277,
    "iceDamage": 10,
    "iceDamageDps": 1,
-   "editedFrom": 1792635680547
+   "editedFrom": 1792635735958
   },
   {
    "id": "nstlmp1",
