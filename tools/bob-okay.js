@@ -63,6 +63,7 @@ const { KINDS } = core;
 
 const PORT = Number(process.env.BOB_PORT) || 47017;
 const BRANCH = "agent/scaled-hitboxes-projectile-range";
+const GAME_REMOTE = "https://github.com/cbm971/BobAssetBuilder.git"; // where the keeper's own clone of the game comes from (repairClone)
 const LOCALAPPDATA = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
 const HOME = process.env.BOB_HOME || path.join(LOCALAPPDATA, "BobOkay");
 const BUILDS = path.join(HOME, "builds");
@@ -650,12 +651,35 @@ const currentBuild = () => {
     return all.length ? path.join(BUILDS, all[0].d) : null;
   } catch { return null; }
 };
+// A BROKEN CLONE REPAIRS ITSELF (2026-10-21). On 2026-10-18 at 1:23 PM an update on his PC left this
+// clone corrupt ("fatal: bad object HEAD") with tools\bob-okay.js gone. Every update after that failed,
+// and the sign-in start found no bob-okay.js and quietly exited, so from then on no keeper ran at all
+// except the ones agents started from inside the Claude app, which die with the agent's session. On
+// 2026-10-21 one died at 7:12 PM and two hours of his work stayed in one browser tab. Now a clone git
+// cannot read is rebuilt IN PLACE (a fresh .git, then the branch fetched and checked out): in place,
+// because this process's own working folder is the clone and Windows will not rename it from under us.
+// node_modules and the builds are left alone. The sign-in .cmd does the same before it would give up.
+const cloneBroken = () => {
+  if (!fs.existsSync(path.join(ROOT, ".git"))) return true;
+  if (git("rev-parse", "--verify", "-q", "HEAD^{commit}").status !== 0) return true;
+  return !fs.existsSync(path.join(ROOT, "tools", "bob-okay.js"));
+};
+const repairClone = () => {
+  log("update: the game files are damaged — rebuilding them from GitHub");
+  try { fs.rmSync(path.join(ROOT, ".git"), { recursive: true, force: true }); } catch (e) { log("update: could not clear the broken .git: " + e.message); }
+  const steps = [["init", "-q"], ["remote", "add", "origin", GAME_REMOTE], ["fetch", "-q", "--depth", "1", "origin", BRANCH], ["reset", "-q", "--hard", "FETCH_HEAD"]];
+  for (const s of steps) { const r = git(...s); if (r.status !== 0) { log("update: repair step git " + s[0] + " failed: " + (r.stderr || "").trim().split("\n")[0]); return false; } }
+  const ok = !cloneBroken();
+  log(ok ? "update: game files rebuilt at " + (headSha() || "?").slice(0, 7) : "update: rebuild finished but the files are still not right");
+  return ok;
+};
 let updating = null;
 const update = (tell) => {
   if (updating) return updating;
   updating = (async () => {
     const note = tell || log;
     try {
+      if (MANAGED && !process.env.BOB_NO_UPDATE && cloneBroken()) repairClone();
       if (MANAGED && !process.env.BOB_NO_UPDATE && fs.existsSync(path.join(ROOT, ".git"))) {
         const f = git("fetch", "--depth", "1", "origin", BRANCH);
         if (f.status !== 0) note("Could not check for updates (offline?) — playing the version already here.");
@@ -675,7 +699,7 @@ const update = (tell) => {
               log("update: git reset attempt " + (i + 1) + " failed: " + (r.stderr || "").trim().split("\n")[0]);
               await sleep(2000 * (i + 1));
             }
-            if (r.status !== 0) note("Update failed: " + (r.stderr || "").trim());
+            if (r.status !== 0) { note("Update failed: " + (r.stderr || "").trim()); if (cloneBroken()) repairClone(); }
           }
         }
       }
@@ -878,10 +902,25 @@ const startupScript = () => [
   "rem Documents\\Bob Okay\\Saves and the online copy every copy opens on. Put here by",
   "rem tools\\bob-okay.js (install). The window closes by itself after a second.",
   "set \"GAME=%LOCALAPPDATA%\\BobOkay\\game\"",
+  "set \"LOG=%LOCALAPPDATA%\\BobOkay\\keeper.log\"",
   "if not exist \"%GAME%\\tools\\bob-okay.js\" (",
   "  if exist \"%GAME%\\.git\" git -C \"%GAME%\" reset --hard HEAD >nul 2>nul",
   ")",
-  "if not exist \"%GAME%\\tools\\bob-okay.js\" exit /b 0",
+  "rem 2026-10-21: it used to EXIT here, silently, with the files gone - and no keeper ran for three days.",
+  "rem Now it rebuilds the game files from GitHub in place (repairClone does the same from the keeper).",
+  "if not exist \"%GAME%\\tools\\bob-okay.js\" (",
+  "  >>\"%LOG%\" echo %DATE% %TIME% sign-in start: game files missing - rebuilding them from GitHub",
+  "  if not exist \"%GAME%\" mkdir \"%GAME%\"",
+  "  rmdir /s /q \"%GAME%\\.git\" 2>nul",
+  "  git -C \"%GAME%\" init -q",
+  "  git -C \"%GAME%\" remote add origin " + GAME_REMOTE,
+  "  git -C \"%GAME%\" fetch -q --depth 1 origin " + BRANCH,
+  "  git -C \"%GAME%\" reset -q --hard FETCH_HEAD",
+  ")",
+  "if not exist \"%GAME%\\tools\\bob-okay.js\" (",
+  "  >>\"%LOG%\" echo %DATE% %TIME% sign-in start: could not rebuild the game files - the keeper is NOT running",
+  "  exit /b 1",
+  ")",
   "where node >nul 2>nul",
   "if errorlevel 1 (",
   "  for /d %%D in (\"%LOCALAPPDATA%\\Microsoft\\WinGet\\Packages\\OpenJS.NodeJS*\") do (",
@@ -990,4 +1029,4 @@ if (require.main === module) {
   else { console.error("usage: node tools/bob-okay.js [launch|serve|keep|install|export <file>|status]"); process.exit(2); }
 }
 
-module.exports = { SaveFolder, findCopies, update, serve, cloudSync };
+module.exports = { SaveFolder, findCopies, update, serve, cloudSync, cloneBroken, repairClone, startupScript };

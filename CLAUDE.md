@@ -203,6 +203,17 @@ has never actually been gone; the bytes were always still on disk.** Never clear
     which virtualizes `%LOCALAPPDATA%`. Check the real `C:\Users\cbm97\AppData\Local\BobOkay` as well,
     and keep `closeAllConnections()` + awaited `close()` on `server`/`mutex` before self-restart in
     `tools/bob-okay.js`.
+  - **NEVER "revive" the keeper from inside Claude (2026-10-21).** A keeper an agent starts runs in the
+    agent's Windows job (`IsProcessInJob` = true) and from the VIRTUALIZED home, and dies with the agent's
+    session, silently. Since 2026-10-18 the real install was corrupt (`fatal: bad object HEAD`, no
+    bob-okay.js), the sign-in .cmd quietly exited, and agent-started keepers were the only ones; one died
+    at 7:12 PM and two hours of his work stayed in one tab. `cloneBroken`/`repairClone` and the sign-in
+    .cmd now rebuild a broken clone. Read the REAL `%LOCALAPPDATA%\BobOkay\keeper.log` (a WMI-launched
+    script sees it; your shell sees the virtualized one). If the real keeper is down, Blake runs the
+    repair in his own PowerShell; an agent may start one only as a stopgap and must say it dies with the session.
+  - **⚠ Not backed up** (`backupWatch`, `noteUnbacked`/`clearBackedUp`/`unbackedOverdue`): every deliberate
+    save is watched until the ONLINE save holds it; past `BACKUP_WARN_MS` (8 min) a red banner says so on
+    every studio screen. It is the one save message allowed on screen: it only shows when work is at risk.
 - There is **no save-status indicator** on screen; he rejected one. **Never explain origins,
   preview hostnames or "addresses" to him.**
 - 💾 Save during a run saves `run.editorLevel`, never the run's working copy.

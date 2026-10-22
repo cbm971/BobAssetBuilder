@@ -770,6 +770,38 @@ const cloudLibrary = {
     return cloudLibrary.inflight;
   },
 };
+// ⚠ NOT BACKED UP (2026-10-21). His 1UP item, Forest M3, Forest M1 and three weapons/garments spent
+// two hours in ONE StackBlitz tab and nowhere else: the keeper that carries a tab's saves to the folder
+// and the online save had died at 7:12 PM, and a fresh tab opened on the online save without them
+// ("WHERE THE FUCK DID MY SHIT GO"). Nothing on screen said so, ever; it was found out after the fact,
+// as on every one of the ~20 times before. So every deliberate save this tab makes is remembered here
+// until the ONLINE save holds that version (or something newer, or his delete of it). Anything still
+// only in this tab after BACKUP_WARN_MS gets a red warning on every studio screen, whatever the cause
+// (the keeper down, the PC asleep, the online push failing). Eight minutes is past the keeper's worst
+// ordinary lag (a one-minute sweep, a one-minute push, the five-minute cache when GitHub's API refuses)
+// so a healthy setup never shows it. This is a warning about something actually wrong, which his
+// "no status on screen" rule allows; it never shows while things work.
+export const BACKUP_WARN_MS = 8 * 60 * 1000;
+export const backupWatch = { pending: new Map() }; // "kind:id" -> { savedAt, at: when first not yet online }
+export const noteUnbacked = (pending, body, now) => {
+  for (const k of PROJECT_KINDS) for (const r of (body && body[k]) || []) {
+    if (!r || !r.id || typeof r.savedAt !== "number") continue;
+    const key = k + ":" + r.id, cur = pending.get(key);
+    if (!cur || r.savedAt > cur.savedAt) pending.set(key, { savedAt: r.savedAt, at: cur ? cur.at : now });
+  }
+  return pending;
+};
+export const clearBackedUp = (pending, cloud) => {
+  if (!cloud) return pending;
+  for (const [key, p] of [...pending]) {
+    const i = key.indexOf(":"), k = key.slice(0, i), id = key.slice(i + 1);
+    const o = (cloud[k] || []).find((x) => x && x.id === id);
+    const gone = ((cloud.removed || {})[k] || []).includes(id); // his delete reached the online save: nothing left to back up
+    if (gone || (o && typeof o.savedAt === "number" && o.savedAt >= p.savedAt)) pending.delete(key);
+  }
+  return pending;
+};
+export const unbackedOverdue = (pending, now, ms = BACKUP_WARN_MS) => { let n = 0; for (const p of pending.values()) if (now - p.at >= ms) n++; return n; };
 const projectLibrary = {
   available: false, // set on the first successful read; a plain static build simply won't have it
   // BOTH backends, merged newest-wins (mergeLibraries): the dev server file, and the save folder on
@@ -823,6 +855,7 @@ const projectLibrary = {
       if (body.revive && list.length) localRemoved.revive(k, list.map((x) => x.id));
     }
     if (!any) return false;
+    if (body.revive) noteUnbacked(backupWatch.pending, body, Date.now()); // ⚠ a save of his: watched until the online save has it
     let serverOk = false;
     try {
       const res = await fetch("/__library", {
@@ -14233,6 +14266,31 @@ export default function AssetStudio({ game = false } = {}) {
       }).catch(showOtherTab);                           // another tab took over
     });
     return () => { live = false; keeperLink.onSaveFailed = null; };
+  }, []); // eslint-disable-line
+  // ⚠ NOT BACKED UP: the warning (see backupWatch). Plain DOM on <body> like the other-tab notice,
+  // because it has to sit over every studio screen and each screen has its own return. Checked every
+  // 30 s; the online save is asked again only once something is half way to overdue. Hidden while a
+  // Playtest runs (no messages during play) and in the game, which has no studio saves to lose.
+  useEffect(() => {
+    if (game) return undefined;
+    let dead = false;
+    const show = (n) => {
+      let d = document.getElementById("bobUnbacked");
+      if (!n) { if (d) d.remove(); return; }
+      if (!d) { d = document.createElement("div"); d.id = "bobUnbacked"; d.className = "unbackedWarn"; document.body.appendChild(d); }
+      d.textContent = "⚠ Not backed up: " + n + (n === 1 ? " save is" : " saves are") + " only in this tab. Keep it open.";
+    };
+    const tick = async () => {
+      const pend = backupWatch.pending;
+      if (pend.size && unbackedOverdue(pend, Date.now(), BACKUP_WARN_MS / 2)) {
+        const cloud = await cloudLibrary.load().catch(() => null);
+        clearBackedUp(pend, cloud);
+      }
+      if (!dead) show(playLive.current ? 0 : unbackedOverdue(pend, Date.now()));
+    };
+    const t = setInterval(tick, 30000);
+    if (process.env.NODE_ENV === "development") window.__bobBackupWatch = { pending: backupWatch.pending, tick }; // dev server only: lets a test age a save instead of waiting 8 minutes
+    return () => { dead = true; clearInterval(t); show(0); };
   }, []); // eslint-disable-line
   // HIS NEWEST SAVES WHILE THIS COPY IS OPEN (see cloudLibrary). The first load already merges the
   // online snapshot. This picks up what lands there afterwards: a save he made in another copy, or the
@@ -29615,7 +29673,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .texseg button{padding:7px 9px;font-size:12px}
 .row2 .danger{border-color:#5a2e36;color:#ff9b9b}
 .ltbtn{background:#1f2433;border:1px solid #2c3245;border-radius:9px;padding:8px 11px;cursor:pointer;font-size:13px}
-.ltbtn.saveRead:disabled{opacity:.55;cursor:wait}.ltbtn.saveFolder.on{border-color:#3f8f5a;color:#bfe8c9}.otherTab{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center}.otherTab .dlg{text-align:center}.saveLoading{max-width:360px;color:#f3d98a;background:#241b0d;border:1px solid #5c481d;border-radius:8px;padding:6px 8px}
+.ltbtn.saveRead:disabled{opacity:.55;cursor:wait}.ltbtn.saveFolder.on{border-color:#3f8f5a;color:#bfe8c9}.unbackedWarn{position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:99998;background:#7a1414;color:#fff;border:1px solid #ff6b6b;border-radius:8px;padding:7px 14px;font-weight:700;font-size:14px;box-shadow:0 4px 18px rgba(0,0,0,.5);pointer-events:none}.otherTab{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center}.otherTab .dlg{text-align:center}.saveLoading{max-width:360px;color:#f3d98a;background:#241b0d;border:1px solid #5c481d;border-radius:8px;padding:6px 8px}
 .gname{background:#141824;border:1px solid #2c3245;border-radius:9px;padding:7px 9px;font-size:13px;color:inherit;width:110px}
 .stampShelf{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:6px;margin:7px 0;padding:7px 8px;background:#171b26;border:1px solid #2c3245;border-radius:10px;font-size:12px;color:#aeb6c9}
 .stampShelf select{min-width:0;width:100%;background:#141824;border:1px solid #2c3245;border-radius:8px;padding:7px 8px;color:inherit;font-size:12px}

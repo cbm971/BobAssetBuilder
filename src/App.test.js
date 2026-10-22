@@ -14560,7 +14560,34 @@ describe("asset autosave", () => {
   });
 });
 
-import { StatusFx, ITEM_EFFECT_KINDS } from "./App";
+import { StatusFx, ITEM_EFFECT_KINDS, noteUnbacked, clearBackedUp, unbackedOverdue, BACKUP_WARN_MS } from "./App";
+
+// 2026-10-21: two hours of his work sat in one StackBlitz tab while the keeper was dead, and nothing
+// said so. Every deliberate save is watched until the ONLINE save holds it.
+describe("⚠ not backed up", () => {
+  const T0 = 1_000_000;
+  test("a save is pending until the online save has that version, a newer one, or his delete", () => {
+    const p = noteUnbacked(new Map(), { assets: [{ id: "5z2auvk", name: "1UP", savedAt: 500 }], levels: [{ id: "ihufs6x", savedAt: 700 }, { id: "llbe2ks", savedAt: 900 }] }, T0);
+    expect(p.size).toBe(3);
+    clearBackedUp(p, { assets: [{ id: "5z2auvk", savedAt: 499 }], levels: [{ id: "ihufs6x", savedAt: 700 }], removed: { levels: ["llbe2ks"] } });
+    expect([...p.keys()]).toEqual(["assets:5z2auvk"]);                 // online still holds an OLDER 1UP
+    clearBackedUp(p, { assets: [{ id: "5z2auvk", savedAt: 800 }] });
+    expect(p.size).toBe(0);
+  });
+  test("overdue only past BACKUP_WARN_MS, counted from the FIRST save not yet online", () => {
+    const p = noteUnbacked(new Map(), { assets: [{ id: "a", savedAt: 1 }] }, T0);
+    noteUnbacked(p, { assets: [{ id: "a", savedAt: 2 }] }, T0 + BACKUP_WARN_MS - 1000); // a later save of the same thing keeps the clock
+    expect(unbackedOverdue(p, T0 + BACKUP_WARN_MS - 1)).toBe(0);
+    expect(unbackedOverdue(p, T0 + BACKUP_WARN_MS)).toBe(1);
+    expect(p.get("assets:a").savedAt).toBe(2);
+  });
+  test("no online snapshot (offline, refused) clears nothing; a record with no savedAt is not watched", () => {
+    const p = noteUnbacked(new Map(), { assets: [{ id: "a", savedAt: 5 }, { id: "b" }] }, T0);
+    expect(p.size).toBe(1);
+    clearBackedUp(p, null);
+    expect(p.size).toBe(1);
+  });
+});
 
 describe("🔥 Fire damage / ❄️ Ice damage (weapon abilities, 2026-10-21)", () => {
   test("Fire damage is the Ignite burn under his name, and starts on his 2 HP/s for 10 s", () => {

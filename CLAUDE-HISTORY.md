@@ -5250,3 +5250,22 @@ writes it back over the original (re-baking the looks that wear it). Save & Open
 Flamethrower report (2026-10-19) was exactly an edit lost to a Save & Open that did not save. Verified in the studio: the
 autosave wrote Defense 9 over a test shirt saved at 3, and the rename's save left the original at 3 and the fork at 9, both
 for a freshly made item and for one reopened from 📂 Load.
+
+
+## 2026-10-21 (evening): "WHERE THE FUCK DID MY SHIT GO" - the keeper had been broken since 10-18
+
+- **Lost-looking:** 1UP (new item 5z2auvk), Forest M3 (new level ihufs6x), Forest M1, AK-47, Flamethrower, Fireman's Coat.
+  All six were in StackBlitz tab hzer--3000--ab3f81c1's IndexedDB (Chrome Default profile) and nowhere else; his
+  fresh tab hzer-3vb61t3b had opened on the online save without them. Restarting the keeper swept them (5 newer + 1
+  combined) and published; checked in the folder and on the saves branch.
+- **Why:** the REAL install (%LOCALAPPDATA%\BobOkay, not the Claude app's virtualized copy) went corrupt in an update on
+  10-18 at 1:23 PM ("fatal: bad object HEAD", tools\bob-okay.js gone). Its log stops at 10-18 9:34 AM. The sign-in .cmd
+  found no bob-okay.js and exited silently, so from then on the only keepers were ones agents started from inside Claude:
+  those run in the agent's job object and the virtualized home, and die with the session (no crash line). Today's
+  agent-started keeper died at 7:12 PM. "Dead again at session start" in the memory notes since 10-18 is this.
+- **Fixed:** cloneBroken/repairClone (rebuild the clone in place: fresh .git, fetch, reset; the process cwd is the clone so
+  it cannot be renamed); the sign-in .cmd rebuilds it the same way and logs if it cannot; the studio's red "Not backed up"
+  banner when a save has not reached the online save in 8 minutes (backupWatch). Both repair paths were run against a
+  scratch clone broken exactly like his; the banner was driven in the dev studio with a local stand-in online save
+  (shows when the save is missing past 8 min, clears when the snapshot holds it).
+- An agent's attempt to repair the real install through WMI was refused by the permission layer; Blake runs it himself.
