@@ -767096,20 +767096,157 @@
       "tex": "9v3z2x4"
      },
      {
-      "id": "ejujbqb",
+      "id": "drd2l7c",
       "kind": "trapezoid",
-      "x": 123,
-      "y": 47,
-      "w": 6,
-      "h": 6,
+      "x": 123.5,
+      "y": 56,
+      "w": 4.455,
+      "h": 5.542,
       "color": "#2b2b2b",
       "mirror": false,
       "fx": {
        "opacity": 1,
        "glow": 0,
        "glowColor": "#ffd76b",
-       "bright": 1
-      }
+       "bright": 1.1
+      },
+      "rot": 234
+     },
+     {
+      "id": "yayvzht",
+      "kind": "trapezoid",
+      "x": 124.5,
+      "y": 59,
+      "w": 3.26,
+      "h": 5.107,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.1
+      },
+      "rot": 149
+     },
+     {
+      "id": "364umos",
+      "kind": "trapezoid",
+      "x": 126.5,
+      "y": 63,
+      "w": 2.825,
+      "h": 4.564,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.75
+      },
+      "rot": 160
+     },
+     {
+      "id": "34ajp5y",
+      "kind": "tri",
+      "x": 125.5,
+      "y": 60.5,
+      "w": 1.792,
+      "h": 3.694,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.75
+      },
+      "rot": 326
+     },
+     {
+      "id": "yfgrayv",
+      "kind": "tri",
+      "x": 126,
+      "y": 59.5,
+      "w": 1.794,
+      "h": 3.695,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.75
+      },
+      "rot": 336
+     },
+     {
+      "id": "5bryy0f",
+      "kind": "rect",
+      "x": 127,
+      "y": 62.5,
+      "w": 2.283,
+      "h": 3.478,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.75
+      },
+      "rot": 61
+     },
+     {
+      "id": "rjdbwrx",
+      "kind": "rect",
+      "x": 123.5,
+      "y": 52,
+      "w": 2.282,
+      "h": 3.478,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 0.75
+      },
+      "rot": 333
+     },
+     {
+      "id": "l4cpssw",
+      "kind": "trapezoid",
+      "x": 124.5,
+      "y": 53.5,
+      "w": 3.26,
+      "h": 5.107,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.1
+      },
+      "rot": 149
+     },
+     {
+      "id": "s2fih7s",
+      "kind": "trapezoid",
+      "x": 125,
+      "y": 46,
+      "w": 4.346,
+      "h": 7.824,
+      "color": "#2b2b2b",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1.1
+      },
+      "rot": 234
      }
     ],
     "up": [
@@ -767419,20 +767556,157 @@
        "tex": "9v3z2x4"
       },
       {
-       "id": "ejujbqb",
+       "id": "drd2l7c",
        "kind": "trapezoid",
-       "x": 123,
-       "y": 47,
-       "w": 6,
-       "h": 6,
+       "x": 123.5,
+       "y": 56,
+       "w": 4.455,
+       "h": 5.542,
        "color": "#2b2b2b",
        "mirror": false,
        "fx": {
         "opacity": 1,
         "glow": 0,
         "glowColor": "#ffd76b",
-        "bright": 1
-       }
+        "bright": 1.1
+       },
+       "rot": 234
+      },
+      {
+       "id": "yayvzht",
+       "kind": "trapezoid",
+       "x": 124.5,
+       "y": 59,
+       "w": 3.26,
+       "h": 5.107,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.1
+       },
+       "rot": 149
+      },
+      {
+       "id": "364umos",
+       "kind": "trapezoid",
+       "x": 126.5,
+       "y": 63,
+       "w": 2.825,
+       "h": 4.564,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.75
+       },
+       "rot": 160
+      },
+      {
+       "id": "34ajp5y",
+       "kind": "tri",
+       "x": 125.5,
+       "y": 60.5,
+       "w": 1.792,
+       "h": 3.694,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.75
+       },
+       "rot": 326
+      },
+      {
+       "id": "yfgrayv",
+       "kind": "tri",
+       "x": 126,
+       "y": 59.5,
+       "w": 1.794,
+       "h": 3.695,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.75
+       },
+       "rot": 336
+      },
+      {
+       "id": "5bryy0f",
+       "kind": "rect",
+       "x": 127,
+       "y": 62.5,
+       "w": 2.283,
+       "h": 3.478,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.75
+       },
+       "rot": 61
+      },
+      {
+       "id": "rjdbwrx",
+       "kind": "rect",
+       "x": 123.5,
+       "y": 52,
+       "w": 2.282,
+       "h": 3.478,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 0.75
+       },
+       "rot": 333
+      },
+      {
+       "id": "l4cpssw",
+       "kind": "trapezoid",
+       "x": 124.5,
+       "y": 53.5,
+       "w": 3.26,
+       "h": 5.107,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.1
+       },
+       "rot": 149
+      },
+      {
+       "id": "s2fih7s",
+       "kind": "trapezoid",
+       "x": 125,
+       "y": 46,
+       "w": 4.346,
+       "h": 7.824,
+       "color": "#2b2b2b",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1.1
+       },
+       "rot": 234
       }
      ],
      "up": [
@@ -767824,7 +768098,7 @@
     "telfv37",
     "oipvf3l"
    ],
-   "savedAt": 1792636603707,
+   "savedAt": 1792636667387,
    "statBoosts": {
     "speed": 0,
     "agility": 0,
@@ -767852,7 +768126,7 @@
     "up": [],
     "crouch": []
    },
-   "editedFrom": 1792636601485
+   "editedFrom": 1792636664843
   },
   {
    "id": "inumieg",
