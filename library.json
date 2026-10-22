@@ -949512,7 +949512,7 @@
    "fireRate": 15,
    "clipSize": 45,
    "reloadTime": 3.2,
-   "projectileRange": 12,
+   "projectileRange": 14,
    "projectileSpeed": 21,
    "weight": 5,
    "value": 20,
@@ -949536,7 +949536,7 @@
    "landChar": "🔥",
    "stun": 0,
    "captureMax": 0,
-   "pierce": true,
+   "pierce": false,
    "ignite": 0,
    "igniteDps": 6,
    "categories": [
@@ -953370,24 +953370,6 @@
          "behindBody": true
         },
         {
-         "id": "ftof1i",
-         "mirror": false,
-         "fx": {
-          "opacity": 1,
-          "glow": 0,
-          "glowColor": "#ffd76b",
-          "bright": 1
-         },
-         "kind": "tri",
-         "x": 161.3,
-         "y": 234.5,
-         "w": 16,
-         "h": 26,
-         "color": "#ff8a1f",
-         "rot": 173,
-         "behindBody": true
-        },
-        {
          "id": "ftof1j",
          "mirror": false,
          "fx": {
@@ -953397,7 +953379,7 @@
           "bright": 1
          },
          "kind": "tri",
-         "x": 163.9,
+         "x": 164.5,
          "y": 232.5,
          "w": 9,
          "h": 14,
@@ -953568,42 +953550,6 @@
          "h": 5,
          "color": "#ff8a1f",
          "rot": 90,
-         "behindArm": true
-        },
-        {
-         "id": "ftof2i",
-         "mirror": false,
-         "fx": {
-          "opacity": 1,
-          "glow": 0,
-          "glowColor": "#ffd76b",
-          "bright": 1
-         },
-         "kind": "tri",
-         "x": 97.5,
-         "y": 246,
-         "w": 16,
-         "h": 26,
-         "color": "#ff8a1f",
-         "rot": 180,
-         "behindArm": true
-        },
-        {
-         "id": "ftof2j",
-         "mirror": false,
-         "fx": {
-          "opacity": 1,
-          "glow": 0,
-          "glowColor": "#ffd76b",
-          "bright": 1
-         },
-         "kind": "tri",
-         "x": 101,
-         "y": 244,
-         "w": 9,
-         "h": 14,
-         "color": "#ffd23f",
-         "rot": 180,
          "behindArm": true
         },
         {
@@ -954872,24 +954818,6 @@
        "behindBody": true
       },
       {
-       "id": "ftof1i",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 161.3,
-       "y": 234.5,
-       "w": 16,
-       "h": 26,
-       "color": "#ff8a1f",
-       "rot": 173,
-       "behindBody": true
-      },
-      {
        "id": "ftof1j",
        "mirror": false,
        "fx": {
@@ -954899,7 +954827,7 @@
         "bright": 1
        },
        "kind": "tri",
-       "x": 163.9,
+       "x": 164.5,
        "y": 232.5,
        "w": 9,
        "h": 14,
@@ -955070,42 +954998,6 @@
        "h": 5,
        "color": "#ff8a1f",
        "rot": 90,
-       "behindArm": true
-      },
-      {
-       "id": "ftof2i",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 97.5,
-       "y": 246,
-       "w": 16,
-       "h": 26,
-       "color": "#ff8a1f",
-       "rot": 180,
-       "behindArm": true
-      },
-      {
-       "id": "ftof2j",
-       "mirror": false,
-       "fx": {
-        "opacity": 1,
-        "glow": 0,
-        "glowColor": "#ffd76b",
-        "bright": 1
-       },
-       "kind": "tri",
-       "x": 101,
-       "y": 244,
-       "w": 9,
-       "h": 14,
-       "color": "#ffd23f",
-       "rot": 180,
        "behindArm": true
       },
       {
@@ -956223,10 +956115,10 @@
      }
     ]
    },
-   "savedAt": 1792635511481,
+   "savedAt": 1792635626170,
    "iceDamage": 10,
    "iceDamageDps": 1,
-   "editedFrom": 1792635506074
+   "editedFrom": 1792635623555
   },
   {
    "id": "nstlmp1",
