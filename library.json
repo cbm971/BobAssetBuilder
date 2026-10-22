@@ -543679,8 +543679,8 @@
    "projectileId": "flmpuf1",
    "damage": 3,
    "fireRate": 15,
-   "clipSize": 45,
-   "reloadTime": 3.2,
+   "clipSize": 60,
+   "reloadTime": 3.6,
    "projectileRange": 12,
    "projectileSpeed": 21,
    "weight": 5,
@@ -550280,7 +550280,8 @@
      }
     ]
    },
-   "savedAt": 1792635006960
+   "savedAt": 1792635908603,
+   "editedFrom": 1792635904811
   },
   {
    "id": "flymsk1",
@@ -949510,8 +949511,8 @@
    "projectileId": "yv1o76q",
    "damage": 3,
    "fireRate": 15,
-   "clipSize": 45,
-   "reloadTime": 3.2,
+   "clipSize": 60,
+   "reloadTime": 3.6,
    "projectileRange": 14,
    "projectileSpeed": 21,
    "weight": 5,
@@ -956006,10 +956007,10 @@
      }
     ]
    },
-   "savedAt": 1792635742277,
+   "savedAt": 1792635893254,
    "iceDamage": 10,
    "iceDamageDps": 1,
-   "editedFrom": 1792635735958
+   "editedFrom": 1792635892062
   },
   {
    "id": "nstlmp1",
@@ -1276939,8 +1276940,8 @@
      {
       "id": "t6j8msl",
       "kind": "emoji",
-      "x": 55,
-      "y": 46.5,
+      "x": 37.5,
+      "y": 61.5,
       "w": 47,
       "h": 51.5,
       "color": "#f4f4f4",
@@ -1276952,13 +1276953,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "tint": "#f4f4f4"
+      "tint": "#f4f4f4",
+      "translucency": 0.05
      },
      {
       "id": "5oscyv7",
       "kind": "emoji",
-      "x": 103.5,
-      "y": 45,
+      "x": 86,
+      "y": 60,
       "w": 47,
       "h": 51.5,
       "color": "#f4f4f4",
@@ -1276970,13 +1276972,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "tint": "#f4f4f4"
+      "tint": "#f4f4f4",
+      "translucency": 0.05
      },
      {
       "id": "1725m8j",
       "kind": "emoji",
-      "x": 109,
-      "y": 107,
+      "x": 91.5,
+      "y": 122,
       "w": 47,
       "h": 51.5,
       "color": "#f4f4f4",
@@ -1276988,13 +1276991,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "tint": "#f4f4f4"
+      "tint": "#f4f4f4",
+      "translucency": 0.05
      },
      {
       "id": "qz2z8mi",
       "kind": "emoji",
-      "x": 57.5,
-      "y": 109,
+      "x": 40,
+      "y": 124,
       "w": 47,
       "h": 51.5,
       "color": "#f4f4f4",
@@ -1277006,13 +1277010,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "tint": "#f4f4f4"
+      "tint": "#f4f4f4",
+      "translucency": 0.05
      },
      {
       "id": "c56i5gs",
       "kind": "emoji",
-      "x": 171,
-      "y": 74,
+      "x": 153.5,
+      "y": 89,
       "w": 47,
       "h": 51.5,
       "color": "#f4f4f4",
@@ -1277024,13 +1277029,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "tint": "#f4f4f4"
+      "tint": "#f4f4f4",
+      "translucency": 0.05
      },
      {
       "id": "hx0vkxm",
       "kind": "emoji",
-      "x": 2.5,
-      "y": 75,
+      "x": -15,
+      "y": 90,
       "w": 55,
       "h": 53.5,
       "color": "#f4f4f4",
@@ -1277042,13 +1277048,14 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "tint": "#f4f4f4"
+      "tint": "#f4f4f4",
+      "translucency": 0.05
      },
      {
       "id": "liivxqb",
       "kind": "hexagon",
-      "x": 13.5,
-      "y": 93,
+      "x": -4,
+      "y": 108,
       "w": 91.5,
       "h": 42,
       "color": "#f4f4f4",
@@ -1277058,13 +1277065,14 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "translucency": 0.05
      },
      {
       "id": "r94s1w4",
       "kind": "hexagon",
-      "x": 60,
-      "y": 105,
+      "x": 42.5,
+      "y": 120,
       "w": 44,
       "h": 44,
       "color": "#f4f4f4",
@@ -1277074,13 +1277082,14 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "translucency": 0.05
      },
      {
       "id": "6lenno2",
       "kind": "hexagon",
-      "x": 72.5,
-      "y": 68,
+      "x": 55,
+      "y": 83,
       "w": 44,
       "h": 44,
       "color": "#f4f4f4",
@@ -1277090,13 +1277099,14 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "translucency": 0.05
      },
      {
       "id": "x3itaw8",
       "kind": "hexagon",
-      "x": 39.5,
-      "y": 61,
+      "x": 22,
+      "y": 76,
       "w": 44,
       "h": 44,
       "color": "#f4f4f4",
@@ -1277106,13 +1277116,14 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "translucency": 0.05
      },
      {
       "id": "yaeohfw",
       "kind": "hexagon",
-      "x": 99.5,
-      "y": 63.5,
+      "x": 82,
+      "y": 78.5,
       "w": 44,
       "h": 44,
       "color": "#f4f4f4",
@@ -1277122,13 +1277133,14 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "translucency": 0.05
      },
      {
       "id": "5e7lhs4",
       "kind": "hexagon",
-      "x": 123,
-      "y": 80,
+      "x": 105.5,
+      "y": 95,
       "w": 44,
       "h": 44,
       "color": "#f4f4f4",
@@ -1277138,13 +1277150,14 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "translucency": 0.05
      },
      {
       "id": "wf5l93h",
       "kind": "hexagon",
-      "x": 94.5,
-      "y": 101.5,
+      "x": 77,
+      "y": 116.5,
       "w": 44,
       "h": 44,
       "color": "#f4f4f4",
@@ -1277154,13 +1277167,14 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "translucency": 0.05
      },
      {
       "id": "x2koxdk",
       "kind": "hexagon",
-      "x": 107.5,
-      "y": 101.5,
+      "x": 90,
+      "y": 116.5,
       "w": 44,
       "h": 44,
       "color": "#f4f4f4",
@@ -1277170,13 +1277184,14 @@
        "glow": 0,
        "glowColor": "#ffd76b",
        "bright": 1
-      }
+      },
+      "translucency": 0.05
      },
      {
       "id": "1kdavii",
       "kind": "hexagon",
-      "x": 103.5,
-      "y": 76,
+      "x": 86,
+      "y": 91,
       "w": 114.5,
       "h": 57,
       "color": "#f4f4f4",
@@ -1277187,7 +1277202,7 @@
        "glowColor": "#ffd76b",
        "bright": 1
       },
-      "translucency": 0.25
+      "translucency": 0.05
      }
     ],
     "back": [],
@@ -1277197,8 +1277212,8 @@
    },
    "guideId": "default",
    "size": 1.1,
-   "savedAt": 1792635781648,
-   "editedFrom": 1792635780229
+   "savedAt": 1792635825646,
+   "editedFrom": 1792635820759
   },
   {
    "id": "yykzkdg",
