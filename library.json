@@ -1612511,6 +1612511,13 @@
      "run": 1,
      "step": 0,
      "upsideDown": true
+    },
+    "0,120": {
+     "c": "#4a5a28",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
     }
    },
    "bg": {
@@ -1621314,8 +1621321,8 @@
    "floor": "Vietnam",
    "section": "Middle",
    "hazard": {},
-   "savedAt": 1792637142301,
-   "editedFrom": 1792630896493
+   "savedAt": 1792637269564,
+   "editedFrom": 1792637142301
   },
   {
    "id": "ikupopa",
