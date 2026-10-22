@@ -956223,8 +956223,10 @@
      }
     ]
    },
-   "savedAt": 1792635368173,
-   "editedFrom": 1792635364204
+   "savedAt": 1792635372110,
+   "iceDamage": 10,
+   "iceDamageDps": 1,
+   "editedFrom": 1792635368173
   },
   {
    "id": "nstlmp1",
