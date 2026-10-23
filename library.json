@@ -1956513,19 +1956513,6 @@
       "z": 146
      }
     ],
-    "38,112": [
-     {
-      "kind": "shape",
-      "shape": "vine",
-      "tint": "#1c3314",
-      "solid": false,
-      "size": 1,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 147
-     }
-    ],
     "38,111": [
      {
       "kind": "shape",
@@ -1956661,8 +1956648,8 @@
    "floor": "Tree Tops",
    "section": "Middle",
    "hazard": {},
-   "savedAt": 1792720691146,
-   "editedFrom": 1792720601332
+   "savedAt": 1792720896425,
+   "editedFrom": 1792720691146
   },
   {
    "id": "ypjilr0",
