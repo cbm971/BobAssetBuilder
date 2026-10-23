@@ -1957350,29 +1957350,13 @@
     }
    },
    "conns": {
-    "N2": {
-     "open": false,
-     "accepts": ""
-    },
     "N1": {
      "open": false,
      "accepts": "Tree Tops"
     },
-    "W1": {
+    "N2": {
      "open": false,
      "accepts": ""
-    },
-    "W2": {
-     "open": true,
-     "accepts": "Tree Tops"
-    },
-    "S2": {
-     "open": true,
-     "accepts": "Vietnam"
-    },
-    "S1": {
-     "open": false,
-     "accepts": "Vietnam"
     },
     "E1": {
      "open": false,
@@ -1957380,6 +1957364,22 @@
     },
     "E2": {
      "open": false,
+     "accepts": "Tree Tops"
+    },
+    "S1": {
+     "open": false,
+     "accepts": "Vietnam"
+    },
+    "S2": {
+     "open": true,
+     "accepts": "Vietnam"
+    },
+    "W1": {
+     "open": false,
+     "accepts": ""
+    },
+    "W2": {
+     "open": true,
      "accepts": "Tree Tops"
     }
    },
