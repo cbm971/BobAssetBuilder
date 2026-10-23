@@ -1631,6 +1631,15 @@ A/B in his real level (a `window.__noDrop` switch, since removed), with one hole
 rain of rats rather than an ambush. `UNIT_DROP_TRIGGER_CELLS` (8) now holds each unit until the
 target is that close to its gap, sideways.
 
+**West edges were blind until 2026-10-22.** The scan counted a gap only at its FIRST (west-most)
+column. Off the west end of a deck or perch the open air runs back across the level, so that column
+was never in the scan window and the lip right beside the unit was skipped; off the east end the gap
+starts beside it and always worked. Found on Tree Tops 3, where a Squirrel stood on the west lip of
+its lookout with Blake below. A gap that runs on past the window's west end now counts at that end,
+measured from its real first column. A/B on two static builds serving the same test level (a
+14-cell deck, Squirrel on its west lip, player 7 cells west and below): the old build never dropped;
+the fixed one waited while he was out of trigger range, then stepped off and came for him.
+
 **His holes were widened for him (he asked: "You can edit my level").** The edit removed Foreground
 at 9,10, 9,22, 9,27, 9,31 and 9,41, and at 8,27 (rat 3's pocket wall). It added his hole Front
 paint (#29331f / tex 422iwrd) over the opened row-9 cells, so the ceiling still reads solid from below.

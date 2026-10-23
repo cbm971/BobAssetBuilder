@@ -11287,10 +11287,17 @@ export const unitDropSpot = (lv, me, tgt, CW, CH, floorAt) => {
   const reach = UNIT_DROP_REACH_CELLS * CW;
   const cMe = Math.floor(bx / CW), span = Math.ceil((me.w / 2 + reach) / CW) + 1;
   let best = null;
-  for (let c = Math.max(0, cMe - span); c <= Math.min(cols - 1, cMe + span); c++) {
-    if (!open(c) || open(c - 1)) continue; // only the first column of each gap
+  // Each gap once: at its first column, or at the window's west end when the gap runs on past it.
+  // WEST EDGES (2026-10-22): only a gap's first column used to count, and off the WEST end of a deck
+  // or perch the open air runs back across the level, so that column was never in the window and the
+  // edge right beside the unit was skipped. Tree Tops 3's Squirrel stood at the west lip of its deck
+  // with Blake below it; off the east end the same unit dropped at once.
+  const cStart = Math.max(0, cMe - span);
+  for (let c = cStart; c <= Math.min(cols - 1, cMe + span); c++) {
+    if (!open(c) || (open(c - 1) && c !== cStart)) continue;
+    let c0 = c; while (open(c0 - 1)) c0--;
     let c1 = c; while (open(c1 + 1)) c1++;
-    const lo = c * CW + me.w / 2 + 1, hi = (c1 + 1) * CW - me.w / 2 - 1;
+    const lo = c0 * CW + me.w / 2 + 1, hi = (c1 + 1) * CW - me.w / 2 - 1;
     if (lo > hi) continue; // too narrow for this body
     const x = Math.max(lo, Math.min(hi, bx));
     if (Math.abs(x - bx) > reach || Math.abs(x - tgt.cx) > UNIT_DROP_TRIGGER_CELLS * CW) continue;

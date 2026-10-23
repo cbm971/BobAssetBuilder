@@ -13186,6 +13186,20 @@ describe("units find a way up, down or onto the plane", () => {
     test("only a hole within a few cells counts: a far edge is not worth trekking to", () => {
       expect(route(slab(15, 19), rat, { cx: 400, feet: 570 })).toBeNull();
     });
+    // Blake, 2026-10-22, Tree Tops 3: the open air off a deck's WEST end runs back across the level,
+    // so its first column was never near the unit and the edge beside it was skipped. East was fine.
+    test("the open edge off either end of a deck, the same distance both ways", () => {
+      const westOpen = slab(0, 9), eastOpen = slab(10, 19); // a deck over cols 10-19, and its mirror over 0-9
+      expect(route(westOpen, { ...rat, cx: 315 }, { cx: 200, feet: 570 })).toEqual({ kind: "drop", x: 237 }); // just over the west lip
+      expect(route(eastOpen, { ...rat, cx: 285 }, { cx: 400, feet: 570 })).toEqual({ kind: "drop", x: 363 }); // its mirror, which always worked
+      expect(route(westOpen, { ...rat, cx: 345 }, { cx: 200, feet: 570 })).toBeNull(); // 108 px in from the lip: past UNIT_DROP_REACH_CELLS
+    });
+    test("a west edge whose open air runs the length of a long level", () => {
+      const fg = {};
+      for (let c = 0; c < 60; c++) { if (c >= 30) fg["9," + c] = "#333"; fg["19," + c] = "#333"; } // a deck over cols 30-59, open air over 0-29
+      const lv = { cols: 60, rows: 20, climb: {}, fg };
+      expect(route(lv, { ...rat, cx: 915 }, { cx: 800, feet: 570 })).toEqual({ kind: "drop", x: 837 });
+    });
     test("it waits until the target is nearly under the hole, not as soon as it can see them", () => {
       const lv = { ...slab(6, 10), cols: 60 }; // a long tunnel, as in his sewer
       expect(route(lv, rat, { cx: 267 + 8 * C, feet: 570 })).toEqual({ kind: "drop", x: 267 });
