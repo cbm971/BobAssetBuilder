@@ -1957507,7 +1957507,27 @@
      "run": 1,
      "step": 0,
      "upsideDown": true
-    }
+    },
+    "44,108": "#4a5a28",
+    "44,109": "#4a5a28",
+    "43,110": "#4a5a28",
+    "43,111": "#4a5a28",
+    "44,107": "#4a5a28",
+    "44,110": "#4a5a28",
+    "44,111": "#4a5a28",
+    "44,112": "#4a5a28",
+    "44,113": "#4a5a28",
+    "44,114": "#4a5a28",
+    "44,115": "#4a5a28",
+    "43,112": "#4a5a28",
+    "41,110": "#4a5a28",
+    "39,111": "#4a5a28",
+    "40,111": "#4a5a28",
+    "42,110": "#4a5a28",
+    "41,111": "#4a5a28",
+    "41,112": "#4a5a28",
+    "42,112": "#4a5a28",
+    "42,111": "#4a5a28"
    },
    "bg": {
     "30,19": "#171d35",
@@ -1965534,19 +1965554,6 @@
       "z": 146
      }
     ],
-    "38,111": [
-     {
-      "kind": "shape",
-      "shape": "vine",
-      "tint": "#1c3314",
-      "solid": false,
-      "size": 1,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 148
-     }
-    ],
     "39,111": [
      {
       "kind": "shape",
@@ -1965559,77 +1965566,9 @@
       "flip": false,
       "z": 149
      }
-    ],
-    "40,111": [
-     {
-      "kind": "shape",
-      "shape": "vine",
-      "tint": "#1c3314",
-      "solid": false,
-      "size": 1,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "z": 150
-     }
     ]
    },
-   "climb": {
-    "45,110": {
-     "kind": "ladder"
-    },
-    "43,110": {
-     "kind": "ladder"
-    },
-    "44,110": {
-     "kind": "ladder"
-    },
-    "43,111": {
-     "kind": "ladder"
-    },
-    "45,111": {
-     "kind": "ladder"
-    },
-    "44,111": {
-     "kind": "ladder"
-    },
-    "44,112": {
-     "kind": "ladder"
-    },
-    "45,112": {
-     "kind": "ladder"
-    },
-    "43,112": {
-     "kind": "ladder"
-    },
-    "38,111": {
-     "kind": "ladder"
-    },
-    "39,111": {
-     "kind": "ladder"
-    },
-    "40,111": {
-     "kind": "ladder"
-    },
-    "41,110": {
-     "kind": "ladder"
-    },
-    "41,111": {
-     "kind": "ladder"
-    },
-    "41,112": {
-     "kind": "ladder"
-    },
-    "42,110": {
-     "kind": "ladder"
-    },
-    "42,111": {
-     "kind": "ladder"
-    },
-    "42,112": {
-     "kind": "ladder"
-    }
-   },
+   "climb": {},
    "markers": {},
    "enemies": {},
    "conns": {
@@ -1965654,7 +1965593,7 @@
      "accepts": "Vietnam"
     },
     "S2": {
-     "open": true,
+     "open": false,
      "accepts": "Vietnam"
     },
     "W1": {
@@ -1965669,8 +1965608,8 @@
    "floor": "Tree Tops",
    "section": "Middle",
    "hazard": {},
-   "savedAt": 1792721138723,
-   "editedFrom": 1792721130531
+   "savedAt": 1792721186970,
+   "editedFrom": 1792721138723
   },
   {
    "id": "ypjilr0",
