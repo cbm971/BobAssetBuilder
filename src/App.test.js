@@ -219,7 +219,7 @@ import {
   migrateLevel,
   newLevelBucket, runWorldParts, worldPartAt, worldPartOfCell, unitClampX, unitFloorY, moveRunUnit, adoptRunNeighbours, releaseRunUnits, TALK_BUBBLE_MIN_H,
   runMountPlan, RUN_MOUNT_ITEMS_PER_FRAME, runGridOrder, unitDrawOrder,
-  runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, seamGatePair, seamGateLeaving, buildRun, runFloors, runPassageLevels, RUN_PASSAGE_MAX, vertSeamLinesUp, resolveRunNeighbour, resolveRunSides, runSeams, runSceneryNodes, runCameraParts, runPlacements, runFills, spawnGateFor, RUN_LEVELS_PER_FLOOR, runHudFor, cameraTarget, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
+  runRole, seededRng, gatePoint, neighbourOffset, gateLeavingThrough, seamGatePair, seamGateLeaving, buildRun, runFloors, runPassageLevels, RUN_PASSAGE_MAX, vertSeamLinesUp, resolveRunNeighbour, resolveRunSides, runSeams, runSceneryNodes, runCameraParts, runPlacements, runFills, spawnGateFor, RUN_LEVELS_PER_FLOOR, runHudFor, cameraTarget, roomViewZoom, centreRoomInView, ROOM_VIEW_ROWS, inSeamStrip, seamStripMap, RUN_MIDDLE_LEVELS, SEAM_STRIP_CELLS,
   objTopAt,
   objNudgedLeft,
   objNudgedTop,
@@ -11158,6 +11158,32 @@ describe("runs", () => {
     const introLike = mk("IS", { open: { N1: "Trailor Park", E1: "" } });     // right gates only: an Intro, so never under the street
     resolveRunSides(run, c, [CE, introLike]);
     expect(c.links).toEqual({ N: null, E: null, S: null, W: null });
+  });
+
+  test("roomViewZoom: a room fills ROOM_VIEW_ROWS of the view, never past covering it, never below 1; streets stay 1", () => {
+    const room = { isRoom: true, cols: 40, rows: 24 };
+    // His studio view (~3,084×871): 871 / (16 rows × 30) — the room still narrower than the view.
+    expect(roomViewZoom(room, 3084, 871, 30)).toBeCloseTo(871 / (ROOM_VIEW_ROWS * 30));
+    // His fullscreen game view (29 rows tall, 3440:1440): the room spans the width edge to edge and
+    // stops there (covering it), a touch under 16 rows' zoom.
+    const z = roomViewZoom(room, 2078, 870, 30);
+    expect(z).toBeCloseTo(2078 / 1200);
+    expect(z).toBeLessThan(870 / 480);
+    // A tall narrow view stops where the room covers it: the height decides, not the 16 rows.
+    expect(roomViewZoom(room, 1300, 1000, 30)).toBeCloseTo(1000 / 720);
+    // A view smaller than the room never zooms OUT — it pans as it always did.
+    expect(roomViewZoom(room, 800, 400, 30)).toBe(1);
+    // A room shorter than 16 rows is fitted by its own height.
+    expect(roomViewZoom({ isRoom: true, cols: 20, rows: 10 }, 3000, 900, 30)).toBeCloseTo(3);
+    // Streets, no level, or a 0-size (hidden) view: untouched.
+    expect(roomViewZoom({ cols: 40, rows: 24 }, 3084, 871, 30)).toBe(1);
+    expect(roomViewZoom(null, 3084, 871, 30)).toBe(1);
+    expect(roomViewZoom(room, 0, 0, 30)).toBe(1);
+  });
+
+  test("centreRoomInView centres an axis the room does not fill, and keeps the camera on one it does", () => {
+    expect(centreRoomInView({ x: 0, y: 120 }, 1200, 720, 1700, 480)).toEqual({ x: -250, y: 120 });
+    expect(centreRoomInView({ x: 33, y: 0 }, 1200, 720, 1000, 900)).toEqual({ x: 33, y: -90 });
   });
 
   test("cameraTarget centres the body, clamps to the level, and may run past a drawn seam", () => {

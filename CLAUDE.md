@@ -634,6 +634,10 @@ plus traps it does not cover:
   camera may always go that deep (`below:` part), so the view never moves at a gate, sewer or not.
   So on his 871 px view play shows only ~14.5 rows above the body's middle (floor row 35 → row 17
   and down). A 2.5D room in a street level (Trailor Park S1) puts its ceiling inside that band.
+- **Rooms play zoomed in** (`roomViewZoom`, `camRef.current.z`): the view is ROOM_VIEW_ROWS (16) rows
+  tall, capped where the room covers the view, never below 1; streets are always 1. Anything that
+  turns the camera into a level-pixel rectangle divides `clientWidth/Height` by `z` (cull, talk
+  bubble, sound view). The camera centres a narrow room (`centreRoomInView`), not margin:auto.
 - **Dialogue trees** are the sixth saved kind: `{ id, name, start, once?, nodes: { nId: { speaker,
   text, choices: [{ text, to, act, tone, shopTag? }] } } }`. `to` and `act` are independent. Keys
   1–9 pick options. A tree on a spawn makes it peaceful, and a conversation pauses the WORLD. A shop

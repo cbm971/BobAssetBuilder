@@ -12405,6 +12405,28 @@ export const cameraTarget = (p, pw, ph, lv, seams, vw, vh, cell = LV_CELL, strip
   const minY = Math.min(...onY.map((r) => r.y)), maxY = Math.max(minY, Math.max(...onY.map((r) => r.y + r.h)) - vh);
   return { x: Math.max(minX, Math.min(maxX, cx)), y: Math.max(minY, Math.min(maxY, cy)) };
 };
+// A ROOM IS PLAYED ZOOMED IN (2026-10-23). Blake: "make the playable screen bigger when you go into
+// rooms? There is a ton of dead space around the player". A room is 40×24 cells (1,200×720 px) and
+// was drawn at the street's 1:1 scale, so on his ~3,084×871 studio view it was a small box in the
+// middle of a black screen, the player a quarter of the view's height. In a room the camera now
+// scales the level up until the view is ROOM_VIEW_ROWS rows tall — the body (7 rows) under half the
+// view, and on his fullscreen game view (29 rows, 2.4:1) the room then runs edge to edge. It never
+// zooms past the point where the room covers the view on both axes (no point cropping more than
+// needed), and never below 1, so a small window still pans a room exactly as it always did. A room
+// shorter than ROOM_VIEW_ROWS is fitted by its own height. Streets are never zoomed: 1 means the
+// camera and the render are exactly what they were before this existed.
+export const ROOM_VIEW_ROWS = 16;
+export const roomViewZoom = (lv, vw, vh, cell = LV_CELL, rows = ROOM_VIEW_ROWS) => {
+  if (!lv || !lv.isRoom || !(vw > 0) || !(vh > 0)) return 1;
+  const lvW = lv.cols * cell, lvH = lv.rows * cell;
+  const cover = Math.max(vw / lvW, vh / lvH);
+  return Math.max(1, Math.min(cover, vh / (Math.min(lv.rows, rows) * cell)));
+};
+// A zoomed room narrower (or shorter) than the view is centred by the CAMERA, not by .lgrid's
+// margin:auto: the scale is a transform about .lgrid's top-left, and margin:auto centres the
+// UNSCALED box, so the room landed off to the right and ran past the view's edge. A negative camera
+// position puts the room in the middle of the view, in the scaled picture.
+export const centreRoomInView = (t, lvW, lvH, vw, vh) => ({ x: lvW < vw ? (lvW - vw) / 2 : t.x, y: lvH < vh ? (lvH - vh) / 2 : t.y });
 
 /* ---- Enemy senses & hill-collision helpers (module-level, exported for tests) ------------- */
 // One "player body length" — the unit enemy senses are specified in: the standing player is
@@ -14890,15 +14912,21 @@ export default function AssetStudio({ game = false } = {}) {
     // too; the editor never does (the transform is only emitted while play is on).
     const updateCamera = (p, pw, ph, dtMul) => {
       const view = lscrollRef.current; if (!view) return;
-      const t = cameraTarget(p, pw, ph, lv, camParts, view.clientWidth, view.clientHeight, LV_CELL);
+      // A room is zoomed in (roomViewZoom), so the camera works in a view that many times smaller,
+      // in level pixels; the render multiplies it back out. z is not eased — it changes only at a
+      // door, which is a cut behind the fade.
+      const z = roomViewZoom(lv, view.clientWidth, view.clientHeight, LV_CELL), vw = view.clientWidth / z, vh = view.clientHeight / z;
+      let t = cameraTarget(p, pw, ph, lv, camParts, vw, vh, LV_CELL);
+      if (z !== 1) t = centreRoomInView(t, lv.cols * LV_CELL, lv.rows * LV_CELL, vw, vh);
       const cam = camRef.current;
+      cam.z = z;
       if (!cam.init) { cam.x = t.x; cam.y = t.y; cam.init = true; return; }
       const k = 1 - Math.pow(1 - CAMERA_EASE, dtMul);
       cam.x += (t.x - cam.x) * k; cam.y += (t.y - cam.y) * k;
       if (Math.abs(t.x - cam.x) < 0.5) cam.x = t.x; if (Math.abs(t.y - cam.y) < 0.5) cam.y = t.y;
       // What is on screen is what is heard: the engine fades sounds by their distance past this
       // rectangle (soundGainAt). Mutated in place — one object for the whole session, not one a frame.
-      const sv = sndView; sv.x0 = cam.x; sv.y0 = cam.y; sv.x1 = cam.x + view.clientWidth; sv.y1 = cam.y + view.clientHeight;
+      const sv = sndView; sv.x0 = cam.x; sv.y0 = cam.y; sv.x1 = cam.x + vw; sv.y1 = cam.y + vh;
       bobAudio.setView(sv);
     };
     const sndView = { x0: 0, y0: 0, x1: 0, y1: 0 };
@@ -25358,7 +25386,8 @@ export default function AssetStudio({ game = false } = {}) {
     // handoff has to mount — the tiles are cached (RUN_TILE_CACHE), so the swap's remaining cost
     // was the new level's sprites, and now only the on-screen ones are built. The margin is
     // generous so a rotated or nudged prop never pops at the edge. In the editor nothing is culled.
-    const cullView = play && lscrollRef.current ? (() => { const m = VIEW_CULL_MARGIN_CELLS * LV_CELL, v = lscrollRef.current; return { x: camRef.current.x - m, y: camRef.current.y - m, x2: camRef.current.x + v.clientWidth + m, y2: camRef.current.y + v.clientHeight + m }; })() : null;
+    // A zoomed room (roomViewZoom) shows clientWidth / z level pixels, not clientWidth.
+    const cullView = play && lscrollRef.current ? (() => { const m = VIEW_CULL_MARGIN_CELLS * LV_CELL, v = lscrollRef.current, z = camRef.current.z || 1; return { x: camRef.current.x - m, y: camRef.current.y - m, x2: camRef.current.x + v.clientWidth / z + m, y2: camRef.current.y + v.clientHeight / z + m }; })() : null;
     const offScreen = (left, top, w, h) => !!cullView && (left + w < cullView.x || left > cullView.x2 || top + h < cullView.y || top > cullView.y2);
     // WHOSE UNITS ARE DRAWN: the live level's, and in a RUN every neighbour's too. A neighbour's
     // tiles and props were drawn across the gate but its enemies were not, so they appeared from
@@ -26222,7 +26251,16 @@ export default function AssetStudio({ game = false } = {}) {
                   .lvLive has no z-index and no transform, so it is NOT a stacking context: sprites,
                   objects and Front cells keep interleaving on the z-ladder exactly as they did.
                   Outside a run it is display:contents, i.e. not there at all. */}
-              <div ref={lvRef} className={"lgrid" + (play ? " camera" : "") + (runNodeNow ? " inRun" : "") + (!play && lHidden.front ? " hideFront" : "") + (!play && lHidden.fg ? " hideFg" : "")} style={{ width: runNodeNow ? runOrigin.current.w : lvW, height: runNodeNow ? runOrigin.current.h : lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px", ...(play ? { transform: "translate3d(" + (-Math.round((camRef.current.x + (runNodeNow ? runOrigin.current.x : 0)) * 2) / 2) + "px, " + (-Math.round((camRef.current.y + (runNodeNow ? runOrigin.current.y : 0)) * 2) / 2) + "px, 0)" } : {}) }} onPointerDown={lvDown} onPointerMove={lvMove} onPointerUp={lvUp} onPointerCancel={lvUp} onPointerLeave={() => setLHoverCell(null)}>
+              {/* A ROOM IS ZOOMED (roomViewZoom, camRef.current.z): the same translate, in screen
+                  pixels, then a scale about .lgrid's top-left, which is pinned there (margin 0) because
+                  the camera does the centring (centreRoomInView). .zoomed drops will-change: a
+                  will-change:transform layer is rasterised at the scale it had when it was made and
+                  never again, so a street-made layer scaled up for a room would be a blurry stretch. */}
+              <div ref={lvRef} className={"lgrid" + (play ? " camera" : "") + (play && (camRef.current.z || 1) !== 1 ? " zoomed" : "") + (runNodeNow ? " inRun" : "") + (!play && lHidden.front ? " hideFront" : "") + (!play && lHidden.fg ? " hideFg" : "")} style={{ width: runNodeNow ? runOrigin.current.w : lvW, height: runNodeNow ? runOrigin.current.h : lvH, backgroundSize: LV_CELL + "px " + LV_CELL + "px", ...(play ? (() => {
+                const z = camRef.current.z || 1, cx = camRef.current.x + (runNodeNow ? runOrigin.current.x : 0), cy = camRef.current.y + (runNodeNow ? runOrigin.current.y : 0);
+                if (z === 1) return { transform: "translate3d(" + (-Math.round(cx * 2) / 2) + "px, " + (-Math.round(cy * 2) / 2) + "px, 0)" };
+                return { transform: "translate3d(" + (-Math.round(cx * z * 2) / 2) + "px, " + (-Math.round(cy * z * 2) / 2) + "px, 0) scale(" + z + ")", transformOrigin: "0 0", margin: 0 };
+              })() : {}) }} onPointerDown={lvDown} onPointerMove={lvMove} onPointerUp={lvUp} onPointerCancel={lvUp} onPointerLeave={() => setLHoverCell(null)}>
                 {runTiles || <>{lvBgLayer}{lvFgLayer}{lvFrontLayer}</>}
                 <div className="lvLive" style={runNodeNow ? { position: "absolute", left: runOrigin.current.x, top: runOrigin.current.y, width: lvW, height: lvH } : RUN_LAYER_STYLE}>
                 {layerMove && layerMove.levelId === lv.id && Object.keys(layerMove.cells).map((k) => { const [r, c] = k.split(",").map(Number); return <div key={"mv" + k} className="lcell moveSel" style={{ left: c * LV_CELL, top: r * LV_CELL }} />; })}
@@ -27463,7 +27501,8 @@ export default function AssetStudio({ game = false } = {}) {
                   // The camera's window, in level pixels, so the bubble stays on SCREEN and not merely
                   // inside the level (see talkBubbleBox): where the view is and how big it is.
                   const viewEl = lscrollRef.current;
-                  const view = viewEl ? { x: camRef.current.x, y: camRef.current.y, w: viewEl.clientWidth, h: viewEl.clientHeight } : null;
+                  const viewZ = camRef.current.z || 1; // a zoomed room shows fewer level pixels (roomViewZoom)
+                  const view = viewEl ? { x: camRef.current.x, y: camRef.current.y, w: viewEl.clientWidth / viewZ, h: viewEl.clientHeight / viewZ } : null;
                   const grid = dialogueOptionGrid(opts);
                   const box = talkBubbleBox(talk, talkH, lv.cols * LV_CELL, view, grid.width);
                   return (
@@ -29728,6 +29767,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .bb.gameMode>.bar,.bb.gameMode>.catbar,.bb.gameMode>.ltools,.bb.gameMode .statusrow,.bb.gameMode .lside{display:none!important}
 .bb.gameMode .lstage{padding:0}
 .lgrid.camera{will-change:transform}
+.lgrid.camera.zoomed{will-change:auto}
 /* 🎁 THE PICKUP BANNER — the item's name the moment you take it, positioned in the VIEW (the
    .lscroll box made relative just above), top-centre, over the level. z 5 clears the grid (one
    z-auto box, see above) and stays under the modals (30) and the toast (40), so it can never cover

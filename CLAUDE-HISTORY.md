@@ -5278,3 +5278,17 @@ for a freshly made item and for one reopened from 📂 Load.
   scratch clone broken exactly like his; the banner was driven in the dev studio with a local stand-in online save
   (shows when the save is missing past 8 min, clears when the snapshot holds it).
 - An agent's attempt to repair the real install through WMI was refused by the permission layer; Blake runs it himself.
+## Rooms play zoomed in (2026-10-23)
+
+- Blake: "make the playable screen bigger when you go into rooms? There is a ton of dead space around the player".
+  A room (40x24, 1,200x720 px) was drawn at the street's 1:1 scale, so on his ~3,084x871 studio view it sat in a
+  small box in a black screen with the body a quarter of the view tall.
+- Now the camera scales a room until the view is 16 rows tall (`roomViewZoom`), stopping where the room covers the
+  view and never going below 1. His studio view gets ~1.8x; his fullscreen game view (29 rows, 3440:1440) gets the
+  room edge to edge. The scale is a transform about .lgrid's top-left, so the camera centres a narrow room itself
+  (`centreRoomInView`) and .lgrid's margin is 0 while zoomed. `.zoomed` drops will-change, because a
+  will-change:transform layer made at scale 1 on the street would be stretched blurry, never re-rastered.
+- Verified in the dev studio at 3084x1200 (view 2728x906): Trailor Park S1 street at z 1 with an unchanged
+  transform, its Trailor Int door swaps to scale(1.8875) on the full-black frame, the room centred (grid left 246
+  = (2728-2265)/2 + border), the camera follows W/S up the carpet and clamps at 720 - 480, the NPC drawn, and
+  leaving swaps back to z 1 on black.
