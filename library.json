@@ -1983196,7 +1983196,143 @@
     "41,111": "#4a5a28",
     "41,112": "#4a5a28",
     "42,112": "#4a5a28",
-    "42,111": "#4a5a28"
+    "42,111": "#4a5a28",
+    "29,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "30,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "31,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "32,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "33,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "18,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "19,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "20,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "21,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "22,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "23,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "24,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "25,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "26,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "27,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "28,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "9,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "10,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "11,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "12,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "13,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "14,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "15,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "16,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "17,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "0,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "1,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "2,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "3,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "4,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "5,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "6,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "7,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    },
+    "8,43": {
+     "c": "#171d35",
+     "hideInPlay": true
+    }
    },
    "bg": {
     "30,19": "#171d35",
@@ -1991277,8 +1991413,8 @@
    "floor": "Tree Tops",
    "section": "Middle",
    "hazard": {},
-   "savedAt": 1792721186970,
-   "editedFrom": 1792721138723
+   "savedAt": 1792750426782,
+   "editedFrom": 1792721186970
   },
   {
    "id": "ypjilr0",
