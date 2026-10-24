@@ -1043,6 +1043,20 @@ export const stampSave = (rec, from) => {
   else delete out.editedFrom;
   return out;
 };
+// UNDO GOES BACK IN WHAT IT DRAWS, NOT IN WHICH SAVE IT SITS ON (the 🎬 editor's animRestore rule,
+// now every editor's). An undo step is the record as it was, savedAt and all, so undoing past a 💾
+// put the editor back on the version before that save: the next save said it was edited FROM the
+// older version (stampSave's editedFrom), the keeper merged against it, read everything since as
+// another copy's work, and put back what the undo had taken out. Tree Int 2, 2026-10-24: 5 walkway
+// squares taken out at 8:27 came back in the online copy. A step from another record (undoing a
+// 📂 Open or a New) is left exactly as it was.
+export const keepSaveStamp = (rec, now) => {
+  if (!rec || !now || rec.id !== now.id) return rec;
+  const out = { ...rec };
+  if (typeof now.savedAt === "number") out.savedAt = now.savedAt; else delete out.savedAt;
+  if (typeof now.editedFrom === "number") out.editedFrom = now.editedFrom; else delete out.editedFrom;
+  return out;
+};
 export const removedIds =(proj, kind) => new Set(((((proj && proj.removed) || {})[kind]) || []).filter(Boolean));
 const uid = () => Math.random().toString(36).slice(2, 9);
 const rect = (x, y, w, h, color = SKIN) => ({ id: uid(), kind: "rect", x, y, w, h, color, mirror: true });
@@ -13864,7 +13878,7 @@ export default function AssetStudio({ game = false } = {}) {
   const nowSnapshot = () => editSnapshot(asset, { wState, eState, propFrame, effEdit, angle });
   const restoreSnapshot = (entry) => {
     let c; try { c = readEditSnapshot(entry); } catch { return; }
-    setAsset(c.asset);
+    setAsset(keepSaveStamp(c.asset, asset));
     if (c.wState) setWState(c.wState);
     if (c.eState) setEState(c.eState);
     if (typeof c.propFrame === "number") setPropFrame(c.propFrame);
@@ -13898,7 +13912,7 @@ export default function AssetStudio({ game = false } = {}) {
     const h = levelHistory.current; const cur = JSON.stringify(level);
     while (h.length) {
       const prev = h.pop();
-      if (prev !== cur) { levelFuture.current.push(cur); if (levelFuture.current.length > 80) levelFuture.current.shift(); try { setLevel(JSON.parse(prev)); } catch {} setLSel(null); setAreaSel(null); break; }
+      if (prev !== cur) { levelFuture.current.push(cur); if (levelFuture.current.length > 80) levelFuture.current.shift(); try { setLevel(keepSaveStamp(JSON.parse(prev), level)); } catch {} setLSel(null); setAreaSel(null); break; }
     }
     setCanUndoLevel(h.length > 0); setCanRedoLevel(levelFuture.current.length > 0);
   };
@@ -13907,7 +13921,7 @@ export default function AssetStudio({ game = false } = {}) {
     const f = levelFuture.current; if (!f.length) return;
     const next = f.pop(); const cur = JSON.stringify(level);
     levelHistory.current.push(cur); if (levelHistory.current.length > 80) levelHistory.current.shift();
-    try { setLevel(JSON.parse(next)); } catch {} setLSel(null); setAreaSel(null); // a 🔀 Move selection points at where things WERE
+    try { setLevel(keepSaveStamp(JSON.parse(next), level)); } catch {} setLSel(null); setAreaSel(null); // a 🔀 Move selection points at where things WERE
     setCanUndoLevel(true); setCanRedoLevel(f.length > 0);
   };
   const resetLevelHistory = () => { levelHistory.current = []; levelFuture.current = []; setCanUndoLevel(false); setCanRedoLevel(false); };
@@ -21829,9 +21843,7 @@ export default function AssetStudio({ game = false } = {}) {
   // (stampSave's editedFrom), and the save folder merges by that.
   const animRestore = (json) => {
     let snap; try { snap = JSON.parse(json); } catch { return; }
-    const next = { ...snap, id: animDoc.id };
-    if (typeof animDoc.savedAt === "number") next.savedAt = animDoc.savedAt; else delete next.savedAt;
-    if (typeof animDoc.editedFrom === "number") next.editedFrom = animDoc.editedFrom; else delete next.editedFrom;
+    const next = keepSaveStamp({ ...snap, id: animDoc.id }, animDoc);
     animPlayStop(); setAnimDoc(next); setAnimDelArm(false);
     animDrag.current = null; animLastPut.current = 0;
   };

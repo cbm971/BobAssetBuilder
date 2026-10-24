@@ -156,13 +156,19 @@ const decideSweep = ({ inc, cur, curSource, source, seen, baseFor, baseAt = () =
   // from: a cell the guess lacked but the folder had read as "added by the other copy", and a
   // deletion in this copy read as "no change". Sewer M1/M2, 2026-10-10: a Front pillar Blake
   // deleted came back on every save, three times, while his new curve beside it was kept.
+  //
+  // A NEWER SAVE THE FOLDER ALREADY HOLDS ALL OF is still combined, never just kept (2026-10-24).
+  // The merge comes out equal to the folder's version, but stamped newer than the copy's save, so
+  // the copy adopts it and sees its save reached the online copy. Kept in History only, the
+  // folder stayed OLDER than that save: the tab's "⚠ Not backed up" never cleared (Tree Int 2,
+  // 8:28, a save with nothing new in it) while his Vietnamese F Skin was safely online, and he
+  // took the banner to mean the skin was lost. The two copies also never converged.
   const from = typeof inc.editedFrom === "number" ? inc.editedFrom : null;
   if (from !== null && incNewer) {
     if (typeof cur.savedAt === "number" && from === cur.savedAt) return { action: "take" };
     const exact = baseAt(from);
     if (exact) {
       const m = merge3(exact, cur, inc);
-      if (sameContent(m.record, cur)) return { action: "keep" };
       return { action: "combine", record: m.record, conflicts: m.conflicts };
     }
   }
@@ -175,7 +181,7 @@ const decideSweep = ({ inc, cur, curSource, source, seen, baseFor, baseAt = () =
   if (base) {
     const newer = incNewer ? inc : cur, older = incNewer ? cur : inc;
     const m = merge3(base, older, newer);
-    if (sameContent(m.record, cur)) return { action: "keep" };
+    if (!incNewer && sameContent(m.record, cur)) return { action: "keep" };   // newer: combined all the same (see above)
     return { action: "combine", record: m.record, conflicts: m.conflicts };
   }
   return incNewer ? { action: "take" } : { action: "keep" };

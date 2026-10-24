@@ -498,6 +498,7 @@ import {
   removedIds,
   newerRecord,
   stampSave,
+  keepSaveStamp,
   hostDelete,
   isTombstoneRecord,
   TOMBSTONE_VALUE,
@@ -10725,6 +10726,26 @@ describe("stampSave", () => {
   });
   test("never carries an old editedFrom forward", () => {
     expect(stampSave({ id: "x", savedAt: 9, editedFrom: 2 }, { id: "x", savedAt: 9 }).editedFrom).toBe(9);
+  });
+});
+
+// UNDO PAST A 💾 STAYS ON THE NEWEST SAVE (Tree Int 2, 2026-10-24: the step undone after a save
+// carried the older savedAt, the next save claimed that older base, and the merge put back 5
+// walkway squares he had taken out).
+describe("keepSaveStamp", () => {
+  test("an undo step keeps the drawing but stays on the save on screen", () => {
+    const before = { id: "treeint2", savedAt: 24, editedFrom: 10, climb: { "1,1": 1 } };
+    const onScreen = { id: "treeint2", savedAt: 26, editedFrom: 24, climb: { "1,1": 1, "17,33": 1 } };
+    const back = keepSaveStamp(before, onScreen);
+    expect(back.climb).toEqual({ "1,1": 1 });
+    expect(back.savedAt).toBe(26);
+    expect(back.editedFrom).toBe(24);
+    expect(stampSave(back, back).editedFrom).toBe(26);   // the next 💾 names the newest save, so the undo stays undone
+  });
+  test("a never-saved record stays unstamped, and a step from another record is left alone", () => {
+    expect(keepSaveStamp({ id: "a", savedAt: 3, editedFrom: 1 }, { id: "a" })).toEqual({ id: "a" });
+    const other = { id: "b", savedAt: 3 };
+    expect(keepSaveStamp(other, { id: "a", savedAt: 9 })).toBe(other);
   });
 });
 

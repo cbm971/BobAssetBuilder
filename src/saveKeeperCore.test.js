@@ -137,6 +137,24 @@ describe("decideSweep", () => {
     const d = decideSweep({ inc: { ...mine, editedFrom: 4 }, cur, curSource: "combined", source: "B", ...history(hist, "B"), baseAt: () => null });
     expect(d.action).toBe("combine");
   });
+
+  // Tree Int 2, 2026-10-24, from his real History: the tab saved at 8:28 with nothing new in it
+  // (editedFrom a save the keeper never saw, so the base is the guess). The merge equals the
+  // folder's combined version. Kept in History only, the folder stayed older than the tab's save
+  // and the tab's "⚠ Not backed up" banner never cleared.
+  it("a NEWER save with nothing the folder lacks is combined (stamped newer), not just kept", () => {
+    const mine1 = lvl(10, { climb: { "1,1": { kind: "topdown" } } });
+    const cur = lvl(11, { climb: { "1,1": { kind: "topdown" }, "17,33": { kind: "topdown" } } });
+    const again = lvl(12, { climb: { "1,1": { kind: "topdown" } }, editedFrom: 11.5 });
+    const d = decideSweep({ inc: again, cur, curSource: "combined", source: "A", ...history([[mine1, "A"], [cur, "combined"]], "A"), baseAt: () => null });
+    expect(d.action).toBe("combine");
+    expect(d.record.climb).toEqual(cur.climb);   // the folder's content, nothing lost from either side
+    // the same through an exact editedFrom
+    const viaExact = decideSweep({ inc: { ...again, editedFrom: 10 }, cur, curSource: "combined", source: "A", ...history([[mine1, "A"], [cur, "combined"]], "A"), baseAt: (t) => (t === 10 ? mine1 : null) });
+    expect(viaExact.action).toBe("combine");
+    // an OLDER copy that adds nothing is still only kept
+    expect(decideSweep({ inc: lvl(10.5, { climb: { "1,1": { kind: "topdown" } } }), cur, curSource: "combined", source: "A", ...history([[mine1, "A"], [cur, "combined"]], "A") }).action).toBe("keep");
+  });
 });
 
 describe("libraryFromStore", () => {
