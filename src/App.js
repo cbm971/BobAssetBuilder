@@ -7442,6 +7442,8 @@ export const ANIM_UNDO_GAP = 600;
 // animation is written ANIM_AUTOSAVE_MS after the last change. Only one already saved under the
 // name it still has: a new one waits for 💾 (or every ✚ New would leave a stray record behind),
 // and a renamed one waits for 💾 because that save is a Save As (resolveSaveTarget, his rule).
+// 📝 Since 2026-10-24 (Tidy Whiteys, see DRAFT_PREFIX) that timer writes a DRAFT, not the animation:
+// opening it again brings the changes back, ✚ New and 📂 ask before dropping them, and only 💾 writes.
 export const ANIM_AUTOSAVE_MS = 1200;
 export const animAutoSaves = (doc, stored) => !!(doc && stored && doc.id === stored.id && (doc.name || "") === (stored.name || ""));
 // THE SAME FOR EVERY OTHER ASSET (2026-10-19, Blake on the Flamethrower: "i hit save, go to test, i see
@@ -21893,7 +21895,8 @@ export default function AssetStudio({ game = false } = {}) {
         }
       } catch { /* the fork is saved either way */ }
     }
-    if (ok1 && ok2 && target.mode !== "update") animOpened.current = { id: payload.id, rec: payload };
+    if (ok1 && ok2) animOpened.current = { id: payload.id, rec: payload }; // after every 💾: what he last saved is the original (see saveAsset)
+    if (ok1 && ok2) { idbDel(DRAFT_PREFIX + doc.id); if (payload.id !== doc.id) idbDel(DRAFT_PREFIX + payload.id); } // saved: the draft is spent
     if (ok1 && ok2) {
       // ...unless another animation was opened meanwhile (✚ New or 📂 while this was being written):
       // then this one is saved and the editor is left alone.
@@ -21914,28 +21917,48 @@ export default function AssetStudio({ game = false } = {}) {
     flash("Couldn't save — " + (lastStoreFailure() || "storage unavailable") + ".");
     return false;
   };
-  // The editor's own save (see ANIM_AUTOSAVE_MS): the open animation, a moment after its last
-  // change. animAutoRef holds the latest "save it now if it needs it" for the ways out below
-  // (‹ Menu, ✚ New, 📂, closing the page), which must not wait out the timer and lose its last edit.
+  // The editor's own DRAFT (see ANIM_AUTOSAVE_MS and DRAFT_PREFIX): the open animation, a moment
+  // after its last change, in the browser store only — the animation itself changes only on 💾, the
+  // asset editor's rule since Tidy Whiteys (2026-10-24). animAutoRef holds the latest "draft it now if
+  // it needs it" for closing the page, which must not wait out the timer and lose its last edit.
   const animAutoRef = useRef(null);
   const animOpened = useRef(null); // { id, rec }: the open animation's stored record as opened — see saveAsRestores
+  const animDraftJson = useRef("");  // the doc last written as a draft
+  const animOpenSeq = useRef(0);     // which open a draft read belongs to
+  const animFresh = useRef("");      // a NEW animation as it opened: untouched, it has nothing to lose
+  const [pendingAnimAction, setPendingAnimAction] = useState(null); // { label, run }: leaving with changes not saved
+  const animIsDirty = () => { if (!animDoc) return false; const j = JSON.stringify(animDoc); return j !== animBaseline.current && j !== animFresh.current; };
+  const guardAnimLeave = (label, run) => { if (animIsDirty()) setPendingAnimAction({ label, run }); else run(); };
+  // "Continue anyway": the changes go, draft and all.
+  const discardAnimChanges = () => {
+    if (!animDoc) return;
+    idbDel(DRAFT_PREFIX + animDoc.id);
+    animDraftJson.current = JSON.stringify(animDoc);
+  };
+  const saveAnimDraft = async (doc, stored) => {
+    const json = JSON.stringify(doc);
+    const ok = (await idbSet(DRAFT_PREFIX + doc.id, JSON.stringify(makeDraft(doc, stored)))).ok;
+    if (ok) animDraftJson.current = json;
+    return ok;
+  };
   useEffect(() => {
     const doc = animDoc;
-    const pending = () => !!doc && JSON.stringify(doc) !== animBaseline.current && animAutoSaves(doc, findAnim(doc.id));
-    animAutoRef.current = () => (pending() ? saveAnim(true) : Promise.resolve(false));
+    const stored = doc ? findAnim(doc.id) : null;
+    const json = doc ? JSON.stringify(doc) : "";
+    if (doc && stored && json === animBaseline.current && animDraftJson.current !== json) { animDraftJson.current = json; idbDel(DRAFT_PREFIX + doc.id); } // back to the saved copy (undone): no draft left to come back
+    const pending = () => !!doc && !!stored && json !== animBaseline.current && animDraftJson.current !== json;
+    animAutoRef.current = () => (pending() ? saveAnimDraft(doc, stored) : Promise.resolve(false));
     if (!pending()) return undefined;
-    const t = setTimeout(() => { saveAnim(true); }, ANIM_AUTOSAVE_MS);
+    const t = setTimeout(() => { saveAnimDraft(doc, stored); }, ANIM_AUTOSAVE_MS);
     return () => clearTimeout(t);
-  }, [animDoc, animLib]); // saveAnim/findAnim are re-made every render; animDoc + the library are what decide
-  // Closing or reloading the page with an animation change not yet written: write it now (the
-  // store usually takes it before the page goes), and for one that cannot save itself (new, or
-  // renamed and waiting for its Save As) the browser asks before leaving.
+  }, [animDoc, animLib]); // saveAnimDraft/findAnim are re-made every render; animDoc + the library are what decide
+  // Closing or reloading the page with an animation change not saved: draft it now, and the browser
+  // asks before leaving.
   useEffect(() => {
     if (screen !== "anim") return undefined;
     const bu = (e) => {
-      const doc = animDoc;
-      if (!doc || JSON.stringify(doc) === animBaseline.current) return;
-      if (animAutoSaves(doc, findAnim(doc.id))) { if (animAutoRef.current) animAutoRef.current(); return; }
+      if (!animIsDirty()) return;
+      if (animAutoRef.current) animAutoRef.current();
       e.preventDefault(); e.returnValue = "";
     };
     window.addEventListener("beforeunload", bu);
@@ -21944,8 +21967,24 @@ export default function AssetStudio({ game = false } = {}) {
   // `keepView`: stay on the same state, moment and layer (↺ Last save puts back what you were
   // looking at, it does not throw you to the start). Opening the SAME animation again is an undo
   // step, so a reload you did not mean is one ↩ away; opening another one starts a fresh history.
-  const openAnimDoc = (a, keepView) => {
+  // `asSaved`: open the saved copy and drop its draft (↺ Last save, or leaving with "Continue anyway");
+  // otherwise changes not saved when the page went come back, still unsaved and one ↩ from the save.
+  const openAnimDoc = (a, keepView, asSaved) => {
     const doc = a ? migrateAnim(JSON.parse(JSON.stringify(a)), uid) : { ...newAnim(uid), id: uid() };
+    animDraftJson.current = JSON.stringify(doc);
+    animFresh.current = a ? "" : JSON.stringify(doc);
+    const seq = ++animOpenSeq.current;
+    if (a && asSaved) idbDel(DRAFT_PREFIX + a.id);
+    else if (a) idbGet(DRAFT_PREFIX + a.id).then((hit) => {
+      let dr = null; try { dr = hit.ok && typeof hit.value === "string" ? JSON.parse(hit.value) : null; } catch { dr = null; }
+      if (!dr || seq !== animOpenSeq.current) return;
+      if (!draftApplies(dr, a)) { idbDel(DRAFT_PREFIX + a.id); return; } // saved since the draft was made: the animation is the newer
+      const back = keepSaveStamp({ ...migrateAnim(JSON.parse(JSON.stringify(dr.rec)), uid), id: a.id }, doc);
+      animRemember(doc, true);
+      animDraftJson.current = JSON.stringify(back);
+      setAnimDoc((cur) => (cur && cur.id === a.id ? back : cur));
+      flash("↩ Unsaved changes to \"" + (back.name || a.name) + "\" restored");
+    });
     if (a && animDoc && animDoc.id === doc.id) { if (JSON.stringify(animDoc) !== JSON.stringify(doc)) animRemember(animDoc, true); }
     else { animUndo.current = []; animRedo.current = []; setAnimHist({ u: 0, r: 0 }); }
     animLastPut.current = 0;
@@ -24865,10 +24904,6 @@ export default function AssetStudio({ game = false } = {}) {
     const dirty = JSON.stringify(d) !== animBaseline.current;
     // Every change to the record goes through here, so every change can be undone (animRemember).
     const put = (next) => { if (next === d) return; animRemember(d); setAnimDoc(next); setAnimDelArm(false); };
-    // Write what is on screen now rather than when the timer would (ANIM_AUTOSAVE_MS): true when
-    // there was something to write. Picking the open animation in 📂 again used to reload its saved
-    // copy over the screen; with the screen saved there is nothing older to go back to.
-    const animSaveNow = () => { const pend = animAutoSaves(d, findAnim(d.id)) && dirty; if (pend) saveAnim(true); return pend; };
     const si = Math.max(0, Math.min(animSi, d.states.length - 1));
     const st = d.states[si];
     const dur = animStateDur(st);
@@ -25002,8 +25037,21 @@ export default function AssetStudio({ game = false } = {}) {
     );
     return (
       <div className="bb"><style>{css}</style>
+        {pendingAnimAction && (
+          <div className="modal" onClick={() => setPendingAnimAction(null)}>
+            <div className="dlg" onClick={(e) => e.stopPropagation()}>
+              <div className="dt">⚠ Unsaved changes</div>
+              <p className="mini">"{d.name}" has changes that aren't saved. Continuing to {pendingAnimAction.label} will drop them.</p>
+              <div className="tiles" style={{ marginTop: 12 }}>
+                <button className="tile" onClick={() => setPendingAnimAction(null)}><span className="ti">✕</span><span className="tl">Cancel</span><span className="tb">Go back and save first</span></button>
+                <button className="tile" onClick={() => { const run = pendingAnimAction.run; setPendingAnimAction(null); discardAnimChanges(); run(); }}><span className="ti">⚠</span><span className="tl">Continue anyway</span><span className="tb">Discard the unsaved changes</span></button>
+              </div>
+            </div>
+          </div>
+        )}
         <header className="bar">
-          <button className="back" onClick={() => { animPlayStop(); animSaveNow(); setScreen("menu"); }}>‹ Menu</button>
+          {/* The animation stays open behind the menu, changes and all (and drafted now), so ‹ Menu never asks. */}
+          <button className="back" onClick={() => { animPlayStop(); if (animAutoRef.current) animAutoRef.current(); setScreen("menu"); }}>‹ Menu</button>
           <input className="nm wide2" value={d.name} onChange={(e) => put({ ...d, name: e.target.value })} placeholder="Animation name" />
           {/* Before the badge, which grows by "· unsaved": after it, ↩ Undo slid sideways the moment
               an undo got back to the saved copy, and the next click landed on something else. */}
@@ -25013,15 +25061,15 @@ export default function AssetStudio({ game = false } = {}) {
           {/* The picker always sits on its first line, so picking the animation that is open
               reloads it as saved — it used to show that one picked, and picking it again did nothing
               ("I could not load a un messed up version"). */}
-          <select className="animOpen" value="" onChange={(e) => { const a = findAnim(e.target.value); if (!a) return; animPlayStop(); if (animSaveNow() && a.id === d.id) return; openAnimDoc(a); }} title="Open a saved animation">
+          <select className="animOpen" value="" onChange={(e) => { const a = findAnim(e.target.value); if (!a) return; animPlayStop(); if (a.id === d.id) { openAnimDoc(a, false, true); return; } guardAnimLeave("open \"" + a.name + "\"", () => openAnimDoc(a)); }} title="Open a saved animation">
             <option value="">{stored ? "🎬 " + stored.name : "📂 Open…"}</option>
             {animLib.map((a) => <option key={a.id} value={a.id}>🎬 {a.name}</option>)}
           </select>
-          {stored && <button className="ltbtn" disabled={!dirty} onClick={() => { animPlayStop(); openAnimDoc(stored, true); }}>↺ Last save</button>}
-          <button className="ltbtn" onClick={() => { animPlayStop(); animSaveNow(); openAnimDoc(null); }}>✚ New</button>
+          {stored && <button className="ltbtn" disabled={!dirty} onClick={() => { animPlayStop(); openAnimDoc(stored, true, true); }}>↺ Last save</button>}
+          <button className="ltbtn" onClick={() => { animPlayStop(); guardAnimLeave("start a new animation", () => openAnimDoc(null)); }}>✚ New</button>
           {playing ? <button className="ltbtn" onClick={animPlayStop}>⏹ Stop</button> : <button className="ltbtn" onClick={() => animPlayStart(si)} title="Plays from this state to the end. E (or a click on the prompt) moves a waiting state on.">▶ Play</button>}
-          {stored && <button className={"ltbtn" + (animDelArm ? " danger" : "")} onClick={() => { if (!animDelArm) { setAnimDelArm(true); return; } setAnimDelArm(false); animPlayStop(); deleteAsset(stored); openAnimDoc(null); }}>{animDelArm ? "Delete the whole animation?" : "🗑 Animation"}</button>}
-          <button className="save" onClick={saveAnim}>💾 Save</button>
+          {stored && <button className={"ltbtn" + (animDelArm ? " danger" : "")} onClick={() => { if (!animDelArm) { setAnimDelArm(true); return; } setAnimDelArm(false); animPlayStop(); idbDel(DRAFT_PREFIX + stored.id); deleteAsset(stored); openAnimDoc(null); }}>{animDelArm ? "Delete the whole animation?" : "🗑 Animation"}</button>}
+          <button className="save" onClick={() => saveAnim(false)}>💾 Save</button>
         </header>
         <div className="animEdit">
           <div className="animMain">

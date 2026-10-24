@@ -14350,6 +14350,15 @@ describe("animAutoSaves", () => {
     expect(animAutoSaves({ id: "gnrlbr2", name: "Briefing 2" }, { id: "gnrlbr2", name: "General's Briefing" })).toBe(false);
     expect(animAutoSaves(null, { id: "a", name: "a" })).toBe(false);
   });
+  // 2026-10-24 (Tidy Whiteys): the 🎬 editor's timer drafts like the asset editor's; only 💾 writes.
+  it("the timer writes a draft, never the animation, and the ways out ask or draft", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).not.toContain("saveAnim(true)");
+    expect(src).not.toContain("animSaveNow");
+    expect(src).toContain("setTimeout(() => { saveAnimDraft(doc, stored); }, ANIM_AUTOSAVE_MS)");
+    expect(src).toContain("guardAnimLeave(\"start a new animation\"");
+    expect(src).toContain("openAnimDoc(stored, true, true)"); // ↺ Last save drops the draft
+  });
 });
 
 describe("no room twice on a seed", () => {
