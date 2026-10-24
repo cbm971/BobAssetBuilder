@@ -1939294,10 +1939294,10 @@
      "kind": "door",
      "tag": ""
     },
-    "22,8": {
+    "17,8": {
      "kind": "pedestal",
      "cats": [
-      "Army",
+      "T1",
       ""
      ],
      "logic": "or"
@@ -1939345,8 +1939345,7 @@
      "accepts": ""
     }
    },
-   "savedAt": 1792848364449,
-   "editedFrom": 1792848193753
+   "savedAt": 1792848433822
   },
   {
    "id": "trlint5",
