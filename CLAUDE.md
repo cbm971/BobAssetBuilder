@@ -244,6 +244,10 @@ plus traps it does not cover:
   nothing.
 - Fit **both bodies**, BoB `telfv37` and Bobbett `oipvf3l`, in all five poses. Crouch is the front
   art moved down by that body's head drop (BoB +36, Bobbett +25).
+- **Clothes fit both bodies; a skin fits ONE.** A skin made by renaming another body's skin (Save As)
+  keeps that body's fit and its ✓ in `confirmedFits`, so Dress Bob lists it for both. Vietnamese F
+  Skin (`30gzhfn`), forked from the BoB Vietnamese Skin, showed up on Bob (2026-10-24). A Bobbett
+  skin carries only `variants.oipvf3l` and `confirmedFits: ["oipvf3l"]`.
 - House style: flat, 4–8 pieces, one colour plus a dark edge (`#1d1b1b`), no shading, gradients or
   tiers, and the face left open.
 - **Sleeves need `overArms: true` + `limb: "arm"`.** A sleeve box copied without those flags hangs
