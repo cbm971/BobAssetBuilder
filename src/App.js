@@ -7454,6 +7454,30 @@ export const animAutoSaves = (doc, stored) => !!(doc && stored && doc.id === sto
 export const ASSET_AUTOSAVE_MS = 1200;
 export const ASSET_OPEN_SETTLE_MS = 1500; // opening an asset normalises it a render or two later; that is not an edit
 export const assetAutoSaves = (a, stored) => !!(a && stored && a.id === stored.id && a.type === stored.type && (a.name || "") === (stored.name || ""));
+// 📝 ...BUT ONLY 💾 SAVE WRITES THE ASSET (2026-10-24). Blake opened Tidy Whiteys to make a new
+// underwear bottom from it. For five minutes the autosave above wrote every change onto Tidy Whiteys
+// itself and re-baked the 15 dressed looks wearing it, and the Save As put-back lost to the keeper's
+// merge, so Tidy Whiteys came out as his new Cheeky Bottoms ("I DID NOT CLICK SAVE"). Red Bra → Blue
+// Bra had left 5 looks half-recoloured a minute earlier. Now a change is written as a DRAFT, in the
+// browser store only (DRAFT_PREFIX + id), so a reload or a crash cannot lose it and opening the asset
+// again brings it back. The asset, the looks wearing it and the online copy change only on 💾 Save,
+// and leaving with changes not saved asks first, as the Level Creator does.
+export const DRAFT_PREFIX = "draft:";
+export const makeDraft = (rec, stored, now = Date.now()) => ({ at: now, of: stored && typeof stored.savedAt === "number" ? stored.savedAt : null, rec });
+// A draft goes back only over the version it was drafted from. Saved since (here or in another copy):
+// the asset is newer than the draft, and the draft is dropped.
+export const draftApplies = (draft, stored) => !!(draft && draft.rec && stored && draft.rec.id === stored.id && draft.of === (typeof stored.savedAt === "number" ? stored.savedAt : null));
+// THE OLD BODY-AS-SKIN MIGRATION, narrowed (2026-10-24). Before "body" existed a body was saved as
+// type "skin" carrying a hand point, so `migrate` turned every skin with `hand` into a body. A real
+// skin can carry `hand` too (the hand handle is draggable on one), and his Vietnamese F Skin did after
+// its 8:46 save: it opened as a body. Only a skin can have fit variants (HAS_FIT_VARIANTS), and no
+// body has ever had them, so a record with variants is a skin whatever else it carries.
+export const legacyBodyType = (a) => {
+  if (!a) return undefined;
+  if (a.type === "skin" && a.hand && !a.variants) return "body";
+  if (a.type === "body" && a.variants && a.guideId) return "skin";   // one the old rule already turned
+  return a.type;
+};
 // What counts as a CHANGE: everything but the save stamps and the fit bookkeeping a save rewrites,
 // so a save never looks like a fresh edit of its own.
 export const assetEditSig = (a) => JSON.stringify(a, (k, v) => (k === "savedAt" || k === "editedFrom" || k === "confirmedFits") ? undefined : v);
@@ -21126,36 +21150,63 @@ export default function AssetStudio({ game = false } = {}) {
   // name, so nothing is written before he chooses. The autosave below holds while the sheet is open
   // for the same reason; the Flamethrower edit is still covered by it, before the sheet and after.
   const saveAndOpen = () => openSheet();
-  // The editor's own save: the open asset, a moment after its last change. assetBase is what the
-  // editor last matched the store on (id + content signature); assetAutoRef holds the latest "save it
-  // now if it needs it" for the ways out (‹ Menu, picking another asset, closing the page), which must
-  // not wait out the timer and lose the last edit.
+  // The editor's own DRAFT (see DRAFT_PREFIX): the open asset, a moment after its last change, in the
+  // browser store only. assetBase is what the editor last matched the SAVED asset on (id + content
+  // signature); assetAutoRef holds the latest "draft it now if it needs it" for the ways out (picking
+  // another asset, closing the page), which must not wait out the timer and lose the last edit.
   const assetBase = useRef({ id: null, sig: "", at: 0 });
   const assetAutoRef = useRef(null);
+  const assetDraftSig = useRef("");          // the change last written as a draft
+  const assetFromDraft = useRef(null);       // id of an asset opened from its draft: its changes are not the open settling
+  const assetOpenSeq = useRef(0);            // which open a draft read belongs to
   // The stored record as it was when the open asset was OPENED — what a Save As puts back over the
-  // original (saveAsRestores). Never moved by the autosaves; a fork or a first save re-points it.
+  // original (saveAsRestores). Never moved by a draft; a fork or a first save re-points it.
   const assetOpened = useRef({ id: null, rec: null });
+  const saveAssetDraft = async (a, stored, sig) => {
+    const rec = syncProp(syncFit(syncEnemy(syncWeapon(a))));
+    const ok = (await idbSet(DRAFT_PREFIX + a.id, JSON.stringify(makeDraft(rec, stored)))).ok;
+    if (ok) assetDraftSig.current = sig;
+    return ok;
+  };
+  const assetIsDirty = () => !!asset && !!asset.id && assetBase.current.id === asset.id && assetEditSig(asset) !== assetBase.current.sig;
+  const [pendingAssetAction, setPendingAssetAction] = useState(null); // { label, run }: leaving with changes not saved
+  const guardAssetLeave = (label, run) => { if (assetIsDirty()) setPendingAssetAction({ label, run }); else run(); };
+  // "Continue anyway": the changes go, draft and all, and the editor no longer counts them.
+  const discardAssetChanges = () => {
+    if (!asset || !asset.id) return;
+    idbDel(DRAFT_PREFIX + asset.id);
+    const sig = assetEditSig(asset);
+    assetBase.current = { ...assetBase.current, sig }; assetDraftSig.current = sig;
+  };
   useEffect(() => {
     if (!asset || !asset.id) return undefined;
     const sig = assetEditSig(asset), now = Date.now();
     if (assetBase.current.id !== asset.id) {
-      if (assetAutoRef.current) assetAutoRef.current(); // another asset was opened: write the one being left first
+      if (assetAutoRef.current) assetAutoRef.current(); // another asset was opened: draft the one being left first
       assetBase.current = { id: asset.id, sig, at: now };
+      assetDraftSig.current = sig;
       assetOpened.current = { id: asset.id, rec: library.find((x) => x && x.id === asset.id) || null };
-    } else if (now - assetBase.current.at < ASSET_OPEN_SETTLE_MS && sig !== assetBase.current.sig) {
+    } else if (assetFromDraft.current !== asset.id && now - assetBase.current.at < ASSET_OPEN_SETTLE_MS && sig !== assetBase.current.sig) {
       assetBase.current = { ...assetBase.current, sig }; // the open itself normalising the record, not an edit
+      assetDraftSig.current = sig;
     }
-    const pending = () => hasStore && assetBase.current.sig !== sig && assetAutoSaves(asset, library.find((x) => x && x.id === asset.id));
-    assetAutoRef.current = () => (pending() ? saveAsset(true) : Promise.resolve(false));
-    if (!pending() || sheet) return undefined; // 💾 Save & Open's sheet is up: he is choosing the name, nothing writes until its 💾 Save
-    const t = setTimeout(() => { saveAsset(true); }, ASSET_AUTOSAVE_MS);
+    const stored = library.find((x) => x && x.id === asset.id) || null;
+    if (stored && sig === assetBase.current.sig && assetDraftSig.current !== sig) { assetDraftSig.current = sig; idbDel(DRAFT_PREFIX + asset.id); } // back to the saved asset (undone): no draft left to come back
+    const pending = () => hasStore && !!stored && assetBase.current.sig !== sig && assetDraftSig.current !== sig;
+    const a = asset;
+    assetAutoRef.current = () => (pending() ? saveAssetDraft(a, stored, sig) : Promise.resolve(false));
+    if (!pending()) return undefined;
+    const t = setTimeout(() => { saveAssetDraft(a, stored, sig); }, ASSET_AUTOSAVE_MS);
     return () => clearTimeout(t);
-  }, [asset, library, hasStore, sheet]); // saveAsset is re-made every render; the asset, the library and the sheet decide
+  }, [asset, library, hasStore]); // saveAssetDraft is re-made every render; the asset and the library decide
   useEffect(() => {
-    const bu = () => { if (assetAutoRef.current) assetAutoRef.current(); };
+    const bu = (e) => {
+      if (assetAutoRef.current) assetAutoRef.current();
+      if (screen === "editor" && assetIsDirty()) { e.preventDefault(); e.returnValue = ""; } // changes not saved: the browser asks (the draft is kept either way)
+    };
     window.addEventListener("beforeunload", bu);
     return () => window.removeEventListener("beforeunload", bu);
-  }, []);
+  }); // re-bound every render, so it always sees the open asset and screen
   // `quiet` (=== true, because it is also an onClick handler): the editor's own save. No "Saved ✓" every
   // second and a half and no loadLibrary — that re-reads every record he has — so the one saved record is
   // put straight into the library, which is what the Level Creator and Playtest read it from.
@@ -21223,7 +21274,10 @@ export default function AssetStudio({ game = false } = {}) {
       }
       if (putBack || refreshedLooks.length) projectLibrary.save({ assets: [...(putBack ? [putBack] : []), ...refreshedLooks] }, putBack ? { revive: true } : undefined);
       // From here the open asset IS the one just written: a later rename forks from it, and puts it back as it is now.
-      if (target.mode !== "update") assetOpened.current = { id: payload.id, rec: payload };
+      // After EVERY 💾, a plain one too: only 💾 writes the asset now, so what he last saved is the
+      // original. Re-pointed on forks only, a Save then a Save As put back the version from before the
+      // Save (seen in the running studio, 2026-10-24).
+      assetOpened.current = { id: payload.id, rec: payload };
     }
     const refreshed = new Set(refreshedLooks.map((l) => l.id)).size;
     if (ok1 && ok2) {
@@ -21231,7 +21285,9 @@ export default function AssetStudio({ game = false } = {}) {
       // ...unless another asset was opened while this was being written (a flush as one is picked): then
       // this one is saved and the editor is left on the one it now shows.
       setAsset((a) => (a && a.id === savedFrom.id ? { ...a, id: payload.id, savedAt: payload.savedAt, ...(payload.confirmedFits ? { confirmedFits: payload.confirmedFits } : {}) } : a));
-      if (assetBase.current.id === savedFrom.id) assetBase.current = { id: payload.id, sig: assetEditSig(savedFrom), at: assetBase.current.at };
+      if (assetBase.current.id === savedFrom.id) { assetBase.current = { id: payload.id, sig: assetEditSig(savedFrom), at: assetBase.current.at }; assetDraftSig.current = assetBase.current.sig; }
+      // Saved: the draft is spent. On a Save As the original never took the changes, so its draft goes too.
+      idbDel(DRAFT_PREFIX + savedFrom.id); if (payload.id !== savedFrom.id) idbDel(DRAFT_PREFIX + payload.id);
       const worn = refreshed ? " — updated " + refreshed + " dressed look" + (refreshed === 1 ? "" : "s") : "";
       if (quiet) {
         const wrote = [payload, ...(putBack ? [putBack] : []), ...refreshedLooks];
@@ -21273,7 +21329,7 @@ export default function AssetStudio({ game = false } = {}) {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { if (a && a.type === "anim") return migrateAnim(a, uid); try { if (a.type === "skin" && a.hand) a.type = "body"; const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { if (a && a.type === "anim") return migrateAnim(a, uid); try { a.type = legacyBodyType(a); const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     // Every item Blake has already saved predates prices, so it opens worth 0 (free) rather than
     // undefined — a shop reading NaN would price the whole shelf as "💵 NaN". His to set.
@@ -21578,14 +21634,31 @@ export default function AssetStudio({ game = false } = {}) {
   // loadTextures() here as well as in the level creator: pieces can be painted with a texture now
   // (Flannel and friends), so the library has to be in hand before the editor draws anything —
   // otherwise an already-textured jacket opens as flat colour until you happen to visit a level.
-  const start = (type, slot, wtype) => { loadTextures(); setAsset(newAsset(type, slot, wtype)); setAngle(type === "weapon" || type === "enemy" ? "side" : "front"); setSelId(null); setWState("rest"); setEState("normal"); setEffEdit(null); setPoseCopySrc(null); setPropFrame(0); setEyedrop(false); resetHistory(); dirtyGuides.current = new Set(); setScreen("editor"); };
+  const start = (type, slot, wtype) => { loadTextures(); assetOpenSeq.current++; assetFromDraft.current = null; setAsset(newAsset(type, slot, wtype)); setAngle(type === "weapon" || type === "enemy" ? "side" : "front"); setSelId(null); setWState("rest"); setEState("normal"); setEffEdit(null); setPoseCopySrc(null); setPropFrame(0); setEyedrop(false); resetHistory(); dirtyGuides.current = new Set(); setScreen("editor"); };
   // Dressed characters are baked composites — the piece editor has no concept of them and
   // used to white-screen (TYPES["character"] is undefined). View them in Dress Bob instead.
   const openAsset = (a) => {
     setConfirmDel(null);
     loadTextures(); // same reason as start(): a textured piece must have its pattern available on open
     if (a.type === "character") { openDressedLook(a); setAAngle("front"); setScreen("assemble"); flash("Viewing \"" + a.name + "\" — dressed looks open in Dress Bob."); return; }
-    setAsset(migrate(JSON.parse(JSON.stringify(a)))); setAngle(a.type === "weapon" || a.type === "enemy" ? "side" : "front"); setSelId(null); setWState("rest"); setEState("normal"); setEffEdit(null); setPoseCopySrc(null); setPropFrame(0); setEyedrop(false); resetHistory(); dirtyGuides.current = new Set(); setScreen("editor");
+    const opened = migrate(JSON.parse(JSON.stringify(a)));
+    const ang = a.type === "weapon" || a.type === "enemy" ? "side" : "front";
+    setAsset(opened); setAngle(ang); setSelId(null); setWState("rest"); setEState("normal"); setEffEdit(null); setPoseCopySrc(null); setPropFrame(0); setEyedrop(false); resetHistory(); dirtyGuides.current = new Set(); setScreen("editor");
+    // 📝 Changes not saved when the page went (see DRAFT_PREFIX) come back, still unsaved. One ↩ Undo
+    // away from the saved asset.
+    const seq = ++assetOpenSeq.current;
+    assetFromDraft.current = null;
+    if (a.id) idbGet(DRAFT_PREFIX + a.id).then((hit) => {
+      let d = null; try { d = hit.ok && typeof hit.value === "string" ? JSON.parse(hit.value) : null; } catch { d = null; }
+      if (!d || seq !== assetOpenSeq.current) return;
+      if (!draftApplies(d, a)) { idbDel(DRAFT_PREFIX + a.id); return; } // saved since the draft was made: the asset is the newer
+      const back = keepSaveStamp(migrate(JSON.parse(JSON.stringify(d.rec))), a);
+      assetFromDraft.current = a.id;
+      history.current = [editSnapshot(opened, { wState: "rest", eState: "normal", propFrame: 0, effEdit: null, angle: ang })]; future.current = [];
+      setCanUndo(true); setCanRedo(false);
+      setAsset((cur) => (cur && cur.id === a.id ? back : cur));
+      flash("↩ Unsaved changes to \"" + (back.name || a.name) + "\" restored");
+    });
   };
 
   /* ---- assembler -------------------------------------------------------- */
@@ -28348,11 +28421,23 @@ export default function AssetStudio({ game = false } = {}) {
   );
   return (
     <div className={"bb" + (asset.type === "weapon" ? " weaponEditor" : "")} onPointerDownCapture={snapshot}><style>{css}</style>
+      {pendingAssetAction && (
+        <div className="modal" onClick={() => setPendingAssetAction(null)}>
+          <div className="dlg" onClick={(e) => e.stopPropagation()}>
+            <div className="dt">⚠ Unsaved changes</div>
+            <p className="mini">"{asset.name}" has changes that aren't saved. Continuing to {pendingAssetAction.label} will drop them.</p>
+            <div className="tiles" style={{ marginTop: 12 }}>
+              <button className="tile" onClick={() => setPendingAssetAction(null)}><span className="ti">✕</span><span className="tl">Cancel</span><span className="tb">Go back and save first</span></button>
+              <button className="tile" onClick={() => { const run = pendingAssetAction.run; setPendingAssetAction(null); discardAssetChanges(); run(); }}><span className="ti">⚠</span><span className="tl">Continue anyway</span><span className="tb">Discard the unsaved changes</span></button>
+            </div>
+          </div>
+        </div>
+      )}
       {asset._recoveredFrom && (
         <div className="recoverBanner">🩹 This body was auto-recovered from "{asset._recoveredFrom}" — it's a best-effort guess. Pieces marked 🩹 in the layer list might actually be fused-in clothing rather than original body parts; check each one and delete anything that doesn't belong.</div>
       )}
       <header className="bar">
-        <button className="back" onClick={() => { if (assetAutoRef.current) assetAutoRef.current(); setScreen("menu"); }}>‹ Menu</button>
+        <button className="back" onClick={() => guardAssetLeave("go back to the menu", () => setScreen("menu"))}>‹ Menu</button>
         <input className="nm" value={asset.name} onChange={(e) => setAsset({ ...asset, name: e.target.value })} />
         <span className="badge">{asset.type === "equipment" ? (SLOTS[asset.slot]?.icon || "📦") : (TYPES[asset.type]?.icon || "📦")} {slotLabel}</span>
         <button className="undo" disabled={!canUndo} onClick={undo}>↩ Undo</button>
@@ -29378,7 +29463,7 @@ export default function AssetStudio({ game = false } = {}) {
                 return (<>
                   {inFolder && <div className="row2"><button className="back" onClick={() => setSheetFolder(null)}>‹ Folders</button> <span>{folderIcon(inFolder)} {inFolder.label}</span></div>}
                   {list.length ? <div className="loadlist">{list.map((a) => (
-                    <button key={a.id} onClick={() => { openAsset(a); setSheet(false); }}>{a.type === "equipment" ? (SLOTS[a.slot]?.icon || "📦") : (TYPES[a.type]?.icon || "📦")} {a.name}</button>
+                    <button key={a.id} onClick={() => guardAssetLeave("open \"" + a.name + "\"", () => { openAsset(a); setSheet(false); })}>{a.type === "equipment" ? (SLOTS[a.slot]?.icon || "📦") : (TYPES[a.type]?.icon || "📦")} {a.name}</button>
                   ))}</div> : <p className="mini">Nothing saved in this category yet.</p>}
                 </>);
               })()}

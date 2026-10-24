@@ -501,6 +501,9 @@ import {
   removedIds,
   newerRecord,
   stampSave,
+  makeDraft,
+  draftApplies,
+  legacyBodyType,
   keepSaveStamp,
   hostDelete,
   isTombstoneRecord,
@@ -14620,7 +14623,42 @@ describe("asset autosave", () => {
   it("💾 Save & Open only opens the sheet, and the autosave waits while the sheet is up", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
     expect(src).toContain("const saveAndOpen = () => openSheet();");
-    expect(src).toContain("if (!pending() || sheet) return undefined;");
+    // 2026-10-24 (Tidy Whiteys): the editor's own timer writes a draft, never the asset
+    expect(src).not.toContain("saveAsset(true)");
+    expect(src).toContain("saveAssetDraft(a, stored, sig)");
+  });
+});
+
+// ONLY 💾 SAVE WRITES THE ASSET (Tidy Whiteys, 2026-10-24): a change is a draft until then, and a
+// draft only comes back over the version it was drafted from.
+describe("asset drafts", () => {
+  const stored = { id: "ekowow7", name: "Tidy Whiteys", savedAt: 100 };
+  test("a draft names the saved version it was drafted from", () => {
+    expect(makeDraft({ ...stored, name: "Cheeky Bottoms" }, stored, 5)).toEqual({ at: 5, of: 100, rec: { ...stored, name: "Cheeky Bottoms" } });
+  });
+  test("it comes back over that version only", () => {
+    const d = makeDraft({ ...stored, angles: { front: [1] } }, stored);
+    expect(draftApplies(d, stored)).toBe(true);
+    expect(draftApplies(d, { ...stored, savedAt: 200 })).toBe(false);   // saved since: the asset is newer than the draft
+    expect(draftApplies(d, { ...stored, id: "other" })).toBe(false);
+    expect(draftApplies(null, stored)).toBe(false);
+  });
+});
+
+// A SKIN WITH A HAND IS STILL A SKIN (Vietnamese F Skin, 2026-10-24: it opened as a body).
+describe("legacyBodyType", () => {
+  test("an old body saved as a skin (hand, no fit variants) is a body", () => {
+    expect(legacyBodyType({ type: "skin", hand: { front: {} } })).toBe("body");
+  });
+  test("a real skin with a hand point stays a skin, and one the old rule turned comes back", () => {
+    const skin = { type: "skin", hand: { front: { x: 145, y: 163.5 } }, variants: { default: {} }, guideId: "oipvf3l" };
+    expect(legacyBodyType(skin)).toBe("skin");
+    expect(legacyBodyType({ ...skin, type: "body" })).toBe("skin");
+  });
+  test("bodies and everything else are left alone", () => {
+    expect(legacyBodyType({ type: "body", hand: {}, shoulder: {}, guideId: "telfv37" })).toBe("body");
+    expect(legacyBodyType({ type: "skin", variants: {} })).toBe("skin");
+    expect(legacyBodyType({ type: "weapon", hand: {} })).toBe("weapon");
   });
 });
 
