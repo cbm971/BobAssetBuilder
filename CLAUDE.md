@@ -313,6 +313,10 @@ plus traps it does not cover:
 - **Nothing solid taller than one cell across the only way through a level.** Agility -1 to 1
   jumps ONE cell (Army Bob, Roberta, Crocobob, Bobby, Billy), so a two-cell solid prop traps them
   for good. Place such props as scenery (Solid off), or give the path a way round.
+- **A 🚶 top-down room's walls stay outside the plane's columns for seven rows above its back row.**
+  The body is 7 rows tall, so at the back line its head is 7 rows up. A wall that narrows inward lower
+  than that (Tree Int 2's first trunk shape did) lets W walk the body into it, and then A/D cannot get
+  out. Narrow the room only above that height.
 
 **Animals (Enemy-creator enemies):**
 - Drawn side-on, **facing LEFT**, with no front or back. `side`, `up` and `crouch` are the same
