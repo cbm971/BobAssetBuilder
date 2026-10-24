@@ -1474707,7 +1474707,12 @@
      "kind": "ladder"
     }
    },
-   "markers": {},
+   "markers": {
+    "34,83": {
+     "kind": "door",
+     "tag": "Shaq "
+    }
+   },
    "enemies": {},
    "conns": {
     "N1": {
@@ -1474746,8 +1474751,8 @@
    "floor": "Vietnam",
    "section": "Middle",
    "hazard": {},
-   "savedAt": 1792884635791,
-   "editedFrom": 1792750381013
+   "savedAt": 1792884683454,
+   "editedFrom": 1792884635791
   },
   {
    "id": "bv4u5mz",
