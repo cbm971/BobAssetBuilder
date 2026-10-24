@@ -2088,16 +2088,57 @@ export const forEachAssetPiece = (a, fn) => {
 // and nothing else for as long as the edit runs, and re-resolve from what is actually on screen
 // the moment it ends (see colorDrag). "Only blocks that are exactly this colour" is then true
 // of every path into it rather than true of the first step and approximately true afterwards.
+//
+// WHAT "THIS COLOUR" IS: the fill as it is DRAWN — its hex through the Brightness filter and the
+// Fade. Matching the hex alone was the 2026-10-24 report ("Change this color everywhere changes
+// other colors as well"): one hex is routinely worn at several brightnesses, and each of those is
+// a different colour on screen. Bobby Skin wears #f4f4f4 as thirty white blocks and thirty at
+// brightness 0.6 that read as grey; the Red Berry Bush shades one green nine ways; 154 of the 408
+// assets in the library do it somewhere. Recolouring the white repainted the grey, and a
+// Brightness drag flattened all nine leaf shades into one. Glow is a halo around the block and a
+// pattern lies over it — neither changes the fill, so neither is part of the match.
+//
+// So `from` is the SELECTED BLOCK, matched on its look. A bare hex string still matches the hex
+// alone: that is the 🎨 Skin palette, whose swatches list hexes and count every block of each.
+const fxNum = (v, d) => (typeof v === "number" && Number.isFinite(v) ? v : d);
+export const fillLook = (p) => (p && typeof p.color === "string")
+  ? { color: p.color.toLowerCase(), bright: fxNum(p.fx && p.fx.bright, 1), opacity: fxNum(p.fx && p.fx.opacity, 1) }
+  : null;
+export const wearsLook = (p, look) => {
+  const l = fillLook(p);
+  return !!l && !!look && l.color === look.color && Math.abs(l.bright - look.bright) < 1e-6 && Math.abs(l.opacity - look.opacity) < 1e-6;
+};
 export const assetColorGroup = (a, from) => {
-  const f = typeof from === "string" ? from.toLowerCase() : "";
+  const look = from && typeof from === "object" ? fillLook(from) : null;
+  const f = look ? look.color : typeof from === "string" ? from.toLowerCase() : "";
   const keys = new Set();
-  if (f) forEachAssetPiece(a, (p, k) => { if (typeof p.color === "string" && p.color.toLowerCase() === f) keys.add(k); });
-  return { keys, from: f };
+  if (look) forEachAssetPiece(a, (p, k) => { if (wearsLook(p, look)) keys.add(k); });
+  else if (f) forEachAssetPiece(a, (p, k) => { if (typeof p.color === "string" && p.color.toLowerCase() === f) keys.add(k); });
+  return look ? { keys, from: f, look } : { keys, from: f };
 };
 // Handing the group on to the next step of the same edit. Membership is the frozen place set and
-// never changes; `from` follows the shade those places are now wearing, which is how a caller
-// tells "this edit is still running" from "this is a new one".
-export const colorGroupAfter = (g, to) => (!g || typeof to !== "string") ? g : { ...g, from: to.toLowerCase() };
+// never changes; `from` (and a block's `look`) follows what those places are wearing now — a
+// colour step changes the hex, a Brightness or Fade step the look — which is how a caller tells
+// "this edit is still running" from "this is a new one".
+export const colorGroupAfter = (g, to, fx) => {
+  const c = typeof to === "string" ? to.toLowerCase() : null;
+  if (!g || (!c && !fx)) return g;
+  const out = { ...g, from: c || g.from };
+  if (g.look) out.look = { ...g.look, ...(c ? { color: c } : {}), ...(fx ? { bright: fxNum(fx.bright, g.look.bright), opacity: fxNum(fx.opacity, g.look.opacity) } : {}) };
+  return out;
+};
+// A group handed back for another step keeps only the places still wearing what the last step
+// left on them. It can never GROW this way — only lose a place something else has changed under
+// it since (an undo, a block added or deleted ahead of it in its list).
+export const colorGroupStill = (a, g) => {
+  if (!g || !g.keys) return g;
+  const keys = new Set();
+  forEachAssetPiece(a, (p, k) => {
+    if (!g.keys.has(k)) return;
+    if (g.look ? wearsLook(p, g.look) : (typeof p.color === "string" && p.color.toLowerCase() === g.from)) keys.add(k);
+  });
+  return { ...g, keys };
+};
 const inColorGroup = (g, key) => !!g && !!g.keys && g.keys.has(key);
 // Swap the group's fill colour across the ENTIRE asset — every piece, in all 5 poses, in the live
 // .angles, in a weapon's rest/fire states, and in every per-body fit under .variants. Only
@@ -2129,12 +2170,14 @@ export const retexAssetGroup = (a, g, tex) => {
     return rest;
   });
 };
-// The one-shot forms: resolve the group and apply it in a single call. Matching is
-// case-insensitive on the hex so "#45552A" and "#45552a" are the same colour. This is the whole
-// story for a discrete click — a swatch, a tap. Only a control that fires REPEATEDLY (a dragged
-// colour input) has to hold one group across its steps instead; see colorDrag and palGroup.
-export const recolorAsset = (a, from, to) => (typeof from === "string" ? recolorAssetGroup(a, assetColorGroup(a, from), to) : a);
-export const restyleAsset = (a, from, patch) => (typeof from === "string" ? restyleAssetGroup(a, assetColorGroup(a, from), patch) : a);
+// The one-shot forms: resolve the group and apply it in a single call. `from` is a block (match
+// its look) or a hex (match the hex); either way the hex is case-insensitive, so "#45552A" and
+// "#45552a" are the same colour. This is the whole story for a discrete click — a swatch, a tap.
+// Only a control that fires REPEATEDLY (a dragged colour input or slider) has to hold one group
+// across its steps instead; see colorDrag and palGroup.
+const isColorFrom = (from) => typeof from === "string" || (!!from && typeof from === "object");
+export const recolorAsset = (a, from, to) => (isColorFrom(from) ? recolorAssetGroup(a, assetColorGroup(a, from), to) : a);
+export const restyleAsset = (a, from, patch) => (isColorFrom(from) ? restyleAssetGroup(a, assetColorGroup(a, from), patch) : a);
 // Every distinct fill colour this asset uses, with how many pieces use each, most-used first
 // (so a character's base skin tone — the largest area — tends to sit at the top). Walks the exact
 // same places recolorAsset paints (every pose, weapon rest/fire states, and every body fit under
@@ -13340,7 +13383,7 @@ export default function AssetStudio({ game = false } = {}) {
   // nothing else — null between drags. Every discrete tap resolves its own group from what is on
   // screen; see colorDrag, and assetColorGroup for why a drag is the one thing that cannot.
   const colorGroup = useRef(null);
-  const COLOR_DRAG_GAP_MS = 1500; // longer than any gap between one dragged colour input's onChange events, far shorter than a pause between two edits
+  useEffect(() => { colorGroup.current = null; }, [selId, angle, asset?.id]); // a drag is one block's edit — picking another block (or pose, or asset) ends it
   const [recent, setRecent] = useState([]);            // last-used custom colors
   const [recentEmoji, setRecentEmoji] = useState([]);   // last-used emoji — the picker had no memory of this at all before
   const [emojiQuery, setEmojiQuery] = useState("");     // search box in the emoji picker
@@ -19627,22 +19670,27 @@ export default function AssetStudio({ game = false } = {}) {
   // Which blocks the colour controls are about to repaint.
   //
   // A DISCRETE action — tapping a swatch, hitting 🎨 Apply picked colour — resolves fresh, every
-  // time, from the colour the selected block is wearing at that instant. That is the only thing
-  // the toggle has ever claimed to do, and it is now literally what it does: the blocks that are
-  // exactly this colour, and no others. It used to reuse a group frozen by an earlier tap, which
-  // is how "change this colour everywhere" ended up repainting blocks that were a completely
-  // different shade by then — the group had outlived the edit that made it.
+  // time, from what the selected block looks like at that instant (its hex at its brightness and
+  // fade — see assetColorGroup). That is the only thing the toggle has ever claimed to do, and it
+  // is now literally what it does: the blocks that are exactly this colour, and no others. It used
+  // to reuse a group frozen by an earlier tap, which is how "change this colour everywhere" ended
+  // up repainting blocks that were a completely different shade by then — the group had outlived
+  // the edit that made it.
   //
   // Only a control that fires REPEATEDLY needs more: a native <input type="color"> fires onChange
-  // continuously while it is dragged, and re-resolving mid-drag enrols whatever shade the drag has
-  // just passed over. So a drag freezes its group on its FIRST step and keeps it for the rest.
-  // The input's onBlur ends it, and a gap longer than one drag's frame-to-frame spacing ends it
-  // too — belt and braces, because a group that outlives its drag is the whole bug above, and a
-  // colour dialog that never fires blur (mobile) would otherwise leave one lying about.
-  const colorDrag = (from) => {
+  // continuously while it is dragged, and the Brightness and Fade sliders do the same, and
+  // re-resolving mid-drag enrols whatever the drag has just passed over. So a drag freezes its
+  // group on its FIRST step and keeps it for the rest — for as long as the selected block still
+  // looks exactly the way the drag's last step left it. A pause does not end a drag any more: it
+  // used to (1.5 s without an onChange), and the next nudge then re-resolved from the shade the
+  // drag had stopped on, so resting on the boots' brown — or the picker's black edge, or a hex
+  // typed or eyedropped from another block — took that block into the drag. Ending it now is the
+  // input's onBlur, picking another block, or the block being changed by anything else (a swatch,
+  // an undo). A group kept past its drag can only shrink (colorGroupStill), never take a stranger.
+  const colorDrag = () => {
     const g = colorGroup.current;
-    if (g && g.selId === selId && Date.now() - g.at < COLOR_DRAG_GAP_MS) return g;
-    return { ...assetColorGroup(asset, from), selId, at: Date.now() };
+    if (g && g.selId === selId && wearsLook(sel, g.look)) return colorGroupStill(asset, g);
+    return { ...assetColorGroup(asset, sel), selId };
   };
   const endColorDrag = () => { colorGroup.current = null; };
   // Setting a block's colour with "Change this colour everywhere" on repaints every block that is
@@ -19654,8 +19702,8 @@ export default function AssetStudio({ game = false } = {}) {
   const applyPieceColor = (c, live) => {
     const from = sel && sel.color;
     if (!recolorAll || !from || effEdit || (sel && sel.kind === "emoji") || c === from) { updSel({ color: c }); return; }
-    const g = live ? colorDrag(from) : assetColorGroup(asset, from);
-    if (live) colorGroup.current = { ...colorGroupAfter(g, c.toLowerCase()), selId, at: Date.now() };
+    const g = live ? colorDrag() : assetColorGroup(asset, sel);
+    colorGroup.current = live ? colorGroupAfter(g, c) : null;
     setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(recolorAssetGroup(a, g, c)); });
   };
   // 🎨 Apply picked colour + fx is a colour change like any other and has to obey the 🪣 toggle.
@@ -19666,7 +19714,8 @@ export default function AssetStudio({ game = false } = {}) {
   const applyPickedColorFx = (c, fx) => {
     const from = sel && sel.color;
     if (!recolorAll || !from || effEdit || (sel && sel.kind === "emoji")) { updSel({ color: c, fx: { ...fx } }); return; }
-    const g = assetColorGroup(asset, from);
+    const g = assetColorGroup(asset, sel);
+    colorGroup.current = null;
     setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(restyleAssetGroup(recolorAssetGroup(a, g, c), g, fx)); });
   };
   // A pattern obeys the 🪣 toggle like a colour does. It used to go through updSel alone, so with
@@ -19675,7 +19724,7 @@ export default function AssetStudio({ game = false } = {}) {
   const applyPieceTexture = (texId) => {
     const from = sel && sel.color;
     if (!recolorAll || !from || effEdit || !sel || sel.kind === "emoji" || sel.kind === "text") { updSel({ tex: texId }); return; }
-    const g = assetColorGroup(asset, from);
+    const g = assetColorGroup(asset, sel);
     setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(retexAssetGroup(a, g, texId)); });
   };
   // Skin-palette remap: repaint one of the palette's colours everywhere it appears. Driven only by
@@ -19683,12 +19732,18 @@ export default function AssetStudio({ game = false } = {}) {
   // for the length of one, and the onBlur beside the input drops it. The entry is keyed by the
   // ASSET as well as the swatch — keyed by the swatch alone it survived opening a different asset
   // and repainted places belonging to the last one.
+  // A swatch is listed by its hex (key={color}), so the step that repaints it re-mounts it under
+  // the NEW hex. The entry moves with it: left under the old hex, the new swatch's onBlur could
+  // never clear it, and the next time that old hex came back (an undo) the leftover entry painted
+  // its places again — whatever stood in them by then.
   const remapPalette = (orig, to) => {
     if (!orig || !to) return;
-    const key = (asset && asset.id) + "|" + orig.toLowerCase();
-    const g = palGroup.current[key] || assetColorGroup(asset, orig);
+    const id = asset && asset.id, key = id + "|" + orig.toLowerCase();
+    const held = palGroup.current[key];
+    const g = held ? colorGroupStill(asset, held) : assetColorGroup(asset, orig);
     const tl = to.toLowerCase();
-    palGroup.current[key] = colorGroupAfter(g, tl);
+    delete palGroup.current[key];
+    palGroup.current[id + "|" + tl] = colorGroupAfter(g, tl);
     if (g.from === tl) return;
     setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(recolorAssetGroup(a, g, to)); });
   };
@@ -19791,10 +19846,13 @@ export default function AssetStudio({ game = false } = {}) {
   const updFx = (patch) => {
     const from = sel && sel.color;
     if (!recolorAll || !from || effEdit || (sel && sel.kind === "emoji")) { setPieces((ps) => ps.map((p) => (p.id === selId ? { ...p, fx: { ...defaultFx(), ...(p.fx || {}), ...patch } } : p))); return; }
-    // No freezing needed here: a brightness/glow/fade drag never changes anyone's COLOUR, so
-    // re-resolving on each step returns the same places every time — and always the places that
-    // really are this colour, which is the only promise the toggle makes.
-    const g = assetColorGroup(asset, from);
+    // Brightness and Fade are part of what "this colour" means, so a drag of either changes the
+    // group's look on every step and has to hold its group like a dragged colour input does — or
+    // the next step would take every block resting at the brightness it just passed (the slider
+    // moves in 0.05 stops, so a neighbouring shade is always one stop away). Glow leaves the look
+    // alone, and rides the same path harmlessly.
+    const g = colorDrag();
+    colorGroup.current = colorGroupAfter(g, null, patch);
     setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(restyleAssetGroup(a, g, patch)); });
   };
   // Horizontally mirror the selection like one rigid object (a "flip orientation" for a grouped
@@ -29130,9 +29188,9 @@ export default function AssetStudio({ game = false } = {}) {
                 {groupSel && groupLimbs.length > 1 && <p className="mini"><b>These {groupIds.length} blocks aren't all the same</b> ({groupLimbs.join(" · ")}).</p>}
               </>)}
               <div className="ct2">Effects ✨</div>
-              <label className="slider">Fade<input type="range" min="0.1" max="1" step="0.05" value={sel.fx?.opacity ?? 1} onChange={(e) => updFx({ opacity: +e.target.value })} /></label>
-              <label className="slider">Glow<input type="range" min="0" max="12" step="0.5" value={sel.fx?.glow ?? 0} onChange={(e) => updFx({ glow: +e.target.value })} /><input type="color" className="gc" value={sel.fx?.glowColor ?? "#ffd76b"} onChange={(e) => updFx({ glowColor: e.target.value })} /></label>
-              <label className="slider">Brightness<input type="range" min="0.3" max="2" step="0.05" value={sel.fx?.bright ?? 1} onChange={(e) => updFx({ bright: +e.target.value })} /></label>
+              <label className="slider">Fade<input type="range" min="0.1" max="1" step="0.05" value={sel.fx?.opacity ?? 1} onChange={(e) => updFx({ opacity: +e.target.value })} onBlur={endColorDrag} /></label>
+              <label className="slider">Glow<input type="range" min="0" max="12" step="0.5" value={sel.fx?.glow ?? 0} onChange={(e) => updFx({ glow: +e.target.value })} onBlur={endColorDrag} /><input type="color" className="gc" value={sel.fx?.glowColor ?? "#ffd76b"} onChange={(e) => updFx({ glowColor: e.target.value })} onBlur={endColorDrag} /></label>
+              <label className="slider">Brightness<input type="range" min="0.3" max="2" step="0.05" value={sel.fx?.bright ?? 1} onChange={(e) => updFx({ bright: +e.target.value })} onBlur={endColorDrag} /></label>
               <div className="btns"><button onClick={toFront}>Bring to front</button><button onClick={toBack}>Send to back</button><button onClick={duplicate}>📋 {groupSel ? "Copy group" : "Copy block"}</button>{(!sel.locked || groupSel) && <button className="danger" onClick={remove}>{groupSel ? "Delete group" : "Delete"}</button>}</div>
             </div>
           ) : null}

@@ -261,6 +261,9 @@ import {
   collectAssetColors,
   forEachAssetPiece,
   colorGroupAfter,
+  colorGroupStill,
+  fillLook,
+  wearsLook,
   recolorAssetGroup,
   retexAssetGroup,
   restyleAssetGroup,
@@ -14784,5 +14787,131 @@ describe("🔙 Save As puts the original back (2026-10-21, the Black shirt and S
     expect(saveAsRestores(opened, { id: "other", savedAt: 200 })).toBe(false);
     expect(saveAsRestores(null, { ...opened, savedAt: 200 })).toBe(false);   // a new asset has no original
     expect(saveAsRestores(opened, null)).toBe(false);
+  });
+});
+
+/* 🪣 2026-10-24, Blake: "There is also a bug where 'Change this color everywhere' changes other
+   colors as well." It matched the HEX, and a hex is not a colour on screen: the Brightness filter
+   and the Fade draw one hex as many. Bobby Skin is the real case, values included — #f4f4f4 at
+   brightness 1 is the white of the eyes and teeth, the same #f4f4f4 at 0.6 is the grey hair. Turn
+   the eyes blue and the hair went blue with them. 154 of the 408 assets in the library wear one hex
+   at more than one brightness or fade. */
+describe("🪣 change this colour everywhere matches the colour as drawn, not just its hex", () => {
+  const WHITE = "#f4f4f4", BLUE = "#386aff";
+  const fx = (bright) => ({ opacity: 1, glow: 0, glowColor: "#ffd76b", bright });
+  // Bobby Skin (36zt8i3), cut down: hair at 0.6, an eye and two teeth at 1, plus the other body's fit.
+  const bobby = () => ({
+    id: "36zt8i3", type: "skin", name: "Bobby Skin",
+    angles: { front: [
+      { id: "6p3ptcj", x: 71, y: 25, w: 48, h: 14, color: WHITE, fx: fx(0.6) },   // hair
+      { id: "r16gbwi", x: 81, y: 28, w: 50, h: 7, color: WHITE, fx: fx(0.6) },    // hair
+      { id: "3a221va", x: 79, y: 54, w: 12, h: 7, color: WHITE, fx: fx(1) },      // eye white
+      { id: "f0fvnh0", x: 86, y: 76, w: 6, h: 6, color: WHITE, fx: fx(1) },       // tooth
+      { id: "1bg805f", x: 93, y: 76, w: 6, h: 6, color: WHITE },                  // tooth, no fx of its own = brightness 1
+    ], back: [], side: [], up: [], crouch: [] },
+    variants: { telfv37: { front: [
+      { id: "6p3ptcj", x: 70, y: 24, w: 48, h: 14, color: WHITE, fx: fx(0.6) },   // hair on the other body
+      { id: "3a221va", x: 78, y: 53, w: 12, h: 7, color: WHITE, fx: fx(1) },      // eye on the other body
+    ], back: [], side: [], up: [], crouch: [] } },
+  });
+  const colours = (list) => list.map((p) => p.color);
+  const eye = (a) => a.angles.front[2];
+
+  test("THE BUG: recolouring the white eye leaves the grey hair (same hex, brightness 0.6) alone", () => {
+    const a = bobby();
+    const out = recolorAsset(a, eye(a), BLUE);
+    expect(colours(out.angles.front)).toEqual([WHITE, WHITE, BLUE, BLUE, BLUE]);
+    expect(colours(out.variants.telfv37.front)).toEqual([WHITE, BLUE]);
+  });
+
+  test("and the grey hair recolours as ONE colour, in every fit, without the eyes and teeth", () => {
+    const a = bobby();
+    const out = recolorAsset(a, a.angles.front[0], "#5a3c1e");
+    expect(colours(out.angles.front)).toEqual(["#5a3c1e", "#5a3c1e", WHITE, WHITE, WHITE]);
+    expect(colours(out.variants.telfv37.front)).toEqual(["#5a3c1e", WHITE]);
+  });
+
+  test("Brightness with 🪣 on dims the eyes and teeth, not the hair already sitting at 0.6", () => {
+    const a = bobby();
+    const out = restyleAsset(a, eye(a), { bright: 0.8 });
+    expect(out.angles.front.map((p) => p.fx.bright)).toEqual([0.6, 0.6, 0.8, 0.8, 0.8]);
+  });
+
+  test("Fade is part of the colour too; Glow and a pattern are not", () => {
+    const a = { angles: { front: [
+      { color: "#2b2b2b" },
+      { color: "#2b2b2b", fx: { opacity: 0.5 } },                  // a tinted window: see-through, a different grey
+      { color: "#2B2B2B", fx: { opacity: 1, glow: 6, bright: 1 } }, // a halo round the same fill
+      { color: "#2b2b2b", tex: "plaid" },                           // a pattern over the same fill
+    ] } };
+    expect(wearsLook(a.angles.front[2], fillLook(a.angles.front[0]))).toBe(true);
+    const out = recolorAsset(a, a.angles.front[0], "#ff0000");
+    expect(colours(out.angles.front)).toEqual(["#ff0000", "#2b2b2b", "#ff0000", "#ff0000"]);
+  });
+
+  test("a bare hex still means every block of that hex — the 🎨 Skin palette's swatches", () => {
+    const out = recolorAsset(bobby(), WHITE, BLUE);
+    expect(colours(out.angles.front)).toEqual([BLUE, BLUE, BLUE, BLUE, BLUE]);
+  });
+
+  // A dragged Brightness slider steps in 0.05s, and the bush's leaves sit at neighbouring stops. A
+  // drag resolved afresh on each step took every leaf it stepped onto (and a pause mid-drag did the
+  // same for a dragged colour). The group is frozen on the first step and handed on with the look
+  // its places now wear, so it still recognises them — and nobody else.
+  test("a Brightness drag across a neighbouring shade does not pick that shade up", () => {
+    const leaf = (bright) => ({ color: "#5d6b39", fx: fx(bright) });
+    const bush = { type: "prop", angles: { front: [leaf(0.85), leaf(0.85), leaf(0.9), leaf(0.95)] } };
+    let a = bush, g = assetColorGroup(a, a.angles.front[0]);
+    for (const b of [0.9, 0.95, 1]) {           // the drag: 0.85 → 0.9 (a leaf's stop) → 0.95 (another) → 1
+      a = restyleAssetGroup(a, g, { bright: b });
+      g = colorGroupAfter(g, null, { bright: b });
+      expect(wearsLook(a.angles.front[0], g.look)).toBe(true);   // the drag still knows its own block
+      g = colorGroupStill(a, g);
+    }
+    expect(a.angles.front.map((p) => p.fx.bright)).toEqual([1, 1, 0.9, 0.95]);
+  });
+
+  test("a held group only ever shrinks — a place repainted under it drops out", () => {
+    const a = bobby();
+    const g = colorGroupAfter(assetColorGroup(a, eye(a)), BLUE);
+    const painted = recolorAssetGroup(a, assetColorGroup(a, eye(a)), BLUE);
+    // something else (an undo, a block deleted ahead of it) puts the hair where a tooth was
+    const shifted = { ...painted, angles: { ...painted.angles, front: [...painted.angles.front.slice(0, 3), painted.angles.front[0], painted.angles.front[4]] } };
+    const still = colorGroupStill(shifted, g);
+    expect(still.keys.has("angles.front[3]")).toBe(false);
+    expect(colours(recolorAssetGroup(shifted, still, "#000000").angles.front)).toEqual([WHITE, WHITE, "#000000", WHITE, "#000000"]);
+  });
+
+  // The same guard as the hex sweep above, on the colour as drawn: every look of every asset he has.
+  test("on the REAL library, recolouring a block changes every block that LOOKS like it and no other", () => {
+    const lib = JSON.parse(require("fs").readFileSync(
+      require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
+    const TO = "#010203";
+    let over = 0, under = 0, looks = 0, hexes = 0;
+    for (const a of lib.assets) {
+      hexes += collectAssetColors(a).length;
+      const seen = new Map(), before = new Map();
+      forEachAssetPiece(a, (p, k) => { before.set(k, p); const l = fillLook(p); if (l) seen.set(JSON.stringify(l), p); });
+      for (const p of seen.values()) {
+        looks++;
+        const look = fillLook(p);
+        const out = recolorAsset(a, p, TO);
+        forEachAssetPiece(out, (q, k) => {
+          const was = before.get(k), changed = q.color === TO && was.color !== TO;
+          if (changed && !wearsLook(was, look)) over++;
+          if (!changed && wearsLook(was, look) && look.color !== TO) under++;
+        });
+      }
+    }
+    expect(looks).toBeGreaterThan(hexes);   // more looks than hexes: the case this is about is in his data
+    expect(over).toBe(0);
+    expect(under).toBe(0);
+  });
+
+  test("the editor resolves 🪣 from the SELECTED BLOCK, and a pause no longer ends a drag", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).not.toContain("COLOR_DRAG_GAP_MS");
+    expect(src).not.toMatch(/assetColorGroup\(asset, from\)/);
+    expect(src.match(/assetColorGroup\(asset, sel\)/g).length).toBeGreaterThanOrEqual(4);
   });
 });
