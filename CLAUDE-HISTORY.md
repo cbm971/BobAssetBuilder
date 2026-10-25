@@ -5309,3 +5309,6 @@ for a freshly made item and for one reopened from 📂 Load.
   fills a short last row (9 starters = 5 + 4 + 1). Bob's head alone is a square, so its outline read as an empty
   frame; the whole body reads as Bob. The fighter portrait fills its box, so an outline of it clipped to two brackets.
   Screens checked with headless Edge (real fonts): locked state, and a record with Bob Li met + Vietnam on Hard.
+- Round 2 (same day): "When I said Bobs Outline I mean outline of what Bob would look like if he was locked" = the
+  locked box's dark silhouette, not a drawn outline; Coming Soon is now that (no padlock). And the boxes show the
+  randomized dressed look (gameDressed, the same roll as the P1 card) instead of the look in its underwear.

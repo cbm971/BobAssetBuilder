@@ -24395,7 +24395,7 @@ export default function AssetStudio({ game = false } = {}) {
     return (
       <div className="bb gameMode"><style>{css}</style>
         <GameShell view={gameView === "play" ? "menu" : gameView} setView={setGameView} ready={gameReady}
-          saves={gameSaves} options={gameOptions} setOptions={setGameOptions} record={gameRecord} assets={allAssets} renderArt={gameArt} renderDressed={(look, px) => gameArt(gameDressed(look), px)} renderHead={gameHead}
+          saves={gameSaves} options={gameOptions} setOptions={setGameOptions} record={gameRecord} assets={allAssets} renderArt={gameArt} renderDressed={(look, px, frac) => gameArt(gameDressed(look), px, frac)} renderHead={gameHead}
           statIcon={(k, px) => sym(k, null, px)} floors={gameFloors} sceneFor={menuSceneFor}
           onStartGame={(look, diff) => gameNewGame(look, diff)} onLoad={gameLoadGame} onUpload={gameUploadFile} onDelete={(id) => putGameSaves(dropGameSave(gameSavesRef.current, id))}
           floorDone={gameFloorDone} onFloorDoneContinue={() => { setGameFloorDone(null); setGameView("menu"); }}

@@ -496,9 +496,9 @@ plus traps it does not cover:
   over `menuLevelLineup`, ranked by drawn props x3 + units; he called a low-ranked pick "a pretty
   boring level"). `?scene=<level name>` pins the main menu's.
 - **New Game → character select, Smash style**: a box per look filed under **Starter**
-  (`starterLooks`, Bob first), the box shows the HEAD only ("neck up"), the P1 card the whole body
-  **dressed in a random shirt + pants** drawn for its body (`gameDressed`, kept per page) — display
-  only, the run starts as the look is saved. **Locked starters** (`STARTER_LOCKS`, by look name,
+  (`starterLooks`, Bob first), the box shows the HEAD only ("neck up"), the P1 card the whole body;
+  BOTH are **dressed in the same random shirt + pants** drawn for its body (`gameDressed`, kept per
+  page; the boxes too since 2026-10-24) — display only, the run starts as the look is saved. **Locked starters** (`STARTER_LOCKS`, by look name,
   spaces ignored so "VietBob" = "Viet Bob"): Bobby = Trailor Park floor done, Bobert = 50 items found
   (Items-tab ids in `record.found`), Roberta = Trailor Park done AS Rob (`record.floorsWith`), Rob =
   Trailor Park on Hard, Viet Bob = Vietnam on Hard, Bob Li = the conversation NAMED "Bob Li" opened in
@@ -507,7 +507,8 @@ plus traps it does not cover:
   a padlock, can be lit but not picked; the P1 card names what opens them. **Order** (`starterRoster`):
   every open fighter first (Bob, then A-Z), then the locked ones A-Z; an unlock moves a fighter up into
   its alphabetical place. A short last row is finished with **Coming Soon** boxes (`selectGridFill`):
-  Bob's whole body as a hollow outline (SVG filter `gSoonEdge`), never selectable. **Back sits beside
+  Bob as he would look LOCKED (his dressed silhouette, no padlock; he turned down a hollow outline of
+  his body), never selectable. **Back sits beside
   START, under Easy** (his placement). Then **Easy 4 / Medium 2 / Hard 1 lives**
   (`DIFFICULTIES`). A death no 🐱 Extra Life catches costs one (`gameDeathRef`, called from
   `playerDefeated`; counted in the save as `deaths`); the last one freezes the loop and shows

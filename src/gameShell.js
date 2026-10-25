@@ -238,11 +238,16 @@ const FloorMedal = ({ mark, done, diff, size, title }) => (
 // LOCKED fighters (gameFront.js STARTER_LOCKS: Bobby, Bobert, Roberta, Rob, Viet Bob, Bob Li) stand
 // in the grid as a dark silhouette under a padlock, AFTER every open one (starterRoster), and can be
 // lit but not picked; the P1 card says what opens them.
-// A short last row is finished with COMING SOON boxes (selectGridFill): Bob's head as a hollow
-// outline (the gSoonEdge filter) over the name plate. They are not fighters — the arrows and the
-// mouse never land on one.
+// EVERY BOX IS THE FIGHTER DRESSED (Blake, 2026-10-24: the boxes should have "the randomized dressed
+// look" too): the same random shirt and pants the P1 card wears (renderDressed — App.js gameDressed
+// rolls them once per look per page), so a box and the card always agree. Locked boxes are that
+// dressed fighter's silhouette.
+// A short last row is finished with COMING SOON boxes (selectGridFill): Bob as he would look LOCKED
+// (Blake, 2026-10-24, of the first try, a hollow outline of his whole body: "I mean outline of what
+// Bob would look like if he was locked") — his dressed head as the same dark silhouette, but no
+// padlock, since nothing opens it. They are not fighters — the arrows and the mouse never land on one.
 // Back sits beside START, under Easy (Blake: "nestled between Easy and start").
-function CharacterSelect({ assets, record, renderArt, renderDressed, renderHead, statIcon, floors, difficulty, onStart, back, click, vp }) {
+function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, floors, difficulty, onStart, back, click, vp }) {
   const roster = React.useMemo(() => {
     const s = starterRoster(assets, record);
     if (s.length) return s;
@@ -291,38 +296,20 @@ function CharacterSelect({ assets, record, renderArt, renderDressed, renderHead,
           <div key={a.id + (i === at && locks[i] ? ":" + shake : "")} role="button" className={"gFighter" + (i === at ? " on" : "") + (i === at && step === "diff" ? " locked" : "") + (locks[i] ? " shut" : "") + (i === at && locks[i] && shake ? " no" : "")} style={{ width: box, height: Math.round(box * 1.12) }}
             onMouseEnter={() => { if (step === "fighter") setAt(i); }}
             onClick={() => { setAt(i); if (locks[i]) { refuse(); setStep("fighter"); return; } click(); setStep("diff"); }}>
-            <div className="gFighterArt" style={{ width: box, height: box }}>{renderArt(a, box, 0.3)}</div>
+            <div className="gFighterArt" style={{ width: box, height: box }}>{renderDressed(a, box, 0.3)}</div>
             {locks[i] && <div className="gFighterLock"><Padlock size={Math.round(box * 0.34)} /></div>}
             <div className="gFighterName" style={{ fontSize: Math.max(11, Math.round(box * 0.12)) }}><span>{a.name}</span></div>
             {i === at && <div className="gP1Tag">P1</div>}
           </div>
         ))}
         {Array.from({ length: soon }, (_, i) => (
-          <div key={"soon" + i} className="gFighter gSoon" style={{ width: box, height: Math.round(box * 1.12) }}>
-            {/* Bob's WHOLE body, small enough to sit inside the box above the plate. The fighter
-                portrait fills the box edge to edge, so its outline was clipped down to two brackets,
-                and his head alone is a square: its outline read as an empty frame, not as Bob. */}
-            {soonLook && (
-              <div className="gFighterArt" style={{ width: box, height: box }}>
-                <div style={{ position: "absolute", left: Math.round(box * 0.09), top: Math.round(box * 0.02), width: Math.round(box * 0.82), height: Math.round(box * 0.82) }}>{renderArt(soonLook, Math.round(box * 0.82))}</div>
-              </div>
-            )}
+          <div key={"soon" + i} className="gFighter shut gSoon" style={{ width: box, height: Math.round(box * 1.12) }}>
+            {soonLook && <div className="gFighterArt" style={{ width: box, height: box }}>{renderDressed(soonLook, box, 0.3)}</div>}
             <div className="gFighterName" style={{ fontSize: Math.max(10, Math.round(box * 0.085)) }}><span>Coming Soon</span></div>
           </div>
         ))}
         {!roster.length && <div className="gEmpty">No characters</div>}
       </div>
-      {soon > 0 && (
-        <svg className="gSoonDefs" width="0" height="0" aria-hidden="true">
-          {/* The outline only: the art's shape grown by a few px, minus the art itself, filled off-white. */}
-          <filter id="gSoonEdge" x="-10%" y="-10%" width="120%" height="120%">
-            <feMorphology in="SourceAlpha" operator="dilate" radius={Math.max(1.5, box * 0.018)} result="grown" />
-            <feComposite in="grown" in2="SourceAlpha" operator="out" result="edge" />
-            <feFlood floodColor="#f1efe4" floodOpacity="0.8" />
-            <feComposite in2="edge" operator="in" />
-          </filter>
-        </svg>
-      )}
       <div className="gSelFoot">
         <div className="gP1Card" style={{ width: Math.round(p1 * 0.82), height: p1 }}>
           {cur && <div className={"gP1Art" + (curLock ? " shut" : "")} style={{ width: Math.round(p1 * 0.82), height: Math.round(p1 * 0.82) }}>{renderDressed(cur, Math.round(p1 * 0.82))}</div>}
@@ -623,7 +610,7 @@ export function GameShell({ view, setView, ready, saves, options, setOptions, re
       {sceneUp && <div className={"gScreen gStage" + (view === "menu" ? "" : " dim")}><SceneBackdrop key={scene ? scene.id : "none"} scene={scene} vp={vp} /></div>}
       {view === "title" && <TitleHandoff ready={ready} onDone={toMenu} />}
       {view === "menu" && <MainMenu go={setView} note={note} click={click} at={menuAt} setAt={setMenuAt} />}
-      {view === "select" && <CharacterSelect assets={assets} record={record} renderArt={renderArt} renderDressed={renderDressed} renderHead={renderHead} statIcon={statIcon} floors={floors} difficulty={options.difficulty} onStart={onStartGame} back={toMenu} click={click} vp={vp} />}
+      {view === "select" && <CharacterSelect assets={assets} record={record} renderDressed={renderDressed} renderHead={renderHead} statIcon={statIcon} floors={floors} difficulty={options.difficulty} onStart={onStartGame} back={toMenu} click={click} vp={vp} />}
       {view === "load" && <LoadGame saves={saves} onLoad={onLoad} onDelete={onDelete} back={toMenu} click={click} />}
       {view === "options" && <OptionsPanel options={options} setOptions={setOptions} back={toMenu} click={click} onUpload={onUpload} />}
       {view === "unlocks" && <Unlocks assets={assets} record={record} renderArt={renderArt} back={toMenu} click={click} />}
@@ -736,10 +723,8 @@ export const GAME_CSS = `
 .gFighter.shut{background:var(--gG3)}
 .gFighter.shut .gFighterArt>div{filter:brightness(0) opacity(.55)}
 .gFighter.no{animation:gNo .35s ease}
-.gFighter.gSoon{cursor:default;background:var(--gG3)}
-.gSoon .gFighterArt>div{filter:url(#gSoonEdge)}
+.gFighter.gSoon{cursor:default}
 .gSoon .gFighterName{color:var(--gDim)}
-.gSoonDefs{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
 @keyframes gNo{20%,60%{transform:translate(-5px,-4px)}40%,80%{transform:translate(5px,-4px)}}
 .gFighterLock,.gP1Lock{position:absolute;left:0;right:0;display:flex;justify-content:center;pointer-events:none;color:var(--gEdge);filter:drop-shadow(0 3px 0 rgba(0,0,0,.5))}
 .gFighterLock{top:28%}
