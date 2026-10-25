@@ -424,6 +424,7 @@ export const STARTER_LOCKS = [
   { name: "rob", floor: "Trailor Park", diff: "hard" }, // Blake (2026-10-18): Rob is locked until the Trailor Park is beaten on Hard, by anyone
   { name: "viet bob", floor: "Vietnam", diff: "hard" }, // Blake (2026-10-24): "lock the VietBob Character behind beating the vietnam level on Hard"
   { name: "bob li", met: "Bob Li" }, // Blake (2026-10-24): open once the "Bob Li" conversation has been met in a game (record.met)
+  { name: "robbie", items: 100 }, // Blake (2026-10-25): lock Robbie behind 100 items found (same rule as Bobert's 50)
 ];
 const lockKey = (s) => normName(s).replace(/\s+/g, "");
 const floorKey = (s) => normName(s).replace(/[^a-z]/g, "").replace(/trailer/g, "trailor");

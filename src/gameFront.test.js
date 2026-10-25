@@ -293,7 +293,7 @@ describe("the menu's backdrop scene", () => {
 
 describe("locked starters", () => {
   const look = (name) => ({ id: name, type: "character", category: "Starter", name });
-  const items = Array.from({ length: 60 }, (_, i) => ({ id: "i" + i, type: i % 2 ? "weapon" : "equipment", name: "Item " + i }));
+  const items = Array.from({ length: 120 }, (_, i) => ({ id: "i" + i, type: i % 2 ? "weapon" : "equipment", name: "Item " + i }));
   const assets = [...items, { id: "dog", type: "enemy", name: "Dog" }];
   test("Bob and the rest are open from the start (Rob is not)", () => {
     for (const n of ["Bob", "Bobette", "Bobbi"]) expect(starterLock(look(n), newGameRecord(), assets)).toBeNull();
@@ -312,13 +312,20 @@ describe("locked starters", () => {
     r = { ...r, found: [...r.found, "i55"] };
     expect(starterLock(look("Bobert"), r, assets)).toBeNull();
   });
+  test("Robbie opens at 100 ITEMS found", () => {
+    let r = newGameRecord();
+    for (let i = 0; i < 99; i++) r = { ...r, found: [...r.found, "i" + i] };
+    expect(starterLock(look("Robbie"), r, assets)).toEqual({ need: "Unlock 100 Items", have: 99, of: 100 });
+    r = { ...r, found: [...r.found, "i99"] };
+    expect(starterLock(look("Robbie"), r, assets)).toBeNull();
+  });
   test("Roberta opens only on Trailor Park finished AS Rob", () => {
     let r = recordFloorDone(newGameRecord(), "Trailor Park", 10, "Bob");
     expect(starterLock(look("Roberta"), r, assets).need).toBe("Complete Trailor Park as Rob");
     r = recordFloorDone(r, "Trailor Park", 10, "Rob");
     expect(r.floorsWith).toEqual({ "Trailor Park": ["bob", "rob"] });
     expect(starterLock(look("Roberta"), r, assets)).toBeNull();
-    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob", "viet bob", "bob li"]);
+    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob", "viet bob", "bob li", "robbie"]);
   });
   test("Rob is locked until the Trailor Park is beaten on Hard, by anyone", () => {
     let r = newGameRecord();

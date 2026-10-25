@@ -525,7 +525,7 @@ plus traps it does not cover:
   (Items-tab ids in `record.found`), Roberta = Trailor Park done AS Rob (`record.floorsWith`), Rob =
   Trailor Park on Hard, Viet Bob = Vietnam on Hard, Bob Li = the conversation NAMED "Bob Li" opened in
   a game (`record.met`, dialogue names, written by openTalk; the NPC is Chun Bobette so no other look
-  is named Bob Li). Locked boxes show as a silhouette under
+  is named Bob Li), Robbie = 100 items found (same count as Bobert). Locked boxes show as a silhouette under
   a padlock, can be lit but not picked; the P1 card names what opens them. **Order** (`starterRoster`):
   every open fighter first (Bob, then A-Z), then the locked ones A-Z; an unlock moves a fighter up into
   its alphabetical place. A short last row is finished with **Coming Soon** boxes (`selectGridFill`):
