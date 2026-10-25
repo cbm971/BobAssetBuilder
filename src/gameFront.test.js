@@ -6,7 +6,7 @@ import {
   normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone,
   unlockPool, createGameStore, starterLooks, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, runLivesLeft, deathEndsRun,
   pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS,
-  starterLock, STARTER_LOCKS, starterStats, floorMark, lookFloorMedals,
+  starterLock, STARTER_LOCKS, starterStats, floorMark, lookFloorMedals, recordMet, starterRoster, selectGridFill,
 } from "./gameFront";
 import fs from "fs";
 import path from "path";
@@ -318,7 +318,7 @@ describe("locked starters", () => {
     r = recordFloorDone(r, "Trailor Park", 10, "Rob");
     expect(r.floorsWith).toEqual({ "Trailor Park": ["bob", "rob"] });
     expect(starterLock(look("Roberta"), r, assets)).toBeNull();
-    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob"]);
+    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob", "viet bob", "bob li"]);
   });
   test("Rob is locked until the Trailor Park is beaten on Hard, by anyone", () => {
     let r = newGameRecord();
@@ -329,6 +329,41 @@ describe("locked starters", () => {
     expect(starterLock(look("Rob"), recordFloorDone(newGameRecord(), "Sewer", 10, "Bob", "hard"), assets)).not.toBeNull();
     r = recordFloorDone(r, "Trailer Park", 10, "Bobette", "hard");
     expect(starterLock(look("Rob"), r, assets)).toBeNull();
+  });
+  test("Viet Bob is locked until Vietnam is beaten on Hard, and VietBob is the same fighter", () => {
+    let r = recordFloorDone(newGameRecord(), "Vietnam", 10, "Bob", "medium");
+    expect(starterLock(look("Viet Bob"), r, assets).need).toBe("Complete Vietnam on Hard");
+    expect(starterLock(look("VietBob"), r, assets)).not.toBeNull();
+    expect(starterLock(look("Viet Bob"), recordFloorDone(r, "Trailor Park", 10, "Bob", "hard"), assets)).not.toBeNull();
+    r = recordFloorDone(r, "Vietnam", 10, "Rob", "hard");
+    expect(starterLock(look("Viet Bob"), r, assets)).toBeNull();
+    expect(starterLock(look("VietBob"), r, assets)).toBeNull();
+  });
+  test("Bob Li opens once the Bob Li conversation has been met, and the record keeps it", () => {
+    let r = newGameRecord();
+    expect(starterLock(look("Bob Li"), r, assets).need).toBe("Meet Bob Li");
+    r = recordMet(r, "Chun Bobette");
+    expect(starterLock(look("Bob Li"), r, assets)).not.toBeNull();
+    r = recordMet(r, " Bob Li ");
+    expect(r.met).toEqual(["chun bobette", "bob li"]);
+    expect(recordMet(r, "bob li")).toBe(r);
+    expect(starterLock(look("Bob Li"), r, assets)).toBeNull();
+    expect(normalizeGameRecord(JSON.parse(JSON.stringify(r))).met).toEqual(r.met);
+    expect(normalizeGameRecord({ floors: [] }).met).toEqual([]);
+  });
+  test("the select lists open fighters first (Bob, then A to Z), then the locked ones A to Z", () => {
+    const roster = ["Rob", "Viet Bob", "Bobette", "Bob Li", "Bobby", "Bob", "Bobert", "Roberta", "Bobbi"].map(look);
+    let r = newGameRecord();
+    expect(starterRoster([...assets, ...roster], r).map((a) => a.name)).toEqual(["Bob", "Bobbi", "Bobette", "Bob Li", "Bobby", "Bobert", "Rob", "Roberta", "Viet Bob"]);
+    r = recordFloorDone(recordMet(r, "Bob Li"), "Trailor Park", 10, "Bob", "easy");
+    expect(starterRoster([...assets, ...roster], r).map((a) => a.name)).toEqual(["Bob", "Bob Li", "Bobbi", "Bobby", "Bobette", "Bobert", "Rob", "Roberta", "Viet Bob"]);
+  });
+  test("Coming Soon boxes finish a short last row, and only that", () => {
+    expect(selectGridFill(9, 5)).toBe(1);
+    expect(selectGridFill(7, 4)).toBe(1);
+    expect(selectGridFill(8, 4)).toBe(0);
+    expect(selectGridFill(1, 2)).toBe(1);
+    expect(selectGridFill(0, 4)).toBe(0);
   });
   test("a floor remembers the hardest difficulty each fighter beat it on", () => {
     let r = recordFloorDone(newGameRecord(), "Trailor Park", 10, "Bob", "hard");

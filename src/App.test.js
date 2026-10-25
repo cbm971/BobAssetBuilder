@@ -281,6 +281,7 @@ import {
   aimAssistAngle,
   AIM_ASSIST_FLOOR_MAX_DEG,
   AIM_ASSIST_FLOOR_TOL_CELLS,
+  playerFloorLocks,
   STOMP_DAMAGE,
   STOMP_FRAMES,
   STOMP_IMPACT_FRAC,
@@ -2166,6 +2167,16 @@ describe("aim assist", () => {
     expect(r.target).toBe(under);
     expect(r.deg).toBe(AIM_ASSIST_FLOOR_MAX_DEG);
     expect(landsIn(r, under)).toBe(true);
+  });
+
+  test("the floor lock is the STANDING player's: never on a ladder, bars or a ledge (2026-10-24)", () => {
+    // Hanging from a power line, a unit on the ground just under your feet counted as on your floor
+    // and the shot fired toward it swung 85° down; the arm went with it.
+    expect(playerFloorLocks({ climbing: false, onGround: true })).toBe(true);
+    expect(playerFloorLocks({ climbing: false, topdown: true })).toBe(true);   // a 🚶 plane is a floor
+    expect(playerFloorLocks({ climbing: true, climbKind: "cliff" })).toBe(false);
+    expect(playerFloorLocks({ climbing: true, climbKind: "ladder" })).toBe(false);
+    expect(floor(0, [squirrel(20)], { floorLock: playerFloorLocks({ climbing: true }) })).toBeNull();
   });
 
   test("aiming UP never reaches for the ground", () => {

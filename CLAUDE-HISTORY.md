@@ -5292,3 +5292,20 @@ for a freshly made item and for one reopened from 📂 Load.
   transform, its Trailor Int door swaps to scale(1.8875) on the full-black frame, the room centred (grid left 246
   = (2728-2265)/2 + border), the camera follows W/S up the carpet and clamps at 720 - 480, the NPC drawn, and
   leaving swaps back to z 1 on black.
+
+## Climb aim + Viet Bob / Bob Li locks + Coming Soon (2026-10-24)
+
+- Blake: "jankyness when aiming left or right on some climbing surfaces. Like your arms go the other way." Reproduced on
+  Trailor Park M2 hanging from the power line (cliff cells, row 25) beside the col-35 ladder, as Bob with the M16:
+  fire right = arm level, fire left = arm straight down, rifle at the floor. p.firing.aimTilt was 85: the aim assist's
+  FLOOR LOCK (the Squirrel-at-your-feet rule) uses the player's feet as "your floor", and hanging, the feet were a
+  cell above the ground where a unit stood to the left. Point-blank rule, 85°. The ladder itself was fine both ways
+  (no unit within a cell of the feet). Fix: floorLock only when not climbing (playerFloorLocks); a 🚶 plane keeps it.
+  Re-driven on the same spot: tilt 0, arm out to the left. Proof was rasterized PNGs of .playerWrap (the pane was hidden).
+- Locks: Viet Bob = Vietnam floor on Hard (the Rob rule). Bob Li = meet Bob Li: openTalk notes the DIALOGUE name into
+  record.met (verified in a dev game: reading the TV sign wrote "tv news (controls)" to bobOkayGame). Viet Bob opens
+  when gameFinishFloor records a level whose floor is Vietnam, on Hard; not played through to that end here.
+- Select order: open first (Bob, A-Z), locked after (A-Z); an unlock moves up into its alphabetical place. Coming Soon
+  fills a short last row (9 starters = 5 + 4 + 1). Bob's head alone is a square, so its outline read as an empty
+  frame; the whole body reads as Bob. The fighter portrait fills its box, so an outline of it clipped to two brackets.
+  Screens checked with headless Edge (real fonts): locked state, and a record with Bob Li met + Vietnam on Hard.

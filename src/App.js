@@ -10,7 +10,7 @@ import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSound
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
 // rules and store are src/gameFront.js and its screens src/gameShell.js; the GAME FRONT END block
 // after startRun is where it meets the run engine.
-import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND } from "./gameFront";
+import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND } from "./gameFront";
 import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
@@ -2822,6 +2822,11 @@ const shotPathClear = (sx, sy, groundY, rangePx, deg, dir, dx, clear, step) => {
 // would let a gunman aiming at you swing onto your dog at his feet instead.
 export const AIM_ASSIST_FLOOR_TOL_CELLS = 1;     // feet within a cell of yours = standing on your floor (a step, a ramp)
 export const AIM_ASSIST_FLOOR_MAX_DEG = 85;      // how steeply the gun may be pointed at your feet
+// The player's shot passes floorLock only while they have a floor: never on a ladder, bars or a
+// ledge (2026-10-24). Hanging, the feet are in the air, and a unit standing on the ground just under
+// them read as "on your floor" — the gun swung 85° down at it on the side it stood, and the arm went
+// with it. A 🚶 Top-down plane is a floor (p.topdown, not p.climbing), so it keeps the lock.
+export const playerFloorLocks = (p) => !(p && p.climbing);
 // The floor lock's own solve. Big bends move the barrel a long way — pointing a rifle 70° at your
 // feet swings its tip down and BACK toward you — so every candidate angle is judged from where the
 // muzzle actually is AT that angle (muzzleAt, the arm-attached barrel tip the fire code already
@@ -14539,6 +14544,7 @@ export default function AssetStudio({ game = false } = {}) {
     setTalk(next);
     setTalkPrompt(null);
     talkSoundFor(next);
+    gameNoteRef.current("met", dlg.name); // the game's record of who you have met (gameFront.js STARTER_LOCKS: Bob Li)
     // TALKED TO ONCE IS "USED" — it stops the NPC turning to face you every time you walk past
     // afterwards (see the wantFace rule in the enemy loop), and takes the 💬 off its head. One drawn
     // with a Front pose keeps STANDING in it unless the talk turned it hostile (eFrontPose). Marked
@@ -17800,7 +17806,13 @@ export default function AssetStudio({ game = false } = {}) {
           let shotDeg = aimDegHeld, aimTilt = 0;
           // floorLock: a Squirrel at your feet — see aimAssistAngle. It bends the arm a long way, so
           // it is handed the barrel-tip function to solve from where the gun actually ends up.
-          const assist = assistTargets.length ? aimAssistAngle({ sx: spawn.x, sy: spawn.y, groundY: p.y + ph, rangePx: rangePxNow, face: p.face, aimDeg: aimDegHeld, targets: assistTargets, clear: shotPathProbe, floorLock: true, bodyX: p.x + pw / 2, cellPx: CW, muzzleAt: muzzleSpawn }) : null;
+          // Only when you are STANDING (playerFloorLocks): on a ladder, bars or a ledge your feet are
+          // in the air, and anyone whose feet were near them counted as "on your floor". Hanging
+          // from Trailor Park M2's power line with two units on the ground below, a shot fired
+          // left swung the rifle 85° down at one of them (point-blank) while a shot fired right,
+          // with nobody there, left level. Blake (2026-10-24): "jankyness when aiming left or right on
+          // some climbing surfaces. Like your arms go the other way."
+          const assist = assistTargets.length ? aimAssistAngle({ sx: spawn.x, sy: spawn.y, groundY: p.y + ph, rangePx: rangePxNow, face: p.face, aimDeg: aimDegHeld, targets: assistTargets, clear: shotPathProbe, floorLock: playerFloorLocks(p), bodyX: p.x + pw / 2, cellPx: CW, muzzleAt: muzzleSpawn }) : null;
           if (assist) {
             aimTilt = assist.deg - aimDegHeld;
             shotDeg = assist.deg;
@@ -23863,11 +23875,12 @@ export default function AssetStudio({ game = false } = {}) {
     gameArtCache.current.clear();
     return "Updated " + (bits || []).join(", ");
   };
-  // Unlocks hears of a pickup, a purchase (showPickup / buyFromShop) and a kill (the loot pass).
+  // Unlocks hears of a pickup, a purchase (showPickup / buyFromShop), a kill (the loot pass) and a
+  // conversation opening (openTalk, by the dialogue's NAME — meeting "Bob Li" opens Bob Li).
   gameNoteRef.current = (kind, id) => {
     if (!game || !id) return;
     const r = gameRecordRef.current;
-    const n = kind === "found" ? recordFound(r, id) : kind === "defeated" ? recordDefeated(r, id) : r;
+    const n = kind === "found" ? recordFound(r, id) : kind === "defeated" ? recordDefeated(r, id) : kind === "met" ? recordMet(r, id) : r;
     if (n !== r) putGameRecord(n);
   };
   // What the player is carrying now, as a save at `loc` (gameFront.js makeGameSave).

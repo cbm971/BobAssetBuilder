@@ -322,7 +322,10 @@ export const normalizeGameOptions = (o) => {
 // `floorsDiff` is the hardest difficulty each fighter finished each floor on: { [floor]: { [look
 // name, lower case]: 1 Easy | 2 Medium | 3 Hard } }. Blake (2026-10-18): a yellow outline over the
 // medal's T for Medium, red for Hard; and Rob stays locked until the Trailor Park is beaten on Hard.
-export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, floorsDiff: {}, bestScore: 0, kills: 0, games: 0 });
+// `met` is every conversation that has opened in a game, by the DIALOGUE's name (lower case) — Bob
+// Li unlocks on meeting Bob Li (Blake, 2026-10-24). The dialogue's name, not the speaker's: the NPC
+// who says it is called Chun Bobette so no look but the starter is named "Bob Li".
+export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, floorsDiff: {}, met: [], bestScore: 0, kills: 0, games: 0 });
 export const diffRank = (id) => Math.max(1, DIFFICULTIES.findIndex((d) => d.id === difficultyOf(id).id) + 1);
 export const normalizeGameRecord = (r) => {
   const b = newGameRecord();
@@ -337,10 +340,14 @@ export const normalizeGameRecord = (r) => {
     if (f && v && typeof v === "object") for (const who of Object.keys(v)) { const k = Math.round(Number(v[who])); if (who && k >= 1 && k <= DIFFICULTIES.length) o[who] = k; }
     if (Object.keys(o).length) fd[f] = o;
   }
-  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), floorsWith: fw, floorsDiff: fd, bestScore: n(r.bestScore), kills: n(r.kills), games: n(r.games) };
+  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), floorsWith: fw, floorsDiff: fd, met: ids(r.met), bestScore: n(r.bestScore), kills: n(r.kills), games: n(r.games) };
 };
 // Returns the SAME object when nothing changed, so a caller can skip the write.
 export const recordFound = (rec, id) => (!id || rec.found.includes(id) ? rec : { ...rec, found: [...rec.found, id] });
+export const recordMet = (rec, dialogueName) => {
+  const k = normName(dialogueName), had = rec.met || [];
+  return !k || had.includes(k) ? rec : { ...rec, met: [...had, k] };
+};
 export const recordDefeated = (rec, id) => (!id ? rec : { ...rec, kills: rec.kills + 1, defeated: rec.defeated.includes(id) ? rec.defeated : [...rec.defeated, id] });
 export const recordFloorDone = (rec, floor, score, lookName, diffId) => {
   const who = normName(lookName), had = (rec.floorsWith && rec.floorsWith[floor]) || [];
@@ -393,12 +400,17 @@ export const lookFloorMedals = (rec, lookName, floors) => {
 // Roberta once Trailor Park is done AS ROB — and all three show on the select screen, locked.
 // Matched by look NAME (lower case), like Bob is. A floor matches by its letters only, and his
 // "Trailor" spelling and the usual one are the same floor, so a rename either way keeps the lock.
+// A lock's name is matched with its spaces taken out, so "VietBob" (how he wrote it) and the look's
+// saved "Viet Bob" are one fighter, and a rename either way keeps the lock.
 export const STARTER_LOCKS = [
   { name: "bobby", floor: "Trailor Park" },
   { name: "bobert", items: 50 },
   { name: "roberta", floor: "Trailor Park", as: "rob" },
   { name: "rob", floor: "Trailor Park", diff: "hard" }, // Blake (2026-10-18): Rob is locked until the Trailor Park is beaten on Hard, by anyone
+  { name: "viet bob", floor: "Vietnam", diff: "hard" }, // Blake (2026-10-24): "lock the VietBob Character behind beating the vietnam level on Hard"
+  { name: "bob li", met: "Bob Li" }, // Blake (2026-10-24): open once the "Bob Li" conversation has been met in a game (record.met)
 ];
+const lockKey = (s) => normName(s).replace(/\s+/g, "");
 const floorKey = (s) => normName(s).replace(/[^a-z]/g, "").replace(/trailer/g, "trailor");
 const floorWasDone = (rec, floor, as) => {
   const k = floorKey(floor);
@@ -420,9 +432,10 @@ export const itemsFoundCount = (rec, assets) => {
 };
 // null when the look is open; otherwise { need, have, of } — `need` is the line its card shows.
 export const starterLock = (look, rec, assets) => {
-  const lock = look && STARTER_LOCKS.find((l) => l.name === normName(look.name));
+  const lock = look && STARTER_LOCKS.find((l) => lockKey(l.name) === lockKey(look.name));
   if (!lock) return null;
   const r = normalizeGameRecord(rec);
+  if (lock.met) return r.met.some((m) => lockKey(m) === lockKey(lock.met)) ? null : { need: "Meet " + lock.met };
   if (lock.items) {
     const have = itemsFoundCount(r, assets);
     return have >= lock.items ? null : { need: "Unlock " + lock.items + " Items", have, of: lock.items };
@@ -434,6 +447,18 @@ export const starterLock = (look, rec, assets) => {
   if (floorWasDone(r, lock.floor, lock.as)) return null;
   return { need: "Complete " + lock.floor + (lock.as ? " as " + lock.as.charAt(0).toUpperCase() + lock.as.slice(1) : "") };
 };
+// The character select's order (Blake, 2026-10-24): "put locked characters beneath unlocked
+// characters but they become ABC order when unlocked". Every open fighter first, Bob leading and the
+// rest A to Z (starterLooks' order), then every locked one, A to Z among themselves. Unlocking one
+// moves it up into the open run, in its alphabetical place.
+export const starterRoster = (assets, rec) => {
+  const open = [], shut = [];
+  for (const a of starterLooks(assets)) (starterLock(a, rec, assets) ? shut : open).push(a);
+  return [...open, ...shut];
+};
+// How many "Coming Soon" boxes finish the grid's last row (Blake, 2026-10-24: "whenever a row of
+// characters is incomplete ... an outline of Bob with enough character to complete the row").
+export const selectGridFill = (n, cols) => (n > 0 && cols > 0 ? (cols - (n % cols)) % cols : 0);
 // What each Unlocks tab lists, in a stable order (by name). Items are what can be carried or worn —
 // weapons (not their projectiles), clothing and consumables; enemies are every animal and every
 // dressed look, since any look can be placed as a unit.
