@@ -792932,6 +792932,277 @@
    "rank": "common"
   },
   {
+   "id": "hxdswza",
+   "name": "Wizards Hat",
+   "type": "equipment",
+   "angles": {
+    "front": [
+     {
+      "id": "7on7zgt",
+      "kind": "circle",
+      "x": 49,
+      "y": 26.5,
+      "w": 102,
+      "h": 15,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "thjzmr6",
+      "kind": "tri",
+      "x": 71,
+      "y": -1.5,
+      "w": 41,
+      "h": 34,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 8
+     },
+     {
+      "id": "aowrjci",
+      "kind": "tri",
+      "x": 94,
+      "y": -3.5,
+      "w": 41,
+      "h": 34,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 8
+     },
+     {
+      "id": "y6z9acj",
+      "kind": "rect",
+      "x": 93,
+      "y": -0.5,
+      "w": 24.5,
+      "h": 31,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "mohizf4",
+      "kind": "roundrect",
+      "x": 104,
+      "y": -7,
+      "w": 15,
+      "h": 26.5,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 51
+     },
+     {
+      "id": "bbsmvz4",
+      "kind": "tri",
+      "x": 101.5,
+      "y": -22.5,
+      "w": 28.5,
+      "h": 35,
+      "color": "#7aa2d6",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 41
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "guideId": "telfv37",
+   "slot": "hat",
+   "variants": {
+    "default": {
+     "front": [
+      {
+       "id": "7on7zgt",
+       "kind": "circle",
+       "x": 49,
+       "y": 26.5,
+       "w": 102,
+       "h": 15,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    },
+    "telfv37": {
+     "front": [
+      {
+       "id": "7on7zgt",
+       "kind": "circle",
+       "x": 49,
+       "y": 26.5,
+       "w": 102,
+       "h": 15,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "thjzmr6",
+       "kind": "tri",
+       "x": 71,
+       "y": -1.5,
+       "w": 41,
+       "h": 34,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 8
+      },
+      {
+       "id": "aowrjci",
+       "kind": "tri",
+       "x": 94,
+       "y": -3.5,
+       "w": 41,
+       "h": 34,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 8
+      },
+      {
+       "id": "y6z9acj",
+       "kind": "rect",
+       "x": 93,
+       "y": -0.5,
+       "w": 24.5,
+       "h": 31,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "mohizf4",
+       "kind": "roundrect",
+       "x": 104,
+       "y": -7,
+       "w": 15,
+       "h": 26.5,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 51
+      },
+      {
+       "id": "bbsmvz4",
+       "kind": "tri",
+       "x": 101.5,
+       "y": -22.5,
+       "w": 28.5,
+       "h": 35,
+       "color": "#7aa2d6",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 41
+      }
+     ],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    }
+   },
+   "lastFit": "telfv37",
+   "confirmedFits": [
+    "telfv37",
+    "default"
+   ],
+   "statBoosts": {
+    "hp": 0,
+    "speed": 0,
+    "agility": 0,
+    "intelligence": 0,
+    "strength": 0
+   },
+   "defense": 0,
+   "effects": [],
+   "categories": [
+    "",
+    "",
+    ""
+   ],
+   "value": 0,
+   "rank": "common",
+   "savedAt": 1792968057276
+  },
+  {
    "id": "hypi4m5",
    "name": "Bobbi",
    "type": "character",
