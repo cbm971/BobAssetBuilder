@@ -526,7 +526,8 @@ plus traps it does not cover:
   its medal shows before a run can reach it; gold when beaten AS that look by name). A floor in
   `FLOOR_ICONS` is drawn as an OUTLINE picture (`FloorMedal`/`MEDAL_ICONS`: Trailor Park = trailer,
   Vietnam = helmet; 2026-10-25, replacing the slab T); beaten on Easy it fills white, Medium adds a
-  yellow outline, Hard a red one. Any other floor shows its first letter.
+  yellow outline, Hard a red one, all thin lines. Any other floor shows its first letter. **No coin
+  behind the picture** (he called it the ugly coin thing); never put a disc back.
 - **Saves are checkpoints** in their OWN IndexedDB database `bobOkayGame` (plain objects under
   `game:` keys), never the studio's `bobAssetStudio` store or localStorage (full). One is written
   400 ms after each run level goes live (never on the seam frame) and on Quit to Main Menu. Load
