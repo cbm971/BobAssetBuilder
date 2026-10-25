@@ -793188,19 +793188,27 @@
     "hp": 0,
     "speed": 0,
     "agility": 0,
-    "intelligence": 0,
-    "strength": 0
+    "intelligence": 3,
+    "strength": -1
    },
    "defense": 0,
-   "effects": [],
+   "effects": [
+    {
+     "id": "93bd5fh",
+     "type": "homing",
+     "animByBody": {},
+     "lastFit": "default"
+    }
+   ],
    "categories": [
-    "",
+    "T2",
     "",
     ""
    ],
    "value": 0,
-   "rank": "common",
-   "savedAt": 1792968057276
+   "rank": "legendary",
+   "savedAt": 1792968110964,
+   "editedFrom": 1792968057276
   },
   {
    "id": "hypi4m5",
