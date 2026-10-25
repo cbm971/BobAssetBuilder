@@ -334,6 +334,22 @@ import {
   homingPick,
   homingSteer,
   homingFlightStep,
+  isBoomerang,
+  weaponClipSize,
+  boomerangAmmo,
+  boomerangOwners,
+  boomerangLaunch,
+  boomerangPick,
+  boomerangStep,
+  boomerangTurnHome,
+  boomerangTripFrames,
+  boomerangLinePoints,
+  BOOMERANG_HOME_CONE_DEG,
+  BOOMERANG_RETURN_FRAMES,
+  BOOMERANG_CATCH_CELLS,
+  throwPickupCount,
+  DEFAULT_THROW_PICKUP,
+  THROW_PICKUP_MAX,
   fireImmune,
   blastImmune,
   luckyChance,
@@ -4327,7 +4343,7 @@ describe("which abilities a weapon may carry", () => {
     // It used to fall through to the MELEE list, so the picker offered a thrown rock Ignore Armor
     // and a Resurrect staff. A throw has no code path for either — they were controls wired to
     // nothing, which is the same trap the Rock's own Impact damage was in.
-    expect(weaponAbilitiesFor("throw").sort()).toEqual(["burn", "capture", "cluster", "stun"]);
+    expect(weaponAbilitiesFor("throw").sort()).toEqual(["boomerang", "burn", "capture", "cluster", "stun"]);
   });
 
   test("every ability names the types it belongs to", () => {
@@ -14808,7 +14824,7 @@ describe("🔥 Fire damage / ❄️ Ice damage (weapon abilities, 2026-10-21)", 
 describe("🧲 Homing Shot (clothing + ranged weapon ability, 2026-10-25)", () => {
   test("on a gun or worn, both registries, once however many carry it", () => {
     expect(WEAPON_ABILITIES.homing.types).toEqual(["ranged"]);
-    expect(WEAPON_ABILITIES.homing.on).toEqual({ homing: true });
+    expect(WEAPON_ABILITIES.homing.on).toEqual({ homing: true, boomerang: false }); // 🪃 a boomerang has its own, lighter homing
     expect(EFFECT_TYPES.homing.noAnim).toBe(true);
     expect(EFFECT_TYPES.homing.params).toEqual([]);
     expect(shotHomes({ homing: true }, [])).toBe(true);
@@ -15090,5 +15106,142 @@ describe("🪣 change this colour everywhere matches the colour as drawn, not ju
     expect(src).not.toContain("COLOR_DRAG_GAP_MS");
     expect(src).not.toMatch(/assetColorGroup\(asset, from\)/);
     expect(src.match(/assetColorGroup\(asset, sel\)/g).length).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe("🪃 Boomerang (weapon + throwable ability, 2026-10-25)", () => {
+  const CELL = 30;
+  test("a gun or a throwable can carry it, and it is the gun's whole firing mode", () => {
+    expect(WEAPON_ABILITIES.boomerang.types).toEqual(["ranged", "throw"]);
+    expect(weaponAbilitiesFor("ranged")).toContain("boomerang");
+    expect(weaponAbilitiesFor("throw")).toContain("boomerang");
+    expect(weaponAbilitiesFor("melee")).not.toContain("boomerang");
+    expect(isBoomerang({ wtype: "ranged", boomerang: true })).toBe(true);
+    expect(isBoomerang({ wtype: "throw", boomerang: true })).toBe(true);
+    expect(isBoomerang({ wtype: "melee", boomerang: true })).toBe(false);
+    expect(isBoomerang({ wtype: "ranged" })).toBe(false);
+    expect(isBoomerang(null)).toBe(false);
+    // On, it takes off the modes and flight abilities it replaces; each of those takes it off again.
+    const gun = { wtype: "ranged", burstFire: true, homing: true, pierce: true, ...WEAPON_ABILITIES.boomerang.on };
+    expect(weaponAbilityKeys(gun)).toEqual(["boomerang"]);
+    for (const k of ["burstFire", "fullAuto", "pierce", "homing", "resurrect"]) {
+      expect(weaponAbilityOn({ ...gun, ...WEAPON_ABILITIES[k].on }, "boomerang")).toBe(false);
+    }
+    expect(weaponAbilityOn({ ...gun, ...WEAPON_ABILITIES.boomerang.off }, "boomerang")).toBe(false);
+    // A throwable's payloads stay: a boomerang Grenade still burns where it hits.
+    const nade = { wtype: "throw", landEffectDps: 10, ...WEAPON_ABILITIES.boomerang.on };
+    expect(weaponAbilityKeys(nade).sort()).toEqual(["boomerang", "burn"]);
+  });
+
+  test("one throw, no magazine, no reload: loaded the frame none of yours is in the air", () => {
+    expect(weaponClipSize({ wtype: "ranged", boomerang: true, clipSize: 30 }, [{ type: "magazineSize", amount: 5 }])).toBe(1);
+    expect(weaponClipSize({ wtype: "ranged", clipSize: 30 }, [])).toBe(effectiveMagazineSize(30, []));
+    const empty = { clip: 1, ammo: 0, reloadT: 0, reloadTotal: 0 };
+    expect(boomerangAmmo(empty, true)).toBe(empty);           // still out: nothing
+    expect(boomerangAmmo(empty, false).ammo).toBe(1);         // back (or gone): loaded
+    expect(boomerangAmmo(empty, false).reloadT).toBe(0);
+    const full = { clip: 1, ammo: 1 };
+    expect(boomerangAmmo(full, false)).toBe(full);
+    expect(boomerangAmmo(null, false)).toBe(null);
+    const owners = boomerangOwners([{ boomerang: true, owner: "player" }, { boomerang: true, owner: "e3" }, { owner: "e9" }, null]);
+    expect([...owners].sort()).toEqual(["e3", "player"]);
+  });
+
+  test("out to its range, a turn, and back down the same line to the hand, never behind it", () => {
+    const l = boomerangLaunch(1, 0, 12);
+    const b = { x: 0, y: 0, vx: l.vx, vy: l.vy, sp: 12, aim0: l.aim0, out: true, traveled: 0, rangePx: 300, spinDir: 1 };
+    let maxX = 0, prevX = 0, turnedAt = -1, f = 0, caught = false, minX = 0;
+    for (f = 1; f < 1000 && !caught; f++) {
+      caught = boomerangStep(b, 1, CELL, null, { x: 0, y: 0 }, false) === "caught";
+      if (b.out) { expect(b.x).toBeGreaterThan(prevX); prevX = b.x; } // no back tracking on the way out
+      else if (turnedAt < 0) turnedAt = f;
+      maxX = Math.max(maxX, b.x); minX = Math.min(minX, b.x);
+      expect(Math.abs(b.y)).toBeLessThan(0.001);                    // the same line both ways
+    }
+    expect(caught).toBe(true);
+    expect(maxX).toBeGreaterThanOrEqual(300);
+    expect(maxX).toBeLessThan(300 + 12);
+    expect(minX).toBeGreaterThan(-1);                               // it stops at the hand, it does not fly past
+    expect(turnedAt).toBeGreaterThan(25);                           // eased off: slower than 300/12 frames
+    expect(b.rot).not.toBe(0);                                      // spinning all the way
+    expect(boomerangTripFrames(300, 12, CELL)).toBe(f - 1);
+    expect(boomerangTripFrames(600, 12, CELL)).toBeGreaterThan(boomerangTripFrames(300, 12, CELL));
+  });
+
+  test("a wall turns it early, the way home goes after a thrower who walks away, and it always ends", () => {
+    const b = { x: 0, y: 0, vx: 12, vy: 0, sp: 12, aim0: 0, out: true, traveled: 0, rangePx: 600 };
+    boomerangStep(b, 1, CELL, null, { x: 0, y: 0 }, true);
+    expect(b.out).toBe(false);
+    const home = { x: 0, y: 0 };
+    let caught = false;
+    for (let f = 0; f < BOOMERANG_RETURN_FRAMES && !caught; f++) { home.x -= 0.42 * CELL; caught = boomerangStep(b, 1, CELL, null, home, false) === "caught"; }
+    expect(caught).toBe(true);                                      // a Speed-10 walk cannot outrun it
+    const lost = { x: 0, y: 0, vx: 1, vy: 0, sp: 1, aim0: 0, out: false, backT: BOOMERANG_RETURN_FRAMES - 1 };
+    expect(boomerangStep(lost, 1, CELL, null, { x: 99999, y: 0 }, false)).toBe("caught");
+    expect(boomerangStep({ out: false, x: 0, y: 0 }, 1, CELL, null, null, false)).toBe("caught"); // its thrower is gone
+    const near = { x: 0, y: 0, vx: 12, vy: 0, sp: 12, aim0: 0, out: false, backT: 20 };
+    expect(boomerangStep(near, 1, CELL, null, { x: BOOMERANG_CATCH_CELLS * CELL * 0.5, y: 0 }, false)).toBe("caught");
+  });
+
+  test("the light homing bends toward someone ahead, never further than its cone, and never behind", () => {
+    const b = { x: 0, y: 0, vx: 12, vy: 0, sp: 12, aim0: 0, out: true, traveled: 0, rangePx: 3000, owner: "player" };
+    const above = { key: "a", x: 200, y: -2000, w: 20, h: 20 }, ahead = { key: "b", x: 200, y: -40, w: 20, h: 20 };
+    const behind = { key: "c", x: -200, y: 0, w: 20, h: 20 }, me = { key: "player", x: 100, y: -10, w: 20, h: 20 };
+    expect(boomerangPick(b, [above, behind, me], 5000)).toBe(null);
+    expect(boomerangPick(b, [above, behind, me, ahead], 5000)).toBe(ahead);
+    expect(boomerangPick({ ...b, hits: ["b"] }, [ahead], 5000)).toBe(null);
+    expect(boomerangPick({ ...b, out: false }, [ahead], 5000)).toBe(null);   // the way home is straight home
+    expect(boomerangPick(b, [ahead], 50)).toBe(null);
+    const cone = BOOMERANG_HOME_CONE_DEG * Math.PI / 180;
+    const pull = { key: "p", x: 40, y: -3000, w: 20, h: 20 };
+    for (let f = 0; f < 120; f++) {
+      boomerangStep(b, 1, CELL, pull, { x: 0, y: 0 }, false);
+      expect(Math.abs(Math.atan2(b.vy, b.vx))).toBeLessThanOrEqual(cone + 1e-9);
+    }
+    expect(Math.atan2(b.vy, b.vx)).toBeLessThan(-0.1);              // it did bend
+    b.rangePx = 1e6;
+    for (let f = 0; f < 60; f++) boomerangStep(b, 1, CELL, null, { x: 0, y: 0 }, false);
+    expect(Math.abs(Math.atan2(b.vy, b.vx))).toBeLessThan(1e-9);    // nobody ahead: back on the line it was thrown down
+    const back = boomerangTurnHome({ out: true, hits: ["x"] });
+    expect(back.out).toBe(false);
+    expect(back.hits).toEqual([]);                                  // the way back goes through them again
+  });
+
+  test("a throwable comes in its own number: 3 unless it says, a box of 52 cards", () => {
+    expect(DEFAULT_THROW_PICKUP).toBe(3);
+    expect(throwPickupCount({})).toBe(3);
+    expect(throwPickupCount(null)).toBe(3);
+    expect(throwPickupCount({ pickupCount: 52 })).toBe(52);
+    expect(throwPickupCount({ pickupCount: 1000 })).toBe(THROW_PICKUP_MAX);
+    const box = { id: "cards", type: "weapon", wtype: "throw", pickupCount: 52 };
+    expect(shopUnowned([box], { throwId: "cards", throwLeft: 3 }).length).toBe(1);   // 3 of 52 left is a real purchase
+    expect(shopUnowned([box], { throwId: "cards", throwLeft: 52 }).length).toBe(0);
+  });
+
+  test("its DPS is the trip, two hits a throw, and clip and reload mean nothing to it", () => {
+    const boom = (o) => ({ wtype: "ranged", boomerang: true, projectileRange: 10, projectileSpeed: 12, fireRate: 5, ...o });
+    expect(weaponDpsOver(boom({ clipSize: 1, reloadTime: 5 }), 8)).toBe(weaponDpsOver(boom({ clipSize: 30, reloadTime: 0.2 }), 8));
+    expect(weaponDpsOver(boom({ projectileRange: 5 }), 8)).toBeGreaterThan(weaponDpsOver(boom({ projectileRange: 20 }), 8));
+    expect(weaponDpsOver(boom({}), 8)).toBeGreaterThan(0);
+  });
+
+  test("the aim preview of a boomerang throw is its straight line out, up to a wall", () => {
+    const pts = boomerangLinePoints(0, 0, -1, 0, 180, null, 18);
+    expect(pts.length).toBe(10);
+    expect(pts.every((p) => Math.abs(p.y) < 1e-9 && p.x < 0)).toBe(true);
+    const walled = boomerangLinePoints(0, 0, 1, 0, 180, (x) => x > 50, 18);
+    expect(walled[walled.length - 1].x).toBeGreaterThan(50);
+    expect(walled.length).toBe(3);
+  });
+
+  test("in play: a thrown one lands only on a body, is restocked when caught, and both sides throw it", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toMatch(/const landed = g\.boomerang \? \(struck\.length > 0 \|\| onCatchableBody\)/);
+    expect(src.match(/throwCarry\.current \+= 1/g).length).toBe(2);   // caught, and handed back at a door
+    expect(src.match(/bep\.throwLeft \+= 1/g).length).toBe(2);        // ...the same for a unit's
+    expect(src).toMatch(/boomerang: true, owner: "player", out: true/);
+    expect(src).toMatch(/boomerang: true, owner: k, out: true/);
+    expect(src).toContain("thrownPlaceKey.current !== thrownPlace");   // a landing's repaint keeps the rest flying
+    expect(src).toMatch(/boomerangRound\(ew, /);                        // a unit's gun throws it too
   });
 });

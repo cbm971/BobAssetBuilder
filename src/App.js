@@ -1876,6 +1876,12 @@ export const weaponDpsOver = (weapon, perHit, intelligence, effects, secs = WEAP
   const hit = Math.max(0, perHit || 0);
   if (!weapon || !isRanged(weapon.wtype)) return hit * Math.ceil(frames / PLAYER_SWING_FRAMES) / secs;
   const cdFrames = weaponFireCooldownFrames(weapon.fireRate);
+  // 🪃 A boomerang gun throws again only once it is home (boomerangTripFrames: no clip, no reload), and
+  // it goes through a body twice on one throw, out and back down the same line.
+  if (isBoomerang(weapon)) {
+    const trip = Math.max(cdFrames, boomerangTripFrames(Math.max(1, weapon.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * LV_CELL, weapon.projectileSpeed ?? 12, LV_CELL));
+    return hit * 2 * Math.ceil(frames / trip) / secs;
+  }
   const reloadFrames = weaponReloadFrames(weapon.reloadTime, intelligence);
   const salvo = weaponBurstShotCount(weapon), salvoGap = burstDelayFrames(weapon.burstDelay);
   let w = newWeaponAmmo(effectiveMagazineSize(weapon.clipSize, effects));
@@ -2298,13 +2304,13 @@ export const WEAPON_ABILITIES = {
     icon: "🔫", label: "Burst fire", types: ["ranged"],
     blurb: "One press commits a quick salvo. The normal Fire rate controls when another burst may begin; Burst spacing controls the rounds inside it. Mutually exclusive with Full Auto.",
     brief: (a) => Math.max(2, Math.round(a.burst ?? 3)) + "-shot bursts",
-    on: { burstFire: true, fullAuto: false, burst: 3, burstDelay: DEFAULT_BURST_DELAY }, off: { burstFire: false },
+    on: { burstFire: true, fullAuto: false, boomerang: false, burst: 3, burstDelay: DEFAULT_BURST_DELAY }, off: { burstFire: false },
   },
   fullAuto: {
     icon: "🔥", label: "Full auto", types: ["ranged"],
     blurb: "Hold Fire to keep shooting at the weapon's Fire rate until the trigger is released, the magazine empties, or a reload begins. Mutually exclusive with Burst Fire.",
     brief: () => "hold Fire to keep shooting",
-    on: { fullAuto: true, burstFire: false }, off: { fullAuto: false },
+    on: { fullAuto: true, burstFire: false, boomerang: false }, off: { fullAuto: false },
   },
   explode: {
     icon: "💥", label: "Explode", types: ["ranged"],
@@ -2316,14 +2322,25 @@ export const WEAPON_ABILITIES = {
     icon: "🪡", label: "Pierce", types: ["ranged"],
     blurb: "Shots don't stop at the first enemy — they fly on through everyone in their path, hitting each once, until the ground or a wall stops them. Mutually exclusive with Explode.",
     brief: () => "shots go through every enemy",
-    on: { pierce: true, explode: false }, off: { pierce: false },
+    on: { pierce: true, explode: false, boomerang: false }, off: { pierce: false },
   },
   // 🧲 see shotHomes. The worn twin is EFFECT_TYPES.homing.
   homing: {
     icon: "🧲", label: "Homing", types: ["ranged"],
     blurb: "Shots chase the nearest enemy: each round bends toward whoever is closest and keeps after them until it lands, or the ground or a wall stops it. In a 👹 Enemy's hands its shots chase YOU.",
     brief: () => "shots chase the nearest enemy",
-    on: { homing: true }, off: { homing: false },
+    on: { homing: true, boomerang: false }, off: { homing: false },
+  },
+  // 🪃 see boomerangStep. On a gun it IS the firing mode — one throw, no magazine, no reload, its own
+  // pierce and its own light homing — so the modes and flight abilities it replaces come off when it
+  // goes on, and it comes off when one of them goes on. On a throwable it is just how it flies, and every
+  // payload still pays out where it hits. Explode is left alone on purpose: a throwable's Explode is a
+  // payload, and a boomerang gun with Explode simply bursts on the first body it reaches.
+  boomerang: {
+    icon: "🪃", label: "Boomerang", types: ["ranged", "throw"],
+    blurb: "Fire throws the weapon itself, spinning, instead of a projectile. It flies out to its Range with a light pull toward an enemy ahead, turns round like a boomerang and comes back to the hand that threw it. A gun goes through every enemy on the way out and again on the way back, and has no clip or reload: it is loaded again when it is back in your hand. A throwable stops on the first thing it hits and pays out there; one that hits nothing comes back to you to throw again, and you can have as many in the air as you like. Works in both directions: in a 👹 Enemy's hands it comes back to the enemy.",
+    brief: (a) => (isThrowable(a.wtype) ? "flies back to you if it misses" : "thrown like a boomerang · goes through enemies both ways"),
+    on: { boomerang: true, burstFire: false, fullAuto: false, pierce: false, homing: false, resurrect: false }, off: { boomerang: false },
   },
   // A gun you WEAR on your fists (the DK Arms): the 👊 Q/V swing you can throw without holstering
   // it is normally a bare-handed 2-damage punch, whatever is in your hand. This multiplies it.
@@ -2374,7 +2391,7 @@ export const WEAPON_ABILITIES = {
     blurb: "Its shot deals no damage — instead it raises a defeated body into a friendly NPC that fights for you, glowing 🟣 purple. The staff gets ONE raise per body ever: you carry it all level, so without a ceiling one dog is an endless army. A 🔴 Capture throwable is limited by how many you brought instead, and can raise the same body again and again.",
     brief: () => "raises the dead to fight for you",
     melee: true,
-    on: { resurrect: true, explode: false }, off: { resurrect: false },
+    on: { resurrect: true, explode: false, boomerang: false }, off: { resurrect: false },
   },
   /* --- Throwable payloads -------------------------------------------------------------------
      Everything a thrown object does happens WHERE IT LANDS, and all three read landRadius for
@@ -2481,6 +2498,13 @@ export const throwRangeBlocks = (strength, weight) => {
   const base = 7 + Math.floor(str / 2);            // Str 1->7, Str 5->9, Str 10->12
   return Math.max(2, base * throwWeightMultiplier(weight)); // never less than a 2-block lob
 };
+// HOW MANY COME IN ONE PICKUP of a throwable: a plinth, a body's drop, a shop shelf. Every pickup gave
+// three, and three it stays unless the throwable says otherwise (its "Comes in" number) — the Box of
+// Playing Cards is a whole deck (Blake, 2026-10-25: "a box of playing cards (Grenade) with 52
+// projectiles"). The editor's ▶ Playtest starts with it too.
+export const DEFAULT_THROW_PICKUP = 3;
+export const THROW_PICKUP_MAX = 99;
+export const throwPickupCount = (a) => Math.max(1, Math.min(THROW_PICKUP_MAX, Math.round(Number((a && a.pickupCount) ?? DEFAULT_THROW_PICKUP) || DEFAULT_THROW_PICKUP)));
 // Launch velocity for a thrown grenade. Given the desired range in PIXELS, gravity g, and a fixed
 // launch angle (45°-ish gives a natural arc), solve the projectile-range equation R = v²·sin(2θ)/g
 // for v, then split into vx/vy by the facing. So a stronger throw (longer range) simply leaves the
@@ -3591,8 +3615,8 @@ export const rollShopStock = (assets, tag, seedStr, size) => {
 // run, see rollShopStock); this filters what is SHOWN, so the shelf reads two items instead of
 // three while you hold the third, and it comes back if you trade that one away later.
 //   * a gun or melee weapon: the one in your hands;
-//   * a throwable: only while you carry a FULL ×3 of it. Bought again it refills to 3
-//     (throwPickup), so with one grenade left it is still a real purchase;
+//   * a throwable: only while you carry a FULL box of it (throwPickupCount, 3 unless it says). Bought
+//     again it refills (throwPickup), so with one grenade left it is still a real purchase;
 //   * a garment: any worn slot holding that id (wornEquipMap, so the look's own clothes count);
 //   * a consumable is never "had": you drink it.
 export const shopUnowned = (items, owned) => {
@@ -3602,7 +3626,7 @@ export const shopUnowned = (items, owned) => {
     if (!it) return false;
     if (it.type === "item") return true;
     if (it.type === "weapon") {
-      if (isThrowable(it.wtype)) return !(o.throwId === it.id && (o.throwLeft || 0) >= 3);
+      if (isThrowable(it.wtype)) return !(o.throwId === it.id && (o.throwLeft || 0) >= throwPickupCount(it));
       return o.weaponId !== it.id;
     }
     return !worn.has(it.id);
@@ -4654,6 +4678,137 @@ export const pierceFreshHit = (pr, key) => {
   if (pr.hits.includes(key)) return false;
   pr.hits.push(key);
   return true;
+};
+// 🪃 BOOMERANG (weapon + throwable ability, 2026-10-25). Blake: "if an item has that ability instead of
+// a projectile when you fire it throws and spins the item like a boomerang. It has a light homing BUT it
+// generally goes forward it's range and then back, no back tracking. The weapon boomerang also has
+// penetrate ... with this ability remove the reload times, it is one shot per and you are reloaded when
+// your "Boomerang" returns. For grenades, if it does not hit anything it returns but the grenades will
+// not have penetrate and you can throw multiple at once."
+//
+// ONE FLIGHT FOR BOTH KINDS (boomerangStep). What differs is what a hit does to it, and that is the hit
+// code's business: a gun's round goes on through (pierce, the way a 🪡 round does, its list of bodies
+// emptied at the turn so the way back lands on them again), a thrown one stops on the first body and pays
+// out there like any throw. Walls never END a boomerang. On the way out one turns it for home early, and
+// the way home goes over everything, so it always comes back: a lost one would be a weapon you no longer
+// have. Both sides throw it the same way (units included), and it goes home to whoever threw it.
+export const BOOMERANG_HOME_DEG = 1.5;          // the light homing: the most it bends toward an enemy per 60 fps frame
+export const BOOMERANG_HOME_CONE_DEG = 35;      // ...and never further than this off the line it was thrown down
+export const BOOMERANG_EASE_FRAC = 0.3;         // the last 30% of the way out it slows...
+export const BOOMERANG_EASE_MIN = 0.25;         // ...to a quarter of its speed as it turns,
+export const BOOMERANG_RAMP_FRAMES = 14;        // ...and takes this long to get back up to speed on the way home
+export const BOOMERANG_RETURN_MIN_CELLS = 0.5;  // the way home is never slower than this per frame (a Speed-10 walk is ~0.42)
+export const BOOMERANG_CATCH_CELLS = 1;         // this close to the thrower's middle on the way home, it is caught
+export const BOOMERANG_SPIN_DEG = 22;           // the art's spin per frame
+export const BOOMERANG_RETURN_FRAMES = 300;     // a way home that never gets there (5 s) is caught anyway
+export const BOOMERANG_THROW_SPEED_CELLS = 0.4; // how fast a THROWN one flies (a gun's goes at its Speed)
+export const isBoomerang = (w) => !!(w && w.boomerang && (isRanged(w.wtype) || isThrowable(w.wtype)));
+// A boomerang gun holds ONE throw: no magazine and no reload, it is loaded while it is in your hand.
+// Every other ranged weapon keeps its clip, with any Magazine Size worn.
+export const weaponClipSize = (w, effects) => (isBoomerang(w) ? 1 : effectiveMagazineSize(w && w.clipSize, effects));
+// ...and it is back in your hand the frame none of yours is in the air: caught, or gone any other way (a
+// door, the edge of the world), so it can never be lost. `out` = one this thrower threw is still flying.
+export const boomerangAmmo = (w, out) => (!w || out || w.ammo >= w.clip ? w : { ...w, ammo: w.clip, reloadT: 0, reloadTotal: 0 });
+// Whose boomerangs are in the air ("player" or a unit's key), asked once a frame of the flying shots.
+export const boomerangOwners = (shots) => {
+  const s = new Set();
+  for (const pr of shots || []) if (pr && pr.boomerang && pr.owner != null) s.add(pr.owner);
+  return s;
+};
+export const angleWrap = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+// Where a boomerang thrown down `aimDeg` (screen degrees, + = down, the gun's aimAngleDeg) leaves the
+// hand, at `speed` px a frame: along the aim, the way it is facing.
+export const boomerangLaunch = (face, aimDeg, speed) => {
+  const a = (aimDeg || 0) * Math.PI / 180, f = face || 1;
+  return { vx: f * Math.cos(a) * speed, vy: Math.sin(a) * speed, aim0: Math.atan2(Math.sin(a) * speed, f * Math.cos(a) * speed) };
+};
+// The body its light homing bends toward: the nearest living target AHEAD of the line it was thrown down
+// (inside BOOMERANG_HOME_CONE_DEG of it) and within reach, not one it already went through on this leg,
+// never its own thrower. Never one behind it ("no back tracking"), and only on the way out.
+export const boomerangPick = (b, targets, reachPx) => {
+  if (!b || !b.out) return null;
+  const cone = BOOMERANG_HOME_CONE_DEG * Math.PI / 180;
+  let best = null, bestD = Infinity;
+  for (const t of targets || []) {
+    if (t.key === b.owner || (b.hits && b.hits.includes(t.key))) continue;
+    const dx = t.x + t.w / 2 - b.x, dy = t.y + t.h / 2 - b.y, d = Math.hypot(dx, dy);
+    if (d > reachPx || d >= bestD) continue;
+    if (Math.abs(angleWrap(Math.atan2(dy, dx) - b.aim0)) > cone) continue;
+    best = t; bestD = d;
+  }
+  return best;
+};
+// One frame of a boomerang's flight; `b` (a round or a thrown object) is moved in place.
+//   b.out       true on the way out, false on the way home
+//   b.aim0      the heading it was thrown down (radians); the light homing never takes it far off it
+//   b.traveled  how far it has gone out; at b.rangePx it turns for home
+// `target` is what the light homing bends toward (boomerangPick, or null), `home` the thrower's middle,
+// `blocked` = the way out hit a wall or left the world this frame, which turns it early.
+// THE TURN IS A SLOW-DOWN, NOT A LOOP. Seen side-on, a real boomerang's curve is across the ground, away
+// from the camera and back, so what reads is the game boomerang: it eases off over the last stretch
+// (BOOMERANG_EASE_FRAC), hangs spinning for a beat, and comes back down the same line, which is what
+// takes it back through the enemies it passed ("turns around ... and goes through enemies again"). A
+// loop over the top flew over anything short on the way back. Home, it heads straight at the thrower,
+// at least BOOMERANG_RETURN_MIN_CELLS a frame once up to speed, so walking away cannot outrun it and it
+// cannot circle you. b.vx/vy stay its heading at full speed (the dodge test reads their sign); the ease
+// only scales the step. Returns "caught" the frame it reaches you, else null.
+// Turned for home: the way back starts, and the bodies it went through on the way out are fresh again.
+export const boomerangTurnHome = (b) => { b.out = false; b.hits = []; b.backT = 0; return b; };
+export const boomerangOutEase = (frac) => {
+  const f = Math.max(0, Math.min(1, frac || 0)), from = 1 - BOOMERANG_EASE_FRAC;
+  return f <= from ? 1 : 1 - (1 - BOOMERANG_EASE_MIN) * ((f - from) / BOOMERANG_EASE_FRAC);
+};
+export const boomerangStep = (b, dt, cellPx, target, home, blocked) => {
+  const d = dt || 1, cell = cellPx || 30;
+  const sp0 = Math.max(0.0001, b.sp || Math.hypot(b.vx || 0, b.vy || 0));
+  if (b.out) {
+    if (target) {
+      const v = homingSteer(b.vx || 0, b.vy || 0, target.x + target.w / 2 - b.x, target.y + target.h / 2 - b.y, BOOMERANG_HOME_DEG * d, 0);
+      const cone = BOOMERANG_HOME_CONE_DEG * Math.PI / 180;
+      const off = Math.max(-cone, Math.min(cone, angleWrap(Math.atan2(v.vy, v.vx) - b.aim0)));
+      b.vx = Math.cos(b.aim0 + off) * sp0; b.vy = Math.sin(b.aim0 + off) * sp0;
+    } else {
+      // Nobody ahead (or it has been through them all): it eases back onto the line it was thrown
+      // down at the same light rate, so a bend toward one body does not carry it off into the floor.
+      const cur = Math.atan2(b.vy || 0, b.vx || 0), lim = BOOMERANG_HOME_DEG * d * Math.PI / 180;
+      const a = cur + Math.max(-lim, Math.min(lim, angleWrap(b.aim0 - cur)));
+      b.vx = Math.cos(a) * sp0; b.vy = Math.sin(a) * sp0;
+    }
+    const hs = Math.hypot(b.vx || 0, b.vy || 0) || 1, step = sp0 * boomerangOutEase((b.traveled || 0) / Math.max(1, b.rangePx)) * d;
+    b.x += (b.vx || 0) / hs * step; b.y += (b.vy || 0) / hs * step;
+    b.traveled = (b.traveled || 0) + step;
+    if (blocked || b.traveled >= b.rangePx) boomerangTurnHome(b);
+  } else if (home) {
+    b.backT = (b.backT || 0) + d;
+    let dx = home.x - b.x, dy = home.y - b.y, dist = Math.hypot(dx, dy);
+    if (dist <= BOOMERANG_CATCH_CELLS * cell || b.backT >= BOOMERANG_RETURN_FRAMES) return "caught";
+    const full = Math.max(sp0, BOOMERANG_RETURN_MIN_CELLS * cell);
+    const sp = full * Math.min(1, BOOMERANG_EASE_MIN + (1 - BOOMERANG_EASE_MIN) * (b.backT / BOOMERANG_RAMP_FRAMES));
+    b.vx = dx / dist * full; b.vy = dy / dist * full;
+    const step = Math.min(dist, sp * d);
+    b.x += dx / dist * step; b.y += dy / dist * step;
+    if (Math.hypot(home.x - b.x, home.y - b.y) <= BOOMERANG_CATCH_CELLS * cell) return "caught";
+  } else return "caught"; // nobody to go home to
+  b.rot = (b.rot || 0) + BOOMERANG_SPIN_DEG * d * (b.spinDir || 1);
+  return null;
+};
+// HOW LONG ONE THROW TAKES, out and home to a thrower standing still: the flight above, run. It is what
+// the HUD's DPS figure divides by, since a boomerang gun's "reload" is its own way home.
+export const boomerangTripFrames = (rangePx, speed, cellPx) => {
+  const b = { x: 0, y: 0, vx: Math.max(0.5, speed || 12), vy: 0, sp: Math.max(0.5, speed || 12), aim0: 0, out: true, traveled: 0, rangePx: Math.max(1, rangePx || 1) };
+  for (let f = 1; f <= 2000; f++) if (boomerangStep(b, 1, cellPx, null, { x: 0, y: 0 }, false) === "caught") return f;
+  return 2000;
+};
+// The throw-aim preview for a boomerang throwable: dots down the line it leaves on, out to its reach
+// or the first solid cell, where it turns. The way home is not drawn; it is always the same way back.
+export const boomerangLinePoints = (x0, y0, face, aimDeg, rangePx, isSolid, stridePx = 18) => {
+  const l = boomerangLaunch(face, aimDeg, 1), pts = [];
+  for (let d = stridePx; d <= Math.max(stridePx, rangePx); d += stridePx) {
+    const x = x0 + l.vx * d, y = y0 + l.vy * d;
+    pts.push({ x, y });
+    if (isSolid && isSolid(x, y)) break;
+  }
+  return pts;
 };
 // Clothing can add rounds to any finite ranged-weapon magazine. Bonuses stack additively; a clip
 // size of 0 still means unlimited ammo and deliberately stays 0 rather than becoming finite.
@@ -6136,7 +6291,7 @@ export function newAsset(type, slot, wtype) {
   const a = { id: uid(), name: slot ? SLOTS[slot].label : (TYPES[type] ? TYPES[type].label : type), type, angles: blankAngles(), guideId: "default" };
   if (type === "body") { a.angles = JSON.parse(JSON.stringify(DEFAULT_BODY)); return withRig(a); }
   if (type === "skin") { a.stats = DEFAULT_STATS(); a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; }
-  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.explodeChar = DEFAULT_BOOM_CHAR; a.landChar = DEFAULT_LAND_CHAR; a.stun = 0; a.captureMax = 0; a.categories = ["", "", ""]; }
+  if (type === "weapon") { a.variants = { default: blankFitVariant("weapon") }; a.states = a.variants.default.states; a.angles = a.states.rest; a.lastFit = "default"; a.confirmedFits = []; a.wtype = wtype || "melee"; a.projectileId = null; a.projectileSpeed = 12; a.projectileRange = DEFAULT_PROJECTILE_RANGE; a.damage = 5; a.fireRate = DEFAULT_FIRE_RATE; a.clipSize = DEFAULT_CLIP_SIZE; a.reloadTime = DEFAULT_RELOAD_TIME; a.weight = DEFAULT_THROW_WEIGHT; a.landEffect = "fire"; a.landEffectDps = 6; a.landEffectLife = 6; a.landRadius = DEFAULT_LAND_RADIUS; a.landPropId = null; a.explode = false; a.ignoreArmor = false; a.burstFire = false; a.fullAuto = false; a.burst = DEFAULT_BURST; a.burstDelay = DEFAULT_BURST_DELAY; a.explodeRadius = 2; a.explodePropId = null; a.explodeSize = 3; a.explodeLife = 0.5; a.explodeChar = DEFAULT_BOOM_CHAR; a.landChar = DEFAULT_LAND_CHAR; a.stun = 0; a.captureMax = 0; a.boomerang = false; a.pickupCount = DEFAULT_THROW_PICKUP; a.categories = ["", "", ""]; }
   // An Enemy-creator asset (an animal, a turret — anything not built out of Dress Bob) has no skin
   // stats to read HP from, so it starts at PLAYER_BASE_HP: a brand-new enemy is exactly as tanky as
   // a default player, and the number is then yours to set in the creator. A Dress Bob enemy ignores
@@ -13719,7 +13874,8 @@ export default function AssetStudio({ game = false } = {}) {
   const thrown = useRef([]);                             // live thrown-grenade entities mid-arc: {x,y,vx,vy,rot,asset,pieces}
   const throwCarry = useRef(0);                          // how many of the carried throwable the player still has this session (single-use)
   const wpnClipKey = useRef(null);                        // playRunId|weaponId|clip size the clip was last filled for (see throwStockKey)
-  const throwStockKey = useRef(null);                    // playRunId|throwId|knob the throwCarry count was last stocked for — an effect re-run with the same key keeps what is left instead of refilling
+  const thrownPlaceKey = useRef(null);                   // playRunId|level the throws in thrown.current were thrown in — a re-run in the same place keeps them flying
+  const throwStockKey = useRef(null);                   // playRunId|throwId|knob the throwCarry count was last stocked for — an effect re-run with the same key keeps what is left instead of refilling
   const throwPickup = useRef(null);                      // set to a count (e.g. 3) when a throwable is TAKEN from a pedestal, so a fresh pickup arrives stocked regardless of the test-count knob; consumed on the next loop init
   const throwCd = useRef(0);                             // small cooldown after a throw so one G press = one grenade
   const thrownFireKeys = useRef(new Set());              // hazard keys created by grenades this session — removed on Stop so they don't persist into the saved level
@@ -14880,11 +15036,11 @@ export default function AssetStudio({ game = false } = {}) {
     if (item.type === "item") { consumeItemNow(item, paid); return; }
     if (item.type === "weapon") {
       if (isThrowable(item.wtype)) {
-        // A bought throwable arrives at ×3 exactly as a looted one does (throwPickup), so the
-        // shelf and the plinth hand over the same thing for the same grenade.
-        throwPickup.current = 3;
+        // A bought throwable arrives as many as a looted one does (throwPickup, throwPickupCount: 3
+        // unless it says otherwise), so the shelf and the plinth hand over the same thing.
+        throwPickup.current = throwPickupCount(item);
         setPlaytestThrowId(item.id);
-        flash("🛒 Carrying " + item.name + " ×3" + paid);
+        flash("🛒 Carrying " + item.name + " ×" + throwPickupCount(item) + paid);
       } else {
         setPlaytestWeaponId(item.id);
         flash("🛒 Wielding " + item.name + " · " + (isRanged(item.wtype) ? "ranged" : "melee") + " · " + (item.damage ?? 5) + " dmg" + paid);
@@ -15151,6 +15307,19 @@ export default function AssetStudio({ game = false } = {}) {
     // which makes unitMaxHP collapse back to plain enemyMaxHP for every unit in the level.
     const allyHpBonus = allyMaxHPBonus(playerAsset?.effects);
     const playerShotsPierce = shotPierces(playtestWeapon, playerAsset?.effects); // the gun's own 🪡 Pierce OR a worn Piercing Shot
+    // 🪃 What a boomerang gun's round carries on top of an ordinary round, for you and every unit: the
+    // weapon's Rest drawing as it is held on this body (prepFlyingArt, the thrown grenade's sizing, so it
+    // flies as big as it looked in the hand), the flight state boomerangStep runs on, and its pierce. It
+    // turns off the round's own Projectile art and its 🧲 homing: a boomerang has its own, lighter one.
+    const boomerangRound = (w, bodyId, owner, face, speed, vx, vy) => {
+      const fit = weaponFitFor(w, bodyId);
+      const fly = prepFlyingArt(bake({ ...w, angles: fit.states.rest || blankAngles() }, "side"), CW, 1);
+      return {
+        boomerang: true, owner, out: true, sp: speed, aim0: Math.atan2(vy, vx), spinDir: face || 1, rot: 0,
+        fly: fly.pieces.length ? fly : null, pieces: null, hitbox: null, alpha: assetAlpha(w), pierce: true, homing: false,
+        boxPx: Math.max(CW * 0.6, Math.max(fly.wPx, fly.hPx) * 0.8), // it sweeps a circle as it spins
+      };
+    };
     // Ranged weapon ammo: a fresh full clip each Playtest session (this effect re-runs whenever
     // Playtest starts/stops or the equipped weapon changes). Melee weapons get an "unlimited"
     // record (clip 0), so nothing below ever gates a swing on ammo.
@@ -15165,7 +15334,8 @@ export default function AssetStudio({ game = false } = {}) {
     // Same trap as the grenade count below: a grenade's fire paint or a pedestal pickup re-runs this
     // effect, and a fresh clip each time made every such moment a free reload. Re-based only for a
     // new session, a different weapon or a different clip size.
-    const clipSize = wpnIsRanged ? effectiveMagazineSize(playtestWeapon.clipSize, playerAsset?.effects) : 0;
+    const clipSize = wpnIsRanged ? weaponClipSize(playtestWeapon, playerAsset?.effects) : 0; // 🪃 a boomerang gun holds one throw
+    const wpnBoomerang = wpnIsRanged && isBoomerang(playtestWeapon); // no reload: it is loaded again when it is back in your hand (boomerangAmmo)
     const clipKey = playRunId.current + "|" + (playtestWeapon ? playtestWeapon.id : "") + "|" + clipSize;
     if (!fromSeam && clipKey !== wpnClipKey.current) wpn.current = newWeaponAmmo(clipSize);
     wpnClipKey.current = clipKey;
@@ -15187,7 +15357,22 @@ export default function AssetStudio({ game = false } = {}) {
       throwStockKey.current = stockKey;
     } else { throwCarry.current = 0; throwStockKey.current = null; }
     throwPickup.current = null;
-    if (!fromSeam) { thrown.current = []; throwCd.current = 0; booms.current = []; }
+    // 🪃 What is in the air stays in the air while this is still the same place in the same session.
+    // A throw's own landing paint re-runs this effect (setLevel), and the clear below used to drop every
+    // other throw in flight with it, so a hand of boomerang cards vanished the moment one of them landed
+    // on someone. A door or a new session still clears them, and any boomerang among them is handed back
+    // to whoever threw it first (enemyPos is still the level being left here), so a door never eats one.
+    const thrownPlace = playRunId.current + "|" + (lv.runKey || lv.id);
+    if (!fromSeam && thrownPlaceKey.current !== thrownPlace) {
+      for (const g of thrown.current) {
+        if (!g.boomerang) continue;
+        if (g.owner === "player") { if (carriedThrow && g.asset && g.asset.id === carriedThrow.id) throwCarry.current += 1; }
+        else { const bep = enemyPos.current[g.owner]; if (bep && bep.throwLeft != null) bep.throwLeft += 1; }
+      }
+      thrown.current = [];
+    }
+    thrownPlaceKey.current = thrownPlace;
+    if (!fromSeam) { throwCd.current = 0; booms.current = []; }
     // PERSISTENT per-level state (this play session). Point the live refs at THIS level's bucket, so
     // everything you did here — pedestals taken, enemies defeated, fires burned down — is still here
     // when you leave through a door and come back. Each level/room gets its own bucket by id; only a
@@ -15694,6 +15879,10 @@ export default function AssetStudio({ game = false } = {}) {
       const ph = crouch ? CH * PLAYER_CROUCH_H_CELLS : CH * PLAYER_H_CELLS;
       if (ph !== oldPh) p.y += (oldPh - ph); // keep the feet planted — only the head should move when crouch toggles
       p.crouch = crouch;
+      // 🪃 Who has a boomerang in the air right now ("player", unit keys). Asked here, once, of last
+      // frame's flying rounds: a thrower with none out is holding it again (boomerangAmmo), you below
+      // and every unit in the unit loop.
+      const boomOut = boomerangOwners(projectiles.current);
       // AIM ASSIST TARGETS — see aimAssistAngle. Every body a shot from one side could register
       // on, boxed EXACTLY the way the in-flight hit tests box it; a lock-on solved against any
       // other box is a lock-on that misses. One builder for both trigger fingers so the two can
@@ -15723,6 +15912,17 @@ export default function AssetStudio({ game = false } = {}) {
           out.push({ key: k, x: ep.x + (eShape.centerFrac * eRenderW - epw / 2), y: ep.y + unitHitTop(ea, eShape, eph), w: epw, h: eShape.heightFrac * eph });
         }
         return out;
+      };
+      // 🪃 Where a boomerang goes home to (boomerangStep): the middle of whoever threw it, as they stand
+      // now. null = that unit is not here any more, and its boomerang just ends; nothing is lost by it,
+      // a thrower with none in the air is holding it again (boomerangAmmo).
+      const boomerangHomeOf = (owner) => {
+        if (owner === "player") return { x: p.x + pw / 2, y: p.y + ph / 2 };
+        const ep = owner != null ? enemyPos.current[owner] : null;
+        const ea = ep && lv.enemies && lv.enemies[owner] ? unitAssetAt(owner, lv.enemies[owner]) : null;
+        if (!ep || !ea) return null;
+        const b = unitBodyBox(ea, ep, CW);
+        return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
       };
       // ⚔️ MELEE CLASH (see meleeClash). Up here at loop level because BOTH halves call it: a unit's
       // blow reaching you in the unit loop, and your whip reaching a unit in your own hit test
@@ -15964,7 +16164,8 @@ export default function AssetStudio({ game = false } = {}) {
       // alike. Neither manual path is removed: R still reloads a PARTLY spent clip early, which
       // auto-reload never does, and the fire-on-empty branch below still stands (it just becomes a
       // no-op, since startReload leaves a reload already in progress alone).
-      wpn.current = advanceAutoReloadWeapon(wpn.current, dtMul, reloadFrames);
+      // 🪃 A boomerang gun never reloads: it is loaded the frame it is back (or gone), see boomerangAmmo.
+      wpn.current = wpnBoomerang ? boomerangAmmo(advanceWeapon(wpn.current, dtMul), boomOut.has("player")) : advanceAutoReloadWeapon(wpn.current, dtMul, reloadFrames);
       // Throwing (G) — hold-to-aim, release-to-throw. Holding G "grabs" the throwable
       // (p.throwAiming drives the dotted trajectory preview in the render section, simulated
       // with throwTrajectoryPoints from the exact same launch numbers used below); letting go
@@ -15988,10 +16189,14 @@ export default function AssetStudio({ game = false } = {}) {
         // rendering ~1px (art-bbox-sized containers shrank canvas-percentage-positioned pieces
         // a second time).
         const fly = prepFlyingArt(artPieces, CW, 1);
+        // 🪃 A boomerang throwable leaves along the aim the way a gun's shot does (straight ahead with no
+        // arrow held), out to the throw's own reach, and comes home (boomerangStep in the thrown loop).
+        const boomT = isBoomerang(carriedThrow) ? boomerangLaunch(p.face, aimAngleDeg(p.throwAim, aimSteepDown(p)), BOOMERANG_THROW_SPEED_CELLS * CW) : null;
         thrown.current.push({
-          x: p.x + pw / 2, y: p.y + ph * 0.4, vx, vy, rot: 0,
+          x: p.x + pw / 2, y: p.y + ph * 0.4, vx: boomT ? boomT.vx : vx, vy: boomT ? boomT.vy : vy, rot: 0,
           spin: (p.face || 1) * 8, asset: carriedThrow, pieces: fly.pieces.length ? fly.pieces : null,
           cwPx: fly.canvasWPx, chPx: fly.canvasHPx, wPx: fly.wPx, hPx: fly.hPx,
+          ...(boomT ? { boomerang: true, owner: "player", out: true, sp: BOOMERANG_THROW_SPEED_CELLS * CW, aim0: boomT.aim0, spinDir: p.face || 1, rangePx: rangeBlocks * CW, traveled: 0 } : {}),
         });
         sndMoment(carriedThrow, "throw", null, p.x + pw / 2, p.y + ph * 0.4); // 🔊 the throwable's Throw
         throwCarry.current -= 1;
@@ -16011,7 +16216,7 @@ export default function AssetStudio({ game = false } = {}) {
       // dealing damage and stops rendering — it's "gone out" — without ever touching the saved
       // level, so leaving Playtest brings every fire back exactly as painted.
       for (const key in hazLife.current) { if (hazLife.current[key] > 0) hazLife.current[key] = Math.max(0, hazLife.current[key] - dtMul / 60); }
-      if (K.reload) wpn.current = startReload(wpn.current, reloadFrames);
+      if (K.reload && !wpnBoomerang) wpn.current = startReload(wpn.current, reloadFrames);
       p.reloading = wpn.current.reloadT > 0;
       // A ladder must be OPTED INTO with ↑/↓ (then stays grabbed while you're on it) — mere
       // overlap used to auto-grab, so simply walking past a ladder planted on the ground froze
@@ -16619,9 +16824,9 @@ export default function AssetStudio({ game = false } = {}) {
           // Magazine Size clothing on a dressed enemy). Keep the ammo record on this spawn's live
           // state so leaving/re-entering a room preserves an in-progress reload just like its HP.
           if (rangedEnemy) {
-            const enemyClip = effectiveMagazineSize(ew.clipSize, ea.effects);
+            const enemyClip = weaponClipSize(ew, ea.effects); // 🪃 one throw for a boomerang gun, as yours
             if (!ep.weaponAmmo || ep.weaponAmmo.clip !== enemyClip) ep.weaponAmmo = newWeaponAmmo(enemyClip);
-            ep.weaponAmmo = advanceAutoReloadWeapon(ep.weaponAmmo, dtMul, weaponReloadFrames(ew.reloadTime, eIntel));
+            ep.weaponAmmo = isBoomerang(ew) ? boomerangAmmo(advanceWeapon(ep.weaponAmmo, dtMul), boomOut.has(k)) : advanceAutoReloadWeapon(ep.weaponAmmo, dtMul, weaponReloadFrames(ew.reloadTime, eIntel));
             ep.reloading = ep.weaponAmmo.reloadT > 0;
             if (ep.reloading) { ep.aimHold = 0; ep.swingT = 0; }
           } else {
@@ -17594,7 +17799,12 @@ export default function AssetStudio({ game = false } = {}) {
             if (!stunned && acts && attacking && detected && sameLevel && ep.throwLeft > 0 && (ep.throwCd || 0) <= 0
                 && !unitTalkImmune(ep) && enemyWantsToThrow(gapNow, throwMaxPx, CW)) {
               const throwFace = Math.sign(tgtAimCX - eCenterXFinal) || ep.face;
-              const { vx, vy } = enemyThrowVelocity(gapNow, throwMaxPx, 0.175, throwFace);
+              const lobV = enemyThrowVelocity(gapNow, throwMaxPx, 0.175, throwFace);
+              // 🪃 A boomerang throwable goes straight at its target instead of lobbing, out to its reach and
+              // home to this unit, which gets it back to throw again (boomerangCaught) — yours, on it.
+              const eThrowY = ep.y + newEph * 0.4;
+              const eBoomT = isBoomerang(eThrowable) ? boomerangLaunch(throwFace, Math.atan2(tgtAimCY - eThrowY, Math.abs(tgtAimCX - eCenterXFinal)) * 180 / Math.PI, BOOMERANG_THROW_SPEED_CELLS * CW) : null;
+              const { vx, vy } = eBoomT || lobV;
               const thrArt = bake({ ...eThrowable, angles: (eThrowable.states?.rest || eThrowable.angles || blankAngles()) }, "side");
               // Same prepFlyingArt the player's throw uses — an art-bbox-sized container shrinks
               // canvas-percentage pieces a second time and the grenade renders about one pixel wide.
@@ -17609,6 +17819,7 @@ export default function AssetStudio({ game = false } = {}) {
                 foe: hostile,
                 throwerFx: ea.effects || [], // for a 🍀 Lucky Find the thrower wears (the loot pass)
                 throwerKey: k, // who threw it, for a 🪞 Reflect worn by whoever it hits
+                ...(eBoomT ? { boomerang: true, owner: k, out: true, sp: BOOMERANG_THROW_SPEED_CELLS * CW, aim0: eBoomT.aim0, spinDir: throwFace, rangePx: throwMaxPx, traveled: 0 } : {}),
               });
               sndMoment(eThrowable, "throw", null, eCenterXFinal, ep.y + newEph * 0.4); // 🔊 its throwable's Throw
               ep.throwLeft -= 1;
@@ -17683,6 +17894,7 @@ export default function AssetStudio({ game = false } = {}) {
               ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: shotPierces(ew, ea.effects), homing: shotHomes(ew, ea.effects), ignite: ew.ignite ?? 0, igniteDps: ew.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(ew),
               explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeChar: ew.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
               shooterKey: k, // who fired it, so an exploding round can catch its OWN shooter in the blast (detonate)
+              ...(isBoomerang(ew) ? boomerangRound(ew, ea.type === "enemy" ? ea.id : equippedBodyIdFor(ea), k, dir, spd, vx, vy) : {}), // 🪃 yours, on it: home to this unit
             }, CW);
             sndMoment(ew, "fire", null, eShotAt.x, eShotAt.y); // 🔊 its gun's Fire, as yours
             ep.weaponAmmo = consumeShot(ep.weaponAmmo, weaponFireCooldownFrames(ew.fireRate));
@@ -17845,7 +18057,7 @@ export default function AssetStudio({ game = false } = {}) {
       const burstDue = wpnIsRanged && burstShotDue(p.burstLeft, p.burstT, wpn.current);
       if ((p.burstLeft || 0) > 0 && !burstDue && wpn.current && (wpn.current.reloadT > 0 || (wpn.current.clip > 0 && wpn.current.ammo <= 0))) p.burstLeft = 0; // ran dry or started reloading — abandon the rest
       if (wantFire && wpnIsRanged && !canFireNow(wpn.current) && !burstDue) {
-        if (needsReload(wpn.current)) { wpn.current = startReload(wpn.current, reloadFrames); p.burstLeft = 0; }
+        if (needsReload(wpn.current) && !wpnBoomerang) { wpn.current = startReload(wpn.current, reloadFrames); p.burstLeft = 0; } // 🪃 an empty boomerang gun is one still in the air: nothing to reload
       } else if (wantFire || burstDue) {
         if (playtestWeapon && isRanged(playtestWeapon.wtype)) {
           const aimDir = p.aimDir; // live-tracked above, not re-snapshotted here
@@ -17912,7 +18124,10 @@ export default function AssetStudio({ game = false } = {}) {
           // left swung the rifle 85° down at one of them (point-blank) while a shot fired right,
           // with nobody there, left level. Blake (2026-10-24): "jankyness when aiming left or right on
           // some climbing surfaces. Like your arms go the other way."
-          const assist = assistTargets.length ? aimAssistAngle({ sx: spawn.x, sy: spawn.y, groundY: p.y + ph, rangePx: rangePxNow, face: p.face, aimDeg: aimDegHeld, targets: assistTargets, clear: shotPathProbe, floorLock: playerFloorLocks(p), bodyX: p.x + pw / 2, cellPx: CW, muzzleAt: muzzleSpawn }) : null;
+          // 🪃 Not for a boomerang: the lock-on is solved for a round that falls, and a boomerang flies
+          // dead straight, so it went down at the first body's middle and on into the floor. Its own
+          // light homing (boomerangPick) does its steering.
+          const assist = assistTargets.length && !wpnBoomerang ? aimAssistAngle({ sx: spawn.x, sy: spawn.y, groundY: p.y + ph, rangePx: rangePxNow, face: p.face, aimDeg: aimDegHeld, targets: assistTargets, clear: shotPathProbe, floorLock: playerFloorLocks(p), bodyX: p.x + pw / 2, cellPx: CW, muzzleAt: muzzleSpawn }) : null;
           if (assist) {
             aimTilt = assist.deg - aimDegHeld;
             shotDeg = assist.deg;
@@ -17956,6 +18171,9 @@ export default function AssetStudio({ game = false } = {}) {
             ignite: playtestWeapon.resurrect ? 0 : (playtestWeapon.ignite ?? 0), igniteDps: playtestWeapon.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(playtestWeapon), // ❄️ its ice rides the round too
             ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor, pierce: playerShotsPierce, homing: shotHomes(playtestWeapon, playerAsset?.effects), snd: playtestWeapon, // snd: whose 🔊 Hit plays where it lands
             explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeChar: playtestWeapon.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
+            // 🪃 A boomerang gun throws ITSELF: the weapon's own art spinning on boomerangStep's flight
+            // (no Projectile asset, no arc), through everyone both ways, home to you.
+            ...(wpnBoomerang ? boomerangRound(playtestWeapon, equippedBodyIdFor(playerAsset), "player", p.face, spd, vx, vy) : {}),
           }, CW);
           sndMoment(playtestWeapon, "fire", null, spawnX, spawnY); // 🔊 the gun's Fire
           wpn.current = consumeShot(wpn.current, fireCdFrames); // spends a round (unless clip 0 = unlimited) and starts the fire-rate cooldown
@@ -18395,9 +18613,23 @@ export default function AssetStudio({ game = false } = {}) {
         // The VISIBLE body of an enemy, same rule the explosion and the stun use — not the wider
         // render box, or a big enemy would be hit by a rock sailing past its shoulder.
         const enemyThrowBox = (ea2, ep2) => unitBodyBox(ea2, ep2, CW);
+        // 🪃 Who a boomerang throwable's light homing can bend toward: the shot lists (one per side, a
+        // frame), so a thrown one and a fired one agree on who is fair game.
+        const boomThrowLists = {};
+        const boomThrowTargetsOf = (g) => boomThrowLists[g.foe ? "f" : "p"] || (boomThrowLists[g.foe ? "f" : "p"] = shotTargetsFor(!!g.foe, false, null));
         for (const g of thrown.current) {
-          g.vy = Math.min(40, g.vy + 0.175 * dtMul);
-          g.x += g.vx * dtMul; g.y += g.vy * dtMul; g.rot += (g.spin || 6) * dtMul;
+          if (g.boomerang) {
+            // 🪃 Out and home instead of an arc (boomerangStep, the boomerang gun's own flight). Caught,
+            // it is back in the stock of whoever threw it, so one that hits nothing is never spent.
+            if (boomerangStep(g, dtMul, CW, boomerangPick(g, boomThrowTargetsOf(g), g.rangePx), boomerangHomeOf(g.owner), false) === "caught") {
+              if (g.owner === "player") { if (carriedThrow && g.asset && g.asset.id === carriedThrow.id) throwCarry.current += 1; }
+              else { const bep = enemyPos.current[g.owner]; if (bep && bep.throwLeft != null) bep.throwLeft += 1; }
+              continue;
+            }
+          } else {
+            g.vy = Math.min(40, g.vy + 0.175 * dtMul);
+            g.x += g.vx * dtMul; g.y += g.vy * dtMul; g.rot += (g.spin || 6) * dtMul;
+          }
           // Off the WORLD, not off this level — a grenade lobbed through a gate flies on over the next
           // level, lands on its ground and goes off among the units standing there (see THE WORLD).
           // gPart is the level it is over; with no seams it is this one and this is the old test.
@@ -18405,6 +18637,9 @@ export default function AssetStudio({ game = false } = {}) {
           const gFloor = unitFloorY(gPart, g.x, g.y, lv, seams, CW);
           const offLevel = g.x < gPart.ox || g.x > gPart.ox + gPart.lv.cols * CW || g.y > gFloor;
           const hitSolid = !offLevel && cellsHitW(g.x - 4, g.y - 4, 8, 8).length > 0;
+          // 🪃 Ground, a wall or the edge of the level turns a boomerang for home on its way out; it is
+          // never where one lands. Only a body stops it (below).
+          if (g.boomerang && g.out && (offLevel || hitSolid || g.y >= gFloor - 1)) boomerangTurnHome(g);
           // IMPACT. Tested every frame, so it catches both the rock that hits someone in mid-air
           // and the one that lands at their feet — a thrown object used to pass clean THROUGH an
           // enemy, because the only thing it collided with was solid terrain. Striking someone
@@ -18486,7 +18721,7 @@ export default function AssetStudio({ game = false } = {}) {
               if (blastHitsBox(g.x, g.y, cbx.x, cbx.y, cbx.w, cbx.h, contactRadPx)) { onCatchableBody = true; break; }
             }
           }
-          const landed = offLevel || hitSolid || struck.length > 0 || onCatchableBody || g.y >= gFloor - 1;
+          const landed = g.boomerang ? (struck.length > 0 || onCatchableBody) : (offLevel || hitSolid || struck.length > 0 || onCatchableBody || g.y >= gFloor - 1);
           if (!landed) { stillFlying.push(g); continue; }
           if (!offLevel) sndMoment(g.asset, "land", null, g.x, g.y); // 🔊 the throwable's Land, where it came down (a cluster's bomblets each land)
           // Folded into the single landing message below rather than flashed here: the landing
@@ -18684,16 +18919,23 @@ export default function AssetStudio({ game = false } = {}) {
           pr.rangePx = Math.max(CW, pr.rangePx || DEFAULT_PROJECTILE_RANGE * CW);
           if (pr.startX === undefined) { pr.startX = pr.x; pr.startY = pr.y; pr.groundY = pr.y; }
           const traveledBefore = pr.traveled || 0;
-          pr.traveled = traveledBefore + Math.hypot(pr.vx || 0, pr.vy || 0) * projectileFallSpeedMul(pr, pr.traveled) * dtMul;
-          if (pr.homing) homingFlightStep(pr, traveledBefore, pr.traveled, homingPick(pr, homingTargetsOf(pr), pr.rangePx), HOMING_TURN_DEG * dtMul); // 🧲 moves itself and sets pr.rot
-          else {
-            const rangedPos = projectilePositionAtDistance(pr, pr.traveled);
-            pr.x = rangedPos.x; pr.y = rangedPos.y;
-            // Point the art along the arc it's actually on. Recomputed from the distance every frame
-            // rather than integrated frame-to-frame, so it stays exact at any speed and a shot can
-            // never drift out of sync with its own path. The hitbox offset below reads pr.rot too, so
-            // a tipped bullet's box tips with it.
-            pr.rot = projectileAngleAtDistance(pr, pr.traveled);
+          if (pr.boomerang) {
+            // 🪃 Its own flight (boomerangStep): out with a light pull toward someone ahead, home to its
+            // thrower. A wall or the edge of the world turns it early; it never ends a boomerang.
+            if (boomerangStep(pr, dtMul, CW, boomerangPick(pr, homingTargetsOf(pr), pr.rangePx), boomerangHomeOf(pr.owner), false) === "caught") return false;
+            if (pr.out && (!inWorld(pr.x, pr.y) || cellsHitW(pr.x, pr.y, 2, 2).length)) boomerangTurnHome(pr);
+          } else {
+            pr.traveled = traveledBefore + Math.hypot(pr.vx || 0, pr.vy || 0) * projectileFallSpeedMul(pr, pr.traveled) * dtMul;
+            if (pr.homing) homingFlightStep(pr, traveledBefore, pr.traveled, homingPick(pr, homingTargetsOf(pr), pr.rangePx), HOMING_TURN_DEG * dtMul); // 🧲 moves itself and sets pr.rot
+            else {
+              const rangedPos = projectilePositionAtDistance(pr, pr.traveled);
+              pr.x = rangedPos.x; pr.y = rangedPos.y;
+              // Point the art along the arc it's actually on. Recomputed from the distance every frame
+              // rather than integrated frame-to-frame, so it stays exact at any speed and a shot can
+              // never drift out of sync with its own path. The hitbox offset below reads pr.rot too, so
+              // a tipped bullet's box tips with it.
+              pr.rot = projectileAngleAtDistance(pr, pr.traveled);
+            }
           }
           // Past its configured range the shot is still airborne, just falling — "spent" now only
           // means it has passed the range mark, used to decide whether an out-of-bounds exit should
@@ -18705,10 +18947,11 @@ export default function AssetStudio({ game = false } = {}) {
           // edge ("you should be able to shoot from one level to the next if an enemy is close"). The
           // dog is simulated here now (see THE WORLD), so a shot that reaches it hits it; one that
           // leaves every level is gone as before. With no seams this is the old one-level test.
-          if (!inWorld(pr.x, pr.y)) { if (rangeReached && pr.explode) detonate(pr, pr.x, pr.y); return false; }
+          if (!pr.boomerang && !inWorld(pr.x, pr.y)) { if (rangeReached && pr.explode) detonate(pr, pr.x, pr.y); return false; } // 🪃 one out there is on its way home
           const sz = LV_CELL * (pr.size || 1);
           let boxW = sz, boxH = sz, boxCx = pr.x, boxCy = pr.y;
-          if (pr.hitbox) {
+          if (pr.boomerang) { boxW = boxH = pr.boxPx || sz; } // 🪃 the circle it sweeps spinning, centred on it
+          else if (pr.hitbox) {
             const hb = pr.hitbox;
             boxW = hb.w / W * sz; boxH = hb.h / H * sz;
             const rad = (pr.rot || 0) * Math.PI / 180;
@@ -18851,7 +19094,8 @@ export default function AssetStudio({ game = false } = {}) {
           }
           // Ground (or any solid) is what ends a shot now — not the range mark. A shot fired from
           // high up keeps travelling until it actually lands, which is the whole point.
-          if (cellsHitW(pr.x, pr.y, 2, 2).length) { if (pr.explode) detonate(pr, pr.x, pr.y); return false; } // any level's ground or walls, whichever it is flying through
+          // 🪃 ...except a boomerang's: a wall turned it for home in its flight above, and home is over everything.
+          if (!pr.boomerang && cellsHitW(pr.x, pr.y, 2, 2).length) { if (pr.explode) detonate(pr, pr.x, pr.y); return false; } // any level's ground or walls, whichever it is flying through
           return true;
         });
       }
@@ -19103,11 +19347,11 @@ export default function AssetStudio({ game = false } = {}) {
             if (isThrowable(item.wtype)) {
               // Throwables live in their OWN slot (thrown with G), separate from the held gun/melee,
               // so taking one never displaces your weapon — you can carry both. Swap with whatever
-              // throwable you were already carrying, and a fresh pickup arrives with 3 (throwPickup).
+              // throwable you were already carrying, and a fresh pickup arrives with its box (throwPickupCount).
               const prevId = playtestThrowId, prev = prevId ? findA(prevId) : null;
               putBack(prev);
-              throwPickup.current = 3;
-              showPickup(item.name + " ×3", pickupChangeRows(item, { held: prev, dpsOf: playerDpsOf }), itemRank(item), item);
+              throwPickup.current = throwPickupCount(item);
+              showPickup(item.name + " ×" + throwPickupCount(item), pickupChangeRows(item, { held: prev, dpsOf: playerDpsOf }), itemRank(item), item);
               setPlaytestThrowId(item.id);
             } else {
               const prevId = playtestWeaponId, prev = prevId ? findA(prevId) : null;
@@ -21454,7 +21698,7 @@ export default function AssetStudio({ game = false } = {}) {
   };
   const download = () => { try { const b = new Blob([data()], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (asset.name || "asset") + ".json"; a.click(); flash("Downloaded ✓"); } catch { flash("Download blocked — copy the text."); } };
   const copy = () => { try { navigator.clipboard?.writeText(text); flash("Copied ✓"); } catch { flash("Select the text and copy it."); } };
-  const migrate = (a) => { if (a && a.type === "anim") return migrateAnim(a, uid); try { a.type = legacyBodyType(a); const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
+  const migrate = (a) => { if (a && a.type === "anim") return migrateAnim(a, uid); try { a.type = legacyBodyType(a); const m = a.mirror !== false; for (const ang of ANGLES) (a.angles[ang] || []).forEach((p) => { if (p.mirror === undefined) p.mirror = m; }); if (a.type === "weapon") { if (!a.states) a.states = { rest: a.angles || blankAngles(), fire: blankAngles() }; a.angles = a.states.rest || a.angles; if (!a.wtype) a.wtype = "melee"; else if (a.wtype === "projectile") a.wtype = "ranged"; if (a.projectileId === undefined) a.projectileId = null; if (a.projectileSpeed === undefined) a.projectileSpeed = a.projectile?.speed ?? 12; if (a.projectileRange === undefined) a.projectileRange = DEFAULT_PROJECTILE_RANGE; if (a.damage === undefined) a.damage = 5; if (a.fireRate === undefined) a.fireRate = DEFAULT_FIRE_RATE; if (a.clipSize === undefined) a.clipSize = DEFAULT_CLIP_SIZE; if (a.reloadTime === undefined) a.reloadTime = DEFAULT_RELOAD_TIME; if (a.weight === undefined) a.weight = DEFAULT_THROW_WEIGHT; if (a.landEffect === undefined) a.landEffect = "fire"; if (a.landEffectDps === undefined) a.landEffectDps = 6; if (a.landEffectLife === undefined) a.landEffectLife = 6; if (a.landRadius === undefined) a.landRadius = DEFAULT_LAND_RADIUS; if (a.landPropId === undefined) a.landPropId = null; if (a.explode === undefined) a.explode = false; if (a.ignoreArmor === undefined) a.ignoreArmor = false; if (a.burst === undefined) a.burst = DEFAULT_BURST; if (a.burstDelay === undefined) a.burstDelay = DEFAULT_BURST_DELAY; { const modes = migratedWeaponFireModes(a); a.burstFire = modes.burstFire; a.fullAuto = modes.fullAuto; } if (a.explodeRadius === undefined) a.explodeRadius = 2; if (a.explodePropId === undefined) a.explodePropId = null; if (a.explodeSize === undefined) a.explodeSize = 3; if (a.explodeLife === undefined) a.explodeLife = 0.5; if (a.stun === undefined) a.stun = 0; if (a.captureMax === undefined) a.captureMax = 0; if (a.boomerang === undefined) a.boomerang = false; if (a.pickupCount === undefined) a.pickupCount = DEFAULT_THROW_PICKUP; if (a.explodeChar === undefined) a.explodeChar = DEFAULT_BOOM_CHAR; if (a.landChar === undefined) a.landChar = DEFAULT_LAND_CHAR; } if (a.type === "enemy" && a.attackDamage !== undefined) delete a.attackDamage; // a creature's melee is 2x Strength now; the separate number was clutter if (a.type === "projectile" && a.size === undefined) a.size = 1;
     if (HAS_CATEGORIES(a) && !Array.isArray(a.categories)) a.categories = ["", "", ""];
     // Every item Blake has already saved predates prices, so it opens worth 0 (free) rather than
     // undefined — a shop reading NaN would price the whole shelf as "💵 NaN". His to set.
@@ -27048,7 +27292,10 @@ export default function AssetStudio({ game = false } = {}) {
                   // throwable-in-hand block just below draws in its place). Outside a throw it's
                   // the normal equipped-weapon render, unchanged.
                   const throwingNow = playtestThrowId && (p.throwAiming || p.throwFiring > 0) && !p.climbing && (() => { const ct = findA(playtestThrowId); return ct && isThrowable(ct.wtype); })();
-                  if (blocks && playtestWeapon && !throwingNow && !playerAtkPose) {
+                  // 🪃 ...and a boomerang gun that is out of your hand (its one throw spent: in the air) is
+                  // not drawn in it. It comes back into the hand the frame it is caught (boomerangAmmo).
+                  const boomerangAway = isBoomerang(playtestWeapon) && isRanged(playtestWeapon.wtype) && !!wpn.current && wpn.current.clip > 0 && wpn.current.ammo <= 0;
+                  if (blocks && playtestWeapon && !throwingNow && !playerAtkPose && !boomerangAway) {
                     const curArm = armOf(blocks);
                     if (curArm) {
                       const wfit = weaponFitFor(playtestWeapon, equippedBodyIdFor(playerAsset));
@@ -27624,7 +27871,9 @@ export default function AssetStudio({ game = false } = {}) {
                     const hsPose = headStompPose(ep.hsFallT);
                     eBlocks = driveUnitArms(eBlocks, eArm0, (a) => flyArmTarget(a, hsPose, eFacesRight));
                   }
-                  if (ew && !eUseAtkPose && !eThrowingNow) {
+                  // 🪃 A unit's boomerang gun in the air is out of its hand too, as yours is (weaponAmmo is in unitArtSig).
+                  const eBoomerangAway = isBoomerang(ew) && eRanged && !!(ep && ep.weaponAmmo) && ep.weaponAmmo.clip > 0 && ep.weaponAmmo.ammo <= 0;
+                  if (ew && !eUseAtkPose && !eThrowingNow && !eBoomerangAway) {
                     const curArm = eHeldArmNow();
                     if (curArm) {
                       const ebid = ea.type === "enemy" ? ea.id : equippedBodyIdFor(ea);
@@ -27937,6 +28186,16 @@ export default function AssetStudio({ game = false } = {}) {
                   // creator-matched sizing; projectiles deliberately do NOT — the Scale slider is
                   // already the artist's size control for them.)
                   const sz = LV_CELL * (pr.size || 1);
+                  // 🪃 A boomerang gun's round is the gun itself, drawn the way a thrown grenade is just
+                  // below (prepFlyingArt's full canvas at world scale, spun about the art's own centre).
+                  if (pr.fly) {
+                    const fw = pr.fly.canvasWPx, fh = pr.fly.canvasHPx;
+                    return (
+                      <div key={"proj" + i} className="lobj" style={{ left: pr.x - fw / 2, top: pr.y - fh / 2, width: fw, height: fh, transform: `rotate(${pr.rot || 0}deg)` }}>
+                        {renderPieceRuns({ pieces: pr.fly.pieces, cacheKey: "projb_" + i, keyPrefix: "projb" + i + "_", alpha: pr.alpha ?? 1, drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}
+                      </div>
+                    );
+                  }
                   if (pr.pieces) {
                     return (
                       <div key={"proj" + i} className="lobj" style={{ left: pr.x - sz / 2, top: pr.y - sz / 2, width: sz, height: sz, transform: pr.rot ? `rotate(${pr.rot}deg)` : "none" }}>
@@ -28017,7 +28276,9 @@ export default function AssetStudio({ game = false } = {}) {
                     const cell = lv.fg[cellKey(r, c)];
                     return fgSolid(cell);
                   };
-                  const pts = throwTrajectoryPoints(p.x + pw / 2, p.y + ph * 0.4, vx, vy, 0.175, isSolid);
+                  const pts = isBoomerang(ct) // 🪃 a boomerang throw goes straight out along the aim, no arc
+                    ? boomerangLinePoints(p.x + pw / 2, p.y + ph * 0.4, p.face, aimAngleDeg(p.throwAim, aimSteepDown(p)), rangeBlocks * LV_CELL, isSolid)
+                    : throwTrajectoryPoints(p.x + pw / 2, p.y + ph * 0.4, vx, vy, 0.175, isSolid);
                   return pts.map((pt, i) => (
                     <div key={"traj" + i} style={{ position: "absolute", left: pt.x - 3, top: pt.y - 3, width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,.85)", boxShadow: "0 0 4px rgba(0,0,0,.6)", zIndex: 9000, pointerEvents: "none", opacity: Math.max(0.35, 1 - i / pts.length) }} />
                   ));
@@ -28117,7 +28378,10 @@ export default function AssetStudio({ game = false } = {}) {
                 }
                 const runHead = runLook ? gameHead(runLook, 20, basePlayerAsset) : null; // one drawing, shown once per life
                 const throwsLeft = playtestThrowId ? Math.max(0, throwCarry.current) : 0;
-                const pips = (key, n) => n > 0 && <div className="hudPips">{Array.from({ length: Math.min(n, 12) }, (_, i) => <span key={i}>{sym(key, null, 16)}</span>)}</div>;
+                // Past 12 (a 🪃 box of 52 cards) it is one pip and the count, not a row off the screen.
+                const pips = (key, n) => n > 0 && (n > 12
+                  ? <div className="hudPips"><span>{sym(key, null, 16)}</span><b>{"×" + n}</b></div>
+                  : <div className="hudPips">{Array.from({ length: n }, (_, i) => <span key={i}>{sym(key, null, 16)}</span>)}</div>);
                 // Bottom-right: what you hold, drawn from its own art the way the shop shelf draws it
                 // (hudWeaponArt), and the ATK figure beside it. Bare hands show the ATK symbol.
                 const wBoxW = 88, wBoxH = 44;
@@ -28353,12 +28617,12 @@ export default function AssetStudio({ game = false } = {}) {
                 {allAssets.filter((a) => a.type === "weapon" && !isThrowable(a.wtype)).map((a) => <option key={a.id} value={a.id}>{a.name} ({isRanged(a.wtype) ? "🏹" : "🗡️"})</option>)}
               </select>
               <div className="ct" style={{ marginTop: 12 }}>Throwable (press G)</div>
-              <select className="big" value={playtestThrowId} onChange={(e) => setPlaytestThrowId(e.target.value)}>
+              <select className="big" value={playtestThrowId} onChange={(e) => { setPlaytestThrowId(e.target.value); const ti = e.target.value ? findA(e.target.value) : null; if (ti) setPlaytestThrowCount(throwPickupCount(ti)); }}>
                 <option value="">— none carried —</option>
                 {allAssets.filter((a) => a.type === "weapon" && isThrowable(a.wtype)).map((a) => <option key={a.id} value={a.id}>💣 {a.name}</option>)}
               </select>
               {playtestThrowId && (
-                <label className="slider">Start with<input type="range" min="1" max="20" step="1" value={playtestThrowCount} onChange={(e) => setPlaytestThrowCount(+e.target.value)} /><span className="hint2">{playtestThrowCount} to test</span></label>
+                <label className="slider">Start with<input type="range" min="1" max={Math.max(20, playtestThrowCount)} step="1" value={playtestThrowCount} onChange={(e) => setPlaytestThrowCount(+e.target.value)} /><span className="hint2">{playtestThrowCount} to test</span></label>
               )}
             </div>
 
@@ -28406,7 +28670,7 @@ export default function AssetStudio({ game = false } = {}) {
                   let plane = null;
                   if (bb) { const sc = Math.min(box / bb.w, box / bb.h) * 0.86; plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${box / 2 - sc * (bb.x + bb.w / 2)}px,${box / 2 - sc * (bb.y + bb.h / 2)}px) scale(${sc})`, ...groundRingVars(sc) }; }
                   const what = it.type === "item" ? itemEffectSummary(it.effect)
-                    : it.type === "weapon" ? ((isThrowable(it.wtype) ? "Throwable ×3" : isRanged(it.wtype) ? "Ranged" : "Melee") + " · " + (it.damage ?? 5) + " dmg")
+                    : it.type === "weapon" ? ((isThrowable(it.wtype) ? "Throwable ×" + throwPickupCount(it) : isRanged(it.wtype) ? "Ranged" : "Melee") + " · " + (it.damage ?? 5) + " dmg")
                     : ((SLOTS[it.slot] && SLOTS[it.slot].label) || "Worn") + (it.defense ? " · Defense " + it.defense : "");
                   // Only a price you PAY can be out of reach; one that pays you back never is.
                   const broke = q.net > 0 && wallet.current < q.net;
@@ -28727,6 +28991,8 @@ export default function AssetStudio({ game = false } = {}) {
               no splash, so impact is the only damage it has, and it did none. Both are on this card
               now, both say what they mean, and Impact edits the same asset.damage as the box above. */}
           <label className="slider">Impact<input type="range" min="0" max="50" step="1" value={asset.damage ?? 5} onChange={(e) => setAsset((a) => ({ ...a, damage: Math.max(0, +e.target.value || 0) }))} /><span className="hint2">{asset.damage ?? 5} HP</span></label>
+          {/* How many one pickup or purchase hands you (throwPickupCount): 3 grenades, a box of 52 cards. */}
+          <label className="slider">Comes in<input type="number" min="1" max={THROW_PICKUP_MAX} value={throwPickupCount(asset)} onChange={(e) => setAsset((a) => ({ ...a, pickupCount: Math.max(1, Math.min(THROW_PICKUP_MAX, Math.round(+e.target.value || 1))) }))} style={{ width: 60 }} /></label>
           <label className="slider">Splash<input type="range" min="0" max="3" step="1" value={asset.landRadius ?? DEFAULT_LAND_RADIUS} onChange={(e) => setAsset((a) => ({ ...a, landRadius: +e.target.value }))} /><span className="hint2">{(asset.landRadius ?? DEFAULT_LAND_RADIUS) === 0 ? "1 cell" : (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + "×" + (2 * (asset.landRadius ?? DEFAULT_LAND_RADIUS) + 1) + " cells"}</span></label>
           {/* LANDING LOOK — what this throwable leaves on the ground, whatever payload it carries.
               It lived inside the Burn ability, which meant a Pokeball (Capture) had no way to change
@@ -28756,27 +29022,32 @@ export default function AssetStudio({ game = false } = {}) {
       )}
       {asset.type === "weapon" && isRanged(asset.wtype) && (() => {
         const hasLegacy = !!asset.projectile || (asset.states && !anglesEmpty(asset.states.projectile));
+        // 🪃 A boomerang gun throws ITSELF: no Projectile, no magazine and no reload, so those are off
+        // the card while it is on (they are kept on the asset, and come back if it is switched off).
+        const boom = !!asset.boomerang;
         return (
           <div className="wstates projectilecard">
+            {!boom && (<>
             <span className="wslab">Projectile:</span>
             <select className="projSel" value={asset.projectileId || ""} onChange={(e) => setAsset((a) => ({ ...a, projectileId: e.target.value || null }))}>
               <option value="">— none picked —</option>
               {allAssets.filter((a) => a.type === "projectile").map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
+            </>)}
             <label className="slider">Speed<input type="range" min="4" max="30" value={asset.projectileSpeed ?? 12} onChange={(e) => setAsset((a) => ({ ...a, projectileSpeed: +e.target.value }))} /></label>
             <label className="slider">Range<input type="number" min="1" value={asset.projectileRange ?? DEFAULT_PROJECTILE_RANGE} onChange={(e) => setAsset((a) => ({ ...a, projectileRange: Math.max(1, +e.target.value || 1) }))} style={{ width: 60 }} /><span className="hint2">blocks</span></label>
             <label className="slider">Fire rate<input type="range" min="0.5" max="15" step="0.5" value={asset.fireRate ?? DEFAULT_FIRE_RATE} onChange={(e) => setAsset((a) => ({ ...a, fireRate: +e.target.value }))} /><span className="hint2">{asset.fireRate ?? DEFAULT_FIRE_RATE}/sec</span></label>
-            <label className="slider">Clip size<input type="number" min="0" value={asset.clipSize ?? DEFAULT_CLIP_SIZE} onChange={(e) => setAsset((a) => ({ ...a, clipSize: Math.max(0, +e.target.value || 0) }))} style={{ width: 60 }} /><span className="hint2">0 = unlimited</span></label>
-            <label className="slider">Reload<input type="range" min="0.2" max="5" step="0.1" value={asset.reloadTime ?? DEFAULT_RELOAD_TIME} onChange={(e) => setAsset((a) => ({ ...a, reloadTime: +e.target.value }))} /><span className="hint2">{asset.reloadTime ?? DEFAULT_RELOAD_TIME}s</span></label>
+            {!boom && <label className="slider">Clip size<input type="number" min="0" value={asset.clipSize ?? DEFAULT_CLIP_SIZE} onChange={(e) => setAsset((a) => ({ ...a, clipSize: Math.max(0, +e.target.value || 0) }))} style={{ width: 60 }} /><span className="hint2">0 = unlimited</span></label>}
+            {!boom && <label className="slider">Reload<input type="range" min="0.2" max="5" step="0.1" value={asset.reloadTime ?? DEFAULT_RELOAD_TIME} onChange={(e) => setAsset((a) => ({ ...a, reloadTime: +e.target.value }))} /><span className="hint2">{asset.reloadTime ?? DEFAULT_RELOAD_TIME}s</span></label>}
             {abilityCard()}
             <button className="ltbtn" onClick={addMuzzle}><b>🔴</b> Add muzzle</button>
             {!ANGLES.some((ang) => ((wState === "rest" ? asset.angles?.[ang] : asset.states?.rest?.[ang]) || []).some((p) => p.isMuzzle)) && (
               <p className="tip warn">⚠ No 🔴 muzzle on the Rest pose.</p>
             )}
-            {!asset.projectileId && (
+            {!boom && !asset.projectileId && (
               <p className="tip warn">⚠ No Projectile picked{hasLegacy ? " — using the old built-in one" : ""}.</p>
             )}
-            {!asset.projectileId && hasLegacy && <button className="ltbtn" onClick={convertLegacyProjectile}>📦 Convert old projectile</button>}
+            {!boom && !asset.projectileId && hasLegacy && <button className="ltbtn" onClick={convertLegacyProjectile}>📦 Convert old projectile</button>}
           </div>
         );
       })()}
@@ -30149,6 +30420,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .hudAmmo.reloading .hudSeg.on{background:#7d8fb3;border-color:#a9b8d6}
 .hudPips{display:flex;gap:3px;font-size:16px;line-height:1}
 .hudPips .sym{filter:drop-shadow(0 0 1px #000) drop-shadow(0 1px 1px rgba(0,0,0,.9))}
+.hudPips b{font-size:15px;font-weight:700;align-self:center}
 .hudHeads{gap:3px}
 .hudHead{position:relative;overflow:hidden;flex:none;width:20px;height:20px}
 .hudHead>div{filter:drop-shadow(0 0 1px #000) drop-shadow(0 1px 1px rgba(0,0,0,.9))}

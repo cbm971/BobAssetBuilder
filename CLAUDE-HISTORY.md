@@ -5319,3 +5319,40 @@ for a freshly made item and for one reopened from 📂 Load.
   all 30 white blocks (4 poses x 2 fits) faded, the 30 grey hair blocks of the same hex did not, back to 0 removed
   the key, and with 🪣 off it was one block. A fiber read from a DOM node showed the old value; the root's
   current tree had the new one.
+
+## 🪃 Boomerang + Box of Playing Cards (2026-10-25)
+
+- Blake: a boomerang ability for weapons AND grenades. "Instead of a projectile when you fire it throws and spins the
+  item like a boomerang", a light homing, "generally goes forward its range and then back, no back tracking". The
+  weapon one pierces both ways and has no reload: "one shot per and you are reloaded when your Boomerang returns". The
+  grenade one does not pierce, comes back if it hits nothing, and "you can throw multiple at once". Two items: a box of
+  playing cards (Grenade) with 52, and a boomerang.
+- `WEAPON_ABILITIES.boomerang` (types ranged + throw). On a gun it is the whole firing mode, so it takes off burst,
+  full auto, pierce, homing and resurrect (each of those takes it off again); on a throwable the payloads stay. One
+  flight for both: `boomerangLaunch` (the aim, at `BOOMERANG_THROW_SPEED_CELLS`), `boomerangStep` (out, easing off near
+  the range; `boomerangTurnHome` at the range, a wall or the floor; home at the hand, re-aimed every frame, caught
+  within `BOOMERANG_CATCH_CELLS`, and `BOOMERANG_RETURN_FRAMES` as a hard stop so it always ends). The homing is
+  `boomerangPick`: the nearest body ahead inside `BOOMERANG_HOME_CONE_DEG` of the aim, never one already hit, never on
+  the way home. With nobody in the cone it eases back to `aim0`: before that, a throw that bent toward a body kept the
+  bent heading once past it and flew off at an angle.
+- Gun: `boomerangRound` puts the weapon's own art on the shot, the shot pierces, and the hit list resets at the turn,
+  so the way back hits them again. `weaponClipSize` is 1 and `boomerangAmmo` loads it the frame none of yours is in
+  the air (`boomerangOwners`): no reload timer at all, the clip/reload inputs hide on the card. The held art hides
+  while it is out. `weaponDpsOver` counts a trip (`boomerangTripFrames`), two hits a throw.
+- Throwable: the `thrown` entry carries `boomerang: true, owner`. It lands only on a body (struck or catchable) and is
+  spent there; a wall or the floor turns it instead of landing it. Caught: `throwCarry` (the player) or `throwLeft`
+  (a unit) goes up by one. The 18-frame throw cooldown is what spaces a hand of cards; three in the air were seen.
+- Aim assist is skipped for a boomerang gun: `aimAssistAngle` solves for a falling round, and on this straight
+  throw it tilted the launch about 12° down at a body's centre. The trajectory preview is `boomerangLinePoints`.
+- Found on the way: the level effect that clears `thrown` on arrival re-ran when a throw's landing painted the level
+  (setLevel), so one card landing on a unit wiped every other card in the air. `thrownPlaceKey` (run id + level) now
+  keeps them unless the place changed; a door hands any boomerang in flight back to its thrower.
+- `throwPickupCount` (`pickupCount` on the throwable, `DEFAULT_THROW_PICKUP` 3, max `THROW_PICKUP_MAX`) replaced the
+  hardcoded 3 at the pedestal, the shop (and `shopUnowned`), the shop label and Playtest's "Start with". A "Comes in"
+  input on the throwable card. Past 12 the HUD pips are the icon + "×N".
+- Items: Boomerang `boomrg1` (ranged, 14 damage, Range 12, one wooden "<" poly with a dark edge, `limb: "arm"`,
+  centred on each body's hand) and Box of Playing Cards `cardbx1` (throw, 52, 6 damage, no payload; a white card with
+  a red diamond). Both fit BoB and Bobbett.
+- Verified in the running app: the gun pierced two units, turned, hit both again and came home (ammo 0 → 1); a card
+  that missed came home (50 → 51); a card on a unit did 6 and stayed spent; a unit with the gun hit the player both
+  ways and caught it; a unit's dodged card went back to it (2 → 3).

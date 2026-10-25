@@ -824,6 +824,14 @@ plus traps it does not cover:
   its twin land (`p.invulnPair`).
 - **🍄 One Up (item effect `oneUp`, 2026-10-21):** a life of the RUN (a head on the HUD row), never a 🐱 Extra Life. In a
   game run it is `gameCur.oneUps` (saved; `runLivesLeft(diff, deaths, oneUps)`); outside a run `studioOneUps`, spent by a death.
+- **🪃 Boomerang (weapon ability, ranged + throw, 2026-10-25):** the item itself flies, spinning (`boomerangStep`): out
+  along the aim to its Range with a light homing (`boomerangPick`, a cone ahead, never behind, easing back to the aim line
+  with nobody in it), a turn, then straight home to the thrower's hand; no back tracking. A gun's (`boomerangRound`)
+  pierces both ways (its hit list resets at the turn) and has no magazine or reload: one throw, loaded again the frame
+  none of yours is in the air (`weaponClipSize` 1, `boomerangAmmo`). A thrown one (`thrown`, `boomerang: true`) does not
+  pierce: a body stops it and it is spent; a miss comes home into the stock, and several fly at once. Aim assist is off for
+  it (that solves for a falling round). Player and units alike. A throwable's stock is `throwPickupCount` (`pickupCount`,
+  3 unless set). Items: Boomerang `boomrg1`, Box of Playing Cards `cardbx1` (52).
 - **Clothing prints are textures** (Tye Dye, Flannel, 🦓 `zebra`): the piece carries `tex: <texture record id>`, and the
   record ships in library.json `textures`. A fresh store restores textures when an editor opens (`loadTextures`).
 - **Melee DPS is damage x a fixed swing** (`PLAYER_SWING_FRAMES` 12, 5 swings/s); a melee weapon's Fire rate does nothing.

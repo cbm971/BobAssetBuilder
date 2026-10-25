@@ -55,6 +55,7 @@
   { "k": "✋", "l": "Hand / holding", "g": "Combat", "d": "gi:hand" },
   { "k": "🦍", "l": "Melee boost", "g": "Combat", "d": "gi:gorilla" },
   { "k": "🪡", "l": "Pierce", "g": "Combat", "d": "gi:sewing-needle" },
+  { "k": "🪃", "l": "Boomerang", "g": "Combat", "d": "gi:boomerang" },
   { "k": "🔮", "l": "Projectile / resurrect", "g": "Combat", "d": "gi:crystal-ball" },
   { "k": "🔴", "l": "Capture / muzzle", "g": "Combat", "d": "mdi:circle" },
   { "k": "🦶", "l": "Stomp", "g": "Combat", "d": "gi:footprint" },
