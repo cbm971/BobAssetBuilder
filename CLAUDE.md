@@ -315,7 +315,8 @@ plus traps it does not cover:
   the 316 older placements, which stay on the unturned box (40 Sprinklers would shift otherwise).
 - **A ground prop must sit on its row.** Draw it at a ratio that gives whole rows at the sizes it
   will be used at (2:1, 8:1, 10:3 …), and end every ground-touching piece on one y. Fractional rows
-  make it float.
+  make it float (or sink). For one of HIS props that is not whole rows (his edited Canned Ham is 9.63
+  rows at size 20, Trailor 3 10.45 at 16), nudge the placement with `oy` (cells) onto the floor line.
 - The world scale is ~3.2 cells per metre, and Bob stands ~6 cells tall.
 - Vehicles get **solid wheel wells**: a dark well drawn over the body with the tyre in it. Never a
   see-through arch cutter ("the wheel isn't attached"). Window cutters are fine.
@@ -658,7 +659,7 @@ plus traps it does not cover:
   - **A run is one floor's** (`buildRun(pool, seed, { floor })`, 2026-10-18): the Intro, the Exit and
     (with no Intro) the first level come from that floor; later levels join by gates alone. 🎲 Generate
     has a floor box (`runFloors`), opening on the editor level's floor; Hold-R keeps the run's floor.
-    No floor = any Intro (the game's New Game). Vietnam is five middle levels, Forest M1-M5, all joined Lower Left to Lower Right (W2/E2, accepts "Vietnam"; M3 and M4 also open up into Tree Tops), and a run lays them in any order. Forest M5 (2026-10-25) is the thick-jungle one with a single shack, his M4 shack whose door tag "Shaq" leads to VShaq or VShaq 2 (the WBOB radio shack, 2026-10-25).
+    No floor = any Intro (the game's New Game). Vietnam is five middle levels, Forest M1-M5, all joined Lower Left to Lower Right (W2/E2, accepts "Vietnam"; M3 and M4 also open up into Tree Tops), and a run lays them in any order. Forest M5 (2026-10-25) is the thick-jungle one with a single shack, his M4 shack whose door tag "Shaq" leads to VShaq or VShaq 2 (the WBOB radio shack, 2026-10-25). Trailor Park M16 (2026-10-25, W2/E2) has the Liquor Store (`lqstor1`) with a door tagged "Liquor Store"; its room is not built yet, so the door says "No room tagged" until a room carries that roomTag.
   - Sewers and tree tops (Floor "Sewer", "Underground" or "Tree Top") are planned as passages
     with a way out. **No street level is laid with a top/bottom gate that leads nowhere** (his rule,
     2026-10-11: "an impossible seed"): `tryLay` takes a level back when its passage cannot be

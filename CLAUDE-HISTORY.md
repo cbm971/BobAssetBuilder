@@ -5422,3 +5422,20 @@ A-frame thatch gable, same shell recipe as VShaq (plane rows 17-22, fences at co
 Records, PA Horn, Crank Generator, Jungle Window, Power Cable), all passing editorReachIssues. DJ Ronnie Ray (Readitor
 look, dialogue `dlgwbob`, heal on one choice) and a T1 pedestal at 19,27. First playtest showed the sign cut off at the
 top of the room view, hence the row-5 rule.
+
+
+## Trailor Park M16 and the Liquor Store (2026-10-25)
+
+Blake: "make a new Trailor park level that features a liquor store ... It'll be an enterable room. We can make the room
+itself later." Level `trpm16a`, a W2/E2 middle built from HIS Trailor Park M5 parts: the clean road/grass column
+(M5 col 44) for every column, M5's cloud rows, his power pole (M5 col 35: crossarms, pegs, ladder climb) cloned to
+cols 25/88/150, his power lines (topOutline objects + cliff climb on rows 17 and 25) broken over the store, and his
+cols 19-28 tree. New prop `lqstor1` Liquor Store (category Stage, 41 pieces, size 30 = exact 2:1 so 30x15 whole
+cells): neon LIQUOR roof sign, PACKAGE GOODS - COLD BEER fascia, BEER/WINE windows with bottle shelves as mirror
+twins, glass door with a glowing OPEN sign centred at x=100 so the door marker (33,65) lands on it. Around it: Trailer
+6, parked 1960s Pickup, Newspaper Box, Drink Machine, Canned Ham, Trailor 3, and seven units copied from his own
+Trailor tag / Pit Bull / Squirrel placements.
+
+Measured in the running Level Creator: every prop's drawn bottom at y=1050 (row 35). The first pass had his Canned
+Ham floating 11 px and Trailor 3 sunk 13 px (art not whole rows), fixed with `oy`. In Playtest the door prompt reads
+`No room tagged "Liquor Store" yet`, and at his 886 px view the whole roof sign is on screen.
