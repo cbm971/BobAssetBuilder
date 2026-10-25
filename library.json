@@ -2207462,7 +2207462,7 @@
     "ndlgwboba": {
      "id": "ndlgwboba",
      "speaker": "DJ Ronnie Ray",
-     "text": "GOOOOD EVENING, JUNGLE! You're tuned to WBOB, the only station broadcasting from inside a grass hut!",
+     "text": "GOOOOD EVENING, VIETNAM! You're tuned to WBOB, the only station broadcasting from inside a grass hut!",
      "choices": [
       {
        "id": "cdlgwbob1",
@@ -2207582,9 +2207582,9 @@
      ]
     }
    },
-   "savedAt": 1792964559912,
    "once": true,
-   "editedFrom": 1792961925750
+   "savedAt": 1792967678258,
+   "editedFrom": 1792964559912
   },
   {
    "id": "dlgwthr",
