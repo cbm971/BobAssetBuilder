@@ -2074861,6 +2074861,51 @@
      "run": 1,
      "step": 0,
      "upsideDown": true
+    },
+    "35,133": {
+     "c": "#2a2017",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "35,131": {
+     "c": "#2a2017",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "35,132": "#2a2017",
+    "38,18": "#2a2017",
+    "39,66": "#2a2017",
+    "39,67": {
+     "c": "#2a2017",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "38,19": {
+     "c": "#2a2017",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "38,17": {
+     "c": "#2a2017",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "39,65": {
+     "c": "#2a2017",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
     }
    },
    "fx": {
@@ -2076242,23 +2076287,6 @@
       "z": 97
      }
     ],
-    "16,1": [
-     {
-      "kind": "prop",
-      "propId": "vjpalm1",
-      "solid": false,
-      "size": 20,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0.43,
-      "z": 98
-     }
-    ],
     "22,21": [
      {
       "kind": "prop",
@@ -2076277,23 +2076305,6 @@
       "z": 99
      }
     ],
-    "11,29": [
-     {
-      "kind": "prop",
-      "propId": "vjpalm1",
-      "solid": false,
-      "size": 24,
-      "inFront": false,
-      "rot": 0,
-      "flip": true,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0.11,
-      "z": 100
-     }
-    ],
     "24,50": [
      {
       "kind": "prop",
@@ -2076310,23 +2076321,6 @@
       "ox": 0.46,
       "oy": 0.47,
       "z": 101
-     }
-    ],
-    "16,67": [
-     {
-      "kind": "prop",
-      "propId": "vjpalm1",
-      "solid": false,
-      "size": 20,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0.43,
-      "z": 102
      }
     ],
     "19,90": [
@@ -2076798,6 +2076792,57 @@
       "oy": 0.16,
       "z": 130
      }
+    ],
+    "12,28": [
+     {
+      "kind": "prop",
+      "propId": "vjpalm1",
+      "solid": false,
+      "size": 24,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0.11,
+      "z": 100
+     }
+    ],
+    "17,1": [
+     {
+      "kind": "prop",
+      "propId": "vjpalm1",
+      "solid": false,
+      "size": 20,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0.43,
+      "z": 98
+     }
+    ],
+    "17,67": [
+     {
+      "kind": "prop",
+      "propId": "vjpalm1",
+      "solid": false,
+      "size": 20,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0.43,
+      "z": 102
+     }
     ]
    },
    "climb": {},
@@ -2076907,7 +2076952,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1792958295416
+   "savedAt": 1792960474847,
+   "editedFrom": 1792958295416
   },
   {
    "id": "vshaq01",
