@@ -2318,6 +2318,13 @@ export const WEAPON_ABILITIES = {
     brief: () => "shots go through every enemy",
     on: { pierce: true, explode: false }, off: { pierce: false },
   },
+  // 🧲 see shotHomes. The worn twin is EFFECT_TYPES.homing.
+  homing: {
+    icon: "🧲", label: "Homing", types: ["ranged"],
+    blurb: "Shots chase the nearest enemy: each round bends toward whoever is closest and keeps after them until it lands, or the ground or a wall stops it. In a 👹 Enemy's hands its shots chase YOU.",
+    brief: () => "shots chase the nearest enemy",
+    on: { homing: true }, off: { homing: false },
+  },
   // A gun you WEAR on your fists (the DK Arms): the 👊 Q/V swing you can throw without holstering
   // it is normally a bare-handed 2-damage punch, whatever is in your hand. This multiplies it.
   // A NUMBER switch like Burn/Cluster, so isOn reads it; 0 (or anything <= 1) is off.
@@ -4572,6 +4579,75 @@ export const pushShot = (list, effects, shot, cellPx) => {
   if (doubleShotOn(effects)) list.push(...doubleShotPair(shot, cellPx)); else list.push(shot);
   return list;
 };
+// 🧲 HOMING SHOT (Blake, 2026-10-25: "an ability you can assign to clothes or ranged weapons that adds
+// homing shot. It should also silently increase range by 20% and make the shots chase the nearest
+// enemy"). Two sources, one behaviour, like 🪡 Pierce: the gun's own Homing flag or a worn Homing Shot.
+// The +20% range is silent on purpose — no blurb, brief or callout mentions it — and it is applied
+// ONCE however many sources carry it. It goes into rangePx where the round is fired, so it shapes the
+// arc, the aim assist's reach and how far the round looks for something to chase.
+export const HOMING_RANGE_MULT = 1.2;
+export const HOMING_TURN_DEG = 7; // the most a homing round turns per 60 fps frame
+export const shotHomes = (weapon, effects) => !!(weapon && weapon.homing) || wearsEffect(effects, "homing");
+export const homingRangeMult = (weapon, effects) => (shotHomes(weapon, effects) ? HOMING_RANGE_MULT : 1);
+// Who a homing round chases this frame, out of shotTargetsFor's list (exactly the bodies the round can
+// register on). It keeps the body it locked onto while that one is still a target, so two enemies at
+// about the same distance can't make it wobble between them; otherwise the NEAREST one within its
+// range of where the round is now. A 🪡 piercing round skips the bodies it has already gone through,
+// so it moves on to the next. Never its own shooter. null = nothing to chase, fly the normal arc.
+export const homingPick = (pr, targets, reachPx) => {
+  const live = (targets || []).filter((t) => t.key !== pr.shooterKey && !(pr.hits && pr.hits.includes(t.key)));
+  const held = pr.homeKey && live.find((t) => t.key === pr.homeKey);
+  if (held) return held;
+  let best = null, bestD = Infinity;
+  for (const t of live) {
+    const d = Math.hypot(t.x + t.w / 2 - pr.x, t.y + t.h / 2 - pr.y);
+    if (d <= reachPx && d < bestD) { bestD = d; best = t; }
+  }
+  return best;
+};
+// Turn a velocity toward (dx, dy) by at most maxDeg, keeping its speed. A target BEHIND the round
+// (more than a right angle off its heading) is come round to over the TOP: the round lifts its nose
+// and loops up. Taking the shortest way there instead, a round fired level away from a body standing
+// just lower than the barrel turned DOWN and dove into the floor half way through the U-turn
+// (measured in play: fired right at a Cow 16 cells behind you, it hit the ground 3 cells out).
+// `spin` is the way a U-turn already in progress is turning (-1 / 1, 0 = none); the caller keeps it on
+// the round and passes it back. Without it the round re-chose every frame and, pointing straight up
+// half way round, flipped between the two ways and climbed off the top of the level wobbling.
+export const homingSteer = (vx, vy, dx, dy, maxDeg, spin = 0) => {
+  const sp = Math.hypot(vx, vy);
+  if (!sp || (!dx && !dy)) return { vx, vy, spin };
+  const cur = Math.atan2(vy, vx);
+  let turn = Math.atan2(dy, dx) - cur;
+  while (turn > Math.PI) turn -= 2 * Math.PI;
+  while (turn < -Math.PI) turn += 2 * Math.PI;
+  if (Math.abs(turn) > Math.PI / 2) {
+    // the way that raises the nose (screen y grows down); a round already pointing up or down just takes the short way
+    if (!spin) spin = Math.abs(Math.cos(cur)) > 0.2 ? -Math.sign(Math.cos(cur)) : (Math.sign(turn) || 1);
+    if (Math.sign(turn) !== spin) turn -= Math.sign(turn) * 2 * Math.PI;
+  } else spin = 0;
+  const lim = Math.max(0, maxDeg) * Math.PI / 180;
+  const a = cur + Math.max(-lim, Math.min(lim, turn));
+  return { vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, spin };
+};
+// One frame of a homing round's flight, from `before` to `after` along its path. Once it turns it can
+// no longer be replayed from the firing snapshot the way a normal round is (projectilePositionAtDistance),
+// so it moves frame by frame instead. With a target it turns toward the target's centre and flies
+// straight (no drop while it chases). With none it adds exactly the drop the normal arc adds over the
+// same stretch, so a homing round with nobody to chase flies the same path any other round would.
+export const homingFlightStep = (pr, before, after, target, maxDeg) => {
+  if (target) {
+    const v = homingSteer(pr.vx || 0, pr.vy || 0, target.x + target.w / 2 - pr.x, target.y + target.h / 2 - pr.y, maxDeg, pr.homeKey === target.key ? pr.homeSpin || 0 : 0);
+    pr.vx = v.vx; pr.vy = v.vy; pr.homeSpin = v.spin;
+  }
+  const sp = Math.max(0.0001, Math.hypot(pr.vx || 0, pr.vy || 0)), step = after - before;
+  const drop = target ? 0 : projectileDropAtDistance(pr.startY, pr.groundY, after, pr.rangePx) - projectileDropAtDistance(pr.startY, pr.groundY, before, pr.rangePx);
+  pr.x += (pr.vx || 0) / sp * step;
+  pr.y += (pr.vy || 0) / sp * step + drop;
+  const slope = target ? 0 : projectileDropSlope(pr.startY, pr.groundY, after, pr.rangePx);
+  pr.rot = Math.atan2((pr.vy || 0) + slope * sp, pr.vx || 0) * 180 / Math.PI;
+  pr.homeKey = target ? target.key : null;
+  return pr;
+};
 export const pierceFreshHit = (pr, key) => {
   if (!pr.pierce) return true;
   if (!pr.hits) pr.hits = [];
@@ -5847,6 +5923,14 @@ export const EFFECT_TYPES = {
     label: "Double Shot", icon: "⏩",
     blurb: "Every shot you fire is two: a second round flies alongside the first, side by side, for the same single round of ammo. Bursts and full auto double too, and everything the gun does (explode, pierce, stun, fire, ice) rides both rounds. Two items carrying it still fire two. Worn by a 👹 Enemy it works on THEM. No animation of its own.",
     brief: () => "every shot fires two rounds",
+    noAnim: true,
+    params: [],
+  },
+  // 🧲 the clothing twin of a ranged weapon's Homing ability — see shotHomes.
+  homing: {
+    label: "Homing Shot", icon: "🧲",
+    blurb: "Your shots chase the nearest enemy, with any ranged weapon: each round bends toward whoever is closest and keeps after them until it lands, or the ground or a wall stops it. Worn by a 👹 Enemy it works on THEM, so its shots chase you. No animation of its own.",
+    brief: () => "shots chase the nearest enemy",
     noAnim: true,
     params: [],
   },
@@ -17556,7 +17640,7 @@ export default function AssetStudio({ game = false } = {}) {
             // past a close target would otherwise flip it.
             const eMuzzle0 = enemyHeldMuzzleAt(ea, ew, ep, newEph, eRenderW, 0);
             const sx = eMuzzle0 ? eMuzzle0.x : eCenterXFinal, sy = eMuzzle0 ? eMuzzle0.y : ep.y + newEph * 0.42;
-            const rangePx = Math.max(1, ew.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW * rangeBoostMultiplier(ea.effects); // 🎯 Long Shot it is wearing, as yours does
+            const rangePx = Math.max(1, ew.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW * rangeBoostMultiplier(ea.effects) * homingRangeMult(ew, ea.effects); // 🎯 Long Shot it is wearing, as yours does; 🧲 +20%
             // THE SAME LOCK-ON THE PLAYER GETS (aimAssistAngle), pointed the other way. A unit
             // used to fire along the straight line to its target's aim point — a line that
             // ignores the drop the shot actually takes, so past half its range every shot fell
@@ -17596,7 +17680,7 @@ export default function AssetStudio({ game = false } = {}) {
               // on a unit's shot (nor its throw or brawl blow): a null lastHitByFx means YOUR blow,
               // and that is what the score pays a kill on.
               critInt: eIntel, shooterFx: ea.effects || [], snd: ew, // snd: whose 🔊 Hit plays where it lands
-              ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: shotPierces(ew, ea.effects), ignite: ew.ignite ?? 0, igniteDps: ew.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(ew),
+              ignoreArmor: !!ew.ignoreArmor, stun: ew.stun ?? 0, pierce: shotPierces(ew, ea.effects), homing: shotHomes(ew, ea.effects), ignite: ew.ignite ?? 0, igniteDps: ew.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(ew),
               explode: !!ew.explode, explodeRadius: ew.explodeRadius ?? 2, explodePropId: ew.explodePropId || null, explodeChar: ew.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: ew.explodeSize ?? 3, explodeLife: ew.explodeLife ?? 0.5,
               shooterKey: k, // who fired it, so an exploding round can catch its OWN shooter in the blast (detonate)
             }, CW);
@@ -17813,7 +17897,7 @@ export default function AssetStudio({ game = false } = {}) {
           let spawn = muzzleSpawn(0) || { x: p.x + pw / 2 + p.face * pw * 0.3, y: p.y + ph * 0.35 };
           // × a 🎯 range item still running (activeRangeMult) — the same number shapes the arc and the
           // aim assist's reach, so a boosted shot both flies farther and locks on from farther.
-          const rangePxNow = Math.max(1, playtestWeapon.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW * rangeBoostMultiplier(playerAsset?.effects) * activeRangeMult(itemBuffs.current, nowT); // ?. — as the ▢ Plain box there is no asset, and this read froze the game on the first shot
+          const rangePxNow = Math.max(1, playtestWeapon.projectileRange ?? DEFAULT_PROJECTILE_RANGE) * CW * rangeBoostMultiplier(playerAsset?.effects) * activeRangeMult(itemBuffs.current, nowT) * homingRangeMult(playtestWeapon, playerAsset?.effects); // 🧲 +20%. ?. — as the ▢ Plain box there is no asset, and this read froze the game on the first shot
           // AIM ASSIST — see aimAssistAngle; the targets come from shotTargetsFor, the same
           // builder a unit's trigger finger uses, so both sides lock onto exactly what their shot
           // can hit and nothing else.
@@ -17870,7 +17954,7 @@ export default function AssetStudio({ game = false } = {}) {
             size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), playtestWeapon.categories)), // 🏹 worn Tag Damage × a 🧪 timed one still running
             stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
             ignite: playtestWeapon.resurrect ? 0 : (playtestWeapon.ignite ?? 0), igniteDps: playtestWeapon.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(playtestWeapon), // ❄️ its ice rides the round too
-            ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor, pierce: playerShotsPierce, snd: playtestWeapon, // snd: whose 🔊 Hit plays where it lands
+            ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor, pierce: playerShotsPierce, homing: shotHomes(playtestWeapon, playerAsset?.effects), snd: playtestWeapon, // snd: whose 🔊 Hit plays where it lands
             explode: !playtestWeapon.resurrect && !!playtestWeapon.explode, explodeRadius: playtestWeapon.explodeRadius ?? 2, explodePropId: playtestWeapon.explodePropId || null, explodeChar: playtestWeapon.explodeChar || DEFAULT_BOOM_CHAR, explodeSize: playtestWeapon.explodeSize ?? 3, explodeLife: playtestWeapon.explodeLife ?? 0.5,
           }, CW);
           sndMoment(playtestWeapon, "fire", null, spawnX, spawnY); // 🔊 the gun's Fire
@@ -18586,20 +18670,31 @@ export default function AssetStudio({ game = false } = {}) {
         // character contributes is how often that damage doubles. Strength is deliberately not
         // read in this block, and must not be.
         const intelligence = pstats.intelligence;
+        // 🧲 Who a homing round can chase, built once per frame per kind of round (yours or a
+        // friendly's, a hostile's, a raising one) rather than once per round per frame.
+        const homingLists = {};
+        const homingTargetsOf = (pr) => {
+          const kk = (pr.foe ? "f" : "p") + (pr.resurrect ? "r" : "");
+          return homingLists[kk] || (homingLists[kk] = shotTargetsFor(!!pr.foe, !!pr.resurrect, null));
+        };
         projectiles.current = projectiles.current.filter((pr) => {
           pr.life += dtMul;
           // Distance, not lifetime, is the normal flight limiter. Reconstruct the aimed trajectory
           // from the firing snapshot, then add only the second-half quadratic drop.
           pr.rangePx = Math.max(CW, pr.rangePx || DEFAULT_PROJECTILE_RANGE * CW);
           if (pr.startX === undefined) { pr.startX = pr.x; pr.startY = pr.y; pr.groundY = pr.y; }
-          pr.traveled = (pr.traveled || 0) + Math.hypot(pr.vx || 0, pr.vy || 0) * projectileFallSpeedMul(pr, pr.traveled) * dtMul;
-          const rangedPos = projectilePositionAtDistance(pr, pr.traveled);
-          pr.x = rangedPos.x; pr.y = rangedPos.y;
-          // Point the art along the arc it's actually on. Recomputed from the distance every frame
-          // rather than integrated frame-to-frame, so it stays exact at any speed and a shot can
-          // never drift out of sync with its own path. The hitbox offset below reads pr.rot too, so
-          // a tipped bullet's box tips with it.
-          pr.rot = projectileAngleAtDistance(pr, pr.traveled);
+          const traveledBefore = pr.traveled || 0;
+          pr.traveled = traveledBefore + Math.hypot(pr.vx || 0, pr.vy || 0) * projectileFallSpeedMul(pr, pr.traveled) * dtMul;
+          if (pr.homing) homingFlightStep(pr, traveledBefore, pr.traveled, homingPick(pr, homingTargetsOf(pr), pr.rangePx), HOMING_TURN_DEG * dtMul); // 🧲 moves itself and sets pr.rot
+          else {
+            const rangedPos = projectilePositionAtDistance(pr, pr.traveled);
+            pr.x = rangedPos.x; pr.y = rangedPos.y;
+            // Point the art along the arc it's actually on. Recomputed from the distance every frame
+            // rather than integrated frame-to-frame, so it stays exact at any speed and a shot can
+            // never drift out of sync with its own path. The hitbox offset below reads pr.rot too, so
+            // a tipped bullet's box tips with it.
+            pr.rot = projectileAngleAtDistance(pr, pr.traveled);
+          }
           // Past its configured range the shot is still airborne, just falling — "spent" now only
           // means it has passed the range mark, used to decide whether an out-of-bounds exit should
           // still detonate. It is NOT a despawn condition any more.

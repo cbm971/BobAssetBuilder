@@ -328,6 +328,12 @@ import {
   doubleShotOn,
   pushShot,
   DOUBLE_SHOT_GAP_CELLS,
+  HOMING_RANGE_MULT,
+  shotHomes,
+  homingRangeMult,
+  homingPick,
+  homingSteer,
+  homingFlightStep,
   fireImmune,
   blastImmune,
   luckyChance,
@@ -13190,7 +13196,7 @@ describe("a unit plays by the player's rules", () => {
   test("every unit's shot carries its shooter's Intelligence for the crit, and Long Shot on its range", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
     expect(src).toContain("critInt: eIntel, shooterFx: ea.effects || [],");
-    expect(src).toContain("* CW * rangeBoostMultiplier(ea.effects);");
+    expect(src).toContain("* CW * rangeBoostMultiplier(ea.effects) * homingRangeMult(ew, ea.effects);"); // and 🧲 Homing's +20%
     expect(src).toContain("const crit = Math.random() < critChance(eIntel);"); // swings, bites and stomps
     expect(src).toContain("ep.burstLeft = weaponBurstShotCount(ew) - 1;");      // the whole burst
   });
@@ -14796,6 +14802,82 @@ describe("🔥 Fire damage / ❄️ Ice damage (weapon abilities, 2026-10-21)", 
   test("StatusFx draws nothing on a body that is neither", () => {
     expect(StatusFx({ body: {}, left: 0, top: 0, width: 10, height: 10 })).toBe(null);
     expect(StatusFx({ body: { chill: 3 }, left: 0, top: 0, width: 10, height: 10 })).not.toBe(null);
+  });
+});
+
+describe("🧲 Homing Shot (clothing + ranged weapon ability, 2026-10-25)", () => {
+  test("on a gun or worn, both registries, once however many carry it", () => {
+    expect(WEAPON_ABILITIES.homing.types).toEqual(["ranged"]);
+    expect(WEAPON_ABILITIES.homing.on).toEqual({ homing: true });
+    expect(EFFECT_TYPES.homing.noAnim).toBe(true);
+    expect(EFFECT_TYPES.homing.params).toEqual([]);
+    expect(shotHomes({ homing: true }, [])).toBe(true);
+    expect(shotHomes({}, [{ type: "homing" }])).toBe(true);
+    expect(shotHomes({}, [{ type: "pierce" }])).toBe(false);
+    expect(shotHomes(null, null)).toBe(false);
+    expect(homingRangeMult({ homing: true }, [{ type: "homing" }, { type: "homing" }])).toBe(HOMING_RANGE_MULT);
+    expect(homingRangeMult({}, [])).toBe(1);
+    expect(HOMING_RANGE_MULT).toBe(1.2);
+  });
+  test("the 20% range is silent: neither blurb nor brief mentions range", () => {
+    for (const t of [WEAPON_ABILITIES.homing.blurb, WEAPON_ABILITIES.homing.brief({}), EFFECT_TYPES.homing.blurb, EFFECT_TYPES.homing.brief({})]) {
+      expect(t.toLowerCase()).not.toMatch(/\brange\b|20%|farther|further/);
+    }
+  });
+  test("picks the nearest in reach, keeps its lock, skips its shooter and bodies it already pierced", () => {
+    const near = { key: "a", x: 90, y: 0, w: 20, h: 20 }, far = { key: "b", x: 290, y: 0, w: 20, h: 20 };
+    const pr = { x: 0, y: 10 };
+    expect(homingPick(pr, [far, near], 1000)).toBe(near);
+    expect(homingPick(pr, [far, near], 50)).toBe(null);
+    expect(homingPick({ ...pr, homeKey: "b" }, [far, near], 1000)).toBe(far);
+    expect(homingPick({ ...pr, shooterKey: "a" }, [far, near], 1000)).toBe(far);
+    expect(homingPick({ ...pr, hits: ["a"] }, [far, near], 1000)).toBe(far);
+    expect(homingPick(pr, [], 1000)).toBe(null);
+  });
+  test("steering turns at most the limit, keeps speed, and takes the short way round", () => {
+    const v = homingSteer(10, 0, 0, 100, 7);
+    expect(Math.hypot(v.vx, v.vy)).toBeCloseTo(10);
+    expect(Math.atan2(v.vy, v.vx) * 180 / Math.PI).toBeCloseTo(7);
+    const back = homingSteer(-10, 0.001, 0, -100, 7); // heading left, target straight up: turn clockwise, not 263° the other way
+    expect(Math.atan2(back.vy, back.vx) * 180 / Math.PI).toBeCloseTo(-173, 0);
+    expect(homingSteer(10, 0, 100, 0.0001, 7).vx).toBeCloseTo(10);
+  });
+  test("a target behind is come round to over the top, never by diving at the floor", () => {
+    expect(homingSteer(10, 0, -300, 40, 7).vy).toBeLessThan(0);   // fired right, body behind and a little lower
+    expect(homingSteer(-10, 0, 300, 40, 7).vy).toBeLessThan(0);   // the mirror
+    expect(homingSteer(10, 0, 300, 40, 7).vy).toBeGreaterThan(0); // ahead and lower: straight there as before
+  });
+  test("fired level away from a body 16 cells behind: loops over the top and lands, never touching floor or ceiling", () => {
+    // The drive that found both bugs: shot leaves at (776, 452) heading right, floor at y 600, a Cow's box behind.
+    const cow = { key: "19,8", x: 110, y: 380, w: 70, h: 120 };
+    const pr = { x: 776, y: 452, startX: 776, startY: 452, groundY: 600, vx: 12, vy: 0, rangePx: 972 };
+    let d = 0, hitAt = -1, minY = Infinity, maxY = -Infinity;
+    for (let f = 0; f < 300 && hitAt < 0; f++) {
+      homingFlightStep(pr, d, d + 12, cow, 7); d += 12;
+      minY = Math.min(minY, pr.y); maxY = Math.max(maxY, pr.y);
+      if (pr.x > cow.x && pr.x < cow.x + cow.w && pr.y > cow.y && pr.y < cow.y + cow.h) hitAt = f;
+    }
+    expect(hitAt).toBeGreaterThan(0);
+    expect(maxY).toBeLessThan(600);
+    expect(minY).toBeGreaterThan(0);
+  });
+  test("with nothing to chase it flies the normal arc; with a target it bends onto it", () => {
+    const base = { x: 0, y: 100, startX: 0, startY: 100, groundY: 200, vx: 10, vy: 0, rangePx: 300 };
+    const free = { ...base };
+    let d = 0;
+    for (let i = 0; i < 40; i++) { homingFlightStep(free, d, d + 10, null, 7); d += 10; }
+    const want = projectilePositionAtDistance(base, 400);
+    expect(free.x).toBeCloseTo(want.x); expect(free.y).toBeCloseTo(want.y);
+    const tgt = { key: "dog", x: 100, y: 0, w: 20, h: 20 }; // above and ahead
+    const chase = { ...base };
+    d = 0;
+    let hit = false;
+    for (let i = 0; i < 60 && !hit; i++) {
+      homingFlightStep(chase, d, d + 10, tgt, 7); d += 10;
+      hit = chase.x > tgt.x && chase.x < tgt.x + tgt.w && chase.y > tgt.y && chase.y < tgt.y + tgt.h;
+    }
+    expect(hit).toBe(true);
+    expect(chase.homeKey).toBe("dog");
   });
 });
 
