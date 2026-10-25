@@ -546,6 +546,10 @@ plus traps it does not cover:
   Vietnam = helmet; 2026-10-25, replacing the slab T); beaten on Easy it fills white, Medium adds a
   yellow outline, Hard a red one, all thin lines. Any other floor shows its first letter. **No coin
   behind the picture** (he called it the ugly coin thing); never put a disc back.
+- **Unlocking a fighter shows a banner** (2026-10-25): "Unlocked", the fighter's box (dressed, as on the
+  select), then the name, in the pickup banner's gold face. `putGameRecord` diffs every record change
+  with `newlyUnlocked` and queues one per fighter (`unlockBanner`/`unlockBannerEl`, App.js); it shows over a
+  level or the Floor Complete card for `UNLOCK_BANNER_MS` (mirrors the `ubLife` CSS). A new lock needs no code.
 - **Saves are checkpoints** in their OWN IndexedDB database `bobOkayGame` (plain objects under
   `game:` keys), never the studio's `bobAssetStudio` store or localStorage (full). One is written
   400 ms after each run level goes live (never on the seam frame) and on Quit to Main Menu. Load

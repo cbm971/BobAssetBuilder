@@ -10,7 +10,7 @@ import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSound
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
 // rules and store are src/gameFront.js and its screens src/gameShell.js; the GAME FRONT END block
 // after startRun is where it meets the run engine.
-import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors } from "./gameFront";
+import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors, newlyUnlocked, UNLOCK_BANNER_MS } from "./gameFront";
 import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
@@ -24188,7 +24188,29 @@ export default function AssetStudio({ game = false } = {}) {
     return () => { dead = true; window.removeEventListener("resize", fit); };
   }, []);
   const putGameSaves = (next) => { gameSavesRef.current = next; setGameSavesUI(next); if (gameStore) gameStore.set(GAME_KEYS.saves, next); };
-  const putGameRecord = (next) => { gameRecordRef.current = next; setGameRecordUI(next); if (gameStore) gameStore.set(GAME_KEYS.record, next); };
+  // UNLOCKED BANNER (Blake, 2026-10-25): every record change is checked for a fighter it opened
+  // (gameFront.js newlyUnlocked); each one is queued and shown in turn — "Unlocked", their box, their
+  // name — over a level (beside the pickup banner) or over the Floor Complete card.
+  const [unlockBanner, setUnlockBanner] = useState(null); // { n, look } | null
+  const unlockQueue = useRef([]);
+  const unlockSeq = useRef(0);
+  const unlockBusy = useRef(false);
+  const gameAssetsRef = useRef([]);
+  const unlockNext = () => {
+    const look = unlockQueue.current.shift();
+    if (!look) { unlockBusy.current = false; return; }
+    unlockBusy.current = true;
+    setUnlockBanner({ n: ++unlockSeq.current, look });
+    setTimeout(() => { setUnlockBanner(null); setTimeout(unlockNext, 250); }, UNLOCK_BANNER_MS);
+  };
+  const putGameRecord = (next) => {
+    const before = gameRecordRef.current;
+    gameRecordRef.current = next; setGameRecordUI(next); if (gameStore) gameStore.set(GAME_KEYS.record, next);
+    if (!game) return;
+    let opened = [];
+    try { opened = newlyUnlocked(gameAssetsRef.current, before, next); } catch { opened = []; }
+    if (opened.length) { unlockQueue.current.push(...opened); if (!unlockBusy.current) unlockNext(); }
+  };
   const setGameOptions = (o) => { const n = normalizeGameOptions(o); setGameOptionsUI(n); if (gameStore) gameStore.set(GAME_KEYS.options, n); };
   // Options reach the engine at once. Music is on whenever its slider is above 0: the studio's
   // 🎵 toggle (localStorage bobMusic) is a per-copy studio switch and must not mute the game.
@@ -24745,6 +24767,23 @@ export default function AssetStudio({ game = false } = {}) {
   );
 
   /* ====================================================================== */
+  // The "Unlocked" banner (see putGameRecord): the pickup banner's face, then the fighter's box as
+  // the character select draws it (dressed look on the panel green), then their name.
+  gameAssetsRef.current = allAssets;
+  const unlockBannerEl = unlockBanner && (() => {
+    const nm = String(unlockBanner.look.name || ""), box = 120;
+    const px = (len) => (len > 22 ? 20 : len > 15 ? 26 : len > 10 ? 32 : 38);
+    return (
+      <div key={"unlock" + unlockBanner.n} className="unlockBanner pbRank-mystic">
+        <div className="pbBurst" />
+        <div className="pbName" data-text="Unlocked" style={{ fontSize: 40 }}><span>Unlocked</span></div>
+        <div className="ubBox" style={{ width: box, height: Math.round(box * 1.12) }}>
+          <div className="ubArt" style={{ width: box, height: box }}>{gameArt(gameDressed(unlockBanner.look), box, 0.3)}</div>
+        </div>
+        <div className="pbName" data-text={nm} style={{ fontSize: px(nm.length) }}><span>{nm}</span></div>
+      </div>
+    );
+  })();
   // THE GAME, anywhere but in a level: title, menu, Load Game, Options, Unlocks, Quit, Floor
   // Complete (src/gameShell.js). No studio screen is reachable from here.
   if (game && screen !== "level") {
@@ -24756,6 +24795,7 @@ export default function AssetStudio({ game = false } = {}) {
           onStartGame={(look, diff) => gameNewGame(look, diff)} onLoad={gameLoadGame} onUpload={gameUploadFile} onDelete={(id) => putGameSaves(dropGameSave(gameSavesRef.current, id))}
           floorDone={gameFloorDone} onFloorDoneContinue={() => { setGameFloorDone(null); setGameView("menu"); }}
           gameOver={gameOverInfo} onRetry={gameRetry} onGameOverMenu={() => { setGameOverInfo(null); setGameView("menu"); }} note={gameNote} click={gameClick} />
+        {unlockBannerEl}
       </div>
     );
   }
@@ -28302,6 +28342,7 @@ export default function AssetStudio({ game = false } = {}) {
                   {pickupBanner.rows.length > 0 && <div className="pbRows">{pickupRowsView(pickupBanner.rows)}</div>}
                 </div>
               )}
+              {play && unlockBannerEl}
               {/* 🦸 THE FLIGHT HINT (see showFlyHint): the view's, like the banner, low and quiet. */}
               {play && flyHint > 0 && <div key={"flyhint" + flyHint} className="flyHint">{FLY_HINT_TEXT}</div>}
               {/* THE PLAY HUD (2026-10-14), after Blake's mock-up: HP bar and ammo top-left, the score
@@ -30533,6 +30574,11 @@ html,body{margin:0;padding:0;background:#0f1117}
 .rankRow .rankBtn.on{background:#1b2133}
 .pbRows{display:flex;flex-direction:column;align-items:center;gap:2px;white-space:nowrap;font-family:${SYMBOL_FONT_FAMILY},'Chakra Petch','Segoe UI',system-ui,sans-serif;font-size:19px;font-weight:700;line-height:1.2;color:#fff;animation:pbRowsIn .35s .3s ease-out both}
 @keyframes pbRowsIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.unlockBanner{position:fixed;left:50%;top:9%;z-index:60;max-width:94%;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:12px;transform:translateX(-50%);animation:ubLife 4.2s ease-out forwards}
+@keyframes ubLife{0%,88%{opacity:1;transform:translateX(-50%) translateY(0)}100%{opacity:0;transform:translateX(-50%) translateY(-18px)}}
+.ubBox{position:relative;box-sizing:border-box;overflow:hidden;background:#245535;border:4px solid #f1efe4;box-shadow:0 6px 0 rgba(0,0,0,.4);animation:pbPop .55s .15s cubic-bezier(.18,1.5,.4,1) both}
+.ubArt{position:absolute;left:0;top:0;overflow:hidden}
+.ubArt>div{filter:drop-shadow(0 4px 0 rgba(0,0,0,.25))}
 .seamStrip{position:absolute;pointer-events:none;background:inherit;background-size:inherit}
 .lgrid.inRun{background:none}
 .lgrid.inRun .seamStrip{background-color:#0e1018;background-image:linear-gradient(#1a1f2e 1px,transparent 1px),linear-gradient(90deg,#1a1f2e 1px,transparent 1px);background-size:30px 30px}

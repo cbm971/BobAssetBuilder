@@ -471,6 +471,12 @@ export const starterRoster = (assets, rec) => {
   for (const a of starterLooks(assets)) (starterLock(a, rec, assets) ? shut : open).push(a);
   return [...open, ...shut];
 };
+// The fighters a record change just opened (Blake, 2026-10-25: when you unlock a character it says
+// "Unlocked", then their box, then their name). Locked under `before`, open under `after`.
+// App.js putGameRecord calls it on every record change and queues one banner per fighter.
+export const newlyUnlocked = (assets, before, after) => starterLooks(assets).filter((a) => starterLock(a, before, assets) && !starterLock(a, after, assets));
+// How long that banner stays up, ms (the ubLife animation in App.js's CSS runs the same 4.2 s).
+export const UNLOCK_BANNER_MS = 4200;
 // How many "Coming Soon" boxes finish the grid's last row (Blake, 2026-10-24: "whenever a row of
 // characters is incomplete ... an outline of Bob with enough character to complete the row").
 export const selectGridFill = (n, cols) => (n > 0 && cols > 0 ? (cols - (n % cols)) % cols : 0);

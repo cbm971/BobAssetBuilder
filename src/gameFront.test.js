@@ -6,7 +6,7 @@ import {
   normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone,
   unlockPool, createGameStore, starterLooks, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, runLivesLeft, deathEndsRun,
   pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS,
-  starterLock, STARTER_LOCKS, starterStats, floorMark, floorIcon, withPlannedFloors, lookFloorMedals, recordMet, starterRoster, selectGridFill,
+  starterLock, STARTER_LOCKS, starterStats, floorMark, floorIcon, withPlannedFloors, lookFloorMedals, newlyUnlocked, recordMet, starterRoster, selectGridFill,
 } from "./gameFront";
 import fs from "fs";
 import path from "path";
@@ -357,6 +357,16 @@ describe("locked starters", () => {
     expect(starterRoster([...assets, ...roster], r).map((a) => a.name)).toEqual(["Bob", "Bobbi", "Bobette", "Bob Li", "Bobby", "Bobert", "Rob", "Roberta", "Viet Bob"]);
     r = recordFloorDone(recordMet(r, "Bob Li"), "Trailor Park", 10, "Bob", "easy");
     expect(starterRoster([...assets, ...roster], r).map((a) => a.name)).toEqual(["Bob", "Bob Li", "Bobbi", "Bobby", "Bobette", "Bobert", "Rob", "Roberta", "Viet Bob"]);
+  });
+  test("newlyUnlocked names the fighters a record change just opened, once", () => {
+    const roster = ["Bob", "Bobby", "Roberta", "Rob"].map(look);
+    const r0 = newGameRecord();
+    const r1 = recordFloorDone(r0, "Trailor Park", 10, "Bob", "easy");
+    expect(newlyUnlocked(roster, r0, r1).map((a) => a.name)).toEqual(["Bobby"]);
+    expect(newlyUnlocked(roster, r1, r1)).toEqual([]);
+    const r2 = recordFloorDone(r1, "Trailor Park", 10, "Bob", "hard");
+    expect(newlyUnlocked(roster, r1, r2).map((a) => a.name)).toEqual(["Rob"]);
+    expect(newlyUnlocked(roster, r2, r1)).toEqual([]);
   });
   test("Coming Soon boxes finish a short last row, and only that", () => {
     expect(selectGridFill(9, 5)).toBe(1);
