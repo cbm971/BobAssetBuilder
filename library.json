@@ -1557748,7 +1557748,62 @@
      "tag": "Shaq "
     }
    },
-   "enemies": {},
+   "enemies": {
+    "35,43": {
+     "enemyTag": "Vietkong",
+     "facing": -1,
+     "ai": "seek",
+     "gearTags": [
+      "T1",
+      "Meelee"
+     ]
+    },
+    "35,107": {
+     "enemyTag": "Vietkong",
+     "facing": -1,
+     "ai": "seek",
+     "gearTags": [
+      "T1",
+      "Meelee"
+     ]
+    },
+    "35,145": {
+     "enemyTag": "Vietkong",
+     "facing": -1,
+     "ai": "seek",
+     "gearTags": [
+      "T1",
+      "Meelee"
+     ]
+    },
+    "35,63": {
+     "enemyTag": "Vietkong",
+     "facing": -1,
+     "ai": "guard",
+     "gearTags": [
+      "Gun"
+     ]
+    },
+    "35,136": {
+     "enemyTag": "Vietkong",
+     "facing": -1,
+     "ai": "guard",
+     "gearTags": [
+      "T1",
+      "Gun"
+     ]
+    },
+    "34,18": {
+     "enemyTag": "Enemies",
+     "facing": -1,
+     "ai": "guard"
+    },
+    "35,155": {
+     "enemyTag": "Enemies",
+     "facing": -1,
+     "ai": "guard"
+    }
+   },
    "conns": {
     "N1": {
      "open": true,
@@ -1557786,8 +1557841,8 @@
    "floor": "Vietnam",
    "section": "Middle",
    "hazard": {},
-   "savedAt": 1792964229816,
-   "editedFrom": 1792963965378
+   "savedAt": 1792968665820,
+   "editedFrom": 1792964229816
   },
   {
    "id": "bv4u5mz",
