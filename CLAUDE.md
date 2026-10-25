@@ -244,8 +244,15 @@ curve, end, two thicknesses), not a hand-rolled polygon. If you need a shape or 
 lacks, add it to the editor first (he invited that), creation-only like Line / Fill / Curve.
 Never set `outline` on a Curve or Fill piece: on a clip-path shape it is eight chained drop-shadows,
 about 4px thick at any zoom (a square's or circle's is a 2px ring), and none of his own curved
-pieces use it. Give a curve its dark edge as its own piece under it: the same three clicks drawn a
-few units thicker (the 🪃 Boomerang, `boomrg1`, 2026-10-25).
+pieces use it.
+**A weapon looks like his weapons: a few STOCK shapes turned into place, no outline** (Blake on the
+🪃 Boomerang, 2026-10-25: a smooth Curve over a dark copy of itself was "an ugly un symetrical
+boomerang. Also it kind of looks cheated"). Survey his own first: Rock, Pokeball, Katana, Bobs Bat
+are 4-6 rects/ovals/triangles at whole-degree turns. A symmetric thing is built symmetric: each
+piece and its mirror twin at -rot, centres reflected about one axis (`boomrg1` is 6 ⬭ Ovals and
+App.test.js checks the twins). Two pieces whose edges coincide leave a hairline of the lower colour,
+so end the lower piece INSIDE the upper one. Held art drawn `behindArm` is spliced in before the
+arm, so the body's later pieces (Bob's legs, Bobbett's hips) cover it too.
 
 **Clothing, and anything worn: `ASSET_AUTHORING.md` is the spec. Read it first.** It is also what
 he pastes into chats that have no repo access, so keep it in step with the code. The essentials,

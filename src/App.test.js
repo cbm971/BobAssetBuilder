@@ -15244,4 +15244,30 @@ describe("🪃 Boomerang (weapon + throwable ability, 2026-10-25)", () => {
     expect(src).toContain("thrownPlaceKey.current !== thrownPlace");   // a landing's repaint keeps the rest flying
     expect(src).toMatch(/boomerangRound\(ew, /);                        // a unit's gun throws it too
   });
+
+  // Blake on the round-2 drawing (smooth Curve wood over a dark copy of itself): "still an ugly un
+  // symetrical boomerang. Also it kind of looks cheated." His weapons are a few stock shapes turned
+  // into place, no outline. So the shipped one is ⬭ Ovals only, and every piece has its mirror twin.
+  test("the shipped Boomerang is a symmetric arch of stock Ovals, no outline, in every fit and pose", () => {
+    const lib = JSON.parse(require("fs").readFileSync(require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
+    const w = lib.assets.find((a) => a.id === "boomrg1");
+    expect(editorReachIssues(w)).toEqual([]);
+    for (const fit of ["telfv37", "oipvf3l", "default"]) for (const st of ["rest", "fire"]) for (const pose of ["front", "back", "side", "up", "crouch"]) {
+      const all = w.variants[fit].states[st][pose];
+      expect(all.filter((p) => p.isMuzzle).length).toBe(pose === "side" ? 1 : 0);
+      const art = all.filter((p) => !p.isMuzzle);
+      expect(art.length).toBe(6);
+      const c = art.map((p) => ({ p, x: p.x + p.w / 2, y: p.y + p.h / 2 }));
+      const axis = c.reduce((s, q) => s + q.x, 0) / c.length;
+      for (const q of c) {
+        expect(q.p.kind).toBe("stadium");
+        expect(q.p.outline).toBeFalsy();
+        expect(q.p.limb).toBeUndefined();
+        expect(q.p.behindArm).toBeFalsy();   // behind the arm = under Bob's legs and Bobbett's hips: the arch hung hidden
+        const twin = c.find((o) => o !== q && o.p.w === q.p.w && o.p.h === q.p.h && o.p.color === q.p.color
+          && (o.p.rot || 0) === -(q.p.rot || 0) && Math.abs(o.y - q.y) < 1e-9 && Math.abs(o.x - (2 * axis - q.x)) < 1e-9);
+        expect(twin).toBeTruthy();
+      }
+    }
+  });
 });

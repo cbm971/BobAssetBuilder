@@ -5370,6 +5370,17 @@ for a freshly made item and for one reopened from 📂 Load.
 - Seen in the running app (DOM rasterised through a loopback receiver, the pane being hidden): the weapon editor,
   held in Bob's hand (attachWeaponBlocks kept the turned Ovals in place), spinning in flight, the HUD icon, and a
   unit holding it. editorReachIssues [].
+- Round 3 (same day): "That's still an ugly un symetrical boomerang. Also it kind of looks cheated", then "Rebuild
+  the Boomerang as a symmetric arch from stock shapes, no outline, like my other weapons." A sheet of his 32 weapons
+  (saves branch) showed what "like my other weapons" means: Rock, Pokeball, Katana, Bobs Bat are 4-6 stock shapes
+  turned into place, no outline. Now 6 ⬭ Ovals: a short wing at ±14° from the apex and a long one at ±42°, each
+  joined cap-centre to cap-centre so the joints round off, and a red Oval on each end. Every piece has a mirror twin
+  at -rot, centres reflected about the apex (App.test.js pins it, with editorReachIssues [] and no outline/limb).
+- Three things only the running game showed. Held by the back wing, it sat behind Bob's wide side arm; held by the
+  top of the apex it hangs symmetric below the hand. `behindArm` splices weapon pieces in before the arm, so Bob's
+  legs and Bobbett's hips (later in the body list) covered the arch: no flag now, like his Rock and Grenade. His
+  photo's light tan (#dcaa64) vanished against bare skin; #b0743a reads on skin and grass. And the HUD close-up had
+  a hairline of wood round each red tip (two coincident edges, each anti-aliased): the wood now ends under the red.
 
 ## 🔇 Test mute (2026-10-25)
 
