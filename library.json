@@ -1783195,6 +1783195,38 @@
     "37,4": {
      "c": "#2c4419",
      "tex": "arsou0j"
+    },
+    "37,122": {
+     "c": "#2a2017",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "34,123": {
+     "c": "#2a2017",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true
+    },
+    "35,120": {
+     "c": "#2a2017",
+     "slope": 1,
+     "run": 1,
+     "step": 0
+    },
+    "34,121": {
+     "c": "#2a2017",
+     "slope": 1,
+     "run": 1,
+     "step": 0
+    },
+    "36,121": {
+     "c": "#2a2017",
+     "slope": 1,
+     "run": 1,
+     "step": 0
     }
    },
    "bg": {
@@ -1791682,13 +1791714,10 @@
     "35,121": "#2a2017",
     "35,122": "#2a2017",
     "36,122": "#2a2017",
-    "36,121": "#2a2017",
     "36,120": "#2a2017",
     "37,120": "#2a2017",
     "37,121": "#2a2017",
-    "35,120": "#2a2017",
     "34,122": "#2a2017",
-    "34,121": "#2a2017",
     "33,122": "#2a2017",
     "33,123": "#2a2017",
     "32,123": "#2a2017",
@@ -1793293,6 +1793322,81 @@
       "canvasScale": false,
       "z": 82
      }
+    ],
+    "33,112": [
+     {
+      "kind": "prop",
+      "propId": "trroot1",
+      "solid": false,
+      "size": 10,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 89
+     }
+    ],
+    "33,102": [
+     {
+      "kind": "prop",
+      "propId": "trroot1",
+      "solid": false,
+      "size": 10,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 90
+     }
+    ],
+    "39,59": [
+     {
+      "kind": "prop",
+      "propId": "shlfngs",
+      "solid": false,
+      "size": 4,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 91
+     }
+    ],
+    "38,59": [
+     {
+      "kind": "prop",
+      "propId": "shlfngs",
+      "solid": false,
+      "size": 4,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 92
+     }
+    ],
+    "38,61": [
+     {
+      "kind": "prop",
+      "propId": "shlfngs",
+      "solid": false,
+      "size": 4,
+      "inFront": true,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 93
+     }
     ]
    },
    "climb": {
@@ -1793536,8 +1793640,8 @@
      "hideInPlay": true
     }
    },
-   "savedAt": 1792630617479,
-   "editedFrom": 1792543844327
+   "savedAt": 1792960615368,
+   "editedFrom": 1792630617479
   },
   {
    "id": "ml8g3tb",
