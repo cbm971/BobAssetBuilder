@@ -377,6 +377,20 @@ export const starterStats = (look) => {
   return STARTER_STATS.map((s) => ({ k: s.k, l: s.l, v: s.def ? Math.max(0, Math.round((look && look.defense) || 0)) : Math.round(Number(st[s.stat] ?? 5)) || 0 }));
 };
 export const floorMark = (floor) => { const m = String(floor || "").trim().match(/[A-Za-z0-9]/); return m ? m[0].toUpperCase() : "?"; };
+// A floor with a DRAWN picture instead of its letter (gameShell.js FloorMedal): the Trailor Park is a
+// little trailer and Vietnam an army helmet (Blake, 2026-10-25: "an outline of a small simple
+// identifyable Trailor", "That will be an outline of a helmet"). Either spelling of Trailor counts.
+export const FLOOR_ICONS = { trailorpark: "trailer", vietnam: "helmet" };
+export const floorIcon = (floor) => FLOOR_ICONS[floorKey(floor)] || null;
+// Floors the card shows a medal for even before a run can start on them (Blake, 2026-10-25: make the
+// Vietnam medal "even though there isn't enough to route to vietnam yet"). App.js gameFloors adds
+// each one after the intro floors when no intro level names it.
+export const PLANNED_FLOORS = ["Vietnam"];
+export const withPlannedFloors = (floors) => {
+  const out = [...(floors || [])];
+  for (const f of PLANNED_FLOORS) if (!out.some((g) => floorKey(g) === floorKey(f))) out.push(f);
+  return out;
+};
 // The medals one fighter's card shows: every floor a run can start on (`floors`, App.js — the floors
 // of his intro levels), in that order, then any other floor this look has finished. `done` is
 // finished AS THIS LOOK (record.floorsWith, by name), not by anyone.
@@ -388,10 +402,11 @@ export const lookFloorMedals = (rec, lookName, floors) => {
   for (const f of floors || []) add(f);
   for (const f of Object.keys(r.floorsWith)) if (r.floorsWith[f].includes(who)) add(f);
   // `diff` is the hardest difficulty this look beat the floor on ("easy" | "medium" | "hard"), null
-  // when it has not — the medal's T gets a yellow outline for Medium and a red one for Hard.
+  // when it has not — the medal's picture fills white for Easy, and gets a yellow outline for Medium
+  // and a red one for Hard.
   return list.map((f) => {
     const done = !!who && floorWasDone(r, f, who), rank = done ? floorDiffRank(r, f, who) : 0;
-    return { floor: f, mark: floorMark(f), done, diff: done ? DIFFICULTIES[Math.max(1, rank) - 1].id : null };
+    return { floor: f, mark: floorMark(f), icon: floorIcon(f), done, diff: done ? DIFFICULTIES[Math.max(1, rank) - 1].id : null };
   });
 };
 

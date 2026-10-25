@@ -522,8 +522,11 @@ plus traps it does not cover:
   hat included, from the LIVE kit-merged body), and the difficulty boxes draw the lit fighter's head; the 🐱 symbol is ONLY the Extra Lives ability, on its own row ABOVE the heads.
   Blake (2026-10-18): one shared cat row read as "a multi lives ability".
 - **Player card** beside the P1 card: starting stats (`starterStats`, HUD symbols, unset = 5) and a
-  medal per floor (`lookFloorMedals`: the floors of intro levels, gold when beaten AS that look by
-  name). The mark is the floor's first letter; the Trailor Park's is a drawn slab T (`FloorMedal`).
+  medal per floor (`lookFloorMedals`: the floors of intro levels, then `PLANNED_FLOORS` (Vietnam) so
+  its medal shows before a run can reach it; gold when beaten AS that look by name). A floor in
+  `FLOOR_ICONS` is drawn as an OUTLINE picture (`FloorMedal`/`MEDAL_ICONS`: Trailor Park = trailer,
+  Vietnam = helmet; 2026-10-25, replacing the slab T); beaten on Easy it fills white, Medium adds a
+  yellow outline, Hard a red one. Any other floor shows its first letter.
 - **Saves are checkpoints** in their OWN IndexedDB database `bobOkayGame` (plain objects under
   `game:` keys), never the studio's `bobAssetStudio` store or localStorage (full). One is written
   400 ms after each run level goes live (never on the seam frame) and on Quit to Main Menu. Load

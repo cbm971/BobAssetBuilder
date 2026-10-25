@@ -212,15 +212,35 @@ const Padlock = ({ size }) => (
 );
 
 // A floor's medal on the player card, drawn (no emoji in the menus): gold once this fighter has
-// beaten the floor, an empty dim ring until then. The Trailor Park's is a drawn slab T (Blake: "a
-// sort of T symbol of some kind"); any other floor gets its first letter in the logo face.
-const FloorMedal = ({ mark, done, diff, size, title }) => (
+// beaten the floor, an empty dim ring until then. A floor with a picture (gameFront.js floorIcon) is
+// drawn as an OUTLINE of it — the Trailor Park a little trailer, Vietnam an army helmet (Blake,
+// 2026-10-25; the trailer replaced his first "sort of T symbol"). Beaten on Easy, the picture fills
+// in white; Medium gives it a yellow outline, Hard a red one (each over a thin dark edge, so it
+// reads on the gold). Any other floor gets its first letter in the logo face.
+// Each picture is a list of shapes; `line` ones are strokes only (never filled).
+const MEDAL_ICONS = {
+  // A 60s canned-ham trailer side on: round-shouldered body with a window and a door cut out, the
+  // hitch tongue off the front, one wheel.
+  trailer: [
+    { d: "M8.5 24.5V18A5.5 5.5 0 0 1 14 12.5H22.5A4.5 4.5 0 0 1 27 17V22.2L32 23.6V25L27 24.5Z M11.2 15.6H16.4V19.2H11.2Z M19.8 15.6H23.8V22.2H19.8Z" },
+    { circle: [15.5, 25.4, 2.6] },
+  ],
+  // An M1 helmet side on: the dome with its flared brim, a band round it, and the chin strap.
+  helmet: [
+    { d: "M7.5 25.2Q7.5 23.2 10 22.9C10.6 15.6 14.8 11.5 20 11.5C25.2 11.5 29.4 15.6 30 22.9Q32.5 23.2 32.5 25.2Z M11 19.6H29V21H11Z" },
+    { d: "M12.5 25.2Q20 31.5 27.5 25.2", line: true },
+  ],
+};
+const medalShapes = (icon, cls) => MEDAL_ICONS[icon].map((s, i) => (s.circle
+  ? <circle key={i} className={cls} cx={s.circle[0]} cy={s.circle[1]} r={s.circle[2]} />
+  : <path key={i} className={cls + (s.line ? " line" : "")} d={s.d} fillRule="evenodd" />));
+const FloorMedal = ({ mark, icon, done, diff, size, title }) => (
   <svg className={"gMedal" + (done ? " done" : "") + (done && diff === "medium" ? " medium" : "") + (done && diff === "hard" ? " hard" : "")} width={size} height={size} viewBox="0 0 40 40" role="img" aria-label={title}>
     <title>{title}</title>
     <circle className="gMedalRim" cx="20" cy="20" r="17.5" />
     <circle className="gMedalFace" cx="20" cy="20" r="12.5" />
-    {mark === "T"
-      ? <path className="gMedalMark" d="M11.5 11.5h17v5h-6V29.5h-5V16.5h-6z" />
+    {icon && MEDAL_ICONS[icon]
+      ? <g>{done && medalShapes(icon, "gMedalEdge")}{medalShapes(icon, "gMedalPic")}</g>
       : <text className="gMedalMark" x="20" y="26" textAnchor="middle" fontSize="17">{mark}</text>}
   </svg>
 );
@@ -331,7 +351,7 @@ function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, 
             </div>
             {medals.length > 0 && (
               <div className="gPFloors">
-                {medals.map((m) => <FloorMedal key={m.floor} mark={m.mark} done={m.done} diff={m.diff} size={medalPx} title={m.floor} />)}
+                {medals.map((m) => <FloorMedal key={m.floor} mark={m.mark} icon={m.icon} done={m.done} diff={m.diff} size={medalPx} title={m.floor} />)}
               </div>
             )}
           </div>
@@ -768,6 +788,15 @@ export const GAME_CSS = `
 .gMedal.done .gMedalMark{fill:#2a1d00}
 .gMedal.medium .gMedalMark{stroke:#ffe600;stroke-width:3;stroke-linejoin:round;paint-order:stroke}
 .gMedal.hard .gMedalMark{stroke:#e5201b;stroke-width:3;stroke-linejoin:round;paint-order:stroke}
+.gMedalPic{fill:none;stroke:rgba(241,239,228,.42);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+.gMedalEdge{fill:none;stroke:#2a1d00;stroke-width:4.2;stroke-linejoin:round;stroke-linecap:round}
+.gMedal.done .gMedalPic{fill:#f6f4ea;stroke:#2a1d00;stroke-width:1.5}
+.gMedal.done .gMedalPic.line{fill:none;stroke:#f6f4ea;stroke-width:1.6}
+.gMedal.medium .gMedalPic{stroke:#ffe600;stroke-width:2.1}
+.gMedal.hard .gMedalPic{stroke:#e5201b;stroke-width:2.1}
+.gMedal.medium .gMedalPic.line,.gMedal.hard .gMedalPic.line{fill:none;stroke:#f6f4ea;stroke-width:1.6}
+.gMedal.medium .gMedalEdge,.gMedal.hard .gMedalEdge{stroke-width:4.8}
+.gMedalPic.line,.gMedalEdge.line{fill:none}
 .gDiff.on{background:var(--gGold);border-color:#fff;color:#1d2a12;transform:skewX(-10deg) translateY(-3px)}
 .gDiffBox.live .gDiff.on{box-shadow:0 0 0 3px #fff,0 0 24px rgba(247,197,49,.6),0 8px 0 rgba(0,0,0,.35)}
 .gStart{cursor:pointer;font-family:Sarpanch,'Russo One',sans-serif;font-style:normal;font-stretch:normal;font-weight:900;font-size:clamp(28px,3vw,54px);text-transform:uppercase;letter-spacing:.06em;color:#fff;background:linear-gradient(180deg,#d8452f,#a52a1a);border:4px solid var(--gEdge);padding:.08em 1.1em .12em;transform:skewX(-10deg);box-shadow:0 8px 0 rgba(0,0,0,.4);text-shadow:0 3px 0 rgba(0,0,0,.4);opacity:.7;transition:opacity .15s}

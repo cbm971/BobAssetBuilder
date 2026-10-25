@@ -10,7 +10,7 @@ import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSound
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
 // rules and store are src/gameFront.js and its screens src/gameShell.js; the GAME FRONT END block
 // after startRun is where it meets the run engine.
-import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND } from "./gameFront";
+import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors } from "./gameFront";
 import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
@@ -24205,12 +24205,13 @@ export default function AssetStudio({ game = false } = {}) {
   // looking at how a level reads behind it; the other screens keep their own.
   const menuLineup = useMemo(() => (game && gameLevelsIn ? menuLevelLineup(levelLib) : []), [game, gameLevelsIn]);
   // The floors a run can start on — the floors of his intro levels (runRole), in library order — for
-  // the medals on the character select's player card (gameFront.js lookFloorMedals).
+  // the medals on the character select's player card (gameFront.js lookFloorMedals). Then the floors
+  // coming later (PLANNED_FLOORS: Vietnam), so their medals show before a run can reach them.
   const gameFloors = useMemo(() => {
     if (!game || !gameLevelsIn) return [];
     const out = [];
     for (const l of levelLib) { const f = l && runRole(l) === "intro" ? String(l.floor || "").trim() : ""; if (f && !out.includes(f)) out.push(f); }
-    return out;
+    return withPlannedFloors(out);
   }, [game, gameLevelsIn, levelLib]);
   const menuSceneCache = useRef(new Map());
   const menuSceneFor = (view) => {

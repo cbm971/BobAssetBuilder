@@ -6,7 +6,7 @@ import {
   normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone,
   unlockPool, createGameStore, starterLooks, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, runLivesLeft, deathEndsRun,
   pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS,
-  starterLock, STARTER_LOCKS, starterStats, floorMark, lookFloorMedals, recordMet, starterRoster, selectGridFill,
+  starterLock, STARTER_LOCKS, starterStats, floorMark, floorIcon, withPlannedFloors, lookFloorMedals, recordMet, starterRoster, selectGridFill,
 } from "./gameFront";
 import fs from "fs";
 import path from "path";
@@ -391,16 +391,27 @@ describe("the character select's player card", () => {
     expect(floorMark("  vietnam")).toBe("V");
     expect(floorMark("")).toBe("?");
   });
+  test("the Trailor Park's medal is a trailer and Vietnam's a helmet; other floors keep their letter", () => {
+    expect(floorIcon("Trailor Park")).toBe("trailer");
+    expect(floorIcon("trailer park")).toBe("trailer");
+    expect(floorIcon(" Vietnam ")).toBe("helmet");
+    expect(floorIcon("Sewer")).toBeNull();
+  });
+  test("Vietnam gets a medal before a run can start there, once, after the intro floors", () => {
+    expect(withPlannedFloors(["Trailor Park"])).toEqual(["Trailor Park", "Vietnam"]);
+    expect(withPlannedFloors(["vietnam", "Trailor Park"])).toEqual(["vietnam", "Trailor Park"]);
+    expect(withPlannedFloors([])).toEqual(["Vietnam"]);
+  });
   test("medals are beaten AS THIS look, by name, in the run's floor order, either spelling", () => {
     let r = recordFloorDone(newGameRecord(), "Trailer Park", 10, "Rob");
     r = recordFloorDone(r, "Vietnam", 10, "Bob");
     expect(lookFloorMedals(r, "Rob", ["Trailor Park", "Vietnam"])).toEqual([
-      { floor: "Trailor Park", mark: "T", done: true, diff: "easy" },
-      { floor: "Vietnam", mark: "V", done: false, diff: null },
+      { floor: "Trailor Park", mark: "T", icon: "trailer", done: true, diff: "easy" },
+      { floor: "Vietnam", mark: "V", icon: "helmet", done: false, diff: null },
     ]);
     expect(lookFloorMedals(r, "bob", ["Trailor Park"])).toEqual([
-      { floor: "Trailor Park", mark: "T", done: false, diff: null },
-      { floor: "Vietnam", mark: "V", done: true, diff: "easy" },
+      { floor: "Trailor Park", mark: "T", icon: "trailer", done: false, diff: null },
+      { floor: "Vietnam", mark: "V", icon: "helmet", done: true, diff: "easy" },
     ]);
     // the T is outlined by the hardest difficulty this look beat the floor on
     let d = recordFloorDone(newGameRecord(), "Trailor Park", 10, "Bob", "medium");
