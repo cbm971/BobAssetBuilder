@@ -658,7 +658,7 @@ plus traps it does not cover:
   - **A run is one floor's** (`buildRun(pool, seed, { floor })`, 2026-10-18): the Intro, the Exit and
     (with no Intro) the first level come from that floor; later levels join by gates alone. 🎲 Generate
     has a floor box (`runFloors`), opening on the editor level's floor; Hold-R keeps the run's floor.
-    No floor = any Intro (the game's New Game). Vietnam is five middle levels, Forest M1-M5, all joined Lower Left to Lower Right (W2/E2, accepts "Vietnam"; M3 and M4 also open up into Tree Tops), and a run lays them in any order. Forest M5 (2026-10-25) is the thick-jungle one with a single shack, his M4 shack whose door tag "Shaq" leads to VShaq.
+    No floor = any Intro (the game's New Game). Vietnam is five middle levels, Forest M1-M5, all joined Lower Left to Lower Right (W2/E2, accepts "Vietnam"; M3 and M4 also open up into Tree Tops), and a run lays them in any order. Forest M5 (2026-10-25) is the thick-jungle one with a single shack, his M4 shack whose door tag "Shaq" leads to VShaq or VShaq 2 (the WBOB radio shack, 2026-10-25).
   - Sewers and tree tops (Floor "Sewer", "Underground" or "Tree Top") are planned as passages
     with a way out. **No street level is laid with a top/bottom gate that leads nowhere** (his rule,
     2026-10-11: "an impossible seed"): `tryLay` takes a level back when its passage cannot be
@@ -686,6 +686,8 @@ plus traps it does not cover:
   tall, capped where the room covers the view, never below 1; streets are always 1. Anything that
   turns the camera into a level-pixel rectangle divides `clientWidth/Height` by `z` (cull, talk
   bubble, sound view). The camera centres a narrow room (`centreRoomInView`), not margin:auto.
+  In a 24-row room the view never climbs above about row 4, even with you on the plane's back row,
+  so a sign or anything meant to be read sits at row 5 or lower (VShaq 2's WBOB sign was cut off at row 3).
 - **Dialogue trees** are the sixth saved kind: `{ id, name, start, once?, nodes: { nId: { speaker,
   text, choices: [{ text, to, act, tone, shopTag? }] } } }`. `to` and `act` are independent. Keys
   1–9 pick options. A tree on a spawn makes it peaceful, and a conversation pauses the WORLD. A shop

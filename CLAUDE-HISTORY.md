@@ -5414,3 +5414,11 @@ for a freshly made item and for one reopened from 📂 Load.
   crowns, the understory in one colour so lumps merge into runs, 58 vine tiles instead of 184, fewer plants, and lighter
   props (palm 56->41 pieces, bamboo 60->44, elephant ear 35->25). Standing script time then matched M1. Paint on his
   GPU was not measured (the pane was hidden).
+
+**VShaq 2, the WBOB radio shack (2026-10-25).** Blake asked for a new Shaq room (Vietnam, the 60s, "be creative") with a
+basic T1 pedestal. `vshaq02` joins the "Shaq" door pool beside VShaq: a GI pirate radio station in a bamboo hut with an
+A-frame thatch gable, same shell recipe as VShaq (plane rows 17-22, fences at cols 5/34, door 21,19). Eleven new props
+(`wb*`: On Air Sign, WBOB Sign, Crate Desk, Reel-to-Reel with two turning frames, Desk Microphone, Record Crate, Wall
+Records, PA Horn, Crank Generator, Jungle Window, Power Cable), all passing editorReachIssues. DJ Ronnie Ray (Readitor
+look, dialogue `dlgwbob`, heal on one choice) and a T1 pedestal at 19,27. First playtest showed the sign cut off at the
+top of the room view, hence the row-5 rule.
