@@ -252,6 +252,9 @@ plus traps it does not cover:
   tiers, and the face left open.
 - **Sleeves need `overArms: true` + `limb: "arm"`.** A sleeve box copied without those flags hangs
   off the shoulder.
+- **Underwear in Crouch: tick Behind legs on EVERY piece** (his Boxers do). The crouch thighs come up
+  over the hips, so one unticked piece floats in front of the knees: Cheeky Bottoms' crotch on BoB
+  and its hip bits on Bobbett, "behind legs in crouch isn't working right" (2026-10-24).
 - Arm-flagged pieces (`limb:"arm"`, `role:"weaponArm"`, and every block drawn in the weapon editor)
   turn about the shoulder. `pieceOriginFrac` is the only place a pivot is decided.
 - A ring hat (a crown, a headband) is split in two: the back half is `behindBody`, the front half
