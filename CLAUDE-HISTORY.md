@@ -5370,3 +5370,18 @@ for a freshly made item and for one reopened from 📂 Load.
 - Seen in the running app (DOM rasterised through a loopback receiver, the pane being hidden): the weapon editor,
   held in Bob's hand (attachWeaponBlocks kept the turned Ovals in place), spinning in flight, the HUD icon, and a
   unit holding it. editorReachIssues [].
+
+## 🔇 Test mute (2026-10-25)
+
+- Blake, while the Boomerang redesign was being checked: "Turn off the music. In fact, just turn off the music in testing
+  in general". The agent's hidden Browser-pane tab was in ▶ Playtest on zz Boomerang Test and its music was coming out
+  of his speakers. The page had the usual injected mute (an AudioContext whose `destination` is a zero gain), which
+  silenced the effects, but the music is `music.el`, a plain `new Audio()` element in audio.js, which no Web Audio mute
+  reaches. Closing the tab stopped it.
+- `testMuteOn()` in audio.js, the twin of 🛡 `godModeOn`: `window.__bobMute`, `?mute` in the address, or localStorage
+  `bobMute` = "1". The engine now runs master -> `gate` -> speakers; `applyMute()` (before every voice, talk loop,
+  music sync, long preview and the first-input unlock) sets the gate to 0 and `muted` on the music and preview
+  elements. Nothing else changes: moments start, trace and loop as before. `state().muted` says which.
+- Verified in the dev server opened at `/?mute` with the studio's 🎵 On: in a Playtest the music element's play() was
+  called already muted by the game, and the one gain feeding the speakers was the gate at 0 (the keep-awake source,
+  1e-6, still goes direct, as designed). The page also carried a safety-net mute so the check itself made no sound.

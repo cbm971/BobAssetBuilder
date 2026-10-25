@@ -8,7 +8,7 @@ import {
   clipHash, clipNameOk, clipMatches, createAudioEngine, SOUND_BOARD_ID, newSoundBoard, isSoundRecord, isSoundBoard,
   leadingSilence, ONSET_FLOOR, ONSET_OF_PEAK, ONSET_PREROLL_S, talkSeconds, TALK_CHARS_PER_S, TALK_MIN_S, TALK_MAX_S, dialogueSoundId,
   soundVolume, SOUND_VOL_MAX, slotVolume, withSlotVolume, oneVolume, resolveSoundVol, splitHurtDeath,
-  musicTrackFor, stretchChannels, PICKUP_LEGENDARY_STRETCH,
+  musicTrackFor, stretchChannels, PICKUP_LEGENDARY_STRETCH, testMuteOn,
 } from "./audio";
 import { groupByCategory, mergeLibraries, mergeCloudLibrary, diskLibrary } from "./App";
 
@@ -738,5 +738,90 @@ describe("stretchChannels", () => {
   test("every channel is stretched to the same length", () => {
     const [l, r] = stretchChannels([tone(440, 0.3), tone(660, 0.3)], sr, 3);
     expect(l.length).toBe(r.length);
+  });
+});
+describe("🔇 the test mute: an agent's test drive makes no sound (2026-10-25)", () => {
+  // Blake heard the Playtest music from an agent's hidden test tab: the mute it injected caught Web
+  // Audio only, and the music is an <audio> element. testMuteOn silences both; nothing else changes.
+  const install = () => {
+    const log = { gains: [], started: [], el: null };
+    class FakeCtx {
+      constructor() { this.state = "running"; this.destination = { speakers: true }; this.currentTime = 1; }
+      resume() { return Promise.resolve(); }
+      createGain() {
+        const g = { gain: { value: 1, setValueAtTime: () => {}, linearRampToValueAtTime: () => {}, cancelScheduledValues: () => {} }, to: null, connect: (n) => { g.to = n; return n; }, disconnect: () => {} };
+        log.gains.push(g); return g;
+      }
+      createBufferSource() { const s = { loop: false, connect: (n) => { s.out = n; return n; }, start: () => { log.started.push(s); }, stop: () => {}, onended: null }; return s; }
+      createConstantSource() { return { offset: { value: 0 }, connect: () => {}, start: () => {}, stop: () => {}, disconnect: () => {} }; }
+      decodeAudioData(ab, ok) {
+        const d = new Float32Array(1000).fill(0.5);
+        const p = Promise.resolve({ duration: 1, sampleRate: 1000, numberOfChannels: 1, getChannelData: () => d });
+        p.then(ok); return p;
+      }
+    }
+    class FakeAudio {
+      constructor() { this.paused = true; this.muted = false; this.volume = 1; this.loop = false; log.el = this; }
+      play() { this.paused = false; return Promise.resolve(); }
+      pause() { this.paused = true; }
+    }
+    window.AudioContext = FakeCtx; window.Audio = FakeAudio;
+    URL.createObjectURL = () => "blob:track"; URL.revokeObjectURL = () => {};
+    return log;
+  };
+  const realAudio = window.Audio, realCreate = URL.createObjectURL, realRevoke = URL.revokeObjectURL;
+  afterEach(() => {
+    delete window.AudioContext; window.Audio = realAudio;
+    URL.createObjectURL = realCreate; URL.revokeObjectURL = realRevoke;
+    delete window.__bobMute; window.localStorage.removeItem("bobMute"); window.history.replaceState(null, "", "/");
+  });
+  const clipA = "c".repeat(28) + ".mp3", clipM = "d".repeat(28) + ".mp3";
+  const files = { [clipA]: new Uint8Array([0]), [clipM]: new Uint8Array([0]) };
+  const make = () => {
+    const e = createAudioEngine({ loadClip: async (n) => files[n] || null });
+    e.setLibrary([snd("whoosh", "Whoosh", "Bob", clipA), snd("song", "Song", "Music", clipM), board({ jump: "whoosh" }, "song")]);
+    return e;
+  };
+  const settle = async () => { for (let i = 0; i < 4; i++) await new Promise((r) => setTimeout(r, 0)); };
+  const speakerGate = (log) => log.gains.find((g) => g.to && g.to.speakers);
+
+  test("off unless a test turns it on: window.__bobMute, ?mute in the address, or localStorage bobMute", () => {
+    expect(testMuteOn()).toBe(false);
+    window.__bobMute = true; expect(testMuteOn()).toBe(true); delete window.__bobMute;
+    window.localStorage.setItem("bobMute", "1"); expect(testMuteOn()).toBe(true); window.localStorage.removeItem("bobMute");
+    for (const [q, on] of [["/?mute", true], ["/?mute=1", true], ["/?god&mute", true], ["/?muted", false], ["/?mute=0", false]]) {
+      window.history.replaceState(null, "", q);
+      expect(testMuteOn()).toBe(on);
+    }
+  });
+
+  test("muted, a jump still starts and is traced, into a shut gate in front of the speakers", async () => {
+    const log = install();
+    window.__bobMute = true;
+    const e = make();
+    e.preload(["whoosh"]); await settle();
+    expect(e.event("jump")).toBe(true);
+    expect(log.started).toHaveLength(1);
+    expect(e.trace().slice(-1)[0].heard).toBe(true);
+    const gate = speakerGate(log);
+    expect(gate.gain.value).toBe(0);
+    expect(log.gains.some((g) => g.to === gate)).toBe(true);        // the master goes through it
+    expect(e.state().muted).toBe(true);
+    delete window.__bobMute;                                       // read at every start
+    expect(e.talk("whoosh", 1)).toBe(true);
+    expect(gate.gain.value).toBe(1);
+  });
+
+  test("muted, the music still plays its track, silently; off again, it is heard", async () => {
+    const log = install();
+    window.history.replaceState(null, "", "/?mute");
+    const e = make();
+    e.setMusicOn(true); e.setPlaying(true); await settle();
+    expect(e.musicState().clip).toBe(clipM);
+    expect(log.el.paused).toBe(false);
+    expect(log.el.muted).toBe(true);
+    window.history.replaceState(null, "", "/");
+    e.setMusicOn(true); await settle();
+    expect(log.el.muted).toBe(false);
   });
 });

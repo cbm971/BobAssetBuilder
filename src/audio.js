@@ -378,9 +378,25 @@ export const musicTrackFor = (board, playing, menu) => {
   if (board.menuMusic) return { id: board.menuMusic, vol: board.menuMusicVol };
   return board.music ? { id: board.music, vol: board.musicVol } : null;
 };
+// 🔇 TEST MUTE — a TESTING switch for agents driving the game, the twin of 🛡 god mode (godModeOn in
+// App.js): no button, nothing on screen. Blake, 2026-10-25, after an agent's hidden test tab played
+// the Playtest music out of his speakers: "turn off the music in testing in general". The in-page
+// mute agents used to inject only silenced Web Audio, and the music is an <audio> element.
+// On while ANY of: `window.__bobMute = true`, `?mute` in the page address, or localStorage
+// `bobMute` = "1". Read at every start, so only the sound changes: every moment still starts,
+// traces and loops exactly as before, through an output of gain 0, and the music and long-preview
+// elements play muted.
+export const testMuteOn = () => {
+  try {
+    if (typeof window === "undefined") return false;
+    if (window.__bobMute) return true;
+    if (/[?&]mute(?:=1|=true)?(?:&|$)/.test(window.location.search || "")) return true;
+    return window.localStorage.getItem("bobMute") === "1";
+  } catch (e) { return false; }
+};
 export const createAudioEngine = ({ loadClip } = {}) => {
   const W = typeof window !== "undefined" ? window : null;
-  let ctx = null, master = null;
+  let ctx = null, master = null, gate = null;    // gate: between master and the speakers, 0 under testMuteOn
   const sounds = new Map();      // id -> sound record
   let board = null;
   const buffers = new Map();     // clip -> AudioBuffer, decoded once
@@ -398,6 +414,13 @@ export const createAudioEngine = ({ loadClip } = {}) => {
   const prev = { el: null, url: null, id: null };   // the studio's ▶ for a long sound (see preview)
   const LONG_PREVIEW_S = 20;
   const now = () => (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now());
+  // testMuteOn, applied before anything starts: the effects' gate shut and both elements muted.
+  const applyMute = () => {
+    const m = testMuteOn();
+    if (gate) { try { gate.gain.value = m ? 0 : 1; } catch { /* a closed context */ } }
+    for (const el of [music.el, prev.el]) if (el) { try { el.muted = m; } catch { /* gone */ } }
+    return m;
+  };
 
   // latencyHint "interactive" is the default, written out so nobody "tunes" it: it is the smallest
   // output buffer the device allows (measured on Blake's PC: 10 ms base + 40 ms out). "playback"
@@ -406,8 +429,11 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     if (ctx || !W) return ctx;
     const AC = W.AudioContext || W.webkitAudioContext;
     if (!AC) return null;
-    try { ctx = new AC({ latencyHint: "interactive" }); master = ctx.createGain(); master.gain.value = vol.effects; master.connect(ctx.destination); } catch { ctx = null; }
-    if (ctx) syncAwake();
+    try {
+      ctx = new AC({ latencyHint: "interactive" }); master = ctx.createGain(); master.gain.value = vol.effects;
+      gate = ctx.createGain(); master.connect(gate); gate.connect(ctx.destination);
+    } catch { ctx = null; }
+    if (ctx) { applyMute(); syncAwake(); }
     return ctx;
   };
   // KEEP THE SOUND CARD AWAKE WHILE A RUN IS GOING. Chrome parks a Web Audio context's output after
@@ -438,6 +464,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
   const unlock = () => {
     const c = ensureCtx();
     if (c && c.state === "suspended") { try { c.resume().catch(() => {}); } catch { /* not allowed yet */ } }
+    applyMute();
     if ((music.playing || music.menu) && music.el && music.el.paused) { try { const p = music.el.play(); if (p && p.catch) p.catch(() => {}); } catch { /* still locked */ } }
   };
   if (W && W.addEventListener) {
@@ -515,6 +542,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     // context is not dropped, it is QUEUED, and every one of them would go off together the moment
     // the first click unlocks it.
     if (c.state !== "running") { note({ at: t, id, clip: s.clip, gain, heard: false, why: "locked", ...info }); return false; }
+    applyMute();
     if (plan.steal) {
       try { plan.steal.src.stop(); } catch { /* already ended */ }
       plan.steal.done = true;
@@ -566,6 +594,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + 0.003);
     g.gain.setValueAtTime(vol, end - fade); g.gain.linearRampToValueAtTime(0, end);
     src.connect(g); g.connect(master);
+    applyMute();
     src.onended = () => { try { g.disconnect(); } catch { /* gone */ } if (talkVoice.src === src) { talkVoice.src = null; talkVoice.g = null; } };
     src.start(0, skip); src.stop(end);
     talkVoice.src = src; talkVoice.g = g;
@@ -622,6 +651,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
         prev.url = URL.createObjectURL(new Blob([bytes], { type: clipMime(s.clip) }));
         prev.el.src = prev.url; prev.id = id;
         prev.el.volume = Math.min(1, soundVolume(s) * oneVolume(vol)); // an element stops at 1 (see SOUND_VOL_MAX)
+        applyMute();
         try { await prev.el.play(); } catch { return false; }
         note({ at: now(), id, clip: s.clip, gain: 1, heard: true, preview: true, streamed: true });
         return true;
@@ -666,6 +696,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
       // Every sync, not only on a new track: setLibrary calls this when the slider saves, so the
       // track playing now follows the slider without restarting.
       music.el.volume = Math.min(1, soundVolume(s) * oneVolume(tr.vol)) * vol.music;
+      applyMute();
       if (music.clip !== want) {
         const bytes = loadClip ? await loadClip(want) : null;
         if (!bytes) return;
@@ -695,7 +726,7 @@ export const createAudioEngine = ({ loadClip } = {}) => {
     // What has played, newest last: [{ at, id, clip, gain, slot, basic, asset }]. Read by tests and
     // by anyone checking that a moment fired the clip it should.
     trace: () => trace.slice(),
-    state: () => ({ context: ctx ? ctx.state : "none", decoded: [...buffers.keys()], voices: voices.filter((v) => !v.done).length, skips: Object.fromEntries(starts), awake: !!awake, talking: !!talkVoice.src }),
+    state: () => ({ context: ctx ? ctx.state : "none", decoded: [...buffers.keys()], voices: voices.filter((v) => !v.done).length, skips: Object.fromEntries(starts), awake: !!awake, talking: !!talkVoice.src, muted: testMuteOn() }),
   };
   return engine;
 };

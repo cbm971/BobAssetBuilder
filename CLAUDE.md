@@ -64,8 +64,15 @@ Chrome store reader.
 ## Verify in the running app, not just in tests
 
 Passing tests have hidden broken render paths more than once. Start the dev server
-(`BROWSER=none PORT=3000 npm start`, in the background), open it in the preview, drive it with
-JavaScript, and read the DOM back as the proof.
+(`BROWSER=none PORT=3000 npm start`, in the background), open it in the preview AS
+`http://localhost:3000/?mute`, drive it with JavaScript, and read the DOM back as the proof.
+
+- **Always test muted** (Blake, 2026-10-25: "turn off the music in testing in general"). The hidden
+  pane's sound is real and comes out of his speakers. `?mute` in the address (or `window.__bobMute =
+  true`, or localStorage `bobMute` = "1") is `testMuteOn` in audio.js: the effects' gate goes to 0
+  and the music and preview `<audio>` elements play muted, so everything still starts and traces.
+  An injected AudioContext mute is NOT enough: the music is an `<audio>` element, and that is how
+  he heard a Playtest's music. Close every test tab when you are done.
 
 - Buttons have no accessible names. Find them by `textContent`.
 - Seed real data: `asset:<id>` + `assetIndex`, and `level:<id>` + `levelIndex`, cloned from real
