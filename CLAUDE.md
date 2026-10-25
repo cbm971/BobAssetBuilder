@@ -658,7 +658,7 @@ plus traps it does not cover:
   - **A run is one floor's** (`buildRun(pool, seed, { floor })`, 2026-10-18): the Intro, the Exit and
     (with no Intro) the first level come from that floor; later levels join by gates alone. 🎲 Generate
     has a floor box (`runFloors`), opening on the editor level's floor; Hold-R keeps the run's floor.
-    No floor = any Intro (the game's New Game). Vietnam is two middle levels, Forest M1 and Forest M2 (M2's W1/E2 meet M1's E1/W2), and a run lays them in either order.
+    No floor = any Intro (the game's New Game). Vietnam is five middle levels, Forest M1-M5, all joined Lower Left to Lower Right (W2/E2, accepts "Vietnam"; M3 and M4 also open up into Tree Tops), and a run lays them in any order. Forest M5 (2026-10-25) is the thick-jungle one with a single shack, his M4 shack whose door tag "Shaq" leads to VShaq.
   - Sewers and tree tops (Floor "Sewer", "Underground" or "Tree Top") are planned as passages
     with a way out. **No street level is laid with a top/bottom gate that leads nowhere** (his rule,
     2026-10-11: "an impossible seed"): `tryLay` takes a level back when its passage cannot be

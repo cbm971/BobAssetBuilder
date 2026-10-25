@@ -5396,3 +5396,21 @@ for a freshly made item and for one reopened from 📂 Load.
 - Verified in the dev server opened at `/?mute` with the studio's 🎵 On: in a Playtest the music element's play() was
   called already muted by the game, and the one gain feeding the speakers was the gate at 0 (the keep-awake source,
   1e-6, still goes direct, as designed). The page also carried a safety-net mute so the check itself made no sound.
+
+## 🌴 Forest M5 (2026-10-25)
+
+- Blake: "make another Vietnam level? Just lower to lower like most are, and for this one I want it to mostly just be
+  thick jungle vegetation and trees and stuff. There should be a single shack some where (We will have more shacks later)".
+- vcfrm05, 160x46, W2/E2 open with accepts "Vietnam", ground on row 36 at both seams. Painted the way his Forest levels
+  are: chamfered canopy blobs of cells on Background (far wall, middle tier, near trees, understory) and Front (the roof
+  you walk under, three trees on trunks with Tree Roots), his Vietnam grass, night sky and 🔶 stars, his Bush and Berry
+  Bushes, a fallen log (one row, a hop) with his Shelf Fungus. The shack is HIS Forest M4 shack copied cell for cell 28
+  columns right, door marker tag "Shaq" (enters VShaq). 7 Viet Cong on Seek, his M1/M2 placement shape.
+- Four new Nature props, all stock pieces (editorReachIssues empty): Banana Plant vjbanan, Jungle Palm vjpalm1, Elephant
+  Ear vjtaro1, Bamboo Clump vjbmboo.
+- **Density budget.** The first draft had 2.7x Forest M1's elements in the level DOM (7085 vs 2617) and ran 21-26 fps
+  against M1's ~60 in the Browser pane. Every 45° canopy corner is its own clipped tile (plain cells merge into runs), and
+  each prop piece is ~2 divs. Trimmed to ~4400 (1.7x): corners only on the visible outline, the middle tier as single
+  crowns, the understory in one colour so lumps merge into runs, 58 vine tiles instead of 184, fewer plants, and lighter
+  props (palm 56->41 pieces, bamboo 60->44, elephant ear 35->25). Standing script time then matched M1. Paint on his
+  GPU was not measured (the pane was hidden).
