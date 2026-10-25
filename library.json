@@ -1550991,6 +1550991,111 @@
       "canvasScale": false,
       "z": 149
      }
+    ],
+    "35,100": [
+     {
+      "kind": "prop",
+      "propId": "lt1i1vk",
+      "solid": false,
+      "size": 3,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 150
+     }
+    ],
+    "34,124": [
+     {
+      "kind": "prop",
+      "propId": "zoorock",
+      "solid": false,
+      "size": 8,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 151
+     }
+    ],
+    "33,37": [
+     {
+      "kind": "prop",
+      "propId": "vjtaro1",
+      "solid": false,
+      "size": 6,
+      "inFront": true,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 152
+     }
+    ],
+    "37,16": [
+     {
+      "kind": "prop",
+      "propId": "shlfngs",
+      "solid": false,
+      "size": 4,
+      "inFront": true,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 153
+     }
+    ],
+    "37,130": [
+     {
+      "kind": "prop",
+      "propId": "vjbanan",
+      "solid": false,
+      "size": 10,
+      "inFront": true,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 154
+     }
+    ],
+    "30,94": [
+     {
+      "kind": "prop",
+      "propId": "vcrnett",
+      "solid": false,
+      "size": 10,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 155
+     }
+    ],
+    "29,112": [
+     {
+      "kind": "prop",
+      "propId": "2yao24w",
+      "solid": false,
+      "size": 12,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 156
+     }
     ]
    },
    "climb": {
@@ -1551300,8 +1551405,8 @@
    "floor": "Vietnam",
    "section": "Middle",
    "hazard": {},
-   "savedAt": 1792963780847,
-   "editedFrom": 1792884683454
+   "savedAt": 1792963965378,
+   "editedFrom": 1792963780847
   },
   {
    "id": "bv4u5mz",
