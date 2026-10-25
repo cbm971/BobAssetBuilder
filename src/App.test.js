@@ -267,6 +267,7 @@ import {
   recolorAssetGroup,
   retexAssetGroup,
   restyleAssetGroup,
+  seeThroughAssetGroup,
   editSnapshot,
   readEditSnapshot,
   stadiumRadius,
@@ -13839,13 +13840,17 @@ describe("👻 one see-through slider, and it follows the selection", () => {
     expect(src).not.toContain("👻 Translucent<input");
     expect(src).not.toContain("👻 Whole asset");
   });
-  test("with a selection it writes the selection (block or group); only with none does it touch the asset", () => {
-    const at = src.indexOf("const setT = (v) => sel");
+  // 2026-10-24 he asked for the other half: "change this color everywhere does not effect see
+  // through ness". With 🪣 on (and only then) it goes to every block of this colour.
+  test("with a selection it writes the selection (block or group), or with 🪣 on this colour everywhere; only with none does it touch the asset", () => {
+    const at = src.indexOf("const setT = (v) => everywhere");
     expect(at).toBeGreaterThan(-1);
-    const body = src.slice(at, at + 300);
-    expect(body).toMatch(/sel\s*\?\s*updSelAll\(\{ translucency/);   // a block, or every block of a selected group
-    expect(body).toContain("setAsset((a) =>");                         // nothing selected: the whole asset
-    expect(body).not.toContain("updFx");                               // never the colour-everywhere path
+    expect(src.slice(at - 200, at)).toMatch(/const everywhere = !!\(sel && recolorAll && sel\.color/);
+    const body = src.slice(at, at + 600);
+    expect(body).toContain("seeThroughAssetGroup(a, g, v)");             // 🪣 on: the colour's group
+    expect(body).toMatch(/: sel\s*\?\s*updSelAll\(\{ translucency/);     // 🪣 off: a block, or every block of a selected group
+    expect(body).toContain("setAsset((a) => { const { translucency");    // nothing selected: the whole asset
+    expect(body).not.toContain("updFx");                                 // never the Fade (fx.opacity) path
   });
 });
 
@@ -14905,6 +14910,38 @@ describe("🪣 change this colour everywhere matches the colour as drawn, not ju
     expect(wearsLook(a.angles.front[2], fillLook(a.angles.front[0]))).toBe(true);
     const out = recolorAsset(a, a.angles.front[0], "#ff0000");
     expect(colours(out.angles.front)).toEqual(["#ff0000", "#2b2b2b", "#ff0000", "#ff0000"]);
+  });
+
+  // 2026-10-24, Blake: "change this color everywhere does not effect see through ness". The 👻
+  // slider went to the selected block alone while Brightness and Fade beside it went everywhere.
+  test("👻 See-through with 🪣 on fades every block of this colour, in every fit — not the hair", () => {
+    const a = bobby();
+    const out = seeThroughAssetGroup(a, assetColorGroup(a, eye(a)), 0.4);
+    expect(out.angles.front.map((p) => p.translucency)).toEqual([undefined, undefined, 0.4, 0.4, 0.4]);
+    expect(out.variants.telfv37.front.map((p) => p.translucency)).toEqual([undefined, 0.4]);
+    const back = seeThroughAssetGroup(out, assetColorGroup(out, eye(out)), 0);
+    expect(back.angles.front.some((p) => "translucency" in p)).toBe(false);   // 0 removes the key, like one block
+  });
+
+  test("👻 a See-through drag holds its group: it neither loses its blocks nor picks up glass already there", () => {
+    const a0 = bobby();
+    a0.angles.front[1] = { ...a0.angles.front[1], fx: fx(1), translucency: 0.2 };  // a white block that is already glass
+    let a = a0, g = assetColorGroup(a, eye(a));
+    expect(g.keys.has("angles.front[1]")).toBe(false);        // see-through is part of the colour, like Fade
+    for (const v of [0.1, 0.2, 0.3]) {                         // the drag passes through 0.2, the glass block's stop
+      a = seeThroughAssetGroup(a, g, v);
+      g = colorGroupAfter(g, null, { translucency: v });
+      expect(wearsLook(eye(a), g.look)).toBe(true);
+      g = colorGroupStill(a, g);
+    }
+    expect(a.angles.front.map((p) => p.translucency)).toEqual([undefined, 0.2, 0.3, 0.3, 0.3]);
+    expect(colours(recolorAsset(a0, eye(a0), BLUE).angles.front)).toEqual([WHITE, WHITE, BLUE, BLUE, BLUE]);
+  });
+
+  test("the editor's 👻 slider goes through the 🪣 group when the toggle is on", () => {
+    const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
+    expect(src).toMatch(/everywhere = !!\(sel && recolorAll && sel\.color/);
+    expect(src).toContain("seeThroughAssetGroup(a, g, v)");
   });
 
   test("a bare hex still means every block of that hex — the 🎨 Skin palette's swatches", () => {

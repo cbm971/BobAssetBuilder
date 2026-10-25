@@ -5312,3 +5312,10 @@ for a freshly made item and for one reopened from 📂 Load.
 - Round 2 (same day): "When I said Bobs Outline I mean outline of what Bob would look like if he was locked" = the
   locked box's dark silhouette, not a drawn outline; Coming Soon is now that (no padlock). And the boxes show the
   randomized dressed look (gameDressed, the same roll as the P1 card) instead of the look in its underwear.
+- Same day: "change this color everywhere does not effect see through ness." The 👻 slider wrote updSelAll only
+  (on 10-10 I had ruled it out of the 🪣 path, after "it faded everything"). Now with 🪣 on it goes through the
+  colour group like Brightness and Fade (seeThroughAssetGroup, held through the drag), the title reads "this color
+  everywhere", and see-through is part of the colour (fillLook.see). Verified in the editor on Bobby Skin: at 40%
+  all 30 white blocks (4 poses x 2 fits) faded, the 30 grey hair blocks of the same hex did not, back to 0 removed
+  the key, and with 🪣 off it was one block. A fiber read from a DOM node showed the old value; the root's
+  current tree had the new one.

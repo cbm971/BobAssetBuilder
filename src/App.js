@@ -2100,13 +2100,15 @@ export const forEachAssetPiece = (a, fn) => {
 //
 // So `from` is the SELECTED BLOCK, matched on its look. A bare hex string still matches the hex
 // alone: that is the 🎨 Skin palette, whose swatches list hexes and count every block of each.
+// 👻 Translucent is part of the look for the same reason Fade is (`see`, 0 = solid): a see-through
+// block is a different colour on screen from a solid one of the same hex.
 const fxNum = (v, d) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 export const fillLook = (p) => (p && typeof p.color === "string")
-  ? { color: p.color.toLowerCase(), bright: fxNum(p.fx && p.fx.bright, 1), opacity: fxNum(p.fx && p.fx.opacity, 1) }
+  ? { color: p.color.toLowerCase(), bright: fxNum(p.fx && p.fx.bright, 1), opacity: fxNum(p.fx && p.fx.opacity, 1), see: fxNum(p.translucency, 0) }
   : null;
 export const wearsLook = (p, look) => {
   const l = fillLook(p);
-  return !!l && !!look && l.color === look.color && Math.abs(l.bright - look.bright) < 1e-6 && Math.abs(l.opacity - look.opacity) < 1e-6;
+  return !!l && !!look && l.color === look.color && Math.abs(l.bright - look.bright) < 1e-6 && Math.abs(l.opacity - look.opacity) < 1e-6 && Math.abs(l.see - fxNum(look.see, 0)) < 1e-6;
 };
 export const assetColorGroup = (a, from) => {
   const look = from && typeof from === "object" ? fillLook(from) : null;
@@ -2118,13 +2120,13 @@ export const assetColorGroup = (a, from) => {
 };
 // Handing the group on to the next step of the same edit. Membership is the frozen place set and
 // never changes; `from` (and a block's `look`) follows what those places are wearing now — a
-// colour step changes the hex, a Brightness or Fade step the look — which is how a caller tells
-// "this edit is still running" from "this is a new one".
+// colour step changes the hex, a Brightness, Fade or 👻 step (`{ translucency }`) the look — which
+// is how a caller tells "this edit is still running" from "this is a new one".
 export const colorGroupAfter = (g, to, fx) => {
   const c = typeof to === "string" ? to.toLowerCase() : null;
   if (!g || (!c && !fx)) return g;
   const out = { ...g, from: c || g.from };
-  if (g.look) out.look = { ...g.look, ...(c ? { color: c } : {}), ...(fx ? { bright: fxNum(fx.bright, g.look.bright), opacity: fxNum(fx.opacity, g.look.opacity) } : {}) };
+  if (g.look) out.look = { ...g.look, ...(c ? { color: c } : {}), ...(fx ? { bright: fxNum(fx.bright, g.look.bright), opacity: fxNum(fx.opacity, g.look.opacity), see: fxNum(fx.translucency, fxNum(g.look.see, 0)) } : {}) };
   return out;
 };
 // A group handed back for another step keeps only the places still wearing what the last step
@@ -2167,6 +2169,20 @@ export const retexAssetGroup = (a, g, tex) => {
     if (tex) return { ...p, tex };
     if (!p.tex) return p;
     const { tex: _gone, ...rest } = p;
+    return rest;
+  });
+};
+// 👻 See-through rides the toggle too (2026-10-24, Blake: "change this color everywhere does not
+// effect see through ness"). The Translucent slider faded the selected block alone while Brightness
+// and Fade beside it went everywhere. Same places, `translucency` on each; 0 removes the key, as the
+// slider does for one block.
+export const seeThroughAssetGroup = (a, g, v) => {
+  if (!a || !g) return a;
+  return mapAssetPieces(a, (p, k) => {
+    if (!inColorGroup(g, k)) return p;
+    if (v > 0) return { ...p, translucency: v };
+    if (p.translucency === undefined) return p;
+    const { translucency: _gone, ...rest } = p;
     return rest;
   });
 };
@@ -29438,17 +29454,24 @@ export default function AssetStudio({ game = false } = {}) {
                 · a GROUP selected → every block in it ("if a group was selected the group should
                   become translucent"), through updSelAll
                 · nothing selected → the whole asset (assetAlpha), drawn as one picture
+                · 🪣 Change this color everywhere on → every block wearing this block's colour, in
+                  every pose and fit, held through the drag like Brightness and Fade (2026-10-24)
               The title names which, so it can never quietly mean something else. 0 removes the key. */}
           {!effEdit && (() => {
             const n = sel ? selOrGroupIds().size : 0;
             const cur = sel ? (sel.translucency ?? 0) : (asset.translucency ?? 0);
-            const setT = (v) => sel
+            const everywhere = !!(sel && recolorAll && sel.color && sel.kind !== "emoji");
+            const setT = (v) => everywhere ? (() => {
+              const g = colorDrag();
+              colorGroup.current = colorGroupAfter(g, null, { translucency: v });
+              setAsset((a) => { if (HAS_FIT_VARIANTS(a)) dirtyGuides.current.add(a.guideId || "default"); return withRig(seeThroughAssetGroup(a, g, v)); });
+            })() : sel
               ? updSelAll({ translucency: v > 0 ? v : undefined })
               : setAsset((a) => { const { translucency, ...rest } = a; return v > 0 ? { ...rest, translucency: v } : rest; });
             return (
               <div className="card">
-                <div className="ct">👻 Translucent · {!sel ? "everything" : n > 1 ? "group of " + n : "this block"}</div>
-                <label className="slider">See-through<input type="range" min="0" max={TRANSLUCENCY_MAX} step={TRANSLUCENCY_STEP} value={cur} onChange={(e) => setT(+e.target.value)} /><span className="hint2" style={{ marginLeft: 6 }}>{Math.round(cur * 100)}%</span></label>
+                <div className="ct">👻 Translucent · {!sel ? "everything" : everywhere ? "this color everywhere" : n > 1 ? "group of " + n : "this block"}</div>
+                <label className="slider">See-through<input type="range" min="0" max={TRANSLUCENCY_MAX} step={TRANSLUCENCY_STEP} value={cur} onChange={(e) => setT(+e.target.value)} onBlur={endColorDrag} /><span className="hint2" style={{ marginLeft: 6 }}>{Math.round(cur * 100)}%</span></label>
               </div>
             );
           })()}

@@ -273,7 +273,11 @@ plus traps it does not cover:
   `piece.translucency` (`pieceAlpha`, outline and fill fade together); a selected group → every block
   in it (`updSelAll`); nothing selected → the whole asset. Never add a second see-through slider: with
   two (one per block, one per asset) Blake reached for the asset one with ONE block selected and it
-  faded his whole pill, three reports running. Never route it through the colour-everywhere path.
+  faded his whole pill, three reports running. With 🪣 Change this color everywhere ON it fades every
+  block wearing this block's colour, like Brightness and Fade (`seeThroughAssetGroup`, held through the
+  drag by `colorDrag`; 2026-10-24, he asked: "change this color everywhere does not effect see through
+  ness"), and the title then reads "this color everywhere". See-through is part of the colour
+  (`fillLook.see`): a glass block and a solid block of one hex are different colours to 🪣.
 - **A whole asset is see-through by `asset.translucency`** (0–0.9, that slider with nothing selected;
   `assetAlpha`). It fades the finished picture as ONE group (`fadeGroup`), unlike the
   per-piece ✨ Fade. Every `renderPieceRuns` call passes `alpha` (one asset: prop, plinth, drop, shop,
