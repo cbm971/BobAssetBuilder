@@ -2081573,6 +2081573,22 @@
       "flip": false,
       "lay": "bg",
       "z": 83
+     },
+     {
+      "kind": "prop",
+      "propId": "vjbanan",
+      "solid": false,
+      "size": 12,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0.54,
+      "oy": 0.01,
+      "z": 108
      }
     ],
     "26,85": [
@@ -2081831,24 +2081847,6 @@
       "z": 101
      }
     ],
-    "19,90": [
-     {
-      "kind": "prop",
-      "propId": "vjbmboo",
-      "solid": false,
-      "size": 18,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0.16,
-      "oy": 0.88,
-      "z": 103
-     }
-    ],
     "14,133": [
      {
       "kind": "prop",
@@ -2081900,42 +2081898,6 @@
       "ox": 0.29,
       "oy": 0.01,
       "z": 107
-     }
-    ],
-    "24,85": [
-     {
-      "kind": "prop",
-      "propId": "vjbanan",
-      "solid": false,
-      "size": 12,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0.54,
-      "oy": 0.01,
-      "z": 108
-     }
-    ],
-    "26,116": [
-     {
-      "kind": "prop",
-      "propId": "vjbanan",
-      "solid": false,
-      "size": 10,
-      "inFront": false,
-      "rot": 0,
-      "flip": true,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0.29,
-      "oy": 0.01,
-      "z": 109
      }
     ],
     "25,143": [
@@ -2082107,24 +2082069,6 @@
       "z": 119
      }
     ],
-    "33,49": [
-     {
-      "kind": "prop",
-      "propId": "lt1i1vk",
-      "solid": false,
-      "size": 5,
-      "inFront": false,
-      "rot": 0,
-      "flip": true,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "bg",
-      "ox": 0.49,
-      "oy": 0.41,
-      "z": 120
-     }
-    ],
     "33,100": [
      {
       "kind": "prop",
@@ -2082231,24 +2082175,6 @@
       "z": 126
      }
     ],
-    "28,120": [
-     {
-      "kind": "prop",
-      "propId": "vjbanan",
-      "solid": false,
-      "size": 8,
-      "inFront": true,
-      "rot": 0,
-      "flip": true,
-      "fitArt": true,
-      "turnedBox": true,
-      "canvasScale": false,
-      "lay": "front",
-      "ox": 0.03,
-      "oy": 0.01,
-      "z": 127
-     }
-    ],
     "31,140": [
      {
       "kind": "prop",
@@ -2082350,6 +2082276,78 @@
       "lay": "bg",
       "ox": 0.43,
       "z": 102
+     }
+    ],
+    "27,116": [
+     {
+      "kind": "prop",
+      "propId": "vjbanan",
+      "solid": false,
+      "size": 10,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0.29,
+      "oy": 0.01,
+      "z": 109
+     }
+    ],
+    "29,120": [
+     {
+      "kind": "prop",
+      "propId": "vjbanan",
+      "solid": false,
+      "size": 8,
+      "inFront": true,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "front",
+      "ox": 0.03,
+      "oy": 0.01,
+      "z": 127
+     }
+    ],
+    "20,90": [
+     {
+      "kind": "prop",
+      "propId": "vjbmboo",
+      "solid": false,
+      "size": 18,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0.16,
+      "oy": 0.88,
+      "z": 103
+     }
+    ],
+    "34,49": [
+     {
+      "kind": "prop",
+      "propId": "lt1i1vk",
+      "solid": false,
+      "size": 5,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "lay": "bg",
+      "ox": 0.49,
+      "oy": 0.41,
+      "z": 120
      }
     ]
    },
@@ -2082460,8 +2082458,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1792960474847,
-   "editedFrom": 1792958295416
+   "savedAt": 1792963289928,
+   "editedFrom": 1792960474847
   },
   {
    "id": "vshaq01",
