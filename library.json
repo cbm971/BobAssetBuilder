@@ -2139494,6 +2139494,130 @@
    "editedFrom": 1791753238175
   },
   {
+   "id": "8meobob",
+   "name": "Bob Li",
+   "start": "nchunhi",
+   "nodes": {
+    "nchunhi": {
+     "id": "nchunhi",
+     "speaker": "Bob Li",
+     "text": "Hai-yah! have you come to be taught the bestest Kung Fu Master by the one and only Bob Li?",
+     "choices": [
+      {
+       "id": "cchunwho",
+       "text": "Who is Bob Li?",
+       "to": "nchunwho",
+       "act": "",
+       "tone": "",
+       "shopTag": ""
+      },
+      {
+       "id": "cchunlrn",
+       "text": "Teach me kung fu",
+       "to": "nchunlrn",
+       "act": "",
+       "tone": "",
+       "shopTag": ""
+      },
+      {
+       "id": "cchunfgt",
+       "text": "I came here to fight you",
+       "to": "nchunfgt",
+       "act": "",
+       "tone": "",
+       "shopTag": ""
+      },
+      {
+       "id": "cchunbye",
+       "text": "Just passing through",
+       "to": "",
+       "act": "",
+       "tone": "",
+       "shopTag": ""
+      }
+     ]
+    },
+    "nchunwho": {
+     "id": "nchunwho",
+     "speaker": "Bob Li",
+     "text": "Bob Li is the strongest kicker in the whole canopy. I am Bob Li",
+     "choices": [
+      {
+       "id": "cchuntrn",
+       "text": "Train me pretty please",
+       "to": "nchunlrn",
+       "act": "",
+       "tone": "",
+       "shopTag": ""
+      },
+      {
+       "id": "cchunluk",
+       "text": "Good luck with that",
+       "to": "",
+       "act": "",
+       "tone": "",
+       "shopTag": ""
+      }
+     ]
+    },
+    "nchunlrn": {
+     "id": "nchunlrn",
+     "speaker": "Bob Li",
+     "text": "Lesson one: breathe. Loot.",
+     "choices": [
+      {
+       "id": "cchunhel",
+       "text": "Breathe with me",
+       "to": "",
+       "act": "heal",
+       "tone": "good",
+       "shopTag": ""
+      },
+      {
+       "id": "cchunshp",
+       "text": "Show me your gear",
+       "to": "",
+       "act": "shop",
+       "tone": "",
+       "shopTag": "Kung Fu"
+      },
+      {
+       "id": "cchunjin",
+       "text": "Come kick with me",
+       "to": "",
+       "act": "friendly",
+       "tone": "good",
+       "shopTag": ""
+      },
+      {
+       "id": "cchunend",
+       "text": "Goodbye",
+       "to": "",
+       "act": "",
+       "tone": "",
+       "shopTag": ""
+      }
+     ]
+    },
+    "nchunfgt": {
+     "id": "nchunfgt",
+     "speaker": "Bob Li",
+     "text": "Bob Li says never turn down a sparring partner. Hai-yah!",
+     "choices": [
+      {
+       "id": "cchunhit",
+       "text": "...",
+       "to": "",
+       "act": "hostile",
+       "tone": "bad",
+       "shopTag": ""
+      }
+     ]
+    }
+   },
+   "savedAt": 1792889913019
+  },
+  {
    "id": "95e2gzd",
    "name": "Evil Shop Keeper",
    "start": "npjudvkr",
