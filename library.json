@@ -1800314,6 +1800314,66 @@
       "canvasScale": false,
       "z": 93
      }
+    ],
+    "20,3": [
+     {
+      "kind": "prop",
+      "propId": "vjpalm1",
+      "solid": false,
+      "size": 20,
+      "inFront": true,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 94
+     }
+    ],
+    "22,71": [
+     {
+      "kind": "prop",
+      "propId": "vjpalm1",
+      "solid": false,
+      "size": 20,
+      "inFront": false,
+      "rot": 0,
+      "flip": true,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 95
+     }
+    ],
+    "38,58": [
+     {
+      "kind": "prop",
+      "propId": "trrings",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 96
+     }
+    ],
+    "37,59": [
+     {
+      "kind": "prop",
+      "propId": "trrings",
+      "solid": false,
+      "size": 1,
+      "inFront": true,
+      "rot": 0,
+      "flip": false,
+      "fitArt": true,
+      "turnedBox": true,
+      "canvasScale": false,
+      "z": 97
+     }
     ]
    },
    "climb": {
@@ -1800557,8 +1800617,8 @@
      "hideInPlay": true
     }
    },
-   "savedAt": 1792960615368,
-   "editedFrom": 1792630617479
+   "savedAt": 1792964356303,
+   "editedFrom": 1792960615368
   },
   {
    "id": "ml8g3tb",
