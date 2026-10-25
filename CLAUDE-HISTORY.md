@@ -5356,3 +5356,17 @@ for a freshly made item and for one reopened from 📂 Load.
 - Verified in the running app: the gun pierced two units, turned, hit both again and came home (ammo 0 → 1); a card
   that missed came home (50 → 51); a card on a unit did 6 and stayed spent; a unit with the gun hit the player both
   ways and caught it; a unit's dodged card went back to it (2 → 3).
+- Round 2 (same day): Blake sent a photo of a wooden boomerang with red-painted tips: "redesign the Boomerang
+  visually ... closer to this design, but as I often tell you, don't cheat". The wood is ONE 〰️ Curve stroke (start,
+  a point through the elbow, end; 9 thick), checked in jest against App.js's own curveBandPoints/polyBoxFromPoints
+  for all 30 pose lists. Each red tip is an ⬭ Oval turned to the arm's end angle (whole degrees, half-unit box,
+  pivoting at the top centre like every arm-flagged weapon block) and sent UNDER the wood, so the wood's square end
+  is the paint line and the Oval's round end is the tip. Bob holds it by the back wing, just past the red.
+- The first try used `outline: true`, as the first Boomerang did. In the running editor the wood's edge came out
+  ~4px against the Ovals' 2px: on a clip-path shape the outline is eight chained drop-shadows (OUTLINE_RING_PX 1.4
+  each way, adding up), while a square/circle/oval gets one 2px box-shadow ring. His save: 130 assets use poly pieces
+  and only 3 outline one, all agent-built. So the edge is now its own pieces: the same Curve clicks drawn 4 thicker
+  in #1d1b1b, and each Oval duplicated 4 bigger, all under the colour, with no outline flags. Six pieces.
+- Seen in the running app (DOM rasterised through a loopback receiver, the pane being hidden): the weapon editor,
+  held in Bob's hand (attachWeaponBlocks kept the turned Ovals in place), spinning in flight, the HUD icon, and a
+  unit holding it. editorReachIssues [].

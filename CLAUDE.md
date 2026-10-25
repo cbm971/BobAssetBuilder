@@ -235,6 +235,10 @@ what the part really was.
 piece (tail, neck, branch) is one 〰️ Curve-tool stroke (`curveBandPoints`: start, a point on the
 curve, end, two thicknesses), not a hand-rolled polygon. If you need a shape or control the editor
 lacks, add it to the editor first (he invited that), creation-only like Line / Fill / Curve.
+Never set `outline` on a Curve or Fill piece: on a clip-path shape it is eight chained drop-shadows,
+about 4px thick at any zoom (a square's or circle's is a 2px ring), and none of his own curved
+pieces use it. Give a curve its dark edge as its own piece under it: the same three clicks drawn a
+few units thicker (the 🪃 Boomerang, `boomrg1`, 2026-10-25).
 
 **Clothing, and anything worn: `ASSET_AUTHORING.md` is the spec. Read it first.** It is also what
 he pastes into chats that have no repo access, so keep it in step with the code. The essentials,
