@@ -823340,6 +823340,199 @@
    "savedAt": 1790611713281
   },
   {
+   "id": "iwrpiqq",
+   "name": "Star",
+   "type": "prop",
+   "angles": {
+    "front": [
+     {
+      "id": "qms0sc6",
+      "kind": "tri",
+      "x": 77,
+      "y": 10.5,
+      "w": 45.5,
+      "h": 60,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "bypprrv",
+      "kind": "tri",
+      "x": 134.5,
+      "y": 51,
+      "w": 45.5,
+      "h": 60,
+      "color": "#c8a23c",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 69
+     },
+     {
+      "id": "6gq5zk7",
+      "kind": "tri",
+      "x": 111,
+      "y": 120.5,
+      "w": 45.5,
+      "h": 60,
+      "color": "#c8a23c",
+      "mirror": true,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "rot": 150
+     },
+     {
+      "id": "rq9c378",
+      "kind": "rect",
+      "x": 76.5,
+      "y": 69.5,
+      "w": 46,
+      "h": 67,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "lwgdzf8",
+      "kind": "rect",
+      "x": 60.5,
+      "y": 75,
+      "w": 78.5,
+      "h": 57,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     }
+    ],
+    "back": [],
+    "side": [],
+    "up": [],
+    "crouch": []
+   },
+   "guideId": "default",
+   "size": 2,
+   "frames": [
+    {
+     "front": [
+      {
+       "id": "qms0sc6",
+       "kind": "tri",
+       "x": 77,
+       "y": 10.5,
+       "w": 45.5,
+       "h": 60,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "bypprrv",
+       "kind": "tri",
+       "x": 134.5,
+       "y": 51,
+       "w": 45.5,
+       "h": 60,
+       "color": "#c8a23c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 69
+      },
+      {
+       "id": "6gq5zk7",
+       "kind": "tri",
+       "x": 111,
+       "y": 120.5,
+       "w": 45.5,
+       "h": 60,
+       "color": "#c8a23c",
+       "mirror": true,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 150
+      },
+      {
+       "id": "rq9c378",
+       "kind": "rect",
+       "x": 76.5,
+       "y": 69.5,
+       "w": 46,
+       "h": 67,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "lwgdzf8",
+       "kind": "rect",
+       "x": 60.5,
+       "y": 75,
+       "w": 78.5,
+       "h": 57,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      }
+     ],
+     "back": [],
+     "side": [],
+     "up": [],
+     "crouch": []
+    }
+   ],
+   "animFps": 6,
+   "solidDefault": false,
+   "category": "Design Elements",
+   "savedAt": 1792968320024
+  },
+  {
    "id": "izglsjb",
    "name": "Army Bob",
    "type": "character",
