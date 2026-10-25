@@ -781,11 +781,11 @@ export const GAME_CSS = `
 .gMedal{flex:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,.45))}
 .gMedalMark{fill:rgba(241,239,228,.26);font-family:Sarpanch,'Russo One',Impact,sans-serif;font-style:normal;font-weight:900}
 .gMedal.done .gMedalMark{fill:#f6f4ea}
-.gMedal.medium .gMedalMark{stroke:#ffe600;stroke-width:1;stroke-linejoin:round}
+.gMedal.medium .gMedalMark{stroke:#d9a300;stroke-width:1;stroke-linejoin:round}
 .gMedal.hard .gMedalMark{stroke:#e5201b;stroke-width:1;stroke-linejoin:round}
 .gMedalPic{fill:none;stroke:rgba(241,239,228,.5);stroke-width:.8;stroke-linejoin:round;stroke-linecap:round}
 .gMedal.done .gMedalPic{fill:#f6f4ea;stroke:#f6f4ea}
-.gMedal.medium .gMedalPic{stroke:#ffe600;stroke-width:1}
+.gMedal.medium .gMedalPic{stroke:#d9a300;stroke-width:1}
 .gMedal.hard .gMedalPic{stroke:#e5201b;stroke-width:1}
 .gMedal.done .gMedalPic.line{fill:none;stroke:#f6f4ea;stroke-width:.9}
 .gMedalPic.line{fill:none}
