@@ -5439,3 +5439,14 @@ Trailor tag / Pit Bull / Squirrel placements.
 Measured in the running Level Creator: every prop's drawn bottom at y=1050 (row 35). The first pass had his Canned
 Ham floating 11 px and Trailor 3 sunk 13 px (art not whole rows), fixed with `oy`. In Playtest the door prompt reads
 `No room tagged "Liquor Store" yet`, and at his 886 px view the whole roof sign is on screen.
+
+**The room (same day):** Liquor Store 1 (`lqroom1`, roomTag "Liquor Store") is Trailor Int5's top-down shell cell for
+cell (plane rows 13-22 / cols 6-33, hideInPlay fences at cols 5/34, exit door 21,19), reskinned: White Stone brick side
+walls, Ceiling Tile ceiling, White panels back wall (Int5's window filled in), his Checker tile floor. A ramp cell's `more`
+fill is the wall half under a ceiling ramp, so a reskin must recolour `more` too (the first pass left Int5's red
+panelling showing in the top corners). Seven props under the category Liquor Store (Liquor Shelf, Wine Shelf, Beer Cooler,
+Store Counter, Neon Beer Sign, No Checks Sign, Beer Case Stack), all editorReachIssues []. The Shop Keeper at 13,26 with
+`dlgliq1`: shop tag "Drink" (Energy Drink, Bepsi, Blu Vodka, 5LOKO), a draft line, and "This is a stick-up!" turns him
+hostile with Bobs Bat. Driven live: E at M16's door enters on the plane, the back row shows the whole back wall, talk
+and the shop open, E at the front door returns to M16 at the store. A text piece 0.95 cells tall clipped "NO CHECKS
+CASHED" in play; text width scales with the box height, so size a long line's height to fit its width.
