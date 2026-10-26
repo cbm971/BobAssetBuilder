@@ -2151953,21 +2151953,6 @@
       "z": 204
      }
     ],
-    "28,2": [
-     {
-      "kind": "prop",
-      "propId": "1jqfzdy",
-      "solid": false,
-      "size": 20,
-      "inFront": false,
-      "rot": 0,
-      "flip": false,
-      "fitArt": true,
-      "canvasScale": false,
-      "oy": -0.105263,
-      "z": 205
-     }
-    ],
     "29,31": [
      {
       "kind": "prop",
@@ -2154315,8 +2154300,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1792977674299,
-   "editedFrom": 1792977605213
+   "savedAt": 1792977698759,
+   "editedFrom": 1792977674299
   },
   {
    "id": "uw2goe0",
