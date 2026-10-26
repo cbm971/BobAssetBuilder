@@ -2320183,11 +2320183,11 @@
     "nmathhi": {
      "id": "nmathhi",
      "speaker": "Math Magician",
-     "text": "Welcome to the laboratory of the Math Magicians! Today we prove that two plus two is five. For very large values of two.",
+     "text": "Hi. I'm a Math Magicion. I am super duper smart.",
      "choices": [
       {
        "id": "cmathhow",
-       "text": "How is that magic?",
+       "text": "Woah. Show me math.",
        "to": "nmathhow",
        "act": "",
        "tone": "",
@@ -2320195,15 +2320195,15 @@
       },
       {
        "id": "cmathshp",
-       "text": "Show me your gear",
+       "text": "Do you have a calulcator I can borrow?",
        "to": "",
        "act": "shop",
        "tone": "",
-       "shopTag": "Magic"
+       "shopTag": "Science"
       },
       {
        "id": "cmathfgt",
-       "text": "That's not how math works",
+       "text": "You're not smart.",
        "to": "nmathfgt",
        "act": "",
        "tone": "",
@@ -2320222,11 +2320222,11 @@
     "nmathhow": {
      "id": "nmathhow",
      "speaker": "Math Magician",
-     "text": "Magic is just math that does not show its work. Watch. I think of a number, I add your health to it...",
+     "text": "Yes sir! What Mathic trick would you like to see?",
      "choices": [
       {
        "id": "cmathhel",
-       "text": "Do the trick!",
+       "text": "Addition",
        "to": "",
        "act": "heal",
        "tone": "good",
@@ -2320234,7 +2320234,7 @@
       },
       {
        "id": "cmathjin",
-       "text": "Come count with me",
+       "text": "Multiplication",
        "to": "",
        "act": "friendly",
        "tone": "good",
@@ -2320242,10 +2320242,10 @@
       },
       {
        "id": "cmathend",
-       "text": "I'll pass",
+       "text": "Subtraction",
        "to": "",
-       "act": "",
-       "tone": "",
+       "act": "hostile",
+       "tone": "bad",
        "shopTag": ""
       }
      ]
@@ -2320253,11 +2320253,20 @@
     "nmathfgt": {
      "id": "nmathfgt",
      "speaker": "Math Magician",
-     "text": "A non-believer! Math Magicians, divide this one by zero!",
+     "text": "Yeah huh!",
      "choices": [
       {
        "id": "cmathhit",
-       "text": "...",
+       "text": "Okay fine you're probably smart.",
+       "to": "",
+       "act": "",
+       "tone": "good",
+       "shopTag": "",
+       "points": 100
+      },
+      {
+       "id": "cw125hu2",
+       "text": "Nuh uh",
        "to": "",
        "act": "hostile",
        "tone": "bad",
@@ -2320266,7 +2320275,8 @@
      ]
     }
    },
-   "savedAt": 1792970440703
+   "savedAt": 1792980589168,
+   "editedFrom": 1792970440703
   },
   {
    "id": "dlgord1",
