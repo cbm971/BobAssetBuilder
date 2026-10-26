@@ -2154241,11 +2154241,6 @@
       "T1"
      ]
     },
-    "34,86": {
-     "facing": -1,
-     "enemyId": "lu5q4sk",
-     "ai": "guard"
-    },
     "34,104": {
      "facing": -1,
      "enemyTag": "Trailor",
@@ -2154273,6 +2154268,16 @@
     "34,152": {
      "facing": -1,
      "enemyId": "sqrl1x9",
+     "ai": "seek"
+    },
+    "34,86": {
+     "enemyId": "lu5q4sk",
+     "facing": -1,
+     "ai": "seek"
+    },
+    "34,53": {
+     "enemyTag": "Trailor",
+     "facing": -1,
      "ai": "seek"
     }
    },
@@ -2154310,8 +2154315,8 @@
      "accepts": ""
     }
    },
-   "savedAt": 1792977605213,
-   "editedFrom": 1792972093106
+   "savedAt": 1792977674299,
+   "editedFrom": 1792977605213
   },
   {
    "id": "uw2goe0",
