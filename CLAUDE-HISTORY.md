@@ -5450,3 +5450,14 @@ Store Counter, Neon Beer Sign, No Checks Sign, Beer Case Stack), all editorReach
 hostile with Bobs Bat. Driven live: E at M16's door enters on the plane, the back row shows the whole back wall, talk
 and the shop open, E at the front door returns to M16 at the store. A text piece 0.95 cells tall clipped "NO CHECKS
 CASHED" in play; text width scales with the box height, so size a long line's height to fit its width.
+
+**Forest M6 (`vcfrm06`, 2026-10-26).** Blake: another dense-jungle Vietnam level with animals, melee mostly on Seek,
+some random tags, and a tree entrance like Forest M1's. Generated (scratchpad levelgen-m6.js, seed 6061) with the Forest
+M5 layering: painted-cell canopies on bg/Front, his Vietnam grass, night sky + 🔶 stars, the jungle plant props. W2/E2
+"Vietnam", ground row 36 at both seams. West: a mud creek bed (row 38) with two Crocodiles and a hidden Item/Drink
+pedestal; a ridge (row 34) with a giant #2a2017 tree: 10-wide trunk, flared foot, M1's #1d1b1b hollow made 3x5 with a
+pointed top and a #5b4636 bark lip so it reads at night, his Oil Lantern inside, door tag "Tree" (any Tree Int room).
+Spawns copy HIS M3/M4 tag shape: 🎲 Vietkong melee rolling T1 + Meelee (5 Seek, 1 Guard by the tree, 2 with Molotovs),
+🎲 Vietkong gunners rolling T1 + Gun (Guard), Elaphant, Turtle and two Rats on Seek, one 🎲 "Enemies" on Guard.
+Driven live: the playtest opens on the creek crocs; at the hollow "Press E to enter" shows and E lands in Tree Int 1.
+~4000 elements under .lgrid in play (M5 shipped ~4400).
