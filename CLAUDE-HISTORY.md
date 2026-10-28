@@ -5487,3 +5487,23 @@ extras are 🎲 Vietkong rolling T1 + Meelee (Seek, two with Molotovs) or T1 + G
 (`arsou0j`) was missing from the repo snapshot and was folded in verbatim from his online save. Driven live: the
 Director's talk and both acts, the sign's shop (three items), the ladder climb to the deck, the Megaphone in his hand.
 As an ally he walks off to fight the extras and can die doing it (ally behaviour, not level-specific).
+
+**Forest M8, the UFO crash (`vcfrm08`, 2026-10-28).** Blake: a UFO crash level in Vietnam. Generated (scratchpad
+ufo/levelgen.js) with the M5-M7 layering, W2/E2 "Vietnam", ground row 36 at both seams, 180 x 46. West to east: jungle
+and a knoll with a VC gunner and a seeker; a red laterite crater (floor row 40, dark back wall); the Downed Saucer
+(`uvsaucr`, 30 cells) nose-down in it, tilted along its own hull line; a smoking heap at the tail (row 31, the Odd +
+Rare pedestal); a scorched furrow (row 37) strewn with snapped trees, a fallen trunk, hull plates, a hull ring, alien
+goo, a power cell, a fire with a fire hazard; the AA nest (AA Gun, VC Flag, his sandbags and crate); the salvage camp
+with Zorp's Bamboo Cage; jungle to the east edge. 12 props (`uv*`) in his own categories: Wacky (saucer, hull plate,
+ring piece, power cell), Army (AA Gun, flag, salvage litter), Nature (snapped tree, fallen trunk), Exterior (cage),
+Effects (animated goo and wreck smoke); all editorReachIssues [] and seated by levelObjectFootprint. The saucer is
+flat house style (lens hull, dome, antenna, snapped leg, thruster bulbs, a glowing tear), and its hull top is ONE
+straight line, 1 row per 3 cols, so hidden Foreground under it takes `run: 3` ramps that follow the drawn edge exactly
+(the M14 saucer rule, sloped). The first pass of visible red spoil under the tail read as a staircase; it became a
+dark crater hollow with hidden fill. Spawns: 🎲 Vietkong T1 + Gun (Guard) and T1 + Meelee (Seek), two Little Green Men
+(`xclq3hs`) with Ray Guns (`qesn4h8`) on Guard in the crater and on the heap, and Zorp (a Little Green Man, no weapon)
+in the cage whose `dlgzorp` "I'll get you out." -> "Let's go." is act friendly with 100 points. Driven live: walked
+west to east and back over knoll, crater, up and down the hull, heap, furrow and camp with no snag; a seeker climbed
+the hull to Bob and walked back down it; the crater alien fires its Ray Gun; Zorp's talk made him a following ally and
+paid the points; the pedestal rolled the Ray Gun. ~1900 elements in play. A seeker that rolls a ranged weapon (Bobs
+Bow) keeps its standoff and walks away; that is the Seek rule, not the level.
