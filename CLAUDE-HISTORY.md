@@ -5461,3 +5461,22 @@ Spawns copy HIS M3/M4 tag shape: 🎲 Vietkong melee rolling T1 + Meelee (5 Seek
 🎲 Vietkong gunners rolling T1 + Gun (Guard), Elaphant, Turtle and two Rats on Seek, one 🎲 "Enemies" on Guard.
 Driven live: the playtest opens on the creek crocs; at the hollow "Press E to enter" shows and E lands in Tree Int 1.
 ~4000 elements under .lgrid in play (M5 shipped ~4400).
+
+**Forest M7, the movie set (`vcfrm07`, 2026-10-28).** Blake: a Vietnam level that is a war-movie set, with any props
+or items it needs. Generated (scratchpad mv/levelgen.js, seed 7071) with the M5/M6 layering, W2/E2 "Vietnam", ground
+row 36 at both seams. West to east: jungle; the basecamp (APOCALYPSE BOB production sign, his trailer, wardrobe rack,
+makeup mirror, road cases, the Craft Services sign over his Card Table/Coffee Urn/Doughnut Box, his Army Truck as the
+grip truck, his crates and sandbags); video village (Quiet On Set
+light, monitor cart, Director's Chair, the camera on a dolly track, boom mic); a camera crane; the set on a rise
+(painted sunset backdrop, two hut facades with their braces showing, a prop palm, pyro mortars, smoke and wind
+machines, a lit film light); a climbable Light Tower (ladder col 173 through a 1-wide hole in a hideInPlay deck at
+row 24, a gunner extra and a Movie Set/Gun pedestal on top). 24 props in category "Movie Set", all editorReachIssues
+[] and seated by levelObjectFootprint. Items: the Megaphone (`mgphn01`, melee, placed in the Machete's grip frame on
+every variant/state/view) and Craft Services' Set Coffee (+3 Speed 120 s), Craft Donut (heal 10) and Box Lunch (heal 25).
+The Director (`3t3iost`) was built and saved in Dress Bob (his BoB, skin, hat, shirt, pants, shoes) and stands at
+video village on Guard holding the Megaphone; `dlgdir1` "Can I be in the movie?" → friendly (ally), "This movie
+stinks." → hostile. The Craft Services board is a sign marker whose `dlgcrft` opens shop tag "Craft Services". The
+extras are 🎲 Vietkong rolling T1 + Meelee (Seek, two with Molotovs) or T1 + Gun (Guard). His Vietnam grass texture
+(`arsou0j`) was missing from the repo snapshot and was folded in verbatim from his online save. Driven live: the
+Director's talk and both acts, the sign's shop (three items), the ladder climb to the deck, the Megaphone in his hand.
+As an ally he walks off to fight the extras and can die doing it (ally behaviour, not level-specific).
