@@ -363,6 +363,7 @@ plus traps it does not cover:
   about the canvas centre. Art drawn in the right part of the canvas stops short of walls facing
   left and pokes into them facing right. Action poses must fit inside 0–200 too.
 - A creature bites for 2 × Strength. There is no damage field; do not add one.
+- **Flying creatures (`flies: true`, `creatureFlies(ea)`):** Ticked via **🦸 Flies** in the Enemy Creator's `📊 Stats` card. A flying creature stays airborne without gravity while alive and not knocked down (`ep.down > 0`), chases/retreats vertically as well as horizontally, hovers at its altitude when idle/guarding, and flaps pieces flagged `limb:"arm"` (wings) via `flapCreatureWings(blocks, ep.flapDown)` (`flipPiecesVertically` across the wing's flat base edge so the base stays anchored to the body while the pointed wingtip alternates above and below the bird). On a flying creature, `limb:"arm"` pieces are wings rather than hands, so `unitHoldArm` still uses `holdPoint` / `enemyDefaultHoldPoint`. Shipped flying creature: **Eagle** (`eagl1x9`).
 - An animal holding a gun is intended. It holds it at a ✋ hold point (`holdPoint[pose]`,
   `holdAngle`).
 - A stored group stamped onto an animal joins its source run, so a costume's cutter cuts the animal

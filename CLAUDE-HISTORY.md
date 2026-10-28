@@ -9,6 +9,13 @@ before changing that system. Line counts and dates below are as they were when e
 
 # Bob Asset Builder — agent handoff
 
+## FLYING CREATURES (`flies: true`, `flapCreatureWings`) & EAGLE ENEMY (`eagl1x9`) (2026-10-28)
+
+- **Feature:** Added a **🦸 Flies** checkbox (`asset.flies`, `creatureFlies(ea)`) to the Enemy Creator's `📊 Stats` card for non-human enemies (`type: "enemy"`).
+- **Flight & AI:** When `creatureFlies(ea)` is true and the creature is alive and not knocked down (`!(ep.down > 0)`), it stays airborne without falling under gravity, ignores ladders and top-down floor snaps, considers targets within `enemyChasesVertically` as reachable (`onMyLevel`), steers vertically toward the target's height (with a small hover clearance so it stays in the air while remaining within `sameLevel`), and hovers in place when idle or guarding. Playing as a flying creature in Playtest (`creatureFlies(basePlayerAsset)`) also flies continuously with W/↑/Space to climb and S/↓ to descend.
+- **Wing Flapping (`flipPiecesVertically` & `flapCreatureWings`):** Pieces flagged `limb: "arm"` on a flying creature act as wings. While airborne, `ep.flapPhase` advances each frame (`FLAP_SPEED_IDLE` when hovering, `FLAP_SPEED_MOVE` when moving; skipped in `UNIT_ART_SIG_SKIP` so `unitArtCache` only updates when `ep.flapDown` toggles). When `flapDown` is true, `flapCreatureWings` reflects all wing pieces vertically across the wing's flat base edge (`wingBottom` when drawn above the body's midline, `wingTop` when drawn below), keeping the flat wing base in the same position relative to the bird while the pointed wingtips alternate above and below the body. `unitHoldArm` treats `limb: "arm"` on flying creatures as wings rather than hands so held weapons/throwables still attach at `holdPoint` / `enemyDefaultHoldPoint`.
+- **Eagle Enemy (`eagl1x9`):** Authored the **Eagle** enemy (`type: "enemy"`, `flies: true`, `ai: "seek"`, `hp: 35`, `scale: 0.9`, `attackRange: 30`) across all 5 editable poses (`side`, `up`, `crouch`, `attack`, `death`) with zero `editorReachIssues`.
+
 A browser game maker: draw assets out of blocks (bodies, skins, clothes, weapons,
 enemies, props), dress a character, paint a level, then playtest it. Create React App
 + React 18. Everything is in **`src/App.js`** (~9400 lines). Tests in `src/App.test.js`.

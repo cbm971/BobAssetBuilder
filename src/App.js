@@ -1231,7 +1231,9 @@ export const holdRestRot = (ea, facesRight) => (facesRight ? -1 : 1) * enemyHold
 export const unitHoldArm = (ea, poseKey, poseArt) => {
   if (!ea || ea.type !== "enemy") return null;
   const facesRight = enemyArtFacesRight(ea);
-  const pt = enemyHoldPoint(ea, poseKey) || (flaggedArmOf(poseArt) ? null : enemyDefaultHoldPoint(poseArt, facesRight));
+  // On a flying creature (creatureFlies), 💪 Arm-flagged pieces are wings rather than hands, so a
+  // weapon or grenade still uses the hold point (or default mouth/beak point) instead of a wingtip.
+  const pt = enemyHoldPoint(ea, poseKey) || ((flaggedArmOf(poseArt) && !creatureFlies(ea)) ? null : enemyDefaultHoldPoint(poseArt, facesRight));
   return pt ? enemyHoldArm(pt, holdRestRot(ea, facesRight)) : null;
 };
 // armAimAbs for art that may face either way. Level-and-forward is a mirror image on left-facing
@@ -4166,6 +4168,10 @@ export const canResurrect = (hp, ep) => hp <= 0 && !(ep && ep.resurrectedOnce);
 // person-shaped thing drawn in the Enemy creator would be catchable; that is the cost of using
 // the only line the data actually has, and it is the one Blake draws when he builds them.
 export const isCreatureUnit = (ea) => !!ea && ea.type === "enemy";
+// Whether a creature flies instead of walking (the "🦸 Flies" checkbox in the Enemy creator).
+// A flying creature stays airborne without falling under gravity while alive and not knocked down,
+// chases/retreats vertically as well as horizontally, and flaps its 💪 Arm-flagged wing pieces.
+export const creatureFlies = (ea) => isCreatureUnit(ea) && !!ea.flies;
 // Whether a capture payload may claim this body. Two questions, deliberately not collapsed into
 // one expression at the call site: it has to be a creature (you cannot pocket a person), and it
 // has to be DEAD — you catch a body, not a fight in progress.
@@ -6296,7 +6302,7 @@ export function newAsset(type, slot, wtype) {
   // stats to read HP from, so it starts at PLAYER_BASE_HP: a brand-new enemy is exactly as tanky as
   // a default player, and the number is then yours to set in the creator. A Dress Bob enemy ignores
   // this and derives its HP from the look's own stats — see enemyMaxHP.
-  if (type === "enemy") { a.groundLine = {}; a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = PLAYER_BASE_HP; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; return withRig(a); }
+  if (type === "enemy") { a.groundLine = {}; a.states = { normal: blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.states.normal.death = []; a.angles = a.states.normal; a.hasArms = false; a.flies = false; a.weaponId = null; a.stats = DEFAULT_STATS(); a.hp = PLAYER_BASE_HP; a.ai = "guard"; a.attackRange = DEFAULT_ATTACK_RANGE; return withRig(a); }
   if (type === "equipment") { a.slot = slot; a.variants = blankVariants(); a.angles = a.variants.default; a.lastFit = "default"; a.confirmedFits = []; a.statBoosts = DEFAULT_STAT_BOOSTS(); a.defense = 0; a.effects = []; a.categories = ["", "", ""]; }
   if (type === "projectile") { a.size = 1; }
   // A prop/object: single-canvas pixel art (like a projectile), placed into levels at any size.
@@ -6379,6 +6385,7 @@ export const normalizeAssetJson = (raw) => {
   if (type === "weapon") a.states = { rest: normalizeAngles((a.states && a.states.rest) || a.angles), fire: normalizeAngles(a.states && a.states.fire) };
   if (type === "enemy") a.states = { normal: normalizeAngles((a.states && a.states.normal) || a.angles), onFire: normalizeAngles(a.states && a.states.onFire), charge: normalizeAngles(a.states && a.states.charge) };
   if (type === "enemy") a.groundLine = cleanGround(a.groundLine);
+  if (type === "enemy") a.flies = !!a.flies;
   if (type === "enemy" && a.holdPoint !== undefined) a.holdPoint = cleanHold(a.holdPoint); // a hand-written point that is not a finite {x, y} is dropped, never kept as NaN
   if (type === "equipment" && !SLOTS[a.slot]) a.slot = "shirt"; // an unknown slot would drop it out of every picker; shirt is the safe visible default
   // A per-body fit variant IS the flat pose map itself (a weapon's additionally wraps {states}) —
@@ -11176,6 +11183,74 @@ export const flipPiecesHorizontally = (pieces, pivotX) => {
     return q;
   });
 };
+const polySymmetricY = (pts) => pts.every(([x, y]) => pts.some(([x2, y2]) => Math.abs(x2 - x) < 1e-4 && Math.abs(y2 - (1 - y)) < 1e-4));
+const FLIP_POLY_Y_CACHE = new WeakMap();
+const flipPolyPointsY = (pts) => {
+  let f = FLIP_POLY_Y_CACHE.get(pts);
+  if (!f) {
+    f = pts.map(([x, y]) => [x, +(1 - y).toFixed(4)]);
+    FLIP_POLY_Y_CACHE.set(pts, f);
+    FLIP_POLY_Y_CACHE.set(f, pts);
+  }
+  return f;
+};
+// Mirror a set of pieces vertically across a horizontal line `pivotY` (or the pieces' own vertical
+// midpoint when omitted). Used by `flapCreatureWings` to flip a bird's 💪 Arm-flagged wing pieces
+// across the flat wing-root base so the pointed wingtip alternates above and below the body while
+// the base stays anchored to the bird. Swapping top/bottom `armPivot` keeps rotated arm pieces
+// reflecting about the exact same point in world space.
+export const flipPiecesVertically = (pieces, pivotY) => {
+  const src = pieces || [];
+  if (!src.length) return [];
+  const cy = Number.isFinite(pivotY)
+    ? pivotY
+    : (Math.min(...src.map((p) => p.y)) + Math.max(...src.map((p) => p.y + p.h))) / 2;
+  return src.map((p) => {
+    const q = { ...p, y: SNAP_R3(2 * cy - (p.y + p.h)), rot: (((-(p.rot || 0)) % 360) + 360) % 360 };
+    if (p.role === "weaponArm" || p.limb === "arm") {
+      const pv = p.armPivot || "top";
+      if (pv === "top" || pv === "bottom") q.armPivot = pv === "top" ? "bottom" : "top";
+    }
+    const pts = shapePolyPoints(p);
+    if (pts && !polySymmetricY(pts)) { q.kind = "poly"; q.points = flipPolyPointsY(pts); }
+    return q;
+  });
+};
+export const FLAP_SPEED_IDLE = 0.22;
+export const FLAP_SPEED_MOVE = 0.34;
+export const isCreatureWingPiece = (b) => !!b && b.limb === "arm" && !b.__hold && !b.__synthArm && !b._isShoe && !b.isHitbox && !b.isMuzzle;
+// Alternate a flying creature's wings (`limb: "arm"`) between their drawn upstroke/downstroke and
+// their vertical reflection across the wing's flat base where it meets the body. When the wing's
+// vertical midpoint sits at or above the body's vertical midpoint (wings drawn raised above the
+// back), the base edge is the bottom of the wing (`wingBottom`) and the pointed tip flips down
+// underneath the bird; when drawn below the body, the base edge is `wingTop` and the tip flips up.
+export const flapCreatureWings = (blocks, flapDown) => {
+  if (!flapDown || !Array.isArray(blocks) || !blocks.length) return blocks;
+  const wings = blocks.filter(isCreatureWingPiece);
+  if (!wings.length) return blocks;
+  const paintedWings = wings.filter((b) => !b.isCutter);
+  const spanSrc = paintedWings.length ? paintedWings : wings;
+  let wingTop = Infinity, wingBottom = -Infinity;
+  for (const w of spanSrc) {
+    const sp = pieceDrawnVSpan(w);
+    if (sp.top < wingTop) wingTop = sp.top;
+    if (sp.bottom > wingBottom) wingBottom = sp.bottom;
+  }
+  if (!Number.isFinite(wingTop) || !Number.isFinite(wingBottom)) return blocks;
+  const bodyBlocks = blocks.filter((b) => !b.isHitbox && !b.isMuzzle && !b.isCutter && !b._isWeapon && !b.__hold && !b.__synthArm && !isCreatureWingPiece(b) && b.limb !== "leg");
+  let bodyTop = Infinity, bodyBottom = -Infinity;
+  for (const b of bodyBlocks) {
+    const sp = pieceDrawnVSpan(b);
+    if (sp.top < bodyTop) bodyTop = sp.top;
+    if (sp.bottom > bodyBottom) bodyBottom = sp.bottom;
+  }
+  const wingMid = (wingTop + wingBottom) / 2;
+  const bodyMid = Number.isFinite(bodyTop) && Number.isFinite(bodyBottom) ? (bodyTop + bodyBottom) / 2 : wingBottom;
+  const hingeY = wingMid <= bodyMid ? wingBottom : wingTop;
+  const flipped = flipPiecesVertically(wings, hingeY);
+  let wi = 0;
+  return blocks.map((b) => (isCreatureWingPiece(b) ? flipped[wi++] : b));
+};
 // Props can animate, so "Flip whole object" must use one shared pivot for every frame. Flipping
 // each frame around its own bounds would make differently-shaped frames jump sideways in play.
 export const flipPropFramesHorizontally = (frames, liveAngles, currentIndex) => {
@@ -12510,7 +12585,7 @@ export const runGridOrder = (a, b) => (a.row - b.row) || (a.col - b.col);
 // Trailor Park M15 (2026-10-11): an idle unit's state does not change at all between frames, so it
 // hits every frame; a walking one changes walkPhase and misses, as before. null (a field that cannot
 // be written out) means draw it fresh.
-export const UNIT_ART_SIG_SKIP = new Set(["x", "y", "vy", "slideVx", "stepEase", "uid"]);
+export const UNIT_ART_SIG_SKIP = new Set(["x", "y", "vy", "slideVx", "stepEase", "flapPhase", "uid"]);
 export const unitArtSig = (ep) => {
   if (!ep) return "";
   let s = "";
@@ -16235,7 +16310,8 @@ export default function AssetStudio({ game = false } = {}) {
       // flying up past a ladder with W held — or across monkey bars, which grab by themselves — would
       // otherwise snatch you out of the sky. Before take-off W still catches a ladder (see flyState):
       // the grab is decided here, ahead of the flight, so a ladder within reach always wins the press.
-      let climbing = !p.flying && overlapClimb && !p.climbJump && p.dropCooldown <= 0 && (climbKindHere !== "ladder" || wantsLadder);
+      const pCreatureFlies = creatureFlies(basePlayerAsset) && !((p.down || 0) > 0);
+      let climbing = !p.flying && !pCreatureFlies && overlapClimb && !p.climbJump && p.dropCooldown <= 0 && (climbKindHere !== "ladder" || wantsLadder);
       // Bars/cliff: no grabbing one from above it (see canGripClimb). Falling back down onto the
       // bar re-grabs on the first frame the grip point is level with it again, so this reads as
       // "you can hang, you can drop, you can shimmy — you cannot get on top of it."
@@ -16253,7 +16329,7 @@ export default function AssetStudio({ game = false } = {}) {
       // decoration: the hop sets tdJumpY to the CURRENT y and the rise only begins in the gravity
       // branch a frame later, so on that next frame y still equals the line and a height test
       // alone re-grabbed the plane before the feet had left it — measured as a one-frame "jump".
-      const tdOverlap = !climbing && topdownAt(lv, p.x, p.y + ph, pw, CW, CH);
+      const tdOverlap = !pCreatureFlies && !climbing && topdownAt(lv, p.x, p.y + ph, pw, CW, CH);
       let topdown = topdownHolds(tdOverlap, p.vy, p.y, p.tdJumpY);
       if (topdown && p.tdJumpY != null) { if (p.y - p.tdJumpY <= Math.abs(p.vy * dtMul) + 0.01) p.y = p.tdJumpY; p.tdJumpY = null; }
       let climbMove = 0, tdMove = 0;
@@ -16350,7 +16426,9 @@ export default function AssetStudio({ game = false } = {}) {
         // comes down and neither hovers, until you land, the time runs out or Jump lets go. It no
         // longer shares a key with Glide (Jump held while falling), so the two never compete: the
         // glide is simply there the moment the flight ends with Space still held.
-        const fly = flyState(flyEffect, FK, p.onGround, climbing, p.flying, p.flyUsed, CH);
+        const fly = pCreatureFlies
+          ? { vyTarget: (!frozen && (K.up || K.jump)) ? -speed : (!frozen && K.down) ? speed : 0 }
+          : flyState(flyEffect, FK, p.onGround, climbing, p.flying, p.flyUsed, CH);
         if (fly && !p.flying) clearFlyPose(p); // a fresh take-off starts its pose from the hover
         p.flying = !!fly;
         const glide = fly ? null : glideState(glideEffect, K, p.onGround, climbing, p.vy);
@@ -16410,9 +16488,18 @@ export default function AssetStudio({ game = false } = {}) {
       // rather than leaving you tipped into it — and up/down as a share of the Lift. Arms busy with
       // a shot, a swing, a throw or a block straighten the body (the shot leaves the barrel it
       // appears to leave). Last frame's p.aiming, since this frame's is decided further down.
-      if (p.flying) {
+      if (pCreatureFlies) {
+        if (!frozen) {
+          const pAirMove = Math.abs(p.x - prevX) > 0.05 || Math.abs(p.vy || 0) > 0.15;
+          p.flapPhase = (p.flapPhase || 0) + (pAirMove ? FLAP_SPEED_MOVE : FLAP_SPEED_IDLE) * dtMul;
+          p.flapDown = Math.sin(p.flapPhase) < 0;
+        }
+      } else if (p.flying) {
+        p.flapDown = false;
         const flySpeed = Math.max(0.01, speed * Math.max(0.3, Math.min(2, flyEffect.control ?? 1)));
         advanceFlyPose(p, Math.abs(p.x - prevX) / flySpeed, p.vy / Math.max(0.01, flyRisePx(flyEffect, CH)), !!(p.firing || p.aiming || p.throwAiming || p.throwFiring > 0 || p.blocking), dtMul);
+      } else {
+        p.flapDown = false;
       }
       if (p.effectAnim) p.effectAnim.t += dtMul;
 
@@ -16601,7 +16688,7 @@ export default function AssetStudio({ game = false } = {}) {
           booms.current.push({ x: under.x + under.w / 2, y: under.y, propId: null, char: "💥", size: HEAD_STOMP_PUFF_SIZE, life: 0, maxLife: 16 });
         }
       }
-      if (p.onGround || topdown) { p.extraJumped = false; p.effectAnim = null; p.djGravMul = 1; p.jumpHoldT = 0; p.gliding = false; p.tdJumpY = null; p.flying = false; p.flyUsed = 0; }
+      if (p.onGround || topdown) { p.extraJumped = false; p.effectAnim = null; p.djGravMul = 1; p.jumpHoldT = 0; p.gliding = false; p.tdJumpY = null; if (!pCreatureFlies) p.flying = false; else p.onGround = false; p.flyUsed = 0; }
       if (climbing) { p.gliding = false; p.flying = false; p.flyUsed = 0; } // a grip refills the 🦸 flight time as the ground does
       if (p.onGround || topdown || climbing) { p.hsAir = null; p.hsHits = null; p.hsFall = false; p.hsFallT = 0; } // 👢 back on something: the next time in the air starts its own record
       else if (p.hsFall) p.hsFallT = (p.hsFallT || 0) + dtMul; // the pose's arm flutter
@@ -16975,9 +17062,10 @@ export default function AssetStudio({ game = false } = {}) {
           // does. `feetOf` reads a candidate's feet — the player's box, or that unit's own height —
           // and two bodies that are BOTH on a 🚶 plane share a level whatever their depth: on a plane
           // the vertical axis is depth, which topdownStepToward walks, not a storey to be above.
+          const eCreatureFlies = creatureFlies(ea);
           const myFeetY = ep.y + newEph;
           const feetOf = (c) => (c.key ? c.ep.y + (c.ep.crouch ? enemyCrouchH(c.ea, CW) : enemyStandH(c.ea, CW)) : p.y + ph);
-          const onMyLevel = (c) => !!c && ((ep.topdown && (c.key ? c.ep.topdown : p.topdown)) || unitSharesLevel(myFeetY, feetOf(c), standEph));
+          const onMyLevel = (c) => !!c && (eCreatureFlies ? enemyChasesVertically(myFeetY, feetOf(c), !!(ep.provoked && hostile)) : ((ep.topdown && (c.key ? c.ep.topdown : p.topdown)) || unitSharesLevel(myFeetY, feetOf(c), standEph)));
           let targetKind = null, targetKey = null, targetCX = p.x + pw / 2, targetW = pw, targetEp = null, targetEa = null;
           if (friendly) {
             // Nearest hostile NEAR YOU, unless it has strayed past the leash — see allyGuards /
@@ -17131,15 +17219,15 @@ export default function AssetStudio({ game = false } = {}) {
           // height (flyHoverVy), so a flying enemy hangs in the sky beside a flying you instead of
           // climbing, dropping and climbing again — the yo-yo the first cut did, which with a flying
           // pose on screen would have flicked between flying and falling every half second.
-          if (ep.onGround || ep.topdown || ep.climbing) { ep.flyUsed = 0; ep.flying = false; }
+          if ((ep.onGround || ep.topdown || ep.climbing) && !eCreatureFlies) { ep.flyUsed = 0; ep.flying = false; }
           if ((ep.flyBlockT || 0) > 0) ep.flyBlockT = Math.max(0, ep.flyBlockT - dtMul);
           const eFlyFx = (ea.effects || []).find((e) => e && e.type === "fly") || null;
           const flyTgtFeet = navTgt ? navTgt.y + navTgtH : null;
           const flyTgtAir = !!navTgt && navTgtFeet == null; // off its feet: standingLineY's null
-          const eFlyUp = !!eFlyFx && navPursuing && flyTgtFeet != null && !ep.climbing && !ep.topdown && !((ep.down || 0) > 0) && !((ep.flyBlockT || 0) > 0)
+          const eFlyUp = !eCreatureFlies && !!eFlyFx && navPursuing && flyTgtFeet != null && !ep.climbing && !ep.topdown && !((ep.down || 0) > 0) && !((ep.flyBlockT || 0) > 0)
             && (ep.flying ? (flyTgtFeet < myFeetY - CH * 0.25 || (flyTgtAir && flyTgtFeet < myFeetY + CH)) : (flyTgtFeet < myFeetY - CH * 1.5 && (following || !rangedEnemy || !targetOnLevel)))
             && flyFramesLeft(eFlyFx, ep.flyUsed) > 0;
-          const navRouteLv = navPursuing && navOff && !ep.climbing && !eFlyUp
+          const navRouteLv = !eCreatureFlies && navPursuing && navOff && !ep.climbing && !eFlyUp
             ? unitClimbRoute(navPart.lv, { cx: eCenterXNow - navPart.ox, fx: ep.x + epw / 2 - navPart.ox, feet: myFeetY - navPart.oy, h: standEph, w: epw, topdown: navMeTopdown }, { cx: targetCX - navPart.ox, feet: navTgtFeet - navPart.oy, topdown: navTgtTopdown }, navJumpPx, CW, CH, (r, c) => !!navPart.lv.fg[cellKey(r, c)] || solidAtW(r + (navPart.dr || 0), c + (navPart.dc || 0)))
             : null;
           const navRoute = navRouteLv && { ...navRouteLv, x: navRouteLv.x + navPart.ox, feet: navRouteLv.feet == null ? null : navRouteLv.feet + navPart.oy };
@@ -17303,7 +17391,8 @@ export default function AssetStudio({ game = false } = {}) {
           const cbCX = ep.x + eShape.centerFrac * eRenderW;
           const cbWant = navTgtFeet == null ? 0 : navTgtFeet - (ep.y + newEph); // < 0: the target is above
           let eClimbMove = 0;
-          if (!ep.climbing && navRoute && !ep.climbJump && !(ep.navDropCd > 0) && !stunned) {
+          if (eCreatureFlies) ep.climbing = null;
+          if (!eCreatureFlies && !ep.climbing && navRoute && !ep.climbJump && !(ep.navDropCd > 0) && !stunned) {
             const kindNow = resolveClimbKind(eStand.lv, cbX, cbY, epw, newEph, CW, CH, cbWant < 0, null);
             if (navRoute.kind === "ladder" && kindNow === "ladder" && Math.abs(navRoute.x - cbCX) <= CW * 0.5) ep.climbing = "ladder";
             else if (navRoute.kind === "hang" && kindNow && kindNow !== "ladder" && canGripClimb(eStand.lv, cbX, cbY, epw, newEph, CW, CH, kindNow)) ep.climbing = kindNow;
@@ -17314,7 +17403,7 @@ export default function AssetStudio({ game = false } = {}) {
               sndEvent("jump", unitSndX(ep, ea), ep.y); ep.vy = -navJumpV; ep.onGround = false; ep.jumpHoldT = 0; ep.navHangJump = true;
             }
             if (ep.climbing) { ep.vy = 0; ep.tdJumpY = null; }
-          } else if (!ep.climbing && ep.navHangJump && !ep.climbJump && !(ep.navDropCd > 0)) {
+          } else if (!eCreatureFlies && !ep.climbing && ep.navHangJump && !ep.climbJump && !(ep.navDropCd > 0)) {
             // Mid-jump at a bar: the grip comes the frame the hands reach it (canGripClimb).
             const kindNow = resolveClimbKind(eStand.lv, cbX, cbY, epw, newEph, CW, CH, true, null);
             if (kindNow && kindNow !== "ladder" && canGripClimb(eStand.lv, cbX, cbY, epw, newEph, CW, CH, kindNow)) { ep.climbing = kindNow; ep.vy = 0; ep.tdJumpY = null; ep.navHangJump = false; }
@@ -17364,7 +17453,7 @@ export default function AssetStudio({ game = false } = {}) {
             ep.climbIdleT = (ep.climbIdleT || 0) + dtMul;
             if (ep.climbIdleT > CLIMB_IDLE_LET_GO_FRAMES) { ep.climbing = null; ep.navDropCd = 45; ep.climbIdleT = 0; }
           } else ep.climbIdleT = 0;
-          const eTdOverlap = !ep.climbing && topdownAt(eStand.lv, ep.x - eStand.ox, ep.y + newEph - eStand.oy, epw, CW, CH);
+          const eTdOverlap = !eCreatureFlies && !ep.climbing && topdownAt(eStand.lv, ep.x - eStand.ox, ep.y + newEph - eStand.oy, epw, CW, CH);
           const eTopdown = topdownHolds(eTdOverlap, ep.vy, ep.y, ep.tdJumpY);
           let eTdStep = 0; // how far it walked up/down the plane this frame — its legs cycle for that too
           let eHsArmed = false, eHsFeet0 = 0; // 👢 a Stomp armed for this frame's fall, and the feet before it (headStompArmed / headStompLands)
@@ -17397,83 +17486,129 @@ export default function AssetStudio({ game = false } = {}) {
               ep.y = feet1 - newEph;
             }
           } else if (!ep.climbing) { // a unit on a ladder, bars or a ledge is held there (above), not falling
-            // Gravity + ground collision — identical rule to the player's own fall, reusing the
-            // same generic cell test so enemies land on and are stopped by the same terrain.
-            // ...including what the player's jump gets on top (2026-09-28, "no differences"): the
-            // Agility-above-5 assist through the first fifth of a second of a hop (a unit's hop is
-            // always held — see JUMP_HOLD_BOOST_FRAMES), a ⤴️ double jump's own gravity, and 🪂
-            // Glide — gravity cut to the item's Fall whenever it is dropping, the player's glide with
-            // Jump held (a unit never lets go of it).
-            if (ep.vy < 0 && (ep.jumpHoldT ?? JUMP_HOLD_BOOST_FRAMES) < JUMP_HOLD_BOOST_FRAMES) {
-              const eAgi = Math.min(10, Math.max(1, ea.stats?.agility ?? 5));
-              if (eAgi > 5) ep.vy -= (eAgi - 5) * JUMP_HOLD_BOOST_ACCEL * dtMul;
-              ep.jumpHoldT += dtMul;
-            }
-            if (eFlyUp && !ep.flying) clearFlyPose(ep); // a fresh take-off starts its pose from the hover
-            ep.flying = eFlyUp;
-            const eGlideNow = eFlyUp ? null : glideState(eGlide, { jump: true }, false, false, ep.vy);
-            ep.gliding = !!(eGlideNow && eGlideNow.active);
-            if (eFlyUp) {
-              // 🦸 Climbing (see eFlyUp) — or, beside a target that is in the air, holding its height
-              // (flyHoverVy). A flying body is stopped by a roof the way your jump is: a
-              // step that would put its head into solid it was not already in is not taken, so it
-              // cannot rise up THROUGH the storey its target is standing on — it slides along under
-              // it, still steering at the target, until it finds the open air beside it.
-              const eRise = flyRisePx(eFlyFx, CH);
-              ep.vy = flyEaseVy(ep.vy, flyTgtAir ? flyHoverVy(flyTgtFeet - (ep.y + newEph), eRise) : -eRise, dtMul); ep.flyUsed = (ep.flyUsed || 0) + dtMul; ep.onGround = false;
+            if (eCreatureFlies && !((ep.down || 0) > 0)) {
+              // 🦸 A flying creature (`flies: true`) stays airborne without gravity while alive and not
+              // knocked down, steering vertically toward its target's height (with a small hover clearance
+              // so it flies in the air rather than scraping the floor, while keeping its feet within
+              // `sameLevel` of the target) or holding its current altitude when idle/guarding.
+              ep.flying = true; ep.gliding = false; ep.onGround = false;
+              const hoverClearance = Math.min(newEph * 0.2, CH * 0.75);
+              const eFlyAct = !stunned && acts && flyTgtFeet != null && (following || charging || (detected && (ai === "seek" || ai === "avoid")));
+              const eFlyWantFeet = !eFlyAct ? (ep.y + newEph)
+                : (ai === "avoid" && !following && !charging) ? Math.min(ep.y + newEph, flyTgtFeet - CH * 2)
+                : (flyTgtFeet - hoverClearance);
+              const eFlySpeedY = (charging ? chargeSpeed : aiSpeed) / Math.max(0.01, dtMul);
+              ep.vy = flyEaseVy(ep.vy, flyHoverVy(eFlyWantFeet - (ep.y + newEph), eFlySpeedY), dtMul);
               const ny = ep.y + ep.vy * dtMul;
-              const inBox = new Set(cellsHitW(ep.x, ep.y, epw, newEph).map((h) => h.r + "," + h.c));
-              // Bumping a roof also grounds the flight for three seconds (flyBlockT), so a target
-              // straight overhead on the floor above is reached by the stairs or a ladder — the climb
-              // route takes over while it waits — instead of by hovering against the ceiling forever.
-              if (cellsHitW(ep.x, ny, epw, newEph).some((h) => !inBox.has(h.r + "," + h.c) && h.r * CH < ny + CH)) { ep.vy = 0; ep.flyBlockT = 180; ep.flying = false; }
-              else ep.y = ny;
-              // The flying pose's inputs, the player's own (advanceFlyPose): how far it actually
-              // moved sideways as a share of its flying speed, up/down as a share of the Lift, and
-              // whether its arms are busy aiming, swinging or throwing.
-              if (ep.flying) advanceFlyPose(ep, Math.abs(ep.x - exBefore) / Math.max(0.01, aiSpeed * Math.max(0.3, Math.min(2, eFlyFx.control ?? 1))), ep.vy / Math.max(0.01, eRise), (ep.aimHold || 0) > 0 || (ep.swingT || 0) > 0 || (ep.throwT || 0) > 0, dtMul);
-              if (eHeadStomp) ep.hsAir = headStompAirStep(ep.hsAir, false, ep.y, ep.vy, true); // a flight went up: the fall after it is armed at once, as yours is
-            } else {
-              const eGravMul = ep.gliding ? eGlideNow.fall : ((ep.extraJumped && ep.djGravMul) ? ep.djGravMul : 1);
-              eHsFeet0 = ep.y + newEph;
-              ep.vy = Math.min(60, ep.vy + 0.175 * dtMul * eGravMul);
-              ep.y += ep.vy * dtMul;
-              if (eHeadStomp) {
-                ep.hsAir = headStompAirStep(ep.hsAir, false, ep.y, ep.vy, false);
-                eHsArmed = headStompArmed(eHeadStomp, ep.hsAir, ep.y, ep.vy, CH, ep.gliding);
+              const eWallTop = !ep.crouch ? Math.max(0, Math.min(newEph - 1, unitHitTop(ea, eShape, newEph))) : 0;
+              const flyBoxHits = (y) => cellsHitW(ep.x, y + eWallTop, epw, newEph - eWallTop);
+              const inBox = new Set(flyBoxHits(ep.y).map((h) => h.r + "," + h.c));
+              const newHits = flyBoxHits(ny).filter((h) => !inBox.has(h.r + "," + h.c));
+              if (!newHits.length) ep.y = ny;
+              else if (ep.vy > 0) {
+                const eFeet = ep.y + newEph;
+                const eFloor = newHits.filter((h) => h.r * CH >= eFeet - landingReach(ep.vy, dtMul, CH));
+                if (eFloor.length) { ep.y = Math.min(...eFloor.map((h) => h.r * CH)) - newEph; ep.vy = 0; }
+                else ep.vy = 0;
+              } else {
+                ep.vy = 0;
               }
+              const eFloorY = unitFloorY(eStand, ep.x + epw / 2, ep.y + newEph / 2, lv, seams, CW);
+              if (ep.y > eFloorY - newEph) { ep.y = eFloorY - newEph; if (ep.vy > 0) ep.vy = 0; }
+              if (ep.y + eWallTop < eStand.oy && !seamAt("N", { x: ep.x - eStand.ox, y: ep.y + eWallTop - eStand.oy }, epw, newEph - eWallTop)) {
+                ep.y = eStand.oy - eWallTop;
+                if (ep.vy < 0) ep.vy = 0;
+              }
+              ep.tdJumpY = null;
+            } else {
+              // Gravity + ground collision — identical rule to the player's own fall, reusing the
+              // same generic cell test so enemies land on and are stopped by the same terrain.
+              // ...including what the player's jump gets on top (2026-09-28, "no differences"): the
+              // Agility-above-5 assist through the first fifth of a second of a hop (a unit's hop is
+              // always held — see JUMP_HOLD_BOOST_FRAMES), a ⤴️ double jump's own gravity, and 🪂
+              // Glide — gravity cut to the item's Fall whenever it is dropping, the player's glide with
+              // Jump held (a unit never lets go of it).
+              if (ep.vy < 0 && (ep.jumpHoldT ?? JUMP_HOLD_BOOST_FRAMES) < JUMP_HOLD_BOOST_FRAMES) {
+                const eAgi = Math.min(10, Math.max(1, ea.stats?.agility ?? 5));
+                if (eAgi > 5) ep.vy -= (eAgi - 5) * JUMP_HOLD_BOOST_ACCEL * dtMul;
+                ep.jumpHoldT += dtMul;
+              }
+              if (eFlyUp && !ep.flying) clearFlyPose(ep); // a fresh take-off starts its pose from the hover
+              ep.flying = eFlyUp;
+              const eGlideNow = eFlyUp ? null : glideState(eGlide, { jump: true }, false, false, ep.vy);
+              ep.gliding = !!(eGlideNow && eGlideNow.active);
+              if (eFlyUp) {
+                // 🦸 Climbing (see eFlyUp) — or, beside a target that is in the air, holding its height
+                // (flyHoverVy). A flying body is stopped by a roof the way your jump is: a
+                // step that would put its head into solid it was not already in is not taken, so it
+                // cannot rise up THROUGH the storey its target is standing on — it slides along under
+                // it, still steering at the target, until it finds the open air beside it.
+                const eRise = flyRisePx(eFlyFx, CH);
+                ep.vy = flyEaseVy(ep.vy, flyTgtAir ? flyHoverVy(flyTgtFeet - (ep.y + newEph), eRise) : -eRise, dtMul); ep.flyUsed = (ep.flyUsed || 0) + dtMul; ep.onGround = false;
+                const ny = ep.y + ep.vy * dtMul;
+                const inBox = new Set(cellsHitW(ep.x, ep.y, epw, newEph).map((h) => h.r + "," + h.c));
+                // Bumping a roof also grounds the flight for three seconds (flyBlockT), so a target
+                // straight overhead on the floor above is reached by the stairs or a ladder — the climb
+                // route takes over while it waits — instead of by hovering against the ceiling forever.
+                if (cellsHitW(ep.x, ny, epw, newEph).some((h) => !inBox.has(h.r + "," + h.c) && h.r * CH < ny + CH)) { ep.vy = 0; ep.flyBlockT = 180; ep.flying = false; }
+                else ep.y = ny;
+                // The flying pose's inputs, the player's own (advanceFlyPose): how far it actually
+                // moved sideways as a share of its flying speed, up/down as a share of the Lift, and
+                // whether its arms are busy aiming, swinging or throwing.
+                if (ep.flying) advanceFlyPose(ep, Math.abs(ep.x - exBefore) / Math.max(0.01, aiSpeed * Math.max(0.3, Math.min(2, eFlyFx.control ?? 1))), ep.vy / Math.max(0.01, eRise), (ep.aimHold || 0) > 0 || (ep.swingT || 0) > 0 || (ep.throwT || 0) > 0, dtMul);
+                if (eHeadStomp) ep.hsAir = headStompAirStep(ep.hsAir, false, ep.y, ep.vy, true); // a flight went up: the fall after it is armed at once, as yours is
+              } else {
+                const eGravMul = ep.gliding ? eGlideNow.fall : ((ep.extraJumped && ep.djGravMul) ? ep.djGravMul : 1);
+                eHsFeet0 = ep.y + newEph;
+                ep.vy = Math.min(60, ep.vy + 0.175 * dtMul * eGravMul);
+                ep.y += ep.vy * dtMul;
+                if (eHeadStomp) {
+                  ep.hsAir = headStompAirStep(ep.hsAir, false, ep.y, ep.vy, false);
+                  eHsArmed = headStompArmed(eHeadStomp, ep.hsAir, ep.y, ep.vy, CH, ep.gliding);
+                }
+              }
+              // THE RAMP FIRST, in the player's order (slopeSurfaceForPlayer, then flat landing): the
+              // surface nearest the feet within what they could reach this frame — up the few pixels a
+              // walk up the hill buried them, down the few a walk down it left them hanging. Only while
+              // not rising, the player's rule too, so a dodge-hop off a ramp is not snapped straight
+              // back onto it. Asked of the unit's own level, in that level's pixels.
+              let eOnRamp = false;
+              if (ep.vy >= 0) {
+                const sHit = slopeSurfaceForPlayer(eStand.lv, ep.x + epw / 2 - eStand.ox, ep.y - eStand.oy, ep.y + newEph - eStand.oy, ep.vy, stepX, dtMul, CW, CH);
+                if (sHit) { ep.y = sHit.y + eStand.oy - newEph; ep.vy = 0; ep.onGround = true; eOnRamp = true; }
+              }
+              if (!eOnRamp) {
+                const eHits = cellsHitW(ep.x, ep.y, epw, newEph);
+                // Land only on a surface AT OR BELOW the feet — never snap UP onto elevated terrain the
+                // (now possibly tall, scaled) body merely overlaps. Same feet-filter the player's own
+                // landing uses; without it a big enemy near forest canopy floats up onto the leaves.
+                const eFeet = ep.y + newEph;
+                const eFloor = eHits.filter((h) => h.r * CH >= eFeet - landingReach(ep.vy, dtMul, CH)); // ...plus any top it fell through this frame (landingReach), or a fast fall drops it through a thin floor
+                if (eFloor.length) { if (ep.vy > 0) { ep.y = Math.min(...eFloor.map((h) => h.r * CH)) - newEph; ep.vy = 0; ep.onGround = true; } }
+                else { ep.onGround = false; }
+              }
+              const eFloorY = unitFloorY(eStand, ep.x + epw / 2, ep.y + newEph / 2, lv, seams, CW); // its own level's floor — or none, over an open bottom gate
+              if (ep.y > eFloorY - newEph) { ep.y = eFloorY - newEph; ep.vy = 0; ep.onGround = true; }
+              if (ep.onGround) ep.tdJumpY = null; // real ground under it again: the hop's line is forgotten, as the player's is
             }
-            // THE RAMP FIRST, in the player's order (slopeSurfaceForPlayer, then flat landing): the
-            // surface nearest the feet within what they could reach this frame — up the few pixels a
-            // walk up the hill buried them, down the few a walk down it left them hanging. Only while
-            // not rising, the player's rule too, so a dodge-hop off a ramp is not snapped straight
-            // back onto it. Asked of the unit's own level, in that level's pixels.
-            let eOnRamp = false;
-            if (ep.vy >= 0) {
-              const sHit = slopeSurfaceForPlayer(eStand.lv, ep.x + epw / 2 - eStand.ox, ep.y - eStand.oy, ep.y + newEph - eStand.oy, ep.vy, stepX, dtMul, CW, CH);
-              if (sHit) { ep.y = sHit.y + eStand.oy - newEph; ep.vy = 0; ep.onGround = true; eOnRamp = true; }
-            }
-            if (!eOnRamp) {
-              const eHits = cellsHitW(ep.x, ep.y, epw, newEph);
-              // Land only on a surface AT OR BELOW the feet — never snap UP onto elevated terrain the
-              // (now possibly tall, scaled) body merely overlaps. Same feet-filter the player's own
-              // landing uses; without it a big enemy near forest canopy floats up onto the leaves.
-              const eFeet = ep.y + newEph;
-              const eFloor = eHits.filter((h) => h.r * CH >= eFeet - landingReach(ep.vy, dtMul, CH)); // ...plus any top it fell through this frame (landingReach), or a fast fall drops it through a thin floor
-              if (eFloor.length) { if (ep.vy > 0) { ep.y = Math.min(...eFloor.map((h) => h.r * CH)) - newEph; ep.vy = 0; ep.onGround = true; } }
-              else { ep.onGround = false; }
-            }
-            const eFloorY = unitFloorY(eStand, ep.x + epw / 2, ep.y + newEph / 2, lv, seams, CW); // its own level's floor — or none, over an open bottom gate
-            if (ep.y > eFloorY - newEph) { ep.y = eFloorY - newEph; ep.vy = 0; ep.onGround = true; }
-            if (ep.onGround) ep.tdJumpY = null; // real ground under it again: the hop's line is forgotten, as the player's is
           }
           ep.topdown = eTopdown;
           // Walk cycle: advance the enemy's stride by how far it actually moved on the ground this
           // frame, exactly like the player's walkPhase. Enemies had no walk phase at all, so their
           // legs stayed frozen mid-chase. Blocked-by-a-wall (no displacement) reads as not walking.
           const eStep = Math.hypot(ep.x - exBefore, eTdStep + eClimbMove); // up/down a 🚶 plane is walking too, or it glides there on frozen legs; so is a climb, which cycles the limbs as yours do
-          ep.walking = (ep.onGround || !!ep.climbing) && eStep > 0.05;
-          if (ep.walking) ep.walkPhase = (ep.walkPhase || 0) + eStep * 0.03;
+          if (eCreatureFlies && !((ep.down || 0) > 0)) {
+            ep.walking = false;
+            if (!stunned) {
+              const eAirStep = Math.hypot(ep.x - exBefore, (ep.vy || 0) * dtMul);
+              ep.flapPhase = (ep.flapPhase || 0) + (eAirStep > 0.1 ? FLAP_SPEED_MOVE : FLAP_SPEED_IDLE) * dtMul;
+              ep.flapDown = Math.sin(ep.flapPhase) < 0;
+            }
+          } else {
+            ep.flapDown = false;
+            ep.walking = (ep.onGround || !!ep.climbing) && eStep > 0.05;
+            if (ep.walking) ep.walkPhase = (ep.walkPhase || 0) + eStep * 0.03;
+          }
 
           // TACKLE CONTACT — the enemy's half of the ability, and the exact mirror of the player's
           // own test at the top of this block: a full rectangle overlap (so clearing their head with
@@ -21705,7 +21840,7 @@ export default function AssetStudio({ game = false } = {}) {
     if (HAS_CATEGORIES(a) && !Number.isFinite(a.value)) a.value = 0;
     if (a.type === "prop") { if (a.size === undefined) a.size = 2; if (!Array.isArray(a.frames) || !a.frames.length) a.frames = [a.angles || blankAngles()]; a.angles = a.frames[0]; if (a.animFps === undefined) a.animFps = 6; if (a.solidDefault === undefined) a.solidDefault = false; if (typeof a.category !== "string") a.category = ""; }
     if (a.type === "item") { a.effect = normItemEffect(a.effect); if (!Array.isArray(a.categories)) a.categories = ["", "", ""]; if (!Number.isFinite(a.dropWeight)) a.dropWeight = DEFAULT_DROP_WEIGHT; }
-    if (a.type === "enemy") { if (!a.states) a.states = { normal: a.angles || blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.angles = a.states.normal || a.angles; if (a.hasArms === undefined) a.hasArms = !!(a.angles && ANGLES.some((ang) => (a.angles[ang] || []).some((p) => p.role === "weaponArm"))); for (const k of Object.keys(a.angles || {})) (a.angles[k] || []).forEach((p) => { if (p.locked) delete p.locked; }); if (!a.stats) a.stats = DEFAULT_STATS(); if (a.hp === undefined) a.hp = 10; if (!a.ai) a.ai = "guard"; if (a.weaponId === undefined) a.weaponId = null; a.groundLine = cleanGround(a.groundLine); if (a.holdPoint !== undefined) a.holdPoint = cleanHold(a.holdPoint); }
+    if (a.type === "enemy") { if (!a.states) a.states = { normal: a.angles || blankAngles(), onFire: blankAngles(), charge: blankAngles() }; a.angles = a.states.normal || a.angles; if (a.hasArms === undefined) a.hasArms = !!(a.angles && ANGLES.some((ang) => (a.angles[ang] || []).some((p) => p.role === "weaponArm"))); if (a.flies === undefined) a.flies = false; for (const k of Object.keys(a.angles || {})) (a.angles[k] || []).forEach((p) => { if (p.locked) delete p.locked; }); if (!a.stats) a.stats = DEFAULT_STATS(); if (a.hp === undefined) a.hp = 10; if (!a.ai) a.ai = "guard"; if (a.weaponId === undefined) a.weaponId = null; a.groundLine = cleanGround(a.groundLine); if (a.holdPoint !== undefined) a.holdPoint = cleanHold(a.holdPoint); }
     if (a.type === "skin" && !a.stats) a.stats = DEFAULT_STATS();
     if (HAS_FIT_VARIANTS(a) && !a.variants) {
       if (a.type === "weapon") { a.variants = { default: { states: a.states || { rest: a.angles || blankAngles(), fire: blankAngles() } } }; }
@@ -27191,6 +27326,8 @@ export default function AssetStudio({ game = false } = {}) {
                     blocks = addBackLeg(blocks, legIds, swing);
                     blocks = applyLimbSwing(blocks, legIds, armIds, swing);
                     blocks = applyWalkArmSwing(blocks, swing); // arms swing opposite the legs; applyLimbSwing never touches them
+                  } else if (blocks && creatureFlies(basePlayerAsset) && !(p.down > 0)) {
+                    if (p.flapDown) blocks = flapCreatureWings(blocks, true);
                   } else if (blocks && p.flying && angle === "side") {
                     // 🦸 FLYING: the built-in pose (flyPose) — hover, climb, come down or the
                     // superhero dive along, blended from where the flight is. Legs and arms here; the
@@ -27223,7 +27360,7 @@ export default function AssetStudio({ game = false } = {}) {
                   // An unarmed swing gets the arc whatever is in your hand — that's the pistol-whip:
                   // the gun stays gripped and sweeps round with the arm (it's the thing you're
                   // hitting with), on its Rest art since no round was fired.
-                  const meleeSwinging = blocks && p.firing && (p.firing.unarmed || !playtestWeapon || !isRanged(playtestWeapon.wtype)) && !playerAtkPose;
+                  const meleeSwinging = blocks && p.firing && (p.firing.unarmed || !playtestWeapon || !isRanged(playtestWeapon.wtype)) && !playerAtkPose && !creatureFlies(basePlayerAsset);
                   if (meleeSwinging) {
                     const swingAngle = meleeSwingAngle(p.firing.t, p.firing.dur);
                     // CSS +rot is clockwise: for a top-pivot arm hanging DOWN that sweeps the hand
@@ -27403,7 +27540,7 @@ export default function AssetStudio({ game = false } = {}) {
                   // facing to keep the on-screen tilt pointing the same way as velocity for both.
                   let lean = "";
                   if (ascendingSlope) lean = "rotate(10deg)";
-                  else if (p.flying) {
+                  else if (p.flying && !isCreatureUnit(basePlayerAsset)) {
                     // 🦸 Flying tips the whole body toward travel (flyTiltDeg): a few degrees in a
                     // hover, the superhero dive at speed, upright again while the arms are busy.
                     const tip = flyTiltDeg(p, playerArtFacesRight(basePlayerAsset));
@@ -27437,7 +27574,7 @@ export default function AssetStudio({ game = false } = {}) {
                   // flattened by an enemy tackler left you hovering ~1.5 cells over the ground.
                   const downLift = downed ? layFlatLiftPx(blocks, renderW, ph) : 0; // every-frame path: don't walk the pieces unless someone is actually on the floor
                   const stompDip = p.stomp ? stompDipPx(p.stomp.t, p.stomp.dur) : 0; // the weight landing on the stamping foot
-                  const flyBob = p.flying ? flyPoseOf(p).bob : 0; // the hover's gentle bob — the sprite only, never the hitbox
+                  const flyBob = (p.flying && !creatureFlies(basePlayerAsset)) ? flyPoseOf(p).bob : 0; // the hover's gentle bob — the sprite only, never the hitbox
                   const style = { left: p.x - (bodyShape.centerFrac * renderW - pw / 2), top: p.y + (p.stepEase || 0) - climbLift + stompDip + flyBob, width: renderW, height: ph, transform: (downed ? [flip, shrink, "translateY(" + (-downLift).toFixed(2) + "px)", LAY_FLAT_ROT_CSS] : [flip, shrink, lean]).filter(Boolean).join(" ") || "none", ...((downed || p.hsFall || doorT < 1) ? { transformOrigin: "50% 100%" } : {}), opacity: doorT < 1 ? (DOOR_MIN_OPACITY + (1 - DOOR_MIN_OPACITY) * doorT) : (p.invuln > 0 && Math.floor(p.invuln / 4) % 2 ? 0.5 : 1) };
                   const pStatusCss = bodyStatusFilter(p); // 🔥 the burn's glow / ❄️ the white rim, for the whole of each
                   if (pStatusCss) style.filter = pStatusCss;
@@ -27743,6 +27880,9 @@ export default function AssetStudio({ game = false } = {}) {
                     const eSideKey = enemyPoseKey(ea, "side");
                     eBlocks = alignPoseFootBaseline(bake(ea, eSideKey), eBlocks, enemyGroundLine(ea, eSideKey), enemyGroundLine(ea, ePoseKey));
                   }
+                  if (ep && creatureFlies(ea) && !(ep.down > 0) && !eFrontPose && !eClimbBack) {
+                    if (ep.flapDown) eBlocks = flapCreatureWings(eBlocks, true);
+                  }
                   // Walk cycle: swing the legs (and add a mirrored back leg) exactly like the player,
                   // driven by the enemy's own walkPhase. Legs only — applyLimbSwing never touches arms,
                   // so the aim/attack/weapon pipeline below is completely unaffected. Without this the
@@ -27769,7 +27909,7 @@ export default function AssetStudio({ game = false } = {}) {
                     const stackedPivot = multiLegPivot(eBlocks, legIds, eSwing);
                     if (stackedPivot) eBlocks = stackedPivot;
                     else { eBlocks = addBackLeg(eBlocks, legIds, eSwing); eBlocks = applyLimbSwing(eBlocks, legIds, armIds, eSwing); }
-                  } else if (ep && ep.flying && !eUseAtkPose && !eFrontPose && !eClimbBack) {
+                  } else if (ep && ep.flying && !eUseAtkPose && !eFrontPose && !eClimbBack && !creatureFlies(ea)) {
                     // 🦸 A flying unit flies in YOUR pose (flyPose), off its own eased flight. The legs
                     // here; the arms further down, once the held weapon's base angle has been read off
                     // the arm as drawn (they are turned the way an aim is, by driveUnitArms).
@@ -27790,7 +27930,7 @@ export default function AssetStudio({ game = false } = {}) {
                   // enemy has flagged 💪 Arm. Only if NEITHER exists and it holds a weapon does a
                   // synthesized invisible stand-in (enemyAimArm) get spliced in, so a weapon can
                   // still be lifted/attached — without one, "guns never shoot".
-                  let eArm0 = flaggedArmOf(eBlocks);
+                  let eArm0 = creatureFlies(ea) ? null : flaggedArmOf(eBlocks);
                   // ✋ An Enemy-creator asset holds its weapon (and a grenade mid-throw) at its HOLD
                   // POINT — see unitHoldArm. Read off the pose's own un-swung art, so the default
                   // point stays put while the legs walk.
@@ -28046,7 +28186,7 @@ export default function AssetStudio({ game = false } = {}) {
                       {/* The sprite below blinks through its i-frames after a hit (ep.invuln) with the
                           player's own 0.5-opacity blink, so a round that does nothing to it has a
                           visible reason — the same cue your own blink gives. See unitHitImmune. */}
-                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : unitTalkImmune(ep) ? { zIndex: TALKER_BEHIND_Z } : {}), ...((downed || eHsFall) ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: [allyGlowCss(ep), bodyStatusFilter(ep)].filter(Boolean).join(" ") } : bodyStatusFilter(ep) ? { filter: bodyStatusFilter(ep) } : {}), ...(ep && !unitUntouchable(ep) && ep.invuln > 0 && Math.floor(ep.invuln / 4) % 2 ? { opacity: 0.5 } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
+                      <div className="playerWrap enemySpawn" style={{ left: eLeft, top: eTop + eAnchor + (ep && ep.stomp ? stompDipPx(ep.stomp.t, ep.stomp.dur) : 0) + (ep && ep.flying && !creatureFlies(ea) ? flyPoseOf(ep).bob : 0), width: eRenderW, height: eph, pointerEvents: "none", transform: wrapTransform, ...(tdZ != null ? { zIndex: tdZ } : unitTalkImmune(ep) ? { zIndex: TALKER_BEHIND_Z } : {}), ...((downed || eHsFall) ? { transformOrigin: "50% 100%" } : {}), ...(unitUntouchable(ep) ? { filter: "drop-shadow(0 0 6px #ffd84a) brightness(1.3) saturate(1.2)", opacity: Math.floor(ep.lifeGrace / 4) % 2 ? 0.5 : 1 } : (ep && ep.friendly) ? { filter: [allyGlowCss(ep), bodyStatusFilter(ep)].filter(Boolean).join(" ") } : bodyStatusFilter(ep) ? { filter: bodyStatusFilter(ep) } : {}), ...(ep && !unitUntouchable(ep) && ep.invuln > 0 && Math.floor(ep.invuln / 4) % 2 ? { opacity: 0.5 } : {}) }} title={((ep && ep.friendly) ? allyBadge(ep) + " " : "👹 ") + ea.name + " — " + curHp + "/" + maxHp + " HP" + ((ep && ep.friendly) ? " (fighting for you — " + ALLY_KINDS[allyKindOf(ep)].verb + ")" : "") + (unitTalkImmune(ep) ? (ep.talkSpent ? " (💬 not fighting you)" : " (💬 not fighting you — press E to talk)") : "") + (downed ? " (🏈 tackled — down)" : ducking ? " (ducking)" : "")}>
                         {eArtHit ? eArtHit.el : storeUnitArt(uKey, eArtSig, ea, ew, eSpawn, eRenderW, eph, eAnchor, eBlocks, (() => {
                           const art = renderPieceRuns({ pieces: eBlocks.filter((pc) => !pc.isHitbox && !pc.isMuzzle), cacheKey: "enemy_" + uKey, keyPrefix: uKey + "_", alphaOf: spriteAlphaOf(ea, eThrowingNow ? spawnThrowableFor(eSpawn) : ew), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) });
                           // Draw the art at its true aspect when the box isn't one (ducking): on a
@@ -29333,6 +29473,7 @@ export default function AssetStudio({ game = false } = {}) {
                 </label>
               )}
               {asset.type === "enemy" && <label className="chk"><input type="checkbox" checked={asset.hostile === false} onChange={(e) => setAsset((a) => ({ ...a, hostile: !e.target.checked }))} /> 🕊️ Not hostile</label>}
+              {asset.type === "enemy" && <label className="chk" title="Flies instead of walking and flaps pieces flagged as 💪 Arm (wings)"><input type="checkbox" checked={!!asset.flies} onChange={(e) => setAsset((a) => ({ ...a, flies: e.target.checked }))} /> 🦸 Flies</label>}
               {asset.type === "enemy" && <label className="slider">⚔️ Attack range<input type="number" min="1" value={Math.round((asset.attackRange ?? DEFAULT_ATTACK_RANGE) / LV_CELL)} onChange={(e) => setAsset((a) => ({ ...a, attackRange: Math.max(1, +e.target.value || 1) * LV_CELL }))} style={{ width: 60 }} /><span className="hint2" style={{ marginLeft: 6 }}>cells</span></label>}
               {/* GROUND LINE, per pose. Without one the lowest drawn pixel is treated as the floor,
                   which is right for a standing creature and wrong for one lying down — see

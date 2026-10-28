@@ -15271,3 +15271,114 @@ describe("🪃 Boomerang (weapon + throwable ability, 2026-10-25)", () => {
     }
   });
 });
+
+describe("🦸 Flying creatures (flies: true, flapCreatureWings, Eagle enemy)", () => {
+  const {
+    creatureFlies,
+    flipPiecesVertically,
+    flapCreatureWings,
+    isCreatureWingPiece,
+    FLAP_SPEED_IDLE,
+    FLAP_SPEED_MOVE,
+    UNIT_ART_SIG_SKIP,
+  } = require("./App");
+
+  test("creatureFlies identifies Enemy-creator creatures with flies: true and rejects non-creatures", () => {
+    expect(creatureFlies(null)).toBe(false);
+    expect(creatureFlies({ type: "enemy" })).toBe(false);
+    expect(creatureFlies({ type: "enemy", flies: false })).toBe(false);
+    expect(creatureFlies({ type: "enemy", flies: true })).toBe(true);
+    expect(creatureFlies({ type: "character", flies: true })).toBe(false);
+    expect(creatureFlies({ type: "body", flies: true })).toBe(false);
+    expect(newAsset("enemy").flies).toBe(false);
+    expect(normalizeAssetJson({ type: "enemy", name: "Bird", flies: 1, angles: { side: [] } }).flies).toBe(true);
+    expect(normalizeAssetJson({ type: "enemy", name: "Dog", angles: { side: [] } }).flies).toBe(false);
+  });
+
+  test("flapCreatureWings flips 💪 Arm-flagged wing pieces across the flat wing base while keeping the base anchored", () => {
+    const body = { id: "body", kind: "stadium", x: 50, y: 88, w: 96, h: 40, color: "#3f2817" };
+    const wing = {
+      id: "wing",
+      kind: "poly",
+      x: 60,
+      y: 24,
+      w: 80,
+      h: 76, // bottom at y = 100 (flat wing base on upper body)
+      color: "#2c1b10",
+      limb: "arm",
+      points: [[0, 1], [0.45, 0], [0.9, 0.3], [1, 1]],
+    };
+    const leg = { id: "leg", kind: "roundrect", x: 80, y: 130, w: 8, h: 20, color: "#eab308", limb: "leg" };
+    const blocks = [body, wing, leg];
+
+    expect(flapCreatureWings(blocks, false)).toBe(blocks);
+
+    const down = flapCreatureWings(blocks, true);
+    expect(down[0]).toBe(body);
+    expect(down[2]).toBe(leg);
+    // Wing originally spanned y = [24, 100] with flat base at y = 100.
+    // Flipped across hingeY = 100, it spans y = [100, 176], keeping the flat base at y = 100!
+    expect(down[1].y).toBe(100);
+    expect(down[1].y + down[1].h).toBe(176);
+    expect(down[1].points[0]).toEqual([0, 0]);
+    expect(down[1].points[1]).toEqual([0.45, 1]);
+    expect(down[1].points[3]).toEqual([1, 0]);
+
+    // Involution: flipping a downstroke wing again restores the upstroke span [24, 100]
+    const upAgain = flapCreatureWings(down, true);
+    expect(upAgain[1].y).toBe(24);
+    expect(upAgain[1].y + upAgain[1].h).toBe(100);
+    expect(upAgain[1].points).toBe(wing.points);
+  });
+
+  test("flipPiecesVertically swaps top/bottom armPivot on rotated arm pieces and unitHoldArm ignores wings on flying creatures", () => {
+    const rotWing = [{ id: "w1", kind: "rect", x: 70, y: 40, w: 20, h: 60, rot: 25, limb: "arm", armPivot: "bottom" }];
+    const flipped = flipPiecesVertically(rotWing, 100);
+    expect(flipped[0].y).toBe(100);
+    expect(flipped[0].rot).toBe(335);
+    expect(flipped[0].armPivot).toBe("top");
+
+    const eagleLike = {
+      type: "enemy",
+      flies: true,
+      angles: {
+        side: [
+          { id: "b", kind: "stadium", x: 48, y: 88, w: 96, h: 40, color: "#3f2817" },
+          { id: "w", kind: "poly", x: 58, y: 24, w: 84, h: 76, color: "#2c1b10", limb: "arm", points: [[0, 1], [0.5, 0], [0.9, 0.2], [1, 1]] },
+        ],
+      },
+    };
+    const hold = unitHoldArm(eagleLike, "side", eagleLike.angles.side);
+    expect(hold).toBeTruthy();
+    expect(hold.__hold).toBe(true);
+    expect(isCreatureWingPiece(hold)).toBe(false);
+    expect(FLAP_SPEED_MOVE).toBeGreaterThan(FLAP_SPEED_IDLE);
+    expect(UNIT_ART_SIG_SKIP.has("flapPhase")).toBe(true);
+    expect(UNIT_ART_SIG_SKIP.has("flapDown")).toBe(false);
+  });
+
+  test("the shipped Eagle enemy (eagl1x9) is a flying Seek enemy with wings, separated legs, and zero editorReachIssues", () => {
+    const lib = JSON.parse(require("fs").readFileSync(require("path").join(__dirname, "..", "asset-data", "library.json"), "utf8"));
+    const eagle = lib.assets.find((a) => a.id === "eagl1x9");
+    expect(eagle).toBeTruthy();
+    expect(eagle.name).toBe("Eagle");
+    expect(eagle.type).toBe("enemy");
+    expect(eagle.flies).toBe(true);
+    expect(creatureFlies(eagle)).toBe(true);
+    expect(eagle.ai).toBe("seek");
+    expect(editorReachIssues(eagle)).toEqual([]);
+
+    for (const pose of ["side", "up", "crouch", "attack", "death"]) {
+      expect(Array.isArray(eagle.angles[pose])).toBe(true);
+      expect(eagle.angles[pose].length).toBeGreaterThan(15);
+    }
+    const sideWings = eagle.angles.side.filter(isCreatureWingPiece);
+    expect(sideWings.length).toBeGreaterThanOrEqual(8);
+    const wingBottomUp = Math.max(...sideWings.map((w) => w.y + w.h));
+    expect(wingBottomUp).toBe(100);
+    const flappedSide = flapCreatureWings(eagle.angles.side, true);
+    const sideWingsDown = flappedSide.filter(isCreatureWingPiece);
+    const wingTopDown = Math.min(...sideWingsDown.map((w) => w.y));
+    expect(wingTopDown).toBe(100);
+  });
+});
