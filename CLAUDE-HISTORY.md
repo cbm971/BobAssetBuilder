@@ -5507,3 +5507,8 @@ west to east and back over knoll, crater, up and down the hull, heap, furrow and
 the hull to Bob and walked back down it; the crater alien fires its Ray Gun; Zorp's talk made him a following ally and
 paid the points; the pedestal rolled the Ray Gun. ~1900 elements in play. A seeker that rolls a ranged weapon (Bobs
 Bow) keeps its standoff and walks away; that is the Seek rule, not the level.
+
+**Two stale tests after the 🦸 Flies / Eagle commit (2026-10-28).** 144548e (Argon) left two source-shape tests red. Both
+were wording, not behaviour: the player's `flyState(...)` call now sits behind a `pCreatureFlies ?` branch (playing as
+a flying creature), and the creature's descent lands with `landingReach` too, so the "all landings use it" count is 4,
+not 3. The guarded paths (the Fly item, walking units, corpses) are unchanged; the tests now pin the new branch as well.

@@ -13187,7 +13187,9 @@ describe("a unit plays by the player's rules", () => {
 
   test("🦸 Fly reaches both sides: the player loop and the unit loop both fly, in the same pose", () => {
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
-    expect(src).toContain("const fly = flyState(flyEffect, FK, p.onGround, climbing, p.flying, p.flyUsed, CH);");
+    // (a 🦸 Flies creature you play as steers its own flight first; anyone else flies by the item's flyState)
+    expect(src).toContain("const fly = pCreatureFlies");
+    expect(src).toContain(": flyState(flyEffect, FK, p.onGround, climbing, p.flying, p.flyUsed, CH);");
     expect(src).toContain("ep.vy = flyEaseVy(ep.vy, flyTgtAir ? flyHoverVy(flyTgtFeet - (ep.y + newEph), eRise) : -eRise, dtMul);");
     expect(src).toContain("blocks = flyPoseBlocks(blocks, flyPoseOf(p), playerArtFacesRight(basePlayerAsset));");
     expect(src).toContain("eBlocks = flyLegBlocks(eBlocks, flyPoseOf(ep));");
@@ -13424,7 +13426,8 @@ describe("a fast fall lands on a thin floor instead of dropping through it", () 
     const src = require("fs").readFileSync(require("path").join(__dirname, "App.js"), "utf8");
     expect(src).not.toMatch(/>= (feetNow|eFeet|dFeet) - CH \* 0\.5/);
     expect(src).not.toMatch(/feetBottom <= hillTop \+ CH \* 0\.5/);
-    expect((src.match(/landingReach\((p|ep|dep)\.vy, dtMul, CH\)/g) || []).length).toBe(3);
+    // the player, a walking unit, a corpse, and a 🦸 Flies creature coming down onto a floor
+    expect((src.match(/landingReach\((p|ep|dep)\.vy, dtMul, CH\)/g) || []).length).toBe(4);
   });
 });
 
