@@ -1663113,6 +1663113,32 @@
       "flip": false,
       "z": 72
      }
+    ],
+    "17,0": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 73
+     }
+    ],
+    "25,0": [
+     {
+      "kind": "shape",
+      "shape": "topOutline",
+      "tint": "#2b2b2b",
+      "solid": false,
+      "size": 1,
+      "inFront": false,
+      "rot": 0,
+      "flip": false,
+      "z": 74
+     }
     ]
    },
    "climb": {
@@ -1663313,8 +1663339,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1793263145700,
-   "editedFrom": 1792344900571
+   "savedAt": 1793263191567,
+   "editedFrom": 1793263160530
   },
   {
    "id": "6ktwvoo",
