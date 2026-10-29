@@ -5525,4 +5525,6 @@ y 210, 47 units under its tyres; the fitArt footprint stood that dot on the grou
 the windows show Background cells lit #c8a23c with a #720303 curtain, the way he backed them in Trailor Park M12; his
 Army Crates moved off the tyres. The movie is NAPALM SUNSET from Monsoon Films, directed by J. Hale (production sign,
 clapboard, the set flat's stencil and the Director's line). Revised in place: vcfrm07, vcfrm08, mvprsgn, mvclap,
-mvflatb, dlgdir1. His Forest M5 (edited by him) and M6 still have trees on their edges.
+mvflatb, dlgdir1. Same day, Forest M5 and M6 got the same edge fix (generators patched, stars chosen against
+the shipped layout so every other placement keeps its z and spot). M5 carried his edits (8 plants dropped a row, a
+foot under each front trunk), so it shipped as his copy + (patched - unpatched generator output): no overlap.
