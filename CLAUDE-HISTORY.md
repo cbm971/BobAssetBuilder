@@ -5528,3 +5528,15 @@ clapboard, the set flat's stencil and the Director's line). Revised in place: vc
 mvflatb, dlgdir1. Same day, Forest M5 and M6 got the same edge fix (generators patched, stars chosen against
 the shipped layout so every other placement keeps its z and spot). M5 carried his edits (8 plants dropped a row, a
 foot under each front trunk), so it shipped as his copy + (patched - unpatched generator output): no overlap.
+
+**Tree Tops 4 (`lvk24zl`) and Monkey enemy (`mnky1x9`) (2026-10-29).** Authored the **Monkey** enemy (`mnky1x9`, `type: "enemy"`,
+`hp: 45`, `scale: 0.9`, `ai: "seek"`, `speed: 14`, `agility: 10`, `strength: 6`, `groundLine: { attack: 150, death: 148 }`,
+`holdPoint: { side: { x: 30, y: 124 }, crouch: { x: 30, y: 132 } }`) across all 5 editable poses (`side`, `up`, `crouch`,
+`attack`, `death`) facing left (`x = 6..197`), with 4 separate `limb: "leg"` columns (`multiLegPivot`) and `editorReachIssues`
+`[]`. Filled his empty `Tree Tops 4` shell (`lvk24zl`, keeping `W2`/`E2` `"Tree Tops"` and `S2` `"Vietnam"`, widening `S2`'s
+rows 39–40 `fg` opening to 3 columns `110..112` so Bob can climb down as well as up, leaving `Tree Tops 1` `w8uypdp`
+untouched): western and eastern bamboo-and-thatch pavilions (decks row 30, lantern strings, hammock), an overhead vine
+monkey-bar bridge (row 22, cols 39–49) into a twin-tier central treehouse (decks rows 29 and 20) and east branch perch
+(row 30, vine climb col 92), banana plants, bamboo clumps, berry bushes and cage seated flush, 3 pedestals, 6 Squirrels
+(`5 × sqrl1x9` + `1 × qp0eawu`) and 7 Monkeys (`mnky1x9`, 3 elevated perches throwing `rockth7g`). Delivered live to Save
+Keeper (`revive: true`) and spliced into `library.json` / `library.bak.json` by text insertion only.
