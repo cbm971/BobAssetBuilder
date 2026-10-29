@@ -5471,7 +5471,7 @@ Driven live: the playtest opens on the creek crocs; at the hollow "Press E to en
 
 **Forest M7, the movie set (`vcfrm07`, 2026-10-28).** Blake: a Vietnam level that is a war-movie set, with any props
 or items it needs. Generated (scratchpad mv/levelgen.js, seed 7071) with the M5/M6 layering, W2/E2 "Vietnam", ground
-row 36 at both seams. West to east: jungle; the basecamp (APOCALYPSE BOB production sign, his trailer, wardrobe rack,
+row 36 at both seams. West to east: jungle; the basecamp (production sign, then "APOCALYPSE BOB", renamed NAPALM SUNSET 2026-10-29, his trailer, wardrobe rack,
 makeup mirror, road cases, the Craft Services sign over his Card Table/Coffee Urn/Doughnut Box, his Army Truck as the
 grip truck, his crates and sandbags); video village (Quiet On Set
 light, monitor cart, Director's Chair, the camera on a dolly track, boom mic); a camera crane; the set on a rise
@@ -5512,3 +5512,17 @@ Bow) keeps its standoff and walks away; that is the Seek rule, not the level.
 were wording, not behaviour: the player's `flyState(...)` call now sits behind a `pCreatureFlies ?` branch (playing as
 a flying creature), and the creature's descent lands with `landingReach` too, so the "all landings use it" count is 4,
 not 3. The guarded paths (the Fly item, walking units, corpses) are unchanged; the tests now pin the new branch as well.
+
+**Forest M7 + M8 seams, trailer and title (2026-10-29).** Blake: M8 had "a few trees cut off on the border" (a run joins
+levels edge to edge, so each shows as half a tree on both sides), the ground changed material in a straight vertical
+line, M7's trailer floated with nothing behind its windows, and "Bob Pictures presents" / APOCALYPSE BOB overused Bob.
+Both generators were re-run (they reproduced his copies byte-for-byte first, so only these changes ship): every far,
+near and canopy tree, bush and plant is pulled in until it is whole (1-column margin); M8's east canopy, which had no
+trunk at all, became a whole tree; M7's east one was dropped because the light tower stands where it would fit. Its
+random draws are still taken so the rest of each level keeps its seed. Ground seams (grass, packed earth, laterite,
+scorch) wander up to 4 columns, a column or two a row, from their own rng. His Trailer 1 has a stray 6px dot at canvas
+y 210, 47 units under its tyres; the fitArt footprint stood that dot on the ground. The tyres (y 163) are seated now and
+the windows show Background cells lit #c8a23c with a #720303 curtain, the way he backed them in Trailor Park M12; his
+Army Crates moved off the tyres. The movie is NAPALM SUNSET from Monsoon Films, directed by J. Hale (production sign,
+clapboard, the set flat's stencil and the Director's line). Revised in place: vcfrm07, vcfrm08, mvprsgn, mvclap,
+mvflatb, dlgdir1. His Forest M5 (edited by him) and M6 still have trees on their edges.
