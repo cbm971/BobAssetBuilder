@@ -5535,11 +5535,16 @@ foot under each front trunk), so it shipped as his copy + (patched - unpatched g
 `attack`, `death`) facing left (`x = 6..197`), with 4 separate `limb: "leg"` columns (`multiLegPivot`) and `editorReachIssues`
 `[]`. Filled his empty `Tree Tops 4` shell (`lvk24zl`, keeping `W2`/`E2` `"Tree Tops"` and `S2` `"Vietnam"`, widening `S2`'s
 rows 39–40 `fg` opening to 3 columns `110..112` so Bob can climb down as well as up, leaving `Tree Tops 1` `w8uypdp`
-untouched): western and eastern bamboo-and-thatch pavilions (decks row 30, lantern strings, hammock), an overhead vine
-monkey-bar bridge (row 22, cols 39–49) into a twin-tier central treehouse (decks rows 29 and 20) and east branch perch
-(row 30, vine climb col 92), banana plants, bamboo clumps, berry bushes and cage seated flush, 3 pedestals, 6 Squirrels
-(`5 × sqrl1x9` + `1 × qp0eawu`) and 7 Monkeys (`mnky1x9`, 3 elevated perches throwing `rockth7g`). Delivered live to Save
-Keeper (`revive: true`) and spliced into `library.json` / `library.bak.json` by text insertion only.
+untouched). After Blake rightly called out that trees and ground bushes on top of a tree canopy are illogical, rebuilt
+`Tree Tops 4` from the clean blank canopy shell matching `Tree Tops 2` (`yfkd9gw`) and `Tree Tops 3` (`vyhqlzb`) — zero
+trees, bushes, plants, or background foliage mounds above row 39 (`#4a5a28` canopy floor against `#171d35` night sky):
+western stilted bamboo lookout (deck row 30, stepped `vcthch1` thatch roof, `vcrlant` lantern string, `hmmock1` hammock,
+`phrice1` rice sacks), horizontal bamboo monkey-bar frame (`rot: 90` bamboo rungs + `climb.bars` at row 22, cols 37–49,
+`ufocrat` crates below), twin-tier central bamboo treehouse (decks rows 29 and 20, `phhats1` conical hats, `oillnt1` oil
+lantern, `uvcage1` bamboo cage), cantilevered camo-net perch (`vcrnett` at row 30, cols 85–94), eastern bamboo radio
+watchtower (deck row 30, `vcrdrum` fuel drums, `vcrradi` radio desk), 3 pedestals, 6 Squirrels (`5 × sqrl1x9` + `1 × qp0eawu`)
+and 8 Monkeys (`mnky1x9`, 3 elevated perches throwing `rockth7g`). Delivered live to Save Keeper (`revive: true`) and
+spliced into `library.json` / `library.bak.json` by text replacement only.
 
 **Forest M9, the VC base camp assault (`vcfrm09`, 2026-10-29).** Blake: "add a level that is like an attack on a
 vietnamese base". Generated (scratchpad vb/levelgen.js, run through a throwaway jest probe for levelObjectFootprint)
