@@ -5540,3 +5540,32 @@ monkey-bar bridge (row 22, cols 39–49) into a twin-tier central treehouse (dec
 (row 30, vine climb col 92), banana plants, bamboo clumps, berry bushes and cage seated flush, 3 pedestals, 6 Squirrels
 (`5 × sqrl1x9` + `1 × qp0eawu`) and 7 Monkeys (`mnky1x9`, 3 elevated perches throwing `rockth7g`). Delivered live to Save
 Keeper (`revive: true`) and spliced into `library.json` / `library.bak.json` by text insertion only.
+
+**Forest M9, the VC base camp assault (`vcfrm09`, 2026-10-29).** Blake: "add a level that is like an attack on a
+vietnamese base". Generated (scratchpad vb/levelgen.js, run through a throwaway jest probe for levelObjectFootprint)
+with the M5-M8 layering, W2/E2 "Vietnam", ground row 36 at both seams, 180 x 46, night. West to east: the US squad at
+the tree line (two Army Bobs `izglsjb` with M16s and talk trees `dlgsqd1` / `dlgsqd2`, each ending on act friendly:
+the "attack" is you plus whoever you recruit), the kill zone (his Barbed Wire, Punji Stakes, Snapped Trees, two VC
+seekers), a two-row rise to the camp floor (row 34), the West Watchtower (the Tree Tops 3 lookout recipe: deck row 25,
+nine rows over the floor, ladder one row past it, Mosin post + Gun pedestal) beside the Camp Gate in the Bamboo
+Palisade, the gun nest (Heavy Machine Gun prop behind his Sandbag Wall, AK-47 post), his Forest M4 shack moved 4 cols
+right and 2 rows up as the barracks (door tag "Shaq" -> the VShaq rooms), the Rifle Rack, his Conical Hats, a Heal/Drink
+pedestal, his VC Flag and the Alarm Gong, the Log Bunker, the Tunnel Hatch, the Cook Fire (two hidden fire hazard cells,
+like M8's furrow fire), his Clay Jars and Rice Sacks, the ammo dump under his Camo Net (crates, Oil Lantern, Fuel Drums,
+the Mortar, a gunner), the East Watchtower (Type 53 post), and jungle to the east edge with two more seekers. Two
+Illumination Flares hang in the sky. 11 props (`vb*`), editorReachIssues [] after two fixes: the gate was size 15, which
+the picker does not offer, so it became 16 with a 200 x 150 box; the flare's glow 14 became 12, the slider's top. The
+Log Bunker is 20 x 6 at size 20 (10 canvas units a cell), outlined by three straight lines through cell corners: 6 rows
+up over 6 cols, 8 cols of flat roof, 6 down. Hidden Foreground run-1 ramps and fill follow it exactly (the M8 saucer
+rule, at 45 degrees), and nothing stands proud of its roof line. Posts are 🎲 Vietkong placements with a `weaponId`
+and no `gearTags`, so the roll keeps the post's gun (`spawnWeaponIdOf` reads weaponId before the look's own).
+Driven live (dev server, pane visible, god mode, muted): walked up the bunker's west slope, across its roof (y 630) and
+down to the floor (y 810); climbed the west ladder, stepped onto the deck (y 540) and walked off its far end; both
+squad trees made their talker a "talked" ally that fought at once; every post read its own gun's clip (RPG 1, AK 15,
+Mosin/Type 53 5); the barracks door entered VShaq. ~3400-3900 elements under .lgrid in play vs ~2500-2900 for Forest M8
+at the same view, same 30 fps in the same pane (paint cost on his machine is unmeasured).
+
+**Stale Eagle piece count (same day).** The Eagle test pinned more than 15 pieces per pose, written for Gemini's
+66-piece Eagle; 9f93d97 cut it to 12-13 per pose (8 in death) with one wing piece a side, so the test failed on the
+shipped asset. The bounds are now 8+ pieces and 2+ side wing pieces; the wing tip at 100, up and flapped, still pins the
+shape.

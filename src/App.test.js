@@ -15373,10 +15373,10 @@ describe("🦸 Flying creatures (flies: true, flapCreatureWings, Eagle enemy)", 
 
     for (const pose of ["side", "up", "crouch", "attack", "death"]) {
       expect(Array.isArray(eagle.angles[pose])).toBe(true);
-      expect(eagle.angles[pose].length).toBeGreaterThan(15);
+      expect(eagle.angles[pose].length).toBeGreaterThanOrEqual(8);
     }
     const sideWings = eagle.angles.side.filter(isCreatureWingPiece);
-    expect(sideWings.length).toBeGreaterThanOrEqual(8);
+    expect(sideWings.length).toBeGreaterThanOrEqual(2);
     const wingBottomUp = Math.max(...sideWings.map((w) => w.y + w.h));
     expect(wingBottomUp).toBe(100);
     const flappedSide = flapCreatureWings(eagle.angles.side, true);
