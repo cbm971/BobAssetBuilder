@@ -1343205,7 +1343205,7 @@
    "size": 40,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Concert",
+   "category": "Stage",
    "frames": [
     {
      "front": [
@@ -1343636,7 +1343636,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793468693370,
+   "editedFrom": 1793442347590
   },
   {
    "id": "rkteesh",
