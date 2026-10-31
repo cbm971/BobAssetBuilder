@@ -5574,3 +5574,31 @@ at the same view, same 30 fps in the same pane (paint cost on his machine is unm
 66-piece Eagle; 9f93d97 cut it to 12-13 per pose (8 in death) with one wing piece a side, so the test failed on the
 shipped asset. The bounds are now 8+ pieces and 2+ side wing pieces; the wing tip at 100, up and flapped, still pins the
 shape.
+
+**Forest M10, the jungle rock concert (`vcfrm10`, 2026-10-31).** Blake: "make a Vietnam level that features a rock
+Concert of some sort in the jungle", then "Feel free to make any assets you need such as a rockstar outfit". JUNGLE JAM
+'68: the band The Mekong Deltas play a jungle clearing while Charlie comes out of both tree lines. Generated (scratchpad
+rk/levelgen.js through a throwaway jest probe for levelObjectFootprint, editorReachIssues, every placed id and a level-edge
+check) with the M5-M9 layering, W2/E2 "Vietnam", ground row 36 at both seams, 180 x 46, night. West to east: the
+festival sign, tiki torches and the Merch Stand (a sign marker whose `dlgmrch` is a shop of tag "Concert", like M7's
+Craft Services), the crowd (The Crowd silhouette props with PEACE placards and lighters, two Army Bob GIs with
+`dlgfan1` / `dlgfan2`), the sound tower (grate deck row 27 on poles under a tarp, ladder, the Mixing Desk, his Movie Set
+light, a Concert pedestal), a free-beer Ice Chest (`dlgbeer`, act heal), then the stage: Stage Backdrop (truss towers,
+drape, THE MEKONG DELTAS banner), Stage Lights (3 frames, the beams swing) and the Concert Stage (`rkstage`, 40 x 4,
+JUNGLE JAM '68 on the skirt), walkable through hidden Foreground: 4 run-1 ramps up from col 80, 32 flat at row 32, 4 down
+(the M9 bunker rule). Speaker stacks, amps, the mic stand and the Drum Kit (drawn in front of the drummer) stand on it.
+Backstage: road cases, the Generator, his UFO-crash truck and tent. The band are three Dress Bob looks, category
+"Concert", dressed in the browser and saved with 💾 Save: Jet (`62moas1`, BoB + Rob Skin in the Rock Star Jacket, Lightning
+Pants and Star Shades; `dlgrck1`: "Big fan." pays 100 points, "You guys stink." turns him hostile), Lola (`a6a5vke`,
+Bobbett + Bobbette Skin in the Band Tee; `dlgrck2` ends on act friendly) and Moose (`jjfvdl1`, the drummer, unarmed).
+Jet and Lola swing the Electric Guitar (`rkguitr`, melee, placed in the Machete's hand frame like the Megaphone). The VC
+are 🎲 Vietkong tag rolls; three seekers carry molotovs. New assets: 14 `rk*` props (category "Concert"); Rock Star
+Jacket (`rkjackt`, his Leather Jacket in red with gold braid and epaulettes, x1.5 damage with Concert weapons);
+Lightning Pants (`rkpants`, his Black Pants with a gold bolt); Star Shades (`rkshade`, his Dark Shades with pink star
+lenses); Band Tee (`rkteesh`, his Blue Shirt in black with a gold star and DELTAS).
+The first draft of the level record had no `savedAt`, and a browser that had already restored it kept that draft over
+the regenerated file (`newerRecord` is false when the file's copy has no number). Every delivered record is stamped.
+Driven live (dev server, god mode, muted): walked up the stage ramp onto the deck (y 750); Lola's tree made her a
+"talked" ally who went straight for Charlie; the Merch sign opened the Concert shop; the ice chest offered its heal;
+climbed the tower ladder and stepped onto its deck (y 600). ~3100 elements under .lmain at the start vs ~3400 for
+Forest M9 in the same pane.
