@@ -2429536,16 +2429536,34 @@
      "tex": "arsou0j"
     },
     "37,11": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": 1,
+     "run": 2,
+     "step": 0,
+     "more": [
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "38,11": {
      "c": "#6b4a2e",
      "tex": "phearth"
     },
     "39,11": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": 1,
+     "run": 2,
+     "step": 0,
+     "more": [
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "40,11": {
      "c": "#6b4a2e",
@@ -2429556,8 +2429574,25 @@
      "tex": "phearth"
     },
     "42,11": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true,
+     "more": [
+      {
+       "c": "#6b4a2e",
+       "tex": "phearth",
+       "slope": 1,
+       "run": 1,
+       "step": 0
+      },
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "43,11": {
      "c": "#6b4a2e",
@@ -2429568,24 +2429603,60 @@
      "tex": "phearth"
     },
     "45,11": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true,
+     "more": [
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "36,12": {
      "c": "#2c4419",
      "tex": "arsou0j"
     },
     "37,12": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": 1,
+     "run": 2,
+     "step": 1,
+     "more": [
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "38,12": {
      "c": "#6b4a2e",
      "tex": "phearth"
     },
     "39,12": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": 1,
+     "run": 1,
+     "step": 0,
+     "upsideDown": true,
+     "more": [
+      {
+       "c": "#6b4a2e",
+       "tex": "phearth",
+       "slope": 1,
+       "run": 2,
+       "step": 1
+      },
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "40,12": {
      "c": "#6b4a2e",
@@ -2429612,8 +2429683,17 @@
      "tex": "phearth"
     },
     "36,13": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": 1,
+     "run": 2,
+     "step": 0,
+     "more": [
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "37,13": {
      "c": "#6b4a2e",
@@ -2429652,8 +2429732,17 @@
      "tex": "phearth"
     },
     "36,14": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": 1,
+     "run": 2,
+     "step": 1,
+     "more": [
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "37,14": {
      "c": "#6b4a2e",
@@ -2436268,32 +2436357,92 @@
      "tex": "phearth"
     },
     "36,164": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "more": [
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "37,164": {
      "c": "#6b4a2e",
      "tex": "phearth"
     },
     "38,164": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": -1,
+     "run": 2,
+     "step": 0,
+     "more": [
+      {
+       "c": "#6b4a2e",
+       "tex": "phearth",
+       "slope": -1,
+       "run": 1,
+       "step": 0,
+       "upsideDown": true
+      },
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "39,164": {
      "c": "#6b4a2e",
      "tex": "phearth"
     },
     "40,164": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "more": [
+      {
+       "c": "#6b4a2e",
+       "tex": "phearth",
+       "slope": -1,
+       "run": 2,
+       "step": 0,
+       "upsideDown": true
+      },
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "41,164": {
      "c": "#6b4a2e",
      "tex": "phearth"
     },
     "42,164": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": -1,
+     "run": 2,
+     "step": 0,
+     "more": [
+      {
+       "c": "#6b4a2e",
+       "tex": "phearth",
+       "slope": -1,
+       "run": 1,
+       "step": 0,
+       "upsideDown": true
+      },
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "43,164": {
      "c": "#6b4a2e",
@@ -2436316,32 +2436465,77 @@
      "tex": "arsou0j"
     },
     "38,165": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": -1,
+     "run": 2,
+     "step": 1,
+     "more": [
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "39,165": {
      "c": "#6b4a2e",
      "tex": "phearth"
     },
     "40,165": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": -1,
+     "run": 2,
+     "step": 1,
+     "upsideDown": true,
+     "more": [
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "41,165": {
      "c": "#2c4419",
      "tex": "arsou0j"
     },
     "42,165": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": -1,
+     "run": 2,
+     "step": 1,
+     "more": [
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "43,165": {
      "c": "#6b4a2e",
      "tex": "phearth"
     },
     "44,165": {
-     "c": "#2c4419",
-     "tex": "arsou0j"
+     "c": "#6b4a2e",
+     "tex": "phearth",
+     "slope": -1,
+     "run": 1,
+     "step": 0,
+     "more": [
+      {
+       "c": "#6b4a2e",
+       "tex": "phearth",
+       "slope": -1,
+       "run": 1,
+       "step": 0,
+       "upsideDown": true
+      },
+      {
+       "c": "#2c4419",
+       "tex": "arsou0j"
+      }
+     ]
     },
     "45,165": {
      "c": "#6b4a2e",
@@ -2447339,7 +2447533,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1793442347590
+   "savedAt": 1793445428989,
+   "editedFrom": 1793442347590
   },
   {
    "id": "vshaq01",
