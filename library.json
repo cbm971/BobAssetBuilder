@@ -2480176,6 +2480176,63 @@
    ]
   },
   {
+   "id": "f04m7nr",
+   "name": "#3",
+   "savedAt": 1793435642551,
+   "pieces": [
+    {
+     "id": "vf4xw65",
+     "kind": "text",
+     "text": "3",
+     "font": "Arial, sans-serif",
+     "x": 38.5,
+     "y": 43.5,
+     "w": 134.5,
+     "h": 21.5,
+     "color": "#da251d",
+     "mirror": false,
+     "fx": {
+      "opacity": 1,
+      "glow": 0,
+      "glowColor": "#ffd76b",
+      "bright": 1
+     },
+     "outline": false,
+     "outlineFx": {
+      "opacity": 1,
+      "glow": 0,
+      "glowColor": "#ffd76b",
+      "bright": 1
+     }
+    },
+    {
+     "id": "sz4t6mt",
+     "kind": "text",
+     "text": "3",
+     "font": "Arial, sans-serif",
+     "x": 37,
+     "y": 43,
+     "w": 134.5,
+     "h": 21.5,
+     "color": "#ffffff",
+     "mirror": false,
+     "fx": {
+      "opacity": 1,
+      "glow": 0,
+      "glowColor": "#ff0000",
+      "bright": 0.7
+     },
+     "outline": true,
+     "outlineFx": {
+      "opacity": 0.9,
+      "glow": 3.5,
+      "glowColor": "#ff0000",
+      "bright": 1
+     }
+    }
+   ]
+  },
+  {
    "id": "fuq1q2t",
    "name": "Sports Logo",
    "savedAt": 1787483418132,
