@@ -69,6 +69,7 @@ import {
   fgFills,
   fgHiddenInPlay,
   fgSlopeFills,
+  fgSurfaceFills,
   fgSolid,
   armHoldsAimPose,
   climbFreesGunArm,
@@ -2740,6 +2741,39 @@ describe("collision over a stacked Foreground cell", () => {
     expect(slopeSurfaceAt(lv, 31, 1, 1, 30, 30).y).toBeCloseTo(31, 0); // the stacked down-ramp
     expect(slopeSurfaceAt(lv, 59, 1, 1, 30, 30).y).toBeCloseTo(31, 0); // the up-ramp painted on top
     expect(slopeSurfaceAt(lv, 45, 1, 1, 30, 30).y).toBeCloseTo(45, 0); // they cross in the middle
+  });
+
+  test("a ramp painted over a block is paint, not a slope — Forest M11's dirt stripes", () => {
+    // His Packed Earth stripes across the grass past the AA gun: ramps painted over grass blocks, one
+    // at the surface (row 36) and a buried chain stepping down to row 39. Walking the grass at feet
+    // y 1080, the top cell's ramp began exactly at the feet, so the walker snapped onto it and
+    // followed the chain down into the grass.
+    const grass = { c: "#2c4419", tex: "arsou0j" };
+    const dirt = (run, step) => ({ c: "#6b4a2e", tex: "phearth", slope: -1, run, step });
+    const fg = {};
+    for (let r = 36; r < 42; r++) for (let c = 37; c < 57; c++) fg[r + "," + c] = grass;
+    [[36, 42, 0], [36, 43, 1], [37, 44, 0], [37, 45, 1], [38, 46, 0], [38, 47, 1]].forEach(([r, c, step]) => { fg[r + "," + c] = mergeFgFill(grass, dirt(2, step)); });
+    for (let s = 0; s < 6; s++) fg["39," + (48 + s)] = mergeFgFill(grass, dirt(6, s));
+    const lv = { rows: 46, cols: 60, fg };
+    expect(fg["36,42"].slope).toBe(-1); // the ramp on top, the grass block in `more` — as his editor saved it
+    expect(fg["36,42"].more).toHaveLength(1);
+    for (let x = 37 * 30; x < 57 * 30; x += 5) {
+      expect(slopeSurfaceForPlayer(lv, x, 1080 - 90, 1080, 0.2, 7, 1, 30, 30)).toBeNull(); // the grass top is a flat floor
+      expect(slopeSurfaceForPlayer(lv, x, 1110 - 90, 1110, 0.2, 7, 1, 30, 30)).toBeNull(); // nothing pulls a sunk body down the chain either
+      expect(slopeSurfaceAt(lv, x, 30, 41, 30, 30)).toBeNull();
+    }
+    // Everything else still reads the cell as before: a block, and a ramp to the hill formation.
+    expect(fgSolid(fg["36,42"])).toBe(true);
+    expect(fgSlopeFills(fg["36,42"])).toHaveLength(1);
+    expect(isHillFormationCell(lv, 36, 44)).toBe(true);
+  });
+
+  test("a ramp stacked with another ramp or an upside-down wedge keeps its surface", () => {
+    const down = { c: "#004d05", slope: -1, run: 1, step: 0 };
+    expect(fgSurfaceFills(down)).toEqual([down]);
+    expect(fgSurfaceFills(mergeFgFill(down, { c: "#ece4cc", slope: 1, run: 1, step: 0, upsideDown: true }))).toHaveLength(1);
+    expect(fgSurfaceFills(mergeFgFill(down, { c: "#2e7d32", slope: 1, run: 1, step: 0 }))).toHaveLength(2);
+    expect(fgSurfaceFills("#2e7d32")).toEqual([]);
   });
 
   test("an upside-down wedge still collides solid, stacked or not", () => {

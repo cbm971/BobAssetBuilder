@@ -8607,6 +8607,27 @@ export const fgSolid = (cell) => {
   if (more) for (let i = 0; i < more.length; i++) if (!fgIsSlope(more[i])) return true;
   return false;
 };
+// THE SLOPES A BODY CAN STAND ON. A RAMP PAINTED OVER A PLAIN BLOCK IS PAINT, NOT A SLOPE (2026-10-31,
+// Blake's Forest M11: "when walking you randomly fall through part of the foreground ... likely related
+// to some ramps that are only meant to effect things visually"). His dirt stripes across the grass past
+// the AA gun are Packed Earth ramps painted over grass blocks, a diagonal chain from the surface (36,42)
+// down four rows to 39,53. The block still fills each of those cells, so what you SEE there is flat
+// grass with a dirt wedge drawn on it, and fgSolid already calls the cell a block. But the surface pass
+// took every slope fill in the cell as a floor: at 36,42 the ramp's high end sits exactly at the feet,
+// so a walker snapped onto it and followed the buried chain down into the grass (measured as Viet Bob:
+// feet y 1080 → 1124 by x 1315, then jammed inside the ground; one drop onto the top stripe landed 13 px deep).
+// A cell holding a plain block has no diagonal surface: its floor is the block's flat top, found by the
+// flat landing like any block. Only the two surface finders ask this. fgSlopeFills keeps answering
+// "is there a ramp here" for hill formation and ground checks (Sewer M1-M4's ramp-over-block tunnel
+// roofs are the rats' pockets), and a ramp stacked with an upside-down wedge is left as it was.
+const fgPlainBlockFill = (f) => !!f && !fgHasDiagonalShape(f);
+export const fgSurfaceFills = (cell) => {
+  const more = fgMoreOf(cell);
+  if (!more) return fgSlopeFills(cell);
+  if (fgPlainBlockFill(fgFillOf(cell))) return NO_FILLS;
+  for (let i = 0; i < more.length; i++) if (fgPlainBlockFill(more[i])) return NO_FILLS;
+  return fgSlopeFills(cell);
+};
 const fgColor = (cell) => (cell && typeof cell === "object") ? cell.c : cell;
 const fgRun = (cell) => (fgHasDiagonalShape(cell) && cell.run > 0) ? cell.run : 1;
 const fgStep = (cell) => (fgHasDiagonalShape(cell) && cell.step >= 0) ? cell.step : 0;
@@ -8660,8 +8681,9 @@ export const slopeSurfaceAt = (lv, xPixel, r0, r1, CW, CH) => {
   for (let r = r0; r <= r1; r++) {
     if (r < 0 || r >= lv.rows) continue;
     // Every slope fill in the cell is a real surface — a cell holding both an up-ramp and a
-    // down-ramp offers two, and the highest wins just as it does across rows.
-    for (const cell of fgSlopeFills(lv.fg[cellKey(r, c)])) {
+    // down-ramp offers two, and the highest wins just as it does across rows. A ramp painted over a
+    // block offers none (fgSurfaceFills).
+    for (const cell of fgSurfaceFills(lv.fg[cellKey(r, c)])) {
       const localFrac = Math.min(1, Math.max(0, (xPixel - c * CW) / CW));
       const h = fgRampH(cell, localFrac);
       // On a ramp steeper than 45° the surface leaves through a cell's SIDE, so a cell can hold
@@ -8711,9 +8733,10 @@ export const slopeSurfaceForPlayer = (lv, xPixel, headY, feetBottom, vy, dx, dtM
   for (let r = sR0; r <= sR1; r++) {
     if (r < 0 || r >= lv.rows) continue;
     // Same as slopeSurfaceAt: a cell can hold more than one ramp (an up meeting a down), and each
-    // one is a surface the feet could legitimately land on this frame.
+    // one is a surface the feet could legitimately land on this frame. A ramp painted over a block
+    // is not (fgSurfaceFills — Forest M11's buried dirt stripes walked you down through the grass).
     if (vy < 0) continue;
-    for (const cell of fgSlopeFills(lv.fg[cellKey(r, c)])) {
+    for (const cell of fgSurfaceFills(lv.fg[cellKey(r, c)])) {
       const localFrac = Math.min(1, Math.max(0, (xPixel - c * CW) / CW));
       const h = fgRampH(cell, localFrac);
       if (h < -1e-9 || h > 1 + 1e-9) continue;   // see slopeSurfaceAt — a steep ramp's surface can miss this cell entirely

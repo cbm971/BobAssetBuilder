@@ -617,7 +617,9 @@ plus traps it does not cover:
   stats and effects are baked when it is saved.
 - **Level cells:** `lv.fg` / `lv.bg` / `lv.front`, keyed `"r,c"`. A value is a colour or
   `{ c, tex, ol, slope, run, step, upsideDown, … }`, and `more` holds extra fills. Read cells with
-  `fgFills` / `fgSolid` / `fgSlopeFills`, and paint with `mergeFgFill`. All three layers stack and
+  `fgFills` / `fgSolid` / `fgSlopeFills`, and paint with `mergeFgFill`. A ramp painted over a plain
+  block is decoration: the surface finders read `fgSurfaceFills`, which gives it no slope, so the
+  block's flat top is the floor (Forest M11's dirt stripes walked you down into the grass). All three layers stack and
   take ramps (`layerTakesRamps`). Fill keeps every field except `PAINT_IDENTITY_KEYS`; never put a
   key allowlist over cell geometry. Anything with a left/right sense must be added to
   `flipLevelHorizontally`.
