@@ -87,12 +87,13 @@
    "categories": [
     "T1",
     "Money",
-    "Common"
+    ""
    ],
    "value": 1,
-   "savedAt": 1791626141100,
+   "savedAt": 1793454712895,
    "dropWeight": 1,
-   "rank": "rare"
+   "rank": "rare",
+   "editedFrom": 1791626141100
   },
   {
    "id": "0ec8qh0",
@@ -44818,7 +44819,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1792248418685,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "speed": 2,
     "agility": 0,
@@ -44831,11 +44832,11 @@
    "categories": [
     "T1",
     "Pants",
-    "Poor"
+    "Trailor"
    ],
    "value": 4,
    "rank": "poor",
-   "editedFrom": 1790982034540
+   "editedFrom": 1792248418685
   },
   {
    "id": "25hkyvk",
@@ -57145,7 +57146,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1790626632095,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "speed": 0,
     "agility": 0,
@@ -57158,10 +57159,11 @@
    "categories": [
     "T1",
     "Shirt",
-    "Common"
+    "Underwear"
    ],
    "value": 4,
-   "rank": "poor"
+   "rank": "poor",
+   "editedFrom": 1790626632095
   },
   {
    "id": "2ih2s9i",
@@ -64584,7 +64586,7 @@
    "categories": [
     "T1",
     "Shirt",
-    "Poor"
+    "Trailor"
    ],
    "groups": {
     "back": [],
@@ -64592,9 +64594,10 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1790612181721,
+   "savedAt": 1793454712895,
    "value": 4,
-   "rank": "poor"
+   "rank": "poor",
+   "editedFrom": 1790612181721
   },
   {
    "id": "3fycm4k",
@@ -103870,7 +103873,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1791103151774,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "speed": 0,
     "agility": 0,
@@ -103883,7 +103886,7 @@
    "categories": [
     "T1",
     "Shoes",
-    "Poor"
+    "Sewer"
    ],
    "value": 5,
    "rank": "poor",
@@ -103891,7 +103894,8 @@
     "back": [],
     "up": [],
     "crouch": []
-   }
+   },
+   "editedFrom": 1791103151774
   },
   {
    "id": "49v2rti",
@@ -107955,7 +107959,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1790512135800,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "speed": 0,
     "agility": 0,
@@ -107975,7 +107979,7 @@
    "categories": [
     "T1",
     "Pokeman",
-    "Rare"
+    "Jacket"
    ],
    "defense": 5,
    "groups": {
@@ -107985,7 +107989,8 @@
     "side": []
    },
    "value": 14,
-   "rank": "rare"
+   "rank": "rare",
+   "editedFrom": 1790512135800
   },
   {
    "id": "4egefz1",
@@ -109900,7 +109905,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1792848553718,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "speed": -1,
     "agility": -1,
@@ -109913,11 +109918,11 @@
    "categories": [
     "T1",
     "Pants",
-    "Common"
+    "Trailor"
    ],
    "value": 4,
    "rank": "common",
-   "editedFrom": 1792848550252
+   "editedFrom": 1792848553718
   },
   {
    "id": "4lbwiic",
@@ -158837,7 +158842,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1790512135800,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "speed": 1,
     "agility": 1,
@@ -158849,10 +158854,11 @@
    "categories": [
     "T1",
     "Shoes",
-    "Common"
+    "Trailor"
    ],
    "value": 5,
-   "rank": "common"
+   "rank": "common",
+   "editedFrom": 1790512135800
   },
   {
    "id": "6ufkkia",
@@ -192295,7 +192301,7 @@
    "categories": [
     "T1",
     "Shirt",
-    "Common"
+    "Underwear"
    ],
    "defense": 2,
    "value": 5,
@@ -192305,8 +192311,8 @@
     "front": []
    },
    "rank": "common",
-   "savedAt": 1792889377002,
-   "editedFrom": 1792873904286
+   "savedAt": 1793454712895,
+   "editedFrom": 1792889377002
   },
   {
    "id": "869zysv",
@@ -221014,12 +221020,13 @@
    "categories": [
     "T1",
     "Hat",
-    "Common"
+    "Fast"
    ],
-   "savedAt": 1790512135800,
+   "savedAt": 1793454712895,
    "ignoreHideIfHat": false,
    "value": 9,
-   "rank": "common"
+   "rank": "common",
+   "editedFrom": 1790512135800
   },
   {
    "id": "8nx3thx",
@@ -236431,7 +236438,7 @@
    "categories": [
     "T1",
     "Shirt",
-    "Common"
+    "Trailor"
    ],
    "groups": {
     "back": [
@@ -236507,10 +236514,10 @@
      }
     ]
    },
-   "savedAt": 1792120000000,
+   "savedAt": 1793454712895,
    "value": 15,
    "rank": "rare",
-   "editedFrom": 1790512135800
+   "editedFrom": 1792120000000
   },
   {
    "id": "8wrlq12",
@@ -281904,7 +281911,7 @@
    "categories": [
     "T1",
     "Gun",
-    "Rare"
+    "Odd"
    ],
    "explode": false,
    "explodeRadius": 2,
@@ -284927,8 +284934,8 @@
     "hit": "6hh0w94",
     "fire": "18sacwd"
    },
-   "savedAt": 1792274423887,
-   "editedFrom": 1792027196927
+   "savedAt": 1793454712895,
+   "editedFrom": 1792274423887
   },
   {
    "id": "9boz0o8",
@@ -286558,16 +286565,17 @@
     "strength": 1
    },
    "effects": [],
-   "savedAt": 1790512135800,
+   "savedAt": 1793454712895,
    "defense": 2,
    "ignoreHideIfHat": false,
    "categories": [
     "T1",
     "Hat",
-    "Common"
+    "Trailor"
    ],
    "value": 6,
-   "rank": "poor"
+   "rank": "poor",
+   "editedFrom": 1790512135800
   },
   {
    "id": "9pk0kai",
@@ -362415,7 +362423,7 @@
    "categories": [
     "T1",
     "Meelee",
-    "Rare"
+    "Army"
    ],
    "explode": false,
    "explodeRadius": 2,
@@ -364572,11 +364580,11 @@
    "landChar": "🔥",
    "value": 15,
    "rank": "rare",
-   "savedAt": 1792266601605,
+   "savedAt": 1793454712895,
    "sounds": {
     "hit": "utkfmiw"
    },
-   "editedFrom": 1791642740396
+   "editedFrom": 1792266601605
   },
   {
    "id": "b8kwtcz",
@@ -384712,7 +384720,7 @@
    "categories": [
     "T1",
     "Shirt",
-    "Common"
+    "Underwear"
    ],
    "defense": 2,
    "value": 5,
@@ -384722,7 +384730,8 @@
     "front": []
    },
    "rank": "common",
-   "savedAt": 1792873949082
+   "savedAt": 1793454712895,
+   "editedFrom": 1792873949082
   },
   {
    "id": "bed60s1",
@@ -386339,12 +386348,13 @@
    "categories": [
     "T1",
     "Money",
-    "Common"
+    ""
    ],
    "value": 1,
-   "savedAt": 1790512135800,
+   "savedAt": 1793454712895,
    "dropWeight": 5,
-   "rank": "poor"
+   "rank": "poor",
+   "editedFrom": 1790512135800
   },
   {
    "id": "bkshlf6",
@@ -394174,7 +394184,7 @@
    "categories": [
     "T1",
     "Boomerang",
-    "Rare"
+    "Range"
    ],
    "value": 14,
    "rank": "rare",
@@ -399004,7 +399014,8 @@
      }
     ]
    },
-   "savedAt": 1792945604249
+   "savedAt": 1793454712895,
+   "editedFrom": 1792945604249
   },
   {
    "id": "brdrug1",
@@ -497280,7 +497291,7 @@
    "categories": [
     "T1",
     "Meelee",
-    "Common"
+    "Vietnam"
    ],
    "explode": false,
    "explodeRadius": 2,
@@ -497302,7 +497313,8 @@
    "sounds": {
     "hit": "j8bdd8g"
    },
-   "savedAt": 1792543845109
+   "savedAt": 1793454712895,
+   "editedFrom": 1792543845109
   },
   {
    "id": "cptrend",
@@ -510977,7 +510989,7 @@
    "categories": [
     "T1",
     "Meelee",
-    "Common"
+    "Trailor"
    ],
    "value": 8,
    "rank": "poor",
@@ -514542,7 +514554,7 @@
      }
     }
    },
-   "savedAt": 1792357825898,
+   "savedAt": 1793454712895,
    "states": {
     "rest": {
      "front": [
@@ -516286,7 +516298,7 @@
      }
     ]
    },
-   "editedFrom": 1792357008640
+   "editedFrom": 1792357825898
   },
   {
    "id": "cvrbkr3",
@@ -523026,13 +523038,13 @@
    "categories": [
     "T1",
     "Heal",
-    "Common"
+    "Item"
    ],
    "value": 2,
-   "savedAt": 1792114035748,
+   "savedAt": 1793454712895,
    "dropWeight": 3,
    "rank": "poor",
-   "editedFrom": 1790512135800
+   "editedFrom": 1792114035748
   },
   {
    "id": "dd1w8a2",
@@ -575330,7 +575342,7 @@
     "telfv37",
     "oipvf3l"
    ],
-   "savedAt": 1791586611021,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "speed": 0,
     "agility": 1,
@@ -575343,10 +575355,11 @@
    "categories": [
     "T1",
     "Glasses",
-    "Common"
+    "Trailor"
    ],
    "value": 5,
-   "rank": "poor"
+   "rank": "poor",
+   "editedFrom": 1791586611021
   },
   {
    "id": "drnkmch1",
@@ -580977,11 +580990,12 @@
    "categories": [
     "T1",
     "Hat",
-    "Common"
+    "Odd"
    ],
    "value": 12,
-   "savedAt": 1790514298953,
-   "rank": "rare"
+   "savedAt": 1793454712895,
+   "rank": "rare",
+   "editedFrom": 1790514298953
   },
   {
    "id": "eagl1x9",
@@ -601016,7 +601030,7 @@
    "categories": [
     "T1",
     "Shirt",
-    "Common"
+    "Trailor"
    ],
    "groups": {
     "back": [],
@@ -601024,9 +601038,10 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1790512135800,
+   "savedAt": 1793454712895,
    "value": 3,
-   "rank": "common"
+   "rank": "common",
+   "editedFrom": 1790512135800
   },
   {
    "id": "expl0d3",
@@ -603828,7 +603843,7 @@
     "telfv37",
     "oipvf3l"
    ],
-   "savedAt": 1790512135800,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "speed": -1,
     "agility": -1,
@@ -603840,11 +603855,12 @@
    "categories": [
     "T1",
     "Shirt",
-    "Common"
+    "Underwear"
    ],
    "defense": 2,
    "value": 4,
-   "rank": "poor"
+   "rank": "poor",
+   "editedFrom": 1790512135800
   },
   {
    "id": "fbhelm1",
@@ -646207,14 +646223,14 @@
    "captureMax": 1,
    "categories": [
     "T1",
-    "Rare",
+    "Grenade",
     "Pokeman"
    ],
    "groups": {
     "back": [],
     "crouch": []
    },
-   "savedAt": 1792266695004,
+   "savedAt": 1793454712895,
    "explodeChar": "💥",
    "landChar": "🔥",
    "value": 7,
@@ -646223,7 +646239,7 @@
     "throw": "qd117xl",
     "land": "b5a8mj0"
    },
-   "editedFrom": 1792266653748
+   "editedFrom": 1792266695004
   },
   {
    "id": "fnzre7x",
@@ -823428,11 +823444,12 @@
    "categories": [
     "T1",
     "Hat",
-    "Common"
+    "Hippy"
    ],
    "value": 9,
-   "savedAt": 1790512135800,
-   "rank": "common"
+   "savedAt": 1793454712895,
+   "rank": "common",
+   "editedFrom": 1790512135800
   },
   {
    "id": "hrqbyju",
@@ -841958,7 +841975,7 @@
    "categories": [
     "T1",
     "Hat",
-    "Common"
+    "Vietnam"
    ],
    "groups": {
     "back": [],
@@ -841966,9 +841983,10 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1790512135800,
+   "savedAt": 1793454712895,
    "value": 5,
-   "rank": "common"
+   "rank": "common",
+   "editedFrom": 1790512135800
   },
   {
    "id": "hxdswza",
@@ -847690,13 +847708,13 @@
    ],
    "categories": [
     "T2",
-    "Rare",
+    "Hat",
     "Magic"
    ],
    "value": 18,
    "rank": "legendary",
-   "savedAt": 1792980138711,
-   "editedFrom": 1792980056819,
+   "savedAt": 1793454712895,
+   "editedFrom": 1792980138711,
    "groups": {
     "back": [],
     "side": [],
@@ -857826,7 +857844,7 @@
     "telfv37",
     "oipvf3l"
    ],
-   "savedAt": 1790512135800,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "hp": 1,
     "speed": 0,
@@ -857839,10 +857857,11 @@
    "categories": [
     "T1",
     "Shirt",
-    "Common"
+    "Trailor"
    ],
    "value": 5,
-   "rank": "common"
+   "rank": "common",
+   "editedFrom": 1790512135800
   },
   {
    "id": "i8evmrk",
@@ -857930,12 +857949,13 @@
    "categories": [
     "T1",
     "Money",
-    "Common"
+    ""
    ],
    "value": 5,
-   "savedAt": 1790512135800,
+   "savedAt": 1793454712895,
    "dropWeight": 4,
-   "rank": "common"
+   "rank": "common",
+   "editedFrom": 1790512135800
   },
   {
    "id": "idqfy73",
@@ -895057,11 +895077,12 @@
    "categories": [
     "T1",
     "Shirt",
-    "Common"
+    "Trailor"
    ],
    "value": 9,
    "rank": "common",
-   "savedAt": 1791595941803
+   "savedAt": 1793454712895,
+   "editedFrom": 1791595941803
   },
   {
    "id": "jeqe15r",
@@ -928342,18 +928363,18 @@
    "defense": 0,
    "effects": [],
    "categories": [
-    "Common",
+    "T1",
     "Underwear",
     "Odd"
    ],
    "value": 7,
    "rank": "common",
-   "savedAt": 1792890464192,
+   "savedAt": 1793454712895,
    "groups": {
     "up": [],
     "crouch": []
    },
-   "editedFrom": 1792889588473
+   "editedFrom": 1792890464192
   },
   {
    "id": "jwgpyiw",
@@ -930316,7 +930337,7 @@
     "telfv37",
     "oipvf3l"
    ],
-   "savedAt": 1790512135800,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "speed": 0,
     "agility": 0,
@@ -930329,10 +930350,11 @@
    "categories": [
     "T1",
     "Glasses",
-    "Common"
+    "Trailor"
    ],
    "value": 5,
-   "rank": "common"
+   "rank": "common",
+   "editedFrom": 1790512135800
   },
   {
    "id": "k2pnhx2",
@@ -959015,7 +959037,7 @@
    "categories": [
     "T1",
     "Shirt",
-    "Rare"
+    "Super"
    ],
    "groups": {
     "back": [],
@@ -959024,10 +959046,10 @@
     "crouch": [],
     "front": []
    },
-   "savedAt": 1792371944912,
+   "savedAt": 1793454712895,
    "value": 15,
    "rank": "legendary",
-   "editedFrom": 1790512135800
+   "editedFrom": 1792371944912
   },
   {
    "id": "kfboots",
@@ -971811,7 +971833,7 @@
    "categories": [
     "T1",
     "Meelee",
-    "Poor"
+    "Trailor"
    ],
    "value": 4,
    "rank": "poor",
@@ -974806,7 +974828,7 @@
      }
     }
    },
-   "savedAt": 1792357008640,
+   "savedAt": 1793454712895,
    "states": {
     "rest": {
      "front": [
@@ -976264,7 +976286,8 @@
       "limb": "arm"
      }
     ]
-   }
+   },
+   "editedFrom": 1792357008640
   },
   {
    "id": "kj6zdxa",
@@ -978455,7 +978478,7 @@
    "categories": [
     "T1",
     "Cape",
-    "Rare"
+    "Super"
    ],
    "defense": 5,
    "groups": {
@@ -978464,7 +978487,8 @@
    },
    "value": 10,
    "rank": "rare",
-   "savedAt": 1792543845162
+   "savedAt": 1793454712895,
+   "editedFrom": 1792543845162
   },
   {
    "id": "knuhmcm",
@@ -1032083,7 +1032107,7 @@
    "categories": [
     "T1",
     "Launcher",
-    "Rare"
+    "Army"
    ],
    "projectileRange": 20,
    "ignoreArmor": false,
@@ -1032100,8 +1032124,8 @@
     "hit": "aghad42",
     "fire": "dti525c"
    },
-   "savedAt": 1792336031507,
-   "editedFrom": 1792333379885
+   "savedAt": 1793454712895,
+   "editedFrom": 1792336031507
   },
   {
    "id": "lbcoat1",
@@ -1208604,7 +1208628,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1790512135800,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "speed": 1,
     "agility": 1,
@@ -1208617,10 +1208641,11 @@
    "categories": [
     "T1",
     "Pants",
-    "Common"
+    "Hippy"
    ],
    "value": 6,
-   "rank": "common"
+   "rank": "common",
+   "editedFrom": 1790512135800
   },
   {
    "id": "nrlag3w",
@@ -1247864,7 +1247889,7 @@
    "categories": [
     "T1",
     "Grenade",
-    "Common"
+    "Fire"
    ],
    "explode": false,
    "explodeRadius": 2,
@@ -1247890,7 +1247915,8 @@
    "soundVol": {
     "land": 0.55
    },
-   "savedAt": 1792266733918
+   "savedAt": 1793454712895,
+   "editedFrom": 1792266733918
   },
   {
    "id": "phchili",
@@ -1263863,7 +1263889,7 @@
     "telfv37",
     "oipvf3l"
    ],
-   "savedAt": 1790512135800,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "speed": 0,
     "agility": 0,
@@ -1263884,10 +1263910,11 @@
    "categories": [
     "T1",
     "Jacket",
-    "Common"
+    "Hippy"
    ],
    "value": 6,
-   "rank": "common"
+   "rank": "common",
+   "editedFrom": 1790512135800
   },
   {
    "id": "py6z71t",
@@ -1280296,7 +1280323,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1790512135800,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "speed": 3,
     "agility": 3,
@@ -1280309,7 +1280336,7 @@
    "categories": [
     "T1",
     "Shoes",
-    "Common"
+    "Fast"
    ],
    "groups": {
     "back": [],
@@ -1280318,7 +1280345,8 @@
     "crouch": []
    },
    "value": 10,
-   "rank": "common"
+   "rank": "common",
+   "editedFrom": 1790512135800
   },
   {
    "id": "qesn4h8",
@@ -1286014,7 +1286042,7 @@
    "captureMax": 0,
    "categories": [
     "T1",
-    "Rare",
+    "Gun",
     "Odd"
    ],
    "value": 19,
@@ -1286024,8 +1286052,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792338923022,
-   "editedFrom": 1792334007525,
+   "savedAt": 1793454712895,
+   "editedFrom": 1792338923022,
    "pierce": true,
    "sounds": {
     "fire": "4xdiye5",
@@ -1287680,7 +1287708,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1791933092296,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "speed": 2,
     "agility": 2,
@@ -1287693,7 +1287721,7 @@
    "categories": [
     "T1",
     "Shoes",
-    "Common"
+    "Trailor"
    ],
    "groups": {
     "back": [],
@@ -1287703,7 +1287731,7 @@
    },
    "value": 9,
    "rank": "common",
-   "editedFrom": 1791932717058
+   "editedFrom": 1791933092296
   },
   {
    "id": "qfm7xn6",
@@ -1331943,7 +1331971,7 @@
      "lastFit": "default"
     }
    ],
-   "savedAt": 1793446524503,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "hp": -1,
     "speed": 2,
@@ -1331955,11 +1331983,11 @@
    "categories": [
     "T1",
     "Jacket",
-    "Rare"
+    "Fast"
    ],
    "value": 16,
    "rank": "legendary",
-   "editedFrom": 1793446404911
+   "editedFrom": 1793446524503
   },
   {
    "id": "rklites",
@@ -1338348,7 +1338376,7 @@
      "lastFit": "default"
     }
    ],
-   "savedAt": 1793446729268,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "hp": -1,
     "speed": 2,
@@ -1338360,11 +1338388,11 @@
    "categories": [
     "T1",
     "Pants",
-    "Good"
+    "Fast"
    ],
    "value": 10,
    "rank": "rare",
-   "editedFrom": 1793446681301
+   "editedFrom": 1793446729268
   },
   {
    "id": "rkshade",
@@ -1342329,7 +1342357,7 @@
      "lastFit": "default"
     }
    ],
-   "savedAt": 1793450203781,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "hp": 1,
     "speed": 0,
@@ -1342341,11 +1342369,11 @@
    "categories": [
     "T1",
     "Shirt",
-    "Common"
+    "Hippy"
    ],
    "value": 8,
    "rank": "common",
-   "editedFrom": 1793450176038
+   "editedFrom": 1793450203781
   },
   {
    "id": "rktorch",
@@ -1349169,7 +1349197,7 @@
    "categories": [
     "T1",
     "Shirt",
-    "Common"
+    "Trailor"
    ],
    "groups": {
     "back": [
@@ -1349246,10 +1349274,10 @@
      }
     ]
    },
-   "savedAt": 1792120000000,
+   "savedAt": 1793454712895,
    "value": 10,
    "rank": "common",
-   "editedFrom": 1790512135800
+   "editedFrom": 1792120000000
   },
   {
    "id": "scet4bx",
@@ -1391808,7 +1391836,7 @@
     "telfv37",
     "oipvf3l"
    ],
-   "savedAt": 1792120000000,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "speed": 0,
     "agility": 0,
@@ -1391820,11 +1391848,11 @@
    "categories": [
     "T1",
     "Jacket",
-    "Common"
+    "Trailor"
    ],
    "value": 7,
    "rank": "common",
-   "editedFrom": 1790512135800
+   "editedFrom": 1792120000000
   },
   {
    "id": "sldgham",
@@ -1391867,7 +1391895,7 @@
    "categories": [
     "T1",
     "Meelee",
-    "Rare"
+    "Trailor"
    ],
    "value": 20,
    "rank": "legendary",
@@ -1394862,7 +1394890,7 @@
      }
     }
    },
-   "savedAt": 1792357008640,
+   "savedAt": 1793454712895,
    "states": {
     "rest": {
      "front": [
@@ -1396320,7 +1396348,8 @@
       "limb": "arm"
      }
     ]
-   }
+   },
+   "editedFrom": 1792357008640
   },
   {
    "id": "slvpnt1",
@@ -1398135,7 +1398164,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1791586762980,
+   "savedAt": 1793454712895,
    "statBoosts": {
     "speed": 1,
     "agility": 0,
@@ -1398148,10 +1398177,11 @@
    "categories": [
     "T1",
     "Pants",
-    "Common"
+    "Odd"
    ],
    "value": 5,
-   "rank": "poor"
+   "rank": "poor",
+   "editedFrom": 1791586762980
   },
   {
    "id": "smrrobe",
@@ -1406091,12 +1406121,12 @@
    "categories": [
     "T1",
     "Jacket",
-    "Rare"
+    "Trailor"
    ],
    "value": 16,
    "rank": "legendary",
-   "savedAt": 1792624305011,
-   "editedFrom": 1792624303989
+   "savedAt": 1793454712895,
+   "editedFrom": 1792624305011
   },
   {
    "id": "sptnklt",
@@ -1430712,7 +1430742,7 @@
    "categories": [
     "T1",
     "Meelee",
-    "Poor"
+    "Sewer"
    ],
    "value": 8,
    "rank": "poor",
@@ -1430720,11 +1430750,11 @@
     "back": [],
     "crouch": []
    },
-   "savedAt": 1792107410324,
+   "savedAt": 1793454712895,
    "sounds": {
     "hit": "1dhtfw5"
    },
-   "editedFrom": 1792107407641
+   "editedFrom": 1792107410324
   },
   {
    "id": "t73jzui",
@@ -1431038,13 +1431068,13 @@
    "categories": [
     "Cheese",
     "T1",
-    "Poor"
+    "Item"
    ],
    "value": 2,
    "rank": "poor",
    "dropWeight": 2,
-   "savedAt": 1792113984877,
-   "editedFrom": 1791061912207
+   "savedAt": 1793454712895,
+   "editedFrom": 1792113984877
   },
   {
    "id": "tbghwt5",
@@ -1431779,7 +1431809,7 @@
    "categories": [
     "T1",
     "Hat",
-    "Rare"
+    "Odd"
    ],
    "ignoreHideIfHat": true,
    "value": 12,
@@ -1438651,7 +1438681,8 @@
     "telfv37",
     "oipvf3l"
    ],
-   "savedAt": 1791199717876
+   "savedAt": 1793454712895,
+   "editedFrom": 1791199717876
   },
   {
    "id": "tllymk1",
@@ -1498516,7 +1498547,7 @@
    "categories": [
     "T1",
     "Meelee",
-    "Poor"
+    "Trailor"
    ],
    "groups": {
     "back": [],
@@ -1498527,8 +1498558,8 @@
    "landChar": "🔥",
    "value": 9,
    "rank": "poor",
-   "savedAt": 1792266620883,
-   "editedFrom": 1791716398912,
+   "savedAt": 1793454712895,
+   "editedFrom": 1792266620883,
    "sounds": {
     "hit": "ynj37i2"
    }
@@ -1588286,7 +1588317,7 @@
    "categories": [
     "T1",
     "Gun",
-    "Rare"
+    "Trailor"
    ],
    "explode": false,
    "explodeRadius": 2,
@@ -1588309,8 +1588340,8 @@
     "fire": "18sacwd",
     "hit": "6hh0w94"
    },
-   "savedAt": 1792333705061,
-   "editedFrom": 1792333675290
+   "savedAt": 1793454712895,
+   "editedFrom": 1792333705061
   },
   {
    "id": "wdywgn6",
@@ -1678793,12 +1678824,12 @@
    "categories": [
     "T1",
     "Pants",
-    "Common"
+    "Trailor"
    ],
    "value": 5,
    "rank": "common",
-   "savedAt": 1791935920004,
-   "editedFrom": 1791596001786
+   "savedAt": 1793454712895,
+   "editedFrom": 1791935920004
   },
   {
    "id": "zbrshrt",
@@ -2445446,7 +2445477,7 @@
      "kind": "pedestal",
      "cats": [
       "Odd",
-      "Rare"
+      "Legendary"
      ],
      "logic": "and"
     }
@@ -2445562,7 +2445593,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1793264665254
+   "savedAt": 1793454712895,
+   "editedFrom": 1793264665254
   },
   {
    "id": "vcfrm09",
