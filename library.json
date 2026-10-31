@@ -142502,18 +142502,18 @@
    },
    "defense": 0,
    "effects": [],
-   "savedAt": 1793437868995,
+   "savedAt": 1793437920313,
    "categories": [
-    "T1",
+    "Fast",
     "Underwear",
     "Odd"
    ],
-   "value": 4,
+   "value": 8,
    "rank": "common",
    "groups": {
     "up": []
    },
-   "editedFrom": 1793437725390
+   "editedFrom": 1793437868995
   },
   {
    "id": "6gs835q",
@@ -149132,17 +149132,17 @@
     "hp": -1
    },
    "effects": [],
-   "savedAt": 1793435687591,
+   "savedAt": 1793437937355,
    "defense": 0,
    "ignoreHideIfHat": false,
    "categories": [
     "T1",
     "Hat",
-    "Good"
+    "Fast"
    ],
    "value": 10,
    "rank": "rare",
-   "editedFrom": 1793413844373,
+   "editedFrom": 1793435687591,
    "groups": {
     "up": [],
     "crouch": []
