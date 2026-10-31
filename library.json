@@ -1039279,7 +1039279,7 @@
    "size": 8,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Liquor Store",
+   "category": "Interior",
    "frames": [
     {
      "front": [
@@ -1039762,7 +1039762,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792975205743
+   "savedAt": 1793468985650,
+   "editedFrom": 1792975205743
   },
   {
    "id": "lqcntr1",
@@ -1039772,7 +1039773,7 @@
    "size": 8,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Liquor Store",
+   "category": "Interior",
    "frames": [
     {
      "front": [
@@ -1040563,7 +1040564,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792975205743
+   "savedAt": 1793468985650,
+   "editedFrom": 1792975205743
   },
   {
    "id": "lqcool1",
@@ -1040573,7 +1040575,7 @@
    "size": 8,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Liquor Store",
+   "category": "Interior",
    "frames": [
     {
      "front": [
@@ -1041236,7 +1041238,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792975205743
+   "savedAt": 1793468985650,
+   "editedFrom": 1792975205743
   },
   {
    "id": "lqneon1",
@@ -1041246,7 +1041249,7 @@
    "size": 6,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Liquor Store",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -1041369,7 +1041372,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792975205743
+   "savedAt": 1793468985650,
+   "editedFrom": 1792975205743
   },
   {
    "id": "lqshlf1",
@@ -1041379,7 +1041383,7 @@
    "size": 7,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Liquor Store",
+   "category": "Interior",
    "frames": [
     {
      "front": [
@@ -1042426,7 +1042430,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792975205743
+   "savedAt": 1793468985650,
+   "editedFrom": 1792975205743
   },
   {
    "id": "lqshlf2",
@@ -1042436,7 +1042441,7 @@
    "size": 7,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Liquor Store",
+   "category": "Interior",
    "frames": [
     {
      "front": [
@@ -1043611,7 +1043616,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792975205743
+   "savedAt": 1793468985650,
+   "editedFrom": 1792975205743
   },
   {
    "id": "lqsign1",
@@ -1043621,7 +1043627,7 @@
    "size": 8,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Liquor Store",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -1043776,7 +1043782,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792975205743
+   "savedAt": 1793468985650,
+   "editedFrom": 1792975205743
   },
   {
    "id": "lqstor1",
@@ -1078140,7 +1078147,7 @@
    "size": 3,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Math Magicians",
+   "category": "Science",
    "frames": [
     {
      "front": [
@@ -1079087,7 +1079094,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792970440703
+   "savedAt": 1793468985650,
+   "editedFrom": 1792970440703
   },
   {
    "id": "mmagic1",
@@ -1143914,7 +1143922,7 @@
    "size": 8,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Math Magicians",
+   "category": "Science",
    "frames": [
     {
      "front": [
@@ -1144677,7 +1144685,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792970440703
+   "savedAt": 1793468985650,
+   "editedFrom": 1792970440703
   },
   {
    "id": "mmpotio",
@@ -1144687,7 +1144696,7 @@
    "size": 6,
    "animFps": 3,
    "solidDefault": false,
-   "category": "Math Magicians",
+   "category": "Science",
    "frames": [
     {
      "front": [
@@ -1145749,7 +1145758,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792970440703
+   "savedAt": 1793468985650,
+   "editedFrom": 1792970440703
   },
   {
    "id": "mmsign",
@@ -1145759,7 +1145769,7 @@
    "size": 8,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Math Magicians",
+   "category": "Vietnam",
    "frames": [
     {
      "front": [
@@ -1145978,7 +1145988,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792970440703
+   "savedAt": 1793468985650,
+   "editedFrom": 1792970440703
   },
   {
    "id": "mnbeam1",
@@ -1163603,7 +1163614,7 @@
    "size": 30,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Stage",
    "frames": [
     {
      "front": [
@@ -1168018,7 +1168029,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvboom",
@@ -1168028,7 +1168040,7 @@
    "size": 8,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Equipment",
    "frames": [
     {
      "front": [
@@ -1168511,7 +1168523,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvcamra",
@@ -1168521,7 +1168534,7 @@
    "size": 6,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Equipment",
    "frames": [
     {
      "front": [
@@ -1169544,7 +1169557,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvcases",
@@ -1169554,7 +1169568,7 @@
    "size": 4,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Equipment",
    "frames": [
     {
      "front": [
@@ -1170225,7 +1170239,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvchair",
@@ -1170235,7 +1170250,7 @@
    "size": 4,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Interior",
    "frames": [
     {
      "front": [
@@ -1170642,7 +1170657,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvclap",
@@ -1170652,7 +1170668,7 @@
    "size": 2,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Equipment",
    "frames": [
     {
      "front": [
@@ -1171527,7 +1171543,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793264665254
+   "savedAt": 1793468985650,
+   "editedFrom": 1793264665254
   },
   {
    "id": "mvcraft",
@@ -1171537,7 +1171554,7 @@
    "size": 3,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -1172004,7 +1172021,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvcrane",
@@ -1172014,7 +1172032,7 @@
    "size": 20,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Equipment",
    "frames": [
     {
      "front": [
@@ -1172949,7 +1172967,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvfan",
@@ -1172959,7 +1172978,7 @@
    "size": 5,
    "animFps": 9,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Equipment",
    "frames": [
     {
      "front": [
@@ -1173978,7 +1173997,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvflatb",
@@ -1173988,7 +1174008,7 @@
    "size": 10,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Stage",
    "frames": [
     {
      "front": [
@@ -1174539,7 +1174559,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793264665254
+   "savedAt": 1793468985650,
+   "editedFrom": 1793264665254
   },
   {
    "id": "mvhutfc",
@@ -1174549,7 +1174570,7 @@
    "size": 12,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Stage",
    "frames": [
     {
      "front": [
@@ -1175572,7 +1175593,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvlite1",
@@ -1175582,7 +1175604,7 @@
    "size": 8,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Equipment",
    "frames": [
     {
      "front": [
@@ -1176373,7 +1176395,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvlite2",
@@ -1176383,7 +1176406,7 @@
    "size": 8,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Equipment",
    "frames": [
     {
      "front": [
@@ -1177310,7 +1177333,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvmakup",
@@ -1177320,7 +1177344,7 @@
    "size": 4,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Interior",
    "frames": [
     {
      "front": [
@@ -1178275,7 +1178299,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvmontr",
@@ -1178285,7 +1178310,7 @@
    "size": 5,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Equipment",
    "frames": [
     {
      "front": [
@@ -1179004,7 +1179029,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvpalm",
@@ -1179014,7 +1179040,7 @@
    "size": 12,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -1180377,7 +1180403,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvprsgn",
@@ -1180387,7 +1180414,7 @@
    "size": 8,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -1180642,7 +1180669,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793264665254
+   "savedAt": 1793468985650,
+   "editedFrom": 1793264665254
   },
   {
    "id": "mvpyro1",
@@ -1180652,7 +1180680,7 @@
    "size": 3,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Equipment",
    "frames": [
     {
      "front": [
@@ -1181363,7 +1181391,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvquiet",
@@ -1181373,7 +1181402,7 @@
    "size": 5,
    "animFps": 2,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Decoration",
    "frames": [
     {
      "front": [
@@ -1181850,7 +1181879,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvrack",
@@ -1181860,7 +1181890,7 @@
    "size": 5,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Interior",
    "frames": [
     {
      "front": [
@@ -1182755,7 +1182785,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvrefl",
@@ -1182765,7 +1182796,7 @@
    "size": 5,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Equipment",
    "frames": [
     {
      "front": [
@@ -1183120,7 +1183151,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvsmoke",
@@ -1183130,7 +1183162,7 @@
    "size": 4,
    "animFps": 4,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Equipment",
    "frames": [
     {
      "front": [
@@ -1183877,7 +1183909,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvtowr",
@@ -1183887,7 +1183920,7 @@
    "size": 16,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Stage",
    "frames": [
     {
      "front": [
@@ -1185378,7 +1185411,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "mvtrack",
@@ -1185388,7 +1185422,7 @@
    "size": 16,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Movie Set",
+   "category": "Equipment",
    "frames": [
     {
      "front": [
@@ -1185695,7 +1185729,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793182877328
+   "savedAt": 1793468985650,
+   "editedFrom": 1793182877328
   },
   {
    "id": "n0h690d",
@@ -1250632,7 +1250667,7 @@
    "size": 4,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Pho Shaq",
+   "category": "Vietnam",
    "frames": [
     {
      "front": [
@@ -1251223,7 +1251258,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793156916402
+   "savedAt": 1793468985650,
+   "editedFrom": 1793156916402
   },
   {
    "id": "phhats1",
@@ -1251233,7 +1251269,7 @@
    "size": 6,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Pho Shaq",
+   "category": "Vietnam",
    "frames": [
     {
      "front": [
@@ -1252280,7 +1252316,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793156916402
+   "savedAt": 1793468985650,
+   "editedFrom": 1793156916402
   },
   {
    "id": "phjars1",
@@ -1252290,7 +1252327,7 @@
    "size": 4,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Pho Shaq",
+   "category": "Vietnam",
    "frames": [
     {
      "front": [
@@ -1252665,7 +1252702,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793156916402
+   "savedAt": 1793468985650,
+   "editedFrom": 1793156916402
   },
   {
    "id": "phmenu1",
@@ -1252675,7 +1252713,7 @@
    "size": 5,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Pho Shaq",
+   "category": "Vietnam",
    "frames": [
     {
      "front": [
@@ -1252970,7 +1253008,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793156916402
+   "savedAt": 1793468985650,
+   "editedFrom": 1793156916402
   },
   {
    "id": "phrice1",
@@ -1252980,7 +1253019,7 @@
    "size": 4,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Pho Shaq",
+   "category": "Vietnam",
    "frames": [
     {
      "front": [
@@ -1253407,7 +1253446,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793156916402
+   "savedAt": 1793468985650,
+   "editedFrom": 1793156916402
   },
   {
    "id": "phshelf",
@@ -1253417,7 +1253457,7 @@
    "size": 5,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Pho Shaq",
+   "category": "Interior",
    "frames": [
     {
      "front": [
@@ -1254560,7 +1254600,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793156916402
+   "savedAt": 1793468985650,
+   "editedFrom": 1793156916402
   },
   {
    "id": "phshrin",
@@ -1254570,7 +1254611,7 @@
    "size": 4,
    "animFps": 2,
    "solidDefault": false,
-   "category": "Pho Shaq",
+   "category": "Vietnam",
    "frames": [
     {
      "front": [
@@ -1256253,7 +1256294,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793156916402
+   "savedAt": 1793468985650,
+   "editedFrom": 1793156916402
   },
   {
    "id": "phstool",
@@ -1256263,7 +1256305,7 @@
    "size": 2,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Pho Shaq",
+   "category": "Interior",
    "frames": [
     {
      "front": [
@@ -1256514,7 +1256556,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793156916402
+   "savedAt": 1793468985650,
+   "editedFrom": 1793156916402
   },
   {
    "id": "phstove",
@@ -1256524,7 +1256567,7 @@
    "size": 4,
    "animFps": 5,
    "solidDefault": false,
-   "category": "Pho Shaq",
+   "category": "Vietnam",
    "frames": [
     {
      "front": [
@@ -1258751,7 +1258794,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793156916402
+   "savedAt": 1793468985650,
+   "editedFrom": 1793156916402
   },
   {
    "id": "phtable",
@@ -1258761,7 +1258805,7 @@
    "size": 5,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Pho Shaq",
+   "category": "Interior",
    "frames": [
     {
      "front": [
@@ -1259712,7 +1259756,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793156916402
+   "savedAt": 1793468985650,
+   "editedFrom": 1793156916402
   },
   {
    "id": "phtz4un",
@@ -1264617,7 +1264662,7 @@
    "size": 6,
    "animFps": 6,
    "solidDefault": false,
-   "category": "Pho Shaq",
+   "category": "Interior",
    "frames": [
     {
      "front": [
@@ -1265900,7 +1265945,8 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793156916402
+   "savedAt": 1793468985650,
+   "editedFrom": 1793156916402
   },
   {
    "id": "pmztyj1",
