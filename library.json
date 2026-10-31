@@ -1384452,7 +1384452,7 @@
    "categories": [
     "T1",
     "Meelee",
-    "Concert"
+    "Hippy"
    ],
    "value": 12,
    "rank": "rare",
@@ -1389097,7 +1389097,7 @@
      }
     }
    },
-   "savedAt": 1793442347590,
+   "savedAt": 1793489411352,
    "states": {
     "rest": {
      "front": [
@@ -1391382,7 +1391382,8 @@
     ]
    },
    "boomerang": false,
-   "pickupCount": 3
+   "pickupCount": 3,
+   "editedFrom": 1793442347590
   },
   {
    "id": "rkice01",
@@ -2550178,7 +2550179,7 @@
     "26,53": {
      "kind": "pedestal",
      "cats": [
-      "Concert",
+      "Hippy",
       ""
      ],
      "logic": "or"
@@ -2550339,8 +2550340,8 @@
      "accepts": "Vietnam"
     }
    },
-   "savedAt": 1793445428989,
-   "editedFrom": 1793442347590
+   "savedAt": 1793489411352,
+   "editedFrom": 1793445428989
   },
   {
    "id": "vshaq01",
@@ -2595431,7 +2595432,7 @@
    },
    "enemies": {
     "38,130": {
-     "enemyId": "hrr4xyc",
+     "enemyId": "7vh0ltj",
      "facing": 1,
      "ai": "guard",
      "dialogueId": "8meobob",
@@ -2595475,8 +2595476,8 @@
    "floor": "Tree Tops",
    "section": "Middle",
    "hazard": {},
-   "savedAt": 1792890464192,
-   "editedFrom": 1792885410495
+   "savedAt": 1793489411352,
+   "editedFrom": 1792890464192
   },
   {
    "id": "ypjilr0",
