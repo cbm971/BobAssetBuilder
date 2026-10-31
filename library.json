@@ -44819,7 +44819,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "statBoosts": {
     "speed": 2,
     "agility": 0,
@@ -44832,11 +44832,11 @@
    "categories": [
     "T1",
     "Pants",
-    "Trailor"
+    "Trailer"
    ],
    "value": 4,
    "rank": "poor",
-   "editedFrom": 1792248418685
+   "editedFrom": 1793454712895
   },
   {
    "id": "25hkyvk",
@@ -64586,7 +64586,7 @@
    "categories": [
     "T1",
     "Shirt",
-    "Trailor"
+    "Trailer"
    ],
    "groups": {
     "back": [],
@@ -64594,10 +64594,10 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "value": 4,
    "rank": "poor",
-   "editedFrom": 1790612181721
+   "editedFrom": 1793454712895
   },
   {
    "id": "3fycm4k",
@@ -109905,7 +109905,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "statBoosts": {
     "speed": -1,
     "agility": -1,
@@ -109918,11 +109918,11 @@
    "categories": [
     "T1",
     "Pants",
-    "Trailor"
+    "Trailer"
    ],
    "value": 4,
    "rank": "common",
-   "editedFrom": 1792848553718
+   "editedFrom": 1793454712895
   },
   {
    "id": "4lbwiic",
@@ -155488,9 +155488,9 @@
    },
    "defense": 0,
    "effects": [],
-   "savedAt": 1793437920313,
+   "savedAt": 1793458364468,
    "categories": [
-    "Fast",
+    "Speed",
     "Underwear",
     "Odd"
    ],
@@ -155499,7 +155499,7 @@
    "groups": {
     "up": []
    },
-   "editedFrom": 1793437868995
+   "editedFrom": 1793437920313
   },
   {
    "id": "6gs835q",
@@ -158856,7 +158856,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "statBoosts": {
     "speed": 1,
     "agility": 1,
@@ -158868,11 +158868,11 @@
    "categories": [
     "T1",
     "Shoes",
-    "Trailor"
+    "Trailer"
    ],
    "value": 5,
    "rank": "common",
-   "editedFrom": 1790512135800
+   "editedFrom": 1793454712895
   },
   {
    "id": "6ufkkia",
@@ -162119,17 +162119,17 @@
     "hp": -1
    },
    "effects": [],
-   "savedAt": 1793437937355,
+   "savedAt": 1793458364468,
    "defense": 0,
    "ignoreHideIfHat": false,
    "categories": [
     "T1",
     "Hat",
-    "Fast"
+    "Speed"
    ],
    "value": 10,
    "rank": "rare",
-   "editedFrom": 1793435687591,
+   "editedFrom": 1793437937355,
    "groups": {
     "up": [],
     "crouch": []
@@ -221034,13 +221034,13 @@
    "categories": [
     "T1",
     "Hat",
-    "Fast"
+    "Speed"
    ],
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "ignoreHideIfHat": false,
    "value": 9,
    "rank": "common",
-   "editedFrom": 1790512135800
+   "editedFrom": 1793454712895
   },
   {
    "id": "8nx3thx",
@@ -236452,7 +236452,7 @@
    "categories": [
     "T1",
     "Shirt",
-    "Trailor"
+    "Trailer"
    ],
    "groups": {
     "back": [
@@ -236528,10 +236528,10 @@
      }
     ]
    },
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "value": 15,
    "rank": "rare",
-   "editedFrom": 1792120000000
+   "editedFrom": 1793454712895
   },
   {
    "id": "8wrlq12",
@@ -286579,17 +286579,17 @@
     "strength": 1
    },
    "effects": [],
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "defense": 2,
    "ignoreHideIfHat": false,
    "categories": [
     "T1",
     "Hat",
-    "Trailor"
+    "Trailer"
    ],
    "value": 6,
    "rank": "poor",
-   "editedFrom": 1790512135800
+   "editedFrom": 1793454712895
   },
   {
    "id": "9pk0kai",
@@ -511003,7 +511003,7 @@
    "categories": [
     "T1",
     "Meelee",
-    "Trailor"
+    "Trailer"
    ],
    "value": 8,
    "rank": "poor",
@@ -514568,7 +514568,7 @@
      }
     }
    },
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "states": {
     "rest": {
      "front": [
@@ -516312,7 +516312,7 @@
      }
     ]
    },
-   "editedFrom": 1792357825898
+   "editedFrom": 1793454712895
   },
   {
    "id": "cvrbkr3",
@@ -575356,7 +575356,7 @@
     "telfv37",
     "oipvf3l"
    ],
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "statBoosts": {
     "speed": 0,
     "agility": 1,
@@ -575369,11 +575369,11 @@
    "categories": [
     "T1",
     "Glasses",
-    "Trailor"
+    "Trailer"
    ],
    "value": 5,
    "rank": "poor",
-   "editedFrom": 1791586611021
+   "editedFrom": 1793454712895
   },
   {
    "id": "drnkmch1",
@@ -601044,7 +601044,7 @@
    "categories": [
     "T1",
     "Shirt",
-    "Trailor"
+    "Trailer"
    ],
    "groups": {
     "back": [],
@@ -601052,10 +601052,10 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "value": 3,
    "rank": "common",
-   "editedFrom": 1790512135800
+   "editedFrom": 1793454712895
   },
   {
    "id": "expl0d3",
@@ -709358,7 +709358,7 @@
    "categories": [
     "T1",
     "Grenade",
-    "Trailor"
+    "Trailer"
    ],
    "projectileRange": 14,
    "ignoreArmor": false,
@@ -709375,8 +709375,8 @@
     "throw": "qd117xl",
     "land": "aghad42"
    },
-   "savedAt": 1793457994804,
-   "editedFrom": 1793455421584
+   "savedAt": 1793458364468,
+   "editedFrom": 1793457994804
   },
   {
    "id": "ftbstd1",
@@ -860797,7 +860797,7 @@
     "telfv37",
     "oipvf3l"
    ],
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "statBoosts": {
     "hp": 1,
     "speed": 0,
@@ -860810,11 +860810,11 @@
    "categories": [
     "T1",
     "Shirt",
-    "Trailor"
+    "Trailer"
    ],
    "value": 5,
    "rank": "common",
-   "editedFrom": 1790512135800
+   "editedFrom": 1793454712895
   },
   {
    "id": "i8evmrk",
@@ -898030,12 +898030,12 @@
    "categories": [
     "T1",
     "Shirt",
-    "Trailor"
+    "Trailer"
    ],
    "value": 9,
    "rank": "common",
-   "savedAt": 1793454712895,
-   "editedFrom": 1791595941803
+   "savedAt": 1793458364468,
+   "editedFrom": 1793454712895
   },
   {
    "id": "jeqe15r",
@@ -914344,7 +914344,7 @@
    "categories": [
     "T1",
     "Shirt",
-    "Fast"
+    "Speed"
    ],
    "groups": {
     "back": [],
@@ -914352,10 +914352,10 @@
     "up": [],
     "crouch": []
    },
-   "savedAt": 1792339037153,
+   "savedAt": 1793458364468,
    "value": 13,
    "rank": "legendary",
-   "editedFrom": 1790512135800
+   "editedFrom": 1792339037153
   },
   {
    "id": "jhlj7kt",
@@ -933290,7 +933290,7 @@
     "telfv37",
     "oipvf3l"
    ],
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "statBoosts": {
     "speed": 0,
     "agility": 0,
@@ -933303,11 +933303,11 @@
    "categories": [
     "T1",
     "Glasses",
-    "Trailor"
+    "Trailer"
    ],
    "value": 5,
    "rank": "common",
-   "editedFrom": 1790512135800
+   "editedFrom": 1793454712895
   },
   {
    "id": "k2pnhx2",
@@ -974786,7 +974786,7 @@
    "categories": [
     "T1",
     "Meelee",
-    "Trailor"
+    "Trailer"
    ],
    "value": 4,
    "rank": "poor",
@@ -977781,7 +977781,7 @@
      }
     }
    },
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "states": {
     "rest": {
      "front": [
@@ -979240,7 +979240,7 @@
      }
     ]
    },
-   "editedFrom": 1792357008640
+   "editedFrom": 1793454712895
   },
   {
    "id": "kj6zdxa",
@@ -1283276,7 +1283276,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "statBoosts": {
     "speed": 3,
     "agility": 3,
@@ -1283289,7 +1283289,7 @@
    "categories": [
     "T1",
     "Shoes",
-    "Fast"
+    "Speed"
    ],
    "groups": {
     "back": [],
@@ -1283299,7 +1283299,7 @@
    },
    "value": 10,
    "rank": "common",
-   "editedFrom": 1790512135800
+   "editedFrom": 1793454712895
   },
   {
    "id": "qesn4h8",
@@ -1290661,7 +1290661,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "statBoosts": {
     "speed": 2,
     "agility": 2,
@@ -1290674,7 +1290674,7 @@
    "categories": [
     "T1",
     "Shoes",
-    "Trailor"
+    "Trailer"
    ],
    "groups": {
     "back": [],
@@ -1290684,7 +1290684,7 @@
    },
    "value": 9,
    "rank": "common",
-   "editedFrom": 1791933092296
+   "editedFrom": 1793454712895
   },
   {
    "id": "qfm7xn6",
@@ -1334924,7 +1334924,7 @@
      "lastFit": "default"
     }
    ],
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "statBoosts": {
     "hp": -1,
     "speed": 2,
@@ -1334936,11 +1334936,11 @@
    "categories": [
     "T1",
     "Jacket",
-    "Fast"
+    "Speed"
    ],
    "value": 16,
    "rank": "legendary",
-   "editedFrom": 1793446524503
+   "editedFrom": 1793454712895
   },
   {
    "id": "rklites",
@@ -1341329,7 +1341329,7 @@
      "lastFit": "default"
     }
    ],
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "statBoosts": {
     "hp": -1,
     "speed": 2,
@@ -1341341,11 +1341341,11 @@
    "categories": [
     "T1",
     "Pants",
-    "Fast"
+    "Speed"
    ],
    "value": 10,
    "rank": "rare",
-   "editedFrom": 1793446729268
+   "editedFrom": 1793454712895
   },
   {
    "id": "rkshade",
@@ -1352163,7 +1352163,7 @@
    "categories": [
     "T1",
     "Shirt",
-    "Trailor"
+    "Trailer"
    ],
    "groups": {
     "back": [
@@ -1352240,10 +1352240,10 @@
      }
     ]
    },
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "value": 10,
    "rank": "common",
-   "editedFrom": 1792120000000
+   "editedFrom": 1793454712895
   },
   {
    "id": "scet4bx",
@@ -1394802,7 +1394802,7 @@
     "telfv37",
     "oipvf3l"
    ],
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "statBoosts": {
     "speed": 0,
     "agility": 0,
@@ -1394814,11 +1394814,11 @@
    "categories": [
     "T1",
     "Jacket",
-    "Trailor"
+    "Trailer"
    ],
    "value": 7,
    "rank": "common",
-   "editedFrom": 1792120000000
+   "editedFrom": 1793454712895
   },
   {
    "id": "sldgham",
@@ -1394861,7 +1394861,7 @@
    "categories": [
     "T1",
     "Meelee",
-    "Trailor"
+    "Trailer"
    ],
    "value": 20,
    "rank": "legendary",
@@ -1397856,7 +1397856,7 @@
      }
     }
    },
-   "savedAt": 1793454712895,
+   "savedAt": 1793458364468,
    "states": {
     "rest": {
      "front": [
@@ -1399315,7 +1399315,7 @@
      }
     ]
    },
-   "editedFrom": 1792357008640
+   "editedFrom": 1793454712895
   },
   {
    "id": "slvpnt1",
@@ -1409087,12 +1409087,12 @@
    "categories": [
     "T1",
     "Jacket",
-    "Trailor"
+    "Trailer"
    ],
    "value": 16,
    "rank": "legendary",
-   "savedAt": 1793454712895,
-   "editedFrom": 1792624305011
+   "savedAt": 1793458364468,
+   "editedFrom": 1793454712895
   },
   {
    "id": "sptnklt",
@@ -1501513,7 +1501513,7 @@
    "categories": [
     "T1",
     "Meelee",
-    "Trailor"
+    "Trailer"
    ],
    "groups": {
     "back": [],
@@ -1501524,8 +1501524,8 @@
    "landChar": "🔥",
    "value": 9,
    "rank": "poor",
-   "savedAt": 1793454712895,
-   "editedFrom": 1792266620883,
+   "savedAt": 1793458364468,
+   "editedFrom": 1793454712895,
    "sounds": {
     "hit": "ynj37i2"
    }
@@ -1591283,7 +1591283,7 @@
    "categories": [
     "T1",
     "Gun",
-    "Trailor"
+    "Trailer"
    ],
    "explode": false,
    "explodeRadius": 2,
@@ -1591306,8 +1591306,8 @@
     "fire": "18sacwd",
     "hit": "6hh0w94"
    },
-   "savedAt": 1793454712895,
-   "editedFrom": 1792333705061
+   "savedAt": 1793458364468,
+   "editedFrom": 1793454712895
   },
   {
    "id": "wdywgn6",
@@ -1594742,7 +1594742,7 @@
     "oipvf3l",
     "telfv37"
    ],
-   "savedAt": 1790512135800,
+   "savedAt": 1793458364468,
    "statBoosts": {
     "speed": 2,
     "agility": 1,
@@ -1594755,10 +1594755,11 @@
    "categories": [
     "T1",
     "Pants",
-    "Trailor"
+    "Trailer"
    ],
    "value": 6,
-   "rank": "common"
+   "rank": "common",
+   "editedFrom": 1790512135800
   },
   {
    "id": "x4fcouw",
@@ -1681790,12 +1681791,12 @@
    "categories": [
     "T1",
     "Pants",
-    "Trailor"
+    "Trailer"
    ],
    "value": 5,
    "rank": "common",
-   "savedAt": 1793454712895,
-   "editedFrom": 1791935920004
+   "savedAt": 1793458364468,
+   "editedFrom": 1793454712895
   },
   {
    "id": "zbrshrt",
@@ -1928235,7 +1928236,7 @@
      "ai": "seek",
      "weaponId": "none",
      "gearTags": [
-      "Fast",
+      "Speed",
       "Meelee"
      ]
     },
@@ -1928334,8 +1928335,8 @@
      "accepts": "Trailor Park"
     }
    },
-   "savedAt": 1792345074963,
-   "editedFrom": 1791100166194
+   "savedAt": 1793458364468,
+   "editedFrom": 1792345074963
   },
   {
    "id": "gqjimzx",
