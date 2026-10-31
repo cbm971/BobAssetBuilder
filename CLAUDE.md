@@ -604,8 +604,8 @@ plus traps it does not cover:
 - **The rank is a tag (2026-10-31).** `itemTagList` = the item's three boxes + its rank LABEL, and every tag search
   (pedestal, shop, gear roll, 🍀 Lucky Find, 🏹 Tag Damage) goes through it, so "Rare" finds every purple item and
   "Odd" AND "Legendary" finds the Ray Gun. Never type a rarity into a tag box; the 57 items that had one were
-  retagged that day. Theme tags in use: Trailer (Trailor Park world items, like Vietnam / Army; the LOOK folder
-  and 🎲 enemyTag stay "Trailor"), Odd, Furry, Speed (Fast merged in), Hippy, Super, Sewer, Fire, Underwear, Item. **Kind-tag trap:** `equipKindTags` treats a tag on at most 2 garment
+  retagged that day. Theme tags in use: Trailer (Trailor Park world items, like Vietnam / Army; its people's LOOK
+  folder and 🎲 enemyTag are "Trailer" too), Odd, Furry, Speed (Fast merged in), Hippy, Super, Sewer, Fire, Underwear, Item. **Kind-tag trap:** `equipKindTags` treats a tag on at most 2 garment
   slots and on no weapon or consumable as a garment KIND, so the two items take each other off. A two-piece theme
   (Wizards Hat + a cape both "Magic") would strip itself; Fire on the Fireman's Coat + Helmet did until the
   Molotov joined it. Give a set a third slot or a weapon, or pick another tag.
