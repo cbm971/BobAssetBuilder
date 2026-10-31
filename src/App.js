@@ -2103,8 +2103,16 @@ export const forEachAssetPiece = (a, fn) => {
 // a different colour on screen. Bobby Skin wears #f4f4f4 as thirty white blocks and thirty at
 // brightness 0.6 that read as grey; the Red Berry Bush shades one green nine ways; 154 of the 408
 // assets in the library do it somewhere. Recolouring the white repainted the grey, and a
-// Brightness drag flattened all nine leaf shades into one. Glow is a halo around the block and a
-// pattern lies over it — neither changes the fill, so neither is part of the match.
+// Brightness drag flattened all nine leaf shades into one. Glow is a halo around the block, so it
+// is not part of the match.
+//
+// A PATTERN is (2026-10-31, the Dale Undies). A patterned block draws as its pattern: the hex under
+// it never shows (pieceTextureStyle paints the pattern's own ground over it). So a flannel block
+// and a plain block of the same hex are different colours on screen, and two flannel blocks are the
+// same colour whatever hex each one hides. Matching the hex alone took the plain black blocks along
+// with the flannel ones, and a colour tap on a patterned block now replaces its pattern
+// (flatColorAssetGroup), so that would have stripped a pattern off blocks that never looked like
+// the one tapped.
 //
 // So `from` is the SELECTED BLOCK, matched on its look. A bare hex string still matches the hex
 // alone: that is the 🎨 Skin palette, whose swatches list hexes and count every block of each.
@@ -2112,11 +2120,12 @@ export const forEachAssetPiece = (a, fn) => {
 // block is a different colour on screen from a solid one of the same hex.
 const fxNum = (v, d) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 export const fillLook = (p) => (p && typeof p.color === "string")
-  ? { color: p.color.toLowerCase(), bright: fxNum(p.fx && p.fx.bright, 1), opacity: fxNum(p.fx && p.fx.opacity, 1), see: fxNum(p.translucency, 0) }
+  ? { color: p.color.toLowerCase(), bright: fxNum(p.fx && p.fx.bright, 1), opacity: fxNum(p.fx && p.fx.opacity, 1), see: fxNum(p.translucency, 0), tex: p.tex || null }
   : null;
 export const wearsLook = (p, look) => {
   const l = fillLook(p);
-  return !!l && !!look && l.color === look.color && Math.abs(l.bright - look.bright) < 1e-6 && Math.abs(l.opacity - look.opacity) < 1e-6 && Math.abs(l.see - fxNum(look.see, 0)) < 1e-6;
+  if (!l || !look || l.tex !== (look.tex || null)) return false;
+  return (l.tex || l.color === look.color) && Math.abs(l.bright - look.bright) < 1e-6 && Math.abs(l.opacity - look.opacity) < 1e-6 && Math.abs(l.see - fxNum(look.see, 0)) < 1e-6;
 };
 export const assetColorGroup = (a, from) => {
   const look = from && typeof from === "object" ? fillLook(from) : null;
@@ -2128,13 +2137,14 @@ export const assetColorGroup = (a, from) => {
 };
 // Handing the group on to the next step of the same edit. Membership is the frozen place set and
 // never changes; `from` (and a block's `look`) follows what those places are wearing now — a
-// colour step changes the hex, a Brightness, Fade or 👻 step (`{ translucency }`) the look — which
-// is how a caller tells "this edit is still running" from "this is a new one".
+// colour step changes the hex and leaves them flat (flatColorAssetGroup), a Brightness, Fade or 👻
+// step (`{ translucency }`) the look — which is how a caller tells "this edit is still running"
+// from "this is a new one".
 export const colorGroupAfter = (g, to, fx) => {
   const c = typeof to === "string" ? to.toLowerCase() : null;
   if (!g || (!c && !fx)) return g;
   const out = { ...g, from: c || g.from };
-  if (g.look) out.look = { ...g.look, ...(c ? { color: c } : {}), ...(fx ? { bright: fxNum(fx.bright, g.look.bright), opacity: fxNum(fx.opacity, g.look.opacity), see: fxNum(fx.translucency, fxNum(g.look.see, 0)) } : {}) };
+  if (g.look) out.look = { ...g.look, ...(c ? { color: c, tex: null } : {}), ...(fx ? { bright: fxNum(fx.bright, g.look.bright), opacity: fxNum(fx.opacity, g.look.opacity), see: fxNum(fx.translucency, fxNum(g.look.see, 0)) } : {}) };
   return out;
 };
 // A group handed back for another step keeps only the places still wearing what the last step
@@ -2180,6 +2190,14 @@ export const retexAssetGroup = (a, g, tex) => {
     return rest;
   });
 };
+// A COLOUR on a patterned block replaces the pattern (2026-10-31, Blake: "Change this color
+// everywhere STILL does not work on patterns ... As soon as I switch poses it changes it back"). A
+// pattern is painted "instead of a flat color" (the picker says so), and the swatch only ever wrote
+// the hex hidden UNDER it, so on his Dale Undies the black he picked never showed. The editor drew
+// it anyway for a moment — the block went flat black — until a pose switch redrew it as flannel
+// (the stale-style half of this, see shapeFillStyle). A tap now does what it showed: that colour,
+// flat, on every place in the group. Plain places are untouched by the clear.
+export const flatColorAssetGroup = (a, g, to) => retexAssetGroup(recolorAssetGroup(a, g, to), g, null);
 // 👻 See-through rides the toggle too (2026-10-24, Blake: "change this color everywhere does not
 // effect see through ness"). The Translucent slider faded the selected block alone while Brightness
 // and Fade beside it went everywhere. Same places, `translucency` on each; 0 removes the key, as the
@@ -20227,12 +20245,13 @@ export default function AssetStudio({ game = false } = {}) {
   // colour and emoji tints are untouched, so a shade that is merely CLOSE is left for Blake to
   // catch by hand rather than silently flattened. `live` marks the calls coming from a dragged
   // colour input, which are the ones that must hold the group rather than re-resolve.
+  // A colour on a patterned block replaces the pattern, here and everywhere (flatColorAssetGroup).
   const applyPieceColor = (c, live) => {
-    const from = sel && sel.color;
-    if (!recolorAll || !from || effEdit || (sel && sel.kind === "emoji") || c === from) { updSel({ color: c }); return; }
+    const from = sel && sel.color, patterned = !!(sel && sel.tex);
+    if (!recolorAll || !from || effEdit || (sel && sel.kind === "emoji") || (c === from && !patterned)) { updSel(patterned ? { color: c, tex: undefined } : { color: c }); return; }
     const g = live ? colorDrag() : assetColorGroup(asset, sel);
     colorGroup.current = live ? colorGroupAfter(g, c) : null;
-    setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(recolorAssetGroup(a, g, c)); });
+    setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(flatColorAssetGroup(a, g, c)); });
   };
   // 🎨 Apply picked colour + fx is a colour change like any other and has to obey the 🪣 toggle.
   // It was the one path that always landed on the single selected block — read as "Change this
@@ -20241,10 +20260,10 @@ export default function AssetStudio({ game = false } = {}) {
   // they meant.
   const applyPickedColorFx = (c, fx) => {
     const from = sel && sel.color;
-    if (!recolorAll || !from || effEdit || (sel && sel.kind === "emoji")) { updSel({ color: c, fx: { ...fx } }); return; }
+    if (!recolorAll || !from || effEdit || (sel && sel.kind === "emoji")) { updSel({ color: c, fx: { ...fx }, ...(sel && sel.tex ? { tex: undefined } : {}) }); return; }
     const g = assetColorGroup(asset, sel);
     colorGroup.current = null;
-    setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(restyleAssetGroup(recolorAssetGroup(a, g, c), g, fx)); });
+    setAsset((a) => { if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default"); return withRig(restyleAssetGroup(flatColorAssetGroup(a, g, c), g, fx)); });
   };
   // A pattern obeys the 🪣 toggle like a colour does. It used to go through updSel alone, so with
   // "Change this color everywhere" on, patterning one underwear piece left every other block of
@@ -21313,9 +21332,13 @@ export default function AssetStudio({ game = false } = {}) {
     // inside the same clip-path, so a plaid sleeve keeps its exact silhouette. Applied here rather
     // than at each render site because this one function is what every one of them draws through —
     // editor canvas, Dress Bob, the playtest player and enemies all pick it up together.
+    // No `background` shorthand beside the pattern's longhands: when only the colour changed, React
+    // re-sets the shorthand alone, which resets backgroundImage to nothing, and leaves the pattern's
+    // longhands as they were because they did not change. The block then showed flat until anything
+    // redrew it from scratch — a pose switch — and the pattern "came back".
     if (p.tex && p.kind !== "emoji" && p.kind !== "text" && !p.isCutter && !p.isHitbox && !p.isMuzzle) {
       const ts = pieceTextureStyle(p, texLib);
-      if (ts) Object.assign(s, ts);
+      if (ts) { delete s.background; Object.assign(s, ts); }
     }
     // A hitbox piece is a game-logic box, not art — always shown this way regardless of its
     // own color/kind, so it reads unmistakably differently from every other piece while editing.
@@ -23044,7 +23067,7 @@ export default function AssetStudio({ game = false } = {}) {
     if (ok1 && ok2) {
       projectLibrary.save({ textures: [clean] }, { revive: true });
       await loadTextures(); setTexEdit(null);
-      if (applyTo === "piece") { updSel({ tex: clean.id }); flash("Texture \"" + clean.name + "\" saved ✓ — on this block now."); }
+      if (applyTo === "piece") { applyPieceTexture(clean.id); flash("Texture \"" + clean.name + "\" saved ✓ — on this block now."); }
       else { setLTexId(clean.id); setLTool("paint"); flash("Texture \"" + clean.name + "\" saved ✓ — painting with it now."); }
       return clean;
     }
@@ -29803,7 +29826,7 @@ export default function AssetStudio({ game = false } = {}) {
                 
                 <button className="wide" onClick={() => setPicker({ mode: "change" })}>Change emoji ({sel.char})</button>
               </> : <>
-                <div className="swatches">{palettePicker(palKey, setPalKey)}{pal.map((c) => <button key={c} className={sel.color === c ? "on" : ""} style={{ background: c }} onClick={() => applyPieceColor(c)} />)}{swBreak}{recent.filter((c) => !pal.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (sel.color === c ? " on" : "")} style={{ background: c }} onClick={() => applyPieceColor(c)} title="recent" />)}<label className="pick"><input type="color" value={sel.color} onChange={(e) => applyPieceColor(e.target.value, true)} onBlur={(e) => { addRecent(e.target.value); endColorDrag(); }} />＋</label></div>
+                <div className="swatches">{palettePicker(palKey, setPalKey)}{pal.map((c) => <button key={c} className={!sel.tex && sel.color === c ? "on" : ""} style={{ background: c }} onClick={() => applyPieceColor(c)} />)}{swBreak}{recent.filter((c) => !pal.includes(c)).map((c) => <button key={"r" + c} className={"rc" + (!sel.tex && sel.color === c ? " on" : "")} style={{ background: c }} onClick={() => applyPieceColor(c)} title="recent" />)}<label className="pick"><input type="color" value={sel.color} onChange={(e) => applyPieceColor(e.target.value, true)} onBlur={(e) => { addRecent(e.target.value); endColorDrag(); }} />＋</label></div>
                 {!effEdit && <label className="chk"><input type="checkbox" checked={recolorAll} onChange={(e) => setRecolorAll(e.target.checked)} /> 🪣 Change this color everywhere </label>}
                 {/* PATTERN — the same texture library the Level Creator paints walls with, applied
                     to this block instead. Flannel is the one built for cloth, but any of them work;

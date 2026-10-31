@@ -296,6 +296,11 @@ plus traps it does not cover:
   drag by `colorDrag`; 2026-10-24, he asked: "change this color everywhere does not effect see through
   ness"), and the title then reads "this color everywhere". See-through is part of the colour
   (`fillLook.see`): a glass block and a solid block of one hex are different colours to 🪣.
+- **A colour on a PATTERNED block replaces the pattern** (`flatColorAssetGroup`, 2026-10-31, Dale Undies: "Change this
+  color everywhere STILL does not work on patterns ... As soon as I switch poses it changes it back"). The pattern is
+  part of the colour to 🪣 (`fillLook.tex`), and the hex under it is not, because it never shows. Never put the
+  `background` shorthand beside a pattern's longhands in a piece style: a colour-only change then wipes the pattern off
+  the DOM until a pose switch redraws it. A pattern made in the editor (Save & use it here) obeys 🪣 too.
 - **A whole asset is see-through by `asset.translucency`** (0–0.9, that slider with nothing selected;
   `assetAlpha`). It fades the finished picture as ONE group (`fadeGroup`), unlike the
   per-piece ✨ Fade. Every `renderPieceRuns` call passes `alpha` (one asset: prop, plinth, drop, shop,

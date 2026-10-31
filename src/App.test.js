@@ -266,6 +266,7 @@ import {
   wearsLook,
   recolorAssetGroup,
   retexAssetGroup,
+  flatColorAssetGroup,
   restyleAssetGroup,
   seeThroughAssetGroup,
   editSnapshot,
@@ -14203,6 +14204,54 @@ describe("a unit's HP bar shows only just after it is hurt", () => {
   });
 });
 
+// 2026-10-31, Blake: "Change this color everywhere STILL does not work on patterns ... not on the
+// Dale Undies. As soon as I switch poses it changes it back." His briefs: flannel over a hidden
+// #2b2b2b in every pose of both fits, plus a red and a white 3 on two poses.
+describe("a colour on a patterned block (the Dale Undies)", () => {
+  const fx = (bright) => ({ opacity: 1, glow: 0, glowColor: "#ffd76b", bright });
+  const brief = (id, extra) => ({ id, kind: "rect", color: "#2b2b2b", fx: fx(1), tex: "a6htkkb", ...extra });
+  const three = (id, color, bright) => ({ id, kind: "text", text: "3", color, fx: fx(bright) });
+  const undies = () => ({
+    angles: { front: [brief("12af3ea"), brief("xy1yrnu"), three("o7yk9ur", "#da251d", 1), three("nrbwp27", "#ffffff", 0.7)], back: [brief("c6ty0pn"), brief("l4uyen9")] },
+    variants: {
+      telfv37: { front: [brief("12af3ea"), brief("xy1yrnu"), three("o7yk9ur", "#da251d", 1), three("nrbwp27", "#ffffff", 0.7)], back: [brief("c6ty0pn"), brief("l4uyen9")] },
+      oipvf3l: { front: [brief("w1dkuge"), brief("1ddfrh1", { color: "#ffffff" })], back: [{ id: "plain", kind: "rect", color: "#2b2b2b", fx: fx(1) }] },
+    },
+  });
+  const all = (a) => { const out = []; forEachAssetPiece(a, (p, k) => out.push([k, p])); return out; };
+  test("a colour tap on a flannel brief paints every flannel brief that colour, flat, in every pose and fit", () => {
+    const a = undies(), g = assetColorGroup(a, a.angles.front[0]);
+    const out = flatColorAssetGroup(a, g, "#000000");
+    for (const [k, p] of all(out)) {
+      if (k === "var.oipvf3l.back[0]") { expect(p.color).toBe("#2b2b2b"); continue; }  // plain black: never looked like flannel
+      if (p.kind === "text") { expect(p.color).not.toBe("#000000"); continue; }         // the 3s
+      expect([k, p.color, "tex" in p]).toEqual([k, "#000000", false]);
+    }
+    expect(g.keys.size).toBe(10); // every brief, including the one hiding #ffffff under the same flannel
+  });
+  test("a colour tap on a PLAIN block leaves the flannel of the same hidden hex alone", () => {
+    const a = undies(), plain = a.variants.oipvf3l.back[0];
+    const out = flatColorAssetGroup(a, assetColorGroup(a, plain), "#1e88e5");
+    expect(out.variants.oipvf3l.back[0]).toEqual({ ...plain, color: "#1e88e5" });
+    expect(out.angles.front[0]).toEqual(a.angles.front[0]);
+  });
+  test("a dragged colour keeps its group once the pattern is off", () => {
+    const a = undies(), g = assetColorGroup(a, a.angles.front[0]);
+    const mid = flatColorAssetGroup(a, g, "#101010"), g2 = colorGroupAfter(g, "#101010");
+    expect(wearsLook(mid.angles.front[0], g2.look)).toBe(true);
+    expect(colorGroupStill(mid, g2).keys.size).toBe(g.keys.size);
+    const end = flatColorAssetGroup(mid, colorGroupStill(mid, g2), "#202020");
+    expect(end.variants.oipvf3l.front[1].color).toBe("#202020");
+  });
+  test("a different pattern is a different colour", () => {
+    const a = undies();
+    a.angles.back[1] = brief("l4uyen9", { tex: "tieDye1" });
+    const g = assetColorGroup(a, a.angles.front[0]);
+    expect(g.keys.has("angles.back[1]")).toBe(false);
+    expect(g.keys.has("angles.back[0]")).toBe(true);
+  });
+});
+
 describe("retexAssetGroup", () => {
   const asset = () => ({ angles: { front: [{ id: "a", color: "#fff" }, { id: "b", color: "#fff" }, { id: "c", color: "#f00", tex: "old" }] }, variants: { default: { front: [{ id: "a", color: "#fff" }] } } });
   test("patterns every block of the colour, in every pose and fit, and no others", () => {
@@ -15001,16 +15050,17 @@ describe("🪣 change this colour everywhere matches the colour as drawn, not ju
     expect(out.angles.front.map((p) => p.fx.bright)).toEqual([0.6, 0.6, 0.8, 0.8, 0.8]);
   });
 
-  test("Fade is part of the colour too; Glow and a pattern are not", () => {
+  // A pattern IS part of it (2026-10-31): a patterned block draws as its pattern, not the hex under it.
+  test("Fade and a pattern are part of the colour too; Glow is not", () => {
     const a = { angles: { front: [
       { color: "#2b2b2b" },
       { color: "#2b2b2b", fx: { opacity: 0.5 } },                  // a tinted window: see-through, a different grey
       { color: "#2B2B2B", fx: { opacity: 1, glow: 6, bright: 1 } }, // a halo round the same fill
-      { color: "#2b2b2b", tex: "plaid" },                           // a pattern over the same fill
+      { color: "#2b2b2b", tex: "plaid" },                           // plaid, whatever it hides
     ] } };
     expect(wearsLook(a.angles.front[2], fillLook(a.angles.front[0]))).toBe(true);
     const out = recolorAsset(a, a.angles.front[0], "#ff0000");
-    expect(colours(out.angles.front)).toEqual(["#ff0000", "#2b2b2b", "#ff0000", "#ff0000"]);
+    expect(colours(out.angles.front)).toEqual(["#ff0000", "#2b2b2b", "#ff0000", "#2b2b2b"]);
   });
 
   // 2026-10-24, Blake: "change this color everywhere does not effect see through ness". The 👻
