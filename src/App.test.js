@@ -676,6 +676,9 @@ import {
   DEFAULT_ITEM_RANK,
   ITEM_RANK_INFO,
   itemRank,
+  itemTagList,
+  itemMatchesPedestal,
+  pedestalItemPool,
 } from "./App";
 import {
   weaponArtPose,
@@ -12873,6 +12876,34 @@ describe("item rank", () => {
     expect(newAsset("item").rank).toBe("common");
     expect(newAsset("equipment", "hat").rank).toBe("common");
     expect(newAsset("prop").rank).toBeUndefined(); // only the three types that carry categories
+  });
+  // Blake 2026-10-31: "have it where every item already has their rarity tagged. So a pedestal
+  // searching 'Rare' will search through every rare item". The LABEL he reads is the tag.
+  test("every item carries its rank's label as a tag, so a search for it needs nothing typed", () => {
+    const gun = { id: "g", type: "weapon", rank: "legendary", categories: ["T1", "Gun", ""] };
+    const ray = { id: "r", type: "weapon", rank: "mystic", categories: ["T1", "Gun", "Odd"] };
+    const cape = { id: "c", type: "equipment", slot: "jacket", rank: "rare", categories: ["T1", "Cape", ""] };
+    const tee = { id: "t", type: "equipment", slot: "shirt", categories: ["T1", "Shirt"] }; // no rank = Common
+    const lib = [gun, ray, cape, tee, { id: "p", type: "prop", category: "Rare" }];
+    expect(itemTagList(gun)).toEqual(["T1", "Gun", "", "Rare"]);
+    expect(itemTagList(tee)).toEqual(["T1", "Shirt", "Common"]);
+    expect(itemTagList({ type: "character", categories: ["x"] })).toEqual(["x"]); // only the three ranked types
+    expect(pedestalItemPool(lib, ["Rare"], "or").map((a) => a.id)).toEqual(["g"]);
+    expect(pedestalItemPool(lib, ["  legendary "], "or").map((a) => a.id)).toEqual(["r"]); // the same trimmed, case-blind match
+    expect(pedestalItemPool(lib, ["Good"], "or").map((a) => a.id)).toEqual(["c"]);   // the id "rare" is the Good tier...
+    expect(itemMatchesPedestal(cape, ["Rare"], "or")).toBe(false);                    // ...and never matches "Rare"
+    expect(pedestalItemPool(lib, ["Common"], "or").map((a) => a.id)).toEqual(["t"]);
+    expect(pedestalItemPool(lib, ["Odd", "Legendary"], "and").map((a) => a.id)).toEqual(["r"]);
+    expect(pedestalItemPool(lib, ["Gun", "Rare"], "and").map((a) => a.id)).toEqual(["g"]);
+    expect(shopStock(lib, "Rare").map((a) => a.id)).toEqual(["g"]);
+    expect(tagLuckDropPool(lib, [], "Legendary")).toEqual([]); // gear still only drops off the body that wore it
+    expect(tagLuckDropPool(lib, [ray], "Legendary").map((a) => a.id)).toEqual(["r"]);
+    expect(enemyGearTagPool(lib, "Rare").map((a) => a.id)).toEqual(["g"]);
+    const hat = [{ type: "tagBoost", tag: "Rare", mult: 2 }];
+    expect(tagDamageMultiplier(hat, itemTagList(gun))).toBe(2);
+    expect(tagDamageMultiplier(hat, itemTagList(ray))).toBe(1);
+    expect(enemyAttackDamage({ stats: { strength: 5 }, effects: hat }, { ...gun, wtype: "ranged", damage: 10 }))
+      .toBe(playerRangedDamage(20));
   });
 });
 

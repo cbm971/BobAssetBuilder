@@ -3198,8 +3198,8 @@ export const HAS_CATEGORIES = (a) => !!a && (a.type === "equipment" || a.type ==
 // it: the pickup banner, the name over a pedestal or a drop, a shop row. Blake's colours: Legendary
 // PURPLE (it replaced the banner's old gold outright), Rare blue, Common green, Poor white — and
 // "each font slightly smaller or with slightly less effects than the upgrade", which is what
-// bannerScale and the per-rank banner CSS (.pbRank-*) step down. The rank is look only: it does
-// not touch the drop roll, the shop price or anything else.
+// bannerScale and the per-rank banner CSS (.pbRank-*) step down. It does not touch the drop roll
+// or the shop price; since 2026-10-31 its label is also one of the item's tags (itemTagList).
 // A record with no rank (everything saved before this, and hand-written JSON) reads as Common —
 // the middle of the ladder, and what an untouched item most likely is.
 // 2026-10-18 the tiers were RENAMED, not re-keyed: the ids below are what every saved item carries, so
@@ -3215,11 +3215,16 @@ export const ITEM_RANK_INFO = {
   mystic: { label: "Legendary", color: "#ffd84a", bannerScale: 1.08 },
 };
 export const itemRank = (a) => (a && ITEM_RANKS.includes(a.rank) ? a.rank : DEFAULT_ITEM_RANK);
+// ⭐ THE RANK IS A TAG (2026-10-31). Every item carries its rank's LABEL as if typed into a fourth
+// tag box, so a 💎 Pedestal, a shop, a spawn's gear roll, a 🍀 Lucky Find or a 🏹 Tag Damage set to
+// "Rare" reaches every Rare item without anyone typing "Rare" onto it. Blake had been spending one
+// of his three boxes on the rarity. The label matches, never the id: id "rare" is the Good tier.
+export const itemTagList = (item) => [...((item && item.categories) || []), ...(HAS_CATEGORIES(item) ? [ITEM_RANK_INFO[itemRank(item)].label] : [])];
 const normCats = (arr) => (arr || []).map((c) => (typeof c === "string" ? c.trim().toLowerCase() : "")).filter(Boolean);
 export const itemMatchesPedestal = (item, cats, logic) => {
   const filters = normCats(cats);
   if (!filters.length) return true; // no filter set = "search all items"
-  const itemCats = normCats(item && item.categories);
+  const itemCats = normCats(itemTagList(item));
   const has = (f) => itemCats.includes(f);
   return logic === "and" ? filters.every(has) : filters.some(has);
 };
@@ -5801,7 +5806,7 @@ export const enemyThrowVelocity = (gapPx, maxRangePx, g, face) =>
 export const enemyAttackDamage = (ea, weapon) => {
   const str = ea?.stats?.strength ?? 5;
   if (weapon) {
-    const base = (weapon.damage ?? 5) * tagDamageMultiplier(ea && ea.effects, weapon.categories);
+    const base = (weapon.damage ?? 5) * tagDamageMultiplier(ea && ea.effects, itemTagList(weapon));
     return isRanged(weapon.wtype) ? playerRangedDamage(base) : playerMeleeDamage(base, str);
   }
   if (isCreatureUnit(ea)) return creatureMeleeDamage(str);          // jaws/claws: Strength IS the damage
@@ -18401,7 +18406,7 @@ export default function AssetStudio({ game = false } = {}) {
             char: playtestWeapon.projectile?.char || DEFAULT_SHOT_CHAR, tint: playtestWeapon.projectile?.tint || null,
             pieces: drawnPieces && drawnPieces.length ? drawnPieces : null, hitbox: hitboxPiece, rot: Math.atan2(vy, vx) * 180 / Math.PI,
             alpha: assetAlpha(projAsset || playtestWeapon), // 👻 the Projectile asset's Translucent (an old gun drew its round itself, so then the gun's)
-            size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), playtestWeapon.categories)), // 🏹 worn Tag Damage × a 🧪 timed one still running
+            size: sizeUnits, damage: playtestWeapon.resurrect ? 0 : Math.round((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), itemTagList(playtestWeapon))), // 🏹 worn Tag Damage × a 🧪 timed one still running
             stun: playtestWeapon.resurrect ? 0 : (playtestWeapon.stun ?? 0), life: 0, resurrect: !!playtestWeapon.resurrect,
             ignite: playtestWeapon.resurrect ? 0 : (playtestWeapon.ignite ?? 0), igniteDps: playtestWeapon.igniteDps ?? DEFAULT_IGNITE_DPS, ...shotStatusOf(playtestWeapon), // ❄️ its ice rides the round too
             ignoreArmor: !playtestWeapon.resurrect && !!playtestWeapon.ignoreArmor, pierce: playerShotsPierce, homing: shotHomes(playtestWeapon, playerAsset?.effects), snd: playtestWeapon, // snd: whose 🔊 Hit plays where it lands
@@ -18753,7 +18758,7 @@ export default function AssetStudio({ game = false } = {}) {
                     // 2x Strength the AI bites you with, because a creature's jaws should not be
                     // worth a different number depending on who is holding the controls.
                     const base = (!unarmedSwing && playtestWeapon)
-                      ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), playtestWeapon.categories), strength)
+                      ? playerMeleeDamage((playtestWeapon.damage ?? 5) * tagDamageMultiplier(withTimedTagBoosts(playerAsset?.effects, itemBuffs.current, nowT), itemTagList(playtestWeapon)), strength)
                       : isCreatureUnit(basePlayerAsset)
                       ? creatureMeleeDamage(strength)
                       : playerMeleeDamage(UNARMED_DAMAGE * meleeBoostOf(playtestWeapon), strength); // 🦍 a Melee-boost gun (DK Arms) punches harder
@@ -24110,7 +24115,7 @@ export default function AssetStudio({ game = false } = {}) {
   const propShelfList = propStampCat ? ((propGroupsAll.find((g) => g.key === propStampCat) || { props: [] }).props) : propGroupsAll.flatMap((g) => g.props);
   const pickedPropStamp = propShelfList.find((a) => a.id === propStampPick) || null;
   const pickedPropFrames = pickedPropStamp ? (pickedPropStamp.frames || []).length : 0;
-  const catSuggest = useMemo(() => [...new Set(allAssets.filter(HAS_CATEGORIES).flatMap((a) => (a.categories || []).map((c) => (c || "").trim()).filter(Boolean)))].sort((a, b) => NUMERIC_COLLATOR.compare(a, b)), [allAssets]);
+  const catSuggest = useMemo(() => [...new Set(allAssets.filter(HAS_CATEGORIES).flatMap((a) => itemTagList(a).map((c) => (c || "").trim()).filter(Boolean)))].sort((a, b) => NUMERIC_COLLATOR.compare(a, b)), [allAssets]);
   // Hoisted to component scope (not inside the level-screen block) because BOTH commit paths
   // need it: the status-strip destination buttons AND selectLayer below — clicking a layer tab
   // while a region is picked up is the most natural way to say "put it there", and the original
