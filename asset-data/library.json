@@ -1553587,6 +1553587,39 @@
        "glowColor": "#ffd76b",
        "bright": 1
       }
+     },
+     {
+      "id": "teebs03",
+      "kind": "star",
+      "x": 127,
+      "y": 102,
+      "w": 30,
+      "h": 30,
+      "color": "#c8a23c",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      }
+     },
+     {
+      "id": "teebs04",
+      "kind": "rect",
+      "x": 142,
+      "y": 95.5,
+      "w": 44,
+      "h": 57.5,
+      "color": "#40e0d0",
+      "mirror": false,
+      "fx": {
+       "opacity": 1,
+       "glow": 0,
+       "glowColor": "#ffd76b",
+       "bright": 1
+      },
+      "isCutter": true
      }
     ],
     "up": [
@@ -1553983,6 +1554016,39 @@
         "glowColor": "#ffd76b",
         "bright": 1
        }
+      },
+      {
+       "id": "teebs03",
+       "kind": "star",
+       "x": 127,
+       "y": 102,
+       "w": 30,
+       "h": 30,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "teebs04",
+       "kind": "rect",
+       "x": 142,
+       "y": 95.5,
+       "w": 44,
+       "h": 57.5,
+       "color": "#40e0d0",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "isCutter": true
       }
      ],
      "up": [
@@ -1554398,6 +1554464,112 @@
         "glowColor": "#ffd76b",
         "bright": 1
        }
+      },
+      {
+       "id": "teegs03",
+       "kind": "star",
+       "x": 114.5,
+       "y": 99,
+       "w": 27,
+       "h": 27,
+       "color": "#c8a23c",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       }
+      },
+      {
+       "id": "teegs04",
+       "kind": "rect",
+       "x": 129.5,
+       "y": 117,
+       "w": 10,
+       "h": 10,
+       "color": "#40e0d0",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 37,
+       "isCutter": true
+      },
+      {
+       "id": "teegs05",
+       "kind": "rect",
+       "x": 128,
+       "y": 123,
+       "w": 10,
+       "h": 10,
+       "color": "#40e0d0",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 0,
+       "isCutter": true
+      },
+      {
+       "id": "teegs06",
+       "kind": "rect",
+       "x": 132,
+       "y": 107.5,
+       "w": 17.5,
+       "h": 13.5,
+       "color": "#40e0d0",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 15,
+       "isCutter": true
+      },
+      {
+       "id": "teegs07",
+       "kind": "rect",
+       "x": 136.5,
+       "y": 91.5,
+       "w": 14,
+       "h": 21,
+       "color": "#40e0d0",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 79,
+       "isCutter": true
+      },
+      {
+       "id": "teegs08",
+       "kind": "rect",
+       "x": 131.5,
+       "y": 85.5,
+       "w": 28,
+       "h": 25.5,
+       "color": "#40e0d0",
+       "mirror": false,
+       "fx": {
+        "opacity": 1,
+        "glow": 0,
+        "glowColor": "#ffd76b",
+        "bright": 1
+       },
+       "rot": 69,
+       "isCutter": true
       }
      ],
      "up": [
@@ -1554615,7 +1554787,7 @@
     "oipvf3l"
    ],
    "effects": [],
-   "savedAt": 1793442347590,
+   "savedAt": 1793447541483,
    "statBoosts": {
     "hp": 1,
     "speed": 0,
@@ -1554630,7 +1554802,8 @@
     "Concert"
    ],
    "value": 5,
-   "rank": "common"
+   "rank": "common",
+   "editedFrom": 1793442347590
   },
   {
    "id": "rkguitr",

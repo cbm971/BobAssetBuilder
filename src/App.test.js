@@ -371,6 +371,7 @@ import {
   advanceBlock,
   blockStopsHit,
   duplicateSelectedPieces,
+  copyPiecesToPose,
   ENEMY_ITEM_DROP_CHANCE,
   ENEMY_GEAR_DROP_CHANCE,
   DEFAULT_DROP_WEIGHT,
@@ -1160,6 +1161,33 @@ describe("copying blocks and groups", () => {
     expect(copies.map((piece) => [piece.x, piece.y])).toEqual([[14, 16], [24, 36]]);
     expect(copies.map((piece) => piece.fx)).toEqual([pieces[0].fx, pieces[2].fx]);
     expect(copies).toHaveLength(2);
+  });
+
+  test("copy to another pose adds the blocks where they were drawn, without touching either pose's other blocks", () => {
+    const star = { id: "star", kind: "star", x: 85, y: 102, w: 30, h: 30, fx: { opacity: 1 } };
+    const sideBody = { id: "torso", kind: "rect", x: 59, y: 88, w: 83, h: 90 };
+    const asset = { angles: { front: [{ id: "shirt", x: 58, y: 88, locked: true, role: "x" }, star], side: [sideBody] } };
+    const res = copyPiecesToPose(asset, "front", "side", ["star"], () => "star2");
+    expect(res.ids).toEqual(["star2"]);
+    expect(res.asset.angles.side).toEqual([sideBody, { ...star, id: "star2" }]);
+    expect(res.asset.angles.front).toBe(asset.angles.front);
+    res.asset.angles.side[1].fx.opacity = 0.5;
+    expect(star.fx.opacity).toBe(1);
+  });
+
+  test("a copied game part arrives as a plain block, and a saved group made of copied blocks comes along", () => {
+    const asset = {
+      angles: { front: [{ id: "a", x: 1, y: 1, locked: true, role: "weaponArm" }, { id: "b", x: 2, y: 2 }, { id: "c", x: 3, y: 3 }], up: [] },
+      groups: { front: [{ id: "g1", name: "Logo", ids: ["b", "c"] }, { id: "g2", name: "Other", ids: ["c", "z"] }] },
+    };
+    let n = 0;
+    const res = copyPiecesToPose(asset, "front", "up", ["c", "b", "a"], () => "n" + (++n));
+    expect(res.asset.angles.up.map((p) => p.id)).toEqual(["n1", "n2", "n3"]);
+    expect(res.asset.angles.up[0].locked).toBeUndefined();
+    expect(res.asset.angles.up[0].role).toBeUndefined();
+    expect(res.asset.groups.up).toEqual([{ id: "n4", name: "Logo", ids: ["n2", "n3"] }]);
+    expect(res.asset.groups.front).toBe(asset.groups.front);
+    expect(copyPiecesToPose(asset, "front", "front", ["b"], () => "x").asset).toBe(asset);
   });
 });
 

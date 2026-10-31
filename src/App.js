@@ -6489,6 +6489,24 @@ export const duplicateSelectedPieces = (pieces, selectedIds, makeId, offset = 12
     };
   });
 };
+// COPY A BLOCK INTO ANOTHER POSE (2026-10-31, Blake: "add a way for me to copy a block from one pose
+// and add it to another" — half the Band Tee's star on its Side pose, trimmed with a cutter). 📋 Copy
+// block only ever duplicated inside the pose you were on, and ⧉ copy to other poses OVERWRITES whole
+// poses, so one logo could not travel without redrawing it or wiping the target. This ADDS the
+// selected blocks to `to`, on top of what is there, at the SAME position (every pose shares the
+// 200x260 canvas). They are independent copies: fresh ids, and no `locked`/`role`, because the target
+// pose already has its own game-needed parts. A saved group made only of copied blocks comes along.
+// `makeId` is asked for the copies first, in their source order, then for any groups.
+export const copyPiecesToPose = (asset, from, to, ids, makeId) => {
+  const src = (asset.angles && asset.angles[from]) || [];
+  const copies = duplicateSelectedPieces(src, ids, makeId, 0).map(({ locked, role, ...p }) => p);
+  if (!copies.length || from === to) return { asset, ids: [] };
+  const wanted = new Set(ids);
+  const idMap = new Map(src.filter((p) => wanted.has(p.id)).map((p, i) => [p.id, copies[i].id]));
+  const carried = ((asset.groups && asset.groups[from]) || []).filter((g) => g.ids.length > 1 && g.ids.every((id) => idMap.has(id)));
+  const groups = carried.length ? { ...(asset.groups || {}), [to]: [...((asset.groups && asset.groups[to]) || []), ...carried.map((g) => ({ ...g, id: makeId(), ids: g.ids.map((id) => idMap.get(id)) }))] } : asset.groups;
+  return { asset: { ...asset, angles: { ...asset.angles, [to]: [...(asset.angles[to] || []), ...copies] }, ...(groups ? { groups } : {}) }, ids: copies.map((p) => p.id), idMap };
+};
 
 // Geometry shared by group corner-resize and the Width/Height sliders. Scaling transformed box
 // EDGES (rather than independently rounding each centre and size) keeps touching pieces touching.
@@ -13719,6 +13737,13 @@ export default function AssetStudio({ game = false } = {}) {
   const [propStampPick, setPropStampPick] = useState("");
   const [propStampFrame, setPropStampFrame] = useState(0);
   useEffect(() => { setGroupIds([]); setMultiSelect(false); }, [angle, asset?.id]);
+  // A group copied into another pose (copyToPose) arrives selected. The reset just above clears the
+  // group on every pose change, so the copies' ids wait here and are put back after it runs.
+  // The pose row it is picked from is buttons, not a <select>: a select acts on every arrow-key step,
+  // and two Down presses copied the block into Back and then that copy on into Front.
+  const poseCopySel = useRef(null);
+  const [copyBlockOpen, setCopyBlockOpen] = useState(false);
+  useEffect(() => { setCopyBlockOpen(false); const ids = poseCopySel.current; poseCopySel.current = null; if (ids) setGroupIds(ids); }, [angle, asset?.id]);
   const [newColor, setNewColor] = useState("#7aa2d6");
   const [newFx, setNewFx] = useState(defaultFx()); // brightness/glow/fade for the NEXT block created — the eyedropper feeds this too, alongside newColor
   const [eyedrop, setEyedrop] = useState(false); // eyedropper mode: next block clicked donates its color instead of being selected/picked up
@@ -20707,6 +20732,26 @@ export default function AssetStudio({ game = false } = {}) {
       selectOnly(copies[0].id);
       flash("Copied block with its effects.");
     }
+  };
+  // 📋 Copy block to… another pose (copyPiecesToPose), then go there with the copies selected, ready
+  // to drag or cut. The ids are made out here so the updater hands back the same ones on a re-run.
+  const copyToPose = (to) => {
+    if (!sel || !to || to === angle) return;
+    const sourceIds = groupSel ? groupIds : [selId];
+    const order = pieces.filter((p) => sourceIds.includes(p.id));
+    const fresh = order.map(() => uid());
+    if (!fresh.length) return;
+    setAsset((a) => {
+      if (HAS_FIT_VARIANTS(a) && !effEdit) dirtyGuides.current.add(a.guideId || "default");
+      let i = 0;
+      return copyPiecesToPose(a, angle, to, sourceIds, () => (i < fresh.length ? fresh[i++] : uid())).asset;
+    });
+    poseCopySel.current = fresh.length > 1 ? fresh : null;
+    setMultiSelect(false);
+    setAngle(to); setSelId(fresh[Math.max(0, order.findIndex((p) => p.id === selId))]);
+    if (poseCopySrc === to) setPoseCopySrc(null);
+    closeCopyTo(); setCopyBlockOpen(false);
+    flash(fresh.length > 1 ? "Copied group into " + ALABEL[to] + " — " + fresh.length + " blocks." : "Copied block into " + ALABEL[to] + ".");
   };
   const remove = () => {
     if (!sel) return;
@@ -29948,7 +29993,11 @@ export default function AssetStudio({ game = false } = {}) {
               <label className="slider">Fade<input type="range" min="0.1" max="1" step="0.05" value={sel.fx?.opacity ?? 1} onChange={(e) => updFx({ opacity: +e.target.value })} onBlur={endColorDrag} /></label>
               <label className="slider">Glow<input type="range" min="0" max="12" step="0.5" value={sel.fx?.glow ?? 0} onChange={(e) => updFx({ glow: +e.target.value })} onBlur={endColorDrag} /><input type="color" className="gc" value={sel.fx?.glowColor ?? "#ffd76b"} onChange={(e) => updFx({ glowColor: e.target.value })} onBlur={endColorDrag} /></label>
               <label className="slider">Brightness<input type="range" min="0.3" max="2" step="0.05" value={sel.fx?.bright ?? 1} onChange={(e) => updFx({ bright: +e.target.value })} onBlur={endColorDrag} /></label>
-              <div className="btns"><button onClick={toFront}>Bring to front</button><button onClick={toBack}>Send to back</button><button onClick={duplicate}>📋 {groupSel ? "Copy group" : "Copy block"}</button>{(!sel.locked || groupSel) && <button className="danger" onClick={remove}>{groupSel ? "Delete group" : "Delete"}</button>}</div>
+              <div className="btns"><button onClick={toFront}>Bring to front</button><button onClick={toBack}>Send to back</button><button onClick={duplicate}>📋 {groupSel ? "Copy group" : "Copy block"}</button>{(!sel.locked || groupSel) && <button className="danger" onClick={remove}>{groupSel ? "Delete group" : "Delete"}</button>}
+                {!effEdit && asset.type !== "prop" && copyTargets.length > 0 && (<>
+                  <button className={"copypose" + (copyBlockOpen ? " on" : "")} onClick={() => setCopyBlockOpen((o) => !o)}>📋 {groupSel ? "Copy group" : "Copy block"} to… {copyBlockOpen ? "▴" : "▾"}</button>
+                  {copyBlockOpen && <div className="copyposes">{copyTargets.map((ag) => <button key={ag} onClick={() => copyToPose(ag)}>{ALABEL[ag]}</button>)}</div>}
+                </>)}</div>
             </div>
           ) : null}
 
@@ -30403,6 +30452,8 @@ html,body{margin:0;padding:0;background:#0f1117}
 .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
 .btns button{background:#1f2433;border:1px solid #2c3245;border-radius:10px;padding:10px;cursor:pointer;font-size:13px}
 .btns button:hover{border-color:#4f7cf6}.btns .danger{border-color:#5a2e36;color:#ff9b9b}.btns .danger:hover{background:#3a2024}
+.btns .copypose{grid-column:1 / -1}.btns .copypose.on{border-color:#4f7cf6}
+.btns .copyposes{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px}.btns .copyposes button{flex:1 1 0;padding:8px 6px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{width:34px;height:34px;border:1px solid #2c3245;border-radius:9px;background:#1f2433;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;overflow:hidden}
 .chip.on{border-color:#4f7cf6;box-shadow:0 0 0 2px #26304d}.chip .dot{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center}
