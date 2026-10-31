@@ -5607,3 +5607,23 @@ Forest M9 in the same pane.
 - Robert (`yio5pe2`, wearing `DALE HAT` `7ezvexo` and `Dale Undies` `6cq54nw`) sat ~20 px to the right in his roster box, shifted right on the P1 card, and had 4 px speck heads on the difficulty buttons. Both garments carry single-digit `"3"` `kind:"text"` pieces inside 134.5-wide flex wrappers (`x = -0.96..133.5` on the undies, `36..172` on the hat), giving the uncropped sprite `x = -0.96..172` (`cx = 85.5` instead of `100`). In addition, rolling `Dino Tail Pants` (`dinotl1`, `x = 22.4..141`) in `gameDressed` shoved any fighter's portrait off-centre, and `.gFighterArt` passed outer `box` instead of `box - 8` inside `.gFighter`'s 4 px border. Fixed: `textPieceBox` inside `pieceDrawnBounds` crops `kind:"text"` bounds to the centred glyphs (applied in `gameArt`, `gameHead` and `groundArt`), character portraits (`frac < 1`) centre horizontally on the body (`!pc._slot`), and `.gFighterArt` / `.ubArt` size to `box - 8`.
 - Adding the 11th starter left `selectGridCols(11)` at 5 (`ceil(sqrt(11)*1.4) = 5`), dropping the roster from 2 rows to 3 (shrinking `box` by a third and adding 4 Coming Soon boxes), while `frac = 0.3` pressed hair/hats to the top border and filled Coming Soon wall-to-wall past Bob's 112-unit shoulders. `selectGridCols` now widens up to 6 before adding a third row (11–12 starters = 6×2), fighter portraits use `FIGHTER_PORTRAIT_FRAC` (0.36), and Coming Soon uses `SOON_PORTRAIT_FRAC` (0.52, wider than Bob's shoulders with green margin over his head).
 - Added `{ name: "robert", items: 200 }` to `STARTER_LOCKS`. Verified in headless Edge at 2752×1152 and 3084×871 against `origin/saves:library.json`, both locked (`Unlock 200 Items 0 / 200`) and unlocked (200 items seeded in `bobOkayGame`).
+
+## 🌴 Forest M12, the Agility trees (2026-10-31)
+
+Blake: "Do you see how on Forest M11 I have a ladder that you can only access with high AGI or
+something? also M1 has parcor elements. Can you please make a forest, dense M12 level with some type
+of parcor element that rewards high agi? Also note that I always add ramps when you have rough
+looking dirt to grass etc textures."
+
+- His M11 ladder's bottom is 4 rows over a standing head. Measured in a playtest with one look whose
+  Agility was changed live: Agility 6 rises 120.0 px and does NOT catch it (the head has to get
+  inside the cell), 7 rises 147 and does. That is why the gates are whole rows: 4 rows = 7,
+  5 rows = 8 (7 is 3 px short), 6 rows = 9 (8 is 6 px short).
+- Three traps found before building, all because a jump keeps the run it left with: a sideways leap
+  from a hang to a deck gates on Speed, not Agility; a missed jump off monkey bars is caught again
+  near the top of the bar row, a row higher than the first try; and a ladder's top pins your feet a
+  row above the deck it serves, so the banyan's upper limb roofs ladder 1 one row over a standing
+  head (the top of the climb leaves the head 0.02-0.9 px under it).
+- The ground seams: each patch of laterite/loam/earth is bounded by straight run-1 diagonals, the
+  crossed cells ramps of one ground over a block of the other, as he paints them by hand on M10/M11
+  (a ramp over a block walks as the block, fd5c29e).
