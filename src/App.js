@@ -10,7 +10,7 @@ import { SOUND_EVENTS, assetSoundSlots, withAssetSound, SOUND_BOARD_ID, newSound
 // unlocks — is this same component started with `game` (src/index.js, at the /game address). Its
 // rules and store are src/gameFront.js and its screens src/gameShell.js; the GAME FRONT END block
 // after startRun is where it meets the run engine.
-import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors, newlyUnlocked, UNLOCK_BANNER_MS } from "./gameFront";
+import { GAME_KEYS, createGameStore, sortGameSaves, upsertGameSave, dropGameSave, makeGameSave, newGameSaveId, resumeNodeKey, scorePlaySecs, pickStartLook, normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone, recordMet, gameAddressFor, difficultyOf, deathEndsRun, runLivesLeft, GAME_MENU_CLICK_GAIN, menuLevelLineup, sceneLevelFor, sceneSurface, sceneTopRow, sceneGroundRow, MENU_GROUND_BAND, withPlannedFloors, newlyUnlocked, UNLOCK_BANNER_MS, FIGHTER_PORTRAIT_FRAC } from "./gameFront";
 import { GameShell, GamePause, MENU_PHASE_STEPS } from "./gameShell";
 // SYMBOLS (2026-10-14): every interface emoji is drawn as a picked symbol by a font built in the
 // browser — see src/symbols.js for how and why, and the Symbols screen for where the picks are made.
@@ -10975,11 +10975,22 @@ export const pieceBox = (p) => ({ x: p.x, y: p.y, w: p.w, h: p.h, rot: p.rot || 
 // units above the box. Sizing an item from the unturned boxes made the pedestal's art box too small
 // for the art, then clipped the overhang (overflow:hidden) — the handle came out a third of its length.
 // Same turn-then-mirror order as animActorParts / Static.
+// A text piece centres its glyphs inside p.w × p.h at font-size 0.8 * p.h (textInner) and clips to
+// p.w. A single digit ("3" on DALE HAT / Dale Undies) in a 134-wide box paints ~15 units in the
+// middle and 120 units of empty air; measuring the whole box shoved Robert 15 units off-centre on
+// Character Select and shrank his life head and DALE HAT to half size.
+export const textPieceBox = (p) => {
+  if (!p || p.kind !== "text") return p;
+  const n = Math.max(1, String(p.text || "TEXT").length);
+  const tw = Math.min(p.w, Math.max(p.h * 0.6, n * p.h * 0.68));
+  return { x: p.x + (p.w - tw) / 2, y: p.y, w: tw, h: p.h };
+};
 export const pieceDrawnBounds = (p) => {
   const [fx, fy] = pieceOriginFrac(p), ox = p.x + fx * p.w, oy = p.y + fy * p.h, mir = !!p._m;
+  const b = p.kind === "text" ? textPieceBox(p) : p;
   const r = ((mir && p.mirrorTwist === false ? -(p.rot || 0) : (p.rot || 0)) * Math.PI) / 180, c = Math.cos(r), sn = Math.sin(r);
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const [x, y] of [[p.x, p.y], [p.x + p.w, p.y], [p.x + p.w, p.y + p.h], [p.x, p.y + p.h]]) {
+  for (const [x, y] of [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]]) {
     const dx = x - ox, dy = y - oy, px = ox + (dx * c - dy * sn) * (mir ? -1 : 1), py = oy + dx * sn + dy * c;
     x0 = Math.min(x0, px); y0 = Math.min(y0, py); x1 = Math.max(x1, px); y1 = Math.max(y1, py);
   }
@@ -24721,16 +24732,29 @@ export default function AssetStudio({ game = false } = {}) {
       const pose = a.type === "enemy" && src.angles && (src.angles.side || []).length ? "side" : displayPoseKey(src);
       const pieces = (src.angles ? bake(src, pose) : []).filter((pc) => !pc.isHitbox && !pc.isMuzzle);
       const drawn = pieces.filter((pc) => !pc.isCutter);
-      let bb = null;
-      if (drawn.length) { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const pc of drawn) { x0 = Math.min(x0, pc.x); y0 = Math.min(y0, pc.y); x1 = Math.max(x1, pc.x + pc.w); y1 = Math.max(y1, pc.y + pc.h); } bb = { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) }; }
-      hit = { src: a, pieces, bb };
+      const spanOf = (list) => {
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (const pc of list) { const t = pieceDrawnBounds(pc); x0 = Math.min(x0, t.x); y0 = Math.min(y0, t.y); x1 = Math.max(x1, t.x + t.w); y1 = Math.max(y1, t.y + t.h); }
+        return { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
+      };
+      const bb = drawn.length ? spanOf(drawn) : null;
+      // A portrait (frac < 1) centres horizontally on the BODY, not the costume: a rolled pair of
+      // Dino Tail Pants sticks out past the left hip, and a text box on Dale Undies / DALE HAT ran
+      // 65 units into empty air — neither belongs in where the face sits in its box.
+      const bodyDrawn = a.type === "character" ? drawn.filter((pc) => !pc._slot) : [];
+      const bodyBb = bodyDrawn.length ? spanOf(bodyDrawn) : bb;
+      hit = { src: a, pieces, bb, headCx: bodyBb ? bodyBb.x + bodyBb.w / 2 : 0 };
       gameArtCache.current.set(a.id, hit);
     }
     if (!hit.bb) return null;
-    const fh = hit.bb.h * Math.max(0.2, Math.min(1, frac));
-    const sc = frac < 1 ? (px / fh) * 0.9 : Math.min(px / hit.bb.w, px / fh) * 0.9;
-    const midY = frac < 1 ? px * 0.46 : px / 2; // a portrait sits a little high: the name plate covers the box's foot
-    const plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${px / 2 - sc * (hit.bb.x + hit.bb.w / 2)}px,${midY - sc * (hit.bb.y + fh / 2)}px) scale(${sc})` };
+    const f = Math.max(0.2, Math.min(1, frac));
+    const fh = hit.bb.h * f;
+    const sc = f < 1 ? (px / fh) * 0.9 : Math.min(px / hit.bb.w, px / fh) * 0.9;
+    // A portrait sits above the name plate, and drops slightly as `frac` zooms out so Coming Soon
+    // leaves green space over Bob's hair to match the green space round his shoulders.
+    const midY = f < 1 ? px * Math.min(0.56, 0.36 + f * 0.38) : px / 2;
+    const cx = f < 1 && a.type === "character" ? hit.headCx : hit.bb.x + hit.bb.w / 2;
+    const plane = { position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0", transform: `translate(${px / 2 - sc * cx}px,${midY - sc * (hit.bb.y + fh / 2)}px) scale(${sc})` };
     return <div style={plane}>{renderPieceRuns({ pieces: hit.pieces, cacheKey: "unl_" + a.id, keyPrefix: "unl" + a.id + "_", alpha: assetAlpha(a), drawPiece: (pc, kk, cut) => Static(pc, null, false, !!pc._m, kk, undefined, cut) })}</div>;
   };
   // A LIFE OF THE RUN: the HEAD alone — the front drawing cut at the neck (the rig's own shoulder
@@ -24756,13 +24780,14 @@ export default function AssetStudio({ game = false } = {}) {
       const drawn = pieces.filter((pc) => !pc.isCutter);
       let bb = null;
       if (drawn.length) {
-        const top = Math.min(...drawn.map((pc) => pc.y)), foot = Math.max(...drawn.map((pc) => pc.y + pc.h));
+        const bounds = drawn.map(pieceDrawnBounds);
+        const top = Math.min(...bounds.map((t) => t.y)), foot = Math.max(...bounds.map((t) => t.y + t.h));
         const shs = a.shoulder || (rig && rig.shoulder); // a composed look may not carry its rig; the saved look does
         const sh = shs && (shs[pose] || shs.front);
         const neck = sh && sh.y > top + 4 ? sh.y : top + (foot - top) * 0.3;
-        const above = drawn.filter((pc) => pc.y < neck - 1);
+        const above = bounds.filter((t) => t.y < neck - 1);
         if (above.length) {
-          const x0 = Math.min(...above.map((pc) => pc.x)), x1 = Math.max(...above.map((pc) => pc.x + pc.w));
+          const x0 = Math.min(...above.map((t) => t.x)), x1 = Math.max(...above.map((t) => t.x + t.w));
           bb = { x: x0, y: top, w: Math.max(1, x1 - x0), h: Math.max(1, neck - top) };
         }
       }
@@ -25020,14 +25045,14 @@ export default function AssetStudio({ game = false } = {}) {
   // the character select draws it (dressed look on the panel green), then their name.
   gameAssetsRef.current = allAssets;
   const unlockBannerEl = unlockBanner && (() => {
-    const nm = String(unlockBanner.look.name || ""), box = 120;
+    const nm = String(unlockBanner.look.name || ""), box = 120, artBox = box - 8;
     const px = (len) => (len > 22 ? 20 : len > 15 ? 26 : len > 10 ? 32 : 38);
     return (
       <div key={"unlock" + unlockBanner.n} className="unlockBanner pbRank-mystic">
         <div className="pbBurst" />
         <div className="pbName" data-text="Unlocked" style={{ fontSize: 40 }}><span>Unlocked</span></div>
         <div className="ubBox" style={{ width: box, height: Math.round(box * 1.12) }}>
-          <div className="ubArt" style={{ width: box, height: box }}>{gameArt(gameDressed(unlockBanner.look), box, 0.3)}</div>
+          <div className="ubArt" style={{ width: artBox, height: artBox }}>{gameArt(gameDressed(unlockBanner.look), artBox, FIGHTER_PORTRAIT_FRAC)}</div>
         </div>
         <div className="pbName" data-text={nm} style={{ fontSize: px(nm.length) }}><span>{nm}</span></div>
       </div>

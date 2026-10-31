@@ -6,7 +6,7 @@ import {
   normalizeGameOptions, GAME_OPTIONS_DEFAULT, newGameRecord, normalizeGameRecord, recordFound, recordDefeated, recordFloorDone,
   unlockPool, createGameStore, starterLooks, selectGridCols, gridStep, DIFFICULTIES, difficultyOf, runLivesLeft, deathEndsRun,
   pickMenuLevel, sceneSurface, sceneTopRow, stepMenuWalker, MENU_SCENE_PROP_CAP, menuLevelScore, menuLevelLineup, sceneLevelFor, MENU_SCENE_VIEWS,
-  starterLock, STARTER_LOCKS, starterStats, floorMark, floorIcon, withPlannedFloors, lookFloorMedals, newlyUnlocked, recordMet, starterRoster, selectGridFill,
+  starterLock, STARTER_LOCKS, starterStats, floorMark, floorIcon, withPlannedFloors, lookFloorMedals, newlyUnlocked, recordMet, starterRoster, selectGridFill, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC,
 } from "./gameFront";
 import fs from "fs";
 import path from "path";
@@ -179,10 +179,15 @@ describe("the character select (2026-10-18)", () => {
     expect(r.map((a) => a.name)).toEqual(["Bob", "Bobette", "Rob"]);
     expect(starterLooks([])).toEqual([]);
   });
-  test("the grid is never wider than six and fits seven as 4 + 3", () => {
+  test("the grid is never wider than six, fits seven as 4 + 3, and widens to 6 before a third row", () => {
     expect(selectGridCols(7)).toBe(4);
+    expect(selectGridCols(10)).toBe(5);
+    expect(selectGridCols(11)).toBe(6);
+    expect(selectGridCols(12)).toBe(6);
     expect(selectGridCols(1)).toBe(2);
     expect(selectGridCols(40)).toBe(6);
+    expect(FIGHTER_PORTRAIT_FRAC).toBeGreaterThan(0.3);
+    expect(SOON_PORTRAIT_FRAC).toBeGreaterThan(FIGHTER_PORTRAIT_FRAC);
   });
   test("arrows: left/right wrap the list, up/down keep the column and land in a short last row", () => {
     expect(gridStep(7, 4, 3, 1, 0)).toBe(4);
@@ -293,7 +298,7 @@ describe("the menu's backdrop scene", () => {
 
 describe("locked starters", () => {
   const look = (name) => ({ id: name, type: "character", category: "Starter", name });
-  const items = Array.from({ length: 120 }, (_, i) => ({ id: "i" + i, type: i % 2 ? "weapon" : "equipment", name: "Item " + i }));
+  const items = Array.from({ length: 220 }, (_, i) => ({ id: "i" + i, type: i % 2 ? "weapon" : "equipment", name: "Item " + i }));
   const assets = [...items, { id: "dog", type: "enemy", name: "Dog" }];
   test("Bob and the rest are open from the start (Rob is not)", () => {
     for (const n of ["Bob", "Bobette", "Bobbi"]) expect(starterLock(look(n), newGameRecord(), assets)).toBeNull();
@@ -319,13 +324,20 @@ describe("locked starters", () => {
     r = { ...r, found: [...r.found, "i99"] };
     expect(starterLock(look("Robbie"), r, assets)).toBeNull();
   });
+  test("Robert opens at 200 ITEMS found", () => {
+    let r = newGameRecord();
+    for (let i = 0; i < 199; i++) r = { ...r, found: [...r.found, "i" + i] };
+    expect(starterLock(look("Robert"), r, assets)).toEqual({ need: "Unlock 200 Items", have: 199, of: 200 });
+    r = { ...r, found: [...r.found, "i199"] };
+    expect(starterLock(look("Robert"), r, assets)).toBeNull();
+  });
   test("Roberta opens only on Trailor Park finished AS Rob", () => {
     let r = recordFloorDone(newGameRecord(), "Trailor Park", 10, "Bob");
     expect(starterLock(look("Roberta"), r, assets).need).toBe("Complete Trailor Park as Rob");
     r = recordFloorDone(r, "Trailor Park", 10, "Rob");
     expect(r.floorsWith).toEqual({ "Trailor Park": ["bob", "rob"] });
     expect(starterLock(look("Roberta"), r, assets)).toBeNull();
-    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob", "viet bob", "bob li", "robbie"]);
+    expect(STARTER_LOCKS.map((l) => l.name)).toEqual(["bobby", "bobert", "roberta", "rob", "viet bob", "bob li", "robbie", "robert"]);
   });
   test("Rob is locked until the Trailor Park is beaten on Hard, by anyone", () => {
     let r = newGameRecord();

@@ -539,12 +539,15 @@ plus traps it does not cover:
   (Items-tab ids in `record.found`), Roberta = Trailor Park done AS Rob (`record.floorsWith`), Rob =
   Trailor Park on Hard, Viet Bob = Vietnam on Hard, Bob Li = the conversation NAMED "Bob Li" opened in
   a game (`record.met`, dialogue names, written by openTalk; the NPC is Chun Bobette so no other look
-  is named Bob Li), Robbie = 100 items found (same count as Bobert). Locked boxes show as a silhouette under
+  is named Bob Li), Robbie = 100 items found (same count as Bobert), Robert = 200 items found. Locked boxes show as a silhouette under
   a padlock, can be lit but not picked; the P1 card names what opens them. **Order** (`starterRoster`):
   every open fighter first (Bob, then A-Z), then the locked ones A-Z; an unlock moves a fighter up into
-  its alphabetical place. A short last row is finished with **Coming Soon** boxes (`selectGridFill`):
-  Bob as he would look LOCKED (his dressed silhouette, no padlock; he turned down a hollow outline of
-  his body), never selectable. **Back sits beside
+  its alphabetical place. `selectGridCols` widens up to 6 before adding a third row (11–12 starters = 6×2),
+  fighter portraits frame `FIGHTER_PORTRAIT_FRAC` (0.36) inside the inner `box - 8` window centred on the
+  body (not worn gear, and `textPieceBox` crops `kind:"text"` bounds to the centred glyphs so a wide text
+  wrapper on a hat/undies never shoves a fighter or life head off-centre), and **Coming Soon** boxes
+  (`selectGridFill`, `SOON_PORTRAIT_FRAC` 0.52) finish a short last row with Bob's dressed silhouette
+  zoomed out enough to show his head and shoulders, no padlock, never selectable. **Back sits beside
   START, under Easy** (his placement). Then **Easy 4 / Medium 2 / Hard 1 lives**
   (`DIFFICULTIES`). A death no 🐱 Extra Life catches costs one (`gameDeathRef`, called from
   `playerDefeated`; counted in the save as `deaths`); the last one freezes the loop and shows

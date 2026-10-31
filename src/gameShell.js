@@ -18,7 +18,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   GAME_MENU, menuStep, introRemainingMs, INTRO_OUT_MS, formatPlayTime, UNLOCK_TABS, unlockPool,
-  starterRoster, pickStartLook, selectGridCols, selectGridFill, gridStep, DIFFICULTIES, difficultyOf, stepMenuWalker, starterLock,
+  starterRoster, pickStartLook, selectGridCols, selectGridFill, FIGHTER_PORTRAIT_FRAC, SOON_PORTRAIT_FRAC, gridStep, DIFFICULTIES, difficultyOf, stepMenuWalker, starterLock,
   starterStats, lookFloorMedals,
 } from "./gameFront";
 
@@ -278,6 +278,7 @@ function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, 
   const [diff, setDiff] = useState(() => difficultyOf(difficulty).id);
   const cols = selectGridCols(roster.length);
   const box = Math.round(Math.max(92, Math.min(176, vp.w * 0.095, (vp.h * 0.36) / Math.ceil(Math.max(1, roster.length) / cols))));
+  const artBox = Math.max(1, box - 8); // .gFighter carries a 4px border on each side
   const cur = roster[Math.min(at, roster.length - 1)] || null;
   const locks = React.useMemo(() => roster.map((a) => starterLock(a, record, assets)), [roster, record, assets]);
   const soon = selectGridFill(roster.length, cols);
@@ -315,7 +316,7 @@ function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, 
           <div key={a.id + (i === at && locks[i] ? ":" + shake : "")} role="button" className={"gFighter" + (i === at ? " on" : "") + (i === at && step === "diff" ? " locked" : "") + (locks[i] ? " shut" : "") + (i === at && locks[i] && shake ? " no" : "")} style={{ width: box, height: Math.round(box * 1.12) }}
             onMouseEnter={() => { if (step === "fighter") setAt(i); }}
             onClick={() => { setAt(i); if (locks[i]) { refuse(); setStep("fighter"); return; } click(); setStep("diff"); }}>
-            <div className="gFighterArt" style={{ width: box, height: box }}>{renderDressed(a, box, 0.3)}</div>
+            <div className="gFighterArt" style={{ width: artBox, height: artBox }}>{renderDressed(a, artBox, FIGHTER_PORTRAIT_FRAC)}</div>
             {locks[i] && <div className="gFighterLock"><Padlock size={Math.round(box * 0.34)} /></div>}
             <div className="gFighterName" style={{ fontSize: Math.max(11, Math.round(box * 0.12)) }}><span>{a.name}</span></div>
             {i === at && <div className="gP1Tag">P1</div>}
@@ -323,7 +324,7 @@ function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, 
         ))}
         {Array.from({ length: soon }, (_, i) => (
           <div key={"soon" + i} className="gFighter shut gSoon" style={{ width: box, height: Math.round(box * 1.12) }}>
-            {soonLook && <div className="gFighterArt" style={{ width: box, height: box }}>{renderDressed(soonLook, box, 0.3)}</div>}
+            {soonLook && <div className="gFighterArt" style={{ width: artBox, height: artBox }}>{renderDressed(soonLook, artBox, SOON_PORTRAIT_FRAC)}</div>}
             <div className="gFighterName" style={{ fontSize: Math.max(10, Math.round(box * 0.085)) }}><span>Coming Soon</span></div>
           </div>
         ))}

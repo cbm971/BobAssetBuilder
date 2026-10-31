@@ -104,8 +104,15 @@ export const pickStartLook = (assets) => {
   const starters = looks.filter((a) => normName(a.category) === START_LOOK_FOLDER);
   return starters.find((a) => normName(a.name) === "bob") || looks.find((a) => normName(a.name) === "bob") || starters[0] || looks[0] || null;
 };
-// The Smash grid: as square as the roster allows, never wider than 6 boxes (7 starters = 4 + 3).
-export const selectGridCols = (n) => Math.max(1, Math.min(6, Math.ceil(Math.sqrt(Math.max(1, n)) * 1.4)));
+// The Smash grid: as square as the roster allows, never wider than 6 boxes (7 starters = 4 + 3),
+// widening up to 6 before adding a third row (11 or 12 starters = 6 + 5/6, not 5 + 5 + 1).
+export const selectGridCols = (n) => Math.max(1, Math.min(6, Math.max(Math.ceil(n / 2), Math.ceil(Math.sqrt(Math.max(1, n)) * 1.4))));
+// How much of a fighter's height fills a Character Select portrait box (`gameArt` `frac`), and how
+// much fills a Coming Soon silhouette box (Blake, 2026-10-31: zoomed out a touch from 0.3 so a
+// growing roster does not crowd the faces, and Coming Soon zoomed out further so Bob's head-and-
+// shoulders silhouette reads clearly inside the box).
+export const FIGHTER_PORTRAIT_FRAC = 0.36;
+export const SOON_PORTRAIT_FRAC = 0.52;
 // Arrow keys over that grid. Left/right wrap along the whole list; up/down keep the column, and a
 // step into the short last row lands on its last box rather than on nothing.
 export const gridStep = (n, cols, at, dx, dy) => {
@@ -425,6 +432,7 @@ export const STARTER_LOCKS = [
   { name: "viet bob", floor: "Vietnam", diff: "hard" }, // Blake (2026-10-24): "lock the VietBob Character behind beating the vietnam level on Hard"
   { name: "bob li", met: "Bob Li" }, // Blake (2026-10-24): open once the "Bob Li" conversation has been met in a game (record.met)
   { name: "robbie", items: 100 }, // Blake (2026-10-25): lock Robbie behind 100 items found (same rule as Bobert's 50)
+  { name: "robert", items: 200 }, // Blake (2026-10-31): lock Robert behind 200 items found
 ];
 const lockKey = (s) => normName(s).replace(/\s+/g, "");
 const floorKey = (s) => normName(s).replace(/[^a-z]/g, "").replace(/trailer/g, "trailor");

@@ -433,6 +433,7 @@ import {
   canEdgeSnap,
   boxPoint,
   pieceBox,
+  textPieceBox,
   pieceDrawnBounds,
   SNAP_DIST,
   cellRuns,
@@ -14788,6 +14789,15 @@ describe("pieceDrawnBounds", () => {
     const b = pieceDrawnBounds({ x: 0, y: 0, w: 10, h: 30, rot: 90 });
     expect(b.w).toBeCloseTo(30); expect(b.h).toBeCloseTo(10);
     expect(b.x + b.w / 2).toBeCloseTo(5); expect(b.y + b.h / 2).toBeCloseTo(15);
+  });
+  it("crops a text piece's drawn box to its centred glyphs instead of its full flex wrapper", () => {
+    const hat3 = { kind: "text", text: "3", x: 36, y: 15, w: 134.5, h: 21.5 };
+    const tb = textPieceBox(hat3);
+    expect(tb.w).toBeLessThan(20);
+    expect(tb.x + tb.w / 2).toBeCloseTo(36 + 134.5 / 2);
+    const hip3 = pieceDrawnBounds({ kind: "text", text: "3", x: -0.96, y: 169.9, w: 134.5, h: 21.5, rot: 8 });
+    expect(hip3.x).toBeGreaterThan(50);
+    expect(hip3.w).toBeLessThan(25);
   });
 });
 
