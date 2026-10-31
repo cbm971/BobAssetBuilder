@@ -6240,6 +6240,14 @@ export const itemAbilityNames = (it) => {
   }
   return out;
 };
+// The abilities a LOOK has, by name, for the character select's card (Blake, 2026-10-31: "list any
+// abilities the characters have", Super Bob's among them): what its worn gear grants (look.effects,
+// the compositor's union) and its weapon's. Names only, the same words the shop row uses.
+export const lookAbilityNames = (look) => {
+  const out = [];
+  for (const n of [...itemAbilityNames(look), ...(look && look.components && look.components.weapon ? itemAbilityNames(look.components.weapon) : [])]) if (!out.includes(n)) out.push(n);
+  return out;
+};
 export const pickupChangeRows = (item, ctx) => {
   if (!item) return [];
   const { held = null, before = null, after = null, off = null } = ctx || {};
@@ -25096,7 +25104,7 @@ export default function AssetStudio({ game = false } = {}) {
       <div className="bb gameMode"><style>{css}</style>
         <GameShell view={gameView === "play" ? "menu" : gameView} setView={setGameView} ready={gameReady}
           saves={gameSaves} options={gameOptions} setOptions={setGameOptions} record={gameRecord} assets={allAssets} renderArt={gameArt} renderDressed={(look, px, frac) => gameArt(gameDressed(look), px, frac)} renderHead={gameHead}
-          statIcon={(k, px) => sym(k, null, px)} floors={gameFloors} sceneFor={menuSceneFor}
+          statIcon={(k, px) => sym(k, null, px)} abilitiesOf={lookAbilityNames} floors={gameFloors} sceneFor={menuSceneFor}
           onStartGame={(look, diff) => gameNewGame(look, diff)} onLoad={gameLoadGame} onUpload={gameUploadFile} onDelete={(id) => putGameSaves(dropGameSave(gameSavesRef.current, id))}
           floorDone={gameFloorDone} onFloorDoneContinue={() => { setGameFloorDone(null); setGameView("menu"); }}
           gameOver={gameOverInfo} onRetry={gameRetry} onGameOverMenu={() => { setGameOverInfo(null); setGameView("menu"); }} note={gameNote} click={gameClick} />

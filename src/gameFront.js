@@ -104,11 +104,10 @@ export const pickStartLook = (assets) => {
   const starters = looks.filter((a) => normName(a.category) === START_LOOK_FOLDER);
   return starters.find((a) => normName(a.name) === "bob") || looks.find((a) => normName(a.name) === "bob") || starters[0] || looks[0] || null;
 };
-// The Smash grid: as square as the roster allows, never wider than 6 boxes (7 starters = 4 + 3),
-// widening up to 6 before adding a third row (11 or 12 starters = 6 + 5/6, not 5 + 5 + 1).
-// Thirteen to sixteen stay TWO rows, 7 or 8 wide (Blake, 2026-10-31: the thirteenth and fourteenth
-// starters made a third row and the whole select zoomed out; the boxes are sized by the row count).
-export const selectGridCols = (n) => (n > 12 && n <= 16 ? Math.ceil(n / 2) : Math.max(1, Math.min(6, Math.max(Math.ceil(n / 2), Math.ceil(Math.sqrt(Math.max(1, n)) * 1.4)))));
+// The Smash grid: FIVE boxes to a row, however long the roster (Blake, 2026-10-31: "There should be 5
+// playable characters per row"). A short last row is finished with Coming Soon boxes (selectGridFill).
+export const SELECT_GRID_COLS = 5;
+export const selectGridCols = (n) => (n > 0 ? SELECT_GRID_COLS : 1);
 // How much of a fighter's height fills a Character Select portrait box (`gameArt` `frac`), and how
 // much fills a Coming Soon silhouette box (Blake, 2026-10-31: zoomed out a touch from 0.3 so a
 // growing roster does not crowd the faces, and Coming Soon zoomed out further so Bob's head-and-
@@ -334,7 +333,7 @@ export const normalizeGameOptions = (o) => {
 // `met` is every conversation that has opened in a game, by the DIALOGUE's name (lower case) — Bob
 // Li unlocks on meeting Bob Li (Blake, 2026-10-24). The dialogue's name, not the speaker's: the NPC
 // who says it is called Chun Bobette so no look but the starter is named "Bob Li".
-// `picked` is every pickup, repeats and all (Super Bob opens at 500 collected); `kills` is every hostile
+// `picked` is every pickup (a record from before it was counted starts at the items already found), repeats and all (Super Bob opens at 500 collected); `kills` is every hostile
 // defeated and `rangedKills` the ones whose last blow was a shot or a throw (Agent Bob 1,000, Bob The Alien 500).
 export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, floorsDiff: {}, met: [], bestScore: 0, kills: 0, rangedKills: 0, picked: 0, games: 0 });
 export const diffRank = (id) => Math.max(1, DIFFICULTIES.findIndex((d) => d.id === difficultyOf(id).id) + 1);
@@ -351,7 +350,7 @@ export const normalizeGameRecord = (r) => {
     if (f && v && typeof v === "object") for (const who of Object.keys(v)) { const k = Math.round(Number(v[who])); if (who && k >= 1 && k <= DIFFICULTIES.length) o[who] = k; }
     if (Object.keys(o).length) fd[f] = o;
   }
-  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), floorsWith: fw, floorsDiff: fd, met: ids(r.met), bestScore: n(r.bestScore), kills: n(r.kills), rangedKills: n(r.rangedKills), picked: n(r.picked), games: n(r.games) };
+  return { found: ids(r.found), defeated: ids(r.defeated), floors: ids(r.floors), floorsWith: fw, floorsDiff: fd, met: ids(r.met), bestScore: n(r.bestScore), kills: n(r.kills), rangedKills: n(r.rangedKills), picked: r.picked === undefined ? ids(r.found).length : n(r.picked), games: n(r.games) };
 };
 // Returns the SAME object when nothing changed, so a caller can skip the write. A pickup of something
 // already found changes nothing but the count of pickups.

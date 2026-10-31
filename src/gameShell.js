@@ -266,7 +266,7 @@ const FloorMedal = ({ mark, icon, done, diff, size, title }) => (
 // Bob would look like if he was locked") — his dressed head as the same dark silhouette, but no
 // padlock, since nothing opens it. They are not fighters — the arrows and the mouse never land on one.
 // Back sits beside START, under Easy (Blake: "nestled between Easy and start").
-function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, floors, difficulty, onStart, back, click, vp }) {
+function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, abilitiesOf, floors, difficulty, onStart, back, click, vp }) {
   const roster = React.useMemo(() => {
     const s = starterRoster(assets, record);
     if (s.length) return s;
@@ -305,6 +305,8 @@ function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, 
   const p1NamePx = Math.round(Math.min(Math.max(26, Math.min(52, vp.w * 0.03)), (p1 * 0.82 * 0.86) / (Math.max(3, p1Name.length) * 0.9)));
   const stats = cur ? starterStats(cur) : [];
   const medals = cur ? lookFloorMedals(record, cur.name, floors) : [];
+  const abilities = cur && abilitiesOf ? abilitiesOf(cur) : [];
+  const silBlur = Math.max(2, Math.round(p1 * 0.009)); // the locked silhouette's smoothing, in px of the art box
   const statPx = Math.round(Math.max(16, Math.min(30, p1 * 0.072)));
   const medalPx = Math.round(Math.max(36, Math.min(68, p1 * 0.17)));
   const headPx = 18;
@@ -332,6 +334,7 @@ function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, 
       </div>
       <div className="gSelFoot">
         <div className="gP1Card" style={{ width: Math.round(p1 * 0.82), height: p1 }}>
+          {curLock && <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true"><filter id="gSilhouette" x="-5%" y="-5%" width="110%" height="110%" colorInterpolationFilters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" /><feGaussianBlur stdDeviation={silBlur} /><feComponentTransfer><feFuncA type="linear" slope="16" intercept="-7.5" /></feComponentTransfer></filter></svg>}
           {cur && <div className={"gP1Art" + (curLock ? " shut" : "")} style={{ width: Math.round(p1 * 0.82), height: Math.round(p1 * 0.82) }}>{renderDressed(cur, Math.round(p1 * 0.82))}</div>}
           {curLock && <div className="gP1Lock"><Padlock size={Math.round(p1 * 0.22)} /></div>}
           <div className="gP1Name" style={{ fontSize: p1NamePx }}><BobLogo text={p1Name} /></div>
@@ -354,6 +357,12 @@ function CharacterSelect({ assets, record, renderDressed, renderHead, statIcon, 
                 {medals.map((m) => <FloorMedal key={m.floor} mark={m.mark} icon={m.icon} done={m.done} diff={m.diff} size={medalPx} title={m.floor} />)}
               </div>
             )}
+          </div>
+        )}
+        {abilities.length > 0 && (
+          <div className="gPCard gAbil" style={{ height: p1, fontSize: statPx }}>
+            <div className="gAbilHead">Abilities</div>
+            <div className="gAbilList">{abilities.map((n) => <div key={n} className="gAbilRow">{n}</div>)}</div>
           </div>
         )}
         <div className={"gDiffBox" + (step === "diff" ? " live" : "")}>
@@ -616,7 +625,7 @@ export function GamePause({ onResume, onQuit, options, setOptions, click }) {
 }
 
 // ---------- the shell: whichever menu screen is up, over the scene ----------
-export function GameShell({ view, setView, ready, saves, options, setOptions, record, assets, renderArt, renderDressed, renderHead, statIcon, floors, sceneFor, onStartGame, onLoad, onUpload, onDelete, floorDone, onFloorDoneContinue, gameOver, onRetry, onGameOverMenu, note, click }) {
+export function GameShell({ view, setView, ready, saves, options, setOptions, record, assets, renderArt, renderDressed, renderHead, statIcon, abilitiesOf, floors, sceneFor, onStartGame, onLoad, onUpload, onDelete, floorDone, onFloorDoneContinue, gameOver, onRetry, onGameOverMenu, note, click }) {
   const toMenu = React.useCallback(() => setView("menu"), [setView]);
   const [menuAt, setMenuAt] = useState(0);
   const vp = useViewport();
@@ -630,7 +639,7 @@ export function GameShell({ view, setView, ready, saves, options, setOptions, re
       {sceneUp && <div className={"gScreen gStage" + (view === "menu" ? "" : " dim")}><SceneBackdrop key={scene ? scene.id : "none"} scene={scene} vp={vp} /></div>}
       {view === "title" && <TitleHandoff ready={ready} onDone={toMenu} />}
       {view === "menu" && <MainMenu go={setView} note={note} click={click} at={menuAt} setAt={setMenuAt} />}
-      {view === "select" && <CharacterSelect assets={assets} record={record} renderDressed={renderDressed} renderHead={renderHead} statIcon={statIcon} floors={floors} difficulty={options.difficulty} onStart={onStartGame} back={toMenu} click={click} vp={vp} />}
+      {view === "select" && <CharacterSelect assets={assets} record={record} renderDressed={renderDressed} renderHead={renderHead} statIcon={statIcon} abilitiesOf={abilitiesOf} floors={floors} difficulty={options.difficulty} onStart={onStartGame} back={toMenu} click={click} vp={vp} />}
       {view === "load" && <LoadGame saves={saves} onLoad={onLoad} onDelete={onDelete} back={toMenu} click={click} />}
       {view === "options" && <OptionsPanel options={options} setOptions={setOptions} back={toMenu} click={click} onUpload={onUpload} />}
       {view === "unlocks" && <Unlocks assets={assets} record={record} renderArt={renderArt} back={toMenu} click={click} />}
@@ -748,7 +757,7 @@ export const GAME_CSS = `
 @keyframes gNo{20%,60%{transform:translate(-5px,-4px)}40%,80%{transform:translate(5px,-4px)}}
 .gFighterLock,.gP1Lock{position:absolute;left:0;right:0;display:flex;justify-content:center;pointer-events:none;color:var(--gEdge);filter:drop-shadow(0 3px 0 rgba(0,0,0,.5))}
 .gFighterLock{top:28%}
-.gP1Art.shut>div{filter:brightness(0) opacity(.6)}
+.gP1Art.shut>div{filter:brightness(0) opacity(.6);filter:url(#gSilhouette) opacity(.6)}
 .gP1Lock{top:30%;transform:skewX(4deg)}
 .gP1Need{position:absolute;left:0;right:0;padding:0 9%;display:flex;flex-direction:column;align-items:center;text-align:center;gap:.15em;line-height:1.15;font-size:clamp(12px,.95vw,16px);letter-spacing:.06em;text-transform:uppercase;color:var(--gGold);text-shadow:0 2px 0 rgba(0,0,0,.5);transform:skewX(4deg)}
 .gP1Need b{color:#fff;font-weight:inherit}
@@ -773,6 +782,11 @@ export const GAME_CSS = `
 .gDiffLives.shut i>div{filter:brightness(0) opacity(.55)}
 .gPCard{flex:none;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;gap:1.2vh;min-width:clamp(150px,11vw,220px);padding:.8em 1.1em .9em;background:var(--gG2);border:4px solid var(--gEdge);box-shadow:0 10px 0 rgba(0,0,0,.4),inset 0 0 0 2px var(--gG3);transform:skewX(-4deg)}
 .gPCard>*{transform:skewX(4deg)}
+.gAbil{min-width:clamp(150px,11vw,220px);max-width:22vw;overflow:hidden}
+.gAbilHead{color:var(--gDim);text-transform:uppercase;letter-spacing:.1em;border-bottom:2px solid rgba(241,239,228,.2);padding-bottom:.5em}
+.gAbilList{flex:1;display:flex;flex-direction:column;justify-content:space-around;gap:.3em;overflow:hidden}
+.gAbilRow{text-transform:uppercase;letter-spacing:.06em;color:#fff;font-size:1.05em;line-height:1.1}
+@media (max-width:1279px){.gAbil{display:none}}
 .gPStats{flex:1;display:flex;flex-direction:column;justify-content:space-around}
 .gPStat{display:flex;align-items:center;gap:.5em;line-height:1;text-transform:uppercase;letter-spacing:.06em;color:var(--gDim)}
 .gPStatIcon{display:inline-flex;flex:none}

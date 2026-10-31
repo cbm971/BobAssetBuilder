@@ -667,6 +667,7 @@ import {
 import {
   pickupChangeRows,
   itemAbilityNames,
+  lookAbilityNames,
   effectBrief,
   weaponAbilityBrief,
   mergeEquip as mergeEquipForRows,
@@ -15601,5 +15602,15 @@ describe("🖍 outlines stay solid under a see-through fill", () => {
     expect(src).not.toContain('fadeGroup("t", pa, <>{outline}{body}</>)');
     expect(src).not.toContain('fadeGroup("t", pa, art)');
     expect(src.split('fadeGroup("t", pa, body)').length - 1).toBe(3);      // Static, MirrorGhost, Block
+  });
+});
+
+describe("a look's abilities on the character select", () => {
+  test("names what its gear grants, once each, and its weapon's", () => {
+    const look = { type: "character", name: "Super", effects: [{ type: "doubleJump" }, { type: "fly" }, { type: "doubleJump" }] };
+    expect(lookAbilityNames(look)).toEqual(itemAbilityNames(look));
+    expect(lookAbilityNames(look).length).toBe(2);
+    expect(lookAbilityNames({ type: "character", name: "Plain" })).toEqual([]);
+    expect(lookAbilityNames(null)).toEqual([]);
   });
 });

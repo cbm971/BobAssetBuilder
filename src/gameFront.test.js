@@ -153,7 +153,8 @@ describe("unlocks", () => {
     expect(r.bestScore).toBe(5000);
   });
   test("a stored record is cleaned on the way in", () => {
-    expect(normalizeGameRecord({ found: ["a", "a", 3, ""], kills: "7", bestScore: -2 })).toEqual({ ...newGameRecord(), found: ["a"], kills: 7, bestScore: 0 });
+    expect(normalizeGameRecord({ found: ["a", "a", 3, ""], kills: "7", bestScore: -2 })).toEqual({ ...newGameRecord(), found: ["a"], kills: 7, bestScore: 0, picked: 1 }); // no count yet: what was found counts once each
+    expect(normalizeGameRecord({ found: ["a", "b"], picked: 9 }).picked).toBe(9);
     expect(normalizeGameRecord("junk")).toEqual(newGameRecord());
   });
   test("the tabs list what can be carried, and what can be fought", () => {
@@ -182,17 +183,9 @@ describe("the character select (2026-10-18)", () => {
     expect(r.map((a) => a.name)).toEqual(["Bob", "Bobette", "Rob"]);
     expect(starterLooks([])).toEqual([]);
   });
-  test("the grid is never wider than six, fits seven as 4 + 3, and widens to 6 before a third row", () => {
-    expect(selectGridCols(7)).toBe(4);
-    expect(selectGridCols(10)).toBe(5);
-    expect(selectGridCols(11)).toBe(6);
-    expect(selectGridCols(12)).toBe(6);
-    expect(selectGridCols(13)).toBe(7); // two rows, not a zoomed-out third
-    expect(selectGridCols(14)).toBe(7);
-    expect(selectGridCols(16)).toBe(8);
-    expect(selectGridCols(17)).toBe(6);
-    expect(selectGridCols(1)).toBe(2);
-    expect(selectGridCols(40)).toBe(6);
+  test("the grid is five boxes to a row, however many starters there are", () => {
+    for (const n of [1, 4, 5, 7, 10, 14, 40]) expect(selectGridCols(n)).toBe(5);
+    expect(selectGridFill(14, selectGridCols(14))).toBe(1); // 5 + 5 + 4 + one Coming Soon
     expect(FIGHTER_PORTRAIT_FRAC).toBeGreaterThan(0.3);
     expect(SOON_PORTRAIT_FRAC).toBeGreaterThan(FIGHTER_PORTRAIT_FRAC);
   });
