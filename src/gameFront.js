@@ -331,8 +331,8 @@ export const normalizeGameOptions = (o) => {
 // name, lower case]: 1 Easy | 2 Medium | 3 Hard } }. Blake (2026-10-18): a yellow outline over the
 // medal's T for Medium, red for Hard; and Rob stays locked until the Trailor Park is beaten on Hard.
 // `met` is every conversation that has opened in a game, by the DIALOGUE's name (lower case) — Bob
-// Li unlocks on meeting Bob Li (Blake, 2026-10-24). The dialogue's name, not the speaker's: the NPC
-// who says it is called Chun Bobette so no look but the starter is named "Bob Li".
+// Li unlocks on meeting Bob Li (Blake, 2026-10-24). The dialogue's name, not the speaker's or the
+// look's: the Tree Tops 2 NPC who says it wears the Bob Li starter look itself (2026-10-31).
 // `picked` is every pickup (a record from before it was counted starts at the items already found), repeats and all (Super Bob opens at 500 collected); `kills` is every hostile
 // defeated and `rangedKills` the ones whose last blow was a shot or a throw (Agent Bob 1,000, Bob The Alien 500).
 export const newGameRecord = () => ({ found: [], defeated: [], floors: [], floorsWith: {}, floorsDiff: {}, met: [], bestScore: 0, kills: 0, rangedKills: 0, picked: 0, games: 0 });
