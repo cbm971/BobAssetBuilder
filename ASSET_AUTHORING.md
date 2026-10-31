@@ -115,7 +115,8 @@ Practical consequences:
 ```
 
 `kind` is one of: `rect`, `roundrect`, `circle`, `stadium`, `halfcircle` (dome, flat side down),
-`tri`, `tri2`, `diamond`, `pentagon`, `hexagon`, `star`, `trapezoid`.
+`tri`, `tri2`, `curlytri` (a triangle with rippled, tiered sides: curly hair), `diamond`,
+`pentagon`, `hexagon`, `star`, `trapezoid`.
 
 Optional: `"rot": 28` (degrees), `"outline": true`.
 

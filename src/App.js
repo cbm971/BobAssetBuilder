@@ -10689,8 +10689,30 @@ export const hazardDpsAt = (lv, x, y, pw, ph, CW, CH, alive) => {
 // the bottom, dome on top; rotate the piece for any other orientation.
 const SEMICIRCLE_SEGS = 32;
 const semicirclePoints = (n) => { const pts = []; for (let i = 0; i <= n; i++) { const t = Math.PI * (1 - i / n); pts.push([+(0.5 + 0.5 * Math.cos(t)).toFixed(4), +(1 - Math.sin(t)).toFixed(4)]); } return pts; };
+// The CURLY TRIANGLE (2026-10-31), from Blake's pen sketch for curly hair: a triangle whose two
+// slanted sides ripple in tiers. Each wave sweeps down and out to a rounded tip, then tucks back in,
+// and the waves grow from nothing at the top to full size at the base, so the top stays a point.
+// The last wave stops at its tip and drops straight to a flat base, the square corner his sketch has.
+// Built down the left side and mirrored, so the right side is its exact twin (a Flip keeps it a
+// curlytri instead of baking it into a poly). Normalised so it touches all four sides of its box.
+const CURLY_TRI_WAVES = 6;
+const CURLY_TRI_TIP = Math.pow(0.5, 1 / 1.9); // where a wave, sin(PI * s^1.9), sticks out furthest
+const curlyTrianglePoints = (n) => {
+  const len = Math.hypot(0.5, 1), steps = 6, left = [];
+  for (let i = 0; i < n; i++) for (let j = 0; j < steps; j++) {
+    const s = j / steps, t = (i + s) / (n - 1 + CURLY_TRI_TIP);
+    if (i === n - 1 && s > CURLY_TRI_TIP) break;
+    const out = 0.75 * (len / n) * Math.sin(Math.PI * Math.pow(s, 1.9)) * Math.min(1, (i + s) / 1.5) * (0.6 + 0.4 * t);
+    left.push([0.5 - 0.5 * t - out / len, t - 0.5 * out / len]);
+  }
+  left.push([left[left.length - 1][0], 1]);
+  const x0 = Math.min(...left.map(([x]) => x)), y0 = Math.min(...left.map(([, y]) => y));
+  const l = left.map(([x, y]) => [+((x - x0) / (1 - 2 * x0)).toFixed(4), +((y - y0) / (1 - y0)).toFixed(4)]);
+  return [...l, ...l.slice(1).reverse().map(([x, y]) => [+(1 - x).toFixed(4), y])];
+};
 export const SHAPE_POINTS = {
   tri: [[0.5, 0], [0, 1], [1, 1]],
+  curlytri: curlyTrianglePoints(CURLY_TRI_WAVES),
   halfcircle: semicirclePoints(SEMICIRCLE_SEGS),
   tri2: [[0, 0], [1, 1], [0, 1]], // right triangle — rotate via p.rot for any corner
   diamond: [[0.5, 0], [1, 0.5], [0.5, 1], [0, 0.5]],
@@ -11287,6 +11309,7 @@ export const flipPropFramesHorizontally = (frames, liveAngles, currentIndex) => 
 };
 export const SHAPE_LIST = [
   ["rect", "▮", "Square"], ["roundrect", "▣", "Rounded square"], ["circle", "●", "Circle"], ["stadium", "⬭", "Oval"], ["halfcircle", "◓", "Half circle"], ["tri", "▲", "Triangle"], ["tri2", "◺", "Half triangle"],
+  ["curlytri", null, "Curly triangle"], // no glyph for it exists; the picker draws the shape itself
   ["diamond", "◆", "Diamond"], ["pentagon", "⬠", "Pentagon"], ["hexagon", "⬡", "Hexagon"], ["star", "★", "Star"], ["trapezoid", "⏢", "Trapezoid"],
 ];
 // Curated web-safe fonts for 🔤 Text blocks: no external loading (network dependency / FOUC risk),
@@ -29055,7 +29078,7 @@ export default function AssetStudio({ game = false } = {}) {
   const lrow = (p) => (
     <div key={p.id} className={"lrow" + (p.id === selId ? " on" : "") + (groupIds.includes(p.id) ? " grp" : "") + (p._recovered ? " recovered" : "")} onClick={() => { if (!multiSelect) { setSelId(p.id); if (!groupIds.includes(p.id) && groupIds.length) setGroupIds([]); return; } const ng = toggleGroupMember(groupIds, p.id); setGroupIds(ng); if (ng.includes(p.id)) setSelId(p.id); else if (selId === p.id) setSelId(ng[ng.length - 1] || null); }}>
       <span className="lprev" style={{ background: p.kind === "emoji" ? "transparent" : p.color, ...(p.kind === "emoji" ? { fontFamily: ART_EMOJI_FONT } : {}) }}>{p.kind === "emoji" ? p.char : (p.kind === "circle" ? "●" : p.kind === "roundrect" ? "▣" : p.kind === "stadium" ? "⬭" : p.kind === "tri" ? "▲" : "")}</span>
-      <span className="lname">{p._recovered ? "🩹 " : ""}{p.locked ? "🔒 " : ""}{p.isHitbox ? "🎯 hitbox" : p.isMuzzle ? "🔴 muzzle" : (p.kind === "emoji" ? "emoji" : p.kind === "roundrect" ? "rounded square" : p.kind === "stadium" ? "oval" : p.kind)}{p.mirror ? " ⟷" : ""}{p.limb === "arm" ? " 💪" : p.limb === "leg" ? " 🦵" : ""}</span>
+      <span className="lname">{p._recovered ? "🩹 " : ""}{p.locked ? "🔒 " : ""}{p.isHitbox ? "🎯 hitbox" : p.isMuzzle ? "🔴 muzzle" : (p.kind === "emoji" ? "emoji" : p.kind === "roundrect" ? "rounded square" : p.kind === "stadium" ? "oval" : p.kind === "curlytri" ? "curly triangle" : p.kind)}{p.mirror ? " ⟷" : ""}{p.limb === "arm" ? " 💪" : p.limb === "leg" ? " 🦵" : ""}</span>
       <button onClick={(e) => { e.stopPropagation(); movePiece(p.id, 1); }}>▲</button>
       <button onClick={(e) => { e.stopPropagation(); movePiece(p.id, -1); }}>▼</button>
     </div>
@@ -29975,7 +29998,7 @@ export default function AssetStudio({ game = false } = {}) {
                 <div className="shapegrid">
                   {SHAPE_LIST.map(([kind, icon, label]) => (
                     <button key={kind} className="tile" onClick={() => { addBlock(kind); setShapePicker(false); }} >
-                      <span className="ti">{icon}</span><span className="tl">{label}</span>
+                      <span className="ti">{icon || <i className="tishape" style={{ clipPath: shapeClipPath(kind) }} />}</span><span className="tl">{label}</span>
                     </button>
                   ))}
                 </div>
@@ -30179,6 +30202,7 @@ html,body{margin:0;padding:0;background:#0f1117}
 .shapegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:10px;max-width:480px}
 .shapegrid .tile{padding:14px 8px;text-align:center}
 .shapegrid .ti{font-size:26px;display:block;margin-bottom:4px}
+.shapegrid .tishape{display:inline-block;width:0.85em;height:0.9em;background:currentColor;vertical-align:-0.1em}
 .tile{display:flex;flex-direction:column;align-items:flex-start;gap:4px;background:#171b26;border:1px solid #242a3a;border-radius:16px;padding:16px;cursor:pointer;text-align:left}
 .tile:hover{border-color:#4f7cf6;background:#1b2030}.tile.dress{border-color:#3a4a7a;background:#19203a}
 .ti{font-size:30px}.tl{font-weight:700;font-size:15px}.tb{font-size:12px;color:#9aa3b8}

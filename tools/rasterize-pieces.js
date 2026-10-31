@@ -40,8 +40,22 @@
 const fs = require("fs"), zlib = require("zlib");
 const W = 200, H = 260;
 const semicirclePoints = (n) => { const pts = []; for (let i = 0; i <= n; i++) { const t = Math.PI * (1 - i / n); pts.push([+(0.5 + 0.5 * Math.cos(t)).toFixed(4), +(1 - Math.sin(t)).toFixed(4)]); } return pts; };
+const curlyTrianglePoints = (n) => { // a copy of App.js curlyTrianglePoints
+  const len = Math.hypot(0.5, 1), steps = 6, left = [], tip = Math.pow(0.5, 1 / 1.9);
+  for (let i = 0; i < n; i++) for (let j = 0; j < steps; j++) {
+    const s = j / steps, t = (i + s) / (n - 1 + tip);
+    if (i === n - 1 && s > tip) break;
+    const out = 0.75 * (len / n) * Math.sin(Math.PI * Math.pow(s, 1.9)) * Math.min(1, (i + s) / 1.5) * (0.6 + 0.4 * t);
+    left.push([0.5 - 0.5 * t - out / len, t - 0.5 * out / len]);
+  }
+  left.push([left[left.length - 1][0], 1]);
+  const x0 = Math.min(...left.map(([x]) => x)), y0 = Math.min(...left.map(([, y]) => y));
+  const l = left.map(([x, y]) => [+((x - x0) / (1 - 2 * x0)).toFixed(4), +((y - y0) / (1 - y0)).toFixed(4)]);
+  return [...l, ...l.slice(1).reverse().map(([x, y]) => [+(1 - x).toFixed(4), y])];
+};
 const SHAPE_POINTS = {
   tri: [[0.5, 0], [0, 1], [1, 1]],
+  curlytri: curlyTrianglePoints(6),
   halfcircle: semicirclePoints(32),
   tri2: [[0, 0], [1, 1], [0, 1]],
   diamond: [[0.5, 0], [1, 0.5], [0.5, 1], [0, 0.5]],

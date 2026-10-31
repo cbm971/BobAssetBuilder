@@ -1808,6 +1808,36 @@ describe("creator shape picker", () => {
     const kinds = SHAPE_LIST.map(([k]) => k);
     expect(kinds.indexOf("stadium")).toBe(kinds.indexOf("circle") + 1);
   });
+
+  // 2026-10-31, from Blake's pen sketch for curly hair: a triangle with rippled, tiered sides.
+  test("offers a Curly triangle, drawn in the picker by its own outline", () => {
+    expect(SHAPE_LIST.filter(([kind]) => kind === "curlytri")).toEqual([["curlytri", null, "Curly triangle"]]);
+    expect(shapeClipPath("curlytri")).toMatch(/^polygon\(50% 0%,/);
+  });
+
+  test("the Curly triangle keeps a point on top, a flat base, and fills its box", () => {
+    const pts = SHAPE_POINTS.curlytri;
+    expect(pts[0]).toEqual([0.5, 0]);
+    expect(pts.filter(([, y]) => y === 0)).toHaveLength(1);
+    expect(pts.filter(([, y]) => y === 1)).toEqual([[0, 1], [1, 1]]);
+    expect(Math.min(...pts.map(([x]) => x))).toBe(0);
+    expect(Math.max(...pts.map(([x]) => x))).toBe(1);
+  });
+
+  test("its sides ripple: six waves a side, the last one's tip the square base corner", () => {
+    const pts = SHAPE_POINTS.curlytri;
+    const left = pts.slice(0, pts.findIndex(([, y]) => y === 1));
+    // how far each point sticks out past the straight edge from the top point to (0, 1)
+    const out = left.map(([x, y]) => 0.5 * (1 - y) - x);
+    const tips = out.filter((o, i) => i > 0 && o > out[i - 1] && (i === out.length - 1 || o >= out[i + 1]));
+    expect(tips).toHaveLength(6);
+    expect(left[left.length - 1][0]).toBe(0);
+  });
+
+  test("it is its own mirror image, so a Flip keeps it a Curly triangle", () => {
+    const p = { id: "a", kind: "curlytri", x: 10, y: 10, w: 30, h: 40 };
+    expect(flipPiecesHorizontally([p])[0].kind).toBe("curlytri");
+  });
 });
 
 describe("the Oval's ends stay round however far it is stretched", () => {
@@ -13769,7 +13799,7 @@ describe("editorReachIssues", () => {
     expect([...PROP_DEFAULT_SIZES].sort((a, b) => a - b)).toEqual(PROP_DEFAULT_SIZES);
   });
   test("every Shapes… button, Fill/Curve polys, text and emoji are makeable kinds", () => {
-    for (const k of ["rect", "roundrect", "circle", "stadium", "halfcircle", "tri", "tri2", "diamond", "pentagon", "hexagon", "star", "trapezoid", "poly", "text", "emoji"]) expect(EDITOR_PIECE_KINDS.has(k)).toBe(true);
+    for (const k of ["rect", "roundrect", "circle", "stadium", "halfcircle", "tri", "tri2", "curlytri", "diamond","pentagon", "hexagon", "star", "trapezoid", "poly", "text", "emoji"]) expect(EDITOR_PIECE_KINDS.has(k)).toBe(true);
   });
 });
 // 2026-10-09: "THERE IS NO SAVE BUTTON ON JACKETS/CAPES". The asset editor shows 💾 Save only when
